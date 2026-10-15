@@ -125,11 +125,6 @@ jobs:
         uses: actions/checkout@v7
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - name: Authenticate Settings Reader
-        if: ${{ !inputs.check_only && inputs.service != 'vault' }}
-        env:
-          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
-        run: python3 deploy/prod/cd/vault-auth.py --role prod-settings-plan
       - name: Select Settings And Save Previous Images
         id: plan
         env:
@@ -140,7 +135,11 @@ jobs:
           INFRASTRUCTURE: ${{ inputs.service == 'infrastructure' }}
           CHECK_ONLY: ${{ inputs.check_only || false }}
           GH_VARIABLES_JSON: ${{ toJSON(vars) }}
-          GH_SECRETS_JSON: ${{ toJSON(secrets) }}
+          # Only shared inputs participate in the plan; bind secrets individually.
+          GH_SECRET_COWORK_GITHUB_INTERNAL_API_KEY: ${{ !inputs.check_only && inputs.service != 'vault' && secrets.COWORK_GITHUB_INTERNAL_API_KEY || '' }}
+          GH_SECRET_JWT_SECRET: ${{ !inputs.check_only && inputs.service != 'vault' && secrets.JWT_SECRET || '' }}
+          GH_SECRET_LIVEKIT_API_KEY: ${{ !inputs.check_only && inputs.service != 'vault' && secrets.LIVEKIT_API_KEY || '' }}
+          GH_SECRET_LIVEKIT_API_SECRET: ${{ !inputs.check_only && inputs.service != 'vault' && secrets.LIVEKIT_API_SECRET || '' }}
           GH_TOKEN: ${{ github.token }}
           VAULT_ADDR: ${{ vars.VAULT_ADDR }}
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
@@ -176,18 +175,45 @@ jobs:
         env:
           SETTINGS_ATTEMPT: ${{ needs.settings-plan.outputs.attempt }}
         run: python3 deploy/prod/cd/rollout-settings.py check-attempt
-      - name: Authenticate Settings Writer
-        env:
-          TARGET: ${{ matrix.target }}
-          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
-        run: python3 deploy/prod/cd/vault-auth.py --role "prod-settings-$TARGET"
       - name: Publish Declared GitHub Inputs To Vault
         env:
           TARGET: ${{ matrix.target }}
           VAULT_ADDR: ${{ vars.VAULT_ADDR }}
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
           GH_VARIABLES_JSON: ${{ toJSON(vars) }}
-          GH_SECRETS_JSON: ${{ toJSON(secrets) }}
+          # The catalog-derived matrix selects which explicit bindings reach this target.
+          GH_SECRET_ACCOUNT_CREDENTIAL_ENCRYPTION_KEY: ${{ contains(matrix.secret_names, 'ACCOUNT_CREDENTIAL_ENCRYPTION_KEY') && secrets.ACCOUNT_CREDENTIAL_ENCRYPTION_KEY || '' }}
+          GH_SECRET_ACCOUNT_SHARE_OAUTH_STATE_SECRET: ${{ contains(matrix.secret_names, 'ACCOUNT_SHARE_OAUTH_STATE_SECRET') && secrets.ACCOUNT_SHARE_OAUTH_STATE_SECRET || '' }}
+          GH_SECRET_CONFIG_CLIENT_PASSWORD: ${{ contains(matrix.secret_names, 'CONFIG_CLIENT_PASSWORD') && secrets.CONFIG_CLIENT_PASSWORD || '' }}
+          GH_SECRET_COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET') && secrets.COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET || '' }}
+          GH_SECRET_COWORK_GITHUB_INTERNAL_API_KEY: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_INTERNAL_API_KEY') && secrets.COWORK_GITHUB_INTERNAL_API_KEY || '' }}
+          GH_SECRET_COWORK_GITHUB_PRIVATE_KEY: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_PRIVATE_KEY') && secrets.COWORK_GITHUB_PRIVATE_KEY || '' }}
+          GH_SECRET_COWORK_GITHUB_WEBHOOK_SECRET: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_WEBHOOK_SECRET') && secrets.COWORK_GITHUB_WEBHOOK_SECRET || '' }}
+          GH_SECRET_DATAGSM_WEBHOOK_SECRET: ${{ contains(matrix.secret_names, 'DATAGSM_WEBHOOK_SECRET') && secrets.DATAGSM_WEBHOOK_SECRET || '' }}
+          GH_SECRET_DB_ADMIN_PASSWORD: ${{ contains(matrix.secret_names, 'DB_ADMIN_PASSWORD') && secrets.DB_ADMIN_PASSWORD || '' }}
+          GH_SECRET_DB_MONITORING_PASSWORD: ${{ contains(matrix.secret_names, 'DB_MONITORING_PASSWORD') && secrets.DB_MONITORING_PASSWORD || '' }}
+          GH_SECRET_DB_PASSWORD: ${{ contains(matrix.secret_names, 'DB_PASSWORD') && secrets.DB_PASSWORD || '' }}
+          GH_SECRET_DEV_ORIGIN_CREDENTIAL: ${{ contains(matrix.secret_names, 'DEV_ORIGIN_CREDENTIAL') && secrets.DEV_ORIGIN_CREDENTIAL || '' }}
+          GH_SECRET_DISCORD_MONITORING_ALERT_WEBHOOK: ${{ contains(matrix.secret_names, 'DISCORD_MONITORING_ALERT_WEBHOOK') && secrets.DISCORD_MONITORING_ALERT_WEBHOOK || '' }}
+          GH_SECRET_DISCORD_WEBHOOK_URL: ${{ contains(matrix.secret_names, 'DISCORD_WEBHOOK_URL') && secrets.DISCORD_WEBHOOK_URL || '' }}
+          GH_SECRET_ELASTICSEARCH_ADMIN_PASSWORD: ${{ contains(matrix.secret_names, 'ELASTICSEARCH_ADMIN_PASSWORD') && secrets.ELASTICSEARCH_ADMIN_PASSWORD || '' }}
+          GH_SECRET_ELASTICSEARCH_URL: ${{ contains(matrix.secret_names, 'ELASTICSEARCH_URL') && secrets.ELASTICSEARCH_URL || '' }}
+          GH_SECRET_FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET') && secrets.FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET || '' }}
+          GH_SECRET_FCM_CREDENTIALS_JSON: ${{ contains(matrix.secret_names, 'FCM_CREDENTIALS_JSON') && secrets.FCM_CREDENTIALS_JSON || '' }}
+          GH_SECRET_GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET') && secrets.GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET || '' }}
+          GH_SECRET_GRAFANA_ADMIN_PASSWORD: ${{ contains(matrix.secret_names, 'GRAFANA_ADMIN_PASSWORD') && secrets.GRAFANA_ADMIN_PASSWORD || '' }}
+          GH_SECRET_JIRA_ACCOUNT_SHARE_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'JIRA_ACCOUNT_SHARE_CLIENT_SECRET') && secrets.JIRA_ACCOUNT_SHARE_CLIENT_SECRET || '' }}
+          GH_SECRET_JWT_SECRET: ${{ contains(matrix.secret_names, 'JWT_SECRET') && secrets.JWT_SECRET || '' }}
+          GH_SECRET_LIVEKIT_API_KEY: ${{ contains(matrix.secret_names, 'LIVEKIT_API_KEY') && secrets.LIVEKIT_API_KEY || '' }}
+          GH_SECRET_LIVEKIT_API_SECRET: ${{ contains(matrix.secret_names, 'LIVEKIT_API_SECRET') && secrets.LIVEKIT_API_SECRET || '' }}
+          GH_SECRET_NOTION_ACCOUNT_SHARE_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'NOTION_ACCOUNT_SHARE_CLIENT_SECRET') && secrets.NOTION_ACCOUNT_SHARE_CLIENT_SECRET || '' }}
+          GH_SECRET_S3_ACCESS_KEY: ${{ contains(matrix.secret_names, 'S3_ACCESS_KEY') && secrets.S3_ACCESS_KEY || '' }}
+          GH_SECRET_S3_ADMIN_ACCESS_KEY: ${{ contains(matrix.secret_names, 'S3_ADMIN_ACCESS_KEY') && secrets.S3_ADMIN_ACCESS_KEY || '' }}
+          GH_SECRET_S3_ADMIN_SECRET_KEY: ${{ contains(matrix.secret_names, 'S3_ADMIN_SECRET_KEY') && secrets.S3_ADMIN_SECRET_KEY || '' }}
+          GH_SECRET_S3_SECRET_KEY: ${{ contains(matrix.secret_names, 'S3_SECRET_KEY') && secrets.S3_SECRET_KEY || '' }}
+          GH_SECRET_TEAM_GITHUB_STATE_SECRET: ${{ contains(matrix.secret_names, 'TEAM_GITHUB_STATE_SECRET') && secrets.TEAM_GITHUB_STATE_SECRET || '' }}
+          GH_SECRET_VAULT_ROLE_ID: ${{ contains(matrix.secret_names, 'VAULT_ROLE_ID') && secrets.VAULT_ROLE_ID || '' }}
+          GH_SECRET_VAULT_SECRET_ID: ${{ contains(matrix.secret_names, 'VAULT_SECRET_ID') && secrets.VAULT_SECRET_ID || '' }}
         run: |
           python3 deploy/prod/cd/github-settings.py sync --target "$TARGET" \
             --journal "$RUNNER_TEMP/settings/journal-$TARGET.json" \
@@ -634,11 +660,6 @@ jobs:
       - name: Inspect Recovery Metadata
         id: scope
         run: python3 deploy/prod/cd/rollout-settings.py recovery-scope --directory "$RUNNER_TEMP/settings"
-      - name: Authenticate Settings Recovery
-        if: ${{ steps.scope.outputs.has_journals == 'true' }}
-        env:
-          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
-        run: python3 deploy/prod/cd/vault-auth.py --role prod-settings-recovery
       - name: Restore Previous Vault Versions
         if: ${{ steps.scope.outputs.has_journals == 'true' }}
         id: restore
