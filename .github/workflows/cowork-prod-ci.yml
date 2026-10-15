@@ -30,7 +30,7 @@ jobs:
             const title = context.payload.pull_request.title;
             const allowedScopes = [
               'global', 'gateway', 'authorization', 'user',
-              'team', 'project', 'channel', 'roadmap', 'chat', 'voice', 'promotion',
+              'team', 'project', 'channel', 'roadmap', 'chat', 'voice', 'promotion', 'github',
               'config', 'notification', 'preference', 'ci/cd'
             ];
 

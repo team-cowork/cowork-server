@@ -31,7 +31,7 @@ jobs:
             const prNumber = context.payload.pull_request.number;
             const allowedScopes = [
               'global', 'gateway', 'authorization', 'user',
-              'team', 'project', 'channel', 'roadmap', 'chat', 'dm', 'voice', 'promotion',
+              'team', 'project', 'channel', 'roadmap', 'chat', 'dm', 'voice', 'promotion', 'github',
               'config', 'notification', 'preference', 'ci/cd', 'monitoring'
             ];
 
