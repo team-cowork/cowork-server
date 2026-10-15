@@ -1,11 +1,11 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, mongo } from 'mongoose';
-import { UserProfileProjection } from '../schema';
+import {Injectable} from '@nestjs/common';
+import {InjectModel} from '@nestjs/mongoose';
+import {Model, mongo} from 'mongoose';
+import {UserProfileProjection} from '../schema';
 import {
     activeProjectionCondition,
     deletedProjectionCondition,
-    projectionUpdateApplied,
+    isProjectionUpdateApplied,
     projectionTimestampFields,
     projectionSourceVersion,
     PROJECTION_EPOCH,
@@ -28,58 +28,58 @@ export class UserProfileProjectionRepository {
     constructor(@InjectModel(UserProfileProjection.name) private readonly model: Model<UserProfileProjection>) {}
 
     async findByUserIds(userIds: number[]): Promise<UserProfileProjectionView[]> {
-        return userIds.length === 0 ? [] : this.model.find({ userId: { $in: userIds }, deleted: { $ne: true } }).lean<UserProfileProjectionView[]>();
+        return userIds.length === 0 ? [] : this.model.find({userId: {$in: userIds}, deleted: {$ne: true}}).lean<UserProfileProjectionView[]>();
     }
 
     async upsert(profile: VersionedUserProfileProjectionView): Promise<boolean> {
-        const shouldApply = activeProjectionCondition(profile.sourceVersion);
+        const applyCondition = activeProjectionCondition(profile.sourceVersion);
         const result = await this.model.updateOne(
-            { userId: profile.userId },
+            {userId: profile.userId},
             [{
                 $set: {
                     userId: profile.userId,
-                    name: { $cond: [shouldApply, { $literal: profile.name }, { $ifNull: ['$name', ''] }] },
+                    name: {$cond: [applyCondition, {$literal: profile.name}, {$ifNull: ['$name', '']}]},
                     nickname: {
-                        $cond: [shouldApply, { $literal: profile.nickname }, { $ifNull: ['$nickname', null] }],
+                        $cond: [applyCondition, {$literal: profile.nickname}, {$ifNull: ['$nickname', null]}],
                     },
                     githubId: {
-                        $cond: [shouldApply, { $literal: profile.githubId }, { $ifNull: ['$githubId', null] }],
+                        $cond: [applyCondition, {$literal: profile.githubId}, {$ifNull: ['$githubId', null]}],
                     },
-                    deleted: { $cond: [shouldApply, false, { $ifNull: ['$deleted', false] }] },
+                    deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
-                        $cond: [shouldApply, profile.occurredAt, { $ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH] }],
+                        $cond: [applyCondition, profile.occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
                     },
                     sourceVersion: {
-                        $cond: [shouldApply, profile.sourceVersion, projectionSourceVersion],
+                        $cond: [applyCondition, profile.sourceVersion, projectionSourceVersion],
                     },
-                    ...projectionTimestampFields(shouldApply, profile.occurredAt),
+                    ...projectionTimestampFields(applyCondition, profile.occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false, updatePipeline: true },
+            {upsert: true, timestamps: false, updatePipeline: true},
         );
-        return projectionUpdateApplied(result);
+        return isProjectionUpdateApplied(result);
     }
 
     async remove(userId: number, occurredAt: Date, sourceVersion: mongo.Long): Promise<boolean> {
-        const shouldApply = deletedProjectionCondition(sourceVersion);
+        const applyCondition = deletedProjectionCondition(sourceVersion);
         const result = await this.model.updateOne(
-            { userId },
+            {userId},
             [{
                 $set: {
                     userId,
-                    name: { $ifNull: ['$name', ''] },
-                    nickname: { $ifNull: ['$nickname', null] },
-                    githubId: { $ifNull: ['$githubId', null] },
-                    deleted: { $cond: [shouldApply, true, { $ifNull: ['$deleted', false] }] },
+                    name: {$ifNull: ['$name', '']},
+                    nickname: {$ifNull: ['$nickname', null]},
+                    githubId: {$ifNull: ['$githubId', null]},
+                    deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
-                        $cond: [shouldApply, occurredAt, { $ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH] }],
+                        $cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
                     },
-                    sourceVersion: { $cond: [shouldApply, sourceVersion, projectionSourceVersion] },
-                    ...projectionTimestampFields(shouldApply, occurredAt),
+                    sourceVersion: {$cond: [applyCondition, sourceVersion, projectionSourceVersion]},
+                    ...projectionTimestampFields(applyCondition, occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false, updatePipeline: true },
+            {upsert: true, timestamps: false, updatePipeline: true},
         );
-        return projectionUpdateApplied(result);
+        return isProjectionUpdateApplied(result);
     }
 }
