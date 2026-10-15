@@ -13,6 +13,7 @@ paths:
 
 - Keep shared service settings in Config Server. A new Config client needs both `local` and `prod` profiles.
 - For production, GitHub Variables and Secrets are the editable source; CD publishes declared inputs to Vault before recreating containers. Put module-only inputs in `Prod-CD(<module>)`; put shared inputs once at repository scope. Vault carries the applied values and versions.
+- When declaring a secret in `deploy/prod/configuration.json`, add its `GH_SECRET_<NAME>` binding to the sync step of `.github/workflows/cowork-prod-cd.yml`; a shared secret also needs a binding in the settings plan step. `deploy/validate.py` rejects mismatches.
 - Derive Config Server accounts from each client's declared username, password and profile. Do not maintain a second copy of client credentials or grant one client another application's settings.
 - Keep VM placement, ports, volumes and resource limits in the slot/IaC code. Configuration updates must preserve database and object-storage data.
 - Use the same slot environment names across runtimes. Explicit slot inputs override the corresponding remote settings. Keep driver-specific conversion in the app's existing configuration code, not in CD or a bootstrap wrapper.
