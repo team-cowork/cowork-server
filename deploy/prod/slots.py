@@ -8,7 +8,7 @@ from pathlib import Path
 
 NAME = re.compile(r"[a-z][a-z0-9-]{0,63}\Z")
 ENV = re.compile(r"[A-Z][A-Z0-9_]*\Z")
-SECRET_NAME = re.compile(r"PASSWORD|SECRET|TOKEN|PRIVATE_KEY|API_KEY|ACCOUNTS_JSON|ROLE_ID")
+SECRET_NAME = re.compile(r"PASSWORD|SECRET|TOKEN|PRIVATE_KEY|API_KEY|UNSEAL_KEY|ACCOUNTS_JSON|ROLE_ID")
 PRIVATE = tuple(ipaddress.ip_network(n) for n in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"))
 RESERVED = {"BASH_ENV", "ENV", "PATH", "HOME", "SHELLOPTS", "BASHOPTS", "PS4", "CDPATH", "GLOBIGNORE", "IFS", "LD_PRELOAD", "LD_LIBRARY_PATH", "DOCKER_HOST", "DOCKER_CONFIG", "DEPLOY_SETTINGS_DIR", "DEPLOY_STATE_DIR", "DEPLOY_SHA", "DEPLOY_TARGET", "DEPLOY_IMAGE_TAG", "DEPLOY_IMAGE_OWNER", "RELEASE_ROOT", "PORT", "APP_ADVERTISE_ADDRESS", "APP_ADVERTISE_PORT", "APP_SERVICE_NAME", "BIND_IP", "ADVERTISE_IP", "HOST_PORT", "CONTAINER_PORT", "HEALTH_PATH", "HEALTH_TIMEOUT_SECONDS", "STOP_TIMEOUT_SECONDS", "SLOT_KIND"}
 RESERVED_PREFIXES = ("DEPLOY_", "PYTHON", "BASH", "LD_", "GIT_", "DOCKER_", "SSH_")
@@ -51,7 +51,7 @@ def validate_variables(values):
 
 def validate(value, target):
     demand(NAME.fullmatch(target), "Invalid slot target")
-    demand(isinstance(value, dict) and set(value) <= {"schema_version", "service", "kind", "runtime", "secrets", "github_secrets", "container", "peers"}, "Invalid slot sections")
+    demand(isinstance(value, dict) and set(value) <= {"schema_version", "service", "kind", "runtime", "secrets", "container", "peers"}, "Invalid slot sections")
     demand(value.get("schema_version") == 1, "Unsupported slot schema")
     demand(isinstance(value.get("service"), str) and NAME.fullmatch(value["service"]), "Invalid slot service")
     demand(value.get("kind") in {"application", "config", "infrastructure"}, "Invalid slot kind")
@@ -70,16 +70,6 @@ def validate(value, target):
             demand(isinstance(ref["path"], str) and all(NAME.fullmatch(p) for p in ref["path"].split("/")), "Invalid Vault secret path")
             demand(isinstance(ref["key"], str) and ref["key"], "Invalid Vault secret key")
     demand(not set(secrets.get("runtime", {})).intersection(secrets.get("application", {})), "Duplicate secret environment key")
-    github_secrets = value.get("github_secrets", {})
-    demand(isinstance(github_secrets, dict), "GitHub secret references must be an object")
-    if github_secrets:
-        demand(value["kind"] == "infrastructure" and value["service"] == "monitoring"
-               and github_secrets == {"DISCORD_MONITORING_ALERT_WEBHOOK": "DISCORD_MONITORING_ALERT_WEBHOOK"},
-               "Only monitoring can consume its GitHub monitoring webhook")
-        demand(not set(github_secrets).intersection(value.get("runtime", {}))
-               and not set(github_secrets).intersection(secrets.get("runtime", {}))
-               and not set(github_secrets).intersection(secrets.get("application", {})),
-               "Secret source declarations must not overlap")
     if value["kind"] == "infrastructure":
         demand("container" not in value and "peers" not in value, "Infrastructure lifecycle owns its containers and ingress")
         return value
@@ -158,9 +148,6 @@ def environment(slot, variables=None):
 def host_network(directory=None):
     base = directory or Path(__file__).parent
     path = base / "network/host-network.json"
-    if directory is not None and not path.exists():
-        # Replay can read releases from before the network directory was introduced.
-        path = base / "host-network.json"
     demand(path.is_file() and not path.is_symlink(), "Missing regular host network contract")
     value = json.loads(path.read_text(), object_pairs_hook=pairs)
     demand(isinstance(value, dict) and set(value) == {"name", "mtu"}, "Invalid host network contract")

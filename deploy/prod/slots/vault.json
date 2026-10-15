@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "service": "vault",
+  "kind": "infrastructure",
+  "runtime": {
+    "VAULT_BIND_IP": "10.0.0.91",
+    "VAULT_HOST_PORT": "8200",
+    "VAULT_COMPOSE_PROJECT": "vault-rebuild-20261013",
+    "VAULT_DATA_VOLUME": "cowork-vault-data-20261013",
+    "VAULT_EXTERNAL_HOST": "cowork-vault.https.gsmsv.site"
+  },
+  "secrets": {
+    "runtime": {
+      "VAULT_UNSEAL_KEY": {
+        "path": "slot-secrets/vault",
+        "key": "VAULT_UNSEAL_KEY"
+      }
+    }
+  }
+}
