@@ -1,19 +1,19 @@
-import { MongooseModule } from '@nestjs/mongoose';
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { S3Client } from '@aws-sdk/client-s3';
-import { AttachmentUploadRepository } from './attachment-upload.repository';
-import { AttachmentUpload, AttachmentUploadSchema } from './attachment-upload.schema';
-import { S3_CLIENT, S3_SIGNING_CLIENT } from './object-storage.constants';
-import { buildObjectStorageConfig } from './object-storage.config';
-import { ObjectStorageService } from './object-storage.service';
+import {MongooseModule} from '@nestjs/mongoose';
+import {Module} from '@nestjs/common';
+import {ConfigModule, ConfigService} from '@nestjs/config';
+import {S3Client} from '@aws-sdk/client-s3';
+import {AttachmentUploadRepository} from './attachment-upload.repository';
+import {AttachmentUpload, AttachmentUploadSchema} from './attachment-upload.schema';
+import {S3_CLIENT, S3_SIGNING_CLIENT} from './object-storage.constants';
+import {buildObjectStorageConfig} from './object-storage.config';
+import {ObjectStorageService} from './object-storage.service';
 
-function createClient(configService: ConfigService, signing = false): S3Client {
+function createClient(configService: ConfigService, isSigning = false): S3Client {
     const config = buildObjectStorageConfig(configService);
     return new S3Client({
-        endpoint: signing ? config.publicApiBaseUrl : config.internalEndpoint,
+        endpoint: isSigning ? config.publicApiBaseUrl : config.internalEndpoint,
         region: config.region,
-        credentials: { accessKeyId: config.accessKey, secretAccessKey: config.secretKey },
+        credentials: {accessKeyId: config.accessKey, secretAccessKey: config.secretKey},
         forcePathStyle: true,
         // A browser uploads the body later; do not sign the SDK's checksum for an empty body.
         requestChecksumCalculation: 'WHEN_REQUIRED',
@@ -21,7 +21,7 @@ function createClient(configService: ConfigService, signing = false): S3Client {
 }
 
 @Module({
-    imports: [ConfigModule, MongooseModule.forFeature([{ name: AttachmentUpload.name, schema: AttachmentUploadSchema }])],
+    imports: [ConfigModule, MongooseModule.forFeature([{name: AttachmentUpload.name, schema: AttachmentUploadSchema}])],
     providers: [
         {
             provide: S3_CLIENT,

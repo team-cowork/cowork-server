@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
-import { Counter, Histogram, register } from 'prom-client';
-import { ProjectionRunMode } from './projection-dataset.schema';
+import {Injectable} from '@nestjs/common';
+import {Counter, Histogram, register} from 'prom-client';
+import {ProjectionRunMode} from './projection-dataset.schema';
 
 @Injectable()
 export class ProjectionMetricsService {
@@ -27,24 +27,24 @@ export class ProjectionMetricsService {
     }
 
     recordReplay(stream: string, mode: ProjectionRunMode): void {
-        this.replayRecords.inc({ stream, mode });
+        this.replayRecords.inc({stream, mode});
     }
 
     recordCatchup(stream: string, mode: ProjectionRunMode, seconds: number): void {
-        this.catchupSeconds.observe({ stream, mode }, seconds);
+        this.catchupSeconds.observe({stream, mode}, seconds);
     }
 
     recordRebuild(stream: string, result: 'requested' | 'completed' | 'failed'): void {
-        this.rebuilds.inc({ stream, result });
+        this.rebuilds.inc({stream, result});
     }
 
     private counter<L extends string>(name: string, help: string, labelNames: L[]): Counter<L> {
         return (register.getSingleMetric(name) as Counter<L> | undefined)
-            ?? new Counter({ name, help, labelNames });
+            ?? new Counter({name, help, labelNames});
     }
 
     private histogram<L extends string>(name: string, help: string, labelNames: L[]): Histogram<L> {
         return (register.getSingleMetric(name) as Histogram<L> | undefined)
-            ?? new Histogram({ name, help, labelNames });
+            ?? new Histogram({name, help, labelNames});
     }
 }

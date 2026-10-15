@@ -1,17 +1,23 @@
-import { mongo } from 'mongoose';
+import {mongo} from 'mongoose';
 
 const ISO_EVENT_TIME = /^(\d{4})-(\d{2})-(\d{2})t(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,9}))?(z|[+-]\d{2}:?\d{2})?$/iu;
 const NANOS_PER_MILLISECOND = 1_000_000n;
 const MAX_SIGNED_LONG = 9_223_372_036_854_775_807n;
 
 export type ParsedEventTime = {
-    /** 표시와 기존 필드 호환을 위한 millisecond 정밀도 값. */
+    /**
+    표시와 기존 필드 호환을 위한 millisecond 정밀도 값.
+    */
     occurredAt: Date;
-    /** 실제 ordering에 사용하는 epoch nanoseconds BSON Long. */
+    /**
+    실제 ordering에 사용하는 epoch nanoseconds BSON Long.
+    */
     sourceVersion: mongo.Long;
 };
 
-/** ISO-8601 원문의 최대 9자리 fraction을 보존해 epoch nanoseconds로 변환한다. */
+/**
+ISO-8601 원문의 최대 9자리 fraction을 보존해 epoch nanoseconds로 변환한다.
+*/
 export function parseEventTime(value: unknown): ParsedEventTime | null {
     if (typeof value !== 'string') {
         return null;
@@ -45,7 +51,7 @@ export function parseEventTime(value: unknown): ParsedEventTime | null {
     }
 
     let offsetMinutes = 0;
-    if (zone && zone.toUpperCase() !== 'Z') {
+    if (typeof zone === 'string' && zone.toUpperCase() !== 'Z') {
         const offset = zone.slice(1).replace(':', '');
         const offsetHours = Number(offset.slice(0, 2));
         const offsetMinutePart = Number(offset.slice(2));
