@@ -4,26 +4,26 @@ import {
     OnModuleInit,
     Logger,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Kafka, Producer } from 'kafkajs';
-import { DicoshotService } from 'dicoshot-nest';
-import { SendMessageDto } from '../dto';
-import { getRequiredCsvConfig } from '../../common/config/config.util';
-import { buildErrorFields } from '../../common/util/discord-alert.util';
-import { MessageScope } from '../service';
-import { ConfirmedAttachment } from '../../storage/attachment-upload.schema';
-import { CHAT_MESSAGE_CONTRACT_VERSION, CHAT_MESSAGE_TOPIC } from './event/chat-message-contract';
-import { ChatMessageEvent } from './event/chat-message.event';
+import {ConfigService} from '@nestjs/config';
+import {Kafka, Producer} from 'kafkajs';
+import {DicoshotService} from 'dicoshot-nest';
+import {SendMessageDto} from '../dto';
+import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {buildErrorFields} from '../../common/util/discord-alert.util';
+import {MessageScope} from '../service';
+import {ConfirmedAttachment} from '../../storage/attachment-upload.schema';
+import {CHAT_MESSAGE_CONTRACT_VERSION, CHAT_MESSAGE_TOPIC} from './event/chat-message-contract';
+import {ChatMessageEvent} from './event/chat-message.event';
 
 export type MessageSendInput = Pick<SendMessageDto, 'content' | 'type' | 'parentMessageId' | 'clientMessageId'>
-    & MessageScope & { attachments?: ConfirmedAttachment[] };
+    & MessageScope & {attachments?: ConfirmedAttachment[]};
 
 /**
- * 채팅 메시지 이벤트를 Kafka `chat.message.v2` 토픽으로 발행하는 프로듀서.
- *
- * **지연 연결 패턴(Lazy Connect)**:
- * `onModuleInit`에서 연결을 시작하지만 실패해도 모듈 초기화는 정상 완료된다.
- * 실제 메시지 발행 시점에 {@link ensureConnected}를 호출하여 연결 상태를 보장한다.
+ 채팅 메시지 이벤트를 Kafka `chat.message.v2` 토픽으로 발행하는 프로듀서.
+
+ 지연 연결 패턴(Lazy Connect)**:
+ `onModuleInit`에서 연결을 시작하지만 실패해도 모듈 초기화는 정상 완료된다.
+ 실제 메시지 발행 시점에 {@link ensureConnected}를 호출하여 연결 상태를 보장한다.
  */
 @Injectable()
 export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
@@ -38,17 +38,17 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
     ) {}
 
     /**
-     * 모듈 초기화 시 Kafka 프로듀서 인스턴스를 생성하고 백그라운드 연결을 시도한다.
-     *
-     * 연결 실패는 오류 로그로만 기록되며, 모듈 초기화 자체는 성공으로 처리된다.
-     * 실제 연결은 첫 번째 메시지 발행 시 {@link ensureConnected}를 통해 재시도된다.
+     모듈 초기화 시 Kafka 프로듀서 인스턴스를 생성하고 백그라운드 연결을 시도한다.
+
+     연결 실패는 오류 로그로만 기록되며, 모듈 초기화 자체는 성공으로 처리된다.
+     실제 연결은 첫 번째 메시지 발행 시 {@link ensureConnected}를 통해 재시도된다.
      */
     onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat',
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
-        this.producer = kafka.producer({ idempotent: true });
+        this.producer = kafka.producer({idempotent: true});
         void this.ensureConnected().catch((error: unknown) => {
             this.logger.error(`Kafka producer bootstrap connect failed: ${this.formatError(error)}`);
             void this.dicoshot.sendCustom({
@@ -56,7 +56,7 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
                 description: 'cowork-chat의 chat.message.v2 producer가 부트스트랩 연결에 실패했습니다.',
                 color: 'danger',
                 fields: [
-                    { name: 'Topic', value: 'chat.message.v2', inline: true },
+                    {name: 'Topic', value: 'chat.message.v2', inline: true},
                     ...buildErrorFields(error),
                 ],
             }).catch(() => {/* Alert delivery is best-effort. */});
@@ -64,9 +64,9 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * 모듈 종료 시 Kafka 프로듀서 연결을 해제한다.
-     *
-     * 연결된 상태일 때만 disconnect를 호출한다.
+     모듈 종료 시 Kafka 프로듀서 연결을 해제한다.
+
+     연결된 상태일 때만 disconnect를 호출한다.
      */
     async onModuleDestroy() {
         if (this.isConnected) {
@@ -74,22 +74,24 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
         }
     }
 
-    /** Kafka producer 연결 상태를 확인한다 (readiness 체크용). */
+    /**
+    Kafka producer 연결 상태를 확인한다 (readiness 체크용).
+    */
     isReady(): boolean {
         return this.isConnected;
     }
 
     /**
-     * 채팅 메시지 이벤트를 Kafka `chat.message.v2` 토픽으로 발행한다.
-     *
-     * 메시지 키는 `channelId`로 설정되어 같은 채널의 메시지가 동일 파티션에 순서대로 전달된다.
-     * 발행 전 {@link ensureConnected}를 호출하여 연결을 보장한다.
-     *
-     * @param channelId - 메시지가 속한 채널 ID (파티션 키로 사용됨)
-     * @param dto - 클라이언트로부터 수신한 메시지 전송 DTO
-     * @param authorId - 메시지 작성자의 사용자 ID
-     * @param authorRole - 메시지 작성자의 역할
-     * @throws {Error} Kafka 연결 또는 메시지 발행 실패 시
+     채팅 메시지 이벤트를 Kafka `chat.message.v2` 토픽으로 발행한다.
+
+     메시지 키는 `channelId`로 설정되어 같은 채널의 메시지가 동일 파티션에 순서대로 전달된다.
+     발행 전 {@link ensureConnected}를 호출하여 연결을 보장한다.
+
+     @param channelId - 메시지가 속한 채널 ID (파티션 키로 사용됨)
+     @param dto - 클라이언트로부터 수신한 메시지 전송 DTO
+     @param authorId - 메시지 작성자의 사용자 ID
+     @param authorRole - 메시지 작성자의 역할
+     @throws {Error} Kafka 연결 또는 메시지 발행 실패 시
      */
     async sendMessage(channelId: number, dto: MessageSendInput, authorId: number, authorRole: string): Promise<void> {
         await this.ensureConnected();
@@ -121,14 +123,14 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * Kafka 프로듀서의 연결 상태를 보장한다.
-     *
-     * 이미 연결된 경우 즉시 반환한다.
-     * 연결 중인 경우 기존 `connectPromise`를 재사용하여 중복 연결 시도를 방지한다(싱글턴 패턴).
-     * 연결에 실패하면 `connectPromise`를 초기화하여 이후 재시도를 허용한다.
-     *
-     * @returns 연결 완료 후 이행되는 Promise
-     * @throws {Error} Kafka 브로커 연결 실패 시
+     Kafka 프로듀서의 연결 상태를 보장한다.
+
+     이미 연결된 경우 즉시 반환한다.
+     연결 중인 경우 기존 `connectPromise`를 재사용하여 중복 연결 시도를 방지한다(싱글턴 패턴).
+     연결에 실패하면 `connectPromise`를 초기화하여 이후 재시도를 허용한다.
+
+     @returns 연결 완료 후 이행되는 Promise
+     @throws {Error} Kafka 브로커 연결 실패 시
      */
     private async ensureConnected(): Promise<void> {
         if (this.isConnected) {

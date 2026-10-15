@@ -1,7 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
-import { IsEnum, ValidateNested } from 'class-validator';
-import { CreateGithubIssueDto } from './create-github-issue.dto';
+import {ApiProperty} from '@nestjs/swagger';
+import {Type} from 'class-transformer';
+import {IsEnum, ValidateNested} from 'class-validator';
+import {CreateGithubIssueDto} from './create-github-issue.dto';
 
 export enum SlashCommand {
     GITHUB_ISSUE_CREATE = 'github.issue.create',
@@ -28,6 +28,6 @@ export class SlashCommandDto {
 }
 
 export class SlashCommandResponseDto {
-    @ApiProperty({ description: '큐 등록 여부' })
+    @ApiProperty({description: '큐 등록 여부'})
     queued!: boolean;
 }

@@ -1,6 +1,6 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
-import { ChannelMemberRepository, ChannelProjectionRepository, TeamMemberProjectionRepository } from '../repository';
-import { ChannelMessageReadAccessService } from './channel-message-read-access.service';
+import {ForbiddenException, Injectable} from '@nestjs/common';
+import {ChannelMemberRepository, ChannelProjectionRepository, TeamMemberProjectionRepository} from '../repository';
+import {ChannelMessageReadAccessService} from './channel-message-read-access.service';
 
 export type ChannelSearchItem = {
     id: number;
@@ -11,7 +11,9 @@ export type ChannelSearchItem = {
     isPrivate: boolean;
 };
 
-/** Kafka로 동기화된 로컬 채널 projection 검색기. */
+/**
+Kafka로 동기화된 로컬 채널 projection 검색기.
+*/
 @Injectable()
 export class ChannelSearchClient {
     constructor(

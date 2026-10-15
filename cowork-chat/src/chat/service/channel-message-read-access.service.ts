@@ -1,6 +1,6 @@
-import { ForbiddenException, Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { Server } from 'socket.io';
-import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
+import {ForbiddenException, Injectable, ServiceUnavailableException} from '@nestjs/common';
+import {Server} from 'socket.io';
+import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
 import {
     ChannelMemberRepository,
     ChannelProjectionRepository,
@@ -17,7 +17,9 @@ export type ChannelReadAccessRequest = {
 
 type AccessMode = 'MESSAGE_READ' | 'CHANNEL_METADATA';
 
-/** 연결된 `Socket`과 `fetchSockets()`가 돌려주는 `RemoteSocket`에 공통인 room 조작 표면. */
+/**
+연결된 `Socket`과 `fetchSockets()`가 돌려주는 `RemoteSocket`에 공통인 room 조작 표면.
+*/
 export type RoomSocket = {
     data: unknown;
     rooms: Set<string>;
@@ -30,16 +32,18 @@ const teamUserKey = (teamId: number, userId: number) => `${teamId}:${userId}`;
 const policyKey = (channelId: number, roleId: number) => `${channelId}:${roleId}`;
 
 /**
- * Role×channel `message_read` 정책의 단일 평가 지점.
- *
- * custom role의 priority가 높은 단계부터 평가되며, 같은 priority에서 충돌하면 deny가 이긴다.
- * 어떤 role에도 명시값이 없으면 deny한다. built-in OWNER는 role policy만 우회한다.
- * 메시지 본문/실시간 접근은 공개 여부와 관계없이 active 채널 멤버십이 필요하며,
- * 채널 메타데이터는 공개 채널만 멤버십 없이 볼 수 있다.
+ Role×channel `message_read` 정책의 단일 평가 지점.
+
+ custom role의 priority가 높은 단계부터 평가되며, 같은 priority에서 충돌하면 deny가 이긴다.
+ 어떤 role에도 명시값이 없으면 deny한다. built-in OWNER는 role policy만 우회한다.
+ 메시지 본문/실시간 접근은 공개 여부와 관계없이 active 채널 멤버십이 필요하며,
+ 채널 메타데이터는 공개 채널만 멤버십 없이 볼 수 있다.
  */
 @Injectable()
 export class ChannelMessageReadAccessService {
-    /** 준비 상태(readiness)가 닫혀 브로드캐스트를 건너뛴 적이 있어, 다시 열린 뒤 첫 전송 전에 로컬 room 재검증이 필요한지. */
+    /**
+    준비 상태(readiness)가 닫혀 브로드캐스트를 건너뛴 적이 있어, 다시 열린 뒤 첫 전송 전에 로컬 room 재검증이 필요한지.
+    */
     private needsRoomSweepAfterReadinessGap = false;
     private roomSweepAfterReadinessGap?: Promise<void>;
 
@@ -53,7 +57,7 @@ export class ChannelMessageReadAccessService {
     ) {}
 
     async canReadChannel(channelId: number, userId: number): Promise<boolean> {
-        const result = await this.evaluateMany([{ channelId, userId }]);
+        const result = await this.evaluateMany([{channelId, userId}]);
         return result.get(accessKey(channelId, userId)) ?? false;
     }
 
@@ -69,14 +73,14 @@ export class ChannelMessageReadAccessService {
 
     async filterReadableChannelIds(_teamId: number, userId: number, channelIds: number[]): Promise<number[]> {
         const uniqueChannelIds = [...new Set(channelIds)];
-        const result = await this.evaluateMany(uniqueChannelIds.map(channelId => ({ channelId, userId })));
+        const result = await this.evaluateMany(uniqueChannelIds.map(channelId => ({channelId, userId})));
         return uniqueChannelIds.filter(channelId => result.get(accessKey(channelId, userId)) === true);
     }
 
     async filterVisibleChannelIds(_teamId: number, userId: number, channelIds: number[]): Promise<number[]> {
         const uniqueChannelIds = [...new Set(channelIds)];
         const result = await this.evaluateVisibilityMany(
-            uniqueChannelIds.map(channelId => ({ channelId, userId })),
+            uniqueChannelIds.map(channelId => ({channelId, userId})),
         );
         return uniqueChannelIds.filter(channelId => result.get(accessKey(channelId, userId)) === true);
     }
@@ -92,14 +96,14 @@ export class ChannelMessageReadAccessService {
     }
 
     /**
-     * `NotificationOutboxPoller`(푸시 알림 수신자 산정), `ChatService.saveSystemMessage`(미읽음
-     * 카운터 증가 대상)에서도 쓰이므로 캐시를 타지 않는 {@link evaluateMany}를 그대로 사용한다.
+     `NotificationOutboxPoller`(푸시 알림 수신자 산정), `ChatService.saveSystemMessage`(미읽음
+     카운터 증가 대상)에서도 쓰이므로 캐시를 타지 않는 {@link evaluateMany}를 그대로 사용한다.
      */
     async filterReadableUsersByChannel(
         usersByChannel: Map<number, number[]>,
     ): Promise<Map<number, number[]>> {
         const requests = [...usersByChannel].flatMap(([channelId, userIds]) =>
-            [...new Set(userIds)].map(userId => ({ channelId, userId })));
+            [...new Set(userIds)].map(userId => ({channelId, userId})));
         const result = await this.evaluateMany(requests);
         return new Map([...usersByChannel].map(([channelId, userIds]) => [
             channelId,
@@ -108,8 +112,8 @@ export class ChannelMessageReadAccessService {
     }
 
     /**
-     * 현재 연결된 socket 중 회수된 message_read 권한을 더 이상 갖지 않는 socket을 room에서 제거한다.
-     * readiness가 닫힌 동안의 판정은 전부 거부이므로 판정 전후로 확인하고, 건너뛴 회수는 로컬 room 재검증이 정리한다.
+     현재 연결된 socket 중 회수된 message_read 권한을 더 이상 갖지 않는 socket을 room에서 제거한다.
+     readiness가 닫힌 동안의 판정은 전부 거부이므로 판정 전후로 확인하고, 건너뛴 회수는 로컬 room 재검증이 정리한다.
      */
     async evictUnauthorizedSockets(
         io: Server,
@@ -132,29 +136,29 @@ export class ChannelMessageReadAccessService {
 
             return uniqueChannelIds
                 .filter(channelId => socket.rooms.has(`chat:${channelId}`))
-                .map(channelId => ({ socket, channelId, userId }));
+                .map(channelId => ({socket, channelId, userId}));
         });
         const access = await this.evaluateMany(
-            socketsWithChannels.map(({ channelId, userId }) => ({ channelId, userId })),
+            socketsWithChannels.map(({channelId, userId}) => ({channelId, userId})),
         );
         if (!this.projectionReadiness.isReady()) {
             return;
         }
 
-        for (const { socket, channelId, userId } of socketsWithChannels) {
+        for (const {socket, channelId, userId} of socketsWithChannels) {
             if (access.get(accessKey(channelId, userId)) === true) {
                 continue;
             }
 
             socket.leave(`chat:${channelId}`);
-            socket.emit('channel:access:revoked', { channelId });
+            socket.emit('channel:access:revoked', {channelId});
         }
     }
 
     /**
-     * Socket이 가입한 채널·팀 room을 현재 권한으로 다시 검증해 권한이 없는 room에서 제거하고, 제거한 room 수를 반환한다.
-     * connection state recovery로 복원된 room과 회수 이벤트의 room 해제가 누락된 room을 정리한다.
-     * readiness가 닫힌 동안의 판정은 전부 거부이므로 판정 전후로 확인해, 닫혀 있으면 아무것도 제거하지 않는다.
+     Socket이 가입한 채널·팀 room을 현재 권한으로 다시 검증해 권한이 없는 room에서 제거하고, 제거한 room 수를 반환한다.
+     connection state recovery로 복원된 room과 회수 이벤트의 room 해제가 누락된 room을 정리한다.
+     readiness가 닫힌 동안의 판정은 전부 거부이므로 판정 전후로 확인해, 닫혀 있으면 아무것도 제거하지 않는다.
      */
     async evictUnauthorizedRooms(sockets: RoomSocket[]): Promise<number> {
         if (!this.projectionReadiness.isReady()) {
@@ -163,28 +167,27 @@ export class ChannelMessageReadAccessService {
 
         const channelRooms = this.joinedRooms(sockets, 'chat:');
         const teamRooms = this.joinedRooms(sockets, 'team:');
+        const teamIds = [...new Set(teamRooms.map(({id}) => id))];
+        const teamUserIds = [...new Set(teamRooms.map(({userId}) => userId))];
         const [access, teamMembers] = await Promise.all([
-            this.evaluateMany(channelRooms.map(({ id, userId }) => ({ channelId: id, userId }))),
-            this.teamMemberRepository.findByTeamIdsAndUserIds(
-                [...new Set(teamRooms.map(({ id }) => id))],
-                [...new Set(teamRooms.map(({ userId }) => userId))],
-            ),
+            this.evaluateMany(channelRooms.map(({id, userId}) => ({channelId: id, userId}))),
+            this.teamMemberRepository.findByTeamIdsAndUserIds(teamIds, teamUserIds),
         ]);
         if (!this.projectionReadiness.isReady()) {
             return 0;
         }
 
         const activeTeamUsers = new Set(teamMembers.map(member => teamUserKey(member.teamId, member.userId)));
-        const deniedChannelRooms = channelRooms.filter(({ id, userId }) => access.get(accessKey(id, userId)) !== true);
-        const deniedTeamRooms = teamRooms.filter(({ id, userId }) => !activeTeamUsers.has(teamUserKey(id, userId)));
-        for (const { socket, id } of deniedChannelRooms) {
+        const deniedChannelRooms = channelRooms.filter(({id, userId}) => access.get(accessKey(id, userId)) !== true);
+        const deniedTeamRooms = teamRooms.filter(({id, userId}) => !activeTeamUsers.has(teamUserKey(id, userId)));
+        for (const {socket, id} of deniedChannelRooms) {
             socket.leave(`chat:${id}`);
-            socket.emit('channel:access:revoked', { channelId: id });
+            socket.emit('channel:access:revoked', {channelId: id});
         }
 
-        for (const { socket, id } of deniedTeamRooms) {
+        for (const {socket, id} of deniedTeamRooms) {
             socket.leave(`team:${id}`);
-            socket.emit('team:access:revoked', { teamId: id });
+            socket.emit('team:access:revoked', {teamId: id});
         }
 
         return deniedChannelRooms.length + deniedTeamRooms.length;
@@ -199,13 +202,13 @@ export class ChannelMessageReadAccessService {
 
             return [...socket.rooms]
                 .filter(room => room.startsWith(prefix))
-                .map(room => ({ socket, id: Number(room.slice(prefix.length)), userId }));
+                .map(room => ({socket, id: Number(room.slice(prefix.length)), userId}));
         });
     }
 
     /**
-     * 준비 상태(readiness)가 닫혔다 열린 뒤 첫 전송 전에 이 인스턴스의 room을 한 번 재검증한다.
-     * 동시에 들어온 전송들은 같은 재검증을 기다린다. 재검증 도중 readiness가 다시 닫히면 false를 돌려준다.
+     준비 상태(readiness)가 닫혔다 열린 뒤 첫 전송 전에 이 인스턴스의 room을 한 번 재검증한다.
+     동시에 들어온 전송들은 같은 재검증을 기다린다. 재검증 도중 readiness가 다시 닫히면 false를 돌려준다.
      */
     private async ensureRoomsSweptAfterReadinessGap(io: Server): Promise<boolean> {
         if (!this.needsRoomSweepAfterReadinessGap) {
@@ -234,21 +237,21 @@ export class ChannelMessageReadAccessService {
     }
 
     /**
-     * `chat:{channelId}` room에 그대로 브로드캐스트한다.
-     *
-     * room 멤버십 자체가 `message_read` 판정 결과라는 불변식에 기댄다 — 입장할 때
-     * {@link canReadChannel}로 판정하고, 권한이 회수되면 {@link evictUnauthorizedSockets}가
-     * room에서 제거한다. 그래서 메시지마다 다시 평가하지 않는다.
-     *
-     * 이전에는 `fetchSockets()`로 room의 소켓을 모아 판정한 뒤 소켓 ID 목록을 대상으로 지정했다.
-     * Redis adapter 환경에서 그 호출은 모든 인스턴스의 응답을 기다리므로 접속자 수에 비례해
-     * 비용이 늘고, 메시지 1건의 처리 시간을 그만큼 점유했다.
-     *
-     * projection readiness가 닫혀 있는 동안은 전송하지 않는다(fail-closed). 다시 열린 뒤 첫 전송 전에는
-     * 로컬 room을 한 번 재검증해, 닫혀 있는 동안 버려진 회수가 room 멤버십으로 남지 않게 한다.
-     *
-     * 이벤트 유실이나 projection 재구축으로 room 멤버십이 실제 권한과 어긋날 수 있으므로,
-     * `ChatGateway`의 주기적인 로컬 room sweep(`evictUnauthorizedRooms`)이 대조해 복구한다.
+     `chat:{channelId}` room에 그대로 브로드캐스트한다.
+
+     room 멤버십 자체가 `message_read` 판정 결과라는 불변식에 기댄다 — 입장할 때
+     {@link canReadChannel}로 판정하고, 권한이 회수되면 {@link evictUnauthorizedSockets}가
+     room에서 제거한다. 그래서 메시지마다 다시 평가하지 않는다.
+
+     이전에는 `fetchSockets()`로 room의 소켓을 모아 판정한 뒤 소켓 ID 목록을 대상으로 지정했다.
+     Redis adapter 환경에서 그 호출은 모든 인스턴스의 응답을 기다리므로 접속자 수에 비례해
+     비용이 늘고, 메시지 1건의 처리 시간을 그만큼 점유했다.
+
+     projection readiness가 닫혀 있는 동안은 전송하지 않는다(fail-closed). 다시 열린 뒤 첫 전송 전에는
+     로컬 room을 한 번 재검증해, 닫혀 있는 동안 버려진 회수가 room 멤버십으로 남지 않게 한다.
+
+     이벤트 유실이나 projection 재구축으로 room 멤버십이 실제 권한과 어긋날 수 있으므로,
+     `ChatGateway`의 주기적인 로컬 room sweep(`evictUnauthorizedRooms`)이 대조해 복구한다.
      */
     async emitToReadableChannelUsers(
         io: Server | undefined,
@@ -277,9 +280,9 @@ export class ChannelMessageReadAccessService {
         // `chat:{channelId}` room의 멤버십 자체가 message_read 판정 결과다. 입장할 때 판정하고
         // 권한 회수 시 room에서 제거하므로, 메시지마다 다시 평가하지 않는다. 그 덕분에 Redis adapter
         // 환경에서도 소켓 목록을 묻는 인스턴스 간 왕복이 생기지 않는다.
-        const target = excludedSocketId
-            ? io.to(`chat:${channelId}`).except(excludedSocketId)
-            : io.to(`chat:${channelId}`);
+        const target = excludedSocketId === undefined
+            ? io.to(`chat:${channelId}`)
+            : io.to(`chat:${channelId}`).except(excludedSocketId);
         target.emit(event, payload);
     }
 
@@ -296,7 +299,9 @@ export class ChannelMessageReadAccessService {
         }
     }
 
-    /** Stale team room 구독자를 제외하고 현재 active 팀 멤버에게만 팀 범위 metadata를 전송한다. */
+    /**
+    Stale team room 구독자를 제외하고 현재 active 팀 멤버에게만 팀 범위 metadata를 전송한다.
+    */
     async emitToActiveTeamUsers(
         io: Server,
         teamId: number,
@@ -323,7 +328,9 @@ export class ChannelMessageReadAccessService {
         }
     }
 
-    /** 삭제 전 projection으로 대상 socket을 캡처해 삭제 후에도 비공개 metadata 수신자를 제한한다. */
+    /**
+    삭제 전 projection으로 대상 socket을 캡처해 삭제 후에도 비공개 metadata 수신자를 제한한다.
+    */
     async captureVisibleTeamSocketIds(
         io: Server,
         teamId: number,
@@ -334,7 +341,7 @@ export class ChannelMessageReadAccessService {
             .map(socket => this.socketUserId(socket))
             .filter((userId): userId is number => userId !== null);
         const access = await this.evaluateVisibilityMany(
-            [...new Set(users)].map(userId => ({ channelId, userId })),
+            [...new Set(users)].map(userId => ({channelId, userId})),
         );
         return sockets
             .filter(socket => {
@@ -364,8 +371,8 @@ export class ChannelMessageReadAccessService {
             return result;
         }
 
-        const channelIds = [...new Set(uniqueRequests.map(({ channelId }) => channelId))];
-        const userIds = [...new Set(uniqueRequests.map(({ userId }) => userId))];
+        const channelIds = [...new Set(uniqueRequests.map(({channelId}) => channelId))];
+        const userIds = [...new Set(uniqueRequests.map(({userId}) => userId))];
         const [channels, membersByChannel] = await Promise.all([
             this.channelRepository.findByIds(channelIds),
             this.channelMemberRepository.findByChannelIdsAndUserIds(channelIds, userIds),
@@ -390,17 +397,17 @@ export class ChannelMessageReadAccessService {
                 return [];
             }
 
-            return channel.teamId === null || channel.type === 'DM' ? [] : [{ request, channel, teamId: channel.teamId }];
+            return channel.teamId === null || channel.type === 'DM' ? [] : [{request, channel, teamId: channel.teamId}];
         });
         if (teamRequests.length === 0) {
             return result;
         }
 
-        const teamIds = [...new Set(teamRequests.map(({ teamId }) => teamId))];
+        const teamIds = [...new Set(teamRequests.map(({teamId}) => teamId))];
         const teamMembers = await this.teamMemberRepository.findByTeamIdsAndUserIds(teamIds, userIds);
         const teamMemberByKey = new Map(teamMembers.map(member => [teamUserKey(member.teamId, member.userId), member]));
 
-        const policyCandidates = teamRequests.filter(({ request, channel, teamId }) => {
+        const policyCandidates = teamRequests.filter(({request, channel, teamId}) => {
             const member = teamMemberByKey.get(teamUserKey(teamId, request.userId));
             if (!member) {
                 return false;
@@ -422,10 +429,10 @@ export class ChannelMessageReadAccessService {
             return result;
         }
 
-        const accountIds = [...new Set(policyCandidates.map(({ request }) => request.userId))];
+        const accountIds = [...new Set(policyCandidates.map(({request}) => request.userId))];
         const assignments = await this.teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds(teamIds, accountIds);
-        const roleIds = [...new Set(assignments.map(({ roleId }) => roleId))];
-        const candidateChannelIds = [...new Set(policyCandidates.map(({ request }) => request.channelId))];
+        const roleIds = [...new Set(assignments.map(({roleId}) => roleId))];
+        const candidateChannelIds = [...new Set(policyCandidates.map(({request}) => request.channelId))];
         const [roles, policies] = await Promise.all([
             this.teamRoleRepository.findRolesByIds(roleIds),
             this.policyRepository.findByChannelIdsAndRoleIds(candidateChannelIds, roleIds),
@@ -443,10 +450,10 @@ export class ChannelMessageReadAccessService {
             }
         }
 
-        for (const { request, teamId } of policyCandidates) {
+        for (const {request, teamId} of policyCandidates) {
             const assignedRoleIds = assignmentsByTeamUser.get(teamUserKey(teamId, request.userId)) ?? [];
             let selectedPriority: number | undefined;
-            let selected = false;
+            let isSelected = false;
             for (const roleId of assignedRoleIds) {
                 const role = roleById.get(roleId);
                 const policy = policyByKey.get(policyKey(request.channelId, roleId));
@@ -456,13 +463,13 @@ export class ChannelMessageReadAccessService {
 
                 if (selectedPriority === undefined || role.priority > selectedPriority) {
                     selectedPriority = role.priority;
-                    selected = policy.messageRead;
+                    isSelected = policy.messageRead;
                 } else if (role.priority === selectedPriority && !policy.messageRead) {
-                    selected = false;
+                    isSelected = false;
                 }
             }
 
-            result.set(accessKey(request.channelId, request.userId), selectedPriority !== undefined && selected);
+            result.set(accessKey(request.channelId, request.userId), selectedPriority !== undefined && isSelected);
         }
 
         return result;
@@ -472,7 +479,7 @@ export class ChannelMessageReadAccessService {
         return channel.teamId === null && channel.type === 'DM';
     }
 
-    private socketUserId(socket: { data: unknown }): number | null {
+    private socketUserId(socket: {data: unknown}): number | null {
         if (typeof socket.data !== 'object' || socket.data === null) {
             return null;
         }

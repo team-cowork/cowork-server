@@ -4,18 +4,18 @@ import {
     OnModuleInit,
     Logger,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Kafka, Consumer } from 'kafkajs';
-import { Server } from 'socket.io';
-import { DicoshotService } from 'dicoshot-nest';
-import { getRequiredCsvConfig } from '../../common/config/config.util';
-import { buildErrorFields } from '../../common/util/discord-alert.util';
-import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
-import { parseEventTime } from '../../common/util/event-time.util';
-import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
-import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
-import { ProjectMemberProjectionRepository, ProjectProjectionRepository } from '../repository';
-import { ChannelMessageReadAccessService } from '../service';
+import {ConfigService} from '@nestjs/config';
+import {Kafka, Consumer} from 'kafkajs';
+import {Server} from 'socket.io';
+import {DicoshotService} from 'dicoshot-nest';
+import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {buildErrorFields} from '../../common/util/discord-alert.util';
+import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
+import {parseEventTime} from '../../common/util/event-time.util';
+import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
+import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
+import {ProjectMemberProjectionRepository, ProjectProjectionRepository} from '../repository';
+import {ChannelMessageReadAccessService} from '../service';
 
 type ProjectEvent = {
     eventType: 'CREATED' | 'UPDATED' | 'DELETED';
@@ -26,7 +26,9 @@ type ProjectEvent = {
     status: string;
     position?: number;
     occurredAt: string;
-    /** 주기/startup state replay이면 변경 알림 부수효과를 억제한다. */
+    /**
+    주기/startup state replay이면 변경 알림 부수효과를 억제한다.
+    */
     snapshot?: boolean;
 };
 
@@ -55,14 +57,14 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         const stream = PROJECTION_STREAMS.project;
-        this.consumer = kafka.consumer({ groupId: stream.groupId });
+        this.consumer = kafka.consumer({groupId: stream.groupId});
         await this.consumer.connect();
-        await this.consumer.subscribe({ topic: stream.topic, fromBeginning: true });
+        await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
         await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
 
         void this.consumer
             .run({
-                eachMessage: async ({ partition, message }): Promise<void> => {
+                eachMessage: async ({partition, message}): Promise<void> => {
                     await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(
                         stream,
                         partition,
@@ -79,7 +81,7 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
                     description: `cowork-chat의 ${stream.topic} consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.`,
                     color: 'danger',
                     fields: [
-                        { name: 'Topic', value: stream.topic, inline: true },
+                        {name: 'Topic', value: stream.topic, inline: true},
                         ...buildErrorFields(error),
                     ],
                 }).catch(() => {/* Alert delivery is best-effort. */});
@@ -109,9 +111,9 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
             throw new ProjectionContractError('project event occurredAt must be RFC3339');
         }
 
-        const { occurredAt, sourceVersion } = eventTime;
+        const {occurredAt, sourceVersion} = eventTime;
 
-        const applied = event.eventType === 'DELETED'
+        const isApplied = event.eventType === 'DELETED'
             ? await this.projectRepository.remove(event.projectId, occurredAt, sourceVersion)
             : await this.projectRepository.upsert({
                 projectId: event.projectId,
@@ -123,7 +125,7 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
                 occurredAt,
                 sourceVersion,
             });
-        if (!applied) {
+        if (!isApplied) {
             return;
         }
 
@@ -135,7 +137,7 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
             return;
         }
 
-        const { eventType, snapshot, ...projectionPayload } = event;
+        const {eventType, snapshot, ...projectionPayload} = event;
         switch (eventType) {
             case 'CREATED': {
                 await this.channelMessageReadAccess.emitToActiveTeamUsers(
@@ -158,7 +160,7 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
                     this.io,
                     event.teamId,
                     'project:deleted',
-                    { projectId: event.projectId, teamId: event.teamId },
+                    {projectId: event.projectId, teamId: event.teamId},
                 );
 
                 break;

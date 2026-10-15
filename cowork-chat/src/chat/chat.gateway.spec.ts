@@ -1,4 +1,4 @@
-import { ChatGateway, type ChatSocket } from './chat.gateway';
+import {ChatGateway, type ChatSocket} from './chat.gateway';
 
 const mockConfigService = {
     get: jest.fn().mockReturnValue(''),
@@ -18,13 +18,13 @@ const mockJwtService = {
 
 const mockSocket = (authToken?: string, headers: Record<string, string> = {}) => ({
     id: 'socket-1',
-    handshake: { auth: { token: authToken }, headers },
+    handshake: {auth: {token: authToken}, headers},
     data: {} as Record<string, unknown>,
     rooms: new Set<string>(),
     join: jest.fn(),
     leave: jest.fn(),
     emit: jest.fn(),
-    to: jest.fn(() => ({ emit: jest.fn() })),
+    to: jest.fn(() => ({emit: jest.fn()})),
     disconnect: jest.fn(),
 });
 
@@ -82,7 +82,7 @@ describe('ChatGateway', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-        mockJwtService.verifyAsync.mockResolvedValue({ sub: '42', role: 'MEMBER' });
+        mockJwtService.verifyAsync.mockResolvedValue({sub: '42', role: 'MEMBER'});
         mockProjectionReadiness.isReady.mockReturnValue(true);
         mockChatService.isMember.mockResolvedValue(true);
         mockChatService.emitToReadableChannelUsers.mockResolvedValue(undefined);
@@ -104,13 +104,13 @@ describe('ChatGateway', () => {
             mockJwtService as never,
             mockRateLimiter as never,
             mockProjectionReadiness as never,
-            { isReady: () => true } as never,
+            {isReady: () => true} as never,
         );
     });
 
     describe('handleConnection', () => {
         it('Gateway가 주입한 X-User-Id/X-User-Role 헤더가 있으면 이를 우선 신뢰한다', async () => {
-            const client = mockSocket(undefined, { 'x-user-id': '7', 'x-user-role': 'ADMIN' });
+            const client = mockSocket(undefined, {'x-user-id': '7', 'x-user-role': 'ADMIN'});
             await gateway.handleConnection(client as unknown as ChatSocket);
             expect(client.data.userId).toBe(7);
             expect(client.data.userRole).toBe('ADMIN');
@@ -120,9 +120,9 @@ describe('ChatGateway', () => {
         });
 
         it('X-User-Id 헤더가 유효하지 않으면 exception 이벤트를 emit하고 disconnect된다', async () => {
-            const client = mockSocket(undefined, { 'x-user-id': 'not-a-number' });
+            const client = mockSocket(undefined, {'x-user-id': 'not-a-number'});
             await gateway.handleConnection(client as unknown as ChatSocket);
-            expect(client.emit).toHaveBeenCalledWith('exception', { message: '인증 실패: X-User-Id 헤더가 유효하지 않습니다' });
+            expect(client.emit).toHaveBeenCalledWith('exception', {message: '인증 실패: X-User-Id 헤더가 유효하지 않습니다'});
             expect(client.disconnect).toHaveBeenCalled();
         });
 
@@ -138,7 +138,7 @@ describe('ChatGateway', () => {
         it('헤더도 토큰도 없이 연결하면 exception 이벤트를 emit하고 disconnect된다', async () => {
             const client = mockSocket(undefined);
             await gateway.handleConnection(client as unknown as ChatSocket);
-            expect(client.emit).toHaveBeenCalledWith('exception', { message: '인증 실패: 인증 정보가 전달되지 않았습니다' });
+            expect(client.emit).toHaveBeenCalledWith('exception', {message: '인증 실패: 인증 정보가 전달되지 않았습니다'});
             expect(client.disconnect).toHaveBeenCalled();
         });
 
@@ -146,7 +146,7 @@ describe('ChatGateway', () => {
             mockJwtService.verifyAsync.mockRejectedValue(new Error('Invalid token'));
             const client = mockSocket('invalid-token');
             await gateway.handleConnection(client as unknown as ChatSocket);
-            expect(client.emit).toHaveBeenCalledWith('exception', { message: '인증 실패: Invalid token' });
+            expect(client.emit).toHaveBeenCalledWith('exception', {message: '인증 실패: Invalid token'});
             expect(client.disconnect).toHaveBeenCalled();
         });
     });
@@ -157,7 +157,7 @@ describe('ChatGateway', () => {
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
-            await gateway.handleJoin(client as unknown as ChatSocket, { channelId: 1 });
+            await gateway.handleJoin(client as unknown as ChatSocket, {channelId: 1});
 
             expect(client.join).toHaveBeenCalledWith('chat:1');
             expect(client.emit).not.toHaveBeenCalledWith('error', expect.anything());
@@ -168,17 +168,17 @@ describe('ChatGateway', () => {
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
-            await gateway.handleJoin(client as unknown as ChatSocket, { channelId: 1 });
+            await gateway.handleJoin(client as unknown as ChatSocket, {channelId: 1});
 
             expect(client.join).not.toHaveBeenCalled();
-            expect(client.emit).toHaveBeenCalledWith('error', { message: '채널 접근 권한이 없습니다' });
+            expect(client.emit).toHaveBeenCalledWith('error', {message: '채널 접근 권한이 없습니다'});
         });
 
         it('인가를 통과하기 전에는 room에 가입하지 않는다 — room 멤버십이 곧 판정 결과이기 때문이다', async () => {
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
-            await gateway.handleJoin(client as unknown as ChatSocket, { channelId: 1 });
+            await gateway.handleJoin(client as unknown as ChatSocket, {channelId: 1});
 
             expect(mockChatService.isMember.mock.invocationCallOrder[0])
                 .toBeLessThan(client.join.mock.invocationCallOrder[0]);
@@ -189,11 +189,11 @@ describe('ChatGateway', () => {
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
-            await gateway.handleJoin(client as unknown as ChatSocket, { channelId: 1 });
+            await gateway.handleJoin(client as unknown as ChatSocket, {channelId: 1});
 
             expect(client.join).toHaveBeenCalledWith('chat:1');
             expect(client.leave).toHaveBeenCalledWith('chat:1');
-            expect(client.emit).toHaveBeenCalledWith('error', { message: '채널 접근 권한이 없습니다' });
+            expect(client.emit).toHaveBeenCalledWith('error', {message: '채널 접근 권한이 없습니다'});
         });
 
         it('가입 뒤 재확인이 실패하면 room에서 제거하고 오류를 다시 던진다', async () => {
@@ -201,7 +201,7 @@ describe('ChatGateway', () => {
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
-            await expect(gateway.handleJoin(client as unknown as ChatSocket, { channelId: 1 })).rejects.toThrow('mongo down');
+            await expect(gateway.handleJoin(client as unknown as ChatSocket, {channelId: 1})).rejects.toThrow('mongo down');
             expect(client.leave).toHaveBeenCalledWith('chat:1');
         });
     });
@@ -212,12 +212,12 @@ describe('ChatGateway', () => {
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
-            await gateway.handleJoinTeam(client as unknown as ChatSocket, { teamId: 5 });
+            await gateway.handleJoinTeam(client as unknown as ChatSocket, {teamId: 5});
 
             expect(client.join.mock.invocationCallOrder[0])
                 .toBeLessThan(mockChatService.isTeamMember.mock.invocationCallOrder[0]);
             expect(client.leave).toHaveBeenCalledWith('team:5');
-            expect(client.emit).toHaveBeenCalledWith('error', { message: '팀 접근 권한이 없습니다' });
+            expect(client.emit).toHaveBeenCalledWith('error', {message: '팀 접근 권한이 없습니다'});
         });
 
         it('권한 확인이 실패하면 room에서 제거하고 오류를 다시 던진다', async () => {
@@ -225,14 +225,14 @@ describe('ChatGateway', () => {
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
-            await expect(gateway.handleJoinTeam(client as unknown as ChatSocket, { teamId: 5 })).rejects.toThrow('mongo down');
+            await expect(gateway.handleJoinTeam(client as unknown as ChatSocket, {teamId: 5})).rejects.toThrow('mongo down');
             expect(client.leave).toHaveBeenCalledWith('team:5');
         });
     });
 
     describe('connection state recovery', () => {
         it('복원된 연결이면 복원된 room을 현재 권한으로 다시 검증한다', async () => {
-            const client = Object.assign(mockSocket('valid-token'), { recovered: true });
+            const client = Object.assign(mockSocket('valid-token'), {recovered: true});
 
             await gateway.handleConnection(client as unknown as ChatSocket);
 
@@ -242,7 +242,7 @@ describe('ChatGateway', () => {
 
         it('복원 room 재검증이 실패해도 인증 실패로 연결을 끊지 않는다', async () => {
             mockChatService.evictUnauthorizedRooms.mockRejectedValueOnce(new Error('mongo down'));
-            const client = Object.assign(mockSocket('valid-token'), { recovered: true });
+            const client = Object.assign(mockSocket('valid-token'), {recovered: true});
 
             await gateway.handleConnection(client as unknown as ChatSocket);
 
@@ -256,13 +256,13 @@ describe('ChatGateway', () => {
             const client = mockSocket('valid-token');
             client.data.userId = 42;
             client.rooms.add('chat:1');
-            await gateway.handleTypingStart(client as unknown as ChatSocket, { channelId: 1 });
+            await gateway.handleTypingStart(client as unknown as ChatSocket, {channelId: 1});
 
             expect(mockRateLimiter.tryAcquire).toHaveBeenCalledWith('chat:typingrate:42', expect.any(Number), expect.any(Number));
             expect(mockChatService.emitToReadableChannelUsers).toHaveBeenCalledWith(
                 1,
                 'typing',
-                { channelId: 1, userId: 42, isTyping: true },
+                {channelId: 1, userId: 42, isTyping: true},
                 'socket-1',
             );
         });
@@ -272,7 +272,7 @@ describe('ChatGateway', () => {
             const client = mockSocket('valid-token');
             client.data.userId = 42;
             client.rooms.add('chat:1');
-            await gateway.handleTypingStart(client as unknown as ChatSocket, { channelId: 1 });
+            await gateway.handleTypingStart(client as unknown as ChatSocket, {channelId: 1});
 
             expect(mockChatService.emitToReadableChannelUsers).not.toHaveBeenCalled();
         });
@@ -283,10 +283,10 @@ describe('ChatGateway', () => {
             client.data.userId = 42;
             client.rooms.add('chat:1');
 
-            await gateway.handleTypingStart(client as unknown as ChatSocket, { channelId: 1 });
+            await gateway.handleTypingStart(client as unknown as ChatSocket, {channelId: 1});
 
             expect(client.leave).toHaveBeenCalledWith('chat:1');
-            expect(client.emit).toHaveBeenCalledWith('channel:access:revoked', { channelId: 1 });
+            expect(client.emit).toHaveBeenCalledWith('channel:access:revoked', {channelId: 1});
             expect(mockChatService.emitToReadableChannelUsers).not.toHaveBeenCalled();
         });
     });

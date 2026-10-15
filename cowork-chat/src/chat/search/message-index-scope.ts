@@ -1,4 +1,4 @@
-import { type MessageIndexDoc } from '../../search/message-index.contract';
+import {type MessageIndexDoc} from '../../search/message-index.contract';
 
 export const SEARCH_INDEX_STATUSES = [
     'PENDING', 'PROCESSING', 'SYNCED', 'FAILED', 'DELETING', 'SKIPPED',
@@ -6,24 +6,26 @@ export const SEARCH_INDEX_STATUSES = [
 export type SearchIndexStatus = typeof SEARCH_INDEX_STATUSES[number];
 
 /**
- * 색인 대상 메시지 조건.
- *
- * 팀·프로젝트 채널의 사용자 메시지만 검색에 노출한다. DM(`teamId: null`)과 프로젝트 무관 채널,
- * 그리고 입퇴장 안내 같은 `SYSTEM` 메시지는 대상이 아니다. 증분 동기화와 전체 재구축이
- * 같은 조건을 사용해야 MongoDB 기준으로 누락·잔존 문서를 판정할 수 있다.
- *
- * 배포 유의사항: 이 아웃박스 도입 이전 색인 경로(`chat-message.processor`)는 `type !== 'SYSTEM'`을
- * 보지 않아 프로젝트 채널의 `SYSTEM` 메시지도 이미 색인되어 있다. `backfillLegacyState`는 그
- * 메시지들을 `SKIPPED`로 확정만 하고 기존 색인 문서를 지우지는 않으므로, 이번 배포 후 전체
- * `rebuild`를 한 번 돌려야 검색 결과에서 사라진다.
+ 색인 대상 메시지 조건.
+
+ 팀·프로젝트 채널의 사용자 메시지만 검색에 노출한다. DM(`teamId: null`)과 프로젝트 무관 채널,
+ 그리고 입퇴장 안내 같은 `SYSTEM` 메시지는 대상이 아니다. 증분 동기화와 전체 재구축이
+ 같은 조건을 사용해야 MongoDB 기준으로 누락·잔존 문서를 판정할 수 있다.
+
+ 배포 유의사항: 이 아웃박스 도입 이전 색인 경로(`chat-message.processor`)는 `type !== 'SYSTEM'`을
+ 보지 않아 프로젝트 채널의 `SYSTEM` 메시지도 이미 색인되어 있다. `backfillLegacyState`는 그
+ 메시지들을 `SKIPPED`로 확정만 하고 기존 색인 문서를 지우지는 않으므로, 이번 배포 후 전체
+ `rebuild`를 한 번 돌려야 검색 결과에서 사라진다.
  */
 export const SEARCH_INDEX_SCOPE_FILTER = {
-    teamId: { $ne: null },
-    projectId: { $ne: null },
-    type: { $ne: 'SYSTEM' },
+    teamId: {$ne: null},
+    projectId: {$ne: null},
+    type: {$ne: 'SYSTEM'},
 };
 
-/** 색인 대상 메시지의 최소 필드. 스캔 projection과 write 경로가 공유한다. */
+/**
+색인 대상 메시지의 최소 필드. 스캔 projection과 write 경로가 공유한다.
+*/
 export type IndexableMessage = {
     teamId: number | null;
     projectId: number | null;
@@ -37,7 +39,7 @@ export function isSearchIndexed(message: IndexableMessage): boolean {
 }
 
 export type MessageIndexSource = {
-    _id: { toString(): string };
+    _id: {toString(): string};
     channelId: number;
     authorId: number;
     content: string;
@@ -47,10 +49,10 @@ export type MessageIndexSource = {
 } & IndexableMessage;
 
 /**
- * MongoDB 메시지를 색인 문서로 변환한다.
- *
- * 부분 갱신 없이 항상 전체 문서를 만들기 때문에 최초 색인이 누락된 메시지도
- * 이후 어떤 변경으로든 복원된다. 호출 전에 {@link isSearchIndexed}로 대상을 확인해야 한다.
+ MongoDB 메시지를 색인 문서로 변환한다.
+
+ 부분 갱신 없이 항상 전체 문서를 만들기 때문에 최초 색인이 누락된 메시지도
+ 이후 어떤 변경으로든 복원된다. 호출 전에 {@link isSearchIndexed}로 대상을 확인해야 한다.
  */
 export function buildMessageIndexDoc(message: MessageIndexSource): MessageIndexDoc {
     return {
