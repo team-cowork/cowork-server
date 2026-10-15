@@ -30,7 +30,7 @@ RUN --mount=type=cache,id=npm-github-runtime,target=/root/.npm \
 COPY --chown=app:app --from=builder /workspace/cowork-github/dist ./dist
 RUN test -s /app/dist/main.js
 USER app
-EXPOSE 3000
-ENV PORT=3000
+EXPOSE 8090
+ENV PORT=8090
 ENV NODE_ENV=production
 ENTRYPOINT ["node", "dist/main.js"]
