@@ -44,7 +44,7 @@ describe('IssueWriteResultProducer', () => {
         expect(mockConnect).toHaveBeenCalledTimes(1);
     });
 
-    it('github-app.issue-write.result 토픽에 operationId를 key로 발행한다', async () => {
+    it('github.issue-write.result 토픽에 operationId를 key로 발행한다', async () => {
         const event: IssueWriteResultEvent = {
             schemaVersion: 1,
             operationId: 'op-1',
@@ -58,7 +58,7 @@ describe('IssueWriteResultProducer', () => {
         await producer.send(event);
 
         expect(mockSend).toHaveBeenCalledWith({
-            topic: 'github-app.issue-write.result',
+            topic: 'github.issue-write.result',
             messages: [{key: 'op-1', value: JSON.stringify(event)}],
         });
     });
