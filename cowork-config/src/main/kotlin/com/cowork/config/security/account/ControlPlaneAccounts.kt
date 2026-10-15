@@ -51,7 +51,7 @@ class ControlPlaneAccounts(environment: Environment) {
         private val APPLICATIONS = setOf(
             "cowork-gateway", "cowork-authorization", "cowork-user", "cowork-team", "cowork-channel",
             "cowork-project", "cowork-roadmap", "cowork-notification", "cowork-preference", "cowork-chat",
-            "cowork-voice", "monitoring",
+            "cowork-voice", "cowork-github", "monitoring",
         )
     }
 }
