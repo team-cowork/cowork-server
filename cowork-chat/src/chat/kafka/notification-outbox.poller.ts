@@ -4,35 +4,43 @@ import {
     OnModuleInit,
     Logger,
 } from '@nestjs/common';
-import { Types } from 'mongoose';
-import { DicoshotService } from 'dicoshot-nest';
-import { Message, ChannelMember } from '../schema';
-import { MessageRepository, NotificationMessage, ChannelMemberRepository } from '../repository';
-import { UnreadCounterService, ChannelMessageReadAccessService } from '../service';
-import { AlertThrottleUtil } from '../../common/util/alert-throttle.util';
-import { buildErrorFields } from '../../common/util/discord-alert.util';
-import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
-import { NotificationTriggerProducer } from './notification-trigger.producer';
+import {Types} from 'mongoose';
+import {DicoshotService} from 'dicoshot-nest';
+import {Message, ChannelMember} from '../schema';
+import {MessageRepository, NotificationMessage, ChannelMemberRepository} from '../repository';
+import {UnreadCounterService, ChannelMessageReadAccessService} from '../service';
+import {AlertThrottleUtil} from '../../common/util/alert-throttle.util';
+import {buildErrorFields} from '../../common/util/discord-alert.util';
+import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
+import {NotificationTriggerProducer} from './notification-trigger.producer';
 
 const POLL_INTERVAL_MS = 5000;
 const BATCH_SIZE = 10;
 const MAX_RETRY = 3;
-/** 이 시간(2분) 이상 PROCESSING에 머문 메시지를 PENDING으로 회수한다 */
+/**
+이 시간(2분) 이상 PROCESSING에 머문 메시지를 PENDING으로 회수한다
+*/
 const PROCESSING_STALE_THRESHOLD_MS = 2 * 60 * 1000;
-/** ReclaimStaleProcessing 실행 최소 간격 — 5초마다 updateMany를 보내지 않도록 스로틀 */
+/**
+ReclaimStaleProcessing 실행 최소 간격 — 5초마다 updateMany를 보내지 않도록 스로틀
+*/
 const RECLAIM_INTERVAL_MS = 60_000;
-/** 폴링 사이클 실패 알림 최소 간격 — 5초마다 반복 실패해도 Discord 알림은 5분에 한 번만 보낸다 */
+/**
+폴링 사이클 실패 알림 최소 간격 — 5초마다 반복 실패해도 Discord 알림은 5분에 한 번만 보낸다
+*/
 const POLL_FAILURE_ALERT_COOLDOWN_MS = 5 * 60 * 1000;
-/** 메시지 영구 실패(FAILED) 알림 최소 간격 — 동시에 여러 건이 실패해도 1분에 한 번만 보낸다 */
+/**
+메시지 영구 실패(FAILED) 알림 최소 간격 — 동시에 여러 건이 실패해도 1분에 한 번만 보낸다
+*/
 const MESSAGE_FAILURE_ALERT_COOLDOWN_MS = 60_000;
 
 /**
- * 알림 발송 대기 중인 메시지를 주기적으로 조회하여 알림 트리거를 발행하는 폴러.
- *
- * **Outbox 패턴** 구현체로, 5초 간격으로 PENDING 상태의 메시지를 최대 10개씩 배치 처리한다.
- * 처리 실패 시 최대 {@link MAX_RETRY}회까지 재시도하며, 초과 시 FAILED 상태로 전환한다.
- *
- * 배치 내 중복 DB 조회를 줄이기 위해 `memberCache`와 `parentCache`를 활용한다.
+ 알림 발송 대기 중인 메시지를 주기적으로 조회하여 알림 트리거를 발행하는 폴러.
+
+ Outbox 패턴** 구현체로, 5초 간격으로 PENDING 상태의 메시지를 최대 10개씩 배치 처리한다.
+ 처리 실패 시 최대 {@link MAX_RETRY}회까지 재시도하며, 초과 시 FAILED 상태로 전환한다.
+
+ 배치 내 중복 DB 조회를 줄이기 위해 `memberCache`와 `parentCache`를 활용한다.
  */
 @Injectable()
 export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
@@ -52,9 +60,9 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
     ) {}
 
     /**
-     * 모듈 초기화 시 {@link POLL_INTERVAL_MS}(5000ms) 간격으로 폴링 타이머를 시작한다.
-     *
-     * 이전 폴링이 완료되지 않은 경우 (`isPolling === true`) 해당 인터벌은 건너뛴다.
+     모듈 초기화 시 {@link POLL_INTERVAL_MS}(5000ms) 간격으로 폴링 타이머를 시작한다.
+
+     이전 폴링이 완료되지 않은 경우 (`isPolling === true`) 해당 인터벌은 건너뛴다.
      */
     onModuleInit() {
         this.timer = setInterval(() => {
@@ -87,20 +95,20 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * 모듈 종료 시 폴링 타이머를 해제한다.
+     모듈 종료 시 폴링 타이머를 해제한다.
      */
     onModuleDestroy() {
         clearInterval(this.timer);
     }
 
     /**
-     * 한 번의 폴링 사이클을 실행한다.
-     *
-     * 실행 순서:
-     * 1. PENDING 상태 메시지를 최대 {@link BATCH_SIZE}(10)개 조회하며 PROCESSING으로 원자 전환한다.
-     * 2. 배치 내 고유 `parentMessageId`를 한 번에 조회하여 `parentCache`를 사전 채운다.
-     * 3. 각 메시지를 {@link processMessage}로 처리하고 성공 시 SENT로 전환한다.
-     * 4. 처리 실패 시 재시도 횟수에 따라 PENDING 또는 FAILED로 전환한다.
+     한 번의 폴링 사이클을 실행한다.
+
+     실행 순서:
+     1. PENDING 상태 메시지를 최대 {@link BATCH_SIZE}(10)개 조회하며 PROCESSING으로 원자 전환한다.
+     2. 배치 내 고유 `parentMessageId`를 한 번에 조회하여 `parentCache`를 사전 채운다.
+     3. 각 메시지를 {@link processMessage}로 처리하고 성공 시 SENT로 전환한다.
+     4. 처리 실패 시 재시도 횟수에 따라 PENDING 또는 FAILED로 전환한다.
      */
     private async poll(): Promise<void> {
         // 0단계: 크래시 등으로 stuck된 stale PROCESSING 메시지를 PENDING으로 회수 (1분 간격 스로틀)
@@ -121,15 +129,15 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 
         // 2단계: 배치 내 고유 channelId/parentMessageId를 한 번에 조회해 캐시 사전 채움
         const memberCache = new Map<string, ChannelMember[]>();
-        const parentCache = new Map<string, { authorId: number } | null>();
-        const parentRefs = new Map<string, { channelId: number; parentMessageId: Types.ObjectId }>();
+        const parentCache = new Map<string, {authorId: number} | null>();
+        const parentRefs = new Map<string, {channelId: number; parentMessageId: Types.ObjectId}>();
         for (const message of msgs) {
             if (!message.parentMessageId) {
                 continue;
             }
 
             const key = `${message.channelId}:${message.parentMessageId.toString()}`;
-            parentRefs.set(key, { channelId: message.channelId, parentMessageId: message.parentMessageId });
+            parentRefs.set(key, {channelId: message.channelId, parentMessageId: message.parentMessageId});
         }
 
         if (parentRefs.size > 0) {
@@ -144,14 +152,14 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         const readableUsersByChannel = await this.channelMessageReadAccess.filterReadableUsersByChannel(
             new Map(channelIds.map(channelId => [
                 channelId,
-                (membersByChannel.get(channelId) ?? []).map(({ userId }) => userId),
+                (membersByChannel.get(channelId) ?? []).map(({userId}) => userId),
             ])),
         );
         for (const channelId of channelIds) {
             const readableUserIds = new Set(readableUsersByChannel.get(channelId));
             memberCache.set(
                 String(channelId),
-                (membersByChannel.get(channelId) ?? []).filter(({ userId }) => readableUserIds.has(userId)),
+                (membersByChannel.get(channelId) ?? []).filter(({userId}) => readableUserIds.has(userId)),
             );
         }
 
@@ -162,7 +170,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
     private async processMessageAndUpdateStatus(
         message: NotificationMessage,
         memberCache: Map<string, ChannelMember[]>,
-        parentCache: Map<string, { authorId: number } | null>,
+        parentCache: Map<string, {authorId: number} | null>,
     ): Promise<void> {
         try {
             await this.processMessage(message, memberCache, parentCache);
@@ -178,8 +186,8 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
                     description: `메시지 알림이 최대 재시도(${MAX_RETRY}회)를 초과해 발송되지 않았습니다.`,
                     color: 'warning',
                     fields: [
-                        { name: 'messageId', value: message._id.toString(), inline: true },
-                        { name: 'channelId', value: String(message.channelId), inline: true },
+                        {name: 'messageId', value: message._id.toString(), inline: true},
+                        {name: 'channelId', value: String(message.channelId), inline: true},
                         ...buildErrorFields(error),
                     ],
                 }).catch(() => {/* Alert delivery is best-effort. */});
@@ -188,33 +196,33 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * 단일 메시지에 대한 알림 트리거를 생성하고 발행한다.
-     *
-     * **수신자 분류 전략**:
-     * - `targetUserIds`: 채널 멤버 전체에서 메시지 작성자를 제외한 모든 사용자.
-     * - `forcedUserIds`: 멘션된 사용자 + 부모 메시지 작성자. 알림 수신 설정과 무관하게 항상 알림을 받는다.
-     *   단, 메시지 작성자 본인이거나 채널 멤버가 아닌 경우는 제외된다.
-     *
-     * **캐시 활용**:
-     * - `memberCache`: 배치 시작 시 {@link poll}에서 일괄 채워지며, 채널 멤버 조회에 사용된다.
-     * - `parentCache`: 배치 시작 시 {@link poll}에서 일괄 채워지며, 부모 메시지 작성자 조회에 사용된다.
-     *
-     * @param message - 처리할 알림 대상 메시지
-     * @param memberCache - 채널 ID를 키로 하는 채널 멤버 목록 캐시 (배치 범위 내 공유)
-     * @param parentCache - 부모 메시지 ID를 키로 하는 작성자 정보 캐시 (배치 범위 내 공유)
-     * @throws {Error} 채널 멤버 조회 또는 알림 트리거 발행 실패 시
+     단일 메시지에 대한 알림 트리거를 생성하고 발행한다.
+
+     수신자 분류 전략**:
+     - `targetUserIds`: 채널 멤버 전체에서 메시지 작성자를 제외한 모든 사용자.
+     - `forcedUserIds`: 멘션된 사용자 + 부모 메시지 작성자. 알림 수신 설정과 무관하게 항상 알림을 받는다.
+     단, 메시지 작성자 본인이거나 채널 멤버가 아닌 경우는 제외된다.
+
+     캐시 활용**:
+     - `memberCache`: 배치 시작 시 {@link poll}에서 일괄 채워지며, 채널 멤버 조회에 사용된다.
+     - `parentCache`: 배치 시작 시 {@link poll}에서 일괄 채워지며, 부모 메시지 작성자 조회에 사용된다.
+
+     @param message - 처리할 알림 대상 메시지
+     @param memberCache - 채널 ID를 키로 하는 채널 멤버 목록 캐시 (배치 범위 내 공유)
+     @param parentCache - 부모 메시지 ID를 키로 하는 작성자 정보 캐시 (배치 범위 내 공유)
+     @throws {Error} 채널 멤버 조회 또는 알림 트리거 발행 실패 시
      */
     private async processMessage(
-        message: Message & { _id: Types.ObjectId; createdAt: Date },
+        message: Message & {_id: Types.ObjectId; createdAt: Date},
         memberCache: Map<string, ChannelMember[]>,
-        parentCache: Map<string, { authorId: number } | null>,
+        parentCache: Map<string, {authorId: number} | null>,
     ): Promise<void> {
         const members = memberCache.get(String(message.channelId)) ?? [];
         const memberIdSet = new Set(members.map(m => m.userId));
 
         const targetUserIds = [...memberIdSet].filter(id => id !== message.authorId);
 
-        if (!message.notificationRetryCount) {
+        if (message.notificationRetryCount === 0) {
             await this.unreadCounterService.incrementIfPresent(message.channelId, targetUserIds);
         }
 
