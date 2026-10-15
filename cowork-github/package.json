@@ -1,7 +1,7 @@
 {
   "name": "cowork-github",
-  "version": "0.0.1",
-  "description": "",
+  "version": "20261015.0.0",
+  "description": "GitHub App 연동 서비스.",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
