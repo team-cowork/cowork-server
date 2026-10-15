@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import {ApiProperty} from '@nestjs/swagger';
 import {
     IsNotEmpty,
     IsNumber,
@@ -8,47 +8,47 @@ import {
 } from 'class-validator';
 
 export class CreateFileUploadUrlRequestDto {
-    @ApiProperty({ description: '원본 파일명', example: 'screenshot.png' })
+    @ApiProperty({description: '원본 파일명', example: 'screenshot.png'})
     @IsString()
     @IsNotEmpty()
     @MaxLength(255)
     filename!: string;
 
-    @ApiProperty({ description: 'MIME 타입', example: 'image/png' })
+    @ApiProperty({description: 'MIME 타입', example: 'image/png'})
     @IsString()
     @IsNotEmpty()
     @MaxLength(100)
     contentType!: string;
 
-    @ApiProperty({ description: '파일 크기(bytes)', example: 102_400 })
+    @ApiProperty({description: '파일 크기(bytes)', example: 102_400})
     @IsNumber()
     @Min(1)
     size!: number;
 }
 
 export class CreateFileUploadUrlResponseDto {
-    @ApiProperty({ description: 'S3 object key' })
+    @ApiProperty({description: 'S3 object key'})
     objectKey!: string;
 
-    @ApiProperty({ description: '클라이언트가 PUT 업로드에 사용할 presigned URL' })
+    @ApiProperty({description: '클라이언트가 PUT 업로드에 사용할 presigned URL'})
     uploadUrl!: string;
 
-    @ApiProperty({ description: 'presigned URL 만료 시간(초)' })
+    @ApiProperty({description: 'presigned URL 만료 시간(초)'})
     expiresInSeconds!: number;
 
-    @ApiProperty({ description: 'PUT 요청 시 같이 보낼 헤더' })
+    @ApiProperty({description: 'PUT 요청 시 같이 보낼 헤더'})
     headers!: Record<string, string>;
 }
 
 export class ConfirmFileUploadRequestDto {
-    @ApiProperty({ description: '업로드한 파일의 object key' })
+    @ApiProperty({description: '업로드한 파일의 object key'})
     @IsString()
     @IsNotEmpty()
     objectKey!: string;
 }
 
 export class ConfirmFileUploadResponseDto {
-    @ApiProperty({ description: '확정된 파일 key. 메시지 attachments.objectKey에 사용한다.' })
+    @ApiProperty({description: '확정된 파일 key. 메시지 attachments.objectKey에 사용한다.'})
     objectKey!: string;
 
     @ApiProperty() name!: string;
