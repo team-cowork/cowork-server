@@ -19,7 +19,7 @@ enum class GithubIssueWriteOperationStatus { PENDING, SUCCEEDED, FAILED }
  * 멱등성 원장(operation ledger). `operationId`를 PK로 사용해 동일 command의 재발행을 막고,
  * 결과 반영 시 `idempotencyKey` 일치 여부를 검증하는 기준이 된다.
  *
- * cowork-github-app은 `idempotencyKey`로 중복 제거를 하지 않으므로(그대로 echo만 함), 이미 종결
+ * cowork-github는 `idempotencyKey`로 중복 제거를 하지 않으므로(그대로 echo만 함), 이미 종결
  * (SUCCEEDED/FAILED) 상태인 작업에 대해서는 재발행하지 않는 책임이 이 원장을 사용하는
  * publisher 쪽에 있다. `DELETE_COMMENT`는 재전달 시 이미 삭제됐음에도 404로 인한 FAILED가
  * 돌아올 수 있으므로, 결과 반영도 이미 종결된 작업에 대해서는 상태 불일치 여부와 무관하게
