@@ -24,6 +24,11 @@ async function bootstrap() {
                 groupId: config.kafkaGroupId,
                 allowAutoTopicCreation: false,
             },
+            // Topics without a committed offset start from the beginning so commands published
+            // before this consumer first joins are not skipped.
+            subscribe: {
+                fromBeginning: true,
+            },
             run: {
                 autoCommit: false,
             },
