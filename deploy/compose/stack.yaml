@@ -152,9 +152,6 @@ services:
         github.issue-write.command.v1
         github.issue-write.result.v1
         github.issue-write.result.v1-dlt
-        github-app.issue-write.command
-        github-app.issue-write.result
-        github-app.issue-write.result-dlt
       KAFKA_COMPACTED_TOPICS: >-
         user.profile.event
         user.presence.event
