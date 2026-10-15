@@ -1,6 +1,6 @@
-import { IsNumber } from 'class-validator';
+import {IsNumber} from 'class-validator';
 
 export class DeleteCommentPayloadDto {
-  @IsNumber()
-  commentId: number;
+    @IsNumber()
+    commentId: number;
 }
