@@ -47,9 +47,12 @@ SERVICES = [
     ("roadmap", MySQL, "10.0.0.132:8088"),
     ("voice", MongoDB, "10.0.0.90:8089"),
     ("preference", PostgreSQL, "10.0.0.89:9001"),
+    ("github", None, "10.0.0.150:8090"),
 ]
 WITH_STORAGE = {"user", "team", "chat"}
-REDIS_CLIENTS = {"user", "chat", "preference"}
+REDIS_CLIENTS = {"user", "chat", "preference", "github"}
+# Webhook ingress bypasses Gateway through the VM-local Nginx.
+NOT_ROUTED = {"github"}
 
 
 def edge(color, label="", style="solid", **attrs):
@@ -86,6 +89,10 @@ def overview():
                     for name, engine, address in row:
                         with Cluster(address):
                             app = service(name)
+                            if engine is None:
+                                apps[name] = app
+                                tops.append(app)
+                                continue
                             database = engine(f"{name}-db")
                             app >> edge(DATA) >> database
                             if name in WITH_STORAGE:
@@ -104,8 +111,6 @@ def overview():
                     redis = Redis("Redis")
                 with Cluster("10.0.0.172:7880"):
                     livekit = Custom("LiveKit SFU", LIVEKIT_ICON)
-                with Cluster("10.0.0.150:3000"):
-                    github_app = service("github-app")
 
         with Cluster("External SaaS"):
             datagsm = InternetAlt1("DataGSM OAuth2")
@@ -127,14 +132,17 @@ def overview():
         vault >> Edge(style="invis") >> kafka
 
         for name, app in apps.items():
-            gateway >> edge(HTTP) >> app
+            if name not in NOT_ROUTED:
+                gateway >> edge(HTTP) >> app
             app >> edge(EVENT, style="dashed", penwidth="0.8") >> kafka
             if name in REDIS_CLIENTS:
                 app >> edge(DATA, style="dotted", penwidth="0.8") >> redis
 
         apps["voice"] >> edge(HTTP, "Room API") >> livekit
-        apps["project"] >> edge(HTTP, "internal API") >> github_app
-        github_app >> edge(EXTERNAL) >> github
+        apps["project"] >> edge(HTTP, "internal API (Eureka)") >> apps["github"]
+        apps["github"] >> edge(EXTERNAL, "GitHub App API") >> github
+        github >> edge(EXTERNAL, "서명 Webhook → Nginx :8080", "dashed") >> edge_proxy
+        edge_proxy >> edge(EXTERNAL, style="dashed") >> apps["github"]
         apps["authorization"] >> edge(EXTERNAL, "OAuth2") >> datagsm
         apps["notification"] >> edge(EXTERNAL, "푸시") >> fcm
         apps["chat"] >> edge(EXTERNAL, "업무 알림") >> discord
