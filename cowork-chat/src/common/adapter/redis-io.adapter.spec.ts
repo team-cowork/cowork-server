@@ -1,6 +1,6 @@
-import { EventEmitter } from 'node:events';
-import type { ConfigService } from '@nestjs/config';
-import { nextRedisAdapterState, resolveAdapterMode, SocketIoRedisConnection } from './redis-io.adapter';
+import {EventEmitter} from 'node:events';
+import type {ConfigService} from '@nestjs/config';
+import {nextRedisAdapterState, resolveAdapterMode, SocketIoRedisConnection} from './redis-io.adapter';
 
 const mockRedisClients: MockRedis[] = [];
 
@@ -28,8 +28,8 @@ class MockRedis extends EventEmitter {
     }
 }
 
-jest.mock('ioredis', () => ({ __esModule: true, default: jest.fn(() => new MockRedis()) }));
-jest.mock('@socket.io/redis-adapter', () => ({ createAdapter: jest.fn(() => ({})) }));
+jest.mock('ioredis', () => ({__esModule: true, default: jest.fn(() => new MockRedis())}));
+jest.mock('@socket.io/redis-adapter', () => ({createAdapter: jest.fn(() => ({}))}));
 
 const base = {
     stopping: false, installed: true, pubReady: true, subReady: true, wasReady: false,
@@ -41,22 +41,22 @@ describe('nextRedisAdapterState', () => {
     });
 
     it('한 번도 준비되지 않았으면 pub 또는 sub이 준비되지 않은 동안 CONNECTING이다', () => {
-        expect(nextRedisAdapterState({ ...base, subReady: false })).toBe('CONNECTING');
-        expect(nextRedisAdapterState({ ...base, pubReady: false })).toBe('CONNECTING');
-        expect(nextRedisAdapterState({ ...base, installed: false })).toBe('CONNECTING');
+        expect(nextRedisAdapterState({...base, subReady: false})).toBe('CONNECTING');
+        expect(nextRedisAdapterState({...base, pubReady: false})).toBe('CONNECTING');
+        expect(nextRedisAdapterState({...base, installed: false})).toBe('CONNECTING');
     });
 
     it('준비된 뒤 pub 또는 sub 한쪽이 끊기면 DEGRADED다', () => {
-        expect(nextRedisAdapterState({ ...base, wasReady: true, pubReady: false })).toBe('DEGRADED');
-        expect(nextRedisAdapterState({ ...base, wasReady: true, subReady: false })).toBe('DEGRADED');
+        expect(nextRedisAdapterState({...base, wasReady: true, pubReady: false})).toBe('DEGRADED');
+        expect(nextRedisAdapterState({...base, wasReady: true, subReady: false})).toBe('DEGRADED');
     });
 
     it('DEGRADED 뒤 양쪽이 다시 준비되면 READY로 복구된다', () => {
-        expect(nextRedisAdapterState({ ...base, wasReady: true })).toBe('READY');
+        expect(nextRedisAdapterState({...base, wasReady: true})).toBe('READY');
     });
 
     it('종료 중이면 연결 상태와 무관하게 STOPPED다', () => {
-        expect(nextRedisAdapterState({ ...base, stopping: true })).toBe('STOPPED');
+        expect(nextRedisAdapterState({...base, stopping: true})).toBe('STOPPED');
     });
 });
 
@@ -76,7 +76,7 @@ describe('resolveAdapterMode', () => {
 });
 
 describe('SocketIoRedisConnection.onReadinessChange', () => {
-    const configService = { get: (key: string) => (key === 'REDIS_HOST' ? 'localhost' : undefined) } as unknown as ConfigService;
+    const configService = {get: (key: string) => (key === 'REDIS_HOST' ? 'localhost' : undefined)} as unknown as ConfigService;
 
     beforeEach(() => {
         mockRedisClients.length = 0;
