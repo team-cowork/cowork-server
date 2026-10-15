@@ -299,6 +299,24 @@ spring:
                 name: defaultCB
                 fallbackUri: forward:/fallback
 
+        - id: github-service-webhook
+          order: -1
+          uri: lb://cowork-github
+          predicates:
+            - Path=/api/github/github/webhooks
+            - Method=POST
+          filters:
+            - StripPrefix=2
+
+        - id: github-service-setup
+          order: -1
+          uri: lb://cowork-github
+          predicates:
+            - Path=/api/github/github/setup
+            - Method=GET
+          filters:
+            - StripPrefix=2
+
         - id: voice-service-webhook
           order: -1
           uri: lb://cowork-voice
