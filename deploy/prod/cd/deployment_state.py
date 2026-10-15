@@ -70,11 +70,11 @@ def record(service, target, sha, source_sha=None):
         "ref": sha, "task": TASK, "environment": f"Prod-CD({target})",
         "auto_merge": False, "required_contexts": [], "production_environment": True,
         "payload": {"service": service, "target": target, "source_sha": source_sha},
-        "description": "Runtime applied and readiness passed",
+        "description": "배포 적용 및 서비스 준비 상태 확인 완료",
     })
     api(f"deployments/{deployment['id']}/statuses", {
         "state": "success", "auto_inactive": False,
-        "description": "Runtime applied and readiness passed",
+        "description": "배포 적용 및 서비스 준비 상태 확인 완료",
         "log_url": f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}",
     })
     print(f"Recorded successful deployment: {target} at {sha}")
