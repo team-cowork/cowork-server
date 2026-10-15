@@ -4,17 +4,17 @@ import {
     OnModuleDestroy,
     OnModuleInit,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import Redis, { ChainableCommander, ClientContext, Result } from 'ioredis';
-import { getOptionalConfig, getRequiredConfig } from '../../common/config/config.util';
+import {ConfigService} from '@nestjs/config';
+import Redis, {ChainableCommander, ClientContext, Result} from 'ioredis';
+import {getOptionalConfig, getRequiredConfig} from '../../common/config/config.util';
 
 // This.client와 그 pipeline()에만 캐스팅해서 붙이는 타입 — ioredis의 공유 RedisCommander를 전역으로
 // 확장하면 defineCommand를 호출하지 않은 다른 Redis 클라이언트에도 이 메서드가 타입상 노출되어 버린다.
-type WithIncrementIfPresentScript<Context extends ClientContext = { type: 'default' }> = {
+type WithIncrementIfPresentScript<Context extends ClientContext = {type: 'default'}> = {
     incrementIfPresentScript(field: string, ...keys: string[]): Result<number, Context>;
 };
 type UnreadCounterRedis = Redis & WithIncrementIfPresentScript;
-type UnreadCounterPipeline = ChainableCommander & WithIncrementIfPresentScript<{ type: 'pipeline' }>;
+type UnreadCounterPipeline = ChainableCommander & WithIncrementIfPresentScript<{type: 'pipeline'}>;
 
 // ARGV[1]=field ARGV[2..]=유저별 unread:{userId} 해시 키 — 필드가 이미 존재하는 키에 대해서만 1 증가시킨다.
 // 대상 키 개수가 호출마다 달라져 KEYS 대신 ARGV로 넘긴다(numberOfKeys 고정 0 — 단일 노드 Redis라
@@ -41,15 +41,15 @@ export type UnreadCacheResult = {
 };
 
 /**
- * 채널별 안읽음 메시지 수를 캐싱하는 Redis 기반 cache-aside 카운터.
- *
- * `unread:{userId}` 해시에 `channelId` → count를 저장한다. Redis는 소모성 캐시일 뿐이며,
- * 정확한 값의 원천은 여전히 MongoDB 집계(`MessageRepository.countUnreadForChannels`/`countUnread`)다.
- * 캐시 미스나 Redis 오류는 항상 호출부가 MongoDB로 폴백하도록 신호를 보낸다(fail-open).
- *
- * 증가(`incrementIfPresent`)는 필드가 이미 존재하는 유저에게만 적용된다 — 존재하지 않는 채널에
- * 무작정 1부터 증가시키면 실제 안읽음 수(과거 누적분)를 무시한 잘못된 값이 캐시에 고정되기 때문이다.
- * 필드가 없는 경우는 그대로 비워두고, 다음 조회 시 캐시미스 폴백이 정확한 값을 계산해 채운다.
+ 채널별 안읽음 메시지 수를 캐싱하는 Redis 기반 cache-aside 카운터.
+
+ `unread:{userId}` 해시에 `channelId` → count를 저장한다. Redis는 소모성 캐시일 뿐이며,
+ 정확한 값의 원천은 여전히 MongoDB 집계(`MessageRepository.countUnreadForChannels`/`countUnread`)다.
+ 캐시 미스나 Redis 오류는 항상 호출부가 MongoDB로 폴백하도록 신호를 보낸다(fail-open).
+
+ 증가(`incrementIfPresent`)는 필드가 이미 존재하는 유저에게만 적용된다 — 존재하지 않는 채널에
+ 무작정 1부터 증가시키면 실제 안읽음 수(과거 누적분)를 무시한 잘못된 값이 캐시에 고정되기 때문이다.
+ 필드가 없는 경우는 그대로 비워두고, 다음 조회 시 캐시미스 폴백이 정확한 값을 계산해 채운다.
  */
 @Injectable()
 export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
@@ -69,7 +69,7 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
             enableOfflineQueue: false,
             maxRetriesPerRequest: 0,
         }) as UnreadCounterRedis;
-        this.client.defineCommand('incrementIfPresentScript', { numberOfKeys: 0, lua: INCREMENT_IF_PRESENT_SCRIPT });
+        this.client.defineCommand('incrementIfPresentScript', {numberOfKeys: 0, lua: INCREMENT_IF_PRESENT_SCRIPT});
         this.client.on('error', (error: unknown) => {
             this.logger.error(`Redis client error: ${error instanceof Error ? error.message : String(error)}`);
         });
@@ -87,14 +87,14 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * 여러 채널의 캐시된 안읽음 수를 조회한다.
-     *
-     * @returns 캐시에 값이 있는 채널은 `hits`, 없는(또는 Redis 오류로 판단 불가한) 채널은 `misses`.
-     * Redis 자체가 오류를 던지면 `null`을 반환해 호출부가 전체를 미스로 간주하고 폴백하게 한다.
+     여러 채널의 캐시된 안읽음 수를 조회한다.
+
+     @returns 캐시에 값이 있는 채널은 `hits`, 없는(또는 Redis 오류로 판단 불가한) 채널은 `misses`.
+     Redis 자체가 오류를 던지면 `null`을 반환해 호출부가 전체를 미스로 간주하고 폴백하게 한다.
      */
     async getMany(userId: number, channelIds: number[]): Promise<UnreadCacheResult | null> {
         if (channelIds.length === 0) {
-            return { hits: new Map(), misses: [] };
+            return {hits: new Map(), misses: []};
         }
 
         try {
@@ -110,7 +110,7 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
                 }
             }
 
-            return { hits, misses };
+            return {hits, misses};
         } catch (error) {
             this.logger.warn(`Redis getMany failed, treating as full cache miss [userId=${userId}]`, error);
             return null;
@@ -118,7 +118,7 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * 여러 채널의 안읽음 수를 캐시에 채운다 (캐시미스 폴백 계산 결과를 기록할 때 사용).
+     여러 채널의 안읽음 수를 캐시에 채운다 (캐시미스 폴백 계산 결과를 기록할 때 사용).
      */
     async setMany(userId: number, values: Map<number, number>): Promise<void> {
         if (values.size === 0) {
@@ -139,7 +139,7 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * 단일 채널의 안읽음 수를 정확한 값으로 설정한다 (읽음 처리 시 사용).
+     단일 채널의 안읽음 수를 정확한 값으로 설정한다 (읽음 처리 시 사용).
      */
     async set(channelId: number, userId: number, count: number): Promise<void> {
         try {
@@ -151,11 +151,11 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * 새 메시지 발생 시 해당 채널 필드가 이미 캐시에 존재하는 유저에 대해서만 안읽음 수를 1 증가시킨다.
-     * 필드가 없는(캐시 미스 상태인) 유저는 건드리지 않는다 — 다음 조회의 캐시미스 폴백이 처리한다.
-     * 유저별 "존재하면 증가" 조건분기를 Lua 스크립트로 옮기되, 유저 간 원자성이 필요 없는 연산이라
-     * `INCREMENT_CHUNK_SIZE` 단위로 잘라 파이프라인에 담는다 — 채널 멤버가 수천 명이어도 스크립트
-     * 한 번의 실행 시간이 짧게 유지되어 그 사이 Redis 인스턴스가 길게 블로킹되지 않는다.
+     새 메시지 발생 시 해당 채널 필드가 이미 캐시에 존재하는 유저에 대해서만 안읽음 수를 1 증가시킨다.
+     필드가 없는(캐시 미스 상태인) 유저는 건드리지 않는다 — 다음 조회의 캐시미스 폴백이 처리한다.
+     유저별 "존재하면 증가" 조건분기를 Lua 스크립트로 옮기되, 유저 간 원자성이 필요 없는 연산이라
+     `INCREMENT_CHUNK_SIZE` 단위로 잘라 파이프라인에 담는다 — 채널 멤버가 수천 명이어도 스크립트
+     한 번의 실행 시간이 짧게 유지되어 그 사이 Redis 인스턴스가 길게 블로킹되지 않는다.
      */
     async incrementIfPresent(channelId: number, userIds: number[]): Promise<void> {
         if (userIds.length === 0) {

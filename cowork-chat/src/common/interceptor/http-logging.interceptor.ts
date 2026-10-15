@@ -5,8 +5,8 @@ import {
     Logger,
     NestInterceptor,
 } from '@nestjs/common';
-import { Request, Response } from 'express';
-import { Observable, tap } from 'rxjs';
+import {Request, Response} from 'express';
+import {Observable, tap} from 'rxjs';
 
 @Injectable()
 export class HttpLoggingInterceptor implements NestInterceptor {
@@ -18,7 +18,7 @@ export class HttpLoggingInterceptor implements NestInterceptor {
         }
 
         const request = context.switchToHttp().getRequest<Request>();
-        const { method, path } = request;
+        const {method, path} = request;
         const userId = request.headers['x-user-id'] ?? '-';
         const start = Date.now();
 
@@ -34,7 +34,7 @@ export class HttpLoggingInterceptor implements NestInterceptor {
                         duration: Date.now() - start,
                     });
                 },
-                error: (error: { status?: number; statusCode?: number }) => {
+                error: (error: {status?: number; statusCode?: number}) => {
                     this.logger.log({
                         method,
                         path,

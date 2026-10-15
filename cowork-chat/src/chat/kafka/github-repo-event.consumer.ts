@@ -4,29 +4,31 @@ import {
     OnModuleInit,
     Logger,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Kafka, Consumer } from 'kafkajs';
+import {ConfigService} from '@nestjs/config';
+import {Kafka, Consumer} from 'kafkajs';
 import mongoose from 'mongoose';
-import { Server } from 'socket.io';
-import { DicoshotService } from 'dicoshot-nest';
-import { ChatService } from '../chat.service';
-import { ProjectClient, ChannelMessageReadAccessService } from '../service';
-import { getRequiredCsvConfig } from '../../common/config/config.util';
-import { buildErrorFields } from '../../common/util/discord-alert.util';
-import { ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
-import { toMessageBroadcastPayload } from '../repository';
-import { GithubRepoEvent } from './event/github-repo.event';
+import {Server} from 'socket.io';
+import {DicoshotService} from 'dicoshot-nest';
+import {ChatService} from '../chat.service';
+import {ProjectClient, ChannelMessageReadAccessService} from '../service';
+import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {buildErrorFields} from '../../common/util/discord-alert.util';
+import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
+import {toMessageBroadcastPayload} from '../repository';
+import {GithubRepoEvent} from './event/github-repo.event';
 
-/** `Message.content`(`schema/message.schema.ts`)의 `maxlength` 제약과 동일하다. */
+/**
+`Message.content`(`schema/message.schema.ts`)의 `maxlength` 제약과 동일하다.
+*/
 const MESSAGE_CONTENT_MAX_LENGTH = 25_000;
 const PROJECTION_WAIT_HEARTBEAT_INTERVAL_MS = 5000;
 
 /**
- * Kafka `github.repo.event` 토픽을 구독하여 GitHub 저장소 활동(push/issues/pull_request)을 처리하는 컨슈머.
- *
- * 이벤트가 발생한 저장소(`owner`/`repo`)에 연결된 프로젝트의 GitHub 알림 채널을 로컬 projection에서 조회하고,
- * 알림 채널이 지정되어 있으면 `summary`를 SYSTEM 메시지로 MongoDB에 저장한 후 Socket.IO로 브로드캐스트한다.
- * Socket.IO 서버 인스턴스는 `ChatGateway`의 `afterInit`에서 {@link setSocketServer}로 주입된다.
+ Kafka `github.repo.event` 토픽을 구독하여 GitHub 저장소 활동(push/issues/pull_request)을 처리하는 컨슈머.
+
+ 이벤트가 발생한 저장소(`owner`/`repo`)에 연결된 프로젝트의 GitHub 알림 채널을 로컬 projection에서 조회하고,
+ 알림 채널이 지정되어 있으면 `summary`를 SYSTEM 메시지로 MongoDB에 저장한 후 Socket.IO로 브로드캐스트한다.
+ Socket.IO 서버 인스턴스는 `ChatGateway`의 `afterInit`에서 {@link setSocketServer}로 주입된다.
  */
 @Injectable()
 export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
@@ -44,36 +46,36 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
     ) {}
 
     /**
-     * Socket.IO 서버 인스턴스를 주입한다.
-     *
-     * `ChatGateway`의 `afterInit` 훅에서 호출되어야 하며,
-     * 이 메서드가 호출되기 전에 수신된 이벤트는 Socket.IO 브로드캐스트 없이 저장만 된다.
-     *
-     * @param io - Socket.IO 서버 인스턴스
+     Socket.IO 서버 인스턴스를 주입한다.
+
+     `ChatGateway`의 `afterInit` 훅에서 호출되어야 하며,
+     이 메서드가 호출되기 전에 수신된 이벤트는 Socket.IO 브로드캐스트 없이 저장만 된다.
+
+     @param io - Socket.IO 서버 인스턴스
      */
     setSocketServer(io: Server) {
         this.io = io;
     }
 
     /**
-     * 모듈 초기화 시 Kafka 컨슈머를 시작하고 `github.repo.event` 토픽 구독을 설정한다.
-     *
-     * JSON 파싱 오류(`SyntaxError`)는 재처리 불가 메시지로 판단하여 무시한다.
-     * 그 외 오류는 예외로 전파하여 Kafka offset을 커밋하지 않고 재전달을 유도한다.
+     모듈 초기화 시 Kafka 컨슈머를 시작하고 `github.repo.event` 토픽 구독을 설정한다.
+
+     JSON 파싱 오류(`SyntaxError`)는 재처리 불가 메시지로 판단하여 무시한다.
+     그 외 오류는 예외로 전파하여 Kafka offset을 커밋하지 않고 재전달을 유도한다.
      */
     async onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-github-repo-event',
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
-        this.consumer = kafka.consumer({ groupId: 'cowork-chat-github-repo-event' });
+        this.consumer = kafka.consumer({groupId: 'cowork-chat-github-repo-event'});
         await this.consumer.connect();
-        await this.consumer.subscribe({ topic: 'github.repo.event', fromBeginning: false });
+        await this.consumer.subscribe({topic: 'github.repo.event', fromBeginning: false});
 
         void this.consumer
             .run({
                 eachMessage: async payload => {
-                    const { message } = payload;
+                    const {message} = payload;
                     if (!message.value) {
                         return;
                     }
@@ -97,7 +99,7 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
                     description: 'cowork-chat의 github.repo.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
                     color: 'danger',
                     fields: [
-                        { name: 'Topic', value: 'github.repo.event', inline: true },
+                        {name: 'Topic', value: 'github.repo.event', inline: true},
                         ...buildErrorFields(error),
                     ],
                 }).catch(() => {/* Alert delivery is best-effort. */});
@@ -107,19 +109,19 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * 모듈 종료 시 Kafka 컨슈머 연결을 해제한다.
+     모듈 종료 시 Kafka 컨슈머 연결을 해제한다.
      */
     async onModuleDestroy() {
         await this.consumer.disconnect();
     }
 
     /**
-     * GitHub 저장소 활동 이벤트를 처리한다.
-     *
-     * 서로 다른 팀이 같은 레포를 연결할 수 있으므로, 알림 채널이 설정된 대상 전부(0개 이상)에
-     * `summary`를 SYSTEM 메시지로 저장하고 각 채널에 Socket.IO로 브로드캐스트한다.
-     *
-     * @param event - Kafka에서 수신한 GitHub 저장소 활동 이벤트
+     GitHub 저장소 활동 이벤트를 처리한다.
+
+     서로 다른 팀이 같은 레포를 연결할 수 있으므로, 알림 채널이 설정된 대상 전부(0개 이상)에
+     `summary`를 SYSTEM 메시지로 저장하고 각 채널에 Socket.IO로 브로드캐스트한다.
+
+     @param event - Kafka에서 수신한 GitHub 저장소 활동 이벤트
      */
     private async handleRepoEvent(event: GithubRepoEvent, heartbeat: () => Promise<void> = async () => {/* Direct calls need no Kafka heartbeat. */}): Promise<void> {
         const summary = this.sanitizeSummary(event.summary);
@@ -135,28 +137,30 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
 
         const targets = await this.projectClient.getGithubWebhookTargets(event.owner, event.repo);
 
-        for (const target of targets) {
+        await Promise.all(targets.map(async target => {
             const saved = await this.chatService.saveSystemMessage(target.teamId, target.channelId, summary);
             if (!saved) {
-                continue;
+                return;
             }
 
             await this.notifyClient(target.channelId, toMessageBroadcastPayload(saved));
-        }
+        }));
     }
 
     /**
-     * 초기 projection 적재가 Kafka session timeout보다 길어져도 consumer가 재조정되지 않도록
-     * 준비 상태를 기다리는 동안 주기적으로 heartbeat를 전송한다.
+     초기 projection 적재가 Kafka session timeout보다 길어져도 consumer가 재조정되지 않도록
+     준비 상태를 기다리는 동안 주기적으로 heartbeat를 전송한다.
      */
     private async waitForProjectionReadiness(heartbeat: () => Promise<void>): Promise<void> {
         await this.waitWithHeartbeat(this.projectionReadiness.checkCatchup(), heartbeat);
         while (!this.projectionReadiness.isReady()) {
+            // eslint-disable-next-line no-await-in-loop -- re-polls readiness; each attempt must finish before checking again.
             await this.waitWithHeartbeat(this.projectionReadiness.whenReady(), heartbeat);
         }
     }
 
     private async waitWithHeartbeat(operation: Promise<void>, heartbeat: () => Promise<void>): Promise<void> {
+        /* eslint-disable no-await-in-loop -- heartbeat polling loop: each cycle must wait for the previous timer/race to settle. */
         while (true) {
             let timer: ReturnType<typeof setTimeout> | undefined;
             const completed = operation.then(() => true);
@@ -178,15 +182,16 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
 
             await heartbeat();
         }
+        /* eslint-enable no-await-in-loop */
     }
 
     /**
-     * `Message.content`는 required + maxlength 25000이다. 빈 값은 저장 자체를 스킵하고(`null` 반환),
-     * 초과분은 잘라서 ValidationError로 인한 무한 재전달을 막는다.
+     `Message.content`는 required + maxlength 25000이다. 빈 값은 저장 자체를 스킵하고(`null` 반환),
+     초과분은 잘라서 ValidationError로 인한 무한 재전달을 막는다.
      */
     private sanitizeSummary(summary: string): string | null {
         const trimmed = summary?.trim();
-        if (!trimmed) {
+        if (trimmed === undefined || trimmed === '') {
             return null;
         }
 
@@ -194,12 +199,12 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * Socket.IO를 통해 특정 채널의 클라이언트에게 메시지를 브로드캐스트한다.
-     *
-     * Socket.IO 서버가 주입되지 않은 경우 (`io`가 `undefined`) 경고 로그를 남기고 무시된다.
-     *
-     * @param channelId - 브로드캐스트 대상 채널 ID
-     * @param message - 전송할 메시지 객체
+     Socket.IO를 통해 특정 채널의 클라이언트에게 메시지를 브로드캐스트한다.
+
+     Socket.IO 서버가 주입되지 않은 경우 (`io`가 `undefined`) 경고 로그를 남기고 무시된다.
+
+     @param channelId - 브로드캐스트 대상 채널 ID
+     @param message - 전송할 메시지 객체
      */
     private async notifyClient(channelId: number, message: unknown): Promise<void> {
         if (!this.io) {
