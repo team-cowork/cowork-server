@@ -1,68 +1,68 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { HttpException } from '@nestjs/common';
-import { InternalApiKeyGuard } from '../common/guards/internal-api-key.guard';
-import { GithubClientError } from '../github.errors';
-import { CommentListHttpController } from './comment-list-http.controller';
-import { IssueHttpService } from './issue-http.service';
+import {Test, type TestingModule} from '@nestjs/testing';
+import {HttpException} from '@nestjs/common';
+import {InternalApiKeyGuard} from '../common/guards/internal-api-key.guard';
+import {GithubClientError} from '../github.errors';
+import {CommentListHttpController} from './comment-list-http.controller';
+import {IssueHttpService} from './issue-http.service';
 
 describe('CommentListHttpController', () => {
-  let controller: CommentListHttpController;
-  let issueHttpService: {
-    listComments: jest.Mock;
-  };
-
-  beforeEach(async () => {
-    issueHttpService = {
-      listComments: jest.fn(),
+    let controller: CommentListHttpController;
+    let issueHttpService: {
+        listComments: jest.Mock;
     };
 
-    const module: TestingModule = await Test.createTestingModule({
-      controllers: [CommentListHttpController],
-      providers: [{ provide: IssueHttpService, useValue: issueHttpService }],
-    })
-      .overrideGuard(InternalApiKeyGuard)
-      .useValue({ canActivate: () => true })
-      .compile();
+    beforeEach(async () => {
+        issueHttpService = {
+            listComments: jest.fn(),
+        };
 
-    controller = module.get<CommentListHttpController>(
-      CommentListHttpController,
-    );
-  });
+        const module: TestingModule = await Test.createTestingModule({
+            controllers: [CommentListHttpController],
+            providers: [{provide: IssueHttpService, useValue: issueHttpService}],
+        })
+            .overrideGuard(InternalApiKeyGuard)
+            .useValue({canActivate: () => true})
+            .compile();
 
-  it('댓글 목록을 조회한다', async () => {
-    issueHttpService.listComments.mockResolvedValue([{ id: 1 }]);
+        controller = module.get<CommentListHttpController>(
+            CommentListHttpController,
+        );
+    });
 
-    const result = await controller.list('my-org', 'my-repo', 1);
+    it('댓글 목록을 조회한다', async () => {
+        issueHttpService.listComments.mockResolvedValue([{id: 1}]);
 
-    expect(result).toEqual([{ id: 1 }]);
-    expect(issueHttpService.listComments).toHaveBeenCalledWith(
-      'my-org',
-      'my-repo',
-      1,
-    );
-  });
+        const result = await controller.list('my-org', 'my-repo', 1);
 
-  it('GithubClientError는 동일한 statusCode의 HttpException으로 변환한다', async () => {
-    issueHttpService.listComments.mockRejectedValue(
-      new GithubClientError('이슈를 찾을 수 없습니다.', 404),
-    );
+        expect(result).toEqual([{id: 1}]);
+        expect(issueHttpService.listComments).toHaveBeenCalledWith(
+            'my-org',
+            'my-repo',
+            1,
+        );
+    });
 
-    await expect(controller.list('my-org', 'my-repo', 1)).rejects.toMatchObject(
-      { response: '이슈를 찾을 수 없습니다.', status: 404 },
-    );
-  });
+    it('GithubClientError는 동일한 statusCode의 HttpException으로 변환한다', async () => {
+        issueHttpService.listComments.mockRejectedValue(
+            new GithubClientError('이슈를 찾을 수 없습니다.', 404),
+        );
 
-  it('알 수 없는 에러는 502로 변환한다', async () => {
-    issueHttpService.listComments.mockRejectedValue(new Error('network down'));
+        await expect(controller.list('my-org', 'my-repo', 1)).rejects.toMatchObject(
+            {response: '이슈를 찾을 수 없습니다.', status: 404},
+        );
+    });
 
-    let caught: unknown;
-    try {
-      await controller.list('my-org', 'my-repo', 1);
-    } catch (e) {
-      caught = e;
-    }
+    it('알 수 없는 에러는 502로 변환한다', async () => {
+        issueHttpService.listComments.mockRejectedValue(new Error('network down'));
 
-    expect(caught).toBeInstanceOf(HttpException);
-    expect((caught as HttpException).getStatus()).toBe(502);
-  });
+        let caught: unknown;
+        try {
+            await controller.list('my-org', 'my-repo', 1);
+        } catch (error) {
+            caught = error;
+        }
+
+        expect(caught).toBeInstanceOf(HttpException);
+        expect((caught as HttpException).getStatus()).toBe(502);
+    });
 });
