@@ -1,171 +1,171 @@
-import { Test, TestingModule } from '@nestjs/testing';
-import { HttpService } from '@nestjs/axios';
-import { AxiosError } from 'axios';
-import { of, throwError } from 'rxjs';
-import { GithubAuthService } from './github-auth.service';
-import { AppConfigService } from '../../config/app-config.service';
-import { REDIS_CLIENT } from '../constants';
-import { githubCacheKeys } from '../github.cache';
-import { GithubClientError } from '../github.errors';
+import {Test, type TestingModule} from '@nestjs/testing';
+import {HttpService} from '@nestjs/axios';
+import {AxiosError} from 'axios';
+import {of, throwError} from 'rxjs';
+import {AppConfigService} from '../../config/app-config.service';
+import {REDIS_CLIENT} from '../constants';
+import {githubCacheKeys} from '../github.cache';
+import {GithubClientError} from '../github.errors';
+import {GithubAuthService} from './github-auth.service';
 
 jest.mock('jsonwebtoken', () => ({
-  sign: jest.fn().mockReturnValue('mock-jwt'),
+    sign: jest.fn().mockReturnValue('mock-jwt'),
 }));
 
 describe('GithubAuthService', () => {
-  let service: GithubAuthService;
-  let httpService: { get: jest.Mock; post: jest.Mock };
-  let redis: { get: jest.Mock; set: jest.Mock };
+    let service: GithubAuthService;
+    let httpService: {get: jest.Mock; post: jest.Mock};
+    let redis: {get: jest.Mock; set: jest.Mock};
 
-  const mockConfig = {
-    githubAppId: 'app-123',
-    githubPrivateKey: 'private-key',
-    githubTokenCacheTtlSeconds: 3300,
-    githubInstallationCacheTtlSeconds: 86400,
-  };
+    const mockConfig = {
+        githubAppId: 'app-123',
+        githubPrivateKey: 'private-key',
+        githubTokenCacheTtlSeconds: 3300,
+        githubInstallationCacheTtlSeconds: 86_400,
+    };
 
-  beforeEach(async () => {
-    httpService = { get: jest.fn(), post: jest.fn() };
-    redis = { get: jest.fn(), set: jest.fn().mockResolvedValue('OK') };
+    beforeEach(async () => {
+        httpService = {get: jest.fn(), post: jest.fn()};
+        redis = {get: jest.fn(), set: jest.fn().mockResolvedValue('OK')};
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        GithubAuthService,
-        { provide: HttpService, useValue: httpService },
-        { provide: AppConfigService, useValue: mockConfig },
-        { provide: REDIS_CLIENT, useValue: redis },
-      ],
-    }).compile();
+        const module: TestingModule = await Test.createTestingModule({
+            providers: [
+                GithubAuthService,
+                {provide: HttpService, useValue: httpService},
+                {provide: AppConfigService, useValue: mockConfig},
+                {provide: REDIS_CLIENT, useValue: redis},
+            ],
+        }).compile();
 
-    service = module.get<GithubAuthService>(GithubAuthService);
-  });
-
-  afterEach(() => jest.clearAllMocks());
-
-  const createAxiosError = (status: number, message: string): AxiosError =>
-    new AxiosError(message, undefined, { headers: {} }, undefined, {
-      status,
-      statusText: 'error',
-      headers: {},
-      config: { headers: {} },
-      data: { message },
+        service = module.get<GithubAuthService>(GithubAuthService);
     });
 
-  it('installationId 메모리 캐시 히트 시 GitHub API를 호출하지 않는다', async () => {
-    (
-      service as unknown as { installationIdCache: Map<string, number> }
-    ).installationIdCache.set('my-org', 111);
-    redis.get.mockResolvedValueOnce('cached-token');
+    afterEach(() => jest.clearAllMocks());
 
-    const token = await service.getInstallationToken('my-org');
+    const createAxiosError = (status: number, message: string): AxiosError =>
+        new AxiosError(message, undefined, {headers: {}}, undefined, {
+            status,
+            statusText: 'error',
+            headers: {},
+            config: {headers: {}},
+            data: {message},
+        });
 
-    expect(token).toBe('cached-token');
-    expect(httpService.get).not.toHaveBeenCalled();
-    expect(redis.get).toHaveBeenCalledWith(githubCacheKeys.token(111));
-  });
+    it('installationId 메모리 캐시 히트 시 GitHub API를 호출하지 않는다', async () => {
+        (
+            service as unknown as {installationIdCache: Map<string, number>}
+        ).installationIdCache.set('my-org', 111);
+        redis.get.mockResolvedValueOnce('cached-token');
 
-  it('installationId Redis 캐시 히트 시 GitHub API를 호출하지 않고 메모리 캐시를 채운다', async () => {
-    redis.get
-      .mockResolvedValueOnce('999') // installation cache hit
-      .mockResolvedValueOnce('redis-token'); // token cache hit
+        const token = await service.getInstallationToken('my-org');
 
-    const token = await service.getInstallationToken('my-org');
+        expect(token).toBe('cached-token');
+        expect(httpService.get).not.toHaveBeenCalled();
+        expect(redis.get).toHaveBeenCalledWith(githubCacheKeys.token(111));
+    });
 
-    expect(token).toBe('redis-token');
-    expect(httpService.get).not.toHaveBeenCalled();
-    expect(
-      (
-        service as unknown as { installationIdCache: Map<string, number> }
-      ).installationIdCache.get('my-org'),
-    ).toBe(999);
-  });
+    it('installationId Redis 캐시 히트 시 GitHub API를 호출하지 않고 메모리 캐시를 채운다', async () => {
+        redis.get
+            .mockResolvedValueOnce('999') // Installation cache hit
+            .mockResolvedValueOnce('redis-token'); // Token cache hit
 
-  it('캐시 미스 시 GitHub API를 호출해 토큰을 발급하고 Redis에 저장한다', async () => {
-    redis.get.mockResolvedValue(null);
-    httpService.get.mockReturnValue(of({ data: { id: 555 } }));
-    httpService.post.mockReturnValue(of({ data: { token: 'new-token' } }));
+        const token = await service.getInstallationToken('my-org');
 
-    const token = await service.getInstallationToken('my-org');
+        expect(token).toBe('redis-token');
+        expect(httpService.get).not.toHaveBeenCalled();
+        expect(
+            (
+                service as unknown as {installationIdCache: Map<string, number>}
+            ).installationIdCache.get('my-org'),
+        ).toBe(999);
+    });
 
-    expect(token).toBe('new-token');
-    expect(httpService.get).toHaveBeenCalledTimes(1);
-    expect(httpService.post).toHaveBeenCalledTimes(1);
-    expect(redis.set).toHaveBeenCalledWith(
-      githubCacheKeys.installation('my-org'),
-      '555',
-      'EX',
-      86400,
-    );
-    expect(redis.set).toHaveBeenCalledWith(
-      githubCacheKeys.token(555),
-      'new-token',
-      'EX',
-      3300,
-    );
-  });
+    it('캐시 미스 시 GitHub API를 호출해 토큰을 발급하고 Redis에 저장한다', async () => {
+        redis.get.mockResolvedValue(null);
+        httpService.get.mockReturnValue(of({data: {id: 555}}));
+        httpService.post.mockReturnValue(of({data: {token: 'new-token'}}));
 
-  it('연속 요청 시 메모리 캐시로 API 재호출을 방지한다', async () => {
-    redis.get.mockResolvedValue(null);
-    httpService.get.mockReturnValue(of({ data: { id: 777 } }));
-    httpService.post.mockReturnValue(of({ data: { token: 'token-a' } }));
+        const token = await service.getInstallationToken('my-org');
 
-    await service.getInstallationToken('my-org');
+        expect(token).toBe('new-token');
+        expect(httpService.get).toHaveBeenCalledTimes(1);
+        expect(httpService.post).toHaveBeenCalledTimes(1);
+        expect(redis.set).toHaveBeenCalledWith(
+            githubCacheKeys.installation('my-org'),
+            '555',
+            'EX',
+            86_400,
+        );
+        expect(redis.set).toHaveBeenCalledWith(
+            githubCacheKeys.token(555),
+            'new-token',
+            'EX',
+            3300,
+        );
+    });
 
-    redis.get.mockResolvedValue('token-a'); // token still cached
-    await service.getInstallationToken('my-org');
+    it('연속 요청 시 메모리 캐시로 API 재호출을 방지한다', async () => {
+        redis.get.mockResolvedValue(null);
+        httpService.get.mockReturnValue(of({data: {id: 777}}));
+        httpService.post.mockReturnValue(of({data: {token: 'token-a'}}));
 
-    expect(httpService.get).toHaveBeenCalledTimes(1); // installationId API: 1번만
-  });
+        await service.getInstallationToken('my-org');
 
-  it('installation 조회의 4xx 에러는 GithubClientError로 변환한다', async () => {
-    redis.get.mockResolvedValue(null);
-    httpService.get.mockReturnValueOnce(
-      throwError(() => createAxiosError(404, 'Installation not found')),
-    );
+        redis.get.mockResolvedValue('token-a'); // Token still cached
+        await service.getInstallationToken('my-org');
 
-    await expect(service.getInstallationToken('my-org')).rejects.toEqual(
-      new GithubClientError('Installation not found', 404),
-    );
-    expect(httpService.post).not.toHaveBeenCalled();
-  });
+        expect(httpService.get).toHaveBeenCalledTimes(1); // InstallationId API: 1번만
+    });
 
-  it('토큰 발급의 4xx 에러는 GithubClientError로 변환한다', async () => {
-    redis.get.mockResolvedValue(null);
-    httpService.get.mockReturnValue(of({ data: { id: 555 } }));
-    httpService.post.mockReturnValueOnce(
-      throwError(() => createAxiosError(403, 'Forbidden')),
-    );
+    it('installation 조회의 4xx 에러는 GithubClientError로 변환한다', async () => {
+        redis.get.mockResolvedValue(null);
+        httpService.get.mockReturnValueOnce(
+            throwError(() => createAxiosError(404, 'Installation not found')),
+        );
 
-    await expect(service.getInstallationToken('my-org')).rejects.toEqual(
-      new GithubClientError('Forbidden', 403),
-    );
-  });
+        await expect(service.getInstallationToken('my-org')).rejects.toEqual(
+            new GithubClientError('Installation not found', 404),
+        );
+        expect(httpService.post).not.toHaveBeenCalled();
+    });
 
-  it('installation의 계정 login을 조회한다', async () => {
-    httpService.get.mockReturnValue(
-      of({ data: { account: { login: 'my-org' } } }),
-    );
+    it('토큰 발급의 4xx 에러는 GithubClientError로 변환한다', async () => {
+        redis.get.mockResolvedValue(null);
+        httpService.get.mockReturnValue(of({data: {id: 555}}));
+        httpService.post.mockReturnValueOnce(
+            throwError(() => createAxiosError(403, 'Forbidden')),
+        );
 
-    const login = await service.getInstallationAccountLogin(42);
+        await expect(service.getInstallationToken('my-org')).rejects.toEqual(
+            new GithubClientError('Forbidden', 403),
+        );
+    });
 
-    expect(login).toBe('my-org');
-    expect(httpService.get).toHaveBeenCalledWith(
-      'https://api.github.com/app/installations/42',
-      expect.objectContaining({
-        headers: expect.objectContaining({
-          Authorization: 'Bearer mock-jwt',
-        }) as unknown,
-      }),
-    );
-  });
+    it('installation의 계정 login을 조회한다', async () => {
+        httpService.get.mockReturnValue(
+            of({data: {account: {login: 'my-org'}}}),
+        );
 
-  it('installation 계정 조회의 4xx 에러는 GithubClientError로 변환한다', async () => {
-    httpService.get.mockReturnValueOnce(
-      throwError(() => createAxiosError(404, 'Installation not found')),
-    );
+        const login = await service.getInstallationAccountLogin(42);
 
-    await expect(service.getInstallationAccountLogin(42)).rejects.toEqual(
-      new GithubClientError('Installation not found', 404),
-    );
-  });
+        expect(login).toBe('my-org');
+        expect(httpService.get).toHaveBeenCalledWith(
+            'https://api.github.com/app/installations/42',
+            expect.objectContaining({
+                headers: expect.objectContaining({
+                    Authorization: 'Bearer mock-jwt',
+                }) as unknown,
+            }),
+        );
+    });
+
+    it('installation 계정 조회의 4xx 에러는 GithubClientError로 변환한다', async () => {
+        httpService.get.mockReturnValueOnce(
+            throwError(() => createAxiosError(404, 'Installation not found')),
+        );
+
+        await expect(service.getInstallationAccountLogin(42)).rejects.toEqual(
+            new GithubClientError('Installation not found', 404),
+        );
+    });
 });
