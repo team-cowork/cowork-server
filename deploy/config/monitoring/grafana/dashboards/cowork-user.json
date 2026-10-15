@@ -1,5 +1,5 @@
 {
-  "title": "cowork-user",
+  "title": "cowork 사용자",
   "uid": "cowork-user",
   "tags": ["cowork", "service", "user"],
   "timezone": "browser",
@@ -23,7 +23,7 @@
       "fieldConfig": {
         "defaults": {
           "mappings": [
-            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+            { "type": "value", "options": { "0": { "text": "응답 없음", "color": "red" }, "1": { "text": "정상", "color": "green" } } }
           ],
           "thresholds": { "mode": "absolute", "steps": [{ "value": 0, "color": "red" }, { "value": 1, "color": "green" }] }
         }
@@ -31,7 +31,7 @@
     },
     {
       "id": 2,
-      "title": "HTTP 요청 Rate (req/s)",
+      "title": "초당 HTTP 요청 수 (req/s)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "targets": [
@@ -58,13 +58,13 @@
     },
     {
       "id": 4,
-      "title": "HTTP 5xx 에러율 (%)",
+      "title": "HTTP 5xx 오류 비율 (%)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
       "targets": [
         {
           "expr": "sum(rate(http_server_requests_seconds_count{application=\"cowork-user\", status=~\"5..\"}[1m])) / sum(rate(http_server_requests_seconds_count{application=\"cowork-user\"}[1m])) * 100",
-          "legendFormat": "5xx 에러율",
+          "legendFormat": "5xx 오류 비율",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ],
@@ -78,7 +78,7 @@
       "targets": [
         {
           "expr": "beam_memory_used_bytes{application=\"cowork-user\"}",
-          "legendFormat": "Total",
+          "legendFormat": "전체",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ],
@@ -86,13 +86,13 @@
     },
     {
       "id": 6,
-      "title": "BEAM Run Queue",
+      "title": "BEAM 실행 대기열 길이",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
       "targets": [
         {
           "expr": "beam_run_queue{application=\"cowork-user\"}",
-          "legendFormat": "Run Queue",
+          "legendFormat": "실행 대기열 길이",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ],
@@ -106,7 +106,7 @@
       "targets": [
         {
           "expr": "beam_process_count{application=\"cowork-user\"}",
-          "legendFormat": "Processes",
+          "legendFormat": "프로세스 수",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ]
@@ -119,7 +119,7 @@
         "type": "datasource",
         "query": "prometheus",
         "hide": 0,
-        "label": "Datasource"
+        "label": "데이터 소스"
       }
     ]
   }
