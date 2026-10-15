@@ -42,7 +42,7 @@ describe('IssueWriteCommandController', () => {
         ctx = {
             getMessage: jest.fn().mockReturnValue({offset: '10'}),
             getConsumer: jest.fn().mockReturnValue({commitOffsets}),
-            getTopic: jest.fn().mockReturnValue('github.issue-write.command'),
+            getTopic: jest.fn().mockReturnValue('github.issue-write.command.v1'),
             getPartition: jest.fn().mockReturnValue(0),
         } as unknown as KafkaContext;
 
@@ -92,7 +92,7 @@ describe('IssueWriteCommandController', () => {
             );
             expect(commitOffsets).toHaveBeenCalledWith([
                 {
-                    topic: 'github.issue-write.command',
+                    topic: 'github.issue-write.command.v1',
                     partition: 0,
                     offset: '11',
                 },
