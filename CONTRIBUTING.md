@@ -263,9 +263,10 @@ Run commands from the repository root:
 | One Gradle Kotlin module                                         | `./gradlew :cowork-team:ktlintCheck`                         | `./gradlew :cowork-team:ktlintFormat`        |
 | Node chat                                                        | `npm --prefix cowork-chat run lint -- --max-warnings=0`      | `npm --prefix cowork-chat run lint:fix`      |
 | Node promotion                                                   | `npm --prefix cowork-promotion run lint -- --max-warnings=0` | `npm --prefix cowork-promotion run lint:fix` |
+| Node github                                                      | `npm --prefix cowork-github run lint -- --max-warnings=0`    | `npm --prefix cowork-github run lint:fix`    |
 | Java roadmap                                                     | `./gradlew :cowork-roadmap:spotlessCheck`                    | `./gradlew :cowork-roadmap:spotlessApply`    |
 
-`cowork-promotion` runs XO with its default configuration: no `xo.config.mjs`, no inline `eslint-disable` comments, and the default file discovery. `cowork-chat` still carries module-specific settings in `xo.config.mjs`. In both modules the ESLint adapter passes the XO configuration through to editors. Review automatic fixes and run the module build; CI rejects lint warnings as well as errors.
+`cowork-promotion` runs XO with its default configuration: no `xo.config.mjs`, no inline `eslint-disable` comments, and the default file discovery. `cowork-chat` and `cowork-github` still carry module-specific settings in `xo.config.mjs`. In every module the ESLint adapter passes the XO configuration through to editors. Review automatic fixes and run the module build; CI rejects lint warnings as well as errors.
 
 Roadmap's Spotless configuration uses `cowork-roadmap/config/eclipse-java-formatter.xml` and its own import order. `check` (and therefore `build`) runs `spotlessCheck`. Compilation does not reformat Java files; run `spotlessApply` explicitly to apply formatting.
 
