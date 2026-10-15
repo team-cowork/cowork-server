@@ -8,19 +8,19 @@ on:
   workflow_dispatch:
     inputs:
       service:
-        description: Apply GitHub settings and recreate the selected service
+        description: GitHub 설정을 반영하고 재배포할 대상
         required: true
         type: choice
         options: [config, gateway, authorization, user, team, channel, project, roadmap, notification, preference, chat, voice, github, applications, infrastructure, vault]
       sha:
-        description: Optional existing image commit; blank keeps the currently deployed image
+        description: 사용할 기존 이미지의 커밋 SHA (비워 두면 현재 배포된 이미지 유지)
         type: string
       check_only:
-        description: Validate current applied settings without changing Vault or containers
+        description: 설정만 검증 (Vault와 컨테이너는 변경하지 않음)
         default: false
         type: boolean
       vault_recovery:
-        description: Restore Vault using VAULT_BOOTSTRAP_JSON (vault only)
+        description: VAULT_BOOTSTRAP_JSON으로 Vault 복구 (대상이 vault인 경우만 사용)
         default: false
         type: boolean
 
@@ -387,6 +387,7 @@ jobs:
     permissions:
       contents: read
       deployments: write
+      id-token: write
     runs-on: ubuntu-latest
     environment: Prod-CD(${{ matrix.target }})
     concurrency:
@@ -416,7 +417,6 @@ jobs:
           vault_recovery: ${{ inputs.vault_recovery || false }}
           vault_addr: ${{ vars.VAULT_ADDR }}
           vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
-          vault_token: ${{ secrets.VAULT_DEPLOY_READ_TOKEN }}
           vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
 
   apply-infrastructure:
@@ -775,6 +775,8 @@ jobs:
   notify:
     name: Send Deployment Notification
     runs-on: ubuntu-latest
+    env:
+      RESULT_LABELS: '{"success":"성공","failure":"실패","cancelled":"취소됨","skipped":"건너뜀","neutral":"중립","timed_out":"시간 초과","action_required":"조치 필요","stale":"만료됨"}'
     needs:
       - prepare
       - build-images
@@ -831,19 +833,19 @@ jobs:
           done
 
           # 상위 CI 실패 등으로 job이 하나도 실행되지 않으면 배포 성공으로 알리지 않는다.
-          run_desc="executed"
+          run_desc="실행됨"
           if [ "${ran}" = "false" ]; then
             status="cancelled"
             color="0xFFA500"
-            run_desc="not executed"
+            run_desc="실행되지 않음"
           fi
 
           if [ "${SHOULD_RELEASE}" = "true" ]; then
-            release_desc="v${VERSION} (created)"
+            release_desc="v${VERSION} (생성 완료)"
           elif [ -n "${VERSION}" ]; then
-            release_desc="v${VERSION} (skipped - already exists)"
+            release_desc="v${VERSION} (기존 릴리스 유지)"
           else
-            release_desc="N/A"
+            release_desc="해당 없음"
           fi
 
           echo "status=${status}" >> "$GITHUB_OUTPUT"
@@ -857,25 +859,28 @@ jobs:
           webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
           status: ${{ steps.status.outputs.status }}
           color: ${{ steps.status.outputs.color }}
-          title: "cowork Server Prod CD"
+          nodetail: true
+          url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          title: "[${{ fromJSON(env.RESULT_LABELS)[steps.status.outputs.status] || '확인 불가' }}] cowork Prod CD"
           description: |
-            `${{ github.event.workflow_run.head_branch || github.ref_name }}` · `${{ steps.sha.outputs.short }}` · by **${{ github.actor }}**
-            **Release:** ${{ steps.status.outputs.release_desc }}
-            **Operation:** ${{ github.event_name == 'workflow_dispatch' && 'settings and redeploy' || 'release' }}
-            **Upstream CI:** ${{ github.event.workflow_run.conclusion || 'n/a' }} · **Run:** ${{ steps.status.outputs.run_desc }}
-            **Target:** ${{ needs.manual-request.outputs.services-list || needs.detect-changes.outputs.services-list }}
+            **저장소:** ${{ github.repository }}
+            `${{ github.event.workflow_run.head_branch || github.ref_name }}` · `${{ steps.sha.outputs.short }}` · 실행자 **${{ github.actor }}**
+            **릴리스:** ${{ steps.status.outputs.release_desc }}
+            **작업:** ${{ github.event_name == 'workflow_dispatch' && '설정 반영 및 재배포' || '릴리스 배포' }}
+            **선행 CI:** ${{ github.event_name == 'workflow_dispatch' && '해당 없음 (수동 실행)' || fromJSON(env.RESULT_LABELS)[github.event.workflow_run.conclusion] || '확인 불가' }} · **실행 여부:** ${{ steps.status.outputs.run_desc }}
+            **대상:** ${{ needs.manual-request.outputs.services-list || needs.detect-changes.outputs.services-list }}
             ─────────────────────────────
-            **Prepare:** ${{ needs.prepare.result }}
-            **Build Images:** ${{ needs.build-images.result }}
-            **Release:** ${{ needs.release.result }}
-            **Detect Changes:** ${{ needs.detect-changes.result }}
-            **Deployment Plan:** ${{ needs.deployment-plan.result }}
-            **Vault:** ${{ needs.deploy-vault.result }}
-            **Infrastructure:** ${{ needs.apply-infrastructure.result }}
-            **Config Server:** ${{ needs.deploy-config.result }}
-            **Deploy:** ${{ needs.deploy.result }}
-            **Manual Request:** ${{ needs.manual-request.result }}
-            **Settings Sync:** ${{ needs.sync-settings.result }}
-            **Settings Recovery:** ${{ needs.restore-settings.outputs.restoration || needs.restore-settings.result }}
-            **Config Recovery:** ${{ needs.restore-config.result }}
-            **Application Recovery:** ${{ needs.restore-applications.result }}
+            **배포 준비:** ${{ fromJSON(env.RESULT_LABELS)[needs.prepare.result] || '확인 불가' }}
+            **이미지 빌드:** ${{ fromJSON(env.RESULT_LABELS)[needs.build-images.result] || '확인 불가' }}
+            **릴리스:** ${{ fromJSON(env.RESULT_LABELS)[needs.release.result] || '확인 불가' }}
+            **변경 사항 확인:** ${{ fromJSON(env.RESULT_LABELS)[needs.detect-changes.result] || '확인 불가' }}
+            **배포 계획:** ${{ fromJSON(env.RESULT_LABELS)[needs.deployment-plan.result] || '확인 불가' }}
+            **Vault:** ${{ fromJSON(env.RESULT_LABELS)[needs.deploy-vault.result] || '확인 불가' }}
+            **인프라:** ${{ fromJSON(env.RESULT_LABELS)[needs.apply-infrastructure.result] || '확인 불가' }}
+            **설정 서버:** ${{ fromJSON(env.RESULT_LABELS)[needs.deploy-config.result] || '확인 불가' }}
+            **배포:** ${{ fromJSON(env.RESULT_LABELS)[needs.deploy.result] || '확인 불가' }}
+            **수동 실행 요청:** ${{ fromJSON(env.RESULT_LABELS)[needs.manual-request.result] || '확인 불가' }}
+            **설정 동기화:** ${{ fromJSON(env.RESULT_LABELS)[needs.sync-settings.result] || '확인 불가' }}
+            **설정 복구:** ${{ fromJSON(env.RESULT_LABELS)[needs.restore-settings.outputs.restoration || needs.restore-settings.result] || '확인 불가' }}
+            **설정 서버 복구:** ${{ fromJSON(env.RESULT_LABELS)[needs.restore-config.result] || '확인 불가' }}
+            **애플리케이션 복구:** ${{ fromJSON(env.RESULT_LABELS)[needs.restore-applications.result] || '확인 불가' }}
