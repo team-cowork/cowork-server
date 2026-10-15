@@ -1,11 +1,11 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, mongo } from 'mongoose';
-import { TeamMemberProjection } from '../schema';
+import {Injectable} from '@nestjs/common';
+import {InjectModel} from '@nestjs/mongoose';
+import {Model, mongo} from 'mongoose';
+import {TeamMemberProjection} from '../schema';
 import {
     activeProjectionCondition,
     deletedProjectionCondition,
-    projectionUpdateApplied,
+    isProjectionUpdateApplied,
     projectionTimestampFields,
     projectionSourceVersion,
     PROJECTION_EPOCH,
@@ -28,7 +28,7 @@ export class TeamMemberProjectionRepository {
     constructor(@InjectModel(TeamMemberProjection.name) private readonly model: Model<TeamMemberProjection>) {}
 
     async exists(teamId: number, userId: number): Promise<boolean> {
-        return (await this.model.exists({ teamId, userId, deleted: { $ne: true } })) !== null;
+        return (await this.model.exists({teamId, userId, deleted: {$ne: true}})) !== null;
     }
 
     async findByTeamIdsAndUserIds(
@@ -40,7 +40,7 @@ export class TeamMemberProjectionRepository {
         }
 
         return this.model.find(
-            { teamId: { $in: teamIds }, userId: { $in: userIds }, deleted: { $ne: true } },
+            {teamId: {$in: teamIds}, userId: {$in: userIds}, deleted: {$ne: true}},
             {
                 _id: 0, teamId: 1, userId: 1, role: 1, teamName: 1,
             },
@@ -48,56 +48,56 @@ export class TeamMemberProjectionRepository {
     }
 
     async upsert(member: VersionedTeamMemberProjectionView): Promise<boolean> {
-        const shouldApply = activeProjectionCondition(member.sourceVersion);
+        const applyCondition = activeProjectionCondition(member.sourceVersion);
         const result = await this.model.updateOne(
-            { teamId: member.teamId, userId: member.userId },
+            {teamId: member.teamId, userId: member.userId},
             [{
                 $set: {
                     teamId: member.teamId,
                     userId: member.userId,
-                    role: { $cond: [shouldApply, { $literal: member.role }, { $ifNull: ['$role', ''] }] },
+                    role: {$cond: [applyCondition, {$literal: member.role}, {$ifNull: ['$role', '']}]},
                     teamName: {
-                        $cond: [shouldApply, { $literal: member.teamName }, { $ifNull: ['$teamName', ''] }],
+                        $cond: [applyCondition, {$literal: member.teamName}, {$ifNull: ['$teamName', '']}],
                     },
-                    deleted: { $cond: [shouldApply, false, { $ifNull: ['$deleted', false] }] },
+                    deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
                         $cond: [
-                            shouldApply,
+                            applyCondition,
                             member.occurredAt,
-                            { $ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH] },
+                            {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]},
                         ],
                     },
                     sourceVersion: {
-                        $cond: [shouldApply, member.sourceVersion, projectionSourceVersion],
+                        $cond: [applyCondition, member.sourceVersion, projectionSourceVersion],
                     },
-                    ...projectionTimestampFields(shouldApply, member.occurredAt),
+                    ...projectionTimestampFields(applyCondition, member.occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false, updatePipeline: true },
+            {upsert: true, timestamps: false, updatePipeline: true},
         );
-        return projectionUpdateApplied(result);
+        return isProjectionUpdateApplied(result);
     }
 
     async remove(teamId: number, userId: number, occurredAt: Date, sourceVersion: mongo.Long): Promise<boolean> {
-        const shouldApply = deletedProjectionCondition(sourceVersion);
+        const applyCondition = deletedProjectionCondition(sourceVersion);
         const result = await this.model.updateOne(
-            { teamId, userId },
+            {teamId, userId},
             [{
                 $set: {
                     teamId,
                     userId,
-                    role: { $ifNull: ['$role', ''] },
-                    teamName: { $ifNull: ['$teamName', ''] },
-                    deleted: { $cond: [shouldApply, true, { $ifNull: ['$deleted', false] }] },
+                    role: {$ifNull: ['$role', '']},
+                    teamName: {$ifNull: ['$teamName', '']},
+                    deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
-                        $cond: [shouldApply, occurredAt, { $ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH] }],
+                        $cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
                     },
-                    sourceVersion: { $cond: [shouldApply, sourceVersion, projectionSourceVersion] },
-                    ...projectionTimestampFields(shouldApply, occurredAt),
+                    sourceVersion: {$cond: [applyCondition, sourceVersion, projectionSourceVersion]},
+                    ...projectionTimestampFields(applyCondition, occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false, updatePipeline: true },
+            {upsert: true, timestamps: false, updatePipeline: true},
         );
-        return projectionUpdateApplied(result);
+        return isProjectionUpdateApplied(result);
     }
 }

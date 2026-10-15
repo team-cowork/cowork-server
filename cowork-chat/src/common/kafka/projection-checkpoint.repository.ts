@@ -1,10 +1,10 @@
-import { randomUUID } from 'node:crypto';
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
-import { PartitionOffset } from 'kafkajs';
-import { ProjectionCheckpoint } from './projection-checkpoint.schema';
-import { ProjectionQuarantineRecord } from './projection-quarantine.schema';
+import {randomUUID} from 'node:crypto';
+import {Injectable} from '@nestjs/common';
+import {InjectModel} from '@nestjs/mongoose';
+import {Model} from 'mongoose';
+import {PartitionOffset} from 'kafkajs';
+import {ProjectionCheckpoint} from './projection-checkpoint.schema';
+import {ProjectionQuarantineRecord} from './projection-quarantine.schema';
 
 export type SnapshotBarrierReceipt = {
     offset: string;
@@ -37,7 +37,9 @@ export type ProjectionAssignmentClaim = {
     checkpoint: ProjectionCheckpointOffset;
 };
 
-/** KafkaJS 기본 3초 heartbeat보다 충분히 길고 30초 session timeout보다 짧은 stale-owner lease. */
+/**
+KafkaJS 기본 3초 heartbeat보다 충분히 길고 30초 session timeout보다 짧은 stale-owner lease.
+*/
 export const PROJECTION_ASSIGNMENT_LEASE_MS = 15_000;
 
 type ProjectionAssignmentLeaseFilter = {
@@ -57,26 +59,30 @@ export type ProjectionRecoveryState = {
     recoverySnapshotId?: string;
 };
 
-/** 새 gap은 이전 recovery 후보를 폐기한다. */
+/**
+새 gap은 이전 recovery 후보를 폐기한다.
+*/
 export function latchInvalidProjectionRecord(
     state: ProjectionRecoveryState,
     recordOffset: string,
 ): ProjectionRecoveryState {
     if (state.invalidRecordOffset !== undefined
         && BigInt(recordOffset) <= BigInt(state.invalidRecordOffset)) {
-        return { ...state };
+        return {...state};
     }
 
-    return { ...state, invalidRecordOffset: recordOffset, recoverySnapshotId: undefined };
+    return {...state, invalidRecordOffset: recordOffset, recoverySnapshotId: undefined};
 }
 
-/** Gap 뒤 서로 다른 두 full snapshot만 latch를 해제한다. */
+/**
+Gap 뒤 서로 다른 두 full snapshot만 latch를 해제한다.
+*/
 export function observeProjectionRecoverySnapshot(
     state: ProjectionRecoveryState,
     markerOffset: string,
     snapshotId: string,
 ): ProjectionRecoveryState {
-    const next = { ...state };
+    const next = {...state};
     const marker = BigInt(markerOffset);
     if (state.invalidRecordOffset !== undefined
         && marker > BigInt(state.invalidRecordOffset)
@@ -118,7 +124,9 @@ export class ProjectionCheckpointRepository {
         return this.load(groupId, topic, true);
     }
 
-    /** Assignment이 없어도 dataset 일관성 판정에 사용하는 전체 durable checkpoint. */
+    /**
+    Assignment이 없어도 dataset 일관성 판정에 사용하는 전체 durable checkpoint.
+    */
     async findAll(groupId: string, topic: string): Promise<ProjectionCheckpointOffset[]> {
         return this.load(groupId, topic, false);
     }
@@ -126,13 +134,13 @@ export class ProjectionCheckpointRepository {
     private async load(
         groupId: string,
         topic: string,
-        activeLeaseOnly: boolean,
+        isActiveLeaseOnly: boolean,
     ): Promise<ProjectionCheckpointOffset[]> {
         const checkpoints = await this.model
             .find({
                 groupId,
                 topic,
-                ...(activeLeaseOnly && { $expr: this.unexpiredLeaseExpression() }),
+                ...(isActiveLeaseOnly && {$expr: this.unexpiredLeaseExpression()}),
             })
             .select({
                 partition: 1,
@@ -180,22 +188,22 @@ export class ProjectionCheckpointRepository {
         }) => ({
             partition,
             offset: nextOffset.toString(),
-            ...(datasetGeneration && { datasetGeneration }),
-            ...(sourceGeneration && { sourceGeneration }),
-            ...(assignmentEpoch && { assignmentEpoch }),
-            ...(assignmentMemberId && { assignmentMemberId }),
-            ...(!(assignmentGenerationId === null || assignmentGenerationId === undefined) && { assignmentGenerationId }),
-            ...(!(snapshotCompletedOffset === null || snapshotCompletedOffset === undefined) && { snapshotCompletedOffset: snapshotCompletedOffset.toString() }),
-            ...(snapshotId && { snapshotId }),
-            ...(snapshotOccurredAt && { snapshotOccurredAt }),
-            ...(!(invalidRecordOffset === null || invalidRecordOffset === undefined) && { invalidRecordOffset: invalidRecordOffset.toString() }),
-            ...(rebuildPausedGeneration && { rebuildPausedGeneration }),
+            ...(datasetGeneration != null && {datasetGeneration}),
+            ...(sourceGeneration != null && {sourceGeneration}),
+            ...(assignmentEpoch != null && {assignmentEpoch}),
+            ...(assignmentMemberId != null && {assignmentMemberId}),
+            ...(assignmentGenerationId != null && {assignmentGenerationId}),
+            ...(snapshotCompletedOffset != null && {snapshotCompletedOffset: snapshotCompletedOffset.toString()}),
+            ...(snapshotId != null && {snapshotId}),
+            ...(snapshotOccurredAt != null && {snapshotOccurredAt}),
+            ...(invalidRecordOffset != null && {invalidRecordOffset: invalidRecordOffset.toString()}),
+            ...(rebuildPausedGeneration != null && {rebuildPausedGeneration}),
         }));
     }
 
     /**
-     * 만료되었거나 명시적으로 release된 partition만 새 owner가 claim한다.
-     * generation 숫자가 더 커도 다른 owner의 active lease를 선점할 수 없다.
+     만료되었거나 명시적으로 release된 partition만 새 owner가 claim한다.
+     generation 숫자가 더 커도 다른 owner의 active lease를 선점할 수 없다.
      */
     async claimForAssignment(
         groupId: string,
@@ -207,17 +215,17 @@ export class ProjectionCheckpointRepository {
         memberId: string,
         groupGenerationId: number,
     ): Promise<ProjectionAssignmentClaim | undefined> {
-        const key = { groupId, topic, partition };
+        const key = {groupId, topic, partition};
         const assignmentEpoch = randomUUID();
-        const lease: ProjectionAssignmentLease = { assignmentEpoch, memberId, groupGenerationId };
+        const lease: ProjectionAssignmentLease = {assignmentEpoch, memberId, groupGenerationId};
         const filter = {
             ...key,
             datasetGeneration,
             sourceGeneration,
             $or: [
-                { assignmentEpoch: null },
-                { assignmentLeaseRenewedAt: null },
-                { $expr: this.expiredLeaseExpression() },
+                {assignmentEpoch: null},
+                {assignmentLeaseRenewedAt: null},
+                {$expr: this.expiredLeaseExpression()},
             ],
         };
         const leaseUpdate = {
@@ -226,9 +234,9 @@ export class ProjectionCheckpointRepository {
                 assignmentMemberId: memberId,
                 assignmentGenerationId: groupGenerationId,
             },
-            $currentDate: { assignmentLeaseRenewedAt: true },
+            $currentDate: {assignmentLeaseRenewedAt: true},
         };
-        const available = await this.model.findOneAndUpdate(filter, leaseUpdate, { new: true }).lean<{
+        const available = await this.model.findOneAndUpdate(filter, leaseUpdate, {new: true}).lean<{
             nextOffset: bigint;
             snapshotCompletedOffset?: bigint | null;
             snapshotId?: string | null;
@@ -261,8 +269,8 @@ export class ProjectionCheckpointRepository {
                         nextOffset: BigInt(earliestOffset),
                     },
                 },
-                { upsert: true, new: true },
-            ).lean<{ nextOffset: bigint } | null>();
+                {upsert: true, new: true},
+            ).lean<{nextOffset: bigint} | null>();
             if (!inserted) {
                 return undefined;
             }
@@ -287,7 +295,9 @@ export class ProjectionCheckpointRepository {
         }
     }
 
-    /** Rebuild coordinator가 모든 active owner의 pause 확인 여부를 확인한다. */
+    /**
+    Rebuild coordinator가 모든 active owner의 pause 확인 여부를 확인한다.
+    */
     async acknowledgeRebuildPause(
         groupId: string,
         topic: string,
@@ -297,7 +307,7 @@ export class ProjectionCheckpointRepository {
     ): Promise<void> {
         const result = await this.model.updateOne(
             this.assignmentLeaseFilter(groupId, topic, partition, lease),
-            { $set: { rebuildPausedGeneration: datasetGeneration } },
+            {$set: {rebuildPausedGeneration: datasetGeneration}},
         );
         if (result.matchedCount !== 1) {
             throw new ProjectionCheckpointFenceError(topic, partition);
@@ -313,11 +323,13 @@ export class ProjectionCheckpointRepository {
             groupId,
             topic,
             $expr: this.unexpiredLeaseExpression(),
-            rebuildPausedGeneration: { $ne: datasetGeneration },
+            rebuildPausedGeneration: {$ne: datasetGeneration},
         })) !== null;
     }
 
-    /** 모든 consumer가 pause를 확인한 뒤 checkpoint를 새 dataset의 검증된 base로 되돌린다. */
+    /**
+    모든 consumer가 pause를 확인한 뒤 checkpoint를 새 dataset의 검증된 base로 되돌린다.
+    */
     async resetForRebuild(
         groupId: string,
         topic: string,
@@ -325,36 +337,36 @@ export class ProjectionCheckpointRepository {
         datasetGeneration: string,
         sourceGeneration: string,
     ): Promise<void> {
-        for (const { partition, offset } of offsets) {
-            await this.model.updateOne(
-                { groupId, topic, partition },
-                {
-                    $set: {
-                        groupId,
-                        topic,
-                        partition,
-                        datasetGeneration,
-                        sourceGeneration,
-                        nextOffset: BigInt(offset),
-                        rebuildPausedGeneration: datasetGeneration,
-                    },
-                    $unset: {
-                        snapshotCompletedOffset: '',
-                        snapshotId: '',
-                        snapshotSource: '',
-                        snapshotOccurredAt: '',
-                        invalidRecordOffset: '',
-                        lastSnapshotCompletedOffset: '',
-                        lastSnapshotId: '',
-                        recoverySnapshotId: '',
-                    },
+        await Promise.all(offsets.map(async ({partition, offset}) => this.model.updateOne(
+            {groupId, topic, partition},
+            {
+                $set: {
+                    groupId,
+                    topic,
+                    partition,
+                    datasetGeneration,
+                    sourceGeneration,
+                    nextOffset: BigInt(offset),
+                    rebuildPausedGeneration: datasetGeneration,
                 },
-                { upsert: true },
-            );
-        }
+                $unset: {
+                    snapshotCompletedOffset: '',
+                    snapshotId: '',
+                    snapshotSource: '',
+                    snapshotOccurredAt: '',
+                    invalidRecordOffset: '',
+                    lastSnapshotCompletedOffset: '',
+                    lastSnapshotId: '',
+                    recoverySnapshotId: '',
+                },
+            },
+            {upsert: true},
+        )));
     }
 
-    /** 성공한 Kafka heartbeat마다 DB time lease를 연장한다. */
+    /**
+    성공한 Kafka heartbeat마다 DB time lease를 연장한다.
+    */
     async renewAssignment(
         groupId: string,
         topic: string,
@@ -363,14 +375,16 @@ export class ProjectionCheckpointRepository {
     ): Promise<void> {
         const result = await this.model.updateOne(
             this.assignmentLeaseFilter(groupId, topic, partition, lease),
-            { $currentDate: { assignmentLeaseRenewedAt: true } },
+            {$currentDate: {assignmentLeaseRenewedAt: true}},
         );
         if (result.matchedCount !== 1) {
             throw new ProjectionCheckpointFenceError(topic, partition);
         }
     }
 
-    /** Revocation/disconnect에서 exact owner만 lease를 명시적으로 반환한다. */
+    /**
+    Revocation/disconnect에서 exact owner만 lease를 명시적으로 반환한다.
+    */
     async releaseAssignment(
         groupId: string,
         topic: string,
@@ -410,7 +424,7 @@ export class ProjectionCheckpointRepository {
         const value = BigInt(nextOffset);
         const update = snapshotBarrier
             ? await this.snapshotAdvanceUpdate(key, value, snapshotBarrier)
-            : { $max: { nextOffset: value } };
+            : {$max: {nextOffset: value}};
         const result = await this.model.updateOne(key, update);
         if (result.matchedCount !== 1) {
             throw new ProjectionCheckpointFenceError(topic, partition);
@@ -428,11 +442,9 @@ export class ProjectionCheckpointRepository {
         const current = await this.loadRecoveryState(key, topic, partition);
         const next = latchInvalidProjectionRecord(current, recordOffset);
         const update: Record<string, unknown> = {
-            $set: { invalidRecordOffset: BigInt(next.invalidRecordOffset!) },
+            $set: {invalidRecordOffset: BigInt(next.invalidRecordOffset!)},
+            ...(next.recoverySnapshotId === undefined && {$unset: {recoverySnapshotId: ''}}),
         };
-        if (next.recoverySnapshotId === undefined) {
-            update.$unset = { recoverySnapshotId: '' };
-        }
 
         const result = await this.model.updateOne(key, update);
         if (result.matchedCount !== 1) {
@@ -440,7 +452,9 @@ export class ProjectionCheckpointRepository {
         }
     }
 
-    /** 격리 원문이 durable하게 저장된 뒤에만 호출자가 checkpoint를 전진시킨다. */
+    /**
+    격리 원문이 durable하게 저장된 뒤에만 호출자가 checkpoint를 전진시킨다.
+    */
     async quarantine(
         groupId: string,
         topic: string,
@@ -457,13 +471,13 @@ export class ProjectionCheckpointRepository {
             ...key, eventKey, payload, reason,
         };
         try {
-            await this.quarantineModel.updateOne(key, { $setOnInsert: record }, { upsert: true });
+            await this.quarantineModel.updateOne(key, {$setOnInsert: record}, {upsert: true});
         } catch (error) {
             if (!this.isDuplicateKey(error)) {
                 throw error;
             }
 
-            await this.quarantineModel.updateOne(key, { $setOnInsert: record });
+            await this.quarantineModel.updateOne(key, {$setOnInsert: record});
         }
     }
 
@@ -495,10 +509,10 @@ export class ProjectionCheckpointRepository {
             assignmentEpoch: lease.assignmentEpoch,
             assignmentMemberId: lease.memberId,
             assignmentGenerationId: lease.groupGenerationId,
-            ...(!(checkpoint.snapshotCompletedOffset === null || checkpoint.snapshotCompletedOffset === undefined) && { snapshotCompletedOffset: checkpoint.snapshotCompletedOffset.toString() }),
-            ...(checkpoint.snapshotId && { snapshotId: checkpoint.snapshotId }),
-            ...(checkpoint.snapshotOccurredAt && { snapshotOccurredAt: checkpoint.snapshotOccurredAt }),
-            ...(!(checkpoint.invalidRecordOffset === null || checkpoint.invalidRecordOffset === undefined) && { invalidRecordOffset: checkpoint.invalidRecordOffset.toString() }),
+            ...(checkpoint.snapshotCompletedOffset != null && {snapshotCompletedOffset: checkpoint.snapshotCompletedOffset.toString()}),
+            ...(checkpoint.snapshotId != null && {snapshotId: checkpoint.snapshotId}),
+            ...(checkpoint.snapshotOccurredAt != null && {snapshotOccurredAt: checkpoint.snapshotOccurredAt}),
+            ...(checkpoint.invalidRecordOffset != null && {invalidRecordOffset: checkpoint.invalidRecordOffset.toString()}),
         };
     }
 
@@ -539,7 +553,7 @@ export class ProjectionCheckpointRepository {
                 snapshotCompletedOffset: BigInt(snapshotBarrier.offset),
             },
             $set: set,
-            ...((Object.keys(unset).length > 0) && { $unset: unset }),
+            ...((Object.keys(unset).length > 0) && {$unset: unset}),
         };
     }
 
@@ -565,11 +579,10 @@ export class ProjectionCheckpointRepository {
         }
 
         return {
-            ...(!(checkpoint.invalidRecordOffset === null || checkpoint.invalidRecordOffset === undefined) && { invalidRecordOffset: checkpoint.invalidRecordOffset.toString() }),
-            ...(!(checkpoint.lastSnapshotCompletedOffset === null
-                || checkpoint.lastSnapshotCompletedOffset === undefined) && { lastSnapshotCompletedOffset: checkpoint.lastSnapshotCompletedOffset.toString() }),
-            ...(checkpoint.lastSnapshotId && { lastSnapshotId: checkpoint.lastSnapshotId }),
-            ...(checkpoint.recoverySnapshotId && { recoverySnapshotId: checkpoint.recoverySnapshotId }),
+            ...(checkpoint.invalidRecordOffset != null && {invalidRecordOffset: checkpoint.invalidRecordOffset.toString()}),
+            ...(checkpoint.lastSnapshotCompletedOffset != null && {lastSnapshotCompletedOffset: checkpoint.lastSnapshotCompletedOffset.toString()}),
+            ...(checkpoint.lastSnapshotId != null && {lastSnapshotId: checkpoint.lastSnapshotId}),
+            ...(checkpoint.recoverySnapshotId != null && {recoverySnapshotId: checkpoint.recoverySnapshotId}),
         };
     }
 

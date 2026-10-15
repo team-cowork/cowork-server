@@ -1,11 +1,11 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, mongo } from 'mongoose';
-import { ChannelProjection } from '../schema';
+import {Injectable} from '@nestjs/common';
+import {InjectModel} from '@nestjs/mongoose';
+import {Model, mongo} from 'mongoose';
+import {ChannelProjection} from '../schema';
 import {
     activeProjectionCondition,
     deletedProjectionCondition,
-    projectionUpdateApplied,
+    isProjectionUpdateApplied,
     projectionTimestampFields,
     projectionSourceVersion,
     PROJECTION_EPOCH,
@@ -38,11 +38,11 @@ export class ChannelProjectionRepository {
     constructor(@InjectModel(ChannelProjection.name) private readonly model: Model<ChannelProjection>) {}
 
     async findById(channelId: number): Promise<ChannelProjectionView | null> {
-        return this.model.findOne({ channelId, deleted: { $ne: true } }).lean<ChannelProjectionView>();
+        return this.model.findOne({channelId, deleted: {$ne: true}}).lean<ChannelProjectionView>();
     }
 
     async findByIdIncludingDeleted(channelId: number): Promise<ChannelProjectionState | null> {
-        return this.model.findOne({ channelId }).lean<ChannelProjectionState>();
+        return this.model.findOne({channelId}).lean<ChannelProjectionState>();
     }
 
     async findByIds(channelIds: number[]): Promise<ChannelProjectionView[]> {
@@ -51,16 +51,16 @@ export class ChannelProjectionRepository {
         }
 
         return this.model.find(
-            { channelId: { $in: channelIds }, deleted: { $ne: true } },
+            {channelId: {$in: channelIds}, deleted: {$ne: true}},
         ).lean<ChannelProjectionView[]>();
     }
 
     async findIdsByTeamId(teamId: number): Promise<number[]> {
-        return this.model.distinct('channelId', { teamId, deleted: { $ne: true } });
+        return this.model.distinct('channelId', {teamId, deleted: {$ne: true}});
     }
 
     async findIdsByProjectId(projectId: number): Promise<number[]> {
-        return this.model.distinct('channelId', { projectId, deleted: { $ne: true } });
+        return this.model.distinct('channelId', {projectId, deleted: {$ne: true}});
     }
 
     async searchVisibleByTeamAndName(
@@ -72,14 +72,14 @@ export class ChannelProjectionRepository {
         return this.model
             .find({
                 teamId,
-                deleted: { $ne: true },
-                name: { $regex: escapedQuery, $options: 'i' },
+                deleted: {$ne: true},
+                name: {$regex: escapedQuery, $options: 'i'},
                 $or: [
-                    { isPrivate: false },
-                    { isPrivate: true, channelId: { $in: memberChannelIds } },
+                    {isPrivate: false},
+                    {isPrivate: true, channelId: {$in: memberChannelIds}},
                 ],
             })
-            .sort({ position: 1, channelId: 1 })
+            .sort({position: 1, channelId: 1})
             .lean<ChannelProjectionView[]>();
     }
 
@@ -97,62 +97,62 @@ export class ChannelProjectionRepository {
             occurredAt,
             sourceVersion,
         } = event;
-        const shouldApply = activeProjectionCondition(sourceVersion);
+        const applyCondition = activeProjectionCondition(sourceVersion);
         const result = await this.model.updateOne(
-            { channelId },
+            {channelId},
             [{
                 $set: {
                     channelId,
-                    teamId: { $cond: [shouldApply, { $literal: teamId }, { $ifNull: ['$teamId', null] }] },
+                    teamId: {$cond: [applyCondition, {$literal: teamId}, {$ifNull: ['$teamId', null]}]},
                     projectId: {
-                        $cond: [shouldApply, { $literal: projectId }, { $ifNull: ['$projectId', null] }],
+                        $cond: [applyCondition, {$literal: projectId}, {$ifNull: ['$projectId', null]}],
                     },
-                    name: { $cond: [shouldApply, { $literal: name }, { $ifNull: ['$name', ''] }] },
-                    type: { $cond: [shouldApply, { $literal: type }, { $ifNull: ['$type', ''] }] },
-                    viewType: { $cond: [shouldApply, { $literal: viewType }, { $ifNull: ['$viewType', ''] }] },
+                    name: {$cond: [applyCondition, {$literal: name}, {$ifNull: ['$name', '']}]},
+                    type: {$cond: [applyCondition, {$literal: type}, {$ifNull: ['$type', '']}]},
+                    viewType: {$cond: [applyCondition, {$literal: viewType}, {$ifNull: ['$viewType', '']}]},
                     description: {
-                        $cond: [shouldApply, { $literal: description }, { $ifNull: ['$description', null] }],
+                        $cond: [applyCondition, {$literal: description}, {$ifNull: ['$description', null]}],
                     },
-                    isPrivate: { $cond: [shouldApply, isPrivate, { $ifNull: ['$isPrivate', false] }] },
-                    position: { $cond: [shouldApply, position, { $ifNull: ['$position', 0] }] },
-                    deleted: { $cond: [shouldApply, false, { $ifNull: ['$deleted', false] }] },
+                    isPrivate: {$cond: [applyCondition, isPrivate, {$ifNull: ['$isPrivate', false]}]},
+                    position: {$cond: [applyCondition, position, {$ifNull: ['$position', 0]}]},
+                    deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
-                        $cond: [shouldApply, occurredAt, { $ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH] }],
+                        $cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
                     },
-                    sourceVersion: { $cond: [shouldApply, sourceVersion, projectionSourceVersion] },
-                    ...projectionTimestampFields(shouldApply, occurredAt),
+                    sourceVersion: {$cond: [applyCondition, sourceVersion, projectionSourceVersion]},
+                    ...projectionTimestampFields(applyCondition, occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false, updatePipeline: true },
+            {upsert: true, timestamps: false, updatePipeline: true},
         );
-        return projectionUpdateApplied(result);
+        return isProjectionUpdateApplied(result);
     }
 
     async remove(channelId: number, occurredAt: Date, sourceVersion: mongo.Long): Promise<boolean> {
-        const shouldApply = deletedProjectionCondition(sourceVersion);
+        const applyCondition = deletedProjectionCondition(sourceVersion);
         const result = await this.model.updateOne(
-            { channelId },
+            {channelId},
             [{
                 $set: {
                     channelId,
-                    teamId: { $ifNull: ['$teamId', null] },
-                    projectId: { $ifNull: ['$projectId', null] },
-                    name: { $ifNull: ['$name', ''] },
-                    type: { $ifNull: ['$type', ''] },
-                    viewType: { $ifNull: ['$viewType', ''] },
-                    description: { $ifNull: ['$description', null] },
-                    isPrivate: { $ifNull: ['$isPrivate', false] },
-                    position: { $ifNull: ['$position', 0] },
-                    deleted: { $cond: [shouldApply, true, { $ifNull: ['$deleted', false] }] },
+                    teamId: {$ifNull: ['$teamId', null]},
+                    projectId: {$ifNull: ['$projectId', null]},
+                    name: {$ifNull: ['$name', '']},
+                    type: {$ifNull: ['$type', '']},
+                    viewType: {$ifNull: ['$viewType', '']},
+                    description: {$ifNull: ['$description', null]},
+                    isPrivate: {$ifNull: ['$isPrivate', false]},
+                    position: {$ifNull: ['$position', 0]},
+                    deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
-                        $cond: [shouldApply, occurredAt, { $ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH] }],
+                        $cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
                     },
-                    sourceVersion: { $cond: [shouldApply, sourceVersion, projectionSourceVersion] },
-                    ...projectionTimestampFields(shouldApply, occurredAt),
+                    sourceVersion: {$cond: [applyCondition, sourceVersion, projectionSourceVersion]},
+                    ...projectionTimestampFields(applyCondition, occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false, updatePipeline: true },
+            {upsert: true, timestamps: false, updatePipeline: true},
         );
-        return projectionUpdateApplied(result);
+        return isProjectionUpdateApplied(result);
     }
 }

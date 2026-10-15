@@ -1,13 +1,13 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, mongo } from 'mongoose';
-import { ChannelRolePolicyProjection } from '../schema';
+import {Injectable} from '@nestjs/common';
+import {InjectModel} from '@nestjs/mongoose';
+import {Model, mongo} from 'mongoose';
+import {ChannelRolePolicyProjection} from '../schema';
 import {
     activeProjectionCondition,
     deletedProjectionCondition,
     projectionSourceVersion,
     projectionTimestampFields,
-    projectionUpdateApplied,
+    isProjectionUpdateApplied,
     PROJECTION_EPOCH,
 } from './versioned-projection.util';
 
@@ -33,28 +33,28 @@ export class ChannelRolePolicyProjectionRepository {
         occurredAt: Date;
         sourceVersion: mongo.Long;
     }): Promise<boolean> {
-        const shouldApply = activeProjectionCondition(input.sourceVersion);
+        const applyCondition = activeProjectionCondition(input.sourceVersion);
         const result = await this.model.updateOne(
-            { teamId: input.teamId, channelId: input.channelId, roleId: input.roleId },
+            {teamId: input.teamId, channelId: input.channelId, roleId: input.roleId},
             [{
                 $set: {
                     teamId: input.teamId,
                     channelId: input.channelId,
                     roleId: input.roleId,
                     messageRead: {
-                        $cond: [shouldApply, input.messageRead, { $ifNull: ['$messageRead', null] }],
+                        $cond: [applyCondition, input.messageRead, {$ifNull: ['$messageRead', null]}],
                     },
-                    deleted: { $cond: [shouldApply, false, { $ifNull: ['$deleted', false] }] },
+                    deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
-                        $cond: [shouldApply, input.occurredAt, { $ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH] }],
+                        $cond: [applyCondition, input.occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
                     },
-                    sourceVersion: { $cond: [shouldApply, input.sourceVersion, projectionSourceVersion] },
-                    ...projectionTimestampFields(shouldApply, input.occurredAt),
+                    sourceVersion: {$cond: [applyCondition, input.sourceVersion, projectionSourceVersion]},
+                    ...projectionTimestampFields(applyCondition, input.occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false, updatePipeline: true },
+            {upsert: true, timestamps: false, updatePipeline: true},
         );
-        return projectionUpdateApplied(result);
+        return isProjectionUpdateApplied(result);
     }
 
     async remove(
@@ -64,26 +64,26 @@ export class ChannelRolePolicyProjectionRepository {
         occurredAt: Date,
         sourceVersion: mongo.Long,
     ): Promise<boolean> {
-        const shouldApply = deletedProjectionCondition(sourceVersion);
+        const applyCondition = deletedProjectionCondition(sourceVersion);
         const result = await this.model.updateOne(
-            { teamId, channelId, roleId },
+            {teamId, channelId, roleId},
             [{
                 $set: {
                     teamId,
                     channelId,
                     roleId,
-                    messageRead: { $ifNull: ['$messageRead', null] },
-                    deleted: { $cond: [shouldApply, true, { $ifNull: ['$deleted', false] }] },
+                    messageRead: {$ifNull: ['$messageRead', null]},
+                    deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
-                        $cond: [shouldApply, occurredAt, { $ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH] }],
+                        $cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
                     },
-                    sourceVersion: { $cond: [shouldApply, sourceVersion, projectionSourceVersion] },
-                    ...projectionTimestampFields(shouldApply, occurredAt),
+                    sourceVersion: {$cond: [applyCondition, sourceVersion, projectionSourceVersion]},
+                    ...projectionTimestampFields(applyCondition, occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false, updatePipeline: true },
+            {upsert: true, timestamps: false, updatePipeline: true},
         );
-        return projectionUpdateApplied(result);
+        return isProjectionUpdateApplied(result);
     }
 
     async findByChannelIdsAndRoleIds(
@@ -96,10 +96,10 @@ export class ChannelRolePolicyProjectionRepository {
 
         return this.model.find(
             {
-                channelId: { $in: channelIds },
-                roleId: { $in: roleIds },
-                messageRead: { $type: 'bool' },
-                deleted: { $ne: true },
+                channelId: {$in: channelIds},
+                roleId: {$in: roleIds},
+                messageRead: {$type: 'bool'},
+                deleted: {$ne: true},
             },
             {
                 _id: 0, teamId: 1, channelId: 1, roleId: 1, messageRead: 1,
@@ -108,10 +108,10 @@ export class ChannelRolePolicyProjectionRepository {
     }
 
     async findChannelIdsByRole(teamId: number, roleId: number): Promise<number[]> {
-        return this.model.distinct('channelId', { teamId, roleId, deleted: { $ne: true } });
+        return this.model.distinct('channelId', {teamId, roleId, deleted: {$ne: true}});
     }
 
     async findChannelIdsByTeam(teamId: number): Promise<number[]> {
-        return this.model.distinct('channelId', { teamId, deleted: { $ne: true } });
+        return this.model.distinct('channelId', {teamId, deleted: {$ne: true}});
     }
 }
