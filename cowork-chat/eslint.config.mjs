@@ -31,6 +31,8 @@ export default tseslint.config(
             'no-console': 'warn',
             semi: 'error',
             eqeqeq: ['error', 'smart'],
+            // NestJS 데코레이터(@Injectable(), @Controller() 등)는 capitalized 함수 호출이지만 new로 호출하지 않는다.
+            'new-cap': ['error', { capIsNew: false }],
         },
     },
 );
