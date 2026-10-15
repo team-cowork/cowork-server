@@ -165,15 +165,9 @@ def prepare(args):
     demand(len(monitoring_hosts) == 1, 'Exactly one monitoring host is required')
     monitoring_host = monitoring_hosts[0]
     monitoring_settings = None
-    github_secret_sources = {}
     if selection is None or 'monitoring' in selection:
         monitoring_settings = snapshot('monitoring', mount)
         demand('GRAFANA_ADMIN_PASSWORD' in monitoring_settings['runtime'], 'Monitoring requires Grafana administrator credentials')
-        github_secret_sources = SLOTS['load']('monitoring').get('github_secrets', {})
-        for destination, source in github_secret_sources.items():
-            webhook = os.environ.get(source, '')
-            demand(bool(webhook) and '\0' not in webhook, 'The declared GitHub monitoring webhook is required')
-            monitoring_settings['runtime'][destination] = webhook
         gateway = runtime_values('gateway', mount)
         monitoring_settings.setdefault('variables', {})['PUBLIC_API_BASE_URL'] = gateway['PUBLIC_API_BASE_URL']
     secret_documents = {}
@@ -286,8 +280,7 @@ def prepare(args):
         write_private(output / 'inventory.json', json.dumps(inventory, indent=2) + '\n')
         write_private(output / 'ssh-config', '\n'.join(ssh_config) + '\n')
         write_private(output / 'metadata.json', json.dumps({'sha': args.sha, 'hosts_version': host_version,
-                       'host_count': len(hosts),
-                       'github_secret_sources': github_secret_sources}, indent=2) + '\n')
+                       'host_count': len(hosts)}, indent=2) + '\n')
     except BaseException:
         # Never remove a concurrent user's files, even if the directory was initially empty.
         for child in reversed(CREATED_PATHS):
