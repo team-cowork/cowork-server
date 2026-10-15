@@ -1,11 +1,11 @@
-import { Injectable } from '@nestjs/common';
-import { InjectModel } from '@nestjs/mongoose';
-import { Model, mongo } from 'mongoose';
-import { ProjectProjection } from '../schema';
+import {Injectable} from '@nestjs/common';
+import {InjectModel} from '@nestjs/mongoose';
+import {Model, mongo} from 'mongoose';
+import {ProjectProjection} from '../schema';
 import {
     activeProjectionCondition,
     deletedProjectionCondition,
-    projectionUpdateApplied,
+    isProjectionUpdateApplied,
     projectionTimestampFields,
     projectionSourceVersion,
     PROJECTION_EPOCH,
@@ -27,72 +27,72 @@ export class ProjectProjectionRepository {
     constructor(@InjectModel(ProjectProjection.name) private readonly model: Model<ProjectProjection>) {}
 
     async upsert(event: ProjectProjectionEvent): Promise<boolean> {
-        const shouldApply = activeProjectionCondition(event.sourceVersion);
+        const applyCondition = activeProjectionCondition(event.sourceVersion);
         const result = await this.model.updateOne(
-            { projectId: event.projectId },
+            {projectId: event.projectId},
             [{
                 $set: {
                     projectId: event.projectId,
                     teamId: {
-                        $cond: [shouldApply, event.teamId, { $ifNull: ['$teamId', event.teamId] }],
+                        $cond: [applyCondition, event.teamId, {$ifNull: ['$teamId', event.teamId]}],
                     },
                     name: {
-                        $cond: [shouldApply, { $literal: event.name }, { $ifNull: ['$name', ''] }],
+                        $cond: [applyCondition, {$literal: event.name}, {$ifNull: ['$name', '']}],
                     },
                     description: {
                         $cond: [
-                            shouldApply,
-                            { $literal: event.description },
-                            { $ifNull: ['$description', null] },
+                            applyCondition,
+                            {$literal: event.description},
+                            {$ifNull: ['$description', null]},
                         ],
                     },
                     status: {
-                        $cond: [shouldApply, { $literal: event.status }, { $ifNull: ['$status', ''] }],
+                        $cond: [applyCondition, {$literal: event.status}, {$ifNull: ['$status', '']}],
                     },
                     position: {
-                        $cond: [shouldApply, event.position, { $ifNull: ['$position', 0] }],
+                        $cond: [applyCondition, event.position, {$ifNull: ['$position', 0]}],
                     },
-                    deleted: { $cond: [shouldApply, false, { $ifNull: ['$deleted', false] }] },
+                    deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
                         $cond: [
-                            shouldApply,
+                            applyCondition,
                             event.occurredAt,
-                            { $ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH] },
+                            {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]},
                         ],
                     },
                     sourceVersion: {
-                        $cond: [shouldApply, event.sourceVersion, projectionSourceVersion],
+                        $cond: [applyCondition, event.sourceVersion, projectionSourceVersion],
                     },
-                    ...projectionTimestampFields(shouldApply, event.occurredAt),
+                    ...projectionTimestampFields(applyCondition, event.occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false, updatePipeline: true },
+            {upsert: true, timestamps: false, updatePipeline: true},
         );
-        return projectionUpdateApplied(result);
+        return isProjectionUpdateApplied(result);
     }
 
     async remove(projectId: number, occurredAt: Date, sourceVersion: mongo.Long): Promise<boolean> {
-        const shouldApply = deletedProjectionCondition(sourceVersion);
+        const applyCondition = deletedProjectionCondition(sourceVersion);
         const result = await this.model.updateOne(
-            { projectId },
+            {projectId},
             [{
                 $set: {
                     projectId,
-                    teamId: { $ifNull: ['$teamId', 0] },
-                    name: { $ifNull: ['$name', ''] },
-                    description: { $ifNull: ['$description', null] },
-                    status: { $ifNull: ['$status', ''] },
-                    position: { $ifNull: ['$position', 0] },
-                    deleted: { $cond: [shouldApply, true, { $ifNull: ['$deleted', false] }] },
+                    teamId: {$ifNull: ['$teamId', 0]},
+                    name: {$ifNull: ['$name', '']},
+                    description: {$ifNull: ['$description', null]},
+                    status: {$ifNull: ['$status', '']},
+                    position: {$ifNull: ['$position', 0]},
+                    deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
-                        $cond: [shouldApply, occurredAt, { $ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH] }],
+                        $cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
                     },
-                    sourceVersion: { $cond: [shouldApply, sourceVersion, projectionSourceVersion] },
-                    ...projectionTimestampFields(shouldApply, occurredAt),
+                    sourceVersion: {$cond: [applyCondition, sourceVersion, projectionSourceVersion]},
+                    ...projectionTimestampFields(applyCondition, occurredAt),
                 },
             }],
-            { upsert: true, timestamps: false, updatePipeline: true },
+            {upsert: true, timestamps: false, updatePipeline: true},
         );
-        return projectionUpdateApplied(result);
+        return isProjectionUpdateApplied(result);
     }
 }
