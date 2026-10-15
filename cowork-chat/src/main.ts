@@ -1,17 +1,17 @@
-import { join } from 'node:path';
+import {join} from 'node:path';
 import 'reflect-metadata';
 import 'dotenv/config';
-import { NestFactory } from '@nestjs/core';
-import { type NestExpressApplication } from '@nestjs/platform-express';
-import { Logger, ValidationPipe } from '@nestjs/common';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { type NextFunction, type Request, type Response } from 'express';
-import { Logger as PinoLogger } from 'nestjs-pino';
-import { EurekaClient } from './eureka/eureka-client';
-import { requireEnv } from './common/config/config.util';
-import { loadConfigServerEnv } from './common/config/config-server';
-import { GlobalExceptionFilter } from './common/filter/global-exception.filter';
-import { RedisIoAdapter, SocketIoRedisConnection } from './common/adapter/redis-io.adapter';
+import {NestFactory} from '@nestjs/core';
+import {type NestExpressApplication} from '@nestjs/platform-express';
+import {Logger, ValidationPipe} from '@nestjs/common';
+import {DocumentBuilder, SwaggerModule} from '@nestjs/swagger';
+import {type NextFunction, type Request, type Response} from 'express';
+import {Logger as PinoLogger} from 'nestjs-pino';
+import {EurekaClient} from './eureka/eureka-client';
+import {requireEnv} from './common/config/config.util';
+import {loadConfigServerEnv} from './common/config/config-server';
+import {GlobalExceptionFilter} from './common/filter/global-exception.filter';
+import {RedisIoAdapter, SocketIoRedisConnection} from './common/adapter/redis-io.adapter';
 import {
     PROJECTION_STREAMS,
     type ProjectionName,
@@ -64,13 +64,13 @@ async function bootstrap() {
     debugStartup('config server properties loaded');
 
     debugStartup('creating Nest application');
-    const { AppModule } = await import('./app.module');
-    const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
+    const {AppModule} = await import('./app.module');
+    const app = await NestFactory.create<NestExpressApplication>(AppModule, {bufferLogs: true});
     debugStartup('Nest application created');
     app.useLogger(app.get(PinoLogger));
     // Eureka metadata(prometheus.path), AuthGuard, projection 미들웨어가 모두 접두사 없는 /metrics를 전제로 한다.
-    app.setGlobalPrefix('chat', { exclude: ['health', 'health/ready', 'metrics'] });
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+    app.setGlobalPrefix('chat', {exclude: ['health', 'health/ready', 'metrics']});
+    app.useGlobalPipes(new ValidationPipe({whitelist: true, transform: true}));
     app.useGlobalFilters(new GlobalExceptionFilter());
     app.useStaticAssets(join(__dirname, '..', 'public'));
 
@@ -142,18 +142,18 @@ async function bootstrap() {
         }
     }
 
-    SwaggerModule.setup('api', app, document, { jsonDocumentUrl: 'api-json' });
+    SwaggerModule.setup('api', app, document, {jsonDocumentUrl: 'api-json'});
 
     const projectionReadiness = app.get(ProjectionReadinessService);
     app.use((request: Request, response: Response, next: NextFunction) => {
-        const operationalPath = request.path === '/health'
+        const isOperationalPath = request.path === '/health'
             || request.path === '/health/ready'
             || request.path === '/metrics'
             || request.path === '/api'
             || request.path === '/api-json'
             || request.path === '/asyncapi.json'
             || request.path.startsWith('/chat/admin/projections');
-        const requiredStreams = operationalPath ? [] : requiredProjectionStreams(request.path);
+        const requiredStreams = isOperationalPath ? [] : requiredProjectionStreams(request.path);
         if (!projectionReadiness.areReady(requiredStreams)) {
             const unavailableStreams = requiredStreams.filter(stream => !projectionReadiness.areReady([stream]));
             response.status(503).json({
@@ -173,8 +173,8 @@ async function bootstrap() {
     debugStartup('HTTP server listening');
 
     const eureka = EurekaClient.fromEnv(port);
-    let shuttingDown = false;
-    let eurekaRegistered = false;
+    let isShuttingDown = false;
+    let isEurekaRegistered = false;
     let eurekaRegistration: Promise<void> | undefined;
     // 등록 후 Redis adapter가 끊기면 Gateway 라우팅에서 빠지고, 복구되면 다시 받는다.
     socketIoRedis.onReadinessChange(ready => {
@@ -182,23 +182,25 @@ async function bootstrap() {
     });
 
     void Promise.all([projectionReadiness.whenReady(), socketIoRedis.whenReady()]).then(async () => {
-        if (shuttingDown) {
+        if (isShuttingDown) {
             return;
         }
 
         debugStartup('projection replay and Socket.IO adapter ready; registering with Eureka');
         eurekaRegistration = (async () => {
             // eslint-disable-next-line no-unmodified-loop-condition -- Shutdown callbacks update shuttingDown while register/backoff is awaited.
-            while (!shuttingDown && !eurekaRegistered) {
+            while (!isShuttingDown && !isEurekaRegistered) {
                 try {
+                    // eslint-disable-next-line no-await-in-loop -- retry-with-backoff: each attempt must wait for the previous one to fail.
                     await eureka.register();
-                    eurekaRegistered = true;
+                    isEurekaRegistered = true;
                     debugStartup('Eureka registration completed');
                     return;
                 } catch (error: unknown) {
                     new Logger('Eureka').warn(
                         `registration failed; retrying: ${error instanceof Error ? error.message : String(error)}`,
                     );
+                    // eslint-disable-next-line no-await-in-loop -- retry-with-backoff: each attempt must wait for the previous one to fail.
                     await new Promise(resolve => {
                         setTimeout(resolve, 1000);
                     });
@@ -206,7 +208,7 @@ async function bootstrap() {
             }
         })()
             .then(() => {
-                if (shuttingDown) {
+                if (isShuttingDown) {
                     debugStartup('Eureka registration stopped during shutdown');
                 }
             });
@@ -214,15 +216,15 @@ async function bootstrap() {
     });
 
     projectionReadiness.onFatalInvariantViolation(reason => {
-        if (shuttingDown) {
+        if (isShuttingDown) {
             return;
         }
 
-        shuttingDown = true;
+        isShuttingDown = true;
         new Logger('ProjectionReadiness').error(`fatal projection invariant violation: ${reason}`);
         void (async () => {
             await eurekaRegistration;
-            if (eurekaRegistered) {
+            if (isEurekaRegistered) {
                 await eureka.deregister().catch(() => undefined);
             }
 
@@ -232,9 +234,9 @@ async function bootstrap() {
     });
 
     const shutdown = async () => {
-        shuttingDown = true;
+        isShuttingDown = true;
         await eurekaRegistration;
-        if (eurekaRegistered) {
+        if (isEurekaRegistered) {
             await eureka.deregister().catch((error: unknown) => {
                 new Logger('Eureka').warn(`deregister failed: ${error instanceof Error ? error.message : String(error)}`);
             });

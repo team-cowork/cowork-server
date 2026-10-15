@@ -1,12 +1,12 @@
-import { UnauthorizedException } from '@nestjs/common';
-import { UserRole } from '../enum/user-role.enum';
-import { isSafePositiveInteger } from './safe-integer.util';
+import {UnauthorizedException} from '@nestjs/common';
+import {UserRole} from '../enum/user-role.enum';
+import {isSafePositiveInteger} from './safe-integer.util';
 
 export const RequestContextUtil = {
     getUserId(headers: Record<string, string | string[] | undefined>): number {
         const raw = headers['x-user-id'];
         const value = Array.isArray(raw) ? raw[0] : raw;
-        if (!value) {
+        if (value === undefined || value === '') {
             throw new UnauthorizedException('x-user-id header missing');
         }
 
