@@ -28,6 +28,7 @@ const config = [
             // Constructor injection and ordered I/O are intentional in NestJS.
             'max-params': 'off',
             'no-await-in-loop': 'off',
+            // NestJS decorators (@Injectable(), @Controller() 등)는 capitalized 함수 호출이지만 new로 호출하지 않는다.
             'new-cap': ['error', { capIsNew: false }],
             'no-console': 'error',
             '@typescript-eslint/no-explicit-any': 'error',
