@@ -53,9 +53,9 @@ class GithubIssueBoardController(
     @Operation(
         summary = "이슈 생성 요청 (비동기)",
         description = "연결된 레포에 이슈 생성을 요청한다. label을 지정하면 생성과 동시에 적용한다. " +
-            "cowork-github-app에 Kafka(`github.issue.create`)로 요청을 발행하고 결과를 기다리지 않는다 — " +
+            "cowork-github에 Kafka(`github.issue.create`)로 요청을 발행하고 결과를 기다리지 않는다 — " +
             "이 응답은 요청이 접수됐다는 것만 의미하며, 생성된 이슈 URL/번호는 이 API로 확인할 수 없다. " +
-            "처리 결과는 cowork-github-app이 `github.issue.result` 토픽으로 발행하지만, " +
+            "처리 결과는 cowork-github가 `github.issue.result` 토픽으로 발행하지만, " +
             "cowork-project는 현재 이 토픽을 구독하지 않는다 — 호출자에게 결과를 전달해야 한다면 " +
             "이 토픽을 구독하는 컨슈머와 별도의 알림/조회 경로를 추가로 구현해야 한다.",
         security = [SecurityRequirement(name = "BearerAuth")],

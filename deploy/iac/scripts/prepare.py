@@ -281,7 +281,7 @@ def prepare(args):
                 write_private(settings_file, json.dumps(snapshot(target, mount, base={}, base_version=host_version)))
                 host['cowork_units'].append({'service': 'log-agent', 'target': target, 'settings_file': str(settings_file)})
                 node_agent_target = f'node-agent-{host_id}'
-                # Vault and GitHub App do not have node-agent slots yet.
+                # Vault does not have a node-agent slot yet.
                 if (ROOT / 'deploy/prod/slots' / f'{node_agent_target}.json').is_file():
                     settings_file = output / 'settings' / f'{node_agent_target}.json'
                     write_private(settings_file, json.dumps(snapshot(node_agent_target, mount, base={}, base_version=host_version)))

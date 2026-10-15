@@ -1,0 +1,26 @@
+### Node.js ###
+node_modules/
+dist/
+build/
+.env
+.env.local
+.env.*.local
+*.pem
+
+### NestJS ###
+.nest/
+
+### Tests ###
+coverage/
+
+### Logs ###
+*.log
+logs/
+
+### OS ###
+.DS_Store
+Thumbs.db
+
+### IDE ###
+.idea/
+.vscode/
