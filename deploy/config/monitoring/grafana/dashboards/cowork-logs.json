@@ -14,7 +14,7 @@
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
       "id": 10,
-      "title": "Overview",
+      "title": "전체 현황",
       "type": "row"
     },
     {
@@ -36,7 +36,7 @@
           "refId": "A"
         }
       ],
-      "title": "Error Rate (서비스별)",
+      "title": "서비스별 초당 오류 로그 수",
       "type": "timeseries"
     },
     {
@@ -66,14 +66,14 @@
           "refId": "A"
         }
       ],
-      "title": "Log Level 분포",
+      "title": "로그 수준별 분포",
       "type": "barchart"
     },
     {
       "collapsed": false,
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
       "id": 11,
-      "title": "Live Tail",
+      "title": "실시간 로그",
       "type": "row"
     },
     {
@@ -98,7 +98,7 @@
           "refId": "A"
         }
       ],
-      "title": "Live Tail",
+      "title": "실시간 로그",
       "type": "logs"
     }
   ],
@@ -116,7 +116,7 @@
         "query": "loki",
         "refresh": 1,
         "type": "datasource",
-        "label": "Datasource"
+        "label": "데이터 소스"
       },
       {
         "current": { "selected": false, "text": "prod", "value": "prod" },
@@ -129,7 +129,7 @@
         "refresh": 2,
         "sort": 1,
         "type": "query",
-        "label": "Environment"
+        "label": "환경"
       },
       {
         "current": { "selected": true, "text": "All", "value": "$__all" },
@@ -144,7 +144,7 @@
         "refresh": 2,
         "sort": 1,
         "type": "query",
-        "label": "Service"
+        "label": "서비스"
       },
       {
         "current": { "selected": true, "text": "All", "value": "$__all" },
@@ -161,14 +161,14 @@
         ],
         "query": "INFO,WARN,ERROR,DEBUG",
         "type": "custom",
-        "label": "Level"
+        "label": "로그 수준"
       }
     ]
   },
   "time": { "from": "now-1h", "to": "now" },
   "timepicker": {},
   "timezone": "browser",
-  "title": "cowork Logs",
+  "title": "cowork 로그",
   "uid": "cowork-logs",
   "version": 1
 }
