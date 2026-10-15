@@ -3,8 +3,8 @@ package com.cowork.project.domain.github.event
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import java.time.Instant
 
-const val GITHUB_ISSUE_WRITE_COMMAND_TOPIC = "github.issue-write.command"
-const val GITHUB_ISSUE_WRITE_RESULT_TOPIC = "github.issue-write.result"
+const val GITHUB_ISSUE_WRITE_COMMAND_TOPIC = "github.issue-write.command.v1"
+const val GITHUB_ISSUE_WRITE_RESULT_TOPIC = "github.issue-write.result.v1"
 
 // github-app → github 이름 변경 전에 발행된 result를 소비한다. consumer lag이 0이 되면 제거한다.
 const val LEGACY_GITHUB_ISSUE_WRITE_RESULT_TOPIC = "github-app.issue-write.result"
