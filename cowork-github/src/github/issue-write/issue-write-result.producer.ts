@@ -7,6 +7,7 @@ import {
 import {Kafka, Producer} from 'kafkajs';
 import {AppConfigService} from '../../config/app-config.service';
 import {IssueWriteResultEvent} from './event/issue-write-result.event';
+import {ISSUE_WRITE_RESULT_TOPIC} from './issue-write-topics';
 
 @Injectable()
 export class IssueWriteResultProducer implements OnModuleInit, OnModuleDestroy {
@@ -31,7 +32,7 @@ export class IssueWriteResultProducer implements OnModuleInit, OnModuleDestroy {
 
     async send(event: IssueWriteResultEvent): Promise<void> {
         await this.producer.send({
-            topic: 'github-app.issue-write.result',
+            topic: ISSUE_WRITE_RESULT_TOPIC,
             messages: [
                 {
                     key: event.operationId,
