@@ -70,12 +70,10 @@ def ssh_quote(value):
 
 def validate_host(host_id, entry):
     demand(NAME.fullmatch(host_id), 'Invalid IaC host identity')
-    demand(isinstance(entry, dict) and set(entry) <= {'ssh', 'service', 'slot', 'source_repository'}, 'Invalid IaC host fields')
+    demand(isinstance(entry, dict) and set(entry) <= {'ssh', 'service', 'slot'}, 'Invalid IaC host fields')
     demand(isinstance(entry.get('service'), str) and NAME.fullmatch(entry['service']), 'Invalid IaC service identity')
     if 'slot' in entry:
         demand(isinstance(entry['slot'], str) and NAME.fullmatch(entry['slot']), 'Invalid IaC slot reference')
-    if 'source_repository' in entry:
-        demand(isinstance(entry['source_repository'], str) and re.fullmatch(r'[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+', entry['source_repository']), 'Invalid source repository identity')
     ssh = entry.get('ssh', {})
     demand(isinstance(ssh, dict) and set(ssh) == {'host', 'port', 'user', 'key', 'known_hosts'}, 'IaC SSH fields must include verified known_hosts data')
     demand(isinstance(ssh['host'], str) and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9.-]*', ssh['host']), 'Invalid SSH host name')
@@ -167,15 +165,9 @@ def prepare(args):
     demand(len(monitoring_hosts) == 1, 'Exactly one monitoring host is required')
     monitoring_host = monitoring_hosts[0]
     monitoring_settings = None
-    github_secret_sources = {}
     if selection is None or 'monitoring' in selection:
         monitoring_settings = snapshot('monitoring', mount)
         demand('GRAFANA_ADMIN_PASSWORD' in monitoring_settings['runtime'], 'Monitoring requires Grafana administrator credentials')
-        github_secret_sources = SLOTS['load']('monitoring').get('github_secrets', {})
-        for destination, source in github_secret_sources.items():
-            webhook = os.environ.get(source, '')
-            demand(bool(webhook) and '\0' not in webhook, 'The declared GitHub monitoring webhook is required')
-            monitoring_settings['runtime'][destination] = webhook
         gateway = runtime_values('gateway', mount)
         monitoring_settings.setdefault('variables', {})['PUBLIC_API_BASE_URL'] = gateway['PUBLIC_API_BASE_URL']
     secret_documents = {}
@@ -224,8 +216,6 @@ def prepare(args):
                 host['cowork_runtime_network'] = True
             if selection is None and 'slot' in entry and entry['service'] not in {'gateway', 'vault'}:
                 host['cowork_firewall_target'] = entry['slot']
-            if 'source_repository' in entry:
-                host['cowork_source_repository'] = entry['source_repository']
             if host_id in databases and (selected('database', host_id) or selected('search', host_id)):
                 app = secrets(f'slot-secrets/{host_id}')
                 admin = secrets(f'iac/databases/{host_id}')
@@ -290,8 +280,7 @@ def prepare(args):
         write_private(output / 'inventory.json', json.dumps(inventory, indent=2) + '\n')
         write_private(output / 'ssh-config', '\n'.join(ssh_config) + '\n')
         write_private(output / 'metadata.json', json.dumps({'sha': args.sha, 'hosts_version': host_version,
-                       'host_count': len(hosts),
-                       'github_secret_sources': github_secret_sources}, indent=2) + '\n')
+                       'host_count': len(hosts)}, indent=2) + '\n')
     except BaseException:
         # Never remove a concurrent user's files, even if the directory was initially empty.
         for child in reversed(CREATED_PATHS):

@@ -2,13 +2,10 @@
 # Only validated release slots and Vault snapshots enter this environment.
 load_deploy_environment() {
   [ -n "${DEPLOY_SETTINGS_DIR:-}" ] || fail 'Use the deployment workflow to load a release slot and Vault secrets'
-  set -a
-  # shellcheck source=defaults.sh
-  source "${PROD_DIR}/lib/defaults.sh"
-  set +a
+  require_env SLOT_KIND
   case "$SERVICE" in
     vault|monitoring|log-agent|node-agent) ;;
-    *) require_env APP_CONFIG_PROFILE SLOT_KIND
+    *) require_env APP_CONFIG_PROFILE
        case "$APP_CONFIG_PROFILE" in local|prod) ;; *) fail 'APP_CONFIG_PROFILE must be local or prod' ;; esac ;;
   esac
   HEALTH_TIMEOUT_SECONDS=${HEALTH_TIMEOUT_SECONDS:-420}
