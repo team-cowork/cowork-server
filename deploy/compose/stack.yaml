@@ -149,6 +149,9 @@ services:
         project.chat-github-issue.command
         project.chat-github-issue.command-dlt
         project.chat-github-issue.result
+        github.issue-write.command
+        github.issue-write.result
+        github.issue-write.result-dlt
         github-app.issue-write.command
         github-app.issue-write.result
         github-app.issue-write.result-dlt
