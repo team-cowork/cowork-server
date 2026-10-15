@@ -272,7 +272,7 @@ jobs:
           color: ${{ steps.status.outputs.color }}
           nodetail: true
           url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          title: "[${{ fromJSON(env.RESULT_LABELS)[steps.status.outputs.status] || '확인 불가' }}] cowork 운영 CI"
+          title: "[${{ fromJSON(env.RESULT_LABELS)[steps.status.outputs.status] || '확인 불가' }}] cowork Prod CI"
           description: |
             **저장소:** ${{ github.repository }}
             `${{ github.ref_name }}` · `${{ steps.sha.outputs.short }}` · 실행자 **${{ github.actor }}**
