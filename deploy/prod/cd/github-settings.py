@@ -78,7 +78,8 @@ def validate_spec(name, spec, kind, shared, targets):
 
 def inputs():
     variables = parse_json(os.environ.get('GH_VARIABLES_JSON', '{}'))
-    secrets = parse_json(os.environ.get('GH_SECRETS_JSON', '{}'))
+    secrets = {key.removeprefix('GH_SECRET_'): value for key, value in os.environ.items()
+               if key.startswith('GH_SECRET_')}
     for values in (variables, secrets):
         demand(isinstance(values, dict) and all(isinstance(key, str) and isinstance(value, str)
                and '\0' not in value for key, value in values.items()), 'GitHub input contexts must contain strings without NUL')
@@ -88,6 +89,7 @@ def inputs():
 
 def value_for(name, spec, kind, variables, secrets):
     source = secrets if kind == 'secret' else variables
+    demand(kind != 'secret' or name in source, f'Missing workflow secret binding: {name}')
     value = source.get(name, '')
     demand(bool(value) or spec.get('optional', False), f'Missing required GitHub {kind}: {name}')
     if kind == 'secret':
@@ -101,6 +103,10 @@ def target_inputs(catalog, target):
     result += [(name, spec, 'secret') for name, spec in config.get('secrets', {}).items()]
     result += [(name, spec, spec['kind']) for name, spec in catalog['shared'].items() if target in spec['targets']]
     return result
+
+
+def secret_names(catalog, target):
+    return sorted(name for name, _, kind in target_inputs(catalog, target) if kind == 'secret')
 
 
 def write_refs(spec, target, profile):
@@ -413,6 +419,7 @@ def main():
     mount = os.environ.get('VAULT_KV_MOUNT', 'secret')
     demand(VAULT['NAME'].fullmatch(mount), 'Invalid Vault KV mount')
     if args.action == 'rollback':
+        VAULT['authenticate_process']('prod-settings-recovery')
         rollback(args, mount)
         return
     catalog = load_catalog(args.catalog)
@@ -421,15 +428,18 @@ def main():
         return
     variables, secrets = inputs()
     if args.action == 'plan':
+        VAULT['authenticate_process']('prod-settings-plan')
         plan(args, catalog, mount, variables, secrets)
     else:
+        demand(args.target in catalog['targets'], 'Unknown settings target')
+        VAULT['authenticate_process']('prod-settings-' + args.target)
         sync(args, catalog, mount, variables, secrets)
 
 
 if __name__ == '__main__':
     try:
         main()
-    except ValueError as error:
+    except (ValueError, RuntimeError) as error:
         print(f'[github-settings] {error}', file=sys.stderr)
         sys.exit(1)
     except (KeyError, OSError, TypeError):
