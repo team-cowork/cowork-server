@@ -1,7 +1,7 @@
 /**
  GitHub 저장소 활동(push/issues/pull_request) 이벤트 페이로드.
 
- 외부 `github-app` 서비스가 발행하고 `cowork-chat`이 소비한다.
+ `cowork-github`이 발행하고 `cowork-chat`이 소비한다.
  저장소가 연결된 프로젝트의 GitHub 알림 채널에 `summary`를 SYSTEM 메시지로 게시한다.
  */
 export type GithubRepoEvent = {
