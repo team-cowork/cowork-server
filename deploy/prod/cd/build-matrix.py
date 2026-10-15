@@ -30,7 +30,7 @@ def affected(service, paths, target=None):
         return True
     config_firewall = {"deploy/prod/network/config-firewall.py", "deploy/prod/network/config-firewall.service",
                        "deploy/prod/network/bootstrap-config-firewall.sh", "deploy/prod/lib/config-firewall.sh"}
-    shared = {"deploy/prod/deploy.sh", "deploy/prod/lib/defaults.sh", "deploy/prod/inventory.json", "deploy/prod/configuration.json",
+    shared = {"deploy/prod/deploy.sh", "deploy/prod/inventory.json", "deploy/prod/configuration.json",
               ".github/workflows/cowork-prod-cd.yml"}
     if any(path not in config_firewall and (
         path in shared or path.startswith(("deploy/prod/lib/", ".github/actions/deploy-target/"))

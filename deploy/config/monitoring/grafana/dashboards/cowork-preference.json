@@ -1,5 +1,5 @@
 {
-  "title": "cowork-preference",
+  "title": "cowork 환경설정",
   "uid": "cowork-preference",
   "tags": ["cowork", "service", "preference"],
   "timezone": "browser",
@@ -23,7 +23,7 @@
       "fieldConfig": {
         "defaults": {
           "mappings": [
-            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
+            { "type": "value", "options": { "0": { "text": "응답 없음", "color": "red" }, "1": { "text": "정상", "color": "green" } } }
           ],
           "thresholds": { "mode": "absolute", "steps": [{ "value": 0, "color": "red" }, { "value": 1, "color": "green" }] }
         }
@@ -31,7 +31,7 @@
     },
     {
       "id": 2,
-      "title": "HTTP 요청 Rate (req/s)",
+      "title": "초당 HTTP 요청 수 (req/s)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "targets": [
@@ -64,7 +64,7 @@
         "type": "datasource",
         "query": "prometheus",
         "hide": 0,
-        "label": "Datasource"
+        "label": "데이터 소스"
       }
     ]
   }
