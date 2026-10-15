@@ -1,7 +1,7 @@
-import { Types } from 'mongoose';
-import { type MessageBroadcastPayload } from '../repository';
-import { ChatGithubIssueResultConsumer } from './chat-github-issue-result.consumer';
-import { type ChatGithubIssueCreateResult } from './event/chat-github-issue.event';
+import {Types} from 'mongoose';
+import {type MessageBroadcastPayload} from '../repository';
+import {ChatGithubIssueResultConsumer} from './chat-github-issue-result.consumer';
+import {type ChatGithubIssueCreateResult} from './event/chat-github-issue.event';
 
 const mockChatService = {
     saveSystemMessage: jest.fn(),
@@ -39,7 +39,7 @@ describe('ChatGithubIssueResultConsumer', () => {
         projectId: 5,
         requesterId: 42,
         status: 'REJECTED',
-        error: { code: 'FORBIDDEN', message: '프로젝트 수정 권한이 없습니다.' },
+        error: {code: 'FORBIDDEN', message: '프로젝트 수정 권한이 없습니다.'},
         occurredAt: '2026-09-26T00:00:00.000Z',
     };
 
@@ -61,7 +61,7 @@ describe('ChatGithubIssueResultConsumer', () => {
             createdAt: new Date(baseResult.occurredAt),
             updatedAt: new Date(baseResult.occurredAt),
         };
-        return { toObject: jest.fn().mockReturnValue(message) };
+        return {toObject: jest.fn().mockReturnValue(message)};
     }
 
     describe('handleResultEvent (REJECTED)', () => {
@@ -89,7 +89,7 @@ describe('ChatGithubIssueResultConsumer', () => {
 
             await (consumer as unknown as {
                 handleResultEvent(event: ChatGithubIssueCreateResult): Promise<void>;
-            }).handleResultEvent({ ...baseResult, error: null });
+            }).handleResultEvent({...baseResult, error: null});
 
             expect(mockChatService.saveSystemMessage).toHaveBeenCalledWith(
                 10,
@@ -103,7 +103,7 @@ describe('ChatGithubIssueResultConsumer', () => {
         it('시스템 메시지를 저장하거나 브로드캐스트하지 않는다', async () => {
             await (consumer as unknown as {
                 handleResultEvent(event: ChatGithubIssueCreateResult): Promise<void>;
-            }).handleResultEvent({ ...baseResult, status: 'ACCEPTED', error: null });
+            }).handleResultEvent({...baseResult, status: 'ACCEPTED', error: null});
 
             expect(mockChatService.saveSystemMessage).not.toHaveBeenCalled();
             expect(mockChannelMessageReadAccess.emitToReadableChannelUsers).not.toHaveBeenCalled();

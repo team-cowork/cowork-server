@@ -4,16 +4,16 @@ import {
     OnModuleDestroy,
     OnModuleInit,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { Consumer, Kafka } from 'kafkajs';
-import { DicoshotService } from 'dicoshot-nest';
-import { getRequiredCsvConfig } from '../../common/config/config.util';
-import { parseEventTime } from '../../common/util/event-time.util';
-import { buildErrorFields } from '../../common/util/discord-alert.util';
-import { isSafePositiveInteger } from '../../common/util/safe-integer.util';
-import { PROJECTION_STREAMS, ProjectionReadinessService } from '../../common/kafka/projection-readiness.service';
-import { applyProjectionMessage, ProjectionContractError } from '../../common/kafka/projection-message.processor';
-import { UserProfileProjectionRepository } from '../repository';
+import {ConfigService} from '@nestjs/config';
+import {Consumer, Kafka} from 'kafkajs';
+import {DicoshotService} from 'dicoshot-nest';
+import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {parseEventTime} from '../../common/util/event-time.util';
+import {buildErrorFields} from '../../common/util/discord-alert.util';
+import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
+import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
+import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
+import {UserProfileProjectionRepository} from '../repository';
 
 type UserProfileEvent = {
     eventType: 'UPSERT' | 'DELETE';
@@ -42,13 +42,13 @@ export class UserProfileEventConsumer implements OnModuleInit, OnModuleDestroy {
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         const stream = PROJECTION_STREAMS.userProfile;
-        this.consumer = kafka.consumer({ groupId: stream.groupId });
+        this.consumer = kafka.consumer({groupId: stream.groupId});
         await this.consumer.connect();
-        await this.consumer.subscribe({ topic: stream.topic, fromBeginning: true });
+        await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
         await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
 
         void this.consumer.run({
-            eachMessage: async ({ partition, message }): Promise<void> => {
+            eachMessage: async ({partition, message}): Promise<void> => {
                 await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(
                     stream,
                     partition,
@@ -63,7 +63,7 @@ export class UserProfileEventConsumer implements OnModuleInit, OnModuleDestroy {
                 title: '🔴 Kafka Consumer 중단',
                 description: 'cowork-chat의 user.profile.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
                 color: 'danger',
-                fields: [{ name: 'Topic', value: 'user.profile.event', inline: true }, ...buildErrorFields(error)],
+                fields: [{name: 'Topic', value: 'user.profile.event', inline: true}, ...buildErrorFields(error)],
             }).catch(() => {/* Alert delivery is best-effort. */});
             process.exit(1);
         });
@@ -90,7 +90,7 @@ export class UserProfileEventConsumer implements OnModuleInit, OnModuleDestroy {
             throw new ProjectionContractError('user profile event occurredAt must be RFC3339');
         }
 
-        const { occurredAt, sourceVersion } = eventTime;
+        const {occurredAt, sourceVersion} = eventTime;
         if (payload.eventType === 'DELETE') {
             await this.profileRepository.remove(payload.userId, occurredAt, sourceVersion);
             return;

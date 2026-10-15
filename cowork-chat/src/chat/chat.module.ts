@@ -1,24 +1,24 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { JwtModule } from '@nestjs/jwt';
-import { MongooseModule } from '@nestjs/mongoose';
-import { DicoshotModule } from 'dicoshot-nest';
-import { MembershipModule } from '../membership/membership.module';
-import { BlockModule } from '../block/block.module';
-import { ObjectStorageModule } from '../storage/object-storage.module';
-import { SearchModule } from '../search/search.module';
-import { getOptionalConfig, getRequiredConfig } from '../common/config/config.util';
-import { RedisRateLimiter } from '../common/util/redis-rate-limiter';
-import { SocketIoRedisConnection } from '../common/adapter/redis-io.adapter';
-import { ThrottleGuard } from '../common/guard/throttle.guard';
-import { ChatGateway } from './chat.gateway';
-import { ChatService } from './chat.service';
-import { AttachmentDownloadService } from './service/attachment-download.service';
-import { ChatController } from './chat.controller';
-import { DmController } from './dm.controller';
-import { ProjectMessageController } from './project-message.controller';
-import { TeamUnreadController } from './team-unread.controller';
-import { TeamSearchController } from './team-search.controller';
+import {Module} from '@nestjs/common';
+import {ConfigModule, ConfigService} from '@nestjs/config';
+import {JwtModule} from '@nestjs/jwt';
+import {MongooseModule} from '@nestjs/mongoose';
+import {DicoshotModule} from 'dicoshot-nest';
+import {MembershipModule} from '../membership/membership.module';
+import {BlockModule} from '../block/block.module';
+import {ObjectStorageModule} from '../storage/object-storage.module';
+import {SearchModule} from '../search/search.module';
+import {getOptionalConfig, getRequiredConfig} from '../common/config/config.util';
+import {RedisRateLimiter} from '../common/util/redis-rate-limiter';
+import {SocketIoRedisConnection} from '../common/adapter/redis-io.adapter';
+import {ThrottleGuard} from '../common/guard/throttle.guard';
+import {ChatGateway} from './chat.gateway';
+import {ChatService} from './chat.service';
+import {AttachmentDownloadService} from './service/attachment-download.service';
+import {ChatController} from './chat.controller';
+import {DmController} from './dm.controller';
+import {ProjectMessageController} from './project-message.controller';
+import {TeamUnreadController} from './team-unread.controller';
+import {TeamSearchController} from './team-search.controller';
 import {
     ChatMessageProducer,
     ChatMessageConsumer,
@@ -49,7 +49,7 @@ import {
     ChannelMessageReadAccessService,
     ChatMessageQuarantineService,
 } from './service';
-import { UnifiedSearchResolver } from './unified-search.resolver';
+import {UnifiedSearchResolver} from './unified-search.resolver';
 import {
     Message,
     MessageSchema,
@@ -114,25 +114,25 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
             inject: [ConfigService],
             useFactory: (configService: ConfigService) => ({
                 secret: getRequiredConfig(configService, 'JWT_SECRET'),
-                signOptions: { algorithm: 'HS256' },
+                signOptions: {algorithm: 'HS256'},
             }),
         }),
         MongooseModule.forFeature([
-            { name: Message.name, schema: MessageSchema },
-            { name: ChannelMember.name, schema: ChannelMemberSchema },
-            { name: ChannelProjection.name, schema: ChannelProjectionSchema },
-            { name: ProjectMemberProjection.name, schema: ProjectMemberProjectionSchema },
-            { name: ProjectProjection.name, schema: ProjectProjectionSchema },
-            { name: ProjectGithubRepoProjection.name, schema: ProjectGithubRepoProjectionSchema },
-            { name: TeamMemberProjection.name, schema: TeamMemberProjectionSchema },
-            { name: UserProfileProjection.name, schema: UserProfileProjectionSchema },
-            { name: TeamRoleProjection.name, schema: TeamRoleProjectionSchema },
-            { name: TeamRoleAssignmentProjection.name, schema: TeamRoleAssignmentProjectionSchema },
-            { name: TeamRoleMemberTombstone.name, schema: TeamRoleMemberTombstoneSchema },
-            { name: ChannelRolePolicyProjection.name, schema: ChannelRolePolicyProjectionSchema },
-            { name: ChatMessageQuarantineRecord.name, schema: ChatMessageQuarantineRecordSchema },
-            { name: MessageSearchTombstone.name, schema: MessageSearchTombstoneSchema },
-            { name: MessageSearchIndexState.name, schema: MessageSearchIndexStateSchema },
+            {name: Message.name, schema: MessageSchema},
+            {name: ChannelMember.name, schema: ChannelMemberSchema},
+            {name: ChannelProjection.name, schema: ChannelProjectionSchema},
+            {name: ProjectMemberProjection.name, schema: ProjectMemberProjectionSchema},
+            {name: ProjectProjection.name, schema: ProjectProjectionSchema},
+            {name: ProjectGithubRepoProjection.name, schema: ProjectGithubRepoProjectionSchema},
+            {name: TeamMemberProjection.name, schema: TeamMemberProjectionSchema},
+            {name: UserProfileProjection.name, schema: UserProfileProjectionSchema},
+            {name: TeamRoleProjection.name, schema: TeamRoleProjectionSchema},
+            {name: TeamRoleAssignmentProjection.name, schema: TeamRoleAssignmentProjectionSchema},
+            {name: TeamRoleMemberTombstone.name, schema: TeamRoleMemberTombstoneSchema},
+            {name: ChannelRolePolicyProjection.name, schema: ChannelRolePolicyProjectionSchema},
+            {name: ChatMessageQuarantineRecord.name, schema: ChatMessageQuarantineRecordSchema},
+            {name: MessageSearchTombstone.name, schema: MessageSearchTombstoneSchema},
+            {name: MessageSearchIndexState.name, schema: MessageSearchIndexStateSchema},
         ]),
         DicoshotModule.registerAsync({
             imports: [ConfigModule],
@@ -142,7 +142,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
                 applicationName: 'cowork-chat',
                 locale: 'ko',
             }),
-            filter: IS_PRODUCTION ? { environment: 'production' } : false,
+            filter: IS_PRODUCTION ? {environment: 'production'} : false,
             interceptor: IS_PRODUCTION,
         }),
         MembershipModule,
