@@ -20,6 +20,7 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
+import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.util.Optional
 
@@ -38,6 +39,7 @@ class QueryChannelRolePoliciesServiceImplTest {
         policyRepository,
         roleRepository,
         readinessGate,
+        JsonMapper.builder().build(),
     )
     private val occurredAt = Instant.parse("2026-08-30T01:00:00Z")
 
@@ -60,6 +62,7 @@ class QueryChannelRolePoliciesServiceImplTest {
 
         assertEquals(listOf(1L, 2L, 9L), result.map { it.roleId })
         assertEquals(listOf(100, 100, 1), result.map { it.priority })
+        assertEquals(mapOf("message_read" to false, "message_send" to true), result.last().permissions)
         verify { teamPermissionService.requireTeamMember(10L, 7L) }
         verify { permissionSupport.requireChannelManager(channel, 7L) }
     }
@@ -95,6 +98,7 @@ class QueryChannelRolePoliciesServiceImplTest {
         teamId = 10L,
         channelId = 3L,
         roleId = roleId,
+        permissionsJson = """{"message_read":$read,"message_send":true}""",
         messageRead = read,
         sourceOccurredAt = occurredAt,
     )
