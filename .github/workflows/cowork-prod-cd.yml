@@ -43,7 +43,9 @@ jobs:
       services-list: ${{ steps.request.outputs.services-list }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
       - name: Validate Manual Request
         id: request
         env:
@@ -90,13 +92,15 @@ jobs:
       services-list: ${{ steps.build-matrix.outputs.services-list }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
       - name: Checkout Deployment Tracking Tools
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           ref: ${{ github.workflow_sha }}
           path: .deployment-tools
       - name: Compare Each Target With Its Last Successful Deployment
@@ -122,14 +126,10 @@ jobs:
       attempt: ${{ steps.plan.outputs.attempt }}
     steps:
       - name: Checkout Deployment Source
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - name: Authenticate Settings Reader
-        if: ${{ !inputs.check_only && inputs.service != 'vault' }}
-        env:
-          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
-        run: python3 deploy/prod/cd/vault-auth.py --role prod-settings-plan
       - name: Select Settings And Save Previous Images
         id: plan
         env:
@@ -140,13 +140,18 @@ jobs:
           INFRASTRUCTURE: ${{ inputs.service == 'infrastructure' }}
           CHECK_ONLY: ${{ inputs.check_only || false }}
           GH_VARIABLES_JSON: ${{ toJSON(vars) }}
-          GH_SECRETS_JSON: ${{ toJSON(secrets) }}
+          # Only shared inputs participate in the plan; bind secrets individually.
+          # Keep this list equal to the shared secrets in deploy/prod/configuration.json (checked by deploy/validate.py).
+          GH_SECRET_COWORK_GITHUB_INTERNAL_API_KEY: ${{ !inputs.check_only && inputs.service != 'vault' && secrets.COWORK_GITHUB_INTERNAL_API_KEY || '' }}
+          GH_SECRET_JWT_SECRET: ${{ !inputs.check_only && inputs.service != 'vault' && secrets.JWT_SECRET || '' }}
+          GH_SECRET_LIVEKIT_API_KEY: ${{ !inputs.check_only && inputs.service != 'vault' && secrets.LIVEKIT_API_KEY || '' }}
+          GH_SECRET_LIVEKIT_API_SECRET: ${{ !inputs.check_only && inputs.service != 'vault' && secrets.LIVEKIT_API_SECRET || '' }}
           GH_TOKEN: ${{ github.token }}
           VAULT_ADDR: ${{ vars.VAULT_ADDR }}
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
         run: python3 deploy/prod/cd/rollout-settings.py initial --directory "$RUNNER_TEMP/settings-plan"
       - name: Preserve Rollout Metadata
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: settings-${{ github.run_attempt }}-plan
           path: ${{ runner.temp }}/settings-plan/*.json
@@ -169,32 +174,61 @@ jobs:
       matrix: ${{ fromJSON(needs.settings-plan.outputs.sync_matrix) }}
     steps:
       - name: Checkout Deployment Source
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Require This Attempt's Settings Plan
         env:
           SETTINGS_ATTEMPT: ${{ needs.settings-plan.outputs.attempt }}
         run: python3 deploy/prod/cd/rollout-settings.py check-attempt
-      - name: Authenticate Settings Writer
-        env:
-          TARGET: ${{ matrix.target }}
-          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
-        run: python3 deploy/prod/cd/vault-auth.py --role "prod-settings-$TARGET"
       - name: Publish Declared GitHub Inputs To Vault
         env:
           TARGET: ${{ matrix.target }}
           VAULT_ADDR: ${{ vars.VAULT_ADDR }}
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
           GH_VARIABLES_JSON: ${{ toJSON(vars) }}
-          GH_SECRETS_JSON: ${{ toJSON(secrets) }}
+          # The catalog-derived matrix selects which explicit bindings reach this target.
+          # Add a binding for every secret declared in deploy/prod/configuration.json (checked by deploy/validate.py).
+          GH_SECRET_ACCOUNT_CREDENTIAL_ENCRYPTION_KEY: ${{ contains(matrix.secret_names, 'ACCOUNT_CREDENTIAL_ENCRYPTION_KEY') && secrets.ACCOUNT_CREDENTIAL_ENCRYPTION_KEY || '' }}
+          GH_SECRET_ACCOUNT_SHARE_OAUTH_STATE_SECRET: ${{ contains(matrix.secret_names, 'ACCOUNT_SHARE_OAUTH_STATE_SECRET') && secrets.ACCOUNT_SHARE_OAUTH_STATE_SECRET || '' }}
+          GH_SECRET_CONFIG_CLIENT_PASSWORD: ${{ contains(matrix.secret_names, 'CONFIG_CLIENT_PASSWORD') && secrets.CONFIG_CLIENT_PASSWORD || '' }}
+          GH_SECRET_COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET') && secrets.COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET || '' }}
+          GH_SECRET_COWORK_GITHUB_INTERNAL_API_KEY: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_INTERNAL_API_KEY') && secrets.COWORK_GITHUB_INTERNAL_API_KEY || '' }}
+          GH_SECRET_COWORK_GITHUB_PRIVATE_KEY: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_PRIVATE_KEY') && secrets.COWORK_GITHUB_PRIVATE_KEY || '' }}
+          GH_SECRET_COWORK_GITHUB_WEBHOOK_SECRET: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_WEBHOOK_SECRET') && secrets.COWORK_GITHUB_WEBHOOK_SECRET || '' }}
+          GH_SECRET_DATAGSM_WEBHOOK_SECRET: ${{ contains(matrix.secret_names, 'DATAGSM_WEBHOOK_SECRET') && secrets.DATAGSM_WEBHOOK_SECRET || '' }}
+          GH_SECRET_DB_ADMIN_PASSWORD: ${{ contains(matrix.secret_names, 'DB_ADMIN_PASSWORD') && secrets.DB_ADMIN_PASSWORD || '' }}
+          GH_SECRET_DB_MONITORING_PASSWORD: ${{ contains(matrix.secret_names, 'DB_MONITORING_PASSWORD') && secrets.DB_MONITORING_PASSWORD || '' }}
+          GH_SECRET_DB_PASSWORD: ${{ contains(matrix.secret_names, 'DB_PASSWORD') && secrets.DB_PASSWORD || '' }}
+          GH_SECRET_DEV_ORIGIN_CREDENTIAL: ${{ contains(matrix.secret_names, 'DEV_ORIGIN_CREDENTIAL') && secrets.DEV_ORIGIN_CREDENTIAL || '' }}
+          GH_SECRET_DISCORD_MONITORING_ALERT_WEBHOOK: ${{ contains(matrix.secret_names, 'DISCORD_MONITORING_ALERT_WEBHOOK') && secrets.DISCORD_MONITORING_ALERT_WEBHOOK || '' }}
+          GH_SECRET_DISCORD_WEBHOOK_URL: ${{ contains(matrix.secret_names, 'DISCORD_WEBHOOK_URL') && secrets.DISCORD_WEBHOOK_URL || '' }}
+          GH_SECRET_ELASTICSEARCH_ADMIN_PASSWORD: ${{ contains(matrix.secret_names, 'ELASTICSEARCH_ADMIN_PASSWORD') && secrets.ELASTICSEARCH_ADMIN_PASSWORD || '' }}
+          GH_SECRET_ELASTICSEARCH_URL: ${{ contains(matrix.secret_names, 'ELASTICSEARCH_URL') && secrets.ELASTICSEARCH_URL || '' }}
+          GH_SECRET_FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET') && secrets.FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET || '' }}
+          GH_SECRET_FCM_CREDENTIALS_JSON: ${{ contains(matrix.secret_names, 'FCM_CREDENTIALS_JSON') && secrets.FCM_CREDENTIALS_JSON || '' }}
+          GH_SECRET_GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET') && secrets.GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET || '' }}
+          GH_SECRET_GRAFANA_ADMIN_PASSWORD: ${{ contains(matrix.secret_names, 'GRAFANA_ADMIN_PASSWORD') && secrets.GRAFANA_ADMIN_PASSWORD || '' }}
+          GH_SECRET_JIRA_ACCOUNT_SHARE_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'JIRA_ACCOUNT_SHARE_CLIENT_SECRET') && secrets.JIRA_ACCOUNT_SHARE_CLIENT_SECRET || '' }}
+          GH_SECRET_JWT_SECRET: ${{ contains(matrix.secret_names, 'JWT_SECRET') && secrets.JWT_SECRET || '' }}
+          GH_SECRET_LIVEKIT_API_KEY: ${{ contains(matrix.secret_names, 'LIVEKIT_API_KEY') && secrets.LIVEKIT_API_KEY || '' }}
+          GH_SECRET_LIVEKIT_API_SECRET: ${{ contains(matrix.secret_names, 'LIVEKIT_API_SECRET') && secrets.LIVEKIT_API_SECRET || '' }}
+          GH_SECRET_NOTION_ACCOUNT_SHARE_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'NOTION_ACCOUNT_SHARE_CLIENT_SECRET') && secrets.NOTION_ACCOUNT_SHARE_CLIENT_SECRET || '' }}
+          GH_SECRET_S3_ACCESS_KEY: ${{ contains(matrix.secret_names, 'S3_ACCESS_KEY') && secrets.S3_ACCESS_KEY || '' }}
+          GH_SECRET_S3_ADMIN_ACCESS_KEY: ${{ contains(matrix.secret_names, 'S3_ADMIN_ACCESS_KEY') && secrets.S3_ADMIN_ACCESS_KEY || '' }}
+          GH_SECRET_S3_ADMIN_SECRET_KEY: ${{ contains(matrix.secret_names, 'S3_ADMIN_SECRET_KEY') && secrets.S3_ADMIN_SECRET_KEY || '' }}
+          GH_SECRET_S3_SECRET_KEY: ${{ contains(matrix.secret_names, 'S3_SECRET_KEY') && secrets.S3_SECRET_KEY || '' }}
+          GH_SECRET_TEAM_GITHUB_STATE_SECRET: ${{ contains(matrix.secret_names, 'TEAM_GITHUB_STATE_SECRET') && secrets.TEAM_GITHUB_STATE_SECRET || '' }}
+          GH_SECRET_VAULT_ROLE_ID: ${{ contains(matrix.secret_names, 'VAULT_ROLE_ID') && secrets.VAULT_ROLE_ID || '' }}
+          GH_SECRET_VAULT_SECRET_ID: ${{ contains(matrix.secret_names, 'VAULT_SECRET_ID') && secrets.VAULT_SECRET_ID || '' }}
         run: |
           python3 deploy/prod/cd/github-settings.py sync --target "$TARGET" \
             --journal "$RUNNER_TEMP/settings/journal-$TARGET.json" \
             --output "$RUNNER_TEMP/settings/summary-$TARGET.json"
       - name: Preserve Settings Versions For Recovery
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: settings-${{ github.run_attempt }}-journal-${{ matrix.target }}
           path: ${{ runner.temp }}/settings/*.json
@@ -219,15 +253,16 @@ jobs:
       applications: ${{ steps.plan.outputs.applications }}
     steps:
       - name: Checkout Deployment Source
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Require This Attempt's Settings Plan
         env:
           SETTINGS_ATTEMPT: ${{ needs.settings-plan.outputs.attempt }}
         run: python3 deploy/prod/cd/rollout-settings.py check-attempt
       - name: Read Rollout Metadata
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           pattern: settings-${{ github.run_attempt }}-*
           merge-multiple: true
@@ -251,8 +286,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
 
@@ -297,12 +333,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           ref: ${{ matrix.image_sha }}
 
       - name: Log In To GitHub Container Registry
-        uses: docker/login-action@v4
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -343,8 +380,9 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
 
@@ -398,8 +436,9 @@ jobs:
       matrix: ${{ fromJSON(needs.deployment-plan.outputs.vault) }}
     steps:
       - name: Checkout Deployment Tools
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           ref: ${{ github.workflow_sha }}
       - name: Require This Attempt's Settings Plan
         env:
@@ -437,7 +476,7 @@ jobs:
     environment: Prod-IaC
     steps:
       - name: Read The Selected Infrastructure Source
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
@@ -447,7 +486,7 @@ jobs:
           SETTINGS_ATTEMPT: ${{ needs.finalize-settings.outputs.attempt }}
         run: python3 deploy/prod/cd/rollout-settings.py check-attempt
       - name: Set Up Python
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.12'
       - name: Install Pinned IaC Tools
@@ -530,8 +569,9 @@ jobs:
       matrix: ${{ fromJSON(needs.deployment-plan.outputs.config) }}
     steps:
       - name: Checkout Deployment Tools
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           ref: ${{ github.workflow_sha }}
       - name: Require This Attempt's Settings Plan
         env:
@@ -576,8 +616,9 @@ jobs:
       matrix: ${{ fromJSON(needs.deployment-plan.outputs.applications) }}
     steps:
       - name: Checkout Deployment Tools
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           ref: ${{ github.workflow_sha }}
       - name: Require This Attempt's Settings Plan
         env:
@@ -618,15 +659,16 @@ jobs:
       restoration: ${{ steps.restore.outcome }}
     steps:
       - name: Checkout Deployment Source
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - name: Require This Attempt's Settings Plan
         env:
           SETTINGS_ATTEMPT: ${{ needs.settings-plan.outputs.attempt }}
         run: python3 deploy/prod/cd/rollout-settings.py check-attempt
       - name: Read Recovery Metadata
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           pattern: settings-${{ github.run_attempt }}-*
           merge-multiple: true
@@ -634,11 +676,6 @@ jobs:
       - name: Inspect Recovery Metadata
         id: scope
         run: python3 deploy/prod/cd/rollout-settings.py recovery-scope --directory "$RUNNER_TEMP/settings"
-      - name: Authenticate Settings Recovery
-        if: ${{ steps.scope.outputs.has_journals == 'true' }}
-        env:
-          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
-        run: python3 deploy/prod/cd/vault-auth.py --role prod-settings-recovery
       - name: Restore Previous Vault Versions
         if: ${{ steps.scope.outputs.has_journals == 'true' }}
         id: restore
@@ -651,7 +688,7 @@ jobs:
             --output "$RUNNER_TEMP/restored-settings.json"
       - name: Set Up Python For Infrastructure Recovery
         if: ${{ steps.restore.outcome == 'success' && steps.restore.outputs.resource_targets != '[]' && needs.apply-infrastructure.result != 'skipped' }}
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.12'
       - name: Install Infrastructure Recovery Dependencies
@@ -677,7 +714,7 @@ jobs:
         run: python3 deploy/prod/cd/rollout-settings.py recovery --directory "$RUNNER_TEMP/settings"
       - name: Preserve Recovery Results
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: settings-${{ github.run_attempt }}-recovery
           path: |
@@ -718,8 +755,9 @@ jobs:
       matrix: ${{ fromJSON(needs.restore-settings.outputs.config) }}
     steps:
       - name: Checkout Deployment Tools
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           ref: ${{ github.workflow_sha }}
       - name: Require This Attempt's Settings Plan
         env:
@@ -754,8 +792,9 @@ jobs:
       matrix: ${{ fromJSON(needs.restore-settings.outputs.applications) }}
     steps:
       - name: Checkout Deployment Tools
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          persist-credentials: false
           ref: ${{ github.workflow_sha }}
       - name: Require This Attempt's Settings Plan
         env:
@@ -854,7 +893,7 @@ jobs:
           echo "run_desc=${run_desc}" >> "$GITHUB_OUTPUT"
 
       - name: Send Discord Notification
-        uses: sarisia/actions-status-discord@v1
+        uses: sarisia/actions-status-discord@eb045afee445dc055c18d3d90bd0f244fd062708 # v1
         with:
           webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
           status: ${{ steps.status.outputs.status }}
