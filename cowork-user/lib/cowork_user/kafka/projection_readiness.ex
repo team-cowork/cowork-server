@@ -104,7 +104,7 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
           validated_marker: validated_marker
         },
         %{
-          next_offset: end_offset,
+          next_offset: next_offset,
           replay_generation: generation,
           replay_token: token,
           replay_lease_active: true,
@@ -120,7 +120,11 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
         }
       )
       when is_binary(token) and is_map(validated_marker) do
+    # The marker is the source's own snapshot completion point, so a checkpoint past it
+    # holds a complete projection; requiring the live high-watermark instead would drop
+    # readiness on every record the source publishes afterwards.
     marker_offset >= beginning_offset and marker_offset < end_offset and
+      next_offset > marker_offset and next_offset <= end_offset and
       validated_marker.marker_offset == marker_offset and
       validated_marker.snapshot_id == snapshot_id and
       validated_marker.replay_generation == generation and
