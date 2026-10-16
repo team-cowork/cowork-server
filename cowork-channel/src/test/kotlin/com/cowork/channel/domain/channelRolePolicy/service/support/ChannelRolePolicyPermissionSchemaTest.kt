@@ -22,18 +22,19 @@ class ChannelRolePolicyPermissionSchemaTest {
     }
 
     @Test
-    fun `알 수 없는 null 값도 무시함`() {
-        assertEquals(
-            mapOf("message_read" to false),
-            schema.normalize(mapOf("future_permission" to null)),
-        )
+    fun `보낸 키만 유지하고 누락된 키는 채우지 않음`() {
+        val normalized = schema.normalize(mapOf("message_send" to false, "file_attach" to true))
+
+        assertEquals(mapOf("message_send" to false, "file_attach" to true), normalized)
     }
 
     @Test
-    fun `알려진 키가 없으면 해당 키의 기본값으로 채움`() {
-        val normalized = schema.normalize(emptyMap())
+    fun `지원하는 키가 하나도 없으면 거부함`() {
+        listOf(emptyMap(), mapOf("future_permission" to null)).forEach { permissions ->
+            val exception = assertThrows(ExpectedException::class.java) { schema.normalize(permissions) }
 
-        assertEquals(mapOf("message_read" to false), normalized)
+            assertEquals(HttpStatus.BAD_REQUEST, exception.statusCode)
+        }
     }
 
     @Test

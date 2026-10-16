@@ -34,7 +34,7 @@ class UpsertChannelRolePolicyServiceImplTest {
     )
 
     @Test
-    fun `누락된 권한은 키별 기본값으로 채우고 알 수 없는 키는 command에서 제거함`() {
+    fun `보낸 권한만 command에 담고 알 수 없는 키는 제거함`() {
         val channel = teamChannel()
         val response = ChannelRolePolicyOperationResponse(
             operationId = "019a0000-0000-7000-8000-000000000001",
@@ -49,7 +49,7 @@ class UpsertChannelRolePolicyServiceImplTest {
                 3L,
                 5L,
                 7L,
-                mapOf("message_read" to false),
+                mapOf("message_send" to false),
                 any(),
             )
         } returns response
@@ -60,7 +60,7 @@ class UpsertChannelRolePolicyServiceImplTest {
             5L,
             "key",
             UpsertChannelRolePolicyRequest(
-                mapOf("future_permission" to mapOf("nested" to true)),
+                mapOf("message_send" to false, "future_permission" to mapOf("nested" to true)),
             ),
         )
 
@@ -73,7 +73,7 @@ class UpsertChannelRolePolicyServiceImplTest {
                 3L,
                 5L,
                 7L,
-                mapOf("message_read" to false),
+                mapOf("message_send" to false),
                 any(),
             )
         }
