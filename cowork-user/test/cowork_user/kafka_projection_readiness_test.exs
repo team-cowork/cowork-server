@@ -7,10 +7,11 @@ defmodule CoworkUser.KafkaProjectionReadinessTest do
   @token "45985bb2-8689-45c0-b23b-399e754e1e0c"
   @snapshot_id "e71bf570-06e2-443c-9a9c-c0cdd666ba2d"
 
-  defp range(end_offset, marker_offset) do
+  defp range(end_offset, marker_offset, startup_end_offset) do
     %{
       beginning_offset: 0,
       end_offset: end_offset,
+      startup_end_offset: startup_end_offset,
       replay_generation: @generation,
       validated_marker: %{
         marker_offset: marker_offset,
@@ -43,25 +44,33 @@ defmodule CoworkUser.KafkaProjectionReadinessTest do
   end
 
   describe "partition_ready?/3" do
-    test "stays ready while the source publishes past the snapshot marker" do
+    test "stays ready while the source publishes past the startup high-watermark" do
       assert ProjectionReadiness.partition_ready?(
-               range(1120, 1114),
+               range(1120, 1114, 1115),
                checkpoint(1115, 1114),
                marker(1114)
              )
     end
 
-    test "is ready once the checkpoint reaches the live high-watermark" do
+    test "is ready once the checkpoint reaches the startup high-watermark" do
       assert ProjectionReadiness.partition_ready?(
-               range(1115, 1114),
+               range(1115, 1114, 1115),
                checkpoint(1115, 1114),
                marker(1114)
+             )
+    end
+
+    test "is not ready on an old marker replay re-stamped before catching up" do
+      refute ProjectionReadiness.partition_ready?(
+               range(1115, 1088, 1115),
+               checkpoint(1089, 1088),
+               marker(1088)
              )
     end
 
     test "is not ready while the checkpoint trails the snapshot marker" do
       refute ProjectionReadiness.partition_ready?(
-               range(1120, 1114),
+               range(1120, 1114, 1115),
                checkpoint(1114, 1114),
                marker(1114)
              )
@@ -69,7 +78,7 @@ defmodule CoworkUser.KafkaProjectionReadinessTest do
 
     test "rejects a checkpoint beyond the retained log" do
       refute ProjectionReadiness.partition_ready?(
-               range(1115, 1114),
+               range(1115, 1114, 1115),
                checkpoint(1116, 1114),
                marker(1114)
              )
@@ -77,7 +86,7 @@ defmodule CoworkUser.KafkaProjectionReadinessTest do
 
     test "rejects a marker left behind by an older replay generation" do
       refute ProjectionReadiness.partition_ready?(
-               range(1120, 1114),
+               range(1120, 1114, 1115),
                checkpoint(1115, 1114),
                %{marker(1114) | replay_generation: @generation - 1}
              )
@@ -85,7 +94,7 @@ defmodule CoworkUser.KafkaProjectionReadinessTest do
 
     test "rejects a checkpoint latched on an invalid record" do
       refute ProjectionReadiness.partition_ready?(
-               range(1120, 1114),
+               range(1120, 1114, 1115),
                %{checkpoint(1115, 1114) | invalid_record_offset: 1113},
                marker(1114)
              )
@@ -93,7 +102,7 @@ defmodule CoworkUser.KafkaProjectionReadinessTest do
 
     test "rejects a checkpoint whose replay lease expired" do
       refute ProjectionReadiness.partition_ready?(
-               range(1120, 1114),
+               range(1120, 1114, 1115),
                %{checkpoint(1115, 1114) | replay_lease_active: false},
                marker(1114)
              )
