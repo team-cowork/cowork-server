@@ -20,8 +20,11 @@ def api(path, payload=None):
                f"repos/{repository}/{path}"]
     if payload is not None:
         command.extend(["--input", "-"])
+    # History lookups also run during settings planning; gh needs no Vault or app secrets.
+    env = {key: value for key, value in os.environ.items()
+           if not key.startswith(('GH_SECRET_', 'VAULT_', 'ACTIONS_ID_TOKEN_REQUEST_'))}
     result = subprocess.run(command, input=json.dumps(payload) if payload is not None else None,
-                            capture_output=True, text=True, check=True)
+                            capture_output=True, text=True, check=True, env=env)
     return json.loads(result.stdout)
 
 
