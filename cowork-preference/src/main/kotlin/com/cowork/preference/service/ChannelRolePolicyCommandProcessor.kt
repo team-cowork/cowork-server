@@ -4,6 +4,7 @@ import com.cowork.preference.domain.ChannelRolePolicyPermissions
 import com.cowork.preference.domain.ChannelRolePolicyState
 import com.cowork.preference.messaging.ChannelRolePolicyCommand
 import com.cowork.preference.messaging.ChannelRolePolicyCommandEnvelope
+import com.cowork.preference.messaging.ChannelRolePolicyCommandParser
 import com.cowork.preference.messaging.ChannelRolePolicyCommandQuarantineRecord
 import com.cowork.preference.messaging.ChannelRolePolicyCommandType
 import com.cowork.preference.messaging.PreferenceEvent
@@ -229,7 +230,7 @@ class ChannelRolePolicyCommandProcessor(
         status: String,
         occurredAt: Instant,
     ): JsonObject = JsonObject()
-        .put("schemaVersion", 1)
+        .put("schemaVersion", ChannelRolePolicyCommandParser.SCHEMA_VERSION)
         .put("operationId", envelope.operationId)
         .put("idempotencyKey", envelope.idempotencyKey)
         .put("requestHash", envelope.requestHash)
