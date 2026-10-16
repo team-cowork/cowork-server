@@ -1,13 +1,15 @@
 import {Prop, Schema, SchemaFactory} from '@nestjs/mongoose';
 
 /**
-`preference.channel-role-policy.changed`의 role×channel 정책 projection.
+`preference.channel-role-policy.state.v2`의 role×channel 권한 덮어쓰기 projection.
+`permissions`에 없는 키는 역할 기본 권한을 따르며, `messageRead`는 그중 `message_read` 값이다.
 */
 @Schema({timestamps: true, versionKey: false})
 export class ChannelRolePolicyProjection {
     @Prop({required: true}) teamId!: number;
     @Prop({required: true}) channelId!: number;
     @Prop({required: true}) roleId!: number;
+    @Prop({type: Object, default: null}) permissions!: Record<string, boolean> | null;
     @Prop({type: Boolean, default: null}) messageRead!: boolean | null;
     @Prop({required: true, default: false}) deleted!: boolean;
     @Prop({required: true, type: Date}) sourceOccurredAt!: Date;
