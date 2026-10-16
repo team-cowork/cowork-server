@@ -1,8 +1,6 @@
 #!/usr/bin/env python3
 """Authenticate the current GitHub job to its scoped Vault role."""
-import argparse
 import json
-import os
 import re
 import urllib.error
 import urllib.request
@@ -10,7 +8,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 
 def authenticate(env, role):
-    if not re.fullmatch(r"prod-(?:iac|settings-[a-z][a-z0-9-]*)", role):
+    if not re.fullmatch(r"prod-(?:iac|deploy-vault|settings-[a-z][a-z0-9-]*)", role):
         raise ValueError("Invalid Vault workload role")
     if env.get("GITHUB_ACTIONS") != "true":
         if not env.get("VAULT_TOKEN"):
@@ -50,16 +48,3 @@ def authenticate(env, role):
     result.pop("ACTIONS_ID_TOKEN_REQUEST_TOKEN", None)
     result.pop("ACTIONS_ID_TOKEN_REQUEST_URL", None)
     return result
-
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--role", required=True)
-    args = parser.parse_args()
-    try:
-        result = authenticate(os.environ, args.role)
-        with open(os.environ["GITHUB_ENV"], "a") as output:
-            output.write("VAULT_TOKEN=" + result["VAULT_TOKEN"] + "\n")
-        print("Authenticated to the scoped Vault workload role")
-    except (ValueError, RuntimeError, OSError, KeyError) as error:
-        raise SystemExit(str(error) if isinstance(error, (ValueError, RuntimeError)) else "Vault authentication failed")
