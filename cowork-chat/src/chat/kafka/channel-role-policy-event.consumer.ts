@@ -11,6 +11,7 @@ import {DicoshotService} from 'dicoshot-nest';
 import {getRequiredCsvConfig} from '../../common/config/config.util';
 import {parseEventTime} from '../../common/util/event-time.util';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
+import {isBooleanRecord} from '../../common/util/boolean-record.util';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
 import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
@@ -18,12 +19,12 @@ import {ChannelRolePolicyProjectionRepository} from '../repository';
 import {ChannelMessageReadAccessService} from '../service';
 
 type ChannelRolePolicyEvent = {
-    schemaVersion: 1;
+    schemaVersion: 2;
     eventType: 'UPSERT' | 'DELETE';
     teamId: number;
     channelId: number;
     roleId: number;
-    permissions: {message_read: boolean} | null;
+    permissions: Record<string, boolean> | null;
     occurredAt: string;
     snapshot?: boolean;
 };
@@ -107,7 +108,8 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
                 teamId: payload.teamId,
                 channelId: payload.channelId,
                 roleId: payload.roleId,
-                messageRead: payload.permissions!.message_read,
+                permissions: payload.permissions!,
+                messageRead: payload.permissions!.message_read ?? null,
                 ...eventTime,
             });
         } else {
@@ -131,7 +133,7 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
         }
 
         const event = payload as Partial<ChannelRolePolicyEvent>;
-        if (event.schemaVersion !== 1
+        if (event.schemaVersion !== 2
             || (event.eventType !== 'UPSERT' && event.eventType !== 'DELETE')
             || !isSafePositiveInteger(event.teamId)
             || !isSafePositiveInteger(event.channelId)
@@ -141,15 +143,8 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
             return false;
         }
 
-        if (event.eventType === 'DELETE') {
-            return event.permissions === null;
-        }
-
-        if (typeof event.permissions !== 'object' || event.permissions === null) {
-            return false;
-        }
-
-        const permissions = event.permissions as Record<string, unknown>;
-        return Object.keys(permissions).length === 1 && typeof permissions.message_read === 'boolean';
+        return event.eventType === 'DELETE'
+            ? event.permissions === null
+            : isBooleanRecord(event.permissions) && Object.keys(event.permissions).length > 0;
     }
 }
