@@ -53,7 +53,7 @@ export class TeamRoleProjectionRepository {
         roleId: number;
         name: string;
         priority: number;
-        permissions: string[];
+        permissions: Record<string, boolean>;
     }): Promise<boolean> {
         const applyCondition = activeProjectionCondition(input.sourceVersion);
         const result = await this.roleModel.updateOne(
@@ -65,7 +65,7 @@ export class TeamRoleProjectionRepository {
                     name: {$cond: [applyCondition, {$literal: input.name}, {$ifNull: ['$name', '']}]},
                     priority: {$cond: [applyCondition, input.priority, {$ifNull: ['$priority', 0]}]},
                     permissions: {
-                        $cond: [applyCondition, {$literal: input.permissions}, {$ifNull: ['$permissions', []]}],
+                        $cond: [applyCondition, {$literal: input.permissions}, {$ifNull: ['$permissions', {}]}],
                     },
                     deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
@@ -95,7 +95,7 @@ export class TeamRoleProjectionRepository {
                     roleId,
                     name: {$ifNull: ['$name', '']},
                     priority: {$ifNull: ['$priority', 0]},
-                    permissions: {$ifNull: ['$permissions', []]},
+                    permissions: {$ifNull: ['$permissions', {}]},
                     deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
                         $cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
