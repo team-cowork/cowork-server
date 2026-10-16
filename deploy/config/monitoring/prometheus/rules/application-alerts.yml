@@ -188,7 +188,7 @@ groups:
     rules:
       - alert: coworkNodeJsHighHeap
         expr: |
-          nodejs_heap_size_used_bytes / nodejs_heap_size_total_bytes > 0.85
+          nodejs_heap_size_used_bytes / cowork_nodejs_heap_size_limit_bytes > 0.85
         for: 5m
         labels:
           severity: warning
