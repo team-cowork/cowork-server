@@ -1,6 +1,7 @@
 package com.cowork.preference.messaging
 
 import com.cowork.preference.domain.AccountTeamRole
+import com.cowork.preference.domain.ChannelNotificationPreference
 import com.cowork.preference.domain.ChannelRolePolicyPermissions
 import com.cowork.preference.domain.TeamRoleDefinition
 import io.vertx.core.json.JsonArray
@@ -68,20 +69,20 @@ object PreferenceEvents {
         )
     }
 
-    fun channelNotificationChanged(
-        accountId: Long,
-        channelId: Long,
-        notification: Boolean,
-        occurredAt: Instant,
-    ): PreferenceEvent = PreferenceEvent(
-        topic = CHANNEL_NOTIFICATION_TOPIC,
-        key = "$accountId:$channelId",
-        payload = basePayload("UPSERT", occurredAt)
-            .put("accountId", accountId)
-            .put("channelId", channelId)
-            .put("notification", notification),
-        occurredAt = occurredAt,
-    )
+    fun channelNotificationChanged(preference: ChannelNotificationPreference): PreferenceEvent {
+        val occurredAt = preference.stateOccurredAt.toInstant()
+        return PreferenceEvent(
+            topic = CHANNEL_NOTIFICATION_TOPIC,
+            key = "${preference.accountId}:${preference.channelId}",
+            payload = basePayload("UPSERT", occurredAt)
+                .put("accountId", preference.accountId)
+                .put("channelId", preference.channelId)
+                .put("notification", preference.notification)
+                .put("notificationLevel", preference.notificationLevel.name)
+                .put("mutedUntil", preference.mutedUntil?.toString()),
+            occurredAt = occurredAt,
+        )
+    }
 
     fun roleUpserted(role: TeamRoleDefinition, occurredAt: Instant): PreferenceEvent = PreferenceEvent(
         topic = TEAM_ROLE_TOPIC,
