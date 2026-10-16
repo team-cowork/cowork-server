@@ -10,6 +10,7 @@ import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleOperat
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.domain.teamRole.service.ManageRoleContext
 import com.cowork.team.domain.teamRole.service.TeamRoleAccessGuard
+import com.cowork.team.domain.teamRole.service.support.TeamRolePermissionSchema
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -32,7 +33,7 @@ class CreateTeamRoleServiceImplTest :
         beforeEach {
             accessGuard = mockk()
             commandSubmission = mockk()
-            service = CreateTeamRoleServiceImpl(accessGuard, commandSubmission)
+            service = CreateTeamRoleServiceImpl(accessGuard, commandSubmission, TeamRolePermissionSchema())
 
             every { accessGuard.lockTeamOrThrow(1L) } just Runs
             every {
@@ -84,7 +85,7 @@ class CreateTeamRoleServiceImplTest :
             colorHex = "#123ABC",
             priority = priority,
             mentionable = true,
-            permissions = setOf("MANAGE_ROLES"),
+            permissions = mapOf(TeamRolePermissionSchema.MANAGE_ROLES to true),
             createdAt = null,
             updatedAt = null,
         )

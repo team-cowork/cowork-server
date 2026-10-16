@@ -7,6 +7,7 @@ import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
+import com.cowork.team.domain.teamRole.service.support.TeamRolePermissionSchema
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -32,7 +33,7 @@ class TeamRoleAccessGuardTest :
         }
 
         describe("TeamRoleAccessGuard 클래스의 requireManageRoles 메서드는") {
-            context("일반 멤버에게 MANAGE_ROLES 권한이 없으면") {
+            context("일반 멤버에게 manage_roles 권한이 없으면") {
                 it("FORBIDDEN으로 거부한다") {
                     every { memberRepository.findByTeamIdAndUserId(1L, 20L) } returns
                         TeamMember(team = team, userId = 20L)
@@ -44,13 +45,13 @@ class TeamRoleAccessGuardTest :
                 }
             }
 
-            context("일반 멤버에게 MANAGE_ROLES 권한이 있으면") {
+            context("일반 멤버에게 manage_roles 권한이 있으면") {
                 it("보유 역할 중 가장 높은 우선순위를 관리 한도로 사용한다") {
                     every { memberRepository.findByTeamIdAndUserId(1L, 20L) } returns
                         TeamMember(team = team, userId = 20L)
                     every { roleReader.getMemberRoles(1L, 20L) } returns listOf(
-                        role(priority = 5, permissions = setOf("MANAGE_ROLES")),
-                        role(priority = 9, permissions = setOf("MANAGE_ROLES")),
+                        role(priority = 5, permissions = mapOf(TeamRolePermissionSchema.MANAGE_ROLES to true)),
+                        role(priority = 9, permissions = mapOf(TeamRolePermissionSchema.MANAGE_ROLES to true)),
                     )
 
                     val context = guard.requireManageRoles(1L, 20L)
@@ -65,7 +66,7 @@ class TeamRoleAccessGuardTest :
                 it("FORBIDDEN으로 거부한다") {
                     val actor = ManageRoleContext(
                         TeamMember(team = team, userId = 20L),
-                        listOf(role(priority = 10, permissions = setOf("MANAGE_ROLES"))),
+                        listOf(role(priority = 10, permissions = mapOf(TeamRolePermissionSchema.MANAGE_ROLES to true))),
                     )
 
                     val error = shouldThrow<ExpectedException> {
@@ -89,7 +90,7 @@ class TeamRoleAccessGuardTest :
         }
     }) {
     companion object {
-        private fun role(priority: Int, permissions: Set<String> = emptySet()) = TeamRoleResponse(
+        private fun role(priority: Int, permissions: Map<String, Boolean> = emptyMap()) = TeamRoleResponse(
             id = priority.toLong(),
             teamId = 1L,
             name = "role-$priority",

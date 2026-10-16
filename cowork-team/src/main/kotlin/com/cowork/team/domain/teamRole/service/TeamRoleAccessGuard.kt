@@ -6,11 +6,10 @@ import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
+import com.cowork.team.domain.teamRole.service.support.TeamRolePermissionSchema
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import team.themoment.sdk.exception.ExpectedException
-
-private const val MANAGE_ROLES_PERMISSION = "MANAGE_ROLES"
 
 data class ManageRoleContext(val member: TeamMember, val roles: List<TeamRoleResponse>) {
     val maxPriority: Int = roles.maxOfOrNull { it.priority } ?: 0
@@ -46,7 +45,7 @@ class TeamRoleAccessGuard(
         }
 
         val roles = teamRoleProjectionReader.getMemberRoles(teamId, userId)
-        if (roles.any { MANAGE_ROLES_PERMISSION in it.permissions }) {
+        if (roles.any { it.permissions[TeamRolePermissionSchema.MANAGE_ROLES] == true }) {
             return ManageRoleContext(member, roles)
         }
 

@@ -93,7 +93,7 @@ class TeamRoleOperationProjectionFinalizer(
             projection.colorHex == expectedRole.colorHex &&
             projection.priority == expectedRole.priority &&
             projection.mentionable == expectedRole.mentionable &&
-            objectMapper.readValue<Set<String>>(projection.permissionsJson) == expectedRole.permissions
+            objectMapper.readValue<Map<String, Boolean>>(projection.permissionsJson) == expectedRole.permissions
     }
 
     private companion object {
