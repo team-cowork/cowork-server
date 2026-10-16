@@ -82,7 +82,8 @@ class NotificationHandler(
         if (status != null) {
             auditAuthorizationFailure(log, status, accountId, "CHANNEL_NOTIFICATION", channelId)
         }
-        ctx.response().setStatusCode(status ?: 500).end(errorBody(e.message))
+        val fallback = if (e is IllegalArgumentException) 400 else 500
+        ctx.response().setStatusCode(status ?: fallback).end(errorBody(e.message))
     }
 
     private fun errorBody(message: String?) =
