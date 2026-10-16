@@ -1,8 +1,9 @@
 package com.cowork.preference.messaging
 
-import io.vertx.core.json.JsonArray
+import com.cowork.preference.domain.TeamRolePermissions
 import io.vertx.core.json.JsonObject
 import java.time.Instant
+import java.util.UUID
 
 enum class TeamRoleCommandType {
     CREATE,
@@ -32,7 +33,7 @@ data class TeamRoleCommandRoleInput(
     val colorHex: String?,
     val priority: Int?,
     val mentionable: Boolean?,
-    val permissions: Set<String>?,
+    val permissions: Map<String, Boolean>?,
 )
 
 data class TeamRoleCommandEnvelope(
@@ -74,7 +75,7 @@ object TeamRoleCommandParser {
 
     private fun envelope(json: JsonObject): TeamRoleCommandEnvelope {
         val operationId = requiredString(json, "operationId")
-        require(runCatching { java.util.UUID.fromString(operationId) }.isSuccess) { "operationId is invalid" }
+        require(runCatching { UUID.fromString(operationId) }.isSuccess) { "operationId is invalid" }
         val idempotencyKey = requiredString(json, "idempotencyKey")
         require(idempotencyKey.length <= 128) { "idempotencyKey is too long" }
         val requestHash = requiredString(json, "requestHash")
@@ -86,7 +87,7 @@ object TeamRoleCommandParser {
     }
 
     private fun command(key: String?, json: JsonObject, envelope: TeamRoleCommandEnvelope): TeamRoleCommand {
-        require(json.getInteger("schemaVersion") == 1) { "unsupported schemaVersion" }
+        require(json.getInteger("schemaVersion") == SCHEMA_VERSION) { "unsupported schemaVersion" }
         require(key == envelope.teamId.toString()) { "record key must equal teamId" }
         val actorId = positiveLong(json.getValue("actorId"), "actorId")
         val actorMembershipVersion = instant(json, "actorMembershipVersion")
@@ -146,8 +147,9 @@ object TeamRoleCommandParser {
         priority = json.getValue("priority")?.let { integer(it, "role.priority") },
         mentionable = json.getValue("mentionable")?.let { it as? Boolean ?: error("role.mentionable must be boolean") },
         permissions = json.getValue("permissions")?.let { value ->
-            val array = value as? JsonArray ?: error("role.permissions must be an array")
-            array.map { it as? String ?: error("role.permissions entries must be strings") }.toSet()
+            val permissions = (value as? JsonObject ?: error("role.permissions must be an object")).map
+            TeamRolePermissions.validate(permissions)
+            permissions.mapValues { it.value as Boolean }
         },
     )
 
@@ -177,6 +179,8 @@ object TeamRoleCommandParser {
         val text = value as? String ?: error("$field must be an RFC3339 string")
         runCatching { Instant.parse(text) }.getOrElse { error("$field must be an RFC3339 instant") }
     }
+
+    const val SCHEMA_VERSION = 2
 
     private val REQUEST_HASH = Regex("^[0-9a-f]{64}$")
 }
