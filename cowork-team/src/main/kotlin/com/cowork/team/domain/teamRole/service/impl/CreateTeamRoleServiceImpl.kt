@@ -8,6 +8,7 @@ import com.cowork.team.domain.teamRole.presentation.data.request.CreateTeamRoleR
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleOperationResponse
 import com.cowork.team.domain.teamRole.service.CreateTeamRoleService
 import com.cowork.team.domain.teamRole.service.TeamRoleAccessGuard
+import com.cowork.team.domain.teamRole.service.support.TeamRolePermissionSchema
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -17,6 +18,7 @@ import team.themoment.sdk.exception.ExpectedException
 class CreateTeamRoleServiceImpl(
     private val teamRoleAccessGuard: TeamRoleAccessGuard,
     private val commandSubmission: TeamRoleCommandSubmission,
+    private val permissionSchema: TeamRolePermissionSchema,
 ) : CreateTeamRoleService {
     @Transactional
     override fun execute(
@@ -29,7 +31,7 @@ class CreateTeamRoleServiceImpl(
         commandType = TeamRoleCommandType.CREATE,
         teamId = teamId,
         actorId = actorId,
-        role = TeamRoleCommandRoleInput.create(request),
+        role = TeamRoleCommandRoleInput.create(request, permissionSchema.canonicalize(request.permissions)),
     ) {
         teamRoleAccessGuard.lockTeamOrThrow(teamId)
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
