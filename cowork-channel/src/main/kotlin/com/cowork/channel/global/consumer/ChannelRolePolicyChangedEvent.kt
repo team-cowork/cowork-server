@@ -8,7 +8,7 @@ data class ChannelRolePolicyChangedEvent(
     val teamId: Long,
     val channelId: Long,
     val roleId: Long,
-    val permissions: Map<String, Boolean>? = null,
+    val permissions: Map<String, Boolean?>? = null,
     val snapshot: Boolean,
     val occurredAt: Instant,
 )
