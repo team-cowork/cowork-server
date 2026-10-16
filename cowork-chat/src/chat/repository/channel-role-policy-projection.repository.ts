@@ -29,7 +29,8 @@ export class ChannelRolePolicyProjectionRepository {
         teamId: number;
         channelId: number;
         roleId: number;
-        messageRead: boolean;
+        permissions: Record<string, boolean>;
+        messageRead: boolean | null;
         occurredAt: Date;
         sourceVersion: mongo.Long;
     }): Promise<boolean> {
@@ -41,6 +42,9 @@ export class ChannelRolePolicyProjectionRepository {
                     teamId: input.teamId,
                     channelId: input.channelId,
                     roleId: input.roleId,
+                    permissions: {
+                        $cond: [applyCondition, {$literal: input.permissions}, {$ifNull: ['$permissions', null]}],
+                    },
                     messageRead: {
                         $cond: [applyCondition, input.messageRead, {$ifNull: ['$messageRead', null]}],
                     },
@@ -72,6 +76,7 @@ export class ChannelRolePolicyProjectionRepository {
                     teamId,
                     channelId,
                     roleId,
+                    permissions: {$ifNull: ['$permissions', null]},
                     messageRead: {$ifNull: ['$messageRead', null]},
                     deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {

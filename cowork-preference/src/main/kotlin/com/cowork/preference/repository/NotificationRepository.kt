@@ -1,9 +1,11 @@
 package com.cowork.preference.repository
 
 import com.cowork.preference.domain.ChannelNotificationPreference
+import com.cowork.preference.domain.ChannelNotificationSettings
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Pool
+import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
@@ -53,10 +55,14 @@ class NotificationRepository(private val pool: Pool) {
         return rows.map { it.toChannelNotificationPreference() }
     }
 
-    private fun io.vertx.sqlclient.Row.toChannelNotificationPreference() = ChannelNotificationPreference(
-        accountId = getLong("account_id"),
-        channelId = getLong("channel_id"),
-        notification = getJsonObject("settings")?.getBoolean("notification", true) ?: true,
-        stateOccurredAt = getOffsetDateTime("state_occurred_at"),
-    )
+    private fun Row.toChannelNotificationPreference(): ChannelNotificationPreference {
+        val settings = getJsonObject("settings")
+        return ChannelNotificationPreference(
+            accountId = getLong("account_id"),
+            channelId = getLong("channel_id"),
+            notificationLevel = ChannelNotificationSettings.level(settings),
+            mutedUntil = ChannelNotificationSettings.mutedUntil(settings),
+            stateOccurredAt = getOffsetDateTime("state_occurred_at"),
+        )
+    }
 }

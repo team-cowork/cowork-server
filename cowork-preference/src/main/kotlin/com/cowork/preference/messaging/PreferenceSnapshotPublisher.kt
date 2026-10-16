@@ -99,14 +99,7 @@ class PreferenceSnapshotPublisher(
                 )
                 outboxRepository.enqueueAll(
                     transactionConnection,
-                    lockedPage.map { preference ->
-                        PreferenceEvents.channelNotificationChanged(
-                            accountId = preference.accountId,
-                            channelId = preference.channelId,
-                            notification = preference.notification,
-                            occurredAt = preference.stateOccurredAt.toInstant(),
-                        )
-                    },
+                    lockedPage.map(PreferenceEvents::channelNotificationChanged),
                 )
                 lockedPage
             }

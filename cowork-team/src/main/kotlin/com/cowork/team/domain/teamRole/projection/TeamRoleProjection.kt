@@ -33,7 +33,7 @@ class TeamRoleProjection(
     var mentionable: Boolean = false,
 
     @Column(name = "permissions_json", nullable = false, columnDefinition = "TEXT")
-    var permissionsJson: String = "[]",
+    var permissionsJson: String = "{}",
 
     @Column(nullable = false)
     var deleted: Boolean = false,

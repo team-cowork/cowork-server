@@ -11,6 +11,8 @@ import com.cowork.channel.domain.channelRolePolicy.service.QueryChannelRolePolic
 import com.cowork.channel.global.projection.ProjectionReadinessGate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.core.type.TypeReference
+import tools.jackson.databind.ObjectMapper
 
 @Service
 class QueryChannelRolePoliciesServiceImpl(
@@ -20,6 +22,7 @@ class QueryChannelRolePoliciesServiceImpl(
     private val policyRepository: ChannelRolePolicyProjectionRepository,
     private val roleRepository: TeamRoleProjectionRepository,
     private val projectionReadinessGate: ProjectionReadinessGate,
+    private val objectMapper: ObjectMapper,
 ) : QueryChannelRolePoliciesService {
     @Transactional(readOnly = true)
     override fun execute(actorId: Long, channelId: Long): List<ChannelRolePolicyResponse> {
@@ -34,7 +37,7 @@ class QueryChannelRolePoliciesServiceImpl(
             .findAllByTeamIdAndRoleIdInAndDeletedFalse(teamId, policies.mapTo(mutableSetOf()) { it.roleId })
             .associateBy { it.roleId }
         return policies.asSequence()
-            .filter { it.roleId in rolesById && it.messageRead != null }
+            .filter { it.roleId in rolesById && it.permissionsJson != null }
             .sortedWith(
                 compareByDescending<ChannelRolePolicyProjection> {
                     rolesById.getValue(it.roleId).priority
@@ -44,13 +47,12 @@ class QueryChannelRolePoliciesServiceImpl(
                 ChannelRolePolicyResponse(
                     roleId = it.roleId,
                     priority = rolesById.getValue(it.roleId).priority,
-                    permissions = mapOf(MESSAGE_READ_KEY to requireNotNull(it.messageRead)),
+                    permissions = objectMapper.readValue(
+                        requireNotNull(it.permissionsJson),
+                        object : TypeReference<Map<String, Boolean>>() {},
+                    ),
                 )
             }
             .toList()
-    }
-
-    private companion object {
-        const val MESSAGE_READ_KEY = "message_read"
     }
 }
