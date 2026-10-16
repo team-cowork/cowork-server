@@ -17,6 +17,7 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
      * 팀 OWNER가 아닌 계정이 채널 메시지를 읽을 수 있는지 계산한다.
      * cowork-channel의 `ChannelMessageReadPolicyEvaluator`와 같이 계정에 할당된 역할 중 이 채널의 정책이 있는
      * 가장 높은 priority의 정책이 모두 `message_read`일 때만 허용하며, 적용 가능한 정책이 없으면 거부한다.
+     * `message_read` 키가 없는 정책은 이 권한에 의견이 없으므로 평가에서 제외한다.
      * 정책·역할·할당은 이 서비스가 소유하므로 로컬 테이블만 읽는다.
      */
     suspend fun canReadMessages(teamId: Long, accountId: Long, channelId: Long): Boolean {
@@ -28,6 +29,7 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
                 JOIN tb_team_role_definitions d ON d.id = a.role_id AND d.team_id = a.team_id
                 JOIN tb_channel_role_policies p ON p.team_id = a.team_id AND p.role_id = a.role_id
                 WHERE a.account_id = ${'$'}1 AND a.team_id = ${'$'}2 AND p.channel_id = ${'$'}3
+                  AND p.permissions ? 'message_read'
             )
             SELECT COALESCE(
                 (

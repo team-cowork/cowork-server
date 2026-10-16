@@ -94,7 +94,7 @@ object ChannelRolePolicyCommandParser {
         json: JsonObject,
         envelope: ChannelRolePolicyCommandEnvelope,
     ): ChannelRolePolicyCommand {
-        require(json.getInteger("schemaVersion") == 1) { "unsupported schemaVersion" }
+        require(json.getInteger("schemaVersion") == SCHEMA_VERSION) { "unsupported schemaVersion" }
         require(key == policyKey(envelope.teamId, envelope.channelId, envelope.roleId)) {
             "record key must equal policy:{teamId}:{channelId}:{roleId}"
         }
@@ -142,6 +142,8 @@ object ChannelRolePolicyCommandParser {
     }
 
     fun policyKey(teamId: Long, channelId: Long, roleId: Long): String = "policy:$teamId:$channelId:$roleId"
+
+    const val SCHEMA_VERSION = 2
 
     private val REQUEST_HASH = Regex("^[0-9a-f]{64}$")
 }
