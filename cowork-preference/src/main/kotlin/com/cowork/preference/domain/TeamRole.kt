@@ -10,7 +10,7 @@ data class TeamRoleDefinition(
     val colorHex: String,
     val priority: Int,
     val mentionable: Boolean,
-    val permissions: Set<String>,
+    val permissions: Map<String, Boolean>,
     val createdAt: OffsetDateTime?,
     val updatedAt: OffsetDateTime?,
 )
