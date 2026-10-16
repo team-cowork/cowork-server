@@ -193,13 +193,15 @@ services:
           --bootstrap-server kafka:9092 \
           --alter --entity-type topics --entity-name chat.message.v2 \
           --add-config 'cleanup.policy=delete,retention.ms=604800000'
+        # Compaction only ever touches closed segments, so the default week-long segment roll
+        # leaves these low-volume topics uncompacted and their consumers replaying every record.
         for topic in $${KAFKA_COMPACTED_TOPICS}; do
           /opt/kafka/bin/kafka-configs.sh \
             --bootstrap-server kafka:9092 \
             --alter \
             --entity-type topics \
             --entity-name "$${topic}" \
-            --add-config cleanup.policy=compact
+            --add-config cleanup.policy=compact,segment.ms=3600000
         done
 
   kafka-ui:
