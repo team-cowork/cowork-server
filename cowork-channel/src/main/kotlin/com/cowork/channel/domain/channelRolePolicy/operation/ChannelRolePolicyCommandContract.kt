@@ -6,6 +6,7 @@ import java.time.Instant
 object ChannelRolePolicyContractTopics {
     const val COMMAND = Topics.CHANNEL_ROLE_POLICY_COMMAND
     const val RESULT = Topics.CHANNEL_ROLE_POLICY_COMMAND_RESULT
+    const val SCHEMA_VERSION = 2
 }
 
 enum class ChannelRolePolicyCommandType {
@@ -21,7 +22,7 @@ enum class ChannelRolePolicyOperationStatus {
 }
 
 data class ChannelRolePolicyCommandPayload(
-    val schemaVersion: Int = 1,
+    val schemaVersion: Int = ChannelRolePolicyContractTopics.SCHEMA_VERSION,
     val operationId: String,
     val idempotencyKey: String,
     val requestHash: String,
