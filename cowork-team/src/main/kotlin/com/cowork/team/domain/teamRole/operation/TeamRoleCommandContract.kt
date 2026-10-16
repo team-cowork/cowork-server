@@ -5,9 +5,10 @@ import com.cowork.team.domain.teamRole.presentation.data.request.UpdateTeamRoleR
 import java.time.Instant
 
 object TeamRoleContractTopics {
-    const val COMMAND = "preference.team-role.command"
-    const val STATE = "preference.team-role.changed"
-    const val RESULT = "preference.team-role.command-result"
+    const val COMMAND = "preference.team-role.command.v2"
+    const val STATE = "preference.team-role.state.v2"
+    const val RESULT = "preference.team-role.result.v2"
+    const val SCHEMA_VERSION = 2
 }
 
 enum class TeamRoleCommandType {
@@ -26,7 +27,7 @@ enum class TeamRoleOperationStatus {
 }
 
 data class TeamRoleCommandPayload(
-    val schemaVersion: Int = 1,
+    val schemaVersion: Int = TeamRoleContractTopics.SCHEMA_VERSION,
     val operationId: String,
     val idempotencyKey: String,
     val requestHash: String,
@@ -46,23 +47,23 @@ data class TeamRoleCommandRoleInput(
     val colorHex: String? = null,
     val priority: Int? = null,
     val mentionable: Boolean? = null,
-    val permissions: Set<String>? = null,
+    val permissions: Map<String, Boolean>? = null,
 ) {
     companion object {
-        fun create(request: CreateTeamRoleRequest) = TeamRoleCommandRoleInput(
+        fun create(request: CreateTeamRoleRequest, permissions: Map<String, Boolean>) = TeamRoleCommandRoleInput(
             name = request.name,
             colorHex = request.colorHex,
             priority = request.priority,
             mentionable = request.mentionable,
-            permissions = request.permissions,
+            permissions = permissions,
         )
 
-        fun update(request: UpdateTeamRoleRequest) = TeamRoleCommandRoleInput(
+        fun update(request: UpdateTeamRoleRequest, permissions: Map<String, Boolean>?) = TeamRoleCommandRoleInput(
             name = request.name,
             colorHex = request.colorHex,
             priority = request.priority,
             mentionable = request.mentionable,
-            permissions = request.permissions,
+            permissions = permissions,
         )
     }
 }
@@ -88,7 +89,7 @@ data class TeamRoleResultRole(
     val colorHex: String,
     val priority: Int,
     val mentionable: Boolean,
-    val permissions: Set<String>,
+    val permissions: Map<String, Boolean>,
     val createdAt: String?,
     val updatedAt: String?,
 )
