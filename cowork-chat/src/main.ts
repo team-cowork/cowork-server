@@ -1,4 +1,5 @@
 import {join} from 'node:path';
+import {getHeapStatistics} from 'node:v8';
 import 'reflect-metadata';
 import 'dotenv/config';
 import {NestFactory} from '@nestjs/core';
@@ -7,6 +8,7 @@ import {Logger, ValidationPipe} from '@nestjs/common';
 import {DocumentBuilder, SwaggerModule} from '@nestjs/swagger';
 import {type NextFunction, type Request, type Response} from 'express';
 import {Logger as PinoLogger} from 'nestjs-pino';
+import {Gauge} from 'prom-client';
 import {EurekaClient} from './eureka/eureka-client';
 import {requireEnv} from './common/config/config.util';
 import {loadConfigServerEnv} from './common/config/config-server';
@@ -68,6 +70,11 @@ async function bootstrap() {
     const app = await NestFactory.create<NestExpressApplication>(AppModule, {bufferLogs: true});
     debugStartup('Nest application created');
     app.useLogger(app.get(PinoLogger));
+    // 힙 알림은 V8 최대치와 비교한다. nodejs_heap_size_total_bytes는 현재 확보된 힙일 뿐이다.
+    new Gauge({
+        name: 'cowork_nodejs_heap_size_limit_bytes',
+        help: 'V8 heap size limit in bytes.',
+    }).set(getHeapStatistics().heap_size_limit);
     // Eureka metadata(prometheus.path), AuthGuard, projection 미들웨어가 모두 접두사 없는 /metrics를 전제로 한다.
     app.setGlobalPrefix('chat', {exclude: ['health', 'health/ready', 'metrics']});
     app.useGlobalPipes(new ValidationPipe({whitelist: true, transform: true}));
