@@ -14,39 +14,39 @@ The collector requires a previous release PR and optionally verifies the current
 
 - GitHub's comparison endpoint is limited without pagination; the helper paginates and checks `total_commits`. Its PR listing also paginates, so it has no fixed `gh pr list --limit` cutoff.
 - Matching merge SHAs works for PRs whose merge commits survive in the tagged ancestry. Squash-merging an enclosing release, rebasing, or cherry-picking can erase those associations. Review the release PR's referenced PRs and full diff; compare candidate PR changes with the tagged code. Document any unresolved coverage instead of calling the inventory exhaustive.
-- Review the listed commits too: direct pushes may have no PR. Keep their commit evidence in the working notes and review conversation. A verified consumer outcome still qualifies for a plain release bullet without a PR reference; do not invent one or append a commit-link section. The comparison API's file list is capped; it is not a substitute for a full Git diff or per-file inspection when coverage matters.
+- Review the listed commits too: direct pushes may have no PR. Keep their commit evidence in the working notes and review conversation. A verified end-user outcome still qualifies for a plain release bullet without a PR reference; do not invent one or append a commit-link section. The comparison API's file list is capped; it is not a substitute for a full Git diff or per-file inspection when coverage matters.
 - Exclude net-reverted behavior. Describe the final supported behavior and avoid repeating it for each follow-up fix. Release merge PRs are containers, not user-facing features.
 
-## Consumer-outcome examples
+## End-user outcome examples
 
-These hypothetical examples illustrate how evidence becomes a consumer-facing explanation; they are not facts about a particular release or sentences to copy. Each example depends on confirming the behavior in the middle column.
+End users are the people using the cowork app, not the client developers calling this server. These hypothetical examples illustrate how evidence becomes an end-user explanation; they are not facts about a particular release or sentences to copy. Each example depends on confirming the behavior in the middle column.
 
-| Implementation evidence | Verified change for consumers | Editorial decision |
+| Implementation evidence | Verified change for end users | Editorial decision |
 | --- | --- | --- |
-| Search accepts a new date filter. | Consumers can now narrow results to a period they choose. | Describe the task: `필요한 기간의 기록을 골라 조회할 수 있도록 지원하였습니다.` |
+| Search accepts a new date filter. | End users can now narrow results to a period they choose. | Describe the task: `필요한 기간의 기록을 골라 조회할 수 있도록 지원하였습니다.` |
 | Partial-update handling is corrected. | Changing a display name previously erased the saved profile image; the fix preserves it. | Describe the resolved problem: `이름을 변경할 때 기존 프로필 사진이 삭제되던 문제를 수정하였습니다.` |
-| Request validation changes. | Existing API callers must submit a different date format. | Explain which input changed and what callers must send now, retaining the verified format because it affects usage. |
-| Internal processing is reorganized. | Consumers perform the same tasks with the same results and contract; no observable improvement is established. | Omit the item from product/API consumer notes. |
+| Request validation changes. | Client developers must submit a different date format; end users see no difference. | Omit the item. Client-facing API contract changes belong in API docs or the PR, not in these notes. |
+| Internal processing is reorganized. | End users perform the same tasks with the same results; no observable improvement is established. | Omit the item. |
 
-Preserve an externally meaningful limit, error response, permission change, or required action when it explains the consumer's changed behavior. Internal tuning values and implementation names do not need to appear merely because they occur in a PR. An internal fix can still resolve a real consumer problem without adding a UI or endpoint; describe the evidenced before/after behavior without inventing broader benefits.
+Preserve a limit, permission change, or required action when end users meet it in the app. API identifiers, error codes, internal tuning values, and implementation names do not appear merely because they occur in a PR. An internal fix can still resolve a real end-user problem without adding a UI or endpoint; describe the evidenced before/after behavior without inventing broader benefits.
 
 ## Writing decisions
 
 The user's accepted historical notes, including `v20260818.0` and `v20260727.0`, are the format reference. Both contain only the heading `## 수정내역`, a blank line, and a flat list of short Korean sentences beginning with a bare PR number. Read the actual historical bodies before drafting; do not treat a rejected rewrite of the current release as the new convention.
 
-Use `- #PR_NUMBER 에서 …하였습니다.` for an outcome supported by one PR, or `- #PR_A, #PR_B 에서 …하였습니다.` when related PRs support the same outcome. Cite the PRs needed to substantiate the sentence; attribution must not force separate bullets for one change. Keep each item to one concise sentence explaining what consumers can do or experience differently. Use inline code for a consumer-facing identifier when it helps. Do not replace bare PR references with Markdown links or add bold feature labels.
+Use `- #PR_NUMBER 에서 …하였습니다.` for an outcome supported by one PR, or `- #PR_A, #PR_B 에서 …하였습니다.` when related PRs support the same outcome. Cite the PRs needed to substantiate the sentence; attribution must not force separate bullets for one change. Keep each item to one concise sentence explaining what end users can do or experience differently in the app. Avoid API paths, field names, and other identifiers that only client developers recognize. Do not replace bare PR references with Markdown links or add bold feature labels.
 
-Prioritize evidenced capabilities, corrected consumer problems, and compatibility changes. Do not preserve an item merely because it is labeled a feature or bug fix. Select and group outcomes before polishing the historical sentence format. Express an essential change in defaults or compatibility in the affected item's sentence. Keep migration procedures, detailed caveats, and operational follow-up in the review conversation rather than creating extra release sections.
+Prioritize evidenced capabilities and corrected end-user problems. Do not preserve an item merely because it is labeled a feature or bug fix. Select and group outcomes before polishing the historical sentence format. Express an essential change in defaults that end users notice in the affected item's sentence. Keep migration procedures, detailed caveats, and operational follow-up in the review conversation rather than creating extra release sections.
 
 Do not add a summary introduction, category headings, an action checklist, a caution section, a comparison range, or a Full Changelog footer. The richer generated/current body is evidence to review, not a layout to preserve. Do not infer deployment success from a merged PR or a release object, and do not expose private infrastructure details from PR discussions.
 
 ## Editorial check before publishing
 
-- Read each sentence without its PR references: can the intended consumer tell which task, problem, behavior, or required action changed? Rewrite implementation summaries; omit items with no demonstrated consumer effect.
+- Read each sentence without its PR references: can an end user of the app, not a client developer, tell which task, problem, behavior, or required action changed? Rewrite implementation or API summaries; omit items with no demonstrated end-user effect.
 - Check the before/after evidence against the final tag. Do not present an existing capability as new, an intention as an achieved benefit, or a future cleanup as completed.
-- Check that related PRs describing one outcome have been combined and that separate outcomes are not collapsed merely because they share a PR. Do not fill a quota with internal work when few or no consumer outcomes remain.
-- Keep only numbers and technical terms that help consumers understand or use the change. Verify limits and compatibility details instead of copying internal tuning values.
-- Check meaningful consumer changes for omissions, including direct commits. Remove unsupported speed, availability, and security claims, then check the historical formatting and attribution.
+- Check that related PRs describing one outcome have been combined and that separate outcomes are not collapsed merely because they share a PR. Do not fill a quota with internal work when few or no end-user outcomes remain.
+- Keep only numbers that describe what end users meet in the app. Verify limits instead of copying internal tuning values.
+- Check meaningful end-user changes for omissions, including direct commits. Remove unsupported speed, availability, and security claims, then check the historical formatting and attribution.
 
 ## Updating the existing release
 
