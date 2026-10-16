@@ -43,6 +43,7 @@ def initial(args):
     expanded = set(selected)
     if selected and not check:
         variables, secrets = SETTINGS['inputs']()
+        SETTINGS['VAULT']['authenticate_process']('prod-settings-plan')
         summary = args.directory / 'shared-plan.json'
         SETTINGS['plan'](SimpleNamespace(target=','.join(sorted(selected)), output=summary),
                          catalog, os.environ.get('VAULT_KV_MOUNT', 'secret'), variables, secrets)
@@ -72,7 +73,10 @@ def initial(args):
             'source_sha': source, 'attempt': attempt}
     save(args.directory / 'rollout-plan.json', plan)
     emit('attempt', attempt)
-    emit('sync_matrix', matrix([{'target': target} for target in sorted(expanded)] if not check else []))
+    emit('sync_matrix', matrix([
+        {'target': target, 'secret_names': SETTINGS['secret_names'](catalog, target)}
+        for target in sorted(expanded)
+    ] if not check else []))
 
 
 def finalize(args):
@@ -130,4 +134,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     if args.action != 'check-attempt' and args.directory is None:
         parser.error('--directory is required for rollout metadata operations')
-    globals()[args.action.replace('-', '_')](args)
+    try:
+        globals()[args.action.replace('-', '_')](args)
+    except (ValueError, RuntimeError) as error:
+        raise SystemExit(f'[rollout-settings] {error}') from None
