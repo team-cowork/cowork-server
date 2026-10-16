@@ -29,8 +29,14 @@ def private_file(path, value):
 
 
 def verified_host_keys(host, port, fingerprint, env):
-    result = subprocess.run(['ssh-keyscan', '-T', '10', '-p', str(port), host],
-                            capture_output=True, text=True, timeout=30, env=env)
+    try:
+        result = subprocess.run(['ssh-keyscan', '-T', '10', '-p', str(port), host],
+                                capture_output=True, text=True, timeout=30, env=env)
+    except subprocess.TimeoutExpired:
+        raise ValueError('SSH host key scan timed out; check host, port and network connectivity') from None
+    require(result.returncode == 0,
+            f'SSH host key scan failed (exit {result.returncode}); check host, port and network connectivity')
+    received_key = False
     matches = []
     for line in result.stdout.splitlines():
         parts = line.split()
@@ -40,9 +46,11 @@ def verified_host_keys(host, port, fingerprint, env):
             key = base64.b64decode(parts[2], validate=True)
         except ValueError:
             continue
+        received_key = True
         actual = 'SHA256:' + base64.b64encode(hashlib.sha256(key).digest()).decode().rstrip('=')
         if actual == fingerprint:
             matches.append(line)
+    require(received_key, 'SSH host key scan returned no usable keys; check host, port and network connectivity')
     require(matches, 'SSH host key does not match the pinned SHA256 fingerprint')
     return '\n'.join(matches) + '\n'
 
