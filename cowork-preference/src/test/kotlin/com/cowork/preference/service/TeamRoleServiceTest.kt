@@ -1,6 +1,8 @@
 package com.cowork.preference.service
 
+import com.cowork.preference.domain.PermissionKeys
 import com.cowork.preference.domain.TeamRoleDefinition
+import com.cowork.preference.domain.TeamRolePermissions
 import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.TeamRoleRepository
@@ -39,8 +41,8 @@ class TeamRoleServiceTest {
 
         @Test
         fun `이름이나 색상이 유효하지 않으면 역할을 저장하지 않는다`() = runBlocking {
-            val blankName = service.createRole(teamId, " ", "#123ABC", 10, true, emptySet())
-            val invalidColor = service.createRole(teamId, "Backend", "blue", 10, true, emptySet())
+            val blankName = service.createRole(teamId, " ", "#123ABC", 10, true, emptyMap())
+            val invalidColor = service.createRole(teamId, "Backend", "blue", 10, true, emptyMap())
 
             assertTrue(blankName.exceptionOrNull() is IllegalArgumentException)
             assertTrue(invalidColor.exceptionOrNull() is IllegalArgumentException)
@@ -51,7 +53,7 @@ class TeamRoleServiceTest {
         fun `같은 이름의 역할이 있으면 중복 역할을 거부한다`() = runBlocking {
             coEvery { repository.findRoleByName(teamId, "Backend") } returns role()
 
-            val result = service.createRole(teamId, "Backend", "#123ABC", 10, true, emptySet())
+            val result = service.createRole(teamId, "Backend", "#123ABC", 10, true, emptyMap())
 
             assertTrue(result.exceptionOrNull() is IllegalStateException)
             coVerify(exactly = 0) { repository.insertRole(any(), any(), any(), any(), any(), any(), any()) }
@@ -134,7 +136,7 @@ class TeamRoleServiceTest {
         colorHex = "#123ABC",
         priority = 10,
         mentionable = true,
-        permissions = setOf("PROJECT_READ"),
+        permissions = TeamRolePermissions.canonicalize(mapOf(PermissionKeys.MESSAGE_READ to true)),
         createdAt = OffsetDateTime.parse("2026-08-30T01:02:03Z"),
         updatedAt = null,
     )
