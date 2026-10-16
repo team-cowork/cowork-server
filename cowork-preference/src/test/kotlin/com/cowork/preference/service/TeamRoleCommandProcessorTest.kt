@@ -1,8 +1,10 @@
 package com.cowork.preference.service
 
 import com.cowork.preference.domain.AccountTeamRole
+import com.cowork.preference.domain.PermissionKeys
 import com.cowork.preference.domain.TeamMemberProjection
 import com.cowork.preference.domain.TeamRoleDefinition
+import com.cowork.preference.domain.TeamRolePermissions
 import com.cowork.preference.messaging.ProjectionReadiness
 import com.cowork.preference.messaging.TeamRoleCommand
 import com.cowork.preference.messaging.TeamRoleCommandRoleInput
@@ -54,9 +56,9 @@ class TeamRoleCommandProcessorTest {
                     "#5865F2",
                     10,
                     true,
-                    setOf("MANAGE_ROLES"),
+                    TeamRolePermissions.canonicalize(mapOf(PermissionKeys.MANAGE_ROLES to true)),
                 )
-            } returns role(9L, permissions = setOf("MANAGE_ROLES"))
+            } returns role(9L, permissions = mapOf(PermissionKeys.MANAGE_ROLES to true))
 
             fixture.processor.process(createCommand)
 
@@ -68,7 +70,7 @@ class TeamRoleCommandProcessorTest {
                     "#5865F2",
                     10,
                     true,
-                    setOf("MANAGE_ROLES"),
+                    TeamRolePermissions.canonicalize(mapOf(PermissionKeys.MANAGE_ROLES to true)),
                 )
             }
         }
@@ -94,7 +96,7 @@ class TeamRoleCommandProcessorTest {
             coEvery { fixture.roleRepository.findMemberRoles(fixture.connection, createCommand.teamId) } returns
                 listOf(AccountTeamRole(createCommand.actorId, createCommand.teamId, 20L))
             coEvery { fixture.roleRepository.findRoles(fixture.connection, createCommand.teamId) } returns
-                listOf(role(20L, priority = 10, permissions = setOf("MANAGE_ROLES")))
+                listOf(role(20L, priority = 10, permissions = mapOf(PermissionKeys.MANAGE_ROLES to true)))
             coEvery { fixture.inboxRepository.insert(fixture.connection, createCommand, capture(result)) } returns Unit
 
             fixture.processor.process(createCommand)
@@ -192,7 +194,7 @@ class TeamRoleCommandProcessorTest {
                 colorHex = "#5865F2",
                 priority = 10,
                 mentionable = true,
-                permissions = setOf("MANAGE_ROLES"),
+                permissions = mapOf(PermissionKeys.MANAGE_ROLES to true),
             ),
             submittedAt = Instant.parse("2026-08-27T01:01:00Z"),
         )
@@ -222,7 +224,7 @@ class TeamRoleCommandProcessorTest {
         fun role(
             id: Long,
             priority: Int = 10,
-            permissions: Set<String> = emptySet(),
+            permissions: Map<String, Boolean> = emptyMap(),
         ) = TeamRoleDefinition(
             id = id,
             teamId = createCommand.teamId,
@@ -230,7 +232,7 @@ class TeamRoleCommandProcessorTest {
             colorHex = "#5865F2",
             priority = priority,
             mentionable = true,
-            permissions = permissions,
+            permissions = TeamRolePermissions.canonicalize(permissions),
             createdAt = OffsetDateTime.parse("2026-08-27T01:02:03Z"),
             updatedAt = null,
         )
