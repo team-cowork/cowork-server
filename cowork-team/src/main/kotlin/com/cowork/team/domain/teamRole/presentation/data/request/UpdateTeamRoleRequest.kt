@@ -11,6 +11,9 @@ data class UpdateTeamRoleRequest(
     val priority: Int? = null,
     @param:Schema(description = "역할 멘션 허용 여부", example = "false")
     val mentionable: Boolean? = null,
-    @param:Schema(description = "권한 목록")
-    val permissions: Set<String>? = null,
+    @param:Schema(
+        description = "변경할 역할 기본 권한. 보낸 키만 바뀌고 나머지 권한은 유지됩니다.",
+        example = "{\"message_send\":false}",
+    )
+    val permissions: Map<String, Any?>? = null,
 )

@@ -15,8 +15,8 @@ data class TeamRoleResponse(
     val priority: Int,
     @field:Schema(description = "역할 멘션 허용 여부", example = "true")
     val mentionable: Boolean,
-    @field:Schema(description = "권한 목록")
-    val permissions: Set<String>,
+    @field:Schema(description = "역할 기본 권한. 모든 권한 키의 boolean 전체 상태")
+    val permissions: Map<String, Boolean>,
     @field:Schema(description = "생성 일시")
     val createdAt: String?,
     @field:Schema(description = "수정 일시")

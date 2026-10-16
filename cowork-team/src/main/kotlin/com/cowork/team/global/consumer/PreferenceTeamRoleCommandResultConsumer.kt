@@ -29,7 +29,9 @@ class PreferenceTeamRoleCommandResultConsumer(
         val result = runCatching {
             objectMapper.readValue(record.value(), TeamRoleCommandResultPayload::class.java)
         }.getOrElse { throw IllegalArgumentException("팀 역할 command result JSON이 유효하지 않습니다.", it) }
-        require(result.schemaVersion == 1) { "지원하지 않는 팀 역할 command result schemaVersion입니다." }
+        require(result.schemaVersion == TeamRoleContractTopics.SCHEMA_VERSION) {
+            "지원하지 않는 팀 역할 command result schemaVersion입니다."
+        }
         require(runCatching { UUID.fromString(result.operationId) }.isSuccess) {
             "팀 역할 command result operationId는 UUID여야 합니다."
         }
