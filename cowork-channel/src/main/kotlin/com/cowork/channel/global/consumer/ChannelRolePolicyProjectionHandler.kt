@@ -2,12 +2,17 @@ package com.cowork.channel.global.consumer
 
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjection
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjectionRepository
+import com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyPermissionSchema
 import com.cowork.channel.global.projection.toProjectionPrecision
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.ObjectMapper
 
 @Component
-class ChannelRolePolicyProjectionHandler(private val repository: ChannelRolePolicyProjectionRepository) {
+class ChannelRolePolicyProjectionHandler(
+    private val repository: ChannelRolePolicyProjectionRepository,
+    private val objectMapper: ObjectMapper,
+) {
     @Transactional
     fun handle(sourceEvent: ChannelRolePolicyChangedEvent) {
         val event = sourceEvent.copy(occurredAt = sourceEvent.occurredAt.toProjectionPrecision())
@@ -32,17 +37,17 @@ class ChannelRolePolicyProjectionHandler(private val repository: ChannelRolePoli
                 projection.roleId == event.roleId,
         ) { "같은 policy key의 식별자를 변경할 수 없습니다." }
         when (event.eventType) {
-            "UPSERT" -> projection.applyUpsert(
-                messageRead = requireNotNull(requireNotNull(event.permissions)[MESSAGE_READ_KEY]),
-                occurredAt = event.occurredAt,
-            )
+            "UPSERT" -> {
+                val permissions = requireNotNull(event.permissions)
+                projection.applyUpsert(
+                    permissionsJson = objectMapper.writeValueAsString(permissions),
+                    messageRead = permissions[ChannelRolePolicyPermissionSchema.MESSAGE_READ],
+                    occurredAt = event.occurredAt,
+                )
+            }
 
             "DELETE" -> projection.markDeleted(event.occurredAt)
         }
         repository.save(projection)
-    }
-
-    private companion object {
-        const val MESSAGE_READ_KEY = "message_read"
     }
 }
