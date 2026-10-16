@@ -11,6 +11,6 @@ data class PreferenceTeamRoleChangedEvent(
     val colorHex: String? = null,
     val priority: Int? = null,
     val mentionable: Boolean? = null,
-    val permissions: Set<String>? = null,
+    val permissions: Map<String, Boolean>? = null,
     val occurredAt: Instant,
 )
