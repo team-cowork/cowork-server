@@ -429,7 +429,9 @@
       "NotificationSettings": {
         "type": "object",
         "properties": {
-          "notification": { "type": "boolean", "default": true, "example": true }
+          "notification": { "type": "boolean", "default": true, "description": "하위 호환 값. notification_level이 NONE이 아니면 true이며 요청에 notification_level이 있으면 무시됩니다.", "example": true },
+          "notification_level": { "type": "string", "enum": ["ALL", "MENTIONS", "NONE"], "default": "ALL", "example": "MENTIONS" },
+          "muted_until": { "type": "string", "format": "date-time", "nullable": true, "description": "이 시각까지 채널 알림을 음소거합니다. null이면 음소거하지 않습니다.", "example": "2026-04-20T12:00:00Z" }
         }
       }
     }
