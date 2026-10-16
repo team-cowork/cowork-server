@@ -31,7 +31,9 @@ class ChannelRolePolicyCommandResultConsumer(
         val result = runCatching {
             objectMapper.readValue(record.value(), ChannelRolePolicyCommandResultPayload::class.java)
         }.getOrElse { throw IllegalArgumentException("channel role policy command result JSON이 유효하지 않습니다.", it) }
-        require(result.schemaVersion == 1) { "지원하지 않는 channel role policy result schemaVersion입니다." }
+        require(result.schemaVersion == ChannelRolePolicyContractTopics.SCHEMA_VERSION) {
+            "지원하지 않는 channel role policy result schemaVersion입니다."
+        }
         require(runCatching { UUID.fromString(result.operationId) }.isSuccess) {
             "channel role policy result operationId는 UUID여야 합니다."
         }

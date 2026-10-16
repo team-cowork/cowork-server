@@ -53,7 +53,7 @@ class TeamRoleProjectionReader(
         colorHex = role.colorHex,
         priority = role.priority,
         mentionable = role.mentionable,
-        permissions = objectMapper.readValue<Set<String>>(role.permissionsJson),
+        permissions = objectMapper.readValue<Map<String, Boolean>>(role.permissionsJson),
         createdAt = role.sourceCreatedAt.toString(),
         updatedAt = role.sourceOccurredAt.toString(),
     )
