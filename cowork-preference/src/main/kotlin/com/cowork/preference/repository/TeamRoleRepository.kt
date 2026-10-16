@@ -4,8 +4,8 @@ import com.cowork.preference.domain.AccountTeamRole
 import com.cowork.preference.domain.TeamRoleAssignmentState
 import com.cowork.preference.domain.TeamRoleDefinition
 import com.cowork.preference.domain.TeamRoleMemberFence
+import com.cowork.preference.domain.TeamRolePermissions
 import com.cowork.preference.domain.TeamRoleState
-import io.vertx.core.json.JsonArray
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.Row
@@ -103,7 +103,7 @@ class TeamRoleRepository(private val pool: Pool) {
         colorHex: String,
         priority: Int,
         mentionable: Boolean,
-        permissions: Set<String>,
+        permissions: Map<String, Boolean>,
     ): TeamRoleDefinition {
         val rows = client.preparedQuery(
             """
@@ -111,7 +111,9 @@ class TeamRoleRepository(private val pool: Pool) {
             VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6::jsonb)
             RETURNING id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at
             """,
-        ).execute(Tuple.of(teamId, name, colorHex, priority, mentionable, JsonArray(permissions.toList()))).coAwait()
+        ).execute(
+            Tuple.of(teamId, name, colorHex, priority, mentionable, TeamRolePermissions.toJson(permissions)),
+        ).coAwait()
         return rows.first().toTeamRoleDefinition()
     }
 
@@ -122,7 +124,7 @@ class TeamRoleRepository(private val pool: Pool) {
         colorHex: String,
         priority: Int,
         mentionable: Boolean,
-        permissions: Set<String>,
+        permissions: Map<String, Boolean>,
     ): TeamRoleDefinition {
         val rows = client.preparedQuery(
             """
@@ -131,7 +133,9 @@ class TeamRoleRepository(private val pool: Pool) {
             WHERE id = ${'$'}6
             RETURNING id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at
             """,
-        ).execute(Tuple.of(name, colorHex, priority, mentionable, JsonArray(permissions.toList()), roleId)).coAwait()
+        ).execute(
+            Tuple.of(name, colorHex, priority, mentionable, TeamRolePermissions.toJson(permissions), roleId),
+        ).coAwait()
         return rows.first().toTeamRoleDefinition()
     }
 
@@ -521,7 +525,7 @@ class TeamRoleRepository(private val pool: Pool) {
         colorHex = getString("color_hex"),
         priority = getInteger("priority"),
         mentionable = getBoolean("mentionable"),
-        permissions = getJsonArray("permissions")?.map { it.toString() }?.toSet() ?: emptySet(),
+        permissions = TeamRolePermissions.fromStored(getJsonObject("permissions")),
         createdAt = getOffsetDateTime("created_at"),
         updatedAt = getOffsetDateTime("updated_at"),
     )
@@ -551,7 +555,7 @@ class TeamRoleRepository(private val pool: Pool) {
         colorHex = getString("color_hex"),
         priority = getInteger("priority"),
         mentionable = getBoolean("mentionable"),
-        permissions = getJsonArray("permissions")?.map { it.toString() }?.toSet() ?: emptySet(),
+        permissions = TeamRolePermissions.fromStored(getJsonObject("permissions")),
         createdAt = getOffsetDateTime("created_at"),
         updatedAt = getOffsetDateTime("updated_at"),
     )
