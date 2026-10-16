@@ -49,8 +49,14 @@ class ChannelRolePolicyChangedConsumer(
             return "policy aggregate key가 일치하지 않습니다."
         }
         return when (event.eventType) {
-            "UPSERT" -> if (event.permissions.isNullOrEmpty()) "UPSERT permissions에는 권한이 하나 이상 필요합니다." else null
+            "UPSERT" -> when {
+                event.permissions.isNullOrEmpty() -> "UPSERT permissions에는 권한이 하나 이상 필요합니다."
+                event.permissions.values.any { it == null } -> "UPSERT permissions 값은 boolean이어야 합니다."
+                else -> null
+            }
+
             "DELETE" -> if (event.permissions != null) "DELETE에는 permissions가 없어야 합니다." else null
+
             else -> "지원하지 않는 eventType입니다."
         }
     }
