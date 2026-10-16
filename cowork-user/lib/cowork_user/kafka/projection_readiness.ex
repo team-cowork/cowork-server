@@ -100,6 +100,7 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
         %{
           beginning_offset: beginning_offset,
           end_offset: end_offset,
+          startup_end_offset: startup_end_offset,
           replay_generation: generation,
           validated_marker: validated_marker
         },
@@ -120,11 +121,12 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
         }
       )
       when is_binary(token) and is_map(validated_marker) do
-    # The marker is the source's own snapshot completion point, so a checkpoint past it
-    # holds a complete projection; requiring the live high-watermark instead would drop
-    # readiness on every record the source publishes afterwards.
+    # Replay re-stamps whatever marker it meets first with the current generation, so the
+    # marker alone cannot prove catch-up; the startup high-watermark does. Holding that target
+    # fixed also keeps readiness from dropping on every record the source publishes later.
     marker_offset >= beginning_offset and marker_offset < end_offset and
-      next_offset > marker_offset and next_offset <= end_offset and
+      next_offset > marker_offset and next_offset >= startup_end_offset and
+      next_offset <= end_offset and
       validated_marker.marker_offset == marker_offset and
       validated_marker.snapshot_id == snapshot_id and
       validated_marker.replay_generation == generation and
@@ -431,6 +433,7 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
                 range = %{
                   beginning_offset: beginning_offset,
                   end_offset: end_offset,
+                  startup_end_offset: end_offset,
                   replay_generation: generation,
                   validated_marker: validated_marker
                 }
@@ -512,7 +515,7 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
   defp refresh_current_barriers(state) do
     case build_barriers(state.config, Map.keys(state.barriers)) do
       {:ok, current_barriers} ->
-        current_state = %{state | barriers: current_barriers}
+        current_state = %{state | barriers: keep_startup_offsets(current_barriers, state.barriers)}
         {ready?, team_ready?} = compute_readiness(current_state)
 
         cache_readiness(
@@ -534,6 +537,20 @@ defmodule CoworkUser.Kafka.ProjectionReadiness do
         Logger.warning("Kafka projection replay range validation failed: #{inspect(reason)}")
         {false, fail_closed_and_recapture(state)}
     end
+  end
+
+  # A rebuilt range carries the live high-watermark, so the startup one has to survive the
+  # refresh; otherwise readiness would accept a replay that never reached its starting target.
+  defp keep_startup_offsets(current, previous) do
+    Map.new(current, fn {key, range} ->
+      case previous do
+        %{^key => %{startup_end_offset: startup_end_offset}} ->
+          {key, %{range | startup_end_offset: startup_end_offset}}
+
+        _ ->
+          {key, range}
+      end
+    end)
   end
 
   defp keys_ready?(_barriers, [], _checkpoints, _markers, _generations), do: false
