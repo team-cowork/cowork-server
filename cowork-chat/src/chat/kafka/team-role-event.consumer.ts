@@ -11,6 +11,7 @@ import {DicoshotService} from 'dicoshot-nest';
 import {getRequiredCsvConfig} from '../../common/config/config.util';
 import {parseEventTime} from '../../common/util/event-time.util';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
+import {isBooleanRecord} from '../../common/util/boolean-record.util';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
 import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
@@ -24,7 +25,7 @@ type TeamRoleEvent = {
     accountId?: number;
     name?: string;
     priority?: number;
-    permissions?: string[];
+    permissions?: Record<string, boolean>;
     occurredAt: string;
 };
 
@@ -182,8 +183,7 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
             return isSafePositiveInteger(event.roleId)
                 && typeof event.name === 'string' && event.name.length > 0
                 && Number.isSafeInteger(event.priority)
-                && Array.isArray(event.permissions)
-                && event.permissions.every(permission => typeof permission === 'string' && permission.length > 0);
+                && isBooleanRecord(event.permissions);
         }
 
         if (event.eventType === 'ROLE_DELETED') {

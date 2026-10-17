@@ -136,9 +136,11 @@ def kafka_policies(directory):
            'Existing Kafka topics require one partition and one replica')
     command = '\n'.join(stack['kafka-init']['command']).replace('\\\n', ' ')
     retention = re.search(r"--entity-name\s+chat\.message\.v2\s+--add-config\s+'cleanup\.policy=delete,retention\.ms=([0-9]+)'", command)
-    demand(retention is not None and command.count('--add-config') == 2 and '--add-config cleanup.policy=compact' in command,
+    segment = re.search(r'--add-config\s+cleanup\.policy=compact,segment\.ms=([0-9]+)', command)
+    demand(retention is not None and segment is not None and command.count('--add-config') == 2,
            'Review changed Kafka topic provisioning policy')
-    policies = {topic: {'cleanup.policy': 'compact' if topic in compacted else 'delete'} for topic in topics}
+    policies = {topic: {'cleanup.policy': 'compact', 'segment.ms': segment.group(1)} if topic in compacted
+                else {'cleanup.policy': 'delete'} for topic in topics}
     demand('chat.message.v2' in policies and 'chat.message.v2' not in compacted, 'Invalid Chat topic retention')
     policies['chat.message.v2']['retention.ms'] = retention.group(1)
     return policies
@@ -159,6 +161,18 @@ def topic_description():
     return descriptions
 
 
+def topic_policy(topic, key, configs):
+    if configs is not None:
+        listed = re.search(r'(?:^|,)\s*' + re.escape(key) + r'=([^,\s]+)', configs)
+        if listed is not None:
+            return listed.group(1)
+    effective = run('docker', 'exec', 'cowork-kafka', '/opt/kafka/bin/kafka-configs.sh',
+                    '--bootstrap-server', 'localhost:9092', '--entity-type', 'topics',
+                    '--entity-name', topic, '--describe', '--all')
+    actual = re.search(r'(?:^|\s)' + re.escape(key) + r'=([^\s]+)', effective, re.MULTILINE)
+    return actual.group(1) if actual is not None else None
+
+
 def provision_topics(policies):
     before = topic_description()
     for topic, desired in policies.items():
@@ -174,13 +188,15 @@ def provision_topics(policies):
         partitions, replication, configs = after[topic]
         demand(partitions == 1 and replication == 1, 'Kafka partition or replication contract differs')
         for key, expected in desired.items():
-            actual = re.search(r'(?:^|,)\s*' + re.escape(key) + r'=([^,\s]+)', configs)
-            if actual is None:
-                effective = run('docker', 'exec', 'cowork-kafka', '/opt/kafka/bin/kafka-configs.sh',
-                                '--bootstrap-server', 'localhost:9092', '--entity-type', 'topics',
-                                '--entity-name', topic, '--describe', '--all')
-                actual = re.search(r'(?:^|\s)' + re.escape(key) + r'=([^\s]+)', effective, re.MULTILINE)
-            demand(actual is not None and actual.group(1) == expected, 'Existing Kafka topic policy differs from the source catalog')
+            if topic_policy(topic, key, configs) == expected:
+                continue
+            # A declared policy the broker never had must still reach existing topics; creation
+            # only covers new ones, so converge here instead of failing the deployment.
+            run('docker', 'exec', 'cowork-kafka', '/opt/kafka/bin/kafka-configs.sh',
+                '--bootstrap-server', 'localhost:9092', '--entity-type', 'topics',
+                '--entity-name', topic, '--alter', '--add-config', key + '=' + expected)
+            demand(topic_policy(topic, key, None) == expected,
+                   'Existing Kafka topic policy differs from the source catalog')
     print(f'Kafka: verified {len(policies)} topics; created {len(set(policies) - set(before))} missing topics')
 
 

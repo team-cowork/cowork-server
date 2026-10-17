@@ -63,14 +63,14 @@ class ChannelRolePolicyOperationProjectionFinalizer(
         if (projection.sourceOccurredAt.isAfter(expectedOccurredAt)) return true
         if (projection.deleted != expectedDeleted) return false
         if (expectedDeleted) return true
-        val expectedPermissions = operation.resultPermissionsJson?.let {
-            objectMapper.readValue(it, object : TypeReference<Map<String, Boolean>>() {})
-        } ?: return false
-        return projection.messageRead == expectedPermissions[MESSAGE_READ_KEY]
+        val expectedPermissions = operation.resultPermissionsJson?.let(::readPermissions) ?: return false
+        return projection.permissionsJson?.let(::readPermissions) == expectedPermissions
     }
 
+    private fun readPermissions(json: String): Map<String, Boolean> =
+        objectMapper.readValue(json, object : TypeReference<Map<String, Boolean>>() {})
+
     private companion object {
-        const val MESSAGE_READ_KEY = "message_read"
         const val FINALIZE_BATCH_SIZE = 100
     }
 }

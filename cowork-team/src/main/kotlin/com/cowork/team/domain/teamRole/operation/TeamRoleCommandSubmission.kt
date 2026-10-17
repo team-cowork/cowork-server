@@ -101,7 +101,7 @@ class TeamRoleCommandSubmission(
                         it.colorHex,
                         it.priority,
                         it.mentionable,
-                        it.permissions?.sorted(),
+                        it.permissions?.toSortedMap(),
                     )
                 },
             ),
@@ -145,7 +145,7 @@ class TeamRoleCommandSubmission(
         val colorHex: String?,
         val priority: Int?,
         val mentionable: Boolean?,
-        val permissions: List<String>?,
+        val permissions: Map<String, Boolean>?,
     )
 
     companion object {
