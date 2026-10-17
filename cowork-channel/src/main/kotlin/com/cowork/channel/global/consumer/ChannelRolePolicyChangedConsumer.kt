@@ -1,5 +1,6 @@
 package com.cowork.channel.global.consumer
 
+import com.cowork.channel.domain.channelRolePolicy.operation.ChannelRolePolicyContractTopics
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjection
 import com.cowork.channel.global.projection.ProjectionRecordProcessor
 import com.cowork.channel.global.projection.ProjectionStreams
@@ -40,7 +41,7 @@ class ChannelRolePolicyChangedConsumer(
     }
 
     private fun contractViolation(event: ChannelRolePolicyChangedEvent, key: String?): String? {
-        if (event.schemaVersion != 1) return "지원하지 않는 schemaVersion입니다."
+        if (event.schemaVersion != ChannelRolePolicyContractTopics.SCHEMA_VERSION) return "지원하지 않는 schemaVersion입니다."
         if (event.teamId <= 0 || event.channelId <= 0 || event.roleId <= 0) {
             return "teamId, channelId, roleId는 양수여야 합니다."
         }
@@ -48,13 +49,10 @@ class ChannelRolePolicyChangedConsumer(
             return "policy aggregate key가 일치하지 않습니다."
         }
         return when (event.eventType) {
-            "UPSERT" -> if (
-                event.permissions?.keys != setOf(MESSAGE_READ_KEY) ||
-                event.permissions[MESSAGE_READ_KEY] == null
-            ) {
-                "UPSERT permissions에는 message_read boolean 하나만 필요합니다."
-            } else {
-                null
+            "UPSERT" -> when {
+                event.permissions.isNullOrEmpty() -> "UPSERT permissions에는 권한이 하나 이상 필요합니다."
+                event.permissions.values.any { it == null } -> "UPSERT permissions 값은 boolean이어야 합니다."
+                else -> null
             }
 
             "DELETE" -> if (event.permissions != null) "DELETE에는 permissions가 없어야 합니다." else null
@@ -65,15 +63,11 @@ class ChannelRolePolicyChangedConsumer(
 
     private fun quarantine(record: ConsumerRecord<String, String>, reason: String) {
         log.warn(
-            "preference.channel-role-policy.changed를 격리합니다 [partition={}, offset={}, reason={}]",
+            "Quarantined preference channel-role-policy state record partition={} offset={} reason={}",
             record.partition(),
             record.offset(),
             reason,
         )
         processor.quarantineRecord(streams.channelRolePolicy, record, reason)
-    }
-
-    private companion object {
-        const val MESSAGE_READ_KEY = "message_read"
     }
 }

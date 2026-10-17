@@ -2,6 +2,7 @@ package com.cowork.preference.service
 
 import com.cowork.preference.domain.AccountTeamRole
 import com.cowork.preference.domain.TeamRoleDefinition
+import com.cowork.preference.domain.TeamRolePermissions
 import com.cowork.preference.messaging.PreferenceEvent
 import com.cowork.preference.messaging.PreferenceEvents
 import com.cowork.preference.repository.ChannelRolePolicyRepository
@@ -25,7 +26,7 @@ class TeamRoleService(
         colorHex: String,
         priority: Int,
         mentionable: Boolean,
-        permissions: Set<String>,
+        permissions: Map<String, Boolean>,
     ): Result<TeamRoleDefinition> {
         validateName(name).onFailure { return Result.failure(it) }
         validateColor(colorHex).onFailure { return Result.failure(it) }
@@ -40,7 +41,7 @@ class TeamRoleService(
                 colorHex,
                 priority,
                 mentionable,
-                permissions,
+                TeamRolePermissions.canonicalize(permissions),
             )
             outboxRepository.enqueue(
                 connection,
@@ -61,7 +62,7 @@ class TeamRoleService(
         colorHex: String?,
         priority: Int?,
         mentionable: Boolean?,
-        permissions: Set<String>?,
+        permissions: Map<String, Boolean>?,
     ): Result<TeamRoleDefinition> {
         val existing = repository.findRole(teamId, roleId)
             ?: return Result.failure(NoSuchElementException("Role '$roleId' not found"))
@@ -81,7 +82,8 @@ class TeamRoleService(
                 colorHex = nextColorHex,
                 priority = priority ?: existing.priority,
                 mentionable = mentionable ?: existing.mentionable,
-                permissions = permissions ?: existing.permissions,
+                permissions = permissions?.let { TeamRolePermissions.merge(existing.permissions, it) }
+                    ?: existing.permissions,
             )
             outboxRepository.enqueue(
                 connection,
