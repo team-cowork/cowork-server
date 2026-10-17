@@ -1,13 +1,16 @@
 package com.cowork.preference.service
 
 import com.cowork.preference.domain.AccountTeamRole
+import com.cowork.preference.domain.PermissionKeys
 import com.cowork.preference.domain.TeamMemberProjection
 import com.cowork.preference.domain.TeamRoleDefinition
+import com.cowork.preference.domain.TeamRolePermissions
 import com.cowork.preference.messaging.PreferenceEvent
 import com.cowork.preference.messaging.PreferenceEvents
 import com.cowork.preference.messaging.ProjectionReadiness
 import com.cowork.preference.messaging.TeamRoleCommand
 import com.cowork.preference.messaging.TeamRoleCommandEnvelope
+import com.cowork.preference.messaging.TeamRoleCommandParser
 import com.cowork.preference.messaging.TeamRoleCommandQuarantineRecord
 import com.cowork.preference.messaging.TeamRoleCommandType
 import com.cowork.preference.repository.ChannelRolePolicyRepository
@@ -16,7 +19,6 @@ import com.cowork.preference.repository.ProcessedTeamRoleCommand
 import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.repository.TeamRoleCommandInboxRepository
 import com.cowork.preference.repository.TeamRoleRepository
-import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlConnection
 import java.time.Instant
@@ -170,7 +172,7 @@ class TeamRoleCommandProcessor(
             colorHex,
             priority,
             requireNotNull(input.mentionable),
-            requireNotNull(input.permissions),
+            TeamRolePermissions.canonicalize(requireNotNull(input.permissions)),
         )
         return success(command, role, PreferenceEvents.roleUpserted(role, role.version()), deleted = false)
     }
@@ -200,7 +202,7 @@ class TeamRoleCommandProcessor(
             nextColor,
             nextPriority,
             input.mentionable ?: current.mentionable,
-            input.permissions ?: current.permissions,
+            input.permissions?.let { TeamRolePermissions.merge(current.permissions, it) } ?: current.permissions,
         )
         return success(command, role, PreferenceEvents.roleUpserted(role, role.version()), deleted = false)
     }
@@ -354,7 +356,7 @@ class TeamRoleCommandProcessor(
             .filter { it.accountId == member.accountId }
         val assignedIds = assignments.mapTo(mutableSetOf()) { it.roleId }
         val roles = roleRepository.findRoles(connection, member.teamId).filter { it.id in assignedIds }
-        if (roles.none { MANAGE_ROLES_PERMISSION in it.permissions }) {
+        if (roles.none { it.permissions[PermissionKeys.MANAGE_ROLES] == true }) {
             reject("FORBIDDEN", "역할 관리 권한이 없습니다.")
         }
         return ActorContext(false, roles.maxOfOrNull(TeamRoleDefinition::priority) ?: 0)
@@ -402,7 +404,7 @@ class TeamRoleCommandProcessor(
     }
 
     private fun baseResult(command: TeamRoleCommand, status: String, occurredAt: Instant): JsonObject = JsonObject()
-        .put("schemaVersion", 1)
+        .put("schemaVersion", TeamRoleCommandParser.SCHEMA_VERSION)
         .put("operationId", command.operationId)
         .put("idempotencyKey", command.idempotencyKey)
         .put("requestHash", command.requestHash)
@@ -413,7 +415,7 @@ class TeamRoleCommandProcessor(
 
     private fun baseResult(envelope: TeamRoleCommandEnvelope, status: String, occurredAt: Instant): JsonObject =
         JsonObject()
-            .put("schemaVersion", 1)
+            .put("schemaVersion", TeamRoleCommandParser.SCHEMA_VERSION)
             .put("operationId", envelope.operationId)
             .put("idempotencyKey", envelope.idempotencyKey)
             .put("requestHash", envelope.requestHash)
@@ -429,7 +431,7 @@ class TeamRoleCommandProcessor(
         .put("colorHex", colorHex)
         .put("priority", priority)
         .put("mentionable", mentionable)
-        .put("permissions", JsonArray(permissions.sorted()))
+        .put("permissions", TeamRolePermissions.toJson(permissions))
         .put("createdAt", createdAt?.toString())
         .put("updatedAt", updatedAt?.toString())
 
@@ -458,7 +460,6 @@ class TeamRoleCommandProcessor(
     private class CommandRejected(val code: String, override val message: String) : RuntimeException(message)
 
     private companion object {
-        const val MANAGE_ROLES_PERMISSION = "MANAGE_ROLES"
         const val MAX_TEAM_ERROR_MESSAGE_LENGTH = 1_000
         val COLOR_PATTERN = Regex("^#[0-9A-Fa-f]{6}$")
     }
