@@ -39,6 +39,7 @@ runs:
       id: cache-policy
       shell: bash
       env:
+        CACHE_FALLBACK: ${{ runner.os }}-verify-mounts-v2-${{ inputs.module }}-${{ inputs.environment }}-
         # Hash the measurement checkout, which can differ from the action checkout.
         CACHE_PREFIX: ${{ runner.os }}-verify-mounts-v2-${{ inputs.module }}-${{ inputs.environment }}-${{ hashFiles(format('{0}/{1}/Dockerfile.{2}', inputs.source, inputs.module, inputs.environment)) }}-
         CACHE_WRITE: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main') }}
@@ -46,6 +47,7 @@ runs:
         # Dependency changes are resolved by the build tool; refresh the cache weekly.
         echo "key=${CACHE_PREFIX}$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
         echo "prefix=$CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+        echo "fallback=$CACHE_FALLBACK" >> "$GITHUB_OUTPUT"
         echo "write=$CACHE_WRITE" >> "$GITHUB_OUTPUT"
     # Branch push CI populates the sole verification cache; PRs only restore it.
     - name: Restore And Save Verification Dependency Caches
@@ -55,7 +57,9 @@ runs:
       with:
         path: ${{ runner.temp }}/verify-cache-${{ inputs.module }}-${{ inputs.environment }}
         key: ${{ steps.cache-policy.outputs.key }}
-        restore-keys: ${{ steps.cache-policy.outputs.prefix }}
+        restore-keys: |
+          ${{ steps.cache-policy.outputs.prefix }}
+          ${{ steps.cache-policy.outputs.fallback }}
     - name: Restore Verification Dependency Caches Without Saving
       if: inputs.contract == 'true' && inputs.snapshot != 'base' && steps.cache-policy.outputs.write != 'true'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -63,7 +67,9 @@ runs:
       with:
         path: ${{ runner.temp }}/verify-cache-${{ inputs.module }}-${{ inputs.environment }}
         key: ${{ steps.cache-policy.outputs.key }}
-        restore-keys: ${{ steps.cache-policy.outputs.prefix }}
+        restore-keys: |
+          ${{ steps.cache-policy.outputs.prefix }}
+          ${{ steps.cache-policy.outputs.fallback }}
     - name: Inject And Extract Verification Cache Mounts
       if: steps.cache-policy.outputs.write == 'true' || steps.restore-cache.outputs.cache-matched-key != ''
       uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
