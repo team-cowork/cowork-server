@@ -33,6 +33,7 @@ runs:
       uses: docker/setup-buildx-action@v4
       if: inputs.contract == 'true'
       id: builder
+    # The sole verification cache; see build-image for why the type=gha layer cache is gone.
     - name: Restore Verification Dependency Caches
       if: inputs.contract == 'true'
       uses: actions/cache@v6
@@ -64,8 +65,6 @@ runs:
         outputs: type=local,dest=${{ inputs.output }}/export
         provenance: false
         sbom: false
-        cache-from: type=gha,scope=verify-${{ inputs.module }}-${{ inputs.environment }}-${{ inputs.snapshot }}
-        cache-to: type=gha,mode=max,scope=verify-${{ inputs.module }}-${{ inputs.environment }}-${{ inputs.snapshot }}
     - name: Validate Verification Result
       if: always()
       shell: bash
