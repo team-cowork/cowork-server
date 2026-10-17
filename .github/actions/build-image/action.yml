@@ -28,6 +28,8 @@ runs:
     - name: Set Up Docker Buildx
       uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       id: builder
+    # The sole build cache: a second type=gha layer cache alongside this one exceeded the
+    # repository's 10 GB budget, so eviction raced in-flight imports into BlobNotFound.
     - name: Restore Dependency Cache Mounts
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       id: cache
@@ -60,8 +62,6 @@ runs:
         sbom: false
         tags: ${{ inputs.tags }}
         labels: ${{ inputs.labels }}
-        cache-from: type=gha,scope=cowork-${{ inputs.service }}-${{ inputs.environment }}
-        cache-to: type=gha,mode=max,scope=cowork-${{ inputs.service }}-${{ inputs.environment }}
     - name: Inspect Image Slot Contract
       shell: bash
       env:
