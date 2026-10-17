@@ -32,13 +32,15 @@ runs:
       id: cache-policy
       shell: bash
       env:
-        # Isolate mount layouts by Dockerfile; cache-dance discovers the mounts.
+        # Prefer the same Dockerfile, then reuse this service/environment's caches.
+        CACHE_FALLBACK: ${{ runner.os }}-image-mounts-v2-${{ inputs.service }}-${{ inputs.environment }}-
         CACHE_PREFIX: ${{ runner.os }}-image-mounts-v2-${{ inputs.service }}-${{ inputs.environment }}-${{ hashFiles(inputs.dockerfile) }}-
         CACHE_WRITE: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main') }}
       run: |
         # Refresh weekly without maintaining dependency file lists for each tool.
         echo "key=${CACHE_PREFIX}$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
         echo "prefix=$CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+        echo "fallback=$CACHE_FALLBACK" >> "$GITHUB_OUTPUT"
         echo "write=$CACHE_WRITE" >> "$GITHUB_OUTPUT"
     # Keep mount caches as the only external cache; type=gha layer imports failed
     # with BlobNotFound during eviction. Only branch push CI publishes mount caches.
@@ -49,7 +51,9 @@ runs:
       with:
         path: ${{ runner.temp }}/cowork-image-cache
         key: ${{ steps.cache-policy.outputs.key }}
-        restore-keys: ${{ steps.cache-policy.outputs.prefix }}
+        restore-keys: |
+          ${{ steps.cache-policy.outputs.prefix }}
+          ${{ steps.cache-policy.outputs.fallback }}
     - name: Restore Dependency Cache Mounts Without Saving
       if: steps.cache-policy.outputs.write != 'true'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
@@ -57,7 +61,9 @@ runs:
       with:
         path: ${{ runner.temp }}/cowork-image-cache
         key: ${{ steps.cache-policy.outputs.key }}
-        restore-keys: ${{ steps.cache-policy.outputs.prefix }}
+        restore-keys: |
+          ${{ steps.cache-policy.outputs.prefix }}
+          ${{ steps.cache-policy.outputs.fallback }}
     # Register after actions/cache: its post step extracts before the cache is saved.
     - name: Inject And Extract BuildKit Cache Mounts
       if: steps.cache-policy.outputs.write == 'true' || steps.restore-cache.outputs.cache-matched-key != ''
