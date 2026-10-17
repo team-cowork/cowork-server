@@ -229,7 +229,7 @@ class ChannelRolePolicyCommandProcessorTest {
             colorHex = "#123ABC",
             priority = 30,
             mentionable = false,
-            permissions = emptySet(),
+            permissions = emptyMap(),
             createdAt = OffsetDateTime.parse("2026-08-30T01:00:00Z"),
             updatedAt = null,
         )

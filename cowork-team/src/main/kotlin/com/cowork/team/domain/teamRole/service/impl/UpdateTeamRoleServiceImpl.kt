@@ -8,6 +8,7 @@ import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleOperat
 import com.cowork.team.domain.teamRole.service.TeamRoleAccessGuard
 import com.cowork.team.domain.teamRole.service.UpdateTeamRoleService
 import com.cowork.team.domain.teamRole.service.support.TeamRoleLookupSupport
+import com.cowork.team.domain.teamRole.service.support.TeamRolePermissionSchema
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -16,6 +17,7 @@ class UpdateTeamRoleServiceImpl(
     private val teamRoleAccessGuard: TeamRoleAccessGuard,
     private val teamRoleLookupSupport: TeamRoleLookupSupport,
     private val commandSubmission: TeamRoleCommandSubmission,
+    private val permissionSchema: TeamRolePermissionSchema,
 ) : UpdateTeamRoleService {
     @Transactional
     override fun execute(
@@ -30,7 +32,7 @@ class UpdateTeamRoleServiceImpl(
         teamId = teamId,
         actorId = actorId,
         roleId = roleId,
-        role = TeamRoleCommandRoleInput.update(request),
+        role = TeamRoleCommandRoleInput.update(request, request.permissions?.let(permissionSchema::validate)),
     ) {
         teamRoleAccessGuard.lockTeamOrThrow(teamId)
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
