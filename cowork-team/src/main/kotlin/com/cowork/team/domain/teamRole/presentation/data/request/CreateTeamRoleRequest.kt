@@ -11,6 +11,9 @@ data class CreateTeamRoleRequest(
     val priority: Int = 0,
     @param:Schema(description = "역할 멘션 허용 여부", example = "true")
     val mentionable: Boolean = false,
-    @param:Schema(description = "권한 목록")
-    val permissions: Set<String> = emptySet(),
+    @param:Schema(
+        description = "역할 기본 권한. 권한 키별 boolean이며 누락된 키는 false입니다.",
+        example = "{\"manage_roles\":true,\"message_send\":true}",
+    )
+    val permissions: Map<String, Any?> = emptyMap(),
 )

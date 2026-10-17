@@ -34,7 +34,7 @@ def runtime_values(target, mount):
     if document is None:
         return dict(slot.get('runtime', {}))
     document = document['data']
-    demand(isinstance(document, dict) and all(isinstance(key, str) and VAULT['ENV_NAME'].fullmatch(key)
+    demand(isinstance(document, dict) and all(SLOTS['environment_key'](key)
            and isinstance(value, str) and '\0' not in value for key, value in document.items()),
            'Invalid synchronized runtime settings')
     if managed_target(target):
