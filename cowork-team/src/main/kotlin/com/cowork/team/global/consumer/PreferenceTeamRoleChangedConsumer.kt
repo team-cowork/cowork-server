@@ -86,7 +86,7 @@ class PreferenceTeamRoleChangedConsumer(
 
     private fun quarantine(record: ConsumerRecord<String, String>, reason: String) {
         log.warn(
-            "preference.team-role.changed를 격리합니다 [partition={}, offset={}, reason={}]",
+            "Quarantined preference team-role state record partition={} offset={} reason={}",
             record.partition(),
             record.offset(),
             reason,

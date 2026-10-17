@@ -1,7 +1,7 @@
 import {Prop, Schema, SchemaFactory} from '@nestjs/mongoose';
 
 /**
-`preference.team-role.changed`의 role 정의 projection.
+`preference.team-role.state.v2`의 role 정의 projection. `permissions`는 권한 키별 boolean 전체 상태다.
 */
 @Schema({timestamps: true, versionKey: false})
 export class TeamRoleProjection {
@@ -9,7 +9,7 @@ export class TeamRoleProjection {
     @Prop({required: true}) roleId!: number;
     @Prop({required: true, default: ''}) name!: string;
     @Prop({required: true, default: 0}) priority!: number;
-    @Prop({required: true, type: [String], default: []}) permissions!: string[];
+    @Prop({required: true, type: Object, default: {}}) permissions!: Record<string, boolean>;
     @Prop({required: true, default: false}) deleted!: boolean;
     @Prop({required: true, type: Date}) sourceOccurredAt!: Date;
     @Prop({required: true}) sourceVersion!: bigint;

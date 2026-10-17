@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
-@Tag(name = "채널 역할 정책", description = "역할별 채널 message_read IAM 정책 API")
+@Tag(name = "채널 역할 정책", description = "역할별 채널 권한 덮어쓰기 정책 API")
 @RestController
 @RequestMapping("/channels/{channelId}/role-policies/{roleId}")
 class ChannelRolePolicyController(
