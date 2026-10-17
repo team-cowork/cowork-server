@@ -28,23 +28,52 @@ runs:
     - name: Set Up Docker Buildx
       uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       id: builder
-    - name: Restore Dependency Cache Mounts
+    - name: Read Dependency Cache Key And Policy
+      id: cache-policy
+      shell: bash
+      env:
+        # Prefer the same Dockerfile, then reuse this service/environment's caches.
+        CACHE_FALLBACK: ${{ runner.os }}-image-mounts-v2-${{ inputs.service }}-${{ inputs.environment }}-
+        CACHE_PREFIX: ${{ runner.os }}-image-mounts-v2-${{ inputs.service }}-${{ inputs.environment }}-${{ hashFiles(inputs.dockerfile) }}-
+        CACHE_WRITE: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main') }}
+      run: |
+        # Refresh weekly without maintaining dependency file lists for each tool.
+        echo "key=${CACHE_PREFIX}$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+        echo "prefix=$CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+        echo "fallback=$CACHE_FALLBACK" >> "$GITHUB_OUTPUT"
+        echo "write=$CACHE_WRITE" >> "$GITHUB_OUTPUT"
+    # Keep mount caches as the only external cache; type=gha layer imports failed
+    # with BlobNotFound during eviction. Only branch push CI publishes mount caches.
+    - name: Restore And Save Dependency Cache Mounts
+      if: steps.cache-policy.outputs.write == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       id: cache
       with:
         path: ${{ runner.temp }}/cowork-image-cache
-        key: ${{ runner.os }}-image-mounts-v1-${{ inputs.service }}-${{ inputs.environment }}-${{ github.sha }}
+        key: ${{ steps.cache-policy.outputs.key }}
         restore-keys: |
-          ${{ runner.os }}-image-mounts-v1-${{ inputs.service }}-${{ inputs.environment }}-
+          ${{ steps.cache-policy.outputs.prefix }}
+          ${{ steps.cache-policy.outputs.fallback }}
+    - name: Restore Dependency Cache Mounts Without Saving
+      if: steps.cache-policy.outputs.write != 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      id: restore-cache
+      with:
+        path: ${{ runner.temp }}/cowork-image-cache
+        key: ${{ steps.cache-policy.outputs.key }}
+        restore-keys: |
+          ${{ steps.cache-policy.outputs.prefix }}
+          ${{ steps.cache-policy.outputs.fallback }}
     # Register after actions/cache: its post step extracts before the cache is saved.
     - name: Inject And Extract BuildKit Cache Mounts
+      if: steps.cache-policy.outputs.write == 'true' || steps.restore-cache.outputs.cache-matched-key != ''
       uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
       with:
         builder: ${{ steps.builder.outputs.name }}
         dockerfile: ${{ inputs.dockerfile }}
         cache-dir: ${{ runner.temp }}/cowork-image-cache
         scratch-dir: ${{ runner.temp }}/cowork-cache-dance
-        skip-extraction: ${{ steps.cache.outputs.cache-hit }}
+        skip-extraction: ${{ steps.cache-policy.outputs.write != 'true' || steps.cache.outputs.cache-hit == 'true' }}
         utility-image: alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
     - name: Build Image
       uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
@@ -60,8 +89,6 @@ runs:
         sbom: false
         tags: ${{ inputs.tags }}
         labels: ${{ inputs.labels }}
-        cache-from: type=gha,scope=cowork-${{ inputs.service }}-${{ inputs.environment }}
-        cache-to: type=gha,mode=max,scope=cowork-${{ inputs.service }}-${{ inputs.environment }}
     - name: Inspect Image Slot Contract
       shell: bash
       env:
