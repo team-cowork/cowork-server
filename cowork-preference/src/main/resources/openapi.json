@@ -364,7 +364,22 @@
           "theme": { "type": "string", "enum": ["WHITE", "BLACK"], "example": "BLACK" },
           "language": { "type": "string", "enum": ["KO", "EN"], "example": "KO" },
           "time_format": { "type": "string", "enum": ["12H", "24H"], "example": "24H" },
-          "date_format": { "type": "string", "enum": ["YYYY_MM_DD", "MM_DD_YYYY", "DD_MM_YYYY", "YYYY_DD_MM", "DD_YYYY_MM", "MM_YYYY_DD"], "example": "YYYY_MM_DD" }
+          "date_format": { "type": "string", "enum": ["YYYY_MM_DD", "MM_DD_YYYY", "DD_MM_YYYY", "YYYY_DD_MM", "DD_YYYY_MM", "MM_YYYY_DD"], "example": "YYYY_MM_DD" },
+          "timezone": { "type": "string", "description": "IANA 시간대", "example": "Asia/Seoul" },
+          "notification_level": { "type": "string", "enum": ["ALL", "MENTIONS", "NONE"], "description": "계정 기본 알림 수준", "example": "ALL" },
+          "dnd_schedule": { "$ref": "#/components/schemas/DndSchedule" },
+          "message_display": { "type": "string", "enum": ["COZY", "COMPACT"], "example": "COZY" },
+          "enter_to_send": { "type": "boolean", "description": "Enter 키로 메시지 전송 여부", "example": true }
+        }
+      },
+      "DndSchedule": {
+        "type": "object",
+        "description": "방해 금지 예약. 객체 전체를 교체하며 start/end는 timezone 기준이고 end가 start보다 이르면 자정을 넘깁니다.",
+        "required": ["enabled", "start", "end"],
+        "properties": {
+          "enabled": { "type": "boolean", "example": true },
+          "start": { "type": "string", "pattern": "^\\d{2}:\\d{2}$", "example": "22:00" },
+          "end": { "type": "string", "pattern": "^\\d{2}:\\d{2}$", "example": "08:00" }
         }
       },
       "TeamSettings": {
@@ -372,7 +387,8 @@
         "properties": {
           "tag_spam_block": { "type": "boolean", "example": false },
           "nickname_format_enforced": { "type": "boolean", "example": true },
-          "nickname_format_example": { "type": "string", "minLength": 1, "example": "홍길동 / 프론트엔드" }
+          "nickname_format_example": { "type": "string", "minLength": 1, "example": "홍길동 / 프론트엔드" },
+          "default_notification_level": { "type": "string", "enum": ["ALL", "MENTIONS", "NONE"], "description": "팀 채널의 기본 알림 수준", "example": "MENTIONS" }
         }
       },
       "VoiceChannelSettings": {
@@ -394,7 +410,8 @@
       "TextChannelSettings": {
         "type": "object",
         "properties": {
-          "webhook": { "$ref": "#/components/schemas/WebhookSettings" }
+          "webhook": { "$ref": "#/components/schemas/WebhookSettings" },
+          "slowmode_seconds": { "type": "integer", "minimum": 0, "maximum": 21600, "description": "사용자별 메시지 전송 간격(초). 0은 해제", "example": 0 }
         }
       },
       "ProjectRole": {
@@ -429,7 +446,9 @@
       "NotificationSettings": {
         "type": "object",
         "properties": {
-          "notification": { "type": "boolean", "default": true, "example": true }
+          "notification": { "type": "boolean", "default": true, "description": "하위 호환 값. notification_level이 NONE이 아니면 true이며 요청에 notification_level이 있으면 무시됩니다.", "example": true },
+          "notification_level": { "type": "string", "enum": ["ALL", "MENTIONS", "NONE"], "default": "ALL", "example": "MENTIONS" },
+          "muted_until": { "type": "string", "format": "date-time", "nullable": true, "description": "이 시각까지 채널 알림을 음소거합니다. null이면 음소거하지 않습니다.", "example": "2026-04-20T12:00:00Z" }
         }
       }
     }
