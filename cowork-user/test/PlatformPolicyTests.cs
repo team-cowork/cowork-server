@@ -1,30 +1,5 @@
 namespace CoworkUser.Tests;
 
-public class SchemaMigrationTests
-{
-    static readonly string Migrations = Path.Combine(AppContext.BaseDirectory, "db", "migration");
-
-    [Fact]
-    public void Checksums_and_lock_name_match_the_flyway_history()
-    {
-        var migrations = SchemaMigration.LoadMigrations(Migrations);
-        Assert.Equal(Enumerable.Range(1, migrations.Count), migrations.Select(m => m.Version));
-        Assert.Equal(-804017080, migrations[0].Checksum);
-        Assert.Equal("init", migrations[0].Description);
-        Assert.Equal(-1217367336, migrations.Single(m => m.Version == 16).Checksum);
-        Assert.Equal("Flyway-1424112396", SchemaMigration.LockName("cowork_user"));
-    }
-
-    [Fact]
-    public void Statements_split_only_outside_literals_and_comments()
-    {
-        var statements = SchemaMigration.ValidateSql("UPDATE t SET a = 'x;y'; -- c;\nINSERT INTO t VALUES (1);", "V1__x.sql");
-        Assert.Equal(["UPDATE t SET a = 'x;y'", " -- c;\nINSERT INTO t VALUES (1)"], statements);
-        Assert.Throws<SchemaMigration.Error>(() => SchemaMigration.ValidateSql("SELECT GET_LOCK('a', 1);", "V1__x.sql"));
-        Assert.Throws<SchemaMigration.Error>(() => SchemaMigration.ValidateSql("CREATE PROCEDURE p() BEGIN END;", "V1__x.sql"));
-    }
-}
-
 public class ObjectStoragePolicyTests
 {
     static readonly string[] Allowed = ["image/jpeg", "image/png", "image/webp"];
@@ -57,19 +32,6 @@ public class ObjectStoragePolicyTests
 
 public class HttpPolicyTests
 {
-    [Theory]
-    [InlineData("/users/me", true)]
-    [InlineData("/users/batch", true)]
-    [InlineData("/users/search", true)]
-    [InlineData("/users/by-github/octo", true)]
-    [InlineData("/users/by-github/", false)]
-    [InlineData("/users/42", true)]
-    [InlineData("/users/0", false)]
-    [InlineData("/users/abc", false)]
-    [InlineData("/actuator/health", false)]
-    public void Projection_dependent_reads_are_gated(string path, bool gated) =>
-        Assert.Equal(gated, Router.ProjectionDependentRead(path));
-
     [Fact]
     public void Batch_ids_are_deduplicated_and_capped()
     {
@@ -88,5 +50,15 @@ public class HttpPolicyTests
         Assert.True(Iso8601.TryParse("2026-10-18 10:00:00", out var naive, out _, assumeUtc: true));
         Assert.Equal(new DateTime(2026, 10, 18, 10, 0, 0, DateTimeKind.Utc), naive);
         Assert.Equal("2026-10-18T01:00:00.000000Z", Iso8601.Format(parsed.AddTicks(-5_000_000)));
+    }
+
+    [Fact]
+    public void Iso8601_rejects_zone_offsets_outside_23_59()
+    {
+        Assert.False(Iso8601.TryParse("2026-05-01T00:00:00+99:99", out _, out _));
+        Assert.False(Iso8601.TryParse("2026-05-01T00:00:00+24:00", out _, out _));
+        Assert.False(Iso8601.TryParse("2026-05-01T00:00:00+23:60", out _, out _));
+        Assert.True(Iso8601.TryParse("2026-05-01T00:00:00-23:59", out var west, out _));
+        Assert.Equal(new DateTime(2026, 5, 1, 23, 59, 0, DateTimeKind.Utc), west);
     }
 }

@@ -56,5 +56,6 @@ readiness.BecameReady = app.Services.GetRequiredService<ProfileSnapshotPublisher
 readiness.ReplayRequested = app.Services.GetRequiredService<Consumers>().ForceReplay;
 
 var http = App.Logs.CreateLogger("CoworkUser.Http");
-app.Run(context => Router.HandleAsync(context, readiness, http));
+app.Use((context, next) => Router.HandleAsync(context, next, http));
+Router.Map(app, readiness);
 await app.RunAsync();
