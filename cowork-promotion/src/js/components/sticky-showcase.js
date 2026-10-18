@@ -3,6 +3,7 @@ import {createStore} from '../core/store.js';
 import {showcaseCounter} from '../core/showcase-state.js';
 import {loadStates} from '../data/load-states.js';
 import {window} from '../core/browser.js';
+import {preloadSceneImages} from '../core/preload.js';
 
 function updateDots(buttons, index, {activeColor, activeWidth, inactiveColor}) {
 	for (const [buttonIndex, button] of buttons.entries()) {
@@ -82,6 +83,12 @@ export function createStickyShowcase({
 	async function mount() {
 		const states = await loadStates(statesUrl);
 		store.setState({states});
+		try {
+			preloadSceneImages(states);
+		} catch (error) {
+			console.warn('쇼케이스 이미지 미리 불러오기에 실패했습니다.', error);
+		}
+
 		unsubscribe = store.subscribe(render);
 
 		for (const [index, button] of dots.entries()) {
