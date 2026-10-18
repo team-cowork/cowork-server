@@ -72,13 +72,18 @@
     },
     {
       "id": 5,
-      "title": "BEAM 메모리",
+      "title": "프로세스 메모리",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "targets": [
         {
-          "expr": "beam_memory_used_bytes{application=\"cowork-user\"}",
-          "legendFormat": "전체",
+          "expr": "process_working_set_bytes{application=\"cowork-user\"}",
+          "legendFormat": "Working set",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+        },
+        {
+          "expr": "dotnet_gc_heap_bytes{application=\"cowork-user\"}",
+          "legendFormat": "GC 힙",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ],
@@ -86,13 +91,13 @@
     },
     {
       "id": 6,
-      "title": "BEAM 실행 대기열 길이",
+      "title": "스레드 풀 대기열 길이",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
       "targets": [
         {
-          "expr": "beam_run_queue{application=\"cowork-user\"}",
-          "legendFormat": "실행 대기열 길이",
+          "expr": "dotnet_threadpool_queue_length{application=\"cowork-user\"}",
+          "legendFormat": "대기열 길이",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ],
@@ -100,13 +105,13 @@
     },
     {
       "id": 7,
-      "title": "BEAM 프로세스 수",
+      "title": "스레드 풀 사용 스레드 수",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
       "targets": [
         {
-          "expr": "beam_process_count{application=\"cowork-user\"}",
-          "legendFormat": "프로세스 수",
+          "expr": "dotnet_threadpool_busy_threads{application=\"cowork-user\"}",
+          "legendFormat": "사용 스레드 수",
           "datasource": { "type": "prometheus", "uid": "${datasource}" }
         }
       ]

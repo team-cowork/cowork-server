@@ -26,8 +26,8 @@ docs
 **/.kotlin
 **/node_modules
 **/target
-**/_build
-**/deps
+**/bin
+**/obj
 **/.env
 **/.env.*
 **/application-local.yml
@@ -38,5 +38,3 @@ docs
 **/__pycache__
 
 **/coverage
-**/cover
-**/.elixir_ls

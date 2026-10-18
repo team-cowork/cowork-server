@@ -12,7 +12,7 @@ NEW_VERSION="${DATE}.${EXISTING}"
 printf '%s' "${NEW_VERSION}" > "$VERSION_FILE"
 
 # Gradle, Maven and Go accept an arbitrary version string, so they carry ${NEW_VERSION}
-# verbatim. Mix and npm do not -- see the ".0" suffix below.
+# verbatim. npm does not -- see the ".0" suffix below.
 for FILE in "$ROOT_DIR"/cowork-*/build.gradle.kts; do
   perl -i -pe "s/^version = \".*\"/version = \"${NEW_VERSION}\"/" "$FILE"
 done
@@ -23,9 +23,9 @@ for FILE in "$ROOT_DIR"/cowork-*/pom.xml; do
   fi
 done
 
-# npm and Mix both enforce three-part SemVer (MAJOR.MINOR.PATCH) and reject the two-part
-# ${NEW_VERSION}, so these two get a ".0" patch segment appended. Do not "unify" this with
-# the loops above: dropping the suffix breaks `npm install` and `mix compile`.
+# npm enforces three-part SemVer (MAJOR.MINOR.PATCH) and rejects the two-part
+# ${NEW_VERSION}, so it gets a ".0" patch segment appended. Do not "unify" this with
+# the loops above: dropping the suffix breaks `npm install`.
 for FILE in "$ROOT_DIR"/cowork-*/package.json; do
   if [ -f "$FILE" ] && grep -q "^\s*\"version\"\s*:" "$FILE"; then
     perl -i -pe "s/^(\s*\"version\"\s*:\s*\")[^\"]*/\${1}${NEW_VERSION}.0/" "$FILE"
@@ -48,7 +48,9 @@ PYTHON
   fi
 done
 
-perl -i -pe "s/(\s+version: \").*\"/\${1}${NEW_VERSION}.0\"/" "$ROOT_DIR/cowork-user/mix.exs"
+# AssemblyVersion cannot hold the date-based version, so .NET carries it as InformationalVersion.
+perl -i -pe "s|<InformationalVersion>[^<]*</InformationalVersion>|<InformationalVersion>${NEW_VERSION}</InformationalVersion>|" \
+  "$ROOT_DIR/cowork-user/src/CoworkUser.csproj"
 
 for FILE in \
   "$ROOT_DIR/cowork-authorization/cmd/main.go" \
