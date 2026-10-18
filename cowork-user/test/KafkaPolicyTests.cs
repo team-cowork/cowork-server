@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using CoworkUser.Kafka;
 using static CoworkUser.Kafka.ProjectionCheckpoint;
@@ -22,6 +23,13 @@ public class ProjectionReadinessTests
         Assert.True(ProjectionReadiness.PartitionReady(Range(1120, 1114, 1115), Checkpoint(1115, 1114), MarkerAt(1114)));
 
     [Fact]
+    public void Stops_being_ready_when_the_checkpoint_trails_the_live_high_watermark_too_far()
+    {
+        Assert.True(ProjectionReadiness.PartitionReady(Range(2115, 1114, 1115), Checkpoint(1115, 1114), MarkerAt(1114)));
+        Assert.False(ProjectionReadiness.PartitionReady(Range(2116, 1114, 1115), Checkpoint(1115, 1114), MarkerAt(1114)));
+    }
+
+    [Fact]
     public void Is_ready_once_the_checkpoint_reaches_the_startup_high_watermark() =>
         Assert.True(ProjectionReadiness.PartitionReady(Range(1115, 1114, 1115), Checkpoint(1115, 1114), MarkerAt(1114)));
 
@@ -37,6 +45,14 @@ public class ProjectionReadinessTests
         Assert.False(ProjectionReadiness.PartitionReady(Range(1120, 1114, 1115) with { Marker = null }, Checkpoint(1115, 1114), MarkerAt(1114)));
         Assert.False(ProjectionReadiness.PartitionReady(Range(1120, 1114, 1115), null, MarkerAt(1114)));
     }
+
+    [Theory]
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAAAAAAAA", true)]
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAA", "BBBBBBBBBBBBBBBBBBBBBB", false)]
+    [InlineData(null, "BBBBBBBBBBBBBBBBBBBBBB", false)]
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAA", null, true)]
+    public void Projection_data_survives_only_when_the_topic_identity_matches(string? stored, string? current, bool continuous) =>
+        Assert.Equal(continuous, ProjectionCheckpoint.TopicContinuous(stored, current));
 
     [Fact]
     public void Checkpoints_and_markers_must_be_inside_the_retained_log()
@@ -108,6 +124,22 @@ public class ContractTests
          "classNumber":1,"studentNumberInClass":5,"major":"SW_DEVELOPMENT","role":"GENERAL_STUDENT",
          "githubId":null,"dataGSMStudentId":42,"requestedBy":7,"occurredAt":"2026-10-18T10:00:00.120+09:00"}
         """;
+
+    [Fact]
+    public void Undecodable_strings_are_classified_as_invalid_records_instead_of_throwing()
+    {
+        var backslash = (char)92;
+        byte[] invalidUtf8 = [.. "{\"name\":\""u8, 0xFF, .. "\"}"u8];
+        var loneSurrogate = Encoding.UTF8.GetBytes("{\"name\":\"" + backslash + "uD800\"}");
+        var nestedKey = Encoding.UTF8.GetBytes("{\"a\":[{\"" + backslash + "uDC00\":1}]}");
+
+        foreach (var bytes in new[] { invalidUtf8, loneSurrogate, nestedKey })
+        {
+            Assert.Null(CoworkUser.Json.ParseObject(bytes, out var error));
+            Assert.Equal(":invalid_string", error);
+        }
+        Assert.NotNull(CoworkUser.Json.ParseObject("{\"name\":\"김코워크\"}"u8.ToArray(), out _));
+    }
 
     [Fact]
     public void Identity_command_canonical_payload_matches_the_previous_hash_input()
@@ -216,5 +248,5 @@ public class ProducerPartitioningTests
     [InlineData("abcdefghijklm", 11441572u)]
     [InlineData("0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11", 118003515u)]
     public void Phash2_matches_erlang(string key, uint expected) =>
-        Assert.Equal(expected, Producer.Phash2(System.Text.Encoding.UTF8.GetBytes(key)));
+        Assert.Equal(expected, Producer.Phash2(Encoding.UTF8.GetBytes(key)));
 }

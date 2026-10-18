@@ -20,19 +20,59 @@ public static class ProjectionCheckpoint
 
     public sealed record RecoveryState(long? InvalidRecordOffset, long? SnapshotCompletedOffset, string? LastSnapshotId, string? RecoverySnapshotId);
 
-    public static Task StartReplayGenerationAsync(IEnumerable<(string Group, string Topic)> sources) =>
+    /// <summary>A projection source with the topic UUID the broker reports now and how to clear what it derived.</summary>
+    public sealed record ReplaySource(string Group, string Topic, string? TopicId, Func<MySqlConnection, MySqlTransaction, Task> ResetProjection);
+
+    /// <summary>
+    /// Bumps the replay generation of each source. A source whose topic UUID cannot be shown to match the stored one
+    /// is rebuilt in the same transaction: its projection data, checkpoints and markers are cleared, because
+    /// replacing a topic can drop deletion history that replaying the new log would never mention.
+    /// Returns the topics that were rebuilt.
+    /// </summary>
+    public static Task<List<string>> StartReplayGenerationAsync(IEnumerable<ReplaySource> sources) =>
         App.TransactionAsync(async (connection, transaction) =>
         {
-            foreach (var (group, topic) in sources.Distinct())
+            var rebuilt = new List<string>();
+            foreach (var source in sources.DistinctBy(s => (s.Group, s.Topic)))
+            {
+                var key = new { group = source.Group, topic = source.Topic, topicId = source.TopicId };
+                var stored = await connection.ExecuteScalarAsync<string?>(
+                    "SELECT topic_id FROM tb_kafka_projection_generations WHERE consumer_group = @group AND topic_name = @topic FOR UPDATE",
+                    key, transaction);
+                if (!TopicContinuous(stored, source.TopicId))
+                {
+                    await source.ResetProjection(connection, transaction);
+                    await connection.ExecuteAsync(
+                        "DELETE FROM tb_kafka_projection_offsets WHERE consumer_group = @group AND topic_name = @topic", key, transaction);
+                    await connection.ExecuteAsync(
+                        "DELETE FROM tb_kafka_projection_barriers WHERE consumer_group = @group AND topic_name = @topic", key, transaction);
+                    rebuilt.Add(source.Topic);
+                }
+
                 await connection.ExecuteAsync("""
-                    INSERT INTO tb_kafka_projection_generations (consumer_group, topic_name, replay_generation)
-                    VALUES (@group, @topic, 1)
+                    INSERT INTO tb_kafka_projection_generations (consumer_group, topic_name, replay_generation, topic_id)
+                    VALUES (@group, @topic, 1, @topicId)
                     ON DUPLICATE KEY UPDATE
                         replay_generation = replay_generation + 1,
+                        topic_id = COALESCE(@topicId, topic_id),
                         updated_at = CURRENT_TIMESTAMP(6)
-                    """, new { group, topic }, transaction);
-            return 0;
+                    """, key, transaction);
+            }
+            return rebuilt;
         });
+
+    /// <summary>
+    /// The stored projection continues the current topic only when both UUIDs are known and equal. A broker that
+    /// reports no UUID gives nothing to compare, so the stored data is kept; a missing stored UUID proves nothing.
+    /// </summary>
+    internal static bool TopicContinuous(string? stored, string? current) => current is null || stored == current;
+
+    public static async Task<string?> LoadTopicIdAsync(string group, string topic)
+    {
+        await using var connection = await App.OpenAsync();
+        return await connection.ExecuteScalarAsync<string?>(
+            "SELECT topic_id FROM tb_kafka_projection_generations WHERE consumer_group = @group AND topic_name = @topic", new { group, topic });
+    }
 
     /// <summary>Claims an assigned partition and atomically resets its checkpoint and marker.</summary>
     public static Task<Lease> BeginReplayAsync(string group, string topic, int partition, long beginningOffset, string owner) =>
