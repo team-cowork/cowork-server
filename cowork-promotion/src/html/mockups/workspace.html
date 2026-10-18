@@ -1,5 +1,5 @@
 <div class="relative aspect-[4/3] rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.02] p-4 sm:p-5">
-	<div class="absolute inset-4 sm:inset-5 rounded-2xl bg-white text-gray-900 shadow-2xl overflow-hidden flex flex-col">
+	<div class="absolute inset-4 sm:inset-5 rounded-2xl bg-white text-gray-900 shadow-2xl overflow-hidden flex flex-col" data-mockup="workspace">
 		<div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
 			<div class="flex items-center gap-2">
 				<span class="w-2 h-2 rounded-full mock-accent-bg">
@@ -7,7 +7,7 @@
 				<span class="text-xs font-bold">백엔드 워크스페이스</span>
 			</div>
 			<div class="flex items-center gap-2">
-				<div class="flex -space-x-2 items-center">
+				<div class="flex -space-x-2 items-center mock-presence-stack">
 					<span class="relative">
 						<img
 							class="w-6 h-6 rounded-full ring-2 ring-white object-cover bg-gray-100"
@@ -51,28 +51,130 @@
 				<span class="text-[10px] font-semibold text-gray-400 whitespace-nowrap">3명 접속 중</span>
 			</div>
 		</div>
-		<div class="flex-1 p-4 space-y-2.5 relative">
-			<div class="text-[11px] font-bold text-gray-700"> 회의록 · 스프린트 계획 </div>
-			<div class="h-2 w-11/12 rounded bg-gray-100">
+		<div class="flex-1 flex flex-col relative mock-chat-body">
+			<div class="text-[11px] font-bold text-gray-700"># 스프린트-계획</div>
+			<div class="flex-1 mt-2 space-y-2.5 overflow-hidden" data-mock-messages>
+				<div class="flex items-center gap-2.5" data-mock-action="react">
+					<img
+						class="w-6 h-6 rounded-full object-cover bg-gray-100 shrink-0"
+						alt=""
+						decoding="async"
+						height="24"
+						loading="lazy"
+						src="https://i.pravatar.cc/80?img=12"
+						width="24"
+					>
+					<div class="flex-1 min-w-0">
+						<p class="text-[10px] leading-snug text-gray-700 truncate">
+							<b class="text-gray-900" data-mock-field="name">John</b> <span data-mock-field="text">이번 스프린트 목표 정리해서 올렸어요</span></p>
+						<span class="text-[9px] text-gray-400" data-mock-field="time">오전 10:02</span>
+						<span
+							class="mock-reaction text-[9px] font-semibold rounded-full mock-accent-chip-soft"
+							data-mock-reaction
+							hidden
+						>👍 1</span>
+					</div>
+				</div>
+				<div class="flex items-center gap-2.5" data-mock-action="react">
+					<img
+						class="w-6 h-6 rounded-full object-cover bg-gray-100 shrink-0"
+						alt=""
+						decoding="async"
+						height="24"
+						loading="lazy"
+						src="https://i.pravatar.cc/80?img=5"
+						width="24"
+					>
+					<div class="flex-1 min-w-0">
+						<p class="text-[10px] leading-snug text-gray-700 truncate">
+							<b class="text-gray-900" data-mock-field="name">Emma</b> <span data-mock-field="text">확인했어요, 로그인 API부터 맡을게요</span></p>
+						<span class="text-[9px] text-gray-400" data-mock-field="time">오전 10:04</span>
+						<span
+							class="mock-reaction text-[9px] font-semibold rounded-full mock-accent-chip-soft"
+							data-mock-reaction
+							hidden
+						>👍 1</span>
+					</div>
+				</div>
+				<div class="flex items-center gap-2.5" data-mock-action="react">
+					<img
+						class="w-6 h-6 rounded-full object-cover bg-gray-100 shrink-0"
+						alt=""
+						decoding="async"
+						height="24"
+						loading="lazy"
+						src="https://i.pravatar.cc/80?img=33"
+						width="24"
+					>
+					<div class="flex-1 min-w-0">
+						<p class="text-[10px] leading-snug text-gray-700 truncate">
+							<b class="text-gray-900" data-mock-field="name">Liam</b> <span data-mock-field="text">저는 칸반 보드 쪽 이어서 할게요</span></p>
+						<span class="text-[9px] text-gray-400" data-mock-field="time">오전 10:05</span>
+						<span
+							class="mock-reaction text-[9px] font-semibold rounded-full mock-accent-chip-soft"
+							data-mock-reaction
+							hidden
+						>👍 1</span>
+					</div>
+				</div>
 			</div>
-			<div class="h-2 w-4/5 rounded bg-gray-100">
-			</div>
-			<div class="h-2 w-2/3 rounded bg-gray-100">
-			</div>
-			<div class="h-2 w-3/4 rounded bg-gray-100">
-			</div>
-			<div class="absolute ws-cursor mock-cursor-position">
+			<span
+				class="mock-typing text-[9px] text-gray-400"
+				data-mock-typing
+				hidden
+			>
+				<span class="mock-typing-dots">
+					<span>
+					</span>
+					<span>
+					</span>
+					<span>
+					</span>
+				</span>
+				<span data-mock-typing-label></span>
+			</span>
+			<template data-mock-template="message">
+				<div class="flex items-center gap-2.5" data-mock-action="react">
+					<img
+						class="w-6 h-6 rounded-full object-cover bg-gray-100 shrink-0"
+						alt=""
+						decoding="async"
+						height="24"
+						loading="lazy"
+						src="https://i.pravatar.cc/80?img=68"
+						width="24"
+					>
+					<div class="flex-1 min-w-0">
+						<p class="text-[10px] leading-snug text-gray-700 truncate">
+							<b class="text-gray-900" data-mock-field="name">나</b> <span data-mock-field="text"></span></p>
+						<span class="text-[9px] text-gray-400" data-mock-field="time">방금</span>
+						<span
+							class="mock-reaction text-[9px] font-semibold rounded-full mock-accent-chip-soft"
+							data-mock-reaction
+							hidden
+						>👍 1</span>
+					</div>
+				</div>
+			</template>
+		</div>
+		<div class="flex items-center gap-2 px-3 py-2 border-t border-gray-100">
+			<span class="flex-1 min-w-0 truncate text-[10px] text-gray-700 rounded-full bg-gray-100 px-3 py-1"><span data-mock-draft>좋아요, 저는 리뷰 맡을게요</span><span class="caret">|</span></span>
+			<button
+				type="button"
+				class="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mock-accent-bg"
+				data-mock-action="send-message"
+				tabindex="-1"
+			>
 				<svg
-					fill="rgb(var(--ui-accent-rgb))"
-					height="18"
+					fill="white"
+					height="11"
 					viewBox="0 0 24 24"
-					width="18"
+					width="11"
 				>
-					<path d="M4 2l16 8-7 2-2 7z">
+					<path d="M2.01 21 23 12 2.01 3 2 10l15 2-15 2z">
 					</path>
 				</svg>
-				<span class="ml-3 -mt-1 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold text-white whitespace-nowrap mock-accent-bg">Emma</span>
-			</div>
+			</button>
 		</div>
 	</div>
 </div>
