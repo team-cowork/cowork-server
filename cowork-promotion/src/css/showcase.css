@@ -223,24 +223,29 @@
     flex-direction: column;
     gap: var(--space-2);
     min-height: 0;
-    overflow-y: auto;
 }
-.mock-board-cards::-webkit-scrollbar {
+.mock-scroll {
+    overflow-y: auto;
+    border-color: transparent;
+    transition: border-color 0.35s ease, scrollbar-color 0.35s ease;
+}
+.mock-scroll.is-scrolling {
+    border-color: rgb(var(--palette-gray-400) / 0.6);
+}
+.mock-scroll::-webkit-scrollbar {
     width: 3px;
 }
-.mock-board-cards::-webkit-scrollbar-thumb {
+.mock-scroll::-webkit-scrollbar-thumb {
+    border-right: 3px solid;
+    border-color: inherit;
     border-radius: var(--radius-full);
-    background-color: transparent;
-}
-.mock-board-cards.is-scrolling::-webkit-scrollbar-thumb {
-    background-color: rgb(var(--palette-gray-400) / 0.6);
 }
 @supports not selector(::-webkit-scrollbar) {
-    .mock-board-cards {
+    .mock-scroll {
         scrollbar-color: transparent transparent;
         scrollbar-width: thin;
     }
-    .mock-board-cards.is-scrolling {
+    .mock-scroll.is-scrolling {
         scrollbar-color: rgb(var(--palette-gray-400) / 0.6) transparent;
     }
 }
