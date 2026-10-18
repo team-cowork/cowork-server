@@ -20,14 +20,42 @@ const toggleValues = {
 	call: ['joined', 'left'],
 	camera: ['off', 'on'],
 	mic: ['on', 'off'],
-	pr: ['open', 'merged'],
 };
 
-function syncVisibility(mockup) {
-	for (const element of mockup.querySelectorAll('[data-mock-when]')) {
-		const [key, value] = element.dataset.mockWhen.split(':', 2);
-		element.hidden = mockup.dataset[key] !== value;
+function revealEntries(elements) {
+	if (elements.length === 0) {
+		return;
 	}
+
+	for (const element of elements) {
+		popIn(element);
+	}
+
+	const scroller = elements.at(-1).closest('[data-mock-scroll]');
+	scroller?.scrollTo({top: scroller.scrollHeight, behavior: prefersReducedMotion() ? 'auto' : 'smooth'});
+}
+
+function syncVisibility(mockup) {
+	const revealed = [];
+	for (const element of mockup.querySelectorAll('[data-mock-when]')) {
+		const [key, values] = element.dataset.mockWhen.split(':', 2);
+		const wasHidden = element.hidden;
+		element.hidden = !values.split('|').includes(mockup.dataset[key]);
+		if (wasHidden && !element.hidden && element.dataset.mockReveal !== undefined) {
+			revealed.push(element);
+		}
+	}
+
+	revealEntries(revealed);
+}
+
+function applyStates(target, mockup) {
+	for (const pair of target.dataset.mockSet.split(' ')) {
+		const [key, value] = pair.split(':', 2);
+		mockup.dataset[key] = value;
+	}
+
+	syncVisibility(mockup);
 }
 
 function toggleState(mockup, key) {
@@ -337,6 +365,7 @@ function filterResults(chip, mockup) {
 const actions = {
 	'filter-results': filterResults,
 	react: toggleReaction,
+	set: applyStates,
 	'read-notification': readNotification,
 	'send-message': sendMessage,
 	'toggle-call': toggleCall,
