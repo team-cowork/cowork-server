@@ -54,5 +54,5 @@
 
 1. 브로커에 `user.profile.event.v2`를 컴팩트 보존으로, 기존 토픽과 같은 파티션 수로 만듭니다. 로컬은 `kafka-init`이 만듭니다.
 2. `cowork-user`를 배포합니다. 읽기 모델이 준비되면 전체 프로필 스냅샷과 파티션별 완료 마커를 v2에 발행합니다.
-3. 소비자(`cowork-notification`, `cowork-project`, `cowork-chat`)를 배포합니다. 새 토픽은 체크포인트가 없어 처음부터 읽습니다. 다만 `cowork-chat`은 저장된 `userProfile` dataset의 토픽·그룹이 달라 `REBUILD_REQUIRED`로 readiness를 닫으므로, 관리자 권한으로 `POST /admin/projections/userProfile/rebuild`(본문 `{"reason": "..."}`)를 요청하고 `GET /admin/projections`에서 `userProfile`이 `ACTIVE`로 돌아왔는지 확인합니다.
+3. 소비자(`cowork-notification`, `cowork-project`, `cowork-chat`)를 배포합니다. 새 토픽은 체크포인트가 없어 처음부터 읽습니다. `cowork-chat`은 저장된 `userProfile` dataset이 선언된 이전 정체성(`user.profile.event`, `cowork-chat-user-profile-event-v1-projection`)이면 시작할 때 스스로 rebuild를 요청하므로 별도 요청이 필요 없습니다. `GET /admin/projections`에서 `userProfile`이 `ACTIVE`로 돌아왔는지 확인합니다. 선언되지 않은 정체성 변경은 `REBUILD_REQUIRED`로 남고, 관리자 권한의 `POST /admin/projections/userProfile/rebuild`(본문 `{"reason": "..."}`)로 요청해야 합니다.
 4. 구 토픽 `user.profile.event`는 producer가 모두 멈추고 소비자가 준비된 뒤에 정리합니다.
