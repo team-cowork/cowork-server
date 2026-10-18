@@ -377,7 +377,7 @@ export function bindMockupInteractions(scene) {
 	};
 
 	const handleScroll = event => {
-		const scroller = closestElement(event.target, '[data-mock-cards]');
+		const scroller = closestElement(event.target, '[data-mock-scroll]');
 		if (scroller === event.target) {
 			showScrollbar(scroller);
 		}
