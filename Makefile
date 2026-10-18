@@ -10,7 +10,7 @@ bump:
 
 tag:
 	git add VERSION cowork-*/build.gradle.kts cowork-*/package.json cowork-*/pom.xml \
-	        cowork-user/mix.exs \
+	        cowork-user/src/CoworkUser.csproj \
 	        cowork-authorization/cmd/main.go \
 	        cowork-notification/cmd/server/main.go \
 	        cowork-voice/cmd/server/main.go

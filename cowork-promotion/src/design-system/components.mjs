@@ -17,7 +17,7 @@ export function renderBadge(label, {variant = '', color} = {}) {
 export function renderAvatar(member, {profile = false} = {}) {
 	const size = profile ? 44 : 32;
 	const github = escapeHtml(member.github);
-	return `<img class="ui-avatar${profile ? ' ui-avatar--profile' : ''}" src="https://github.com/${github}.png?size=${profile ? 96 : 64}" alt="" width="${size}" height="${size}" loading="lazy" decoding="async" />`;
+	return `<img class="ui-avatar${profile ? ' ui-avatar--profile' : ''}" src="https://avatars.githubusercontent.com/${github}?s=${profile ? 96 : 64}" alt="" width="${size}" height="${size}" loading="lazy" decoding="async" />`;
 }
 
 export function renderMemberCard(member, {profile = false, duplicate = false} = {}) {
@@ -61,7 +61,7 @@ function renderExternalLinkIcon() {
 export function renderRepositoryCard(repository) {
 	const name = escapeHtml(repository.name);
 	const url = `https://github.com/team-cowork/${name}`;
-	return `<a class="ui-card ui-card--interactive repo-card${repository.centered ? ' repo-card--centered' : ''}" href="${url}" rel="noopener noreferrer" target="_blank">
+	return `<a class="ui-card ui-card--interactive repo-card" href="${url}" rel="noopener noreferrer" target="_blank">
       <div class="repo-card__header"><div class="repo-card__icon">${renderRepositoryIcon()}</div>${renderBadge(repository.label)}</div>
       <h3 class="repo-card__title">${name}</h3>
       <p class="repo-card__description">${escapeHtml(repository.description)}</p>

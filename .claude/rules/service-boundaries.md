@@ -1,7 +1,7 @@
 ---
 paths:
   - "cowork-*/{src,internal}/**"
-  - "cowork-user/lib/**"
+  - "cowork-user/src/**"
 ---
 
 # Service Boundaries
