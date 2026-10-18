@@ -147,7 +147,10 @@
     .repo-card {
         grid-column: span 2 / span 2;
     }
-    .repo-card--centered {
+    .repo-card:last-child:nth-child(3n+1) {
+        grid-column-start: 3;
+    }
+    .repo-card:nth-last-child(2):nth-child(3n+1) {
         grid-column-start: 2;
     }
 }
