@@ -174,8 +174,8 @@ public static class IdentityCommand
         App.TransactionAsync(async (connection, transaction) =>
         {
             var commandHash = Hash(IdentityCommandContract.CanonicalPayload(command));
-            var inbox = (await connection.QueryAsync<(string OperationId, string IdempotencyKey, long UserId, string CommandHash, string ResultPayload)>("""
-                SELECT operation_id, idempotency_key, user_id, command_hash, CAST(result_payload AS CHAR)
+            var inbox = (await connection.QueryAsync<(string OperationId, string IdempotencyKey, long UserId, string CommandHash, long HashVersion, string ResultPayload)>("""
+                SELECT operation_id, idempotency_key, user_id, command_hash, CAST(hash_version AS SIGNED), CAST(result_payload AS CHAR)
                 FROM tb_user_identity_command_inbox
                 WHERE operation_id = @OperationId OR idempotency_key = @IdempotencyKey
                 ORDER BY operation_id
@@ -186,8 +186,11 @@ public static class IdentityCommand
             if (inbox.Count == 1)
             {
                 var stored = inbox[0];
+                // Rows written under hash version 1 (the previous runtime's serialization) cannot be recomputed, so a
+                // retry of one is matched by its ids. Drop this once no version 1 rows remain.
+                var hashComparable = stored.HashVersion == IdentityCommandContract.HashVersion;
                 if (stored.OperationId != command.OperationId || stored.IdempotencyKey != command.IdempotencyKey
-                    || stored.UserId != command.UserId || stored.CommandHash != commandHash)
+                    || stored.UserId != command.UserId || (hashComparable && stored.CommandHash != commandHash))
                     throw new ConflictingReuse();
                 await EnqueueResultAsync(connection, transaction, resultTopic, stored.OperationId, stored.ResultPayload);
                 return 0;
@@ -201,9 +204,13 @@ public static class IdentityCommand
 
             await connection.ExecuteAsync("""
                 INSERT INTO tb_user_identity_command_inbox
-                    (operation_id, idempotency_key, user_id, command_hash, result_status, result_payload, result_hash, processed_at)
-                VALUES (@OperationId, @IdempotencyKey, @UserId, @commandHash, @status, @payload, @resultHash, @processedAt)
-                """, new { command.OperationId, command.IdempotencyKey, command.UserId, commandHash, status, payload, resultHash = Hash(payload), processedAt = Iso8601.UtcNow() }, transaction);
+                    (operation_id, idempotency_key, user_id, command_hash, hash_version, result_status, result_payload, result_hash, processed_at)
+                VALUES (@OperationId, @IdempotencyKey, @UserId, @commandHash, @hashVersion, @status, @payload, @resultHash, @processedAt)
+                """, new
+            {
+                command.OperationId, command.IdempotencyKey, command.UserId, commandHash, hashVersion = IdentityCommandContract.HashVersion,
+                status, payload, resultHash = Hash(payload), processedAt = Iso8601.UtcNow(),
+            }, transaction);
             await EnqueueResultAsync(connection, transaction, resultTopic, command.OperationId, payload);
             return 0;
         });

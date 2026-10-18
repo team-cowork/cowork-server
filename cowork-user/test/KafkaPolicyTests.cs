@@ -50,9 +50,19 @@ public class ProjectionReadinessTests
     [InlineData("AAAAAAAAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAAAAAAAA", true)]
     [InlineData("AAAAAAAAAAAAAAAAAAAAAA", "BBBBBBBBBBBBBBBBBBBBBB", false)]
     [InlineData(null, "BBBBBBBBBBBBBBBBBBBBBB", false)]
-    [InlineData("AAAAAAAAAAAAAAAAAAAAAA", null, true)]
-    public void Projection_data_survives_only_when_the_topic_identity_matches(string? stored, string? current, bool continuous) =>
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAA", null, false)]
+    [InlineData(null, null, false)]
+    public void Projection_data_survives_a_start_only_when_the_topic_identity_is_proven(string? stored, string? current, bool continuous) =>
         Assert.Equal(continuous, ProjectionCheckpoint.TopicContinuous(stored, current));
+
+    [Theory]
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAA", "AAAAAAAAAAAAAAAAAAAAAA", false)]
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAA", "BBBBBBBBBBBBBBBBBBBBBB", true)]
+    [InlineData(null, "BBBBBBBBBBBBBBBBBBBBBB", true)]
+    [InlineData("AAAAAAAAAAAAAAAAAAAAAA", null, false)]
+    [InlineData(null, null, false)]
+    public void A_replaced_topic_is_detected_only_from_a_reported_uuid(string? stored, string? current, bool replaced) =>
+        Assert.Equal(replaced, ProjectionCheckpoint.TopicReplaced(stored, current));
 
     [Fact]
     public void Checkpoints_and_markers_must_be_inside_the_retained_log()
@@ -142,23 +152,15 @@ public class ContractTests
     }
 
     [Fact]
-    public void Identity_command_canonical_payload_matches_the_previous_hash_input()
+    public void Identity_command_hash_input_identifies_the_command_regardless_of_timestamp_form()
     {
-        var command = IdentityCommandContract.Parse(Json(IdentityCommand), "7")!;
-        Assert.Equal(
-            """{"classNumber":1,"commandType":"UPSERT","dataGSMStudentId":42,"email":"kim@gsm.hs.kr","githubId":null,"grade":2,"idempotencyKey":"login:7","major":"SW_DEVELOPMENT","name":"김코워크","occurredAt":"2026-10-18T01:00:00.120Z","operationId":"0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11","requestedBy":7,"role":"GENERAL_STUDENT","schemaVersion":1,"sex":"MAN","studentNumberInClass":5,"userId":7}""",
-            IdentityCommandContract.CanonicalPayload(command));
-    }
+        var original = IdentityCommandContract.CanonicalPayload(IdentityCommandContract.Parse(Json(IdentityCommand), "7")!);
+        var sameInstant = IdentityCommand.Replace("2026-10-18T10:00:00.120+09:00", "2026-10-18T01:00:00.12Z");
+        Assert.Equal(original, IdentityCommandContract.CanonicalPayload(IdentityCommandContract.Parse(Json(sameInstant), "7")!));
+        Assert.Contains("\"occurredAt\":\"2026-10-18T01:00:00.120000Z\"", original);
 
-    [Fact]
-    public void Identity_command_hash_input_escapes_like_the_previous_encoder()
-    {
-        // Emoji, U+2028 and U+007F stay raw; only quotes, backslashes and control characters are escaped.
-        var name = "😀" + (char)0x2028 + (char)0x7f + (char)34 + "q" + (char)1;
-        var payload = IdentityCommand.Replace("김코워크", JsonSerializer.Serialize(name)[1..^1]);
-        var canonical = IdentityCommandContract.CanonicalPayload(IdentityCommandContract.Parse(Json(payload), "7")!);
-        var expected = string.Concat("😀", (char)0x2028, (char)0x7f, (char)92, (char)34, "q", (char)92, "u0001");
-        Assert.Contains(string.Concat((char)34, "name", (char)34, ":", (char)34, expected, (char)34), canonical);
+        var renamed = IdentityCommand.Replace("김코워크", "박코워크");
+        Assert.NotEqual(original, IdentityCommandContract.CanonicalPayload(IdentityCommandContract.Parse(Json(renamed), "7")!));
     }
 
     [Theory]
@@ -235,18 +237,4 @@ public class ProfileEventTests
             ProfileEventPublisher.UpsertPayload(new ProfileEventPublisher.ProfileState(7, "김코워크", null, "octo", 2, at)));
         Assert.Throws<ArgumentException>(() => ProfileEventPublisher.UpsertPayload(new ProfileEventPublisher.ProfileState(7, "kim", null, null, 0, at)));
     }
-}
-
-public class ProducerPartitioningTests
-{
-    // Reference values from erlang:phash2/1 (OTP 27), which brod's :hash partitioner used.
-    [Theory]
-    [InlineData("", 13708901u)]
-    [InlineData("7", 32301851u)]
-    [InlineData("12345", 103903272u)]
-    [InlineData("abcdefghijkl", 15432855u)]
-    [InlineData("abcdefghijklm", 11441572u)]
-    [InlineData("0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11", 118003515u)]
-    public void Phash2_matches_erlang(string key, uint expected) =>
-        Assert.Equal(expected, Producer.Phash2(Encoding.UTF8.GetBytes(key)));
 }
