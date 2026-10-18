@@ -778,7 +778,7 @@
   .kanban-card,
   .meet-tile,
   .search-result,
-  .mock-camera-feed,
+  .mock-camera-feed:not([hidden]),
   .mock-camera-flash,
   .mock-typing-dots > span,
   .mock-live-dot {
