@@ -1,6 +1,6 @@
 # 외부 I/O와 DB transaction 경계 분리
 
-- **서비스**: cowork-project, cowork-channel, GitHub App, OAuth provider, Kafka
+- **서비스**: cowork-project, cowork-channel, cowork-github, OAuth provider, Kafka
 - **우선순위**: 🟠 중간
 - **현재 상태**: project의 외부 대기 분리와 channel OAuth 저장 시점 재인가가 남아 있다.
 
@@ -11,11 +11,11 @@ channel OAuth는 외부 호출을 분리했지만 최초 권한 확인 이후 �
 
 ## 경계 정책
 
-| 단계 | 처리 |
-|---|---|
-| 권한·repo 정보 조회 | 짧은 read transaction에서 불변 값으로 반환한다. |
-| 외부 HTTP | transaction 밖에서 실제 timeout을 적용한다. |
-| 상태·command 기록 | 짧은 write transaction과 outbox·재처리 정책으로 관리한다. |
+| 단계                | 처리                                                      |
+|---------------------|-----------------------------------------------------------|
+| 권한·repo 정보 조회 | 짧은 read transaction에서 불변 값으로 반환한다.           |
+| 외부 HTTP           | transaction 밖에서 실제 timeout을 적용한다.               |
+| 상태·command 기록   | 짧은 write transaction과 outbox·재처리 정책으로 관리한다. |
 
 ## 할 일
 
