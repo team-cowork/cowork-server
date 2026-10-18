@@ -3,6 +3,7 @@ import {createStore} from '../core/store.js';
 import {showcaseCounter} from '../core/showcase-state.js';
 import {loadStates} from '../data/load-states.js';
 import {window} from '../core/browser.js';
+import {preloadSceneImages} from '../core/preload.js';
 
 function updateDots(buttons, index, {activeColor, activeWidth, inactiveColor}) {
 	for (const [buttonIndex, button] of buttons.entries()) {
@@ -82,6 +83,7 @@ export function createStickyShowcase({
 	async function mount() {
 		const states = await loadStates(statesUrl);
 		store.setState({states});
+		preloadSceneImages(states);
 		unsubscribe = store.subscribe(render);
 
 		for (const [index, button] of dots.entries()) {
