@@ -54,7 +54,7 @@ public static class Json
 
     public static string Encode(object value) => JsonSerializer.Serialize(value, Event);
 
-    /// <summary>Parses a JSON object payload; null for invalid JSON or a non-object document.</summary>
+    /// <summary>Parses a JSON object payload; null for invalid JSON, undecodable strings or a non-object document.</summary>
     public static JsonElement? ParseObject(byte[]? bytes, out string? error)
     {
         error = null;
@@ -66,14 +66,44 @@ public static class Json
         try
         {
             using var document = JsonDocument.Parse(bytes);
-            if (document.RootElement.ValueKind == JsonValueKind.Object) return document.RootElement.Clone();
-            error = ":unexpected_payload";
-            return null;
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                error = ":unexpected_payload";
+                return null;
+            }
+            RequireDecodableStrings(document.RootElement);
+            return document.RootElement.Clone();
         }
         catch (JsonException exception)
         {
             error = $"{{:invalid_json, {exception.BytePositionInLine}}}";
             return null;
+        }
+        catch (InvalidOperationException)
+        {
+            // Invalid UTF-8 or a lone surrogate escape passes the parser and only fails when the string is read.
+            error = ":invalid_string";
+            return null;
+        }
+    }
+
+    internal static void RequireDecodableStrings(JsonElement element)
+    {
+        switch (element.ValueKind)
+        {
+            case JsonValueKind.String:
+                element.GetString();
+                break;
+            case JsonValueKind.Array:
+                foreach (var item in element.EnumerateArray()) RequireDecodableStrings(item);
+                break;
+            case JsonValueKind.Object:
+                foreach (var property in element.EnumerateObject())
+                {
+                    _ = property.Name;
+                    RequireDecodableStrings(property.Value);
+                }
+                break;
         }
     }
 
@@ -127,8 +157,11 @@ public static partial class Iso8601
             {
                 var digits = zone[1..].Replace(":", "");
                 if (zone == "-00:00" || zone == "-0000" || zone == "-00") return false;
-                offset = new TimeSpan(int.Parse(digits[..2], CultureInfo.InvariantCulture),
-                    digits.Length > 2 ? int.Parse(digits[2..], CultureInfo.InvariantCulture) : 0, 0);
+                var hours = int.Parse(digits[..2], CultureInfo.InvariantCulture);
+                var minutes = digits.Length > 2 ? int.Parse(digits[2..], CultureInfo.InvariantCulture) : 0;
+                // TimeSpan normalizes +99:99, so the zone range is checked here like Elixir does.
+                if (hours > 23 || minutes > 59) return false;
+                offset = new TimeSpan(hours, minutes, 0);
                 if (zone[0] == '-') offset = -offset;
             }
             utc = DateTime.SpecifyKind(local - offset, DateTimeKind.Utc);
