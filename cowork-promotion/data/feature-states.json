@@ -45,23 +45,23 @@
   },
   {
     "color": "#f97316",
-    "label": "Notification",
-    "title": "실시간 알림",
-    "description": "팀에서 일어나는 변화를 놓치지 않도록 바로 알려 줍니다. 어디에 있든 팀의 흐름을 따라갑니다.",
+    "label": "Tracking",
+    "title": "진행 상황 추적",
+    "description": "태스크와 코드, 회의에서 일어나는 변화를 한곳에서 따라갑니다. 중요한 순간은 알림으로 바로 받습니다.",
     "tags": [
-      "Notification",
-      "Push"
+      "Tracking",
+      "Notification"
     ],
     "mockup": "activity"
   },
   {
     "color": "#0ea5e9",
     "label": "Search",
-    "title": "검색",
-    "description": "쌓여 가는 대화 속에서 필요한 정보를 빠르게 찾습니다. 지난 논의도 언제든 다시 꺼내 봅니다.",
+    "title": "워크스페이스 탐색",
+    "description": "팀의 모든 채널을 가로질러 대화와 파일을 한 번에 찾습니다. 채널, 작성자, 첨부 여부로 원하는 결과만 좁혀 봅니다.",
     "tags": [
       "Search",
-      "Message"
+      "Filter"
     ],
     "mockup": "search"
   }
