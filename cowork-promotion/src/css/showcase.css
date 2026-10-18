@@ -619,6 +619,32 @@
 [data-read="true"] .mock-unread-dot {
     visibility: hidden;
 }
+.mock-recent-label {
+    color: rgb(var(--palette-gray-400));
+    font-size: 8px;
+    font-weight: 600;
+}
+.mock-recent-query {
+    color: rgb(var(--palette-gray-500));
+    font-size: 9px;
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: rgb(var(--palette-gray-200));
+    text-underline-offset: 2px;
+    transition: color 0.2s ease;
+}
+.mock-recent-query:hover {
+    color: rgb(var(--ui-accent-rgb));
+}
+.mock-search-results {
+    min-height: 0;
+}
+.mock-highlight {
+    padding: 0 1px;
+    border-radius: 2px;
+    background-color: rgb(var(--ui-accent-rgb) / 0.18);
+    color: inherit;
+}
 [data-mock-timer] {
     font-variant-numeric: tabular-nums;
 }
@@ -730,18 +756,18 @@
   }
 }
 .search-result {
-  animation: search-focus 3s ease-in-out infinite;
+  animation: search-focus 0.6s ease-out both;
 }
 @keyframes search-focus {
-  0%,
-  30% {
+  from {
     opacity: 0;
     filter: blur(4px);
+    transform: translateY(4px);
   }
-  50%,
   to {
     opacity: 1;
     filter: blur(0);
+    transform: translateY(0);
   }
 }
 @media (prefers-reduced-motion: reduce) {
