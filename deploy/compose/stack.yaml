@@ -105,7 +105,7 @@ services:
         user.identity.command
         user.identity.command-result
         user.identity.command-result-dlt
-        user.profile.event
+        user.profile.event.v2
         user.presence.event
         team.lifecycle
         team.lifecycle-dlt
@@ -161,7 +161,7 @@ services:
         github.issue-write.result.v1
         github.issue-write.result.v1-dlt
       KAFKA_COMPACTED_TOPICS: >-
-        user.profile.event
+        user.profile.event.v2
         user.presence.event
         team.lifecycle
         team.member.event
