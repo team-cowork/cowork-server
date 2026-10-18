@@ -4,7 +4,7 @@ const imageSourcePattern = /<img[^>]+src="(?<source>[^"]+)"/gv;
 const preloadedImages = [];
 
 function imageSources(html) {
-	return html.matchAll(imageSourcePattern).map(match => match.groups.source.replaceAll('&amp;', '&')).toArray();
+	return Array.from(html.matchAll(imageSourcePattern), match => match.groups.source.replaceAll('&amp;', '&'));
 }
 
 export function preloadSceneImages(states) {
