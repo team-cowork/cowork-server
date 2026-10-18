@@ -18,13 +18,6 @@
     "graphHeight": 190
   },
   {
-    "name": "cowork-github-app",
-    "label": "GitHub App",
-    "description": "GitHub 저장소와의 협업 연동 앱",
-    "graphHeight": 215,
-    "centered": true
-  },
-  {
     "name": "cowork-mobile-app-client",
     "label": "Mobile",
     "description": "모바일 환경의 협업 클라이언트",
