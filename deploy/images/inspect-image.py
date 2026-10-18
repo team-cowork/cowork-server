@@ -43,7 +43,7 @@ def main():
             or not all(isinstance(part, str) for part in command)):
         raise ValueError("The image must declare an executable ENTRYPOINT or CMD")
     # Runtime files and migrations belong to Dockerfile packaging assertions. The
-    # slot does not know whether a command starts BEAM, Java, Go, or Node.
+    # slot does not know whether a command starts .NET, Java, Go, or Node.
     print(f"{service}: platform, non-root identity and command valid (application not started)")
 
 

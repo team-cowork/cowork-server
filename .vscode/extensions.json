@@ -6,7 +6,7 @@
     "vscjava.vscode-gradle",
     "redhat.vscode-yaml",
     "golang.go",
-    "JakeBecker.elixir-ls",
+    "ms-dotnettools.csharp",
     "vscjava.vscode-java-pack"
   ],
   "unwantedRecommendations": []

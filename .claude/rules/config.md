@@ -5,7 +5,7 @@ paths:
   - "cowork-*/internal/{config,controlplane}/**"
   - "cowork-chat/src/common/config/**"
   - "cowork-preference/src/main/kotlin/com/cowork/preference/{config/**,CoworkPreferenceMain.kt,ControlPlaneAuthentication.kt}"
-  - "cowork-user/{config/**,lib/cowork_user/app_config.ex,lib/cowork_user/control_plane.ex}"
+  - "cowork-user/src/AppConfig.cs"
   - "deploy/{config/vault/**,local/services/**,compose/**,prod/slots/**,prod/slots.py,prod/configuration.json,prod/config/**,prod/cd/github-settings.py}"
 ---
 
