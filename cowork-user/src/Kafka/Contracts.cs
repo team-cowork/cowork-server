@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
 
 namespace CoworkUser.Kafka;
@@ -85,7 +84,7 @@ public static class IdentityCommandContract
     public sealed record Command(
         string OperationId, string IdempotencyKey, long UserId, string Name, string Email, string Sex,
         long? Grade, long? ClassNumber, long? StudentNumberInClass, string Major, string Role, string? GithubId,
-        long? DatagsmStudentId, long RequestedBy, DateTime OccurredAt, int OccurredAtPrecision);
+        long? DatagsmStudentId, long RequestedBy, DateTime OccurredAt);
 
     public static Command? Parse(JsonElement payload, string? key)
     {
@@ -110,14 +109,14 @@ public static class IdentityCommandContract
             || !ContractFields.OptionalInteger(payload.Get("studentNumberInClass"))
             || !ContractFields.OptionalString(payload.Get("githubId"), 100)
             || !(payload.Get("dataGSMStudentId") is null or { ValueKind: JsonValueKind.Null } || payload.Get("dataGSMStudentId").Integer() is > 0)
-            || !Iso8601.TryParse(payload.GetString("occurredAt"), out var occurredAt, out var precision))
+            || !Iso8601.TryParse(payload.GetString("occurredAt"), out var occurredAt, out _))
             return null;
 
         return new Command(operationId, idempotencyKey, userId.Value,
             payload.GetString("name")!, payload.GetString("email")!, payload.GetString("sex")!,
             payload.Get("grade").Integer(), payload.Get("classNumber").Integer(), payload.Get("studentNumberInClass").Integer(),
             payload.GetString("major")!, payload.GetString("role")!, payload.GetString("githubId"),
-            payload.Get("dataGSMStudentId").Integer(), userId.Value, occurredAt, precision);
+            payload.Get("dataGSMStudentId").Integer(), userId.Value, occurredAt);
     }
 
     /// <summary>A canonical lowercase UUID operationId usable for result correlation.</summary>
@@ -126,11 +125,14 @@ public static class IdentityCommandContract
     static string? Uuid(JsonElement? value) =>
         ContractFields.String(value) is { } text && Guid.TryParseExact(text, "D", out var guid) && guid.ToString("D") == text ? text : null;
 
+    /// <summary>Version of the hash rule below; inbox rows record it so a rule change never invalidates stored hashes.</summary>
+    public const int HashVersion = 2;
+
     /// <summary>
-    /// The command as the previous runtime hashed it: compact JSON with keys in byte order, so stored
-    /// inbox hashes keep matching replays of the same command.
+    /// The command as hashed since <see cref="HashVersion"/> 2: compact JSON with keys in byte order and the
+    /// timestamp normalized to microseconds, so equal commands hash equally whatever their textual form.
     /// </summary>
-    public static string CanonicalPayload(Command command) => JasonEncode(new SortedDictionary<string, object?>(StringComparer.Ordinal)
+    public static string CanonicalPayload(Command command) => JsonSerializer.Serialize(new SortedDictionary<string, object?>(StringComparer.Ordinal)
     {
         ["schemaVersion"] = 1,
         ["operationId"] = command.OperationId,
@@ -148,49 +150,8 @@ public static class IdentityCommandContract
         ["githubId"] = command.GithubId,
         ["dataGSMStudentId"] = command.DatagsmStudentId,
         ["requestedBy"] = command.RequestedBy,
-        ["occurredAt"] = Iso8601.Format(command.OccurredAt, command.OccurredAtPrecision),
-    });
-
-    // Jason escapes only quotes, backslashes and control characters; System.Text.Json also escapes
-    // non-BMP and other characters, which would change the hash.
-    static string JasonEncode(SortedDictionary<string, object?> fields)
-    {
-        var json = new StringBuilder("{");
-        foreach (var (key, value) in fields)
-        {
-            if (json.Length > 1) json.Append(',');
-            JasonString(json, key);
-            json.Append(':');
-            switch (value)
-            {
-                case null: json.Append("null"); break;
-                case string text: JasonString(json, text); break;
-                default: json.Append(Convert.ToString(value, CultureInfo.InvariantCulture)); break;
-            }
-        }
-        return json.Append('}').ToString();
-    }
-
-    static void JasonString(StringBuilder json, string text)
-    {
-        json.Append('"');
-        foreach (var c in text)
-        {
-            json.Append(c switch
-            {
-                '"' => "\\\"",
-                '\\' => "\\\\",
-                '\b' => "\\b",
-                '\t' => "\\t",
-                '\n' => "\\n",
-                '\f' => "\\f",
-                '\r' => "\\r",
-                < ' ' => $"\\u{(int)c:X4}",
-                _ => c.ToString(),
-            });
-        }
-        json.Append('"');
-    }
+        ["occurredAt"] = Iso8601.Format(command.OccurredAt),
+    }, Json.Event);
 }
 
 public static class ProjectionBarrier

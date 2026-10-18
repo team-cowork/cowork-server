@@ -62,10 +62,16 @@ public static class ProjectionCheckpoint
         });
 
     /// <summary>
-    /// The stored projection continues the current topic only when both UUIDs are known and equal. A broker that
-    /// reports no UUID gives nothing to compare, so the stored data is kept; a missing stored UUID proves nothing.
+    /// Startup proof of continuity: the stored projection continues the current topic only when both UUIDs are
+    /// known and equal. A broker that reports no UUID, or a missing stored UUID, proves nothing and forces a rebuild.
     /// </summary>
-    internal static bool TopicContinuous(string? stored, string? current) => current is null || stored == current;
+    internal static bool TopicContinuous(string? stored, string? current) => current is not null && stored == current;
+
+    /// <summary>
+    /// Runtime detection of a replaced topic: the broker reports a UUID that differs from the stored one. Without a
+    /// reported UUID there is nothing to detect, so a broker that never reports one cannot loop the replay.
+    /// </summary>
+    internal static bool TopicReplaced(string? stored, string? current) => current is not null && stored != current;
 
     public static async Task<string?> LoadTopicIdAsync(string group, string topic)
     {
