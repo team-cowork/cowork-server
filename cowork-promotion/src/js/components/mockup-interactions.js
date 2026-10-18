@@ -2,6 +2,17 @@ import {window} from '../core/browser.js';
 
 const maxTimerSeconds = (99 * 60) + 59;
 const springEasing = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
+const maxChatMessages = 3;
+const typingStartDelay = 300;
+const replyDelay = 1700;
+const draftReadyDelay = 1950;
+const draftMessages = ['좋아요, 저는 리뷰 맡을게요', '회의록은 채널에 공유해 둘게요', '오늘 안에 PR 올리겠습니다'];
+const chatReplies = [
+	{name: 'Emma', avatar: 'https://i.pravatar.cc/80?img=5', text: '좋아요! 같이 봐요'},
+	{name: 'Liam', avatar: 'https://i.pravatar.cc/80?img=33', text: '확인했습니다 👍'},
+	{name: 'John', avatar: 'https://i.pravatar.cc/80?img=12', text: '고마워요, 진행해 주세요'},
+];
+const pendingTimers = new Set();
 
 const toggleValues = {
 	call: ['joined', 'left'],
@@ -79,6 +90,106 @@ async function toggleCall(button, mockup) {
 	delete mockup.dataset.animating;
 }
 
+function later(delay, callback) {
+	const timer = window.setTimeout(() => {
+		pendingTimers.delete(timer);
+		callback();
+	}, delay);
+	pendingTimers.add(timer);
+}
+
+function popIn(element) {
+	if (prefersReducedMotion()) {
+		return;
+	}
+
+	element.animate(
+		[{opacity: 0, transform: 'translateY(8px) scale(0.96)'}, {opacity: 1, transform: 'none'}],
+		{duration: 420, easing: springEasing},
+	);
+}
+
+function setField(row, field, value) {
+	const element = [...row.querySelectorAll('[data-mock-field]')].find(candidate => candidate.dataset.mockField === field);
+	element.textContent = value;
+}
+
+function appendMessage(mockup, fill) {
+	const list = mockup.querySelector('[data-mock-messages]');
+	const row = mockup.querySelector('[data-mock-template="message"]').content.firstElementChild.cloneNode(true);
+	fill(row);
+	const change = () => {
+		list.append(row);
+		while (list.children.length > maxChatMessages) {
+			list.firstElementChild.remove();
+		}
+	};
+
+	if (prefersReducedMotion()) {
+		change();
+	} else {
+		animateLayout(list, change);
+	}
+
+	popIn(row);
+}
+
+function typeDraft(draft, text) {
+	if (prefersReducedMotion()) {
+		draft.textContent = text;
+		return;
+	}
+
+	const characters = [...text];
+	const interval = (draftReadyDelay - typingStartDelay) / characters.length;
+	draft.textContent = '';
+	for (const index of characters.keys()) {
+		later(typingStartDelay + ((index + 1) * interval), () => {
+			draft.textContent = characters.slice(0, index + 1).join('');
+		});
+	}
+}
+
+function sendMessage(button, mockup) {
+	if (mockup.dataset.replying === 'true') {
+		return;
+	}
+
+	const draft = mockup.querySelector('[data-mock-draft]');
+	const typing = mockup.querySelector('[data-mock-typing]');
+	const turn = Number(mockup.dataset.turn ?? 0);
+	const reply = chatReplies[turn % chatReplies.length];
+	const text = draft.textContent;
+	appendMessage(mockup, row => setField(row, 'text', text));
+	mockup.dataset.turn = String(turn + 1);
+	mockup.dataset.replying = 'true';
+	typeDraft(draft, draftMessages[(turn + 1) % draftMessages.length]);
+
+	later(500, () => {
+		typing.querySelector('[data-mock-typing-label]').textContent = `${reply.name} 님이 입력 중`;
+		typing.hidden = false;
+	});
+	later(replyDelay, () => {
+		typing.hidden = true;
+		appendMessage(mockup, row => {
+			setField(row, 'name', reply.name);
+			setField(row, 'text', reply.text);
+			row.querySelector('img').src = reply.avatar;
+		});
+	});
+	later(draftReadyDelay, () => {
+		delete mockup.dataset.replying;
+	});
+}
+
+function toggleReaction(row) {
+	const reaction = row.querySelector('[data-mock-reaction]');
+	reaction.hidden = !reaction.hidden;
+	if (!reaction.hidden) {
+		popIn(reaction);
+	}
+}
+
 function advanceCard(card, mockup) {
 	const columns = [...mockup.querySelectorAll('[data-mock-column]')];
 	const current = card.closest('[data-mock-column]');
@@ -115,7 +226,9 @@ function filterResults(chip, mockup) {
 const actions = {
 	'advance-card': advanceCard,
 	'filter-results': filterResults,
+	react: toggleReaction,
 	'read-notification': readNotification,
+	'send-message': sendMessage,
 	'toggle-call': toggleCall,
 	toggle: (target, mockup) => toggleState(mockup, target.dataset.mockKey),
 };
@@ -161,6 +274,11 @@ export function bindMockupInteractions(scene) {
 	scene.addEventListener('dragstart', handleDragStart);
 	return () => {
 		window.clearInterval(timer);
+		for (const pending of pendingTimers) {
+			window.clearTimeout(pending);
+		}
+
+		pendingTimers.clear();
 		scene.removeEventListener('click', handleClick);
 		scene.removeEventListener('dragstart', handleDragStart);
 	};
