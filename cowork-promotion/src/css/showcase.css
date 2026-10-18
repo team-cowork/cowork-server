@@ -526,6 +526,99 @@
     background-color: rgb(var(--palette-gray-100));
     color: rgb(var(--palette-gray-700));
 }
+.mock-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: #10b981;
+    font-size: 9px;
+    font-weight: 700;
+}
+.mock-live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-full);
+    background-color: currentColor;
+    animation: mock-live-pulse 1.6s ease-in-out infinite;
+}
+@keyframes mock-live-pulse {
+    0%,
+    to {
+        box-shadow: 0 0 0 0 rgb(16 185 129 / 0.5);
+    }
+    70% {
+        box-shadow: 0 0 0 5px rgb(16 185 129 / 0);
+    }
+}
+.mock-text-button {
+    color: rgb(var(--palette-gray-400));
+    font-size: 9px;
+    font-weight: 600;
+    transition: color 0.2s ease;
+}
+.mock-text-button:hover {
+    color: rgb(var(--palette-gray-700));
+}
+.mock-feed-filters {
+    padding: var(--space-2-5) var(--space-3) 0;
+}
+.mock-feed {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-height: 0;
+    padding: var(--space-2-5) var(--space-3);
+}
+.mock-feed-item {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: var(--space-2-5);
+    padding: var(--space-2-5);
+    border: 1px solid rgb(var(--palette-gray-100));
+    border-radius: 12px;
+    background-color: rgb(var(--palette-gray-50));
+    transition: opacity 0.3s ease;
+}
+.mock-feed-badge {
+    position: absolute;
+    right: -2px;
+    bottom: -2px;
+    display: flex;
+    width: 16px;
+    height: 16px;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-full);
+    box-shadow: 0 0 0 2px white;
+}
+.mock-feed-badge svg {
+    display: none;
+}
+[data-type="task"] .mock-feed-badge {
+    background-color: #10b981;
+}
+[data-type="code"] .mock-feed-badge {
+    background-color: #6366f1;
+}
+[data-type="meeting"] .mock-feed-badge {
+    background-color: #f43f5e;
+}
+[data-type="task"] .mock-feed-badge [data-icon="task"],
+[data-type="code"] .mock-feed-badge [data-icon="code"],
+[data-type="meeting"] .mock-feed-badge [data-icon="meeting"] {
+    display: block;
+}
+.mock-unread-dot {
+    width: 6px;
+    height: 6px;
+    flex-shrink: 0;
+    border-radius: var(--radius-full);
+    background-color: rgb(var(--ui-accent-rgb));
+}
+[data-read="true"] .mock-unread-dot {
+    visibility: hidden;
+}
 [data-mock-timer] {
     font-variant-numeric: tabular-nums;
 }
@@ -628,20 +721,6 @@
     opacity: 1;
   }
 }
-.noti-toast {
-  animation: noti-rise 3.2s ease-in-out infinite;
-}
-@keyframes noti-rise {
-  0% {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  25%,
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 .caret {
   animation: blink 1s step-end infinite;
 }
@@ -669,11 +748,11 @@
   .caret,
   .kanban-card,
   .meet-tile,
-  .noti-toast,
   .search-result,
   .mock-camera-feed,
   .mock-camera-flash,
-  .mock-typing-dots > span {
+  .mock-typing-dots > span,
+  .mock-live-dot {
     animation: none;
   }
 }

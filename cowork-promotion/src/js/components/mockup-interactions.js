@@ -13,6 +13,47 @@ const chatReplies = [
 	{name: 'Liam', avatar: 'https://i.pravatar.cc/80?img=33', text: '확인했습니다 👍'},
 	{name: 'John', avatar: 'https://i.pravatar.cc/80?img=12', text: '고마워요, 진행해 주세요'},
 ];
+const maxFeedItems = 6;
+const feedInterval = 4000;
+const feedTypeLabels = {code: '코드', meeting: '회의', task: '태스크'};
+const feedEvents = [
+	{
+		type: 'code',
+		name: 'Olivia',
+		avatar: 'https://i.pravatar.cc/80?img=47',
+		text: '님이 커밋 3개를 푸시했어요',
+	},
+	{
+		type: 'task',
+		name: 'Emma',
+		avatar: 'https://i.pravatar.cc/80?img=5',
+		text: '님이 \'JWT 토큰 갱신\'을 맡았어요',
+	},
+	{
+		type: 'meeting',
+		name: 'Liam',
+		avatar: 'https://i.pravatar.cc/80?img=33',
+		text: '님이 회의록을 공유했어요',
+	},
+	{
+		type: 'code',
+		name: 'John',
+		avatar: 'https://i.pravatar.cc/80?img=12',
+		text: '님이 PR #43 리뷰를 요청했어요',
+	},
+	{
+		type: 'task',
+		name: 'Olivia',
+		avatar: 'https://i.pravatar.cc/80?img=47',
+		text: '님이 \'헬스 체크\'를 완료했어요',
+	},
+	{
+		type: 'meeting',
+		name: 'Emma',
+		avatar: 'https://i.pravatar.cc/80?img=5',
+		text: '님이 스프린트 회고를 예약했어요',
+	},
+];
 const pendingTimers = new Set();
 const scrollTimers = new WeakMap();
 
@@ -339,14 +380,76 @@ function showScrollbar(scroller) {
 	}, 700));
 }
 
+function updateUnread(mockup) {
+	const unread = mockup.querySelectorAll('[data-mock-action="read-notification"]:not([data-read="true"])').length;
+	const badge = mockup.querySelector('[data-mock-unread]');
+	badge.textContent = `새 활동 ${unread}`;
+	badge.hidden = unread === 0;
+}
+
 function readNotification(item, mockup) {
-	if (item.dataset.read === 'true') {
+	item.dataset.read = 'true';
+	updateUnread(mockup);
+}
+
+function readAll(button, mockup) {
+	for (const item of mockup.querySelectorAll('[data-mock-action="read-notification"]')) {
+		item.dataset.read = 'true';
+	}
+
+	updateUnread(mockup);
+}
+
+function isVisibleInFeed(mockup, item) {
+	return mockup.dataset.filter === 'all' || item.dataset.type === mockup.dataset.filter;
+}
+
+function filterFeed(chip, mockup) {
+	for (const other of mockup.querySelectorAll('[data-mock-action="filter-feed"]')) {
+		const isActive = other === chip;
+		other.classList.toggle('mock-active-chip', isActive);
+		other.classList.toggle('mock-muted-chip', !isActive);
+	}
+
+	mockup.dataset.filter = chip.dataset.mockFilter;
+	for (const item of mockup.querySelector('[data-mock-feed]').querySelectorAll(':scope > [data-type]')) {
+		item.hidden = !isVisibleInFeed(mockup, item);
+	}
+}
+
+function pushFeedEvent(mockup) {
+	if (mockup.matches(':hover')) {
 		return;
 	}
 
-	item.dataset.read = 'true';
-	const unread = mockup.querySelectorAll('[data-mock-action="read-notification"]:not([data-read="true"])').length;
-	mockup.querySelector('[data-mock-unread]').textContent = unread > 0 ? `새 알림 ${unread}` : '모두 읽음';
+	const turn = Number(mockup.dataset.turn ?? 0);
+	const event = feedEvents[turn % feedEvents.length];
+	const feed = mockup.querySelector('[data-mock-feed]');
+	const item = mockup.querySelector('[data-mock-template="feed-item"]').content.firstElementChild.cloneNode(true);
+	mockup.dataset.turn = String(turn + 1);
+	item.dataset.type = event.type;
+	item.querySelector('img').src = event.avatar;
+	setField(item, 'name', event.name);
+	setField(item, 'text', event.text);
+	setField(item, 'type', feedTypeLabels[event.type]);
+	item.hidden = !isVisibleInFeed(mockup, item);
+
+	const change = () => {
+		feed.prepend(item);
+		while (feed.children.length > maxFeedItems) {
+			feed.lastElementChild.remove();
+		}
+
+		updateUnread(mockup);
+	};
+
+	if (prefersReducedMotion()) {
+		change();
+		return;
+	}
+
+	animateItems([...feed.children], change);
+	popIn(item);
 }
 
 function filterResults(chip, mockup) {
@@ -366,6 +469,8 @@ const actions = {
 	'filter-results': filterResults,
 	react: toggleReaction,
 	set: applyStates,
+	'filter-feed': filterFeed,
+	'read-all': readAll,
 	'read-notification': readNotification,
 	'send-message': sendMessage,
 	'toggle-call': toggleCall,
@@ -424,12 +529,19 @@ export function bindMockupInteractions(scene) {
 		}
 	}, 1000);
 
+	const feedTimer = window.setInterval(() => {
+		for (const mockup of scene.querySelectorAll('[data-mockup="activity"]')) {
+			pushFeedEvent(mockup);
+		}
+	}, feedInterval);
+
 	scene.addEventListener('click', handleClick);
 	scene.addEventListener('dragstart', handleDragStart);
 	scene.addEventListener('pointerdown', handlePointerDown);
 	scene.addEventListener('scroll', handleScroll, {capture: true});
 	return () => {
 		window.clearInterval(timer);
+		window.clearInterval(feedTimer);
 		for (const pending of pendingTimers) {
 			window.clearTimeout(pending);
 		}
