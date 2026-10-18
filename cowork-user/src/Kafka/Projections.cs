@@ -40,6 +40,17 @@ public static class PresenceProjection
         await ApplyLatestToAccountAsync(connection, transaction, presence.UserId);
     }
 
+    /// <summary>
+    /// Clears the projected presence and the presence copied onto accounts; user-owned status fields
+    /// (custom_status, status_message, status_expires_at) stay.
+    /// </summary>
+    public static async Task ResetAsync(MySqlConnection connection, MySqlTransaction transaction)
+    {
+        await connection.ExecuteAsync("DELETE FROM tb_user_presence_projections", transaction: transaction);
+        await connection.ExecuteAsync(
+            "UPDATE tb_accounts SET status = 'offline', presence_updated_at = '1970-01-01 00:00:00.000000'", transaction: transaction);
+    }
+
     public static Task ApplyLatestToAccountAsync(MySqlConnection connection, MySqlTransaction transaction, long userId) =>
         connection.ExecuteAsync("""
             UPDATE tb_accounts AS account
@@ -75,6 +86,9 @@ public static class TeamMembershipProjection
             throw new InvalidRecord(":invalid_team_name");
         return new MemberEvent(eventType, teamId, userId, role, teamName, EventParser.UtcDateTime(payload, "occurredAt", "occurred_at"));
     }
+
+    public static Task ResetAsync(MySqlConnection connection, MySqlTransaction transaction) =>
+        connection.ExecuteAsync("DELETE FROM tb_team_member_projections", transaction: transaction);
 
     public static Task ApplyAsync(MySqlConnection connection, MySqlTransaction transaction, MemberEvent member) =>
         connection.ExecuteAsync("""
