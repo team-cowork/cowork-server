@@ -1,5 +1,9 @@
 <div class="relative aspect-[4/3] rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.02] p-4 sm:p-5">
-	<div class="absolute inset-4 sm:inset-5 rounded-2xl bg-white text-gray-900 shadow-2xl overflow-hidden flex flex-col" data-mockup="activity" data-filter="all">
+	<div
+		class="absolute inset-4 sm:inset-5 rounded-2xl bg-white text-gray-900 shadow-2xl overflow-hidden flex flex-col"
+		data-filter="all"
+		data-mockup="activity"
+	>
 		<div class="flex items-center justify-between px-4 py-3 border-b border-gray-100">
 			<div class="flex items-center gap-2">
 				<span class="text-xs font-bold">활동</span>
@@ -11,17 +15,54 @@
 			</div>
 			<div class="flex items-center gap-2">
 				<span class="text-[9px] font-bold text-white px-1.5 py-0.5 rounded-full mock-accent-bg" data-mock-unread>새 활동 3</span>
-				<button type="button" tabindex="-1" class="mock-text-button" data-mock-action="read-all">모두 읽음</button>
+				<button
+					type="button"
+					class="mock-text-button"
+					data-mock-action="read-all"
+					tabindex="-1"
+				>모두 읽음</button>
 			</div>
 		</div>
 		<div class="flex items-center gap-1.5 mock-feed-filters">
-			<button type="button" tabindex="-1" class="text-[9px] font-semibold px-2 py-0.5 rounded-full mock-active-chip" data-mock-action="filter-feed" data-mock-filter="all">전체</button>
-			<button type="button" tabindex="-1" class="text-[9px] font-semibold px-2 py-0.5 rounded-full mock-muted-chip" data-mock-action="filter-feed" data-mock-filter="task">태스크</button>
-			<button type="button" tabindex="-1" class="text-[9px] font-semibold px-2 py-0.5 rounded-full mock-muted-chip" data-mock-action="filter-feed" data-mock-filter="code">코드</button>
-			<button type="button" tabindex="-1" class="text-[9px] font-semibold px-2 py-0.5 rounded-full mock-muted-chip" data-mock-action="filter-feed" data-mock-filter="meeting">회의</button>
+			<button
+				type="button"
+				class="text-[9px] font-semibold px-2 py-0.5 rounded-full mock-active-chip"
+				data-mock-action="filter-feed"
+				data-mock-filter="all"
+				tabindex="-1"
+			>전체</button>
+			<button
+				type="button"
+				class="text-[9px] font-semibold px-2 py-0.5 rounded-full mock-muted-chip"
+				data-mock-action="filter-feed"
+				data-mock-filter="task"
+				tabindex="-1"
+			>태스크</button>
+			<button
+				type="button"
+				class="text-[9px] font-semibold px-2 py-0.5 rounded-full mock-muted-chip"
+				data-mock-action="filter-feed"
+				data-mock-filter="code"
+				tabindex="-1"
+			>코드</button>
+			<button
+				type="button"
+				class="text-[9px] font-semibold px-2 py-0.5 rounded-full mock-muted-chip"
+				data-mock-action="filter-feed"
+				data-mock-filter="meeting"
+				tabindex="-1"
+			>회의</button>
 		</div>
-		<div class="flex-1 mock-scroll mock-feed" data-mock-feed data-mock-scroll>
-			<div class="mock-feed-item" data-mock-action="read-notification" data-type="meeting">
+		<div
+			class="flex-1 mock-scroll mock-feed"
+			data-mock-feed
+			data-mock-scroll
+		>
+			<div
+				class="mock-feed-item"
+				data-mock-action="read-notification"
+				data-type="meeting"
+			>
 				<span class="relative shrink-0">
 					<img
 						class="w-8 h-8 rounded-full object-cover bg-gray-100"
@@ -73,7 +114,11 @@
 				<span class="mock-unread-dot">
 				</span>
 			</div>
-			<div class="mock-feed-item" data-mock-action="read-notification" data-type="task">
+			<div
+				class="mock-feed-item"
+				data-mock-action="read-notification"
+				data-type="task"
+			>
 				<span class="relative shrink-0">
 					<img
 						class="w-8 h-8 rounded-full object-cover bg-gray-100"
@@ -125,7 +170,11 @@
 				<span class="mock-unread-dot">
 				</span>
 			</div>
-			<div class="mock-feed-item" data-mock-action="read-notification" data-type="code">
+			<div
+				class="mock-feed-item"
+				data-mock-action="read-notification"
+				data-type="code"
+			>
 				<span class="relative shrink-0">
 					<img
 						class="w-8 h-8 rounded-full object-cover bg-gray-100"
@@ -179,7 +228,11 @@
 			</div>
 		</div>
 		<template data-mock-template="feed-item">
-			<div class="mock-feed-item" data-mock-action="read-notification" data-type="task">
+			<div
+				class="mock-feed-item"
+				data-mock-action="read-notification"
+				data-type="task"
+			>
 				<span class="relative shrink-0">
 					<img
 						class="w-8 h-8 rounded-full object-cover bg-gray-100"
