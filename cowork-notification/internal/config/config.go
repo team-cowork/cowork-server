@@ -45,7 +45,7 @@ func Load() (*AppConfig, error) {
 		KafkaGroupID:                  lookup(flatMap, "kafka.group-id", "cowork-notification"),
 		KafkaProjectionGroupID:        lookup(flatMap, "kafka.projection-group-id", "cowork-notification-projections"),
 		KafkaTopicChannelNotification: lookup(flatMap, "kafka.topics.channel-notification", "preference.channel-notification.changed"),
-		KafkaTopicUserProfile:         lookup(flatMap, "kafka.topics.user-profile", "user.profile.event"),
+		KafkaTopicUserProfile:         lookup(flatMap, "kafka.topics.user-profile", "user.profile.event.v2"),
 		KafkaTopicTeamLifecycle:       lookup(flatMap, "kafka.topics.team-lifecycle", "team.lifecycle"),
 		FCMCredentialsJSON:            lookup(flatMap, "fcm.credentials-json", ""),
 		EurekaServerURL:               lookup(flatMap, "eureka.server-url", "http://localhost:8761/eureka"),
