@@ -42,7 +42,6 @@ export function parseRepositories(source) {
 			label: expectString(repository.label, `repositories[${index}].label`),
 			description: expectString(repository.description, `repositories[${index}].description`),
 			graphHeight: repository.graphHeight,
-			centered: repository.centered === true,
 		};
 	});
 }
