@@ -10,10 +10,10 @@
 
 ## 스택
 
-- Elixir / Plug·Cowboy
-- Mix
-- Ecto / MyXQL / MySQL
-- brod (Kafka) / Redix (Redis) / ExAws S3 / SeaweedFS
+- C# / ASP.NET Core (.NET 10)
+- .NET CLI (`dotnet test cowork-user.slnx`)
+- MySqlConnector · Dapper / MySQL (Flyway 호환 마이그레이션 이력)
+- Confluent.Kafka / StackExchange.Redis / AWS SDK S3 / SeaweedFS
 - Eureka / Config Server
 
 ## 포트
