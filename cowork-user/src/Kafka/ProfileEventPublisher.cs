@@ -3,7 +3,7 @@ using MySqlConnector;
 
 namespace CoworkUser.Kafka;
 
-/// <summary>Writes user.profile.event records and snapshot markers to the transactional outbox.</summary>
+/// <summary>Writes user.profile.event.v2 records and snapshot markers to the transactional outbox.</summary>
 public static class ProfileEventPublisher
 {
     public sealed record ProfileState(long Id, string Name, string? Nickname, string? GithubId, ulong Version, DateTime OccurredAt);
