@@ -198,6 +198,83 @@
         transform: translateY(-3px);
     }
 }
+.mock-progress-track {
+    height: var(--space-1-5);
+    overflow: hidden;
+    border-radius: var(--radius-full);
+    background-color: rgb(var(--palette-gray-100));
+}
+.mock-progress-bar {
+    height: 100%;
+    border-radius: var(--radius-full);
+    transition: width 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.mock-board-columns {
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
+}
+.mock-board-column {
+    min-height: 0;
+}
+.mock-board-cards {
+    position: relative;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--space-2);
+    min-height: 0;
+    overflow-y: auto;
+}
+.mock-board-cards::-webkit-scrollbar {
+    width: 3px;
+}
+.mock-board-cards::-webkit-scrollbar-thumb {
+    border-radius: var(--radius-full);
+    background-color: transparent;
+}
+.mock-board-cards.is-scrolling::-webkit-scrollbar-thumb {
+    background-color: rgb(var(--palette-gray-400) / 0.6);
+}
+@supports not selector(::-webkit-scrollbar) {
+    .mock-board-cards {
+        scrollbar-color: transparent transparent;
+        scrollbar-width: thin;
+    }
+    .mock-board-cards.is-scrolling {
+        scrollbar-color: rgb(var(--palette-gray-400) / 0.6) transparent;
+    }
+}
+.mock-drag-source {
+    opacity: 0.35;
+}
+.feature-mockup [data-mock-card] {
+    cursor: grab;
+}
+.mock-task-footer {
+    margin-top: var(--space-1-5);
+}
+.mock-task-check {
+    display: none;
+    flex-shrink: 0;
+}
+[data-mock-column="done"] .mock-task-check {
+    display: block;
+}
+[data-mock-column="done"] .mock-task-meta {
+    display: none;
+}
+[data-mock-column="done"] .mock-task-title {
+    color: rgb(var(--palette-gray-400));
+    text-decoration: line-through;
+}
+.feature-mockup .mock-dragging {
+    position: absolute;
+    z-index: 10;
+    margin: 0;
+    pointer-events: none;
+    animation: none;
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.18);
+}
 [data-mock-timer] {
     font-variant-numeric: tabular-nums;
 }

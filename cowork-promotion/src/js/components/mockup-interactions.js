@@ -1,8 +1,9 @@
-import {window} from '../core/browser.js';
+import {document, window} from '../core/browser.js';
 
 const maxTimerSeconds = (99 * 60) + 59;
 const springEasing = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
 const maxChatMessages = 3;
+const dragThreshold = 4;
 const typingStartDelay = 300;
 const replyDelay = 1700;
 const draftReadyDelay = 1950;
@@ -13,6 +14,7 @@ const chatReplies = [
 	{name: 'John', avatar: 'https://i.pravatar.cc/80?img=12', text: '고마워요, 진행해 주세요'},
 ];
 const pendingTimers = new Set();
+const scrollTimers = new WeakMap();
 
 const toggleValues = {
 	call: ['joined', 'left'],
@@ -38,8 +40,7 @@ function prefersReducedMotion() {
 	return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 }
 
-function animateLayout(container, change) {
-	const items = [...container.children];
+function animateItems(items, change) {
 	const before = new Map(items.map(item => [item, item.getBoundingClientRect()]));
 	change();
 	for (const item of items) {
@@ -77,10 +78,10 @@ async function toggleCall(button, mockup) {
 			{duration: 340, easing: 'ease-in', fill: 'forwards'},
 		);
 		await exit.finished;
-		animateLayout(grid, change);
+		animateItems([...grid.children], change);
 		exit.cancel();
 	} else {
-		animateLayout(grid, change);
+		animateItems([...grid.children], change);
 		await selfTile.animate(
 			[{transform: 'scale(0.3)', opacity: 0}, {transform: 'scale(1.08)', opacity: 1, offset: 0.7}, {transform: 'scale(1)', opacity: 1}],
 			{duration: 460, easing: 'ease-out'},
@@ -128,7 +129,7 @@ function appendMessage(mockup, fill) {
 	if (prefersReducedMotion()) {
 		change();
 	} else {
-		animateLayout(list, change);
+		animateItems([...list.children], change);
 	}
 
 	popIn(row);
@@ -190,14 +191,124 @@ function toggleReaction(row) {
 	}
 }
 
+function updateBoard(mockup) {
+	const cards = mockup.querySelectorAll('[data-mock-card]');
+	const done = mockup.querySelector('[data-mock-column="done"]').querySelectorAll(':scope [data-mock-card]').length;
+	for (const column of mockup.querySelectorAll('[data-mock-column]')) {
+		column.querySelector('[data-mock-count]').textContent = column.querySelectorAll('[data-mock-card]').length;
+	}
+
+	mockup.querySelector('[data-mock-progress-label]').textContent = `${done} / ${cards.length} 완료`;
+	mockup.querySelector('[data-mock-progress-bar]').style.width = `${Math.round((done / cards.length) * 100)}%`;
+}
+
+function revealInScroller(card) {
+	const scroller = card.parentElement;
+	const bottom = card.offsetTop + card.offsetHeight;
+	if (card.offsetTop < scroller.scrollTop) {
+		scroller.scrollTop = card.offsetTop;
+	} else if (bottom > scroller.scrollTop + scroller.clientHeight) {
+		scroller.scrollTop = bottom - scroller.clientHeight;
+	}
+}
+
+function placeCard(card, mockup, column, before = null) {
+	const change = () => {
+		if (before) {
+			before.before(card);
+		} else {
+			column.querySelector('[data-mock-cards]').append(card);
+		}
+
+		revealInScroller(card);
+		updateBoard(mockup);
+	};
+
+	if (prefersReducedMotion()) {
+		change();
+		return;
+	}
+
+	const others = [...mockup.querySelectorAll('[data-mock-card]')].filter(other => other !== card);
+	animateItems(others, change);
+	popIn(card);
+}
+
 function advanceCard(card, mockup) {
 	const columns = [...mockup.querySelectorAll('[data-mock-column]')];
-	const current = card.closest('[data-mock-column]');
-	const next = columns[(columns.indexOf(current) + 1) % columns.length];
-	next.append(card);
-	for (const column of columns) {
-		column.querySelector('[data-mock-count]').textContent = column.querySelectorAll('[data-mock-action="advance-card"]').length;
-	}
+	const next = columns[(columns.indexOf(card.closest('[data-mock-column]')) + 1) % columns.length];
+	placeCard(card, mockup, next);
+}
+
+function dropCard(card, ghost, mockup, {clientX, clientY}) {
+	const target = closestElement(document.elementFromPoint(clientX, clientY) ?? mockup, '[data-mock-column]');
+	const column = target && mockup.contains(target) ? target : card.closest('[data-mock-column]');
+	const before = [...column.querySelectorAll('[data-mock-card]')].find(other => {
+		const rect = other.getBoundingClientRect();
+		return other !== card && rect.top + (rect.height / 2) > clientY;
+	});
+	ghost.remove();
+	card.classList.remove('mock-drag-source');
+	placeCard(card, mockup, column, before ?? null);
+}
+
+function createGhost(card, mockup) {
+	const cardRect = card.getBoundingClientRect();
+	const mockupRect = mockup.getBoundingClientRect();
+	const ghost = card.cloneNode(true);
+	delete ghost.dataset.mockCard;
+	ghost.classList.add('mock-dragging');
+	ghost.style.left = `${cardRect.left - mockupRect.left}px`;
+	ghost.style.top = `${cardRect.top - mockupRect.top}px`;
+	ghost.style.width = `${cardRect.width}px`;
+	mockup.append(ghost);
+	return ghost;
+}
+
+function startCardGesture(event, card, mockup) {
+	const startX = event.clientX;
+	const startY = event.clientY;
+	const canDrag = event.pointerType !== 'touch';
+	let ghost;
+
+	const handleMove = moveEvent => {
+		const deltaX = moveEvent.clientX - startX;
+		const deltaY = moveEvent.clientY - startY;
+		if (!ghost) {
+			if (!canDrag || Math.hypot(deltaX, deltaY) < dragThreshold) {
+				return;
+			}
+
+			ghost = createGhost(card, mockup);
+			card.classList.add('mock-drag-source');
+		}
+
+		ghost.style.transform = `translate(${deltaX}px, ${deltaY}px) rotate(2deg)`;
+	};
+
+	const handleEnd = endEvent => {
+		card.removeEventListener('pointermove', handleMove);
+		card.removeEventListener('pointerup', handleEnd);
+		card.removeEventListener('pointercancel', handleEnd);
+		if (ghost) {
+			dropCard(card, ghost, mockup, endEvent);
+		} else if (endEvent.type === 'pointerup') {
+			advanceCard(card, mockup);
+		}
+	};
+
+	card.setPointerCapture(event.pointerId);
+	card.addEventListener('pointermove', handleMove);
+	card.addEventListener('pointerup', handleEnd);
+	card.addEventListener('pointercancel', handleEnd);
+}
+
+function showScrollbar(scroller) {
+	scroller.classList.add('is-scrolling');
+	window.clearTimeout(scrollTimers.get(scroller));
+	scrollTimers.set(scroller, window.setTimeout(() => {
+		scroller.classList.remove('is-scrolling');
+	}, 700));
 }
 
 function readNotification(item, mockup) {
@@ -224,7 +335,6 @@ function filterResults(chip, mockup) {
 }
 
 const actions = {
-	'advance-card': advanceCard,
 	'filter-results': filterResults,
 	react: toggleReaction,
 	'read-notification': readNotification,
@@ -258,6 +368,21 @@ export function bindMockupInteractions(scene) {
 		}
 	};
 
+	const handlePointerDown = event => {
+		const card = closestElement(event.target, '[data-mock-card]');
+		const mockup = card?.closest('[data-mockup]');
+		if (mockup && event.button === 0) {
+			startCardGesture(event, card, mockup);
+		}
+	};
+
+	const handleScroll = event => {
+		const scroller = closestElement(event.target, '[data-mock-cards]');
+		if (scroller === event.target) {
+			showScrollbar(scroller);
+		}
+	};
+
 	const handleDragStart = event => {
 		if (closestElement(event.target, '.feature-mockup')) {
 			event.preventDefault();
@@ -272,6 +397,8 @@ export function bindMockupInteractions(scene) {
 
 	scene.addEventListener('click', handleClick);
 	scene.addEventListener('dragstart', handleDragStart);
+	scene.addEventListener('pointerdown', handlePointerDown);
+	scene.addEventListener('scroll', handleScroll, {capture: true});
 	return () => {
 		window.clearInterval(timer);
 		for (const pending of pendingTimers) {
@@ -281,5 +408,7 @@ export function bindMockupInteractions(scene) {
 		pendingTimers.clear();
 		scene.removeEventListener('click', handleClick);
 		scene.removeEventListener('dragstart', handleDragStart);
+		scene.removeEventListener('pointerdown', handlePointerDown);
+		scene.removeEventListener('scroll', handleScroll, {capture: true});
 	};
 }
