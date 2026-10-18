@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if [[ $# -ne 4 ]]; then
-  echo "Usage: $0 <go|jest|node|elixir> <module> <absolute-source-root> <absolute-output-dir>" >&2
+  echo "Usage: $0 <go|jest|node|dotnet> <module> <absolute-source-root> <absolute-output-dir>" >&2
   exit 2
 fi
 
@@ -18,7 +18,7 @@ case "$source_root:$output_dir" in
   *) echo "Source and output directories must be absolute paths." >&2; exit 2 ;;
 esac
 case "$runner" in
-  go|jest|node|elixir) ;;
+  go|jest|node|dotnet) ;;
   *) echo "Unsupported coverage runner: $runner" >&2; exit 2 ;;
 esac
 
@@ -40,7 +40,7 @@ mkdir -p "$output_dir"
 output_dir=$(cd "$output_dir" && pwd -P)
 rm -f "$output_dir/report.json" "$output_dir/report.out" \
   "$output_dir/raw-go.out" "$output_dir/coverage-summary.json" \
-  "$output_dir/coverage.coverdata"
+  "$output_dir/report.info"
 cd "$module_dir"
 
 case "$runner" in
@@ -160,24 +160,17 @@ PY
       npm test
     cp "$output_dir/coverage-summary.json" "$output_dir/report.json"
     ;;
-  elixir)
-    export MIX_ENV=test
-    mix local.hex --force
-    mix local.rebar --force
-    mix deps.get
-    # Discover the whole test suite. --no-start avoids application startup, which
-    # runs DB migrations and starts Kafka/Redis/HTTP; it does not filter tests.
-    # Exporting avoids Mix's default coverage percentage threshold.
-    rm -f cover/coverage.coverdata
-    test_status=0
-    mix test --no-start --cover --export-coverage coverage || test_status=$?
-    if [[ -f cover/coverage.coverdata ]]; then
-      cp cover/coverage.coverdata "$output_dir/coverage.coverdata"
+  dotnet)
+    results=$(mktemp -d "${TMPDIR:-/tmp}/cowork-dotnet.XXXXXX")
+    trap 'rm -rf "$results"' EXIT
+    # The module solution discovers every test project; coverlet measures the
+    # production assemblies they load and excludes the test assemblies.
+    dotnet test --collect:"XPlat Code Coverage" --results-directory "$results" \
+      -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=lcov
+    find "$results" -name coverage.info -exec cat {} + > "$output_dir/report.info"
+    if [[ ! -s "$output_dir/report.info" ]]; then
+      echo "dotnet test produced no LCOV coverage report" >&2
+      exit 1
     fi
-    if [[ "$test_status" -ne 0 ]]; then
-      exit "$test_status"
-    fi
-    elixir "$tool_dir/export-elixir.exs" \
-      "$output_dir/coverage.coverdata" "$output_dir/report.json"
     ;;
 esac

@@ -1,13 +1,6 @@
-/_build/
-/deps/
-/cover/
-/doc/
-/.elixir_ls/
-/erl_crash.dump
-/*.ez
-/tmp/
-/priv/static/swagger-ui/
-/build/
+bin/
+obj/
+TestResults/
 application-local.yml
 *.log
 .DS_Store
