@@ -1,5 +1,11 @@
 <div class="relative aspect-[4/3] rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.02] p-4 sm:p-5">
-	<div class="absolute inset-4 sm:inset-5 rounded-2xl bg-gray-900 text-white shadow-2xl overflow-hidden flex flex-col" data-mockup="meeting" data-mic="on" data-camera="off" data-call="joined">
+	<div
+		class="absolute inset-4 sm:inset-5 rounded-2xl bg-gray-900 text-white shadow-2xl overflow-hidden flex flex-col"
+		data-call="joined"
+		data-camera="off"
+		data-mic="on"
+		data-mockup="meeting"
+	>
 		<div class="flex items-center justify-between px-3 py-2 bg-black/30">
 			<div class="flex items-center gap-1.5">
 				<span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse">
@@ -7,7 +13,11 @@
 				<span class="text-[10px] font-semibold">회의 중 · <span data-mock-timer>12:04</span></span>
 			</div>
 			<span class="text-[10px] text-white/50" data-mock-when="call:joined">4명 참여</span>
-			<span class="text-[10px] text-white/50" data-mock-when="call:left" hidden>3명 참여</span>
+			<span
+				class="text-[10px] text-white/50"
+				data-mock-when="call:left"
+				hidden
+			>3명 참여</span>
 		</div>
 		<div class="flex-1 grid grid-cols-2 grid-rows-2 gap-1.5 p-1.5 mock-meeting-grid">
 			<div class="relative rounded-lg bg-gray-800 flex items-center justify-center overflow-hidden meet-tile mock-delay-0 mock-self-tile" data-mock-when="call:joined">
@@ -23,13 +33,19 @@
 				<img
 					class="mock-fill mock-camera-feed"
 					alt=""
+					data-mock-when="camera:on"
 					decoding="async"
+					height="240"
+					hidden
 					loading="lazy"
 					src="https://picsum.photos/id/1/320/240"
+					width="320"
+				>
+				<span
+					class="mock-camera-flash"
 					data-mock-when="camera:on"
 					hidden
 				>
-				<span class="mock-camera-flash" data-mock-when="camera:on" hidden>
 				</span>
 				<span class="absolute bottom-1 left-1 text-[8px] font-semibold bg-black/50 px-1.5 py-0.5 rounded">나</span>
 				<span class="absolute bottom-1 right-1 w-4 h-4 rounded-full flex items-center justify-center mock-accent-bg" data-mock-when="mic:on">
@@ -43,7 +59,11 @@
 						</path>
 					</svg>
 				</span>
-				<span class="absolute bottom-1 right-1 w-4 h-4 rounded-full flex items-center justify-center mock-translucent-bg" data-mock-when="mic:off" hidden>
+				<span
+					class="absolute bottom-1 right-1 w-4 h-4 rounded-full flex items-center justify-center mock-translucent-bg"
+					data-mock-when="mic:off"
+					hidden
+				>
 					<svg
 						fill="white"
 						height="9"
@@ -127,7 +147,12 @@
 		</div>
 		<div class="flex items-center justify-center py-2 bg-black/30">
 			<div class="flex items-center justify-center gap-2" data-mock-when="call:joined">
-				<button type="button" tabindex="-1" data-mock-action="toggle" data-mock-key="mic">
+				<button
+					type="button"
+					data-mock-action="toggle"
+					data-mock-key="mic"
+					tabindex="-1"
+				>
 					<span class="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center" data-mock-when="mic:on">
 						<svg
 							fill="white"
@@ -139,7 +164,11 @@
 							</path>
 						</svg>
 					</span>
-					<span class="w-7 h-7 rounded-full bg-white flex items-center justify-center" data-mock-when="mic:off" hidden>
+					<span
+						class="w-7 h-7 rounded-full bg-white flex items-center justify-center"
+						data-mock-when="mic:off"
+						hidden
+					>
 						<svg
 							fill="#111827"
 							height="13"
@@ -151,8 +180,17 @@
 						</svg>
 					</span>
 				</button>
-				<button type="button" tabindex="-1" data-mock-action="toggle" data-mock-key="camera">
-					<span class="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center" data-mock-when="camera:on" hidden>
+				<button
+					type="button"
+					data-mock-action="toggle"
+					data-mock-key="camera"
+					tabindex="-1"
+				>
+					<span
+						class="w-7 h-7 rounded-full bg-white/15 flex items-center justify-center"
+						data-mock-when="camera:on"
+						hidden
+					>
 						<svg
 							fill="white"
 							height="13"
@@ -175,7 +213,12 @@
 						</svg>
 					</span>
 				</button>
-				<button type="button" tabindex="-1" class="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center" data-mock-action="toggle-call">
+				<button
+					type="button"
+					class="w-7 h-7 rounded-full bg-red-500 flex items-center justify-center"
+					data-mock-action="toggle-call"
+					tabindex="-1"
+				>
 					<svg
 						fill="white"
 						height="13"
@@ -187,7 +230,14 @@
 					</svg>
 				</button>
 			</div>
-			<button type="button" tabindex="-1" class="mock-join-button rounded-full text-[10px] font-bold text-white bg-emerald-500" data-mock-action="toggle-call" data-mock-when="call:left" hidden>참여하기</button>
+			<button
+				type="button"
+				class="mock-join-button rounded-full text-[10px] font-bold text-white bg-emerald-500"
+				data-mock-action="toggle-call"
+				data-mock-when="call:left"
+				hidden
+				tabindex="-1"
+			>참여하기</button>
 		</div>
 	</div>
 </div>
