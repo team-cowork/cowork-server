@@ -4,14 +4,10 @@ on:
   pull_request:
     branches-ignore:
       - 'main'
-  push:
-    branches:
-      - 'develop'
   workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  # Keep active push validation; later runs include changes since the last success.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
