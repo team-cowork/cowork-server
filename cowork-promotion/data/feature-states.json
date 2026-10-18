@@ -24,11 +24,11 @@
   {
     "color": "#f43f5e",
     "label": "Meeting",
-    "title": "음성 회의 & 화면 공유",
-    "description": "워크스페이스를 벗어나지 않고 바로 음성 회의를 시작합니다. 화면을 공유하며 팀이 즉시 모입니다.",
+    "title": "화상·음성 회의",
+    "description": "워크스페이스를 벗어나지 않고 바로 미팅을 시작합니다. 저지연 화상·음성으로 팀이 즉시 모입니다.",
     "tags": [
-      "Voice",
-      "Screen Share"
+      "Video",
+      "Voice"
     ],
     "mockup": "meeting"
   },
