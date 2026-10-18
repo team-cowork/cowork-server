@@ -16,6 +16,8 @@ case "$ACTION" in check|deploy) ;; *) echo 'Action must be check or deploy' >&2;
 source "${PROD_DIR}/lib/environment.sh"
 # shellcheck source=lib/container.sh
 source "${PROD_DIR}/lib/container.sh"
+# shellcheck source=lib/migration.sh
+source "${PROD_DIR}/lib/migration.sh"
 load_deploy_environment
 
 STATE_DIR="${DEPLOY_STATE_DIR:-${HOME}/.local/state/cowork}"
@@ -81,4 +83,8 @@ prefix=sys.argv[1].rsplit(":",1)[0] + "@sha256:"
 matches=[value for value in json.load(sys.stdin) if value.startswith(prefix)]
 if len(matches) != 1: raise SystemExit("Expected exactly one fetched repository digest")
 print(matches[0])' "$IMAGE")
+# Schema changes land before cutover, while the previous instance still serves; a failure ends the deployment here.
+case "$SERVICE" in
+  user) run_migrations "$IMAGE" ;;
+esac
 deploy_container_safely "$CONTAINER" "$HOST_PORT" "$CONTAINER_PORT" "$HEALTH_PATH" "$IMAGE" -- "${RUN_ARGS[@]}"
