@@ -9,11 +9,14 @@ using CoworkUser.Kafka;
 namespace CoworkUser;
 
 /// <summary>
-/// HTTP routes. Every unmatched method or path answers 404 with a JSON message, and projection
-/// dependent reads answer 503 until projections are ready.
+/// HTTP endpoints. Every unmatched route answers 404 with a JSON message, and projection backed
+/// reads answer 503 until projections are ready.
 /// </summary>
 public static class Router
 {
+    internal const string UnmatchedPattern = "{**path}";
+    const string UnmatchedLabel = "NOT_FOUND";
+
     static readonly byte[] OpenApiSpec = ReadResource("openapi.json");
     static readonly UTF8Encoding StrictUtf8 = new(false, true);
 
@@ -25,7 +28,63 @@ public static class Router
         return copy.ToArray();
     }
 
-    public static async Task HandleAsync(HttpContext context, ProjectionReadiness readiness, ILogger logger)
+    public static void Map(WebApplication app, ProjectionReadiness readiness)
+    {
+        RouteHandlerBuilder Gated(RouteHandlerBuilder route) => route.AddEndpointFilter(async (context, next) =>
+            readiness.Ready ? await next(context) : throw new ApiError(503, "사용자 상태 투영을 동기화하는 중입니다."));
+
+        app.MapGet("/actuator/health", () => Reply(new { status = "UP" }));
+        app.MapGet("/actuator/health/readiness",
+            () => Reply(new { status = readiness.Ready ? "UP" : "OUT_OF_SERVICE" }, readiness.Ready ? 200 : 503));
+        app.MapGet("/actuator/prometheus", () => Results.Text(Metrics.RenderPrometheus(), "text/plain; version=0.0.4"));
+        app.MapGet("/v3/api-docs", () => Results.Bytes(OpenApiSpec, "application/json; charset=utf-8"));
+        app.MapGet("/swagger-ui.html", () => Results.Text(SwaggerUi, "text/html"));
+
+        Gated(app.MapGet("/users/me", async (HttpRequest request) => Reply(await Accounts.GetUserProfileAsync(UserId(request)))));
+        app.MapPatch("/users/me", async (HttpRequest request) =>
+        {
+            var body = await ReadBodyAsync(request);
+            return Reply(await Accounts.UpdateMyProfileAsync(UserId(request), body));
+        });
+        app.MapPatch("/users/me/status", async (HttpRequest request) =>
+        {
+            var body = await ReadBodyAsync(request);
+            return Reply(await Accounts.UpdateMyStatusAsync(UserId(request), body));
+        });
+        app.MapPost("/users/me/profile-image/presigned", async (HttpRequest request) =>
+        {
+            var body = await ReadBodyAsync(request);
+            return Reply(await Accounts.GeneratePresignedUrlAsync(UserId(request), body));
+        });
+        app.MapPost("/users/me/profile-image/confirm", async (HttpRequest request) =>
+        {
+            var body = await ReadBodyAsync(request);
+            await Accounts.ConfirmUploadAsync(UserId(request), body);
+            return Results.Ok();
+        });
+        app.MapDelete("/users/me/profile-image", async (HttpRequest request) =>
+        {
+            await ReadBodyAsync(request);
+            await Accounts.DeleteProfileImageAsync(UserId(request));
+            return Results.NoContent();
+        });
+        Gated(app.MapGet("/users/search", async (HttpRequest request) =>
+        {
+            var query = Query(request);
+            if (query.ContainsKey("teamId") && !readiness.TeamReady) throw new ApiError(503, "팀 멤버 투영을 동기화하는 중입니다.");
+            return Reply(await Accounts.SearchUsersAsync(UserId(request), query));
+        }));
+        Gated(app.MapGet("/users/batch", async (HttpRequest request) =>
+            Reply(new { users = await Accounts.GetDisplayNamesAsync(ParseIds(Query(request).GetValueOrDefault("ids"))) })));
+        Gated(app.MapGet("/users/by-github/{githubUsername}", async (string githubUsername) =>
+            Reply(await Accounts.GetByGithubAsync(githubUsername))));
+        Gated(app.MapGet("/users/{userId}", async (string userId) =>
+            Reply(await Accounts.GetUserProfileAsync(ParseInteger(userId, "user_id")))));
+
+        app.MapFallback(UnmatchedPattern, () => Reply(new { message = "요청한 경로를 찾을 수 없습니다." }, 404));
+    }
+
+    public static async Task HandleAsync(HttpContext context, RequestDelegate next, ILogger logger)
     {
         var stopwatch = Stopwatch.StartNew();
         var request = context.Request;
@@ -36,15 +95,20 @@ public static class Router
 
         try
         {
-            await DispatchAsync(context, readiness);
+            await next(context);
         }
         catch (ApiError error) when (!context.Response.HasStarted)
         {
-            await WriteJsonAsync(context, error.Status, new { message = error.Message });
+            await Reply(new { message = error.Message }, error.Status).ExecuteAsync(context);
         }
         catch (FieldErrors errors) when (!context.Response.HasStarted)
         {
-            await WriteJsonAsync(context, 400, new { message = errors.Message });
+            await Reply(new { message = errors.Message }, 400).ExecuteAsync(context);
+        }
+        catch (BadHttpRequestException error) when (!context.Response.HasStarted)
+        {
+            // Kestrel's own client errors, such as 413 for a body over MaxRequestBodySize, keep their status.
+            context.Response.StatusCode = error.StatusCode;
         }
         catch (Exception exception) when (!context.Response.HasStarted)
         {
@@ -53,86 +117,18 @@ public static class Router
         }
         finally
         {
-            Metrics.Record(request.Path.Value ?? "/", context.Response.StatusCode, stopwatch.Elapsed);
+            Metrics.Record(RouteLabel(context), context.Response.StatusCode, stopwatch.Elapsed);
             logger.LogInformation("{Method} {Path} -> {Status} in {Elapsed}ms request_id={RequestId}",
                 request.Method, request.Path.Value, context.Response.StatusCode, stopwatch.ElapsedMilliseconds, requestId);
         }
     }
 
-    static async Task DispatchAsync(HttpContext context, ProjectionReadiness readiness)
-    {
-        var request = context.Request;
-        var method = request.Method;
-        var path = request.Path.Value ?? "/";
-        string[] segments = path.Split('/', StringSplitOptions.RemoveEmptyEntries);
-        var body = method is "POST" or "PATCH" or "PUT" or "DELETE" ? await ReadBodyAsync(request) : default;
+    // The route template keeps the metric's uri label bounded; unmatched paths share one value.
+    static string RouteLabel(HttpContext context) =>
+        context.GetEndpoint() is RouteEndpoint { RoutePattern.RawText: { } pattern } && pattern != UnmatchedPattern ? pattern : UnmatchedLabel;
 
-        if (method == "GET" && ProjectionDependentRead(path) && !readiness.Ready)
-            throw new ApiError(503, "사용자 상태 투영을 동기화하는 중입니다.");
-
-        switch (method, segments)
-        {
-            case ("GET", ["actuator", "health"]):
-                await WriteJsonAsync(context, 200, new { status = "UP" });
-                break;
-            case ("GET", ["actuator", "health", "readiness"]):
-                await WriteJsonAsync(context, readiness.Ready ? 200 : 503, new { status = readiness.Ready ? "UP" : "OUT_OF_SERVICE" });
-                break;
-            case ("GET", ["actuator", "prometheus"]):
-                context.Response.ContentType = "text/plain; version=0.0.4";
-                await context.Response.WriteAsync(Metrics.RenderPrometheus());
-                break;
-            case ("GET", ["v3", "api-docs"]):
-                context.Response.ContentType = "application/json; charset=utf-8";
-                await context.Response.Body.WriteAsync(OpenApiSpec);
-                break;
-            case ("GET", ["swagger-ui.html"]):
-                context.Response.ContentType = "text/html; charset=utf-8";
-                await context.Response.WriteAsync(SwaggerUi);
-                break;
-            case ("GET", ["users", "me"]):
-                await WriteJsonAsync(context, 200, await Accounts.GetUserProfileAsync(UserId(request)));
-                break;
-            case ("PATCH", ["users", "me"]):
-                await WriteJsonAsync(context, 200, await Accounts.UpdateMyProfileAsync(UserId(request), body));
-                break;
-            case ("PATCH", ["users", "me", "status"]):
-                await WriteJsonAsync(context, 200, await Accounts.UpdateMyStatusAsync(UserId(request), body));
-                break;
-            case ("POST", ["users", "me", "profile-image", "presigned"]):
-                await WriteJsonAsync(context, 200, await Accounts.GeneratePresignedUrlAsync(UserId(request), body));
-                break;
-            case ("POST", ["users", "me", "profile-image", "confirm"]):
-                await Accounts.ConfirmUploadAsync(UserId(request), body);
-                context.Response.StatusCode = 200;
-                break;
-            case ("DELETE", ["users", "me", "profile-image"]):
-                await Accounts.DeleteProfileImageAsync(UserId(request));
-                context.Response.StatusCode = 204;
-                break;
-            case ("GET", ["users", "search"]):
-                var query = Query(request);
-                if (query.ContainsKey("teamId") && !readiness.TeamReady) throw new ApiError(503, "팀 멤버 투영을 동기화하는 중입니다.");
-                await WriteJsonAsync(context, 200, await Accounts.SearchUsersAsync(UserId(request), query));
-                break;
-            case ("GET", ["users", "batch"]):
-                await WriteJsonAsync(context, 200, new { users = await Accounts.GetDisplayNamesAsync(ParseIds(Query(request).GetValueOrDefault("ids"))) });
-                break;
-            case ("GET", ["users", var userId]):
-                await WriteJsonAsync(context, 200, await Accounts.GetUserProfileAsync(ParseInteger(userId, "user_id")));
-                break;
-            case ("GET", ["users", "by-github", var githubUsername]):
-                await WriteJsonAsync(context, 200, await Accounts.GetByGithubAsync(githubUsername));
-                break;
-            default:
-                throw new ApiError(404, "요청한 경로를 찾을 수 없습니다.");
-        }
-    }
-
-    internal static bool ProjectionDependentRead(string path) =>
-        path is "/users/me" or "/users/batch" or "/users/search"
-        || (path.StartsWith("/users/by-github/", StringComparison.Ordinal) && path.Length > "/users/by-github/".Length)
-        || (path.StartsWith("/users/", StringComparison.Ordinal) && TryParseInteger(path["/users/".Length..], out var id) && id > 0);
+    static IResult Reply(object body, int status = 200) =>
+        Results.Text(JsonSerializer.Serialize(body, body.GetType(), Json.Api), "application/json", Encoding.UTF8, status);
 
     static async Task<JsonElement> ReadBodyAsync(HttpRequest request)
     {
@@ -149,9 +145,11 @@ public static class Router
             // JsonDocument defers UTF-8 validation of string values until they are read.
             using var document = JsonDocument.Parse(StrictUtf8.GetString(buffer.GetBuffer(), 0, (int)buffer.Length));
             // Plug wrapped non-object bodies under "_json", leaving no recognized fields.
-            return document.RootElement.ValueKind == JsonValueKind.Object ? document.RootElement.Clone() : empty;
+            if (document.RootElement.ValueKind != JsonValueKind.Object) return empty;
+            Json.RequireDecodableStrings(document.RootElement);
+            return document.RootElement.Clone();
         }
-        catch (Exception exception) when (exception is JsonException or DecoderFallbackException)
+        catch (Exception exception) when (exception is JsonException or DecoderFallbackException or InvalidOperationException)
         {
             throw ApiError.Validation("요청 본문이 올바른 JSON 형식이 아닙니다.");
         }
@@ -165,24 +163,16 @@ public static class Router
             ? ParseInteger(values[0]!, "X-User-Id")
             : throw ApiError.Validation("X-User-Id 헤더가 누락되었습니다.");
 
-    static bool TryParseInteger(string value, out long parsed) =>
-        long.TryParse(value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out parsed);
-
     static long ParseInteger(string value, string fieldName) =>
-        TryParseInteger(value, out var parsed) ? parsed : throw ApiError.Validation($"{fieldName} 값이 올바르지 않습니다.");
+        long.TryParse(value, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : throw ApiError.Validation($"{fieldName} 값이 올바르지 않습니다.");
 
     internal static List<long> ParseIds(string? ids)
     {
         if (ids is null) throw ApiError.Validation("ids 파라미터가 필요합니다.");
         var parsed = Accounts.ParseIntCsv(ids).Distinct().Take(100).ToList();
         return parsed.Count == 0 ? throw ApiError.Validation("유효한 ids가 없습니다.") : parsed;
-    }
-
-    static async Task WriteJsonAsync(HttpContext context, int status, object body)
-    {
-        context.Response.StatusCode = status;
-        context.Response.ContentType = "application/json; charset=utf-8";
-        await JsonSerializer.SerializeAsync(context.Response.Body, body, body.GetType(), Json.Api);
     }
 
     const string SwaggerUi = """

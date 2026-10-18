@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Confluent.Kafka;
+using Confluent.Kafka.Admin;
 
 namespace CoworkUser.Kafka;
 
@@ -33,6 +34,18 @@ public sealed class KafkaInspector : IDisposable
             var metadata = admin.GetMetadata(topic, Timeout).Topics.Single(t => t.Topic == topic);
             if (metadata.Error.IsError) throw new KafkaException(metadata.Error);
             return metadata.Partitions.Count;
+        }
+    }
+
+    /// <summary>The broker's topic UUID, or null when the broker does not report one.</summary>
+    public string? TopicId(string topic)
+    {
+        lock (gate)
+        {
+            var result = admin.DescribeTopicsAsync(TopicCollection.OfTopicNames([topic]), new DescribeTopicsOptions { RequestTimeout = Timeout })
+                .GetAwaiter().GetResult();
+            var id = result.TopicDescriptions.Single().TopicId;
+            return id.MostSignificantBits == 0 && id.LeastSignificantBits == 0 ? null : id.ToString();
         }
     }
 
@@ -291,6 +304,8 @@ public sealed class ProjectionReadiness(AppConfig config, KafkaInspector kafka, 
         {
             var partitionCount = kafka.PartitionCount(topic);
             if (partitionCount <= 0) throw new InvalidState($"{topic}: invalid partition count {partitionCount}");
+            if (!ProjectionCheckpoint.TopicContinuous(ProjectionCheckpoint.LoadTopicIdAsync(group, topic).GetAwaiter().GetResult(), kafka.TopicId(topic)))
+                throw new ReplayRequired($"topic {topic} was replaced");
             var (checkpoints, markers, generation) = ProjectionCheckpoint.LoadAsync(group, topic).GetAwaiter().GetResult();
             if (generation is not > 0) throw new InvalidOperationException(":replay_generation_not_started");
 
@@ -376,10 +391,14 @@ public sealed class ProjectionReadiness(AppConfig config, KafkaInspector kafka, 
         }
     }
 
+    /// <summary>Records a checkpoint may trail the live high-watermark before the partition stops being ready.</summary>
+    internal const long MaxLagRecords = 1_000;
+
     /// <summary>
     /// Replay re-stamps whatever marker it meets first with the current generation, so the marker
-    /// alone cannot prove catch-up; the startup high-watermark does. Holding that target fixed also
-    /// keeps readiness from dropping on every record the source publishes later.
+    /// alone cannot prove catch-up; the startup high-watermark does. Holding that target fixed keeps
+    /// readiness from dropping on every record the source publishes later, while the lag bound keeps
+    /// a stalled consumer from staying ready.
     /// </summary>
     internal static bool PartitionReady(Range range, ProjectionCheckpoint.State? checkpoint, ProjectionCheckpoint.Marker? marker) =>
         range.Marker is { } validated
@@ -389,7 +408,7 @@ public sealed class ProjectionReadiness(AppConfig config, KafkaInspector kafka, 
         && checkpoint.SnapshotCompletedOffset == marker.MarkerOffset && checkpoint.LastSnapshotId == marker.SnapshotId
         && marker.MarkerOffset >= range.BeginningOffset && marker.MarkerOffset < range.EndOffset
         && checkpoint.NextOffset > marker.MarkerOffset && checkpoint.NextOffset >= range.StartupEndOffset
-        && checkpoint.NextOffset <= range.EndOffset
+        && checkpoint.NextOffset <= range.EndOffset && range.EndOffset - checkpoint.NextOffset <= MaxLagRecords
         && validated.MarkerOffset == marker.MarkerOffset && validated.SnapshotId == marker.SnapshotId
         && validated.Generation == range.Generation && validated.Token == token;
 
