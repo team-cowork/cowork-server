@@ -33,7 +33,17 @@ export type ProjectionStream = {
     groupId: string;
     expectedSource: string;
     sourceGeneration: string;
+    /**
+     이 stream이 이어받은 이전 토픽·그룹. 이 정체성으로 저장된 dataset만 시작할 때 자동으로 rebuild하고,
+     그 밖의 정체성 변경은 설정 실수일 수 있어 기존처럼 rebuild 요청을 기다린다.
+     */
+    replaces?: {topic: string; groupId: string};
 };
+
+export const isDeclaredPredecessor = (
+    stream: ProjectionStream,
+    stored: {topic: string; groupId: string},
+): boolean => stream.replaces?.topic === stored.topic && stream.replaces?.groupId === stored.groupId;
 
 export type StartupPartitionOffset = {
     low: string;
@@ -108,6 +118,7 @@ export const PROJECTION_STREAMS = {
         groupId: 'cowork-chat-user-profile-event-v2-projection',
         expectedSource: 'cowork-user',
         sourceGeneration: sourceGeneration('USER_PROFILE'),
+        replaces: {topic: 'user.profile.event', groupId: 'cowork-chat-user-profile-event-v1-projection'},
     },
 } as const satisfies Record<ProjectionStreamName, ProjectionStream>;
 
@@ -692,6 +703,26 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         }
 
         if (dataset.groupId !== stream.groupId || dataset.topic !== stream.topic) {
+            if (isDeclaredPredecessor(stream, dataset)) {
+                const moved = await this.datasets.requestRebuildFrom(
+                    dataset,
+                    stream,
+                    `Projection stream moved from ${dataset.topic} (${dataset.groupId})`,
+                    targets.map(({partition, low}) => ({partition, offset: low})),
+                    targets.map(({partition, high}) => ({partition, offset: high})),
+                );
+                if (moved) {
+                    this.metrics.recordRebuild(name, 'requested');
+                    return moved;
+                }
+
+                // 다른 replica가 먼저 옮겼다면 그 dataset을 그대로 이어받는다.
+                const current = await this.datasets.find(name);
+                if (current) {
+                    return current;
+                }
+            }
+
             return this.datasets.markRebuildRequired(stream, 'Projection dataset stream identity changed');
         }
 
