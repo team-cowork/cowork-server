@@ -2,7 +2,7 @@ categories:
   - name: Language
     items:
       - { name: Kotlin, color: "#7f52ff" }
-      - { name: Java, color: "#ed8b00" }
+      - { name: Java, color: "#f8981d" }
       - { name: TypeScript, color: "#3178c6" }
       - { name: JavaScript, color: "#f7df1e" }
       - { name: Go, color: "#00add8" }
@@ -18,38 +18,42 @@ categories:
       - { name: TanStack Query, color: "#ff4154" }
       - { name: Axios, color: "#5a29e4" }
       - { name: Flutter, color: "#02569b" }
+      - { name: Bloc, color: "#0084c1" }
       - { name: Kotlin Multiplatform, color: "#7f52ff" }
+      - { name: Compose Multiplatform, color: "#5383ec" }
+      - { name: Ktor, color: "#087cfa" }
 
   - name: Backend
     items:
       - { name: Spring Boot, color: "#6db33f" }
       - { name: Spring Cloud Gateway, color: "#6db33f" }
       - { name: Spring Cloud Config, color: "#6db33f" }
-      - { name: Eureka, color: "#6db33f" }
-      - { name: OpenFeign, color: "#6db33f" }
-      - { name: Vert.x, color: "#2c3e50" }
-      - { name: Node.js, color: "#339933" }
+      - { name: Eureka, color: "#e50914" }
+      - { name: OpenFeign, color: "#1a86e0" }
+      - { name: Vert.x, color: "#782a90" }
+      - { name: Node.js, color: "#5fa04e" }
       - { name: NestJS, color: "#e0234e" }
-      - { name: Gin, color: "#00add8" }
+      - { name: Gin, color: "#008ecf" }
       - { name: Chi, color: "#00add8" }
       - { name: Plug / Cowboy, color: "#4b275f" }
       - { name: Socket.IO, color: "#010101" }
       - { name: GraphQL / Apollo, color: "#e10098" }
-      - { name: LiveKit, color: "#ff5c93" }
+      - { name: LiveKit, color: "#1fd5f9" }
 
   - name: Data & Storage
     items:
       - { name: MySQL, color: "#4479a1" }
-      - { name: PostgreSQL, color: "#336791" }
+      - { name: PostgreSQL, color: "#4169e1" }
       - { name: MongoDB, color: "#47a248" }
-      - { name: Redis, color: "#dc382d" }
+      - { name: Redis, color: "#ff4438" }
       - { name: Elasticsearch, color: "#005571" }
-      - { name: SeaweedFS, color: "#2e7d32" }
+      - { name: SeaweedFS, color: "#0162bf" }
       - { name: Flyway, color: "#cc0200" }
 
   - name: Messaging
     items:
       - { name: Apache Kafka, color: "#231f20" }
+      - { name: Firebase Cloud Messaging, color: "#dd2c00" }
 
   - name: Infrastructure
     items:
@@ -57,7 +61,7 @@ categories:
       - { name: Docker Compose, color: "#2496ed" }
       - { name: Ansible, color: "#ee0000" }
       - { name: GitHub Actions, color: "#2088ff" }
-      - { name: Vault, color: "#0fc75e" }
+      - { name: Vault, color: "#ffec6e" }
       - { name: NGINX, color: "#009639" }
       - { name: Vercel, color: "#000000" }
 
@@ -65,8 +69,8 @@ categories:
     items:
       - { name: Grafana, color: "#f46800" }
       - { name: Prometheus, color: "#e6522c" }
-      - { name: Loki, color: "#f2cc0c" }
-      - { name: Grafana Alloy, color: "#f46800" }
+      - { name: Loki, color: "#faed1e" }
+      - { name: Grafana Alloy, color: "#fd6f00" }
       - { name: Alertmanager, color: "#e6522c" }
 
   - name: Design
@@ -75,12 +79,9 @@ categories:
 
   - name: Build Tools
     items:
-      - { name: Maven, color: "#c71c36" }
+      - { name: Maven, color: "#c71a36" }
       - { name: Gradle, color: "#02303a" }
-      - { name: Kotlin Toolchain, color: "#1f6feb" }
-      - { name: npm, color: "#cb3837" }
-      - { name: Go modules, color: "#00add8" }
-      - { name: Mix, color: "#4b275f" }
+      - { name: Kotlin Toolchain, color: "#7f52ff" }
 
 positions:
   Server:
@@ -114,12 +115,10 @@ positions:
       - SeaweedFS
       - Flyway
       - Apache Kafka
+      - Firebase Cloud Messaging
       - Maven
       - Gradle
       - Kotlin Toolchain
-      - npm
-      - Go modules
-      - Mix
   Web Client:
     color: "#eab308"
     description: Next.js 기반 협업 웹 클라이언트를 개발합니다. FSD(Feature-Sliced Design) 구조로 기능별 코드를 구성합니다.
@@ -130,18 +129,22 @@ positions:
       - Tailwind CSS
       - TanStack Query
       - Axios
+      - LiveKit
   Desktop App Client:
     color: "#0ea5e9"
     description: 데스크탑 환경에 최적화된 협업 클라이언트를 개발합니다. 네이티브에 가까운 성능과 경험을 제공합니다.
     technologies:
       - Kotlin
       - Kotlin Multiplatform
+      - Compose Multiplatform
+      - Ktor
   Mobile App Client:
     color: "#f43f5e"
     description: 모바일 환경의 협업 클라이언트를 개발합니다. iOS와 Android를 아우르는 크로스 플랫폼 앱을 구현합니다.
     technologies:
       - Dart
       - Flutter
+      - Bloc
   Cloud:
     color: "#f97316"
     description: GitHub Actions·Ansible·Docker Compose로 VM 배포를 자동화합니다. Vault로 설정을 관리하고, 메트릭·로그·알림을 수집하고 확인할 수 있도록 구성합니다.
