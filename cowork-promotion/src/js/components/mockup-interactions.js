@@ -54,6 +54,78 @@ const feedEvents = [
 		text: '님이 스프린트 회고를 예약했어요',
 	},
 ];
+const searchKindLabels = {file: '파일', message: '메시지'};
+const searchResults = {
+	로그인: [
+		{
+			kind: 'message',
+			author: 'Emma',
+			channel: '#general',
+			time: '어제',
+			text: '로그인 플로우 정리해서 공유드려요',
+		},
+		{
+			kind: 'file',
+			author: 'Liam',
+			channel: '#backend',
+			time: '5시간 전',
+			text: '로그인-API-명세.pdf',
+		},
+		{
+			kind: 'message',
+			author: 'John',
+			channel: '#frontend',
+			time: '3시간 전',
+			text: '로그인 버그 재현됨',
+		},
+	],
+	배포: [
+		{
+			kind: 'message',
+			author: 'Olivia',
+			channel: '#devops',
+			time: '10분 전',
+			text: '오늘 배포는 18시에 진행할게요',
+		},
+		{
+			kind: 'file',
+			author: 'Emma',
+			channel: '#backend',
+			time: '어제',
+			text: '배포-체크리스트.md',
+		},
+		{
+			kind: 'message',
+			author: 'Liam',
+			channel: '#general',
+			time: '2일 전',
+			text: '배포 끝나면 채널에 알려 주세요',
+		},
+	],
+	회의록: [
+		{
+			kind: 'file',
+			author: 'John',
+			channel: '#general',
+			time: '어제',
+			text: '스프린트-회의록.pdf',
+		},
+		{
+			kind: 'message',
+			author: 'Emma',
+			channel: '#frontend',
+			time: '3시간 전',
+			text: '회의록 보고 디자인 반영했어요',
+		},
+		{
+			kind: 'message',
+			author: 'Liam',
+			channel: '#backend',
+			time: '1일 전',
+			text: '회의록에 API 일정 추가했어요',
+		},
+	],
+};
 const pendingTimers = new Set();
 const scrollTimers = new WeakMap();
 
@@ -452,6 +524,17 @@ function pushFeedEvent(mockup) {
 	popIn(item);
 }
 
+function applyResultFilter(mockup) {
+	const [key, value] = mockup.dataset.resultFilter.split(':', 2);
+	const results = [...mockup.querySelectorAll('[data-mock-result]')];
+	for (const result of results) {
+		result.hidden = key !== 'all' && result.dataset[key] !== value;
+	}
+
+	const visible = results.filter(result => !result.hidden).length;
+	mockup.querySelector('[data-mock-result-count]').textContent = `결과 ${visible}개`;
+}
+
 function filterResults(chip, mockup) {
 	for (const other of mockup.querySelectorAll('[data-mock-action="filter-results"]')) {
 		const isActive = other === chip;
@@ -459,10 +542,74 @@ function filterResults(chip, mockup) {
 		other.classList.toggle('mock-muted-chip', !isActive);
 	}
 
-	const [key, value] = chip.dataset.mockFilter.split(':', 2);
-	for (const result of mockup.querySelectorAll('[data-mock-result]')) {
-		result.hidden = key !== 'all' && result.dataset[key] !== value;
+	mockup.dataset.resultFilter = chip.dataset.mockFilter;
+	applyResultFilter(mockup);
+}
+
+function setHighlightedText(element, text, keyword) {
+	const index = text.indexOf(keyword);
+	if (index === -1) {
+		element.textContent = text;
+		return;
 	}
+
+	const mark = document.createElement('mark');
+	mark.className = 'mock-highlight';
+	mark.textContent = keyword;
+	element.replaceChildren(text.slice(0, index), mark, text.slice(index + keyword.length));
+}
+
+function renderSearchResults(mockup, query) {
+	const container = mockup.querySelector('[data-mock-results]');
+	const template = mockup.querySelector('[data-mock-template="search-result"]').content.firstElementChild;
+	const rows = searchResults[query].map((result, index) => {
+		const row = template.cloneNode(true);
+		row.dataset.kind = result.kind;
+		row.dataset.author = result.author;
+		row.style.animationDelay = `${index * 0.1}s`;
+		setField(row, 'kind', searchKindLabels[result.kind]);
+		setField(row, 'meta', `${result.author} · ${result.channel} · ${result.time}`);
+		setHighlightedText(row.querySelector('[data-mock-field="text"]'), result.text, query);
+		return row;
+	});
+	container.replaceChildren(...rows);
+	container.scrollTop = 0;
+	applyResultFilter(mockup);
+}
+
+function searchQuery(button, mockup) {
+	const queryElement = mockup.querySelector('[data-mock-query]');
+	const query = button.dataset.mockQuery;
+	if (mockup.dataset.searching === 'true' || queryElement.textContent === query) {
+		return;
+	}
+
+	if (prefersReducedMotion()) {
+		queryElement.textContent = query;
+		renderSearchResults(mockup, query);
+		return;
+	}
+
+	mockup.dataset.searching = 'true';
+	const previous = [...queryElement.textContent];
+	const next = [...query];
+	for (const index of previous.keys()) {
+		later((index + 1) * 40, () => {
+			queryElement.textContent = previous.slice(0, previous.length - index - 1).join('');
+		});
+	}
+
+	const typingStart = (previous.length * 40) + 120;
+	for (const index of next.keys()) {
+		later(typingStart + ((index + 1) * 80), () => {
+			queryElement.textContent = next.slice(0, index + 1).join('');
+		});
+	}
+
+	later(typingStart + (next.length * 80) + 150, () => {
+		renderSearchResults(mockup, query);
+		delete mockup.dataset.searching;
+	});
 }
 
 const actions = {
@@ -472,6 +619,7 @@ const actions = {
 	'filter-feed': filterFeed,
 	'read-all': readAll,
 	'read-notification': readNotification,
+	'search-query': searchQuery,
 	'send-message': sendMessage,
 	'toggle-call': toggleCall,
 	toggle: (target, mockup) => toggleState(mockup, target.dataset.mockKey),
