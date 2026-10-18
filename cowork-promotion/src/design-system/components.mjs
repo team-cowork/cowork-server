@@ -17,7 +17,7 @@ export function renderBadge(label, {variant = '', color} = {}) {
 export function renderAvatar(member, {profile = false} = {}) {
 	const size = profile ? 44 : 32;
 	const github = escapeHtml(member.github);
-	return `<img class="ui-avatar${profile ? ' ui-avatar--profile' : ''}" src="https://github.com/${github}.png?size=${profile ? 96 : 64}" alt="" width="${size}" height="${size}" loading="lazy" decoding="async" />`;
+	return `<img class="ui-avatar${profile ? ' ui-avatar--profile' : ''}" src="https://avatars.githubusercontent.com/${github}?s=${profile ? 96 : 64}" alt="" width="${size}" height="${size}" loading="lazy" decoding="async" />`;
 }
 
 export function renderMemberCard(member, {profile = false, duplicate = false} = {}) {
