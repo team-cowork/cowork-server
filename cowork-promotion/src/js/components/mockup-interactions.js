@@ -636,7 +636,7 @@ const actions = {
 	toggle: (target, mockup) => toggleState(mockup, target.dataset.mockKey),
 };
 
-function nextTime(text) {
+export function nextTime(text) {
 	const [minutes, seconds] = text.split(':', 2).map(Number);
 	const total = (minutes * 60) + seconds + 1;
 	const next = total > maxTimerSeconds ? 0 : total;
