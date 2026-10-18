@@ -9,7 +9,7 @@ namespace CoworkUser.Kafka;
 /// (database checkpoints with replay fencing). Any consumer failure restarts all of them with
 /// backoff, closing projection readiness until they reconnect.
 /// </summary>
-public sealed class Consumers(AppConfig config, ProjectionReadiness readiness, ILogger<Consumers> logger) : BackgroundService
+public sealed class Consumers(AppConfig config, ProjectionReadiness readiness, KafkaInspector kafka, ILogger<Consumers> logger) : BackgroundService
 {
     const int InitialBackoffMs = 5_000;
     const int MaxBackoffMs = 60_000;
@@ -40,10 +40,14 @@ public sealed class Consumers(AppConfig config, ProjectionReadiness readiness, I
                 if (!generationStarted)
                 {
                     // Bumped before joining the groups: every older partition worker is fenced at once.
-                    await ProjectionCheckpoint.StartReplayGenerationAsync([
-                        (config.KafkaTeamMemberGroupId, config.KafkaTeamMemberTopic),
-                        (config.KafkaPresenceGroupId, config.KafkaPresenceTopic),
+                    var rebuilt = await ProjectionCheckpoint.StartReplayGenerationAsync([
+                        new(config.KafkaTeamMemberGroupId, config.KafkaTeamMemberTopic, kafka.TopicId(config.KafkaTeamMemberTopic),
+                            TeamMembershipProjection.ResetAsync),
+                        new(config.KafkaPresenceGroupId, config.KafkaPresenceTopic, kafka.TopicId(config.KafkaPresenceTopic),
+                            PresenceProjection.ResetAsync),
                     ]);
+                    foreach (var topic in rebuilt)
+                        logger.LogWarning("Rebuilt projection and checkpoints because the topic identity could not be matched topic={Topic}", topic);
                     generationStarted = true;
                 }
 
