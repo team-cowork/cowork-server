@@ -63,6 +63,7 @@ const searchResults = {
 			channel: '#general',
 			time: '어제',
 			text: '로그인 플로우 정리해서 공유드려요',
+			attachment: 'true',
 		},
 		{
 			kind: 'file',
@@ -70,6 +71,7 @@ const searchResults = {
 			channel: '#backend',
 			time: '5시간 전',
 			text: '로그인-API-명세.pdf',
+			attachment: 'true',
 		},
 		{
 			kind: 'message',
@@ -77,6 +79,7 @@ const searchResults = {
 			channel: '#frontend',
 			time: '3시간 전',
 			text: '로그인 버그 재현됨',
+			attachment: 'false',
 		},
 	],
 	배포: [
@@ -86,6 +89,7 @@ const searchResults = {
 			channel: '#devops',
 			time: '10분 전',
 			text: '오늘 배포는 18시에 진행할게요',
+			attachment: 'true',
 		},
 		{
 			kind: 'file',
@@ -93,6 +97,7 @@ const searchResults = {
 			channel: '#backend',
 			time: '어제',
 			text: '배포-체크리스트.md',
+			attachment: 'true',
 		},
 		{
 			kind: 'message',
@@ -100,6 +105,7 @@ const searchResults = {
 			channel: '#general',
 			time: '2일 전',
 			text: '배포 끝나면 채널에 알려 주세요',
+			attachment: 'false',
 		},
 	],
 	회의록: [
@@ -109,6 +115,7 @@ const searchResults = {
 			channel: '#general',
 			time: '어제',
 			text: '스프린트-회의록.pdf',
+			attachment: 'true',
 		},
 		{
 			kind: 'message',
@@ -116,6 +123,7 @@ const searchResults = {
 			channel: '#frontend',
 			time: '3시간 전',
 			text: '회의록 보고 디자인 반영했어요',
+			attachment: 'true',
 		},
 		{
 			kind: 'message',
@@ -123,6 +131,7 @@ const searchResults = {
 			channel: '#backend',
 			time: '1일 전',
 			text: '회의록에 API 일정 추가했어요',
+			attachment: 'false',
 		},
 	],
 };
@@ -566,9 +575,11 @@ function renderSearchResults(mockup, query) {
 		const row = template.cloneNode(true);
 		row.dataset.kind = result.kind;
 		row.dataset.author = result.author;
+		row.dataset.attachment = result.attachment;
 		row.style.animationDelay = `${index * 0.1}s`;
 		setField(row, 'kind', searchKindLabels[result.kind]);
-		setField(row, 'meta', `${result.author} · ${result.channel} · ${result.time}`);
+		const attachmentNote = result.kind === 'message' && result.attachment === 'true' ? ' · 첨부 1' : '';
+		setField(row, 'meta', `${result.author} · ${result.channel} · ${result.time}${attachmentNote}`);
 		setHighlightedText(row.querySelector('[data-mock-field="text"]'), result.text, query);
 		return row;
 	});

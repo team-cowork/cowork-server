@@ -58,7 +58,7 @@
 					type="button"
 					class="text-[9px] font-semibold px-2 py-0.5 rounded-full mock-muted-chip"
 					data-mock-action="filter-results"
-					data-mock-filter="kind:file"
+					data-mock-filter="attachment:true"
 					tabindex="-1"
 				>첨부 포함</button>
 			</div>
@@ -94,6 +94,7 @@
 		>
 			<div
 				class="flex items-center gap-2.5 rounded-lg p-2 hover:bg-gray-50 search-result mock-delay-0"
+				data-attachment="true"
 				data-author="Emma"
 				data-kind="message"
 				data-mock-result
@@ -101,11 +102,12 @@
 				<span class="text-[8px] font-bold px-1.5 py-0.5 rounded shrink-0 mock-accent-chip" data-mock-field="kind">메시지</span>
 				<div class="min-w-0">
 					<p class="text-[10px] font-semibold text-gray-800 truncate" data-mock-field="text"><mark class="mock-highlight">로그인</mark> 플로우 정리해서 공유드려요</p>
-					<span class="text-[9px] text-gray-400" data-mock-field="meta">Emma · #general · 어제</span>
+					<span class="text-[9px] text-gray-400" data-mock-field="meta">Emma · #general · 어제 · 첨부 1</span>
 				</div>
 			</div>
 			<div
 				class="flex items-center gap-2.5 rounded-lg p-2 hover:bg-gray-50 search-result mock-delay-0-2"
+				data-attachment="true"
 				data-author="Liam"
 				data-kind="file"
 				data-mock-result
@@ -118,6 +120,7 @@
 			</div>
 			<div
 				class="flex items-center gap-2.5 rounded-lg p-2 hover:bg-gray-50 search-result mock-delay-0-4"
+				data-attachment="false"
 				data-author="John"
 				data-kind="message"
 				data-mock-result
@@ -132,6 +135,7 @@
 		<template data-mock-template="search-result">
 			<div
 				class="flex items-center gap-2.5 rounded-lg p-2 hover:bg-gray-50 search-result"
+				data-attachment="false"
 				data-author=""
 				data-kind="message"
 				data-mock-result
