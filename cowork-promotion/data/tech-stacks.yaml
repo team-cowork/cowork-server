@@ -18,7 +18,10 @@ categories:
       - { name: TanStack Query, color: "#ff4154" }
       - { name: Axios, color: "#5a29e4" }
       - { name: Flutter, color: "#02569b" }
+      - { name: Bloc, color: "#13b9fd" }
       - { name: Kotlin Multiplatform, color: "#7f52ff" }
+      - { name: Compose Multiplatform, color: "#4285f4" }
+      - { name: Ktor, color: "#087cfa" }
 
   - name: Backend
     items:
@@ -50,6 +53,7 @@ categories:
   - name: Messaging
     items:
       - { name: Apache Kafka, color: "#231f20" }
+      - { name: Firebase Cloud Messaging, color: "#dd2c00" }
 
   - name: Infrastructure
     items:
@@ -111,6 +115,7 @@ positions:
       - SeaweedFS
       - Flyway
       - Apache Kafka
+      - Firebase Cloud Messaging
       - Maven
       - Gradle
       - Kotlin Toolchain
@@ -124,18 +129,22 @@ positions:
       - Tailwind CSS
       - TanStack Query
       - Axios
+      - LiveKit
   Desktop App Client:
     color: "#0ea5e9"
     description: 데스크탑 환경에 최적화된 협업 클라이언트를 개발합니다. 네이티브에 가까운 성능과 경험을 제공합니다.
     technologies:
       - Kotlin
       - Kotlin Multiplatform
+      - Compose Multiplatform
+      - Ktor
   Mobile App Client:
     color: "#f43f5e"
     description: 모바일 환경의 협업 클라이언트를 개발합니다. iOS와 Android를 아우르는 크로스 플랫폼 앱을 구현합니다.
     technologies:
       - Dart
       - Flutter
+      - Bloc
   Cloud:
     color: "#f97316"
     description: GitHub Actions·Ansible·Docker Compose로 VM 배포를 자동화합니다. Vault로 설정을 관리하고, 메트릭·로그·알림을 수집하고 확인할 수 있도록 구성합니다.
