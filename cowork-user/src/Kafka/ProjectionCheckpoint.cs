@@ -26,7 +26,8 @@ public static class ProjectionCheckpoint
     /// <summary>
     /// Bumps the replay generation of each source. A source whose topic UUID cannot be shown to match the stored one
     /// is rebuilt in the same transaction: its projection data, checkpoints and markers are cleared, because
-    /// replacing a topic can drop deletion history that replaying the new log would never mention.
+    /// replacing a topic can drop deletion history that replaying the new log would never mention. When a source
+    /// service's data is replaced or restored, replace its topic too so the new UUID triggers this rebuild.
     /// Returns the topics that were rebuilt.
     /// </summary>
     public static Task<List<string>> StartReplayGenerationAsync(IEnumerable<ReplaySource> sources) =>
