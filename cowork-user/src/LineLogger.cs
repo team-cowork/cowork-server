@@ -7,7 +7,9 @@ namespace CoworkUser;
 /// <summary>
 /// Writes one JSON object per event to stdout and to the shared log volume. The keys follow the other
 /// services (@timestamp, level, service), which is what the log collection parses into Loki labels.
-/// Events are queued and written by one background thread, so requests never wait on the disk.
+/// Events are queued and written by one background thread, so requests never wait on the disk. The queue is
+/// bounded: when the writer falls behind, the newest events are dropped and counted, and the writer reports
+/// the count as a WARN entry, so memory stays bounded and a loss is visible.
 /// </summary>
 public sealed class LineLoggerProvider : ILoggerProvider
 {
@@ -20,16 +22,20 @@ public sealed class LineLoggerProvider : ILoggerProvider
 
     const long MaxBytes = 20_971_520;
     const int Keep = 4;
+    const int QueueCapacity = 8_192;
 
-    // shortcut: unbounded queue, bound it if log volume can outpace the disk.
-    readonly Channel<string> queue = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
+    readonly Channel<string> queue;
     readonly Task writer;
     readonly string? path;
     StreamWriter? file;
+    long dropped;
 
     public LineLoggerProvider(string? path)
     {
         this.path = path;
+        queue = Channel.CreateBounded<string>(
+            new BoundedChannelOptions(QueueCapacity) { SingleReader = true, FullMode = BoundedChannelFullMode.DropWrite },
+            _ => Interlocked.Increment(ref dropped));
         if (path is not null)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -42,6 +48,9 @@ public sealed class LineLoggerProvider : ILoggerProvider
 
     public ILogger CreateLogger(string categoryName) => new LineLogger(this);
 
+    static string Format(string level, string message, string? requestId) =>
+        JsonSerializer.Serialize(new Entry(DateTime.UtcNow.ToString("O"), level, "cowork-user", message, requestId), Json.Event);
+
     void Write(LogLevel level, string message, string? requestId)
     {
         var name = level switch
@@ -51,7 +60,7 @@ public sealed class LineLoggerProvider : ILoggerProvider
             LogLevel.Warning => "WARN",
             _ => "ERROR",
         };
-        queue.Writer.TryWrite(JsonSerializer.Serialize(new Entry(DateTime.UtcNow.ToString("O"), name, "cowork-user", message, requestId), Json.Event));
+        queue.Writer.TryWrite(Format(name, message, requestId));
     }
 
     void WriteLoop()
@@ -66,14 +75,33 @@ public sealed class LineLoggerProvider : ILoggerProvider
                     Console.Out.WriteLine(line);
                     file?.WriteLine(line);
                 }
+                ReportDropped();
                 file?.Flush();
                 if (file is not null && file.BaseStream.Length >= MaxBytes) Rotate();
             }
-            catch (IOException)
+            catch (Exception)
             {
-                // A full or unavailable volume must not stop stdout logging.
+                // A full or unavailable volume, or a failed rotation, must not stop stdout logging.
             }
         }
+        // Entries dropped after the last batch would otherwise never be reported.
+        try
+        {
+            ReportDropped();
+            file?.Flush();
+        }
+        catch (Exception)
+        {
+        }
+    }
+
+    void ReportDropped()
+    {
+        var lost = Interlocked.Exchange(ref dropped, 0);
+        if (lost == 0) return;
+        var notice = Format("WARN", $"Dropped {lost} log entries because the log writer fell behind", null);
+        Console.Out.WriteLine(notice);
+        file?.WriteLine(notice);
     }
 
     void Rotate()

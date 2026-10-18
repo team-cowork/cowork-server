@@ -16,11 +16,9 @@ void ConfigureLogging(ILoggingBuilder logging) => logging.ClearProviders().AddPr
     .AddFilter("System.Net.Http", LogLevel.Warning);
 
 App.Logs = LoggerFactory.Create(ConfigureLogging);
-var startup = App.Logs.CreateLogger("CoworkUser.Startup");
 
 var config = AppConfig.Load();
 App.Config = config;
-SchemaMigration.Run(config.ConnectionString, startup);
 App.Db = new MySqlDataSource(config.ConnectionString);
 Accounts.Redis = await ConnectionMultiplexer.ConnectAsync(new ConfigurationOptions
 {

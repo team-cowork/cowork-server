@@ -127,7 +127,7 @@ public static class IdentityCommand
     const string ResultErrorCode = "USER_IDENTITY_REJECTED";
     const string ResultErrorMessage = "cowork-user could not commit the requested identity";
 
-    sealed class ConflictingReuse() : Exception(":conflicting_identity_command_reuse");
+    sealed class ConflictingReuse(string reason = ":conflicting_identity_command_reuse") : Exception(reason);
 
     public static async Task HandleAsync(string consumerGroup, string resultTopic, KafkaRecord record, ILogger logger)
     {
@@ -186,11 +186,10 @@ public static class IdentityCommand
             if (inbox.Count == 1)
             {
                 var stored = inbox[0];
-                // Rows written under hash version 1 (the previous runtime's serialization) cannot be recomputed, so a
-                // retry of one is matched by its ids. Drop this once no version 1 rows remain.
-                var hashComparable = stored.HashVersion == IdentityCommandContract.HashVersion;
+                // Every stored row is verified with the rule it was written under; an unknown version is refused.
+                if (HashFor(stored.HashVersion, command) is not { } expectedHash) throw new ConflictingReuse(":unsupported_identity_command_hash_version");
                 if (stored.OperationId != command.OperationId || stored.IdempotencyKey != command.IdempotencyKey
-                    || stored.UserId != command.UserId || (hashComparable && stored.CommandHash != commandHash))
+                    || stored.UserId != command.UserId || stored.CommandHash != expectedHash)
                     throw new ConflictingReuse();
                 await EnqueueResultAsync(connection, transaction, resultTopic, stored.OperationId, stored.ResultPayload);
                 return 0;
@@ -232,6 +231,14 @@ public static class IdentityCommand
         if (errorCode is not null) result["error"] = new SortedDictionary<string, string>(StringComparer.Ordinal) { ["code"] = errorCode, ["message"] = errorMessage! };
         return Json.Encode(result);
     }
+
+    /// <summary>The hash of a command under the given version's rule, or null when the version is not supported.</summary>
+    internal static string? HashFor(long hashVersion, IdentityCommandContract.Command command) => hashVersion switch
+    {
+        1 => Hash(IdentityCommandContract.LegacyCanonicalPayload(command)),
+        IdentityCommandContract.HashVersion => Hash(IdentityCommandContract.CanonicalPayload(command)),
+        _ => null,
+    };
 
     internal static string Hash(string value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
 }

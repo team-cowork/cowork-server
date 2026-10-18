@@ -20,7 +20,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="db/migration/*.sql" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- CD and Compose run these with the official Flyway CLI; the image only carries them. -->
+    <None Include="db/migration/*.sql;db/flyway.toml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <EmbeddedResource Include="openapi.json" LogicalName="openapi.json" />
     <InternalsVisibleTo Include="CoworkUser.Tests" />
   </ItemGroup>
