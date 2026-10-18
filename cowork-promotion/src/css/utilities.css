@@ -666,10 +666,6 @@
 .mock-translucent-bg {
     background-color: rgba(255, 255, 255, 0.15);
 }
-.mock-cursor-position {
-    top: 40%;
-    left: 55%;
-}
 .mock-delay-0 {
     animation-delay: 0s;
 }
