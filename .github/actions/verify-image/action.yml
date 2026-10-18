@@ -39,9 +39,9 @@ runs:
       id: cache-policy
       shell: bash
       env:
-        CACHE_FALLBACK: ${{ runner.os }}-verify-mounts-v2-${{ inputs.module }}-${{ inputs.environment }}-
+        CACHE_FALLBACK: ${{ runner.os }}-dependency-mounts-v3-${{ inputs.module }}-${{ inputs.environment }}-
         # Hash the measurement checkout, which can differ from the action checkout.
-        CACHE_PREFIX: ${{ runner.os }}-verify-mounts-v2-${{ inputs.module }}-${{ inputs.environment }}-${{ hashFiles(format('{0}/{1}/Dockerfile.{2}', inputs.source, inputs.module, inputs.environment)) }}-
+        CACHE_PREFIX: ${{ runner.os }}-dependency-mounts-v3-${{ inputs.module }}-${{ inputs.environment }}-${{ hashFiles(format('{0}/{1}/Dockerfile.{2}', inputs.source, inputs.module, inputs.environment)) }}-
         CACHE_WRITE: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main') }}
       run: |
         # Dependency changes are resolved by the build tool; refresh the cache weekly.
@@ -49,13 +49,15 @@ runs:
         echo "prefix=$CACHE_PREFIX" >> "$GITHUB_OUTPUT"
         echo "fallback=$CACHE_FALLBACK" >> "$GITHUB_OUTPUT"
         echo "write=$CACHE_WRITE" >> "$GITHUB_OUTPUT"
-    # Branch push CI populates the sole verification cache; PRs only restore it.
+    # Branch push CI populates the sole dependency cache, which image builds also
+    # restore; PRs only restore it.
     - name: Restore And Save Verification Dependency Caches
       if: steps.cache-policy.outputs.write == 'true'
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       id: cache
       with:
-        path: ${{ runner.temp }}/verify-cache-${{ inputs.module }}-${{ inputs.environment }}
+        # build-image restores from this exact path; the cache version includes it.
+        path: ${{ runner.temp }}/dependency-mounts-${{ inputs.module }}-${{ inputs.environment }}
         key: ${{ steps.cache-policy.outputs.key }}
         restore-keys: |
           ${{ steps.cache-policy.outputs.prefix }}
@@ -65,7 +67,7 @@ runs:
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
       id: restore-cache
       with:
-        path: ${{ runner.temp }}/verify-cache-${{ inputs.module }}-${{ inputs.environment }}
+        path: ${{ runner.temp }}/dependency-mounts-${{ inputs.module }}-${{ inputs.environment }}
         key: ${{ steps.cache-policy.outputs.key }}
         restore-keys: |
           ${{ steps.cache-policy.outputs.prefix }}
@@ -76,7 +78,7 @@ runs:
       with:
         builder: ${{ steps.builder.outputs.name }}
         dockerfile: ${{ inputs.source }}/${{ inputs.module }}/Dockerfile.${{ inputs.environment }}
-        cache-dir: ${{ runner.temp }}/verify-cache-${{ inputs.module }}-${{ inputs.environment }}
+        cache-dir: ${{ runner.temp }}/dependency-mounts-${{ inputs.module }}-${{ inputs.environment }}
         scratch-dir: ${{ runner.temp }}/verify-cache-dance-${{ inputs.module }}-${{ inputs.environment }}-${{ inputs.snapshot }}
         skip-extraction: ${{ steps.cache-policy.outputs.write != 'true' || steps.cache.outputs.cache-hit == 'true' }}
         utility-image: alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
