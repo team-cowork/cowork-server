@@ -4,7 +4,7 @@ import com.cowork.project.domain.user.service.UserProfileProjectionReader
 import org.springframework.stereotype.Component
 
 /**
- * `user.profile.event` local projection에서 연동된 GitHub 사용자명을 해석한다.
+ * `user.profile.event.v2` local projection에서 연동된 GitHub 사용자명을 해석한다.
  */
 @Component
 class GithubUsernameResolver(private val profileReader: UserProfileProjectionReader) {

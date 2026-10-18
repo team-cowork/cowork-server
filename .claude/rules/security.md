@@ -1,6 +1,6 @@
 ---
 paths:
-  - "cowork-*/**/*.{kt,java,go,ts,ex,exs}"
+  - "cowork-*/**/*.{kt,java,go,ts,cs}"
   - "deploy/compose/*.yaml"
   - "deploy/prod/{slots/**,network/**,storage/firewall*,**/compose.yaml}"
   - "deploy/iac/{ansible/**,policy/**}"
