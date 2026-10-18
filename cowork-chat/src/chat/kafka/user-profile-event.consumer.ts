@@ -58,16 +58,16 @@ export class UserProfileEventConsumer implements OnModuleInit, OnModuleDestroy {
                 ));
             },
         }).catch(async (error: unknown) => {
-            this.logger.error('user.profile.event Kafka consumer failed', error);
+            this.logger.error('user.profile.event.v2 Kafka consumer failed', error);
             await this.dicoshot.sendCustom({
                 title: '🔴 Kafka Consumer 중단',
-                description: 'cowork-chat의 user.profile.event consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
+                description: 'cowork-chat의 user.profile.event.v2 consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
                 color: 'danger',
-                fields: [{name: 'Topic', value: 'user.profile.event', inline: true}, ...buildErrorFields(error)],
+                fields: [{name: 'Topic', value: 'user.profile.event.v2', inline: true}, ...buildErrorFields(error)],
             }).catch(() => {/* Alert delivery is best-effort. */});
             process.exit(1);
         });
-        this.logger.log('Kafka projection consumer started: user.profile.event');
+        this.logger.log('Kafka projection consumer started: user.profile.event.v2');
     }
 
     async onModuleDestroy() {

@@ -31,7 +31,7 @@ class UserProfileConsumer(
             }
         }
             .getOrElse {
-                quarantine(record, "user.profile.event JSON 역직렬화 실패: ${it.message}")
+                quarantine(record, "user.profile.event.v2 JSON 역직렬화 실패: ${it.message}")
                 return
             }
         val occurredAt = payload.occurredAt
@@ -61,7 +61,7 @@ class UserProfileConsumer(
 
     private fun quarantine(record: ConsumerRecord<String, String>, reason: String) {
         log.warn(
-            "user.profile.event를 격리합니다 [partition={}, offset={}, reason={}]",
+            "user.profile.event.v2를 격리합니다 [partition={}, offset={}, reason={}]",
             record.partition(),
             record.offset(),
             reason,
