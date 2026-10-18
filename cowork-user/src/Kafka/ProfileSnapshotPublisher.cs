@@ -1,4 +1,5 @@
 using Dapper;
+using MySqlConnector;
 
 namespace CoworkUser.Kafka;
 
@@ -62,7 +63,7 @@ public sealed class ProfileSnapshotPublisher(AppConfig config, Producer producer
 
             try
             {
-                var postponed = await PublishSnapshotAsync();
+                var postponed = await PublishSnapshotAsync(lockConnection);
                 if (postponed is null) return true;
                 logger.LogWarning("User profile snapshot postponed: {Reason}", postponed);
                 return false;
@@ -79,7 +80,17 @@ public sealed class ProfileSnapshotPublisher(AppConfig config, Producer producer
         }
     }
 
-    async Task<string?> PublishSnapshotAsync()
+    // MySQL drops a named lock with its session, so every write runs on the connection that holds it:
+    // once that session is gone the writes fail instead of overlapping another instance's snapshot.
+    static async Task<T> LockedTransactionAsync<T>(MySqlConnection lockConnection, Func<MySqlConnection, MySqlTransaction, Task<T>> work)
+    {
+        await using var transaction = await lockConnection.BeginTransactionAsync();
+        var result = await work(lockConnection, transaction);
+        await transaction.CommitAsync();
+        return result;
+    }
+
+    async Task<string?> PublishSnapshotAsync(MySqlConnection lockConnection)
     {
         var topic = config.KafkaProfileTopic;
         if (!readiness.Current()) return ":source_projections_not_ready";
@@ -90,7 +101,7 @@ public sealed class ProfileSnapshotPublisher(AppConfig config, Producer producer
         long lastUserId = 0;
         while (true)
         {
-            var page = await App.TransactionAsync(async (connection, transaction) =>
+            var page = await LockedTransactionAsync(lockConnection, async (connection, transaction) =>
             {
                 var accounts = (await connection.QueryAsync<(long Id, string Name, string? Github, ulong Version, DateTime OccurredAt)>("""
                     SELECT id, name, github, profile_event_version, profile_event_occurred_at
@@ -114,7 +125,7 @@ public sealed class ProfileSnapshotPublisher(AppConfig config, Producer producer
         }
 
         if (!readiness.Current()) return ":source_projections_advanced_during_snapshot";
-        await App.TransactionAsync(async (connection, transaction) =>
+        await LockedTransactionAsync(lockConnection, async (connection, transaction) =>
         {
             await ProfileEventPublisher.EnqueueSnapshotCompleteAsync(connection, transaction, topic, partitionCount, snapshotId, Iso8601.UtcNow());
             return 0;

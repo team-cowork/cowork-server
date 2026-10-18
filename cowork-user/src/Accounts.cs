@@ -88,6 +88,12 @@ public static partial class Accounts
     public static async Task<UserResponse> GetUserProfileAsync(long userId)
     {
         await using var connection = await App.OpenAsync();
+        return await GetUserProfileAsync(connection, userId);
+    }
+
+    // Callers that already hold a connection pass it in; opening a second one while holding the first can exhaust the pool.
+    static async Task<UserResponse> GetUserProfileAsync(MySqlConnection connection, long userId)
+    {
         var rows = await connection.QueryAsync<ProfileRow>($"{ProfileSelect} WHERE p.account_id = @userId", new { userId });
         return (await ToUserResponsesAsync(connection, rows.ToList())).SingleOrDefault() ?? throw ApiError.NotFound();
     }
@@ -97,7 +103,7 @@ public static partial class Accounts
     {
         await using var connection = await App.OpenAsync();
         var id = await connection.QuerySingleOrDefaultAsync<long?>("SELECT id FROM tb_accounts WHERE github = @username", new { username });
-        return id is null ? throw ApiError.NotFound() : await GetUserProfileAsync(id.Value);
+        return id is null ? throw ApiError.NotFound() : await GetUserProfileAsync(connection, id.Value);
     }
 
     static async Task<List<UserResponse>> ToUserResponsesAsync(MySqlConnection connection, List<ProfileRow> rows)
@@ -333,42 +339,46 @@ public static partial class Accounts
             throw ApiError.Validation("custom_status 필드는 필수입니다.");
 
         await using var connection = await App.OpenAsync();
-        var current = await connection.QueryAsync<(string? CustomStatus, string? StatusMessage, DateTime? StatusExpiresAt)>("""
-            SELECT a.custom_status, a.status_message, a.status_expires_at
-            FROM tb_profiles p JOIN tb_accounts a ON a.id = p.account_id
-            WHERE p.account_id = @userId
-            """, new { userId }).FirstOrNullAsync() ?? throw ApiError.NotFound();
+        if (await connection.ExecuteScalarAsync<long?>(
+                "SELECT a.id FROM tb_profiles p JOIN tb_accounts a ON a.id = p.account_id WHERE p.account_id = @userId", new { userId }) is null)
+            throw ApiError.NotFound();
 
-        var change = CustomStatusChange(attrs, rawStatus, current.StatusMessage, current.StatusExpiresAt);
-        await connection.ExecuteAsync("""
+        var change = CustomStatusChange(attrs, rawStatus);
+        // Only the fields in the request are written, so a concurrent PATCH of another field is not reverted.
+        var assignments = new List<string> { "custom_status = @CustomStatus" };
+        if (change.MessageGiven) assignments.Add("status_message = @StatusMessage");
+        if (change.ExpiresAtGiven) assignments.Add("status_expires_at = @StatusExpiresAt");
+        await connection.ExecuteAsync($"""
             UPDATE tb_accounts
-            SET custom_status = @CustomStatus, status_message = @StatusMessage, status_expires_at = @StatusExpiresAt,
-                last_modified_by = @userId, updated_at = UTC_TIMESTAMP(6)
+            SET {string.Join(", ", assignments)}, last_modified_by = @userId, updated_at = UTC_TIMESTAMP(6)
             WHERE id = @userId
             """, new { change.CustomStatus, change.StatusMessage, change.StatusExpiresAt, userId });
 
-        return await GetUserProfileAsync(userId);
+        return await GetUserProfileAsync(connection, userId);
     }
 
-    internal sealed record StatusChange(string CustomStatus, string? StatusMessage, DateTime? StatusExpiresAt);
+    /// <summary>The requested change; a field missing from the request keeps its stored value.</summary>
+    internal sealed record StatusChange(string CustomStatus, bool MessageGiven, string? StatusMessage, bool ExpiresAtGiven, DateTime? StatusExpiresAt);
 
-    internal static StatusChange CustomStatusChange(JsonElement attrs, JsonElement rawStatus, string? currentMessage, DateTime? currentExpiresAt)
+    internal static StatusChange CustomStatusChange(JsonElement attrs, JsonElement rawStatus)
     {
         var errors = new FieldErrors();
         if (!TryCastString(rawStatus, out var customStatus)) errors.Add("custom_status", "is invalid");
         else if (customStatus is null) errors.Add("custom_status", "can't be blank");
         else if (TextLength(customStatus) > CustomStatusMaxLength) errors.Add("custom_status", $"should be at most {CustomStatusMaxLength} character(s)");
 
-        var message = currentMessage;
-        if (attrs.TryGetProperty("message", out var rawMessage))
+        string? message = null;
+        var messageGiven = attrs.TryGetProperty("message", out var rawMessage);
+        if (messageGiven)
         {
             if (!TryCastString(rawMessage, out message)) errors.Add("status_message", "is invalid");
             else if (message is not null && TextLength(message) > StatusMessageMaxLength)
                 errors.Add("status_message", $"should be at most {StatusMessageMaxLength} character(s)");
         }
 
-        var expiresAt = currentExpiresAt;
-        if (attrs.TryGetProperty("expiresAt", out var rawExpires))
+        DateTime? expiresAt = null;
+        var expiresAtGiven = attrs.TryGetProperty("expiresAt", out var rawExpires);
+        if (expiresAtGiven)
         {
             if (rawExpires.ValueKind == JsonValueKind.Null) expiresAt = null;
             else if (rawExpires.ValueKind == JsonValueKind.String && rawExpires.GetString()!.Trim() == "") expiresAt = null;
@@ -378,7 +388,7 @@ public static partial class Accounts
         }
 
         errors.ThrowIfAny();
-        return new StatusChange(customStatus!, message, expiresAt);
+        return new StatusChange(customStatus!, messageGiven, message, expiresAtGiven, expiresAt);
     }
 
     /// <summary>Length in user-perceived characters (graphemes), as Ecto's validate_length counts.</summary>

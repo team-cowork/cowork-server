@@ -2,11 +2,10 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace CoworkUser;
 
-public static partial class Metrics
+public static class Metrics
 {
     sealed class Series
     {
@@ -16,14 +15,10 @@ public static partial class Metrics
 
     static readonly ConcurrentDictionary<(string Uri, int Status), Series> Requests = new();
 
-    [GeneratedRegex(@"/\d+")]
-    private static partial Regex NumericSegment();
-
-    internal static string NormalizeUri(string path) => NumericSegment().Replace(path, "/:id");
-
-    public static void Record(string path, int status, TimeSpan elapsed)
+    /// <summary>Records a request under its route template, so the series count stays bounded.</summary>
+    public static void Record(string uri, int status, TimeSpan elapsed)
     {
-        var series = Requests.GetOrAdd((NormalizeUri(path), status), _ => new Series());
+        var series = Requests.GetOrAdd((uri, status), _ => new Series());
         Interlocked.Increment(ref series.Count);
         Interlocked.Add(ref series.Ticks, elapsed.Ticks);
     }
