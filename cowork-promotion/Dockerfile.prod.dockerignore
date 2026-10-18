@@ -24,8 +24,8 @@ screenlog.*
 **/.kotlin
 **/node_modules
 **/target
-**/_build
-**/deps
+**/bin
+**/obj
 **/.env
 **/.env.*
 **/application-local.yml
@@ -36,5 +36,3 @@ screenlog.*
 **/__pycache__
 
 **/coverage
-**/cover
-**/.elixir_ls
