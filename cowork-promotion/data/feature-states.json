@@ -3,21 +3,21 @@
     "color": "#8b5cf6",
     "label": "Workspace",
     "title": "실시간 협업 워크스페이스",
-    "description": "팀원들이 채널에 모여 함께 작업합니다. 누가 접속해 있는지 프레즌스로 실시간 확인합니다.",
+    "description": "팀과 프로젝트별 공간에서 대화하며 함께 작업합니다. 누가 함께하고 있는지 실시간으로 확인합니다.",
     "tags": [
-      "Presence",
+      "Team",
       "Channel"
     ],
     "mockup": "workspace"
   },
   {
     "color": "#10b981",
-    "label": "Board",
-    "title": "칸반 태스크 보드",
-    "description": "드래그앤드롭으로 할 일을 옮기며 진행 상태를 추적합니다. 컬럼을 넘나드는 카드로 흐름이 한눈에 보입니다.",
+    "label": "Task",
+    "title": "태스크 관리",
+    "description": "할 일을 정리하고 진행 상황을 함께 관리합니다. 팀의 작업 흐름이 한눈에 보입니다.",
     "tags": [
-      "Drag & Drop",
-      "Status Flow"
+      "Task",
+      "Progress"
     ],
     "mockup": "board"
   },
@@ -36,11 +36,10 @@
     "color": "#6366f1",
     "label": "GitHub",
     "title": "GitHub 연동",
-    "description": "커밋·PR·이슈 소식이 채널로 바로 전달됩니다. 채팅에서 이슈를 만들고 PR을 승인하거나 머지합니다.",
+    "description": "저장소의 변화를 워크스페이스에서 바로 확인합니다. 코드 작업과 팀의 대화가 자연스럽게 이어집니다.",
     "tags": [
-      "Commit",
-      "Pull Request",
-      "Issue"
+      "Repository",
+      "Integration"
     ],
     "mockup": "github"
   },
@@ -48,7 +47,7 @@
     "color": "#f97316",
     "label": "Notification",
     "title": "실시간 알림",
-    "description": "팀에서 일어난 변화를 알림으로 바로 받습니다. 앱을 닫아 두어도 푸시 알림으로 놓치지 않습니다.",
+    "description": "팀에서 일어나는 변화를 놓치지 않도록 바로 알려 줍니다. 어디에 있든 팀의 흐름을 따라갑니다.",
     "tags": [
       "Notification",
       "Push"
@@ -58,11 +57,11 @@
   {
     "color": "#0ea5e9",
     "label": "Search",
-    "title": "메시지 검색",
-    "description": "채널에 쌓인 메시지를 전문 검색합니다. 지난 대화 속에서 필요한 내용을 바로 찾습니다.",
+    "title": "검색",
+    "description": "쌓여 가는 대화 속에서 필요한 정보를 빠르게 찾습니다. 지난 논의도 언제든 다시 꺼내 봅니다.",
     "tags": [
-      "Message",
-      "Full-text"
+      "Search",
+      "Message"
     ],
     "mockup": "search"
   }
