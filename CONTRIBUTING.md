@@ -2,7 +2,7 @@
 
 Kotlin/Java coding conventions for this project. `AGENTS.md` and `.claude/rules/**` take precedence when they state a rule explicitly; this document is the default otherwise.
 
-Spring MVC/JPA examples apply to `cowork-team`, `cowork-channel`, and `cowork-project`. `cowork-roadmap` uses Java with WebFlux/R2DBC; `cowork-preference` uses Kotlin with Vert.x and PostgreSQL clients. Do not apply Spring/JPA annotations to Vert.x code or copy blocking repository calls into reactive services. Go, Elixir, and TypeScript modules follow their own build files and module documentation.
+Spring MVC/JPA examples apply to `cowork-team`, `cowork-channel`, and `cowork-project`. `cowork-roadmap` uses Java with WebFlux/R2DBC; `cowork-preference` uses Kotlin with Vert.x and PostgreSQL clients. Do not apply Spring/JPA annotations to Vert.x code or copy blocking repository calls into reactive services. Go, C#, and TypeScript modules follow their own build files and module documentation.
 
 Examples below omit imports unless the import itself is relevant. Existing code that differs from an explicit convention is not automatically an exception to it.
 
@@ -339,7 +339,7 @@ log.warn("Rejected operation for team {}", teamId)
 
 Only core business logic, authorization, and security behavior receive unit tests. Do not add integration tests, regression tests that freeze implementation details, or tests for controllers, framework wiring, configuration shape, migrations, repositories, and transport mechanics. A test belongs in the suite only when its failure identifies a broken business decision or user-visible access rule.
 
-Kotest with MockK is the convention for Kotlin Spring business tests. Roadmap uses JUnit 5, Mockito, and Reactor `StepVerifier`. Preference uses JUnit 5/Vert.x test support and MockK. Use the dependencies and runner actually configured in the module; do not impose Kotest on Java, Vert.x, Go, Elixir, or TypeScript tests.
+Kotest with MockK is the convention for Kotlin Spring business tests. Roadmap uses JUnit 5, Mockito, and Reactor `StepVerifier`. Preference uses JUnit 5/Vert.x test support and MockK. Use the dependencies and runner actually configured in the module; do not impose Kotest on Java, Vert.x, Go, C#, or TypeScript tests.
 
 This example tests the missing-team behavior in the query service shown above, using its real dependency and method names:
 
