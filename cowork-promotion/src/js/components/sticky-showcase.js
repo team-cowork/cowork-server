@@ -83,7 +83,12 @@ export function createStickyShowcase({
 	async function mount() {
 		const states = await loadStates(statesUrl);
 		store.setState({states});
-		preloadSceneImages(states);
+		try {
+			preloadSceneImages(states);
+		} catch (error) {
+			console.warn('쇼케이스 이미지 미리 불러오기에 실패했습니다.', error);
+		}
+
 		unsubscribe = store.subscribe(render);
 
 		for (const [index, button] of dots.entries()) {
