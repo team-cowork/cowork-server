@@ -803,24 +803,6 @@ services:
       retries: 10
       start_period: 60s
 
-  cowork-user-migrate:
-    image: flyway/flyway:12.8.1@sha256:b8a2d72926b98234c1fb8f45659fd23d8a001af9ee7f450326aa46af14d447bb
-    container_name: cowork-user-migrate
-    restart: "no"
-    depends_on:
-      mysql:
-        condition: service_healthy
-    environment:
-      DB_HOST: mysql
-      DB_PORT: "3306"
-      DB_NAME: cowork_user
-      DB_USERNAME: ${MYSQL_USER}
-      DB_PASSWORD: ${MYSQL_PASSWORD}
-    volumes:
-      - ./cowork-user/src/db/migration:/flyway/sql:ro
-      - ./cowork-user/src/db/flyway.toml:/flyway/conf/flyway.toml:ro
-    command: ["migrate"]
-
   cowork-user:
     image: cowork-user:local
     container_name: cowork-user
@@ -830,8 +812,6 @@ services:
         condition: service_completed_successfully
       mysql:
         condition: service_healthy
-      cowork-user-migrate:
-        condition: service_completed_successfully
       cowork-authorization:
         condition: service_healthy
       cowork-config:
