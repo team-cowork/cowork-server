@@ -49,8 +49,8 @@ export function createFeatureShowcase(root) {
 
 	return {
 		async mount() {
-			unbindMockup = bindMockupInteractions(scene);
 			await showcase.mount();
+			unbindMockup = bindMockupInteractions(scene);
 		},
 		unmount() {
 			unbindMockup();
