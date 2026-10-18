@@ -3,7 +3,7 @@ import {window} from './browser.js';
 const imageSourcePattern = /<img[^>]+src="(?<source>[^"]+)"/gv;
 const preloadedImages = [];
 
-function imageSources(html) {
+export function imageSources(html) {
 	return Array.from(html.matchAll(imageSourcePattern), match => match.groups.source.replaceAll('&amp;', '&'));
 }
 
