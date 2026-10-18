@@ -1,0 +1,11 @@
+# Official Flyway CLI settings for CD and Compose. The slot's DB_* variables are translated here, not in CD scripts.
+[environments.default]
+url = "jdbc:mysql://${env.DB_HOST}:${env.DB_PORT}/${env.DB_NAME}?useSsl=true&trustServerCertificate=true"
+user = "${env.DB_USERNAME}"
+password = "${env.DB_PASSWORD}"
+connectRetries = 5
+connectRetriesInterval = 10
+
+[flyway]
+environment = "default"
+locations = ["filesystem:/flyway/sql"]
