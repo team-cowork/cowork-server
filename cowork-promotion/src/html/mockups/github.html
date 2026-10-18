@@ -1,5 +1,5 @@
 <div class="relative aspect-[4/3] rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.02] p-4 sm:p-5">
-	<div class="absolute inset-4 sm:inset-5 rounded-2xl bg-white text-gray-900 shadow-2xl overflow-hidden flex flex-col">
+	<div class="absolute inset-4 sm:inset-5 rounded-2xl bg-white text-gray-900 shadow-2xl overflow-hidden flex flex-col" data-mockup="github" data-pr="open">
 		<div class="px-4 py-3 border-b border-gray-100">
 			<div class="flex items-center gap-1.5 text-[10px] text-gray-400 font-mono mb-1.5">
 				<svg
@@ -76,10 +76,22 @@
 		</div>
 		<div class="px-4 py-3 border-t border-gray-100">
 			<button
-				type="submit"
+				type="button"
+				tabindex="-1"
 				class="w-full py-2 rounded-lg text-[11px] font-bold text-white mock-accent-bg"
-			
+				data-mock-action="toggle"
+				data-mock-key="pr"
+				data-mock-when="pr:open"
 			> Merge pull request </button>
+			<button
+				type="button"
+				tabindex="-1"
+				class="w-full py-2 rounded-lg text-[11px] font-bold text-gray-500 bg-gray-100"
+				data-mock-action="toggle"
+				data-mock-key="pr"
+				data-mock-when="pr:merged"
+				hidden
+			> ✓ 머지 완료 </button>
 		</div>
 	</div>
 </div>
