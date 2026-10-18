@@ -1,6 +1,7 @@
 import {window} from '../core/browser.js';
 
 const maxTimerSeconds = (99 * 60) + 59;
+const springEasing = 'cubic-bezier(0.34, 1.56, 0.64, 1)';
 
 const toggleValues = {
 	call: ['joined', 'left'],
@@ -20,6 +21,62 @@ function toggleState(mockup, key) {
 	const [first, second] = toggleValues[key];
 	mockup.dataset[key] = mockup.dataset[key] === first ? second : first;
 	syncVisibility(mockup);
+}
+
+function prefersReducedMotion() {
+	return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function animateLayout(container, change) {
+	const items = [...container.children];
+	const before = new Map(items.map(item => [item, item.getBoundingClientRect()]));
+	change();
+	for (const item of items) {
+		const from = before.get(item);
+		const to = item.getBoundingClientRect();
+		if (item.hidden || from.width === 0 || to.width === 0) {
+			continue;
+		}
+
+		const transform = `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${from.width / to.width}, ${from.height / to.height})`;
+		item.animate(
+			[{transform, transformOrigin: 'top left'}, {transform: 'none', transformOrigin: 'top left'}],
+			{duration: 520, easing: springEasing},
+		);
+	}
+}
+
+async function toggleCall(button, mockup) {
+	if (mockup.dataset.animating === 'true') {
+		return;
+	}
+
+	const grid = mockup.querySelector('.mock-meeting-grid');
+	const selfTile = mockup.querySelector('.mock-self-tile');
+	const change = () => toggleState(mockup, 'call');
+	if (prefersReducedMotion()) {
+		change();
+		return;
+	}
+
+	mockup.dataset.animating = 'true';
+	if (mockup.dataset.call === 'joined') {
+		const exit = selfTile.animate(
+			[{transform: 'scale(1)', opacity: 1}, {transform: 'scale(1.08)', opacity: 1, offset: 0.35}, {transform: 'scale(0.3)', opacity: 0}],
+			{duration: 340, easing: 'ease-in', fill: 'forwards'},
+		);
+		await exit.finished;
+		animateLayout(grid, change);
+		exit.cancel();
+	} else {
+		animateLayout(grid, change);
+		await selfTile.animate(
+			[{transform: 'scale(0.3)', opacity: 0}, {transform: 'scale(1.08)', opacity: 1, offset: 0.7}, {transform: 'scale(1)', opacity: 1}],
+			{duration: 460, easing: 'ease-out'},
+		).finished;
+	}
+
+	delete mockup.dataset.animating;
 }
 
 function advanceCard(card, mockup) {
@@ -59,6 +116,7 @@ const actions = {
 	'advance-card': advanceCard,
 	'filter-results': filterResults,
 	'read-notification': readNotification,
+	'toggle-call': toggleCall,
 	toggle: (target, mockup) => toggleState(mockup, target.dataset.mockKey),
 };
 
