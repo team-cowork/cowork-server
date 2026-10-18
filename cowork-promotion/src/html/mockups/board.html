@@ -1,123 +1,183 @@
 <div class="relative aspect-[4/3] rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.02] p-4 sm:p-5">
-	<div class="absolute inset-4 sm:inset-5 rounded-2xl bg-white text-gray-900 shadow-2xl overflow-hidden p-3 grid grid-cols-3 gap-2" data-mockup="board">
-		<div class="flex flex-col gap-2 min-w-0" data-mock-column>
-			<div class="flex items-center justify-between px-1">
-				<span class="text-[10px] font-bold text-gray-500">할 일</span>
-				<span class="text-[9px] text-gray-300 font-semibold" data-mock-count>2</span>
+	<div class="absolute inset-4 sm:inset-5 rounded-2xl bg-white text-gray-900 shadow-2xl overflow-hidden p-3 flex flex-col gap-2" data-mockup="board">
+		<div class="px-1">
+			<div class="flex items-center justify-between mb-1.5">
+				<span class="text-[10px] font-bold text-gray-700">스프린트 진행률</span>
+				<span class="text-[9px] font-semibold text-gray-400" data-mock-progress-label>2 / 5 완료</span>
 			</div>
-			<div class="rounded-lg bg-gray-50 border border-gray-100 p-2 kanban-card mock-delay-0" data-mock-action="advance-card">
-				<div class="flex items-center gap-1 mb-1.5">
-					<span class="text-[7px] font-bold px-1 py-0.5 rounded mock-accent-chip">Backend</span>
-				</div>
-				<p class="text-[9px] font-semibold leading-tight text-gray-700 mb-1.5 truncate">JWT 토큰 갱신</p>
-				<div class="flex items-center justify-between">
-					<img
-						class="w-4 h-4 rounded-full object-cover bg-gray-100"
-						alt=""
-						decoding="async"
-						height="16"
-						loading="lazy"
-						src="https://i.pravatar.cc/80?img=12"
-						width="16"
-					>
-				</div>
-			</div>
-			<div class="rounded-lg bg-gray-50 border border-gray-100 p-2 kanban-card mock-delay-0-15" data-mock-action="advance-card">
-				<div class="flex items-center gap-1 mb-1.5">
-					<span class="text-[7px] font-bold px-1 py-0.5 rounded mock-accent-chip">Backend</span>
-				</div>
-				<p class="text-[9px] font-semibold leading-tight text-gray-700 mb-1.5 truncate">알림 스키마 설계</p>
-				<div class="flex items-center justify-between">
-					<img
-						class="w-4 h-4 rounded-full object-cover bg-gray-100"
-						alt=""
-						decoding="async"
-						height="16"
-						loading="lazy"
-						src="https://i.pravatar.cc/80?img=5"
-						width="16"
-					>
+			<div class="mock-progress-track">
+				<div class="mock-progress-bar mock-accent-bg" data-mock-progress-bar style="width: 40%">
 				</div>
 			</div>
 		</div>
-		<div class="flex flex-col gap-2 min-w-0" data-mock-column>
-			<div class="flex items-center justify-between px-1">
-				<span class="text-[10px] font-bold text-gray-500">진행 중</span>
-				<span class="text-[9px] text-gray-300 font-semibold" data-mock-count>1</span>
+		<div class="flex-1 grid grid-cols-3 gap-2 mock-board-columns">
+			<div class="flex flex-col gap-2 min-w-0 mock-board-column" data-mock-column="todo">
+				<div class="flex items-center justify-between px-1">
+					<span class="text-[10px] font-bold text-gray-500">할 일</span>
+					<span class="text-[9px] text-gray-300 font-semibold" data-mock-count>2</span>
+				</div>
+				<div class="mock-board-cards" data-mock-cards>
+					<div class="rounded-lg bg-gray-50 border border-gray-100 p-2 kanban-card mock-delay-0" data-mock-card>
+						<div class="flex items-center gap-1 mb-1.5 mock-task-meta">
+							<span class="text-[7px] font-bold px-1 py-0.5 rounded mock-accent-chip">Backend</span>
+						</div>
+						<p class="flex items-center gap-1 text-[9px] font-semibold leading-tight text-gray-700 mock-task-title">
+							<svg
+								class="mock-task-check"
+								fill="rgb(var(--ui-accent-rgb))"
+								height="10"
+								viewBox="0 0 24 24"
+								width="10"
+							>
+								<path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z">
+								</path>
+							</svg>
+							<span class="truncate min-w-0">JWT 토큰 갱신</span>
+						</p>
+						<div class="flex items-center mock-task-meta mock-task-footer">
+							<img
+								class="w-4 h-4 rounded-full object-cover bg-gray-100"
+								alt=""
+								decoding="async"
+								height="16"
+								loading="lazy"
+								src="https://i.pravatar.cc/80?img=12"
+								width="16"
+							>
+						</div>
+					</div>
+					<div class="rounded-lg bg-gray-50 border border-gray-100 p-2 kanban-card mock-delay-0-15" data-mock-card>
+						<div class="flex items-center gap-1 mb-1.5 mock-task-meta">
+							<span class="text-[7px] font-bold px-1 py-0.5 rounded mock-accent-chip">Frontend</span>
+						</div>
+						<p class="flex items-center gap-1 text-[9px] font-semibold leading-tight text-gray-700 mock-task-title">
+							<svg
+								class="mock-task-check"
+								fill="rgb(var(--ui-accent-rgb))"
+								height="10"
+								viewBox="0 0 24 24"
+								width="10"
+							>
+								<path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z">
+								</path>
+							</svg>
+							<span class="truncate min-w-0">알림 설정 화면</span>
+						</p>
+						<div class="flex items-center mock-task-meta mock-task-footer">
+							<img
+								class="w-4 h-4 rounded-full object-cover bg-gray-100"
+								alt=""
+								decoding="async"
+								height="16"
+								loading="lazy"
+								src="https://i.pravatar.cc/80?img=5"
+								width="16"
+							>
+						</div>
+					</div>
+				</div>
 			</div>
-			<div class="rounded-lg bg-gray-50 border border-gray-100 p-2 kanban-card mock-delay-0-15" data-mock-action="advance-card">
-				<div class="flex items-center gap-1 mb-1.5">
-					<span class="text-[7px] font-bold px-1 py-0.5 rounded mock-accent-chip">Backend</span>
+			<div class="flex flex-col gap-2 min-w-0 mock-board-column" data-mock-column="doing">
+				<div class="flex items-center justify-between px-1">
+					<span class="text-[10px] font-bold text-gray-500">진행 중</span>
+					<span class="text-[9px] text-gray-300 font-semibold" data-mock-count>1</span>
 				</div>
-				<p class="text-[9px] font-semibold leading-tight text-gray-700 mb-1.5 truncate">로그인 API 구현</p>
-				<div class="flex items-center justify-between">
-					<img
-						class="w-4 h-4 rounded-full object-cover bg-gray-100"
-						alt=""
-						decoding="async"
-						height="16"
-						loading="lazy"
-						src="https://i.pravatar.cc/80?img=5"
-						width="16"
-					>
-				</div>
-			</div>
-		</div>
-		<div class="flex flex-col gap-2 min-w-0" data-mock-column>
-			<div class="flex items-center justify-between px-1">
-				<span class="text-[10px] font-bold text-gray-500">완료</span>
-				<span class="text-[9px] text-gray-300 font-semibold" data-mock-count>2</span>
-			</div>
-			<div class="rounded-lg bg-gray-50 border border-gray-100 p-2 kanban-card mock-delay-0-3" data-mock-action="advance-card">
-				<div class="flex items-center gap-1 mb-1.5">
-					<span class="text-[7px] font-bold px-1 py-0.5 rounded mock-accent-chip">완료</span>
-				</div>
-				<p class="text-[9px] font-semibold leading-tight text-gray-700 mb-1.5 truncate">DB 마이그레이션</p>
-				<div class="flex items-center justify-between">
-					<img
-						class="w-4 h-4 rounded-full object-cover bg-gray-100"
-						alt=""
-						decoding="async"
-						height="16"
-						loading="lazy"
-						src="https://i.pravatar.cc/80?img=33"
-						width="16"
-					>
-					<svg
-						fill="rgb(var(--ui-accent-rgb))"
-						height="11"
-						viewBox="0 0 24 24"
-						width="11"
-					>
-						<path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z">
-						</path>
-					</svg>
+				<div class="mock-board-cards" data-mock-cards>
+					<div class="rounded-lg bg-gray-50 border border-gray-100 p-2 kanban-card mock-delay-0-15" data-mock-card>
+						<div class="flex items-center gap-1 mb-1.5 mock-task-meta">
+							<span class="text-[7px] font-bold px-1 py-0.5 rounded mock-accent-chip">Backend</span>
+						</div>
+						<p class="flex items-center gap-1 text-[9px] font-semibold leading-tight text-gray-700 mock-task-title">
+							<svg
+								class="mock-task-check"
+								fill="rgb(var(--ui-accent-rgb))"
+								height="10"
+								viewBox="0 0 24 24"
+								width="10"
+							>
+								<path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z">
+								</path>
+							</svg>
+							<span class="truncate min-w-0">로그인 API 구현</span>
+						</p>
+						<div class="flex items-center mock-task-meta mock-task-footer">
+							<img
+								class="w-4 h-4 rounded-full object-cover bg-gray-100"
+								alt=""
+								decoding="async"
+								height="16"
+								loading="lazy"
+								src="https://i.pravatar.cc/80?img=5"
+								width="16"
+							>
+						</div>
+					</div>
 				</div>
 			</div>
-			<div class="rounded-lg bg-gray-50 border border-gray-100 p-2 kanban-card mock-delay-0-45" data-mock-action="advance-card">
-				<div class="flex items-center gap-1 mb-1.5">
-					<span class="text-[7px] font-bold px-1 py-0.5 rounded mock-accent-chip">완료</span>
+			<div class="flex flex-col gap-2 min-w-0 mock-board-column" data-mock-column="done">
+				<div class="flex items-center justify-between px-1">
+					<span class="text-[10px] font-bold text-gray-500">완료</span>
+					<span class="text-[9px] text-gray-300 font-semibold" data-mock-count>2</span>
 				</div>
-				<p class="text-[9px] font-semibold leading-tight text-gray-700 mb-1.5 truncate">헬스 체크</p>
-				<div class="flex items-center justify-between">
-					<img
-						class="w-4 h-4 rounded-full object-cover bg-gray-100"
-						alt=""
-						decoding="async"
-						height="16"
-						loading="lazy"
-						src="https://i.pravatar.cc/80?img=47"
-						width="16"
-					>
-					<svg
-						fill="rgb(var(--ui-accent-rgb))"
-						height="11"
-						viewBox="0 0 24 24"
-						width="11"
-					>
-						<path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z">
-						</path>
-					</svg>
+				<div class="mock-board-cards" data-mock-cards>
+					<div class="rounded-lg bg-gray-50 border border-gray-100 p-2 kanban-card mock-delay-0-3" data-mock-card>
+						<div class="flex items-center gap-1 mb-1.5 mock-task-meta">
+							<span class="text-[7px] font-bold px-1 py-0.5 rounded mock-accent-chip">Backend</span>
+						</div>
+						<p class="flex items-center gap-1 text-[9px] font-semibold leading-tight text-gray-700 mock-task-title">
+							<svg
+								class="mock-task-check"
+								fill="rgb(var(--ui-accent-rgb))"
+								height="10"
+								viewBox="0 0 24 24"
+								width="10"
+							>
+								<path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z">
+								</path>
+							</svg>
+							<span class="truncate min-w-0">DB 마이그레이션</span>
+						</p>
+						<div class="flex items-center mock-task-meta mock-task-footer">
+							<img
+								class="w-4 h-4 rounded-full object-cover bg-gray-100"
+								alt=""
+								decoding="async"
+								height="16"
+								loading="lazy"
+								src="https://i.pravatar.cc/80?img=33"
+								width="16"
+							>
+						</div>
+					</div>
+					<div class="rounded-lg bg-gray-50 border border-gray-100 p-2 kanban-card mock-delay-0-45" data-mock-card>
+						<div class="flex items-center gap-1 mb-1.5 mock-task-meta">
+							<span class="text-[7px] font-bold px-1 py-0.5 rounded mock-accent-chip">Infra</span>
+						</div>
+						<p class="flex items-center gap-1 text-[9px] font-semibold leading-tight text-gray-700 mock-task-title">
+							<svg
+								class="mock-task-check"
+								fill="rgb(var(--ui-accent-rgb))"
+								height="10"
+								viewBox="0 0 24 24"
+								width="10"
+							>
+								<path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z">
+								</path>
+							</svg>
+							<span class="truncate min-w-0">헬스 체크</span>
+						</p>
+						<div class="flex items-center mock-task-meta mock-task-footer">
+							<img
+								class="w-4 h-4 rounded-full object-cover bg-gray-100"
+								alt=""
+								decoding="async"
+								height="16"
+								loading="lazy"
+								src="https://i.pravatar.cc/80?img=47"
+								width="16"
+							>
+						</div>
+					</div>
 				</div>
 			</div>
 		</div>
