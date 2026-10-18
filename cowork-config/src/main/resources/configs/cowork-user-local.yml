@@ -22,7 +22,7 @@ kafka_team_member_topic: team.member.event
 kafka_team_member_group_id: cowork-user.team-member
 kafka_presence_topic: user.presence.event
 kafka_presence_group_id: cowork-user.user-presence
-kafka_profile_topic: user.profile.event
+kafka_profile_topic: user.profile.event.v2
 kafka_profile_snapshot_interval_ms: 300000
 
 s3_region: us-east-1

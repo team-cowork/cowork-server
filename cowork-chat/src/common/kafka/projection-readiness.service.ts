@@ -104,8 +104,8 @@ export const PROJECTION_STREAMS = {
     },
     userProfile: {
         name: 'userProfile',
-        topic: 'user.profile.event',
-        groupId: 'cowork-chat-user-profile-event-v1-projection',
+        topic: 'user.profile.event.v2',
+        groupId: 'cowork-chat-user-profile-event-v2-projection',
         expectedSource: 'cowork-user',
         sourceGeneration: sourceGeneration('USER_PROFILE'),
     },
