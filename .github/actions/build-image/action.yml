@@ -28,23 +28,38 @@ runs:
     - name: Set Up Docker Buildx
       uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       id: builder
+    - name: Read Dependency Cache Key
+      id: cache-key
+      shell: bash
+      env:
+        CACHE_FALLBACK: ${{ runner.os }}-dependency-mounts-v3-cowork-${{ inputs.service }}-${{ inputs.environment }}-
+        CACHE_PREFIX: ${{ runner.os }}-dependency-mounts-v3-cowork-${{ inputs.service }}-${{ inputs.environment }}-${{ hashFiles(inputs.dockerfile) }}-
+      run: |
+        echo "key=${CACHE_PREFIX}$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
+        echo "prefix=$CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+        echo "fallback=$CACHE_FALLBACK" >> "$GITHUB_OUTPUT"
+    # Keep mount caches as the only external cache; type=gha layer imports failed
+    # with BlobNotFound during eviction. The verify target builds the same builder
+    # stage, so only verify-image saves the shared mounts to stay under the budget.
     - name: Restore Dependency Cache Mounts
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
-      id: cache
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      id: restore-cache
       with:
-        path: ${{ runner.temp }}/cowork-image-cache
-        key: ${{ runner.os }}-image-mounts-v1-${{ inputs.service }}-${{ inputs.environment }}-${{ github.sha }}
+        # The cache version includes this path, so it must equal verify-image's path.
+        path: ${{ runner.temp }}/dependency-mounts-cowork-${{ inputs.service }}-${{ inputs.environment }}
+        key: ${{ steps.cache-key.outputs.key }}
         restore-keys: |
-          ${{ runner.os }}-image-mounts-v1-${{ inputs.service }}-${{ inputs.environment }}-
-    # Register after actions/cache: its post step extracts before the cache is saved.
-    - name: Inject And Extract BuildKit Cache Mounts
+          ${{ steps.cache-key.outputs.prefix }}
+          ${{ steps.cache-key.outputs.fallback }}
+    - name: Inject BuildKit Cache Mounts
+      if: steps.restore-cache.outputs.cache-matched-key != ''
       uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
       with:
         builder: ${{ steps.builder.outputs.name }}
         dockerfile: ${{ inputs.dockerfile }}
-        cache-dir: ${{ runner.temp }}/cowork-image-cache
+        cache-dir: ${{ runner.temp }}/dependency-mounts-cowork-${{ inputs.service }}-${{ inputs.environment }}
         scratch-dir: ${{ runner.temp }}/cowork-cache-dance
-        skip-extraction: ${{ steps.cache.outputs.cache-hit }}
+        skip-extraction: 'true'
         utility-image: alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
     - name: Build Image
       uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
@@ -60,8 +75,6 @@ runs:
         sbom: false
         tags: ${{ inputs.tags }}
         labels: ${{ inputs.labels }}
-        cache-from: type=gha,scope=cowork-${{ inputs.service }}-${{ inputs.environment }}
-        cache-to: type=gha,mode=max,scope=cowork-${{ inputs.service }}-${{ inputs.environment }}
     - name: Inspect Image Slot Contract
       shell: bash
       env:
