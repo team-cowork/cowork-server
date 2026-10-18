@@ -61,7 +61,7 @@ function renderExternalLinkIcon() {
 export function renderRepositoryCard(repository) {
 	const name = escapeHtml(repository.name);
 	const url = `https://github.com/team-cowork/${name}`;
-	return `<a class="ui-card ui-card--interactive repo-card${repository.centered ? ' repo-card--centered' : ''}" href="${url}" rel="noopener noreferrer" target="_blank">
+	return `<a class="ui-card ui-card--interactive repo-card" href="${url}" rel="noopener noreferrer" target="_blank">
       <div class="repo-card__header"><div class="repo-card__icon">${renderRepositoryIcon()}</div>${renderBadge(repository.label)}</div>
       <h3 class="repo-card__title">${name}</h3>
       <p class="repo-card__description">${escapeHtml(repository.description)}</p>
