@@ -1,53 +1,39 @@
-ARG ELIXIR_IMAGE=hexpm/elixir:1.20.4-erlang-29.1-debian-trixie-20260824-slim@sha256:871867d46185c7be1c74fe69c1d3e90aca5779f0d9393f4fe0399cf48f5df181
-
-FROM ${ELIXIR_IMAGE} AS builder
+FROM mcr.microsoft.com/dotnet/sdk:10.0.402-noble@sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa AS builder
 WORKDIR /workspace/cowork-user
-ENV MIX_ENV=prod
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential cmake git curl ca-certificates \
-    && rm -rf /var/lib/apt/lists/* \
-    && mix local.hex --force \
-    && mix local.rebar --force
-ENV ERL_FLAGS="+S 1:1 +JMsingle true"
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
 
-COPY cowork-user/mix.exs cowork-user/mix.lock ./
-COPY cowork-user/config config
-RUN --mount=type=cache,id=cowork-user-hex,target=/root/.hex,sharing=locked \
-    mix deps.get --only prod \
-    && mix deps.compile
-COPY cowork-user/lib lib
-COPY cowork-user/priv priv
-RUN mix compile \
-    && mix release
+COPY cowork-user/cowork-user.slnx ./
+COPY cowork-user/src/CoworkUser.csproj src/
+COPY cowork-user/test/CoworkUser.Tests.csproj test/
+RUN --mount=type=cache,id=cowork-user-nuget,target=/root/.nuget/packages,sharing=locked \
+    dotnet restore cowork-user.slnx
+COPY cowork-user/src src
+RUN --mount=type=cache,id=cowork-user-nuget,target=/root/.nuget/packages,sharing=locked \
+    dotnet publish src/CoworkUser.csproj -c Release --no-restore -o /out
 
 FROM builder AS verification
 RUN apt-get update && apt-get install -y --no-install-recommends python3 \
     && rm -rf /var/lib/apt/lists/*
 COPY cowork-user/test test
 COPY deploy/images/ci /ci
-ENV MIX_ENV=test
-RUN --mount=type=cache,id=cowork-user-hex,target=/root/.hex,sharing=locked \
-    SECRET_KEY_BASE=ci-test-secret-key-base-ci-test-secret-key-base-ci-test-secret-key-base \
-    DB_HOST=localhost DB_PORT=3306 DB_NAME=cowork_test DB_USERNAME=cowork DB_PASSWORD=cowork \
-    bash /ci/run-native.sh elixir cowork-user /workspace /coverage \
-    && python3 /ci/report.py collect --module cowork-user --snapshot pr --format counts --metric line --input /coverage/report.json --output /coverage/coverage.json --exit-code 0
+RUN --mount=type=cache,id=cowork-user-nuget,target=/root/.nuget/packages,sharing=locked \
+    bash /ci/run-native.sh dotnet cowork-user /workspace /coverage \
+    && python3 /ci/report.py collect --module cowork-user --snapshot pr --format lcov --metric line --input /coverage/report.info --output /coverage/coverage.json --exit-code 0
 
 FROM scratch AS verify
 COPY --from=verification /coverage /
 
-FROM debian:trixie-20260824-slim@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132 AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0.13-noble@sha256:d5633778c754e89a386882eddf8dbee6942447a8a4b8267c19cf1e1158d0b0ac AS runtime
 WORKDIR /app
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends openssl wget ca-certificates libstdc++6 libncurses6 locales \
+    && apt-get install -y --no-install-recommends wget \
     && rm -rf /var/lib/apt/lists/* \
-    && groupadd -r -g 10001 app \
-    && useradd -r -u 10001 -g app app \
+    && groupadd -r -g 10001 cowork \
+    && useradd -r -u 10001 -g cowork cowork \
     && mkdir -p /var/log/cowork/user \
-    && chown -R app:app /var/log/cowork
+    && chown -R cowork:cowork /var/log/cowork
 
-COPY --chown=app:app --from=builder /workspace/cowork-user/_build/prod/rel/cowork_user ./
-ENV ELIXIR_ERL_OPTIONS="+fnu"
-RUN chown app:app /app
-USER app
+COPY --chown=cowork:cowork --from=builder /out ./
+USER cowork
 EXPOSE 8082
-ENTRYPOINT ["/app/bin/cowork_user", "start"]
+ENTRYPOINT ["dotnet", "/app/CoworkUser.dll"]
