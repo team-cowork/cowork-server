@@ -5,7 +5,7 @@ paths:
   - "cowork-*/src/**/{entity,repository}/**"
   - "cowork-*/src/**/*.schema.ts"
   - "cowork-*/internal/{model,repository,infra/mysql}/**"
-  - "cowork-user/lib/cowork_user/**/*.ex"
+  - "cowork-user/src/**/*.cs"
 ---
 
 # Database

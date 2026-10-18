@@ -1,0 +1,1155 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "cowork-user API",
+    "version": "v1",
+    "description": "cowork-user 사용자 관리 서비스 API"
+  },
+  "servers": [
+    {
+      "url": "/api/user",
+      "description": "Gateway"
+    }
+  ],
+  "security": [
+    {
+      "BearerAuth": []
+    }
+  ],
+  "paths": {
+    "/users/me": {
+      "get": {
+        "summary": "내 프로필 조회",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "OK"
+                      ],
+                      "example": "OK"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ],
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "OK"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "sex": {
+                          "type": "string"
+                        },
+                        "github_id": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "account_description": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "student_role": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "student_number": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "major": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "specialty": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "online",
+                            "offline"
+                          ]
+                        },
+                        "custom_status": {
+                          "type": "string",
+                          "maxLength": 30,
+                          "nullable": true,
+                          "example": "DO_NOT_DISTURB"
+                        },
+                        "status_message": {
+                          "type": "string",
+                          "maxLength": 100,
+                          "nullable": true
+                        },
+                        "status_expires_at": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        },
+                        "profile_image_url": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "nickname": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "roles": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "description": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "내 프로필 수정",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "nickname": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "생략하면 기존 값을 유지하고 null이면 값을 비웁니다."
+                  },
+                  "name": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "생략하면 기존 값을 유지하고 null이면 값을 비웁니다."
+                  },
+                  "github_id": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "생략하면 기존 값을 유지하고 null이면 값을 비웁니다."
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "description": "생략하면 기존 역할을 유지하고 빈 배열이면 역할을 모두 해제합니다."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "OK"
+                      ],
+                      "example": "OK"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ],
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "OK"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "sex": {
+                          "type": "string"
+                        },
+                        "github_id": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "account_description": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "student_role": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "student_number": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "major": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "specialty": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "online",
+                            "offline"
+                          ]
+                        },
+                        "custom_status": {
+                          "type": "string",
+                          "maxLength": 30,
+                          "nullable": true,
+                          "example": "DO_NOT_DISTURB"
+                        },
+                        "status_message": {
+                          "type": "string",
+                          "maxLength": 100,
+                          "nullable": true
+                        },
+                        "status_expires_at": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        },
+                        "profile_image_url": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "nickname": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "roles": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "description": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/me/status": {
+      "patch": {
+        "summary": "커스텀 상태 및 상태 메시지 설정",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "custom_status"
+                ],
+                "properties": {
+                  "custom_status": {
+                    "type": "string",
+                    "maxLength": 30,
+                    "example": "DO_NOT_DISTURB"
+                  },
+                  "message": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "nullable": true,
+                    "example": "집중 중"
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "format": "date-time",
+                    "nullable": true,
+                    "example": "2026-05-26T18:00:00Z"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "OK"
+                      ],
+                      "example": "OK"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ],
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "OK"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "sex": {
+                          "type": "string"
+                        },
+                        "github_id": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "account_description": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "student_role": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "student_number": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "major": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "specialty": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "online",
+                            "offline"
+                          ]
+                        },
+                        "custom_status": {
+                          "type": "string",
+                          "maxLength": 30,
+                          "nullable": true,
+                          "example": "DO_NOT_DISTURB"
+                        },
+                        "status_message": {
+                          "type": "string",
+                          "maxLength": 100,
+                          "nullable": true
+                        },
+                        "status_expires_at": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        },
+                        "profile_image_url": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "nickname": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "roles": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "description": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/me/profile-image/presigned": {
+      "post": {
+        "summary": "프로필 이미지 업로드 URL 발급",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "content_type"
+                ],
+                "properties": {
+                  "content_type": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "OK"
+                      ],
+                      "example": "OK"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ],
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "OK"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "upload_url": {
+                          "type": "string"
+                        },
+                        "object_key": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/me/profile-image/confirm": {
+      "post": {
+        "summary": "프로필 이미지 업로드 확인",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "object_key"
+                ],
+                "properties": {
+                  "object_key": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/users/me/profile-image": {
+      "delete": {
+        "summary": "프로필 이미지 삭제",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/users/{user_id}": {
+      "get": {
+        "summary": "사용자 조회",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "OK"
+                      ],
+                      "example": "OK"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ],
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "OK"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "name": {
+                          "type": "string"
+                        },
+                        "email": {
+                          "type": "string"
+                        },
+                        "sex": {
+                          "type": "string"
+                        },
+                        "github_id": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "account_description": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "student_role": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "student_number": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "major": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "specialty": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "online",
+                            "offline"
+                          ]
+                        },
+                        "custom_status": {
+                          "type": "string",
+                          "maxLength": 30,
+                          "nullable": true,
+                          "example": "DO_NOT_DISTURB"
+                        },
+                        "status_message": {
+                          "type": "string",
+                          "maxLength": 100,
+                          "nullable": true
+                        },
+                        "status_expires_at": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        },
+                        "profile_image_url": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "nickname": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "roles": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "description": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/batch": {
+      "get": {
+        "summary": "사용자 표시 이름 일괄 조회",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ids",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "쉼표로 구분한 사용자 ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "OK"
+                      ],
+                      "example": "OK"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ],
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "OK"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "users": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "nickname": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/users/search": {
+      "get": {
+        "summary": "사용자 검색",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "teamId",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "활성 멤버인 팀의 사용자로 검색 범위를 제한"
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            },
+            "description": "이름 또는 닉네임 통합 검색. 부분 일치이며 대소문자를 구분하지 않는다. `%`, `_`, `\\`는 리터럴로 취급한다."
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "q의 호환 alias. q와 완전히 같은 검색 정책을 사용하며, q가 없거나 공백뿐일 때 적용된다."
+          },
+          {
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "type": "string"
+            },
+            "description": "이름 부분 일치. 대소문자를 구분하지 않는다."
+          },
+          {
+            "in": "query",
+            "name": "nickname",
+            "schema": {
+              "type": "string"
+            },
+            "description": "닉네임 부분 일치. 대소문자를 구분하지 않는다."
+          },
+          {
+            "in": "query",
+            "name": "major",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "student_role",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "online",
+                "offline"
+              ]
+            }
+          },
+          {
+            "in": "query",
+            "name": "custom_status",
+            "schema": {
+              "type": "string",
+              "maxLength": 30
+            }
+          },
+          {
+            "in": "query",
+            "name": "role",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer",
+              "default": 1
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "schema": {
+              "type": "integer",
+              "default": 20
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort_by",
+            "schema": {
+              "type": "string",
+              "default": "id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort_order",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ],
+              "default": "asc"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "code",
+                    "message",
+                    "data"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "OK"
+                      ],
+                      "example": "OK"
+                    },
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        200
+                      ],
+                      "example": 200
+                    },
+                    "message": {
+                      "type": "string",
+                      "example": "OK"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "email": {
+                                "type": "string"
+                              },
+                              "sex": {
+                                "type": "string"
+                              },
+                              "github_id": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "account_description": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "student_role": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "student_number": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "major": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "specialty": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "status": {
+                                "type": "string",
+                                "enum": [
+                                  "online",
+                                  "offline"
+                                ]
+                              },
+                              "custom_status": {
+                                "type": "string",
+                                "maxLength": 30,
+                                "nullable": true,
+                                "example": "DO_NOT_DISTURB"
+                              },
+                              "status_message": {
+                                "type": "string",
+                                "maxLength": 100,
+                                "nullable": true
+                              },
+                              "status_expires_at": {
+                                "type": "string",
+                                "format": "date-time",
+                                "nullable": true
+                              },
+                              "profile_image_url": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "nickname": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "roles": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              },
+                              "description": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            }
+                          }
+                        },
+                        "page": {
+                          "type": "integer"
+                        },
+                        "page_size": {
+                          "type": "integer"
+                        },
+                        "total_count": {
+                          "type": "integer"
+                        },
+                        "has_next": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "잘못된 검색 조건",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "code",
+                    "message"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "BAD_REQUEST"
+                      ]
+                    },
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        400
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "팀 멤버가 아님",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "code",
+                    "message"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "FORBIDDEN"
+                      ]
+                    },
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        403
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "팀 투영 동기화/조회 실패",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "status",
+                    "code",
+                    "message"
+                  ],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "SERVICE_UNAVAILABLE"
+                      ]
+                    },
+                    "code": {
+                      "type": "integer",
+                      "enum": [
+                        503
+                      ]
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "Gateway에서 검증할 Cowork JWT"
+      }
+    }
+  }
+}
