@@ -86,7 +86,7 @@ public sealed record AppConfig
             KafkaTeamMemberGroupId = Lookup("cowork-user.team-member", "KAFKA_GROUP_ID_TEAM_MEMBER", "kafka_team_member_group_id"),
             KafkaPresenceTopic = Lookup("user.presence.event", "KAFKA_TOPIC_USER_PRESENCE", "kafka_presence_topic"),
             KafkaPresenceGroupId = Lookup("cowork-user.user-presence", "KAFKA_GROUP_ID_USER_PRESENCE", "kafka_presence_group_id"),
-            KafkaProfileTopic = Lookup("user.profile.event", "KAFKA_TOPIC_USER_PROFILE", "kafka_profile_topic"),
+            KafkaProfileTopic = Lookup("user.profile.event.v2", "KAFKA_TOPIC_USER_PROFILE", "kafka_profile_topic"),
             KafkaProfileSnapshotIntervalMs = int.Parse(Lookup("300000", "KAFKA_PROFILE_SNAPSHOT_INTERVAL_MS", "kafka_profile_snapshot_interval_ms")),
             S3Region = Lookup("ap-northeast-2", "S3_REGION", "s3_region"),
             S3InternalEndpoint = Lookup("http://localhost:9000", "S3_INTERNAL_ENDPOINT", "s3_internal_endpoint"),
@@ -196,6 +196,8 @@ public sealed record AppConfig
             Password = Required("DB_PASSWORD"),
             MaximumPoolSize = PositiveInteger(lookup("10", ["DB_POOL_SIZE", "db_pool_size"]), "DB_POOL_SIZE"),
             CharacterSet = "utf8mb4",
+            // CHAR(36) columns such as operation_id hold UUID text; the default would hand them back as Guid.
+            GuidFormat = MySqlGuidFormat.None,
             DefaultCommandTimeout = 15,
             SslMode = MySqlSslMode.Preferred,
         }.ConnectionString;
