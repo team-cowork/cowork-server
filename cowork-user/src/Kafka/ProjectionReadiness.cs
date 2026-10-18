@@ -304,7 +304,7 @@ public sealed class ProjectionReadiness(AppConfig config, KafkaInspector kafka, 
         {
             var partitionCount = kafka.PartitionCount(topic);
             if (partitionCount <= 0) throw new InvalidState($"{topic}: invalid partition count {partitionCount}");
-            if (!ProjectionCheckpoint.TopicContinuous(ProjectionCheckpoint.LoadTopicIdAsync(group, topic).GetAwaiter().GetResult(), kafka.TopicId(topic)))
+            if (ProjectionCheckpoint.TopicReplaced(ProjectionCheckpoint.LoadTopicIdAsync(group, topic).GetAwaiter().GetResult(), kafka.TopicId(topic)))
                 throw new ReplayRequired($"topic {topic} was replaced");
             var (checkpoints, markers, generation) = ProjectionCheckpoint.LoadAsync(group, topic).GetAwaiter().GetResult();
             if (generation is not > 0) throw new InvalidOperationException(":replay_generation_not_started");
