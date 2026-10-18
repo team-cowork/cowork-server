@@ -223,8 +223,10 @@
     flex-direction: column;
     gap: var(--space-2);
     min-height: 0;
+    padding-right: var(--space-1);
 }
 .mock-scroll {
+    overflow-x: hidden;
     overflow-y: auto;
     border-color: transparent;
     transition: border-color 0.35s ease, scrollbar-color 0.35s ease;
