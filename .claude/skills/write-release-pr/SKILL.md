@@ -42,7 +42,7 @@ cat VERSION
 git diff --name-only
 ```
 
-Only version-bearing files may change: `VERSION`, `cowork-*/build.gradle.kts`, `cowork-*/pom.xml`, `cowork-*/package.json`, `cowork-*/package-lock.json`, `cowork-user/mix.exs`, and the Go `main.go` files listed in `scripts/bump.sh`. Any other change means stop and report. If nothing changed, the version is already current; skip the commit in Step 5.
+Only version-bearing files may change: `VERSION`, `cowork-*/build.gradle.kts`, `cowork-*/pom.xml`, `cowork-*/package.json`, `cowork-*/package-lock.json`, `cowork-user/src/CoworkUser.csproj`, and the Go `main.go` files listed in `scripts/bump.sh`. Any other change means stop and report. If nothing changed, the version is already current; skip the commit in Step 5.
 
 ## Step 4 — Write Body & Show Preview
 
