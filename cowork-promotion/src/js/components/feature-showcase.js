@@ -3,11 +3,13 @@ import {readMotionDuration} from '../../design-system/tokens.js';
 import {showcaseNumber} from '../core/showcase-state.js';
 import {window} from '../core/browser.js';
 import {createStickyShowcase} from './sticky-showcase.js';
+import {bindMockupInteractions} from './mockup-interactions.js';
 
 export function createFeatureShowcase(root) {
 	const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+	const scene = root.querySelector('[data-showcase-scene]');
 	const sceneTransition = createSceneTransition(
-		root.querySelector('[data-showcase-scene]'),
+		scene,
 		{
 			enterDuration: readMotionDuration('--duration-scene', root),
 			leaveDuration: readMotionDuration('--duration-feature-leave', root),
@@ -43,9 +45,15 @@ export function createFeatureShowcase(root) {
 		statesUrl: '/data/feature-states.json',
 	});
 
+	let unbindMockup = () => {};
+
 	return {
-		mount: showcase.mount,
+		async mount() {
+			unbindMockup = bindMockupInteractions(scene);
+			await showcase.mount();
+		},
 		unmount() {
+			unbindMockup();
 			showcase.unmount();
 			backgroundTransition.destroy();
 			sceneTransition.destroy();

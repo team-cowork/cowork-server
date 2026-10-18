@@ -80,6 +80,77 @@
     max-width: 36rem;
     justify-self: center;
 }
+.feature-mockup {
+    -webkit-user-select: none;
+    user-select: none;
+}
+.feature-mockup img {
+    -webkit-user-drag: none;
+}
+.feature-mockup [hidden] {
+    display: none !important;
+}
+.feature-mockup [data-mock-action] {
+    cursor: pointer;
+}
+.mock-fill {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.mock-camera-feed:not([hidden]) {
+    animation: mock-camera-on 0.5s ease-out;
+}
+@keyframes mock-camera-on {
+    from {
+        opacity: 0;
+        filter: blur(6px);
+        transform: scale(1.12);
+    }
+    to {
+        opacity: 1;
+        filter: blur(0);
+        transform: scale(1);
+    }
+}
+.mock-camera-flash {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    background-color: white;
+    pointer-events: none;
+    animation: mock-camera-flash 0.45s ease-out;
+}
+@keyframes mock-camera-flash {
+    from {
+        opacity: 0.6;
+    }
+    to {
+        opacity: 0;
+    }
+}
+.mock-self-tile {
+    transition: box-shadow 0.3s ease-out;
+}
+[data-camera="on"] .mock-self-tile {
+    box-shadow: inset 0 0 0 2px rgb(var(--ui-accent-rgb));
+}
+[data-call="left"] .mock-meeting-grid > :last-child {
+    grid-column: span 2 / span 2;
+}
+.mock-join-button {
+    height: var(--space-7);
+    padding: 0 var(--space-6);
+}
+[data-mock-timer] {
+    font-variant-numeric: tabular-nums;
+}
+.feature-mockup [data-read="true"] {
+    animation: none;
+    opacity: 0.5;
+}
 .showcase-dots {
     display: flex;
     align-items: center;
@@ -217,7 +288,9 @@
   .kanban-card,
   .meet-tile,
   .noti-toast,
-  .search-result {
+  .search-result,
+  .mock-camera-feed,
+  .mock-camera-flash {
     animation: none;
   }
 }
