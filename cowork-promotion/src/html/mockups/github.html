@@ -1,5 +1,11 @@
 <div class="relative aspect-[4/3] rounded-3xl border border-white/10 bg-gradient-to-br from-white/[0.07] to-white/[0.02] p-4 sm:p-5">
-	<div class="absolute inset-4 sm:inset-5 rounded-2xl bg-white text-gray-900 shadow-2xl overflow-hidden flex flex-col" data-mockup="github" data-pr="blocked" data-tab="conversation" data-review="none">
+	<div
+		class="absolute inset-4 sm:inset-5 rounded-2xl bg-white text-gray-900 shadow-2xl overflow-hidden flex flex-col"
+		data-mockup="github"
+		data-pr="blocked"
+		data-review="none"
+		data-tab="conversation"
+	>
 		<div class="mock-pr-header">
 			<div class="flex items-center gap-1.5 text-[10px] text-gray-400 font-mono mb-1.5">
 				<svg
@@ -26,7 +32,11 @@
 					</svg>
 					Open
 				</span>
-				<span class="mock-pr-state mock-pr-state--merged" data-mock-when="pr:merged" hidden>
+				<span
+					class="mock-pr-state mock-pr-state--merged"
+					data-mock-when="pr:merged"
+					hidden
+				>
 					<svg
 						fill="currentColor"
 						height="8"
@@ -42,202 +52,242 @@
 			</div>
 		</div>
 		<div class="mock-pr-tabs">
-			<button type="button" tabindex="-1" class="mock-pr-tab" data-mock-tab="conversation" data-mock-action="set" data-mock-set="tab:conversation">대화</button>
-			<button type="button" tabindex="-1" class="mock-pr-tab" data-mock-tab="commits" data-mock-action="set" data-mock-set="tab:commits">커밋 <span class="mock-pr-count">3</span></button>
-			<button type="button" tabindex="-1" class="mock-pr-tab" data-mock-tab="files" data-mock-action="set" data-mock-set="tab:files">변경 파일 <span class="mock-pr-count">1</span></button>
+			<button
+				type="button"
+				class="mock-pr-tab"
+				data-mock-action="set"
+				data-mock-set="tab:conversation"
+				data-mock-tab="conversation"
+				tabindex="-1"
+			>대화</button>
+			<button
+				type="button"
+				class="mock-pr-tab"
+				data-mock-action="set"
+				data-mock-set="tab:commits"
+				data-mock-tab="commits"
+				tabindex="-1"
+			>커밋 <span class="mock-pr-count">3</span></button>
+			<button
+				type="button"
+				class="mock-pr-tab"
+				data-mock-action="set"
+				data-mock-set="tab:files"
+				data-mock-tab="files"
+				tabindex="-1"
+			>변경 파일 <span class="mock-pr-count">1</span></button>
 		</div>
 		<div class="flex-1 mock-scroll mock-pr-body" data-mock-scroll>
 			<div class="mock-timeline" data-mock-when="tab:conversation">
-						<div class="mock-timeline-item">
-							<img
-								class="mock-timeline-avatar"
-								alt=""
-								decoding="async"
-								height="16"
-								loading="lazy"
-								src="https://i.pravatar.cc/80?img=5"
-								width="16"
-							>
-							<div class="mock-comment">
-								<p><b>Emma</b> <span class="text-gray-300">2시간 전</span></p>
-								<p class="text-gray-700"><span class="font-mono">feat/auth</span> → <span class="font-mono">develop</span> 병합을 요청합니다</p>
-							</div>
-						</div>
-						<div class="mock-timeline-item">
-							<span class="mock-timeline-icon mock-timeline-icon--gray">
-								<svg
-									fill="currentColor"
-									height="9"
-									viewBox="0 0 16 16"
-									width="9"
-								>
-									<path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z">
-									</path>
-								</svg>
-							</span>
-							<p class="min-w-0"><b>Emma</b> 님이 커밋 3개를 푸시했습니다</p>
-						</div>
-						<div class="mock-timeline-item">
-							<img
-								class="mock-timeline-avatar"
-								alt=""
-								decoding="async"
-								height="16"
-								loading="lazy"
-								src="https://i.pravatar.cc/80?img=33"
-								width="16"
-							>
-							<div class="mock-comment">
-								<p><b>Liam</b> <span class="text-gray-300">1시간 전</span></p>
-								<p class="text-gray-700">토큰 만료 시간은 설정으로 빼면 좋겠어요</p>
-							</div>
-						</div>
-						<div class="mock-timeline-item">
-							<img
-								class="mock-timeline-avatar"
-								alt=""
-								decoding="async"
-								height="16"
-								loading="lazy"
-								src="https://i.pravatar.cc/80?img=5"
-								width="16"
-							>
-							<div class="mock-comment">
-								<p><b>Emma</b> <span class="text-gray-300">30분 전</span></p>
-								<p class="text-gray-700">반영했습니다! 다시 확인 부탁드려요</p>
-							</div>
-						</div>
-						<div class="mock-timeline-item">
-							<span class="mock-timeline-icon mock-timeline-icon--green">
-								<svg
-									fill="currentColor"
-									height="9"
-									viewBox="0 0 16 16"
-									width="9"
-								>
-									<path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 1.042-1.042L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z">
-									</path>
-								</svg>
-							</span>
-							<p class="min-w-0">검사 2개 통과 · 충돌 없음</p>
-						</div>
-						<div class="mock-timeline-item" data-mock-when="review:commented" data-mock-reveal hidden>
-							<img
-								class="mock-timeline-avatar"
-								alt=""
-								decoding="async"
-								height="16"
-								loading="lazy"
-								src="https://i.pravatar.cc/80?img=68"
-								width="16"
-							>
-							<div class="mock-comment">
-								<p><b>나</b> <span class="text-gray-300">코드 리뷰 · 방금</span></p>
-								<p class="text-gray-700"><span class="font-mono">user.id</span> 접근 전에 null 체크가 필요해 보여요</p>
-							</div>
-						</div>
-						<div class="mock-timeline-item" data-mock-when="pr:approved|merged" data-mock-reveal hidden>
-							<span class="mock-timeline-icon mock-timeline-icon--green">
-								<svg
-									fill="currentColor"
-									height="9"
-									viewBox="0 0 16 16"
-									width="9"
-								>
-									<path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 1.042-1.042L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z">
-									</path>
-								</svg>
-							</span>
-							<p class="min-w-0"><b>나</b> 님이 변경 사항을 승인했습니다</p>
-						</div>
-						<div class="mock-timeline-item" data-mock-when="pr:merged" data-mock-reveal hidden>
-							<span class="mock-timeline-icon mock-timeline-icon--purple">
-								<svg
-									fill="currentColor"
-									height="9"
-									viewBox="0 0 16 16"
-									width="9"
-								>
-									<path d="M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218zM4.25 13.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5zm8.5-4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5zM4.25 4a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5z">
-									</path>
-								</svg>
-							</span>
-							<p class="min-w-0"><b>나</b> 님이 <span class="font-mono">develop</span>에 병합했습니다</p>
-						</div>
+				<div class="mock-timeline-item">
+					<img
+						class="mock-timeline-avatar"
+						alt=""
+						decoding="async"
+						height="16"
+						loading="lazy"
+						src="https://i.pravatar.cc/80?img=5"
+						width="16"
+					>
+					<div class="mock-comment">
+						<p><b>Emma</b> <span class="text-gray-300">2시간 전</span></p>
+						<p class="text-gray-700"><span class="font-mono">feat/auth</span> → <span class="font-mono">develop</span> 병합을 요청합니다</p>
+					</div>
+				</div>
+				<div class="mock-timeline-item">
+					<span class="mock-timeline-icon mock-timeline-icon--gray">
+						<svg
+							fill="currentColor"
+							height="9"
+							viewBox="0 0 16 16"
+							width="9"
+						>
+							<path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z">
+							</path>
+						</svg>
+					</span>
+					<p class="min-w-0"><b>Emma</b> 님이 커밋 3개를 푸시했습니다</p>
+				</div>
+				<div class="mock-timeline-item">
+					<img
+						class="mock-timeline-avatar"
+						alt=""
+						decoding="async"
+						height="16"
+						loading="lazy"
+						src="https://i.pravatar.cc/80?img=33"
+						width="16"
+					>
+					<div class="mock-comment">
+						<p><b>Liam</b> <span class="text-gray-300">1시간 전</span></p>
+						<p class="text-gray-700">토큰 만료 시간은 설정으로 빼면 좋겠어요</p>
+					</div>
+				</div>
+				<div class="mock-timeline-item">
+					<img
+						class="mock-timeline-avatar"
+						alt=""
+						decoding="async"
+						height="16"
+						loading="lazy"
+						src="https://i.pravatar.cc/80?img=5"
+						width="16"
+					>
+					<div class="mock-comment">
+						<p><b>Emma</b> <span class="text-gray-300">30분 전</span></p>
+						<p class="text-gray-700">반영했습니다! 다시 확인 부탁드려요</p>
+					</div>
+				</div>
+				<div class="mock-timeline-item">
+					<span class="mock-timeline-icon mock-timeline-icon--green">
+						<svg
+							fill="currentColor"
+							height="9"
+							viewBox="0 0 16 16"
+							width="9"
+						>
+							<path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 1.042-1.042L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z">
+							</path>
+						</svg>
+					</span>
+					<p class="min-w-0">검사 2개 통과 · 충돌 없음</p>
+				</div>
+				<div
+					class="mock-timeline-item"
+					data-mock-reveal
+					data-mock-when="review:commented"
+					hidden
+				>
+					<img
+						class="mock-timeline-avatar"
+						alt=""
+						decoding="async"
+						height="16"
+						loading="lazy"
+						src="https://i.pravatar.cc/80?img=68"
+						width="16"
+					>
+					<div class="mock-comment">
+						<p><b>나</b> <span class="text-gray-300">코드 리뷰 · 방금</span></p>
+						<p class="text-gray-700"><span class="font-mono">user.id</span> 접근 전에 null 체크가 필요해 보여요</p>
+					</div>
+				</div>
+				<div
+					class="mock-timeline-item"
+					data-mock-reveal
+					data-mock-when="pr:approved|merged"
+					hidden
+				>
+					<span class="mock-timeline-icon mock-timeline-icon--green">
+						<svg
+							fill="currentColor"
+							height="9"
+							viewBox="0 0 16 16"
+							width="9"
+						>
+							<path d="M13.78 4.22a.75.75 0 0 1 0 1.06l-7.25 7.25a.75.75 0 0 1-1.06 0L2.22 9.28a.751.751 0 0 1 1.042-1.042L6 10.94l6.72-6.72a.75.75 0 0 1 1.06 0z">
+							</path>
+						</svg>
+					</span>
+					<p class="min-w-0"><b>나</b> 님이 변경 사항을 승인했습니다</p>
+				</div>
+				<div
+					class="mock-timeline-item"
+					data-mock-reveal
+					data-mock-when="pr:merged"
+					hidden
+				>
+					<span class="mock-timeline-icon mock-timeline-icon--purple">
+						<svg
+							fill="currentColor"
+							height="9"
+							viewBox="0 0 16 16"
+							width="9"
+						>
+							<path d="M5.45 5.154A4.25 4.25 0 0 0 9.25 7.5h1.378a2.251 2.251 0 1 1 0 1.5H9.25A5.734 5.734 0 0 1 5 7.123v3.505a2.25 2.25 0 1 1-1.5 0V5.372a2.25 2.25 0 1 1 1.95-.218zM4.25 13.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5zm8.5-4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5zM4.25 4a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5z">
+							</path>
+						</svg>
+					</span>
+					<p class="min-w-0"><b>나</b> 님이 <span class="font-mono">develop</span>에 병합했습니다</p>
+				</div>
 			</div>
-			<div class="mock-commits" data-mock-when="tab:commits" hidden>
-						<div class="mock-commit">
-							<span class="mock-timeline-icon">
-								<svg
-									fill="currentColor"
-									height="9"
-									viewBox="0 0 16 16"
-									width="9"
-								>
-									<path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z">
-									</path>
-								</svg>
-							</span>
-							<span class="flex-1 min-w-0 truncate text-gray-700">feat: JWT 발급 로직 추가</span>
-							<img
-								class="mock-timeline-avatar"
-								alt=""
-								decoding="async"
-								height="16"
-								loading="lazy"
-								src="https://i.pravatar.cc/80?img=5"
-								width="16"
-							>
-							<span class="mock-sha">a1f3c9e</span>
-						</div>
-						<div class="mock-commit">
-							<span class="mock-timeline-icon">
-								<svg
-									fill="currentColor"
-									height="9"
-									viewBox="0 0 16 16"
-									width="9"
-								>
-									<path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z">
-									</path>
-								</svg>
-							</span>
-							<span class="flex-1 min-w-0 truncate text-gray-700">test: 인증 단위 테스트 추가</span>
-							<img
-								class="mock-timeline-avatar"
-								alt=""
-								decoding="async"
-								height="16"
-								loading="lazy"
-								src="https://i.pravatar.cc/80?img=5"
-								width="16"
-							>
-							<span class="mock-sha">7bd20e4</span>
-						</div>
-						<div class="mock-commit">
-							<span class="mock-timeline-icon">
-								<svg
-									fill="currentColor"
-									height="9"
-									viewBox="0 0 16 16"
-									width="9"
-								>
-									<path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z">
-									</path>
-								</svg>
-							</span>
-							<span class="flex-1 min-w-0 truncate text-gray-700">fix: 토큰 만료 시간 설정화</span>
-							<img
-								class="mock-timeline-avatar"
-								alt=""
-								decoding="async"
-								height="16"
-								loading="lazy"
-								src="https://i.pravatar.cc/80?img=5"
-								width="16"
-							>
-							<span class="mock-sha">e94c1aa</span>
-						</div>
+			<div
+				class="mock-commits"
+				data-mock-when="tab:commits"
+				hidden
+			>
+				<div class="mock-commit">
+					<span class="mock-timeline-icon">
+						<svg
+							fill="currentColor"
+							height="9"
+							viewBox="0 0 16 16"
+							width="9"
+						>
+							<path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z">
+							</path>
+						</svg>
+					</span>
+					<span class="flex-1 min-w-0 truncate text-gray-700">feat: JWT 발급 로직 추가</span>
+					<img
+						class="mock-timeline-avatar"
+						alt=""
+						decoding="async"
+						height="16"
+						loading="lazy"
+						src="https://i.pravatar.cc/80?img=5"
+						width="16"
+					>
+					<span class="mock-sha">a1f3c9e</span>
+				</div>
+				<div class="mock-commit">
+					<span class="mock-timeline-icon">
+						<svg
+							fill="currentColor"
+							height="9"
+							viewBox="0 0 16 16"
+							width="9"
+						>
+							<path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z">
+							</path>
+						</svg>
+					</span>
+					<span class="flex-1 min-w-0 truncate text-gray-700">test: 인증 단위 테스트 추가</span>
+					<img
+						class="mock-timeline-avatar"
+						alt=""
+						decoding="async"
+						height="16"
+						loading="lazy"
+						src="https://i.pravatar.cc/80?img=5"
+						width="16"
+					>
+					<span class="mock-sha">7bd20e4</span>
+				</div>
+				<div class="mock-commit">
+					<span class="mock-timeline-icon">
+						<svg
+							fill="currentColor"
+							height="9"
+							viewBox="0 0 16 16"
+							width="9"
+						>
+							<path d="M11.93 8.5a4.002 4.002 0 0 1-7.86 0H.75a.75.75 0 0 1 0-1.5h3.32a4.002 4.002 0 0 1 7.86 0h3.32a.75.75 0 0 1 0 1.5zm-1.43-.75a2.5 2.5 0 1 0-5 0 2.5 2.5 0 0 0 5 0z">
+							</path>
+						</svg>
+					</span>
+					<span class="flex-1 min-w-0 truncate text-gray-700">fix: 토큰 만료 시간 설정화</span>
+					<img
+						class="mock-timeline-avatar"
+						alt=""
+						decoding="async"
+						height="16"
+						loading="lazy"
+						src="https://i.pravatar.cc/80?img=5"
+						width="16"
+					>
+					<span class="mock-sha">e94c1aa</span>
+				</div>
 			</div>
 			<div data-mock-when="tab:files" hidden>
 				<div class="mock-diff font-mono">
@@ -246,11 +296,32 @@
 						<span><span class="mock-diff-added">+2</span> <span class="mock-diff-removed">−1</span></span>
 					</div>
 					<div class="mock-diff-lines">
-							<div class="mock-diff-line mock-diff-line--ctx" data-mock-action="set" data-mock-set="review:commented"><span class="mock-diff-num">12</span><span class="mock-diff-code">  const payload = {{ sub: user.id }};</span></div>
-							<div class="mock-diff-line mock-diff-line--del" data-mock-action="set" data-mock-set="review:commented"><span class="mock-diff-num">13</span><span class="mock-diff-code">- const expiresIn = '1h';</span></div>
-							<div class="mock-diff-line mock-diff-line--add" data-mock-action="set" data-mock-set="review:commented"><span class="mock-diff-num">13</span><span class="mock-diff-code">+ const expiresIn = config.jwt.expiresIn;</span></div>
-							<div class="mock-diff-line mock-diff-line--add" data-mock-action="set" data-mock-set="review:commented"><span class="mock-diff-num">14</span><span class="mock-diff-code">+ if (!user) throw new UnauthorizedError();</span></div>
-						<div class="mock-diff-inline" data-mock-when="review:commented" data-mock-reveal hidden>
+						<div
+							class="mock-diff-line mock-diff-line--ctx"
+							data-mock-action="set"
+							data-mock-set="review:commented"
+						><span class="mock-diff-num">12</span><span class="mock-diff-code"> const payload = {{ sub: user.id }};</span></div>
+						<div
+							class="mock-diff-line mock-diff-line--del"
+							data-mock-action="set"
+							data-mock-set="review:commented"
+						><span class="mock-diff-num">13</span><span class="mock-diff-code">- const expiresIn = '1h';</span></div>
+						<div
+							class="mock-diff-line mock-diff-line--add"
+							data-mock-action="set"
+							data-mock-set="review:commented"
+						><span class="mock-diff-num">13</span><span class="mock-diff-code">+ const expiresIn = config.jwt.expiresIn;</span></div>
+						<div
+							class="mock-diff-line mock-diff-line--add"
+							data-mock-action="set"
+							data-mock-set="review:commented"
+						><span class="mock-diff-num">14</span><span class="mock-diff-code">+ if (!user) throw new UnauthorizedError();</span></div>
+						<div
+							class="mock-diff-inline"
+							data-mock-reveal
+							data-mock-when="review:commented"
+							hidden
+						>
 							<img
 								class="mock-timeline-avatar"
 								alt=""
@@ -262,7 +333,11 @@
 							>
 							<p><b>나</b> <span class="font-mono">user.id</span> 접근 전에 null 체크가 필요해 보여요</p>
 						</div>
-							<div class="mock-diff-line mock-diff-line--ctx" data-mock-action="set" data-mock-set="review:commented"><span class="mock-diff-num">15</span><span class="mock-diff-code">  return this.jwt.sign(payload, {{ expiresIn }});</span></div>
+						<div
+							class="mock-diff-line mock-diff-line--ctx"
+							data-mock-action="set"
+							data-mock-set="review:commented"
+						><span class="mock-diff-num">15</span><span class="mock-diff-code"> return this.jwt.sign(payload, {{ expiresIn }});</span></div>
 					</div>
 				</div>
 				<p class="mock-diff-hint" data-mock-when="review:none">코드 줄을 눌러 리뷰를 남겨 보세요</p>
@@ -285,10 +360,24 @@
 					<p class="mock-merge-title truncate">병합이 차단되었습니다</p>
 					<p class="mock-merge-desc truncate">Ruleset · 승인 1개가 필요합니다</p>
 				</div>
-				<button type="button" tabindex="-1" class="mock-pr-button mock-pr-button--approve" data-mock-action="set" data-mock-set="pr:approved tab:conversation">승인</button>
-				<button type="button" tabindex="-1" class="mock-pr-button mock-pr-button--disabled">Merge</button>
+				<button
+					type="button"
+					class="mock-pr-button mock-pr-button--approve"
+					data-mock-action="set"
+					data-mock-set="pr:approved tab:conversation"
+					tabindex="-1"
+				>승인</button>
+				<button
+					type="button"
+					class="mock-pr-button mock-pr-button--disabled"
+					tabindex="-1"
+				>Merge</button>
 			</div>
-			<div class="mock-merge-row" data-mock-when="pr:approved" hidden>
+			<div
+				class="mock-merge-row"
+				data-mock-when="pr:approved"
+				hidden
+			>
 				<span class="mock-merge-icon mock-merge-icon--ready">
 					<svg
 						fill="currentColor"
@@ -304,9 +393,19 @@
 					<p class="mock-merge-title truncate">병합할 수 있습니다</p>
 					<p class="mock-merge-desc truncate">모든 규칙을 충족했습니다</p>
 				</div>
-				<button type="button" tabindex="-1" class="mock-pr-button mock-pr-button--merge" data-mock-action="set" data-mock-set="pr:merged tab:conversation">Merge</button>
+				<button
+					type="button"
+					class="mock-pr-button mock-pr-button--merge"
+					data-mock-action="set"
+					data-mock-set="pr:merged tab:conversation"
+					tabindex="-1"
+				>Merge</button>
 			</div>
-			<div class="mock-merge-row" data-mock-when="pr:merged" hidden>
+			<div
+				class="mock-merge-row"
+				data-mock-when="pr:merged"
+				hidden
+			>
 				<span class="mock-merge-icon mock-merge-icon--merged">
 					<svg
 						fill="currentColor"
@@ -322,7 +421,13 @@
 					<p class="mock-merge-title truncate">병합 완료</p>
 					<p class="mock-merge-desc truncate"><span class="font-mono">feat/auth</span> 브랜치를 삭제할 수 있습니다</p>
 				</div>
-				<button type="button" tabindex="-1" class="mock-pr-button mock-pr-button--secondary" data-mock-action="set" data-mock-set="pr:blocked">Revert</button>
+				<button
+					type="button"
+					class="mock-pr-button mock-pr-button--secondary"
+					data-mock-action="set"
+					data-mock-set="pr:blocked"
+					tabindex="-1"
+				>Revert</button>
 			</div>
 		</div>
 	</div>
