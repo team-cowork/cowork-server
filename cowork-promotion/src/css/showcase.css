@@ -151,18 +151,6 @@
   opacity: 0;
   transform: translate(-40px);
 }
-.ws-cursor {
-  animation: ws-cursor-move 4s ease-in-out infinite;
-}
-@keyframes ws-cursor-move {
-  0%,
-  to {
-    transform: translate(0);
-  }
-  50% {
-    transform: translate(-40px, 30px);
-  }
-}
 .kanban-card {
   animation: kanban-slide 2.5s ease-in-out infinite alternate;
 }
@@ -229,8 +217,7 @@
   .kanban-card,
   .meet-tile,
   .noti-toast,
-  .search-result,
-  .ws-cursor {
+  .search-result {
     animation: none;
   }
 }
