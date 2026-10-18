@@ -59,22 +59,29 @@ public class AccountsPolicyTests
     }
 
     [Fact]
-    public void Custom_status_change_keeps_omitted_fields_and_validates_lengths()
+    public void Custom_status_change_marks_only_requested_fields_and_validates_lengths()
     {
-        var expiresAt = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         var attrs = Json("""{"custom_status": "DO_NOT_DISTURB", "expiresAt": "2026-08-26T18:00:00.123+09:00"}""");
-        var change = Accounts.CustomStatusChange(attrs, attrs.GetProperty("custom_status"), "집중 중", expiresAt);
+        var change = Accounts.CustomStatusChange(attrs, attrs.GetProperty("custom_status"));
         Assert.Equal("DO_NOT_DISTURB", change.CustomStatus);
-        Assert.Equal("집중 중", change.StatusMessage);
+        Assert.False(change.MessageGiven);
+        Assert.True(change.ExpiresAtGiven);
         Assert.Equal(new DateTime(2026, 8, 26, 9, 0, 0, DateTimeKind.Utc), change.StatusExpiresAt);
 
+        var cleared = Json("""{"custom_status": "ONLINE", "message": null, "expiresAt": null}""");
+        var clearedChange = Accounts.CustomStatusChange(cleared, cleared.GetProperty("custom_status"));
+        Assert.True(clearedChange.MessageGiven);
+        Assert.Null(clearedChange.StatusMessage);
+        Assert.True(clearedChange.ExpiresAtGiven);
+        Assert.Null(clearedChange.StatusExpiresAt);
+
         var tooLong = Json($$"""{"custom_status": "{{new string('a', 31)}}", "message": "{{new string('가', 101)}}"}""");
-        var error = Assert.Throws<FieldErrors>(() => Accounts.CustomStatusChange(tooLong, tooLong.GetProperty("custom_status"), null, null));
+        var error = Assert.Throws<FieldErrors>(() => Accounts.CustomStatusChange(tooLong, tooLong.GetProperty("custom_status")));
         Assert.Equal("custom_status should be at most 30 character(s); status_message should be at most 100 character(s)", error.Message);
 
         var blank = Json("""{"custom_status": ""}""");
         Assert.Equal("custom_status can't be blank",
-            Assert.Throws<FieldErrors>(() => Accounts.CustomStatusChange(blank, blank.GetProperty("custom_status"), null, null)).Message);
+            Assert.Throws<FieldErrors>(() => Accounts.CustomStatusChange(blank, blank.GetProperty("custom_status"))).Message);
     }
 
     [Fact]
