@@ -906,24 +906,12 @@ jobs:
               if git("status", "--porcelain", "--untracked-files=no"):
                   raise ValueError("Release source checkout must be clean")
               files = {path for module in data["modules"] for path in module_files(module)}
-              # Validate every field before modifying any file.
-              updates = {path: rewrite(path, (ROOT / path).read_text(), version) for path in sorted(files)}
-              for path, updated in updates.items():
-                  (ROOT / path).write_text(updated)
-              changed = set(git("diff", "--name-only").splitlines())
-              if not changed <= files:
-                  raise ValueError("Release changed files outside the selected version fields")
-              if not changed:
-                  return
               slug = os.environ["RELEASE_APP_SLUG"]
               if not re.fullmatch(r"[a-zA-Z0-9-]+", slug):
                   raise ValueError("Invalid release App slug")
               bot = json.loads(subprocess.check_output(["gh", "api", f"users/{slug}[bot]"], text=True))
               identity = ["-c", f"user.name={slug}[bot]", "-c", f"user.email={bot['id']}+{slug}[bot]@users.noreply.github.com"]
               message = f"update(global): v{version} 릴리즈 버전 반영\n\nRelease-Source: {sha}"
-              git("add", "--", *sorted(changed))
-              git(*identity, "commit", "-m", message)
-              stamp_commit = git("rev-parse", "HEAD")
               token = os.environ["RELEASE_PUSH_TOKEN"]
               git("fetch", "--quiet", "origin", "refs/heads/main", token=token)
               main = git("rev-parse", "FETCH_HEAD")
@@ -932,8 +920,11 @@ jobs:
                   checkout = Path(directory) / "main"
                   git("worktree", "add", "--detach", str(checkout), main)
                   try:
-                      # Preserve intervening main commits; conflicts and non-fast-forward pushes fail closed.
-                      git("cherry-pick", "--no-commit", stamp_commit, cwd=checkout)
+                      # Stamp current main so earlier release version updates do not conflict.
+                      updates = {path: rewrite(path, (checkout / path).read_text(), version) for path in sorted(files)}
+                      for path, updated in updates.items():
+                          (checkout / path).write_text(updated)
+                      git("add", "--", *sorted(files), cwd=checkout)
                       staged = set(git("diff", "--cached", "--name-only", cwd=checkout).splitlines())
                       if not staged <= files:
                           raise ValueError("Unexpected files in the final version commit")
