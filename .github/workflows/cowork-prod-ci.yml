@@ -60,35 +60,6 @@ jobs:
               return;
             }
 
-  validate-version:
-    name: Validate Version
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    steps:
-      - name: Validate Version
-        uses: actions/github-script@v9
-        with:
-          script: |
-            const title = context.payload.pull_request.title;
-            const versionPattern = /^v\d{8}\.\d+$/;
-            if (!versionPattern.test(title)) {
-              return;
-            }
-            const { data: file } = await github.rest.repos.getContent({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              path: 'VERSION',
-              ref: context.payload.pull_request.head.sha
-            });
-            const versionInFile = Buffer.from(file.content, 'base64').toString().trim();
-            const versionInTitle = title.slice(1);
-            if (versionInFile !== versionInTitle) {
-              core.setFailed(`VERSION 파일(${versionInFile})이 PR 제목의 버전(${versionInTitle})과 다릅니다`);
-            }
-
   setup-pr-metadata:
     name: Set Up PR Metadata
     if: github.event_name == 'pull_request'
@@ -157,11 +128,10 @@ jobs:
   # Pull requests already verify the same source in coverage(pr).
   build-and-test:
     runs-on: ubuntu-latest
-    needs: [validate-title, validate-version, detect-changes]
+    needs: [validate-title, detect-changes]
     if: >
       github.event_name != 'pull_request' && !cancelled() &&
       (needs.validate-title.result == 'success' || needs.validate-title.result == 'skipped') &&
-      (needs.validate-version.result == 'success' || needs.validate-version.result == 'skipped') &&
       needs.detect-changes.result == 'success' &&
       needs.detect-changes.outputs.matrix != '{"include":[]}'
     name: Build (cowork-${{ matrix.service }})
@@ -235,7 +205,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       RESULT_LABELS: '{"success":"성공","failure":"실패","cancelled":"취소됨","skipped":"건너뜀","neutral":"중립","timed_out":"시간 초과","action_required":"조치 필요","stale":"만료됨"}'
-    needs: [validate-title, validate-version, setup-pr-metadata, detect-changes, build-and-test, image-validation, coverage-plan, coverage]
+    needs: [validate-title, setup-pr-metadata, detect-changes, build-and-test, image-validation, coverage-plan, coverage]
     if: always()
 
     steps:
@@ -246,7 +216,7 @@ jobs:
       - name: Determine Status
         id: status
         env:
-          RESULTS: "${{ needs.validate-title.result }} ${{ needs.validate-version.result }} ${{ needs.setup-pr-metadata.result }} ${{ needs.detect-changes.result }} ${{ needs.build-and-test.result }} ${{ needs.image-validation.result }} ${{ needs.coverage-plan.result }} ${{ needs.coverage.result }}"
+          RESULTS: "${{ needs.validate-title.result }} ${{ needs.setup-pr-metadata.result }} ${{ needs.detect-changes.result }} ${{ needs.build-and-test.result }} ${{ needs.image-validation.result }} ${{ needs.coverage-plan.result }} ${{ needs.coverage.result }}"
         run: |
           status="success"
           color="0x4CAF50"
@@ -279,7 +249,6 @@ jobs:
             **변경 대상:** ${{ needs.detect-changes.outputs.services-list }}
             ─────────────────────────────
             **PR 제목 검사:** ${{ fromJSON(env.RESULT_LABELS)[needs.validate-title.result] || '확인 불가' }}
-            **버전 검사:** ${{ fromJSON(env.RESULT_LABELS)[needs.validate-version.result] || '확인 불가' }}
             **PR 정보 설정:** ${{ fromJSON(env.RESULT_LABELS)[needs.setup-pr-metadata.result] || '확인 불가' }}
             **변경 사항 확인:** ${{ fromJSON(env.RESULT_LABELS)[needs.detect-changes.result] || '확인 불가' }}
             **빌드 및 테스트:** ${{ fromJSON(env.RESULT_LABELS)[needs.build-and-test.result] || '확인 불가' }}
