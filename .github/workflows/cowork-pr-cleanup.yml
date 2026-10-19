@@ -5,9 +5,8 @@ on:
     types: [closed]
 
 jobs:
-  remove-label-on-merge:
+  remove-label-on-close:
     name: Remove Review Label
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
