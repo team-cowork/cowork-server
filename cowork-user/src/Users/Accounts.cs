@@ -2,46 +2,16 @@ using System.Globalization;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
-using CoworkUser.Kafka;
+using CoworkUser.Http;
+using CoworkUser.Kafka.Commands;
+using CoworkUser.Kafka.Projections;
+using CoworkUser.Kafka.Publishing;
+using CoworkUser.Platform;
 using Dapper;
 using MySqlConnector;
 using StackExchange.Redis;
 
-namespace CoworkUser;
-
-public sealed record UserResponse(
-    long Id, string Name, string Email, string Sex, string? GithubId, string? AccountDescription,
-    string? StudentRole, string? StudentNumber, string? Major, string? Specialty, string Status,
-    string? CustomStatus, string? StatusMessage, DateTime? StatusExpiresAt, string? ProfileImageUrl,
-    string? Nickname, IReadOnlyList<string> Roles, string? Description);
-
-public sealed record DisplayName(long Id, string Name, string? Nickname);
-
-public sealed record SearchResult(IReadOnlyList<UserResponse> Items, int Page, int PageSize, long TotalCount, bool HasNext);
-
-public sealed record PresignedUpload(string UploadUrl, string ObjectKey);
-
-/// <summary>A changeset-style validation failure, formatted as "field message; field message".</summary>
-public sealed class FieldErrors : Exception
-{
-    readonly SortedDictionary<string, List<string>> errors = new(StringComparer.Ordinal);
-
-    public void Add(string field, string message)
-    {
-        if (!errors.TryGetValue(field, out var messages)) errors[field] = messages = [];
-        messages.Add(message);
-    }
-
-    public bool Any => errors.Count > 0;
-
-    public override string Message =>
-        string.Join("; ", errors.Select(error => $"{error.Key} {string.Join(", ", error.Value)}"));
-
-    public void ThrowIfAny()
-    {
-        if (Any) throw this;
-    }
-}
+namespace CoworkUser.Users;
 
 public static partial class Accounts
 {
@@ -208,7 +178,8 @@ public static partial class Accounts
     internal sealed record ProfilePatch(
         IReadOnlyDictionary<string, JsonElement> Profile,
         IReadOnlyDictionary<string, JsonElement> Account,
-        IReadOnlyList<string>? Roles);
+        IReadOnlyList<string>? Roles
+        );
 
     internal static ProfilePatch ParseProfilePatch(JsonElement attrs)
     {
