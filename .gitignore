@@ -84,3 +84,94 @@ deploy/local/secrets/*
 ### Maven ###
 # Maven build output (cowork-project)
 target/
+
+### Module-specific rules ###
+# Preserve module scope and overrides of the shared exceptions above.
+
+# Authorization
+/cowork-authorization/**/*.jar
+/cowork-authorization/**/*.war
+/cowork-authorization/**/*.ear
+/cowork-authorization/**/out/
+/cowork-authorization/**/.idea/
+/cowork-authorization/**/.vscode/
+
+# Channel
+/cowork-channel/**/*.jar
+/cowork-channel/**/*.war
+/cowork-channel/**/*.ear
+/cowork-channel/**/out/
+/cowork-channel/**/.idea/
+/cowork-channel/**/.vscode/
+
+# Chat
+/cowork-chat/**/dist/
+/cowork-chat/**/.env.*.local
+/cowork-chat/**/.nest/
+/cowork-chat/**/.idea/
+/cowork-chat/**/.vscode/
+
+# Config
+/cowork-config/**/*.jar
+/cowork-config/**/*.war
+/cowork-config/**/*.ear
+/cowork-config/**/out/
+/cowork-config/**/.idea/
+/cowork-config/**/.vscode/
+
+# Gateway
+/cowork-gateway/**/*.jar
+/cowork-gateway/**/*.war
+/cowork-gateway/**/*.ear
+/cowork-gateway/**/out/
+/cowork-gateway/**/.idea/
+/cowork-gateway/**/.vscode/
+
+# GitHub
+/cowork-github/**/dist/
+/cowork-github/**/.env.*.local
+/cowork-github/**/*.pem
+/cowork-github/**/.nest/
+/cowork-github/**/coverage/
+/cowork-github/**/.idea/
+/cowork-github/**/.vscode/
+
+# Project
+/cowork-project/**/*.jar
+/cowork-project/**/*.war
+/cowork-project/**/*.ear
+/cowork-project/**/out/
+/cowork-project/**/.idea/
+/cowork-project/**/.vscode/
+
+# Team
+/cowork-team/**/*.jar
+/cowork-team/**/*.war
+/cowork-team/**/*.ear
+/cowork-team/**/out/
+/cowork-team/**/.idea/
+/cowork-team/**/.vscode/
+
+# User
+/cowork-user/**/obj/
+/cowork-user/**/TestResults/
+/cowork-user/**/.vs/
+/cowork-user/**/.idea/
+/cowork-user/**/*.user
+
+# Voice
+/cowork-voice/**/*.exe
+/cowork-voice/**/*.exe~
+/cowork-voice/**/*.dll
+/cowork-voice/**/*.so
+/cowork-voice/**/*.dylib
+/cowork-voice/**/*.test
+/cowork-voice/**/*.out
+/cowork-voice/**/.idea/
+/cowork-voice/**/.vscode/
+/cowork-voice/**/.codex
+
+### Deployment ###
+/deploy/architecture/**/out/
+/deploy/iac/**/inventory*.yml
+!/deploy/iac/**/inventory.example.yml
