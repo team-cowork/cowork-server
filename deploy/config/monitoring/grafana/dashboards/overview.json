@@ -1,5 +1,5 @@
 {
-  "title": "cowork 전체 현황",
+  "title": "cowork / Overview",
   "uid": "cowork-overview",
   "tags": [
     "cowork"
@@ -50,11 +50,11 @@
               "type": "value",
               "options": {
                 "0": {
-                  "text": "수집 실패",
+                  "text": "DOWN",
                   "color": "red"
                 },
                 "1": {
-                  "text": "수집 정상",
+                  "text": "UP",
                   "color": "green"
                 }
               }
