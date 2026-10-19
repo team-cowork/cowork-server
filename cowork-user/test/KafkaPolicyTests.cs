@@ -1,8 +1,11 @@
 using System.Text;
 using System.Text.Json;
 using CoworkUser.Kafka;
-using static CoworkUser.Kafka.ProjectionCheckpoint;
-using IdentityCommandHandler = CoworkUser.Kafka.IdentityCommand;
+using CoworkUser.Kafka.Commands;
+using CoworkUser.Kafka.Projections;
+using CoworkUser.Kafka.Publishing;
+using static CoworkUser.Kafka.Projections.ProjectionCheckpoint;
+using IdentityCommandHandler = CoworkUser.Kafka.Commands.IdentityCommand;
 
 namespace CoworkUser.Tests;
 
@@ -146,10 +149,10 @@ public class ContractTests
 
         foreach (var bytes in new[] { invalidUtf8, loneSurrogate, nestedKey })
         {
-            Assert.Null(CoworkUser.Json.ParseObject(bytes, out var error));
+            Assert.Null(CoworkUser.Platform.Json.ParseObject(bytes, out var error));
             Assert.Equal(":invalid_string", error);
         }
-        Assert.NotNull(CoworkUser.Json.ParseObject("{\"name\":\"김코워크\"}"u8.ToArray(), out _));
+        Assert.NotNull(CoworkUser.Platform.Json.ParseObject("{\"name\":\"김코워크\"}"u8.ToArray(), out _));
     }
 
     [Fact]

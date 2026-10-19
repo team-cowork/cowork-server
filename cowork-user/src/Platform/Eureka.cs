@@ -1,8 +1,8 @@
 using System.Net;
-using System.Net.Http.Json;
-using CoworkUser.Kafka;
+using CoworkUser.Config;
+using CoworkUser.Kafka.Projections;
 
-namespace CoworkUser;
+namespace CoworkUser.Platform;
 
 /// <summary>Registers with Eureka only while projections are ready, and deregisters when they are not.</summary>
 public sealed class Eureka(AppConfig config, ProjectionReadiness readiness, ILogger<Eureka> logger) : BackgroundService
