@@ -1,5 +1,10 @@
-using CoworkUser;
+using CoworkUser.Config;
+using CoworkUser.Http;
 using CoworkUser.Kafka;
+using CoworkUser.Kafka.Projections;
+using CoworkUser.Kafka.Publishing;
+using CoworkUser.Platform;
+using CoworkUser.Users;
 using Dapper;
 using MySqlConnector;
 using StackExchange.Redis;

@@ -1,7 +1,8 @@
+using CoworkUser.Platform;
 using Dapper;
 using MySqlConnector;
 
-namespace CoworkUser.Kafka;
+namespace CoworkUser.Kafka.Projections;
 
 /// <summary>
 /// Durable projection offsets with replay fencing. Every runtime start bumps a replay generation,
@@ -16,7 +17,8 @@ public static class ProjectionCheckpoint
 
     public sealed record State(
         long NextOffset, long Generation, string? Token, long? InvalidRecordOffset, long? SnapshotCompletedOffset,
-        string? LastSnapshotId, string? RecoverySnapshotId, bool LeaseActive);
+        string? LastSnapshotId, string? RecoverySnapshotId, bool LeaseActive
+        );
 
     public sealed record RecoveryState(long? InvalidRecordOffset, long? SnapshotCompletedOffset, string? LastSnapshotId, string? RecoverySnapshotId);
 
