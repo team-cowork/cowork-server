@@ -104,6 +104,7 @@ export const PROJECTION_STREAMS = {
         groupId: 'cowork-chat-team-role-state-v2-projection',
         expectedSource: 'cowork-preference',
         sourceGeneration: sourceGeneration('TEAM_ROLE'),
+        replaces: {topic: 'preference.team-role.changed', groupId: 'cowork-chat-team-role-event-v1-projection'},
     },
     channelRolePolicy: {
         name: 'channelRolePolicy',
@@ -111,6 +112,10 @@ export const PROJECTION_STREAMS = {
         groupId: 'cowork-chat-channel-role-policy-state-v2-projection',
         expectedSource: 'cowork-preference',
         sourceGeneration: sourceGeneration('CHANNEL_ROLE_POLICY'),
+        replaces: {
+            topic: 'preference.channel-role-policy.changed',
+            groupId: 'cowork-chat-channel-role-policy-event-v1-projection',
+        },
     },
     userProfile: {
         name: 'userProfile',
