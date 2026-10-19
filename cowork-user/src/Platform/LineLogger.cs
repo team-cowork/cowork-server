@@ -2,7 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Channels;
 
-namespace CoworkUser;
+namespace CoworkUser.Platform;
 
 /// <summary>
 /// Writes one JSON object per event to stdout and to the shared log volume. The keys follow the other
@@ -18,7 +18,8 @@ public sealed class LineLoggerProvider : ILoggerProvider
         [property: JsonPropertyName("level")] string Level,
         [property: JsonPropertyName("service")] string Service,
         [property: JsonPropertyName("message")] string Message,
-        [property: JsonPropertyName("request_id"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RequestId);
+        [property: JsonPropertyName("request_id"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RequestId
+        );
 
     const long MaxBytes = 20_971_520;
     const int Keep = 4;
