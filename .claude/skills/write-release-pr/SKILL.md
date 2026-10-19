@@ -1,10 +1,10 @@
 ---
 name: write-release-pr
-description: Open the production release PR from develop to main. Runs make bump, commits and pushes the version bump to develop after one confirmation, then creates the PR titled with the new version, labeled release:릴리즈, and filled from PULL_REQUEST_TEMPLATE.md. Use when deploying develop to main; use write-pr for feature PRs.
-allowed-tools: Bash(git *:*), Bash(make bump:*), Bash(bash scripts/bump.sh:*), Bash(gh *:*), Bash(cat *:*), Read, Write, AskUserQuestion
+description: Open the production release PR from develop to main. Creates the PR titled vYYYYMMDD.n, labeled release:릴리즈, and filled from PULL_REQUEST_TEMPLATE.md. Prod CD allocates and stamps changed module versions after the merge. Use when deploying develop to main; use write-pr for feature PRs.
+allowed-tools: Bash(git *:*), Bash(gh *:*), Bash(cat *:*), Read, Write, AskUserQuestion
 ---
 
-Same flow as `write-pr` (gather → body file → preview → confirm → create → cleanup), with three differences: the version is bumped first, the title and label are fixed, and the head/base are always `develop` → `main`.
+Same flow as `write-pr` (gather → body file → preview → create → cleanup), with a fixed title and label and `develop` → `main` as head/base. Do not edit module versions or push a version commit; Prod CD owns version allocation, stamping, and the final push to `main`.
 
 ## Step 1 — Check Preconditions
 
@@ -24,29 +24,15 @@ Stop and report when any of these hold:
 ```bash
 git log --first-parent --format='%h %s' origin/main..origin/develop
 git log --no-merges --format='%h %s' origin/main..origin/develop
+git tag --list 'v*'
 cat .github/PULL_REQUEST_TEMPLATE.md
 ```
 
 Collect the included PR numbers from the `Merge pull request #N` lines and read their titles with `gh pr view N --json title`. Commits pushed straight to `develop` have no PR; note them from the second log. If there is nothing between `origin/main` and `origin/develop`, stop: there is nothing to release.
 
-## Step 3 — Bump the Version
+## Step 3 — Write Body & Show Preview
 
-```bash
-make bump
-```
-
-If `make` is unavailable, run `bash scripts/bump.sh` instead (the `bump` target runs only that script). Then:
-
-```bash
-cat VERSION
-git diff --name-only
-```
-
-Only version-bearing files may change: `VERSION`, `cowork-*/build.gradle.kts`, `cowork-*/pom.xml`, `cowork-*/package.json`, `cowork-*/package-lock.json`, `cowork-user/src/CoworkUser.csproj`, and the Go `main.go` files listed in `scripts/bump.sh`. Any other change means stop and report. If nothing changed, the version is already current; skip the commit in Step 5.
-
-## Step 4 — Write Body & Show Preview
-
-**Title** — `v{VERSION}` (e.g., `v20261016.1`). No scope, no description.
+**Title** — `v{RELEASE_VERSION}` (e.g., `v20261019.0`). No scope or description. Use the user's requested version when provided; otherwise use today's date in Asia/Seoul and one more than the largest existing tag sequence for that date, starting at 0. Set `RELEASE_VERSION` to that value without the `v` prefix. This only selects the PR title: do not create a tag or change source files. Prod CD independently assigns the actual release version after merge, so the title can differ if the date changes or another release reserves a version first. CI checks the title format without comparing it to a VERSION file or module versions.
 
 **Label** — `release:릴리즈`.
 
@@ -58,32 +44,21 @@ Only version-bearing files may change: `VERSION`, `cowork-*/build.gradle.kts`, `
 Write the body to `PR_BODY.md`, then display:
 
 ```
-## 릴리즈 버전
-- v{VERSION} (변경 파일 N개)
-
 ## PR 제목 / 라벨
-- v{VERSION} / release:릴리즈
+- v{RELEASE_VERSION} / release:릴리즈
 
 ## PR 본문 미리보기
 [body content]
 ```
 
-Use AskUserQuestion to confirm once: commit and push the version bump directly to `develop`, then create the PR. This direct push is the team's release convention; it never applies to other work. Wait for the answer before proceeding.
-
-## Step 5 — Commit, Push, and Create PR
-
-```bash
-git add -u
-git commit -m "update(global): v{VERSION} 릴리즈 버전 갱신"
-git push origin HEAD:refs/heads/develop
-```
+## Step 4 — Create PR
 
 Then create the PR. If `gh label list` does not contain `release:릴리즈`, drop `--label` and create it unlabeled; never create or swap the label.
 
 ```bash
-gh pr create --base main --head develop --title "v{VERSION}" --body-file PR_BODY.md --label "release:릴리즈"
+gh pr create --base main --head develop --title "v${RELEASE_VERSION}" --body-file PR_BODY.md --label "release:릴리즈"
 ```
 
 Display the PR URL. If the label was dropped, say so in one line. Cleanup: remove `PR_BODY.md`.
 
-Do not run `make tag` or `make release`: after the merge, the Prod CD workflow creates the tag and GitHub Release. Release notes for it are written with the `write-release-notes` skill.
+After the merge, Prod CD reserves the tag, stamps only selected image modules, deploys them, pushes their version fields to `main`, and publishes the GitHub Release. No root VERSION file or local bump command is used. Release notes for it are written with the `write-release-notes` skill.
