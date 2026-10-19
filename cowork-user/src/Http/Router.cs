@@ -4,9 +4,11 @@ using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
-using CoworkUser.Kafka;
+using CoworkUser.Kafka.Projections;
+using CoworkUser.Platform;
+using CoworkUser.Users;
 
-namespace CoworkUser;
+namespace CoworkUser.Http;
 
 /// <summary>
 /// HTTP endpoints. Every unmatched route answers 404 with a JSON message, and projection backed

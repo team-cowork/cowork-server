@@ -1,7 +1,9 @@
+using CoworkUser.Kafka.Projections;
+using CoworkUser.Platform;
 using Dapper;
 using MySqlConnector;
 
-namespace CoworkUser.Kafka;
+namespace CoworkUser.Kafka.Publishing;
 
 /// <summary>Writes user.profile.event.v2 records and snapshot markers to the transactional outbox.</summary>
 public static class ProfileEventPublisher
