@@ -1,7 +1,7 @@
 import {Prop, Schema, SchemaFactory} from '@nestjs/mongoose';
 
 /**
-`preference.team-role.changed`의 account↔role assignment projection.
+`preference.team-role.state.v2`의 account↔role assignment projection.
 */
 @Schema({timestamps: true, versionKey: false})
 export class TeamRoleAssignmentProjection {
