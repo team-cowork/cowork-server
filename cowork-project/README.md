@@ -11,9 +11,24 @@
 ## 스택
 
 - Kotlin / Java 26 / Spring Boot
-- Maven (`pom.xml`; Gradle은 Maven 실행 위임)
+- Maven (`pom.xml`, `mvnw` / `mvnw.cmd`)
 - Spring Data JPA / MySQL / Flyway
 - Spring Kafka / Eureka / Config Client / OpenFeign
+
+## 빌드 및 실행
+
+`cowork-project` 디렉터리에서 실행합니다. Windows에서는 `mvnw.cmd`를 사용합니다.
+
+```bash
+./mvnw package
+./mvnw test
+./mvnw clean
+```
+
+로컬 서비스는 저장소 루트에서 `bash deploy/local/services/project.sh foreground`로 실행합니다.
+이 스크립트는 로컬 환경변수를 읽고 `./mvnw spring-boot:run`을 호출합니다.
+
+루트 Gradle의 `build`, `clean`, `test`에는 이 모듈이 포함되지 않습니다.
 
 ## 포트
 
