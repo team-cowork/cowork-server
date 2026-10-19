@@ -1,9 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  cowork-project is built by Maven. This pom is the single source of truth for the build;
-  the Gradle wrapper (build.gradle.kts) only keeps the module in the multi-module build
-  (settings.gradle.kts) and delegates every build action to Maven.
--->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
