@@ -1,6 +1,15 @@
+### .NET ###
 bin/
 obj/
 TestResults/
-application-local.yml
+
+### IDE ###
+.vs/
+.idea/
+*.user
+
+### Logs ###
 *.log
+
+### OS ###
 .DS_Store
