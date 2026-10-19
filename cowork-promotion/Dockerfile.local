@@ -5,14 +5,14 @@ RUN --mount=type=cache,id=npm-promotion,target=/root/.npm npm ci
 # The site validates links to repository source files while rendering TODO pages.
 COPY . /workspace
 ARG SOURCE_REVISION
-RUN GITHUB_SHA="$SOURCE_REVISION" npm run build
+RUN npm run lint -- --max-warnings=0 \
+    && GITHUB_SHA="$SOURCE_REVISION" npm run build
 
 FROM builder AS verification
 RUN apk --no-cache add bash python3
 COPY deploy/images/ci /ci
 RUN --mount=type=cache,id=npm-promotion,target=/root/.npm \
-    npm run lint -- --max-warnings=0 \
-    && bash /ci/run-native.sh node cowork-promotion /workspace /coverage \
+    bash /ci/run-native.sh node cowork-promotion /workspace /coverage \
     && python3 /ci/report.py collect --module cowork-promotion --snapshot pr --format istanbul --metric line --input /coverage/report.json --output /coverage/coverage.json --exit-code 0
 
 FROM scratch AS verify
