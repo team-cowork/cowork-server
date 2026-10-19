@@ -144,6 +144,15 @@ target/
 /cowork-project/**/.idea/
 /cowork-project/**/.vscode/
 
+# Promotion
+/cowork-promotion/**/node_modules
+/cowork-promotion/**/.output
+/cowork-promotion/**/.nuxt
+/cowork-promotion/**/.nitro
+/cowork-promotion/**/.cache
+/cowork-promotion/**/dist
+/cowork-promotion/**/public
+
 # Team
 /cowork-team/**/*.jar
 /cowork-team/**/*.war
