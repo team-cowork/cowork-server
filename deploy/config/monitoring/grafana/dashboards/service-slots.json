@@ -25,7 +25,7 @@
         "refresh": 2,
         "multi": true,
         "includeAll": true,
-        "allValue": ".+",
+        "allValue": ".*",
         "current": { "text": "All", "value": "$__all" }
       }
     ]
@@ -102,7 +102,7 @@
         }
       ],
       "fieldConfig": { "defaults": {"unit": "short", "min": 0, "noValue": "N/A"} },
-      "description": "현재 발생 중인 알림의 이름·심각도·서비스·대상을 표시합니다. 활성 알림이 없으면 결과가 비어 있습니다.",
+      "description": "현재 발생 중인 알림의 이름·심각도·서비스·대상을 표시합니다. All을 선택하면 서비스 라벨이 없는 검색·호스트 메트릭 누락 알림도 포함합니다. 활성 알림이 없으면 결과가 비어 있습니다.",
       "datasource": { "type": "prometheus", "uid": "cowork-prometheus" },
       "options": { "showHeader": true, "cellHeight": "sm", "sortBy": [{"displayName": "심각도", "desc": false}] },
       "transformations": [
