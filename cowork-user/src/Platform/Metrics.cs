@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 
-namespace CoworkUser;
+namespace CoworkUser.Platform;
 
 public static class Metrics
 {
