@@ -82,9 +82,6 @@ categories:
       - { name: Maven, color: "#c71a36" }
       - { name: Gradle, color: "#02303a" }
       - { name: Kotlin Toolchain, color: "#7f52ff" }
-      - { name: npm, color: "#cb3837" }
-      - { name: Go modules, color: "#00add8" }
-      - { name: .NET CLI, color: "#512bd4" }
 
 positions:
   Server:
@@ -122,9 +119,6 @@ positions:
       - Maven
       - Gradle
       - Kotlin Toolchain
-      - npm
-      - Go modules
-      - .NET CLI
   Web Client:
     color: "#eab308"
     description: Next.js 기반 협업 웹 클라이언트를 개발합니다. FSD(Feature-Sliced Design) 구조로 기능별 코드를 구성합니다.
