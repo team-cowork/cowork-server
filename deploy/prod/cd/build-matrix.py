@@ -97,14 +97,14 @@ def main():
             continue
         if base and source:
             paths = set()
-            # Recreating an existing image can advance the slot source without
-            # deploying its application code, or apply a newer image to an older slot.
+            # Applied settings follow the deployment source; image inputs follow the image SHA.
             for previous in {base, source} - {sha}:
                 if previous not in changes:
-                    changes[previous] = subprocess.check_output(
-                        ["git", "diff", "--name-only", "--no-renames", "-z", previous, sha],
-                    ).decode().rstrip("\0").split("\0")
-                paths.update(changes[previous])
+                    changes[previous] = IMAGE_INPUTS["changed_paths"](previous, sha)
+                if previous == source:
+                    paths.update(changes[previous])
+                elif service in IMAGE_INPUTS["CATALOG"]:
+                    paths.update(path for path in changes[previous] if IMAGE_INPUTS["affected"](service, [path]))
             if not affected(service, paths, name):
                 continue
         # A new target or a pre-tracking deployment has no trustworthy baseline.
