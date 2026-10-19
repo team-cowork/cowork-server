@@ -1,24 +1,4 @@
-VERSION := $(shell cat VERSION)
-
-.PHONY: version bump tag release init-logs setup
-
-version:
-	@cat VERSION
-
-bump:
-	@./scripts/bump.sh
-
-tag:
-	git add VERSION cowork-*/build.gradle.kts cowork-*/package.json cowork-*/pom.xml \
-	        cowork-user/src/CoworkUser.csproj \
-	        cowork-authorization/cmd/main.go \
-	        cowork-notification/cmd/server/main.go \
-	        cowork-voice/cmd/server/main.go
-	git commit -m "chore: release v$(shell cat VERSION)"
-	git tag v$(shell cat VERSION)
-
-release: tag
-	git push origin main --follow-tags
+.PHONY: init-logs setup
 
 init-logs:
 	@bash deploy/local/init-log-dirs.sh

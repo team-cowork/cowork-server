@@ -1,5 +1,6 @@
 using System.Text;
 using Confluent.Kafka;
+using CoworkUser.Config;
 
 namespace CoworkUser.Kafka;
 
