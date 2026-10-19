@@ -1,3 +1,7 @@
+using CoworkUser.Http;
+using CoworkUser.Platform;
+using CoworkUser.Users;
+
 namespace CoworkUser.Tests;
 
 public class ObjectStoragePolicyTests
