@@ -1,7 +1,10 @@
+using CoworkUser.Config;
+using CoworkUser.Kafka.Projections;
+using CoworkUser.Platform;
 using Dapper;
 using MySqlConnector;
 
-namespace CoworkUser.Kafka;
+namespace CoworkUser.Kafka.Publishing;
 
 /// <summary>
 /// Periodically republishes every profile followed by per-partition completion markers, so
