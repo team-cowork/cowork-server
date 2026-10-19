@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>CoworkUser</RootNamespace>
     <AssemblyName>CoworkUser</AssemblyName>
-    <!-- Release stamping: scripts/bump.sh. AssemblyVersion cannot hold the date-based version. -->
+    <!-- Prod CD stamps this field. AssemblyVersion cannot hold the date-based version. -->
     <InformationalVersion>20261019.0</InformationalVersion>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>

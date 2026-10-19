@@ -130,6 +130,7 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
       - name: Select Settings And Save Previous Images
         id: plan
         env:
@@ -150,6 +151,16 @@ jobs:
           VAULT_ADDR: ${{ vars.VAULT_ADDR }}
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
         run: python3 deploy/prod/cd/rollout-settings.py initial --directory "$RUNNER_TEMP/settings-plan"
+      - name: Require Release Push Credentials Before Changing Settings
+        if: github.event_name == 'workflow_run' && steps.plan.outputs.has-images == 'true'
+        env:
+          RELEASE_APP_CLIENT_ID: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+        run: |
+          if [ -z "$RELEASE_APP_CLIENT_ID" ] || [ -z "$RELEASE_APP_PRIVATE_KEY" ]; then
+            echo 'Configure RELEASE_APP_CLIENT_ID and RELEASE_APP_PRIVATE_KEY for the release App with main ruleset bypass.' >&2
+            exit 1
+          fi
       - name: Preserve Rollout Metadata
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
@@ -272,52 +283,154 @@ jobs:
         run: python3 deploy/prod/cd/rollout-settings.py finalize --directory "$RUNNER_TEMP/settings"
 
   prepare:
-    name: Prepare Deployment
+    name: Reserve Release Version
     needs: [finalize-settings]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: ${{ !cancelled() && needs.finalize-settings.result == 'success' }}
     permissions:
-      contents: read
+      contents: write
     outputs:
       owner: ${{ steps.release.outputs.owner }}
       should_release: ${{ steps.release.outputs.should_release }}
       version: ${{ steps.release.outputs.version }}
       image-matrix: ${{ needs.finalize-settings.outputs.image_matrix }}
-
     steps:
-      - name: Checkout
+      - name: Checkout Release Source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
-
-      - name: Resolve Release Version
+      - name: Reserve Or Reuse This Source's Release Version
         id: release
-        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+          AUTOMATIC: ${{ github.event_name == 'workflow_run' }}
+          IMAGE_MATRIX: ${{ needs.finalize-settings.outputs.image_matrix }}
         run: |
-          set -euo pipefail
+          python3 - <<'PYTHON'
+          from datetime import datetime
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import subprocess
+          import sys
+          from zoneinfo import ZoneInfo
 
-          version="$(tr -d '[:space:]' < VERSION)"
-          if [[ ! "${version}" =~ ^[0-9]+(\.[0-9]+)+$ ]]; then
-            echo "VERSION must contain a numeric dotted version, got '${version}'" >&2
-            exit 1
-          fi
+          ROOT = Path.cwd()
+          sys.path.insert(0, str(ROOT / "deploy/images"))
+          from release_fields import VERSION, module_files
 
-          echo "owner=${GITHUB_REPOSITORY_OWNER,,}" >> "${GITHUB_OUTPUT}"
-          echo "version=${version}" >> "${GITHUB_OUTPUT}"
-          if [ "$GITHUB_EVENT_NAME" = workflow_run ] &&
-             ! git rev-parse --quiet --verify "refs/tags/v${version}" >/dev/null; then
-            echo "should_release=true" >> "${GITHUB_OUTPUT}"
-          else
-            echo "should_release=false" >> "${GITHUB_OUTPUT}"
-          fi
+          MARKER = "Cowork CD release reservation\n"
+          SHA = re.compile(r"[0-9a-f]{40}")
+
+
+          def git(*args, cwd=ROOT, token=None):
+              env = dict(os.environ)
+              if token:
+                  env["GH_TOKEN"] = token
+              return subprocess.check_output(
+                  ["git", "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", *args],
+                  cwd=cwd, env=env, text=True,
+              ).strip()
+
+
+          def api(path, payload=None, missing=False):
+              command = ["gh", "api", f"repos/{os.environ['GITHUB_REPOSITORY']}/{path}"]
+              if payload is not None:
+                  command += ["--method", "POST", "--input", "-"]
+              result = subprocess.run(command, input=json.dumps(payload) if payload is not None else None,
+                                      capture_output=True, text=True, timeout=60)
+              if result.returncode:
+                  if missing and "(HTTP 404)" in result.stderr:
+                      return None
+                  raise RuntimeError(result.stderr)
+              return json.loads(result.stdout)
+
+
+          def emit(**values):
+              with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+                  for key, value in values.items():
+                      output.write(f"{key}={value}\n")
+
+
+          def source_sha():
+              sha = os.environ["RELEASE_SHA"]
+              if not SHA.fullmatch(sha) or git("rev-parse", "HEAD") != sha:
+                  raise ValueError("Checkout must match the CI-validated release source")
+              return sha
+
+
+          def reservation(tag, sha):
+              if git("cat-file", "-t", f"refs/tags/{tag}") != "tag":
+                  return None
+              message = git("cat-file", "-p", f"refs/tags/{tag}").split("\n\n", 1)[1]
+              if not message.startswith(MARKER):
+                  return None
+              data = json.loads(message[len(MARKER):])
+              if data.get("source") != sha or data.get("version") != tag[1:]:
+                  raise ValueError(f"Invalid release reservation: {tag}")
+              modules = data["modules"]
+              if not isinstance(modules, list) or not modules or modules != sorted(set(modules)):
+                  raise ValueError("Reservation must contain unique sorted modules")
+              for module in modules:
+                  module_files(module)
+              return data
+
+
+          def prepare():
+              emit(owner=os.environ["GITHUB_REPOSITORY_OWNER"].lower())
+              if os.environ.get("AUTOMATIC") != "true":
+                  emit(should_release="false", version="")
+                  return
+              sha = source_sha()
+              matrix = json.loads(os.environ["IMAGE_MATRIX"])["include"]
+              modules = sorted({item["service"] for item in matrix})
+              if any(item["image_sha"] != sha for item in matrix):
+                  raise ValueError("Automatic release images must use the selected source")
+              for module in modules:
+                  module_files(module)
+              git("fetch", "--quiet", "--tags", "origin")
+              tags = [tag for tag in git("tag", "--list", "v*").splitlines() if VERSION.fullmatch(tag[1:])]
+              owned = []
+              for tag in git("tag", "--points-at", sha).splitlines():
+                  if tag in tags:
+                      data = reservation(tag, sha)
+                      if data:
+                          owned.append(data)
+              if len(owned) > 1:
+                  raise ValueError("Multiple release reservations point to this source")
+              if owned:
+                  data = owned[0]
+                  if not set(modules) <= set(data["modules"]):
+                      raise ValueError("Release scope changed after reservation; use a new source commit")
+              elif modules:
+                  date = datetime.now(ZoneInfo("Asia/Seoul")).strftime("%Y%m%d")
+                  sequence = max((int(tag.split(".")[1]) for tag in tags if tag.startswith(f"v{date}.")), default=-1) + 1
+                  data = {"version": f"{date}.{sequence}", "source": sha, "modules": modules}
+                  # An annotated tag survives failed jobs and workflow retries without a VERSION file.
+                  tag = api("git/tags", {"tag": "v" + data["version"], "object": sha, "type": "commit",
+                                         "message": MARKER + json.dumps(data, separators=(",", ":"))})
+                  api("git/refs", {"ref": "refs/tags/v" + data["version"], "sha": tag["sha"]})
+              else:
+                  emit(should_release="false", version="")
+                  return
+              release = api("releases/tags/v" + data["version"], missing=True)
+              emit(version=data["version"],
+                   should_release="false" if release and not release["draft"] else "true")
+              print(f"Reserved v{data['version']} for {', '.join(data['modules'])} at {sha}")
+
+
+          prepare()
+          PYTHON
 
   build-images:
     name: Build And Push cowork-${{ matrix.service }}
     needs: prepare
-    # Release tags and deployment images have separate lifecycles. A selected
-    # deployment always gets sha-<sha>, even when VERSION did not change.
+    # Reuse published source images when a deployment or final version push is retried.
     # One source-selection job is intentionally skipped for each trigger.
     if: >
       !cancelled() && !inputs.check_only && needs.prepare.result == 'success' &&
@@ -338,6 +451,37 @@ jobs:
           persist-credentials: false
           ref: ${{ matrix.image_sha }}
 
+      - name: Stamp Selected Module
+        id: stamp
+        env:
+          RELEASE_MODULE: ${{ matrix.service }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          python3 - <<'PYTHON'
+          import os
+          from pathlib import Path
+          import sys
+
+          ROOT = Path.cwd()
+          sys.path.insert(0, str(ROOT / "deploy/images"))
+          from release_fields import VERSION, current_version, module_files, rewrite
+
+          module = os.environ["RELEASE_MODULE"]
+          version = os.environ.get("RELEASE_VERSION", "")
+          if version:
+              if not VERSION.fullmatch(version):
+                  raise ValueError("Release version must be YYYYMMDD.n")
+              # Validate every field before modifying any file.
+              updates = {path: rewrite(path, (ROOT / path).read_text(), version) for path in module_files(module)}
+              for path, updated in updates.items():
+                  (ROOT / path).write_text(updated)
+          else:
+              version = current_version(module)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"version={version}\n")
+          print(f"cowork-{module}: v{version}")
+          PYTHON
+
       - name: Log In To GitHub Container Registry
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
@@ -345,7 +489,57 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Reuse Published Source Image
+        id: image
+        env:
+          RELEASE_IMAGE: ghcr.io/${{ needs.prepare.outputs.owner }}/cowork-${{ matrix.service }}:sha-${{ matrix.image_sha }}
+          RELEASE_SHA: ${{ matrix.image_sha }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          import os
+          import subprocess
+
+
+          def manifest(image):
+              result = subprocess.run(["docker", "manifest", "inspect", image], capture_output=True, text=True)
+              if result.returncode:
+                  if any(message in result.stderr.lower() for message in ("manifest unknown", "no such manifest", "name unknown")):
+                      return None
+                  raise RuntimeError(result.stderr)
+              return json.loads(result.stdout)
+
+
+          image = os.environ["RELEASE_IMAGE"]
+          version = os.environ.get("RELEASE_VERSION", "")
+          existing = manifest(image)
+          version_image = image.rsplit(":", 1)[0] + ":v" + version if version else None
+          published = manifest(version_image) if version_image else None
+          reference = image if existing is not None else version_image
+          if existing is not None or published is not None:
+              if existing is not None and published is not None and existing != published:
+                  raise ValueError("Version tag already identifies a different image")
+              subprocess.run(["docker", "pull", "--platform", "linux/amd64", reference], check=True)
+              labels = json.loads(subprocess.check_output(
+                  ["docker", "image", "inspect", "--format", "{{json .Config.Labels}}", reference], text=True,
+              ))
+              if labels.get("org.opencontainers.image.revision") != os.environ["RELEASE_SHA"]:
+                  raise ValueError("Published image has a different source revision")
+              if version:
+                  if labels.get("org.opencontainers.image.version") != "v" + version:
+                      raise ValueError("Published image has a different reserved release version")
+                  if published is None:
+                      # A push can publish the SHA tag before failing to publish the version alias.
+                      subprocess.run(["docker", "buildx", "imagetools", "create", "--tag", version_image, image], check=True)
+              if existing is None:
+                  subprocess.run(["docker", "buildx", "imagetools", "create", "--tag", image, reference], check=True)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write(f"reuse={str(existing is not None or published is not None).lower()}\n")
+          PYTHON
+
       - name: Build And Push Image
+        if: steps.image.outputs.reuse != 'true'
         uses: ./.github/actions/build-image
         with:
           service: ${{ matrix.service }}
@@ -353,58 +547,23 @@ jobs:
           context: ${{ matrix.context }}
           dockerfile: ${{ matrix.dockerfile }}
           push: 'true'
-          # sha-<sha> 태그는 deploy job이 항상 pull해야 하므로 매번 push한다.
-          # v<version> 태그는 should_release가 true일 때만 붙여서, 이미 릴리스된
-          # 버전 태그가 뒤이은 커밋들로 조용히 재지정되지 않게 한다.
+          # The reserved version and stamped files are identical across retries.
           tags: |
             ghcr.io/${{ needs.prepare.outputs.owner }}/cowork-${{ matrix.service }}:sha-${{ matrix.image_sha }}
-            ${{ needs.prepare.outputs.should_release == 'true' && format('ghcr.io/{0}/cowork-{1}:v{2}', needs.prepare.outputs.owner, matrix.service, needs.prepare.outputs.version) || '' }}
+            ${{ needs.prepare.outputs.version != '' && format('ghcr.io/{0}/cowork-{1}:v{2}', needs.prepare.outputs.owner, matrix.service, needs.prepare.outputs.version) || '' }}
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ matrix.image_sha }}
-            org.opencontainers.image.version=v${{ needs.prepare.outputs.version }}
-
-  release:
-    name: Create Release
-    needs:
-      - prepare
-      - build-images
-    if: >
-      !cancelled() && needs.prepare.result == 'success' &&
-      needs.prepare.outputs.should_release == 'true' &&
-      (needs.build-images.result == 'success' ||
-       (needs.prepare.outputs.image-matrix == '{"include":[]}' && needs.build-images.result == 'skipped'))
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 0
-
-      - name: Create Release And Tag
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ needs.prepare.outputs.version }}
-        run: |
-          gh release create "v${VERSION}" \
-            --target "${{ github.event.workflow_run.head_sha }}" \
-            --title "v${VERSION}" \
-            --generate-notes
+            org.opencontainers.image.version=v${{ steps.stamp.outputs.version }}
 
   deployment-plan:
     name: Require All Selected Image Builds
-    needs: [prepare, build-images, release, finalize-settings]
+    needs: [prepare, build-images, finalize-settings]
     if: >
       !cancelled() && needs.prepare.result == 'success' &&
       (needs.build-images.result == 'success' ||
        (needs.build-images.result == 'skipped' &&
-        (inputs.check_only || needs.prepare.outputs.image-matrix == '{"include":[]}'))) &&
-      (needs.release.result == 'success' || needs.release.result == 'skipped')
+        (inputs.check_only || needs.prepare.outputs.image-matrix == '{"include":[]}')))
     runs-on: ubuntu-latest
     outputs:
       attempt: ${{ needs.finalize-settings.outputs.attempt }}
@@ -637,9 +796,217 @@ jobs:
           vault_addr: ${{ vars.VAULT_ADDR }}
           vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
 
+  release:
+    name: Push Module Versions And Publish Release
+    needs: [prepare, deployment-plan, deploy-vault, apply-infrastructure, deploy-config, deploy]
+    # Repository bookkeeping failures must not roll back a successful runtime deployment.
+    if: >
+      !cancelled() && needs.prepare.result == 'success' &&
+      needs.prepare.outputs.should_release == 'true' &&
+      needs.deployment-plan.result == 'success' &&
+      !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      deployments: read
+    steps:
+      - name: Checkout Release Source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - name: Create Release Push Token
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+      - name: Push Only Successfully Deployed Module Versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_PUSH_TOKEN: ${{ steps.app.outputs.token }}
+          RELEASE_APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          import os
+          from pathlib import Path
+          import re
+          import runpy
+          import subprocess
+          import sys
+          import tempfile
+
+          ROOT = Path.cwd()
+          sys.path.insert(0, str(ROOT / "deploy/images"))
+          from release_fields import VERSION, module_files, normalized, rewrite
+
+          MARKER = "Cowork CD release reservation\n"
+          SHA = re.compile(r"[0-9a-f]{40}")
+
+
+          def git(*args, cwd=ROOT, token=None):
+              env = dict(os.environ)
+              if token:
+                  env["GH_TOKEN"] = token
+              return subprocess.check_output(
+                  ["git", "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", *args],
+                  cwd=cwd, env=env, text=True,
+              ).strip()
+
+
+          def source_sha():
+              sha = os.environ["RELEASE_SHA"]
+              if not SHA.fullmatch(sha) or git("rev-parse", "HEAD") != sha:
+                  raise ValueError("Checkout must match the CI-validated release source")
+              return sha
+
+
+          def reservation(tag, sha):
+              if git("cat-file", "-t", f"refs/tags/{tag}") != "tag":
+                  return None
+              message = git("cat-file", "-p", f"refs/tags/{tag}").split("\n\n", 1)[1]
+              if not message.startswith(MARKER):
+                  return None
+              data = json.loads(message[len(MARKER):])
+              if data.get("source") != sha or data.get("version") != tag[1:]:
+                  raise ValueError(f"Invalid release reservation: {tag}")
+              modules = data["modules"]
+              if not isinstance(modules, list) or not modules or modules != sorted(set(modules)):
+                  raise ValueError("Reservation must contain unique sorted modules")
+              for module in modules:
+                  module_files(module)
+              return data
+
+
+          def push():
+              sha = source_sha()
+              version = os.environ["RELEASE_VERSION"]
+              if not VERSION.fullmatch(version):
+                  raise ValueError("Invalid reserved version")
+              data = reservation("v" + version, sha)
+              if not data or git("rev-parse", f"refs/tags/v{version}^{{commit}}") != sha:
+                  raise ValueError("Release tag must identify the original source")
+              state = runpy.run_path(str(ROOT / "deploy/prod/cd/deployment_state.py"))
+              for module in data["modules"]:
+                  deployed = state["successful_deployment"](module, module)
+                  if not deployed or deployed["image_sha"] != sha:
+                      raise ValueError(f"cowork-{module} is not running this release; refusing a stale version push")
+              if git("status", "--porcelain", "--untracked-files=no"):
+                  raise ValueError("Release source checkout must be clean")
+              files = {path for module in data["modules"] for path in module_files(module)}
+              # Validate every field before modifying any file.
+              updates = {path: rewrite(path, (ROOT / path).read_text(), version) for path in sorted(files)}
+              for path, updated in updates.items():
+                  (ROOT / path).write_text(updated)
+              changed = set(git("diff", "--name-only").splitlines())
+              if not changed <= files:
+                  raise ValueError("Release changed files outside the selected version fields")
+              if not changed:
+                  return
+              slug = os.environ["RELEASE_APP_SLUG"]
+              if not re.fullmatch(r"[a-zA-Z0-9-]+", slug):
+                  raise ValueError("Invalid release App slug")
+              bot = json.loads(subprocess.check_output(["gh", "api", f"users/{slug}[bot]"], text=True))
+              identity = ["-c", f"user.name={slug}[bot]", "-c", f"user.email={bot['id']}+{slug}[bot]@users.noreply.github.com"]
+              message = f"update(global): v{version} 릴리즈 버전 반영 [skip ci]\n\nRelease-Source: {sha}"
+              git("add", "--", *sorted(changed))
+              git(*identity, "commit", "-m", message)
+              stamp_commit = git("rev-parse", "HEAD")
+              token = os.environ["RELEASE_PUSH_TOKEN"]
+              git("fetch", "--quiet", "origin", "refs/heads/main", token=token)
+              main = git("rev-parse", "FETCH_HEAD")
+              git("merge-base", "--is-ancestor", sha, main)
+              with tempfile.TemporaryDirectory(prefix="cowork-release-") as directory:
+                  checkout = Path(directory) / "main"
+                  git("worktree", "add", "--detach", str(checkout), main)
+                  try:
+                      # Preserve intervening main commits; conflicts and non-fast-forward pushes fail closed.
+                      git("cherry-pick", "--no-commit", stamp_commit, cwd=checkout)
+                      staged = set(git("diff", "--cached", "--name-only", cwd=checkout).splitlines())
+                      if not staged <= files:
+                          raise ValueError("Unexpected files in the final version commit")
+                      for path in staged:
+                          before = git("show", f"HEAD:{path}", cwd=checkout)
+                          after = git("show", f":{path}", cwd=checkout)
+                          if normalized(path, before) != normalized(path, after):
+                              raise ValueError(f"Final version commit changes application code: {path}")
+                      if staged:
+                          git(*identity, "commit", "-m", message, cwd=checkout)
+                          git("push", "origin", "HEAD:refs/heads/main", cwd=checkout, token=token)
+                  finally:
+                      git("worktree", "remove", "--force", str(checkout))
+
+
+          push()
+          PYTHON
+      - name: Publish Release For The Original Source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          python3 - <<'PYTHON'
+          import json
+          import os
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          ROOT = Path.cwd()
+          sys.path.insert(0, str(ROOT / "deploy/images"))
+          from release_fields import VERSION
+
+
+          def git(*args, cwd=ROOT, token=None):
+              env = dict(os.environ)
+              if token:
+                  env["GH_TOKEN"] = token
+              return subprocess.check_output(
+                  ["git", "-c", "credential.helper=", "-c", "credential.helper=!gh auth git-credential", *args],
+                  cwd=cwd, env=env, text=True,
+              ).strip()
+
+
+          def api(path, payload=None, missing=False):
+              command = ["gh", "api", f"repos/{os.environ['GITHUB_REPOSITORY']}/{path}"]
+              if payload is not None:
+                  command += ["--method", "POST", "--input", "-"]
+              result = subprocess.run(command, input=json.dumps(payload) if payload is not None else None,
+                                      capture_output=True, text=True, timeout=60)
+              if result.returncode:
+                  if missing and "(HTTP 404)" in result.stderr:
+                      return None
+                  raise RuntimeError(result.stderr)
+              return json.loads(result.stdout)
+
+
+          def publish():
+              version = os.environ["RELEASE_VERSION"]
+              if not VERSION.fullmatch(version):
+                  raise ValueError("Invalid release version")
+              tag = "v" + version
+              if git("rev-parse", f"refs/tags/{tag}^{{commit}}") != os.environ["RELEASE_SHA"]:
+                  raise ValueError("Release tag no longer identifies the original source")
+              release = api("releases/tags/" + tag, missing=True)
+              if release:
+                  if release["draft"]:
+                      subprocess.run(["gh", "release", "edit", tag, "--draft=false"], check=True)
+                  return
+              subprocess.run(["gh", "release", "create", tag, "--verify-tag", "--title", tag, "--generate-notes"], check=True)
+
+
+          publish()
+          PYTHON
+
   restore-settings:
     name: Restore Settings After Failure
-    needs: [settings-plan, sync-settings, finalize-settings, prepare, build-images, release, deployment-plan, deploy-vault, apply-infrastructure, deploy-config, deploy]
+    needs: [settings-plan, sync-settings, finalize-settings, prepare, build-images, deployment-plan, deploy-vault, apply-infrastructure, deploy-config, deploy]
     if: >
       always() && !inputs.check_only && needs.settings-plan.result == 'success' &&
       needs.sync-settings.result != 'skipped' &&
@@ -854,6 +1221,7 @@ jobs:
         env:
           RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.release.result }} ${{ needs.detect-changes.result }} ${{ needs.deployment-plan.result }} ${{ needs.deploy-vault.result }} ${{ needs.apply-infrastructure.result }} ${{ needs.deploy-config.result }} ${{ needs.deploy.result }} ${{ needs.manual-request.result }} ${{ needs.sync-settings.result }} ${{ needs.finalize-settings.result }} ${{ needs.settings-plan.result }} ${{ needs.restore-settings.result }} ${{ needs.restore-config.result }} ${{ needs.restore-applications.result }}"
           SHOULD_RELEASE: ${{ needs.prepare.outputs.should_release }}
+          RELEASE_RESULT: ${{ needs.release.result }}
           VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           status="success"
@@ -879,8 +1247,10 @@ jobs:
             run_desc="실행되지 않음"
           fi
 
-          if [ "${SHOULD_RELEASE}" = "true" ]; then
+          if [ "${RELEASE_RESULT}" = "success" ]; then
             release_desc="v${VERSION} (생성 완료)"
+          elif [ "${SHOULD_RELEASE}" = "true" ]; then
+            release_desc="v${VERSION} (예약됨, 버전 push 및 게시 미완료)"
           elif [ -n "${VERSION}" ]; then
             release_desc="v${VERSION} (기존 릴리스 유지)"
           else
