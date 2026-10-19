@@ -23,6 +23,9 @@ def successful_push_base():
         query = urlencode({"branch": branch, "event": "push", "status": "success", "per_page": 100, "page": page})
         runs = api(f"repos/{repository}/actions/workflows/{workflow}/runs?{query}")["workflow_runs"]
         for run in runs:
+            # A skipped version push may include newer main commits that CI has not validated.
+            if (run.get("actor") or {}).get("login") == "cowork-server-versioning-bot[bot]":
+                continue
             sha = run["head_sha"]
             if not re.fullmatch(r"[0-9a-f]{40}", sha):
                 raise ValueError("Invalid successful commit")
