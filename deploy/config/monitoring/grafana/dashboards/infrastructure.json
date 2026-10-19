@@ -8,158 +8,379 @@
   "time": { "from": "now-1h", "to": "now" },
   "panels": [
     {
-      "id": 1,
-      "title": "MySQL - 초당 쿼리 수 (QPS)",
-      "type": "timeseries",
+      "id": 9,
+      "title": "모듈 DB - 메트릭 수집 상태",
+      "type": "state-timeline",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "rate(mysql_global_status_queries{service=\"mysql\"}[1m])",
-          "legendFormat": "{{module}} QPS",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+          "expr": "up{job=\"infrastructure\",service=~\"mysql|postgres|mongodb\"}",
+          "legendFormat": "{{module}} / {{service}} / {{instance}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "instant": false,
+          "range": true,
+          "refId": "A"
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "noValue": "N/A",
+          "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}],
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] },
+          "custom": { "fillOpacity": 80, "lineWidth": 0 }
+        }
+      },
+      "options": { "mergeValues": true, "rowHeight": 0.8, "showValue": "auto", "alignValue": "left", "legend": {"showLegend": false}, "tooltip": {"mode": "single", "sort": "none"} },
+      "description": "DB별 UP/DOWN 상태와 중단 시점을 표시합니다. 데이터가 없는 구간은 비워 둡니다."
+    },
+    {
+      "id": 10,
+      "title": "모듈 DB - 연결 상태",
+      "type": "state-timeline",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "mysql_up{job=\"infrastructure\"} or pg_up{job=\"infrastructure\"} or mongodb_up{job=\"infrastructure\"}",
+          "legendFormat": "{{module}} / {{service}} / {{instance}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "instant": false,
+          "range": true,
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "noValue": "N/A",
+          "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}],
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] },
+          "custom": { "fillOpacity": 80, "lineWidth": 0 }
+        }
+      },
+      "options": { "mergeValues": true, "rowHeight": 0.8, "showValue": "auto", "alignValue": "left", "legend": {"showLegend": false}, "tooltip": {"mode": "single", "sort": "none"} },
+      "description": "DB별 UP/DOWN 상태와 중단 시점을 표시합니다. 데이터가 없는 구간은 비워 둡니다."
+    },
+    {
+      "id": 1,
+      "title": "MySQL - 초당 쿼리 수 (QPS)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "rate(mysql_global_status_queries{service=\"mysql\"}[$__rate_interval])",
+          "legendFormat": "{{module}} QPS",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "noValue": "N/A", "min": 0, "unit": "ops", "color": {"mode": "palette-classic"}, "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"} }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
       "id": 2,
       "title": "MySQL - 연결 수와 실행 중인 스레드 수",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
       "targets": [
         {
           "expr": "mysql_global_status_threads_connected{service=\"mysql\"}",
           "legendFormat": "{{module}} 연결 수",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
         },
         {
           "expr": "mysql_global_status_threads_running{service=\"mysql\"}",
           "legendFormat": "{{module}} 실행 중인 스레드 수",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "B",
+          "instant": false,
+          "range": true
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
       "id": 3,
       "title": "Redis - 캐시 적중률 (%)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "targets": [
         {
-          "expr": "rate(redis_keyspace_hits_total{service=\"redis\"}[1m]) / (rate(redis_keyspace_hits_total{service=\"redis\"}[1m]) + rate(redis_keyspace_misses_total{service=\"redis\"}[1m])) * 100",
+          "expr": "rate(redis_keyspace_hits_total{service=\"redis\"}[$__rate_interval]) / (rate(redis_keyspace_hits_total{service=\"redis\"}[$__rate_interval]) + rate(redis_keyspace_misses_total{service=\"redis\"}[$__rate_interval])) * 100",
           "legendFormat": "캐시 적중률",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
         }
       ],
-      "fieldConfig": { "defaults": { "unit": "percent" } }
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "N/A",
+          "min": 0,
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" },
+          "max": 100
+        }
+      },
+      "description": "조회가 없는 구간에는 적중률이 정의되지 않아 N/A로 표시합니다.",
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
       "id": 4,
       "title": "Redis - 메모리 사용량",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
       "targets": [
         {
           "expr": "redis_memory_used_bytes{service=\"redis\"}",
           "legendFormat": "사용량",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
         },
         {
-          "expr": "redis_memory_max_bytes{service=\"redis\"}",
+          "expr": "redis_memory_max_bytes{service=\"redis\"} > 0",
           "legendFormat": "최대 용량",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "B",
+          "instant": false,
+          "range": true
         }
       ],
-      "fieldConfig": { "defaults": { "unit": "bytes" } }
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "N/A",
+          "min": 0,
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "description": "최대 메모리 제한이 설정된 경우에만 최대 용량 선을 표시합니다.",
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
       "id": 5,
       "title": "Kafka - 소비 대기 메시지 수",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
       "targets": [
         {
           "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag{service=\"kafka\"})",
           "legendFormat": "{{consumergroup}} / {{topic}}",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
       "id": 6,
-      "title": "Kafka - 초당 메시지 수",
+      "title": "Kafka - 초당 오프셋 증가량",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
       "targets": [
         {
-          "expr": "sum by (topic) (rate(kafka_topic_partition_current_offset{service=\"kafka\"}[1m]))",
+          "expr": "sum by (topic) (clamp_min(deriv(kafka_topic_partition_current_offset{service=\"kafka\"}[$__rate_interval]), 0))",
           "legendFormat": "{{topic}}",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
         }
-      ]
+      ],
+      "description": "파티션 현재 오프셋은 gauge이므로 기울기로 증가 속도를 추정합니다. 정확한 처리 완료 메시지 수가 아닌 오프셋 증가 추세입니다.",
+      "fieldConfig": {
+        "defaults": { "noValue": "N/A", "min": 0, "unit": "ops", "color": {"mode": "palette-classic"}, "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"} }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
       "id": 7,
-      "title": "PostgreSQL - 활성 커넥션",
+      "title": "PostgreSQL - 활성·유휴 커넥션",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
       "targets": [
         {
           "expr": "pg_stat_activity_count{service=\"postgres\", state=\"active\"}",
           "legendFormat": "{{module}} / {{datname}} 활성 연결",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
         },
         {
           "expr": "pg_stat_activity_count{service=\"postgres\", state=\"idle\"}",
           "legendFormat": "{{module}} / {{datname}} 유휴 연결",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "B",
+          "instant": false,
+          "range": true
         }
-      ]
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
       "id": 8,
       "title": "PostgreSQL - 초당 트랜잭션",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
-      "targets": [
-        {
-          "expr": "rate(pg_stat_database_xact_commit{service=\"postgres\", datname=\"cowork_preference\"}[1m])",
-          "legendFormat": "{{module}} 초당 커밋 수",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
-        },
-        {
-          "expr": "rate(pg_stat_database_xact_rollback{service=\"postgres\", datname=\"cowork_preference\"}[1m])",
-          "legendFormat": "{{module}} 초당 롤백 수",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
-        }
-      ]
-    },
-    {
-      "id": 9,
-      "title": "모듈 DB - 메트릭 수집 상태",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
-      "targets": [
-        {
-          "expr": "up{job=\"infrastructure\", module!=\"\"}",
-          "legendFormat": "{{module}} / {{service}}",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
-        }
-      ],
-      "fieldConfig": { "defaults": { "min": 0, "max": 1 } }
-    },
-    {
-      "id": 10,
-      "title": "모듈 DB - 연결 상태",
-      "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
       "targets": [
         {
-          "expr": "mysql_up{job=\"infrastructure\", module!=\"\"} or pg_up{job=\"infrastructure\", module!=\"\"} or mongodb_up{job=\"infrastructure\", module!=\"\"}",
-          "legendFormat": "{{module}} / {{service}}",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" }
+          "expr": "rate(pg_stat_database_xact_commit{service=\"postgres\", datname!~\"template.*|\"}[$__rate_interval])",
+          "legendFormat": "{{module}} 초당 커밋 수",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "rate(pg_stat_database_xact_rollback{service=\"postgres\", datname!~\"template.*|\"}[$__rate_interval])",
+          "legendFormat": "{{module}} 초당 롤백 수",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "B",
+          "instant": false,
+          "range": true
         }
       ],
-      "fieldConfig": { "defaults": { "min": 0, "max": 1 } }
+      "fieldConfig": {
+        "defaults": { "noValue": "N/A", "min": 0, "unit": "ops", "color": {"mode": "palette-classic"}, "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"} }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
+    },
+    {
+      "id": 11,
+      "title": "호스트 CPU 사용률",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "targets": [
+        {
+          "expr": "100 * (1 - avg by (host, instance) (rate(node_cpu_seconds_total{service=\"host\",mode=\"idle\"}[$__rate_interval])))",
+          "legendFormat": "{{host}} / {{instance}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "noValue": "N/A",
+          "max": 100,
+          "decimals": 1,
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
+    },
+    {
+      "id": 12,
+      "title": "호스트 메모리 사용률",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "targets": [
+        {
+          "expr": "(1 - node_memory_MemAvailable_bytes{service=\"host\"} / node_memory_MemTotal_bytes{service=\"host\"}) * 100",
+          "legendFormat": "{{host}} / {{instance}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "noValue": "N/A",
+          "max": 100,
+          "decimals": 1,
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
+    },
+    {
+      "id": 13,
+      "title": "현재 파일시스템 사용률",
+      "type": "bargauge",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 48 },
+      "targets": [
+        {
+          "expr": "sort_desc((1 - node_filesystem_avail_bytes{service=\"host\",fstype!~\"tmpfs|devtmpfs|overlay|squashfs\"} / (node_filesystem_size_bytes{service=\"host\",fstype!~\"tmpfs|devtmpfs|overlay|squashfs\"} > 0)) * 100)",
+          "legendFormat": "{{host}} / {{instance}} / {{mountpoint}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "noValue": "N/A",
+          "color": { "mode": "thresholds" },
+          "max": 100,
+          "decimals": 1,
+          "thresholds": { "mode": "absolute", "steps": [{"value": null, "color": "green"}, {"value": 85, "color": "orange"}, {"value": 93, "color": "red"}] }
+        }
+      },
+      "description": "기존 디스크 알림과 동일하게 사용률 85%부터 주의, 93%부터 위험으로 표시합니다.",
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "color"
+      }
     }
   ],
   "templating": {
