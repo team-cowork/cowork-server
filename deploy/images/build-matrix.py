@@ -3,11 +3,14 @@
 import argparse
 import json
 import os
+import runpy
 import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG = json.loads(Path(__file__).with_name("catalog.json").read_text())
+RELEASE_FIELDS = runpy.run_path(str(ROOT / "deploy/images/release_fields.py"))
+changed_paths = RELEASE_FIELDS["changed_paths"]
 SHARED_FILES = {"build.gradle.kts", "settings.gradle.kts", "gradle.properties", "gradlew", "gradlew.bat", ".editorconfig"}
 IMAGE_FILES = {".dockerignore", ".github/workflows/cowork-stage-ci.yml",
                ".github/workflows/cowork-prod-ci.yml", ".github/workflows/cowork-prod-cd.yml"}
@@ -69,9 +72,8 @@ def main():
     args = parser.parse_args()
     paths = None
     if args.base:
-        paths = subprocess.check_output(
-            ["git", "diff", "--name-only", "--no-renames", "-z", f"{args.base}...{args.head}"],
-        ).decode().rstrip("\0").split("\0")
+        base = subprocess.check_output(["git", "merge-base", args.base, args.head], text=True).strip()
+        paths = changed_paths(base, args.head)
     environments = ("local", "prod") if args.environment == "all" else (args.environment,)
     selected = verification_matrix(environments, paths) if args.verify else matrix(environments, paths)
     result = json.dumps(selected, separators=(",", ":"))
