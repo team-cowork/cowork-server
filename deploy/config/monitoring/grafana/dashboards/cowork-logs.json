@@ -10,30 +10,22 @@
   "id": null,
   "links": [],
   "panels": [
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
-      "id": 10,
-      "title": "전체 현황",
-      "type": "row"
-    },
+    { "collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0}, "id": 10, "title": "전체 현황", "type": "row" },
     {
       "datasource": { "type": "loki", "uid": "${datasource}" },
       "fieldConfig": {
-        "defaults": {
-          "color": { "mode": "palette-classic" },
-          "custom": { "lineWidth": 1, "fillOpacity": 10 }
-        }
+        "defaults": { "color": {"mode": "palette-classic"}, "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"}, "unit": "ops", "noValue": "N/A", "min": 0 }
       },
       "gridPos": { "h": 8, "w": 16, "x": 0, "y": 1 },
       "id": 1,
-      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${datasource}" },
-          "expr": "sum by (service) (rate({env=\"$env\", service=~\"$service\"} | level=\"ERROR\" [$__rate_interval]))",
+          "expr": "sum by (service) (rate({env=\"$env\", service=~\"$service\"} | level=\"ERROR\" [$__auto]))",
           "legendFormat": "{{service}}",
-          "refId": "A"
+          "refId": "A",
+          "queryType": "range"
         }
       ],
       "title": "서비스별 초당 오류 로그 수",
@@ -42,40 +34,36 @@
     {
       "datasource": { "type": "loki", "uid": "${datasource}" },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" } },
+        "defaults": { "color": {"mode": "palette-classic"}, "unit": "short", "decimals": 0, "noValue": "N/A", "min": 0 },
         "overrides": [
-          { "matcher": { "id": "byName", "options": "ERROR" }, "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }] },
-          { "matcher": { "id": "byName", "options": "WARN" },  "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }] },
-          { "matcher": { "id": "byName", "options": "INFO" },  "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] }
+          { "matcher": {"id": "byName", "options": "ERROR"}, "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}] },
+          { "matcher": {"id": "byName", "options": "WARN"}, "properties": [{"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}] },
+          { "matcher": {"id": "byName", "options": "INFO"}, "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}] }
         ]
       },
       "gridPos": { "h": 8, "w": 8, "x": 16, "y": 1 },
       "id": 2,
       "options": {
-        "barWidth": 0.6,
-        "groupWidth": 0.7,
-        "legend": { "displayMode": "list", "placement": "bottom" },
-        "orientation": "auto",
-        "xTickLabelRotation": -45
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": false,
+        "valueMode": "color"
       },
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${datasource}" },
-          "expr": "sum by (level) (count_over_time({env=\"$env\", service=~\"$service\"} [$__rate_interval]))",
+          "expr": "sum by (level) (count_over_time({env=\"$env\", service=~\"$service\"} [$__auto]))",
           "legendFormat": "{{level}}",
-          "refId": "A"
+          "refId": "A",
+          "queryType": "instant"
         }
       ],
-      "title": "로그 수준별 분포",
-      "type": "barchart"
+      "title": "선택 기간의 로그 수준별 건수",
+      "type": "bargauge",
+      "description": "선택한 전체 시간 범위를 한 번 집계합니다. 로그 수준 필터는 아래 원문 로그에 적용됩니다."
     },
-    {
-      "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
-      "id": 11,
-      "title": "실시간 로그",
-      "type": "row"
-    },
+    { "collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 9}, "id": 11, "title": "실시간 로그", "type": "row" },
     {
       "datasource": { "type": "loki", "uid": "${datasource}" },
       "gridPos": { "h": 15, "w": 24, "x": 0, "y": 10 },
@@ -90,14 +78,7 @@
         "sortOrder": "Descending",
         "wrapLogMessage": true
       },
-      "targets": [
-        {
-          "datasource": { "type": "loki", "uid": "${datasource}" },
-          "expr": "{env=\"$env\", service=~\"$service\"} | level=~\"$level\"",
-          "legendFormat": "",
-          "refId": "A"
-        }
-      ],
+      "targets": [{"datasource": {"type": "loki", "uid": "${datasource}"}, "expr": "{env=\"$env\", service=~\"$service\"} | level=~\"$level\"", "legendFormat": "", "refId": "A"}],
       "title": "실시간 로그",
       "type": "logs"
     }
