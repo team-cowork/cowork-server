@@ -1,6 +1,6 @@
 {
   "uid": "cowork-service-slots",
-  "title": "cowork 서비스 운영 현황",
+  "title": "cowork / Service Health",
   "schemaVersion": 39,
   "version": 1,
   "editable": false,
@@ -20,145 +20,125 @@
         "name": "service",
         "label": "서비스",
         "type": "query",
-        "datasource": {
-          "type": "prometheus",
-          "uid": "cowork-prometheus"
-        },
-        "query": "label_values(probe_success{job=\"blackbox\"}, service)",
+        "datasource": { "type": "prometheus", "uid": "cowork-prometheus" },
+        "query": "label_values(up{job=~\"cowork-.*|blackbox\"}, service)",
         "refresh": 2,
         "multi": true,
         "includeAll": true,
-        "allValue": ".+",
-        "current": {
-          "text": "All",
-          "value": "$__all"
-        }
+        "allValue": ".*",
+        "current": { "text": "All", "value": "$__all" }
       }
     ]
   },
   "panels": [
     {
       "id": 1,
-      "type": "timeseries",
+      "type": "state-timeline",
       "title": "서비스 준비 상태",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "cowork-prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 0
-      },
-      "targets": [
-        {
-          "expr": "probe_success{job=\"blackbox\",service=~\"$service\"}",
-          "refId": "A",
-          "legendFormat": "{{service}}"
+      "datasource": { "type": "prometheus", "uid": "cowork-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [{"expr": "probe_success{job=\"blackbox\",service=~\"$service\"}", "refId": "A", "legendFormat": "{{service}} / {{instance}}", "instant": false, "range": true}],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "noValue": "N/A",
+          "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}],
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] },
+          "custom": { "fillOpacity": 80, "lineWidth": 0 }
         }
-      ]
+      },
+      "options": { "mergeValues": true, "rowHeight": 0.8, "showValue": "auto", "alignValue": "left", "legend": {"showLegend": false}, "tooltip": {"mode": "single", "sort": "none"} },
+      "description": "UP/DOWN 전환을 시간대별로 표시합니다. 관측 데이터가 없는 구간은 비워 둡니다."
     },
     {
       "id": 2,
-      "type": "timeseries",
+      "type": "state-timeline",
       "title": "메트릭 수집 상태",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "cowork-prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 0
-      },
-      "targets": [
-        {
-          "expr": "up{job=\"cowork-services\",service=~\"$service\"}",
-          "refId": "A",
-          "legendFormat": "{{service}}"
+      "datasource": { "type": "prometheus", "uid": "cowork-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [{"expr": "up{job=~\"cowork-.*\",service=~\"$service\"}", "refId": "A", "legendFormat": "{{service}} / {{instance}}", "instant": false, "range": true}],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "noValue": "N/A",
+          "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}],
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] },
+          "custom": { "fillOpacity": 80, "lineWidth": 0 }
         }
-      ]
+      },
+      "options": { "mergeValues": true, "rowHeight": 0.8, "showValue": "auto", "alignValue": "left", "legend": {"showLegend": false}, "tooltip": {"mode": "single", "sort": "none"} },
+      "description": "UP/DOWN 전환을 시간대별로 표시합니다. 관측 데이터가 없는 구간은 비워 둡니다."
     },
     {
       "id": 3,
       "type": "timeseries",
       "title": "서비스 준비 상태 확인 응답 시간",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "cowork-prometheus"
+      "datasource": { "type": "prometheus", "uid": "cowork-prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [{"expr": "probe_duration_seconds{job=\"blackbox\",service=~\"$service\"}", "refId": "A", "legendFormat": "{{service}} / {{instance}}", "instant": false, "range": true}],
+      "fieldConfig": {
+        "defaults": { "unit": "s", "noValue": "N/A", "min": 0, "color": {"mode": "palette-classic"}, "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"} }
       },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      },
-      "targets": [
-        {
-          "expr": "probe_duration_seconds{job=\"blackbox\",service=~\"$service\"}",
-          "refId": "A",
-          "legendFormat": "{{service}}"
-        }
-      ]
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
       "id": 4,
-      "type": "timeseries",
-      "title": "조치가 필요한 알림",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "cowork-prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 8
-      },
+      "title": "현재 활성 알림",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
       "targets": [
         {
           "expr": "ALERTS{alertstate=\"firing\",service=~\"$service\"}",
+          "legendFormat": "",
+          "datasource": { "type": "prometheus", "uid": "cowork-prometheus" },
           "refId": "A",
-          "legendFormat": "{{service}}"
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": { "defaults": {"unit": "short", "min": 0, "noValue": "N/A"} },
+      "description": "현재 발생 중인 알림의 이름·심각도·서비스·대상을 표시합니다. All을 선택하면 서비스 라벨이 없는 검색·호스트 메트릭 누락 알림도 포함합니다. 활성 알림이 없으면 결과가 비어 있습니다.",
+      "datasource": { "type": "prometheus", "uid": "cowork-prometheus" },
+      "options": { "showHeader": true, "cellHeight": "sm", "sortBy": [{"displayName": "심각도", "desc": false}] },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "Time": true, "Value": true, "__name__": true, "alertstate": true, "job": true },
+            "indexByName": { "severity": 0, "service": 1, "alertname": 2, "instance": 3, "module": 4 },
+            "renameByName": { "alertname": "알림", "severity": "심각도", "service": "서비스", "instance": "대상", "module": "모듈" }
+          }
         }
       ]
     },
     {
       "id": 5,
-      "type": "timeseries",
+      "type": "state-timeline",
       "title": "외부 공개 게이트웨이 HTTPS API",
-      "description": "외부에서 /api/health에 접속할 수 있는지와 JSON 응답이 올바른지 확인합니다. 내부 서비스의 준비 상태는 별도로 표시합니다.",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "cowork-prometheus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 16
-      },
+      "description": "외부 /api/health의 HTTPS 연결·JSON 응답과 점검 결과 수집 상태입니다. 내부 서비스 준비 상태는 위 타임라인에서 확인합니다. 데이터가 없는 구간은 비워 둡니다.",
+      "datasource": { "type": "prometheus", "uid": "cowork-prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
       "targets": [
-        {
-          "expr": "probe_success{job=\"public-gateway\"}",
-          "refId": "A",
-          "legendFormat": "외부 공개 JSON API"
-        },
-        {
-          "expr": "up{job=\"public-gateway\"}",
-          "refId": "B",
-          "legendFormat": "상태 점검 결과 수집"
-        }
+        { "expr": "probe_success{job=\"public-gateway\"}", "refId": "A", "legendFormat": "외부 공개 JSON API", "instant": false, "range": true },
+        { "expr": "up{job=\"public-gateway\"}", "refId": "B", "legendFormat": "상태 점검 결과 수집", "instant": false, "range": true }
       ],
       "fieldConfig": {
         "defaults": {
           "min": 0,
-          "max": 1
-        },
-        "overrides": []
-      }
+          "max": 1,
+          "noValue": "N/A",
+          "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}],
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] },
+          "custom": { "fillOpacity": 80, "lineWidth": 0 }
+        }
+      },
+      "options": { "mergeValues": true, "rowHeight": 0.8, "showValue": "auto", "alignValue": "left", "legend": {"showLegend": false}, "tooltip": {"mode": "single", "sort": "none"} }
     }
   ]
 }
