@@ -3,8 +3,10 @@ using System.Text.RegularExpressions;
 using Amazon.Runtime;
 using Amazon.S3;
 using Amazon.S3.Model;
+using CoworkUser.Http;
+using CoworkUser.Platform;
 
-namespace CoworkUser;
+namespace CoworkUser.Users;
 
 public static partial class ObjectStorage
 {
