@@ -316,7 +316,7 @@
           "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
         }
       },
-      "description": "공유 DB의 재시도 대기·처리 중 건수입니다. 여러 인스턴스가 같은 대기열을 관측하므로 최댓값을 사용합니다.",
+      "description": "공유 DB에서 마지막으로 조회에 성공한 재시도 대기·처리 중 건수입니다. DB 조회 실패 시 마지막 값이 유지되므로 현재 대기열 크기와 다를 수 있습니다. 여러 인스턴스가 같은 대기열을 관측하므로 최댓값을 사용합니다.",
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
