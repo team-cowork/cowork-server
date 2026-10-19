@@ -1,6 +1,7 @@
+using CoworkUser.Platform;
 using Dapper;
 
-namespace CoworkUser.Kafka;
+namespace CoworkUser.Kafka.Publishing;
 
 /// <summary>Publishes tb_kafka_outbox rows in id order; one replica relays at a time.</summary>
 public sealed class OutboxRelay(Producer producer, ILogger<OutboxRelay> logger) : BackgroundService

@@ -9,7 +9,7 @@ paths:
   - "cowork-*/internal/health/readiness.go"
   - "cowork-voice/internal/{config,infra/channel}/**"
   - "cowork-authorization/internal/{repository/refresh_token_repository.go,service/auth_service.go,service/event_service.go}"
-  - "cowork-user/src/{Kafka/**,Accounts.cs}"
+  - "cowork-user/src/{Kafka/**,Users/Accounts.cs}"
   - "**/db/migration/**/*{kafka,projection,outbox,checkpoint,quarantine,event_state,tombstone}*.sql"
   - "cowork-config/src/main/resources/configs/cowork-*.yml"
   - "deploy/compose/*.yaml"
