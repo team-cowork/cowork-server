@@ -1,5 +1,5 @@
 {
-  "title": "cowork 인프라 (모듈 DB + Redis + Kafka)",
+  "title": "cowork / Infrastructure",
   "uid": "cowork-infrastructure",
   "tags": ["cowork", "infrastructure"],
   "timezone": "browser",
