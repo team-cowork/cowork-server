@@ -1,5 +1,5 @@
 {
-  "title": "cowork 알림",
+  "title": "cowork / Notification",
   "uid": "cowork-notification",
   "tags": ["cowork", "service", "notification"],
   "timezone": "browser",
@@ -23,7 +23,7 @@
       "fieldConfig": {
         "defaults": {
           "mappings": [
-            { "type": "value", "options": { "0": { "text": "응답 없음", "color": "red" }, "1": { "text": "정상", "color": "green" } } }
+            { "type": "value", "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } } }
           ],
           "thresholds": { "mode": "absolute", "steps": [{ "value": 0, "color": "red" }, { "value": 1, "color": "green" }] }
         }
