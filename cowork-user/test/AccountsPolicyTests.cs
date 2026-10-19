@@ -1,4 +1,6 @@
 using System.Text.Json;
+using CoworkUser.Http;
+using CoworkUser.Users;
 
 namespace CoworkUser.Tests;
 
