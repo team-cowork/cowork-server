@@ -22,7 +22,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${datasource}" },
-          "expr": "sum by (service) (rate({env=\"$env\", service=~\"$service\"} | level=\"ERROR\" [$__auto]))",
+          "expr": "sum by (service) (rate({env=\"$env\", service=~\"$service\"} | label_format level=\"{{ .level | upper }}\" | level=\"ERROR\" [$__auto]))",
           "legendFormat": "{{service}}",
           "refId": "A",
           "queryType": "range"
@@ -53,7 +53,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "${datasource}" },
-          "expr": "sum by (level) (count_over_time({env=\"$env\", service=~\"$service\"} [$__auto]))",
+          "expr": "sum by (level) (count_over_time({env=\"$env\", service=~\"$service\"} | label_format level=\"{{ .level | upper }}\" [$__auto]))",
           "legendFormat": "{{level}}",
           "refId": "A",
           "queryType": "instant"
@@ -61,7 +61,7 @@
       ],
       "title": "선택 기간의 로그 수준별 건수",
       "type": "bargauge",
-      "description": "선택한 전체 시간 범위를 한 번 집계합니다. 로그 수준 필터는 아래 원문 로그에 적용됩니다."
+      "description": "선택한 전체 시간 범위를 한 번 집계하며 로그 수준은 대소문자를 구분하지 않습니다. 로그 수준 필터는 아래 원문 로그에 적용됩니다."
     },
     { "collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 9}, "id": 11, "title": "실시간 로그", "type": "row" },
     {
@@ -78,7 +78,7 @@
         "sortOrder": "Descending",
         "wrapLogMessage": true
       },
-      "targets": [{"datasource": {"type": "loki", "uid": "${datasource}"}, "expr": "{env=\"$env\", service=~\"$service\"} | level=~\"$level\"", "legendFormat": "", "refId": "A"}],
+      "targets": [{"datasource": {"type": "loki", "uid": "${datasource}"}, "expr": "{env=\"$env\", service=~\"$service\"} | label_format level=\"{{ .level | upper }}\" | level=~\"$level\"", "legendFormat": "", "refId": "A"}],
       "title": "실시간 로그",
       "type": "logs"
     }
