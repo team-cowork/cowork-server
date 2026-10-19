@@ -76,6 +76,10 @@ scrape_configs:
         target_label: __param_target
       - source_labels: [__param_target]
         target_label: instance
+      - source_labels: [__param_target]
+        regex: 'http://cowork-([^:]+):.*'
+        target_label: service
+        replacement: '${1}'
       - target_label: __address__
         replacement: blackbox_exporter:9115
 
