@@ -133,15 +133,6 @@ services:
         preference.status.changed
         preference.team.setting.changed
         preference.channel-notification.changed
-        preference.team-role.changed
-        preference.team-role.changed-dlt
-        preference.team-role.command
-        preference.team-role.command-result
-        preference.team-role.command-result-dlt
-        preference.channel-role-policy.command
-        preference.channel-role-policy.changed
-        preference.channel-role-policy.command-result
-        preference.channel-role-policy.command-result-dlt
         preference.team-role.state.v2
         preference.team-role.command.v2
         preference.team-role.result.v2
@@ -171,8 +162,6 @@ services:
         project.member.event.v2
         project.github-repo.event
         preference.channel-notification.changed
-        preference.team-role.changed
-        preference.channel-role-policy.changed
         preference.team-role.state.v2
         preference.channel-role-policy.state.v2
         preference.github-repo.setting.state

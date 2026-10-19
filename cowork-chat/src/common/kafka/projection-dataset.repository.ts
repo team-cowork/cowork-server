@@ -1,7 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {Injectable} from '@nestjs/common';
 import {InjectModel} from '@nestjs/mongoose';
-import {Model, UpdateQuery} from 'mongoose';
+import {Model} from 'mongoose';
 import {ChannelMember} from '../../chat/schema/channel-member.schema';
 import {ChannelProjection} from '../../chat/schema/channel-projection.schema';
 import {ChannelRolePolicyProjection} from '../../chat/schema/channel-role-policy-projection.schema';
@@ -151,55 +151,28 @@ export class ProjectionDatasetRepository {
         baseOffsets: ProjectionDatasetPartitionOffset[],
         targetOffsets: ProjectionDatasetPartitionOffset[],
     ): Promise<ProjectionDatasetState> {
+        const datasetGeneration = randomUUID();
         const dataset = await this.datasets.findOneAndUpdate(
             {stream: stream.name},
-            this.rebuildRequest(stream, reason, baseOffsets, targetOffsets),
+            {
+                $set: {
+                    groupId: stream.groupId,
+                    topic: stream.topic,
+                    sourceGeneration: stream.sourceGeneration,
+                    datasetGeneration,
+                    mode: 'REBUILD',
+                    status: 'REBUILD_REQUESTED',
+                    reason,
+                    rebuildRequestedAt: new Date(),
+                    baseOffsets,
+                    targetOffsets,
+                },
+                $setOnInsert: {activationDocumentCount: 0},
+                $unset: {activatedAt: ''},
+            },
             {upsert: true, new: true},
         ).lean<ProjectionDataset>();
         return this.toState(dataset);
-    }
-
-    /**
-     저장된 dataset이 이전 정체성일 때만 새 정체성으로 옮기고 rebuild를 요청한다.
-     이미 다른 replica가 옮겼다면 일치하는 문서가 없어 아무것도 바꾸지 않고 undefined를 돌려준다.
-     */
-    async requestRebuildFrom(
-        previous: {topic: string; groupId: string},
-        stream: ProjectionDatasetStream,
-        reason: string,
-        baseOffsets: ProjectionDatasetPartitionOffset[],
-        targetOffsets: ProjectionDatasetPartitionOffset[],
-    ): Promise<ProjectionDatasetState | undefined> {
-        const dataset = await this.datasets.findOneAndUpdate(
-            {stream: stream.name, topic: previous.topic, groupId: previous.groupId},
-            this.rebuildRequest(stream, reason, baseOffsets, targetOffsets),
-            {new: true},
-        ).lean<ProjectionDataset | null>();
-        return dataset ? this.toState(dataset) : undefined;
-    }
-
-    private rebuildRequest(
-        stream: ProjectionDatasetStream,
-        reason: string,
-        baseOffsets: ProjectionDatasetPartitionOffset[],
-        targetOffsets: ProjectionDatasetPartitionOffset[],
-    ): UpdateQuery<ProjectionDataset> {
-        return {
-            $set: {
-                groupId: stream.groupId,
-                topic: stream.topic,
-                sourceGeneration: stream.sourceGeneration,
-                datasetGeneration: randomUUID(),
-                mode: 'REBUILD',
-                status: 'REBUILD_REQUESTED',
-                reason,
-                rebuildRequestedAt: new Date(),
-                baseOffsets,
-                targetOffsets,
-            },
-            $setOnInsert: {activationDocumentCount: 0},
-            $unset: {activatedAt: ''},
-        };
     }
 
     async tryBeginReset(stream: ProjectionStreamName, datasetGeneration: string): Promise<boolean> {
