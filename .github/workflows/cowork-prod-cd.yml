@@ -28,7 +28,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: cowork-production
+  # Skipped version pushes must not replace pending production deployments.
+  group: >-
+    ${{ github.event_name == 'workflow_run' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.actor.login == 'cowork-server-versioning-bot[bot]' &&
+        'cowork-version-writeback' || 'cowork-production' }}
   cancel-in-progress: false
 
 jobs:
@@ -82,6 +87,7 @@ jobs:
     if: >
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.actor.login != 'cowork-server-versioning-bot[bot]' &&
       github.event.workflow_run.head_branch == 'main' &&
       github.event.workflow_run.head_repository.full_name == github.repository
     permissions:
@@ -914,7 +920,7 @@ jobs:
                   raise ValueError("Invalid release App slug")
               bot = json.loads(subprocess.check_output(["gh", "api", f"users/{slug}[bot]"], text=True))
               identity = ["-c", f"user.name={slug}[bot]", "-c", f"user.email={bot['id']}+{slug}[bot]@users.noreply.github.com"]
-              message = f"update(global): v{version} 릴리즈 버전 반영 [skip ci]\n\nRelease-Source: {sha}"
+              message = f"update(global): v{version} 릴리즈 버전 반영\n\nRelease-Source: {sha}"
               git("add", "--", *sorted(changed))
               git(*identity, "commit", "-m", message)
               stamp_commit = git("rev-parse", "HEAD")
@@ -1204,6 +1210,7 @@ jobs:
       always() && github.repository == 'team-cowork/cowork-server' && (
         (github.event_name == 'workflow_run' &&
          github.event.workflow_run.event == 'push' &&
+         github.event.workflow_run.actor.login != 'cowork-server-versioning-bot[bot]' &&
          github.event.workflow_run.head_branch == 'main' &&
          github.event.workflow_run.head_repository.full_name == github.repository) ||
         (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
