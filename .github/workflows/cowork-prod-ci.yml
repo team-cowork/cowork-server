@@ -10,7 +10,12 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # Skipped version pushes must not replace pending validation runs.
+  group: >-
+    ${{ github.workflow }}-${{ github.ref }}${{
+      github.event_name == 'push' &&
+      github.actor == 'cowork-server-versioning-bot[bot]' &&
+      '-version-writeback' || '' }}
   # Keep active push validation; later runs include changes since the last success.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -87,6 +92,8 @@ jobs:
 
   detect-changes:
     name: Select CI Targets
+    if: >
+      github.event_name != 'push' || github.actor != 'cowork-server-versioning-bot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -184,7 +191,9 @@ jobs:
     name: Image Validation
     needs: [detect-changes, image-build]
     # Superseded PR runs must stop when their image builds are cancelled.
-    if: ${{ !cancelled() }}
+    if: >
+      !cancelled() &&
+      (github.event_name != 'push' || github.actor != 'cowork-server-versioning-bot[bot]')
     runs-on: ubuntu-latest
     steps:
       - name: Require All Selected Image Builds
@@ -206,7 +215,9 @@ jobs:
     env:
       RESULT_LABELS: '{"success":"성공","failure":"실패","cancelled":"취소됨","skipped":"건너뜀","neutral":"중립","timed_out":"시간 초과","action_required":"조치 필요","stale":"만료됨"}'
     needs: [validate-title, setup-pr-metadata, detect-changes, build-and-test, image-validation, coverage-plan, coverage]
-    if: always()
+    if: >
+      always() &&
+      (github.event_name != 'push' || github.actor != 'cowork-server-versioning-bot[bot]')
 
     steps:
       - name: Get Short SHA
