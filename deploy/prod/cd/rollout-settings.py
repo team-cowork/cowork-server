@@ -5,12 +5,14 @@ import json
 import os
 from pathlib import Path
 import runpy
+import subprocess
 from types import SimpleNamespace
 
 from deployment_state import successful_deployment
 
 ROOT = Path(__file__).resolve().parents[3]
 SETTINGS = runpy.run_path(str(Path(__file__).with_name('github-settings.py')))
+IMAGE_INPUTS = runpy.run_path(str(ROOT / 'deploy/images/build-matrix.py'))
 
 
 def emit(name, value):
@@ -59,20 +61,32 @@ def initial(args):
     source = os.environ['RELEASE_SHA']
     requested_targets = {unit['target'] for unit in requested}
     images = json.loads((ROOT / 'deploy/images/catalog.json').read_text())
+    changes = {}
     for target, unit in units.items():
         deployment = successful_deployment(unit['service'], target)
         prior = deployment['image_sha'] if deployment else ''
         requested_image = os.environ.get('IMAGE_SHA', '') if target in requested_targets else ''
         automatic = os.environ.get('AUTOMATIC') == 'true' and target in requested_targets
+        build = unit['service'] in images and not requested_image and not prior
+        if automatic and unit['service'] in images and not requested_image:
+            if not prior or subprocess.run(
+                ['git', 'cat-file', '-e', f'{prior}^{{commit}}'], capture_output=True,
+            ).returncode != 0:
+                build = True
+            else:
+                if prior not in changes:
+                    changes[prior] = IMAGE_INPUTS['changed_paths'](prior, source)
+                build = IMAGE_INPUTS['affected'](unit['service'], changes[prior])
         unit.update(previous_image=prior,
                     previous_source=deployment['source_sha'] if deployment else '',
-                    image_sha=requested_image or (source if automatic else prior or source))
-        unit['build'] = unit['service'] in images and (automatic or not prior) and not requested_image
+                    image_sha=requested_image or (source if build else prior or source))
+        unit['build'] = build
     attempt = os.environ['GITHUB_RUN_ATTEMPT']
     plan = {'requested': requested, 'targets': sorted(expanded), 'units': units,
             'source_sha': source, 'attempt': attempt}
     save(args.directory / 'rollout-plan.json', plan)
     emit('attempt', attempt)
+    emit('has-images', str(any(unit['build'] for unit in units.values())).lower())
     emit('sync_matrix', matrix([
         {'target': target, 'secret_names': SETTINGS['secret_names'](catalog, target)}
         for target in sorted(expanded)
