@@ -1,15 +1,8 @@
-import {execFileSync} from 'node:child_process';
 import path from 'node:path';
 import process from 'node:process';
-import {fileURLToPath, pathToFileURL} from 'node:url';
+import {pathToFileURL} from 'node:url';
 
 const defaultOutputDirectory = new URL('../../public/', import.meta.url);
-const defaultTodoDirectory = fileURLToPath(
-	new URL('../../data/todo/', import.meta.url),
-);
-const defaultRepositoryDirectory = fileURLToPath(
-	new URL('../../../', import.meta.url),
-);
 
 function directoryUrl(value, fallback) {
 	if (!value) {
@@ -17,27 +10,6 @@ function directoryUrl(value, fallback) {
 	}
 
 	return value instanceof URL ? value : pathToFileURL(`${path.resolve(String(value))}/`);
-}
-
-function resolveRepositorySourceUrl(repositoryDirectory, environment) {
-	let revision = environment.VERCEL_GIT_COMMIT_SHA || environment.GITHUB_SHA;
-
-	if (!revision) {
-		try {
-			revision = execFileSync('git', ['rev-parse', 'HEAD'], {
-				cwd: repositoryDirectory,
-				encoding: 'utf8',
-				stdio: ['ignore', 'pipe', 'ignore'],
-			}).trim();
-		} catch (error) {
-			throw new Error(
-				'Cannot determine the repository revision; provide repositorySourceUrl when building without Git metadata.',
-				{cause: error},
-			);
-		}
-	}
-
-	return `https://github.com/team-cowork/cowork-server/blob/${encodeURIComponent(revision)}/`;
 }
 
 function resolveSiteUrl(options, environment) {
@@ -67,22 +39,11 @@ function resolveSiteUrl(options, environment) {
 }
 
 export function resolveBuildConfig(options = {}, environment = process.env) {
-	const repositoryDirectory = options.repositoryDirectory
-		? path.resolve(String(options.repositoryDirectory))
-		: defaultRepositoryDirectory;
-
 	return {
 		outputDirectory: directoryUrl(
 			options.outputDirectory,
 			defaultOutputDirectory,
 		),
-		todoDirectory: options.todoDirectory
-			? path.resolve(String(options.todoDirectory))
-			: defaultTodoDirectory,
-		repositoryDirectory,
-		repositorySourceUrl:
-            options.repositorySourceUrl
-            ?? resolveRepositorySourceUrl(repositoryDirectory, environment),
 		siteUrl: resolveSiteUrl(options, environment),
 	};
 }
