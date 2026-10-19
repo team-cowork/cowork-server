@@ -1,5 +1,9 @@
 using System.Text.Json;
 using Confluent.Kafka;
+using CoworkUser.Config;
+using CoworkUser.Kafka.Commands;
+using CoworkUser.Kafka.Projections;
+using CoworkUser.Platform;
 using MySqlConnector;
 
 namespace CoworkUser.Kafka;
