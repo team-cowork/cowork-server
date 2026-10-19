@@ -101,9 +101,7 @@ def main():
             # deploying its application code, or apply a newer image to an older slot.
             for previous in {base, source} - {sha}:
                 if previous not in changes:
-                    changes[previous] = subprocess.check_output(
-                        ["git", "diff", "--name-only", "--no-renames", "-z", previous, sha],
-                    ).decode().rstrip("\0").split("\0")
+                    changes[previous] = IMAGE_INPUTS["changed_paths"](previous, sha)
                 paths.update(changes[previous])
             if not affected(service, paths, name):
                 continue
