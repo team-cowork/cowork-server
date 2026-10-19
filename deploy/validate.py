@@ -62,7 +62,9 @@ for name, files in models.items():
     print(f"{name}: Compose configuration and repository paths valid ({len(model['services'])} services)")
 
 catalog = json.loads((ROOT / "deploy/images/catalog.json").read_text())
+release_fields = runpy.run_path(str(ROOT / "deploy/images/release_fields.py"))
 for name, settings in catalog.items():
+    release_fields["current_version"](name)
     service = f"cowork-{name}"
     local = resolved["local"]["services"][service]
     build = local["build"]
@@ -85,6 +87,7 @@ for name, settings in catalog.items():
         if local.get("depends_on", {}).get("logs-init", {}).get("condition") != "service_completed_successfully":
             raise SystemExit(f"{service}: log volume ownership must be initialized before startup")
 print(f"{len(catalog) * 2} local/prod image inputs and Config Server profiles valid; local startup configuration valid")
+print(f"{len(catalog)} image modules have valid release fields")
 
 inventory = json.loads((ROOT / "deploy/prod/inventory.json").read_text())
 settings_schema = runpy.run_path(str(ROOT / "deploy/prod/cd/vault-settings.py"))
