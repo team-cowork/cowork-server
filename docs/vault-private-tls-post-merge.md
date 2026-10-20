@@ -13,16 +13,16 @@ Config가 공개 프록시 대신 Vault 사설 TLS 리스너(`https://10.0.0.91:
 
 운영 Vault(`cowork-vault`, `10.0.0.91`)에는 이전 코드와 새 코드가 모두 동작하도록 추가 변경만 적용해 두었습니다.
 
-| 항목 | 현재 상태 |
-|---|---|
-| Vault 컨테이너 | `~/.local/share/cowork/manual/vault-private-tls`의 compose와 `server.hcl`로 재생성됨. 포트 `10.0.0.91:8200`(평문, 프록시용)과 `10.0.0.91:8210`(TLS) |
-| TLS 인증서 | `cowork-vault-tls` 볼륨, 90일 leaf, 만료 30일 전부터 `cowork-vault-tls.timer`가 매일 갱신하고 SIGHUP으로 reload |
-| CA | `/etc/cowork/vault-tls/ca.key`(root 0600), 사본은 운영자 PC에만 있음. CA는 nameConstraints로 `10.0.0.91`만 서명 가능 |
-| 방화벽 | `deploy/prod/vault/firewall.json` 적용. 8200/8210은 `10.0.0.117`(프록시), `10.0.0.137`(monitoring), `10.0.0.169`(Config)만 허용 |
-| audit device | `file/`(`file_path=stdout`) 활성. Docker 로그로 남고 log-agent가 Loki로 보냄 |
-| `prod-settings-config` policy | 기존 경로 유지 + `auth/approle/role/cowork-config-prod/{role-id,secret-id,secret-id-accessor/destroy}` 권한 추가 |
-| AppRole `cowork-config-prod` | `secret_id_bound_cidrs`, `token_bound_cidrs` = `[10.0.0.117/32, 10.0.0.169/32]` (과도기) |
-| secret_id | 2026-10-13에 만든 기존 1개(프록시 `.117` 바인딩)만 존재. 지금 실행 중인 Config가 사용 중 |
+| 항목                          | 현재 상태                                                                                                                                           |
+|-------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------|
+| Vault 컨테이너                | `~/.local/share/cowork/manual/vault-private-tls`의 compose와 `server.hcl`로 재생성됨. 포트 `10.0.0.91:8200`(평문, 프록시용)과 `10.0.0.91:8210`(TLS) |
+| TLS 인증서                    | `cowork-vault-tls` 볼륨, 90일 leaf, 만료 30일 전부터 `cowork-vault-tls.timer`가 매일 갱신하고 SIGHUP으로 reload                                     |
+| CA                            | `/etc/cowork/vault-tls/ca.key`(root 0600), 사본은 운영자 PC에만 있음. CA는 nameConstraints로 `10.0.0.91`만 서명 가능                                |
+| 방화벽                        | `deploy/prod/vault/firewall.json` 적용. 8200/8210은 `10.0.0.117`(프록시), `10.0.0.137`(monitoring), `10.0.0.169`(Config)만 허용                     |
+| audit device                  | `file/`(`file_path=stdout`) 활성. Docker 로그로 남고 log-agent가 Loki로 보냄                                                                        |
+| `prod-settings-config` policy | 기존 경로 유지 + `auth/approle/role/cowork-config-prod/{role-id,secret-id,secret-id-accessor/destroy}` 권한 추가                                    |
+| AppRole `cowork-config-prod`  | `secret_id_bound_cidrs`, `token_bound_cidrs` = `[10.0.0.117/32, 10.0.0.169/32]` (과도기)                                                            |
+| secret_id                     | 2026-10-13에 만든 기존 1개(프록시 `.117` 바인딩)만 존재. 지금 실행 중인 Config가 사용 중                                                            |
 
 검증 완료: Config VM에서 CA로 8210 TLS 검증 200, TLS 경유 AppRole 로그인 성공(token `bound_cidrs`가 `10.0.0.169`), 공개 경로 200, User VM에서 8200/8210 차단, `renew-now` 후 재시작 없이 새 인증서 제공.
 
