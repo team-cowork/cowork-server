@@ -1,7 +1,18 @@
 #!/bin/bash
 require_env VAULT_EXTERNAL_HOST VAULT_BIND_IP VAULT_HOST_PORT VAULT_DATA_VOLUME VAULT_COMPOSE_PROJECT
+require_env VAULT_TLS_HOST_PORT VAULT_TLS_VOLUME
 COMPOSE=(docker compose --project-directory "$RELEASE_ROOT" --env-file /dev/null
   -p "$VAULT_COMPOSE_PROJECT" -f "${PROD_DIR}/vault/compose.yaml")
+# An operator installs both root-owned helpers (deploy/prod/network, deploy/prod/vault/tls) before deploying.
+for ports in "${VAULT_HOST_PORT}:8200" "${VAULT_TLS_HOST_PORT}:8210"; do
+  printf '{"address":"%s","host_port":%s,"container_port":%s}' "$VAULT_BIND_IP" "${ports%%:*}" "${ports##*:}" |
+    sudo -n /usr/bin/python3 -I /usr/local/libexec/cowork-backend-firewall.py check-binding ||
+    fail "Vault port ${ports%%:*} is not covered by the installed firewall policy"
+done
+printf '{"address":"%s","port":%s,"volume":"%s","container":"cowork-vault-prod"}' \
+  "$VAULT_BIND_IP" "$VAULT_TLS_HOST_PORT" "$VAULT_TLS_VOLUME" |
+  sudo -n /usr/bin/python3 -I /usr/local/libexec/cowork-vault-tls.py check ||
+  fail 'Install or renew the Vault private TLS certificate before deploying'
 vault_config_file="${RELEASE_ROOT}/deploy/config/vault/server.hcl"
 [ -f "$vault_config_file" ] && [ ! -L "$vault_config_file" ] ||
   fail 'Vault configuration must be a regular non-symlink file'
