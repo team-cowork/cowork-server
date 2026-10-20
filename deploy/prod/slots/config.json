@@ -16,8 +16,8 @@
     "VAULT_APP_ROLE_PATH": "approle",
     "VAULT_AUTHENTICATION": "APPROLE",
     "VAULT_BACKEND": "secret",
-    "VAULT_EXTERNAL_HOST": "cowork-vault.https.gsmsv.site",
-    "VAULT_PORT": "443",
+    "VAULT_HOST": "10.0.0.91",
+    "VAULT_PORT": "8210",
     "VAULT_SCHEME": "https"
   },
   "secrets": {
@@ -27,12 +27,14 @@
         "path": "control-plane/prod/server"
       },
       "VAULT_ROLE_ID": {
-        "key": "VAULT_ROLE_ID",
-        "path": "control-plane/prod/config-vault"
+        "approle": "cowork-config-prod",
+        "key": "role_id",
+        "mount": "approle"
       },
       "VAULT_SECRET_ID": {
-        "key": "VAULT_SECRET_ID",
-        "path": "control-plane/prod/config-vault"
+        "approle": "cowork-config-prod",
+        "key": "secret_id",
+        "mount": "approle"
       }
     }
   },

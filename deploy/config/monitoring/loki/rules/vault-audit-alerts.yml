@@ -1,0 +1,15 @@
+groups:
+  - name: cowork-vault-audit
+    rules:
+      # A successful login response carries a client token; AppRole credential errors appear only in response.data.
+      - alert: coworkVaultLoginFailureBurst
+        expr: |
+          sum(count_over_time({service="vault"} |= `"type":"response"`
+            | json path="request.path", token="response.auth.client_token", error="error"
+            | (path=~"auth/[^/]+/login(/.*)?" and token="") or (path="auth/token/lookup-self" and error!="") [10m])) >= 5
+        labels:
+          severity: warning
+          service: vault
+        annotations:
+          summary: "Vault 로그인 실패 급증"
+          description: "최근 10분 동안 Vault 로그인 실패가 {{ printf \"%.0f\" $value }}건 발생했습니다. 로그 대시보드의 Vault 감사 로그에서 요청 경로와 출발지를 확인해 주세요. 공개 도메인을 거친 요청은 출발지가 모두 프록시(10.0.0.117)로 표시되어 실제 클라이언트 IP로는 구분할 수 없습니다."

@@ -8,6 +8,7 @@ import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
+import io.vertx.micrometer.Label
 import io.vertx.micrometer.MicrometerMetricsFactory
 import io.vertx.micrometer.MicrometerMetricsOptions
 import io.vertx.micrometer.VertxPrometheusOptions
@@ -35,6 +36,7 @@ fun main() {
 
     val vertxOptions = VertxOptions().setMetricsOptions(
         MicrometerMetricsOptions()
+            .addLabels(Label.HTTP_ROUTE)
             .setPrometheusOptions(VertxPrometheusOptions().setEnabled(true))
             .setEnabled(true),
     )
