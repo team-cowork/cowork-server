@@ -5,7 +5,6 @@ import {
 } from '../../src/design-system/index.mjs';
 import {bundleJavaScript} from './bundle.mjs';
 import {composeTemplate} from './template.mjs';
-import {loadTodoContent} from './todo-content.mjs';
 
 const projectDirectory = new URL('../../', import.meta.url);
 const sourceDirectory = new URL('../../src/', import.meta.url);
@@ -21,7 +20,6 @@ export const stylesheetPaths = Object.freeze({
 		'css/site.css',
 	],
 	home: ['css/home.css', 'css/showcase.css'],
-	todo: ['css/todo.css'],
 });
 
 function projectUrl(path) {
@@ -36,14 +34,9 @@ function loadStylesheets(paths) {
 	return Promise.all(paths.map(path => readFile(sourceUrl(path), 'utf8')));
 }
 
-export async function loadBuildInput({
-	todoDirectory,
-	repositoryDirectory,
-	repositorySourceUrl,
-}) {
+export async function loadBuildInput() {
 	const [
 		homeTemplate,
-		todoTemplate,
 		techStackSource,
 		repositorySource,
 		teamSource,
@@ -51,14 +44,10 @@ export async function loadBuildInput({
 		logoSource,
 		socialImageSource,
 		homeScriptBundle,
-		todoScriptBundle,
 		sharedStylesheetSources,
 		homeStylesheetSources,
-		todoStylesheetSources,
-		todoContent,
 	] = await Promise.all([
 		composeTemplate(new URL('index.html', htmlDirectory), htmlDirectory),
-		composeTemplate(new URL('todo.html', htmlDirectory), htmlDirectory),
 		readFile(projectUrl('data/tech-stacks.yaml'), 'utf8'),
 		readFile(projectUrl('data/repositories.json'), 'utf8'),
 		readFile(projectUrl('data/team-members.xml'), 'utf8'),
@@ -66,20 +55,12 @@ export async function loadBuildInput({
 		readFile(projectUrl('logo.svg'), 'utf8'),
 		readFile(projectUrl('social-card.png')),
 		bundleJavaScript(sourceUrl('js/main.js'), sourceDirectory),
-		bundleJavaScript(sourceUrl('js/todo-main.js'), sourceDirectory),
 		loadStylesheets(stylesheetPaths.shared),
 		loadStylesheets(stylesheetPaths.home),
-		loadStylesheets(stylesheetPaths.todo),
-		loadTodoContent({
-			todoDirectory,
-			repositoryDirectory,
-			repositorySourceUrl,
-		}),
 	]);
 
 	return {
 		homeTemplate,
-		todoTemplate,
 		techStackSource,
 		repositorySource,
 		teamSource,
@@ -87,12 +68,9 @@ export async function loadBuildInput({
 		logoSource,
 		socialImageSource,
 		homeScriptBundle,
-		todoScriptBundle,
 		stylesheetSources: {
 			shared: sharedStylesheetSources,
 			home: homeStylesheetSources,
-			todo: todoStylesheetSources,
 		},
-		todoContent,
 	};
 }
