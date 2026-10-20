@@ -392,7 +392,9 @@ Run the owning module's tests from the repository root:
 | Maven project               | `(cd cowork-project && ./mvnw test)`                                                  |
 | Kotlin Toolchain preference | `./gradlew :cowork-preference:kotlinToolchainTest`                                    |
 
-The Kotlin Toolchain uses the checked-in `cowork-preference/kotlin` or `kotlin.bat` wrapper. It provisions the pinned toolchain and JDK; no global CLI installation is needed. Gradle, Docker, and CI use that project wrapper. `KOTLIN_CLI` can override the Gradle command; `~/` expands to the user home, and relative paths resolve against `cowork-preference`. Update both wrappers together with `./kotlin update --target-version=<version>` from the module directory. There is no `:cowork-project:test` or `:cowork-preference:test` Gradle task. An unqualified root `./gradlew test` does not cover those wrappers or the non-JVM services. Use each non-JVM module's documented native test command.
+The Kotlin Toolchain uses the checked-in `cowork-preference/kotlin` or `kotlin.bat` wrapper. It provisions the pinned toolchain and JDK; no global CLI installation is needed. Gradle, Docker, and CI use that project wrapper. `KOTLIN_CLI` can override the Gradle command; `~/` expands to the user home, and relative paths resolve against `cowork-preference`. Update both wrappers together with `./kotlin update --target-version=<version>` from the module directory. There is no `:cowork-preference:test` Gradle task.
+
+`cowork-project` is a standalone Maven module and is not included in root Gradle `build`, `clean`, or `test` commands. Run its checked-in Maven wrapper directly. An unqualified root `./gradlew test` also excludes Kotlin Toolchain preference and the non-JVM services. Use each non-JVM module's documented native test command.
 
 ## Security
 
