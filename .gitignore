@@ -65,6 +65,7 @@ screenlog.*
 
 ### LLM Outputs ###
 PR_BODY.md
+ISSUE_BODY*.md
 SPEC.md
 .pr-tmp/
 .pr-tmp-comments.json
