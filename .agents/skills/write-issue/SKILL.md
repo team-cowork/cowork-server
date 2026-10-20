@@ -32,7 +32,7 @@ Format: `[scope] description`.
 
 ## Step 4 — Body
 
-Read the chosen template file and keep its headings and order. Leave out the `---` line under each heading. Replace each `>` guidance line with content. Do not add or rename sections. Leave out the frontmatter.
+Read the chosen template file and keep its headings and order. Leave out the `---` line under each heading. Replace every guidance line or paragraph under a heading with content, whether or not it starts with `>`. Do not add or rename sections. Leave out the frontmatter.
 
 `.github/ISSUE_TEMPLATE/ToDo.md`:
 - `## 개요`: start with the current state as fact, then why it is insufficient. Follow with `- [ ]` tasks written as actions (`~한다`), then `**완료 조건**:` written as resulting state (`~되어 있다`, `~하지 않는다`).
