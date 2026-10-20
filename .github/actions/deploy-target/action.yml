@@ -34,6 +34,10 @@ inputs:
   vault_bootstrap_json:
     description: Vault recovery settings, otherwise compared with Vault to detect drift
     default: ''
+outputs:
+  approle_accessor:
+    description: AppRole secret ID accessor issued for this deployment
+    value: ${{ steps.settings.outputs.approle_accessor }}
 runs:
   using: composite
   steps:
@@ -117,14 +121,3 @@ runs:
         IMAGE_SHA: ${{ inputs.image_sha || inputs.sha }}
       shell: bash
       run: python3 deploy/prod/cd/deployment_state.py "$SERVICE" "$TARGET" "$IMAGE_SHA" --source-sha "$RELEASE_SHA"
-    - name: Retire Superseded AppRole Secret IDs
-      # A failed deployment may still have reached the VM, so its secret ID waits for the next success.
-      if: ${{ inputs.check_only != 'true' && steps.settings.outputs.approle_accessor != '' }}
-      env:
-        VAULT_ADDR: ${{ inputs.vault_addr }}
-        TARGET: ${{ inputs.target }}
-        ACCESSOR: ${{ steps.settings.outputs.approle_accessor }}
-      shell: bash
-      run: |
-        python3 deploy/prod/cd/vault-settings.py retire-approle --target "$TARGET" --keep "$ACCESSOR" \
-          --slot-directory release-source/deploy/prod/slots
