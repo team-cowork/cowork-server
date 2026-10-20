@@ -31,7 +31,7 @@ Config가 공개 프록시 대신 Vault 사설 TLS 리스너(`https://10.0.0.91:
 릴리즈 Prod CD에서 다음을 확인합니다.
 
 - `deploy-vault`: `deploy/prod/services/vault.sh`가 `backend-firewall check-binding`(8200, 8210)과 `cowork-vault-tls.py check`를 통과하고 release 디렉터리의 compose로 Vault를 재생성한 뒤 unseal해야 합니다. 이 단계의 settings에서 `::warning title=Vault recovery settings::` 경고가 나오면 `VAULT_BOOTSTRAP_JSON`이 Vault 값과 다르다는 뜻이니 기록해 둡니다.
-- `deploy-config`: settings 단계가 새 secret_id를 발급하고(`cidr_list`/`token_bound_cidrs` = `10.0.0.169/32`), Config가 `VAULT_HOST=10.0.0.91`, `VAULT_PORT=8210`, `classpath:vault-tls-ca.p12`로 기동해야 합니다. 마지막의 `Retire Superseded AppRole Secret IDs` 단계가 기존 secret_id를 회수합니다.
+- `deploy-config`: settings 단계가 새 secret_id를 발급하고(`cidr_list`/`token_bound_cidrs` = `10.0.0.169/32`), Config가 `VAULT_HOST=10.0.0.91`, `VAULT_PORT=8210`, `classpath:vault-tls-ca.p12`로 기동해야 합니다. 기존 secret_id는 애플리케이션 배포까지 모두 성공한 뒤 별도 job `Retire Superseded AppRole Secret IDs`가 회수합니다. 앱 배포가 하나라도 실패하면 회수하지 않으므로 restore가 올리는 이전 Config도 기존 secret_id로 로그인할 수 있습니다. 회수 자체가 실패하면 `::warning title=AppRole secret ID retirement::` 경고만 남고 다음 성공 배포에서 다시 회수합니다.
 - monitoring 재배포 후 Prometheus의 `vault-tls` job이 `probe_success == 1`이어야 합니다.
 
 Config 배포가 실패하면 이 문서의 이후 단계를 진행하지 않습니다. 과도기 상태에서는 기존 Config가 계속 동작합니다. 실패 원인을 고친 뒤 다시 배포합니다.
