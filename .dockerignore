@@ -8,6 +8,7 @@ build
 **/build
 dist
 **/dist
+cowork-promotion/public
 .env
 **/*.env
 .env.*
@@ -16,6 +17,8 @@ dist
 docker/secrets/
 deploy/local/secrets/
 screenlog.*
+docs
+*.md
 !**/src
 
 # Nested module caches and local-only runtime settings are not image inputs.

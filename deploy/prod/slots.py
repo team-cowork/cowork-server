@@ -66,10 +66,20 @@ def validate(value, target):
         demand(isinstance(refs, dict), "Slot secret references must be objects")
         for key, ref in refs.items():
             demand(environment_key(key) and key not in value.get("runtime", {}), "Invalid, reserved or duplicate secret key")
+            if isinstance(ref, dict) and "approle" in ref:
+                # CD issues AppRole credentials per deployment instead of storing them.
+                demand(section == "runtime" and set(ref) == {"approle", "mount", "key"}, "An AppRole reference requires approle, mount and key")
+                demand(isinstance(ref["approle"], str) and NAME.fullmatch(ref["approle"])
+                       and isinstance(ref["mount"], str) and NAME.fullmatch(ref["mount"]), "Invalid AppRole reference")
+                demand(ref["key"] in {"role_id", "secret_id"}, "An AppRole reference supplies role_id or secret_id")
+                continue
             demand(isinstance(ref, dict) and set(ref) == {"path", "key"}, "A slot secret reference requires path and key")
             demand(isinstance(ref["path"], str) and all(NAME.fullmatch(p) for p in ref["path"].split("/")), "Invalid Vault secret path")
             demand(isinstance(ref["key"], str) and ref["key"], "Invalid Vault secret key")
     demand(not set(secrets.get("runtime", {})).intersection(secrets.get("application", {})), "Duplicate secret environment key")
+    approles = [ref for ref in secrets.get("runtime", {}).values() if "approle" in ref]
+    demand(len({(ref["mount"], ref["approle"]) for ref in approles}) <= 1
+           and len({ref["key"] for ref in approles}) == len(approles), "A slot issues at most one AppRole credential pair")
     if value["kind"] == "infrastructure":
         demand("container" not in value and "peers" not in value, "Infrastructure lifecycle owns its containers and ingress")
         return value
