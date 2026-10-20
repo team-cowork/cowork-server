@@ -1,7 +1,7 @@
 #!/bin/bash
 # Config Server owns an explicit control-plane capability, independent of its runtime.
 [ "$SLOT_KIND" = config ] || fail 'Config Server requires the config slot capability'
-require_env CONFIG_SERVER_ACCOUNTS_JSON VAULT_EXTERNAL_HOST KAFKA_BOOTSTRAP_SERVERS LIVEKIT_URL LIVEKIT_WS_URL
+require_env CONFIG_SERVER_ACCOUNTS_JSON VAULT_HOST VAULT_PORT KAFKA_BOOTSTRAP_SERVERS LIVEKIT_URL LIVEKIT_WS_URL
 require_env PUBLIC_API_BASE_URL S3_BUCKET
 python3 "${PROD_DIR}/storage/settings.py"
 require_env VAULT_ROLE_ID VAULT_SECRET_ID CONFIG_SERVER_URL EUREKA_SERVER_URL CONFIG_ALLOWED_CIDRS

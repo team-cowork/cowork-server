@@ -1,19 +1,11 @@
 import {renderRepositoryCard} from '../../src/design-system/index.mjs';
-import {
-	homePageDescription,
-	todoPageMetadata,
-} from '../../src/js/core/page-metadata.js';
 import {inlineJson, replaceBundleMarker} from './bundle.mjs';
 import {renderTeamMembers, renderTechStacks} from './render.mjs';
 import {renderShowcase} from './showcase-render.mjs';
 import {replaceGeneratedRegion} from './template.mjs';
-import {
-	renderTodoDocument,
-	renderTodoHistory,
-	renderTodoItems,
-	renderTodoToc,
-} from './todo-render.mjs';
 import {escapeHtml} from './validation.mjs';
+
+const homePageDescription = '광주소프트웨어마이스터고등학교 학생들이 만드는 협업 관리 플랫폼';
 
 export function concatenateStyles(paths, sources) {
 	return sources
@@ -103,127 +95,6 @@ export function renderHomePage({
 			route: '/',
 			type: 'website',
 		},
-		{siteUrl, socialImageUrl},
-	);
-}
-
-function todoListTitle(document) {
-	if (document.kind !== 'snapshot') {
-		return undefined;
-	}
-
-	return document.description ? `${document.displayDate} — ${document.description}` : document.displayDate || document.title;
-}
-
-export function createTodoRegistry(content, assets) {
-	return {
-		documents: content.documents.map(document => {
-			const {
-				id,
-				route,
-				title,
-				kind,
-				priority,
-				priorityLabel,
-				sourceOrder,
-				active,
-				searchText,
-				summary,
-			} = document;
-			const contentUrl = assets.add(
-				'todo-document',
-				'json',
-				JSON.stringify({
-					id,
-					route,
-					metadata: document.metadata,
-					toc: document.toc,
-					bodyHtml: document.bodyHtml,
-				}),
-			);
-
-			return {
-				id,
-				route,
-				title,
-				kind,
-				priority,
-				priorityLabel,
-				sourceOrder,
-				active,
-				searchText,
-				summary,
-				listTitle: todoListTitle(document),
-				contentUrl,
-			};
-		}),
-		activeItems: content.activeItems.map(({id}) => id),
-		history: content.snapshots.map(({id}) => id),
-	};
-}
-
-export function renderTodoPage({
-	template,
-	activeItems,
-	snapshots,
-	initialDocument,
-	styles,
-	stateData,
-	script,
-	logoUrl,
-	socialImageUrl,
-	siteUrl,
-}) {
-	let html = replaceGeneratedRegion(
-		replaceGeneratedRegion(
-			template,
-			'todo-items',
-			initialDocument ? '' : renderTodoItems(activeItems),
-		),
-		'todo-history',
-		initialDocument ? '' : renderTodoHistory(snapshots),
-	);
-
-	html = replaceGeneratedRegion(
-		replaceGeneratedRegion(
-			html,
-			'todo-document',
-			initialDocument ? renderTodoDocument(initialDocument) : '',
-		),
-		'todo-toc',
-		initialDocument ? renderTodoToc(initialDocument.toc) : '',
-	);
-
-	if (initialDocument) {
-		html = html
-			.replace('href="#main-content"', 'href="#todo-document-title"')
-			.replace('class="todo-page"', 'class="todo-page todo-modal-open"')
-			.replace(
-				'data-initial-document-id=""',
-				() => `data-initial-document-id="${escapeHtml(initialDocument.id)}"`,
-			)
-			.replace(
-				'  data-todo-dashboard\n  tabindex',
-				'  data-todo-dashboard\n  hidden\n  tabindex',
-			)
-			.replace(
-				'  data-todo-dialog\n  aria',
-				'  data-todo-dialog\n  open\n  aria',
-			);
-
-		if (initialDocument.toc.length > 0) {
-			html = html.replace(
-				'data-todo-toc-rail hidden',
-				'data-todo-toc-rail',
-			);
-		}
-	}
-
-	return renderPageMetadata(
-		bundlePage({
-			html, styles, stateData, script, logoUrl,
-		}),
-		todoPageMetadata(initialDocument),
 		{siteUrl, socialImageUrl},
 	);
 }

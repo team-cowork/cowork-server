@@ -1,1 +1,1 @@
-export const {document, history, location, window} = globalThis;
+export const {document, window} = globalThis;
