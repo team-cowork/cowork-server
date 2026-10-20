@@ -108,9 +108,16 @@ def main():
         managed_paths.update(writable)
         readable = writable | {'deploy/' + target}
         slot = json.loads((slots / (target + '.json')).read_text())
-        readable.update(ref['path'] for values in slot.get('secrets', {}).values() for ref in values.values())
+        refs = [ref for values in slot.get('secrets', {}).values() for ref in values.values()]
+        readable.update(ref['path'] for ref in refs if 'approle' not in ref)
         name = 'prod-settings-' + target
         spec['policies'][name] = settings_policy(readable, writable)
+        # Deployments issue the slot's AppRole secret ID and retire the superseded ones.
+        for role in sorted({f"auth/{ref['mount']}/role/{ref['approle']}" for ref in refs if 'approle' in ref}):
+            spec['policies'][name].update({
+                role + '/role-id': ['read'],
+                role + '/secret-id': ['update', 'list'],
+                role + '/secret-id-accessor/destroy': ['update']})
         roles[name] = settings_role(name, 'Prod-CD(' + target + ')')
         # IaC consumes applied GitHub inputs through Vault, not another job's environment.
         for path in readable:
@@ -153,7 +160,16 @@ def main():
     request('sys/policies/acl/cowork-config-prod', {'policy': '\n'.join(
         f'path {json.dumps(path)} {{ capabilities = {json.dumps(capabilities)} }}'
         for path, capabilities in config_policy.items())})
-    print('Applied scoped GitHub deployment, settings and IaC workload policies')
+    # Config logs in directly over the private TLS listener, so Vault sees its own address.
+    config_slot = json.loads((slots / 'config.json').read_text())
+    approle = next(ref for ref in config_slot['secrets']['runtime'].values() if 'approle' in ref)
+    config_address = [config_slot['container']['advertise_address'] + '/32']
+    request(f"auth/{approle['mount']}/role/{approle['approle']}", {
+        'token_policies': ['cowork-config-prod'], 'token_no_default_policy': True, 'token_type': 'service',
+        'token_ttl': 3600, 'token_max_ttl': 86400, 'token_explicit_max_ttl': 86400, 'token_num_uses': 0,
+        'bind_secret_id': True, 'secret_id_ttl': 0, 'secret_id_num_uses': 0,
+        'secret_id_bound_cidrs': config_address, 'token_bound_cidrs': config_address})
+    print('Applied scoped GitHub deployment, settings, IaC and Config workload policies')
 
 
 if __name__ == '__main__':
