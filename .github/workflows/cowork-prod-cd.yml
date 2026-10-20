@@ -621,7 +621,7 @@ jobs:
           vault_recovery: ${{ inputs.vault_recovery || false }}
           vault_addr: ${{ vars.VAULT_ADDR }}
           vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
-          vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
+          vault_bootstrap_json: ${{ secrets.VAULT_BOOTSTRAP_JSON }}
 
   apply-infrastructure:
     name: Apply Infrastructure
