@@ -182,6 +182,30 @@ def resolved_snapshot(target, slot, mount=None, reference_versions=None, require
     return result
 
 
+def recovery_snapshot(raw, target, slot):
+    data = validate_deployment(parse_json(raw), target, slot)
+    demand(set(data) == {"ssh", "runtime"}
+           and set(data["runtime"]) == set(slot.get("secrets", {}).get("runtime", {}))
+           and not slot.get("secrets", {}).get("application"),
+           "Recovery inputs must supply SSH credentials and exactly the Vault slot secrets")
+    demand(all(data["runtime"].values()), "Vault recovery secrets must be nonempty")
+    return data
+
+
+def recovery_drift(raw, target, slot, data):
+    """Name the recovery fields that no longer match Vault, without their values."""
+    if not raw:
+        return ["VAULT_BOOTSTRAP_JSON is not configured"]
+    try:
+        recovery = recovery_snapshot(raw, target, slot)
+    except ValueError:
+        return ["VAULT_BOOTSTRAP_JSON is invalid"]
+    mask(recovery)
+    drift = [f"ssh.{key}" for key in sorted(data["ssh"]) if recovery["ssh"][key] != data["ssh"][key]]
+    drift += [f"runtime.{key}" for key in sorted(recovery["runtime"]) if recovery["runtime"][key] != data["runtime"].get(key)]
+    return [f"VAULT_BOOTSTRAP_JSON {field} differs from Vault" for field in drift]
+
+
 def mask(value):
     if os.environ.get("GITHUB_ACTIONS") != "true":
         return
@@ -221,12 +245,7 @@ def main():
     if args.action == "bootstrap":
         demand(args.target == "vault" and slot["service"] == "vault" and slot["kind"] == "infrastructure",
                "Offline recovery is restricted to the Vault slot")
-        data = validate_deployment(parse_json(os.environ["VAULT_BOOTSTRAP_JSON"]), args.target, slot)
-        demand(set(data) == {"ssh", "runtime"}
-               and set(data["runtime"]) == set(slot.get("secrets", {}).get("runtime", {}))
-               and not slot.get("secrets", {}).get("application"),
-               "Recovery inputs must supply SSH credentials and exactly the Vault slot secrets")
-        demand(all(data["runtime"].values()), "Vault recovery secrets must be nonempty")
+        data = recovery_snapshot(os.environ["VAULT_BOOTSTRAP_JSON"], args.target, slot)
         version = "bootstrap"
         reference_versions = {}
     else:
@@ -243,6 +262,9 @@ def main():
         reference_versions = snapshot.pop("secret_versions")
         data.update(snapshot)
         validate_deployment(data, args.target, slot)
+        if args.target == "vault":
+            for problem in recovery_drift(os.environ.get("VAULT_BOOTSTRAP_JSON", ""), args.target, slot, data):
+                print(f"::warning title=Vault recovery settings::{problem}; offline recovery would fail")
     mask(data)
     for key, value in data.pop("ssh").items():
         output("ssh_" + key, value, secret=True)
