@@ -37,6 +37,7 @@ compactor:
 # prepare-configs.sh copies deploy/config/monitoring/loki/rules into the single-tenant ("fake") directory.
 ruler:
   alertmanager_url: http://alertmanager:9093
+  # The ruler writes its evaluated copy here; the storage directory is the read-only source.
   rule_path: /loki/ruler
   enable_api: true
   storage:
