@@ -126,20 +126,38 @@ def serving(value):
     return result.returncode == 0 and fields[:1] == ["true"] and value["volume"] in fields[1:]
 
 
+def installed_leaf(path):
+    return ssl.PEM_cert_to_DER_cert(path.read_text().split(ssl.PEM_FOOTER, 1)[0] + ssl.PEM_FOOTER)
+
+
 def renew(value, force=False):
     directory = volume_directory(value)
     if not force and certificate_valid(directory / "server.crt", value, RENEW_BEFORE_SECONDS):
-        print("[vault-tls] Certificate is valid beyond the renewal window")
+        leaf = installed_leaf(directory / "server.crt")
+        try:
+            current = not serving(value) or served_certificate(value) == leaf
+        except (OSError, ssl.SSLError):
+            current = False
+        if current:
+            print("[vault-tls] Certificate is valid beyond the renewal window")
+            return
+        # A previous run may have renewed the files without Vault reloading them.
+        print("[vault-tls] Vault serves an older certificate; reloading the installed one")
+        reload(value, leaf)
         return
     leaf = issue(value, directory)
     if not serving(value):
         print("[vault-tls] Certificate issued; Vault loads it when it starts")
         return
+    reload(value, leaf)
+
+
+def reload(value, leaf):
     command("docker", "kill", "--signal", "HUP", value["container"])
     for _ in range(15):
         try:
             if served_certificate(value) == leaf:
-                print("[vault-tls] Certificate renewed and served")
+                print("[vault-tls] Vault serves the installed certificate")
                 return
         except (OSError, ssl.SSLError):
             pass
