@@ -32,7 +32,7 @@ inputs:
     description: Vault KV mount
     default: 'secret'
   vault_bootstrap_json:
-    description: Bootstrap settings used only for Vault recovery
+    description: Vault recovery settings, otherwise compared with Vault to detect drift
     default: ''
 runs:
   using: composite
@@ -65,7 +65,7 @@ runs:
       env:
         VAULT_ADDR: ${{ inputs.vault_addr }}
         VAULT_KV_MOUNT: ${{ inputs.vault_kv_mount }}
-        VAULT_BOOTSTRAP_JSON: ${{ inputs.vault_recovery == 'true' && inputs.vault_bootstrap_json || '' }}
+        VAULT_BOOTSTRAP_JSON: ${{ inputs.vault_bootstrap_json }}
         RECOVERY: ${{ inputs.vault_recovery }}
         SERVICE: ${{ inputs.service }}
         TARGET: ${{ inputs.target }}
