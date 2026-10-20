@@ -24,7 +24,7 @@ for name in set(re.findall(r"(?<!\$)\$\{([A-Za-z_][A-Za-z0-9_]*)", compose_text)
 env.update(
     MYSQL_HOST_PORT="3306", KAFKA_EXTERNAL_HOST_PORT="9094", COWORK_CONFIG_HOST_PORT="8761",
     COWORK_PROJECT_HOST_PORT="8084", LIVEKIT_CONFIG_FILE="livekit.yaml", APP_CONFIG_PROFILE="local",
-    VAULT_PORT="8200", MYSQL_PORT="3306", REDIS_PORT="6379", VAULT_HOST_PORT="8200",
+    VAULT_PORT="8200", MYSQL_PORT="3306", REDIS_PORT="6379", VAULT_HOST_PORT="8200", VAULT_TLS_HOST_PORT="8210",
     MONITORING_BIND_IP="127.0.0.1", VAULT_BIND_IP="127.0.0.1", MONITORING_ADMIN_BIND_IP="127.0.0.1",
     NODE_EXPORTER_BIND_IP="127.0.0.1",
     DOCKER_CONTAINER_LOG_DIR="/var/lib/docker/containers", MONITORING_PROMETHEUS_CONFIG="/tmp/cowork-validation-prometheus.json",
@@ -95,6 +95,23 @@ slots = runpy.run_path(str(ROOT / "deploy/prod/slots.py"))
 for path in sorted((ROOT / "deploy/prod/slots").glob("*.json")):
     slots["load"](path.stem)
 settings_schema["validate_deployment"](json.loads((ROOT / "deploy/prod/settings.example.json").read_text()), "voice", slots["load"]("voice"))
+# The operator installs these root-owned Vault host policies; they must describe the Vault slot.
+vault_runtime = slots["load"]("vault")["runtime"]
+vault_bindings = [{"address": vault_runtime["VAULT_BIND_IP"], "host_port": int(port), "container_port": container}
+                  for port, container in ((vault_runtime["VAULT_HOST_PORT"], 8200), (vault_runtime["VAULT_TLS_HOST_PORT"], 8210))]
+vault_firewall = (ROOT / "deploy/prod/vault/firewall.json").read_text()
+subprocess.run(["python3", str(ROOT / "deploy/prod/network/backend-firewall.py"), "validate"],
+               input=vault_firewall, text=True, check=True, capture_output=True)
+if json.loads(vault_firewall)["bindings"] != vault_bindings:
+    raise SystemExit("deploy/prod/vault/firewall.json bindings must match the Vault slot")
+vault_tls = json.loads((ROOT / "deploy/prod/vault/tls/settings.json").read_text())
+if vault_tls != {"address": vault_runtime["VAULT_BIND_IP"], "port": int(vault_runtime["VAULT_TLS_HOST_PORT"]),
+                 "volume": vault_runtime["VAULT_TLS_VOLUME"], "container": "cowork-vault-prod"}:
+    raise SystemExit("deploy/prod/vault/tls/settings.json must match the Vault slot")
+config_runtime = slots["load"]("config")["runtime"]
+if (config_runtime["VAULT_HOST"], config_runtime["VAULT_PORT"]) != (vault_runtime["VAULT_BIND_IP"], vault_runtime["VAULT_TLS_HOST_PORT"]):
+    raise SystemExit("Config must reach Vault through the private TLS listener")
+print("Vault firewall, private TLS and Config endpoint match the Vault slot")
 seen = set()
 for target in inventory["targets"]:
     name = target["service"]

@@ -23,3 +23,15 @@ modules:
       # /api/health returns HTTP 200 even when a downstream service is DOWN.
       # Verify the JSON API identity; internal probes own service readiness.
       fail_if_body_json_not_matches_cel: "body.status == 'OK' && body.code == 200.0 && type(body.data) == map && size(body.data) > 0"
+  tls_vault_private:
+    prober: http
+    timeout: 5s
+    http:
+      method: GET
+      preferred_ip_protocol: ip4
+      fail_if_not_ssl: true
+      follow_redirects: false
+      # Sealed or standby status codes still prove the served certificate chain.
+      valid_status_codes: [200, 429, 472, 473, 501, 503]
+      tls_config:
+        ca_file: /etc/blackbox_exporter/vault-tls-ca.crt

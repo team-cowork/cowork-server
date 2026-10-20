@@ -13,6 +13,7 @@ services:
     volumes:
       - ./deploy/prod/monitoring/prepare-configs.sh:/prepare-configs.sh:ro
       - ./deploy/config/monitoring:/source:ro
+      - ./deploy/config/vault/tls-ca.crt:/source-vault-tls-ca.crt:ro
       - ${MONITORING_PROMETHEUS_CONFIG:?MONITORING_PROMETHEUS_CONFIG is required}:/source-prometheus.json:ro
       - ${MONITORING_PROMETHEUS_CONFIG:?MONITORING_PROMETHEUS_CONFIG is required}.rules.json:/source-expected-rules.json:ro
       - loki_config:/generated/loki
