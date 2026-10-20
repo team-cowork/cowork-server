@@ -1,0 +1,6 @@
+{
+  "address": "10.0.0.91",
+  "port": 8210,
+  "volume": "cowork-vault-tls",
+  "container": "cowork-vault-prod"
+}

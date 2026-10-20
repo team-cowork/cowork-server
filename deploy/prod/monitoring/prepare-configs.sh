@@ -9,7 +9,10 @@ for destination do
 done
 
 cp /source/loki/loki-config.yml /generated/loki/local-config.yaml
+mkdir -p /generated/loki/rules/fake
+cp -R /source/loki/rules/. /generated/loki/rules/fake/
 cp /source/blackbox/blackbox.yml /generated/blackbox/config.yml
+cp /source-vault-tls-ca.crt /generated/blackbox/vault-tls-ca.crt
 cp -R /source/prometheus/rules /generated/prometheus/rules
 cp /source-expected-rules.json /generated/prometheus/rules/expected-services.json
 cp /source/alertmanager/alertmanager.yml /generated/alertmanager/alertmanager.yml
