@@ -107,9 +107,14 @@ spring:
           LIVEKIT_WS_URL: ${LIVEKIT_WS_URL}
         composite:
           - type: vault
-            host: ${VAULT_EXTERNAL_HOST:${VAULT_HOST}}
-            port: ${VAULT_PORT:8200}
+            # The private listener presents a certificate from the cowork Vault CA.
+            host: ${VAULT_HOST}
+            port: ${VAULT_PORT}
             scheme: https
+            ssl:
+              trust-store: classpath:vault-tls-ca.p12
+              # The store holds only the public CA certificate.
+              trust-store-password: cowork-vault-tls-ca
             authentication: APPROLE
             app-role:
               app-role-path: ${VAULT_APP_ROLE_PATH:approle}
