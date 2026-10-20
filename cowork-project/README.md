@@ -11,7 +11,7 @@
 ## 스택
 
 - Kotlin / Java 26 / Spring Boot
-- Maven (`pom.xml`; Gradle은 Maven 실행 위임)
+- Maven
 - Spring Data JPA / MySQL / Flyway
 - Spring Kafka / Eureka / Config Client / OpenFeign
 
