@@ -1,0 +1,7 @@
+{
+  "bindings": [
+    {"address": "10.0.0.91", "host_port": 8200, "container_port": 8200},
+    {"address": "10.0.0.91", "host_port": 8210, "container_port": 8210}
+  ],
+  "peers": ["10.0.0.117/32", "10.0.0.137/32", "10.0.0.169/32"]
+}

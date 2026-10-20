@@ -1,7 +1,18 @@
 #!/bin/bash
 require_env VAULT_EXTERNAL_HOST VAULT_BIND_IP VAULT_HOST_PORT VAULT_DATA_VOLUME VAULT_COMPOSE_PROJECT
+require_env VAULT_TLS_HOST_PORT VAULT_TLS_VOLUME
 COMPOSE=(docker compose --project-directory "$RELEASE_ROOT" --env-file /dev/null
   -p "$VAULT_COMPOSE_PROJECT" -f "${PROD_DIR}/vault/compose.yaml")
+# An operator installs both root-owned helpers (deploy/prod/network, deploy/prod/vault/tls) before deploying.
+for ports in "${VAULT_HOST_PORT}:8200" "${VAULT_TLS_HOST_PORT}:8210"; do
+  printf '{"address":"%s","host_port":%s,"container_port":%s}' "$VAULT_BIND_IP" "${ports%%:*}" "${ports##*:}" |
+    sudo -n /usr/bin/python3 -I /usr/local/libexec/cowork-backend-firewall.py check-binding ||
+    fail "Vault port ${ports%%:*} is not covered by the installed firewall policy"
+done
+printf '{"address":"%s","port":%s,"volume":"%s","container":"cowork-vault-prod"}' \
+  "$VAULT_BIND_IP" "$VAULT_TLS_HOST_PORT" "$VAULT_TLS_VOLUME" |
+  sudo -n /usr/bin/python3 -I /usr/local/libexec/cowork-vault-tls.py check ||
+  fail 'Install or renew the Vault private TLS certificate before deploying'
 vault_config_file="${RELEASE_ROOT}/deploy/config/vault/server.hcl"
 [ -f "$vault_config_file" ] && [ ! -L "$vault_config_file" ] ||
   fail 'Vault configuration must be a regular non-symlink file'
@@ -33,7 +44,16 @@ sealed=$(python3 -c 'import json,sys; print(str(json.load(open(sys.argv[1]))["se
 [ "$initialized" = true ] || fail 'Initialize Vault interactively and securely retain its unseal keys'
 if [ "$sealed" = true ]; then
   require_env VAULT_UNSEAL_KEY
-  docker exec cowork-vault-prod vault operator unseal "$VAULT_UNSEAL_KEY" >/dev/null
+  # Docker events and the process table record exec arguments, so the key travels only in the request body.
+  python3 - <<'PYTHON' || fail 'Vault unseal request failed'
+import json, os, urllib.request
+request = urllib.request.Request(
+    f"http://{os.environ['VAULT_BIND_IP']}:{os.environ['VAULT_HOST_PORT']}/v1/sys/unseal", method="PUT",
+    data=json.dumps({"key": os.environ["VAULT_UNSEAL_KEY"]}).encode(), headers={"Content-Type": "application/json"})
+with urllib.request.urlopen(request, timeout=30) as response:
+    if json.load(response).get("sealed") is not False:
+        raise SystemExit(1)
+PYTHON
 fi
 # Production secrets are managed in Vault, independently of container redeploys.
 # The destructive development seed script must never overwrite production values.
