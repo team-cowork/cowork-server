@@ -251,6 +251,8 @@ def sync(args, catalog, mount, variables, secrets):
     slot = SLOTS['load'](target)
     for section in slot.get('secrets', {}).values():
         for ref in section.values():
+            if 'approle' in ref:
+                continue
             if ref['path'] in documents:
                 demand(ref['key'] in documents[ref['path']]['data'], 'A declared Vault secret reference is missing')
             else:
