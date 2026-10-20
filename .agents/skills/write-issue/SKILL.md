@@ -1,7 +1,7 @@
 ---
 name: write-issue
 description: Use when turning follow-up work, review findings, deferred scope, or a reported bug into a GitHub issue. Covers template choice, title scope, body writing rules, and creation after user confirmation. Replaces the removed todo-docs TODO documents.
-allowed-tools: Bash(git *:*), Bash(gh issue *:*), Bash(cat *:*), Read, Write
+allowed-tools: Bash(git *:*), Bash(gh issue *:*), Bash(bash *create-issue.sh:*), Bash(cat *:*), Read, Write
 ---
 
 ## Step 1 — Gather Context
@@ -22,12 +22,14 @@ gh issue list --state all --limit 100 --search "<keywords>"
 | `.github/ISSUE_TEMPLATE/Bug.md` | An observed malfunction with a reproduction path |
 | `.github/ISSUE_TEMPLATE/ToDo.md` | Everything else: planned work, follow-ups, decisions to make |
 
+Then read `.agents/skills/write-issue/references/labels.md` and select **exactly one** label that matches the direction of the issue.
+
 ## Step 3 — Title
 
 Format: `[scope] description`.
 
 - Scope: one domain, following `.agents/skills/write-pr/references/commit-conventions.md`. When the work spans several domains, use `[global]`; for deployment or CI work, use `[ci/cd]`. Never join scopes (`[chat·notification]`).
-- Description: plain Korean that says what changes or what goes wrong, readable without knowing the code. Avoid identifiers unless no plain word exists. Max 50 characters, no emojis.
+- Description: plain Korean that says what changes or what goes wrong, readable without knowing the code. End with a noun phrase (`중복 알림 차단`, `로그 수집 누락 감지`), never a verb ending such as `~하기`, `~한다`, or `~합니다`. Avoid identifiers unless no plain word exists. Max 50 characters, no emojis.
 
 ## Step 4 — Body
 
@@ -53,6 +55,7 @@ Write each body to `ISSUE_BODY.md` (number the files when there are several). Th
 ## 이슈 미리보기
 - 템플릿: ToDo
 - 제목: [scope] description
+- 라벨: label
 
 [body]
 ```
@@ -62,8 +65,10 @@ When there are several issues, show a title table first, then each body. Ask the
 ## Step 6 — Create
 
 ```bash
-gh issue create --title "<confirmed-title>" --body-file ISSUE_BODY.md
+bash .agents/skills/write-issue/scripts/create-issue.sh "<confirmed-title>" "ISSUE_BODY.md" "<label>"
 ```
 
-- Templates assign no label. Add `--label` only when the user names one, and never create a label.
-- Show each issue URL, then remove the `ISSUE_BODY*.md` files.
+The script drops the label and creates the issue unlabeled when the repository does not have that
+label. Never create a missing label or swap in a different one.
+
+Show each issue URL. If the label was dropped, say so in one line. Then remove the `ISSUE_BODY*.md` files.
