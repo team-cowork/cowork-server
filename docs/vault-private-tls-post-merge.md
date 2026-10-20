@@ -117,5 +117,12 @@ VM을 새로 만들면 `deploy/prod/services/vault.sh`가 compose와 unseal보�
 ## 남은 위험
 
 - 프록시(`10.0.0.117`) → Vault 8200 구간은 평문입니다.
+- 공개 도메인을 거친 요청은 audit 로그와 `cowork / Logs`의 `Vault 감사 로그`에서 출발지가 모두 프록시(`10.0.0.117`)로 표시됩니다. 실제 클라이언트 IP는 이 저장소 밖에서 사라집니다.
+  - GSM SV 입구 라우터(`172.10.104.1`)가 들어오는 모든 연결의 출발지를 자기 주소로 바꿉니다(SNAT). VM SSH 접속 기록도 이 주소로 남습니다.
+  - Caddy가 Vault에 보내는 헤더는 `X-Forwarded-For: 172.10.104.1` 하나뿐입니다. 2026-10-20 공개 요청을 캡처해 확인했고, 요청자의 공인 IP는 어떤 헤더에도 없었습니다.
+  - 그래서 Vault에 `x_forwarded_for_authorized_addrs`를 설정해도 출발지가 `172.10.104.1`로 바뀔 뿐이고, Vault 재시작과 요청 거부 위험만 생깁니다. 지금은 설정하지 않습니다.
+  - 실제 IP를 남기려면 먼저 GSM SV 인프라에서 두 가지가 필요합니다. 입구 라우터가 출발지를 보존하거나 PROXY protocol로 전달해야 하고, Caddy가 그 값을 신뢰해 `X-Forwarded-For`에 넣어야 합니다.
+  - 그 뒤 `deploy/config/vault/server.hcl`의 8200 리스너에 `x_forwarded_for_authorized_addrs = "10.0.0.117/32"`, `x_forwarded_for_hop_skips = 0`을 추가합니다. 헤더가 빠진 요청을 거부하지 않도록 `x_forwarded_for_reject_not_present = false`도 함께 넣고, Vault를 재배포합니다. 8210 리스너는 Config와 monitoring이 직접 연결하므로 바꾸지 않습니다.
+  - 적용 후 공개 도메인으로 요청을 보내고 `Vault 감사 로그`의 출발지가 요청자 공인 IP인지 확인합니다. 그다음 대시보드 설명과 `coworkVaultLoginFailureBurst` 설명의 프록시 문구를 고칩니다.
 - 만료되지 않는 root token이 아직 살아 있습니다.
 - `docker exec` 인자는 `docker events`에 남으므로 token이나 unseal key를 명령 인자로 넘기지 않습니다. `-e VAR` 형태로 환경변수만 넘깁니다.
