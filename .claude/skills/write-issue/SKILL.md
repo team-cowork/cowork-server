@@ -28,7 +28,7 @@ Then read `${CLAUDE_SKILL_DIR}/references/labels.md` and select **exactly one** 
 Format: `[scope] description`.
 
 - Scope: one domain, following `${CLAUDE_SKILL_DIR}/../write-pr/references/commit-conventions.md`. When the work spans several domains, use `[global]`; for deployment or CI work, use `[ci/cd]`. Never join scopes (`[chat·notification]`).
-- Description: plain Korean that says what changes or what goes wrong, readable without knowing the code. End with a noun phrase (`중복 알림 차단`, `로그 수집 누락 감지`), never a verb ending such as `~하기`, `~한다`, or `~합니다`. Avoid identifiers unless no plain word exists. Max 50 characters, no emojis.
+- Description: plain Korean that says what changes or what goes wrong, readable without knowing the code. End with a noun phrase (`중복 알림 차단`, `로그 수집 누락 감지`), never a verb ending such as `~하기`, `~한다`, or `~합니다`. Avoid identifiers unless no plain word exists. Max 50 characters, no emojis, no `·` or `—`.
 
 ## Step 4 — Body
 
@@ -42,6 +42,7 @@ Read the chosen template file and keep its headings and order. Leave out the `--
 
 Writing style:
 - Plain declarative `~한다`. Never `~하세요` or `~해야 합니다`.
+- Never use `·` or `—`. Use a comma or split the sentence instead.
 - Backtick paths, config keys, endpoints, commands, and identifiers.
 - Assert only what you verified. Write `아직 확인하지 않았다` for the rest.
 - Leave out manual production checks unless asked. An issue holds work to do, not routine verification.
