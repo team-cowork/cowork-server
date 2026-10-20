@@ -102,6 +102,10 @@ for module in sorted(storage_catalog):
         "targets": [f"http://{address}:9000/readyz"],
         "labels": {"service": "storage", "module": module},
     })
+vault_runtime = json.loads((slots_directory / "vault.json").read_text())["runtime"]
+if not private_ipv4(vault_runtime["VAULT_BIND_IP"]):
+    raise ValueError("Vault TLS monitoring must use its private VM address")
+vault_tls_url = f'https://{vault_runtime["VAULT_BIND_IP"]}:{vault_runtime["VAULT_TLS_HOST_PORT"]}/v1/sys/health'
 database_catalog = json.loads(
     (Path(__file__).resolve().parents[2] / "iac/databases/catalog.json").read_text()
 )
@@ -155,6 +159,18 @@ scrape_configs = [
         "metrics_path": "/probe",
         "params": {"module": ["http_public_gateway"]},
         "static_configs": [{"targets": [public_health_url], "labels": {"service": "gateway"}}],
+        "relabel_configs": [
+            {"source_labels": ["__address__"], "target_label": "__param_target"},
+            {"source_labels": ["__param_target"], "target_label": "instance"},
+            {"target_label": "__address__", "replacement": "blackbox_exporter:9115"},
+        ],
+    },
+    {
+        # Config reaches Vault through this listener; the probe tracks its certificate expiry.
+        "job_name": "vault-tls",
+        "metrics_path": "/probe",
+        "params": {"module": ["tls_vault_private"]},
+        "static_configs": [{"targets": [vault_tls_url], "labels": {"service": "vault"}}],
         "relabel_configs": [
             {"source_labels": ["__address__"], "target_label": "__param_target"},
             {"source_labels": ["__param_target"], "target_label": "instance"},

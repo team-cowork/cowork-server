@@ -237,8 +237,6 @@ jobs:
           GH_SECRET_S3_ADMIN_SECRET_KEY: ${{ contains(matrix.secret_names, 'S3_ADMIN_SECRET_KEY') && secrets.S3_ADMIN_SECRET_KEY || '' }}
           GH_SECRET_S3_SECRET_KEY: ${{ contains(matrix.secret_names, 'S3_SECRET_KEY') && secrets.S3_SECRET_KEY || '' }}
           GH_SECRET_TEAM_GITHUB_STATE_SECRET: ${{ contains(matrix.secret_names, 'TEAM_GITHUB_STATE_SECRET') && secrets.TEAM_GITHUB_STATE_SECRET || '' }}
-          GH_SECRET_VAULT_ROLE_ID: ${{ contains(matrix.secret_names, 'VAULT_ROLE_ID') && secrets.VAULT_ROLE_ID || '' }}
-          GH_SECRET_VAULT_SECRET_ID: ${{ contains(matrix.secret_names, 'VAULT_SECRET_ID') && secrets.VAULT_SECRET_ID || '' }}
         run: |
           python3 deploy/prod/cd/github-settings.py sync --target "$TARGET" \
             --journal "$RUNNER_TEMP/settings/journal-$TARGET.json" \
@@ -621,7 +619,7 @@ jobs:
           vault_recovery: ${{ inputs.vault_recovery || false }}
           vault_addr: ${{ vars.VAULT_ADDR }}
           vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
-          vault_bootstrap_json: ${{ inputs.vault_recovery && secrets.VAULT_BOOTSTRAP_JSON || '' }}
+          vault_bootstrap_json: ${{ secrets.VAULT_BOOTSTRAP_JSON }}
 
   apply-infrastructure:
     name: Apply Infrastructure
@@ -724,6 +722,8 @@ jobs:
       deployments: write
       packages: read
       id-token: write
+    outputs:
+      approle_accessor: ${{ steps.deploy.outputs.approle_accessor }}
     runs-on: ubuntu-latest
     environment: Prod-CD(${{ matrix.target }})
     concurrency:
@@ -743,6 +743,7 @@ jobs:
           SETTINGS_ATTEMPT: ${{ needs.deployment-plan.outputs.attempt }}
         run: python3 deploy/prod/cd/rollout-settings.py check-attempt
       - name: Deploy Target
+        id: deploy
         uses: ./.github/actions/deploy-target
         with:
           service: ${{ matrix.service }}
@@ -801,6 +802,50 @@ jobs:
           vault_recovery: ${{ inputs.vault_recovery || false }}
           vault_addr: ${{ vars.VAULT_ADDR }}
           vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+
+
+  retire-approle:
+    name: Retire Superseded AppRole Secret IDs
+    needs: [deployment-plan, deploy-config, deploy]
+    # A restore after any failed application redeploys the previous Config, which still needs its secret ID.
+    if: >
+      !cancelled() && !(github.event_name == 'workflow_dispatch' && inputs.check_only) &&
+      needs.deploy-config.result == 'success' && needs.deploy-config.outputs.approle_accessor != '' &&
+      (needs.deploy.result == 'success' || needs.deploy.result == 'skipped')
+    permissions:
+      contents: read
+      id-token: write
+    runs-on: ubuntu-latest
+    environment: Prod-CD(${{ matrix.target }})
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.deployment-plan.outputs.config) }}
+    steps:
+      - name: Checkout Deployment Tools
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.workflow_sha }}
+      - name: Checkout Release Source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          path: release-source
+      - name: Retire Superseded AppRole Secret IDs
+        id: retire
+        # Cleanup must not roll back a healthy release; the next successful deployment retries it.
+        continue-on-error: true
+        env:
+          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
+          TARGET: ${{ matrix.target }}
+          ACCESSOR: ${{ needs.deploy-config.outputs.approle_accessor }}
+        run: |
+          python3 deploy/prod/cd/vault-settings.py retire-approle --target "$TARGET" --keep "$ACCESSOR" \
+            --slot-directory release-source/deploy/prod/slots
+      - name: Report Retirement Failure
+        if: ${{ steps.retire.outcome == 'failure' }}
+        run: echo "::warning title=AppRole secret ID retirement::Superseded secret IDs remain until the next successful Config deployment"
 
   release:
     name: Push Module Versions And Publish Release
