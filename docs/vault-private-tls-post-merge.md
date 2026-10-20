@@ -104,6 +104,16 @@ docker inspect cowork-vault-prod --format '{{index .Config.Labels "com.docker.co
 - 인증서 갱신이 실패하면 `coworkVaultTlsRenewalOverdue`(만료 21일 이내), `coworkVaultTlsCertificateExpiring`(7일 이내) 알림이 Discord로 갑니다. 수동 갱신은 Vault VM에서 `sudo python3 -I /usr/local/libexec/cowork-vault-tls.py renew-now`입니다.
 - CA는 2036-10-17에 만료됩니다. 교체할 때는 `deploy/config/vault/tls-ca.crt`, `cowork-config/src/main/resources/vault-tls-ca.p12`(비밀번호 `cowork-vault-tls-ca`), `/etc/cowork/vault-tls/ca.{key,crt}`를 함께 바꿉니다.
 
+## Vault VM 재구축
+
+VM을 새로 만들면 `deploy/prod/services/vault.sh`가 compose와 unseal보다 먼저 방화벽 정책과 TLS 인증서를 확인하므로, `vault_recovery` CD도 아래 두 가지가 없으면 시작하지 못합니다. CD를 실행하기 전에 새 VM에서 root로 설치합니다. 두 스크립트 모두 root 소유이고 다른 사용자가 쓸 수 없는 staging 디렉터리에서만 실행됩니다.
+
+1. 방화벽: `deploy/prod/network/{bootstrap-backend-firewall.sh,backend-firewall.py,backend-firewall.service}`와 `deploy/prod/vault/firewall.json`을 `policy.json`이라는 이름으로 `/root/cowork-staging/backend-firewall`에 복사하고 `COWORK_BACKEND_POLICY_MODE=apply bash bootstrap-backend-firewall.sh`를 실행합니다.
+2. TLS: `deploy/prod/vault/tls/`의 파일 전부와 운영자 PC에만 있는 `ca.key`(0600), `ca.crt`를 `/root/cowork-staging/vault-tls`에 복사하고 `bash bootstrap-vault-tls.sh`를 실행합니다. CA를 `/etc/cowork/vault-tls`에 설치하고, `cowork-vault-tls` 볼륨에 인증서를 발급하고, 갱신 timer를 켭니다.
+3. 설치 후 staging의 `ca.key`는 `shred -u`로 지웁니다. 이후 `service=vault`, `vault_recovery=true`로 CD를 실행합니다.
+
+새 VM의 사설 IP가 `10.0.0.91`이 아니면 CA의 nameConstraints 때문에 새 주소로 발급한 인증서가 검증을 통과하지 못합니다. 이 경우 CA를 새로 만들고, 주의와 롤백의 CA 교체 대상과 `deploy/prod/slots/vault.json`, `deploy/prod/vault/tls/settings.json`, `deploy/prod/vault/firewall.json`의 주소를 함께 바꿉니다.
+
 ## 남은 위험
 
 - 프록시(`10.0.0.117`) → Vault 8200 구간은 평문입니다.
