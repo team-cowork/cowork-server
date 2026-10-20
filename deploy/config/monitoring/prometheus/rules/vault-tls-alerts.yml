@@ -1,0 +1,33 @@
+groups:
+  - name: cowork-vault-tls
+    rules:
+      - alert: coworkVaultTlsUnavailable
+        expr: probe_success{job="vault-tls"} == 0 or up{job="vault-tls"} == 0 or absent(probe_success{job="vault-tls"})
+        for: 5m
+        labels:
+          severity: critical
+          service: vault
+        annotations:
+          summary: "Vault 사설 TLS 연결 실패"
+          description: "Config가 사용하는 Vault 사설 TLS 리스너에 5분 동안 연결하지 못했습니다. 인증서 만료와 갱신, 방화벽, Vault 상태를 확인해 주세요."
+
+      # The served chain includes the CA, so this also covers CA expiry.
+      - alert: coworkVaultTlsRenewalOverdue
+        expr: probe_ssl_earliest_cert_expiry{job="vault-tls"} - time() < 21 * 86400
+        for: 1h
+        labels:
+          severity: warning
+          service: vault
+        annotations:
+          summary: "Vault 사설 TLS 인증서 갱신 지연"
+          description: "Vault 사설 TLS 인증서가 {{ $value | humanizeDuration }} 뒤 만료됩니다. 만료 30일 전부터 매일 자동 갱신하므로 Vault VM의 cowork-vault-tls.service 실패 로그를 확인해 주세요. CA가 만료되는 경우라면 CA 교체가 필요합니다."
+
+      - alert: coworkVaultTlsCertificateExpiring
+        expr: probe_ssl_earliest_cert_expiry{job="vault-tls"} - time() < 7 * 86400
+        for: 10m
+        labels:
+          severity: critical
+          service: vault
+        annotations:
+          summary: "Vault 사설 TLS 인증서 만료 임박"
+          description: "Vault 사설 TLS 인증서가 {{ $value | humanizeDuration }} 뒤 만료됩니다. 만료되면 Config가 Vault 설정을 읽지 못합니다. Vault VM에서 sudo python3 -I /usr/local/libexec/cowork-vault-tls.py renew-now 를 실행해 주세요."
