@@ -1,6 +1,6 @@
 ---
 name: write-issue
-description: Use when turning follow-up work, review findings, deferred scope, or a reported bug into a GitHub issue. Covers template choice, title scope, body writing rules, and creation after user confirmation.allowed-tools: Bash(git *:*), Bash(gh issue *:*), Bash(bash *create-issue.sh:*), Bash(cat *:*), Read, Write
+description: Use when turning follow-up work, review findings, deferred scope, or a reported bug into a GitHub issue. Covers template choice, title scope, body writing rules, and creation after user confirmation.allowed-tools: Bash(git *:*), Bash(gh issue list *), Bash(bash *create-issue.sh:*), Bash(cat *:*), Read, Write
 ---
 
 ## Step 1 — Gather Context
