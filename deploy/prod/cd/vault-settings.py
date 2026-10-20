@@ -155,6 +155,8 @@ def resolved_snapshot(target, slot, mount=None, reference_versions=None, require
     references = {}
     for section in ("runtime", "application"):
         for key, ref in slot.get("secrets", {}).get(section, {}).items():
+            if "approle" in ref:
+                continue
             path = ref["path"]
             if path not in references:
                 references[path] = read_document(path, pinned.get(path, 0), mount=mount)
@@ -180,6 +182,45 @@ def resolved_snapshot(target, slot, mount=None, reference_versions=None, require
             versions[path] = document["metadata"]["version"]
     result["secret_versions"] = versions
     return result
+
+
+def approle_references(slot):
+    refs = {key: ref for key, ref in slot.get("secrets", {}).get("runtime", {}).items() if "approle" in ref}
+    if not refs:
+        return {}, None
+    ref = next(iter(refs.values()))
+    return refs, f"auth/{ref['mount']}/role/{ref['approle']}"
+
+
+def issue_approle_credentials(slot, target, check):
+    """Issue this deployment's AppRole secret ID; Vault never stores it outside the role."""
+    refs, role = approle_references(slot)
+    if not refs:
+        return {}, ""
+    # Vault rejects a login whose secret ID CIDRs exceed the role's, so bind only this slot's address.
+    address = [slot["container"]["advertise_address"] + "/32"]
+    body = {"metadata": json.dumps({"target": target, "run_id": os.environ.get("GITHUB_RUN_ID", "local")}),
+            "cidr_list": address, "token_bound_cidrs": address}
+    if check:
+        # A check performs one probe login; its credential expires without retirement.
+        body.update(ttl="10m", num_uses=1)
+    issued = vault_request(role + "/secret-id", body)["data"]
+    values = {"role_id": vault_request(role + "/role-id")["data"]["role_id"], "secret_id": issued["secret_id"]}
+    demand(all(isinstance(value, str) and value for value in values.values()), "Invalid AppRole credential response")
+    return {key: values[ref["key"]] for key, ref in refs.items()}, issued["secret_id_accessor"]
+
+
+def retire_approle_secret_ids(slot, keep):
+    _, role = approle_references(slot)
+    demand(role is not None, "The release slot issues no AppRole credentials")
+    listed = vault_request(role + "/secret-id", method="LIST", allow_missing=True)
+    accessors = listed["data"]["keys"] if listed else []
+    # Never retire every credential: the running instance must hold the kept one.
+    demand(keep in accessors, "The deployed AppRole secret ID is not registered")
+    accessors = [accessor for accessor in accessors if accessor != keep]
+    for accessor in accessors:
+        vault_request(role + "/secret-id-accessor/destroy", {"secret_id_accessor": accessor})
+    return len(accessors)
 
 
 def recovery_snapshot(raw, target, slot):
@@ -228,11 +269,13 @@ def output(name, value, secret=False):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("read", "bootstrap"))
+    parser.add_argument("action", choices=("read", "bootstrap", "retire-approle"))
     parser.add_argument("--target", required=True)
     parser.add_argument("--version", type=int, default=0)
     parser.add_argument("--slot-directory", type=Path, default=Path(__file__).resolve().parents[1] / "slots")
     parser.add_argument("--reference-versions", default="{}", help="JSON map of pinned referenced Vault document versions")
+    parser.add_argument("--check", action="store_true", help="Issue single-use AppRole credentials for a check")
+    parser.add_argument("--keep", help="Retire every other AppRole secret ID after a successful deployment")
     args = parser.parse_args()
     pinned = validate_versions(parse_json(args.reference_versions))
     demand(NAME.fullmatch(args.target), "Invalid target name")
@@ -242,6 +285,11 @@ def main():
     api_path = f"{mount}/data/deploy/{args.target}"
     slot_path = args.slot_directory / f"{args.target}.json"
     slot = SLOTS["load"](args.target, args.slot_directory)
+    if args.action == "retire-approle":
+        demand(bool(args.keep), "AppRole retirement requires the deployed --keep accessor")
+        authenticate_process("prod-settings-" + args.target)
+        print(f"Retired {retire_approle_secret_ids(slot, args.keep)} AppRole secret IDs of {args.target}")
+        return
     if args.action == "bootstrap":
         demand(args.target == "vault" and slot["service"] == "vault" and slot["kind"] == "infrastructure",
                "Offline recovery is restricted to the Vault slot")
@@ -261,6 +309,11 @@ def main():
                                      configuration=configuration)
         reference_versions = snapshot.pop("secret_versions")
         data.update(snapshot)
+        credentials, accessor = issue_approle_credentials(slot, args.target, args.check)
+        if accessor:
+            mask(credentials)
+            output("approle_accessor", accessor)
+        data["runtime"].update(credentials)
         validate_deployment(data, args.target, slot)
         if args.target == "vault":
             for problem in recovery_drift(os.environ.get("VAULT_BOOTSTRAP_JSON", ""), args.target, slot, data):

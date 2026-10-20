@@ -108,7 +108,10 @@ vault_tls = json.loads((ROOT / "deploy/prod/vault/tls/settings.json").read_text(
 if vault_tls != {"address": vault_runtime["VAULT_BIND_IP"], "port": int(vault_runtime["VAULT_TLS_HOST_PORT"]),
                  "volume": vault_runtime["VAULT_TLS_VOLUME"], "container": "cowork-vault-prod"}:
     raise SystemExit("deploy/prod/vault/tls/settings.json must match the Vault slot")
-print("Vault firewall and private TLS match the Vault slot")
+config_runtime = slots["load"]("config")["runtime"]
+if (config_runtime["VAULT_HOST"], config_runtime["VAULT_PORT"]) != (vault_runtime["VAULT_BIND_IP"], vault_runtime["VAULT_TLS_HOST_PORT"]):
+    raise SystemExit("Config must reach Vault through the private TLS listener")
+print("Vault firewall, private TLS and Config endpoint match the Vault slot")
 seen = set()
 for target in inventory["targets"]:
     name = target["service"]
