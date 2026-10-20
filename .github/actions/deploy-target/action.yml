@@ -32,8 +32,12 @@ inputs:
     description: Vault KV mount
     default: 'secret'
   vault_bootstrap_json:
-    description: Bootstrap settings used only for Vault recovery
+    description: Vault recovery settings, otherwise compared with Vault to detect drift
     default: ''
+outputs:
+  approle_accessor:
+    description: AppRole secret ID accessor issued for this deployment
+    value: ${{ steps.settings.outputs.approle_accessor }}
 runs:
   using: composite
   steps:
@@ -65,8 +69,9 @@ runs:
       env:
         VAULT_ADDR: ${{ inputs.vault_addr }}
         VAULT_KV_MOUNT: ${{ inputs.vault_kv_mount }}
-        VAULT_BOOTSTRAP_JSON: ${{ inputs.vault_recovery == 'true' && inputs.vault_bootstrap_json || '' }}
+        VAULT_BOOTSTRAP_JSON: ${{ inputs.vault_bootstrap_json }}
         RECOVERY: ${{ inputs.vault_recovery }}
+        CHECK_ONLY: ${{ inputs.check_only }}
         SERVICE: ${{ inputs.service }}
         TARGET: ${{ inputs.target }}
         CONFIG_VERSION: ${{ inputs.configuration_version || '0' }}
@@ -80,8 +85,10 @@ runs:
           test "$TARGET" = vault
           mode=bootstrap
         fi
+        check=()
+        if [ "$CHECK_ONLY" = true ]; then check=(--check); fi
         python3 deploy/prod/cd/vault-settings.py "$mode" --target "$TARGET" --version "$CONFIG_VERSION" \
-          --slot-directory release-source/deploy/prod/slots --reference-versions "$REFERENCE_VERSIONS"
+          --slot-directory release-source/deploy/prod/slots --reference-versions "$REFERENCE_VERSIONS" "${check[@]}"
     - name: Apply Immutable Release And Vault Settings
       shell: bash
       env:
