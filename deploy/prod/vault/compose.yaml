@@ -12,9 +12,11 @@ services:
       VAULT_API_ADDR: https://${VAULT_EXTERNAL_HOST:?VAULT_EXTERNAL_HOST is required}
     ports:
       - "${VAULT_BIND_IP:?VAULT_BIND_IP is required}:${VAULT_HOST_PORT:?VAULT_HOST_PORT is required}:8200"
+      - "${VAULT_BIND_IP:?VAULT_BIND_IP is required}:${VAULT_TLS_HOST_PORT:?VAULT_TLS_HOST_PORT is required}:8210"
     volumes:
       - ./deploy/config/vault/server.hcl:/vault/config/server.hcl:ro
       - vault-data:/vault/data
+      - vault-tls:/vault/tls:ro
     healthcheck:
       test: [CMD-SHELL, "wget -qO- http://127.0.0.1:8200/v1/sys/health || exit 1"]
       interval: 10s
@@ -30,3 +32,7 @@ volumes:
   vault-data:
     external: true
     name: ${VAULT_DATA_VOLUME:?Set the pre-created Vault volume name explicitly}
+  # The host's cowork-vault-tls helper owns this volume's certificate and key.
+  vault-tls:
+    external: true
+    name: ${VAULT_TLS_VOLUME:?Set the Vault TLS volume name explicitly}
