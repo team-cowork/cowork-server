@@ -237,8 +237,6 @@ jobs:
           GH_SECRET_S3_ADMIN_SECRET_KEY: ${{ contains(matrix.secret_names, 'S3_ADMIN_SECRET_KEY') && secrets.S3_ADMIN_SECRET_KEY || '' }}
           GH_SECRET_S3_SECRET_KEY: ${{ contains(matrix.secret_names, 'S3_SECRET_KEY') && secrets.S3_SECRET_KEY || '' }}
           GH_SECRET_TEAM_GITHUB_STATE_SECRET: ${{ contains(matrix.secret_names, 'TEAM_GITHUB_STATE_SECRET') && secrets.TEAM_GITHUB_STATE_SECRET || '' }}
-          GH_SECRET_VAULT_ROLE_ID: ${{ contains(matrix.secret_names, 'VAULT_ROLE_ID') && secrets.VAULT_ROLE_ID || '' }}
-          GH_SECRET_VAULT_SECRET_ID: ${{ contains(matrix.secret_names, 'VAULT_SECRET_ID') && secrets.VAULT_SECRET_ID || '' }}
         run: |
           python3 deploy/prod/cd/github-settings.py sync --target "$TARGET" \
             --journal "$RUNNER_TEMP/settings/journal-$TARGET.json" \
