@@ -5,6 +5,12 @@ services:
     image: hashicorp/vault:2.1.0@sha256:5520cc26271c024e6ffa45cdf95255bd26b70d71ba4b7e0bc18925bef4128adb
     container_name: cowork-vault-prod
     restart: unless-stopped
+    # Audit records share this log; a full disk would block storage and audit writes.
+    logging:
+      driver: json-file
+      options:
+        max-size: 20m
+        max-file: '5'
     command: [server]
     cap_add: [IPC_LOCK]
     environment:
@@ -12,9 +18,11 @@ services:
       VAULT_API_ADDR: https://${VAULT_EXTERNAL_HOST:?VAULT_EXTERNAL_HOST is required}
     ports:
       - "${VAULT_BIND_IP:?VAULT_BIND_IP is required}:${VAULT_HOST_PORT:?VAULT_HOST_PORT is required}:8200"
+      - "${VAULT_BIND_IP:?VAULT_BIND_IP is required}:${VAULT_TLS_HOST_PORT:?VAULT_TLS_HOST_PORT is required}:8210"
     volumes:
       - ./deploy/config/vault/server.hcl:/vault/config/server.hcl:ro
       - vault-data:/vault/data
+      - vault-tls:/vault/tls:ro
     healthcheck:
       test: [CMD-SHELL, "wget -qO- http://127.0.0.1:8200/v1/sys/health || exit 1"]
       interval: 10s
@@ -30,3 +38,7 @@ volumes:
   vault-data:
     external: true
     name: ${VAULT_DATA_VOLUME:?Set the pre-created Vault volume name explicitly}
+  # The host's cowork-vault-tls helper owns this volume's certificate and key.
+  vault-tls:
+    external: true
+    name: ${VAULT_TLS_VOLUME:?Set the Vault TLS volume name explicitly}

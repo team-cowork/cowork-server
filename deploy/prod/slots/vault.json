@@ -7,6 +7,8 @@
     "VAULT_HOST_PORT": "8200",
     "VAULT_COMPOSE_PROJECT": "vault-rebuild-20261013",
     "VAULT_DATA_VOLUME": "cowork-vault-data-20261013",
+    "VAULT_TLS_HOST_PORT": "8210",
+    "VAULT_TLS_VOLUME": "cowork-vault-tls",
     "VAULT_EXTERNAL_HOST": "cowork-vault.https.gsmsv.site"
   },
   "secrets": {
