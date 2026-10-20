@@ -5,7 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/../lib/service.sh"
 
 SERVICE_NAME="cowork-project"
-SERVICE_WORKDIR="$PROJECT_ROOT"
+SERVICE_WORKDIR="$PROJECT_ROOT/cowork-project"
 SERVICE_COMMAND=(
   bash -lc
   'export DB_HOST="${DB_HOST:-localhost}"
@@ -15,7 +15,7 @@ SERVICE_COMMAND=(
    export DB_PASSWORD="${DB_PASSWORD:-${MYSQL_PASSWORD}}"
    export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"
    export EUREKA_SERVER_URL="${EUREKA_SERVER_URL:-http://localhost:8761/eureka/}"
-   exec ./gradlew :cowork-project:run'
+   exec ./mvnw spring-boot:run'
 )
 
 run_managed_service "${1:-start}"

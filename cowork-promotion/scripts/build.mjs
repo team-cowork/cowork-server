@@ -10,40 +10,16 @@ import {
 } from './lib/content.mjs';
 import {generateFeatureStates} from './lib/feature-render.mjs';
 import {replaceOutputDirectory} from './lib/output.mjs';
-import {
-	concatenateStyles,
-	createTodoRegistry,
-	renderHomePage,
-	renderTodoPage,
-} from './lib/page-render.mjs';
+import {concatenateStyles, renderHomePage} from './lib/page-render.mjs';
 import {generatePositionStates} from './lib/render.mjs';
 
 function addStylesheet(assets, name, paths, sources) {
 	return assets.add(name, 'css', concatenateStyles(paths, sources));
 }
 
-function createOutputFiles(assets, homeHtml, todoContent, todoPageOptions) {
-	const pages = [
-		['index.html', homeHtml],
-		[
-			'todo/index.html',
-			renderTodoPage({...todoPageOptions, initialDocument: null}),
-		],
-		...todoContent.documents.map(document => [
-			`${document.route.replace(/^\//v, '')}/index.html`,
-			renderTodoPage({
-				...todoPageOptions,
-				initialDocument: document,
-			}),
-		]),
-	];
-
-	return new Map([...assets.files, ...pages]);
-}
-
 export async function build(options = {}) {
 	const config = resolveBuildConfig(options);
-	const input = await loadBuildInput(config);
+	const input = await loadBuildInput();
 	const assets = createAssetCollection();
 	const {team, techStacks} = parseContent({
 		teamXml: input.teamSource,
@@ -85,48 +61,16 @@ export async function build(options = {}) {
 		siteUrl: config.siteUrl,
 	});
 
-	const registryUrl = assets.add(
-		'todo-registry',
-		'json',
-		JSON.stringify(createTodoRegistry(input.todoContent, assets)),
-	);
-	const todoPageOptions = {
-		template: input.todoTemplate,
-		activeItems: input.todoContent.activeItems,
-		snapshots: input.todoContent.snapshots,
-		styles: [
-			sharedStyleUrl,
-			addStylesheet(
-				assets,
-				'todo',
-				stylesheetPaths.todo,
-				input.stylesheetSources.todo,
-			),
-		],
-		stateData: `<link rel="preload" href="${registryUrl}" as="fetch" crossorigin="anonymous" data-todo-registry />`,
-		script: assets.add('todo', 'js', input.todoScriptBundle),
-		logoUrl,
-		socialImageUrl,
-		siteUrl: config.siteUrl,
-	};
-	const outputFiles = createOutputFiles(
-		assets,
-		homeHtml,
-		input.todoContent,
-		todoPageOptions,
-	);
+	const outputFiles = new Map([...assets.files, ['index.html', homeHtml]]);
 
 	await replaceOutputDirectory(config.outputDirectory, outputFiles);
 
 	const summary = {
 		teamMembers: team.length,
 		techGroups: techStacks.categories.length,
-		todoDocuments: input.todoContent.documents.length,
-		todoItems: input.todoContent.activeItems.length,
-		todoSnapshots: input.todoContent.snapshots.length,
 	};
 	console.log(
-		`Promotion site built in public/ (${summary.techGroups} tech groups, ${summary.teamMembers} team members, ${summary.todoItems} active TODOs, ${summary.todoSnapshots} snapshots).`,
+		`Promotion site built in public/ (${summary.techGroups} tech groups, ${summary.teamMembers} team members).`,
 	);
 	return summary;
 }
