@@ -94,13 +94,7 @@
       "variables": {
         "APP_CONFIG_PROFILE": {},
         "VAULT_APP_ROLE_PATH": {},
-        "VAULT_BACKEND": {},
-        "VAULT_EXTERNAL_HOST": {},
-        "VAULT_PORT": {}
-      },
-      "secrets": {
-        "VAULT_ROLE_ID": {"environment": true, "writes": [{"key": "VAULT_ROLE_ID", "path": "control-plane/prod/config-vault"}]},
-        "VAULT_SECRET_ID": {"environment": true, "writes": [{"key": "VAULT_SECRET_ID", "path": "control-plane/prod/config-vault"}]}
+        "VAULT_BACKEND": {}
       }
     },
     "gateway": {
