@@ -2,12 +2,15 @@
 """Validate production Config AppRole login and renewal; revoke the probe token."""
 import json
 import os
+from pathlib import Path
 import re
+import ssl
 import sys
 import urllib.request
 
 
 POLICY = "cowork-config-prod"
+VAULT_CA = Path(__file__).resolve().parents[2] / "config/vault/tls-ca.crt"
 MIN_TTL = 600
 MAX_TTL = 86400
 
@@ -41,8 +44,8 @@ def main():
     try:
         if os.environ.get("VAULT_AUTHENTICATION") != "APPROLE" or os.environ.get("VAULT_SCHEME") != "https":
             raise ValueError("Production Config requires HTTPS AppRole authentication")
-        host = os.environ["VAULT_EXTERNAL_HOST"]
-        port = int(os.environ.get("VAULT_PORT", "443"))
+        host = os.environ["VAULT_HOST"]
+        port = int(os.environ["VAULT_PORT"])
         mount = os.environ.get("VAULT_APP_ROLE_PATH") or "approle"
         role_id = os.environ["VAULT_ROLE_ID"]
         secret_id = os.environ["VAULT_SECRET_ID"]
@@ -52,7 +55,9 @@ def main():
                 or not role_id.strip() or not secret_id.strip()):
             raise ValueError("Invalid Vault endpoint or AppRole credentials")
 
-        opener = urllib.request.build_opener(NoRedirect)
+        # Verify the private listener exactly as Config does, against the cowork Vault CA only.
+        context = ssl.create_default_context(cafile=str(VAULT_CA))
+        opener = urllib.request.build_opener(NoRedirect, urllib.request.HTTPSHandler(context=context))
 
         def request(path, body=None, token=None):
             headers = {"Content-Type": "application/json"}
