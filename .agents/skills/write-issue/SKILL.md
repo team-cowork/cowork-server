@@ -19,8 +19,8 @@ gh issue list --state all --limit 100 --search "<keywords>"
 
 | Template | When |
 |---|---|
-| `Bug.md` | An observed malfunction with a reproduction path |
-| `ToDo.md` | Everything else: planned work, follow-ups, decisions to make |
+| `.github/ISSUE_TEMPLATE/Bug.md` | An observed malfunction with a reproduction path |
+| `.github/ISSUE_TEMPLATE/ToDo.md` | Everything else: planned work, follow-ups, decisions to make |
 
 ## Step 3 — Title
 
@@ -31,13 +31,13 @@ Format: `[scope] description`.
 
 ## Step 4 — Body
 
-Keep the template's headings, `---` lines, and order. Replace each `>` guidance line with content. Do not add or rename sections. Leave out the frontmatter.
+Read the chosen template file and keep its headings, `---` lines, and order. Replace each `>` guidance line with content. Do not add or rename sections. Leave out the frontmatter.
 
-`ToDo.md`:
+`.github/ISSUE_TEMPLATE/ToDo.md`:
 - `## 개요`: start with the current state as fact, then why it is insufficient. Follow with `- [ ]` tasks written as actions (`~한다`), then `**완료 조건**:` written as resulting state (`~되어 있다`, `~하지 않는다`).
 - `## 기타 사항`: the source (PR, review, removed document), open decisions as an options table, and related issues. Write `없음` when there is nothing.
 
-`Bug.md`: fill all four sections. Leave out secrets and personal data.
+`.github/ISSUE_TEMPLATE/Bug.md`: fill all four sections. Leave out secrets and personal data.
 
 Writing style:
 - Plain declarative `~한다`. Never `~하세요` or `~해야 합니다`.
