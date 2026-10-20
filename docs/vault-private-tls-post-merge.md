@@ -36,11 +36,13 @@ Config가 공개 프록시 대신 Vault 사설 TLS 리스너(`https://10.0.0.91:
 
 Config 배포가 실패하면 이 문서의 이후 단계를 진행하지 않습니다. 과도기 상태에서는 기존 Config가 계속 동작합니다. 실패 원인을 고친 뒤 다시 배포합니다.
 
-Vault VM에서 회수 결과를 확인하려면 관리자 token으로 다음을 실행합니다. 결과가 1이어야 합니다.
+회수 결과는 Vault VM에서 확인합니다. 관리자 token은 `read -rs`로만 받고 `docker exec`에는 `-e VAULT_TOKEN`으로 이름만 넘깁니다. `docker exec` 인자는 `docker events`에 남습니다. 결과가 1이어야 합니다.
 
 ```bash
+read -rs VAULT_TOKEN && export VAULT_TOKEN
 docker exec -e VAULT_TOKEN -e VAULT_ADDR=http://127.0.0.1:8200 cowork-vault-prod \
   vault list -format=json auth/approle/role/cowork-config-prod/secret-id | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))'
+unset VAULT_TOKEN
 ```
 
 ## 2단계: 최종 Vault 정책 적용
@@ -58,7 +60,13 @@ unset VAULT_TOKEN
 
 적용 내용: 각 settings 대상별 최소 권한 policy 재작성(`prod-settings-config`에서 레거시 `secret/data/control-plane/prod/config-vault` 경로 제거), audit device 확인, AppRole `cowork-config-prod`의 CIDR을 Config slot의 `advertise_address/32`로 확정. 출력 마지막 줄은 `Applied scoped GitHub deployment, settings, IaC and Config workload policies`입니다.
 
-검증: `vault read auth/approle/role/cowork-config-prod`에서 두 CIDR 필드가 `10.0.0.169`만 포함해야 하고, Config 로그에 Vault 인증 오류가 없어야 합니다.
+검증: Vault VM에서 1단계와 같은 방식으로 token을 넣고 다음을 실행합니다. 두 CIDR 필드가 `10.0.0.169`만 포함해야 하고, Config 로그에 Vault 인증 오류가 없어야 합니다.
+
+```bash
+docker exec -e VAULT_TOKEN -e VAULT_ADDR=http://127.0.0.1:8200 cowork-vault-prod \
+  vault read -format=json auth/approle/role/cowork-config-prod |
+  python3 -c 'import json,sys; d=json.load(sys.stdin)["data"]; print(d["secret_id_bound_cidrs"], d["token_bound_cidrs"])'
+```
 
 ## 3단계: 쓰지 않는 설정 삭제
 
@@ -66,7 +74,12 @@ unset VAULT_TOKEN
 
 - GitHub Environment `Prod-CD(config)`의 secret `VAULT_ROLE_ID`, `VAULT_SECRET_ID`
 - 같은 Environment의 variable `VAULT_EXTERNAL_HOST`, `VAULT_PORT` (`VAULT_APP_ROLE_PATH`, `VAULT_BACKEND`, repository variable `VAULT_ADDR`, `VAULT_KV_MOUNT`는 계속 사용하므로 지우지 않습니다)
-- Vault KV `secret/control-plane/prod/config-vault` (`vault kv metadata delete secret/control-plane/prod/config-vault`)
+- Vault KV `secret/control-plane/prod/config-vault`. 모든 버전과 메타데이터를 지우므로 되돌릴 수 없습니다. Vault VM에서 1단계와 같은 방식으로 token을 넣고 실행합니다.
+
+  ```bash
+  docker exec -e VAULT_TOKEN -e VAULT_ADDR=http://127.0.0.1:8200 cowork-vault-prod \
+    vault kv metadata delete secret/control-plane/prod/config-vault
+  ```
 
 삭제 전에 `main`에서 `deploy/prod/configuration.json`의 config 대상에 위 secret과 variable이 없는지 확인합니다. `VAULT_ROLE_ID`, `VAULT_SECRET_ID`라는 이름은 `deploy/prod/slots/config.json`의 AppRole 참조와 `deploy/prod/config/validate-config-vault-token.py`의 런타임 환경변수로 계속 쓰이며, 이는 CD가 배포마다 발급한 값입니다.
 
