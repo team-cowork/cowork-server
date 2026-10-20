@@ -37,7 +37,7 @@
       "title": "서비스 준비 상태",
       "datasource": { "type": "prometheus", "uid": "cowork-prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
-      "targets": [{"expr": "probe_success{job=\"blackbox\",service=~\"$service\"}", "refId": "A", "legendFormat": "{{service}} / {{instance}}", "instant": false, "range": true}],
+      "targets": [{"expr": "label_replace(min by (service, module) (probe_success{job=\"blackbox\",service=~\"$service\"}), \"module\", \" ($1)\", \"module\", \"(.+)\")", "refId": "A", "legendFormat": "{{service}}{{module}}", "instant": false, "range": true}],
       "fieldConfig": {
         "defaults": {
           "min": 0,
@@ -58,7 +58,7 @@
       "title": "메트릭 수집 상태",
       "datasource": { "type": "prometheus", "uid": "cowork-prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-      "targets": [{"expr": "up{job=~\"cowork-.*\",service=~\"$service\"}", "refId": "A", "legendFormat": "{{service}} / {{instance}}", "instant": false, "range": true}],
+      "targets": [{"expr": "min by (service) (up{job=~\"cowork-.*\",service=~\"$service\"})", "refId": "A", "legendFormat": "{{service}}", "instant": false, "range": true}],
       "fieldConfig": {
         "defaults": {
           "min": 0,
@@ -79,7 +79,7 @@
       "title": "서비스 준비 상태 확인 응답 시간",
       "datasource": { "type": "prometheus", "uid": "cowork-prometheus" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
-      "targets": [{"expr": "probe_duration_seconds{job=\"blackbox\",service=~\"$service\"}", "refId": "A", "legendFormat": "{{service}} / {{instance}}", "instant": false, "range": true}],
+      "targets": [{"expr": "label_replace(max by (service, module) (probe_duration_seconds{job=\"blackbox\",service=~\"$service\"}), \"module\", \" ($1)\", \"module\", \"(.+)\")", "refId": "A", "legendFormat": "{{service}}{{module}}", "instant": false, "range": true}],
       "fieldConfig": {
         "defaults": { "unit": "s", "noValue": "N/A", "min": 0, "color": {"mode": "palette-classic"}, "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"} }
       },
