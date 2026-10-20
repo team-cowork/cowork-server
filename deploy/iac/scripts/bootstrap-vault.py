@@ -144,6 +144,12 @@ def main():
         policy = '\n'.join(f'path {json.dumps(path)} {{ capabilities = {json.dumps(capabilities)} }}'
                            for path, capabilities in paths.items())
         request('sys/policies/acl/' + name, {'policy': policy})
+    # The public endpoint is audited through the container log, which the host log agent ships.
+    devices = request('sys/audit')['data']
+    if 'file/' not in devices:
+        request('sys/audit/file', {'type': 'file', 'options': {'file_path': 'stdout'}})
+    elif devices['file/']['type'] != 'file' or devices['file/']['options'].get('file_path') != 'stdout':
+        raise ValueError('The declared audit device has a different destination')
     request('auth/' + mount + '/config', spec['config'])
     request('auth/' + mount + '/role/' + spec['role_name'], spec['role'])
     for name, role in roles.items():
