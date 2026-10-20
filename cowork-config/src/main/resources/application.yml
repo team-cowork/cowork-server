@@ -105,6 +105,12 @@ spring:
           PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL}
           LIVEKIT_URL: ${LIVEKIT_URL:http://cowork-livekit:7880}
           LIVEKIT_WS_URL: ${LIVEKIT_WS_URL}
+        # Spring Vault 4 builds each composite VaultTemplate on this context-level
+        # request factory; only the composite login uses the composite ssl below.
+        vault:
+          ssl:
+            trust-store: classpath:vault-tls-ca.p12
+            trust-store-password: cowork-vault-tls-ca
         composite:
           - type: vault
             # The private listener presents a certificate from the cowork Vault CA.
