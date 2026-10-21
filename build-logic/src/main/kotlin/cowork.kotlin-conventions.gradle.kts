@@ -1,7 +1,7 @@
 import org.gradle.api.artifacts.VersionCatalogsExtension
 
 plugins {
-    id("cowork.jvm-conventions")
+    id("cowork.spring-boot-conventions")
     id("org.jetbrains.kotlin.jvm")
     id("org.jetbrains.kotlin.plugin.spring")
     id("org.jlleitschuh.gradle.ktlint")
