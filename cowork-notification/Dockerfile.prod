@@ -1,13 +1,14 @@
 FROM golang:1.27.1-alpine3.24@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125 AS builder
 WORKDIR /workspace/cowork-notification
 
+RUN apk --no-cache add build-base
 COPY cowork-notification/go.mod cowork-notification/go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download
 COPY cowork-notification/ ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/cowork-notification ./cmd/server
+    CGO_ENABLED=1 GOOS=linux go build -trimpath -o /out/cowork-notification ./cmd/server
 
 
 FROM builder AS verification
@@ -31,8 +32,10 @@ RUN apk --no-cache add ca-certificates tzdata \
 WORKDIR /app
 COPY --chown=app:app --from=builder /out/cowork-notification /usr/local/bin/cowork-notification
 COPY --chown=app:app cowork-notification/src/main/resources/db/migration ./db/migration
+RUN mkdir -p /app/data && chown app:app /app/data
 RUN test -n "$(find /app/db/migration -name 'V*__*.sql' -print -quit)"
 USER app
 EXPOSE 8086
 ENV PORT=8086
+ENV DB_PATH=/app/data/notification.db
 ENTRYPOINT ["cowork-notification"]
