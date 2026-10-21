@@ -138,17 +138,10 @@
     "notification": {
       "variables": {
         "APP_CONFIG_PROFILE": {},
-        "CONFIG_CLIENT_USERNAME": {"writes": [{"key": "CONFIG_CLIENT_USERNAME", "path": "control-plane/prod/notification"}]},
-        "DB_HOST": {"resources": ["database:notification"]},
-        "DB_NAME": {"resources": ["database:notification"]},
-        "DB_PORT": {"resources": ["database:notification"]},
-        "DB_USERNAME": {"resources": ["database:notification"]}
+        "CONFIG_CLIENT_USERNAME": {"writes": [{"key": "CONFIG_CLIENT_USERNAME", "path": "control-plane/prod/notification"}]}
       },
       "secrets": {
         "CONFIG_CLIENT_PASSWORD": {"environment": true, "writes": [{"key": "CONFIG_CLIENT_PASSWORD", "path": "control-plane/prod/notification"}]},
-        "DB_ADMIN_PASSWORD": {"writes": [{"path": "iac/databases/notification", "key": "DB_ADMIN_PASSWORD"}], "resources": ["database:notification"]},
-        "DB_MONITORING_PASSWORD": {"writes": [{"path": "iac/databases/notification", "key": "DB_MONITORING_PASSWORD"}], "resources": ["database:notification"]},
-        "DB_PASSWORD": {"environment": true, "writes": [{"path": "slot-secrets/notification", "key": "DB_PASSWORD"}], "resources": ["database:notification"]},
         "FCM_CREDENTIALS_JSON": {"writes": [{"path": "cowork-notification/{profile}", "key": "fcm.credentials-json"}], "environment": true}
       }
     },
