@@ -18,6 +18,12 @@ def field(path):
     if path in {"cowork-authorization/cmd/main.go", "cowork-notification/cmd/server/main.go",
                 "cowork-voice/cmd/server/main.go"}:
         return r'(?m)^(// @version\s+)\S+([^\S\n]*)$'
+    if re.fullmatch(r"cowork-(?:authorization|notification|voice)/swagger/docs\.go", path):
+        return r'(?m)^(\tVersion:\s+")[^"]+(",[^\S\n]*)$'
+    if re.fullmatch(r"cowork-(?:authorization|notification|voice)/swagger/swagger\.json", path):
+        return r'(?m)^( {8}"version": ")[^"]+(",?[^\S\n]*)$'
+    if re.fullmatch(r"cowork-(?:authorization|notification|voice)/swagger/swagger\.yaml", path):
+        return r'(?m)^(  version: ")[^"]+("[^\S\n]*)$'
     if path == "cowork-chat/src/main.ts":
         return r"(\.setVersion\(')[^']+('\))"
     return None
@@ -61,6 +67,8 @@ def module_files(module):
     )]
     if module == "chat":
         candidates.append(directory / "src/main.ts")
+    if module in {"authorization", "notification", "voice"}:
+        candidates += [directory / "swagger" / name for name in ("docs.go", "swagger.json", "swagger.yaml")]
     paths = [path.relative_to(ROOT).as_posix() for path in candidates if path.is_file()]
     if not paths:
         raise ValueError(f"No registered version fields for {module}")
