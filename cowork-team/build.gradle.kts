@@ -1,5 +1,4 @@
 plugins {
-    id("cowork.spring-boot-conventions")
     id("cowork.kotlin-jpa-conventions")
 }
 
