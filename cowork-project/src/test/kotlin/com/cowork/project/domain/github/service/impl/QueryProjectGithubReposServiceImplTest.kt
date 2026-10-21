@@ -1,10 +1,9 @@
 package com.cowork.project.domain.github.service.impl
 
-import com.cowork.project.domain.github.client.GithubAppClient
 import com.cowork.project.domain.github.entity.TeamGithubInstallation
 import com.cowork.project.domain.github.presentation.data.response.GithubRepoSummaryResDto
 import com.cowork.project.domain.github.repository.TeamGithubInstallationRepository
-import com.cowork.project.domain.github.service.GithubAppCallExecutor
+import com.cowork.project.domain.github.service.GithubRepoReader
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.service.ProjectAccessGuard
 import io.kotest.assertions.throwables.shouldThrow
@@ -23,25 +22,18 @@ class QueryProjectGithubReposServiceImplTest :
 
         lateinit var projectAccessGuard: ProjectAccessGuard
         lateinit var teamGithubInstallationRepository: TeamGithubInstallationRepository
-        lateinit var githubAppClient: GithubAppClient
-        lateinit var callExecutor: GithubAppCallExecutor
+        lateinit var repoReader: GithubRepoReader
         lateinit var service: QueryProjectGithubReposServiceImpl
 
         beforeEach {
             projectAccessGuard = mockk()
             teamGithubInstallationRepository = mockk()
-            githubAppClient = mockk()
-            callExecutor = mockk()
+            repoReader = mockk()
             service = QueryProjectGithubReposServiceImpl(
                 projectAccessGuard,
                 teamGithubInstallationRepository,
-                githubAppClient,
-                callExecutor,
+                repoReader,
             )
-
-            every { callExecutor.execute(any<() -> List<GithubRepoSummaryResDto>>()) } answers {
-                firstArg<() -> List<GithubRepoSummaryResDto>>().invoke()
-            }
         }
 
         fun project(teamId: Long = 100L) =
@@ -56,7 +48,7 @@ class QueryProjectGithubReposServiceImplTest :
                         every { projectAccessGuard.requireTeamMember(100L, 7L) } just Runs
                         every { teamGithubInstallationRepository.findById(100L) } returns
                             Optional.of(TeamGithubInstallation(teamId = 100L, installationId = 1L, orgLogin = "my-org"))
-                        every { githubAppClient.listOrgRepos("my-org") } returns listOf(
+                        every { repoReader.listOrgRepos("my-org") } returns listOf(
                             GithubRepoSummaryResDto(
                                 name = "my-repo",
                                 fullName = "my-org/my-repo",
