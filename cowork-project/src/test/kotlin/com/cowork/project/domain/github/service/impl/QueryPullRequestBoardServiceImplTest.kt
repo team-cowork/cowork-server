@@ -1,8 +1,7 @@
 package com.cowork.project.domain.github.service.impl
 
-import com.cowork.project.domain.github.client.GithubAppClient
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestSummaryResDto
-import com.cowork.project.domain.github.service.GithubAppCallExecutor
+import com.cowork.project.domain.github.service.GithubPullRequestReader
 import com.cowork.project.domain.github.service.GithubRepoAccessResolver
 import com.cowork.project.domain.github.service.GithubRepoRef
 import io.kotest.core.spec.style.DescribeSpec
@@ -14,19 +13,13 @@ class QueryPullRequestBoardServiceImplTest :
     DescribeSpec({
 
         lateinit var repoAccessResolver: GithubRepoAccessResolver
-        lateinit var callExecutor: GithubAppCallExecutor
-        lateinit var githubAppClient: GithubAppClient
+        lateinit var pullRequestReader: GithubPullRequestReader
         lateinit var service: QueryPullRequestBoardServiceImpl
 
         beforeEach {
             repoAccessResolver = mockk()
-            callExecutor = mockk()
-            githubAppClient = mockk()
-            service = QueryPullRequestBoardServiceImpl(repoAccessResolver, callExecutor, githubAppClient)
-
-            every { callExecutor.execute(any<() -> List<GithubPullRequestSummaryResDto>>()) } answers {
-                firstArg<() -> List<GithubPullRequestSummaryResDto>>().invoke()
-            }
+            pullRequestReader = mockk()
+            service = QueryPullRequestBoardServiceImpl(repoAccessResolver, pullRequestReader)
         }
 
         fun summary(number: Int, draft: Boolean) = GithubPullRequestSummaryResDto(
@@ -48,7 +41,7 @@ class QueryPullRequestBoardServiceImplTest :
                     it("열린 PR을 draft/inReview 컬럼으로 분리한다") {
                         every { repoAccessResolver.resolveForRead(7L, 1L, 5L) } returns
                             GithubRepoRef("my-org", "my-repo")
-                        every { githubAppClient.listPullRequests("my-org", "my-repo", "open") } returns
+                        every { pullRequestReader.listPullRequests("my-org", "my-repo", "open") } returns
                             listOf(summary(1, draft = true), summary(2, draft = false), summary(3, draft = false))
 
                         val board = service.execute(7L, 1L, 5L)
