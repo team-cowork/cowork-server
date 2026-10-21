@@ -36,9 +36,6 @@ vault kv put secret/cowork-authorization \
   DATAGSM_WEBHOOK_SECRET="${DATAGSM_WEBHOOK_SECRET:-}" \
   JWT_SECRET="${JWT_SECRET}" >/dev/null
 
-vault kv put secret/cowork-notification \
-  db.dsn="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_notification?charset=utf8mb4&parseTime=True&loc=Local" >/dev/null
-
 vault kv put secret/cowork-preference \
   preference.db.username="${POSTGRES_USER}" \
   preference.db.password="${POSTGRES_PASSWORD}" >/dev/null
