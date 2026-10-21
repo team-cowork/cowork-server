@@ -1,7 +1,6 @@
 import {join} from 'node:path';
 import {getHeapStatistics} from 'node:v8';
 import 'reflect-metadata';
-import 'dotenv/config';
 import {NestFactory} from '@nestjs/core';
 import {type NestExpressApplication} from '@nestjs/platform-express';
 import {Logger, ValidationPipe} from '@nestjs/common';
