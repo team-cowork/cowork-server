@@ -1,0 +1,45 @@
+import {
+    Injectable,
+    Logger,
+    OnModuleDestroy,
+    OnModuleInit,
+} from '@nestjs/common';
+import {Kafka, Producer} from 'kafkajs';
+import {AppConfigService} from '../../../config/app-config.service';
+import {IssueCommentStateEvent} from './event/issue-comment-state';
+
+export const ISSUE_COMMENT_STATE_TOPIC = 'github.issue-comment.state.v1';
+
+@Injectable()
+export class IssueCommentStateProducer implements OnModuleInit, OnModuleDestroy {
+    private readonly logger = new Logger(IssueCommentStateProducer.name);
+    private producer!: Producer;
+
+    constructor(private readonly config: AppConfigService) {}
+
+    async onModuleInit() {
+        const kafka = new Kafka({
+            clientId: 'cowork-github',
+            brokers: this.config.kafkaBrokers,
+        });
+        this.producer = kafka.producer();
+        await this.producer.connect();
+        this.logger.log('Kafka issue-comment-state producer connected');
+    }
+
+    async onModuleDestroy() {
+        await this.producer.disconnect();
+    }
+
+    async send(event: IssueCommentStateEvent): Promise<void> {
+        await this.producer.send({
+            topic: ISSUE_COMMENT_STATE_TOPIC,
+            messages: [
+                {
+                    key: `${event.owner}/${event.repo}#${event.commentId}`,
+                    value: JSON.stringify(event),
+                },
+            ],
+        });
+    }
+}
