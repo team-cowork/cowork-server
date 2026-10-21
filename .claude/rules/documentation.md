@@ -1,9 +1,10 @@
 ---
 paths:
   - "**/README.md"
+  - "**/docs/**/*.md"
 ---
 
-# README Conventions
+# Documentation Conventions
 
 - Preserve the established README format, section order, headings, and table layouts. Inspect peer READMEs before editing; do not introduce one-off sections or expand their scope.
 - Module READMEs (`cowork-*/README.md`) use role, stack, ports, and environment variables sections in that order. Keep updates within this shared structure. Root and nested documentation READMEs retain their own established formats.
