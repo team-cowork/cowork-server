@@ -7,7 +7,7 @@ const config = [
         rules: {
             // Document non-obvious contracts; typed parameters need no generated tags.
             'jsdoc/require-param': 'off',
-            'import-x/no-unassigned-import': ['error', {allow: ['reflect-metadata', 'dotenv/config']}],
+            'import-x/no-unassigned-import': ['error', {allow: ['reflect-metadata']}],
             // API/database names and null values are part of existing contracts.
             '@typescript-eslint/no-restricted-types': 'off',
             '@typescript-eslint/naming-convention': 'off',
@@ -68,12 +68,12 @@ const config = [
         rules: {'@typescript-eslint/promise-function-async': 'off'},
     },
     {
-        files: ['src/**/*.schema.ts', 'src/main.ts', 'src/ops/*.cli.ts'],
-        // Schema indexes, startup and CLI dispatch run at module initialization.
+        files: ['src/**/*.schema.ts', 'src/main.ts'],
+        // Schema indexes and startup run at module initialization.
         rules: {'unicorn/no-top-level-side-effects': 'off'},
     },
     {
-        files: ['src/**/*consumer.ts', 'src/main.ts', 'src/ops/*.cli.ts'],
+        files: ['src/**/*consumer.ts', 'src/main.ts'],
         // Fatal startup failures must terminate the process instead of serving partial state.
         rules: {'unicorn/no-process-exit': 'off'},
     },
@@ -81,10 +81,6 @@ const config = [
         files: ['src/chat/util/emoji.ts'],
         // RGI_Emoji is a Unicode strings property and specifically requires /v.
         rules: {'require-unicode-regexp': ['error', {requireFlag: 'v'}]},
-    },
-    {
-        files: ['src/ops/*.cli.ts'],
-        rules: {'no-console': 'off', '@typescript-eslint/strict-void-return': 'off'},
     },
     {
         files: ['jest.config.js'],
