@@ -1,10 +1,8 @@
 plugins {
-    alias(libs.plugins.spring.boot)
-    alias(libs.plugins.spring.dependency.management)
+    id("cowork.spring-boot-conventions")
     id("cowork.kotlin-jpa-conventions")
 }
 
-group = "com.cowork"
 version = "20261021.1"
 
 repositories {
