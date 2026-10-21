@@ -49,7 +49,7 @@
     "advertise_address": "10.0.0.144",
     "readiness": {
       "path": "/actuator/health/readiness",
-      "timeout_seconds": 900
+      "timeout_seconds": 420
     },
     "metrics_path": "/actuator/prometheus",
     "limits": {
