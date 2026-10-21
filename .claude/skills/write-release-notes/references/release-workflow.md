@@ -14,7 +14,7 @@ The collector requires a previous release PR and optionally verifies the current
 
 - GitHub's comparison endpoint is limited without pagination; the helper paginates and checks `total_commits`. Its PR listing also paginates, so it has no fixed `gh pr list --limit` cutoff.
 - Matching merge SHAs works for PRs whose merge commits survive in the tagged ancestry. Squash-merging an enclosing release, rebasing, or cherry-picking can erase those associations. Review the release PR's referenced PRs and full diff; compare candidate PR changes with the tagged code. Document any unresolved coverage instead of calling the inventory exhaustive.
-- Review the listed commits too: direct pushes may have no PR. Keep their commit evidence in the working notes and review conversation. A selected end-user or technical change still qualifies for a plain release bullet without a PR reference; do not invent one or append a commit-link section. The comparison API's file list is capped; it is not a substitute for a full Git diff or per-file inspection when coverage matters.
+- Review the listed commits too: direct pushes may have no PR. Keep their commit evidence in the working notes and review conversation. For a selected end-user or technical change without a PR, prefix the bullet with its verified full 40-character commit SHA from the selected comparison, followed by `에서`. Do not invent a PR number, omit the source, or append a separate commit-link section. The comparison API's file list is capped; it is not a substitute for a full Git diff or per-file inspection when coverage matters.
 - Exclude net-reverted behavior. Describe the final supported behavior and avoid repeating it for each follow-up fix. Release merge PRs are containers, not user-facing features.
 
 ## End-user changes and technical fallback examples
@@ -36,7 +36,15 @@ Preserve a limit, permission change, or required action when end users meet it i
 
 The user's accepted historical notes, including `v20260818.0` and `v20260727.0`, are the format reference. Both contain only the heading `## 수정내역`, a blank line, and a flat list of short Korean sentences beginning with a bare PR number. Read the actual historical bodies before drafting; do not treat a rejected rewrite of the current release as the new convention.
 
-Use `- #PR_NUMBER 에서 …하였습니다.` for a change supported by one PR, or `- #PR_A, #PR_B 에서 …하였습니다.` when related PRs support the same change. Cite the PRs needed to substantiate the sentence; attribution must not force separate bullets for one change. Keep each item to one concise sentence explaining the app experience or, in the technical fallback, the changed server or operational behavior. Avoid API paths, field names, and other identifiers that only client developers recognize. Do not replace bare PR references with Markdown links or add bold feature labels.
+Use `- #PR_NUMBER 에서 …하였습니다.` for a change supported by one PR, or `- #PR_A, #PR_B 에서 …하였습니다.` when related PRs support the same change. For a change without a PR, use `- FULL_COMMIT_SHA 에서 …하였습니다.`. Cite the PRs or direct commits needed to substantiate the sentence, separating multiple sources with commas; attribution must not force separate bullets for one change. Keep each item to one concise sentence explaining the app experience or, in the technical fallback, the changed server or operational behavior. Avoid API paths, field names, and other identifiers that only client developers recognize. Keep source references as plain text without backticks or Markdown links, and do not add bold feature labels.
+
+The user's accepted `v20261021.1` body demonstrates the direct-commit format. Use the actual supporting commit for each release, not this example's hash:
+
+```markdown
+## 수정내역
+
+- c1ca672b891eec96eb4fc493e998b339432b51da 에서 서버가 실행에 필요한 설정을 불러올 때 발생하던 인증서 확인 오류를 수정하였습니다.
+```
 
 Prioritize evidenced capabilities and corrected end-user problems. If none exist, select substantive technical changes and explain what was changed or corrected, rather than publishing only a no-changes statement. Do not preserve an item merely because it is labeled a feature or bug fix. Select and group changes before polishing the historical sentence format. Express an essential change in defaults that end users notice in the affected item's sentence. Keep migration procedures, detailed caveats, and operational follow-up in the review conversation rather than creating extra release sections.
 
@@ -44,11 +52,11 @@ Do not add a summary introduction, category headings, an action checklist, a cau
 
 ## Editorial check before publishing
 
-- Read each sentence without its PR references: can an end user understand the changed app behavior or, when the release has no user-facing changes, the concrete technical change and its purpose? Translate jargon and name the server or operator when they are the affected actor.
+- Read each sentence without its source references: can an end user understand the changed app behavior or, when the release has no user-facing changes, the concrete technical change and its purpose? Translate jargon and name the server or operator when they are the affected actor.
 - Check the before/after evidence against the final tag. Do not present an existing capability as new, an intention as an achieved benefit, or a future cleanup as completed.
 - Check that related PRs describing one change have been combined and that separate changes are not collapsed merely because they share a PR. Do not pad a short user-facing release with internal work. If no user-facing changes remain, apply the technical fallback without inventing benefits or filling a bullet quota.
 - Keep only numbers that describe what end users meet in the app. Verify limits instead of copying internal tuning values.
-- Check meaningful changes for omissions, including direct commits and technical changes eligible for the fallback. Keep a technical purpose distinct from a measured user benefit. Remove unsupported speed, availability, and security claims, then check the historical formatting and attribution.
+- Check meaningful changes for omissions, including direct commits and technical changes eligible for the fallback. Keep a technical purpose distinct from a measured user benefit. Remove unsupported speed, availability, and security claims, then check the historical formatting and attribution. For items without a PR, verify that each full commit SHA exists in the selected comparison and supports the stated change.
 
 ## Updating the existing release
 
