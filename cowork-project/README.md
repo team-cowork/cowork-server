@@ -25,9 +25,9 @@
 
 아래 값은 [로컬 Compose 설정](../deploy/compose/stack.yaml)의 컨테이너 입력입니다.
 
-| 변수 | 기본값 | 설명 |
-|---|---|---|
-| `APP_CONFIG_PROFILE` | `local` | 설정 프로파일 |
-| `CONFIG_SERVER_URL` | `http://cowork-config:8761` | 필수 Config Server 연결 |
-| `CONFIG_CLIENT_USERNAME` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_PROJECT_USERNAME`에서 전달 |
-| `CONFIG_CLIENT_PASSWORD` | 없음 | 필수. `.env`의 `CONFIG_CLIENT_PROJECT_PASSWORD`에서 전달 |
+| 변수                     | 기본값                      | 설명                                                     |
+|--------------------------|-----------------------------|----------------------------------------------------------|
+| `APP_CONFIG_PROFILE`     | `local`                     | 설정 프로파일                                            |
+| `CONFIG_SERVER_URL`      | `http://cowork-config:8761` | 필수 Config Server 연결                                  |
+| `CONFIG_CLIENT_USERNAME` | 없음                        | 필수. `.env`의 `CONFIG_CLIENT_PROJECT_USERNAME`에서 전달 |
+| `CONFIG_CLIENT_PASSWORD` | 없음                        | 필수. `.env`의 `CONFIG_CLIENT_PROJECT_PASSWORD`에서 전달 |
