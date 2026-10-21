@@ -21,6 +21,7 @@ HERE = Path(__file__).resolve().parent
 OUTPUT = HERE / "out"
 SEAWEEDFS_ICON = str(HERE / "icons" / "seaweedfs.png")
 LIVEKIT_ICON = str(HERE / "icons" / "livekit.png")
+SQLITE_ICON = str(HERE / "icons" / "sqlite.png")
 FONT = "Apple SD Gothic Neo"
 GRAPH = {
     "fontname": FONT, "fontsize": "24", "pad": "0.8",
@@ -36,13 +37,17 @@ EXTERNAL = "#7c3aed"
 CONTROL = "#059669"
 OBS = "#dc2626"
 
+def SQLite(label):
+    return Custom(label, SQLITE_ICON)
+
+
 SERVICES = [
     ("authorization", MySQL, "10.0.0.140:8081"),
     ("user", MySQL, "10.0.0.144:8082"),
     ("channel", MySQL, "10.0.0.97:8083"),
     ("project", MySQL, "10.0.0.88:8084"),
     ("team", MySQL, "10.0.0.74:8085"),
-    ("notification", MySQL, "10.0.0.131:8086"),
+    ("notification", SQLite, "10.0.0.131:8086"),
     ("chat", MongoDB, "10.0.0.174:8087"),
     ("roadmap", MySQL, "10.0.0.132:8088"),
     ("voice", MongoDB, "10.0.0.90:8089"),
