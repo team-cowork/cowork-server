@@ -1,0 +1,528 @@
+{
+  "uid": "cowork-vault",
+  "title": "cowork / Vault",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "tags": [
+    "cowork",
+    "vault"
+  ],
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "graphTooltip": 1,
+  "templating": {
+    "list": [
+      {
+        "current": {
+          "selected": false,
+          "text": "prod",
+          "value": "prod"
+        },
+        "datasource": {
+          "type": "loki",
+          "uid": "cowork-loki"
+        },
+        "definition": "label_values(env)",
+        "hide": 0,
+        "includeAll": false,
+        "name": "env",
+        "query": {
+          "label": "env",
+          "stream": "{env=~\".+\"}",
+          "type": 1
+        },
+        "refresh": 2,
+        "sort": 1,
+        "type": "query",
+        "label": "환경"
+      }
+    ]
+  },
+  "annotations": {
+    "list": []
+  },
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 10,
+      "title": "사설 TLS 리스너",
+      "type": "row"
+    },
+    {
+      "id": 1,
+      "type": "state-timeline",
+      "title": "사설 TLS 연결 상태",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "monitoring이 Config와 같은 CA로 https://10.0.0.91:8210 인증서를 검증한 결과입니다. 공개 UI 경로는 프록시를 거치므로 여기에 포함되지 않습니다.",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 1
+      },
+      "targets": [
+        {
+          "expr": "probe_success{job=\"vault-tls\"}",
+          "refId": "A",
+          "legendFormat": "사설 TLS 리스너",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "noValue": "N/A",
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          }
+        }
+      },
+      "options": {
+        "mergeValues": true,
+        "rowHeight": 0.8,
+        "showValue": "auto",
+        "alignValue": "left",
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "인증서 만료까지 남은 기간",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "서빙 중인 체인에서 가장 먼저 만료되는 인증서 기준입니다. 만료 30일 전부터 Vault VM의 cowork-vault-tls.timer가 매일 갱신하므로 21일 미만이면 갱신 실패를 의심합니다.",
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "targets": [
+        {
+          "expr": "min(probe_ssl_earliest_cert_expiry{job=\"vault-tls\"}) - time()",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dtdurations",
+          "noValue": "N/A",
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 604800
+              },
+              {
+                "color": "green",
+                "value": 1814400
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "TLS 확인 응답 시간",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "targets": [
+        {
+          "expr": "max(probe_duration_seconds{job=\"vault-tls\"})",
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "decimals": 3,
+          "noValue": "N/A",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "text"
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      }
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "현재 활성 Vault 알림",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "Prometheus가 평가하는 TLS 연결·인증서 갱신·만료 알림 중 현재 발생 중인 것을 표시합니다. 로그인 실패 급증 알림(coworkVaultLoginFailureBurst)은 Loki가 평가해 Discord로 바로 보내므로 여기에 나오지 않고, 아래 로그인 실패 패널에서 같은 기준의 건수를 볼 수 있습니다. 활성 알림이 없으면 결과가 비어 있습니다.",
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 7
+      },
+      "targets": [
+        {
+          "expr": "ALERTS{alertstate=\"firing\",service=\"vault\"}",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "noValue": "N/A"
+        }
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "심각도",
+            "desc": false
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "alertstate": true,
+              "job": true,
+              "service": true
+            },
+            "indexByName": {
+              "severity": 0,
+              "alertname": 1,
+              "instance": 2
+            },
+            "renameByName": {
+              "alertname": "알림",
+              "severity": "심각도",
+              "instance": "대상"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 13
+      },
+      "id": 11,
+      "title": "감사 로그",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "cowork-loki"
+      },
+      "description": "로그인 실패는 로그인 응답에 token이 없거나 token 조회가 거부된 경우입니다. 기타 오류 응답은 그 밖의 권한 거부와 요청 오류입니다.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "spanNulls": false,
+            "showPoints": "never",
+            "drawStyle": "bars"
+          },
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "0",
+          "min": 0
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "로그인 실패"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "red",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "기타 오류 응답"
+            },
+            "properties": [
+              {
+                "id": "color",
+                "value": {
+                  "fixedColor": "orange",
+                  "mode": "fixed"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 14
+      },
+      "id": 4,
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "sum",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "cowork-loki"
+          },
+          "expr": "sum(count_over_time({env=\"$env\", service=\"vault\"} |= `\"type\":\"response\"` | json path=\"request.path\", token=\"response.auth.client_token\", error=\"error\" | (path=~\"auth/[^/]+/login(/.*)?\" and token=\"\") or (path=\"auth/token/lookup-self\" and error!=\"\") [$__auto]))",
+          "legendFormat": "로그인 실패",
+          "refId": "A",
+          "queryType": "range"
+        },
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "cowork-loki"
+          },
+          "expr": "sum(count_over_time({env=\"$env\", service=\"vault\"} |= `\"type\":\"response\"` | json path=\"request.path\", error=\"error\" | error!=\"\" and path!~\"auth/[^/]+/login(/.*)?\" and path!=\"auth/token/lookup-self\" [$__auto]))",
+          "legendFormat": "기타 오류 응답",
+          "refId": "B",
+          "queryType": "range"
+        }
+      ],
+      "title": "로그인 실패와 오류 응답 건수",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "cowork-loki"
+      },
+      "description": "선택한 전체 시간 범위에서 요청이 많은 Vault API 경로 10개입니다.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "continuous-BlYlRd"
+          },
+          "unit": "short",
+          "decimals": 0,
+          "noValue": "N/A",
+          "min": 0
+        }
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 14
+      },
+      "id": 5,
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": false,
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "cowork-loki"
+          },
+          "expr": "topk(10, sum by (path) (count_over_time({env=\"$env\", service=\"vault\"} |= `\"type\":\"request\"` | json path=\"request.path\" [$__auto])))",
+          "legendFormat": "{{path}}",
+          "refId": "A",
+          "queryType": "instant"
+        }
+      ],
+      "title": "선택 기간의 요청 경로별 건수",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "loki",
+        "uid": "cowork-loki"
+      },
+      "description": "요청마다 응답 기록 한 줄을 표시합니다. 공개 도메인을 거친 요청의 출발지는 모두 프록시(10.0.0.117)로 표시되며, 실제 클라이언트 IP는 GSM SV 입구 라우터가 출발지를 바꾸면서 남지 않습니다. token과 요청 값은 HMAC 처리되어 원문이 남지 않습니다.",
+      "gridPos": {
+        "h": 12,
+        "w": 24,
+        "x": 0,
+        "y": 22
+      },
+      "id": 6,
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showCommonLabels": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "loki",
+            "uid": "cowork-loki"
+          },
+          "expr": "{env=\"$env\", service=\"vault\"} |= `\"type\":\"response\"` | json operation=\"request.operation\", path=\"request.path\", remote=\"request.remote_address\", actor=\"auth.display_name\", error=\"error\", data_error=\"response.data.error\" | line_format `{{ .operation }} {{ .path }} / 출발지 {{ .remote }}{{ if .actor }} / 주체 {{ .actor }}{{ end }}{{ if .error }} / 오류 {{ .error | replace \"\\n\" \" \" | replace \"\\t\" \"\" }}{{ else if .data_error }} / 오류 응답{{ end }}`",
+          "legendFormat": "",
+          "refId": "A"
+        }
+      ],
+      "title": "감사 로그",
+      "type": "logs"
+    }
+  ]
+}
