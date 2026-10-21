@@ -92,7 +92,7 @@ export class MessageSearchRebuilder {
 
      새 재구축은 시작하자마자 alias가 가리키지 않는 관리 index를 전부 지우므로, 두 운영자가(또는
      실수로 두 번) 동시에 실행하면 뒤에 시작한 쪽이 앞선 재구축의 대상 index를 삭제해 버릴 수
-     있다. CLI 전용 명령이라 빈도는 낮지만, 이미 있는 `message_search_index_state` 단일
+     있다. 관리자 전용 명령이라 빈도는 낮지만, 이미 있는 `message_search_index_state` 단일
      도큐먼트에 실행 중 표시와 만료 시각을 두어 값싸게 막는다.
      */
     async rebuild(options: RebuildOptions = {}): Promise<RebuildResult> {
@@ -105,6 +105,34 @@ export class MessageSearchRebuilder {
             return await this.rebuildLocked(options);
         } finally {
             await this.stateRepository.releaseRebuildLock(lockId);
+        }
+    }
+
+    /**
+     락을 점유한 뒤 재구축을 백그라운드로 실행한다. 이미 실행 중이면 `false`를 반환한다.
+
+     전체 스캔은 HTTP 요청 시간보다 길어 요청 안에서 기다리지 않는다. 결과와 실패는
+     `message_search_index_state`에 기록되므로 상태 조회로 확인한다.
+     */
+    async start(options: RebuildOptions = {}): Promise<boolean> {
+        const lockId = randomUUID();
+        if (!await this.stateRepository.tryAcquireRebuildLock(lockId, REBUILD_LOCK_STALE_THRESHOLD_MS)) {
+            return false;
+        }
+
+        void this.rebuildInBackground(lockId, options);
+        return true;
+    }
+
+    private async rebuildInBackground(lockId: string, options: RebuildOptions): Promise<void> {
+        try {
+            await this.rebuildLocked(options);
+        } catch (error) {
+            this.logger.error('Search index rebuild stopped', error);
+        } finally {
+            await this.stateRepository.releaseRebuildLock(lockId).catch((error: unknown) => {
+                this.logger.error('Failed to release search index rebuild lock', error);
+            });
         }
     }
 
