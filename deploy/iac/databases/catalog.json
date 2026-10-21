@@ -59,18 +59,6 @@
       "port": 9104
     }
   },
-  "notification": {
-    "engine": "mysql",
-    "image": "mysql:9.7.2@sha256:29abb0a179982e4a8928138bfc7f918af9eda64e7eeb1b1d084c1720a20159e6",
-    "database": "cowork_notification",
-    "username": "cowork_notification",
-    "memory": "768m",
-    "cpus": 1,
-    "exporter": {
-      "image": "prom/mysqld-exporter:v0.20.0@sha256:abed8dac117b4ae5b70757f988e44795935b9a72c3b58d720c67ba688f8cb79e",
-      "port": 9104
-    }
-  },
   "roadmap": {
     "engine": "mysql",
     "image": "mysql:9.7.2@sha256:29abb0a179982e4a8928138bfc7f918af9eda64e7eeb1b1d084c1720a20159e6",
