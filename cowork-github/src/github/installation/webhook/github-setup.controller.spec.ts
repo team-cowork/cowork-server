@@ -9,13 +9,13 @@ describe('GithubSetupController', () => {
     let controller: GithubSetupController;
     let authService: {getInstallationAccountLogin: jest.Mock};
     let producer: {send: jest.Mock};
-    let backfillService: {runFullSync: jest.Mock};
+    let backfillService: {enqueue: jest.Mock};
     let redis: {incr: jest.Mock};
 
     beforeEach(async () => {
         authService = {getInstallationAccountLogin: jest.fn()};
         producer = {send: jest.fn()};
-        backfillService = {runFullSync: jest.fn().mockResolvedValue(undefined)};
+        backfillService = {enqueue: jest.fn().mockResolvedValue(undefined)};
         redis = {incr: jest.fn().mockResolvedValue(5)};
 
         const module: TestingModule = await Test.createTestingModule({
@@ -58,7 +58,7 @@ describe('GithubSetupController', () => {
             orgLogin: 'my-org',
             revision: 5,
         });
-        expect(backfillService.runFullSync).toHaveBeenCalledWith(42, 'my-org');
+        expect(backfillService.enqueue).toHaveBeenCalledWith({type: 'ORG_REPOSITORIES', installationId: 42, owner: 'my-org'});
     });
 
     it('state가 없으면 이벤트를 발행하지 않고 연결 실패 안내 페이지를 반환한다', async () => {
@@ -67,7 +67,7 @@ describe('GithubSetupController', () => {
         const result = await controller.handle('42', 'install');
 
         expect(producer.send).not.toHaveBeenCalled();
-        expect(backfillService.runFullSync).not.toHaveBeenCalled();
+        expect(backfillService.enqueue).not.toHaveBeenCalled();
         expect(result).toContain('cowork 팀과 연결하지 못했습니다');
     });
 

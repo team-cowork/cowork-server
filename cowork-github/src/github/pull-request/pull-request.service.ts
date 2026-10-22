@@ -43,6 +43,11 @@ export type PullRequestDetailResponse = {
     htmlUrl: string;
 };
 
+export type PullRequestLiveStatusResponse = Pick<
+    PullRequestDetailResponse,
+    'mergeable' | 'mergeableState' | 'reviewDecision'
+>;
+
 export type MergePullRequestResult = {
     alreadyMerged: boolean;
     prUrl: string;
@@ -85,6 +90,17 @@ export class PullRequestService {
             baseRef: pr.base.ref,
             htmlUrl: pr.html_url,
         };
+    }
+
+    // GitHub이 요청 시점마다 재계산해 projection으로 재구성할 수 없는 값만 돌려준다.
+    // 나머지 PR 상세 필드는 cowork-project가 read-model projection에서 채운다.
+    async getPullRequestLiveStatus(
+        owner: string,
+        repo: string,
+        prNumber: number,
+    ): Promise<PullRequestLiveStatusResponse> {
+        const {mergeable, mergeableState, reviewDecision} = await this.getPullRequestDetail(owner, repo, prNumber);
+        return {mergeable, mergeableState, reviewDecision};
     }
 
     async listPullRequests(
