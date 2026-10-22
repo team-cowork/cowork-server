@@ -10,6 +10,7 @@ import type Redis from 'ioredis';
 import {GithubAuthService} from '../../auth/github-auth.service';
 import {REDIS_CLIENT} from '../../constants';
 import {githubCacheKeys} from '../../github.cache';
+import {GithubBackfillService} from '../github-backfill.service';
 import {TeamGithubProducer} from '../kafka/team-github.producer';
 
 @Controller('github/setup')
@@ -19,6 +20,7 @@ export class GithubSetupController {
     constructor(
         private readonly authService: GithubAuthService,
         private readonly producer: TeamGithubProducer,
+        private readonly backfillService: GithubBackfillService,
         @Inject(REDIS_CLIENT) private readonly redis: Redis,
     ) {}
 
@@ -60,6 +62,9 @@ export class GithubSetupController {
                 orgLogin,
                 revision,
             });
+            // Repo 목록 projection을 바로 채운다. 이슈·PR 등은 cowork-project가 프로젝트에 연결된 repo만
+            // github.sync.command.v1로 요청한다. 대기열에 넣기만 하므로 콜백 응답이 늦어지지 않는다.
+            void this.backfillService.enqueue({type: 'ORG_REPOSITORIES', installationId, owner: orgLogin});
             return this.page(
                 'GitHub 연동이 완료되었습니다. 이 창을 닫고 cowork로 돌아가세요.',
             );

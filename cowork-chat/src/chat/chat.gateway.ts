@@ -57,7 +57,7 @@ export type ChatSocket = Socket<DefaultEventsMap, DefaultEventsMap, DefaultEvent
 
  연결 시 Gateway가 주입한 `X-User-Id`/`X-User-Role` 헤더를 우선 신뢰하고,
  헤더가 없으면 `auth.token`(JWT)을 직접 검증해 `client.data`에 `userId`와 `userRole`을 저장한다.
- 인증 실패 시 `exception` 이벤트를 emit하고 소켓을 즉시 끊는다.
+ 인증은 handshake 미들웨어에서 하므로 실패하면 `connect` 없이 `connect_error`만 전달된다.
  `afterInit`에서 Socket.IO `Server` 인스턴스를 Kafka 컨슈머에 주입해
  Kafka 메시지를 Socket.IO 룸으로 브로드캐스트할 수 있게 한다.
 
@@ -123,14 +123,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      @param server - 초기화된 Socket.IO 서버 인스턴스
      */
     afterInit(server: Server) {
-        server.use((_socket, next) => {
+        server.use((socket: ChatSocket, next) => {
             const notReady = this.realtimeNotReadyReason();
             if (notReady !== undefined) {
                 next(new Error(notReady));
                 return;
             }
 
-            _socket.use((_packet, packetNext) => {
+            socket.use((_packet, packetNext) => {
                 const packetNotReady = this.realtimeNotReadyReason();
                 if (packetNotReady !== undefined) {
                     packetNext(new Error(packetNotReady));
@@ -139,7 +139,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
                 packetNext();
             });
-            next();
+            void this.authenticate(socket).then(next);
         });
         this.consumer.setSocketServer(server);
         this.githubIssueResultConsumer.setSocketServer(server);
@@ -201,43 +201,44 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     /**
-     클라이언트 연결 시 인증 정보를 확인해 `client.data`에 설정한다.
-     Gateway가 `X-User-Id`/`X-User-Role` 헤더를 주입한 경우 이를 신뢰하고,
-     헤더가 없으면(Gateway 미경유 등) `auth.token`의 JWT를 직접 검증하는 기존 방식으로 대체한다.
-     두 방식 모두 실패하면 `exception` 이벤트 후 소켓을 끊는다.
+     Handshake 단계에서 인증 정보를 확인해 `client.data`에 설정한다.
+     실패하면 연결을 수락하지 않으므로 클라이언트는 `connect` 없이 `connect_error`만 받는다.
 
-     @param client - 연결된 Socket.IO 소켓
+     @param client - handshake 중인 Socket.IO 소켓
+     @returns 인증 실패 시 `connect_error`로 전달할 오류
      */
-    async handleConnection(client: ChatSocket) {
-        if (!this.projectionReadiness.isReady()) {
-            this.logger.warn(`Projection synchronization incomplete, rejecting connection: ${client.id}`);
-            client.emit('exception', {message: PROJECTION_NOT_READY_MESSAGE});
-            client.disconnect();
-            return;
-        }
-
+    private async authenticate(client: ChatSocket): Promise<Error | undefined> {
         try {
             const {userId, userRole} = await this.resolveIdentity(client);
-
             client.data.userId = userId;
             client.data.userRole = userRole;
-            this.joinRoom(client, `user:${userId}`);
-            // Connection state recovery는 끊기기 전 room을 그대로 복원하므로, 끊긴 동안 회수된 room을 다시 검증한다.
-            // 재검증 실패는 인증 실패가 아니므로 연결을 유지하고, 남은 room은 주기 sweep이 정리한다.
-            if (client.recovered) {
-                await this.chatService.evictUnauthorizedRooms([client])
-                    .catch((error: unknown) => {
-                        this.logger.error(`Recovered room re-check failed: ${client.id}`, error);
-                    });
-            }
-
-            this.logger.log(`Connected: ${client.id} (userId=${userId})`);
         } catch (error) {
             const message = error instanceof Error ? error.message : '인증 실패';
             this.logger.warn(`Auth failed, rejecting connection: ${client.id} - ${message}`);
-            client.emit('exception', {message: '인증 실패: ' + message});
-            client.disconnect();
+            return new Error('인증 실패: ' + message);
         }
+
+        return undefined;
+    }
+
+    /**
+     Handshake 미들웨어에서 인증된 소켓을 개인 room에 넣는다.
+
+     @param client - 인증을 마친 Socket.IO 소켓
+     */
+    async handleConnection(client: ChatSocket) {
+        const {userId} = client.data;
+        this.joinRoom(client, `user:${userId}`);
+        // Connection state recovery는 끊기기 전 room을 그대로 복원하므로, 끊긴 동안 회수된 room을 다시 검증한다.
+        // 재검증 실패는 인증 실패가 아니므로 연결을 유지하고, 남은 room은 주기 sweep이 정리한다.
+        if (client.recovered) {
+            await this.chatService.evictUnauthorizedRooms([client])
+                .catch((error: unknown) => {
+                    this.logger.error(`Recovered room re-check failed: ${client.id}`, error);
+                });
+        }
+
+        this.logger.log(`Connected: ${client.id} (userId=${userId})`);
     }
 
     /**
