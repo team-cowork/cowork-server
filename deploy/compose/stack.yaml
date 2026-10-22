@@ -151,6 +151,18 @@ services:
         github.issue-write.command.v1
         github.issue-write.result.v1
         github.issue-write.result.v1-dlt
+        github.repo.state.v1
+        github.repo.state.v1-dlt
+        github.issue.state.v1
+        github.issue.state.v1-dlt
+        github.pull-request.state.v1
+        github.pull-request.state.v1-dlt
+        github.label.state.v1
+        github.label.state.v1-dlt
+        github.issue-comment.state.v1
+        github.issue-comment.state.v1-dlt
+        github.backfill.completed.v1
+        github.backfill.completed.v1-dlt
       KAFKA_COMPACTED_TOPICS: >-
         user.profile.event.v2
         user.presence.event
@@ -165,6 +177,11 @@ services:
         preference.team-role.state.v2
         preference.channel-role-policy.state.v2
         preference.github-repo.setting.state
+        github.repo.state.v1
+        github.issue.state.v1
+        github.pull-request.state.v1
+        github.label.state.v1
+        github.issue-comment.state.v1
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
