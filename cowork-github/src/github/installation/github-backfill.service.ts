@@ -20,6 +20,7 @@ import {GithubReadModelEventProducers} from './kafka/github-read-model-event-pro
 export class GithubBackfillService {
     private readonly logger = new Logger(GithubBackfillService.name);
 
+    // eslint-disable-next-line max-params -- NestJS 생성자 주입이라 의존성 수만큼 파라미터가 필요하다.
     constructor(
         private readonly installationApiClient: InstallationApiClient,
         private readonly issueHttpService: IssueHttpService,
