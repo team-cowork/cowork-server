@@ -1,4 +1,5 @@
 export * from './add-reaction.dto';
+export * from './chat-message-quarantine-admin.dto';
 export type * from './context';
 export * from './create-file-upload-url.dto';
 export * from './create-github-issue.dto';
@@ -13,4 +14,5 @@ export * from './search-messages.dto';
 export * from './search-team-messages.dto';
 export * from './send-message.dto';
 export * from './slash-command.dto';
+export * from './start-message-search-rebuild.dto';
 export * from './unread-count-response.dto';
