@@ -1,4 +1,7 @@
-import {Injectable, Logger} from '@nestjs/common';
+import {Inject, Injectable, Logger} from '@nestjs/common';
+import type Redis from 'ioredis';
+import {REDIS_CLIENT} from '../constants';
+import {githubCacheKeys} from '../github.cache';
 import {IssueHttpService} from '../issue-http/issue-http.service';
 import {LabelHttpService} from '../label-http/label-http.service';
 import {PullRequestService} from '../pull-request/pull-request.service';
@@ -6,6 +9,7 @@ import {InstallationApiClient} from './client/installation-api.client';
 import {BackfillCompletedProducer} from './kafka/backfill-completed.producer';
 import {IssueCommentStateEvent} from './kafka/event/issue-comment-state';
 import {GithubReadModelEventProducers} from './kafka/github-read-model-event-producers';
+import {toPullRequestFileStates} from './kafka/pull-request-file-state.mapper';
 
 /**
  Installation이 새로 연결되거나 repo가 추가될 때, webhook이 닿기 전 기존 repo/PR/이슈/댓글/라벨
@@ -28,6 +32,7 @@ export class GithubBackfillService {
         private readonly labelHttpService: LabelHttpService,
         private readonly producers: GithubReadModelEventProducers,
         private readonly backfillCompletedProducer: BackfillCompletedProducer,
+        @Inject(REDIS_CLIENT) private readonly redis: Redis,
     ) {}
 
     async runFullSync(installationId: number, orgLogin: string): Promise<void> {
@@ -124,6 +129,14 @@ export class GithubBackfillService {
         for (const summary of summaries) {
             const detail = await this.pullRequestService.getPullRequestDetail(owner, repo, summary.number);
             const files = await this.pullRequestService.listPullRequestFiles(owner, repo, summary.number);
+            const fileStates = toPullRequestFileStates(files);
+            // Webhook이 files 없는 이벤트를 받았을 때도(labeled 등) 실어 보낼 수 있도록, 백필이
+            // 조회한 최신 파일 목록도 webhook과 같은 캐시에 남긴다 — compaction이 이 백필 메시지를
+            // 치워도 파일 정보가 사라지지 않게 하기 위함이다.
+            await this.redis.set(
+                githubCacheKeys.pullRequestFiles(owner, repo, summary.number),
+                JSON.stringify(fileStates),
+            );
             await this.producers.pullRequest.send({
                 owner,
                 repo,
@@ -141,13 +154,7 @@ export class GithubBackfillService {
                 createdAt: summary.createdAt,
                 updatedAt: summary.updatedAt,
                 sourceOccurredAt: summary.updatedAt,
-                files: files.map(file => ({
-                    filename: file.filename,
-                    status: file.status,
-                    additions: file.additions,
-                    deletions: file.deletions,
-                    patch: file.patch ?? null,
-                })),
+                files: fileStates,
             });
             await this.syncComments({
                 owner, repo, parentNumber: summary.number, parentType: 'PULL_REQUEST',

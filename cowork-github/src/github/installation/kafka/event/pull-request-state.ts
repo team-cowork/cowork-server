@@ -24,8 +24,10 @@ export type PullRequestStateEvent = {
     updatedAt: string;
     sourceOccurredAt: string;
     /**
-     Opened/synchronize/reopened 액션에서만 채워진다. 다른 액션(labeled, closed 등)에서는
-     파일 목록이 바뀌지 않았으므로 생략되며, consumer는 이 필드가 없으면 기존 값을 유지한다.
+     한 번이라도 조회된 적이 있으면(opened/synchronize/reopened/base 변경) 그 뒤로는 매 이벤트마다
+     마지막으로 알려진 값을 채워 보낸다 — 이 토픽은 key로 compaction되므로, 파일이 없는 이벤트가
+     살아남으면 과거에 조회했던 파일 목록이 영구히 사라질 수 있기 때문이다. 한 번도 조회된 적
+     없으면(PR 생성 이후 synchronize가 아직 없는 경우 등) 생략된다.
      */
     files?: PullRequestFileState[];
 };

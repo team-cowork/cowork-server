@@ -3,4 +3,6 @@ export const githubCacheKeys = {
     token: (installationId: number): string => `github:token:${installationId}`,
     installationRevision: (installationId: number): string =>
         `github:installation:revision:${installationId}`,
+    pullRequestFiles: (owner: string, repo: string, number: number): string =>
+        `github:pr-files:${owner}/${repo}#${number}`,
 };
