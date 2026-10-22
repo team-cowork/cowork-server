@@ -78,6 +78,16 @@ export class GithubWebhookController {
                 break;
             }
 
+            case 'installation_repositories': {
+                await this.handleInstallationRepositoriesState(payload);
+                break;
+            }
+
+            case 'repository': {
+                await this.handleRepositoryState(payload);
+                break;
+            }
+
             case 'label': {
                 await this.handleLabelState(payload);
                 break;
@@ -167,6 +177,81 @@ export class GithubWebhookController {
         }
 
         return eventName === 'pull_request' ? `🔀 PR #${payload.pull_request?.number} ${action}: ${payload.pull_request?.title} (${payload.pull_request?.html_url})` : `${eventName} 이벤트가 발생했습니다.`;
+    }
+
+    private async handleInstallationRepositoriesState(payload: GithubWebhookPayload): Promise<void> {
+        const installationId = payload.installation?.id;
+        if (installationId === undefined) {
+            return;
+        }
+
+        const sourceOccurredAt = new Date().toISOString();
+        const changes = [
+            ...(payload.repositories_added ?? []).map(repository => ({repository, deleted: false})),
+            ...(payload.repositories_removed ?? []).map(repository => ({repository, deleted: true})),
+        ];
+        await Promise.all(changes.map(async ({repository, deleted}) => this.sendRepoState({
+            installationId,
+            fullName: repository.full_name,
+            isPrivate: repository.private ?? false,
+            deleted,
+            sourceOccurredAt,
+        })));
+    }
+
+    private async handleRepositoryState(payload: GithubWebhookPayload): Promise<void> {
+        const installationId = payload.installation?.id;
+        const fullName = payload.repository?.full_name;
+        if (installationId === undefined || fullName === undefined || fullName === '') {
+            return;
+        }
+
+        const [owner, repo] = fullName.split('/', 2);
+        const isPrivate = payload.repository?.private ?? false;
+        // 백필과 같은 기준(수신 시각)을 버전으로 쓴다 — repository.updated_at은 삭제 시 갱신되지 않아
+        // 백필 시각보다 오래된 이벤트로 버려질 수 있다.
+        const sourceOccurredAt = new Date().toISOString();
+        // 이름 변경(renamed)·이전(transferred)은 projection 키(owner/repo)가 바뀌므로 이전 키를 삭제 처리한다.
+        const previousFullName = this.previousRepoFullName(payload.changes, owner, repo);
+        if (previousFullName !== fullName) {
+            await this.sendRepoState({
+                installationId, fullName: previousFullName, isPrivate, deleted: true, sourceOccurredAt,
+            });
+        }
+
+        await this.sendRepoState({
+            installationId, fullName, isPrivate, deleted: payload.action === 'deleted', sourceOccurredAt,
+        });
+    }
+
+    private previousRepoFullName(
+        changes: GithubWebhookPayload['changes'],
+        owner: string,
+        repo: string,
+    ): string {
+        const previousOwner = changes?.owner?.from?.organization?.login ?? changes?.owner?.from?.user?.login ?? owner;
+        return `${previousOwner}/${changes?.repository?.name?.from ?? repo}`;
+    }
+
+    private async sendRepoState(parameters: {
+        installationId: number;
+        fullName: string;
+        isPrivate: boolean;
+        deleted: boolean;
+        sourceOccurredAt: string;
+    }): Promise<void> {
+        const {installationId, fullName, isPrivate, deleted, sourceOccurredAt} = parameters;
+        const [owner, repo] = fullName.split('/', 2);
+        await this.readModelProducers.repo.send({
+            installationId,
+            owner,
+            repo,
+            fullName,
+            private: isPrivate,
+            htmlUrl: `https://github.com/${fullName}`,
+            deleted,
+            sourceOccurredAt,
+        });
     }
 
     private async handleIssueState(payload: GithubWebhookPayload): Promise<void> {
