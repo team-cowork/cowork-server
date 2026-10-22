@@ -72,6 +72,7 @@ CREATE TABLE tb_github_pull_request_projections
     base_ref           VARCHAR(300) NOT NULL,
     github_created_at  VARCHAR(40)  NOT NULL,
     github_updated_at  VARCHAR(40)  NOT NULL,
+    files_source_occurred_at DATETIME(6) NOT NULL,
     source_occurred_at DATETIME(6)  NOT NULL,
     CONSTRAINT pk_tb_github_pull_request_projections PRIMARY KEY (id),
     INDEX idx_tb_github_pull_request_projections_owner_repo (owner, repo)
