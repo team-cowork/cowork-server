@@ -1,7 +1,11 @@
+type WebhookRepository = {full_name: string; private?: boolean};
+
 export type GithubWebhookPayload = {
     action?: string;
     installation?: {id: number};
-    repository?: {full_name: string};
+    repository?: WebhookRepository;
+    repositories_added?: WebhookRepository[];
+    repositories_removed?: WebhookRepository[];
     commits?: unknown[];
     ref?: string;
     pusher?: {name?: string};
@@ -32,7 +36,12 @@ export type GithubWebhookPayload = {
         updated_at?: string;
     };
     label?: {name?: string; color?: string};
-    changes?: {name?: {from?: string}; base?: {ref?: {from?: string}}};
+    changes?: {
+        name?: {from?: string};
+        base?: {ref?: {from?: string}};
+        repository?: {name?: {from?: string}};
+        owner?: {from?: {user?: {login?: string}; organization?: {login?: string}}};
+    };
     comment?: {
         id?: number;
         body?: string;
