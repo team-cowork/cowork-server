@@ -1,12 +1,16 @@
 package com.cowork.project.domain.github.service
 
+import com.cowork.project.domain.github.entity.GithubSyncMarker
+import com.cowork.project.domain.github.entity.GithubSyncRequest
 import com.cowork.project.domain.github.entity.ProjectGithubRepo
+import com.cowork.project.domain.github.event.GITHUB_SYNC_COMMAND_TOPIC
 import com.cowork.project.domain.github.event.GithubSyncCommand
 import com.cowork.project.domain.github.event.GithubSyncCommandPublisher
 import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
 import com.cowork.project.domain.github.repository.GithubSyncRequestRepository
 import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
 import com.cowork.project.domain.github.repository.TeamGithubInstallationRepository
+import com.cowork.project.global.outbox.OutboxWriter
 import com.cowork.project.global.projection.ProjectionSnapshotLock
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -16,6 +20,7 @@ import io.mockk.slot
 import io.mockk.verify
 import java.time.Duration
 import java.time.Instant
+import java.util.Optional
 
 class GithubSyncRequestSchedulerTest :
     DescribeSpec({
@@ -26,6 +31,7 @@ class GithubSyncRequestSchedulerTest :
         lateinit var markerRepository: GithubSyncMarkerRepository
         lateinit var requestRepository: GithubSyncRequestRepository
         lateinit var publisher: GithubSyncCommandPublisher
+        lateinit var outboxWriter: OutboxWriter
         lateinit var scheduler: GithubSyncRequestScheduler
 
         beforeEach {
@@ -34,6 +40,7 @@ class GithubSyncRequestSchedulerTest :
             markerRepository = mockk()
             requestRepository = mockk(relaxed = true)
             publisher = mockk(relaxed = true)
+            outboxWriter = mockk(relaxed = true)
             val snapshotLock = mockk<ProjectionSnapshotLock>()
             every { snapshotLock.tryRun(any(), any()) } answers {
                 secondArg<() -> Unit>().invoke()
@@ -45,6 +52,7 @@ class GithubSyncRequestSchedulerTest :
                 markerRepository = markerRepository,
                 requestRepository = requestRepository,
                 publisher = publisher,
+                outboxWriter = outboxWriter,
                 snapshotLock = snapshotLock,
                 requestCooldownMs = Duration.ofMinutes(30).toMillis(),
                 staleAfterMs = Duration.ofDays(7).toMillis(),
@@ -78,6 +86,41 @@ class GithubSyncRequestSchedulerTest :
                         verify(exactly = 1) { publisher.publish(any()) }
                         command.captured.owner shouldBe "my-org"
                         command.captured.repo shouldBe "my-repo"
+                    }
+                }
+            }
+
+            describe("requestRepositorySync 메서드는") {
+                context("완료 마커가 없고 요청한 적도 없는 repo인 경우") {
+                    it("소문자로 맞춘 대상을 outbox로 요청하고 요청 시각을 남긴다") {
+                        every { markerRepository.findAllById(any()) } returns emptyList()
+                        every { requestRepository.findById("REPOSITORY:my-org/my-repo") } returns Optional.empty()
+                        every { requestRepository.save(any<GithubSyncRequest>()) } answers { firstArg() }
+                        val command = slot<Any>()
+
+                        scheduler.requestRepositorySync(GithubRepoRef("My-Org", "My-Repo"))
+
+                        verify(exactly = 1) {
+                            outboxWriter.enqueue(GITHUB_SYNC_COMMAND_TOPIC, "my-org/my-repo", capture(command))
+                        }
+                        (command.captured as GithubSyncCommand).target shouldBe "REPOSITORY"
+                        verify(exactly = 1) { requestRepository.save(match { it.id == "REPOSITORY:my-org/my-repo" }) }
+                        verify(exactly = 0) { publisher.publish(any()) }
+                    }
+                }
+
+                context("다른 팀이 먼저 연결해 모든 완료 마커가 최신인 repo인 경우") {
+                    it("요청하지 않는다") {
+                        val fresh = Instant.now()
+                        every { markerRepository.findAllById(any()) } answers {
+                            firstArg<Iterable<String>>().map { GithubSyncMarker(it, fresh) }
+                        }
+                        every { requestRepository.findById(any()) } returns Optional.empty()
+
+                        scheduler.requestRepositorySync(GithubRepoRef("my-org", "my-repo"))
+
+                        verify(exactly = 0) { outboxWriter.enqueue(any(), any(), any(), any(), any()) }
+                        verify(exactly = 0) { requestRepository.save(any()) }
                     }
                 }
             }
