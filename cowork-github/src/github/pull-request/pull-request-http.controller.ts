@@ -29,17 +29,6 @@ export class PullRequestHttpController {
         );
     }
 
-    @Get('files')
-    async getFiles(
-        @Param('owner') owner: string,
-        @Param('repo') repo: string,
-        @Param('number', ParseIntPipe) prNumber: number,
-    ) {
-        return this.handle(async () =>
-            this.pullRequestService.listPullRequestFiles(owner, repo, prNumber),
-        );
-    }
-
     @Post('merge')
     async merge(
         @Param('owner') owner: string,

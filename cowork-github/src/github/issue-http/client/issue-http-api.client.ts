@@ -35,25 +35,6 @@ export class IssueHttpApiClient {
         private readonly authService: GithubAuthService,
     ) {}
 
-    async getIssue(
-        owner: string,
-        repo: string,
-        issueNumber: number,
-    ): Promise<IssueDetail> {
-        const token = await this.authService.getInstallationToken(owner);
-        try {
-            const {data} = await firstValueFrom(
-                this.httpService.get<IssueDetail>(
-                    `${GITHUB_API}/repos/${owner}/${repo}/issues/${issueNumber}`,
-                    {headers: this.authHeaders(token)},
-                ),
-            );
-            return data;
-        } catch (error) {
-            this.handleGithubError(error);
-        }
-    }
-
     // MVP: per_page=100 단일 페이지만 조회. 100개 초과 이슈 페이지네이션은 후속 과제.
     async listIssues(
         owner: string,
