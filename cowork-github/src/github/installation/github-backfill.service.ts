@@ -74,8 +74,10 @@ export class GithubBackfillService {
         });
 
         await this.syncLabels(owner, repo, occurredAt);
-        await this.syncIssues(owner, repo, occurredAt);
-        await this.syncPullRequests(owner, repo, occurredAt);
+        // 이슈/PR/댓글은 webhook과 같은 기준(엔티티 updated_at)을 버전으로 써야 이후 webhook 변경·삭제가
+        // 백필 시각보다 오래된 이벤트로 버려지지 않는다. 라벨/repo는 updated_at이 없어 백필 시각을 쓴다.
+        await this.syncIssues(owner, repo);
+        await this.syncPullRequests(owner, repo);
     }
 
     private async syncLabels(owner: string, repo: string, occurredAt: string): Promise<void> {
@@ -90,9 +92,10 @@ export class GithubBackfillService {
         })));
     }
 
-    private async syncIssues(owner: string, repo: string, occurredAt: string): Promise<void> {
+    private async syncIssues(owner: string, repo: string): Promise<void> {
         const issues = await this.issueHttpService.listIssues(owner, repo, 'all');
-        await Promise.all(issues.map(async issue => {
+        /* eslint-disable no-await-in-loop -- 이슈마다 댓글 조회가 나가므로 secondary rate limit을 피하려 순차 처리한다. */
+        for (const issue of issues) {
             await this.producers.issue.send({
                 owner,
                 repo,
@@ -105,17 +108,19 @@ export class GithubBackfillService {
                 createdAt: issue.createdAt,
                 updatedAt: issue.updatedAt,
                 deleted: false,
-                sourceOccurredAt: occurredAt,
+                sourceOccurredAt: issue.updatedAt,
             });
             await this.syncComments({
-                owner, repo, parentNumber: issue.number, parentType: 'ISSUE', occurredAt,
+                owner, repo, parentNumber: issue.number, parentType: 'ISSUE',
             });
-        }));
+        }
+        /* eslint-enable no-await-in-loop */
     }
 
-    private async syncPullRequests(owner: string, repo: string, occurredAt: string): Promise<void> {
+    private async syncPullRequests(owner: string, repo: string): Promise<void> {
         const summaries = await this.pullRequestService.listPullRequests(owner, repo, 'all');
-        await Promise.all(summaries.map(async summary => {
+        /* eslint-disable no-await-in-loop -- PR마다 상세/파일/댓글 조회가 나가므로 secondary rate limit을 피하려 순차 처리한다. */
+        for (const summary of summaries) {
             const detail = await this.pullRequestService.getPullRequestDetail(owner, repo, summary.number);
             const files = await this.pullRequestService.listPullRequestFiles(owner, repo, summary.number);
             await this.producers.pullRequest.send({
@@ -134,7 +139,7 @@ export class GithubBackfillService {
                 baseRef: detail.baseRef,
                 createdAt: summary.createdAt,
                 updatedAt: summary.updatedAt,
-                sourceOccurredAt: occurredAt,
+                sourceOccurredAt: summary.updatedAt,
                 files: files.map(file => ({
                     filename: file.filename,
                     status: file.status,
@@ -144,9 +149,10 @@ export class GithubBackfillService {
                 })),
             });
             await this.syncComments({
-                owner, repo, parentNumber: summary.number, parentType: 'PULL_REQUEST', occurredAt,
+                owner, repo, parentNumber: summary.number, parentType: 'PULL_REQUEST',
             });
-        }));
+        }
+        /* eslint-enable no-await-in-loop */
     }
 
     private async syncComments(parameters: {
@@ -154,9 +160,8 @@ export class GithubBackfillService {
         repo: string;
         parentNumber: number;
         parentType: IssueCommentStateEvent['parentType'];
-        occurredAt: string;
     }): Promise<void> {
-        const {owner, repo, parentNumber, parentType, occurredAt} = parameters;
+        const {owner, repo, parentNumber, parentType} = parameters;
         const comments = await this.issueHttpService.listComments(owner, repo, parentNumber);
         await Promise.all(comments.map(async comment => this.producers.issueComment.send({
             owner,
@@ -170,7 +175,7 @@ export class GithubBackfillService {
             createdAt: comment.createdAt,
             updatedAt: comment.updatedAt,
             deleted: false,
-            sourceOccurredAt: occurredAt,
+            sourceOccurredAt: comment.updatedAt,
         })));
     }
 }
