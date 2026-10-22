@@ -5,4 +5,5 @@ export const githubCacheKeys = {
         `github:installation:revision:${installationId}`,
     pullRequestFiles: (owner: string, repo: string, number: number): string =>
         `github:pr-files:${owner}/${repo}#${number}`,
+    syncLock: (target: string): string => `github:sync:lock:${target}`,
 };
