@@ -33,6 +33,7 @@ runs:
       shell: bash
       env:
         CACHE_FALLBACK: ${{ runner.os }}-dependency-mounts-v3-${{ inputs.module }}-${{ inputs.environment }}-
+        CACHE_PROD_FALLBACK: ${{ runner.os }}-dependency-mounts-v3-${{ inputs.module }}-prod-
         # Hash the measurement checkout, which can differ from the action checkout.
         CACHE_PREFIX: ${{ runner.os }}-dependency-mounts-v3-${{ inputs.module }}-${{ inputs.environment }}-${{ hashFiles(format('{0}/{1}/Dockerfile.{2}', inputs.source, inputs.module, inputs.environment)) }}-
         CACHE_WRITE: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main') }}
@@ -41,6 +42,7 @@ runs:
         echo "key=${CACHE_PREFIX}$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
         echo "prefix=$CACHE_PREFIX" >> "$GITHUB_OUTPUT"
         echo "fallback=$CACHE_FALLBACK" >> "$GITHUB_OUTPUT"
+        echo "prod-fallback=$CACHE_PROD_FALLBACK" >> "$GITHUB_OUTPUT"
         echo "write=$CACHE_WRITE" >> "$GITHUB_OUTPUT"
     # Branch push CI populates the sole dependency cache, which image builds also
     # restore; PRs only restore it.
@@ -65,13 +67,24 @@ runs:
         restore-keys: |
           ${{ steps.cache-policy.outputs.prefix }}
           ${{ steps.cache-policy.outputs.fallback }}
+    # Only main push saves caches now, so non-prod runs reuse main's prod mounts,
+    # which have the same dependency mounts. Restoring adds no cache entries.
+    - name: Restore Prod Dependency Caches As Fallback
+      if: steps.restore-cache.outcome == 'success' && steps.restore-cache.outputs.cache-matched-key == '' && inputs.environment != 'prod'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      id: restore-prod-cache
+      with:
+        path: ${{ runner.temp }}/dependency-mounts-${{ inputs.module }}-prod
+        key: ${{ steps.cache-policy.outputs.prod-fallback }}
+        restore-keys: |
+          ${{ steps.cache-policy.outputs.prod-fallback }}
     - name: Inject And Extract Verification Cache Mounts
-      if: steps.cache-policy.outputs.write == 'true' || steps.restore-cache.outputs.cache-matched-key != ''
+      if: steps.cache-policy.outputs.write == 'true' || steps.restore-cache.outputs.cache-matched-key != '' || steps.restore-prod-cache.outputs.cache-matched-key != ''
       uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
       with:
         builder: ${{ steps.builder.outputs.name }}
         dockerfile: ${{ inputs.source }}/${{ inputs.module }}/Dockerfile.${{ inputs.environment }}
-        cache-dir: ${{ runner.temp }}/dependency-mounts-${{ inputs.module }}-${{ inputs.environment }}
+        cache-dir: ${{ runner.temp }}/dependency-mounts-${{ inputs.module }}-${{ steps.restore-prod-cache.outputs.cache-matched-key != '' && 'prod' || inputs.environment }}
         scratch-dir: ${{ runner.temp }}/verify-cache-dance-${{ inputs.module }}-${{ inputs.environment }}-${{ inputs.snapshot }}
         skip-extraction: ${{ steps.cache-policy.outputs.write != 'true' || steps.cache.outputs.cache-hit == 'true' }}
         utility-image: alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
