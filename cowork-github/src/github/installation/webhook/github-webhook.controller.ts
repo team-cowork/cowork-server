@@ -32,6 +32,7 @@ export class GithubWebhookController {
 
     private readonly logger = new Logger(GithubWebhookController.name);
 
+    // eslint-disable-next-line max-params -- NestJS 생성자 주입이라 의존성 수만큼 파라미터가 필요하다.
     constructor(
         private readonly producer: TeamGithubProducer,
         private readonly repoEventProducer: RepoEventProducer,
@@ -210,14 +211,12 @@ export class GithubWebhookController {
             : undefined;
 
         await this.readModelProducers.pullRequest.send(
-            this.buildPullRequestStateEvent(owner, repo, pr.number, pr, files),
+            this.buildPullRequestStateEvent({owner, repo, number: pr.number}, pr, files),
         );
     }
 
     private buildPullRequestStateEvent(
-        owner: string,
-        repo: string,
-        number: number,
+        {owner, repo, number}: {owner: string; repo: string; number: number},
         pr: NonNullable<GithubWebhookPayload['pull_request']>,
         files: PullRequestFile[] | undefined,
     ): PullRequestStateEvent {
