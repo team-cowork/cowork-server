@@ -16,6 +16,8 @@ const mockJwtService = {
     verifyAsync: jest.fn(),
 };
 
+type HandshakeMiddleware = (socket: unknown, next: (error?: Error) => void) => void;
+
 const mockSocket = (authToken?: string, headers: Record<string, string> = {}) => ({
     id: 'socket-1',
     handshake: {auth: {token: authToken}, headers},
@@ -110,13 +112,15 @@ describe('ChatGateway', () => {
     });
 
     describe('handshake 인증', () => {
-        // afterInit이 등록한 handshake 미들웨어를 실행해 next에 전달된 오류(connect_error)를 돌려준다.
+        // Gateway의 afterInit이 등록한 handshake 미들웨어를 실행해 next에 전달된 오류(connect_error)를 돌려준다.
         const handshake = async (client: ReturnType<typeof mockSocket>): Promise<Error | undefined> => {
-            const server = {use: jest.fn()};
+            const server = {use: jest.fn<void, [HandshakeMiddleware]>()};
             gateway.afterInit(server as never);
             gateway.onModuleDestroy();
-            const middleware = server.use.mock.calls[0][0] as (socket: unknown, next: (error?: Error) => void) => void;
-            return new Promise((resolve) => middleware(client, resolve));
+            const [middleware] = server.use.mock.calls[0];
+            return new Promise<Error | undefined>(resolve => {
+                middleware(client, resolve);
+            });
         };
 
         it('Gateway가 주입한 X-User-Id/X-User-Role 헤더가 있으면 이를 우선 신뢰한다', async () => {
@@ -129,7 +133,8 @@ describe('ChatGateway', () => {
 
         it('X-User-Id 헤더가 유효하지 않으면 connect_error로 거절한다', async () => {
             const client = mockSocket(undefined, {'x-user-id': 'not-a-number'});
-            expect((await handshake(client))?.message).toBe('인증 실패: X-User-Id 헤더가 유효하지 않습니다');
+            const error = await handshake(client);
+            expect(error?.message).toBe('인증 실패: X-User-Id 헤더가 유효하지 않습니다');
         });
 
         it('헤더가 없으면 auth.token의 JWT를 직접 검증해 연결한다', async () => {
@@ -141,19 +146,22 @@ describe('ChatGateway', () => {
 
         it('헤더도 토큰도 없이 연결하면 connect_error로 거절한다', async () => {
             const client = mockSocket(undefined);
-            expect((await handshake(client))?.message).toBe('인증 실패: 인증 정보가 전달되지 않았습니다');
+            const error = await handshake(client);
+            expect(error?.message).toBe('인증 실패: 인증 정보가 전달되지 않았습니다');
         });
 
         it('유효하지 않은 토큰으로 연결하면 connect_error로 거절한다', async () => {
             mockJwtService.verifyAsync.mockRejectedValue(new Error('Invalid token'));
             const client = mockSocket('invalid-token');
-            expect((await handshake(client))?.message).toBe('인증 실패: Invalid token');
+            const error = await handshake(client);
+            expect(error?.message).toBe('인증 실패: Invalid token');
         });
 
         it('Projection 동기화가 끝나지 않았으면 인증 전에 connect_error로 거절한다', async () => {
             mockProjectionReadiness.isReady.mockReturnValue(false);
             const client = mockSocket('valid-token');
-            expect((await handshake(client))?.message).toBe('Kafka projections are synchronizing');
+            const error = await handshake(client);
+            expect(error?.message).toBe('Kafka projections are synchronizing');
             expect(mockJwtService.verifyAsync).not.toHaveBeenCalled();
         });
     });
