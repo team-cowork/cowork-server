@@ -125,7 +125,7 @@ async function bootstrap() {
             + '```js\n'
             + 'io(url, { auth: { token: "<JWT>" } })\n'
             + '```\n'
-            + '인증 실패 시 서버는 `exception` 이벤트를 emit한 후 연결을 끊습니다.',
+            + '인증은 handshake에서 확인하므로 실패하면 `connect` 없이 `connect_error`(message `인증 실패: ...`)만 전달됩니다.',
         )
         .setVersion('20261021.1')
         .addServer('/api/chat', 'Gateway')
