@@ -16,6 +16,7 @@ import {REDIS_CLIENT} from '../../constants';
 import {githubCacheKeys} from '../../github.cache';
 import {PullRequestService} from '../../pull-request/pull-request.service';
 import type {PullRequestFileState, PullRequestStateEvent} from '../kafka/event/pull-request-state';
+import {toRepoIdentity} from '../kafka/event/repo-identity';
 import {GithubReadModelEventProducers} from '../kafka/github-read-model-event-producers';
 import {toPullRequestFileStates} from '../kafka/pull-request-file-state.mapper';
 import {RepoEventProducer} from '../kafka/repo-event.producer';
@@ -213,7 +214,8 @@ export class GithubWebhookController {
         const sourceOccurredAt = new Date().toISOString();
         // 이름 변경(renamed)·이전(transferred)은 projection 키(owner/repo)가 바뀌므로 이전 키를 삭제 처리한다.
         const previousFullName = this.previousRepoFullName(payload.changes, owner, repo);
-        if (previousFullName !== fullName) {
+        // 대소문자만 바뀐 경우는 projection 키가 같으므로 이전 키를 삭제하지 않는다.
+        if (toRepoIdentity(previousFullName) !== toRepoIdentity(fullName)) {
             await this.sendRepoState({
                 installationId, fullName: previousFullName, isPrivate, deleted: true, sourceOccurredAt,
             });
@@ -367,7 +369,8 @@ export class GithubWebhookController {
         const sourceOccurredAt = new Date().toISOString();
         // 라벨 projection은 이름이 키라, 이름이 바뀌면 이전 이름 행을 삭제 처리한다.
         const previousName = payload.action === 'edited' ? payload.changes?.name?.from : undefined;
-        if (previousName !== undefined && previousName !== label.name) {
+        // GitHub 라벨 이름도 대소문자를 구분하지 않아, 대소문자만 바뀐 경우는 같은 projection 행이다.
+        if (previousName !== undefined && previousName.toLowerCase() !== label.name.toLowerCase()) {
             await this.readModelProducers.label.send({
                 owner,
                 repo,
