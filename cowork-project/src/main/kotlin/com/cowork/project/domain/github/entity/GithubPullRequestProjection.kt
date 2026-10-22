@@ -12,6 +12,7 @@ import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.Lob
 import jakarta.persistence.Table
+import org.hibernate.annotations.BatchSize
 import java.time.Instant
 
 @Embeddable
@@ -80,6 +81,7 @@ class GithubPullRequestProjection(
     var htmlUrl: String,
 
     @ElementCollection(fetch = FetchType.EAGER)
+    @BatchSize(size = 100)
     @CollectionTable(name = "tb_github_pr_projection_labels", joinColumns = [JoinColumn(name = "pr_id")])
     @Column(name = "label", length = 100)
     var labels: MutableList<String> = mutableListOf(),
@@ -96,7 +98,7 @@ class GithubPullRequestProjection(
     @Column(name = "github_updated_at", nullable = false, length = 40)
     var githubUpdatedAt: String,
 
-    @ElementCollection(fetch = FetchType.EAGER)
+    @ElementCollection(fetch = FetchType.LAZY)
     @CollectionTable(name = "tb_github_pr_projection_files", joinColumns = [JoinColumn(name = "pr_id")])
     var files: MutableList<GithubPullRequestProjectionFile> = mutableListOf(),
 
