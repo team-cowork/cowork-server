@@ -1,0 +1,189 @@
+import {Inject, Injectable, Logger} from '@nestjs/common';
+import type Redis from 'ioredis';
+import {REDIS_CLIENT} from '../constants';
+import {githubCacheKeys} from '../github.cache';
+import {IssueHttpService} from '../issue-http/issue-http.service';
+import {LabelHttpService} from '../label-http/label-http.service';
+import {PullRequestService} from '../pull-request/pull-request.service';
+import {InstallationApiClient} from './client/installation-api.client';
+import {BackfillCompletedProducer} from './kafka/backfill-completed.producer';
+import {IssueCommentStateEvent} from './kafka/event/issue-comment-state';
+import {GithubReadModelEventProducers} from './kafka/github-read-model-event-producers';
+import {toPullRequestFileStates} from './kafka/pull-request-file-state.mapper';
+
+/**
+ Installation이 새로 연결되거나 repo가 추가될 때, webhook이 닿기 전 기존 repo/PR/이슈/댓글/라벨
+ 전체를 한 번 Kafka로 publish한다. webhook은 이 시점 이후의 변경분만 전달하므로, 이 전체 스냅샷이
+ cowork-project 쪽 projection의 초기 상태가 된다.
+
+ MVP: 각 목록 조회는 `per_page=100` 단일 페이지만 사용한다(기존 HTTP 라우트와 동일한 제약).
+ 100개를 초과하는 repo/PR/이슈가 있는 installation은 초과분이 backfill되지 않으며, 이는 webhook
+ 기반 페이지네이션 지원과 함께 후속 과제로 남긴다.
+ */
+@Injectable()
+export class GithubBackfillService {
+    private readonly logger = new Logger(GithubBackfillService.name);
+
+    // eslint-disable-next-line max-params -- NestJS 생성자 주입이라 의존성 수만큼 파라미터가 필요하다.
+    constructor(
+        private readonly installationApiClient: InstallationApiClient,
+        private readonly issueHttpService: IssueHttpService,
+        private readonly pullRequestService: PullRequestService,
+        private readonly labelHttpService: LabelHttpService,
+        private readonly producers: GithubReadModelEventProducers,
+        private readonly backfillCompletedProducer: BackfillCompletedProducer,
+        @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    ) {}
+
+    async runFullSync(installationId: number, orgLogin: string): Promise<void> {
+        const occurredAt = new Date().toISOString();
+        const repos = await this.installationApiClient.listRepositories(orgLogin);
+        this.logger.log(
+            `Starting GitHub backfill [installationId=${installationId}, org=${orgLogin}, repos=${repos.length}]`,
+        );
+
+        for (const repo of repos) {
+            const [owner, repoName] = repo.fullName.split('/', 2);
+            // eslint-disable-next-line no-await-in-loop -- 각 repo는 GitHub API rate limit을 공유하므로 순차 처리한다.
+            await this.syncRepo({
+                installationId, owner, repo: repoName, isPrivate: repo.private, occurredAt,
+            });
+        }
+
+        await this.backfillCompletedProducer.send({
+            installationId,
+            orgLogin,
+            completedAt: new Date().toISOString(),
+        });
+        this.logger.log(
+            `Finished GitHub backfill [installationId=${installationId}, org=${orgLogin}]`,
+        );
+    }
+
+    private async syncRepo(parameters: {
+        installationId: number;
+        owner: string;
+        repo: string;
+        isPrivate: boolean;
+        occurredAt: string;
+    }): Promise<void> {
+        const {installationId, owner, repo, isPrivate, occurredAt} = parameters;
+        await this.producers.repo.send({
+            installationId,
+            owner,
+            repo,
+            fullName: `${owner}/${repo}`,
+            private: isPrivate,
+            htmlUrl: `https://github.com/${owner}/${repo}`,
+            deleted: false,
+            sourceOccurredAt: occurredAt,
+        });
+
+        await this.syncLabels(owner, repo, occurredAt);
+        // 이슈/PR/댓글은 webhook과 같은 기준(엔티티 updated_at)을 버전으로 써야 이후 webhook 변경·삭제가
+        // 백필 시각보다 오래된 이벤트로 버려지지 않는다. 라벨/repo는 updated_at이 없어 백필 시각을 쓴다.
+        await this.syncIssues(owner, repo);
+        await this.syncPullRequests(owner, repo);
+    }
+
+    private async syncLabels(owner: string, repo: string, occurredAt: string): Promise<void> {
+        const labels = await this.labelHttpService.listLabels(owner, repo);
+        await Promise.all(labels.map(async label => this.producers.label.send({
+            owner,
+            repo,
+            name: label.name,
+            color: label.color,
+            deleted: false,
+            sourceOccurredAt: occurredAt,
+        })));
+    }
+
+    private async syncIssues(owner: string, repo: string): Promise<void> {
+        const issues = await this.issueHttpService.listIssues(owner, repo, 'all');
+        /* eslint-disable no-await-in-loop -- 이슈마다 댓글 조회가 나가므로 secondary rate limit을 피하려 순차 처리한다. */
+        for (const issue of issues) {
+            await this.producers.issue.send({
+                owner,
+                repo,
+                number: issue.number,
+                title: issue.title,
+                author: issue.author,
+                state: issue.state,
+                htmlUrl: issue.htmlUrl,
+                labels: issue.labels,
+                createdAt: issue.createdAt,
+                updatedAt: issue.updatedAt,
+                deleted: false,
+                sourceOccurredAt: issue.updatedAt,
+            });
+            await this.syncComments({
+                owner, repo, parentNumber: issue.number, parentType: 'ISSUE',
+            });
+        }
+        /* eslint-enable no-await-in-loop */
+    }
+
+    private async syncPullRequests(owner: string, repo: string): Promise<void> {
+        const summaries = await this.pullRequestService.listPullRequests(owner, repo, 'all');
+        /* eslint-disable no-await-in-loop -- PR마다 상세/파일/댓글 조회가 나가므로 secondary rate limit을 피하려 순차 처리한다. */
+        for (const summary of summaries) {
+            const detail = await this.pullRequestService.getPullRequestDetail(owner, repo, summary.number);
+            const files = await this.pullRequestService.listPullRequestFiles(owner, repo, summary.number);
+            const fileStates = toPullRequestFileStates(files);
+            // Webhook이 files 없는 이벤트를 받았을 때도(labeled 등) 실어 보낼 수 있도록, 백필이
+            // 조회한 최신 파일 목록도 webhook과 같은 캐시에 남긴다 — compaction이 이 백필 메시지를
+            // 치워도 파일 정보가 사라지지 않게 하기 위함이다.
+            await this.redis.set(
+                githubCacheKeys.pullRequestFiles(owner, repo, summary.number),
+                JSON.stringify(fileStates),
+            );
+            await this.producers.pullRequest.send({
+                owner,
+                repo,
+                number: summary.number,
+                title: detail.title,
+                body: detail.body,
+                author: summary.author,
+                state: summary.state,
+                draft: summary.draft,
+                merged: summary.merged,
+                htmlUrl: summary.htmlUrl,
+                labels: summary.labels,
+                headRef: detail.headRef,
+                baseRef: detail.baseRef,
+                createdAt: summary.createdAt,
+                updatedAt: summary.updatedAt,
+                sourceOccurredAt: summary.updatedAt,
+                files: fileStates,
+            });
+            await this.syncComments({
+                owner, repo, parentNumber: summary.number, parentType: 'PULL_REQUEST',
+            });
+        }
+        /* eslint-enable no-await-in-loop */
+    }
+
+    private async syncComments(parameters: {
+        owner: string;
+        repo: string;
+        parentNumber: number;
+        parentType: IssueCommentStateEvent['parentType'];
+    }): Promise<void> {
+        const {owner, repo, parentNumber, parentType} = parameters;
+        const comments = await this.issueHttpService.listComments(owner, repo, parentNumber);
+        await Promise.all(comments.map(async comment => this.producers.issueComment.send({
+            owner,
+            repo,
+            commentId: comment.id,
+            parentType,
+            parentNumber,
+            author: comment.author,
+            body: comment.body,
+            htmlUrl: comment.htmlUrl,
+            createdAt: comment.createdAt,
+            updatedAt: comment.updatedAt,
+            deleted: false,
+            sourceOccurredAt: comment.updatedAt,
+        })));
+    }
+}
