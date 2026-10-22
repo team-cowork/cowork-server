@@ -62,15 +62,9 @@ export class GithubSetupController {
                 orgLogin,
                 revision,
             });
-            // Repo/PR/이슈/댓글/라벨 projection 초기 데이터를 채운다. 설치 콜백 응답을
-            // 지연시키지 않도록 완료를 기다리지 않고, 실패는 로그만 남긴다 — 다음 webhook
-            // 이벤트가 각 항목을 다시 최신화한다.
-            this.backfillService.runFullSync(installationId, orgLogin).catch((error: unknown) => {
-                this.logger.error(
-                    `GitHub backfill failed [installationId=${installationId}, org=${orgLogin}]`,
-                    error instanceof Error ? error.stack : String(error),
-                );
-            });
+            // Repo 목록 projection을 바로 채운다. 이슈·PR 등은 cowork-project가 프로젝트에 연결된 repo만
+            // github.sync.command.v1로 요청한다. 대기열에 넣기만 하므로 콜백 응답이 늦어지지 않는다.
+            void this.backfillService.enqueue({type: 'ORG_REPOSITORIES', installationId, owner: orgLogin});
             return this.page(
                 'GitHub 연동이 완료되었습니다. 이 창을 닫고 cowork로 돌아가세요.',
             );

@@ -7,6 +7,7 @@ import {
 import {Kafka, Producer} from 'kafkajs';
 import {AppConfigService} from '../../../config/app-config.service';
 import {PullRequestStateEvent} from './event/pull-request-state';
+import {type SyncCompletedMarker, syncCompletedKey} from './event/sync-completed';
 
 export const PULL_REQUEST_STATE_TOPIC = 'github.pull-request.state.v1';
 
@@ -38,6 +39,18 @@ export class PullRequestStateProducer implements OnModuleInit, OnModuleDestroy {
                 {
                     key: `${event.owner}/${event.repo}#${event.number}`,
                     value: JSON.stringify(event),
+                },
+            ],
+        });
+    }
+
+    async sendSyncCompleted(marker: SyncCompletedMarker): Promise<void> {
+        await this.producer.send({
+            topic: PULL_REQUEST_STATE_TOPIC,
+            messages: [
+                {
+                    key: syncCompletedKey(marker),
+                    value: JSON.stringify(marker),
                 },
             ],
         });

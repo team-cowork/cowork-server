@@ -7,6 +7,7 @@ import {
 import {Kafka, Producer} from 'kafkajs';
 import {AppConfigService} from '../../../config/app-config.service';
 import {LabelStateEvent} from './event/label-state';
+import {type SyncCompletedMarker, syncCompletedKey} from './event/sync-completed';
 
 export const LABEL_STATE_TOPIC = 'github.label.state.v1';
 
@@ -38,6 +39,18 @@ export class LabelStateProducer implements OnModuleInit, OnModuleDestroy {
                 {
                     key: `${event.owner}/${event.repo}:${event.name}`,
                     value: JSON.stringify(event),
+                },
+            ],
+        });
+    }
+
+    async sendSyncCompleted(marker: SyncCompletedMarker): Promise<void> {
+        await this.producer.send({
+            topic: LABEL_STATE_TOPIC,
+            messages: [
+                {
+                    key: syncCompletedKey(marker),
+                    value: JSON.stringify(marker),
                 },
             ],
         });
