@@ -9,7 +9,7 @@
     "gateway": {
       "url": "{host}/ws/chat",
       "protocol": "ws",
-      "description": "Gateway WebSocket 진입점",
+      "description": "Gateway WebSocket 진입점. 인증·준비 상태 확인은 handshake에서 하므로 실패하면 connect 없이 connect_error(message)만 전달됩니다.",
       "variables": {
         "host": {
           "default": "localhost:8080"
@@ -89,7 +89,7 @@
       "ProjectUpdated": { "name": "project:updated", "title": "프로젝트 수정", "payload": { "$ref": "#/components/schemas/ProjectEvent" } },
       "ProjectDeleted": { "name": "project:deleted", "title": "프로젝트 삭제", "payload": { "$ref": "#/components/schemas/ProjectEvent" } },
       "Error": { "name": "error", "title": "요청 오류", "payload": { "$ref": "#/components/schemas/ErrorPayload" } },
-      "Exception": { "name": "exception", "title": "연결 인증 실패", "payload": { "$ref": "#/components/schemas/ErrorPayload" } }
+      "Exception": { "name": "exception", "title": "이벤트 처리 오류", "payload": { "$ref": "#/components/schemas/ErrorPayload" } }
     },
     "schemas": {
       "ChannelTarget": {
