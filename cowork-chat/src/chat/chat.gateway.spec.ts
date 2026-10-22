@@ -26,6 +26,7 @@ const mockSocket = (authToken?: string, headers: Record<string, string> = {}) =>
     emit: jest.fn(),
     to: jest.fn(() => ({emit: jest.fn()})),
     disconnect: jest.fn(),
+    use: jest.fn(),
 });
 
 const mockChatService = {
@@ -108,46 +109,61 @@ describe('ChatGateway', () => {
         );
     });
 
-    describe('handleConnection', () => {
+    describe('handshake 인증', () => {
+        // afterInit이 등록한 handshake 미들웨어를 실행해 next에 전달된 오류(connect_error)를 돌려준다.
+        const handshake = async (client: ReturnType<typeof mockSocket>): Promise<Error | undefined> => {
+            const server = {use: jest.fn()};
+            gateway.afterInit(server as never);
+            gateway.onModuleDestroy();
+            const middleware = server.use.mock.calls[0][0] as (socket: unknown, next: (error?: Error) => void) => void;
+            return new Promise((resolve) => middleware(client, resolve));
+        };
+
         it('Gateway가 주입한 X-User-Id/X-User-Role 헤더가 있으면 이를 우선 신뢰한다', async () => {
             const client = mockSocket(undefined, {'x-user-id': '7', 'x-user-role': 'ADMIN'});
-            await gateway.handleConnection(client as unknown as ChatSocket);
+            expect(await handshake(client)).toBeUndefined();
             expect(client.data.userId).toBe(7);
             expect(client.data.userRole).toBe('ADMIN');
-            expect(client.join).toHaveBeenCalledWith('user:7');
             expect(mockJwtService.verifyAsync).not.toHaveBeenCalled();
-            expect(client.disconnect).not.toHaveBeenCalled();
         });
 
-        it('X-User-Id 헤더가 유효하지 않으면 exception 이벤트를 emit하고 disconnect된다', async () => {
+        it('X-User-Id 헤더가 유효하지 않으면 connect_error로 거절한다', async () => {
             const client = mockSocket(undefined, {'x-user-id': 'not-a-number'});
-            await gateway.handleConnection(client as unknown as ChatSocket);
-            expect(client.emit).toHaveBeenCalledWith('exception', {message: '인증 실패: X-User-Id 헤더가 유효하지 않습니다'});
-            expect(client.disconnect).toHaveBeenCalled();
+            expect((await handshake(client))?.message).toBe('인증 실패: X-User-Id 헤더가 유효하지 않습니다');
         });
 
         it('헤더가 없으면 auth.token의 JWT를 직접 검증해 연결한다', async () => {
             const client = mockSocket('valid-token');
-            await gateway.handleConnection(client as unknown as ChatSocket);
+            expect(await handshake(client)).toBeUndefined();
             expect(client.data.userId).toBe(42);
             expect(client.data.userRole).toBe('MEMBER');
-            expect(client.join).toHaveBeenCalledWith('user:42');
-            expect(client.disconnect).not.toHaveBeenCalled();
         });
 
-        it('헤더도 토큰도 없이 연결하면 exception 이벤트를 emit하고 disconnect된다', async () => {
+        it('헤더도 토큰도 없이 연결하면 connect_error로 거절한다', async () => {
             const client = mockSocket(undefined);
-            await gateway.handleConnection(client as unknown as ChatSocket);
-            expect(client.emit).toHaveBeenCalledWith('exception', {message: '인증 실패: 인증 정보가 전달되지 않았습니다'});
-            expect(client.disconnect).toHaveBeenCalled();
+            expect((await handshake(client))?.message).toBe('인증 실패: 인증 정보가 전달되지 않았습니다');
         });
 
-        it('유효하지 않은 토큰으로 연결하면 exception 이벤트를 emit하고 disconnect된다', async () => {
+        it('유효하지 않은 토큰으로 연결하면 connect_error로 거절한다', async () => {
             mockJwtService.verifyAsync.mockRejectedValue(new Error('Invalid token'));
             const client = mockSocket('invalid-token');
+            expect((await handshake(client))?.message).toBe('인증 실패: Invalid token');
+        });
+
+        it('Projection 동기화가 끝나지 않았으면 인증 전에 connect_error로 거절한다', async () => {
+            mockProjectionReadiness.isReady.mockReturnValue(false);
+            const client = mockSocket('valid-token');
+            expect((await handshake(client))?.message).toBe('Kafka projections are synchronizing');
+            expect(mockJwtService.verifyAsync).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('handleConnection', () => {
+        it('인증된 소켓을 개인 room에 넣는다', async () => {
+            const client = mockSocket('valid-token');
+            client.data.userId = 42;
             await gateway.handleConnection(client as unknown as ChatSocket);
-            expect(client.emit).toHaveBeenCalledWith('exception', {message: '인증 실패: Invalid token'});
-            expect(client.disconnect).toHaveBeenCalled();
+            expect(client.join).toHaveBeenCalledWith('user:42');
         });
     });
 
@@ -233,6 +249,7 @@ describe('ChatGateway', () => {
     describe('connection state recovery', () => {
         it('복원된 연결이면 복원된 room을 현재 권한으로 다시 검증한다', async () => {
             const client = Object.assign(mockSocket('valid-token'), {recovered: true});
+            client.data.userId = 42;
 
             await gateway.handleConnection(client as unknown as ChatSocket);
 
@@ -243,11 +260,11 @@ describe('ChatGateway', () => {
         it('복원 room 재검증이 실패해도 인증 실패로 연결을 끊지 않는다', async () => {
             mockChatService.evictUnauthorizedRooms.mockRejectedValueOnce(new Error('mongo down'));
             const client = Object.assign(mockSocket('valid-token'), {recovered: true});
+            client.data.userId = 42;
 
             await gateway.handleConnection(client as unknown as ChatSocket);
 
             expect(client.disconnect).not.toHaveBeenCalled();
-            expect(client.emit).not.toHaveBeenCalledWith('exception', expect.anything());
         });
     });
 
