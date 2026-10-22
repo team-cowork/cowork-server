@@ -8,11 +8,8 @@ SERVICE_NAME="cowork-notification"
 SERVICE_WORKDIR="$PROJECT_ROOT/cowork-notification"
 SERVICE_COMMAND=(
   bash -lc
-  'export DB_HOST="${DB_HOST:-localhost}"
-   export DB_PORT="${DB_PORT:-3306}"
-   export DB_NAME="${DB_NAME:-cowork_notification}"
-   export DB_USERNAME="${DB_USERNAME:-${MYSQL_USER}}"
-   export DB_PASSWORD="${DB_PASSWORD:-${MYSQL_PASSWORD}}"
+  'export DB_PATH="${DB_PATH:-$PWD/data/notification.db}"
+   mkdir -p "$(dirname "$DB_PATH")"
    export CONFIG_SERVER_URL="http://localhost:8761"
    export APP_CONFIG_PROFILE="local"
    export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"

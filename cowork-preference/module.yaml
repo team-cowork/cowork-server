@@ -6,13 +6,10 @@ dependencies:
   - io.vertx:vertx-web
   # Kotlin Toolchain does not currently package vertx-web's required auth-common transitive dependency.
   - io.vertx:vertx-auth-common
-  - io.vertx:vertx-lang-kotlin
   - io.vertx:vertx-lang-kotlin-coroutines
-  - io.vertx:vertx-config
   - io.vertx:vertx-pg-client
   - io.vertx:vertx-redis-client
   - io.vertx:vertx-kafka-client
-  - io.vertx:vertx-service-discovery
   - io.vertx:vertx-micrometer-metrics
   - io.micrometer:micrometer-registry-prometheus:1.17.1
   - com.netflix.eureka:eureka-client:2.0.6
@@ -22,11 +19,9 @@ dependencies:
   - org.apache.logging.log4j:log4j-core:2.26.1
   - org.apache.logging.log4j:log4j-layout-template-json:2.26.1
   - org.apache.logging.log4j:log4j-slf4j2-impl:2.26.1
-  - $kotlin.reflect
   - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0
 
 test-dependencies:
-  - io.vertx:vertx-junit5:5.1.8
   - io.mockk:mockk:1.14.11
   - io.kotest:kotest-runner-junit5-jvm:6.2.5
   - io.kotest:kotest-assertions-core-jvm:6.2.5

@@ -1,6 +1,7 @@
 import {Test, type TestingModule} from '@nestjs/testing';
 import {GithubAuthService} from '../../auth/github-auth.service';
 import {REDIS_CLIENT} from '../../constants';
+import {GithubBackfillService} from '../github-backfill.service';
 import {TeamGithubProducer} from '../kafka/team-github.producer';
 import {GithubSetupController} from './github-setup.controller';
 
@@ -8,11 +9,13 @@ describe('GithubSetupController', () => {
     let controller: GithubSetupController;
     let authService: {getInstallationAccountLogin: jest.Mock};
     let producer: {send: jest.Mock};
+    let backfillService: {enqueue: jest.Mock};
     let redis: {incr: jest.Mock};
 
     beforeEach(async () => {
         authService = {getInstallationAccountLogin: jest.fn()};
         producer = {send: jest.fn()};
+        backfillService = {enqueue: jest.fn().mockResolvedValue(undefined)};
         redis = {incr: jest.fn().mockResolvedValue(5)};
 
         const module: TestingModule = await Test.createTestingModule({
@@ -20,6 +23,7 @@ describe('GithubSetupController', () => {
             providers: [
                 {provide: GithubAuthService, useValue: authService},
                 {provide: TeamGithubProducer, useValue: producer},
+                {provide: GithubBackfillService, useValue: backfillService},
                 {provide: REDIS_CLIENT, useValue: redis},
             ],
         }).compile();
@@ -54,6 +58,7 @@ describe('GithubSetupController', () => {
             orgLogin: 'my-org',
             revision: 5,
         });
+        expect(backfillService.enqueue).toHaveBeenCalledWith({type: 'ORG_REPOSITORIES', installationId: 42, owner: 'my-org'});
     });
 
     it('state가 없으면 이벤트를 발행하지 않고 연결 실패 안내 페이지를 반환한다', async () => {
@@ -62,6 +67,7 @@ describe('GithubSetupController', () => {
         const result = await controller.handle('42', 'install');
 
         expect(producer.send).not.toHaveBeenCalled();
+        expect(backfillService.enqueue).not.toHaveBeenCalled();
         expect(result).toContain('cowork 팀과 연결하지 못했습니다');
     });
 
