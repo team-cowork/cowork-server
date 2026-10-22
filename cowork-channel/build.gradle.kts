@@ -2,7 +2,7 @@ plugins {
     id("cowork.kotlin-jpa-conventions")
 }
 
-version = "20261021.1"
+version = "20261023.0"
 
 repositories {
     maven { url = uri("https://jitpack.io") }
