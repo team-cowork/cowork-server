@@ -17,8 +17,9 @@ class GithubRepoReader(
         return repoProjectionRepository.findByOwnerAndDeletedFalse(orgLogin).map { it.toResDto() }
     }
 
+    // owner/repo는 식별용으로 소문자로 정규화돼 있으므로, 화면에 보일 이름은 원래 대소문자의 fullName에서 꺼낸다.
     private fun GithubRepoProjection.toResDto() = GithubRepoSummaryResDto(
-        name = repo,
+        name = fullName.substringAfter('/'),
         fullName = fullName,
         private = private,
         htmlUrl = htmlUrl,
