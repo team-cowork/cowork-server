@@ -50,6 +50,18 @@ export class ChatMessageQuarantineRepository {
         return this.model.findById(id).lean<ChatMessageQuarantineRecord>();
     }
 
+    /**
+    원문에는 메시지 본문과 첨부 URL이 들어 있어 목록에서 제외한다.
+    */
+    async findRecent(status: ChatMessageQuarantineStatus | undefined, limit: number): Promise<ChatMessageQuarantineRecord[]> {
+        return this.model
+            .find(status === undefined ? {} : {status})
+            .sort({lastObservedAt: -1})
+            .limit(limit)
+            .select({payload: 0, eventKey: 0})
+            .lean<ChatMessageQuarantineRecord[]>();
+    }
+
     async requestReprocess(id: string): Promise<boolean> {
         const result = await this.model.updateOne(
             {
