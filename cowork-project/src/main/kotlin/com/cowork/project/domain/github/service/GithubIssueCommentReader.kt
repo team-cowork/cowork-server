@@ -13,12 +13,17 @@ class GithubIssueCommentReader(
     private val callExecutor: GithubAppCallExecutor,
 ) {
     fun listComments(owner: String, repo: String, number: Int): List<GithubCommentResDto> {
-        val projections = repository.findByOwnerAndRepoAndParentNumberAndDeletedFalse(owner, repo, number)
+        val projections = repository.findByOwnerAndRepoAndParentNumberAndDeletedFalseOrderByGithubCreatedAtAsc(
+            owner,
+            repo,
+            number,
+        )
         if (projections.isEmpty()) {
             return callExecutor.execute { githubAppClient.listIssueComments(owner, repo, number) }
         }
 
-        return projections.map { it.toResDto() }
+        // GitHub API 응답(생성일 오름차순, per_page=100)과 같은 순서·건수를 유지한다.
+        return projections.take(LIST_LIMIT).map { it.toResDto() }
     }
 
     /** 댓글 작성자 확인(수정/삭제 권한 검사)을 위한 단건 조회. */
@@ -39,4 +44,8 @@ class GithubIssueCommentReader(
         createdAt = githubCreatedAt,
         updatedAt = githubUpdatedAt,
     )
+
+    private companion object {
+        const val LIST_LIMIT = 100
+    }
 }
