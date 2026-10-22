@@ -29,6 +29,17 @@ export class PullRequestHttpController {
         );
     }
 
+    @Get('live-status')
+    async getLiveStatus(
+        @Param('owner') owner: string,
+        @Param('repo') repo: string,
+        @Param('number', ParseIntPipe) prNumber: number,
+    ) {
+        return this.handle(async () =>
+            this.pullRequestService.getPullRequestLiveStatus(owner, repo, prNumber),
+        );
+    }
+
     @Post('merge')
     async merge(
         @Param('owner') owner: string,
