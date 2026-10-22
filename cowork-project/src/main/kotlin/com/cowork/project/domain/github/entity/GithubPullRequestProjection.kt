@@ -100,14 +100,18 @@ class GithubPullRequestProjection(
     @CollectionTable(name = "tb_github_pr_projection_files", joinColumns = [JoinColumn(name = "pr_id")])
     var files: MutableList<GithubPullRequestProjectionFile> = mutableListOf(),
 
+    @Column(name = "files_source_occurred_at", nullable = false)
+    var filesSourceOccurredAt: Instant = Instant.EPOCH,
+
     @Column(name = "source_occurred_at", nullable = false)
     var sourceOccurredAt: Instant,
 ) {
     fun apply(event: GithubPullRequestStateEvent): Boolean {
         val version = event.sourceOccurredAt.toProjectionPrecision()
+        val filesApplied = applyFiles(event, version)
         val currentVersion = sourceOccurredAt.toProjectionPrecision()
         if (currentVersion.isAfter(version)) {
-            return false
+            return filesApplied
         }
 
         title = event.title
@@ -122,12 +126,22 @@ class GithubPullRequestProjection(
         baseRef = event.baseRef
         githubCreatedAt = event.createdAt
         githubUpdatedAt = event.updatedAt
-        event.files?.let { newFiles ->
-            files = newFiles.map {
-                GithubPullRequestProjectionFile(it.filename, it.status, it.additions, it.deletions, it.patch)
-            }.toMutableList()
-        }
         sourceOccurredAt = version
+        return true
+    }
+
+    // files는 opened/synchronize/reopened에만 실리므로 별도 버전으로 관리한다 — 늦게 도착한 synchronize가
+    // 그 사이 먼저 적용된 labeled 같은 이벤트에 밀려 파일 갱신까지 버려지지 않게 한다.
+    private fun applyFiles(event: GithubPullRequestStateEvent, version: Instant): Boolean {
+        val newFiles = event.files ?: return false
+        if (filesSourceOccurredAt.toProjectionPrecision().isAfter(version)) {
+            return false
+        }
+
+        files = newFiles.map {
+            GithubPullRequestProjectionFile(it.filename, it.status, it.additions, it.deletions, it.patch)
+        }.toMutableList()
+        filesSourceOccurredAt = version
         return true
     }
 
