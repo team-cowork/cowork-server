@@ -12,10 +12,7 @@
     "test:cov": "npm run test -- --coverage",
     "lint": "xo \"src/**/*.ts\" \"*.config.{js,mjs}\"",
     "lint:fix": "npm run lint -- --fix",
-    "lint:circular": "npx --yes madge --circular --extensions ts src",
-    "ops:chat-message-quarantine": "ts-node src/ops/chat-message-quarantine.cli.ts",
-    "ops:message-search-index": "ts-node src/ops/message-search-index.cli.ts",
-    "ops:message-scope-audit": "ts-node src/ops/message-scope-audit.cli.ts"
+    "lint:circular": "npx --yes madge --circular --extensions ts src"
   },
   "keywords": [],
   "author": "",
@@ -43,7 +40,6 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "dicoshot-nest": "^0.6.0",
-    "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "graphql": "^16.14.2",
     "ioredis": "^5.11.1",
@@ -58,12 +54,10 @@
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
-    "@nestjs/testing": "^12.1.2",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/mime-types": "^3.0.1",
     "@types/node": "^26.6.1",
-    "eslint": "^10.10.0",
     "globals": "^17.12.0",
     "jest": "^30.5.1",
     "ts-jest": "^29.4.12",
