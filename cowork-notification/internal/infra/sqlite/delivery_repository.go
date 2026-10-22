@@ -1,4 +1,4 @@
-package mysql
+package sqlite
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 
 	"github.com/cowork/cowork-notification/internal/domain/delivery"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type deliveryRow struct {
@@ -92,7 +91,7 @@ func (r *DeliveryRepository) ResumeOrCreate(
 	var toSend []delivery.Target
 	err = r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var existing []deliveryRow
-		if err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).
+		if err := tx.
 			Where("event_id = ? AND installation_id IN ?", eventID, installationIDs).
 			Find(&existing).Error; err != nil {
 			return err
@@ -204,7 +203,7 @@ func (r *DeliveryRepository) FinalizeFailure(
 	var status delivery.Status
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row deliveryRow
-		if err := tx.Clauses(clause.Locking{Strength: clause.LockingStrengthUpdate}).
+		if err := tx.
 			Where("event_id = ? AND installation_id = ?", eventID, installationID).
 			Take(&row).Error; err != nil {
 			return err
@@ -221,7 +220,7 @@ func (r *DeliveryRepository) FinalizeFailure(
 
 		var attempts int
 		var nextAttemptAt *time.Time
-		status, attempts, nextAttemptAt = delivery.NextAfterFailure(errClass, row.AttemptCount, now)
+		status, attempts, nextAttemptAt = delivery.NextAfterFailure(errClass, row.AttemptCount, now.UTC())
 		errClassStr := string(errClass)
 		updates := map[string]any{
 			"status":           string(status),
@@ -244,11 +243,8 @@ func (r *DeliveryRepository) ClaimDue(ctx context.Context, limit int, now time.T
 	var claimed []deliveryRow
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var due []deliveryRow
-		if err := tx.Clauses(clause.Locking{
-			Strength: clause.LockingStrengthUpdate,
-			Options:  clause.LockingOptionsSkipLocked,
-		}).
-			Where("status = ? AND next_attempt_at <= ?", string(delivery.StatusPendingRetry), now).
+		if err := tx.
+			Where("status = ? AND next_attempt_at <= ?", string(delivery.StatusPendingRetry), now.UTC()).
 			Order("next_attempt_at ASC").
 			Limit(limit).
 			Find(&due).Error; err != nil {
@@ -300,12 +296,12 @@ func (r *DeliveryRepository) FinalizeCancelled(ctx context.Context, eventID stri
 }
 
 func (r *DeliveryRepository) ReclaimStale(ctx context.Context, staleThreshold time.Duration, now time.Time) (int64, error) {
-	cutoff := now.Add(-staleThreshold)
+	cutoff := now.Add(-staleThreshold).UTC()
 	result := r.db.WithContext(ctx).Model(&deliveryRow{}).
 		Where("status = ? AND updated_at < ?", string(delivery.StatusInProgress), cutoff).
 		Updates(map[string]any{
 			"status":          string(delivery.StatusPendingRetry),
-			"next_attempt_at": now,
+			"next_attempt_at": now.UTC(),
 			// Clearing claim_token means a Finalize* call for the original (now
 			// stale) claim no longer matches and safely no-ops instead of resurrecting
 			// or overwriting whatever the row does next.
@@ -330,9 +326,13 @@ func (r *DeliveryRepository) PurgeTerminal(ctx context.Context, olderThan time.T
 	}
 	var total int64
 	for {
+		// SQLite DELETE takes no LIMIT without SQLITE_ENABLE_UPDATE_DELETE_LIMIT, so a subquery bounds the batch.
+		batch := r.db.WithContext(ctx).Model(&deliveryRow{}).
+			Select("id").
+			Where("status IN ? AND updated_at < ?", terminal, olderThan.UTC()).
+			Limit(purgeBatchSize)
 		result := r.db.WithContext(ctx).
-			Where("status IN ? AND updated_at < ?", terminal, olderThan).
-			Limit(purgeBatchSize).
+			Where("id IN (?)", batch).
 			Delete(&deliveryRow{})
 		if result.Error != nil {
 			return total, result.Error
