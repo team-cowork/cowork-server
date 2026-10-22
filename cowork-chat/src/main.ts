@@ -1,7 +1,6 @@
 import {join} from 'node:path';
 import {getHeapStatistics} from 'node:v8';
 import 'reflect-metadata';
-import 'dotenv/config';
 import {NestFactory} from '@nestjs/core';
 import {type NestExpressApplication} from '@nestjs/platform-express';
 import {Logger, ValidationPipe} from '@nestjs/common';
@@ -23,7 +22,7 @@ import {
 const ALL_PROJECTION_STREAMS = Object.keys(PROJECTION_STREAMS) as ProjectionName[];
 
 function requiredProjectionStreams(path: string): ProjectionName[] {
-    if (path.startsWith('/chat/block') || path.startsWith('/chat/admin/projections')) {
+    if (path.startsWith('/chat/block') || path.startsWith('/chat/admin/')) {
         return [];
     }
 
@@ -125,7 +124,7 @@ async function bootstrap() {
             + '```js\n'
             + 'io(url, { auth: { token: "<JWT>" } })\n'
             + '```\n'
-            + '인증 실패 시 서버는 `exception` 이벤트를 emit한 후 연결을 끊습니다.',
+            + '인증 실패 시 `connect_error`가 전달됩니다.',
         )
         .setVersion('20261021.1')
         .addServer('/api/chat', 'Gateway')
@@ -159,7 +158,7 @@ async function bootstrap() {
             || request.path === '/api'
             || request.path === '/api-json'
             || request.path === '/asyncapi.json'
-            || request.path.startsWith('/chat/admin/projections');
+            || request.path.startsWith('/chat/admin/');
         const requiredStreams = isOperationalPath ? [] : requiredProjectionStreams(request.path);
         if (!projectionReadiness.areReady(requiredStreams)) {
             const unavailableStreams = requiredStreams.filter(stream => !projectionReadiness.areReady([stream]));
