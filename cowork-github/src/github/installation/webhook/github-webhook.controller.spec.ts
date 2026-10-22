@@ -19,7 +19,7 @@ describe('GithubWebhookController', () => {
         issueComment: {send: jest.Mock};
     };
     let pullRequestService: {listPullRequestFiles: jest.Mock};
-    let redis: {incr: jest.Mock};
+    let redis: {incr: jest.Mock; get: jest.Mock; set: jest.Mock};
 
     beforeEach(async () => {
         producer = {send: jest.fn()};
@@ -32,7 +32,11 @@ describe('GithubWebhookController', () => {
             issueComment: {send: jest.fn()},
         };
         pullRequestService = {listPullRequestFiles: jest.fn().mockResolvedValue([])};
-        redis = {incr: jest.fn().mockResolvedValue(5)};
+        redis = {
+            incr: jest.fn().mockResolvedValue(5),
+            get: jest.fn().mockResolvedValue(null),
+            set: jest.fn().mockResolvedValue('OK'),
+        };
 
         const module: TestingModule = await Test.createTestingModule({
             controllers: [GithubWebhookController],
@@ -142,8 +146,18 @@ describe('GithubWebhookController', () => {
         }));
     });
 
-    it('PR state 발행이 실패해도 github.repo.event는 발행하고 ok를 반환한다', async () => {
+    it('PR state 발행이 실패하면 예외가 전파된다(재시도 대상이 되도록)', async () => {
         pullRequestService.listPullRequestFiles.mockRejectedValue(new Error('rate limited'));
+
+        await expect(controller.handle('pull_request', {
+            action: 'synchronize',
+            repository: {full_name: 'my-org/my-repo'},
+            pull_request: {number: 7, user: {login: 'octocat'}},
+        })).rejects.toThrow('rate limited');
+    });
+
+    it('알림(github.repo.event) 발행이 실패해도 ok를 반환하고 PR state는 발행된다', async () => {
+        repoEventProducer.send.mockRejectedValue(new Error('kafka down'));
 
         const result = await controller.handle('pull_request', {
             action: 'synchronize',
@@ -152,11 +166,10 @@ describe('GithubWebhookController', () => {
         });
 
         expect(result).toEqual({ok: true});
-        expect(repoEventProducer.send).toHaveBeenCalled();
-        expect(readModelProducers.pullRequest.send).not.toHaveBeenCalled();
+        expect(readModelProducers.pullRequest.send).toHaveBeenCalled();
     });
 
-    it('pull_request의 labeled 액션에서는 파일 목록을 다시 조회하지 않는다', async () => {
+    it('pull_request의 labeled 액션에서는 파일 목록을 다시 조회하지 않고, 캐시도 없으면 files를 생략한다', async () => {
         await controller.handle('pull_request', {
             action: 'labeled',
             repository: {full_name: 'my-org/my-repo'},
@@ -166,6 +179,46 @@ describe('GithubWebhookController', () => {
         expect(pullRequestService.listPullRequestFiles).not.toHaveBeenCalled();
         const [sentEvent] = readModelProducers.pullRequest.send.mock.calls[0] as [Record<string, unknown>];
         expect(sentEvent.files).toBeUndefined();
+    });
+
+    it('pull_request의 labeled 액션에서는 캐시된 파일 목록을 그대로 실어 보낸다(compaction 안전)', async () => {
+        const cachedFiles = [{
+            filename: 'a.kt', status: 'modified', additions: 1, deletions: 0, patch: null,
+        }];
+        redis.get.mockResolvedValue(JSON.stringify(cachedFiles));
+
+        await controller.handle('pull_request', {
+            action: 'labeled',
+            repository: {full_name: 'my-org/my-repo'},
+            pull_request: {number: 7, user: {login: 'octocat'}},
+        });
+
+        expect(redis.get).toHaveBeenCalledWith('github:pr-files:my-org/my-repo#7');
+        const [sentEvent] = readModelProducers.pullRequest.send.mock.calls[0] as [Record<string, unknown>];
+        expect(sentEvent.files).toEqual(cachedFiles);
+    });
+
+    it('base 브랜치가 바뀌면 synchronize가 아니어도 파일 목록을 다시 조회하고 캐시에 저장한다', async () => {
+        pullRequestService.listPullRequestFiles.mockResolvedValue([
+            {
+                filename: 'b.kt', status: 'added', additions: 5, deletions: 0, patch: null,
+            },
+        ]);
+
+        await controller.handle('pull_request', {
+            action: 'edited',
+            repository: {full_name: 'my-org/my-repo'},
+            pull_request: {number: 7, user: {login: 'octocat'}},
+            changes: {base: {ref: {from: 'develop'}}},
+        });
+
+        expect(pullRequestService.listPullRequestFiles).toHaveBeenCalledWith('my-org', 'my-repo', 7);
+        expect(redis.set).toHaveBeenCalledWith(
+            'github:pr-files:my-org/my-repo#7',
+            JSON.stringify([{
+                filename: 'b.kt', status: 'added', additions: 5, deletions: 0, patch: null,
+            }]),
+        );
     });
 
     it('issues 이벤트는 이슈 state를 발행한다', async () => {

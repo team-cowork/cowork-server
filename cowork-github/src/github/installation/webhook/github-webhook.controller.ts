@@ -14,10 +14,10 @@ import {
 } from '../../common/comment-author-marker';
 import {REDIS_CLIENT} from '../../constants';
 import {githubCacheKeys} from '../../github.cache';
-import type {PullRequestFile} from '../../pull-request/client/pull-request-api.client';
 import {PullRequestService} from '../../pull-request/pull-request.service';
-import type {PullRequestStateEvent} from '../kafka/event/pull-request-state';
+import type {PullRequestFileState, PullRequestStateEvent} from '../kafka/event/pull-request-state';
 import {GithubReadModelEventProducers} from '../kafka/github-read-model-event-producers';
+import {toPullRequestFileStates} from '../kafka/pull-request-file-state.mapper';
 import {RepoEventProducer} from '../kafka/repo-event.producer';
 import {TeamGithubProducer} from '../kafka/team-github.producer';
 import type {GithubWebhookPayload} from './github-webhook-payload';
@@ -60,9 +60,9 @@ export class GithubWebhookController {
 
             case 'issues': {
                 await Promise.all([
-                    this.handleRepoEvent(eventName, payload),
-                    this.handleIssueState(payload).catch((error: unknown) => {
-                        this.logReadModelFailure(eventName, error);
+                    this.handleIssueState(payload),
+                    this.handleRepoEvent(eventName, payload).catch((error: unknown) => {
+                        this.logNotificationFailure(eventName, error);
                     }),
                 ]);
                 break;
@@ -70,9 +70,9 @@ export class GithubWebhookController {
 
             case 'pull_request': {
                 await Promise.all([
-                    this.handleRepoEvent(eventName, payload),
-                    this.handlePullRequestState(payload).catch((error: unknown) => {
-                        this.logReadModelFailure(eventName, error);
+                    this.handlePullRequestState(payload),
+                    this.handleRepoEvent(eventName, payload).catch((error: unknown) => {
+                        this.logNotificationFailure(eventName, error);
                     }),
                 ]);
                 break;
@@ -96,11 +96,13 @@ export class GithubWebhookController {
         return {ok: true};
     }
 
-    // Read-model state 발행이 실패해도 기존 알림(github.repo.event)과 webhook 응답은 유지한다 —
-    // 빠진 state는 다음 webhook이나 재백필로 다시 채워진다.
-    private logReadModelFailure(eventName: string, error: unknown): void {
+    // 알림(github.repo.event)은 사용자에게 보여주는 부가 정보라 실패해도 webhook 응답은 유지한다.
+    // read-model state 발행은 반대로 실패 시 그대로 throw해 500을 반환한다 — GitHub가 전송 실패를
+    // 재시도/재전송 대상으로 인지해야, 조용히 삼켜서 projection이 영구히 stale해지는 것을 막을 수 있다.
+    // state를 먼저 실행하므로 state 실패로 인한 재시도가 이 알림을 중복 발행하지 않는다.
+    private logNotificationFailure(eventName: string, error: unknown): void {
         this.logger.error(
-            `Failed to publish GitHub read-model state [event=${eventName}]`,
+            `Failed to publish GitHub notification [event=${eventName}]`,
             error instanceof Error ? error.stack : String(error),
         );
     }
@@ -206,19 +208,46 @@ export class GithubWebhookController {
 
         const [owner, repo] = fullName.split('/', 2);
         const action = payload.action ?? '';
-        const files = PR_FILE_REFRESH_ACTIONS.has(action)
-            ? await this.pullRequestService.listPullRequestFiles(owner, repo, pr.number)
-            : undefined;
+        const isBaseChanged = action === 'edited' && payload.changes?.base !== undefined;
+        const files = await this.resolvePullRequestFiles({
+            owner, repo, number: pr.number, action, isBaseChanged,
+        });
 
         await this.readModelProducers.pullRequest.send(
             this.buildPullRequestStateEvent({owner, repo, number: pr.number}, pr, files),
         );
     }
 
+    /**
+     파일 목록은 webhook payload에 없어 직접 조회해야 한다. 매번 조회하면 rate limit을 낭비하니
+     opened/synchronize/reopened나 base 브랜치 변경에서만 다시 조회하고, 그 결과를 Redis에 캐시해
+     다른 액션에서도 함께 실어 보낸다 — 이 토픽은 key로 compaction되므로, 파일 없는 이벤트만 남으면
+     과거에 조회한 파일 목록이 영구히 사라질 수 있기 때문이다.
+     */
+    private async resolvePullRequestFiles(parameters: {
+        owner: string;
+        repo: string;
+        number: number;
+        action: string;
+        isBaseChanged: boolean;
+    }): Promise<PullRequestFileState[] | undefined> {
+        const {owner, repo, number, action, isBaseChanged} = parameters;
+        const cacheKey = githubCacheKeys.pullRequestFiles(owner, repo, number);
+        if (isBaseChanged || PR_FILE_REFRESH_ACTIONS.has(action)) {
+            const files = await this.pullRequestService.listPullRequestFiles(owner, repo, number);
+            const fileStates = toPullRequestFileStates(files);
+            await this.redis.set(cacheKey, JSON.stringify(fileStates));
+            return fileStates;
+        }
+
+        const cached = await this.redis.get(cacheKey);
+        return cached === null ? undefined : (JSON.parse(cached) as PullRequestFileState[]);
+    }
+
     private buildPullRequestStateEvent(
         {owner, repo, number}: {owner: string; repo: string; number: number},
         pr: NonNullable<GithubWebhookPayload['pull_request']>,
-        files: PullRequestFile[] | undefined,
+        files: PullRequestFileState[] | undefined,
     ): PullRequestStateEvent {
         const now = new Date().toISOString();
         return {
@@ -238,15 +267,7 @@ export class GithubWebhookController {
             createdAt: pr.created_at ?? now,
             updatedAt: pr.updated_at ?? now,
             sourceOccurredAt: pr.updated_at ?? now,
-            ...(files !== undefined && {
-                files: files.map(file => ({
-                    filename: file.filename,
-                    status: file.status,
-                    additions: file.additions,
-                    deletions: file.deletions,
-                    patch: file.patch ?? null,
-                })),
-            }),
+            ...(files !== undefined && {files}),
         };
     }
 
