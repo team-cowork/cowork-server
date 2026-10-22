@@ -1,21 +1,12 @@
 plugins {
-    alias(libs.plugins.spring.boot)
-    alias(libs.plugins.spring.dependency.management)
+    id("cowork.spring-boot-conventions")
     alias(libs.plugins.spotless)
-    id("cowork.jvm-conventions")
 }
 
-group = "com.cowork"
 version = "20261021.1"
 
 repositories {
     maven { url = uri("https://jitpack.io") }
-}
-
-dependencyManagement {
-    imports {
-        mavenBom(libs.spring.cloud.dependencies.get().toString())
-    }
 }
 
 dependencies {

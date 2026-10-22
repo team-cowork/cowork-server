@@ -1,17 +1,8 @@
 plugins {
-    alias(libs.plugins.spring.boot)
-    alias(libs.plugins.spring.dependency.management)
     id("cowork.kotlin-conventions")
 }
 
-group = "com.cowork"
 version = "20261021.1"
-
-dependencyManagement {
-    imports {
-        mavenBom(libs.spring.cloud.dependencies.get().toString())
-    }
-}
 
 dependencies {
     implementation(libs.spring.cloud.starter.gateway)
