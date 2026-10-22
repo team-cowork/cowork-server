@@ -9,7 +9,7 @@
     "gateway": {
       "url": "{host}/ws/chat",
       "protocol": "ws",
-      "description": "Gateway WebSocket 진입점. 인증·준비 상태 확인은 handshake에서 하므로 실패하면 connect 없이 connect_error(message)만 전달됩니다.",
+      "description": "Gateway WebSocket 진입점",
       "variables": {
         "host": {
           "default": "localhost:8080"
