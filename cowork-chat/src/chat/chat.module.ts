@@ -19,6 +19,8 @@ import {DmController} from './dm.controller';
 import {ProjectMessageController} from './project-message.controller';
 import {TeamUnreadController} from './team-unread.controller';
 import {TeamSearchController} from './team-search.controller';
+import {ChatMessageQuarantineAdminController} from './chat-message-quarantine-admin.controller';
+import {MessageSearchAdminController} from './message-search-admin.controller';
 import {
     ChatMessageProducer,
     ChatMessageConsumer,
@@ -103,6 +105,7 @@ import {
     MessageSearchDeletionService,
     MessageSearchOutboxPoller,
     MessageSearchRebuilder,
+    MessageSearchAdminService,
 } from './search';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
@@ -150,7 +153,15 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         ObjectStorageModule,
         SearchModule,
     ],
-    controllers: [ChatController, DmController, ProjectMessageController, TeamUnreadController, TeamSearchController],
+    controllers: [
+        ChatController,
+        DmController,
+        ProjectMessageController,
+        TeamUnreadController,
+        TeamSearchController,
+        ChatMessageQuarantineAdminController,
+        MessageSearchAdminController,
+    ],
     providers: [
         ChatGateway,
         ChatService,
@@ -171,6 +182,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         MessageSearchDeletionService,
         MessageSearchOutboxPoller,
         MessageSearchRebuilder,
+        MessageSearchAdminService,
         NotificationTriggerProducer,
         NotificationOutboxPoller,
         GithubIssueResultConsumer,

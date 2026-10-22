@@ -10,6 +10,7 @@ import {MetricsController} from './metrics/metrics.controller';
     imports: [
         ConfigModule.forRoot({
             isGlobal: true,
+            ignoreEnvFile: true,
             validationSchema: envValidationSchema,
         }),
         GithubModule,

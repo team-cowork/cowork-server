@@ -2,10 +2,11 @@ import {Injectable, Logger} from '@nestjs/common';
 import {DicoshotService} from 'dicoshot-nest';
 import {Counter, register} from 'prom-client';
 import {AlertThrottleUtil} from '../../common/util/alert-throttle.util';
-import {ChatMessageQuarantineErrorType} from '../schema';
+import {ChatMessageQuarantineErrorType, ChatMessageQuarantineRecord, ChatMessageQuarantineStatus} from '../schema';
 import {ChatMessageQuarantineRepository} from '../repository';
 
 const ALERT_COOLDOWN_MS = 5 * 60 * 1000;
+const RECENT_RECORD_LIMIT = 100;
 
 export type ChatMessageQuarantineRequest = {
     topic: string;
@@ -60,6 +61,18 @@ export class ChatMessageQuarantineService {
         const isRequested = await this.repository.requestReprocess(id);
         this.reprocesses.inc({result: isRequested ? 'requested' : 'rejected'});
         return isRequested;
+    }
+
+    async discard(id: string): Promise<boolean> {
+        return this.repository.discard(id);
+    }
+
+    async summary(): Promise<Array<{status: ChatMessageQuarantineStatus; errorType: ChatMessageQuarantineErrorType; reasonCode: string; count: number}>> {
+        return this.repository.summary();
+    }
+
+    async findRecent(status?: ChatMessageQuarantineStatus): Promise<ChatMessageQuarantineRecord[]> {
+        return this.repository.findRecent(status, RECENT_RECORD_LIMIT);
     }
 
     recordReprocess(result: 'succeeded' | 'failed'): void {
