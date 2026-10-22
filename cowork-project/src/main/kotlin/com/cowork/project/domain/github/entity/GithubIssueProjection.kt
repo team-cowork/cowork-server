@@ -10,6 +10,7 @@ import jakarta.persistence.FetchType
 import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.Table
+import org.hibernate.annotations.BatchSize
 import java.time.Instant
 
 /**
@@ -45,6 +46,7 @@ class GithubIssueProjection(
     var htmlUrl: String,
 
     @ElementCollection(fetch = FetchType.EAGER)
+    @BatchSize(size = 100)
     @CollectionTable(name = "tb_github_issue_projection_labels", joinColumns = [JoinColumn(name = "issue_id")])
     @Column(name = "label", length = 100)
     var labels: MutableList<String> = mutableListOf(),

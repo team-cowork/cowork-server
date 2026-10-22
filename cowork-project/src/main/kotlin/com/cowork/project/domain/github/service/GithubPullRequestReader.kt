@@ -19,12 +19,15 @@ class GithubPullRequestReader(
     private val callExecutor: GithubAppCallExecutor,
 ) {
     fun listPullRequests(owner: String, repo: String, state: String): List<GithubPullRequestSummaryResDto> {
-        val projections = repository.findByOwnerAndRepo(owner, repo)
+        val projections = repository.findByOwnerAndRepoOrderByNumberDesc(owner, repo)
         if (projections.isEmpty()) {
             return callExecutor.execute { githubAppClient.listPullRequests(owner, repo, state) }
         }
 
-        return projections.filter { state == "all" || it.state == state }.map { it.toSummaryResDto() }
+        // GitHub API 응답(생성일 내림차순, per_page=100)과 같은 순서·건수를 유지한다.
+        return projections.filter { state == "all" || it.state == state }
+            .take(LIST_LIMIT)
+            .map { it.toSummaryResDto() }
     }
 
     fun listFiles(owner: String, repo: String, prNumber: Int): List<GithubPullRequestFileResDto> {
@@ -66,4 +69,8 @@ class GithubPullRequestReader(
         createdAt = githubCreatedAt,
         updatedAt = githubUpdatedAt,
     )
+
+    private companion object {
+        const val LIST_LIMIT = 100
+    }
 }
