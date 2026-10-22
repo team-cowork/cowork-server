@@ -293,6 +293,18 @@ describe('GithubWebhookController', () => {
         }));
     });
 
+    it('repository 이름의 대소문자만 바뀌면 이전 이름을 삭제 처리하지 않는다', async () => {
+        await controller.handle('repository', {
+            action: 'renamed',
+            installation: {id: 42},
+            repository: {full_name: 'my-org/my-repo', private: false},
+            changes: {repository: {name: {from: 'My-Repo'}}},
+        });
+
+        expect(readModelProducers.repo.send).toHaveBeenCalledTimes(1);
+        expect(readModelProducers.repo.send).toHaveBeenCalledWith(expect.objectContaining({deleted: false}));
+    });
+
     it('repository 삭제 이벤트는 해당 repo만 삭제 처리한다', async () => {
         await controller.handle('repository', {
             action: 'deleted',
@@ -339,6 +351,18 @@ describe('GithubWebhookController', () => {
             name: 'defect',
             deleted: false,
         }));
+    });
+
+    it('label 이름의 대소문자만 바뀌면 이전 이름을 삭제 처리하지 않는다', async () => {
+        await controller.handle('label', {
+            action: 'edited',
+            repository: {full_name: 'my-org/my-repo'},
+            label: {name: 'bug', color: 'd73a4a'},
+            changes: {name: {from: 'Bug'}},
+        });
+
+        expect(readModelProducers.label.send).toHaveBeenCalledTimes(1);
+        expect(readModelProducers.label.send).toHaveBeenCalledWith(expect.objectContaining({name: 'bug', deleted: false}));
     });
 
     it('issue_comment 이벤트는 숨은 마커에서 실제 작성자를 복원해 댓글 state를 발행한다', async () => {
