@@ -956,8 +956,6 @@ services:
     depends_on:
       logs-init:
         condition: service_completed_successfully
-      mysql:
-        condition: service_healthy
       kafka:
         condition: service_healthy
       kafka-init:
@@ -973,6 +971,7 @@ services:
       - "8086:8086"
     volumes:
       - cowork_logs:/var/log/cowork
+      - cowork_notification_data:/app/data
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8086/health/ready || exit 1"]
       interval: 10s
@@ -1094,5 +1093,6 @@ volumes:
   grafana_data:
   loki_data:
   cowork_logs:
+  cowork_notification_data:
   alloy_data:
   alertmanager_config:

@@ -12,7 +12,7 @@
 
 - Go / Chi
 - Go modules + Makefile
-- GORM / MySQL
+- GORM / SQLite
 - Kafka / Firebase Admin SDK / Eureka / Config Server
 
 ## 포트

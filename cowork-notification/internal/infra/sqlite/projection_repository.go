@@ -1,4 +1,4 @@
-package mysql
+package sqlite
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/cowork/cowork-notification/internal/domain/projection"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type channelNotificationPreference struct {
@@ -103,12 +102,12 @@ func (r *ProjectionRepository) QuarantineWithCheckpoint(
 		if err := tx.Exec(
 			`INSERT INTO tb_projection_dead_letters
 				(consumer_group, topic_name, partition_id, topic_id, message_offset, event_key, payload, reason)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?) AS incoming
-			 ON DUPLICATE KEY UPDATE
-				topic_id = incoming.topic_id,
-				event_key = incoming.event_key,
-				payload = incoming.payload,
-				reason = incoming.reason`,
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			 ON CONFLICT (consumer_group, topic_name, partition_id, message_offset) DO UPDATE SET
+				topic_id = excluded.topic_id,
+				event_key = excluded.event_key,
+				payload = excluded.payload,
+				reason = excluded.reason`,
 			record.Checkpoint.ConsumerGroup,
 			record.Checkpoint.Topic,
 			record.Checkpoint.Partition,
@@ -127,9 +126,10 @@ func (r *ProjectionRepository) QuarantineWithCheckpoint(
 		latch := latchInvalidRecord(stored.recoveryLatch(), recordOffset)
 		return tx.Exec(
 			`UPDATE tb_projection_checkpoints
-			 SET next_offset = GREATEST(next_offset, ?),
+			 SET next_offset = MAX(next_offset, ?),
 				invalid_record_offset = ?,
-				recovery_snapshot_id = ?
+				recovery_snapshot_id = ?,
+				updated_at = CURRENT_TIMESTAMP
 			 WHERE consumer_group = ? AND topic_name = ? AND partition_id = ? AND topic_id = ?`,
 			record.Checkpoint.NextOffset,
 			latch.InvalidRecordOffset,
@@ -155,29 +155,30 @@ func (r *ProjectionRepository) RecordSnapshotMarkerWithCheckpoint(
 		latch := recordRecoverySnapshot(stored.recoveryLatch(), marker.Offset, marker.SnapshotID)
 		return tx.Exec(
 			`UPDATE tb_projection_checkpoints
-			 SET next_offset = GREATEST(next_offset, ?),
+			 SET next_offset = MAX(next_offset, ?),
 				invalid_record_offset = ?,
 				last_snapshot_id = ?,
 				recovery_snapshot_id = ?,
-				snapshot_id = IF(
+				snapshot_id = iif(
 					? >= COALESCE(snapshot_completed_offset, -1),
 					?,
 					snapshot_id
 				),
-				snapshot_source = IF(
+				snapshot_source = iif(
 					? >= COALESCE(snapshot_completed_offset, -1),
 					?,
 					snapshot_source
 				),
-				snapshot_occurred_at = IF(
+				snapshot_occurred_at = iif(
 					? >= COALESCE(snapshot_completed_offset, -1),
 					?,
 					snapshot_occurred_at
 				),
-				snapshot_completed_offset = GREATEST(
+				snapshot_completed_offset = MAX(
 					COALESCE(snapshot_completed_offset, -1),
 					?
-				)
+				),
+				updated_at = CURRENT_TIMESTAMP
 			 WHERE consumer_group = ? AND topic_name = ? AND partition_id = ? AND topic_id = ?`,
 			checkpoint.NextOffset,
 			latch.InvalidRecordOffset,
@@ -188,7 +189,7 @@ func (r *ProjectionRepository) RecordSnapshotMarkerWithCheckpoint(
 			marker.Offset,
 			marker.Source,
 			marker.Offset,
-			marker.OccurredAt,
+			marker.OccurredAt.UTC(),
 			marker.Offset,
 			checkpoint.ConsumerGroup,
 			checkpoint.Topic,
@@ -260,7 +261,8 @@ func (r *ProjectionRepository) LoadCheckpoints(
 func advanceCheckpoint(db *gorm.DB, checkpoint projection.Checkpoint) error {
 	return db.Exec(
 		`UPDATE tb_projection_checkpoints
-		 SET next_offset = GREATEST(next_offset, ?)
+		 SET next_offset = MAX(next_offset, ?),
+			updated_at = CURRENT_TIMESTAMP
 		 WHERE consumer_group = ? AND topic_name = ? AND partition_id = ? AND topic_id = ?`,
 		checkpoint.NextOffset,
 		checkpoint.ConsumerGroup,
@@ -286,8 +288,8 @@ func prepareCheckpointGenerationAt(
 	if err := db.Exec(
 		`INSERT INTO tb_projection_checkpoints
 			(consumer_group, topic_name, partition_id, topic_id, next_offset)
-		 VALUES (?, ?, ?, ?, ?) AS incoming
-		 ON DUPLICATE KEY UPDATE next_offset = tb_projection_checkpoints.next_offset`,
+		 VALUES (?, ?, ?, ?, ?)
+		 ON CONFLICT (consumer_group, topic_name, partition_id) DO NOTHING`,
 		checkpoint.ConsumerGroup,
 		checkpoint.Topic,
 		checkpoint.Partition,
@@ -298,7 +300,7 @@ func prepareCheckpointGenerationAt(
 	}
 
 	var stored projectionCheckpoint
-	err = db.Clauses(clause.Locking{Strength: "UPDATE"}).
+	err = db.
 		Where(
 			"consumer_group = ? AND topic_name = ? AND partition_id = ?",
 			checkpoint.ConsumerGroup,
@@ -411,21 +413,22 @@ func (r *ProjectionRepository) UpsertChannelNotification(
 	return r.db.WithContext(ctx).Exec(
 		`INSERT INTO tb_channel_notification_preferences
 			(account_id, channel_id, notification_enabled, source_updated_at)
-		 VALUES (?, ?, ?, ?) AS incoming
-		 ON DUPLICATE KEY UPDATE
-			notification_enabled = IF(
-				incoming.source_updated_at >= tb_channel_notification_preferences.source_updated_at,
-				incoming.notification_enabled,
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT (account_id, channel_id) DO UPDATE SET
+			notification_enabled = iif(
+				excluded.source_updated_at >= tb_channel_notification_preferences.source_updated_at,
+				excluded.notification_enabled,
 				tb_channel_notification_preferences.notification_enabled
 			),
-			source_updated_at = GREATEST(
+			source_updated_at = MAX(
 				tb_channel_notification_preferences.source_updated_at,
-				incoming.source_updated_at
-			)`,
+				excluded.source_updated_at
+			),
+			updated_at = CURRENT_TIMESTAMP`,
 		accountID,
 		channelID,
 		enabled,
-		occurredAt,
+		occurredAt.UTC(),
 	).Error
 }
 
@@ -498,34 +501,35 @@ func (r *ProjectionRepository) upsertUserProfile(
 	return r.db.WithContext(ctx).Exec(
 		`INSERT INTO tb_user_profile_projections
 			(user_id, display_name, deleted, source_updated_at)
-		 VALUES (?, ?, ?, ?) AS incoming
-		 ON DUPLICATE KEY UPDATE
-			display_name = IF(
-				incoming.source_updated_at > tb_user_profile_projections.source_updated_at OR
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT (user_id) DO UPDATE SET
+			display_name = iif(
+				excluded.source_updated_at > tb_user_profile_projections.source_updated_at OR
 				(
-					incoming.source_updated_at = tb_user_profile_projections.source_updated_at AND
-					incoming.deleted >= tb_user_profile_projections.deleted
+					excluded.source_updated_at = tb_user_profile_projections.source_updated_at AND
+					excluded.deleted >= tb_user_profile_projections.deleted
 				),
-				incoming.display_name,
+				excluded.display_name,
 				tb_user_profile_projections.display_name
 			),
-			deleted = IF(
-				incoming.source_updated_at > tb_user_profile_projections.source_updated_at OR
+			deleted = iif(
+				excluded.source_updated_at > tb_user_profile_projections.source_updated_at OR
 				(
-					incoming.source_updated_at = tb_user_profile_projections.source_updated_at AND
-					incoming.deleted >= tb_user_profile_projections.deleted
+					excluded.source_updated_at = tb_user_profile_projections.source_updated_at AND
+					excluded.deleted >= tb_user_profile_projections.deleted
 				),
-				incoming.deleted,
+				excluded.deleted,
 				tb_user_profile_projections.deleted
 			),
-			source_updated_at = GREATEST(
+			source_updated_at = MAX(
 				tb_user_profile_projections.source_updated_at,
-				incoming.source_updated_at
-			)`,
+				excluded.source_updated_at
+			),
+			updated_at = CURRENT_TIMESTAMP`,
 		userID,
 		displayName,
 		deleted,
-		occurredAt,
+		occurredAt.UTC(),
 	).Error
 }
 
@@ -539,33 +543,34 @@ func (r *ProjectionRepository) upsertTeamProfile(
 	return r.db.WithContext(ctx).Exec(
 		`INSERT INTO tb_team_profile_projections
 			(team_id, team_name, deleted, source_updated_at)
-		 VALUES (?, ?, ?, ?) AS incoming
-		 ON DUPLICATE KEY UPDATE
-			team_name = IF(
-				incoming.source_updated_at > tb_team_profile_projections.source_updated_at OR
+		 VALUES (?, ?, ?, ?)
+		 ON CONFLICT (team_id) DO UPDATE SET
+			team_name = iif(
+				excluded.source_updated_at > tb_team_profile_projections.source_updated_at OR
 				(
-					incoming.source_updated_at = tb_team_profile_projections.source_updated_at AND
-					incoming.deleted >= tb_team_profile_projections.deleted
+					excluded.source_updated_at = tb_team_profile_projections.source_updated_at AND
+					excluded.deleted >= tb_team_profile_projections.deleted
 				),
-				incoming.team_name,
+				excluded.team_name,
 				tb_team_profile_projections.team_name
 			),
-			deleted = IF(
-				incoming.source_updated_at > tb_team_profile_projections.source_updated_at OR
+			deleted = iif(
+				excluded.source_updated_at > tb_team_profile_projections.source_updated_at OR
 				(
-					incoming.source_updated_at = tb_team_profile_projections.source_updated_at AND
-					incoming.deleted >= tb_team_profile_projections.deleted
+					excluded.source_updated_at = tb_team_profile_projections.source_updated_at AND
+					excluded.deleted >= tb_team_profile_projections.deleted
 				),
-				incoming.deleted,
+				excluded.deleted,
 				tb_team_profile_projections.deleted
 			),
-			source_updated_at = GREATEST(
+			source_updated_at = MAX(
 				tb_team_profile_projections.source_updated_at,
-				incoming.source_updated_at
-			)`,
+				excluded.source_updated_at
+			),
+			updated_at = CURRENT_TIMESTAMP`,
 		teamID,
 		teamName,
 		deleted,
-		occurredAt,
+		occurredAt.UTC(),
 	).Error
 }
