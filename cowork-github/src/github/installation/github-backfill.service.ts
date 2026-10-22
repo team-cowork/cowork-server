@@ -24,6 +24,18 @@ const RELEASE_LOCK_SCRIPT = 'if redis.call("get", KEYS[1]) == ARGV[1] then retur
 const syncTargetKey = (target: GithubSyncTarget): string =>
     target.type === 'REPOSITORY' ? `repo:${target.owner}/${target.repo}` : `org:${target.owner}`;
 
+const mergeByNumber = <T extends {number: number}>(...lists: T[][]): T[] => {
+    const seen = new Set<number>();
+    return lists.flat().filter(item => {
+        if (seen.has(item.number)) {
+            return false;
+        }
+
+        seen.add(item.number);
+        return true;
+    });
+};
+
 /**
  대상(org의 repo 목록, 또는 repo 하나의 이슈·PR·라벨·댓글)의 현재 상태를 Kafka로 다시 publish하고,
  데이터를 보낸 state 토픽마다 마지막에 완료 마커를 남긴다. webhook은 이후 변경분만 전달하므로 이
@@ -32,6 +44,7 @@ const syncTargetKey = (target: GithubSyncTarget): string =>
 
  MVP: 각 목록 조회는 `per_page=100` 단일 페이지만 사용한다(기존 HTTP 라우트와 동일한 제약).
  100개를 초과하는 repo/PR/이슈는 초과분이 동기화되지 않으며, 페이지네이션 지원과 함께 후속 과제로 남긴다.
+ 이슈/PR은 `all` 최신 100건에서 빠지는 오래된 열린 항목이 보드에서 사라지지 않게 `open` 100건을 따로 받아 합친다.
  */
 @Injectable()
 export class GithubBackfillService {
@@ -142,7 +155,10 @@ export class GithubBackfillService {
     }
 
     private async syncIssues(owner: string, repo: string): Promise<void> {
-        const issues = await this.issueHttpService.listIssues(owner, repo, 'all');
+        const issues = mergeByNumber(
+            await this.issueHttpService.listIssues(owner, repo, 'open'),
+            await this.issueHttpService.listIssues(owner, repo, 'all'),
+        );
         /* eslint-disable no-await-in-loop -- 이슈마다 댓글 조회가 나가므로 secondary rate limit을 피하려 순차 처리한다. */
         for (const issue of issues) {
             await this.producers.issue.send({
@@ -167,7 +183,10 @@ export class GithubBackfillService {
     }
 
     private async syncPullRequests(owner: string, repo: string): Promise<void> {
-        const summaries = await this.pullRequestService.listPullRequests(owner, repo, 'all');
+        const summaries = mergeByNumber(
+            await this.pullRequestService.listPullRequests(owner, repo, 'open'),
+            await this.pullRequestService.listPullRequests(owner, repo, 'all'),
+        );
         /* eslint-disable no-await-in-loop -- PR마다 상세/파일/댓글 조회가 나가므로 secondary rate limit을 피하려 순차 처리한다. */
         for (const summary of summaries) {
             const detail = await this.pullRequestService.getPullRequestDetail(owner, repo, summary.number);
