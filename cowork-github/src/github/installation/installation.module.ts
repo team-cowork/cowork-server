@@ -8,9 +8,9 @@ import {LabelHttpModule} from '../label-http/label-http.module';
 import {PullRequestModule} from '../pull-request/pull-request.module';
 import {InstallationApiClient} from './client/installation-api.client';
 import {GithubBackfillService} from './github-backfill.service';
+import {GithubSyncCommandController} from './github-sync-command.controller';
 import {InstallationListHttpController} from './installation-list-http.controller';
 import {InstallationService} from './installation.service';
-import {BackfillCompletedProducer} from './kafka/backfill-completed.producer';
 import {GithubReadModelEventProducers} from './kafka/github-read-model-event-producers';
 import {IssueCommentStateProducer} from './kafka/issue-comment-state.producer';
 import {IssueStateProducer} from './kafka/issue-state.producer';
@@ -43,7 +43,6 @@ import {GithubWebhookController} from './webhook/github-webhook.controller';
         LabelStateProducer,
         IssueCommentStateProducer,
         GithubReadModelEventProducers,
-        BackfillCompletedProducer,
         GithubBackfillService,
         GithubWebhookSignatureGuard,
         InternalApiKeyGuard,
@@ -52,6 +51,7 @@ import {GithubWebhookController} from './webhook/github-webhook.controller';
         InstallationListHttpController,
         GithubWebhookController,
         GithubSetupController,
+        GithubSyncCommandController,
     ],
 })
 export class InstallationModule {}

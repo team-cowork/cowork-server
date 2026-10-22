@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import {Inject, Injectable, Logger} from '@nestjs/common';
 import type Redis from 'ioredis';
 import {REDIS_CLIENT} from '../constants';
@@ -6,23 +7,37 @@ import {IssueHttpService} from '../issue-http/issue-http.service';
 import {LabelHttpService} from '../label-http/label-http.service';
 import {PullRequestService} from '../pull-request/pull-request.service';
 import {InstallationApiClient} from './client/installation-api.client';
-import {BackfillCompletedProducer} from './kafka/backfill-completed.producer';
 import {IssueCommentStateEvent} from './kafka/event/issue-comment-state';
+import {syncCompletedMarker} from './kafka/event/sync-completed';
 import {GithubReadModelEventProducers} from './kafka/github-read-model-event-producers';
 import {toPullRequestFileStates} from './kafka/pull-request-file-state.mapper';
 
+export type GithubSyncTarget =
+    | {type: 'ORG_REPOSITORIES'; installationId: number; owner: string}
+    | {type: 'REPOSITORY'; owner: string; repo: string};
+
+// MVP: 락을 갱신하지 않는다. 동기화가 TTL보다 오래 걸리면 다른 레플리카가 같은 대상을 다시 돌 수 있지만,
+// state 레코드는 버전으로 멱등 반영되므로 결과는 같다. 대상이 커져 TTL을 넘기기 시작하면 갱신을 추가한다.
+const SYNC_LOCK_TTL_MS = 30 * 60 * 1000;
+const RELEASE_LOCK_SCRIPT = 'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end';
+
+const syncTargetKey = (target: GithubSyncTarget): string =>
+    target.type === 'REPOSITORY' ? `repo:${target.owner}/${target.repo}` : `org:${target.owner}`;
+
 /**
- Installation이 새로 연결되거나 repo가 추가될 때, webhook이 닿기 전 기존 repo/PR/이슈/댓글/라벨
- 전체를 한 번 Kafka로 publish한다. webhook은 이 시점 이후의 변경분만 전달하므로, 이 전체 스냅샷이
- cowork-project 쪽 projection의 초기 상태가 된다.
+ 대상(org의 repo 목록, 또는 repo 하나의 이슈·PR·라벨·댓글)의 현재 상태를 Kafka로 다시 publish하고,
+ 데이터를 보낸 state 토픽마다 마지막에 완료 마커를 남긴다. webhook은 이후 변경분만 전달하므로 이
+ 스냅샷이 cowork-project projection의 초기 상태이자 주기적 재동기화 경로다. 무엇을 언제 동기화할지는
+ cowork-project가 정하고(`github.sync.command.v1`), 설치 콜백은 repo 목록만 바로 요청한다.
 
  MVP: 각 목록 조회는 `per_page=100` 단일 페이지만 사용한다(기존 HTTP 라우트와 동일한 제약).
- 100개를 초과하는 repo/PR/이슈가 있는 installation은 초과분이 backfill되지 않으며, 이는 webhook
- 기반 페이지네이션 지원과 함께 후속 과제로 남긴다.
+ 100개를 초과하는 repo/PR/이슈는 초과분이 동기화되지 않으며, 페이지네이션 지원과 함께 후속 과제로 남긴다.
  */
 @Injectable()
 export class GithubBackfillService {
     private readonly logger = new Logger(GithubBackfillService.name);
+    private readonly queued = new Set<string>();
+    private queue: Promise<void> = Promise.resolve();
 
     // eslint-disable-next-line max-params -- NestJS 생성자 주입이라 의존성 수만큼 파라미터가 필요하다.
     constructor(
@@ -31,62 +46,90 @@ export class GithubBackfillService {
         private readonly pullRequestService: PullRequestService,
         private readonly labelHttpService: LabelHttpService,
         private readonly producers: GithubReadModelEventProducers,
-        private readonly backfillCompletedProducer: BackfillCompletedProducer,
         @Inject(REDIS_CLIENT) private readonly redis: Redis,
     ) {}
 
-    async runFullSync(installationId: number, orgLogin: string): Promise<void> {
-        const occurredAt = new Date().toISOString();
-        const repos = await this.installationApiClient.listRepositories(orgLogin);
-        this.logger.log(
-            `Starting GitHub backfill [installationId=${installationId}, org=${orgLogin}, repos=${repos.length}]`,
-        );
-
-        for (const repo of repos) {
-            const [owner, repoName] = repo.fullName.split('/', 2);
-            // eslint-disable-next-line no-await-in-loop -- 각 repo는 GitHub API rate limit을 공유하므로 순차 처리한다.
-            await this.syncRepo({
-                installationId, owner, repo: repoName, isPrivate: repo.private, occurredAt,
-            });
+    /**
+     대상을 프로세스 안의 직렬 대기열에 넣고, 그 대상의 동기화가 끝나면 resolve되는 Promise를 돌려준다
+     (실패해도 로그만 남기고 reject하지 않는다). 한 번에 하나씩 돌려 GitHub secondary rate limit을 피하고,
+     이미 대기 중인 대상은 다시 넣지 않는다. 처리 전에 프로세스가 내려가면 cowork-project가 다시 요청한다.
+     */
+    async enqueue(target: GithubSyncTarget): Promise<void> {
+        const key = syncTargetKey(target);
+        if (this.queued.has(key)) {
+            return this.queue;
         }
 
-        await this.backfillCompletedProducer.send({
-            installationId,
-            orgLogin,
-            completedAt: new Date().toISOString(),
+        this.queued.add(key);
+        this.queue = this.queue.then(async () => {
+            try {
+                await this.runWithLock(key, target);
+            } catch (error) {
+                this.logger.error(
+                    `GitHub sync failed [target=${key}]`,
+                    error instanceof Error ? error.stack : String(error),
+                );
+            } finally {
+                this.queued.delete(key);
+            }
         });
-        this.logger.log(
-            `Finished GitHub backfill [installationId=${installationId}, org=${orgLogin}]`,
-        );
+        return this.queue;
     }
 
-    private async syncRepo(parameters: {
-        installationId: number;
-        owner: string;
-        repo: string;
-        isPrivate: boolean;
-        occurredAt: string;
-    }): Promise<void> {
-        const {installationId, owner, repo, isPrivate, occurredAt} = parameters;
-        await this.producers.repo.send({
-            installationId,
-            owner,
-            repo,
-            fullName: `${owner}/${repo}`,
-            private: isPrivate,
-            htmlUrl: `https://github.com/${owner}/${repo}`,
-            deleted: false,
-            sourceOccurredAt: occurredAt,
-        });
+    // 레플리카마다 대기열이 따로 있으므로, 같은 대상을 동시에 두 번 돌지 않게 대상 단위로 락을 잡는다.
+    private async runWithLock(key: string, target: GithubSyncTarget): Promise<void> {
+        const lockKey = githubCacheKeys.syncLock(key);
+        const token = randomUUID();
+        if (await this.redis.set(lockKey, token, 'PX', SYNC_LOCK_TTL_MS, 'NX') !== 'OK') {
+            this.logger.log(`Skipping GitHub sync already running on another replica [target=${key}]`);
+            return;
+        }
 
-        await this.syncLabels(owner, repo, occurredAt);
-        // 이슈/PR/댓글은 webhook과 같은 기준(엔티티 updated_at)을 버전으로 써야 이후 webhook 변경·삭제가
-        // 백필 시각보다 오래된 이벤트로 버려지지 않는다. 라벨/repo는 updated_at이 없어 백필 시각을 쓴다.
+        try {
+            await (target.type === 'REPOSITORY'
+                ? this.syncRepository(target.owner, target.repo)
+                : this.syncOrgRepositories(target.installationId, target.owner));
+        } finally {
+            await this.redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, token);
+        }
+    }
+
+    private async syncOrgRepositories(installationId: number, orgLogin: string): Promise<void> {
+        const occurredAt = new Date().toISOString();
+        const repos = await this.installationApiClient.listRepositories(orgLogin);
+        await Promise.all(repos.map(async repo => {
+            const [owner, repoName] = repo.fullName.split('/', 2);
+            await this.producers.repo.send({
+                installationId,
+                owner,
+                repo: repoName,
+                fullName: repo.fullName,
+                private: repo.private,
+                htmlUrl: `https://github.com/${repo.fullName}`,
+                deleted: false,
+                sourceOccurredAt: occurredAt,
+            });
+        }));
+        await this.producers.repo.sendSyncCompleted(syncCompletedMarker(orgLogin, null));
+        this.logger.log(`Finished GitHub repository list sync [org=${orgLogin}, repos=${repos.length}]`);
+    }
+
+    // 이슈/PR/댓글은 webhook과 같은 기준(엔티티 updated_at)을 버전으로 써야 이후 webhook 변경·삭제가
+    // 동기화 시각보다 오래된 이벤트로 버려지지 않는다. 라벨은 updated_at이 없어 동기화 시각을 쓴다.
+    private async syncRepository(owner: string, repo: string): Promise<void> {
+        await this.syncLabels(owner, repo);
+        await this.producers.label.sendSyncCompleted(syncCompletedMarker(owner, repo));
         await this.syncIssues(owner, repo);
+        await this.producers.issue.sendSyncCompleted(syncCompletedMarker(owner, repo));
         await this.syncPullRequests(owner, repo);
+        await this.producers.pullRequest.sendSyncCompleted(syncCompletedMarker(owner, repo));
+        // 댓글은 이슈와 PR 동기화 양쪽에서 보내므로 둘 다 끝난 뒤에 마커를 남긴다.
+        await this.producers.issueComment.sendSyncCompleted(syncCompletedMarker(owner, repo));
+        this.logger.log(`Finished GitHub repository sync [repo=${owner}/${repo}]`);
     }
 
-    private async syncLabels(owner: string, repo: string, occurredAt: string): Promise<void> {
+    private async syncLabels(owner: string, repo: string): Promise<void> {
+        const occurredAt = new Date().toISOString();
         const labels = await this.labelHttpService.listLabels(owner, repo);
         await Promise.all(labels.map(async label => this.producers.label.send({
             owner,
