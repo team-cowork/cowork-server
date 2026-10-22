@@ -60,7 +60,9 @@ export class GithubWebhookController {
             case 'issues': {
                 await Promise.all([
                     this.handleRepoEvent(eventName, payload),
-                    this.handleIssueState(payload),
+                    this.handleIssueState(payload).catch((error: unknown) => {
+                        this.logReadModelFailure(eventName, error);
+                    }),
                 ]);
                 break;
             }
@@ -68,7 +70,9 @@ export class GithubWebhookController {
             case 'pull_request': {
                 await Promise.all([
                     this.handleRepoEvent(eventName, payload),
-                    this.handlePullRequestState(payload),
+                    this.handlePullRequestState(payload).catch((error: unknown) => {
+                        this.logReadModelFailure(eventName, error);
+                    }),
                 ]);
                 break;
             }
@@ -89,6 +93,15 @@ export class GithubWebhookController {
         }
 
         return {ok: true};
+    }
+
+    // Read-model state 발행이 실패해도 기존 알림(github.repo.event)과 webhook 응답은 유지한다 —
+    // 빠진 state는 다음 webhook이나 재백필로 다시 채워진다.
+    private logReadModelFailure(eventName: string, error: unknown): void {
+        this.logger.error(
+            `Failed to publish GitHub read-model state [event=${eventName}]`,
+            error instanceof Error ? error.stack : String(error),
+        );
     }
 
     private async handleInstallation(
@@ -177,7 +190,8 @@ export class GithubWebhookController {
             labels: issue.labels?.map(label => label.name) ?? [],
             createdAt: issue.created_at ?? new Date().toISOString(),
             updatedAt: issue.updated_at ?? new Date().toISOString(),
-            deleted: payload.action === 'deleted',
+            // 다른 repo로 옮겨진 이슈는 원래 repo 기준으로 삭제 처리한다.
+            deleted: payload.action === 'deleted' || payload.action === 'transferred',
             sourceOccurredAt: issue.updated_at ?? new Date().toISOString(),
         });
     }
@@ -245,13 +259,27 @@ export class GithubWebhookController {
         }
 
         const [owner, repo] = fullName.split('/', 2);
+        const sourceOccurredAt = new Date().toISOString();
+        // 라벨 projection은 이름이 키라, 이름이 바뀌면 이전 이름 행을 삭제 처리한다.
+        const previousName = payload.action === 'edited' ? payload.changes?.name?.from : undefined;
+        if (previousName !== undefined && previousName !== label.name) {
+            await this.readModelProducers.label.send({
+                owner,
+                repo,
+                name: previousName,
+                color: label.color ?? '',
+                deleted: true,
+                sourceOccurredAt,
+            });
+        }
+
         await this.readModelProducers.label.send({
             owner,
             repo,
             name: label.name,
             color: label.color ?? '',
             deleted: payload.action === 'deleted',
-            sourceOccurredAt: new Date().toISOString(),
+            sourceOccurredAt,
         });
     }
 
