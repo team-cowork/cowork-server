@@ -7,6 +7,7 @@ import {
 import {Kafka, Producer} from 'kafkajs';
 import {AppConfigService} from '../../../config/app-config.service';
 import {RepoStateEvent} from './event/repo-state';
+import {toRepoIdentity} from './event/repo-identity';
 import {type SyncCompletedMarker, syncCompletedKey} from './event/sync-completed';
 
 export const REPO_STATE_TOPIC = 'github.repo.state.v1';
@@ -33,12 +34,13 @@ export class RepoStateProducer implements OnModuleInit, OnModuleDestroy {
     }
 
     async send(event: RepoStateEvent): Promise<void> {
+        const normalized = {...event, owner: toRepoIdentity(event.owner), repo: toRepoIdentity(event.repo)};
         await this.producer.send({
             topic: REPO_STATE_TOPIC,
             messages: [
                 {
-                    key: `${event.owner}/${event.repo}`,
-                    value: JSON.stringify(event),
+                    key: `${normalized.owner}/${normalized.repo}`,
+                    value: JSON.stringify(normalized),
                 },
             ],
         });
