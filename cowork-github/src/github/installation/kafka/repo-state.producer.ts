@@ -7,6 +7,7 @@ import {
 import {Kafka, Producer} from 'kafkajs';
 import {AppConfigService} from '../../../config/app-config.service';
 import {RepoStateEvent} from './event/repo-state';
+import {type SyncCompletedMarker, syncCompletedKey} from './event/sync-completed';
 
 export const REPO_STATE_TOPIC = 'github.repo.state.v1';
 
@@ -38,6 +39,18 @@ export class RepoStateProducer implements OnModuleInit, OnModuleDestroy {
                 {
                     key: `${event.owner}/${event.repo}`,
                     value: JSON.stringify(event),
+                },
+            ],
+        });
+    }
+
+    async sendSyncCompleted(marker: SyncCompletedMarker): Promise<void> {
+        await this.producer.send({
+            topic: REPO_STATE_TOPIC,
+            messages: [
+                {
+                    key: syncCompletedKey(marker),
+                    value: JSON.stringify(marker),
                 },
             ],
         });
