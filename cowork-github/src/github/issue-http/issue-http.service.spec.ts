@@ -55,33 +55,6 @@ describe('IssueHttpService', () => {
         service = module.get<IssueHttpService>(IssueHttpService);
     });
 
-    describe('getIssueDetail', () => {
-        it('raw 이슈를 응답 DTO로 매핑한다', async () => {
-            apiClient.getIssue.mockResolvedValue(baseIssue);
-
-            const result = await service.getIssueDetail('my-org', 'my-repo', 1);
-
-            expect(result).toEqual({
-                number: 1,
-                title: 'Bug report',
-                author: 'author',
-                state: 'open',
-                htmlUrl: 'https://github.com/my-org/my-repo/issues/1',
-                labels: ['bug'],
-                createdAt: '2024-01-01T00:00:00Z',
-                updatedAt: '2024-01-02T00:00:00Z',
-            });
-        });
-
-        it('user가 null이면 author를 ghost로 매핑한다', async () => {
-            apiClient.getIssue.mockResolvedValue({...baseIssue, user: null});
-
-            const result = await service.getIssueDetail('my-org', 'my-repo', 1);
-
-            expect(result.author).toBe('ghost');
-        });
-    });
-
     describe('listIssues', () => {
         it('raw 목록 아이템을 응답 DTO로 매핑한다', async () => {
             apiClient.listIssues.mockResolvedValue([baseIssue]);
@@ -161,7 +134,7 @@ describe('IssueHttpService', () => {
         });
     });
 
-    describe('listComments / getComment', () => {
+    describe('listComments', () => {
         it('마커가 있으면 author를 마커 값으로, body는 마커를 제거한 값으로 반환한다', async () => {
             apiClient.listComments.mockResolvedValue([
                 {
@@ -177,12 +150,12 @@ describe('IssueHttpService', () => {
         });
 
         it('마커가 없으면 GitHub user.login을 author로 사용한다', async () => {
-            apiClient.getComment.mockResolvedValue(baseComment);
+            apiClient.listComments.mockResolvedValue([baseComment]);
 
-            const result = await service.getComment('my-org', 'my-repo', 100);
+            const result = await service.listComments('my-org', 'my-repo', 1);
 
-            expect(result.author).toBe('cowork-bot[bot]');
-            expect(result.body).toBe('hello');
+            expect(result[0].author).toBe('cowork-bot[bot]');
+            expect(result[0].body).toBe('hello');
         });
     });
 
