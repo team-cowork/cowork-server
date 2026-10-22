@@ -7,6 +7,8 @@ import {
 import {Kafka, Producer} from 'kafkajs';
 import {AppConfigService} from '../../../config/app-config.service';
 import {IssueCommentStateEvent} from './event/issue-comment-state';
+import {toRepoIdentity} from './event/repo-identity';
+import {type SyncCompletedMarker, syncCompletedKey} from './event/sync-completed';
 
 export const ISSUE_COMMENT_STATE_TOPIC = 'github.issue-comment.state.v1';
 
@@ -32,12 +34,25 @@ export class IssueCommentStateProducer implements OnModuleInit, OnModuleDestroy 
     }
 
     async send(event: IssueCommentStateEvent): Promise<void> {
+        const normalized = {...event, owner: toRepoIdentity(event.owner), repo: toRepoIdentity(event.repo)};
         await this.producer.send({
             topic: ISSUE_COMMENT_STATE_TOPIC,
             messages: [
                 {
-                    key: `${event.owner}/${event.repo}#${event.commentId}`,
-                    value: JSON.stringify(event),
+                    key: `${normalized.owner}/${normalized.repo}#${normalized.commentId}`,
+                    value: JSON.stringify(normalized),
+                },
+            ],
+        });
+    }
+
+    async sendSyncCompleted(marker: SyncCompletedMarker): Promise<void> {
+        await this.producer.send({
+            topic: ISSUE_COMMENT_STATE_TOPIC,
+            messages: [
+                {
+                    key: syncCompletedKey(marker),
+                    value: JSON.stringify(marker),
                 },
             ],
         });

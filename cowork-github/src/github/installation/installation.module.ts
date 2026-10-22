@@ -2,15 +2,12 @@ import {HttpModule} from '@nestjs/axios';
 import {Module} from '@nestjs/common';
 import {AppConfigService} from '../../config/app-config.service';
 import {GithubAuthModule} from '../auth/github-auth.module';
-import {InternalApiKeyGuard} from '../common/guards/internal-api-key.guard';
 import {IssueHttpModule} from '../issue-http/issue-http.module';
 import {LabelHttpModule} from '../label-http/label-http.module';
 import {PullRequestModule} from '../pull-request/pull-request.module';
 import {InstallationApiClient} from './client/installation-api.client';
 import {GithubBackfillService} from './github-backfill.service';
-import {InstallationListHttpController} from './installation-list-http.controller';
-import {InstallationService} from './installation.service';
-import {BackfillCompletedProducer} from './kafka/backfill-completed.producer';
+import {GithubSyncCommandController} from './github-sync-command.controller';
 import {GithubReadModelEventProducers} from './kafka/github-read-model-event-producers';
 import {IssueCommentStateProducer} from './kafka/issue-comment-state.producer';
 import {IssueStateProducer} from './kafka/issue-state.producer';
@@ -34,7 +31,6 @@ import {GithubWebhookController} from './webhook/github-webhook.controller';
     providers: [
         AppConfigService,
         InstallationApiClient,
-        InstallationService,
         TeamGithubProducer,
         RepoEventProducer,
         RepoStateProducer,
@@ -43,15 +39,13 @@ import {GithubWebhookController} from './webhook/github-webhook.controller';
         LabelStateProducer,
         IssueCommentStateProducer,
         GithubReadModelEventProducers,
-        BackfillCompletedProducer,
         GithubBackfillService,
         GithubWebhookSignatureGuard,
-        InternalApiKeyGuard,
     ],
     controllers: [
-        InstallationListHttpController,
         GithubWebhookController,
         GithubSetupController,
+        GithubSyncCommandController,
     ],
 })
 export class InstallationModule {}

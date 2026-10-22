@@ -7,6 +7,8 @@ import {
 import {Kafka, Producer} from 'kafkajs';
 import {AppConfigService} from '../../../config/app-config.service';
 import {IssueStateEvent} from './event/issue-state';
+import {toRepoIdentity} from './event/repo-identity';
+import {type SyncCompletedMarker, syncCompletedKey} from './event/sync-completed';
 
 export const ISSUE_STATE_TOPIC = 'github.issue.state.v1';
 
@@ -32,12 +34,25 @@ export class IssueStateProducer implements OnModuleInit, OnModuleDestroy {
     }
 
     async send(event: IssueStateEvent): Promise<void> {
+        const normalized = {...event, owner: toRepoIdentity(event.owner), repo: toRepoIdentity(event.repo)};
         await this.producer.send({
             topic: ISSUE_STATE_TOPIC,
             messages: [
                 {
-                    key: `${event.owner}/${event.repo}#${event.number}`,
-                    value: JSON.stringify(event),
+                    key: `${normalized.owner}/${normalized.repo}#${normalized.number}`,
+                    value: JSON.stringify(normalized),
+                },
+            ],
+        });
+    }
+
+    async sendSyncCompleted(marker: SyncCompletedMarker): Promise<void> {
+        await this.producer.send({
+            topic: ISSUE_STATE_TOPIC,
+            messages: [
+                {
+                    key: syncCompletedKey(marker),
+                    value: JSON.stringify(marker),
                 },
             ],
         });
