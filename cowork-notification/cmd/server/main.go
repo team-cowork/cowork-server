@@ -21,7 +21,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	httpswagger "github.com/swaggo/http-swagger/v2"
-	"gorm.io/driver/mysql"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
 	"github.com/cowork/cowork-notification/internal/config"
@@ -31,7 +31,7 @@ import (
 	"github.com/cowork/cowork-notification/internal/health"
 	"github.com/cowork/cowork-notification/internal/infra/fcm"
 	kafkainfra "github.com/cowork/cowork-notification/internal/infra/kafka"
-	mysqlinfra "github.com/cowork/cowork-notification/internal/infra/mysql"
+	sqliteinfra "github.com/cowork/cowork-notification/internal/infra/sqlite"
 	sseinfra "github.com/cowork/cowork-notification/internal/infra/sse"
 	"github.com/cowork/cowork-notification/internal/middleware"
 	"github.com/cowork/cowork-notification/internal/monitoring"
@@ -48,13 +48,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	db, err := gorm.Open(mysql.Open(cfg.DBDSN), &gorm.Config{})
+	// SQLite compares DATETIME values as text, so every stored time must share the UTC offset.
+	db, err := gorm.Open(sqlite.Open(cfg.DBDSN), &gorm.Config{
+		NowFunc: func() time.Time { return time.Now().UTC() },
+	})
 	if err != nil {
-		slog.Error("mysql connect failed", "err", err)
+		slog.Error("sqlite open failed", "err", err)
 		os.Exit(1)
 	}
-	if err := mysqlinfra.Migrate(context.Background(), db, cfg.DBDSN); err != nil {
-		slog.Error("mysql migration failed", "err", err)
+	sqlDB, err := db.DB()
+	if err != nil {
+		slog.Error("sqlite open failed", "err", err)
+		os.Exit(1)
+	}
+	sqlDB.SetMaxOpenConns(1)
+	if err := sqliteinfra.Migrate(context.Background(), db); err != nil {
+		slog.Error("sqlite migration failed", "err", err)
 		os.Exit(1)
 	}
 
@@ -66,9 +75,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	repo := mysqlinfra.NewInstallationRepository(db)
-	deliveryRepo := mysqlinfra.NewDeliveryRepository(db)
-	projectionRepo := mysqlinfra.NewProjectionRepository(db)
+	repo := sqliteinfra.NewInstallationRepository(db)
+	deliveryRepo := sqliteinfra.NewDeliveryRepository(db)
+	projectionRepo := sqliteinfra.NewProjectionRepository(db)
 	projectionService := projection.NewService(projectionRepo)
 	svc := installationdomain.NewService(repo, fcmSender, projectionRepo, deliveryRepo)
 	handler := installationdomain.NewHandler(svc)
