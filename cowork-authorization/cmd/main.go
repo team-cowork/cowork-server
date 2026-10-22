@@ -28,7 +28,6 @@ import (
 	"github.com/cowork/authorization/pkg/logger"
 	_ "github.com/cowork/authorization/swagger"
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -45,10 +44,6 @@ const (
 
 func main() {
 	logger.Init("cowork-authorization")
-
-	if err := godotenv.Load(); err != nil {
-		log.Println("no .env file found, reading from environment")
-	}
 
 	cfg, err := config.Load()
 	if err != nil {
