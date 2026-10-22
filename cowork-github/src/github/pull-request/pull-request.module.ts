@@ -24,5 +24,6 @@ import {PullRequestService} from './pull-request.service';
         PullRequestHttpController,
         PullRequestListHttpController,
     ],
+    exports: [PullRequestService],
 })
 export class PullRequestModule {}
