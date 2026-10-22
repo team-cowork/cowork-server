@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/cowork/cowork-notification/internal/config/springconfig"
-	mysqlDriver "github.com/go-sql-driver/mysql"
 )
 
 type AppConfig struct {
 	Port                          string
+	DBPath                        string
 	DBDSN                         string
 	KafkaBrokers                  string
 	KafkaTopicNotify              string
@@ -39,7 +39,7 @@ func Load() (*AppConfig, error) {
 
 	cfg := &AppConfig{
 		Port:                          lookup(flatMap, "server.port", "8086"),
-		DBDSN:                         lookup(flatMap, "db.dsn", ""),
+		DBPath:                        lookup(flatMap, "db.path", ""),
 		KafkaBrokers:                  lookup(flatMap, "kafka.brokers", ""),
 		KafkaTopicNotify:              lookup(flatMap, "kafka.topic", "notification.trigger"),
 		KafkaGroupID:                  lookup(flatMap, "kafka.group-id", "cowork-notification"),
@@ -56,10 +56,7 @@ func Load() (*AppConfig, error) {
 	portStr := lookup(flatMap, "eureka.instance.port", "8086")
 
 	overrideFromEnv(cfg, &portStr)
-	cfg.DBDSN, err = mysqlDSN(cfg.DBDSN)
-	if err != nil {
-		return nil, err
-	}
+	cfg.DBDSN = sqliteDSN(cfg.DBPath)
 
 	eurekaPort, err := strconv.Atoi(portStr)
 	if err != nil {
@@ -97,6 +94,9 @@ func fetchFromConfigServer() (map[string]string, error) {
 func overrideFromEnv(cfg *AppConfig, eurekaPortStr *string) {
 	if v := os.Getenv("FCM_CREDENTIALS_JSON"); v != "" {
 		cfg.FCMCredentialsJSON = v
+	}
+	if v := os.Getenv("DB_PATH"); v != "" {
+		cfg.DBPath = v
 	}
 	if v := os.Getenv("PORT"); v != "" {
 		cfg.Port = v
@@ -180,7 +180,7 @@ func firstNonLoopbackIPv4() string {
 
 func validate(cfg *AppConfig) (*AppConfig, error) {
 	required := map[string]string{
-		"DB_DSN (or db.dsn from config server)":                                       cfg.DBDSN,
+		"DB_PATH (or db.path from config server)":                                     cfg.DBPath,
 		"KAFKA_BOOTSTRAP_SERVERS (or kafka.brokers from config server)":               cfg.KafkaBrokers,
 		"KAFKA_TOPIC_NOTIFICATION (or kafka.topic from config server)":                cfg.KafkaTopicNotify,
 		"KAFKA_GROUP_ID (or kafka.group-id from config server)":                       cfg.KafkaGroupID,
@@ -210,32 +210,11 @@ func getEnv(key, fallback string) string {
 	return fallback
 }
 
-// Individual database inputs define one connection and take precedence over a stored DSN.
-func mysqlDSN(fallback string) (string, error) {
-	keys := []string{"DB_HOST", "DB_PORT", "DB_NAME", "DB_USERNAME", "DB_PASSWORD"}
-	configured := false
-	for _, key := range keys {
-		if _, present := os.LookupEnv(key); present {
-			configured = true
-			break
-		}
+// Transactions take the write lock at BEGIN, so a read-then-write transaction
+// never fails on a lock upgrade.
+func sqliteDSN(path string) string {
+	if path == "" {
+		return ""
 	}
-	if !configured {
-		return getEnv("DB_DSN", fallback), nil
-	}
-	for _, key := range keys {
-		if os.Getenv(key) == "" {
-			return "", fmt.Errorf("required configuration %q is not set", key)
-		}
-	}
-	cfg := mysqlDriver.NewConfig()
-	cfg.User = os.Getenv("DB_USERNAME")
-	cfg.Passwd = os.Getenv("DB_PASSWORD")
-	cfg.Net = "tcp"
-	cfg.Addr = net.JoinHostPort(os.Getenv("DB_HOST"), os.Getenv("DB_PORT"))
-	cfg.DBName = os.Getenv("DB_NAME")
-	cfg.ParseTime = true
-	cfg.Loc = time.Local
-	cfg.Params = map[string]string{"charset": "utf8mb4"}
-	return cfg.FormatDSN(), nil
+	return "file:" + path + "?_journal_mode=WAL&_synchronous=NORMAL&_busy_timeout=5000&_txlock=immediate"
 }

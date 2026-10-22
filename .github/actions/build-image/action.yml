@@ -33,11 +33,13 @@ runs:
       shell: bash
       env:
         CACHE_FALLBACK: ${{ runner.os }}-dependency-mounts-v3-cowork-${{ inputs.service }}-${{ inputs.environment }}-
+        CACHE_PROD_FALLBACK: ${{ runner.os }}-dependency-mounts-v3-cowork-${{ inputs.service }}-prod-
         CACHE_PREFIX: ${{ runner.os }}-dependency-mounts-v3-cowork-${{ inputs.service }}-${{ inputs.environment }}-${{ hashFiles(inputs.dockerfile) }}-
       run: |
         echo "key=${CACHE_PREFIX}$(date -u +%G-W%V)" >> "$GITHUB_OUTPUT"
         echo "prefix=$CACHE_PREFIX" >> "$GITHUB_OUTPUT"
         echo "fallback=$CACHE_FALLBACK" >> "$GITHUB_OUTPUT"
+        echo "prod-fallback=$CACHE_PROD_FALLBACK" >> "$GITHUB_OUTPUT"
     # Keep mount caches as the only external cache; type=gha layer imports failed
     # with BlobNotFound during eviction. The verify target builds the same builder
     # stage, so only verify-image saves the shared mounts to stay under the budget.
@@ -51,13 +53,23 @@ runs:
         restore-keys: |
           ${{ steps.cache-key.outputs.prefix }}
           ${{ steps.cache-key.outputs.fallback }}
+    # Same prod fallback as verify-image; its path must equal the prod cache path.
+    - name: Restore Prod Dependency Cache Mounts As Fallback
+      if: steps.restore-cache.outputs.cache-matched-key == '' && inputs.environment != 'prod'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+      id: restore-prod-cache
+      with:
+        path: ${{ runner.temp }}/dependency-mounts-cowork-${{ inputs.service }}-prod
+        key: ${{ steps.cache-key.outputs.prod-fallback }}
+        restore-keys: |
+          ${{ steps.cache-key.outputs.prod-fallback }}
     - name: Inject BuildKit Cache Mounts
-      if: steps.restore-cache.outputs.cache-matched-key != ''
+      if: steps.restore-cache.outputs.cache-matched-key != '' || steps.restore-prod-cache.outputs.cache-matched-key != ''
       uses: reproducible-containers/buildkit-cache-dance@5422eac04292c961a382e0f584ea0f03ad9da723 # v3.4.0
       with:
         builder: ${{ steps.builder.outputs.name }}
         dockerfile: ${{ inputs.dockerfile }}
-        cache-dir: ${{ runner.temp }}/dependency-mounts-cowork-${{ inputs.service }}-${{ inputs.environment }}
+        cache-dir: ${{ runner.temp }}/dependency-mounts-cowork-${{ inputs.service }}-${{ steps.restore-prod-cache.outputs.cache-matched-key != '' && 'prod' || inputs.environment }}
         scratch-dir: ${{ runner.temp }}/cowork-cache-dance
         skip-extraction: 'true'
         utility-image: alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
