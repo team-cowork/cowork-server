@@ -8,7 +8,7 @@ import {PullRequestService} from './pull-request.service';
 describe('PullRequestHttpController', () => {
     let controller: PullRequestHttpController;
     let pullRequestService: {
-        getPullRequestDetail: jest.Mock;
+        getPullRequestLiveStatus: jest.Mock;
         listPullRequestFiles: jest.Mock;
         mergePullRequest: jest.Mock;
         approvePullRequest: jest.Mock;
@@ -16,8 +16,7 @@ describe('PullRequestHttpController', () => {
 
     beforeEach(async () => {
         pullRequestService = {
-            getPullRequestDetail: jest.fn(),
-            listPullRequestFiles: jest.fn(),
+            getPullRequestLiveStatus: jest.fn(),
             mergePullRequest: jest.fn(),
             approvePullRequest: jest.fn(),
         };
@@ -37,13 +36,13 @@ describe('PullRequestHttpController', () => {
         );
     });
 
-    it('PR 상세를 조회한다', async () => {
-        pullRequestService.getPullRequestDetail.mockResolvedValue({number: 1});
+    it('PR live 상태를 조회한다', async () => {
+        pullRequestService.getPullRequestLiveStatus.mockResolvedValue({mergeable: true});
 
-        const result = await controller.getDetail('my-org', 'my-repo', 1);
+        const result = await controller.getLiveStatus('my-org', 'my-repo', 1);
 
-        expect(result).toEqual({number: 1});
-        expect(pullRequestService.getPullRequestDetail).toHaveBeenCalledWith(
+        expect(result).toEqual({mergeable: true});
+        expect(pullRequestService.getPullRequestLiveStatus).toHaveBeenCalledWith(
             'my-org',
             'my-repo',
             1,
@@ -90,13 +89,13 @@ describe('PullRequestHttpController', () => {
     });
 
     it('알 수 없는 에러는 502로 변환한다', async () => {
-        pullRequestService.getPullRequestDetail.mockRejectedValue(
+        pullRequestService.getPullRequestLiveStatus.mockRejectedValue(
             new Error('network down'),
         );
 
         let caught: unknown;
         try {
-            await controller.getDetail('my-org', 'my-repo', 1);
+            await controller.getLiveStatus('my-org', 'my-repo', 1);
         } catch (error) {
             caught = error;
         }

@@ -161,8 +161,7 @@ services:
         github.label.state.v1-dlt
         github.issue-comment.state.v1
         github.issue-comment.state.v1-dlt
-        github.backfill.completed.v1
-        github.backfill.completed.v1-dlt
+        github.sync.command.v1
       KAFKA_COMPACTED_TOPICS: >-
         user.profile.event.v2
         user.presence.event
@@ -187,12 +186,15 @@ services:
       - |
         set -eu
         for topic in $${KAFKA_TOPICS}; do
+          partitions="$${KAFKA_TOPIC_PARTITIONS}"
+          # GitHub state topics stay single-partition so each sync-completed marker is consumed after its records.
+          case "$${topic}" in github.*.state.v1) partitions=1 ;; esac
           /opt/kafka/bin/kafka-topics.sh \
             --bootstrap-server kafka:9092 \
             --create \
             --if-not-exists \
             --topic "$${topic}" \
-            --partitions "$${KAFKA_TOPIC_PARTITIONS}" \
+            --partitions "$${partitions}" \
             --replication-factor "$${KAFKA_TOPIC_REPLICATION_FACTOR}"
         done
         /opt/kafka/bin/kafka-configs.sh \

@@ -1,9 +1,11 @@
 package com.cowork.project.global.consumer
 
 import com.cowork.project.domain.github.entity.GithubLabelProjection
+import com.cowork.project.domain.github.entity.GithubSyncStream
 import com.cowork.project.domain.github.event.GITHUB_LABEL_STATE_TOPIC
 import com.cowork.project.domain.github.event.GithubLabelStateEvent
 import com.cowork.project.domain.github.repository.GithubLabelProjectionRepository
+import com.cowork.project.domain.github.service.GithubSyncMarkers
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.springframework.kafka.annotation.KafkaListener
@@ -15,6 +17,7 @@ import java.time.Instant
 class GithubLabelStateConsumer(
     private val repository: GithubLabelProjectionRepository,
     private val objectMapper: ObjectMapper,
+    private val syncMarkers: GithubSyncMarkers,
 ) {
     @KafkaListener(
         topics = [GITHUB_LABEL_STATE_TOPIC],
@@ -23,6 +26,7 @@ class GithubLabelStateConsumer(
     )
     @Transactional
     fun consume(record: ConsumerRecord<String, String>) {
+        if (syncMarkers.recordIfMarker(GithubSyncStream.LABEL, record.value())) return
         val event = objectMapper.readValue(record.value(), GithubLabelStateEvent::class.java)
         val id = GithubLabelProjection.id(event.owner, event.repo, event.name)
         val projection = repository.findById(id).orElseGet {

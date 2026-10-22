@@ -18,25 +18,14 @@ import {PullRequestService} from './pull-request.service';
 export class PullRequestHttpController {
     constructor(private readonly pullRequestService: PullRequestService) {}
 
-    @Get()
-    async getDetail(
+    @Get('live-status')
+    async getLiveStatus(
         @Param('owner') owner: string,
         @Param('repo') repo: string,
         @Param('number', ParseIntPipe) prNumber: number,
     ) {
         return this.handle(async () =>
-            this.pullRequestService.getPullRequestDetail(owner, repo, prNumber),
-        );
-    }
-
-    @Get('files')
-    async getFiles(
-        @Param('owner') owner: string,
-        @Param('repo') repo: string,
-        @Param('number', ParseIntPipe) prNumber: number,
-    ) {
-        return this.handle(async () =>
-            this.pullRequestService.listPullRequestFiles(owner, repo, prNumber),
+            this.pullRequestService.getPullRequestLiveStatus(owner, repo, prNumber),
         );
     }
 
