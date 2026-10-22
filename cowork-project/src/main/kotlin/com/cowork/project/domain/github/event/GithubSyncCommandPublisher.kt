@@ -22,10 +22,11 @@ data class GithubSyncCommand(
     val requestedAt: Instant,
 )
 
+val GithubSyncCommand.key: String get() = repo?.let { "$owner/$it" } ?: owner
+
 @Component
 class GithubSyncCommandPublisher(private val kafkaTemplate: KafkaTemplate<String, Any>) {
     fun publish(command: GithubSyncCommand) {
-        val key = command.repo?.let { "${command.owner}/$it" } ?: command.owner
-        kafkaTemplate.send(GITHUB_SYNC_COMMAND_TOPIC, key, command).get(SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        kafkaTemplate.send(GITHUB_SYNC_COMMAND_TOPIC, command.key, command).get(SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
     }
 }
