@@ -56,6 +56,21 @@ class GithubSyncMarkersTest :
                 }
             }
 
+            context("owner/repo의 대소문자가 GitHub 정식 이름과 다른 경우") {
+                it("소문자로 맞춘 같은 마커 id로 기록하고 조회한다") {
+                    every { repository.findById("ISSUE:my-org/my-repo") } returns Optional.empty()
+                    every { repository.existsById("ISSUE:my-org/my-repo") } returns true
+                    every { repository.save(any<GithubSyncMarker>()) } answers { firstArg() }
+                    val markerJson = """{"recordType":"SYNC_COMPLETED","owner":"My-Org","repo":"My-Repo",""" +
+                        """"completedAt":"2026-01-02T00:00:00Z"}"""
+
+                    markers.recordIfMarker(GithubSyncStream.ISSUE, markerJson)
+                    markers.requireSynced(GithubSyncStream.ISSUE, "MY-ORG", "my-REPO")
+
+                    verify { repository.save(match { it.id == "ISSUE:my-org/my-repo" }) }
+                }
+            }
+
             context("이미 기록된 마커보다 오래된 마커인 경우") {
                 it("완료 시각을 되돌리지 않는다") {
                     val existing = GithubSyncMarker("REPO:my-org", Instant.parse("2026-01-02T00:00:00Z"))
