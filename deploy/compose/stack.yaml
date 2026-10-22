@@ -161,8 +161,7 @@ services:
         github.label.state.v1-dlt
         github.issue-comment.state.v1
         github.issue-comment.state.v1-dlt
-        github.backfill.completed.v1
-        github.backfill.completed.v1-dlt
+        github.sync.command.v1
       KAFKA_COMPACTED_TOPICS: >-
         user.profile.event.v2
         user.presence.event
