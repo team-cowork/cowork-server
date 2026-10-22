@@ -11,6 +11,7 @@ const producer = () => ({send: jest.fn(), sendSyncCompleted: jest.fn()});
 describe('GithubBackfillService', () => {
     let producers: Record<'repo' | 'issue' | 'pullRequest' | 'label' | 'issueComment', ReturnType<typeof producer>>;
     let labelHttpService: {listLabels: jest.Mock};
+    let issueHttpService: {listIssues: jest.Mock; listComments: jest.Mock};
     let redis: {set: jest.Mock; eval: jest.Mock};
     let service: GithubBackfillService;
 
@@ -20,7 +21,7 @@ describe('GithubBackfillService', () => {
         };
         labelHttpService = {listLabels: jest.fn().mockResolvedValue([{name: 'bug', color: 'd73a4a'}])};
         redis = {set: jest.fn().mockResolvedValue('OK'), eval: jest.fn()};
-        const issueHttpService = {
+        issueHttpService = {
             listIssues: jest.fn().mockResolvedValue([{number: 1, updatedAt: '2026-01-01T00:00:00Z'}]),
             listComments: jest.fn().mockResolvedValue([{id: 10, updatedAt: '2026-01-01T00:00:00Z'}]),
         };
@@ -52,6 +53,17 @@ describe('GithubBackfillService', () => {
         }
 
         expect(redis.eval).toHaveBeenCalled();
+    });
+
+    it('all 최신 100건에 없는 오래된 열린 이슈도 중복 없이 보낸다', async () => {
+        issueHttpService.listIssues.mockImplementation(async (_owner: string, _repo: string, state: string) =>
+            (state === 'open'
+                ? [{number: 1, updatedAt: '2026-01-01T00:00:00Z'}, {number: 3, updatedAt: '2025-01-01T00:00:00Z'}]
+                : [{number: 1, updatedAt: '2026-01-01T00:00:00Z'}]));
+
+        await service.enqueue({type: 'REPOSITORY', owner: 'my-org', repo: 'my-repo'});
+
+        expect(producers.issue.send.mock.calls.map(([event]: [{number: number}]) => event.number)).toEqual([1, 3]);
     });
 
     it('이미 대기 중인 대상은 다시 넣지 않는다', async () => {
