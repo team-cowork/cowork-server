@@ -1,6 +1,6 @@
 package com.cowork.project.domain.github.service
 
-import com.cowork.project.domain.github.client.GithubAppClient
+import com.cowork.project.domain.github.entity.GithubSyncStream
 import com.cowork.project.domain.github.presentation.data.response.GithubLabelResDto
 import com.cowork.project.domain.github.repository.GithubLabelProjectionRepository
 import org.springframework.stereotype.Component
@@ -8,15 +8,11 @@ import org.springframework.stereotype.Component
 @Component
 class GithubLabelReader(
     private val repository: GithubLabelProjectionRepository,
-    private val githubAppClient: GithubAppClient,
-    private val callExecutor: GithubAppCallExecutor,
+    private val syncMarkers: GithubSyncMarkers,
 ) {
     fun listLabels(owner: String, repo: String): List<GithubLabelResDto> {
-        val projections = repository.findByOwnerAndRepoAndDeletedFalse(owner, repo)
-        if (projections.isEmpty()) {
-            return callExecutor.execute { githubAppClient.listLabels(owner, repo) }
-        }
-
-        return projections.map { GithubLabelResDto(name = it.name, color = it.color) }
+        syncMarkers.requireSynced(GithubSyncStream.LABEL, owner, repo)
+        return repository.findByOwnerAndRepoAndDeletedFalse(owner, repo)
+            .map { GithubLabelResDto(name = it.name, color = it.color) }
     }
 }
