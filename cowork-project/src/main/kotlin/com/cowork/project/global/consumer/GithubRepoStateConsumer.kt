@@ -43,6 +43,7 @@ class GithubRepoStateConsumer(
         }
         if (projection.apply(event)) {
             repository.save(projection)
+            if (event.deleted) syncMarkers.clearRepo(event.owner, event.repo)
         }
     }
 }

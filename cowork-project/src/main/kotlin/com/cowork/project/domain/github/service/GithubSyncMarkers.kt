@@ -34,6 +34,11 @@ class GithubSyncMarkers(
         return true
     }
 
+    /** 설치 범위에서 빠지거나 삭제된 repo의 projection을 더 이상 완전한 목록으로 믿지 않도록 repo 단위 마커를 지운다. */
+    fun clearRepo(owner: String, repo: String) {
+        repository.deleteAllById(REPO_STREAMS.map { GithubSyncMarker.id(it, owner, repo) })
+    }
+
     fun requireSynced(stream: GithubSyncStream, owner: String, repo: String? = null) {
         if (!repository.existsById(GithubSyncMarker.id(stream, owner, repo))) {
             throw ExpectedException("GitHub 데이터 동기화가 완료되지 않았습니다.", HttpStatus.SERVICE_UNAVAILABLE)
@@ -42,5 +47,6 @@ class GithubSyncMarkers(
 
     private companion object {
         const val SYNC_COMPLETED = "SYNC_COMPLETED"
+        val REPO_STREAMS = GithubSyncStream.entries - GithubSyncStream.REPO
     }
 }
