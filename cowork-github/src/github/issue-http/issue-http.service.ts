@@ -44,15 +44,6 @@ export type CreateCommentParameters = {
 export class IssueHttpService {
     constructor(private readonly apiClient: IssueHttpApiClient) {}
 
-    async getIssueDetail(
-        owner: string,
-        repo: string,
-        issueNumber: number,
-    ): Promise<IssueDetailResponse> {
-        const issue = await this.apiClient.getIssue(owner, repo, issueNumber);
-        return this.toIssueDetailResponse(issue);
-    }
-
     async listIssues(
         owner: string,
         repo: string,
@@ -96,15 +87,6 @@ export class IssueHttpService {
             markedBody,
         );
         return this.toCommentResponse(created);
-    }
-
-    async getComment(
-        owner: string,
-        repo: string,
-        commentId: number,
-    ): Promise<CommentResponse> {
-        const comment = await this.apiClient.getComment(owner, repo, commentId);
-        return this.toCommentResponse(comment);
     }
 
     async updateComment(
