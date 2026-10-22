@@ -36,7 +36,6 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.assertions.core)
-    testImplementation(libs.reactor.test)
 }
 
 tasks.withType<Test>().configureEach {
