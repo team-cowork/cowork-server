@@ -24,7 +24,7 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
 
 @Module({
     imports: [
-        ConfigModule.forRoot({isGlobal: true}),
+        ConfigModule.forRoot({isGlobal: true, ignoreEnvFile: true}),
         MongooseModule.forRootAsync({
             inject: [ConfigService],
             useFactory: (configService: ConfigService) => ({

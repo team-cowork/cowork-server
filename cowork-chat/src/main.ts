@@ -1,7 +1,6 @@
 import {join} from 'node:path';
 import {getHeapStatistics} from 'node:v8';
 import 'reflect-metadata';
-import 'dotenv/config';
 import {NestFactory} from '@nestjs/core';
 import {type NestExpressApplication} from '@nestjs/platform-express';
 import {Logger, ValidationPipe} from '@nestjs/common';
@@ -23,7 +22,7 @@ import {
 const ALL_PROJECTION_STREAMS = Object.keys(PROJECTION_STREAMS) as ProjectionName[];
 
 function requiredProjectionStreams(path: string): ProjectionName[] {
-    if (path.startsWith('/chat/block') || path.startsWith('/chat/admin/projections')) {
+    if (path.startsWith('/chat/block') || path.startsWith('/chat/admin/')) {
         return [];
     }
 
@@ -159,7 +158,7 @@ async function bootstrap() {
             || request.path === '/api'
             || request.path === '/api-json'
             || request.path === '/asyncapi.json'
-            || request.path.startsWith('/chat/admin/projections');
+            || request.path.startsWith('/chat/admin/');
         const requiredStreams = isOperationalPath ? [] : requiredProjectionStreams(request.path);
         if (!projectionReadiness.areReady(requiredStreams)) {
             const unavailableStreams = requiredStreams.filter(stream => !projectionReadiness.areReady([stream]));
