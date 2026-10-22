@@ -12,11 +12,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 
 FROM builder AS verification
 RUN apk --no-cache add bash python3 git build-base
+COPY --from=golangci/golangci-lint:v2.13.2-alpine@sha256:da1f79b184ff1d98781648407d05a99b9cba7b282aa3416b0a0eac102a3b0557 /usr/bin/golangci-lint /usr/local/bin/golangci-lint
 COPY deploy/images/ci /ci
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2 \
-    && golangci-lint run \
+    golangci-lint run \
     && go vet ./... \
     && bash /ci/run-native.sh go cowork-notification /workspace /coverage \
     && python3 /ci/report.py collect --module cowork-notification --snapshot pr --format go --metric statement --input /coverage/report.out --output /coverage/coverage.json --exit-code 0
