@@ -10,6 +10,7 @@ import type Redis from 'ioredis';
 import {GithubAuthService} from '../../auth/github-auth.service';
 import {REDIS_CLIENT} from '../../constants';
 import {githubCacheKeys} from '../../github.cache';
+import {GithubBackfillService} from '../github-backfill.service';
 import {TeamGithubProducer} from '../kafka/team-github.producer';
 
 @Controller('github/setup')
@@ -19,6 +20,7 @@ export class GithubSetupController {
     constructor(
         private readonly authService: GithubAuthService,
         private readonly producer: TeamGithubProducer,
+        private readonly backfillService: GithubBackfillService,
         @Inject(REDIS_CLIENT) private readonly redis: Redis,
     ) {}
 
@@ -59,6 +61,15 @@ export class GithubSetupController {
                 installationId,
                 orgLogin,
                 revision,
+            });
+            // Repo/PR/이슈/댓글/라벨 projection 초기 데이터를 채운다. 설치 콜백 응답을
+            // 지연시키지 않도록 완료를 기다리지 않고, 실패는 로그만 남긴다 — 다음 webhook
+            // 이벤트가 각 항목을 다시 최신화한다.
+            this.backfillService.runFullSync(installationId, orgLogin).catch((error: unknown) => {
+                this.logger.error(
+                    `GitHub backfill failed [installationId=${installationId}, org=${orgLogin}]`,
+                    error instanceof Error ? error.stack : String(error),
+                );
             });
             return this.page(
                 'GitHub 연동이 완료되었습니다. 이 창을 닫고 cowork로 돌아가세요.',
