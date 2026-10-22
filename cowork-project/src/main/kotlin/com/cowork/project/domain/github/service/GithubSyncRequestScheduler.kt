@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import java.time.Instant
+import java.util.Locale
 
 /** 동기화 대상. org는 repo 목록, repo는 이슈·PR·라벨·댓글이며, 각자 확인할 완료 마커가 다르다. */
 data class GithubSyncTarget(val owner: String, val repo: String?, val installationId: Long?) {
@@ -88,14 +89,16 @@ class GithubSyncRequestScheduler(
         return markerCompletedAts.any { it == null || it.isBefore(staleBefore) }
     }
 
+    // owner/repo는 `project.github-repo.event`와 같은 규칙으로 소문자로 맞춘다. 연결 URL의 대소문자가 서로
+    // 다르거나 GitHub 정식 이름과 달라도 같은 대상·마커로 판단해야 같은 repo를 반복 요청하지 않는다.
     private fun targets(): List<GithubSyncTarget> {
         val orgs = installationRepository.findAll()
-            .distinctBy { it.orgLogin }
-            .map { GithubSyncTarget(it.orgLogin, null, it.installationId) }
+            .map { GithubSyncTarget(it.orgLogin.lowercase(Locale.ROOT), null, it.installationId) }
+            .distinctBy { it.owner }
         val repos = projectGithubRepoRepository.findAll()
             .mapNotNull { GithubRepoUrlParser.parse(it.githubRepoUrl) }
+            .map { GithubSyncTarget(it.owner.lowercase(Locale.ROOT), it.repo.lowercase(Locale.ROOT), null) }
             .distinct()
-            .map { GithubSyncTarget(it.owner, it.repo, null) }
         return orgs + repos
     }
 
