@@ -6,9 +6,8 @@ import team.themoment.sdk.exception.ExpectedException
 
 /**
  * 수정/삭제 시점에 댓글 작성자를 확인한다. 프로젝트 OWNER/ADMIN(수정 권한 보유자)이면 작성자
- * 여부와 무관하게 통과시키고, 그 외에는 댓글 작성자 본인만 통과시킨다. 댓글 작성자는 생성 이후
- * 바뀌지 않는 값이라, 로컬 projection이 아직 이 댓글을 반영하지 못했을 때만 [GithubIssueCommentReader]가
- * GitHub을 직접 조회한다.
+ * 여부와 무관하게 통과시키고, 그 외에는 댓글 작성자 본인만 통과시킨다. 작성자는 로컬 projection에서
+ * 확인하므로, 방금 만든 댓글이 아직 projection에 반영되지 않았으면 [GithubIssueCommentReader]가 404를 낸다.
  */
 @Component
 class GithubCommentAuthorizationSupport(
