@@ -201,7 +201,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     /**
-     handshake 단계에서 인증 정보를 확인해 `client.data`에 설정한다.
+     Handshake 단계에서 인증 정보를 확인해 `client.data`에 설정한다.
      실패하면 연결을 수락하지 않으므로 클라이언트는 `connect` 없이 `connect_error`만 받는다.
 
      @param client - handshake 중인 Socket.IO 소켓
@@ -222,7 +222,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     /**
-     handshake 미들웨어에서 인증된 소켓을 개인 room에 넣는다.
+     Handshake 미들웨어에서 인증된 소켓을 개인 room에 넣는다.
 
      @param client - 인증을 마친 Socket.IO 소켓
      */
