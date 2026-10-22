@@ -113,6 +113,4 @@ class KafkaConsumerConfig(
     @Bean
     fun githubIssueCommentStateListenerContainerFactory() = durableResultListenerContainerFactory()
 
-    @Bean
-    fun githubBackfillCompletedListenerContainerFactory() = durableResultListenerContainerFactory()
 }
