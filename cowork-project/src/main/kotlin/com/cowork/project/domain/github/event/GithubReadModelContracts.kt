@@ -8,7 +8,6 @@ const val GITHUB_ISSUE_STATE_TOPIC = "github.issue.state.v1"
 const val GITHUB_PULL_REQUEST_STATE_TOPIC = "github.pull-request.state.v1"
 const val GITHUB_LABEL_STATE_TOPIC = "github.label.state.v1"
 const val GITHUB_ISSUE_COMMENT_STATE_TOPIC = "github.issue-comment.state.v1"
-const val GITHUB_BACKFILL_COMPLETED_TOPIC = "github.backfill.completed.v1"
 
 /**
  * cowork-github가 webhook/backfill로 발행하는 repo read-model state.
@@ -87,10 +86,15 @@ data class GithubLabelStateEvent(
     val sourceOccurredAt: Instant = Instant.EPOCH,
 )
 
+/**
+ * 각 state 토픽에 실리는 동기화 완료 마커. `repo`가 null이면 org 단위(repo 목록) 마커다.
+ * 엔티티 state 레코드와는 `recordType`으로 구분한다.
+ */
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class GithubBackfillCompletedEvent(
-    val installationId: Long = 0,
-    val orgLogin: String = "",
+data class GithubSyncCompletedMarker(
+    val recordType: String = "",
+    val owner: String = "",
+    val repo: String? = null,
     val completedAt: Instant = Instant.EPOCH,
 )
 
