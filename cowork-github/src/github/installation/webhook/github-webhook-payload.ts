@@ -32,6 +32,7 @@ export type GithubWebhookPayload = {
         updated_at?: string;
     };
     label?: {name?: string; color?: string};
+    changes?: {name?: {from?: string}};
     comment?: {
         id?: number;
         body?: string;
