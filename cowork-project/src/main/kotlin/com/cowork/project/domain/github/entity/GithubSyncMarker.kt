@@ -5,6 +5,7 @@ import jakarta.persistence.Entity
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.Instant
+import java.util.Locale
 
 /** 동기화 완료 마커가 실리는 state 토픽. */
 enum class GithubSyncStream { REPO, ISSUE, PULL_REQUEST, LABEL, ISSUE_COMMENT }
@@ -24,8 +25,13 @@ class GithubSyncMarker(
     var completedAt: Instant,
 ) {
     companion object {
-        /** `repo`가 null이면 org 단위(repo 목록) 마커다. */
-        fun id(stream: GithubSyncStream, owner: String, repo: String?): String =
-            if (repo == null) "$stream:$owner" else "$stream:$owner/$repo"
+        /**
+         * `repo`가 null이면 org 단위(repo 목록) 마커다. GitHub은 owner/repo 대소문자를 구분하지 않으므로
+         * `project.github-repo.event`와 같은 규칙으로 소문자로 맞춘다.
+         */
+        fun id(stream: GithubSyncStream, owner: String, repo: String?): String {
+            val scope = if (repo == null) owner else "$owner/$repo"
+            return "$stream:${scope.lowercase(Locale.ROOT)}"
+        }
     }
 }
