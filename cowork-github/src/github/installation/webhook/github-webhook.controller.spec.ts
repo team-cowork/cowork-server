@@ -142,6 +142,20 @@ describe('GithubWebhookController', () => {
         }));
     });
 
+    it('PR state 발행이 실패해도 github.repo.event는 발행하고 ok를 반환한다', async () => {
+        pullRequestService.listPullRequestFiles.mockRejectedValue(new Error('rate limited'));
+
+        const result = await controller.handle('pull_request', {
+            action: 'synchronize',
+            repository: {full_name: 'my-org/my-repo'},
+            pull_request: {number: 7, user: {login: 'octocat'}},
+        });
+
+        expect(result).toEqual({ok: true});
+        expect(repoEventProducer.send).toHaveBeenCalled();
+        expect(readModelProducers.pullRequest.send).not.toHaveBeenCalled();
+    });
+
     it('pull_request의 labeled 액션에서는 파일 목록을 다시 조회하지 않는다', async () => {
         await controller.handle('pull_request', {
             action: 'labeled',
@@ -198,6 +212,24 @@ describe('GithubWebhookController', () => {
             repo: 'my-repo',
             name: 'bug',
             color: 'd73a4a',
+            deleted: false,
+        }));
+    });
+
+    it('label 이름이 바뀌면 이전 이름을 삭제 처리하고 새 이름을 발행한다', async () => {
+        await controller.handle('label', {
+            action: 'edited',
+            repository: {full_name: 'my-org/my-repo'},
+            label: {name: 'defect', color: 'd73a4a'},
+            changes: {name: {from: 'bug'}},
+        });
+
+        expect(readModelProducers.label.send).toHaveBeenCalledWith(expect.objectContaining({
+            name: 'bug',
+            deleted: true,
+        }));
+        expect(readModelProducers.label.send).toHaveBeenCalledWith(expect.objectContaining({
+            name: 'defect',
             deleted: false,
         }));
     });
