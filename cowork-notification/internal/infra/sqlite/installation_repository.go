@@ -1,4 +1,4 @@
-package mysql
+package sqlite
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"github.com/cowork/cowork-notification/internal/apperr"
 	"github.com/cowork/cowork-notification/internal/domain/installation"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type InstallationRepository struct {
@@ -22,20 +21,20 @@ func NewInstallationRepository(db *gorm.DB) *InstallationRepository {
 func (r *InstallationRepository) Register(ctx context.Context, requested *installation.Installation) (installation.RegistrationResult, error) {
 	var registration installation.RegistrationResult
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// The FID-only unique key serializes registrations for one physical app
-		// installation. The no-op duplicate update acquires the row lock even when
-		// this account is taking ownership from another account.
+		// Transactions begin IMMEDIATE, so this registration already holds the
+		// database write lock while it inserts or takes over the FID.
+		now := time.Now().UTC()
 		if err := tx.Exec(
-			`INSERT INTO tb_device_installation (account_id, fid, platform)
-			 VALUES (?, ?, ?)
-			 ON DUPLICATE KEY UPDATE id = id`,
-			requested.AccountID, requested.FID, requested.Platform,
+			`INSERT INTO tb_device_installation (account_id, fid, platform, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?)
+			 ON CONFLICT (fid) DO NOTHING`,
+			requested.AccountID, requested.FID, requested.Platform, now, now,
 		).Error; err != nil {
 			return err
 		}
 
 		var existing installation.Installation
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		if err := tx.
 			Where("fid = ?", requested.FID).
 			Take(&existing).Error; err != nil {
 			return err
@@ -46,7 +45,7 @@ func (r *InstallationRepository) Register(ctx context.Context, requested *instal
 				Where("id = ?", existing.ID).
 				Updates(map[string]any{
 					"platform":   requested.Platform,
-					"updated_at": time.Now(),
+					"updated_at": now,
 				}).Error; err != nil {
 				return err
 			}
