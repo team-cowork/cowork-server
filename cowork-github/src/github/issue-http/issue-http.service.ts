@@ -1,4 +1,8 @@
 import {Injectable} from '@nestjs/common';
+import {
+    appendAuthorMarker,
+    extractCommentAuthor,
+} from '../common/comment-author-marker';
 import {GithubClientError} from '../github.errors';
 import {
     GithubComment,
@@ -35,21 +39,6 @@ export type CreateCommentParameters = {
     body: string;
     requesterGithubUsername: string;
 };
-
-// GitHub App 설치 토큰으로 댓글을 작성하면 GitHub상 작성자는 항상 이 앱(bot) 계정으로 보인다.
-// 실제 작성자를 보존하기 위해 본문 끝에 렌더링되지 않는 HTML 주석으로 마커를 남기고,
-// 응답을 만들 때 이 마커를 읽어 author를 실제 작성자로 덮어쓴다. 수정 시에는 새 마커를
-// 붙이지 않고 기존 댓글의 마커(원작성자)를 그대로 유지한다.
-const AUTHOR_MARKER_PATTERN = /<!--\s*cowork:author=(?<author>\S+)\s*-->\s*$/v;
-
-function stripTrailingNewlines(text: string): string {
-    let end = text.length;
-    while (end > 0 && text[end - 1] === '\n') {
-        end--;
-    }
-
-    return text.slice(0, end);
-}
 
 @Injectable()
 export class IssueHttpService {
@@ -99,7 +88,7 @@ export class IssueHttpService {
         body,
         requesterGithubUsername,
     }: CreateCommentParameters): Promise<CommentResponse> {
-        const markedBody = this.appendAuthorMarker(body, requesterGithubUsername);
+        const markedBody = appendAuthorMarker(body, requesterGithubUsername);
         const created = await this.apiClient.createComment(
             owner,
             repo,
@@ -125,8 +114,8 @@ export class IssueHttpService {
         body: string,
     ): Promise<CommentResponse> {
         const existing = await this.apiClient.getComment(owner, repo, commentId);
-        const {author} = this.extractAuthor(existing);
-        const markedBody = this.appendAuthorMarker(body, author);
+        const {author} = extractCommentAuthor(existing.body, existing.user?.login ?? 'ghost');
+        const markedBody = appendAuthorMarker(body, author);
         const updated = await this.apiClient.updateComment(
             owner,
             repo,
@@ -171,7 +160,7 @@ export class IssueHttpService {
     }
 
     private toCommentResponse(comment: GithubComment): CommentResponse {
-        const {author, body} = this.extractAuthor(comment);
+        const {author, body} = extractCommentAuthor(comment.body, comment.user?.login ?? 'ghost');
         return {
             id: comment.id,
             author,
@@ -180,28 +169,5 @@ export class IssueHttpService {
             createdAt: comment.created_at,
             updatedAt: comment.updated_at,
         };
-    }
-
-    private extractAuthor(comment: GithubComment): {
-        author: string;
-        body: string;
-    } {
-        const match = AUTHOR_MARKER_PATTERN.exec(comment.body);
-        if (match?.groups === undefined) {
-            return {author: comment.user?.login ?? 'ghost', body: comment.body};
-        }
-
-        return {
-            author: match.groups.author,
-            body: stripTrailingNewlines(comment.body.slice(0, match.index)),
-        };
-    }
-
-    private appendAuthorMarker(body: string, username: string): string {
-        const match = AUTHOR_MARKER_PATTERN.exec(body);
-        const stripped = match === null
-            ? body
-            : stripTrailingNewlines(body.slice(0, match.index));
-        return `${stripped}\n\n<!-- cowork:author=${username} -->`;
     }
 }
