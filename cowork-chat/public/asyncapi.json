@@ -89,7 +89,7 @@
       "ProjectUpdated": { "name": "project:updated", "title": "프로젝트 수정", "payload": { "$ref": "#/components/schemas/ProjectEvent" } },
       "ProjectDeleted": { "name": "project:deleted", "title": "프로젝트 삭제", "payload": { "$ref": "#/components/schemas/ProjectEvent" } },
       "Error": { "name": "error", "title": "요청 오류", "payload": { "$ref": "#/components/schemas/ErrorPayload" } },
-      "Exception": { "name": "exception", "title": "연결 인증 실패", "payload": { "$ref": "#/components/schemas/ErrorPayload" } }
+      "Exception": { "name": "exception", "title": "이벤트 처리 오류", "payload": { "$ref": "#/components/schemas/ErrorPayload" } }
     },
     "schemas": {
       "ChannelTarget": {
