@@ -6,11 +6,7 @@
     "APP_CONFIG_PROFILE": "prod",
     "CONFIG_SERVER_URL": "http://10.0.0.169:8761",
     "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
-    "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.167:9094",
-    "DB_HOST": "cowork-notification-db",
-    "DB_PORT": "3306",
-    "DB_USERNAME": "cowork_notification",
-    "DB_NAME": "cowork_notification"
+    "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.167:9094"
   },
   "secrets": {
     "runtime": {
@@ -21,10 +17,6 @@
       "CONFIG_CLIENT_USERNAME": {
         "key": "CONFIG_CLIENT_USERNAME",
         "path": "control-plane/prod/notification"
-      },
-      "DB_PASSWORD": {
-        "path": "slot-secrets/notification",
-        "key": "DB_PASSWORD"
       }
     }
   },
@@ -44,7 +36,14 @@
       "pids": 512
     },
     "stop_timeout_seconds": 30,
-    "mounts": []
+    "mounts": [
+      {
+        "type": "volume",
+        "source": "cowork-notification-data",
+        "target": "/app/data",
+        "read_only": false
+      }
+    ]
   },
   "peers": [
     "10.0.0.127/32",

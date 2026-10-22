@@ -10,6 +10,8 @@ fun Provider<PluginDependency>.marker() = map {
 }
 
 dependencies {
+    implementation(libs.plugins.spring.boot.marker())
+    implementation(libs.plugins.spring.dependency.management.marker())
     implementation(libs.plugins.kotlin.jvm.marker())
     implementation(libs.plugins.kotlin.spring.marker())
     implementation(libs.plugins.kotlin.jpa.marker())
