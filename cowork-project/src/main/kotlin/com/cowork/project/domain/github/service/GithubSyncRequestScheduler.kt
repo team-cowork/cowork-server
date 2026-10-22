@@ -3,12 +3,15 @@ package com.cowork.project.domain.github.service
 import com.cowork.project.domain.github.entity.GithubSyncMarker
 import com.cowork.project.domain.github.entity.GithubSyncRequest
 import com.cowork.project.domain.github.entity.GithubSyncStream
+import com.cowork.project.domain.github.event.GITHUB_SYNC_COMMAND_TOPIC
 import com.cowork.project.domain.github.event.GithubSyncCommand
 import com.cowork.project.domain.github.event.GithubSyncCommandPublisher
+import com.cowork.project.domain.github.event.key
 import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
 import com.cowork.project.domain.github.repository.GithubSyncRequestRepository
 import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
 import com.cowork.project.domain.github.repository.TeamGithubInstallationRepository
+import com.cowork.project.global.outbox.OutboxWriter
 import com.cowork.project.global.projection.ProjectionSnapshotLock
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
@@ -58,6 +61,7 @@ class GithubSyncRequestScheduler(
     private val markerRepository: GithubSyncMarkerRepository,
     private val requestRepository: GithubSyncRequestRepository,
     private val publisher: GithubSyncCommandPublisher,
+    private val outboxWriter: OutboxWriter,
     private val snapshotLock: ProjectionSnapshotLock,
     @Value("\${github.sync.request-cooldown-ms:1800000}") private val requestCooldownMs: Long,
     @Value("\${github.sync.stale-after-ms:604800000}") private val staleAfterMs: Long,
@@ -83,6 +87,22 @@ class GithubSyncRequestScheduler(
         }
     }
 
+    /**
+     * 프로젝트에 새로 연결한 repo는 다음 주기를 기다리지 않도록 연결 트랜잭션의 outbox로 바로 요청한다.
+     * 요청 시각도 함께 저장하므로, 그 뒤의 주기는 쿨다운 동안 같은 repo를 다시 요청하지 않는다.
+     */
+    fun requestRepositorySync(ref: GithubRepoRef) {
+        val now = Instant.now()
+        val target = repositoryTarget(ref)
+        val markers = markerRepository.findAllById(target.markerIds).associate { it.id to it.completedAt }
+        val lastRequestedAt = requestRepository.findById(target.requestId).map { it.requestedAt }.orElse(null)
+        if (!needsRequest(target.markerIds.map(markers::get), lastRequestedAt, now)) return
+
+        val command = target.toCommand(now)
+        outboxWriter.enqueue(GITHUB_SYNC_COMMAND_TOPIC, command.key, command)
+        requestRepository.save(GithubSyncRequest(target.requestId, now))
+    }
+
     internal fun needsRequest(markerCompletedAts: List<Instant?>, lastRequestedAt: Instant?, now: Instant): Boolean {
         if (lastRequestedAt != null && lastRequestedAt.isAfter(now.minusMillis(requestCooldownMs))) return false
         val staleBefore = now.minusMillis(staleAfterMs)
@@ -97,10 +117,13 @@ class GithubSyncRequestScheduler(
             .distinctBy { it.owner }
         val repos = projectGithubRepoRepository.findAll()
             .mapNotNull { GithubRepoUrlParser.parse(it.githubRepoUrl) }
-            .map { GithubSyncTarget(it.owner.lowercase(Locale.ROOT), it.repo.lowercase(Locale.ROOT), null) }
+            .map(::repositoryTarget)
             .distinct()
         return orgs + repos
     }
+
+    private fun repositoryTarget(ref: GithubRepoRef) =
+        GithubSyncTarget(ref.owner.lowercase(Locale.ROOT), ref.repo.lowercase(Locale.ROOT), null)
 
     private fun request(target: GithubSyncTarget, now: Instant) {
         try {
