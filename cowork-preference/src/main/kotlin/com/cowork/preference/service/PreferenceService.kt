@@ -69,6 +69,27 @@ class PreferenceService(
                     ),
                 )
             }
+            when (resourceType) {
+                ResourceType.ACCOUNT -> outboxRepository.enqueue(
+                    connection,
+                    PreferenceEvents.accountSettingState(
+                        accountId = resourceId,
+                        settings = result.settings,
+                        occurredAt = result.stateOccurredAt,
+                        snapshot = false,
+                    ),
+                )
+                ResourceType.TEAM -> outboxRepository.enqueue(
+                    connection,
+                    PreferenceEvents.teamSettingState(
+                        teamId = resourceId,
+                        settings = result.settings,
+                        occurredAt = result.stateOccurredAt,
+                        snapshot = false,
+                    ),
+                )
+                else -> Unit
+            }
             if (resourceType == ResourceType.GITHUB_REPO) {
                 outboxRepository.enqueue(
                     connection,
