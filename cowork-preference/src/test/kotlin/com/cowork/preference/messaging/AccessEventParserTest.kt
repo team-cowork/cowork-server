@@ -11,19 +11,20 @@ private fun json(vararg fields: Pair<String, Any?>): String = JsonObject(mapOf(*
 
 class AccessEventParserTest :
     DescribeSpec({
-        describe("ChannelMemberEventParser 객체의") {
+        describe("DmParticipantEventParser 객체의") {
             context("JOIN 이벤트이면") {
-                it("활성 멤버십으로 해석한다") {
+                it("활성 DM 참여으로 해석한다") {
                     val value = json(
                         "eventType" to "JOIN",
                         "channelId" to 11,
-                        "teamId" to 42,
+                        "teamId" to null,
+                        "channelType" to "DM",
                         "userId" to 100,
                         "occurredAt" to OCCURRED_AT,
                     )
 
-                    val event = ChannelMemberEventParser.parse("11:100", value)
-                        .shouldBeInstanceOf<ChannelMemberRecordDecision.Apply>().event
+                    val event = DmParticipantEventParser.parse("11:100", value)
+                        .shouldBeInstanceOf<DmParticipantRecordDecision.Apply>().event
 
                     event.channelId shouldBe 11L
                     event.userId shouldBe 100L
@@ -32,26 +33,27 @@ class AccessEventParserTest :
             }
 
             context("LEAVE 이벤트이면") {
-                it("삭제된 멤버십으로 해석해 권한을 회수한다") {
+                it("삭제된 DM 참여으로 해석해 권한을 회수한다") {
                     val value = json(
                         "eventType" to "LEAVE",
                         "channelId" to 11,
                         "teamId" to null,
+                        "channelType" to "DM",
                         "userId" to 100,
                         "occurredAt" to OCCURRED_AT,
                     )
 
-                    ChannelMemberEventParser.parse("11:100", value)
-                        .shouldBeInstanceOf<ChannelMemberRecordDecision.Apply>().event.deleted shouldBe true
+                    DmParticipantEventParser.parse("11:100", value)
+                        .shouldBeInstanceOf<DmParticipantRecordDecision.Apply>().event.deleted shouldBe true
                 }
             }
 
             context("key가 channelId와 userId 조합과 다르면") {
-                it("다른 채널의 멤버십을 바꾸지 못하도록 격리한다") {
+                it("다른 채널의 DM 참여을 바꾸지 못하도록 격리한다") {
                     val value = json("eventType" to "JOIN", "channelId" to 11, "userId" to 100, "occurredAt" to OCCURRED_AT)
 
-                    ChannelMemberEventParser.parse("12:100", value)
-                        .shouldBeInstanceOf<ChannelMemberRecordDecision.Quarantine>()
+                    DmParticipantEventParser.parse("12:100", value)
+                        .shouldBeInstanceOf<DmParticipantRecordDecision.Quarantine>()
                 }
             }
         }
