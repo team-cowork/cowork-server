@@ -111,6 +111,8 @@ database_catalog = json.loads(
 )
 database_targets = []
 for module, database in sorted(database_catalog.items()):
+    if database["engine"] == "sqlite":
+        continue
     slot = json.loads((slots_directory / f"{module}.json").read_text())
     address = slot["container"]["advertise_address"]
     if not private_ipv4(address):
@@ -227,14 +229,18 @@ health_metrics = {"mysql": "mysql_up", "postgres": "pg_up", "mongodb": "mongodb_
 database_rules = []
 for module, database in sorted(database_catalog.items()):
     engine = database["engine"]
-    selector = f'{{job="infrastructure",service="{engine}",module="{module}"}}'
+    if engine == "sqlite":
+        # SQLite runs inside the application, so its metrics come from the application target.
+        selector = f'{{job="cowork-services",service="{module}"}}'
+        health = f'go_sql_max_open_connections{{job="cowork-services",service="{module}",db_name="{module}"}}'
+        matching = "(instance, job, service)"
+    else:
+        selector = f'{{job="infrastructure",service="{engine}",module="{module}"}}'
+        health = f'{health_metrics[engine]}{selector}'
+        matching = "(instance, job, service, module)"
     database_rules.append({
         "alert": "coworkDatabaseMetricsMissing",
-        "expr": (
-            f'absent(up{selector}) or '
-            f'(up{selector} == 1 unless on (instance, job, service, module) '
-            f'{health_metrics[engine]}{selector})'
-        ),
+        "expr": f'absent(up{selector}) or (up{selector} == 1 unless on {matching} {health})',
         "for": "3m",
         "labels": {"severity": "critical", "service": engine, "module": module},
         "annotations": {

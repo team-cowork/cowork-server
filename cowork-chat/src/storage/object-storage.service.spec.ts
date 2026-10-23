@@ -142,6 +142,18 @@ describe('ObjectStorageService', () => {
         });
     });
 
+    describe('createPresignedDownload', () => {
+        it('원래 파일명으로 내려받도록 Content-Disposition을 서명에 포함한다', async () => {
+            const service = new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never);
+            await service.createPresignedDownload('chat-files/1/42/123e4567-e89b-12d3-a456-426614174000.pdf', 1, 42, '회의록 "최종".pdf');
+
+            const command = mockedGetSignedUrl.mock.calls[0][1] as {input: {ResponseContentDisposition: string}};
+            expect(command.input.ResponseContentDisposition).toBe(
+                'attachment; filename="___ ____.pdf"; filename*=UTF-8\'\'%ED%9A%8C%EC%9D%98%EB%A1%9D%20%22%EC%B5%9C%EC%A2%85%22.pdf',
+            );
+        });
+    });
+
     describe('confirmUpload', () => {
         it('다른 채널이나 사용자의 objectKey는 저장소 조회 전에 거부한다', async () => {
             const service = new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never);
