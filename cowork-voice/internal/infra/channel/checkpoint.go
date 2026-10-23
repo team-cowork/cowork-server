@@ -28,6 +28,7 @@ type OffsetRange struct {
 }
 
 type CheckpointState struct {
+	DatasetID               string  `bson:"dataset_id"`
 	TopicID                 string  `bson:"topic_id"`
 	NextOffset              int64   `bson:"next_offset"`
 	SnapshotCompletedOffset *int64  `bson:"snapshot_completed_offset,omitempty"`
@@ -79,15 +80,34 @@ type CheckpointStore interface {
 }
 
 type MongoCheckpointStore struct {
+	db          *mongo.Database
+	datasetID   string
 	checkpoints *mongo.Collection
 	deadLetters *mongo.Collection
 }
 
-func NewMongoCheckpointStore(db *mongo.Database) *MongoCheckpointStore {
+func NewMongoCheckpointStore(ctx context.Context, db *mongo.Database) (*MongoCheckpointStore, error) {
+	datasetID, err := permissionDatasetID(ctx, db)
+	if err != nil {
+		return nil, err
+	}
 	return &MongoCheckpointStore{
+		db:          db,
+		datasetID:   datasetID,
 		checkpoints: db.Collection(CollectionProjectionCheckpoints),
 		deadLetters: db.Collection(CollectionProjectionDeadLetters),
+	}, nil
+}
+
+func permissionDatasetID(ctx context.Context, db *mongo.Database) (string, error) {
+	specs, err := db.ListCollectionSpecifications(ctx, bson.M{"name": permissionCollection})
+	if err != nil {
+		return "", err
 	}
+	if len(specs) != 1 || specs[0].UUID == nil {
+		return "", errors.New("permission dataset identity is unavailable")
+	}
+	return fmt.Sprintf("%x", specs[0].UUID.Data), nil
 }
 
 func CreateCheckpointIndexes(ctx context.Context, db *mongo.Database) error {
@@ -130,6 +150,9 @@ func (s *MongoCheckpointStore) Load(
 	if err != nil {
 		return CheckpointState{}, false, fmt.Errorf("load projection checkpoint: %w", err)
 	}
+	if row.DatasetID != s.datasetID {
+		return CheckpointState{}, false, errors.New("permission dataset does not match checkpoint")
+	}
 	return row, true, nil
 }
 
@@ -143,7 +166,7 @@ func (s *MongoCheckpointStore) RecordSnapshotMarker(
 ) error {
 	_, err := s.checkpoints.UpdateOne(
 		ctx,
-		checkpointGenerationFilter(group, topic, partition, topicID),
+		s.generationFilter(group, topic, partition, topicID),
 		snapshotMarkerCheckpointUpdate(group, topic, partition, topicID, nextOffset, marker),
 		options.UpdateOne().SetUpsert(true),
 	)
@@ -162,7 +185,7 @@ func (s *MongoCheckpointStore) Advance(
 ) error {
 	_, err := s.checkpoints.UpdateOne(
 		ctx,
-		checkpointGenerationFilter(group, topic, partition, topicID),
+		s.generationFilter(group, topic, partition, topicID),
 		bson.D{
 			{Key: "$setOnInsert", Value: bson.D{
 				{Key: "consumer_group", Value: group},
@@ -218,7 +241,7 @@ func (s *MongoCheckpointStore) QuarantineAndAdvance(
 	}
 	_, err = s.checkpoints.UpdateOne(
 		ctx,
-		checkpointGenerationFilter(
+		s.generationFilter(
 			deadLetter.ConsumerGroup,
 			deadLetter.Topic,
 			deadLetter.Partition,
@@ -245,6 +268,13 @@ func (s *MongoCheckpointStore) LoadAll(
 	group string,
 	partitions []TopicPartition,
 ) (map[TopicPartition]CheckpointState, error) {
+	currentID, err := permissionDatasetID(ctx, s.db)
+	if err != nil {
+		return nil, err
+	}
+	if currentID != s.datasetID {
+		return nil, errors.New("permission dataset was replaced; rebuild projection and checkpoints together")
+	}
 	result := make(map[TopicPartition]CheckpointState, len(partitions))
 	for _, tp := range partitions {
 		checkpoint, found, err := s.Load(ctx, group, tp.Topic, tp.Partition)
@@ -517,9 +547,9 @@ func checkpointFilter(group, topic string, partition int) bson.D {
 	}
 }
 
-func checkpointGenerationFilter(group, topic string, partition int, topicID string) bson.D {
+func (s *MongoCheckpointStore) generationFilter(group, topic string, partition int, topicID string) bson.D {
 	filter := checkpointFilter(group, topic, partition)
-	return append(filter, bson.E{Key: "topic_id", Value: topicID})
+	return append(filter, bson.E{Key: "topic_id", Value: topicID}, bson.E{Key: "dataset_id", Value: s.datasetID})
 }
 
 func barrierComplete(ranges map[TopicPartition]OffsetRange, checkpoints map[TopicPartition]CheckpointState) bool {

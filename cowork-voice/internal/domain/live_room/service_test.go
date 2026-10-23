@@ -31,7 +31,7 @@ func TestLiveService(t *testing.T) {
 			createSessionCreated: true,
 		}
 		livekit := &stubLiveKitRoom{token: "host-token"}
-		svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, livekit, "wss://livekit.example")
+		svc := NewLiveService(repo, &stubConnectPermissionChecker{teamID: 456}, livekit, "wss://livekit.example")
 
 		resp, err := svc.Start(context.Background(), 123, 42)
 		if err != nil {
@@ -58,7 +58,7 @@ func TestLiveService(t *testing.T) {
 	t.Run("Join - 라이브가 없으면 NotFound를 반환한다", func(t *testing.T) {
 		t.Parallel()
 
-		svc := NewLiveService(&stubRepository{}, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+		svc := NewLiveService(&stubRepository{}, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 		_, err := svc.Join(context.Background(), 123, 99)
 		if err == nil {
@@ -78,7 +78,7 @@ func TestLiveService(t *testing.T) {
 
 		repo := &stubRepository{findActiveSessionResult: activeSession()}
 		livekit := &stubLiveKitRoom{token: "viewer-token"}
-		svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, livekit, "wss://livekit.example")
+		svc := NewLiveService(repo, &stubConnectPermissionChecker{teamID: 456}, livekit, "wss://livekit.example")
 
 		resp, err := svc.Join(context.Background(), 123, 99)
 		if err != nil {
@@ -98,7 +98,7 @@ func TestLiveService(t *testing.T) {
 
 		repo := &stubRepository{findActiveSessionResult: activeSession()}
 		livekit := &stubLiveKitRoom{token: "host-token"}
-		svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, livekit, "wss://livekit.example")
+		svc := NewLiveService(repo, &stubConnectPermissionChecker{teamID: 456}, livekit, "wss://livekit.example")
 
 		if _, err := svc.Join(context.Background(), 123, 42); err != nil {
 			t.Fatalf("Join() error = %v", err)
@@ -114,7 +114,7 @@ func TestLiveService(t *testing.T) {
 
 		repo := &stubRepository{findActiveSessionResult: activeSession()}
 		livekit := &stubLiveKitRoom{}
-		svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, livekit, "wss://livekit.example")
+		svc := NewLiveService(repo, &stubConnectPermissionChecker{teamID: 456}, livekit, "wss://livekit.example")
 
 		if err := svc.Leave(context.Background(), 123, 42); err != nil {
 			t.Fatalf("Leave() error = %v", err)
@@ -140,7 +140,7 @@ func TestLiveService(t *testing.T) {
 			getViewerJoinedAtValue:  &joinedAt,
 			markViewerLeftFirst:     true,
 		}
-		svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+		svc := NewLiveService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 		if err := svc.Leave(context.Background(), 123, 99); err != nil {
 			t.Fatalf("Leave() error = %v", err)
@@ -167,7 +167,7 @@ func TestLiveService(t *testing.T) {
 	t.Run("GetStatus - 라이브가 없으면 live=false를 반환한다", func(t *testing.T) {
 		t.Parallel()
 
-		svc := NewLiveService(&stubRepository{}, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+		svc := NewLiveService(&stubRepository{}, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 		resp, err := svc.GetStatus(context.Background(), 123, 42)
 		if err != nil {
@@ -189,7 +189,7 @@ func TestLiveService(t *testing.T) {
 			findActiveSessionResult:  activeSession(),
 			countActiveViewersResult: 2,
 		}
-		svc := NewLiveService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+		svc := NewLiveService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 		resp, err := svc.GetStatus(context.Background(), 123, 99)
 		if err != nil {
@@ -208,12 +208,12 @@ func TestLiveService(t *testing.T) {
 	})
 }
 
-type stubMembershipChecker struct {
+type stubConnectPermissionChecker struct {
 	teamID int64
 	err    error
 }
 
-func (s *stubMembershipChecker) VerifyMembership(_ context.Context, _, _ int64) (int64, error) {
+func (s *stubConnectPermissionChecker) RequireConnect(_ context.Context, _, _ int64) (int64, error) {
 	if s.err != nil {
 		return 0, s.err
 	}
