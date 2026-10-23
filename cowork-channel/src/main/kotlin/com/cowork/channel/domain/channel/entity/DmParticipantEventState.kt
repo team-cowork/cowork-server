@@ -12,7 +12,7 @@ data class DmParticipantEventStateId(var channelId: Long = 0, var userId: Long =
 
 @Entity
 @IdClass(DmParticipantEventStateId::class)
-@Table(name = "tb_channel_member_event_states")
+@Table(name = "tb_dm_participant_event_states")
 class DmParticipantEventState(
     @Id
     @Column(name = "channel_id", nullable = false)
@@ -38,7 +38,7 @@ class DmParticipantEventState(
     var stateOccurredAt: Instant,
 ) {
     fun apply(channel: Channel, role: String, deleted: Boolean, requestedAt: Instant): Instant {
-        require(channel.id == channelId) { "Channel member event state must use the same channel id" }
+        require(channel.id == channelId) { "DM participant event state must use the same channel id" }
         val nextVersion = nextChannelStateOccurredAt(stateOccurredAt, requestedAt)
         teamId = channel.teamId
         this.role = role

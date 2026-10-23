@@ -5,7 +5,7 @@ import org.hibernate.annotations.CreationTimestamp
 import java.time.LocalDateTime
 
 @Entity
-@Table(name = "tb_channel_members")
+@Table(name = "tb_dm_participants")
 class DmParticipant(
 
     @Id
