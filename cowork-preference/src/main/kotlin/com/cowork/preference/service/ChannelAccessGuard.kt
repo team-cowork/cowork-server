@@ -2,7 +2,7 @@ package com.cowork.preference.service
 
 import com.cowork.preference.messaging.ProjectionReadinessView
 import com.cowork.preference.repository.ChannelLifecycleProjectionRepository
-import com.cowork.preference.repository.ChannelMemberProjectionRepository
+import com.cowork.preference.repository.DmParticipantProjectionRepository
 import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.security.RequesterContext
@@ -11,12 +11,12 @@ import io.vertx.sqlclient.Pool
 /**
  * 채널 범위 Preference API의 접근 권한을 cowork-channel의 `ChannelPermissionSupport` 기준으로 검증한다.
  * 채널 소유 서비스와 같이 전역 ADMIN 우회는 없다. 채널 소속 팀·공개 여부는 `channel.event.v2`,
- * 채널 멤버십은 `channel.member.event.v2`, 팀 역할은 `team.member.event` projection을 읽는다.
+ * 채널 멤버십은 `channel.dm-participant.state.v1`, 팀 역할은 `team.member.event` projection을 읽는다.
  */
 class ChannelAccessGuard(
     private val pool: Pool,
     private val channelRepository: ChannelLifecycleProjectionRepository,
-    private val channelMemberRepository: ChannelMemberProjectionRepository,
+    private val dmParticipantRepository: DmParticipantProjectionRepository,
     private val teamMemberRepository: TeamMemberProjectionRepository,
     private val policyRepository: ChannelRolePolicyRepository,
     /** 팀 멤버·채널 lifecycle·채널 멤버 projection이 모두 준비되었을 때만 열린다. */
@@ -24,12 +24,7 @@ class ChannelAccessGuard(
     /** 팀 멤버·채널 lifecycle projection이 모두 준비되었을 때만 열린다. */
     private val managerReadiness: ProjectionReadinessView,
 ) {
-    /**
-     * 채널 설정 조회·계정별 채널 알림: 팀 채널은 팀 멤버이고, 채널 멤버가 아니면 공개 채널이어야 하며,
-     * 팀 OWNER가 아니면 역할 정책으로 메시지 읽기가 허용되어야 한다. DM 채널(팀 없음)은 채널 멤버여야 한다.
-     * 팀 멤버이지만 채널 멤버가 아닌데 공개 여부(`isPrivate`)를 아직 알 수 없으면 공개로 가정하지 않고
-     * projection이 따라잡는 중으로 보아 [ProjectionNotReadyException]을 던진다.
-     */
+    /** 팀 채널은 역할 권한, DM은 대화 참여자로 접근을 판단한다. */
     suspend fun requireChannelAccess(channelId: Long, accountId: Long) {
         if (!accessReadiness.isReady) {
             throw ProjectionNotReadyException("channel or team member projection is not ready")
@@ -38,19 +33,17 @@ class ChannelAccessGuard(
             ?: throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
         val teamId = channel.teamId
         if (teamId == null) {
-            requireChannelMember(channelId, accountId)
+            requireDmParticipant(channelId, accountId)
             return
         }
         val teamMember = teamMemberRepository.findForRead(pool, teamId, accountId)
         if (teamMember == null || teamMember.deleted) throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
-        if (!channelMemberRepository.isActiveMember(pool, channelId, accountId)) {
-            when (channel.isPrivate) {
-                true -> throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
-                null -> throw ProjectionNotReadyException("channel visibility is not known yet")
-                false -> Unit
-            }
+        val permission = when (channel.channelType) {
+            "VOICE" -> "voice_connect"
+            "TEXT" -> "message_read"
+            else -> throw ProjectionNotReadyException("team channel type is not known yet")
         }
-        if (teamMember.builtInRole != OWNER_ROLE && !policyRepository.canReadMessages(teamId, accountId, channelId)) {
+        if (teamMember.builtInRole != OWNER_ROLE && !policyRepository.canAccess(teamId, accountId, channelId, permission)) {
             throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
         }
     }
@@ -72,8 +65,8 @@ class ChannelAccessGuard(
         }
     }
 
-    private suspend fun requireChannelMember(channelId: Long, accountId: Long) {
-        if (!channelMemberRepository.isActiveMember(pool, channelId, accountId)) {
+    private suspend fun requireDmParticipant(channelId: Long, accountId: Long) {
+        if (!dmParticipantRepository.isActiveParticipant(pool, channelId, accountId)) {
             throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
         }
     }

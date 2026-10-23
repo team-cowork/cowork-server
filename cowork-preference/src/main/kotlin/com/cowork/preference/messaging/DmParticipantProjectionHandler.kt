@@ -1,21 +1,21 @@
 package com.cowork.preference.messaging
 
-import com.cowork.preference.repository.ChannelMemberProjectionRepository
+import com.cowork.preference.repository.DmParticipantProjectionRepository
 import com.cowork.preference.repository.ProjectionCheckpoint
 import com.cowork.preference.repository.ProjectionCheckpointRepository
 
-class ChannelMemberProjectionHandler(
-    private val memberRepository: ChannelMemberProjectionRepository,
+class DmParticipantProjectionHandler(
+    private val memberRepository: DmParticipantProjectionRepository,
     private val checkpointRepository: ProjectionCheckpointRepository,
 ) : ProjectionRecordHandler {
     override suspend fun apply(checkpoint: ProjectionCheckpoint, key: String?, value: String?): String? =
-        when (val decision = ChannelMemberEventParser.parse(key, value)) {
-            is ChannelMemberRecordDecision.Apply -> {
+        when (val decision = DmParticipantEventParser.parse(key, value)) {
+            is DmParticipantRecordDecision.Apply -> {
                 checkpointRepository.inTransaction(checkpoint) { connection ->
                     memberRepository.apply(connection, decision.event)
                 }
                 null
             }
-            is ChannelMemberRecordDecision.Quarantine -> decision.reason
+            is DmParticipantRecordDecision.Quarantine -> decision.reason
         }
 }
