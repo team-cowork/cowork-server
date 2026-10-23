@@ -45,6 +45,7 @@ import {
     UnreadCounterService,
     type ChannelActionPermission,
     ChannelMessageReadAccessService,
+    SlowmodeService,
     RoomSocket,
     resolveMessageScope,
 } from './service';
@@ -95,6 +96,7 @@ export class ChatService {
         private readonly unreadCounterService: UnreadCounterService,
         private readonly messageSearchDeletion: MessageSearchDeletionService,
         private readonly channelProjectionRepository: ChannelProjectionRepository,
+        private readonly slowmodeService: SlowmodeService,
     ) {}
 
     /**
@@ -336,19 +338,25 @@ export class ChatService {
             throw new BadRequestException('첨부 메시지에는 재시도에 사용할 clientMessageId가 필요합니다');
         }
 
-        const clientMessageId = dto.clientMessageId ?? randomUUID();
-        const attachments = await this.objectStorageService.claimAttachments(
-            dto.attachments ?? [], ctx.channelId, ctx.userId, clientMessageId,
-        );
+        const slowmodeKey = await this.slowmodeService.reserve(ctx.channelId, scope?.teamId, ctx.userId);
+        try {
+            const clientMessageId = dto.clientMessageId ?? randomUUID();
+            const attachments = await this.objectStorageService.claimAttachments(
+                dto.attachments ?? [], ctx.channelId, ctx.userId, clientMessageId,
+            );
 
-        await this.chatMessageProducer.sendMessage(ctx.channelId, {
-            ...scope,
-            content: dto.content,
-            type: dto.type,
-            attachments,
-            parentMessageId: dto.parentMessageId,
-            clientMessageId,
-        }, ctx.userId, ctx.userRole);
+            await this.chatMessageProducer.sendMessage(ctx.channelId, {
+                ...scope,
+                content: dto.content,
+                type: dto.type,
+                attachments,
+                parentMessageId: dto.parentMessageId,
+                clientMessageId,
+            }, ctx.userId, ctx.userRole);
+        } catch (error) {
+            await this.slowmodeService.release(slowmodeKey);
+            throw error;
+        }
     }
 
     /**

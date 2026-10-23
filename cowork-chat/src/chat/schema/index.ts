@@ -12,5 +12,6 @@ export * from './team-member-projection.schema';
 export * from './team-role-assignment-projection.schema';
 export * from './team-role-member-tombstone.schema';
 export * from './team-role-projection.schema';
+export * from './text-channel-setting-projection.schema';
 export * from './user-profile-projection.schema';
 export * from './channel-read-state.schema';
