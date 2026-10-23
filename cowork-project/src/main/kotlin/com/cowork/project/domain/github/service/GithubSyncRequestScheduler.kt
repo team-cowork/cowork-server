@@ -100,7 +100,7 @@ class GithubSyncRequestScheduler(
 
         val command = target.toCommand(now)
         outboxWriter.enqueue(GITHUB_SYNC_COMMAND_TOPIC, command.key, command)
-        requestRepository.save(GithubSyncRequest(target.requestId, now))
+        requestRepository.upsert(target.requestId, now)
     }
 
     internal fun needsRequest(markerCompletedAts: List<Instant?>, lastRequestedAt: Instant?, now: Instant): Boolean {
