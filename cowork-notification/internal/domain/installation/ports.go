@@ -21,17 +21,17 @@ type FCMSender interface {
 }
 
 type NotificationPreferenceResolver interface {
-	FindChannelNotificationPreferences(
+	FindRecipientPreferences(
 		ctx context.Context,
 		accountIDs []int64,
-		channelID int64,
-	) (map[int64]ChannelNotificationPreference, error)
+		channelID, teamID int64,
+	) (RecipientPreferences, error)
 }
 
 type InstallationService interface {
 	RegisterInstallation(ctx context.Context, accountID int64, fid, platform string) error
 	DeleteInstallation(ctx context.Context, accountID int64, fid string) error
-	Notify(ctx context.Context, eventID string, targetUserIDs []int64, forcedUserIDs []int64, title, body string, channelID int64) ([]int64, error)
+	Notify(ctx context.Context, eventID string, targetUserIDs []int64, forcedUserIDs []int64, title, body string, channelID, teamID int64) ([]int64, error)
 }
 
 // DeliveryRepository is the subset of delivery.Repository the installation service
