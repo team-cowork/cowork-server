@@ -7,6 +7,7 @@ import com.cowork.project.domain.github.presentation.data.response.ProjectGithub
 import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
 import com.cowork.project.domain.github.service.AddProjectGithubRepoService
 import com.cowork.project.domain.github.service.GithubRepoUrlParser
+import com.cowork.project.domain.github.service.GithubSyncRequestScheduler
 import com.cowork.project.domain.project.service.ProjectAccessGuard
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
@@ -19,6 +20,7 @@ class AddProjectGithubRepoServiceImpl(
     private val projectGithubRepoRepository: ProjectGithubRepoRepository,
     private val projectAccessGuard: ProjectAccessGuard,
     private val repoEventPublisher: ProjectGithubRepoEventPublisher,
+    private val githubSyncRequestScheduler: GithubSyncRequestScheduler,
 ) : AddProjectGithubRepoService {
 
     @Transactional
@@ -48,6 +50,7 @@ class AddProjectGithubRepoServiceImpl(
         }
 
         repoEventPublisher.publishUpsert(saved)
+        githubSyncRequestScheduler.requestRepositorySync(ref)
         return ProjectGithubRepoResDto.of(saved)
     }
 }

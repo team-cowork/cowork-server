@@ -29,6 +29,6 @@ export class AttachmentDownloadService {
         }
 
         const objectKey = attachment.objectKey ?? this.storage.extractObjectKey(attachment.url ?? '');
-        return this.storage.createPresignedDownload(objectKey, channelId, message.authorId);
+        return this.storage.createPresignedDownload(objectKey, channelId, message.authorId, attachment.name);
     }
 }
