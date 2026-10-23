@@ -13,7 +13,7 @@ import {
     extractCommentAuthor,
 } from '../../common/comment-author-marker';
 import {REDIS_CLIENT} from '../../constants';
-import {githubCacheKeys} from '../../github.cache';
+import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../../github.cache';
 import {PullRequestService} from '../../pull-request/pull-request.service';
 import type {PullRequestFileState, PullRequestStateEvent} from '../kafka/event/pull-request-state';
 import {toRepoIdentity} from '../kafka/event/repo-identity';
@@ -307,8 +307,8 @@ export class GithubWebhookController {
 
     /**
      파일 목록은 webhook payload에 없어 직접 조회해야 한다. 매번 조회하면 rate limit을 낭비하니
-     opened/synchronize/reopened나 base 브랜치 변경에서만 다시 조회하고, 그 결과를 Redis에 캐시해
-     다른 액션에서도 함께 실어 보낸다 — 이 토픽은 key로 compaction되므로, 파일 없는 이벤트만 남으면
+     opened/synchronize/reopened나 base 브랜치 변경, 캐시가 없을 때만 다시 조회하고, 그 결과를 Redis에
+     캐시해 다른 액션에서도 함께 실어 보낸다 — 이 토픽은 key로 compaction되므로, 파일 없는 이벤트만 남으면
      과거에 조회한 파일 목록이 영구히 사라질 수 있기 때문이다.
      */
     private async resolvePullRequestFiles(parameters: {
@@ -317,24 +317,25 @@ export class GithubWebhookController {
         number: number;
         action: string;
         isBaseChanged: boolean;
-    }): Promise<PullRequestFileState[] | undefined> {
+    }): Promise<PullRequestFileState[]> {
         const {owner, repo, number, action, isBaseChanged} = parameters;
         const cacheKey = githubCacheKeys.pullRequestFiles(owner, repo, number);
-        if (isBaseChanged || PR_FILE_REFRESH_ACTIONS.has(action)) {
-            const files = await this.pullRequestService.listPullRequestFiles(owner, repo, number);
-            const fileStates = toPullRequestFileStates(files);
-            await this.redis.set(cacheKey, JSON.stringify(fileStates));
-            return fileStates;
+        if (!isBaseChanged && !PR_FILE_REFRESH_ACTIONS.has(action)) {
+            const cached = await this.redis.get(cacheKey);
+            if (cached !== null) {
+                return JSON.parse(cached) as PullRequestFileState[];
+            }
         }
 
-        const cached = await this.redis.get(cacheKey);
-        return cached === null ? undefined : (JSON.parse(cached) as PullRequestFileState[]);
+        const fileStates = toPullRequestFileStates(await this.pullRequestService.listPullRequestFiles(owner, repo, number));
+        await this.redis.set(cacheKey, JSON.stringify(fileStates), 'EX', PULL_REQUEST_FILES_TTL_SECONDS);
+        return fileStates;
     }
 
     private buildPullRequestStateEvent(
         {owner, repo, number}: {owner: string; repo: string; number: number},
         pr: NonNullable<GithubWebhookPayload['pull_request']>,
-        files: PullRequestFileState[] | undefined,
+        files: PullRequestFileState[],
     ): PullRequestStateEvent {
         const now = new Date().toISOString();
         return {
@@ -354,7 +355,7 @@ export class GithubWebhookController {
             createdAt: pr.created_at ?? now,
             updatedAt: pr.updated_at ?? now,
             sourceOccurredAt: pr.updated_at ?? now,
-            ...(files !== undefined && {files}),
+            files,
         };
     }
 

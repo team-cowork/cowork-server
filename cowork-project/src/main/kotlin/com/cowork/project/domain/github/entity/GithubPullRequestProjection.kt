@@ -132,7 +132,7 @@ class GithubPullRequestProjection(
         return true
     }
 
-    // files는 opened/synchronize/reopened에만 실리므로 별도 버전으로 관리한다 — 늦게 도착한 synchronize가
+    // files는 예전 레코드에 빠져 있을 수 있어 별도 버전으로 관리한다 — 늦게 도착한 synchronize가
     // 그 사이 먼저 적용된 labeled 같은 이벤트에 밀려 파일 갱신까지 버려지지 않게 한다.
     private fun applyFiles(event: GithubPullRequestStateEvent, version: Instant): Boolean {
         val newFiles = event.files ?: return false

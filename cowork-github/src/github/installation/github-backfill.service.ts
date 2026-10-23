@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {Inject, Injectable, Logger} from '@nestjs/common';
 import type Redis from 'ioredis';
 import {REDIS_CLIENT} from '../constants';
-import {githubCacheKeys} from '../github.cache';
+import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../github.cache';
 import {IssueHttpService} from '../issue-http/issue-http.service';
 import {LabelHttpService} from '../label-http/label-http.service';
 import {PullRequestService} from '../pull-request/pull-request.service';
@@ -198,6 +198,8 @@ export class GithubBackfillService {
             await this.redis.set(
                 githubCacheKeys.pullRequestFiles(owner, repo, summary.number),
                 JSON.stringify(fileStates),
+                'EX',
+                PULL_REQUEST_FILES_TTL_SECONDS,
             );
             await this.producers.pullRequest.send({
                 owner,
