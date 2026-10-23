@@ -132,7 +132,7 @@ def prepare(args):
     selection = settings_selection(args.settings_targets, databases, storage, shared)
     external_databases = set()
     for name, database in databases.items():
-        if selection is not None and f'database:{name}' not in selection:
+        if database['engine'] == 'sqlite' or (selection is not None and f'database:{name}' not in selection):
             continue
         runtime = runtime_values(name, mount)
         local_port = {'mysql': '3306', 'postgres': '5432', 'mongodb': '27017'}[database['engine']]
@@ -216,7 +216,12 @@ def prepare(args):
                 host['cowork_runtime_network'] = True
             if selection is None and 'slot' in entry and entry['service'] not in {'gateway', 'vault'}:
                 host['cowork_firewall_target'] = entry['slot']
-            if host_id in databases and (selected('database', host_id) or selected('search', host_id)):
+            if host_id in databases and databases[host_id]['engine'] == 'sqlite' and selected('database', host_id):
+                settings_file = output / 'settings' / f'database-{host_id}.json'
+                write_private(settings_file, '{}')
+                host['cowork_database_module'] = host_id
+                host['cowork_database_settings_file'] = str(settings_file)
+            elif host_id in databases and (selected('database', host_id) or selected('search', host_id)):
                 app = secrets(f'slot-secrets/{host_id}')
                 admin = secrets(f'iac/databases/{host_id}')
                 runtime = runtime_values(host_id, mount)
