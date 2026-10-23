@@ -2,6 +2,7 @@ package com.cowork.project.domain.github.service
 
 import com.cowork.project.domain.github.entity.GithubSyncMarker
 import com.cowork.project.domain.github.entity.GithubSyncStream
+import com.cowork.project.domain.github.event.GithubSyncCompletedMarker
 import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.kotest.core.spec.style.DescribeSpec
@@ -21,25 +22,23 @@ class GithubSyncMarkersTest :
 
         beforeEach {
             repository = mockk(relaxed = true)
-            markers = GithubSyncMarkers(repository, ObjectMapper().findAndRegisterModules())
+            markers = GithubSyncMarkers(repository)
         }
 
-        fun marker(repo: String?, completedAt: String): String {
-            val repoJson = repo?.let { "\"$it\"" } ?: "null"
-            return """{"recordType":"SYNC_COMPLETED","owner":"my-org","repo":$repoJson,"completedAt":"$completedAt"}"""
-        }
+        fun marker(repo: String?, completedAt: String, owner: String = "my-org") =
+            GithubSyncCompletedMarker("SYNC_COMPLETED", owner, repo, Instant.parse(completedAt))
 
-        describe("GithubSyncMarkers 클래스의 recordIfMarker 메서드는") {
+        describe("GithubSyncMarkers 클래스의 isMarker 메서드는") {
             context("엔티티 state 레코드인 경우") {
-                it("기록하지 않고 false를 반환한다") {
-                    val state = """{"owner":"my-org","repo":"my-repo","number":1}"""
+                it("false를 반환한다") {
+                    val state = ObjectMapper().readTree("""{"owner":"my-org","repo":"my-repo","number":1}""")
 
-                    val recorded = markers.recordIfMarker(GithubSyncStream.ISSUE, state)
-
-                    recorded shouldBe false
-                    verify(exactly = 0) { repository.save(any()) }
+                    markers.isMarker(state) shouldBe false
                 }
             }
+        }
+
+        describe("GithubSyncMarkers 클래스의 record 메서드는") {
 
             context("처음 받은 repo 마커인 경우") {
                 it("토픽과 repo 기준으로 마커를 저장한다") {
@@ -47,10 +46,8 @@ class GithubSyncMarkersTest :
                     val saved = slot<GithubSyncMarker>()
                     every { repository.save(capture(saved)) } answers { saved.captured }
 
-                    val recorded =
-                        markers.recordIfMarker(GithubSyncStream.ISSUE, marker("my-repo", "2026-01-02T00:00:00Z"))
+                    markers.record(GithubSyncStream.ISSUE, marker("my-repo", "2026-01-02T00:00:00Z"))
 
-                    recorded shouldBe true
                     saved.captured.id shouldBe "ISSUE:my-org/my-repo"
                     saved.captured.completedAt shouldBe Instant.parse("2026-01-02T00:00:00Z")
                 }
@@ -61,10 +58,7 @@ class GithubSyncMarkersTest :
                     every { repository.findById("ISSUE:my-org/my-repo") } returns Optional.empty()
                     every { repository.existsById("ISSUE:my-org/my-repo") } returns true
                     every { repository.save(any<GithubSyncMarker>()) } answers { firstArg() }
-                    val markerJson = """{"recordType":"SYNC_COMPLETED","owner":"My-Org","repo":"My-Repo",""" +
-                        """"completedAt":"2026-01-02T00:00:00Z"}"""
-
-                    markers.recordIfMarker(GithubSyncStream.ISSUE, markerJson)
+                    markers.record(GithubSyncStream.ISSUE, marker("My-Repo", "2026-01-02T00:00:00Z", owner = "My-Org"))
                     markers.requireSynced(GithubSyncStream.ISSUE, "MY-ORG", "my-REPO")
 
                     verify { repository.save(match { it.id == "ISSUE:my-org/my-repo" }) }
@@ -76,9 +70,44 @@ class GithubSyncMarkersTest :
                     val existing = GithubSyncMarker("REPO:my-org", Instant.parse("2026-01-02T00:00:00Z"))
                     every { repository.findById("REPO:my-org") } returns Optional.of(existing)
 
-                    markers.recordIfMarker(GithubSyncStream.REPO, marker(null, "2026-01-01T00:00:00Z"))
+                    markers.record(GithubSyncStream.REPO, marker(null, "2026-01-01T00:00:00Z"))
 
                     existing.completedAt shouldBe Instant.parse("2026-01-02T00:00:00Z")
+                }
+            }
+        }
+
+        describe("GithubSyncMarkers 클래스의 invalidate 메서드는") {
+            context("repo까지 알 수 있는 경우") {
+                it("그 repo의 마커만 지운다") {
+                    markers.invalidate(GithubSyncStream.ISSUE, "My-Org", "My-Repo")
+
+                    verify { repository.deleteById("ISSUE:my-org/my-repo") }
+                    verify(exactly = 0) { repository.deleteByIdStartingWith(any()) }
+                }
+            }
+
+            context("owner만 알 수 있는 경우") {
+                it("그 owner에 속한 repo 마커를 모두 지운다") {
+                    markers.invalidate(GithubSyncStream.LABEL, "my-org", null)
+
+                    verify { repository.deleteByIdStartingWith("LABEL:my-org/") }
+                }
+            }
+
+            context("repo 목록 토픽인 경우") {
+                it("org 단위 마커를 지운다") {
+                    markers.invalidate(GithubSyncStream.REPO, "my-org", "my-repo")
+
+                    verify { repository.deleteById("REPO:my-org") }
+                }
+            }
+
+            context("대상을 알 수 없는 경우") {
+                it("그 토픽의 마커를 모두 지운다") {
+                    markers.invalidate(GithubSyncStream.PULL_REQUEST, null, null)
+
+                    verify { repository.deleteByIdStartingWith("PULL_REQUEST:") }
                 }
             }
         }
