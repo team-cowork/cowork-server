@@ -232,6 +232,7 @@ class MainVerticle : AbstractVerticle() {
         scheduleProjectionSnapshots(snapshotPublisher::publishTeamStateIfLeader)
         scheduleProjectionSnapshots(snapshotPublisher::publishChannelRolePoliciesIfLeader)
         scheduleProjectionSnapshots(snapshotPublisher::publishProjectAccessIfLeader)
+        scheduleProjectionSnapshots(snapshotPublisher::publishSettingStatesIfLeader)
 
         preferenceOutboxDispatcher = PreferenceOutboxDispatcher(
             vertx = vertx,
@@ -422,8 +423,19 @@ class MainVerticle : AbstractVerticle() {
             val expired = outboxRepository.inTransaction { connection ->
                 val lockedExpired = prefRepo.findExpiredAccountStatuses(connection)
                 if (lockedExpired.isEmpty()) return@inTransaction emptyList()
-                prefRepo.clearExpiredStatuses(connection, lockedExpired.map { it.first })
+                val clearedStates = prefRepo.clearExpiredStatuses(connection, lockedExpired.map { it.first })
                 val occurredAt = Instant.now()
+                outboxRepository.enqueueAll(
+                    connection,
+                    clearedStates.map { state ->
+                        PreferenceEvents.accountSettingState(
+                            accountId = state.resourceId,
+                            settings = state.settings,
+                            occurredAt = state.stateOccurredAt,
+                            snapshot = false,
+                        )
+                    },
+                )
                 outboxRepository.enqueueAll(
                     connection,
                     lockedExpired.map { (accountId, previousStatus) ->
