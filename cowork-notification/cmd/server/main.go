@@ -36,11 +36,12 @@ import (
 	"github.com/cowork/cowork-notification/internal/middleware"
 	"github.com/cowork/cowork-notification/internal/monitoring"
 	"github.com/cowork/cowork-notification/pkg/eureka"
+	"github.com/cowork/cowork-notification/pkg/logger"
 	_ "github.com/cowork/cowork-notification/swagger"
 )
 
 func main() {
-	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, nil)))
+	logger.Init("cowork-notification")
 
 	cfg, err := config.Load()
 	if err != nil {
