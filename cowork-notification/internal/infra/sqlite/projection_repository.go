@@ -6,16 +6,18 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/cowork/cowork-notification/internal/domain/installation"
 	"github.com/cowork/cowork-notification/internal/domain/projection"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 type channelNotificationPreference struct {
-	AccountID           int64     `gorm:"column:account_id;primaryKey"`
-	ChannelID           int64     `gorm:"column:channel_id;primaryKey"`
-	NotificationEnabled bool      `gorm:"column:notification_enabled"`
-	SourceUpdatedAt     time.Time `gorm:"column:source_updated_at"`
+	AccountID         int64      `gorm:"column:account_id;primaryKey"`
+	ChannelID         int64      `gorm:"column:channel_id;primaryKey"`
+	NotificationLevel string     `gorm:"column:notification_level"`
+	MutedUntil        *time.Time `gorm:"column:muted_until"`
+	SourceUpdatedAt   time.Time  `gorm:"column:source_updated_at"`
 }
 
 func (channelNotificationPreference) TableName() string {
@@ -407,18 +409,24 @@ func stringPointer(value string) *string {
 func (r *ProjectionRepository) UpsertChannelNotification(
 	ctx context.Context,
 	accountID, channelID int64,
-	enabled bool,
+	level string,
+	mutedUntil *time.Time,
 	occurredAt time.Time,
 ) error {
 	return r.db.WithContext(ctx).Exec(
 		`INSERT INTO tb_channel_notification_preferences
-			(account_id, channel_id, notification_enabled, source_updated_at)
-		 VALUES (?, ?, ?, ?)
+			(account_id, channel_id, notification_level, muted_until, source_updated_at)
+		 VALUES (?, ?, ?, ?, ?)
 		 ON CONFLICT (account_id, channel_id) DO UPDATE SET
-			notification_enabled = iif(
+			notification_level = iif(
 				excluded.source_updated_at >= tb_channel_notification_preferences.source_updated_at,
-				excluded.notification_enabled,
-				tb_channel_notification_preferences.notification_enabled
+				excluded.notification_level,
+				tb_channel_notification_preferences.notification_level
+			),
+			muted_until = iif(
+				excluded.source_updated_at >= tb_channel_notification_preferences.source_updated_at,
+				excluded.muted_until,
+				tb_channel_notification_preferences.muted_until
 			),
 			source_updated_at = MAX(
 				tb_channel_notification_preferences.source_updated_at,
@@ -427,18 +435,19 @@ func (r *ProjectionRepository) UpsertChannelNotification(
 			updated_at = CURRENT_TIMESTAMP`,
 		accountID,
 		channelID,
-		enabled,
+		level,
+		mutedUntil,
 		occurredAt.UTC(),
 	).Error
 }
 
-func (r *ProjectionRepository) AreNotificationsEnabled(
+func (r *ProjectionRepository) FindChannelNotificationPreferences(
 	ctx context.Context,
 	accountIDs []int64,
 	channelID int64,
-) (map[int64]bool, error) {
+) (map[int64]installation.ChannelNotificationPreference, error) {
 	if len(accountIDs) == 0 {
-		return map[int64]bool{}, nil
+		return map[int64]installation.ChannelNotificationPreference{}, nil
 	}
 	var rows []channelNotificationPreference
 	if err := r.db.WithContext(ctx).
@@ -446,9 +455,12 @@ func (r *ProjectionRepository) AreNotificationsEnabled(
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	result := make(map[int64]bool, len(rows))
+	result := make(map[int64]installation.ChannelNotificationPreference, len(rows))
 	for _, row := range rows {
-		result[row.AccountID] = row.NotificationEnabled
+		result[row.AccountID] = installation.ChannelNotificationPreference{
+			Level:      installation.NotificationLevel(row.NotificationLevel),
+			MutedUntil: row.MutedUntil,
+		}
 	}
 	return result, nil
 }
