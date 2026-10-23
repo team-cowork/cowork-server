@@ -4,7 +4,7 @@
         "description": "Firebase 설치(FID) 관리 및 푸시 알림 서비스",
         "title": "cowork-notification API",
         "contact": {},
-        "version": "20261023.0"
+        "version": "20261023.1"
     },
     "basePath": "/api/notification",
     "paths": {
