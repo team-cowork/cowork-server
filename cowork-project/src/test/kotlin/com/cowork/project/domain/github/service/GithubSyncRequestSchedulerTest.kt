@@ -1,7 +1,6 @@
 package com.cowork.project.domain.github.service
 
 import com.cowork.project.domain.github.entity.GithubSyncMarker
-import com.cowork.project.domain.github.entity.GithubSyncRequest
 import com.cowork.project.domain.github.entity.ProjectGithubRepo
 import com.cowork.project.domain.github.event.GITHUB_SYNC_COMMAND_TOPIC
 import com.cowork.project.domain.github.event.GithubSyncCommand
@@ -95,7 +94,6 @@ class GithubSyncRequestSchedulerTest :
                     it("소문자로 맞춘 대상을 outbox로 요청하고 요청 시각을 남긴다") {
                         every { markerRepository.findAllById(any()) } returns emptyList()
                         every { requestRepository.findById("REPOSITORY:my-org/my-repo") } returns Optional.empty()
-                        every { requestRepository.save(any<GithubSyncRequest>()) } answers { firstArg() }
                         val command = slot<Any>()
 
                         scheduler.requestRepositorySync(GithubRepoRef("My-Org", "My-Repo"))
@@ -104,7 +102,7 @@ class GithubSyncRequestSchedulerTest :
                             outboxWriter.enqueue(GITHUB_SYNC_COMMAND_TOPIC, "my-org/my-repo", capture(command))
                         }
                         (command.captured as GithubSyncCommand).target shouldBe "REPOSITORY"
-                        verify(exactly = 1) { requestRepository.save(match { it.id == "REPOSITORY:my-org/my-repo" }) }
+                        verify(exactly = 1) { requestRepository.upsert("REPOSITORY:my-org/my-repo", any()) }
                         verify(exactly = 0) { publisher.publish(any()) }
                     }
                 }
@@ -120,7 +118,7 @@ class GithubSyncRequestSchedulerTest :
                         scheduler.requestRepositorySync(GithubRepoRef("my-org", "my-repo"))
 
                         verify(exactly = 0) { outboxWriter.enqueue(any(), any(), any(), any(), any()) }
-                        verify(exactly = 0) { requestRepository.save(any()) }
+                        verify(exactly = 0) { requestRepository.upsert(any(), any()) }
                     }
                 }
             }
