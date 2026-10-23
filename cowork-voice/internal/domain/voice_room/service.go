@@ -12,17 +12,17 @@ import (
 
 type RoomService struct {
 	repo         Repository
-	membership   MembershipChecker
+	permissions  ConnectPermissionChecker
 	livekit      LiveKitRoom
 	livekitWsURL string
 }
 
-func NewRoomService(repo Repository, membership MembershipChecker, livekit LiveKitRoom, livekitWsURL string) *RoomService {
-	return &RoomService{repo: repo, membership: membership, livekit: livekit, livekitWsURL: livekitWsURL}
+func NewRoomService(repo Repository, permissions ConnectPermissionChecker, livekit LiveKitRoom, livekitWsURL string) *RoomService {
+	return &RoomService{repo: repo, permissions: permissions, livekit: livekit, livekitWsURL: livekitWsURL}
 }
 
 func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinResponse, error) {
-	teamID, err := s.membership.VerifyMembership(ctx, channelID, userID)
+	teamID, err := s.permissions.RequireConnect(ctx, channelID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +72,7 @@ func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 }
 
 func (s *RoomService) Leave(ctx context.Context, channelID, userID int64) error {
-	if _, err := s.membership.VerifyMembership(ctx, channelID, userID); err != nil {
+	if _, err := s.permissions.RequireConnect(ctx, channelID, userID); err != nil {
 		return err
 	}
 
@@ -115,7 +115,7 @@ func (s *RoomService) Leave(ctx context.Context, channelID, userID int64) error 
 }
 
 func (s *RoomService) GetParticipants(ctx context.Context, channelID, userID int64) (*ParticipantsResponse, error) {
-	if _, err := s.membership.VerifyMembership(ctx, channelID, userID); err != nil {
+	if _, err := s.permissions.RequireConnect(ctx, channelID, userID); err != nil {
 		return nil, err
 	}
 
@@ -165,7 +165,7 @@ func (s *RoomService) GetSession(ctx context.Context, sessionID string, userID i
 		return nil, apperr.NotFound("session not found")
 	}
 
-	if _, err := s.membership.VerifyMembership(ctx, sess.ChannelID, userID); err != nil {
+	if _, err := s.permissions.RequireConnect(ctx, sess.ChannelID, userID); err != nil {
 		return nil, err
 	}
 
