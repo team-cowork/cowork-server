@@ -13,34 +13,36 @@ import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
 import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
-import {ProjectMemberProjectionRepository} from '../repository';
+import {ProjectPermissionProjectionRepository} from '../repository';
 
-type ProjectMemberEvent = {
-    eventType: 'ADDED' | 'REMOVED';
+type ProjectPermissionEvent = {
+    eventType: 'UPSERT';
     projectId: number;
-    userId: number;
+    accountId: number;
+    read: boolean;
+    write: boolean;
     occurredAt: string;
     snapshot?: boolean;
 };
 
 @Injectable()
-export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
-    private readonly logger = new Logger(ProjectMemberEventConsumer.name);
+export class ProjectPermissionEventConsumer implements OnModuleInit, OnModuleDestroy {
+    private readonly logger = new Logger(ProjectPermissionEventConsumer.name);
     private consumer!: Consumer;
 
     constructor(
         private readonly configService: ConfigService,
         private readonly dicoshot: DicoshotService,
-        private readonly memberRepository: ProjectMemberProjectionRepository,
+        private readonly permissionRepository: ProjectPermissionProjectionRepository,
         private readonly projectionReadiness: ProjectionReadinessService,
     ) {}
 
     async onModuleInit() {
         const kafka = new Kafka({
-            clientId: 'cowork-chat-project-member-event',
+            clientId: 'cowork-chat-project-permission-event',
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
-        const stream = PROJECTION_STREAMS.projectMember;
+        const stream = PROJECTION_STREAMS.projectPermission;
         this.consumer = kafka.consumer({groupId: stream.groupId});
         await this.consumer.connect();
         await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
@@ -74,39 +76,39 @@ export class ProjectMemberEventConsumer implements OnModuleInit, OnModuleDestroy
     }
 
     private async handleEvent(payload: unknown, messageKey?: string): Promise<void> {
-        if (!this.isProjectMemberEvent(payload)) {
-            throw new ProjectionContractError('invalid project member event payload');
+        if (!this.isProjectPermissionEvent(payload)) {
+            throw new ProjectionContractError('invalid project permission event payload');
         }
 
-        if (messageKey !== `${payload.projectId}:${payload.userId}`) {
+        if (messageKey !== `${payload.projectId}:${payload.accountId}`) {
             throw new ProjectionContractError(
-                `project member event key mismatch [key=${messageKey ?? '<missing>'}, `
-                + `expected=${payload.projectId}:${payload.userId}]`,
+                `project permission event key mismatch [key=${messageKey ?? '<missing>'}, `
+                + `expected=${payload.projectId}:${payload.accountId}]`,
             );
         }
 
         const eventTime = parseEventTime(payload.occurredAt);
         if (!eventTime) {
-            throw new ProjectionContractError('project member event occurredAt must be RFC3339');
+            throw new ProjectionContractError('project permission event occurredAt must be RFC3339');
         }
 
         const {occurredAt, sourceVersion} = eventTime;
-        if (payload.eventType === 'ADDED') {
-            await this.memberRepository.add(payload.projectId, payload.userId, occurredAt, sourceVersion);
-        } else {
-            await this.memberRepository.remove(payload.projectId, payload.userId, occurredAt, sourceVersion);
-        }
+        await this.permissionRepository.upsert(
+            payload.projectId, payload.accountId, payload.read, payload.write, occurredAt, sourceVersion,
+        );
     }
 
-    private isProjectMemberEvent(payload: unknown): payload is ProjectMemberEvent {
+    private isProjectPermissionEvent(payload: unknown): payload is ProjectPermissionEvent {
         if (typeof payload !== 'object' || payload === null) {
             return false;
         }
 
-        const event = payload as Partial<ProjectMemberEvent>;
-        return (event.eventType === 'ADDED' || event.eventType === 'REMOVED')
+        const event = payload as Partial<ProjectPermissionEvent>;
+        return event.eventType === 'UPSERT'
             && isSafePositiveInteger(event.projectId)
-            && isSafePositiveInteger(event.userId)
+            && isSafePositiveInteger(event.accountId)
+            && typeof event.read === 'boolean'
+            && typeof event.write === 'boolean'
             && (event.snapshot === undefined || typeof event.snapshot === 'boolean')
             && parseEventTime(event.occurredAt) !== null;
     }
