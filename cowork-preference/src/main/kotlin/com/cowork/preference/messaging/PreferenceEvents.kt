@@ -3,6 +3,8 @@ package com.cowork.preference.messaging
 import com.cowork.preference.domain.AccountTeamRole
 import com.cowork.preference.domain.ChannelNotificationPreference
 import com.cowork.preference.domain.ChannelRolePolicyPermissions
+import com.cowork.preference.domain.ResourceType
+import com.cowork.preference.domain.SettingSchema
 import com.cowork.preference.domain.TeamRoleDefinition
 import com.cowork.preference.domain.TeamRolePermissions
 import io.vertx.core.json.JsonObject
@@ -30,6 +32,9 @@ object PreferenceEvents {
     const val CHANNEL_ROLE_POLICY_COMMAND_RESULT_TOPIC = "preference.channel-role-policy.result.v2"
     const val STATUS_CHANGED_TOPIC = "preference.status.changed"
     const val TEAM_SETTING_CHANGED_TOPIC = "preference.team.setting.changed"
+    const val ACCOUNT_SETTING_STATE_TOPIC = "preference.account-setting.state.v1"
+    const val TEAM_SETTING_STATE_TOPIC = "preference.team-setting.state.v1"
+    const val SETTING_STATE_SCHEMA_VERSION = 1
     val OUTBOX_TOPICS = setOf(
         PROJECT_ACCESS_STATE_TOPIC,
         CHANNEL_NOTIFICATION_TOPIC,
@@ -41,6 +46,8 @@ object PreferenceEvents {
         CHANNEL_ROLE_POLICY_COMMAND_RESULT_TOPIC,
         STATUS_CHANGED_TOPIC,
         TEAM_SETTING_CHANGED_TOPIC,
+        ACCOUNT_SETTING_STATE_TOPIC,
+        TEAM_SETTING_STATE_TOPIC,
     )
 
     const val SNAPSHOT_COMPLETED_EVENT_TYPE = "PROJECTION_SNAPSHOT_COMPLETED"
@@ -52,7 +59,9 @@ object PreferenceEvents {
                 topic == CHANNEL_NOTIFICATION_TOPIC ||
                 topic == TEAM_ROLE_TOPIC ||
                 topic == GITHUB_REPO_SETTING_STATE_TOPIC ||
-                topic == CHANNEL_ROLE_POLICY_STATE_TOPIC,
+                topic == CHANNEL_ROLE_POLICY_STATE_TOPIC ||
+                topic == ACCOUNT_SETTING_STATE_TOPIC ||
+                topic == TEAM_SETTING_STATE_TOPIC,
         ) {
             "unsupported projection snapshot topic '$topic'"
         }
@@ -227,6 +236,58 @@ object PreferenceEvents {
             .put("timestamp", occurredAt.toString()),
         occurredAt = occurredAt,
     )
+
+    /** 알림 발송 판단에 쓰는 계정 설정만 싣는다. 검증을 통과하지 않는 과거 값은 소비자가 격리하지 않도록 null로 보낸다. */
+    fun accountSettingState(
+        accountId: Long,
+        settings: JsonObject,
+        occurredAt: Instant,
+        snapshot: Boolean,
+    ): PreferenceEvent = PreferenceEvent(
+        topic = ACCOUNT_SETTING_STATE_TOPIC,
+        key = accountId.toString(),
+        payload = basePayload("UPSERT", occurredAt)
+            .put("schemaVersion", SETTING_STATE_SCHEMA_VERSION)
+            .put("accountId", accountId)
+            .put("notificationLevel", validSetting(ResourceType.ACCOUNT, settings, "notification_level"))
+            .put("status", validSetting(ResourceType.ACCOUNT, settings, "status"))
+            .put(
+                "statusExpiresAt",
+                (validSetting(ResourceType.ACCOUNT, settings, "status_expires_at") as? String)
+                    ?.let { Instant.parse(it).toString() },
+            )
+            .put("timezone", validSetting(ResourceType.ACCOUNT, settings, "timezone"))
+            .put(
+                "dndSchedule",
+                (validSetting(ResourceType.ACCOUNT, settings, "dnd_schedule") as? JsonObject)?.copy(),
+            )
+            .put("snapshot", snapshot),
+        occurredAt = occurredAt,
+    )
+
+    fun teamSettingState(
+        teamId: Long,
+        settings: JsonObject,
+        occurredAt: Instant,
+        snapshot: Boolean,
+    ): PreferenceEvent = PreferenceEvent(
+        topic = TEAM_SETTING_STATE_TOPIC,
+        key = teamId.toString(),
+        payload = basePayload("UPSERT", occurredAt)
+            .put("schemaVersion", SETTING_STATE_SCHEMA_VERSION)
+            .put("teamId", teamId)
+            .put(
+                "defaultNotificationLevel",
+                validSetting(ResourceType.TEAM, settings, "default_notification_level"),
+            )
+            .put("snapshot", snapshot),
+        occurredAt = occurredAt,
+    )
+
+    private fun validSetting(type: ResourceType, settings: JsonObject, key: String): Any? {
+        val value = settings.getValue(key) ?: return null
+        return value.takeIf { SettingSchema.validate(type, JsonObject().put(key, value)) == null }
+    }
 
     private fun assignmentChanged(
         eventType: String,
