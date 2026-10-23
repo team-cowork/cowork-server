@@ -1,6 +1,7 @@
+import {ForbiddenException} from '@nestjs/common';
 import {type ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
 import {
-    type ChannelMemberRepository,
+    type DmParticipantRepository,
     type ChannelProjectionRepository,
     type ChannelRolePolicyProjectionRepository,
     type TeamMemberProjectionRepository,
@@ -10,8 +11,8 @@ import {ChannelMessageReadAccessService} from './channel-message-read-access.ser
 
 describe('ChannelMessageReadAccessService', () => {
     const channelRepository = {findByIds: jest.fn()};
-    const channelMemberRepository = {findByChannelIdsAndUserIds: jest.fn()};
-    const teamMemberRepository = {findByTeamIdsAndUserIds: jest.fn()};
+    const dmParticipantRepository = {findByChannelIdsAndUserIds: jest.fn(), findByChannelIds: jest.fn()};
+    const teamMemberRepository = {findByTeamIdsAndUserIds: jest.fn(), findByTeamIds: jest.fn()};
     const teamRoleRepository = {
         findAssignmentsByTeamIdsAndAccountIds: jest.fn(),
         findRolesByIds: jest.fn(),
@@ -22,11 +23,23 @@ describe('ChannelMessageReadAccessService', () => {
     // 매 테스트마다 새 인스턴스를 만든다(캐시도 함께 초기화됨).
     let service: ChannelMessageReadAccessService;
 
+    it('derives notification recipients from team permissions without channel member rows', async () => {
+        dmParticipantRepository.findByChannelIds.mockResolvedValue(new Map());
+        teamMemberRepository.findByTeamIds.mockResolvedValue([
+            {teamId: 1, userId: 2, role: 'MEMBER'},
+            {teamId: 1, userId: 4, role: 'MEMBER'},
+        ]);
+        const result = await service.findReadableUsersByChannel([10, 20]);
+        expect(result.get(10)).toEqual([2]);
+        expect(result.get(20)).toEqual([2]);
+        expect(dmParticipantRepository.findByChannelIds).toHaveBeenCalledWith([]);
+    });
+
     beforeEach(() => {
         jest.clearAllMocks();
         service = new ChannelMessageReadAccessService(
             channelRepository as unknown as ChannelProjectionRepository,
-            channelMemberRepository as unknown as ChannelMemberRepository,
+            dmParticipantRepository as unknown as DmParticipantRepository,
             teamMemberRepository as unknown as TeamMemberProjectionRepository,
             teamRoleRepository as unknown as TeamRoleProjectionRepository,
             policyRepository as unknown as ChannelRolePolicyProjectionRepository,
@@ -41,7 +54,7 @@ describe('ChannelMessageReadAccessService', () => {
                 channelId: 20, teamId: 1, type: 'TEXT', isPrivate: true,
             },
         ]);
-        channelMemberRepository.findByChannelIdsAndUserIds.mockResolvedValue(new Map([
+        dmParticipantRepository.findByChannelIdsAndUserIds.mockResolvedValue(new Map([
             [10, [1, 2, 3, 4, 5, 6].map(userId => ({
                 channelId: 10,
                 userId,
@@ -127,33 +140,69 @@ describe('ChannelMessageReadAccessService', () => {
             await expect(service.canReadChannel(10, 4)).resolves.toBe(false);
         });
 
-        it('상위 priority role이 미지정이면 하위 priority의 명시 allow를 상속한다', async () => {
-            await expect(service.canReadChannel(10, 6)).resolves.toBe(true);
+        it('상위 역할의 기본 거부는 하위 역할의 허용보다 우선한다', async () => {
+            await expect(service.canReadChannel(10, 6)).resolves.toBe(false);
         });
 
         it('built-in OWNER는 role policy 없이 공개 채널을 읽을 수 있다', async () => {
             await expect(service.canReadChannel(10, 1)).resolves.toBe(true);
         });
 
-        it('공개 채널 메타데이터는 볼 수 있어도 미가입자는 메시지를 읽을 수 없다', async () => {
-            await expect(service.canReadChannel(10, 7)).resolves.toBe(false);
+        it('OWNER는 별도 채널 등록 없이 메시지를 읽는다', async () => {
+            await expect(service.canReadChannel(10, 7)).resolves.toBe(true);
             await expect(service.filterVisibleChannelIds(1, 7, [10])).resolves.toEqual([10]);
         });
 
-        it('비공개 채널은 OWNER도 active 채널 멤버십을 우회하지 못한다', async () => {
-            await expect(service.canReadChannel(20, 1)).resolves.toBe(false);
+        it('비공개 채널도 역할 권한으로 읽는다', async () => {
+            await expect(service.canReadChannel(20, 1)).resolves.toBe(true);
             await expect(service.canReadChannel(20, 5)).resolves.toBe(true);
         });
 
         it('채널 원본 정보가 없으면 DM 멤버십이 남아 있어도 거부한다', async () => {
             channelRepository.findByIds.mockResolvedValue([]);
-            channelMemberRepository.findByChannelIdsAndUserIds.mockResolvedValue(new Map([
+            dmParticipantRepository.findByChannelIdsAndUserIds.mockResolvedValue(new Map([
                 [99, [{
                     channelId: 99, userId: 5, teamId: null, channelType: 'DM',
                 }]],
             ]));
 
             await expect(service.canReadChannel(99, 5)).resolves.toBe(false);
+        });
+    });
+
+    describe('역할 기본 권한과 메시지 작성', () => {
+        beforeEach(() => {
+            dmParticipantRepository.findByChannelIdsAndUserIds.mockResolvedValue(new Map());
+            teamRoleRepository.findRolesByIds.mockResolvedValue([
+                {
+                    teamId: 1, roleId: 101, priority: 100, permissions: {message_read: true, message_send: false, voice_connect: true},
+                },
+            ]);
+            policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([]);
+        });
+        it('기본 read가 있으면 별도 멤버 기록과 채널 정책 없이 읽는다', async () => {
+            await expect(service.canReadChannel(10, 2)).resolves.toBe(true);
+            await expect(service.requireCanSend(10, 2)).rejects.toThrow(ForbiddenException);
+        });
+        it('채널에서 send를 허용하면 역할 기본값을 덮어쓴다', async () => {
+            policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([
+                {
+                    teamId: 1, channelId: 10, roleId: 101, messageRead: null, permissions: {message_send: true},
+                },
+            ]);
+            await expect(service.requireCanSend(10, 2)).resolves.toBeUndefined();
+        });
+        it('음성 채널 메타데이터는 voice_connect를 사용한다', async () => {
+            channelRepository.findByIds.mockResolvedValue([{
+                channelId: 10, teamId: 1, type: 'VOICE', isPrivate: true,
+            }]);
+            policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([
+                {
+                    teamId: 1, channelId: 10, roleId: 101, messageRead: false, permissions: {message_read: false},
+                },
+            ]);
+            await expect(service.filterVisibleChannelIds(1, 2, [10])).resolves.toEqual([10]);
+            await expect(service.canReadChannel(10, 2)).resolves.toBe(false);
         });
     });
 
@@ -170,7 +219,7 @@ describe('ChannelMessageReadAccessService', () => {
                     channelId: 32, teamId: null, type: 'DM', isPrivate: false,
                 },
             ]);
-            channelMemberRepository.findByChannelIdsAndUserIds.mockResolvedValue(new Map([
+            dmParticipantRepository.findByChannelIdsAndUserIds.mockResolvedValue(new Map([
                 [30, [{channelId: 30, userId: 5}]],
                 [31, [{channelId: 31, userId: 5}]],
                 [32, [{channelId: 32, userId: 5}]],

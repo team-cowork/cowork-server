@@ -3,7 +3,7 @@ import {ConfigModule, ConfigService} from '@nestjs/config';
 import {JwtModule} from '@nestjs/jwt';
 import {MongooseModule} from '@nestjs/mongoose';
 import {DicoshotModule} from 'dicoshot-nest';
-import {MembershipModule} from '../membership/membership.module';
+import {DmParticipantModule} from '../dm/dm-participant.module';
 import {BlockModule} from '../block/block.module';
 import {ObjectStorageModule} from '../storage/object-storage.module';
 import {SearchModule} from '../search/search.module';
@@ -32,7 +32,7 @@ import {
     GithubRepoEventConsumer,
     ChannelEventConsumer,
     ProjectEventConsumer,
-    ProjectMemberEventConsumer,
+    ProjectPermissionEventConsumer,
     ProjectGithubRepoEventConsumer,
     TeamMemberEventConsumer,
     UserProfileEventConsumer,
@@ -55,12 +55,14 @@ import {UnifiedSearchResolver} from './unified-search.resolver';
 import {
     Message,
     MessageSchema,
-    ChannelMember,
-    ChannelMemberSchema,
+    ChannelReadState,
+    ChannelReadStateSchema,
+    DmParticipant,
+    DmParticipantSchema,
     ChannelProjection,
     ChannelProjectionSchema,
-    ProjectMemberProjection,
-    ProjectMemberProjectionSchema,
+    ProjectPermissionProjection,
+    ProjectPermissionProjectionSchema,
     ProjectProjection,
     ProjectProjectionSchema,
     ProjectGithubRepoProjection,
@@ -85,10 +87,11 @@ import {
     MessageSearchIndexStateSchema,
 } from './schema';
 import {
+    ChannelReadStateRepository,
     MessageRepository,
-    ChannelMemberRepository,
+    DmParticipantRepository,
     ChannelProjectionRepository,
-    ProjectMemberProjectionRepository,
+    ProjectPermissionProjectionRepository,
     ProjectProjectionRepository,
     ProjectGithubRepoProjectionRepository,
     TeamMemberProjectionRepository,
@@ -122,9 +125,10 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         }),
         MongooseModule.forFeature([
             {name: Message.name, schema: MessageSchema},
-            {name: ChannelMember.name, schema: ChannelMemberSchema},
+            {name: ChannelReadState.name, schema: ChannelReadStateSchema},
+            {name: DmParticipant.name, schema: DmParticipantSchema},
             {name: ChannelProjection.name, schema: ChannelProjectionSchema},
-            {name: ProjectMemberProjection.name, schema: ProjectMemberProjectionSchema},
+            {name: ProjectPermissionProjection.name, schema: ProjectPermissionProjectionSchema},
             {name: ProjectProjection.name, schema: ProjectProjectionSchema},
             {name: ProjectGithubRepoProjection.name, schema: ProjectGithubRepoProjectionSchema},
             {name: TeamMemberProjection.name, schema: TeamMemberProjectionSchema},
@@ -148,7 +152,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
             filter: IS_PRODUCTION ? {environment: 'production'} : false,
             interceptor: IS_PRODUCTION,
         }),
-        MembershipModule,
+        DmParticipantModule,
         BlockModule,
         ObjectStorageModule,
         SearchModule,
@@ -166,8 +170,9 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         ChatGateway,
         ChatService,
         AttachmentDownloadService,
+        ChannelReadStateRepository,
         MessageRepository,
-        ChannelMemberRepository,
+        DmParticipantRepository,
         ChatMessageProducer,
         ChatMessageConsumer,
         ChatMessageProcessor,
@@ -191,7 +196,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         GithubRepoEventConsumer,
         ChannelEventConsumer,
         ProjectEventConsumer,
-        ProjectMemberEventConsumer,
+        ProjectPermissionEventConsumer,
         ProjectGithubRepoEventConsumer,
         TeamMemberEventConsumer,
         UserProfileEventConsumer,
@@ -203,7 +208,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         ChannelSearchClient,
         UserClient,
         ChannelProjectionRepository,
-        ProjectMemberProjectionRepository,
+        ProjectPermissionProjectionRepository,
         ProjectProjectionRepository,
         ProjectGithubRepoProjectionRepository,
         TeamMemberProjectionRepository,

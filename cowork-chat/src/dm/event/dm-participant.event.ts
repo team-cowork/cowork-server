@@ -1,16 +1,16 @@
-export type ChannelMemberEvent = {
-    eventType: 'JOIN' | 'LEAVE' | 'ROLE_CHANGE';
+export type DmParticipantEvent = {
+    eventType: 'JOIN' | 'LEAVE';
     channelId: number;
     /**
     DM 채널은 팀에 속하지 않으므로 null
     */
-    teamId: number | null;
+    teamId: null;
     userId: number;
     role: string;
     /**
-    채널 타입 (TEXT, VOICE, DM). DM 채널 식별에 사용한다.
+    DM 참여 상태는 DM 채널만 포함한다.
     */
-    channelType: string;
+    channelType: 'DM';
     occurredAt: string;
     /**
     Startup/주기 projection snapshot 여부
