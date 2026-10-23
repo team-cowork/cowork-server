@@ -12,6 +12,7 @@ private const val TEAM_MEMBER_EVENT_TOPIC = "team.member.event"
 
 @Component
 class ProjectionStreams {
+    val projectAccess = ProjectionStream("cowork-project.project-access", "preference.project-access.state.v1", "cowork-preference")
     val channelState = ProjectionStream(
         "cowork-project.channel-state",
         ProjectionTopics.CHANNEL_STATE,
@@ -47,6 +48,7 @@ class ProjectionStreams {
     )
 
     val required: Set<ProjectionStream> = setOf(
+        projectAccess,
         channelState,
         teamMember,
         teamLifecycle,
