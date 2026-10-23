@@ -1,7 +1,5 @@
 package com.cowork.channel.domain.meetingNote.service.impl
 
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
-import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.meetingNote.entity.MeetingNoteTemplate
 import com.cowork.channel.domain.meetingNote.entity.SectionType
 import com.cowork.channel.domain.meetingNote.entity.TemplateSection
@@ -24,11 +22,7 @@ class AddTemplateSectionServiceImplTest {
 
     private val templateRepository = mockk<MeetingNoteTemplateRepository>(relaxed = true)
     private val sectionRepository = mockk<TemplateSectionRepository>(relaxed = true)
-    private val channelMemberRepository = mockk<ChannelMemberRepository>()
-    private val channelRepository = mockk<ChannelRepository> {
-        every { existsByIdAndType(any(), any()) } returns false
-    }
-    private val meetingNoteAccessGuard = MeetingNoteAccessGuard(channelMemberRepository, channelRepository)
+    private val meetingNoteAccessGuard = mockk<MeetingNoteAccessGuard>(relaxed = true)
     private val lookupSupport = MeetingNoteTemplateLookupSupport(templateRepository, sectionRepository)
 
     private val service = AddTemplateSectionServiceImpl(sectionRepository, meetingNoteAccessGuard, lookupSupport)
@@ -43,7 +37,7 @@ class AddTemplateSectionServiceImplTest {
 
     @Test
     fun `addSection은 섹션 타입을 파싱해서 저장`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(template())
         val saved = slot<TemplateSection>()
         every { sectionRepository.save(capture(saved)) } answers { saved.captured }
@@ -56,7 +50,7 @@ class AddTemplateSectionServiceImplTest {
 
     @Test
     fun `addSection은 유효하지 않은 타입이면 BAD_REQUEST`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(template())
 
         val ex = assertThrows(ExpectedException::class.java) {
