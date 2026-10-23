@@ -14,13 +14,14 @@ import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
 import {parseEventTime} from '../../common/util/event-time.util';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
 import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
-import {ProjectMemberProjectionRepository, ProjectProjectionRepository} from '../repository';
+import {ProjectProjectionRepository} from '../repository';
 import {ChannelMessageReadAccessService} from '../service';
 
 type ProjectEvent = {
     eventType: 'CREATED' | 'UPDATED' | 'DELETED';
     projectId: number;
     teamId: number;
+    createdBy?: number | null;
     name: string;
     description: string | null;
     status: string;
@@ -42,7 +43,6 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
         private readonly configService: ConfigService,
         private readonly dicoshot: DicoshotService,
         private readonly projectRepository: ProjectProjectionRepository,
-        private readonly projectMemberRepository: ProjectMemberProjectionRepository,
         private readonly projectionReadiness: ProjectionReadinessService,
         private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
     ) {}
@@ -118,6 +118,7 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
             : await this.projectRepository.upsert({
                 projectId: event.projectId,
                 teamId: event.teamId,
+                createdBy: event.createdBy ?? null,
                 name: event.name,
                 description: event.description,
                 status: event.status,
@@ -125,15 +126,7 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
                 occurredAt,
                 sourceVersion,
             });
-        if (!isApplied) {
-            return;
-        }
-
-        if (event.eventType === 'DELETED') {
-            await this.projectMemberRepository.removeByProjectId(event.projectId, occurredAt, sourceVersion);
-        }
-
-        if ((event.snapshot === true) || !this.io) {
+        if (!isApplied || (event.snapshot === true) || !this.io) {
             return;
         }
 
@@ -178,6 +171,7 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
         if ((event.eventType !== 'CREATED' && event.eventType !== 'UPDATED' && event.eventType !== 'DELETED')
             || !isSafePositiveInteger(event.projectId)
             || !isSafePositiveInteger(event.teamId)
+            || (event.createdBy != null && !isSafePositiveInteger(event.createdBy))
             || (event.snapshot !== undefined && typeof event.snapshot !== 'boolean')
             || parseEventTime(event.occurredAt) === null) {
             return false;

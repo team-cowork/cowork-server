@@ -51,7 +51,8 @@ import {ChatGateway} from './chat.gateway';
 import {
     MessageRepository,
     MessageRow,
-    ChannelMemberRepository,
+    DmParticipantRepository,
+    ChannelReadStateRepository,
     TeamMemberProjectionRepository,
     ChannelProjectionRepository,
 } from './repository';
@@ -76,7 +77,8 @@ export class ChatService {
 
     constructor(
         private readonly messageRepository: MessageRepository,
-        private readonly channelMemberRepository: ChannelMemberRepository,
+        private readonly dmParticipantRepository: DmParticipantRepository,
+        private readonly readStateRepository: ChannelReadStateRepository,
         private readonly teamMemberRepository: TeamMemberProjectionRepository,
         private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
         private readonly elasticsearchService: ElasticsearchService,
@@ -95,13 +97,13 @@ export class ChatService {
     ) {}
 
     /**
-     사용자가 채널 멤버인지 확인한다.
+     사용자의 채널 읽기 권한을 확인한다.
 
      @param channelId - 확인할 채널 ID
      @param userId - 확인할 사용자 ID
-     @returns 멤버이면 `true`, 아니면 `false`
+     @returns 권한이 있으면 `true`, 없으면 `false`
      */
-    async isMember(channelId: number, userId: number): Promise<boolean> {
+    async canReadChannel(channelId: number, userId: number): Promise<boolean> {
         return this.channelMessageReadAccess.canReadChannel(channelId, userId);
     }
 
@@ -129,29 +131,30 @@ export class ChatService {
     }
 
     /**
-     채널 멤버십을 검증한다. 멤버가 아니면 `ForbiddenException`을 던진다.
+     채널 읽기 권한을 검증한다. 권한이 없으면 `ForbiddenException`을 던진다.
 
      @param channelId - 채널 ID
      @param userId - 사용자 ID
-     @throws ForbiddenException 멤버가 아닌 경우
+     @throws ForbiddenException 권한이 없는 경우
      */
-    async checkMembership(channelId: number, userId: number): Promise<void> {
+    async requireChannelRead(channelId: number, userId: number): Promise<void> {
         await this.channelMessageReadAccess.requireCanRead(channelId, userId);
     }
 
     /**
-     채널 멤버십을 검증하고 해당 채널의 팀 ID를 반환한다.
+     채널 읽기 권한을 검증하고 해당 채널의 팀 ID를 반환한다.
      GitHub 이슈 생성 시 채널-팀 소속 검증에 사용한다.
 
      @param channelId - 채널 ID
      @param userId - 사용자 ID
      @returns 채널이 속한 팀 ID
-     @throws ForbiddenException 멤버가 아닌 경우
+     @throws ForbiddenException 권한이 없는 경우
      */
-    async checkMembershipAndGetTeamId(channelId: number, userId: number): Promise<number> {
+    async requireReadAndGetTeamId(channelId: number, userId: number): Promise<number> {
         await this.channelMessageReadAccess.requireCanRead(channelId, userId);
-        const teamId = await this.channelMemberRepository.findTeamIdByChannelAndUser(channelId, userId);
-        if (teamId === null) {
+        const channel = await this.channelProjectionRepository.findById(channelId);
+        const teamId = channel?.teamId;
+        if (teamId == null) {
             throw new ForbiddenException('채널 접근 권한이 없습니다');
         }
 
@@ -170,7 +173,7 @@ export class ChatService {
         ctx: ChannelUserContext,
         dto: CreateFileUploadUrlRequestDto,
     ): Promise<CreateFileUploadUrlResponseDto> {
-        await this.checkMembership(ctx.channelId, ctx.userId);
+        await this.requireChannelRead(ctx.channelId, ctx.userId);
         const upload = await this.objectStorageService.createPresignedUpload({
             channelId: ctx.channelId,
             userId: ctx.userId,
@@ -195,7 +198,7 @@ export class ChatService {
      @returns 최종 objectKey와 서버가 확인한 파일 메타데이터
      */
     async confirmFileUpload(ctx: ChannelUserContext, dto: ConfirmFileUploadRequestDto): Promise<ConfirmedAttachment> {
-        await this.checkMembership(ctx.channelId, ctx.userId);
+        await this.requireChannelRead(ctx.channelId, ctx.userId);
         return this.objectStorageService.confirmUpload(ctx.channelId, ctx.userId, dto.objectKey);
     }
 
@@ -210,7 +213,7 @@ export class ChatService {
      @throws BadRequestException FILE_SHARE 채널이 아닌 경우
      */
     async getFileList(ctx: ChannelUserContext, query: FileListQueryDto): Promise<FileListResponseDto> {
-        await this.checkMembership(ctx.channelId, ctx.userId);
+        await this.requireChannelRead(ctx.channelId, ctx.userId);
 
         const channel = await this.channelClient.getChannel(ctx.channelId);
         if (channel.viewType !== FILE_SHARE_VIEW_TYPE) {
@@ -253,7 +256,7 @@ export class ChatService {
      */
     async deleteFile(ctx: ChannelUserRoleContext, fileId: string): Promise<{channelId: number; messageId: string}> {
         const messageId = this.decodeFileId(fileId);
-        await this.checkMembership(ctx.channelId, ctx.userId);
+        await this.requireChannelRead(ctx.channelId, ctx.userId);
 
         const message = await this.messageRepository.findByIdAndChannelId(messageId, ctx.channelId);
         if (!message) {
@@ -301,18 +304,14 @@ export class ChatService {
      @param dto - 메시지 내용, 타입, 첨부파일 등
      */
     async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
-        const membership = await this.channelMemberRepository.findMembership(ctx.channelId, ctx.userId);
-        if (!membership) {
-            throw new ForbiddenException('채널 접근 권한이 없습니다');
-        }
-
+        await this.channelMessageReadAccess.requireCanSend(ctx.channelId, ctx.userId);
         const channel = await this.channelProjectionRepository.findById(ctx.channelId);
         if (!channel) {
             throw new NotFoundException('채널을 찾을 수 없습니다');
         }
 
         const scope = resolveMessageScope(channel);
-        if (membership.teamId !== scope?.teamId || membership.channelType !== channel.type) {
+        if (!scope) {
             throw new ServiceUnavailableException('채널 정보가 일치하지 않습니다');
         }
 
@@ -356,7 +355,7 @@ export class ChatService {
      @throws ForbiddenException 수신자가 발신자를 차단한 경우
      */
     private async verifyDmSendable(channelId: number, senderId: number): Promise<void> {
-        const members = await this.channelMemberRepository.findByChannelId(channelId);
+        const members = await this.dmParticipantRepository.findByChannelId(channelId);
         const receiver = members.find(member => member.userId !== senderId);
         if (!receiver) {
             return;
@@ -367,8 +366,8 @@ export class ChatService {
         }
 
         await Promise.all([
-            this.channelMemberRepository.setHidden(channelId, senderId, false),
-            this.channelMemberRepository.setHidden(channelId, receiver.userId, false),
+            this.dmParticipantRepository.setHidden(channelId, senderId, false),
+            this.dmParticipantRepository.setHidden(channelId, receiver.userId, false),
         ]);
     }
 
@@ -380,7 +379,7 @@ export class ChatService {
      @returns 채널 ID, 상대 사용자 ID, 안읽음 수, 마지막 메시지 요약 목록
      */
     async getMyDms(userId: number) {
-        const memberships = await this.channelMemberRepository.findDmMemberships(userId);
+        const memberships = await this.dmParticipantRepository.findDmMemberships(userId);
         if (memberships.length === 0) {
             return [];
         }
@@ -397,9 +396,9 @@ export class ChatService {
 
         const channelIds = readableMemberships.map(m => m.channelId);
         const [others, lastMessages, unreadCounts] = await Promise.all([
-            this.channelMemberRepository.findOtherDmMembers(channelIds, userId),
+            this.dmParticipantRepository.findOtherDmMembers(channelIds, userId),
             this.messageRepository.findLastMessages(channelIds),
-            this.getUnreadCounts(userId, readableMemberships),
+            this.getUnreadCounts(userId, channelIds),
         ]);
 
         return readableMemberships
@@ -418,15 +417,15 @@ export class ChatService {
 
      @param channelId - 숨길 DM 채널 ID
      @param userId - 요청 사용자 ID
-     @throws ForbiddenException DM 채널 멤버가 아닌 경우
+     @throws ForbiddenException DM 채널 권한이 없는 경우
      */
     async hideDm(channelId: number, userId: number): Promise<void> {
-        const membership = await this.channelMemberRepository.findMembership(channelId, userId);
+        const membership = await this.dmParticipantRepository.findMembership(channelId, userId);
         if (membership?.channelType !== DM_CHANNEL_TYPE) {
             throw new ForbiddenException('DM 채널 접근 권한이 없습니다');
         }
 
-        await this.channelMemberRepository.setHidden(channelId, userId, true);
+        await this.dmParticipantRepository.setHidden(channelId, userId, true);
     }
 
     /**
@@ -456,10 +455,10 @@ export class ChatService {
 
      @param ctx - 채널·사용자 컨텍스트
      @param dto - GitHub 이슈 생성 정보 (projectId, title, body)
-     @throws ForbiddenException 채널 멤버가 아닌 경우
+     @throws ForbiddenException 채널 권한이 없는 경우
      */
     async publishGithubIssueCreateCommand(ctx: ChannelUserContext, dto: CreateGithubIssueDto): Promise<void> {
-        const channelTeamId = await this.checkMembershipAndGetTeamId(ctx.channelId, ctx.userId);
+        const channelTeamId = await this.requireReadAndGetTeamId(ctx.channelId, ctx.userId);
 
         await this.chatGithubIssueCommandProducer.send({
             operationId: randomUUID(),
@@ -483,7 +482,7 @@ export class ChatService {
      @returns 최대 100개의 메시지 배열
      */
     async getMessages(ctx: ChannelUserContext, before?: string, parentMessageId?: string) {
-        await this.checkMembership(ctx.channelId, ctx.userId);
+        await this.requireChannelRead(ctx.channelId, ctx.userId);
         const rows = await this.messageRepository.findMessages(ctx.channelId, before, parentMessageId);
         return rows.map(row => this.toMessageResponse(row, ctx.userId));
     }
@@ -504,7 +503,7 @@ export class ChatService {
         dto: SearchMessagesDto,
         ctx: UserContext,
     ): Promise<SearchMessagesResponseDto> {
-        const isMember = await this.projectClient.isMember(projectId, ctx.userId);
+        const isMember = await this.projectClient.canRead(projectId, ctx.userId);
         if (!isMember) {
             throw new ForbiddenException('프로젝트 접근 권한이 없습니다');
         }
@@ -711,7 +710,7 @@ export class ChatService {
      @throws NotFoundException 메시지가 존재하지 않는 경우
      */
     async addReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
-        await this.checkMembership(ctx.channelId, ctx.userId);
+        await this.requireChannelRead(ctx.channelId, ctx.userId);
         const count = await this.messageRepository.addReaction(ctx.channelId, messageId, emoji, ctx.userId);
         if (count === null) {
             throw new NotFoundException('메시지를 찾을 수 없습니다');
@@ -746,7 +745,7 @@ export class ChatService {
      @throws NotFoundException 메시지가 존재하지 않는 경우
      */
     async removeReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
-        await this.checkMembership(ctx.channelId, ctx.userId);
+        await this.requireChannelRead(ctx.channelId, ctx.userId);
         const count = await this.messageRepository.removeReaction(ctx.channelId, messageId, emoji, ctx.userId);
         if (count === null) {
             throw new NotFoundException('메시지를 찾을 수 없습니다');
@@ -777,9 +776,9 @@ export class ChatService {
      @returns 고정 메시지 배열 (reactions는 나의 반응 여부 포함)
      */
     async readChannel(ctx: ChannelUserContext, lastReadMessageId: string): Promise<void> {
-        await this.checkMembership(ctx.channelId, ctx.userId);
+        await this.requireChannelRead(ctx.channelId, ctx.userId);
         const oid = new Types.ObjectId(lastReadMessageId);
-        await this.channelMemberRepository.updateLastRead(ctx.channelId, ctx.userId, oid);
+        await this.readStateRepository.updateLastRead(ctx.channelId, ctx.userId, oid);
         const unreadCount = await this.messageRepository.countUnread(ctx.channelId, oid);
         await this.unreadCounterService.set(ctx.channelId, ctx.userId, unreadCount);
         this.chatGateway.server
@@ -788,22 +787,13 @@ export class ChatService {
     }
 
     async getTeamUnread(teamId: number, userId: number): Promise<Array<{channelId: number; unreadCount: number}>> {
-        const allMemberships = await this.channelMemberRepository.findMembersByTeam(teamId, userId);
-        const readableChannelIds = new Set(await this.channelMessageReadAccess.filterReadableChannelIds(
-            teamId,
-            userId,
-            allMemberships.map(({channelId}) => channelId),
-        ));
-        const memberships = allMemberships.filter(({channelId}) => readableChannelIds.has(channelId));
-        if (memberships.length === 0) {
-            return [];
+        if (!(await this.teamMemberRepository.exists(teamId, userId))) {
+            throw new ForbiddenException('팀 접근 권한이 없습니다');
         }
 
-        const unreadCounts = await this.getUnreadCounts(userId, memberships);
-        return memberships.map(({channelId}) => ({
-            channelId,
-            unreadCount: unreadCounts.get(channelId) ?? 0,
-        }));
+        const channelIds = await this.channelMessageReadAccess.findReadableTeamChannelIds(teamId, userId);
+        const unreadCounts = await this.getUnreadCounts(userId, channelIds);
+        return channelIds.map(channelId => ({channelId, unreadCount: unreadCounts.get(channelId) ?? 0}));
     }
 
     /**
@@ -812,23 +802,25 @@ export class ChatService {
      Redis 오류 시에는 전체를 MongoDB로 폴백하므로 캐시 유무와 무관하게 항상 정확한 값을 반환한다.
 
      @param userId - 조회할 사용자 ID
-     @param memberships - 대상 채널 멤버십 목록 (팀 unread, DM 목록에서 공유)
+     @param channelIds - 읽기 권한이 있는 채널 ID 목록 (팀 unread, DM 목록에서 공유)
      @returns channelId → 안읽음 수 매핑
      */
     private async getUnreadCounts(
         userId: number,
-        memberships: Array<{channelId: number; lastReadMessageId: Types.ObjectId | null}>,
+        channelIds: number[],
     ): Promise<Map<number, number>> {
-        const channelIds = memberships.map(m => m.channelId);
+        if (channelIds.length === 0) {
+            return new Map();
+        }
+
         const cached = await this.unreadCounterService.getMany(userId, channelIds);
         const missedIds = cached ? cached.misses : channelIds;
         if (missedIds.length === 0) {
             return cached!.hits;
         }
 
-        const missedSet = new Set(missedIds);
-        const missedMemberships = memberships.filter(m => missedSet.has(m.channelId));
-        const recomputed = await this.messageRepository.countUnreadForChannels(missedMemberships);
+        const readStates = await this.readStateRepository.findForChannels(missedIds, userId);
+        const recomputed = await this.messageRepository.countUnreadForChannels(readStates);
         const filled = new Map(missedIds.map(id => [id, recomputed.get(id) ?? 0]));
         void this.unreadCounterService.setMany(userId, filled);
 
@@ -841,7 +833,7 @@ export class ChatService {
     }
 
     async getPinnedMessages(ctx: ChannelUserContext) {
-        await this.checkMembership(ctx.channelId, ctx.userId);
+        await this.requireChannelRead(ctx.channelId, ctx.userId);
         const rows = await this.messageRepository.findPinnedMessages(ctx.channelId);
         return rows.map(row => this.toMessageResponse(row, ctx.userId));
     }
@@ -879,11 +871,7 @@ export class ChatService {
         }
 
         const saved = await this.messageRepository.createSystemMessage(scope.teamId, channelId, content, scope.projectId, SYSTEM_AUTHOR_ID);
-        const members = await this.channelMemberRepository.findByChannelId(channelId);
-        const candidateUserIds = members.map(member => member.userId).filter(id => id !== SYSTEM_AUTHOR_ID);
-        const readableUsers = await this.channelMessageReadAccess.filterReadableUsersByChannel(
-            new Map([[channelId, candidateUserIds]]),
-        );
+        const readableUsers = await this.channelMessageReadAccess.findReadableUsersByChannel([channelId]);
         const targetUserIds = readableUsers.get(channelId) ?? [];
         await this.unreadCounterService.incrementIfPresent(channelId, targetUserIds);
         return saved;
@@ -956,7 +944,7 @@ export class ChatService {
         ctx: MessageUserRoleContext,
         forbiddenMessage: string,
     ): Promise<MessageDocument> {
-        await this.checkMembership(ctx.channelId, ctx.userId);
+        await this.requireChannelRead(ctx.channelId, ctx.userId);
         const message = await this.messageRepository.findById(ctx.messageId);
         if (!message) {
             throw new NotFoundException('메시지를 찾을 수 없습니다');
