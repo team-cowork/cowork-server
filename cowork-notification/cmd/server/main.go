@@ -62,6 +62,7 @@ func main() {
 		os.Exit(1)
 	}
 	sqlDB.SetMaxOpenConns(1)
+	monitoring.RegisterSQLite(sqlDB, cfg.DBPath)
 	if err := sqliteinfra.Migrate(context.Background(), db); err != nil {
 		slog.Error("sqlite migration failed", "err", err)
 		os.Exit(1)
