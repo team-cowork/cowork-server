@@ -3,6 +3,7 @@ package installation_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -110,29 +111,47 @@ func (m *mockFCM) Send(_ context.Context, messages []fcm.Message, _, _ string) (
 type mockPref struct {
 	enabled     bool
 	preferences map[int64]installation.ChannelNotificationPreference
+	accounts    map[int64]installation.AccountNotificationSetting
+	teamDefault *installation.NotificationLevel
 	err         error
 }
 
-func (m *mockPref) FindChannelNotificationPreferences(
+func (m *mockPref) FindRecipientPreferences(
 	_ context.Context,
 	accountIDs []int64,
-	_ int64,
-) (map[int64]installation.ChannelNotificationPreference, error) {
+	_, _ int64,
+) (installation.RecipientPreferences, error) {
 	if m.err != nil {
-		return nil, m.err
+		return installation.RecipientPreferences{}, m.err
 	}
-	if m.preferences != nil {
-		return m.preferences, nil
+	channels := m.preferences
+	if channels == nil {
+		level := installation.NotificationLevelNone
+		if m.enabled {
+			level = installation.NotificationLevelAll
+		}
+		channels = make(map[int64]installation.ChannelNotificationPreference, len(accountIDs))
+		for _, id := range accountIDs {
+			channels[id] = installation.ChannelNotificationPreference{Level: level}
+		}
 	}
-	level := installation.NotificationLevelNone
-	if m.enabled {
-		level = installation.NotificationLevelAll
+	return installation.RecipientPreferences{
+		Channels:         channels,
+		Accounts:         m.accounts,
+		TeamDefaultLevel: m.teamDefault,
+	}, nil
+}
+
+func levelPointer(level installation.NotificationLevel) *installation.NotificationLevel {
+	return &level
+}
+
+func installationsFor(ids ...int64) *mockRepo {
+	installations := make(map[int64][]installation.Installation, len(ids))
+	for _, id := range ids {
+		installations[id] = []installation.Installation{{FID: fmt.Sprintf("t%d", id), AccountID: id}}
 	}
-	result := make(map[int64]installation.ChannelNotificationPreference, len(accountIDs))
-	for _, id := range accountIDs {
-		result[id] = installation.ChannelNotificationPreference{Level: level}
-	}
-	return result, nil
+	return &mockRepo{installations: installations}
 }
 
 // snapshotRepo returns one installation snapshot per FindByAccountIDs call so a test can
@@ -194,7 +213,7 @@ func TestServiceNotifyReverifiesOwnershipBeforeSend(t *testing.T) {
 		ledger := &mockDelivery{}
 		svc := installation.NewService(repo, fcm, &mockPref{enabled: true}, ledger)
 
-		_, err := svc.Notify(context.Background(), "event-1", []int64{1}, nil, "title", "body", 0)
+		_, err := svc.Notify(context.Background(), "event-1", []int64{1}, nil, "title", "body", 0, 0)
 
 		require.NoError(t, err)
 		assert.Equal(t, []string{"kept"}, fcm.calledFIDs)
@@ -207,7 +226,7 @@ func TestServiceNotifyReverifiesOwnershipBeforeSend(t *testing.T) {
 		fcm := &mockFCM{}
 		svc := installation.NewService(repo, fcm, &mockPref{enabled: true}, nil)
 
-		_, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 0)
+		_, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 0, 0)
 
 		require.NoError(t, err)
 		assert.Equal(t, []string{"kept"}, fcm.calledFIDs)
@@ -219,7 +238,7 @@ func TestServiceNotifyReverifiesOwnershipBeforeSend(t *testing.T) {
 		ledger := &mockDelivery{}
 		svc := installation.NewService(repo, fcm, &mockPref{enabled: true}, ledger)
 
-		_, err := svc.Notify(context.Background(), "event-1", []int64{1}, nil, "title", "body", 0)
+		_, err := svc.Notify(context.Background(), "event-1", []int64{1}, nil, "title", "body", 0, 0)
 
 		require.NoError(t, err)
 		assert.Nil(t, fcm.calledFIDs)
@@ -232,7 +251,7 @@ func TestServiceNotifyReverifiesOwnershipBeforeSend(t *testing.T) {
 		ledger := &mockDelivery{}
 		svc := installation.NewService(repo, fcm, &mockPref{enabled: true}, ledger)
 
-		_, err := svc.Notify(context.Background(), "event-1", []int64{1}, nil, "title", "body", 0)
+		_, err := svc.Notify(context.Background(), "event-1", []int64{1}, nil, "title", "body", 0, 0)
 
 		require.ErrorIs(t, err, repo.reverifyErr)
 		assert.Nil(t, fcm.calledFIDs)
@@ -323,7 +342,7 @@ func TestServiceRegisterInstallationOwnership(t *testing.T) {
 		require.Len(t, repo.installations[2], 1)
 		assert.NotEqual(t, int64(10), repo.installations[2][0].ID)
 
-		_, err = svc.Notify(context.Background(), "", []int64{1, 2}, nil, "title", "body", 0)
+		_, err = svc.Notify(context.Background(), "", []int64{1, 2}, nil, "title", "body", 0, 0)
 		require.NoError(t, err)
 		assert.Equal(t, []string{deviceFID}, fcm.calledFIDs)
 
@@ -342,7 +361,7 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 		fcm := &mockFCM{}
 		svc := installation.NewService(repo, fcm, &mockPref{enabled: true}, nil)
 
-		_, err := svc.Notify(context.Background(), "", []int64{1, 2}, nil, "title", "body", 0)
+		_, err := svc.Notify(context.Background(), "", []int64{1, 2}, nil, "title", "body", 0, 0)
 
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"t1", "t2"}, fcm.calledFIDs)
@@ -355,7 +374,7 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 		fcm := &mockFCM{}
 		svc := installation.NewService(repo, fcm, &mockPref{enabled: false}, nil)
 
-		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 42)
+		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 42, 7)
 
 		require.NoError(t, err)
 		assert.Nil(t, fcm.calledFIDs)
@@ -370,7 +389,7 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 		fcm := &mockFCM{}
 		svc := installation.NewService(repo, fcm, &mockPref{enabled: false}, nil)
 
-		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2}, []int64{2}, "title", "body", 42)
+		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2}, []int64{2}, "title", "body", 42, 7)
 
 		require.NoError(t, err)
 		assert.Equal(t, []string{"t2"}, fcm.calledFIDs)
@@ -385,7 +404,7 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 		fcm := &mockFCM{}
 		svc := installation.NewService(repo, fcm, &mockPref{enabled: true}, nil)
 
-		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 1, 2}, []int64{2, 2}, "title", "body", 42)
+		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 1, 2}, []int64{2, 2}, "title", "body", 42, 7)
 
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"t1", "t2"}, fcm.calledFIDs)
@@ -411,7 +430,7 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 		fcm := &mockFCM{}
 		svc := installation.NewService(repo, fcm, pref, nil)
 
-		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2, 3, 4, 5}, nil, "title", "body", 42)
+		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2, 3, 4, 5}, nil, "title", "body", 42, 7)
 
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"t3", "t5"}, fcm.calledFIDs)
@@ -431,7 +450,7 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 		fcm := &mockFCM{}
 		svc := installation.NewService(repo, fcm, pref, nil)
 
-		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2}, []int64{1, 2}, "title", "body", 42)
+		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2}, []int64{1, 2}, "title", "body", 42, 7)
 
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"t1", "t2"}, fcm.calledFIDs)
@@ -446,9 +465,111 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 		pref := &mockPref{err: errors.New("preference service unreachable")}
 		svc := installation.NewService(repo, fcm, pref, nil)
 
-		_, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 42)
+		_, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 42, 7)
 
 		require.Error(t, err)
 		assert.Nil(t, fcm.calledFIDs)
 	})
+}
+
+func TestServiceNotifyResolvesAccountAndTeamLevels(t *testing.T) {
+	t.Run("account level applies to team channels without a channel setting", func(t *testing.T) {
+		fcm := &mockFCM{}
+		pref := &mockPref{
+			preferences: map[int64]installation.ChannelNotificationPreference{
+				2: {Level: installation.NotificationLevelAll},
+			},
+			accounts: map[int64]installation.AccountNotificationSetting{
+				1: {Level: levelPointer(installation.NotificationLevelMentions)},
+				2: {Level: levelPointer(installation.NotificationLevelMentions)},
+			},
+		}
+		svc := installation.NewService(installationsFor(1, 2, 3), fcm, pref, nil)
+
+		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2, 3}, nil, "title", "body", 42, 7)
+
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []int64{2, 3}, enabledIDs)
+	})
+
+	t.Run("team default applies only when the account has no level", func(t *testing.T) {
+		fcm := &mockFCM{}
+		pref := &mockPref{
+			preferences: map[int64]installation.ChannelNotificationPreference{},
+			accounts: map[int64]installation.AccountNotificationSetting{
+				1: {Level: levelPointer(installation.NotificationLevelAll)},
+				2: {},
+			},
+			teamDefault: levelPointer(installation.NotificationLevelNone),
+		}
+		svc := installation.NewService(installationsFor(1, 2, 3), fcm, pref, nil)
+
+		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2, 3}, nil, "title", "body", 42, 7)
+
+		require.NoError(t, err)
+		assert.Equal(t, []int64{1}, enabledIDs)
+	})
+
+	t.Run("direct-message channels ignore account and team levels", func(t *testing.T) {
+		fcm := &mockFCM{}
+		pref := &mockPref{
+			preferences: map[int64]installation.ChannelNotificationPreference{},
+			accounts: map[int64]installation.AccountNotificationSetting{
+				1: {Level: levelPointer(installation.NotificationLevelNone)},
+			},
+		}
+		svc := installation.NewService(installationsFor(1), fcm, pref, nil)
+
+		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 42, 0)
+
+		require.NoError(t, err)
+		assert.Equal(t, []int64{1}, enabledIDs)
+	})
+}
+
+func TestServiceNotifySuppressesDoNotDisturb(t *testing.T) {
+	future := time.Now().Add(time.Hour)
+	past := time.Now().Add(-time.Hour)
+	pref := &mockPref{
+		enabled: true,
+		accounts: map[int64]installation.AccountNotificationSetting{
+			1: {Status: installation.StatusDoNotDisturb, StatusExpiresAt: &future},
+			2: {Status: installation.StatusDoNotDisturb, StatusExpiresAt: &past},
+			3: {Status: installation.StatusDoNotDisturb},
+		},
+	}
+
+	t.Run("mentions and non-channel notifications are suppressed too", func(t *testing.T) {
+		for _, channelID := range []int64{42, 0} {
+			fcm := &mockFCM{}
+			svc := installation.NewService(installationsFor(1, 2, 3, 4), fcm, pref, nil)
+
+			enabledIDs, err := svc.Notify(context.Background(), "", []int64{2, 4}, []int64{1, 3}, "title", "body", channelID, 7)
+
+			require.NoError(t, err)
+			assert.ElementsMatch(t, []int64{2, 4}, enabledIDs)
+			assert.ElementsMatch(t, []string{"t2", "t4"}, fcm.calledFIDs)
+		}
+	})
+}
+
+func TestDoNotDisturbSchedule(t *testing.T) {
+	seoul, err := time.LoadLocation("Asia/Seoul")
+	require.NoError(t, err)
+	at := func(hour, minute int) time.Time {
+		return time.Date(2026, 10, 23, hour, minute, 0, 0, seoul).UTC()
+	}
+
+	overnight := installation.DoNotDisturbSchedule{StartMinute: 22 * 60, EndMinute: 8 * 60, Location: seoul}
+	assert.True(t, overnight.Contains(at(23, 30)))
+	assert.True(t, overnight.Contains(at(7, 59)))
+	assert.False(t, overnight.Contains(at(8, 0)))
+	assert.False(t, overnight.Contains(at(12, 0)))
+
+	daytime := installation.DoNotDisturbSchedule{StartMinute: 9 * 60, EndMinute: 18 * 60, Location: seoul}
+	assert.True(t, daytime.Contains(at(9, 0)))
+	assert.False(t, daytime.Contains(at(18, 0)))
+
+	empty := installation.DoNotDisturbSchedule{StartMinute: 9 * 60, EndMinute: 9 * 60, Location: seoul}
+	assert.False(t, empty.Contains(at(9, 0)))
 }
