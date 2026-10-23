@@ -1,15 +1,15 @@
 package com.cowork.channel.domain.channel.event
 
 import com.cowork.channel.domain.channel.entity.Channel
-import com.cowork.channel.domain.channel.entity.ChannelMember
+import com.cowork.channel.domain.channel.entity.DmParticipant
 import org.springframework.stereotype.Component
 import java.time.Instant
 
 @Component
-class ChannelMembershipSyncPublisher(private val channelMemberEventPublisher: ChannelMemberEventPublisher) {
-    fun publishChannelSnapshot(channel: Channel, members: List<ChannelMember>, requestedAt: Instant = Instant.now()) {
+class DmParticipantSyncPublisher(private val dmParticipantEventPublisher: DmParticipantEventPublisher) {
+    fun publishChannelSnapshot(channel: Channel, members: List<DmParticipant>, requestedAt: Instant = Instant.now()) {
         members.forEach { member ->
-            channelMemberEventPublisher.publishJoin(
+            dmParticipantEventPublisher.publishJoin(
                 channelId = channel.id,
                 userId = member.userId,
                 requestedAt = requestedAt,
