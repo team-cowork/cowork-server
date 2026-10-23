@@ -1,5 +1,5 @@
 import {ForbiddenException, Injectable} from '@nestjs/common';
-import {ChannelMemberRepository, ChannelProjectionRepository, TeamMemberProjectionRepository} from '../repository';
+import {ChannelProjectionRepository, TeamMemberProjectionRepository} from '../repository';
 import {ChannelMessageReadAccessService} from './channel-message-read-access.service';
 
 export type ChannelSearchItem = {
@@ -19,7 +19,6 @@ export class ChannelSearchClient {
     constructor(
         private readonly channelRepository: ChannelProjectionRepository,
         private readonly memberRepository: TeamMemberProjectionRepository,
-        private readonly channelMemberRepository: ChannelMemberRepository,
         private readonly accessService: ChannelMessageReadAccessService,
     ) {}
 
@@ -32,9 +31,7 @@ export class ChannelSearchClient {
             return [];
         }
 
-        const memberships = await this.channelMemberRepository.findMembersByTeam(teamId, userId);
-        const memberChannelIds = memberships.map(membership => membership.channelId);
-        const channels = await this.channelRepository.searchVisibleByTeamAndName(teamId, query, memberChannelIds);
+        const channels = await this.channelRepository.searchByTeamAndName(teamId, query);
         const visibleChannelIds = new Set(await this.accessService.filterVisibleChannelIds(
             teamId,
             userId,
