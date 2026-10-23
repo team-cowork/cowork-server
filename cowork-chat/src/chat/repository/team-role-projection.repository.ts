@@ -286,6 +286,21 @@ export class TeamRoleProjectionRepository {
         ).lean<TeamRoleProjectionView[]>();
     }
 
+    async findRolePermissionsByIds(roleIds: number[]): Promise<Array<TeamRoleProjectionView & {
+        permissions: Record<string, boolean>;
+    }>> {
+        if (roleIds.length === 0) {
+            return [];
+        }
+
+        return this.roleModel.find(
+            {roleId: {$in: roleIds}, deleted: {$ne: true}},
+            {
+                _id: 0, teamId: 1, roleId: 1, priority: 1, permissions: 1,
+            },
+        ).lean<Array<TeamRoleProjectionView & {permissions: Record<string, boolean>}>>();
+    }
+
     private toBigInt(value: bigint | mongo.Long): bigint {
         return typeof value === 'bigint' ? value : value.toBigInt();
     }
