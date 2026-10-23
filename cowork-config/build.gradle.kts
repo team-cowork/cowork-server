@@ -2,7 +2,7 @@ plugins {
     id("cowork.kotlin-conventions")
 }
 
-version = "20261023.0"
+version = "20261023.1"
 
 dependencies {
     implementation(libs.spring.boot.starter.security)
