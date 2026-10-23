@@ -18,7 +18,7 @@ import {
 import {ConfigService} from '@nestjs/config';
 import {JwtService} from '@nestjs/jwt';
 import {Server, Socket, DefaultEventsMap} from 'socket.io';
-import {MembershipConsumer} from '../membership/membership.consumer';
+import {DmParticipantConsumer} from '../dm/dm-participant.consumer';
 import {UserRole} from '../common/enum/user-role.enum';
 import {getOptionalConfig} from '../common/config/config.util';
 import {RedisRateLimiter} from '../common/util/redis-rate-limiter';
@@ -98,7 +98,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         private readonly githubRepoEventConsumer: GithubRepoEventConsumer,
         private readonly channelEventConsumer: ChannelEventConsumer,
         private readonly projectEventConsumer: ProjectEventConsumer,
-        private readonly membershipConsumer: MembershipConsumer,
+        private readonly dmParticipantConsumer: DmParticipantConsumer,
         private readonly teamRoleEventConsumer: TeamRoleEventConsumer,
         private readonly channelRolePolicyEventConsumer: ChannelRolePolicyEventConsumer,
         private readonly teamMemberEventConsumer: TeamMemberEventConsumer,
@@ -147,10 +147,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         this.githubRepoEventConsumer.setSocketServer(server);
         this.channelEventConsumer.setSocketServer(server);
         this.projectEventConsumer.setSocketServer(server);
-        this.membershipConsumer.setSocketServer(server);
-        this.membershipConsumer.setReadAccessEvaluator(async (channelId, userId) =>
-            this.chatService.isMember(channelId, userId));
-        this.membershipConsumer.setReadableEmitter(async (channelId, event, payload) =>
+        this.dmParticipantConsumer.setSocketServer(server);
+        this.dmParticipantConsumer.setReadAccessEvaluator(async (channelId, userId) =>
+            this.chatService.canReadChannel(channelId, userId));
+        this.dmParticipantConsumer.setReadableEmitter(async (channelId, event, payload) =>
             this.chatService.emitToReadableChannelUsers(channelId, event, payload));
         this.teamRoleEventConsumer.setSocketServer(server);
         this.channelRolePolicyEventConsumer.setSocketServer(server);
@@ -301,7 +301,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         const room = `chat:${payload.channelId}`;
         // 채팅방 멤버십이 곧 message_read 판정 결과이므로(브로드캐스트는 전송 시점에 다시 인가하지 않는다)
         // 인가를 통과하기 전에는 room에 넣지 않는다.
-        const canRead = await this.chatService.isMember(payload.channelId, userId);
+        const canRead = await this.chatService.canReadChannel(payload.channelId, userId);
         if (!canRead) {
             client.emit('error', {message: '채널 접근 권한이 없습니다'});
             return;
@@ -310,7 +310,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         this.joinRoom(client, room);
         // 가입 직전에 처리된 회수 이벤트는 아직 room에 없던 이 소켓을 해제 대상으로 삼지 못했다.
         // 가입 뒤 한 번 더 확인해 그 구간에 회수된 권한이 room 멤버십으로 남지 않게 한다.
-        const isStillAllowed = await this.chatService.isMember(payload.channelId, userId).catch((error: unknown) => {
+        const isStillAllowed = await this.chatService.canReadChannel(payload.channelId, userId).catch((error: unknown) => {
             this.leaveRoom(client, room);
             throw error;
         });
@@ -364,7 +364,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
             return;
         }
 
-        if (!(await this.chatService.isMember(payload.channelId, client.data.userId))) {
+        if (!(await this.chatService.canReadChannel(payload.channelId, client.data.userId))) {
             await client.leave(room);
             client.emit('channel:access:revoked', {channelId: payload.channelId});
             return;

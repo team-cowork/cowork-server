@@ -2,7 +2,7 @@ import {ForbiddenException, Injectable, ServiceUnavailableException} from '@nest
 import {Server} from 'socket.io';
 import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
 import {
-    ChannelMemberRepository,
+    DmParticipantRepository,
     ChannelProjectionRepository,
     ChannelProjectionView,
     ChannelRolePolicyProjectionRepository,
@@ -15,7 +15,7 @@ export type ChannelReadAccessRequest = {
     userId: number;
 };
 
-type AccessMode = 'MESSAGE_READ' | 'CHANNEL_METADATA';
+type AccessMode = 'MESSAGE_READ' | 'CHANNEL_METADATA' | 'MESSAGE_SEND';
 
 /**
 연결된 `Socket`과 `fetchSockets()`가 돌려주는 `RemoteSocket`에 공통인 room 조작 표면.
@@ -35,9 +35,8 @@ const policyKey = (channelId: number, roleId: number) => `${channelId}:${roleId}
  Role×channel `message_read` 정책의 단일 평가 지점.
 
  custom role의 priority가 높은 단계부터 평가되며, 같은 priority에서 충돌하면 deny가 이긴다.
- 어떤 role에도 명시값이 없으면 deny한다. built-in OWNER는 role policy만 우회한다.
- 메시지 본문/실시간 접근은 공개 여부와 관계없이 active 채널 멤버십이 필요하며,
- 채널 메타데이터는 공개 채널만 멤버십 없이 볼 수 있다.
+ 역할 기본 권한에 채널별 값을 덮어쓰고, 기본값은 deny한다. built-in OWNER는 허용한다.
+ 팀 채널 접근은 역할 권한으로 결정하고 DM만 대화 참여자를 확인한다.
  */
 @Injectable()
 export class ChannelMessageReadAccessService {
@@ -49,7 +48,7 @@ export class ChannelMessageReadAccessService {
 
     constructor(
         private readonly channelRepository: ChannelProjectionRepository,
-        private readonly channelMemberRepository: ChannelMemberRepository,
+        private readonly dmParticipantRepository: DmParticipantRepository,
         private readonly teamMemberRepository: TeamMemberProjectionRepository,
         private readonly teamRoleRepository: TeamRoleProjectionRepository,
         private readonly policyRepository: ChannelRolePolicyProjectionRepository,
@@ -68,6 +67,14 @@ export class ChannelMessageReadAccessService {
 
         if (!(await this.canReadChannel(channelId, userId))) {
             throw new ForbiddenException('채널 메시지 읽기 권한이 없습니다');
+        }
+    }
+
+    async requireCanSend(channelId: number, userId: number): Promise<void> {
+        await this.requireCanRead(channelId, userId);
+        const result = await this.evaluate([{channelId, userId}], 'MESSAGE_SEND');
+        if (result.get(accessKey(channelId, userId)) !== true) {
+            throw new ForbiddenException('채널 메시지 작성 권한이 없습니다');
         }
     }
 
@@ -99,6 +106,28 @@ export class ChannelMessageReadAccessService {
      `NotificationOutboxPoller`(푸시 알림 수신자 산정), `ChatService.saveSystemMessage`(미읽음
      카운터 증가 대상)에서도 쓰이므로 캐시를 타지 않는 {@link evaluateMany}를 그대로 사용한다.
      */
+    async findReadableUsersByChannel(channelIds: number[]): Promise<Map<number, number[]>> {
+        const channels = await this.channelRepository.findByIds(channelIds);
+        const teamIds = [...new Set(channels.flatMap(channel => channel.teamId === null ? [] : [channel.teamId]))];
+        const [teamMembers, dmParticipants] = await Promise.all([
+            this.teamMemberRepository.findByTeamIds(teamIds),
+            this.dmParticipantRepository.findByChannelIds(channels.filter(channel => this.isDm(channel)).map(channel => channel.channelId)),
+        ]);
+        const usersByTeam = new Map<number, number[]>();
+        for (const member of teamMembers) {
+            const users = usersByTeam.get(member.teamId) ?? [];
+            users.push(member.userId);
+            usersByTeam.set(member.teamId, users);
+        }
+
+        return this.filterReadableUsersByChannel(new Map(channels.map(channel => [
+            channel.channelId,
+            channel.teamId === null
+                ? (dmParticipants.get(channel.channelId) ?? []).map(participant => participant.userId)
+                : usersByTeam.get(channel.teamId) ?? [],
+        ])));
+    }
+
     async filterReadableUsersByChannel(
         usersByChannel: Map<number, number[]>,
     ): Promise<Map<number, number[]>> {
@@ -375,7 +404,7 @@ export class ChannelMessageReadAccessService {
         const userIds = [...new Set(uniqueRequests.map(({userId}) => userId))];
         const [channels, membersByChannel] = await Promise.all([
             this.channelRepository.findByIds(channelIds),
-            this.channelMemberRepository.findByChannelIdsAndUserIds(channelIds, userIds),
+            this.dmParticipantRepository.findByChannelIdsAndUserIds(channelIds, userIds),
         ]);
         const channelById = new Map(channels.map(channel => [channel.channelId, channel]));
         const memberKeys = new Set<string>();
@@ -407,14 +436,9 @@ export class ChannelMessageReadAccessService {
         const teamMembers = await this.teamMemberRepository.findByTeamIdsAndUserIds(teamIds, userIds);
         const teamMemberByKey = new Map(teamMembers.map(member => [teamUserKey(member.teamId, member.userId), member]));
 
-        const policyCandidates = teamRequests.filter(({request, channel, teamId}) => {
+        const policyCandidates = teamRequests.filter(({request, teamId}) => {
             const member = teamMemberByKey.get(teamUserKey(teamId, request.userId));
             if (!member) {
-                return false;
-            }
-
-            const hasChannelMembership = memberKeys.has(accessKey(request.channelId, request.userId));
-            if ((mode === 'MESSAGE_READ' && !hasChannelMembership) || (channel.isPrivate && !hasChannelMembership)) {
                 return false;
             }
 
@@ -450,21 +474,28 @@ export class ChannelMessageReadAccessService {
             }
         }
 
-        for (const {request, teamId} of policyCandidates) {
+        for (const {request, channel, teamId} of policyCandidates) {
             const assignedRoleIds = assignmentsByTeamUser.get(teamUserKey(teamId, request.userId)) ?? [];
             let selectedPriority: number | undefined;
             let isSelected = false;
             for (const roleId of assignedRoleIds) {
                 const role = roleById.get(roleId);
-                const policy = policyByKey.get(policyKey(request.channelId, roleId));
-                if (role?.teamId !== teamId || policy?.teamId !== teamId) {
+                if (role?.teamId !== teamId) {
                     continue;
                 }
 
+                const policy = policyByKey.get(policyKey(request.channelId, roleId));
+                const permission = mode === 'MESSAGE_SEND'
+                    ? 'message_send'
+                    : (mode === 'CHANNEL_METADATA' && channel.type === 'VOICE' ? 'voice_connect' : 'message_read');
+                const override = policy?.teamId === teamId
+                    ? (policy.permissions?.[permission] ?? (permission === 'message_read' ? policy.messageRead : undefined))
+                    : undefined;
+                const isAllowed = override ?? role.permissions?.[permission] ?? false;
                 if (selectedPriority === undefined || role.priority > selectedPriority) {
                     selectedPriority = role.priority;
-                    isSelected = policy.messageRead;
-                } else if (role.priority === selectedPriority && !policy.messageRead) {
+                    isSelected = isAllowed;
+                } else if (role.priority === selectedPriority && !isAllowed) {
                     isSelected = false;
                 }
             }
