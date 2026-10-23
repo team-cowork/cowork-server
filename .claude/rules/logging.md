@@ -18,11 +18,13 @@ paths:
   reads exactly these key names as Loki labels; it has no per-service fallback, unlike the
   defensive multi-format parsing in `deploy/prod/log-agent/config.alloy`. Do not grow that prod
   fallback further — fix the app's log output instead.
-- `module` is derived automatically from the logger/caller, not set per call site: Logback via
-  `ModuleNameConverter` (immediate parent package of the logger name), Go via `AddSource` +
-  parsing the function's package name, Node via `nestjs-pino`'s `renameContext: 'module'` (reuses
-  Nest's existing per-class logger context), .NET via the `ILogger` `categoryName` already passed
-  to `LineLoggerProvider.CreateLogger`.
+- `module` is derived automatically from the logger/caller, not set per call site. Logback's
+  `ModuleNameConverter` takes the segment right after `domain`/`global` in `com.cowork.<service>.*`
+  loggers (so logs group by feature, not by layer name like `service`/`impl`), and falls back to the
+  logger name's immediate parent package for flatter in-house packages and third-party loggers. Go
+  uses `AddSource` + the caller function's package name. Node uses `nestjs-pino`'s
+  `renameContext: 'module'` (reuses Nest's existing per-class logger context). .NET uses the
+  `ILogger` `categoryName` already passed to `LineLoggerProvider.CreateLogger`.
 - In local dev, also mirror stdout to `/var/log/cowork/<service>/app.log` (the `cowork_logs` volume)
   so the local Alloy file-tailing pipeline picks it up; production only reads Docker's own captured
   stdout (`/var/lib/docker/containers/*/*-json.log`), so stdout is the one output every service must
