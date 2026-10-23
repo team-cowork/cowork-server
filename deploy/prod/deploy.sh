@@ -87,26 +87,4 @@ print(matches[0])' "$IMAGE")
 case "$SERVICE" in
   user) run_migrations "$IMAGE" ;;
 esac
-# TODO: Temporary. Remove this copy and the cleanup below once production no longer has the retired cowork-notification-data volume.
-if [ "$SERVICE" = notification ]; then
-  before_candidate_start() {
-    local replace=0
-    docker volume inspect cowork-notification-data >/dev/null 2>&1 || return 0
-    # A stopped previous container on the old volume holds the latest SQLite file, including after a rolled-back attempt.
-    if [ -n "$1" ] && docker container inspect -f '{{range .Mounts}}{{.Name}}{{"\n"}}{{end}}' "$1" | grep -qx cowork-notification-data; then
-      replace=1
-    fi
-    docker run --rm --network none --user 0:0 --entrypoint sh -e REPLACE="$replace" \
-      -v cowork-notification-data:/from:ro -v cowork-notification-db-data:/to "$IMAGE" -c '
-        set -e
-        [ "$REPLACE" = 1 ] || [ -z "$(ls -A /to)" ] || exit 0
-        find /to -mindepth 1 -delete
-        cp -a /from/. /to/
-        chown "$(stat -c %u:%g /from)" /to
-        chmod "$(stat -c %a /from)" /to'
-  }
-fi
 deploy_container_safely "$CONTAINER" "$HOST_PORT" "$CONTAINER_PORT" "$HEALTH_PATH" "$IMAGE" -- "${RUN_ARGS[@]}"
-if [ "$SERVICE" = notification ] && docker volume inspect cowork-notification-data >/dev/null 2>&1; then
-  docker volume rm cowork-notification-data >/dev/null
-fi
