@@ -3,7 +3,6 @@ package com.cowork.project.domain.github.service
 import com.cowork.project.domain.github.entity.GithubRepoProjection
 import com.cowork.project.domain.github.repository.GithubRepoProjectionRepository
 import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -24,7 +23,7 @@ class GithubRepoReaderTest :
         beforeEach {
             markerRepository = mockk()
             repoProjectionRepository = mockk()
-            reader = GithubRepoReader(GithubSyncMarkers(markerRepository, ObjectMapper()), repoProjectionRepository)
+            reader = GithubRepoReader(GithubSyncMarkers(markerRepository), repoProjectionRepository)
         }
 
         describe("GithubRepoReader 클래스의") {
