@@ -23,6 +23,7 @@ Create and merge pull requests as `pr-gatekeeper-bot[bot]`, never as the user's 
 |---|---|
 | Hub repository (hosts the workflows and the secret) | `tmp-it-play/pr-gatekeeper-bot` |
 | Token script | `/absolute/path/to/this-skill/scripts/pr-gatekeeper-token.sh OWNER/REPO` |
+| Bot gh wrapper | `/absolute/path/to/this-skill/scripts/pr-gatekeeper-gh.sh OWNER/REPO <gh args...>` |
 | Create workflow | `.github/workflows/pr-gatekeeper-create.yml` |
 | Merge workflow | `.github/workflows/pr-gatekeeper-merge.yml` |
 | Repository secret (workflow mode) | `PR_GATEKEEPER_PRIVATE_KEY` |
@@ -57,7 +58,8 @@ The target repository (OWNER/REPO) is the repository the PR lives in. It can be 
 
 ## 3. Token handling rules (token mode)
 
-- Inject the token into a single command only, in the form `GH_TOKEN="$("/absolute/path/to/this-skill/scripts/pr-gatekeeper-token.sh" OWNER/REPO)" <command>`.
+- Run every bot command through `"/absolute/path/to/this-skill/scripts/pr-gatekeeper-gh.sh" OWNER/REPO <gh args...>`. It runs `gh` only after a token is issued.
+- Never use `GH_TOKEN="$(<token script>)" <command>`. When the token script fails, the substitution is empty and `gh` silently falls back to the user's personal account.
 - Never `export GH_TOKEN`, never store the token in a shell variable or file, never print it.
 - Never run `/absolute/path/to/this-skill/scripts/pr-gatekeeper-token.sh` on its own (its output is the token).
 - Never read, cat, or print the private key file. Only check whether it exists.
@@ -109,7 +111,7 @@ Run these before creating a PR:
 ### Token mode
 
 ```bash
-GH_TOKEN="$("/absolute/path/to/this-skill/scripts/pr-gatekeeper-token.sh" OWNER/REPO)" gh pr create --repo OWNER/REPO --base <base> --head <head> --title "<title>" --body-file <body-file> --label "a,b"
+"/absolute/path/to/this-skill/scripts/pr-gatekeeper-gh.sh" OWNER/REPO pr create --repo OWNER/REPO --base <base> --head <head> --title "<title>" --body-file <body-file> --label "a,b"
 ```
 
 Omit `--label` when there are no labels; add `--draft` for a draft PR. Report the URL printed by the command.
@@ -160,7 +162,7 @@ Report the PR number and URL. Confirm `author.is_bot` is `true` and `author.logi
 4. Execute:
    - Token mode:
      ```bash
-     GH_TOKEN="$("/absolute/path/to/this-skill/scripts/pr-gatekeeper-token.sh" OWNER/REPO)" gh pr merge <number> --repo OWNER/REPO --squash --delete-branch
+     "/absolute/path/to/this-skill/scripts/pr-gatekeeper-gh.sh" OWNER/REPO pr merge <number> --repo OWNER/REPO --squash --delete-branch
      ```
    - Workflow mode:
      ```bash
