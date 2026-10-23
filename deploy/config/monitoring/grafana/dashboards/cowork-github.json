@@ -70,8 +70,8 @@
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
       "targets": [
         {
-          "expr": "nodejs_heap_size_used_bytes{service=\"github\",job=~\"cowork-.*\"} / (cowork_nodejs_heap_size_limit_bytes{service=\"github\",job=~\"cowork-.*\"} > 0) * 100",
-          "legendFormat": "{{instance}}",
+          "expr": "max(nodejs_heap_size_used_bytes{service=\"github\",job=~\"cowork-.*\"} / (cowork_nodejs_heap_size_limit_bytes{service=\"github\",job=~\"cowork-.*\"} > 0)) * 100",
+          "legendFormat": "힙 사용률",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
           "instant": true,
@@ -89,7 +89,7 @@
           "thresholds": { "mode": "absolute", "steps": [{"value": null, "color": "green"}, {"value": 85, "color": "orange"}, {"value": 95, "color": "red"}] }
         }
       },
-      "description": "현재 확보한 힙 크기가 아닌 V8 최대 힙 한도 기준입니다. 85%부터 주의, 95%부터 높음으로 표시합니다.",
+      "description": "현재 확보한 힙 크기가 아닌 V8 최대 힙 한도 기준입니다. 85%부터 주의, 95%부터 높음으로 표시합니다. 인스턴스 중 가장 높은 사용률입니다.",
       "options": { "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true }
     },
     {
@@ -153,8 +153,8 @@
           "range": true
         },
         {
-          "expr": "cowork_nodejs_heap_size_limit_bytes{service=\"github\",job=~\"cowork-.*\"}",
-          "legendFormat": "V8 힙 한도 {{instance}}",
+          "expr": "max(cowork_nodejs_heap_size_limit_bytes{service=\"github\",job=~\"cowork-.*\"})",
+          "legendFormat": "V8 힙 한도",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "C",
           "instant": false,
@@ -205,8 +205,8 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "targets": [
         {
-          "expr": "process_resident_memory_bytes{service=\"github\",job=~\"cowork-.*\"}",
-          "legendFormat": "{{instance}}",
+          "expr": "max(process_resident_memory_bytes{service=\"github\",job=~\"cowork-.*\"})",
+          "legendFormat": "상주 메모리",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
           "instant": false,

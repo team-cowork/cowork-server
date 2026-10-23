@@ -202,8 +202,8 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
       "targets": [
         {
-          "expr": "nodejs_heap_size_used_bytes{job=\"cowork-services\"}",
-          "legendFormat": "{{service}} / {{instance}}",
+          "expr": "max by (service) (nodejs_heap_size_used_bytes{job=\"cowork-services\"})",
+          "legendFormat": "{{service}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
           "instant": false,
