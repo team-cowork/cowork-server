@@ -51,9 +51,8 @@ data class GithubPullRequestFileState(
 )
 
 /**
- * `files`는 opened/synchronize/reopened 액션에서만 채워진다(webhook payload에 PR 변경 파일
- * 목록이 없어, 해당 액션에서만 cowork-github가 GitHub API로 다시 조회해 포함시킨다). 이 필드가
- * 없는 이벤트를 받으면 기존 저장된 파일 목록을 그대로 유지해야 한다.
+ * `files`는 cowork-github가 GitHub API로 조회하거나 캐시한 PR 변경 파일 목록이다(webhook payload에는 없다).
+ * 예전 레코드이거나 캐시를 다시 채우려던 조회가 실패해 이 필드가 없으면, 기존 저장된 파일 목록을 그대로 유지해야 한다.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class GithubPullRequestStateEvent(
