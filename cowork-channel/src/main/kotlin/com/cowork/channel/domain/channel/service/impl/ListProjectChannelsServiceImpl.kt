@@ -32,7 +32,7 @@ class ListProjectChannelsServiceImpl(
         }
         val teamId = projection.teamId
         teamPermissionService.requireTeamMember(teamId, userId)
-        val structurallyVisible = channelRepository.findVisibleByProjectIdOrderByIdAsc(projectId, userId)
+        val structurallyVisible = channelRepository.findByProjectIdOrderByIdAsc(projectId)
         return messageReadPolicyEvaluator.filterReadable(teamId, userId, structurallyVisible).map {
             ChannelResponse.of(it)
         }

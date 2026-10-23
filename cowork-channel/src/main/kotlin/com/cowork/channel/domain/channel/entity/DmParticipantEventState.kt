@@ -8,12 +8,12 @@ import jakarta.persistence.Table
 import java.io.Serializable
 import java.time.Instant
 
-data class ChannelMemberEventStateId(var channelId: Long = 0, var userId: Long = 0) : Serializable
+data class DmParticipantEventStateId(var channelId: Long = 0, var userId: Long = 0) : Serializable
 
 @Entity
-@IdClass(ChannelMemberEventStateId::class)
+@IdClass(DmParticipantEventStateId::class)
 @Table(name = "tb_channel_member_event_states")
-class ChannelMemberEventState(
+class DmParticipantEventState(
     @Id
     @Column(name = "channel_id", nullable = false)
     val channelId: Long,
@@ -55,7 +55,7 @@ class ChannelMemberEventState(
             role: String,
             deleted: Boolean,
             requestedAt: Instant,
-        ): ChannelMemberEventState = ChannelMemberEventState(
+        ): DmParticipantEventState = DmParticipantEventState(
             channelId = channel.id,
             userId = userId,
             teamId = channel.teamId,

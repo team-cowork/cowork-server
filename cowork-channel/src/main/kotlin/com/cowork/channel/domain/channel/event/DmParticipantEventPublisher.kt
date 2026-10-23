@@ -1,9 +1,9 @@
 package com.cowork.channel.domain.channel.event
 
-import com.cowork.channel.domain.channel.entity.ChannelMemberEventState
-import com.cowork.channel.domain.channel.repository.ChannelMemberEventStateRepository
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
+import com.cowork.channel.domain.channel.entity.DmParticipantEventState
 import com.cowork.channel.domain.channel.repository.ChannelRepository
+import com.cowork.channel.domain.channel.repository.DmParticipantEventStateRepository
+import com.cowork.channel.domain.channel.repository.DmParticipantRepository
 import com.cowork.channel.global.outbox.OutboxWriter
 import jakarta.persistence.EntityManager
 import org.springframework.stereotype.Component
@@ -12,21 +12,21 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
 @Component
-@Transactional(propagation = Propagation.MANDATORY)
-class ChannelMemberEventPublisher(
+class DmParticipantEventPublisher(
     private val channelRepository: ChannelRepository,
-    private val memberRepository: ChannelMemberRepository,
-    private val stateRepository: ChannelMemberEventStateRepository,
+    private val memberRepository: DmParticipantRepository,
+    private val stateRepository: DmParticipantEventStateRepository,
     private val entityManager: EntityManager,
     private val outboxWriter: OutboxWriter,
 ) {
+    @Transactional(propagation = Propagation.MANDATORY)
     fun publishJoin(
         channelId: Long,
         userId: Long,
         role: String = "MEMBER",
         requestedAt: Instant = Instant.now(),
     ): Instant = publishMutation(
-        ChannelMemberEventType.JOIN,
+        DmParticipantEventType.JOIN,
         channelId,
         userId,
         role,
@@ -34,13 +34,14 @@ class ChannelMemberEventPublisher(
         requestedAt = requestedAt,
     )
 
+    @Transactional(propagation = Propagation.MANDATORY)
     fun publishLeave(
         channelId: Long,
         userId: Long,
         role: String = "MEMBER",
         requestedAt: Instant = Instant.now(),
     ): Instant = publishMutation(
-        ChannelMemberEventType.LEAVE,
+        DmParticipantEventType.LEAVE,
         channelId,
         userId,
         role,
@@ -48,13 +49,15 @@ class ChannelMemberEventPublisher(
         requestedAt = requestedAt,
     )
 
-    fun publishSnapshot(state: ChannelMemberEventState) {
+    @Transactional(propagation = Propagation.MANDATORY)
+    fun publishSnapshot(state: DmParticipantEventState) {
+        check(state.channelType == "DM") { "Only DM participation can be published" }
         entityManager.flush()
         enqueue(state, snapshot = true)
     }
 
     private fun publishMutation(
-        eventType: ChannelMemberEventType,
+        eventType: DmParticipantEventType,
         channelId: Long,
         userId: Long,
         role: String,
@@ -62,14 +65,15 @@ class ChannelMemberEventPublisher(
         requestedAt: Instant,
     ): Instant {
         val channel = checkNotNull(channelRepository.findByIdForUpdate(channelId)) {
-            "Channel row must exist while publishing its member state mutation: $channelId"
+            "Channel row must exist while publishing its participant state mutation: $channelId"
         }
+        check(channel.teamId == null && channel.type.name == "DM") { "Only DM participation has stored participants" }
         val member = memberRepository.findByChannelIdAndUserIdForUpdate(channelId, userId)
-        check(eventType == ChannelMemberEventType.LEAVE || member != null) {
-            "Channel member row must exist while publishing a JOIN mutation: $channelId:$userId"
+        check(eventType == DmParticipantEventType.LEAVE || member != null) {
+            "DM participant row must exist while publishing a JOIN mutation: $channelId:$userId"
         }
         val existingState = stateRepository.findByKeyForUpdate(channelId, userId)
-        val state = existingState ?: ChannelMemberEventState.create(channel, userId, role, deleted, requestedAt)
+        val state = existingState ?: DmParticipantEventState.create(channel, userId, role, deleted, requestedAt)
         val version = if (existingState == null) {
             state.stateOccurredAt
         } else {
@@ -78,15 +82,15 @@ class ChannelMemberEventPublisher(
         stateRepository.save(state)
         entityManager.flush()
         check(
-            (eventType == ChannelMemberEventType.LEAVE) == state.deleted,
-        ) { "Channel member event type must match its persisted deletion state" }
+            (eventType == DmParticipantEventType.LEAVE) == state.deleted,
+        ) { "DM participant event type must match its persisted deletion state" }
         enqueue(state, snapshot = false)
         return version
     }
 
-    private fun enqueue(state: ChannelMemberEventState, snapshot: Boolean) {
-        val event = ChannelMemberEvent(
-            eventType = if (state.deleted) ChannelMemberEventType.LEAVE else ChannelMemberEventType.JOIN,
+    private fun enqueue(state: DmParticipantEventState, snapshot: Boolean) {
+        val event = DmParticipantEvent(
+            eventType = if (state.deleted) DmParticipantEventType.LEAVE else DmParticipantEventType.JOIN,
             channelId = state.channelId,
             teamId = state.teamId,
             userId = state.userId,
@@ -100,6 +104,6 @@ class ChannelMemberEventPublisher(
     }
 
     companion object {
-        const val TOPIC = "channel.member.event.v2"
+        const val TOPIC = "channel.dm-participant.state.v1"
     }
 }
