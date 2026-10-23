@@ -2,11 +2,14 @@ import {mkdirSync, createWriteStream} from 'node:fs';
 import {Module} from '@nestjs/common';
 import {ConfigModule, ConfigService} from '@nestjs/config';
 import {LoggerModule} from 'nestjs-pino';
+import {multistream} from 'pino';
 import {AppController} from './app.controller';
 import {AppConfigService} from './config/app-config.service';
 import {envValidationSchema} from './config/env.validation';
 import {GithubModule} from './github/github.module';
 import {MetricsController} from './metrics/metrics.controller';
+
+const EXCLUDED_AUTO_LOGGING_PATHS = new Set(['/health', '/metrics']);
 
 @Module({
     imports: [
@@ -37,12 +40,21 @@ import {MetricsController} from './metrics/metrics.controller';
                     file.on('error', error => {
                         process.stderr.write(`cowork-github file log disabled: ${error.message}\n`);
                     });
-                    return file;
+                    return multistream([
+                        {level, stream: process.stdout},
+                        {level, stream: file},
+                    ]);
                 })();
                 return {
                     pinoHttp: {
                         level,
                         stream,
+                        autoLogging: {
+                            ignore(request) {
+                                const path = request.url?.split('?', 1)[0]?.replace(/\/$/v, '');
+                                return path !== undefined && EXCLUDED_AUTO_LOGGING_PATHS.has(path);
+                            },
+                        },
                         timestamp: () => `,"@timestamp":"${new Date().toISOString()}"`,
                         formatters: {
                             level: (label: string) => ({level: label.toUpperCase()}),
