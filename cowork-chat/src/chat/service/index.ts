@@ -4,5 +4,6 @@ export * from './channel.client';
 export * from './chat-message-quarantine.service';
 export * from './message-scope';
 export * from './project.client';
+export * from './slowmode.service';
 export * from './unread-counter.service';
 export * from './user.client';
