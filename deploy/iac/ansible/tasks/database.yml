@@ -51,17 +51,20 @@
           destination: /usr/local/libexec/cowork-module-database-firewall.py
         - source: firewall.service
           destination: /etc/systemd/system/cowork-module-database-firewall.service
+      when: database_catalog[cowork_database_module].engine != 'sqlite'
     - name: Restrict Database Traffic To The Local Bridge And Metrics To Monitoring
       ansible.builtin.command:
         argv: [/usr/bin/python3, -I, /usr/local/libexec/cowork-module-database-firewall.py, apply]
         stdin: "{{ {'network': database_network.name, 'bind_ip': database_slot.container.advertise_address, 'monitoring_ip': database_monitoring.runtime.MONITORING_BIND_IP, 'database_port': database_slot.runtime.DB_PORT | int, 'exporter_port': database_catalog[cowork_database_module].exporter.port, 'local_ports': [9200, 9300] if 'search' in database_catalog[cowork_database_module] else []} | to_json }}"
       changed_when: true
+      when: database_catalog[cowork_database_module].engine != 'sqlite'
     - name: Enable Database Firewall Restoration Before Docker
       ansible.builtin.systemd_service:
         name: cowork-module-database-firewall.service
         daemon_reload: true
         enabled: true
         state: started
+      when: database_catalog[cowork_database_module].engine != 'sqlite'
     - name: Reconcile The Database Volume And Accounts Without Resetting Data
       ansible.builtin.command:
         argv:
