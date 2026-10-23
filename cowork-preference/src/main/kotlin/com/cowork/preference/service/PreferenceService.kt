@@ -88,6 +88,15 @@ class PreferenceService(
                         snapshot = false,
                     ),
                 )
+                ResourceType.TEXT_CHANNEL -> outboxRepository.enqueue(
+                    connection,
+                    PreferenceEvents.textChannelSettingState(
+                        channelId = resourceId,
+                        settings = result.settings,
+                        occurredAt = result.stateOccurredAt,
+                        snapshot = false,
+                    ),
+                )
                 else -> Unit
             }
             if (resourceType == ResourceType.GITHUB_REPO) {
