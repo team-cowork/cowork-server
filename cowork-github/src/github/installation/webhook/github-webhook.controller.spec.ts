@@ -193,6 +193,24 @@ describe('GithubWebhookController', () => {
         expect(sentEvent.files).toEqual(files);
     });
 
+    it('pull_request의 labeled 액션에서 캐시를 채우려던 조회가 실패해도 files 없이 state를 발행한다', async () => {
+        pullRequestService.listPullRequestFiles.mockRejectedValue(new Error('rate limited'));
+
+        const result = await controller.handle('pull_request', {
+            action: 'closed',
+            repository: {full_name: 'my-org/my-repo'},
+            pull_request: {
+                number: 7, user: {login: 'octocat'}, state: 'closed', merged: true,
+            },
+        });
+
+        expect(result).toEqual({ok: true});
+        expect(redis.set).not.toHaveBeenCalled();
+        const [sentEvent] = readModelProducers.pullRequest.send.mock.calls[0] as [Record<string, unknown>];
+        expect(sentEvent.state).toBe('closed');
+        expect(sentEvent.files).toBeUndefined();
+    });
+
     it('pull_request의 labeled 액션에서는 캐시된 파일 목록을 그대로 실어 보낸다(compaction 안전)', async () => {
         const cachedFiles = [{
             filename: 'a.kt', status: 'modified', additions: 1, deletions: 0, patch: null,
