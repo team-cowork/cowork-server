@@ -106,7 +106,7 @@ func (s *Service) Notify(
 		enabledIDs = append(enabledIDs, id)
 	}
 
-	// forcedUserIDs는 뮤트 무시하고 무조건 포함
+	// forcedUserIDs(멘션, 답글 대상)는 알림 수준과 음소거를 무시하고 무조건 포함
 	nonForcedIDs := make([]int64, 0, len(targetUserIDs))
 	nonForcedSet := make(map[int64]bool, len(targetUserIDs))
 	for _, uid := range targetUserIDs {
@@ -119,14 +119,15 @@ func (s *Service) Notify(
 	// 나머지는 preference 확인
 	if channelID > 0 {
 		if len(nonForcedIDs) > 0 {
-			enabledMap, err := s.pref.AreNotificationsEnabled(ctx, nonForcedIDs, channelID)
+			preferences, err := s.pref.FindChannelNotificationPreferences(ctx, nonForcedIDs, channelID)
 			if err != nil {
 				// Fail closed. The Kafka trigger remains uncommitted and is retried;
 				// defaulting to enabled could notify an explicitly opted-out user.
 				return nil, fmt.Errorf("resolve channel notification preferences: %w", err)
 			}
+			now := time.Now()
 			for _, uid := range nonForcedIDs {
-				if enabled, ok := enabledMap[uid]; !ok || enabled {
+				if preference, ok := preferences[uid]; !ok || preference.ReceivesAllMessages(now) {
 					enabledIDs = append(enabledIDs, uid)
 				}
 			}
