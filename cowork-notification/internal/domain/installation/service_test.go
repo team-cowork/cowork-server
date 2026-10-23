@@ -108,17 +108,29 @@ func (m *mockFCM) Send(_ context.Context, messages []fcm.Message, _, _ string) (
 }
 
 type mockPref struct {
-	enabled bool
-	err     error
+	enabled     bool
+	preferences map[int64]installation.ChannelNotificationPreference
+	err         error
 }
 
-func (m *mockPref) AreNotificationsEnabled(_ context.Context, accountIDs []int64, _ int64) (map[int64]bool, error) {
+func (m *mockPref) FindChannelNotificationPreferences(
+	_ context.Context,
+	accountIDs []int64,
+	_ int64,
+) (map[int64]installation.ChannelNotificationPreference, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
-	result := make(map[int64]bool, len(accountIDs))
+	if m.preferences != nil {
+		return m.preferences, nil
+	}
+	level := installation.NotificationLevelNone
+	if m.enabled {
+		level = installation.NotificationLevelAll
+	}
+	result := make(map[int64]installation.ChannelNotificationPreference, len(accountIDs))
 	for _, id := range accountIDs {
-		result[id] = m.enabled
+		result[id] = installation.ChannelNotificationPreference{Level: level}
 	}
 	return result, nil
 }
@@ -378,6 +390,52 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"t1", "t2"}, fcm.calledFIDs)
 		assert.Equal(t, []int64{2, 1}, enabledIDs)
+	})
+
+	t.Run("channel notification level and mute decide non-mention delivery", func(t *testing.T) {
+		repo := &mockRepo{installations: map[int64][]installation.Installation{
+			1: {{FID: "t1", AccountID: 1}},
+			2: {{FID: "t2", AccountID: 2}},
+			3: {{FID: "t3", AccountID: 3}},
+			4: {{FID: "t4", AccountID: 4}},
+			5: {{FID: "t5", AccountID: 5}},
+		}}
+		past := time.Now().Add(-time.Hour)
+		future := time.Now().Add(time.Hour)
+		pref := &mockPref{preferences: map[int64]installation.ChannelNotificationPreference{
+			1: {Level: installation.NotificationLevelMentions},
+			2: {Level: installation.NotificationLevelAll, MutedUntil: &future},
+			3: {Level: installation.NotificationLevelAll, MutedUntil: &past},
+			4: {Level: installation.NotificationLevelNone},
+		}}
+		fcm := &mockFCM{}
+		svc := installation.NewService(repo, fcm, pref, nil)
+
+		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2, 3, 4, 5}, nil, "title", "body", 42)
+
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []string{"t3", "t5"}, fcm.calledFIDs)
+		assert.ElementsMatch(t, []int64{3, 5}, enabledIDs)
+	})
+
+	t.Run("mentioned recipients bypass mentions-only level and mute", func(t *testing.T) {
+		repo := &mockRepo{installations: map[int64][]installation.Installation{
+			1: {{FID: "t1", AccountID: 1}},
+			2: {{FID: "t2", AccountID: 2}},
+		}}
+		future := time.Now().Add(time.Hour)
+		pref := &mockPref{preferences: map[int64]installation.ChannelNotificationPreference{
+			1: {Level: installation.NotificationLevelMentions},
+			2: {Level: installation.NotificationLevelAll, MutedUntil: &future},
+		}}
+		fcm := &mockFCM{}
+		svc := installation.NewService(repo, fcm, pref, nil)
+
+		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2}, []int64{1, 2}, "title", "body", 42)
+
+		require.NoError(t, err)
+		assert.ElementsMatch(t, []string{"t1", "t2"}, fcm.calledFIDs)
+		assert.ElementsMatch(t, []int64{1, 2}, enabledIDs)
 	})
 
 	t.Run("preference lookup failure fails closed without sending", func(t *testing.T) {
