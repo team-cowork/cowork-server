@@ -3,11 +3,16 @@
     <springProperty name="SERVICE_NAME" source="spring.application.name" defaultValue="cowork-unknown"/>
     <property name="LOG_ROOT" value="${COWORK_LOG_DIR:-build/logs/cowork}"/>
 
+    <conversionRule conversionWord="module" class="com.cowork.team.global.logging.ModuleNameConverter"/>
+
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
             <customFields>{"service":"${SERVICE_NAME}"}</customFields>
             <includeMdcKeyName>userId</includeMdcKeyName>
             <includeMdcKeyName>teamId</includeMdcKeyName>
+            <provider class="net.logstash.logback.composite.loggingevent.LoggingEventPatternJsonProvider">
+                <pattern>{"module":"%module"}</pattern>
+            </provider>
         </encoder>
     </appender>
 
@@ -22,6 +27,9 @@
             <customFields>{"service":"${SERVICE_NAME}"}</customFields>
             <includeMdcKeyName>userId</includeMdcKeyName>
             <includeMdcKeyName>teamId</includeMdcKeyName>
+            <provider class="net.logstash.logback.composite.loggingevent.LoggingEventPatternJsonProvider">
+                <pattern>{"module":"%module"}</pattern>
+            </provider>
         </encoder>
     </appender>
 
