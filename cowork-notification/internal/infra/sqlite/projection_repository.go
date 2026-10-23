@@ -24,6 +24,60 @@ func (channelNotificationPreference) TableName() string {
 	return "tb_channel_notification_preferences"
 }
 
+type accountNotificationSetting struct {
+	AccountID         int64      `gorm:"column:account_id;primaryKey"`
+	NotificationLevel *string    `gorm:"column:notification_level"`
+	Status            *string    `gorm:"column:status"`
+	StatusExpiresAt   *time.Time `gorm:"column:status_expires_at"`
+	Timezone          *string    `gorm:"column:timezone"`
+	DNDEnabled        bool       `gorm:"column:dnd_enabled"`
+	DNDStartMinute    *int       `gorm:"column:dnd_start_minute"`
+	DNDEndMinute      *int       `gorm:"column:dnd_end_minute"`
+}
+
+func (accountNotificationSetting) TableName() string {
+	return "tb_account_notification_settings"
+}
+
+// defaultDoNotDisturbTimezone applies when an account enabled a DND schedule without a timezone.
+const defaultDoNotDisturbTimezone = "Asia/Seoul"
+
+func (row accountNotificationSetting) toDomain() installation.AccountNotificationSetting {
+	setting := installation.AccountNotificationSetting{StatusExpiresAt: row.StatusExpiresAt}
+	if row.NotificationLevel != nil {
+		level := installation.NotificationLevel(*row.NotificationLevel)
+		setting.Level = &level
+	}
+	if row.Status != nil {
+		setting.Status = *row.Status
+	}
+	if row.DNDEnabled && row.DNDStartMinute != nil && row.DNDEndMinute != nil {
+		timezone := defaultDoNotDisturbTimezone
+		if row.Timezone != nil {
+			timezone = *row.Timezone
+		}
+		location, err := time.LoadLocation(timezone)
+		if err != nil {
+			location, _ = time.LoadLocation(defaultDoNotDisturbTimezone)
+		}
+		setting.Schedule = &installation.DoNotDisturbSchedule{
+			StartMinute: *row.DNDStartMinute,
+			EndMinute:   *row.DNDEndMinute,
+			Location:    location,
+		}
+	}
+	return setting
+}
+
+type teamNotificationSetting struct {
+	TeamID                   int64   `gorm:"column:team_id;primaryKey"`
+	DefaultNotificationLevel *string `gorm:"column:default_notification_level"`
+}
+
+func (teamNotificationSetting) TableName() string {
+	return "tb_team_notification_settings"
+}
+
 type userProfileProjection struct {
 	UserID          int64     `gorm:"column:user_id;primaryKey"`
 	DisplayName     string    `gorm:"column:display_name"`
@@ -441,28 +495,110 @@ func (r *ProjectionRepository) UpsertChannelNotification(
 	).Error
 }
 
-func (r *ProjectionRepository) FindChannelNotificationPreferences(
+func (r *ProjectionRepository) UpsertAccountNotificationSetting(
+	ctx context.Context,
+	setting projection.AccountNotificationSetting,
+	occurredAt time.Time,
+) error {
+	var statusExpiresAt *time.Time
+	if setting.StatusExpiresAt != nil {
+		value := setting.StatusExpiresAt.UTC()
+		statusExpiresAt = &value
+	}
+	return r.db.WithContext(ctx).Exec(
+		`INSERT INTO tb_account_notification_settings
+			(account_id, notification_level, status, status_expires_at, timezone,
+			 dnd_enabled, dnd_start_minute, dnd_end_minute, source_updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT (account_id) DO UPDATE SET
+			notification_level = excluded.notification_level,
+			status = excluded.status,
+			status_expires_at = excluded.status_expires_at,
+			timezone = excluded.timezone,
+			dnd_enabled = excluded.dnd_enabled,
+			dnd_start_minute = excluded.dnd_start_minute,
+			dnd_end_minute = excluded.dnd_end_minute,
+			source_updated_at = excluded.source_updated_at,
+			updated_at = CURRENT_TIMESTAMP
+		 WHERE excluded.source_updated_at >= tb_account_notification_settings.source_updated_at`,
+		setting.AccountID,
+		setting.NotificationLevel,
+		setting.Status,
+		statusExpiresAt,
+		setting.Timezone,
+		setting.DNDEnabled,
+		setting.DNDStartMinute,
+		setting.DNDEndMinute,
+		occurredAt.UTC(),
+	).Error
+}
+
+func (r *ProjectionRepository) UpsertTeamNotificationSetting(
+	ctx context.Context,
+	teamID int64,
+	defaultLevel *string,
+	occurredAt time.Time,
+) error {
+	return r.db.WithContext(ctx).Exec(
+		`INSERT INTO tb_team_notification_settings (team_id, default_notification_level, source_updated_at)
+		 VALUES (?, ?, ?)
+		 ON CONFLICT (team_id) DO UPDATE SET
+			default_notification_level = excluded.default_notification_level,
+			source_updated_at = excluded.source_updated_at,
+			updated_at = CURRENT_TIMESTAMP
+		 WHERE excluded.source_updated_at >= tb_team_notification_settings.source_updated_at`,
+		teamID,
+		defaultLevel,
+		occurredAt.UTC(),
+	).Error
+}
+
+func (r *ProjectionRepository) FindRecipientPreferences(
 	ctx context.Context,
 	accountIDs []int64,
-	channelID int64,
-) (map[int64]installation.ChannelNotificationPreference, error) {
+	channelID, teamID int64,
+) (installation.RecipientPreferences, error) {
+	preferences := installation.RecipientPreferences{
+		Channels: map[int64]installation.ChannelNotificationPreference{},
+		Accounts: map[int64]installation.AccountNotificationSetting{},
+	}
 	if len(accountIDs) == 0 {
-		return map[int64]installation.ChannelNotificationPreference{}, nil
+		return preferences, nil
 	}
-	var rows []channelNotificationPreference
-	if err := r.db.WithContext(ctx).
-		Where("channel_id = ? AND account_id IN ?", channelID, accountIDs).
-		Find(&rows).Error; err != nil {
-		return nil, err
-	}
-	result := make(map[int64]installation.ChannelNotificationPreference, len(rows))
-	for _, row := range rows {
-		result[row.AccountID] = installation.ChannelNotificationPreference{
-			Level:      installation.NotificationLevel(row.NotificationLevel),
-			MutedUntil: row.MutedUntil,
+	if channelID > 0 {
+		var rows []channelNotificationPreference
+		if err := r.db.WithContext(ctx).
+			Where("channel_id = ? AND account_id IN ?", channelID, accountIDs).
+			Find(&rows).Error; err != nil {
+			return preferences, err
+		}
+		for _, row := range rows {
+			preferences.Channels[row.AccountID] = installation.ChannelNotificationPreference{
+				Level:      installation.NotificationLevel(row.NotificationLevel),
+				MutedUntil: row.MutedUntil,
+			}
 		}
 	}
-	return result, nil
+
+	var accounts []accountNotificationSetting
+	if err := r.db.WithContext(ctx).Where("account_id IN ?", accountIDs).Find(&accounts).Error; err != nil {
+		return preferences, err
+	}
+	for _, row := range accounts {
+		preferences.Accounts[row.AccountID] = row.toDomain()
+	}
+
+	if teamID > 0 {
+		var teams []teamNotificationSetting
+		if err := r.db.WithContext(ctx).Where("team_id = ?", teamID).Limit(1).Find(&teams).Error; err != nil {
+			return preferences, err
+		}
+		if len(teams) == 1 && teams[0].DefaultNotificationLevel != nil {
+			level := installation.NotificationLevel(*teams[0].DefaultNotificationLevel)
+			preferences.TeamDefaultLevel = &level
+		}
+	}
+	return preferences, nil
 }
 
 func (r *ProjectionRepository) UpsertUserProfile(
