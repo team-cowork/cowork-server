@@ -30,7 +30,7 @@ type NotificationTriggerEvent struct {
 }
 
 type NotificationService interface {
-	Notify(ctx context.Context, eventID string, targetUserIDs []int64, forcedUserIDs []int64, title, body string, channelID int64) ([]int64, error)
+	Notify(ctx context.Context, eventID string, targetUserIDs []int64, forcedUserIDs []int64, title, body string, channelID, teamID int64) ([]int64, error)
 }
 
 type TeamNameResolver interface {
@@ -215,6 +215,7 @@ func (c *Consumer) handle(
 	}
 
 	channelID := extractInt64(event.Data, "channelId")
+	teamID := extractInt64(event.Data, "teamId")
 	if lease != nil && !lease.Current() {
 		return errProjectionLeaseExpired
 	}
@@ -226,6 +227,7 @@ func (c *Consumer) handle(
 		title,
 		body,
 		channelID,
+		teamID,
 	)
 	if err != nil {
 		return err
@@ -238,7 +240,7 @@ func (c *Consumer) handle(
 			"title":     title,
 			"body":      body,
 			"channelId": channelID,
-			"teamId":    extractInt64(event.Data, "teamId"),
+			"teamId":    teamID,
 		})
 		if err != nil {
 			slog.Error("SSE 페이로드 직렬화 실패", "err", err, "type", event.Type)
