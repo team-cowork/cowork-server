@@ -144,6 +144,8 @@ services:
         preference.github-repo.setting.state
         preference.github-repo.setting.result
         preference.project-access.state.v1
+        preference.account-setting.state.v1
+        preference.team-setting.state.v1
         preference.github-repo.setting.result-dlt
         project.chat-github-issue.command
         project.chat-github-issue.command-dlt
@@ -171,6 +173,8 @@ services:
         preference.channel-role-policy.state.v2
         preference.github-repo.setting.state
         preference.project-access.state.v1
+        preference.account-setting.state.v1
+        preference.team-setting.state.v1
         github.repo.state.v1
         github.issue.state.v1
         github.pull-request.state.v1
