@@ -21,8 +21,12 @@ SECRET_KEYS = {'DB_PASSWORD', 'DB_ADMIN_PASSWORD', 'DB_MONITORING_PASSWORD'}
 def catalog():
     result = json.loads((SOURCE / 'catalog.json').read_text())
     for module, value in result.items():
-        if not re.fullmatch(r'[a-z][a-z0-9_]*', module) or value['engine'] not in PORTS:
+        if not re.fullmatch(r'[a-z][a-z0-9_]*', module) or value['engine'] not in (*PORTS, 'sqlite'):
             raise ValueError('Invalid module database catalog')
+        if value['engine'] == 'sqlite':
+            if set(value) != {'engine'}:
+                raise ValueError('A SQLite database is defined by its slot volume only')
+            continue
         if value['database'] != 'cowork_' + module or value['username'] != 'cowork_' + module:
             raise ValueError('Each database and account must belong to its module')
         for image in (value['image'], value['exporter']['image']):
@@ -40,6 +44,26 @@ def catalog():
                     not search['indices'] or not all(re.fullmatch(r'[a-z][a-z0-9_-]*\*?', item) for item in search['indices'])):
                 raise ValueError('Invalid module search definition')
     return result
+
+
+def sqlite_volume(module):
+    slot = runpy.run_path(str(PROD / 'slots.py'))['load'](module, PROD / 'slots')
+    volume = f'cowork-{module}-db-data'
+    mounts = [item for item in slot['container']['mounts'] if item['source'] == volume and not item['read_only']]
+    path = Path(slot['runtime'].get('DB_PATH', ''))
+    if len(mounts) != 1 or not path.is_absolute() or path == Path(mounts[0]['target']) or not path.is_relative_to(mounts[0]['target']):
+        raise ValueError(f'A SQLite slot must keep DB_PATH inside its writable {volume} mount')
+    return volume
+
+
+def apply_sqlite(module):
+    if os.geteuid() != 0:
+        raise ValueError('Database infrastructure apply requires root')
+    if json.load(sys.stdin) != {}:
+        raise ValueError('A SQLite database takes no credentials')
+    volume = sqlite_volume(module)
+    run('docker', 'volume', 'create', volume)
+    print(f'{module}: SQLite volume retained; the application owns its schema')
 
 
 def credentials(value):
@@ -288,10 +312,16 @@ def main():
     if args.module is not None and args.module not in values:
         raise ValueError('Unknown module database')
     if args.operation == 'check':
+        for module, value in values.items():
+            if value['engine'] == 'sqlite':
+                sqlite_volume(module)
         print(f'Validated {len(values)} module database definitions; no runtime changes')
         return
     if args.module is None:
         raise ValueError('Database apply requires a module')
+    if values[args.module]['engine'] == 'sqlite':
+        apply_sqlite(args.module)
+        return
     directory = args.directory or Path('/root/cowork-iac/databases') / args.module
     apply(args.module, values[args.module], directory.resolve())
 
