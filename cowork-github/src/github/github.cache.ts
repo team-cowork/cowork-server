@@ -1,3 +1,6 @@
+// PR 파일 목록은 patch 본문까지 담아 크므로 만료시킨다. 만료 뒤의 webhook은 파일 목록을 다시 조회해 채운다.
+export const PULL_REQUEST_FILES_TTL_SECONDS = 7 * 24 * 60 * 60;
+
 export const githubCacheKeys = {
     installation: (owner: string): string => `github:installation:${owner}`,
     token: (installationId: number): string => `github:token:${installationId}`,

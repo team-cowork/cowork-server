@@ -10,7 +10,6 @@ import com.cowork.project.domain.github.service.GithubPullRequestReader
 import com.cowork.project.domain.github.service.GithubRepoAccessResolver
 import com.cowork.project.domain.github.service.GithubRepoRef
 import com.cowork.project.domain.github.service.GithubSyncMarkers
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -41,7 +40,7 @@ class QueryPullRequestDetailServiceImplTest :
             }
             service = QueryPullRequestDetailServiceImpl(
                 repoAccessResolver,
-                GithubPullRequestReader(pullRequestRepository, GithubSyncMarkers(markerRepository, ObjectMapper())),
+                GithubPullRequestReader(pullRequestRepository, GithubSyncMarkers(markerRepository)),
                 callExecutor,
                 githubAppClient,
             )

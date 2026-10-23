@@ -25,8 +25,9 @@ class GithubLabelProjection(
     @Column(nullable = false, length = 100)
     val repo: String,
 
+    // GitHub 라벨 이름은 대소문자를 구분하지 않아 같은 행이다. 대소문자만 바꾼 이름 변경도 표시에 반영한다.
     @Column(nullable = false, length = 100)
-    val name: String,
+    var name: String,
 
     @Column(nullable = false, length = 10)
     var color: String,
@@ -44,6 +45,7 @@ class GithubLabelProjection(
             return false
         }
 
+        name = event.name
         color = event.color
         deleted = event.deleted
         sourceOccurredAt = version
