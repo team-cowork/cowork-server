@@ -6,7 +6,7 @@ namespace CoworkUser.Platform;
 
 /// <summary>
 /// Writes one JSON object per event to stdout and to the shared log volume. The keys follow the other
-/// services (@timestamp, level, service), which is what the log collection parses into Loki labels.
+/// services (@timestamp, level, service, module), which is what the log collection parses into Loki labels.
 /// Events are queued and written by one background thread, so requests never wait on the disk. The queue is
 /// bounded: when the writer falls behind, the newest events are dropped and counted, and the writer reports
 /// the count as a WARN entry, so memory stays bounded and a loss is visible.
@@ -17,6 +17,7 @@ public sealed class LineLoggerProvider : ILoggerProvider
         [property: JsonPropertyName("@timestamp")] string Timestamp,
         [property: JsonPropertyName("level")] string Level,
         [property: JsonPropertyName("service")] string Service,
+        [property: JsonPropertyName("module")] string Module,
         [property: JsonPropertyName("message")] string Message,
         [property: JsonPropertyName("request_id"), JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? RequestId
         );
@@ -47,12 +48,20 @@ public sealed class LineLoggerProvider : ILoggerProvider
 
     StreamWriter Open() => new(new FileStream(path!, FileMode.Append, FileAccess.Write, FileShare.ReadWrite));
 
-    public ILogger CreateLogger(string categoryName) => new LineLogger(this);
+    public ILogger CreateLogger(string categoryName) => new LineLogger(this, ModuleName(categoryName));
 
-    static string Format(string level, string message, string? requestId) =>
-        JsonSerializer.Serialize(new Entry(DateTime.UtcNow.ToString("O"), level, "cowork-user", message, requestId), Json.Event);
+    // The immediate parent namespace of the category, e.g. "CoworkUser.Http.Router" -> "Http",
+    // so Loki can group logs by subsystem without the full type name.
+    static string ModuleName(string categoryName)
+    {
+        var segments = categoryName.Split('.');
+        return segments.Length >= 2 ? segments[^2] : segments[0];
+    }
 
-    void Write(LogLevel level, string message, string? requestId)
+    static string Format(string level, string module, string message, string? requestId) =>
+        JsonSerializer.Serialize(new Entry(DateTime.UtcNow.ToString("O"), level, "cowork-user", module, message, requestId), Json.Event);
+
+    void Write(LogLevel level, string module, string message, string? requestId)
     {
         var name = level switch
         {
@@ -61,7 +70,7 @@ public sealed class LineLoggerProvider : ILoggerProvider
             LogLevel.Warning => "WARN",
             _ => "ERROR",
         };
-        queue.Writer.TryWrite(Format(name, message, requestId));
+        queue.Writer.TryWrite(Format(name, module, message, requestId));
     }
 
     void WriteLoop()
@@ -100,7 +109,7 @@ public sealed class LineLoggerProvider : ILoggerProvider
     {
         var lost = Interlocked.Exchange(ref dropped, 0);
         if (lost == 0) return;
-        var notice = Format("WARN", $"Dropped {lost} log entries because the log writer fell behind", null);
+        var notice = Format("WARN", "logger", $"Dropped {lost} log entries because the log writer fell behind", null);
         Console.Out.WriteLine(notice);
         file?.WriteLine(notice);
     }
@@ -131,7 +140,7 @@ public sealed class LineLoggerProvider : ILoggerProvider
         file?.Dispose();
     }
 
-    sealed class LineLogger(LineLoggerProvider provider) : ILogger
+    sealed class LineLogger(LineLoggerProvider provider, string module) : ILogger
     {
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
 
@@ -141,7 +150,7 @@ public sealed class LineLoggerProvider : ILoggerProvider
         {
             var message = formatter(state, exception);
             var requestId = (state as IReadOnlyList<KeyValuePair<string, object?>>)?.FirstOrDefault(pair => pair.Key == "RequestId").Value?.ToString();
-            provider.Write(logLevel, exception is null ? message : $"{message}\n{exception}", requestId);
+            provider.Write(logLevel, module, exception is null ? message : $"{message}\n{exception}", requestId);
         }
     }
 }
