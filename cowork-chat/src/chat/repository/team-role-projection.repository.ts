@@ -15,6 +15,7 @@ export type TeamRoleProjectionView = {
     teamId: number;
     roleId: number;
     priority: number;
+    permissions?: Record<string, boolean>;
 };
 
 export type TeamRoleAssignmentProjectionView = {
@@ -280,7 +281,7 @@ export class TeamRoleProjectionRepository {
         return this.roleModel.find(
             {roleId: {$in: roleIds}, deleted: {$ne: true}},
             {
-                _id: 0, teamId: 1, roleId: 1, priority: 1,
+                _id: 0, teamId: 1, roleId: 1, priority: 1, permissions: 1,
             },
         ).lean<TeamRoleProjectionView[]>();
     }
