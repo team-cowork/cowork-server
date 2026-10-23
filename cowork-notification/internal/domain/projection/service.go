@@ -14,7 +14,13 @@ var ErrTopicGenerationMismatch = errors.New(
 )
 
 type Store interface {
-	UpsertChannelNotification(ctx context.Context, accountID, channelID int64, enabled bool, occurredAt time.Time) error
+	UpsertChannelNotification(
+		ctx context.Context,
+		accountID, channelID int64,
+		level string,
+		mutedUntil *time.Time,
+		occurredAt time.Time,
+	) error
 	UpsertUserProfile(ctx context.Context, userID int64, displayName string, occurredAt time.Time) error
 	DeleteUserProfile(ctx context.Context, userID int64, occurredAt time.Time) error
 	UpsertTeamProfile(ctx context.Context, teamID int64, teamName string, occurredAt time.Time) error
@@ -75,11 +81,13 @@ type AtomicStore interface {
 }
 
 type ChannelNotificationEvent struct {
-	EventType    string `json:"eventType"`
-	AccountID    int64  `json:"accountId"`
-	ChannelID    int64  `json:"channelId"`
-	Notification *bool  `json:"notification"`
-	OccurredAt   string `json:"occurredAt"`
+	EventType         string  `json:"eventType"`
+	AccountID         int64   `json:"accountId"`
+	ChannelID         int64   `json:"channelId"`
+	Notification      *bool   `json:"notification"`
+	NotificationLevel *string `json:"notificationLevel"`
+	MutedUntil        *string `json:"mutedUntil"`
+	OccurredAt        string  `json:"occurredAt"`
 }
 
 type UserProfileEvent struct {
@@ -215,7 +223,37 @@ func (s *Service) ApplyChannelNotification(ctx context.Context, event ChannelNot
 	if err != nil {
 		return invalidEvent("channel notification occurredAt", event.EventType)
 	}
-	return s.store.UpsertChannelNotification(ctx, event.AccountID, event.ChannelID, *event.Notification, occurredAt)
+	level, ok := channelNotificationLevel(event)
+	if !ok {
+		return invalidEvent("channel notification notificationLevel", event.EventType)
+	}
+	var mutedUntil *time.Time
+	if event.MutedUntil != nil {
+		parsed, err := time.Parse(time.RFC3339Nano, *event.MutedUntil)
+		if err != nil {
+			return invalidEvent("channel notification mutedUntil", event.EventType)
+		}
+		parsed = parsed.UTC()
+		mutedUntil = &parsed
+	}
+	return s.store.UpsertChannelNotification(ctx, event.AccountID, event.ChannelID, level, mutedUntil, occurredAt)
+}
+
+// channelNotificationLevel falls back to the boolean notification flag for records
+// published before notificationLevel was added.
+func channelNotificationLevel(event ChannelNotificationEvent) (string, bool) {
+	if event.NotificationLevel == nil {
+		if *event.Notification {
+			return "ALL", true
+		}
+		return "NONE", true
+	}
+	switch level := *event.NotificationLevel; level {
+	case "ALL", "MENTIONS", "NONE":
+		return level, true
+	default:
+		return "", false
+	}
 }
 
 func (s *Service) ApplyUserProfile(ctx context.Context, event UserProfileEvent) error {
