@@ -292,10 +292,160 @@
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
+      "id": 14,
+      "title": "모듈 DB - 애플리케이션 커넥션 풀 사용량",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "targets": [
+        {
+          "expr": "sum by (service) (hikaricp_connections_active)",
+          "legendFormat": "{{service}} 사용 중",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "sum by (service) (hikaricp_connections_max)",
+          "legendFormat": "{{service}} 최대 커넥션 수",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "B",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "sum by (service) (go_sql_in_use_connections)",
+          "legendFormat": "{{service}} 사용 중",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "C",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "sum by (service) (go_sql_max_open_connections)",
+          "legendFormat": "{{service}} 최대 커넥션 수",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "D",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
+      "description": "애플리케이션이 DB에 연결할 때 쓰는 커넥션 풀입니다. 사용 중인 커넥션 수가 최대치에 가까워지면 커넥션 풀이 고갈될 수 있습니다. SQLite는 쓰기를 한 번에 하나만 처리하므로 최대 커넥션 수가 1입니다."
+    },
+    {
+      "id": 15,
+      "title": "모듈 DB - 커넥션 대기",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "targets": [
+        {
+          "expr": "sum by (service) (hikaricp_connections_pending)",
+          "legendFormat": "{{service}} 대기 중인 스레드 수",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "sum by (service) (rate(go_sql_wait_count_total[$__rate_interval]))",
+          "legendFormat": "{{service}} 초당 대기 횟수",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "B",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
+      "description": "0보다 크면 커넥션을 기다리는 요청이 있다는 뜻입니다. 커넥션 풀 고갈의 초기 징후입니다. HikariCP는 지금 대기 중인 스레드 수를, Go 서비스는 초당 대기 횟수를 표시합니다."
+    },
+    {
+      "id": 16,
+      "title": "모듈 DB - 커넥션 획득 시간 (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, service) (rate(hikaricp_connections_acquire_seconds_bucket[$__rate_interval]))) * 1000",
+          "legendFormat": "{{service}} P99",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "sum by (service) (rate(go_sql_wait_duration_seconds_total[$__rate_interval])) / (sum by (service) (rate(go_sql_wait_count_total[$__rate_interval])) > 0) * 1000",
+          "legendFormat": "{{service}} 평균 대기 시간",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "B",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms", "noValue": "N/A", "min": 0, "color": {"mode": "palette-classic"}, "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"} }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
+      "description": "커넥션 풀이 고갈되기 시작하면 커넥션을 얻는 데 걸리는 시간이 늘어납니다. Go 서비스는 히스토그램이 없어 커넥션을 기다린 요청의 평균 대기 시간을 표시하고, 대기가 없던 구간은 비워 둡니다."
+    },
+    {
+      "id": 17,
+      "title": "SQLite - 파일 크기",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 },
+      "targets": [
+        {
+          "expr": "cowork_notification_sqlite_file_size_bytes{file=\"db\"}",
+          "legendFormat": "{{service}} DB 파일",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "cowork_notification_sqlite_file_size_bytes{file=\"wal\"}",
+          "legendFormat": "{{service}} WAL 파일",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "B",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "N/A",
+          "min": 0,
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
+      "description": "WAL 파일이 줄지 않고 계속 커지면 체크포인트가 밀리고 있다는 뜻입니다. 볼륨이 있는 호스트의 디스크 사용률은 아래 파일시스템 사용률에서 확인합니다."
+    },
+    {
       "id": 11,
       "title": "호스트 CPU 사용률",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 56 },
       "targets": [
         {
           "expr": "100 * (1 - avg by (host, instance) (rate(node_cpu_seconds_total{service=\"host\",mode=\"idle\"}[$__rate_interval])))",
@@ -323,7 +473,7 @@
       "id": 12,
       "title": "호스트 메모리 사용률",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 56 },
       "targets": [
         {
           "expr": "(1 - node_memory_MemAvailable_bytes{service=\"host\"} / node_memory_MemTotal_bytes{service=\"host\"}) * 100",
@@ -351,7 +501,7 @@
       "id": 13,
       "title": "현재 파일시스템 사용률",
       "type": "bargauge",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 48 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 64 },
       "targets": [
         {
           "expr": "sort_desc((1 - node_filesystem_avail_bytes{service=\"host\",fstype!~\"tmpfs|devtmpfs|overlay|squashfs\"} / (node_filesystem_size_bytes{service=\"host\",fstype!~\"tmpfs|devtmpfs|overlay|squashfs\"} > 0)) * 100)",
