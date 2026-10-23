@@ -1,7 +1,5 @@
 package com.cowork.channel.domain.meetingNote.service.impl
 
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
-import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.meetingNote.entity.MeetingNoteTemplate
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteTemplateRepository
 import com.cowork.channel.domain.meetingNote.repository.TemplateSectionRepository
@@ -18,11 +16,7 @@ class ListMeetingNoteTemplatesServiceImplTest {
 
     private val templateRepository = mockk<MeetingNoteTemplateRepository>(relaxed = true)
     private val sectionRepository = mockk<TemplateSectionRepository>(relaxed = true)
-    private val channelMemberRepository = mockk<ChannelMemberRepository>()
-    private val channelRepository = mockk<ChannelRepository> {
-        every { existsByIdAndType(any(), any()) } returns false
-    }
-    private val meetingNoteAccessGuard = MeetingNoteAccessGuard(channelMemberRepository, channelRepository)
+    private val meetingNoteAccessGuard = mockk<MeetingNoteAccessGuard>(relaxed = true)
 
     private val service =
         ListMeetingNoteTemplatesServiceImpl(templateRepository, sectionRepository, meetingNoteAccessGuard)
@@ -37,7 +31,7 @@ class ListMeetingNoteTemplatesServiceImplTest {
 
     @Test
     fun `listTemplates는 채널 멤버이면 목록 반환`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
         every { templateRepository.findAllByChannelIdOrderByIdAsc(1L) } returns listOf(template())
         every { sectionRepository.findAllByTemplateIdInOrderByIdAsc(listOf(10L)) } returns emptyList()
 
@@ -47,8 +41,9 @@ class ListMeetingNoteTemplatesServiceImplTest {
     }
 
     @Test
-    fun `listTemplates는 채널 비멤버이면 FORBIDDEN`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns false
+    fun `listTemplates는 채널 읽기 권한이 없으면이면 FORBIDDEN`() {
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } throws
+            ExpectedException("채널 접근 권한이 없습니다.", HttpStatus.FORBIDDEN)
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.listTemplates(7L, 1L)

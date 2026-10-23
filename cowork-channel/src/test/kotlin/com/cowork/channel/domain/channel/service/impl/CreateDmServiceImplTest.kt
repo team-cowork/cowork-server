@@ -1,13 +1,13 @@
 package com.cowork.channel.domain.channel.service.impl
 
 import com.cowork.channel.domain.channel.entity.Channel
-import com.cowork.channel.domain.channel.entity.ChannelMember
 import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.entity.ChannelViewType
+import com.cowork.channel.domain.channel.entity.DmParticipant
 import com.cowork.channel.domain.channel.event.ChannelEventPublisher
-import com.cowork.channel.domain.channel.event.ChannelMembershipSyncPublisher
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
+import com.cowork.channel.domain.channel.event.DmParticipantSyncPublisher
 import com.cowork.channel.domain.channel.repository.ChannelRepository
+import com.cowork.channel.domain.channel.repository.DmParticipantRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
@@ -24,17 +24,17 @@ import team.themoment.sdk.exception.ExpectedException
 class CreateDmServiceImplTest {
 
     private val channelRepository = mockk<ChannelRepository>(relaxed = true)
-    private val channelMemberRepository = mockk<ChannelMemberRepository>(relaxed = true)
+    private val dmParticipantRepository = mockk<DmParticipantRepository>(relaxed = true)
     private val channelEventPublisher = mockk<ChannelEventPublisher>(relaxed = true)
-    private val channelMembershipSyncPublisher = mockk<ChannelMembershipSyncPublisher>(relaxed = true)
+    private val dmParticipantshipSyncPublisher = mockk<DmParticipantSyncPublisher>(relaxed = true)
     private val transactionTemplate = mockk<TransactionTemplate>()
 
     private val service =
         CreateDmServiceImpl(
             channelRepository,
-            channelMemberRepository,
+            dmParticipantRepository,
             channelEventPublisher,
-            channelMembershipSyncPublisher,
+            dmParticipantshipSyncPublisher,
             transactionTemplate,
         )
 
@@ -74,8 +74,8 @@ class CreateDmServiceImplTest {
         every { channelRepository.findByDmKey("1:2") } returns null
         val savedChannel = slot<Channel>()
         every { channelRepository.save(capture(savedChannel)) } answers { savedChannel.captured }
-        val savedMembers = mutableListOf<ChannelMember>()
-        every { channelMemberRepository.save(capture(savedMembers)) } answers { savedMembers.last() }
+        val savedMembers = mutableListOf<DmParticipant>()
+        every { dmParticipantRepository.save(capture(savedMembers)) } answers { savedMembers.last() }
 
         val result = service.execute(2L, 1L)
 

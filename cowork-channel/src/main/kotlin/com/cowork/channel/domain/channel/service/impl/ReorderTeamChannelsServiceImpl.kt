@@ -32,11 +32,8 @@ class ReorderTeamChannelsServiceImpl(
         }
 
         val lockedChannels = channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(teamId)
-        val structurallyVisibleIds = channelRepository
-            .findVisibleByTeamIdOrderByPositionAscIdAsc(teamId, userId)
-            .mapTo(mutableSetOf()) { it.id }
         val readableChannels = messageReadPolicyEvaluator
-            .filterReadable(teamId, userId, lockedChannels.filter { it.id in structurallyVisibleIds })
+            .filterReadable(teamId, userId, lockedChannels)
             .sortedWith(compareBy({ it.position }, { it.id }))
         val readableChannelIds = readableChannels.mapTo(mutableSetOf()) { it.id }
         if (inputIds != readableChannelIds) {
