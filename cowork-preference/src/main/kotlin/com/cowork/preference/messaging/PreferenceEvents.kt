@@ -34,6 +34,7 @@ object PreferenceEvents {
     const val TEAM_SETTING_CHANGED_TOPIC = "preference.team.setting.changed"
     const val ACCOUNT_SETTING_STATE_TOPIC = "preference.account-setting.state.v1"
     const val TEAM_SETTING_STATE_TOPIC = "preference.team-setting.state.v1"
+    const val TEXT_CHANNEL_SETTING_STATE_TOPIC = "preference.text-channel-setting.state.v1"
     const val SETTING_STATE_SCHEMA_VERSION = 1
     val OUTBOX_TOPICS = setOf(
         PROJECT_ACCESS_STATE_TOPIC,
@@ -48,6 +49,7 @@ object PreferenceEvents {
         TEAM_SETTING_CHANGED_TOPIC,
         ACCOUNT_SETTING_STATE_TOPIC,
         TEAM_SETTING_STATE_TOPIC,
+        TEXT_CHANNEL_SETTING_STATE_TOPIC,
     )
 
     const val SNAPSHOT_COMPLETED_EVENT_TYPE = "PROJECTION_SNAPSHOT_COMPLETED"
@@ -61,7 +63,8 @@ object PreferenceEvents {
                 topic == GITHUB_REPO_SETTING_STATE_TOPIC ||
                 topic == CHANNEL_ROLE_POLICY_STATE_TOPIC ||
                 topic == ACCOUNT_SETTING_STATE_TOPIC ||
-                topic == TEAM_SETTING_STATE_TOPIC,
+                topic == TEAM_SETTING_STATE_TOPIC ||
+                topic == TEXT_CHANNEL_SETTING_STATE_TOPIC,
         ) {
             "unsupported projection snapshot topic '$topic'"
         }
@@ -279,6 +282,25 @@ object PreferenceEvents {
             .put(
                 "defaultNotificationLevel",
                 validSetting(ResourceType.TEAM, settings, "default_notification_level"),
+            )
+            .put("snapshot", snapshot),
+        occurredAt = occurredAt,
+    )
+
+    fun textChannelSettingState(
+        channelId: Long,
+        settings: JsonObject,
+        occurredAt: Instant,
+        snapshot: Boolean,
+    ): PreferenceEvent = PreferenceEvent(
+        topic = TEXT_CHANNEL_SETTING_STATE_TOPIC,
+        key = channelId.toString(),
+        payload = basePayload("UPSERT", occurredAt)
+            .put("schemaVersion", SETTING_STATE_SCHEMA_VERSION)
+            .put("channelId", channelId)
+            .put(
+                "slowmodeSeconds",
+                validSetting(ResourceType.TEXT_CHANNEL, settings, "slowmode_seconds") as? Int ?: 0,
             )
             .put("snapshot", snapshot),
         occurredAt = occurredAt,
