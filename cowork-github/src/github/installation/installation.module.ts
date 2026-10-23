@@ -16,6 +16,7 @@ import {PullRequestStateProducer} from './kafka/pull-request-state.producer';
 import {RepoEventProducer} from './kafka/repo-event.producer';
 import {RepoStateProducer} from './kafka/repo-state.producer';
 import {TeamGithubProducer} from './kafka/team-github.producer';
+import {LegacyPullRequestFilesCacheCleanup} from './legacy-pull-request-files-cache.cleanup';
 import {GithubSetupController} from './webhook/github-setup.controller';
 import {GithubWebhookSignatureGuard} from './webhook/github-webhook-signature.guard';
 import {GithubWebhookController} from './webhook/github-webhook.controller';
@@ -41,6 +42,9 @@ import {GithubWebhookController} from './webhook/github-webhook.controller';
         GithubReadModelEventProducers,
         GithubBackfillService,
         GithubWebhookSignatureGuard,
+        // eslint-disable-next-line no-warning-comments -- 일회성 코드라 지울 위치를 TODO로 남긴다.
+        // TODO: 일회성 정리 코드. legacy-pull-request-files-cache.cleanup.ts와 함께 지운다.
+        LegacyPullRequestFilesCacheCleanup,
     ],
     controllers: [
         GithubWebhookController,
