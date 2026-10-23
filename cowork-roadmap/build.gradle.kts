@@ -19,6 +19,7 @@ dependencies {
     implementation(libs.spring.cloud.starter.netflix.eureka.client)
     implementation(libs.spring.cloud.starter.config)
     implementation(libs.r2dbc.mysql)
+    implementation(libs.logstash.logback.encoder)
 
     // Flyway runs migrations over JDBC at startup; the R2DBC driver above serves runtime queries.
     // starter-jdbc supplies the JDBC DataSource; spring-boot-flyway is the Spring Boot 4 module that
