@@ -88,3 +88,7 @@ case "$SERVICE" in
   user) run_migrations "$IMAGE" ;;
 esac
 deploy_container_safely "$CONTAINER" "$HOST_PORT" "$CONTAINER_PORT" "$HEALTH_PATH" "$IMAGE" -- "${RUN_ARGS[@]}"
+# TODO: Temporary. Remove once production no longer has the retired cowork-notification-data volume.
+if [ "$SERVICE" = notification ] && docker volume inspect cowork-notification-data >/dev/null 2>&1; then
+  docker volume rm cowork-notification-data >/dev/null
+fi
