@@ -4,8 +4,8 @@ import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.repository.ProjectEventTombstoneRepository
 import com.cowork.project.global.outbox.OutboxWriter
 import jakarta.persistence.EntityManager
-import org.springframework.stereotype.Component
 import java.time.Instant
+import org.springframework.stereotype.Component
 
 @Component
 class ProjectEventPublisher(
@@ -78,6 +78,7 @@ class ProjectEventPublisher(
         val event = ProjectEvent(
             eventType = eventType,
             projectId = project.id,
+                createdBy = project.createdBy,
             teamId = project.teamId,
             name = project.name,
             description = project.description,

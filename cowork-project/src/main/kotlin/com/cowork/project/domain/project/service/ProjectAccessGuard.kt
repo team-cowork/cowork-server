@@ -2,9 +2,8 @@ package com.cowork.project.domain.project.service
 
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
+import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import com.cowork.project.domain.project.repository.ProjectRepository
-import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
-import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
 import com.cowork.project.global.projection.ProjectionReadinessGate
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -22,7 +21,7 @@ private const val TEAM_ROLE_ADMIN = "ADMIN"
 @Service
 class ProjectAccessGuard(
     private val projectRepository: ProjectRepository,
-    private val projectMemberRepository: ProjectMemberRepository,
+    private val accessRepository: ProjectAccessProjectionRepository,
     private val teamMembershipRepository: TeamMembershipRepository,
     private val projectionReadinessGate: ProjectionReadinessGate,
 ) {
@@ -47,17 +46,29 @@ class ProjectAccessGuard(
     private fun isTeamOwnerOrAdmin(teamId: Long, userId: Long): Boolean =
         teamRoleOf(teamId, userId) in setOf(TEAM_ROLE_OWNER, TEAM_ROLE_ADMIN)
 
+    fun canRead(project: Project, userId: Long): Boolean {
+        val teamRole = teamRoleOf(project.teamId, userId) ?: return false
+        if (project.createdBy == userId || teamRole in setOf(TEAM_ROLE_OWNER, TEAM_ROLE_ADMIN)) return true
+        return accessRepository.findById("${project.id}:$userId").orElse(null)?.canRead == true
+    }
+
+    fun canWrite(project: Project, userId: Long): Boolean {
+        if (!canRead(project, userId)) return false
+        if (project.createdBy == userId || isTeamOwnerOrAdmin(project.teamId, userId)) return true
+        return accessRepository.findById("${project.id}:$userId").orElse(null)?.canWrite == true
+    }
+
+    fun requireProjectReader(project: Project, userId: Long) {
+        if (!canRead(project, userId)) throw ExpectedException("프로젝트 읽기 권한이 없습니다.", HttpStatus.FORBIDDEN)
+    }
+
     fun requireProjectModifier(project: Project, userId: Long) {
-        val role = projectMemberRepository.findByProjectIdAndUserId(project.id, userId)?.role
-        if (role == ProjectMemberRole.OWNER || role == ProjectMemberRole.EDITOR) return
-        if (isTeamOwnerOrAdmin(project.teamId, userId)) return
-        throw ExpectedException("프로젝트 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        if (!canWrite(project, userId)) throw ExpectedException("프로젝트 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)
     }
 
     fun requireProjectOwner(project: Project, userId: Long) {
-        val role = projectMemberRepository.findByProjectIdAndUserId(project.id, userId)?.role
-        if (role == ProjectMemberRole.OWNER) return
-        if (isTeamOwnerOrAdmin(project.teamId, userId)) return
-        throw ExpectedException("해당 작업은 프로젝트 OWNER만 수행할 수 있습니다.", HttpStatus.FORBIDDEN)
+        requireTeamMember(project.teamId, userId)
+        if (project.createdBy == userId || isTeamOwnerOrAdmin(project.teamId, userId)) return
+        throw ExpectedException("프로젝트 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
     }
 }
