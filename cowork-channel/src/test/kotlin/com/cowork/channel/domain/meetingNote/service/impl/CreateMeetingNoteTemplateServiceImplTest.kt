@@ -1,7 +1,5 @@
 package com.cowork.channel.domain.meetingNote.service.impl
 
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
-import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.meetingNote.entity.MeetingNoteTemplate
 import com.cowork.channel.domain.meetingNote.presentation.data.request.CreateMeetingNoteTemplateRequest
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteTemplateRepository
@@ -17,17 +15,13 @@ import org.junit.jupiter.api.Test
 class CreateMeetingNoteTemplateServiceImplTest {
 
     private val templateRepository = mockk<MeetingNoteTemplateRepository>(relaxed = true)
-    private val channelMemberRepository = mockk<ChannelMemberRepository>()
-    private val channelRepository = mockk<ChannelRepository> {
-        every { existsByIdAndType(any(), any()) } returns false
-    }
-    private val meetingNoteAccessGuard = MeetingNoteAccessGuard(channelMemberRepository, channelRepository)
+    private val meetingNoteAccessGuard = mockk<MeetingNoteAccessGuard>(relaxed = true)
 
     private val service = CreateMeetingNoteTemplateServiceImpl(templateRepository, meetingNoteAccessGuard)
 
     @Test
     fun `createTemplate은 isActive=false로 저장되고 sections는 빈 리스트`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
         val saved = slot<MeetingNoteTemplate>()
         every { templateRepository.save(capture(saved)) } answers { saved.captured }
 

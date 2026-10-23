@@ -6,7 +6,7 @@ import java.time.LocalDateTime
 
 @Entity
 @Table(name = "tb_channel_members")
-class ChannelMember(
+class DmParticipant(
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

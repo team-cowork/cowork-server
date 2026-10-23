@@ -23,7 +23,7 @@ class UpdateMeetingNoteServiceImpl(
         noteId: Long,
         request: UpdateMeetingNoteRequest,
     ): MeetingNoteResponse {
-        meetingNoteAccessGuard.requireChannelMember(channelId, userId)
+        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
         request.title?.let {
             if (it.isBlank()) throw ExpectedException("회의록 제목은 공백일 수 없습니다.", HttpStatus.BAD_REQUEST)
             if (it.length > 200) throw ExpectedException("회의록 제목은 200자를 초과할 수 없습니다.", HttpStatus.BAD_REQUEST)

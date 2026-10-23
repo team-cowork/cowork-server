@@ -2,10 +2,10 @@ package com.cowork.channel.domain.channel.event
 
 import java.time.Instant
 
-enum class ChannelMemberEventType { JOIN, LEAVE }
+enum class DmParticipantEventType { JOIN, LEAVE }
 
-data class ChannelMemberEvent(
-    val eventType: ChannelMemberEventType,
+data class DmParticipantEvent(
+    val eventType: DmParticipantEventType,
     val channelId: Long,
     val teamId: Long?,
     val userId: Long,
