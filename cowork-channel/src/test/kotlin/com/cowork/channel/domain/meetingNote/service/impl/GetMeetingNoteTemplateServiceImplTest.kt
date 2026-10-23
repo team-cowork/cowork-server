@@ -1,7 +1,5 @@
 package com.cowork.channel.domain.meetingNote.service.impl
 
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
-import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.meetingNote.entity.MeetingNoteTemplate
 import com.cowork.channel.domain.meetingNote.entity.SectionType
 import com.cowork.channel.domain.meetingNote.entity.TemplateSection
@@ -22,11 +20,7 @@ class GetMeetingNoteTemplateServiceImplTest {
 
     private val templateRepository = mockk<MeetingNoteTemplateRepository>(relaxed = true)
     private val sectionRepository = mockk<TemplateSectionRepository>(relaxed = true)
-    private val channelMemberRepository = mockk<ChannelMemberRepository>()
-    private val channelRepository = mockk<ChannelRepository> {
-        every { existsByIdAndType(any(), any()) } returns false
-    }
-    private val meetingNoteAccessGuard = MeetingNoteAccessGuard(channelMemberRepository, channelRepository)
+    private val meetingNoteAccessGuard = mockk<MeetingNoteAccessGuard>(relaxed = true)
     private val lookupSupport = MeetingNoteTemplateLookupSupport(templateRepository, sectionRepository)
 
     private val service = GetMeetingNoteTemplateServiceImpl(sectionRepository, meetingNoteAccessGuard, lookupSupport)
@@ -48,7 +42,7 @@ class GetMeetingNoteTemplateServiceImplTest {
 
     @Test
     fun `getTemplate은 섹션을 포함해서 반환`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(template())
         every { sectionRepository.findAllByTemplateIdOrderByIdAsc(10L) } returns listOf(section())
 
@@ -59,7 +53,7 @@ class GetMeetingNoteTemplateServiceImplTest {
 
     @Test
     fun `getTemplate은 다른 채널 템플릿이면 NOT_FOUND`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(template(channelId = 999L))
 
         val ex = assertThrows(ExpectedException::class.java) {
@@ -70,7 +64,7 @@ class GetMeetingNoteTemplateServiceImplTest {
 
     @Test
     fun `getTemplate은 존재하지 않는 id이면 NOT_FOUND`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
         every { templateRepository.findById(999L) } returns Optional.empty()
 
         val ex = assertThrows(ExpectedException::class.java) {

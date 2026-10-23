@@ -49,7 +49,6 @@ class ReorderTeamChannelsServiceImplTest {
         val second = channel(id = 2L, position = 1)
         every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
         every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns listOf(first, second)
-        every { channelRepository.findVisibleByTeamIdOrderByPositionAscIdAsc(100L, 7L) } returns listOf(first, second)
         every { messageReadPolicyEvaluator.filterReadable(100L, 7L, listOf(first, second)) } returns
             listOf(first, second)
 
@@ -66,7 +65,6 @@ class ReorderTeamChannelsServiceImplTest {
         val first = channel(id = 1L)
         val second = channel(id = 2L)
         every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns listOf(first, second)
-        every { channelRepository.findVisibleByTeamIdOrderByPositionAscIdAsc(100L, 7L) } returns listOf(first, second)
         every { messageReadPolicyEvaluator.filterReadable(100L, 7L, listOf(first, second)) } returns
             listOf(first, second)
 
@@ -83,8 +81,7 @@ class ReorderTeamChannelsServiceImplTest {
         val third = channel(id = 3L, position = 2)
         every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
         every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns listOf(first, hidden, third)
-        every { channelRepository.findVisibleByTeamIdOrderByPositionAscIdAsc(100L, 7L) } returns listOf(first, third)
-        every { messageReadPolicyEvaluator.filterReadable(100L, 7L, listOf(first, third)) } returns
+        every { messageReadPolicyEvaluator.filterReadable(100L, 7L, listOf(first, hidden, third)) } returns
             listOf(first, third)
 
         val result = service.execute(7L, 100L, listOf(3L, 1L))

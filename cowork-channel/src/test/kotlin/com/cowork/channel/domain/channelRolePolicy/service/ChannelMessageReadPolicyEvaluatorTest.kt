@@ -1,5 +1,8 @@
 package com.cowork.channel.domain.channelRolePolicy.service
 
+import com.cowork.channel.domain.channel.entity.Channel
+import com.cowork.channel.domain.channel.entity.ChannelType
+import com.cowork.channel.domain.channel.entity.ChannelViewType
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjection
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjectionRepository
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleAssignmentProjection
@@ -15,6 +18,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.time.Instant
 import java.util.Optional
 
@@ -25,6 +29,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
     private val roleRepository = mockk<TeamRoleProjectionRepository>()
     private val policyRepository = mockk<ChannelRolePolicyProjectionRepository>()
     private val readinessGate = mockk<ProjectionReadinessGate>(relaxed = true)
+    private val objectMapper = jacksonObjectMapper()
     private val evaluator = ChannelMessageReadPolicyEvaluator(
         membershipRepository,
         assignmentRepository,
@@ -32,6 +37,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
         roleRepository,
         policyRepository,
         readinessGate,
+        objectMapper,
     )
     private val occurredAt = Instant.parse("2026-08-30T01:00:00Z")
 
@@ -39,7 +45,8 @@ class ChannelMessageReadPolicyEvaluatorTest {
     fun `OWNER는 정책과 무관하게 모든 후보 채널을 읽음`() {
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns membership("OWNER")
 
-        assertEquals(setOf(1L, 2L), evaluator.readableChannelIds(10L, 7L, setOf(1L, 2L)))
+        val channels = listOf(channel(1L, ChannelType.TEXT), channel(2L, ChannelType.VOICE))
+        assertEquals(channels, evaluator.filterReadable(10L, 7L, channels))
 
         verify(exactly = 0) { assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(any(), any()) }
         verify(exactly = 0) {
@@ -53,7 +60,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
         every { tombstoneRepository.findById("10:7") } returns Optional.empty()
         every { assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(10L, 7L) } returns emptyList()
 
-        assertEquals(emptySet<Long>(), evaluator.readableChannelIds(10L, 7L, setOf(1L)))
+        assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel(1L, ChannelType.TEXT))))
     }
 
     @Test
@@ -63,17 +70,19 @@ class ChannelMessageReadPolicyEvaluatorTest {
             policies = listOf(policy(1L, 1L, true), policy(1L, 2L, false)),
         )
 
-        assertEquals(setOf(1L), evaluator.readableChannelIds(10L, 7L, setOf(1L)))
+        val channel = channel(1L, ChannelType.TEXT)
+        assertEquals(listOf(channel), evaluator.filterReadable(10L, 7L, listOf(channel)))
     }
 
     @Test
-    fun `높은 priority role에 미지정이면 낮은 priority의 명시 정책을 상속함`() {
+    fun `높은 priority 역할의 기본 거부가 낮은 역할의 허용보다 우선함`() {
         stubMemberWithRoles(
             roles = listOf(role(1L, 100), role(2L, 10)),
             policies = listOf(policy(1L, 2L, true)),
         )
 
-        assertEquals(setOf(1L), evaluator.readableChannelIds(10L, 7L, setOf(1L)))
+        val channel = channel(1L, ChannelType.TEXT)
+        assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel)))
     }
 
     @Test
@@ -83,10 +92,114 @@ class ChannelMessageReadPolicyEvaluatorTest {
             policies = listOf(policy(1L, 1L, true), policy(1L, 2L, false)),
         )
 
-        assertEquals(emptySet<Long>(), evaluator.readableChannelIds(10L, 7L, setOf(1L)))
+        assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel(1L, ChannelType.TEXT))))
     }
 
-    private fun stubMemberWithRoles(roles: List<TeamRoleProjection>, policies: List<ChannelRolePolicyProjection>) {
+    @Test
+    fun `목록은 음성 채널의 voice_connect와 텍스트 채널의 message_read로 필터링하고 순서를 유지함`() {
+        val channels = listOf(
+            channel(2L, ChannelType.TEXT),
+            channel(3L, ChannelType.VOICE),
+            channel(1L, ChannelType.VOICE),
+            channel(4L, ChannelType.TEXT),
+        )
+        stubMemberWithRoles(
+            roles = listOf(role(1L, 10)),
+            policies = listOf(
+                policy(1L, 1L, messageRead = false, voiceConnect = true),
+                policy(2L, 1L, messageRead = true, voiceConnect = false),
+                policy(3L, 1L, messageRead = true, voiceConnect = false),
+                policy(4L, 1L, messageRead = false, voiceConnect = true),
+            ),
+            channelIds = setOf(1L, 2L, 3L, 4L),
+        )
+
+        assertEquals(listOf(2L, 1L), evaluator.filterReadable(10L, 7L, channels).map { it.id })
+    }
+
+    @Test
+    fun `음성 채널은 voice_connect가 미지정이면 message_read 허용 여부와 무관하게 숨김`() {
+        stubMemberWithRoles(
+            roles = listOf(role(1L, 10)),
+            policies = listOf(policy(1L, 1L, messageRead = true)),
+        )
+
+        assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel(1L, ChannelType.VOICE))))
+    }
+
+    @Test
+    fun `음성 채널은 message_read 없이 voice_connect만 허용되어도 노출됨`() {
+        val channel = channel(1L, ChannelType.VOICE)
+        stubMemberWithRoles(
+            roles = listOf(role(1L, 10)),
+            policies = listOf(policy(1L, 1L, voiceConnect = true)),
+        )
+
+        assertEquals(listOf(channel), evaluator.filterReadable(10L, 7L, listOf(channel)))
+    }
+
+    @Test
+    fun `음성 채널은 가장 높은 역할의 기본 voice_connect 권한을 상속함`() {
+        val channel = channel(1L, ChannelType.VOICE)
+        stubMemberWithRoles(
+            roles = listOf(
+                role(1L, 100).apply {
+                    permissionsJson = "{\"voice_connect\":true}"
+                },
+                role(2L, 50),
+                role(3L, 10),
+            ),
+            policies = listOf(
+                policy(1L, 1L, messageRead = false),
+                policy(1L, 2L, voiceConnect = true),
+                policy(1L, 3L, voiceConnect = false),
+            ),
+        )
+
+        assertEquals(listOf(channel), evaluator.filterReadable(10L, 7L, listOf(channel)))
+    }
+
+    @Test
+    fun `음성 채널도 같은 priority의 voice_connect가 충돌하면 거부가 우선함`() {
+        stubMemberWithRoles(
+            roles = listOf(role(1L, 50), role(2L, 50)),
+            policies = listOf(
+                policy(1L, 1L, messageRead = true, voiceConnect = true),
+                policy(1L, 2L, messageRead = true, voiceConnect = false),
+            ),
+        )
+
+        assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel(1L, ChannelType.VOICE))))
+    }
+
+    @Test
+    fun `OWNER는 voice_connect 정책이 없어도 음성 채널 후보를 볼 수 있음`() {
+        val channel = channel(1L, ChannelType.VOICE)
+        every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns membership("OWNER")
+
+        assertEquals(listOf(channel), evaluator.filterReadable(10L, 7L, listOf(channel)))
+    }
+
+    @Test
+    fun `역할의 기본 읽기 권한은 채널별 정책 없이 적용된다`() {
+        val role = role(1L, 10).apply { permissionsJson = "{\"message_read\":true,\"voice_connect\":true}" }
+        stubMemberWithRoles(listOf(role), emptyList(), setOf(1L, 2L))
+        val channels = listOf(channel(1L, ChannelType.TEXT), channel(2L, ChannelType.VOICE))
+        assertEquals(channels, evaluator.filterReadable(10L, 7L, channels))
+    }
+
+    @Test
+    fun `채널 거부는 같은 역할의 기본 읽기 허용을 덮어쓴다`() {
+        val role = role(1L, 10).apply { permissionsJson = "{\"message_read\":true}" }
+        stubMemberWithRoles(listOf(role), listOf(policy(1L, 1L, messageRead = false)))
+        assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel(1L, ChannelType.TEXT))))
+    }
+
+    private fun stubMemberWithRoles(
+        roles: List<TeamRoleProjection>,
+        policies: List<ChannelRolePolicyProjection>,
+        channelIds: Set<Long> = setOf(1L),
+    ) {
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns membership("MEMBER")
         every { tombstoneRepository.findById("10:7") } returns Optional.empty()
         every { assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(10L, 7L) } returns
@@ -97,7 +210,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
         every {
             policyRepository.findAllByTeamIdAndChannelIdInAndRoleIdInAndDeletedFalse(
                 10L,
-                setOf(1L),
+                channelIds,
                 roles.mapTo(mutableSetOf()) { it.roleId },
             )
         } returns policies
@@ -125,12 +238,29 @@ class ChannelMessageReadPolicyEvaluatorTest {
         sourceOccurredAt = version,
     )
 
-    private fun policy(channelId: Long, roleId: Long, messageRead: Boolean) = ChannelRolePolicyProjection(
-        policyKey = "policy:10:$channelId:$roleId",
+    private fun channel(channelId: Long, type: ChannelType) = Channel(
+        id = channelId,
         teamId = 10L,
-        channelId = channelId,
-        roleId = roleId,
-        messageRead = messageRead,
-        sourceOccurredAt = occurredAt,
+        name = "channel",
+        type = type,
+        viewType = if (type == ChannelType.VOICE) ChannelViewType.VOICE else ChannelViewType.TEXT,
+        description = null,
+        createdBy = 1L,
     )
+
+    private fun policy(channelId: Long, roleId: Long, messageRead: Boolean? = null, voiceConnect: Boolean? = null) =
+        ChannelRolePolicyProjection(
+            policyKey = "policy:10:$channelId:$roleId",
+            teamId = 10L,
+            channelId = channelId,
+            roleId = roleId,
+            permissionsJson = objectMapper.writeValueAsString(
+                buildMap {
+                    messageRead?.let { put("message_read", it) }
+                    voiceConnect?.let { put("voice_connect", it) }
+                },
+            ),
+            messageRead = messageRead,
+            sourceOccurredAt = occurredAt,
+        )
 }
