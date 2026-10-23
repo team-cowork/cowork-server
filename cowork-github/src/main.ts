@@ -1,6 +1,7 @@
 import {Logger, ValidationPipe} from '@nestjs/common';
 import {NestFactory} from '@nestjs/core';
 import {type MicroserviceOptions, Transport} from '@nestjs/microservices';
+import {Logger as PinoLogger} from 'nestjs-pino';
 import {loadConfigServerEnv} from './config/config-server';
 import {AppConfigService} from './config/app-config.service';
 import {EurekaClient} from './eureka/eureka-client';
@@ -11,7 +12,8 @@ async function bootstrap() {
     await loadConfigServerEnv();
     // ConfigModule validates process.env when AppModule is evaluated, so import it after loading Config Server values.
     const {AppModule} = await import('./app.module');
-    const app = await NestFactory.create(AppModule, {rawBody: true});
+    const app = await NestFactory.create(AppModule, {rawBody: true, bufferLogs: true});
+    app.useLogger(app.get(PinoLogger));
     const config = app.get(AppConfigService);
 
     app.connectMicroservice<MicroserviceOptions>({
