@@ -9,6 +9,7 @@ data class ProjectLifecycleEvent(
     val teamId: Long,
     val deleted: Boolean,
     val occurredAt: Instant,
+    val createdBy: Long? = null,
 )
 
 sealed interface ProjectLifecycleRecordDecision {
@@ -34,7 +35,9 @@ object ProjectLifecycleEventParser {
             .getOrElse { error("occurredAt must be an RFC3339 instant") }
 
         ProjectLifecycleRecordDecision.Apply(
-            ProjectLifecycleEvent(projectId, teamId, eventType == "DELETED", occurredAt),
+            ProjectLifecycleEvent(projectId, teamId, eventType == "DELETED", occurredAt,
+                payload.getValue("createdBy")?.let { positiveLong(it, "createdBy") },
+            ),
         )
     }.getOrElse { error ->
         ProjectLifecycleRecordDecision.Quarantine(error.message ?: "invalid project lifecycle record")
