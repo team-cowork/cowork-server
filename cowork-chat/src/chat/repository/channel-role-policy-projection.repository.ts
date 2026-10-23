@@ -15,7 +15,8 @@ export type ChannelRolePolicyProjectionView = {
     teamId: number;
     channelId: number;
     roleId: number;
-    messageRead: boolean;
+    messageRead: boolean | null;
+    permissions?: Record<string, boolean>;
 };
 
 @Injectable()
@@ -103,11 +104,10 @@ export class ChannelRolePolicyProjectionRepository {
             {
                 channelId: {$in: channelIds},
                 roleId: {$in: roleIds},
-                messageRead: {$type: 'bool'},
                 deleted: {$ne: true},
             },
             {
-                _id: 0, teamId: 1, channelId: 1, roleId: 1, messageRead: 1,
+                _id: 0, teamId: 1, channelId: 1, roleId: 1, messageRead: 1, permissions: 1,
             },
         ).lean<ChannelRolePolicyProjectionView[]>();
     }

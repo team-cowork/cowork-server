@@ -7,9 +7,9 @@ import {
 import {ConfigService} from '@nestjs/config';
 import {Kafka, Consumer} from 'kafkajs';
 import {InjectModel} from '@nestjs/mongoose';
-import {Model} from 'mongoose';
+import {Model, Types} from 'mongoose';
 import {Server} from 'socket.io';
-import {ChannelMember} from '../chat/schema/channel-member.schema';
+import {DmParticipant} from '../chat/schema/dm-participant.schema';
 import {getRequiredCsvConfig} from '../common/config/config.util';
 import {parseEventTime} from '../common/util/event-time.util';
 import {isSafePositiveInteger} from '../common/util/safe-integer.util';
@@ -23,18 +23,18 @@ import {
     projectionTimestampFields,
     PROJECTION_EPOCH,
 } from '../chat/repository/versioned-projection.util';
-import {ChannelMemberEvent} from './event/membership.event';
+import {DmParticipantEvent} from './event/dm-participant.event';
 
 @Injectable()
-export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
-    private readonly logger = new Logger(MembershipConsumer.name);
+export class DmParticipantConsumer implements OnModuleInit, OnModuleDestroy {
+    private readonly logger = new Logger(DmParticipantConsumer.name);
     private consumer!: Consumer;
     private io?: Server;
     private readAccessEvaluator?: (channelId: number, userId: number) => Promise<boolean>;
     private readableEmitter?: (channelId: number, event: string, payload: unknown) => Promise<void>;
 
     constructor(
-        @InjectModel(ChannelMember.name) private readonly memberModel: Model<ChannelMember>,
+        @InjectModel(DmParticipant.name) private readonly memberModel: Model<DmParticipant>,
         private readonly configService: ConfigService,
         private readonly projectionReadiness: ProjectionReadinessService,
     ) {}
@@ -53,10 +53,10 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
 
     async onModuleInit() {
         const kafka = new Kafka({
-            clientId: 'cowork-chat-membership',
+            clientId: 'cowork-chat-dm-participant',
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
-        const stream = PROJECTION_STREAMS.channelMember;
+        const stream = PROJECTION_STREAMS.dmParticipant;
         this.consumer = kafka.consumer({groupId: stream.groupId});
         await this.consumer.connect();
         await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
@@ -86,29 +86,33 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
     }
 
     private async handleEvent(payload: unknown, messageKey?: string): Promise<void> {
-        if (!this.isChannelMemberEvent(payload)) {
-            throw new ProjectionContractError('invalid channel member event payload');
+        if (!this.isDmParticipantEvent(payload)) {
+            throw new ProjectionContractError('invalid DM participant event payload');
         }
 
         const event = payload;
         if (messageKey !== `${event.channelId}:${event.userId}`) {
             throw new ProjectionContractError(
-                `channel member event key mismatch [key=${messageKey ?? '<missing>'}, `
+                `DM participant event key mismatch [key=${messageKey ?? '<missing>'}, `
                 + `expected=${event.channelId}:${event.userId}]`,
             );
         }
 
         const eventTime = parseEventTime(event.occurredAt);
         if (!eventTime) {
-            throw new ProjectionContractError('channel member event occurredAt must be RFC3339');
+            throw new ProjectionContractError('DM participant event occurredAt must be RFC3339');
         }
 
         const {occurredAt, sourceVersion} = eventTime;
-        const {eventType, channelId, teamId, userId, role} = event;
-        const channelType = event.channelType ?? 'TEXT';
+        const {eventType, channelId, teamId, userId, role, channelType} = event;
+        // Preserve chat-owned preferences when bootstrapping the DM-only projection.
+        const legacy = await this.memberModel.db.collection<{isHidden?: boolean; lastReadMessageId?: Types.ObjectId | null}>('channelmembers').findOne(
+            {channelId, userId, channelType: 'DM'},
+            {projection: {isHidden: 1, lastReadMessageId: 1}},
+        );
 
         try {
-            if (eventType === 'JOIN' || eventType === 'ROLE_CHANGE') {
+            if (eventType === 'JOIN') {
                 const applyCondition = activeProjectionCondition(sourceVersion);
                 const result = await this.memberModel.updateOne(
                     {channelId, userId},
@@ -127,8 +131,8 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                                     {$ifNull: ['$channelType', 'TEXT']},
                                 ],
                             },
-                            isHidden: {$ifNull: ['$isHidden', false]},
-                            lastReadMessageId: {$ifNull: ['$lastReadMessageId', null]},
+                            isHidden: {$ifNull: ['$isHidden', legacy?.isHidden === true]},
+                            lastReadMessageId: {$ifNull: ['$lastReadMessageId', {$literal: legacy?.lastReadMessageId ?? null}]},
                             deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
                             sourceOccurredAt: {
                                 $cond: [
@@ -147,13 +151,6 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                     return;
                 }
 
-                if (eventType === 'ROLE_CHANGE') {
-                    await this.broadcast(channelId, 'member:role:updated', {
-                        channelId, teamId, userId, role,
-                    });
-                    return;
-                }
-
                 await this.broadcast(channelId, 'member:joined', {
                     channelId, teamId, userId, role,
                 });
@@ -168,8 +165,8 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                             teamId: {$ifNull: ['$teamId', {$literal: teamId ?? null}]},
                             role: {$ifNull: ['$role', {$literal: role}]},
                             channelType: {$ifNull: ['$channelType', {$literal: channelType}]},
-                            isHidden: {$ifNull: ['$isHidden', false]},
-                            lastReadMessageId: {$ifNull: ['$lastReadMessageId', null]},
+                            isHidden: {$ifNull: ['$isHidden', legacy?.isHidden === true]},
+                            lastReadMessageId: {$ifNull: ['$lastReadMessageId', {$literal: legacy?.lastReadMessageId ?? null}]},
                             deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
                             sourceOccurredAt: {
                                 $cond: [
@@ -206,23 +203,23 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
                 await this.broadcast(channelId, 'member:left', {channelId, teamId, userId});
             }
         } catch (error) {
-            this.logger.error(`Failed to handle membership event [${eventType}]`, error);
+            this.logger.error(`Failed to handle DM participant event [${eventType}]`, error);
             throw error;
         }
     }
 
-    private isChannelMemberEvent(payload: unknown): payload is ChannelMemberEvent {
+    private isDmParticipantEvent(payload: unknown): payload is DmParticipantEvent {
         if (typeof payload !== 'object' || payload === null) {
             return false;
         }
 
-        const event = payload as Partial<ChannelMemberEvent>;
-        return ['JOIN', 'LEAVE', 'ROLE_CHANGE'].includes(event.eventType ?? '')
+        const event = payload as Partial<DmParticipantEvent>;
+        return ['JOIN', 'LEAVE'].includes(event.eventType ?? '')
             && isSafePositiveInteger(event.channelId)
-            && (event.teamId === null || isSafePositiveInteger(event.teamId))
+            && event.teamId === null
             && isSafePositiveInteger(event.userId)
             && typeof event.role === 'string'
-            && typeof event.channelType === 'string'
+            && event.channelType === 'DM'
             && (event.snapshot === undefined || typeof event.snapshot === 'boolean')
             && parseEventTime(event.occurredAt) !== null;
     }
@@ -231,7 +228,7 @@ export class MembershipConsumer implements OnModuleInit, OnModuleDestroy {
     Replay로 다시 적용되는 과거 레코드는 소켓 이벤트를 만들지 않는다.
     */
     private isLive(): boolean {
-        return this.projectionReadiness.isStreamLive(PROJECTION_STREAMS.channelMember.name);
+        return this.projectionReadiness.isStreamLive(PROJECTION_STREAMS.dmParticipant.name);
     }
 
     private async broadcast(channelId: number, event: string, payload: unknown): Promise<void> {
