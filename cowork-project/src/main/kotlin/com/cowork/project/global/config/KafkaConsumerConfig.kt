@@ -99,18 +99,23 @@ class KafkaConsumerConfig(
     fun githubIssueWriteResultListenerContainerFactory() = durableResultListenerContainerFactory()
 
     @Bean
-    fun githubRepoStateListenerContainerFactory() = durableResultListenerContainerFactory()
+    fun githubRepoStateListenerContainerFactory() =
+        projectionListenerContainerFactory(streams.githubRepoState)
 
     @Bean
-    fun githubIssueStateListenerContainerFactory() = durableResultListenerContainerFactory()
+    fun githubIssueStateListenerContainerFactory() =
+        projectionListenerContainerFactory(streams.githubIssueState)
 
     @Bean
-    fun githubPullRequestStateListenerContainerFactory() = durableResultListenerContainerFactory()
+    fun githubPullRequestStateListenerContainerFactory() =
+        projectionListenerContainerFactory(streams.githubPullRequestState)
 
     @Bean
-    fun githubLabelStateListenerContainerFactory() = durableResultListenerContainerFactory()
+    fun githubLabelStateListenerContainerFactory() =
+        projectionListenerContainerFactory(streams.githubLabelState)
 
     @Bean
-    fun githubIssueCommentStateListenerContainerFactory() = durableResultListenerContainerFactory()
+    fun githubIssueCommentStateListenerContainerFactory() =
+        projectionListenerContainerFactory(streams.githubIssueCommentState)
 
 }
