@@ -15,7 +15,7 @@ class GetMeetingNoteServiceImpl(
 ) : GetMeetingNoteService {
 
     override fun getNote(userId: Long, channelId: Long, noteId: Long): MeetingNoteResponse {
-        meetingNoteAccessGuard.requireChannelMember(channelId, userId)
+        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
         return MeetingNoteResponse.of(meetingNoteLookupSupport.findNoteOrThrow(noteId, channelId))
     }
 }

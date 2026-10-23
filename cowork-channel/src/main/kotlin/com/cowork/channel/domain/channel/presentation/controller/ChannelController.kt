@@ -1,16 +1,13 @@
 package com.cowork.channel.domain.channel.presentation.controller
 
-import com.cowork.channel.domain.channel.presentation.data.request.AddMemberRequest
 import com.cowork.channel.domain.channel.presentation.data.request.CreateChannelRequest
 import com.cowork.channel.domain.channel.presentation.data.request.UpdateChannelRequest
-import com.cowork.channel.domain.channel.presentation.data.response.ChannelMemberResponse
+import com.cowork.channel.domain.channel.presentation.data.response.ChannelAccessUserResponse
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
-import com.cowork.channel.domain.channel.service.AddChannelMemberService
 import com.cowork.channel.domain.channel.service.CreateChannelService
 import com.cowork.channel.domain.channel.service.DeleteChannelService
 import com.cowork.channel.domain.channel.service.QueryChannelMembersService
 import com.cowork.channel.domain.channel.service.QueryChannelService
-import com.cowork.channel.domain.channel.service.RemoveChannelMemberService
 import com.cowork.channel.domain.channel.service.UpdateChannelService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -26,7 +23,7 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import io.swagger.v3.oas.annotations.parameters.RequestBody as SwaggerRequestBody
 
-@Tag(name = "채널", description = "채널 생성/수정/삭제 및 멤버 관리 API")
+@Tag(name = "채널", description = "채널 생성/수정/삭제 및 접근자 조회 API")
 @RestController
 @RequestMapping("/channels")
 class ChannelController(
@@ -34,9 +31,7 @@ class ChannelController(
     private val queryChannelService: QueryChannelService,
     private val updateChannelService: UpdateChannelService,
     private val deleteChannelService: DeleteChannelService,
-    private val addChannelMemberService: AddChannelMemberService,
     private val queryChannelMembersService: QueryChannelMembersService,
-    private val removeChannelMemberService: RemoveChannelMemberService,
     private val objectMapper: ObjectMapper,
 ) {
 
@@ -55,6 +50,7 @@ class ChannelController(
     @Operation(summary = "채널 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(responseCode = "403", description = "채널 접근 권한 없음"),
         ApiResponse(responseCode = "404", description = "채널 없음"),
     )
     @GetMapping("/{channelId}")
@@ -94,42 +90,14 @@ class ChannelController(
         deleteChannelService.execute(userId, channelId)
     }
 
-    @Operation(summary = "채널 멤버 추가", security = [SecurityRequirement(name = "BearerAuth")])
-    @ApiResponses(
-        ApiResponse(responseCode = "201", description = "추가 성공"),
-        ApiResponse(responseCode = "403", description = "권한 없음"),
-    )
-    @PostMapping("/{channelId}/members")
-    @ResponseStatus(HttpStatus.CREATED)
-    fun addMember(
-        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-        @PathVariable channelId: Long,
-        @RequestBody request: AddMemberRequest,
-    ): ChannelMemberResponse = addChannelMemberService.execute(userId, channelId, request)
-
-    @Operation(summary = "채널 멤버 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(summary = "채널 접근 가능한 사용자 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
-        ApiResponse(responseCode = "403", description = "팀 멤버가 아님"),
+        ApiResponse(responseCode = "403", description = "채널 접근 권한 없음"),
     )
     @GetMapping("/{channelId}/members")
     fun getMembers(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-    ): List<ChannelMemberResponse> = queryChannelMembersService.execute(userId, channelId)
-
-    @Operation(summary = "채널 멤버 제거", security = [SecurityRequirement(name = "BearerAuth")])
-    @ApiResponses(
-        ApiResponse(responseCode = "204", description = "제거 성공"),
-        ApiResponse(responseCode = "403", description = "권한 없음"),
-    )
-    @DeleteMapping("/{channelId}/members/{memberId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    fun removeMember(
-        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-        @PathVariable channelId: Long,
-        @PathVariable memberId: Long,
-    ) {
-        removeChannelMemberService.execute(userId, channelId, memberId)
-    }
+    ): List<ChannelAccessUserResponse> = queryChannelMembersService.execute(userId, channelId)
 }

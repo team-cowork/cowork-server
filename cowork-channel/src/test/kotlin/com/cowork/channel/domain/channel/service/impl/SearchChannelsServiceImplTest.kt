@@ -37,13 +37,13 @@ class SearchChannelsServiceImplTest {
     fun `searchChannels는 팀 멤버에게 공개 및 가입한 비공개 채널만 반환함`() {
         every { teamPermissionService.requireTeamMember(10L, 42L) } returns Unit
         val channels = listOf(channel(1L, false), channel(2L, true))
-        every { channelRepository.searchVisibleByTeamIdAndName(10L, 42L, "secret") } returns channels
+        every { channelRepository.searchByTeamIdAndName(10L, "secret") } returns channels
         every { evaluator.filterReadable(10L, 42L, channels) } returns channels
 
         val result = service.execute(42L, 10L, "secret")
 
         assertEquals(listOf(1L, 2L), result.map { it.id })
-        verify { channelRepository.searchVisibleByTeamIdAndName(10L, 42L, "secret") }
+        verify { channelRepository.searchByTeamIdAndName(10L, "secret") }
     }
 
     @Test
@@ -56,6 +56,6 @@ class SearchChannelsServiceImplTest {
         }
 
         assertEquals(HttpStatus.FORBIDDEN, exception.statusCode)
-        verify(exactly = 0) { channelRepository.searchVisibleByTeamIdAndName(any(), any(), any()) }
+        verify(exactly = 0) { channelRepository.searchByTeamIdAndName(any(), any()) }
     }
 }
