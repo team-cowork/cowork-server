@@ -8,7 +8,9 @@
 - 높은 역할 `priority`가 우선한다. 같은 순위에서는 거부가 우선한다. 누락된 권한은 false다. 채널의 팀 OWNER, 프로젝트의 생성자·팀 OWNER/ADMIN은 기존 관리 권한을 유지한다. 모두 현재 팀 멤버여야 한다.
 - 팀 초대와 DM 참여는 유지한다. DM 참여와 채팅 읽음 위치는 팀 채널 권한과 별도로 저장한다.
 - 기존 팀 채널·프로젝트 멤버 기록은 권한으로 자동 변환하지 않는다. 접근을 유지할 사용자에게 필요한 역할을 부여해야 한다.
-- Project의 미사용 테이블 `tb_project_members`, `tb_project_member_event_tombstones`는 `V28__drop_unused_project_member_tables.sql`에서 삭제한다. Channel의 기존 테이블과 Preference의 기존 채널 멤버 projection 테이블은 DM 기록에 사용하므로 유지한다. Chat의 `channelmembers` 컬렉션은 기존 읽음 위치와 DM 숨김 값을 읽는 데 사용하므로 유지한다.
+- Project의 미사용 테이블 `tb_project_members`, `tb_project_member_event_tombstones`는 `V27__project_role_access_projections.sql`에서 삭제한다.
+- Channel의 테이블 이름은 `tb_dm_participants`, `tb_dm_participant_event_states`로, Preference의 테이블 이름은 `tb_dm_participant_projections`로 변경한다. 데이터는 보존하고 인덱스·제약조건·주석도 DM 참여 용어로 맞춘다. `channel_id`, `user_id`·`account_id`, `joined_at`은 DM에서도 의미가 유효하므로 유지한다.
+- Chat의 `channelmembers` 컬렉션은 기존 읽음 위치와 DM 숨김 값을 읽는 데 사용하므로 유지한다.
 - `channel_member_manage`는 기존 역할 이벤트 재생을 위한 키로만 남는다. 이 키에 대응하는 멤버 관리 기능은 없다.
 
 ## 클라이언트 호출 변경
@@ -38,7 +40,7 @@
 
 정상 Prod CD는 인프라 적용 → Config 배포 → 앱 배포 순서다. 이번 변경에 필요한 SQL은 앱 시작 시 Flyway가 적용한다. `deploy/compose/stack.yaml`에서 추가한 `channel.dm-participant.state.v1`, `preference.project-access.state.v1` 토픽과 compact 정책은 IaC가 앱 배포 전에 적용한다. 새 소비자는 원본 snapshot을 읽고 readiness가 열린 뒤 요청을 처리한다. 정상 전환에 수동 SQL 실행이나 VM에서 Kafka 토픽을 만드는 작업은 필요하지 않다.
 
-Project의 V28 마이그레이션은 기존 프로젝트 멤버 기록과 삭제 이력을 영구 삭제한다. 이전 버전으로 되돌리려면 삭제 전 DB 백업을 복원해야 한다.
+Project의 V27 마이그레이션은 기존 프로젝트 멤버 기록과 삭제 이력을 영구 삭제한다. 이전 버전으로 되돌리려면 삭제 전 DB 백업을 복원해야 한다.
 
 CD는 여러 앱을 병렬로 전환하며 전체 트래픽의 일괄 차단·재개는 하지 않는다. 이전 버전과 새 클라이언트의 혼용을 막는 전환 절차는 별도로 필요하다: 대상 트래픽 차단 → CD 완료·readiness 확인 → 새 클라이언트 적용 → 트래픽 재개. 트래픽 제어 위치는 운영 ingress 설정에 따라 결정한다.
 
