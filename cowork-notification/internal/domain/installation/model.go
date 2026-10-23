@@ -52,3 +52,67 @@ func (p ChannelNotificationPreference) ReceivesAllMessages(now time.Time) bool {
 	}
 	return p.Level == NotificationLevelAll
 }
+
+const StatusDoNotDisturb = "DO_NOT_DISTURB"
+
+// DoNotDisturbSchedule is a daily quiet window in minutes after local midnight. A window
+// whose end is earlier than its start crosses midnight, and an empty window never applies.
+type DoNotDisturbSchedule struct {
+	StartMinute int
+	EndMinute   int
+	Location    *time.Location
+}
+
+func (d DoNotDisturbSchedule) Contains(now time.Time) bool {
+	local := now.In(d.Location)
+	minute := local.Hour()*60 + local.Minute()
+	if d.StartMinute <= d.EndMinute {
+		return d.StartMinute <= minute && minute < d.EndMinute
+	}
+	return minute >= d.StartMinute || minute < d.EndMinute
+}
+
+// AccountNotificationSetting is the account-wide notification setting.
+type AccountNotificationSetting struct {
+	Level           *NotificationLevel
+	Status          string
+	StatusExpiresAt *time.Time
+	Schedule        *DoNotDisturbSchedule
+}
+
+func (s AccountNotificationSetting) DoNotDisturb(now time.Time) bool {
+	if s.Status == StatusDoNotDisturb && (s.StatusExpiresAt == nil || now.Before(*s.StatusExpiresAt)) {
+		return true
+	}
+	return s.Schedule != nil && s.Schedule.Contains(now)
+}
+
+// RecipientPreferences holds what decides delivery for one notification's recipients.
+type RecipientPreferences struct {
+	Channels         map[int64]ChannelNotificationPreference
+	Accounts         map[int64]AccountNotificationSetting
+	TeamDefaultLevel *NotificationLevel
+}
+
+func (p RecipientPreferences) DoNotDisturb(accountID int64, now time.Time) bool {
+	account, ok := p.Accounts[accountID]
+	return ok && account.DoNotDisturb(now)
+}
+
+// ReceivesAllChannelMessages resolves the level in channel, account, team default order.
+// Direct-message channels fall back to ALL because account and team levels describe team channels.
+func (p RecipientPreferences) ReceivesAllChannelMessages(accountID int64, teamChannel bool, now time.Time) bool {
+	if channel, ok := p.Channels[accountID]; ok {
+		return channel.ReceivesAllMessages(now)
+	}
+	if !teamChannel {
+		return true
+	}
+	if account, ok := p.Accounts[accountID]; ok && account.Level != nil {
+		return *account.Level == NotificationLevelAll
+	}
+	if p.TeamDefaultLevel != nil {
+		return *p.TeamDefaultLevel == NotificationLevelAll
+	}
+	return true
+}
