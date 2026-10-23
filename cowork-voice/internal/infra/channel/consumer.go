@@ -18,18 +18,17 @@ import (
 )
 
 const (
-	projectionRetryDelay         = time.Second
-	barrierPollInterval          = 250 * time.Millisecond
-	projectionReaderBytes        = 10e6
-	snapshotMarkerKeyPrefix      = "__cowork_projection_snapshot_complete__:"
-	snapshotMarkerEventType      = "PROJECTION_SNAPSHOT_COMPLETED"
-	snapshotMarkerExpectedSource = "cowork-channel"
+	projectionRetryDelay    = time.Second
+	barrierPollInterval     = 250 * time.Millisecond
+	projectionReaderBytes   = 10e6
+	snapshotMarkerKeyPrefix = "__cowork_projection_snapshot_complete__:"
+	snapshotMarkerEventType = "PROJECTION_SNAPSHOT_COMPLETED"
 )
 
 var ErrCheckpointAheadOfTopic = errors.New("projection checkpoint is ahead of the topic end")
 var ErrCheckpointBehindTopic = errors.New("projection checkpoint is behind the topic start")
 var ErrTopicGenerationMismatch = errors.New("projection checkpoint belongs to a different Kafka topic generation")
-var ErrProjectionNotCurrent = errors.New("channel membership projection is not at the current Kafka high-watermark")
+var ErrProjectionNotCurrent = errors.New("channel permission projection is not at the current Kafka high-watermark")
 var ErrProjectionTopologyChanged = errors.New("projection topic topology changed during the consumer generation")
 
 type readinessState interface {
@@ -283,7 +282,7 @@ func (s *kafkaOffsetSnapshotter) Close() {
 
 type Consumer struct {
 	brokers             []string
-	topic               string
+	topics              []string
 	groupID             string
 	group               *segkafka.ConsumerGroup
 	handler             *EventHandler
@@ -302,7 +301,7 @@ type Consumer struct {
 }
 
 func NewConsumer(
-	brokers, topic, groupID string,
+	brokers, groupID string,
 	handler *EventHandler,
 	checkpoints CheckpointStore,
 	readiness readinessState,
@@ -315,17 +314,17 @@ func NewConsumer(
 	group, err := segkafka.NewConsumerGroup(segkafka.ConsumerGroupConfig{
 		ID:                    groupID,
 		Brokers:               brokerList,
-		Topics:                []string{topic},
+		Topics:                permissionTopics,
 		StartOffset:           segkafka.FirstOffset,
 		WatchPartitionChanges: true,
 	})
 	if err != nil {
 		snapshotter.Close()
-		return nil, fmt.Errorf("create channel membership consumer group: %w", err)
+		return nil, fmt.Errorf("create channel permission consumer group: %w", err)
 	}
 	return &Consumer{
 		brokers:     brokerList,
-		topic:       topic,
+		topics:      permissionTopics,
 		groupID:     groupID,
 		group:       group,
 		handler:     handler,
@@ -353,7 +352,7 @@ func (c *Consumer) run(ctx context.Context) {
 			if ctx.Err() != nil || errors.Is(err, segkafka.ErrGroupClosed) {
 				return
 			}
-			slog.Error("channel membership consumer group failed", "err", err)
+			slog.Error("channel permission consumer group failed", "err", err)
 			if !waitForRetry(ctx) {
 				return
 			}
@@ -385,21 +384,23 @@ func (c *Consumer) consumeGeneration(
 	defer c.deactivateGeneration(generationToken)
 
 	var readers sync.WaitGroup
-	for _, assignment := range assignments[c.topic] {
-		tp := TopicPartition{Topic: c.topic, Partition: assignment.ID}
-		offsetRange, exists := ranges[tp]
-		if !exists {
-			slog.Error("assigned partition missing from barrier", "topic", c.topic, "partition", assignment.ID)
-			continue
+	for topic, topicAssignments := range assignments {
+		for _, assignment := range topicAssignments {
+			tp := TopicPartition{Topic: topic, Partition: assignment.ID}
+			offsetRange, exists := ranges[tp]
+			if !exists {
+				slog.Error("assigned partition missing from barrier", "topic", topic, "partition", assignment.ID)
+				continue
+			}
+			readers.Add(1)
+			go func() {
+				defer readers.Done()
+				defer cancel()
+				c.consumePartition(consumerCtx, tp, offsetRange)
+			}()
 		}
-		readers.Add(1)
-		go func() {
-			defer readers.Done()
-			defer cancel()
-			c.consumePartition(consumerCtx, tp, offsetRange)
-		}()
-	}
 
+	}
 	c.monitorBarrier(consumerCtx, generationToken, ranges)
 	cancel()
 	readers.Wait()
@@ -407,14 +408,14 @@ func (c *Consumer) consumeGeneration(
 
 func (c *Consumer) snapshotWithRetry(ctx context.Context) (map[TopicPartition]OffsetRange, bool) {
 	for {
-		ranges, err := c.snapshotter.Snapshot(ctx, []string{c.topic})
+		ranges, err := c.snapshotter.Snapshot(ctx, c.topics)
 		if err == nil {
 			return ranges, true
 		}
 		if ctx.Err() != nil {
 			return nil, false
 		}
-		slog.Error("channel membership barrier capture failed; retrying", "err", err)
+		slog.Error("channel permission barrier capture failed; retrying", "err", err)
 		if !waitForRetry(ctx) {
 			return nil, false
 		}
@@ -460,7 +461,7 @@ func (c *Consumer) initializeCheckpoints(ctx context.Context, ranges map[TopicPa
 			}
 			if errors.Is(err, ErrTopicGenerationMismatch) {
 				slog.Error(
-					"channel membership topic generation changed; refusing readiness and seek",
+					"channel permission topic generation changed; refusing readiness and seek",
 					"topic", partition.Topic,
 					"partition", partition.Partition,
 					"checkpointTopicId", checkpoint.TopicID,
@@ -469,7 +470,7 @@ func (c *Consumer) initializeCheckpoints(ctx context.Context, ranges map[TopicPa
 				)
 			} else if errors.Is(err, ErrCheckpointAheadOfTopic) {
 				slog.Error(
-					"channel membership checkpoint is ahead of Kafka; refusing readiness and seek",
+					"channel permission checkpoint is ahead of Kafka; refusing readiness and seek",
 					"topic", partition.Topic,
 					"partition", partition.Partition,
 					"checkpoint", nextOffset,
@@ -478,7 +479,7 @@ func (c *Consumer) initializeCheckpoints(ctx context.Context, ranges map[TopicPa
 				)
 			} else if errors.Is(err, ErrCheckpointBehindTopic) {
 				slog.Error(
-					"channel membership checkpoint is behind Kafka retention; refusing readiness and seek",
+					"channel permission checkpoint is behind Kafka retention; refusing readiness and seek",
 					"topic", partition.Topic,
 					"partition", partition.Partition,
 					"checkpoint", nextOffset,
@@ -487,7 +488,7 @@ func (c *Consumer) initializeCheckpoints(ctx context.Context, ranges map[TopicPa
 				)
 			} else {
 				slog.Error(
-					"channel membership checkpoint initialization failed; retrying",
+					"channel permission checkpoint initialization failed; retrying",
 					"topic", partition.Topic,
 					"partition", partition.Partition,
 					"err", err,
@@ -516,7 +517,7 @@ func (c *Consumer) consumePartition(ctx context.Context, partition TopicPartitio
 	defer func() { _ = reader.Close() }()
 	if err := reader.SetOffset(nextOffset); err != nil {
 		slog.Error(
-			"channel membership checkpoint seek failed",
+			"channel permission checkpoint seek failed",
 			"topic", partition.Topic,
 			"partition", partition.Partition,
 			"offset", nextOffset,
@@ -532,7 +533,7 @@ func (c *Consumer) consumePartition(ctx context.Context, partition TopicPartitio
 				return
 			}
 			slog.Error(
-				"channel membership event fetch failed; retrying",
+				"channel permission event fetch failed; retrying",
 				"topic", partition.Topic,
 				"partition", partition.Partition,
 				"err", err,
@@ -577,7 +578,7 @@ func (c *Consumer) loadCheckpointWithRetry(
 		}
 		if errors.Is(err, ErrTopicGenerationMismatch) {
 			slog.Error(
-				"channel membership topic generation changed; refusing seek",
+				"channel permission topic generation changed; refusing seek",
 				"topic", partition.Topic,
 				"partition", partition.Partition,
 				"checkpointTopicId", checkpoint.TopicID,
@@ -586,7 +587,7 @@ func (c *Consumer) loadCheckpointWithRetry(
 			)
 		} else if errors.Is(err, ErrCheckpointAheadOfTopic) {
 			slog.Error(
-				"channel membership checkpoint is ahead of Kafka; refusing seek",
+				"channel permission checkpoint is ahead of Kafka; refusing seek",
 				"topic", partition.Topic,
 				"partition", partition.Partition,
 				"checkpoint", nextOffset,
@@ -594,14 +595,14 @@ func (c *Consumer) loadCheckpointWithRetry(
 			)
 		} else if errors.Is(err, ErrCheckpointBehindTopic) {
 			slog.Error(
-				"channel membership checkpoint is behind Kafka retention; refusing seek",
+				"channel permission checkpoint is behind Kafka retention; refusing seek",
 				"topic", partition.Topic,
 				"partition", partition.Partition,
 				"checkpoint", nextOffset,
 				"topicStart", offsetRange.First,
 			)
 		} else {
-			slog.Error("channel membership checkpoint load failed; retrying", "err", err)
+			slog.Error("channel permission checkpoint load failed; retrying", "err", err)
 		}
 		if !waitForRetry(ctx) {
 			return 0, false
@@ -674,7 +675,7 @@ func (c *Consumer) processWithRetry(ctx context.Context, message segkafka.Messag
 				return false
 			}
 			slog.Error(
-				"channel membership snapshot marker/checkpoint update failed; retrying",
+				"channel permission snapshot marker/checkpoint update failed; retrying",
 				"partition", message.Partition,
 				"offset", message.Offset,
 				"err", err,
@@ -685,7 +686,7 @@ func (c *Consumer) processWithRetry(ctx context.Context, message segkafka.Messag
 		}
 	} else {
 		for {
-			err := c.handler.Handle(ctx, string(message.Key), message.Value)
+			err := c.handler.Handle(ctx, message.Topic, string(message.Key), message.Value)
 			if err == nil {
 				break
 			}
@@ -697,7 +698,7 @@ func (c *Consumer) processWithRetry(ctx context.Context, message segkafka.Messag
 				return false
 			}
 			slog.Error(
-				"channel membership projection update failed; retrying",
+				"channel permission projection update failed; retrying",
 				"partition", message.Partition,
 				"offset", message.Offset,
 				"err", err,
@@ -715,7 +716,7 @@ func (c *Consumer) processWithRetry(ctx context.Context, message segkafka.Messag
 			if err == nil {
 				if stale {
 					slog.Warn(
-						"stale invalid channel membership event ignored",
+						"stale invalid channel permission event ignored",
 						"partition", message.Partition,
 						"offset", message.Offset,
 					)
@@ -731,7 +732,7 @@ func (c *Consumer) processWithRetry(ctx context.Context, message segkafka.Messag
 				return false
 			}
 			slog.Error(
-				"channel membership checkpoint preflight failed; retrying",
+				"channel permission checkpoint preflight failed; retrying",
 				"partition", message.Partition,
 				"offset", message.Offset,
 				"err", err,
@@ -755,7 +756,7 @@ func (c *Consumer) processWithRetry(ctx context.Context, message segkafka.Messag
 			}, topicID, message.Offset+1)
 			if err == nil {
 				slog.Error(
-					"invalid channel membership event quarantined and state gap latched",
+					"invalid channel permission event quarantined and state gap latched",
 					"partition", message.Partition,
 					"offset", message.Offset,
 					"reason", invalidReason,
@@ -766,7 +767,7 @@ func (c *Consumer) processWithRetry(ctx context.Context, message segkafka.Messag
 				return false
 			}
 			slog.Error(
-				"invalid channel membership event quarantine failed; retrying",
+				"invalid channel permission event quarantine failed; retrying",
 				"partition", message.Partition,
 				"offset", message.Offset,
 				"err", err,
@@ -793,7 +794,7 @@ func (c *Consumer) processWithRetry(ctx context.Context, message segkafka.Messag
 			return false
 		}
 		slog.Error(
-			"channel membership checkpoint update failed; retrying",
+			"channel permission checkpoint update failed; retrying",
 			"partition", message.Partition,
 			"offset", message.Offset,
 			"err", err,
@@ -839,7 +840,7 @@ func (c *Consumer) monitorBarrier(
 	for {
 		err := c.evaluateAndPublishCurrentHigh(ctx, generationToken, expectedRanges)
 		if err != nil && ctx.Err() == nil {
-			slog.Error("channel membership current-high check failed; retrying", "err", err)
+			slog.Error("channel permission current-high check failed; retrying", "err", err)
 			if errors.Is(err, ErrProjectionTopologyChanged) || errors.Is(err, ErrTopicGenerationMismatch) {
 				return
 			}
@@ -901,7 +902,7 @@ func (c *Consumer) evaluateCurrentHigh(
 	ctx context.Context,
 	expectedRanges map[TopicPartition]OffsetRange,
 ) error {
-	currentRanges, err := c.snapshotter.Snapshot(ctx, []string{c.topic})
+	currentRanges, err := c.snapshotter.Snapshot(ctx, c.topics)
 	if err != nil {
 		return fmt.Errorf("%w: capture broker offsets: %v", ErrProjectionNotCurrent, err)
 	}
@@ -1047,7 +1048,7 @@ func parseSnapshotMarker(message segkafka.Message) (bool, SnapshotMarkerReceipt,
 		return true, SnapshotMarkerReceipt{}, fmt.Errorf("%w: invalid snapshot marker snapshotId", ErrInvalidEvent)
 	}
 	occurredAt, err := time.Parse(time.RFC3339Nano, marker.OccurredAt)
-	if err != nil || marker.Source != snapshotMarkerExpectedSource {
+	if err != nil || expectedSource(message.Topic) == "" || marker.Source != expectedSource(message.Topic) {
 		return true, SnapshotMarkerReceipt{}, fmt.Errorf("%w: invalid snapshot marker metadata", ErrInvalidEvent)
 	}
 	return true, SnapshotMarkerReceipt{
