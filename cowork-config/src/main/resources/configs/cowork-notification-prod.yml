@@ -1,4 +1,4 @@
-# db.dsn은 Vault secret/cowork-notification 에서 주입됨
+# DB 경로(DB_PATH)는 배포 slot에서 주입됨
 # Go 런타임은 원격 문자열의 ${ENV}를 해석하지 않으며, 중첩 키는 Config Server overrides로도
 # 덮어쓸 수 없으므로 리터럴 값만 사용한다.
 
