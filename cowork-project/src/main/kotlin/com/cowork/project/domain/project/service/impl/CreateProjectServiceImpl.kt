@@ -7,19 +7,13 @@ import com.cowork.project.domain.project.presentation.data.response.ProjectResDt
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.CreateProjectService
 import com.cowork.project.domain.project.service.ProjectAccessGuard
-import com.cowork.project.domain.projectMember.entity.ProjectMember
-import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
-import com.cowork.project.domain.projectMember.event.ProjectMemberEventPublisher
-import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
 class CreateProjectServiceImpl(
     private val projectRepository: ProjectRepository,
-    private val projectMemberRepository: ProjectMemberRepository,
     private val projectEventPublisher: ProjectEventPublisher,
-    private val projectMemberEventPublisher: ProjectMemberEventPublisher,
     private val projectAccessGuard: ProjectAccessGuard,
 ) : CreateProjectService {
 
@@ -37,16 +31,7 @@ class CreateProjectServiceImpl(
             ),
         )
 
-        val owner = projectMemberRepository.save(
-            ProjectMember(
-                projectId = project.id,
-                userId = userId,
-                role = ProjectMemberRole.OWNER,
-            ),
-        )
-
         projectEventPublisher.publishCreated(project)
-        projectMemberEventPublisher.publishAdded(owner)
 
         return ProjectResDto.of(project)
     }
