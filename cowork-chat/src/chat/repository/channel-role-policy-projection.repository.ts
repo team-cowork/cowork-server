@@ -11,6 +11,12 @@ import {
     PROJECTION_EPOCH,
 } from './versioned-projection.util';
 
+export type ChannelRolePolicyPermissionsView = {
+    teamId: number;
+    roleId: number;
+    permissions: Record<string, boolean>;
+};
+
 export type ChannelRolePolicyProjectionView = {
     teamId: number;
     channelId: number;
@@ -104,6 +110,27 @@ export class ChannelRolePolicyProjectionRepository {
                 _id: 0, teamId: 1, channelId: 1, roleId: 1, permissions: 1,
             },
         ).lean<ChannelRolePolicyProjectionView[]>();
+    }
+
+    async findPermissionsByChannelIdAndRoleIds(
+        channelId: number,
+        roleIds: number[],
+    ): Promise<ChannelRolePolicyPermissionsView[]> {
+        if (roleIds.length === 0) {
+            return [];
+        }
+
+        return this.model.find(
+            {
+                channelId,
+                roleId: {$in: roleIds},
+                permissions: {$type: 'object'},
+                deleted: {$ne: true},
+            },
+            {
+                _id: 0, teamId: 1, roleId: 1, permissions: 1,
+            },
+        ).lean<ChannelRolePolicyPermissionsView[]>();
     }
 
     async findChannelIdsByRole(teamId: number, roleId: number): Promise<number[]> {
