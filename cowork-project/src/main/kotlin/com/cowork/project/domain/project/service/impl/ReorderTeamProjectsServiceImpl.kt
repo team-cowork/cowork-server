@@ -30,14 +30,17 @@ class ReorderTeamProjectsServiceImpl(
         }
 
         val projects = projectRepository.findAllByTeamIdForUpdate(teamId)
+            .filter { projectAccessGuard.canRead(it, userId) }
         val teamProjectIds = projects.map { it.id }.toSet()
         if (inputIds != teamProjectIds) {
-            throw ExpectedException("팀의 모든 프로젝트 ID를 정확히 포함해야 합니다.", HttpStatus.BAD_REQUEST)
+            throw ExpectedException("현재 조회 가능한 모든 프로젝트 ID를 정확히 포함해야 합니다.", HttpStatus.BAD_REQUEST)
         }
 
+        projects.forEach { projectAccessGuard.requireProjectModifier(it, userId) }
+        val positionSlots = projects.map { it.position }.sorted()
         val projectById = projects.associateBy { it.id }
         orderedProjectIds.forEachIndexed { index, projectId ->
-            projectById[projectId]?.updatePosition(index)
+            projectById[projectId]?.updatePosition(positionSlots[index])
         }
 
         val orderedProjects = orderedProjectIds.mapNotNull(projectById::get)

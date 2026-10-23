@@ -42,7 +42,7 @@ class GithubRepoAccessResolverTest :
                     it("등록된 레포를 owner/repo로 파싱해 반환한다") {
                         val proj = project()
                         every { projectAccessGuard.findProjectOrThrow(1L) } returns proj
-                        every { projectAccessGuard.requireTeamMember(100L, 7L) } just Runs
+                        every { projectAccessGuard.requireProjectReader(proj, 7L) } just Runs
                         every { projectGithubRepoRepository.findByIdAndProjectId(5L, 1L) } returns repoLink()
 
                         val repo = resolver.resolveForRead(7L, 1L, 5L)
@@ -55,7 +55,7 @@ class GithubRepoAccessResolverTest :
                     it("ProjectAccessGuard의 예외를 그대로 전파한다") {
                         val proj = project()
                         every { projectAccessGuard.findProjectOrThrow(1L) } returns proj
-                        every { projectAccessGuard.requireTeamMember(100L, 7L) } throws
+                        every { projectAccessGuard.requireProjectReader(proj, 7L) } throws
                             ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
 
                         val ex = shouldThrow<ExpectedException> { resolver.resolveForRead(7L, 1L, 5L) }
@@ -68,7 +68,7 @@ class GithubRepoAccessResolverTest :
                     it("NOT_FOUND를 던진다") {
                         val proj = project()
                         every { projectAccessGuard.findProjectOrThrow(1L) } returns proj
-                        every { projectAccessGuard.requireTeamMember(100L, 7L) } just Runs
+                        every { projectAccessGuard.requireProjectReader(proj, 7L) } just Runs
                         every { projectGithubRepoRepository.findByIdAndProjectId(5L, 1L) } returns null
 
                         val ex = shouldThrow<ExpectedException> { resolver.resolveForRead(7L, 1L, 5L) }
@@ -81,7 +81,7 @@ class GithubRepoAccessResolverTest :
                     it("BAD_REQUEST를 던진다") {
                         val proj = project()
                         every { projectAccessGuard.findProjectOrThrow(1L) } returns proj
-                        every { projectAccessGuard.requireTeamMember(100L, 7L) } just Runs
+                        every { projectAccessGuard.requireProjectReader(proj, 7L) } just Runs
                         every { projectGithubRepoRepository.findByIdAndProjectId(5L, 1L) } returns
                             repoLink(githubRepoUrl = "https://example.com/my-org/my-repo")
 
