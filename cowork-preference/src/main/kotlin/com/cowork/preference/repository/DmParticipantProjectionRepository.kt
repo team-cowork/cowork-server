@@ -11,17 +11,17 @@ class DmParticipantProjectionRepository {
     suspend fun apply(client: SqlClient, event: DmParticipantEvent): Boolean {
         val rows = client.preparedQuery(
             """
-            INSERT INTO tb_channel_member_projections (channel_id, account_id, deleted, source_occurred_at)
+            INSERT INTO tb_dm_participant_projections (channel_id, account_id, deleted, source_occurred_at)
             VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4)
             ON CONFLICT (channel_id, account_id)
             DO UPDATE SET
                 deleted = EXCLUDED.deleted,
                 source_occurred_at = EXCLUDED.source_occurred_at
-            WHERE EXCLUDED.source_occurred_at > tb_channel_member_projections.source_occurred_at
+            WHERE EXCLUDED.source_occurred_at > tb_dm_participant_projections.source_occurred_at
                OR (
-                    EXCLUDED.source_occurred_at = tb_channel_member_projections.source_occurred_at
+                    EXCLUDED.source_occurred_at = tb_dm_participant_projections.source_occurred_at
                     AND EXCLUDED.deleted = TRUE
-                    AND tb_channel_member_projections.deleted = FALSE
+                    AND tb_dm_participant_projections.deleted = FALSE
                )
             """.trimIndent(),
         ).execute(
@@ -33,7 +33,7 @@ class DmParticipantProjectionRepository {
     /** authorization guard용 단순 조회다. 잠금이 없어 projection consumer의 갱신 트랜잭션을 기다리지 않는다. */
     suspend fun isActiveParticipant(client: SqlClient, channelId: Long, accountId: Long): Boolean {
         val rows = client.preparedQuery(
-            "SELECT deleted FROM tb_channel_member_projections WHERE channel_id = ${'$'}1 AND account_id = ${'$'}2",
+            "SELECT deleted FROM tb_dm_participant_projections WHERE channel_id = ${'$'}1 AND account_id = ${'$'}2",
         ).execute(Tuple.of(channelId, accountId)).coAwait()
         return rows.firstOrNull()?.getBoolean("deleted") == false
     }
