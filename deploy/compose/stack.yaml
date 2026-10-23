@@ -112,6 +112,7 @@ services:
         team.member.event
         team.member.event-dlt
         channel.member.event.v2
+        channel.dm-participant.state.v1
         channel.event.v2
         project.event.v2
         project.member.event.v2
@@ -163,6 +164,7 @@ services:
         team.lifecycle
         team.member.event
         channel.member.event.v2
+        channel.dm-participant.state.v1
         channel.event.v2
         project.event.v2
         project.member.event.v2
