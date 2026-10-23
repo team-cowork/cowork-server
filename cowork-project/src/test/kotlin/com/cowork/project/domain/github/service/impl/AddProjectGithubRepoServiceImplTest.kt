@@ -3,6 +3,8 @@ package com.cowork.project.domain.github.service.impl
 import com.cowork.project.domain.github.event.ProjectGithubRepoEventPublisher
 import com.cowork.project.domain.github.presentation.data.request.AddProjectGithubRepoReqDto
 import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
+import com.cowork.project.domain.github.service.GithubRepoRef
+import com.cowork.project.domain.github.service.GithubSyncRequestScheduler
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.repository.ProjectRepository
@@ -12,6 +14,7 @@ import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
 import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Nested
@@ -28,9 +31,14 @@ class AddProjectGithubRepoServiceImplTest {
     private val projectAccessGuard =
         ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository, mockk(relaxed = true))
     private val repoEventPublisher = mockk<ProjectGithubRepoEventPublisher>(relaxed = true)
+    private val githubSyncRequestScheduler = mockk<GithubSyncRequestScheduler>(relaxed = true)
 
-    private val service =
-        AddProjectGithubRepoServiceImpl(projectGithubRepoRepository, projectAccessGuard, repoEventPublisher)
+    private val service = AddProjectGithubRepoServiceImpl(
+        projectGithubRepoRepository,
+        projectAccessGuard,
+        repoEventPublisher,
+        githubSyncRequestScheduler,
+    )
 
     private fun project(id: Long = 1L, teamId: Long = 100L) =
         Project(id = id, teamId = teamId, name = "p", description = null, createdBy = 1L)
@@ -51,6 +59,7 @@ class AddProjectGithubRepoServiceImplTest {
             val response = service.execute(99L, 1L, AddProjectGithubRepoReqDto("https://github.com/my-org/my-repo"))
 
             assertEquals("https://github.com/my-org/my-repo", response.githubRepoUrl)
+            verify(exactly = 1) { githubSyncRequestScheduler.requestRepositorySync(GithubRepoRef("my-org", "my-repo")) }
         }
 
         @Test
