@@ -3,6 +3,8 @@ import {
     ForbiddenException,
     NotFoundException,
     ServiceUnavailableException,
+    HttpException,
+    HttpStatus,
 } from '@nestjs/common';
 import {Types} from 'mongoose';
 import {ChatService} from './chat.service';
@@ -139,6 +141,11 @@ const mockUnreadCounterService = {
     incrementIfPresent: jest.fn().mockResolvedValue(undefined),
 };
 
+const mockSlowmodeService = {
+    reserve: jest.fn(),
+    release: jest.fn(),
+};
+
 describe('ChatService', () => {
     let service: ChatService;
 
@@ -161,12 +168,15 @@ describe('ChatService', () => {
             mockUnreadCounterService as never,
             mockMessageSearchDeletion as never,
             mockChannelProjectionRepository as never,
+            mockSlowmodeService as never,
         );
         jest.clearAllMocks();
         mockTeamMemberRepository.exists.mockResolvedValue(true);
         mockReadStateRepository.findForChannels.mockImplementation(async (ids: number[]) =>
             ids.map(channelId => ({channelId, lastReadMessageId: null})));
         mockChannelMessageReadAccess.findReadableUsersByChannel.mockResolvedValue(new Map());
+        mockSlowmodeService.reserve.mockResolvedValue(undefined);
+        mockSlowmodeService.release.mockResolvedValue(undefined);
         mockObjectStorageService.claimAttachments.mockResolvedValue([]);
         mockChannelProjectionRepository.findById.mockResolvedValue({
             channelId: 1, teamId: 100, projectId: null, type: 'TEXT',
@@ -279,6 +289,24 @@ describe('ChatService', () => {
 
             await expect(service.sendMessage(ctx, {content: 'hi'})).rejects.toThrow(ForbiddenException);
             expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
+        });
+
+        it('슬로우 모드 간격 안이면 발행하지 않는다', async () => {
+            mockDmParticipantRepository.findMembership.mockResolvedValue({teamId: 100, channelType: 'TEXT'});
+            mockSlowmodeService.reserve.mockRejectedValue(new HttpException('slowmode', HttpStatus.TOO_MANY_REQUESTS));
+
+            await expect(service.sendMessage(ctx, {content: 'hi'})).rejects.toThrow(HttpException);
+            expect(mockSlowmodeService.reserve).toHaveBeenCalledWith(1, 100, 42);
+            expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
+        });
+
+        it('발행에 실패하면 슬로우 모드 예약을 해제한다', async () => {
+            mockDmParticipantRepository.findMembership.mockResolvedValue({teamId: 100, channelType: 'TEXT'});
+            mockSlowmodeService.reserve.mockResolvedValue('chat:slowmode:1:42');
+            mockChatMessageProducer.sendMessage.mockRejectedValueOnce(new Error('kafka down'));
+
+            await expect(service.sendMessage(ctx, {content: 'hi'})).rejects.toThrow('kafka down');
+            expect(mockSlowmodeService.release).toHaveBeenCalledWith('chat:slowmode:1:42');
         });
 
         it('프로젝트 채널은 채널 범위의 teamId·projectId로 발행한다', async () => {
