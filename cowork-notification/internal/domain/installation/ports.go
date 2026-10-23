@@ -21,7 +21,11 @@ type FCMSender interface {
 }
 
 type NotificationPreferenceResolver interface {
-	AreNotificationsEnabled(ctx context.Context, accountIDs []int64, channelID int64) (map[int64]bool, error)
+	FindChannelNotificationPreferences(
+		ctx context.Context,
+		accountIDs []int64,
+		channelID int64,
+	) (map[int64]ChannelNotificationPreference, error)
 }
 
 type InstallationService interface {
