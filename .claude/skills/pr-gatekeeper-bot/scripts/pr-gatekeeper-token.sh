@@ -7,6 +7,8 @@ set -euo pipefail
 client_id="${PR_GATEKEEPER_CLIENT_ID:-Iv23lidfC71X7cztqKZE}"
 key_path="${PR_GATEKEEPER_PRIVATE_KEY_PATH:-$HOME/.config/pr-gatekeeper-bot/private-key.pem}"
 repo="${1:?Usage: $0 OWNER/REPO}"
+name="${repo#*/}"
+[[ "$repo" =~ ^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$ && "$name" != . && "$name" != .. ]] || { echo "Invalid repository: expected OWNER/REPO" >&2; exit 1; }
 
 [ -f "$key_path" ] || { echo "Private key not found: $key_path" >&2; exit 1; }
 
@@ -23,4 +25,4 @@ api() { curl -fsS -H "Authorization: Bearer $jwt" -H "Accept: application/vnd.gi
 installation_id=$(api "https://api.github.com/repos/$repo/installation" | jq -r .id)
 
 api -X POST "https://api.github.com/app/installations/$installation_id/access_tokens" \
-  -d "{\"repositories\":[\"${repo#*/}\"]}" | jq -r .token
+  -d "{\"repositories\":[\"$name\"]}" | jq -r .token
