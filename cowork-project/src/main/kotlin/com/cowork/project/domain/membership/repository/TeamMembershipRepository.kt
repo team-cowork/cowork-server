@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 
 interface TeamMembershipRepository : JpaRepository<TeamMembership, Long> {
+    fun findAllByTeamIdAndActiveTrue(teamId: Long): List<TeamMembership>
+
     @Query(
         "SELECT membership FROM TeamMembership membership " +
             "WHERE membership.teamId = :teamId AND membership.userId = :userId AND membership.active = true",
