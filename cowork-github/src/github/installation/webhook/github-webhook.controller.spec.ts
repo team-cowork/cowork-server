@@ -1,5 +1,6 @@
 import {Test, type TestingModule} from '@nestjs/testing';
 import {REDIS_CLIENT} from '../../constants';
+import {PULL_REQUEST_FILES_TTL_SECONDS} from '../../github.cache';
 import {PullRequestService} from '../../pull-request/pull-request.service';
 import {GithubReadModelEventProducers} from '../kafka/github-read-model-event-producers';
 import {TeamGithubProducer} from '../kafka/team-github.producer';
@@ -169,15 +170,44 @@ describe('GithubWebhookController', () => {
         expect(readModelProducers.pullRequest.send).toHaveBeenCalled();
     });
 
-    it('pull_request의 labeled 액션에서는 파일 목록을 다시 조회하지 않고, 캐시도 없으면 files를 생략한다', async () => {
+    it('pull_request의 labeled 액션에서 캐시가 없으면 파일 목록을 다시 조회해 싣고 만료 시간과 함께 캐시한다', async () => {
+        const files = [{
+            filename: 'a.kt', status: 'modified', additions: 1, deletions: 0, patch: null,
+        }];
+        pullRequestService.listPullRequestFiles.mockResolvedValue(files);
+
         await controller.handle('pull_request', {
             action: 'labeled',
             repository: {full_name: 'my-org/my-repo'},
             pull_request: {number: 7, user: {login: 'octocat'}},
         });
 
-        expect(pullRequestService.listPullRequestFiles).not.toHaveBeenCalled();
+        expect(pullRequestService.listPullRequestFiles).toHaveBeenCalledWith('my-org', 'my-repo', 7);
+        expect(redis.set).toHaveBeenCalledWith(
+            'github:pr-files:my-org/my-repo#7',
+            JSON.stringify(files),
+            'EX',
+            PULL_REQUEST_FILES_TTL_SECONDS,
+        );
         const [sentEvent] = readModelProducers.pullRequest.send.mock.calls[0] as [Record<string, unknown>];
+        expect(sentEvent.files).toEqual(files);
+    });
+
+    it('pull_request의 labeled 액션에서 캐시를 채우려던 조회가 실패해도 files 없이 state를 발행한다', async () => {
+        pullRequestService.listPullRequestFiles.mockRejectedValue(new Error('rate limited'));
+
+        const result = await controller.handle('pull_request', {
+            action: 'closed',
+            repository: {full_name: 'my-org/my-repo'},
+            pull_request: {
+                number: 7, user: {login: 'octocat'}, state: 'closed', merged: true,
+            },
+        });
+
+        expect(result).toEqual({ok: true});
+        expect(redis.set).not.toHaveBeenCalled();
+        const [sentEvent] = readModelProducers.pullRequest.send.mock.calls[0] as [Record<string, unknown>];
+        expect(sentEvent.state).toBe('closed');
         expect(sentEvent.files).toBeUndefined();
     });
 
@@ -194,6 +224,7 @@ describe('GithubWebhookController', () => {
         });
 
         expect(redis.get).toHaveBeenCalledWith('github:pr-files:my-org/my-repo#7');
+        expect(pullRequestService.listPullRequestFiles).not.toHaveBeenCalled();
         const [sentEvent] = readModelProducers.pullRequest.send.mock.calls[0] as [Record<string, unknown>];
         expect(sentEvent.files).toEqual(cachedFiles);
     });
@@ -218,6 +249,8 @@ describe('GithubWebhookController', () => {
             JSON.stringify([{
                 filename: 'b.kt', status: 'added', additions: 5, deletions: 0, patch: null,
             }]),
+            'EX',
+            PULL_REQUEST_FILES_TTL_SECONDS,
         );
     });
 

@@ -39,6 +39,12 @@ function isNotFoundError(error: unknown): boolean {
     return error_.name === 'NotFound' || error_.$metadata?.httpStatusCode === 404;
 }
 
+function attachmentDisposition(filename: string): string {
+    const fallback = filename.replaceAll(/[^\u{20}-\u{7E}]|["\\]/gu, '_');
+    const encoded = encodeURIComponent(filename).replaceAll(/['()*]/gu, c => `%${c.codePointAt(0)!.toString(16).toUpperCase()}`);
+    return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`;
+}
+
 @Injectable()
 export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(ObjectStorageService.name);
@@ -202,7 +208,7 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
         };
     }
 
-    async createPresignedDownload(objectKey: string, channelId: number, authorId: number): Promise<{
+    async createPresignedDownload(objectKey: string, channelId: number, authorId: number, filename: string): Promise<{
         downloadUrl: string;
         expiresAt: string;
         expiresInSeconds: number;
@@ -214,6 +220,7 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
             Bucket: this.config.bucket,
             Key: objectKey,
             ResponseCacheControl: 'private, no-store',
+            ResponseContentDisposition: attachmentDisposition(filename),
         }), {expiresIn: expiresInSeconds, signingDate});
         return {downloadUrl: this.relayUrl(downloadUrl), expiresInSeconds, expiresAt: new Date(signingDate.getTime() + (expiresInSeconds * 1000)).toISOString()};
     }

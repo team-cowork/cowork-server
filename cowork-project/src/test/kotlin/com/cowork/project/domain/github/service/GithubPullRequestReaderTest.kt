@@ -4,7 +4,6 @@ import com.cowork.project.domain.github.entity.GithubPullRequestProjection
 import com.cowork.project.domain.github.entity.GithubPullRequestProjectionFile
 import com.cowork.project.domain.github.repository.GithubPullRequestProjectionRepository
 import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -24,7 +23,7 @@ class GithubPullRequestReaderTest :
         beforeEach {
             repository = mockk()
             markerRepository = mockk()
-            reader = GithubPullRequestReader(repository, GithubSyncMarkers(markerRepository, ObjectMapper()))
+            reader = GithubPullRequestReader(repository, GithubSyncMarkers(markerRepository))
         }
 
         fun projection(
