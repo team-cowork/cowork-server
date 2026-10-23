@@ -1,6 +1,6 @@
 import {Global, Module} from '@nestjs/common';
 import {MongooseModule} from '@nestjs/mongoose';
-import {ChannelMember, ChannelMemberSchema} from '../../chat/schema/channel-member.schema';
+import {DmParticipant, DmParticipantSchema} from '../../chat/schema/dm-participant.schema';
 import {ChannelProjection, ChannelProjectionSchema} from '../../chat/schema/channel-projection.schema';
 import {
     ChannelRolePolicyProjection,
@@ -8,9 +8,9 @@ import {
 } from '../../chat/schema/channel-role-policy-projection.schema';
 import {ProjectProjection, ProjectProjectionSchema} from '../../chat/schema/project-projection.schema';
 import {
-    ProjectMemberProjection,
-    ProjectMemberProjectionSchema,
-} from '../../chat/schema/project-member-projection.schema';
+    ProjectPermissionProjection,
+    ProjectPermissionProjectionSchema,
+} from '../../chat/schema/project-permission-projection.schema';
 import {
     ProjectGithubRepoProjection,
     ProjectGithubRepoProjectionSchema,
@@ -45,10 +45,10 @@ import {ProjectionCheckpoint, ProjectionCheckpointSchema} from './projection-che
             {name: ProjectionCheckpoint.name, schema: ProjectionCheckpointSchema},
             {name: ProjectionQuarantineRecord.name, schema: ProjectionQuarantineRecordSchema},
             {name: ProjectionDataset.name, schema: ProjectionDatasetSchema},
-            {name: ChannelMember.name, schema: ChannelMemberSchema},
+            {name: DmParticipant.name, schema: DmParticipantSchema},
             {name: ChannelProjection.name, schema: ChannelProjectionSchema},
             {name: ProjectProjection.name, schema: ProjectProjectionSchema},
-            {name: ProjectMemberProjection.name, schema: ProjectMemberProjectionSchema},
+            {name: ProjectPermissionProjection.name, schema: ProjectPermissionProjectionSchema},
             {name: ProjectGithubRepoProjection.name, schema: ProjectGithubRepoProjectionSchema},
             {name: TeamMemberProjection.name, schema: TeamMemberProjectionSchema},
             {name: TeamRoleProjection.name, schema: TeamRoleProjectionSchema},
