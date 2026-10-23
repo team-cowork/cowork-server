@@ -29,3 +29,26 @@ type RegistrationResult struct {
 }
 
 func (Installation) TableName() string { return "tb_device_installation" }
+
+type NotificationLevel string
+
+const (
+	NotificationLevelAll      NotificationLevel = "ALL"
+	NotificationLevelMentions NotificationLevel = "MENTIONS"
+	NotificationLevelNone     NotificationLevel = "NONE"
+)
+
+// ChannelNotificationPreference is the notification choice an account made for one channel.
+type ChannelNotificationPreference struct {
+	Level      NotificationLevel
+	MutedUntil *time.Time
+}
+
+// ReceivesAllMessages reports whether channel messages that do not mention the account
+// reach it at now. Mentions and replies are decided by the caller.
+func (p ChannelNotificationPreference) ReceivesAllMessages(now time.Time) bool {
+	if p.MutedUntil != nil && now.Before(*p.MutedUntil) {
+		return false
+	}
+	return p.Level == NotificationLevelAll
+}
