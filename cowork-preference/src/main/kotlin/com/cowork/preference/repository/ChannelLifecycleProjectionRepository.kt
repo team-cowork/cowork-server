@@ -17,13 +17,14 @@ class ChannelLifecycleProjectionRepository {
         val rows = client.preparedQuery(
             """
             INSERT INTO tb_channel_lifecycle_projections
-                (channel_id, team_id, deleted, is_private, source_occurred_at)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5)
+                (channel_id, team_id, deleted, is_private, source_occurred_at, channel_type)
+            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6)
             ON CONFLICT (channel_id)
             DO UPDATE SET
                 team_id = EXCLUDED.team_id,
                 deleted = EXCLUDED.deleted,
                 is_private = EXCLUDED.is_private,
+                channel_type = COALESCE(EXCLUDED.channel_type, tb_channel_lifecycle_projections.channel_type),
                 source_occurred_at = EXCLUDED.source_occurred_at,
                 updated_at = now()
             WHERE (EXCLUDED.deleted OR NOT tb_channel_lifecycle_projections.deleted)
@@ -39,8 +40,8 @@ class ChannelLifecycleProjectionRepository {
                         EXCLUDED.source_occurred_at = tb_channel_lifecycle_projections.source_occurred_at
                         AND NOT EXCLUDED.deleted
                         AND NOT tb_channel_lifecycle_projections.deleted
-                        AND tb_channel_lifecycle_projections.is_private IS NULL
-                        AND EXCLUDED.is_private IS NOT NULL
+                        AND ((tb_channel_lifecycle_projections.is_private IS NULL AND EXCLUDED.is_private IS NOT NULL)
+                             OR (tb_channel_lifecycle_projections.channel_type IS NULL AND EXCLUDED.channel_type IS NOT NULL))
                     )
               )
             """.trimIndent(),
@@ -51,6 +52,7 @@ class ChannelLifecycleProjectionRepository {
                 event.deleted,
                 event.isPrivate,
                 event.occurredAt.atOffset(ZoneOffset.UTC),
+                event.channelType,
             ),
         ).coAwait()
         return rows.rowCount() == 1
@@ -59,7 +61,7 @@ class ChannelLifecycleProjectionRepository {
     suspend fun findForShare(client: SqlClient, channelId: Long): ChannelLifecycleProjection? {
         val rows = client.preparedQuery(
             """
-            SELECT channel_id, team_id, deleted, is_private, source_occurred_at
+            SELECT channel_id, team_id, deleted, is_private, source_occurred_at, channel_type
             FROM tb_channel_lifecycle_projections
             WHERE channel_id = ${'$'}1
             FOR SHARE
@@ -72,7 +74,7 @@ class ChannelLifecycleProjectionRepository {
     suspend fun findForRead(client: SqlClient, channelId: Long): ChannelLifecycleProjection? {
         val rows = client.preparedQuery(
             """
-            SELECT channel_id, team_id, deleted, is_private, source_occurred_at
+            SELECT channel_id, team_id, deleted, is_private, source_occurred_at, channel_type
             FROM tb_channel_lifecycle_projections
             WHERE channel_id = ${'$'}1
             """.trimIndent(),
@@ -85,6 +87,7 @@ class ChannelLifecycleProjectionRepository {
         teamId = getLong("team_id"),
         deleted = getBoolean("deleted"),
         isPrivate = getBoolean("is_private"),
+        channelType = getString("channel_type"),
         sourceOccurredAt = getOffsetDateTime("source_occurred_at").toInstant(),
     )
 }
