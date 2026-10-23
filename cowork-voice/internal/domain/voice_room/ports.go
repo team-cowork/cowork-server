@@ -34,8 +34,8 @@ type Repository interface {
 	GetParticipantJoinedAt(ctx context.Context, sessionID string, userID int64, occurrenceID string) (*time.Time, error)
 }
 
-type MembershipChecker interface {
-	VerifyMembership(ctx context.Context, channelID, userID int64) (int64, error)
+type ConnectPermissionChecker interface {
+	RequireConnect(ctx context.Context, channelID, userID int64) (int64, error)
 }
 
 type LiveKitParticipant struct {

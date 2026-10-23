@@ -5,272 +5,325 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"sync"
 	"time"
 
+	"github.com/cowork/cowork-voice/internal/apperr"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
-
-	"github.com/cowork/cowork-voice/internal/apperr"
 )
 
-const CollectionMemberships = "channel_memberships"
+const permissionCollection = "channel_permission_sources"
 
-var ErrInvalidEvent = errors.New("invalid channel member event")
+var ErrInvalidEvent = errors.New("invalid permission state event")
+var permissionTopics = []string{"channel.event.v2", "team.member.event", "preference.team-role.state.v2", "preference.channel-role-policy.state.v2"}
 
-type Membership struct {
-	ChannelID     int64     `bson:"channel_id"`
-	TeamID        int64     `bson:"team_id"`
-	UserID        int64     `bson:"user_id"`
-	Role          string    `bson:"role"`
-	ChannelType   string    `bson:"channel_type"`
-	Active        bool      `bson:"active"`
-	OccurredAt    time.Time `bson:"occurred_at"`
-	SourceVersion int64     `bson:"source_version"`
+func expectedSource(topic string) string {
+	switch topic {
+	case "channel.event.v2":
+		return "cowork-channel"
+	case "team.member.event":
+		return "cowork-team"
+	case "preference.team-role.state.v2", "preference.channel-role-policy.state.v2":
+		return "cowork-preference"
+	default:
+		return ""
+	}
 }
 
-type MembershipStore interface {
-	Upsert(ctx context.Context, membership Membership) error
-	Deactivate(ctx context.Context, membership Membership) error
+// State copies source facts. No channel/user membership or computed access row is stored.
+type State struct {
+	Key         string          `bson:"_id"`
+	Kind        string          `bson:"kind"`
+	TeamID      int64           `bson:"team_id"`
+	ChannelID   int64           `bson:"channel_id"`
+	UserID      int64           `bson:"user_id"`
+	RoleID      int64           `bson:"role_id"`
+	Role        string          `bson:"role"`
+	ChannelType string          `bson:"channel_type"`
+	Priority    int             `bson:"priority"`
+	Permissions map[string]bool `bson:"permissions"`
+	Deleted     bool            `bson:"deleted"`
+	Version     int64           `bson:"source_version"`
 }
 
-type CurrentHighChecker interface {
-	EstablishCurrent(ctx context.Context) error
+type CurrentHighChecker interface{ EstablishCurrent(context.Context) error }
+type StateStore interface {
+	Apply(context.Context, State) error
 }
-
-type membershipLookup interface {
-	FindActive(ctx context.Context, channelID, userID int64) (Membership, bool, error)
+type accessLookup interface {
+	Channel(context.Context, int64) (State, bool, error)
+	TeamStates(context.Context, int64) ([]State, error)
 }
-
-type mongoMembershipLookup struct {
-	col *mongo.Collection
-}
-
 type Projection struct {
 	col           *mongo.Collection
-	lookup        membershipLookup
+	lookup        accessLookup
 	currentHighMu sync.RWMutex
 	currentHigh   CurrentHighChecker
 }
 
 func NewProjection(db *mongo.Database) *Projection {
-	col := db.Collection(CollectionMemberships)
-	return &Projection{col: col, lookup: &mongoMembershipLookup{col: col}}
+	p := &Projection{col: db.Collection(permissionCollection)}
+	p.lookup = p
+	return p
 }
-
-// SetCurrentHighChecker completes the projection/consumer dependency cycle.
-// It must be called during wiring, before the HTTP server begins accepting work.
-func (p *Projection) SetCurrentHighChecker(checker CurrentHighChecker) {
+func (p *Projection) SetCurrentHighChecker(c CurrentHighChecker) {
 	p.currentHighMu.Lock()
-	p.currentHigh = checker
-	p.currentHighMu.Unlock()
+	defer p.currentHighMu.Unlock()
+	p.currentHigh = c
 }
-
 func CreateIndexes(ctx context.Context, db *mongo.Database) error {
-	_, err := db.Collection(CollectionMemberships).Indexes().CreateMany(ctx, []mongo.IndexModel{
-		{
-			Keys:    bson.D{{Key: "channel_id", Value: 1}, {Key: "user_id", Value: 1}},
-			Options: options.Index().SetUnique(true),
-		},
-		{
-			Keys: bson.D{{Key: "user_id", Value: 1}, {Key: "active", Value: 1}},
-		},
-	})
-	if err != nil {
-		return fmt.Errorf("channel membership projection index creation failed: %w", err)
-	}
-	return nil
+	_, err := db.Collection(permissionCollection).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{{Key: "team_id", Value: 1}, {Key: "kind", Value: 1}}})
+	return err
 }
-
-func (p *Projection) VerifyMembership(ctx context.Context, channelID, userID int64) (int64, error) {
-	p.currentHighMu.RLock()
-	currentHigh := p.currentHigh
-	p.currentHighMu.RUnlock()
-	if currentHigh == nil {
-		return 0, projectionUnavailable(
-			errors.New("current-high checker is not configured"),
-			channelID,
-			userID,
-		)
-	}
-	if err := currentHigh.EstablishCurrent(ctx); err != nil {
-		return 0, projectionUnavailable(err, channelID, userID)
-	}
-
-	membership, found, err := p.lookup.FindActive(ctx, channelID, userID)
-	if err != nil {
-		return 0, projectionUnavailable(err, channelID, userID)
-	}
-	if !found {
-		return 0, apperr.NotMember()
-	}
-	return membership.TeamID, nil
-}
-
-func (l *mongoMembershipLookup) FindActive(
-	ctx context.Context,
-	channelID, userID int64,
-) (Membership, bool, error) {
-	var membership Membership
-	err := l.col.FindOne(ctx, bson.D{
-		{Key: "channel_id", Value: channelID},
-		{Key: "user_id", Value: userID},
-		{Key: "team_id", Value: bson.D{{Key: "$gt", Value: int64(0)}}},
-		{Key: "active", Value: true},
-	}).Decode(&membership)
+func (p *Projection) Channel(ctx context.Context, id int64) (State, bool, error) {
+	var state State
+	err := p.col.FindOne(ctx, bson.M{"_id": fmt.Sprintf("channel:%d", id)}).Decode(&state)
 	if errors.Is(err, mongo.ErrNoDocuments) {
-		return Membership{}, false, nil
+		return state, false, nil
 	}
+	return state, err == nil, err
+}
+func (p *Projection) TeamStates(ctx context.Context, id int64) ([]State, error) {
+	cursor, err := p.col.Find(ctx, bson.M{"team_id": id, "kind": bson.M{"$ne": "channel"}})
 	if err != nil {
-		return Membership{}, false, err
+		return nil, err
 	}
-	return membership, true, nil
+	defer cursor.Close(ctx)
+	var states []State
+	err = cursor.All(ctx, &states)
+	return states, err
 }
-
-func projectionUnavailable(err error, channelID, userID int64) error {
-	slog.Error(
-		"channel membership projection currency/lookup failed",
-		"err", err,
-		"channel_id", channelID,
-		"user_id", userID,
-	)
-	return apperr.ServiceUnavailable("channel membership projection unavailable")
-}
-
-func (p *Projection) Upsert(ctx context.Context, membership Membership) error {
-	membership.Active = true
-	return p.apply(ctx, membership, false)
-}
-
-func (p *Projection) Deactivate(ctx context.Context, membership Membership) error {
-	membership.Active = false
-	return p.apply(ctx, membership, true)
-}
-
-func (p *Projection) apply(ctx context.Context, membership Membership, allowEqual bool) error {
-	comparison := "$lt"
-	if allowEqual {
-		comparison = "$lte"
+func (p *Projection) RequireConnect(ctx context.Context, channelID, userID int64) (int64, error) {
+	p.currentHighMu.RLock()
+	checker := p.currentHigh
+	p.currentHighMu.RUnlock()
+	if checker == nil {
+		return 0, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
 	}
-	filter := bson.D{
-		{Key: "channel_id", Value: membership.ChannelID},
-		{Key: "user_id", Value: membership.UserID},
-		{Key: "$or", Value: bson.A{
-			bson.D{{Key: "source_version", Value: bson.D{{Key: "$exists", Value: false}}}},
-			bson.D{{Key: "source_version", Value: bson.D{{Key: comparison, Value: membership.SourceVersion}}}},
-		}},
+	if err := checker.EstablishCurrent(ctx); err != nil {
+		return 0, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
 	}
-	update := bson.D{{Key: "$set", Value: membership}}
-	_, err := p.col.UpdateOne(ctx, filter, update, options.UpdateOne().SetUpsert(true))
+	ch, found, err := p.lookup.Channel(ctx, channelID)
+	if err != nil {
+		return 0, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+	}
+	if !found || ch.Deleted || ch.ChannelType != "VOICE" || ch.TeamID <= 0 {
+		return 0, apperr.PermissionDenied()
+	}
+	states, err := p.lookup.TeamStates(ctx, ch.TeamID)
+	if err != nil {
+		return 0, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+	}
+	if !canConnect(ch, userID, states) {
+		return 0, apperr.PermissionDenied()
+	}
+	return ch.TeamID, nil
+}
+func canConnect(ch State, userID int64, states []State) bool {
+	var member *State
+	var fence int64
+	roles := map[int64]State{}
+	policies := map[int64]State{}
+	assignments := []State{}
+	for _, s := range states {
+		if s.TeamID != ch.TeamID {
+			continue
+		}
+		switch s.Kind {
+		case "member":
+			if s.UserID == userID {
+				v := s
+				member = &v
+			}
+		case "member-fence":
+			if s.UserID == userID && s.Version > fence {
+				fence = s.Version
+			}
+		case "role":
+			if !s.Deleted {
+				roles[s.RoleID] = s
+			}
+		case "assignment":
+			if s.UserID == userID && !s.Deleted {
+				assignments = append(assignments, s)
+			}
+		case "policy":
+			if s.ChannelID == ch.ChannelID && !s.Deleted {
+				policies[s.RoleID] = s
+			}
+		}
+	}
+	if member == nil || member.Deleted {
+		return false
+	}
+	if member.Role == "OWNER" {
+		return true
+	}
+	found := false
+	highest := 0
+	allowed := false
+	for _, a := range assignments {
+		if a.Version <= fence {
+			continue
+		}
+		r, ok := roles[a.RoleID]
+		if !ok {
+			continue
+		}
+		permit := r.Permissions["voice_connect"]
+		if v, ok := policies[a.RoleID].Permissions["voice_connect"]; ok {
+			permit = v
+		}
+		if !found || r.Priority > highest {
+			found = true
+			highest = r.Priority
+			allowed = permit
+		} else if r.Priority == highest {
+			allowed = allowed && permit
+		}
+	}
+	return found && allowed
+}
+func (p *Projection) Apply(ctx context.Context, s State) error {
+	op := "$lt"
+	if s.Deleted {
+		op = "$lte"
+	}
+	filter := bson.M{"_id": s.Key, "$or": bson.A{bson.M{"source_version": bson.M{"$exists": false}}, bson.M{"source_version": bson.M{op: s.Version}}}}
+	_, err := p.col.UpdateOne(ctx, filter, bson.M{"$set": s}, options.UpdateOne().SetUpsert(true))
 	if mongo.IsDuplicateKeyError(err) {
-		// A newer event already owns the unique (channel_id, user_id) row. The stale
-		// event deliberately matches no row and its attempted upsert hits this key.
 		return nil
 	}
+	return err
+}
+
+type EventHandler struct{ store StateStore }
+
+func NewEventHandler(s StateStore) *EventHandler { return &EventHandler{store: s} }
+func (h *EventHandler) Handle(ctx context.Context, topic, key string, payload []byte) error {
+	s, err := parseState(topic, key, payload)
 	if err != nil {
-		return fmt.Errorf("apply channel membership projection: %w", err)
-	}
-	return nil
-}
-
-type EventHandler struct {
-	store MembershipStore
-}
-
-func NewEventHandler(store MembershipStore) *EventHandler {
-	return &EventHandler{store: store}
-}
-
-type memberEvent struct {
-	EventType   string `json:"eventType"`
-	ChannelID   int64  `json:"channelId"`
-	TeamID      *int64 `json:"teamId"`
-	UserID      int64  `json:"userId"`
-	Role        string `json:"role"`
-	ChannelType string `json:"channelType"`
-	OccurredAt  string `json:"occurredAt"`
-}
-
-var validMembershipRoles = map[string]struct{}{
-	"OWNER":  {},
-	"ADMIN":  {},
-	"MEMBER": {},
-}
-
-func validateMemberEventContract(event memberEvent) error {
-	if event.ChannelID <= 0 || event.UserID <= 0 {
-		return errors.New("channelId and userId must be positive")
-	}
-	if _, valid := validMembershipRoles[event.Role]; !valid {
-		return fmt.Errorf("unsupported role %q", event.Role)
-	}
-
-	switch event.ChannelType {
-	case "TEXT", "VOICE":
-		if event.TeamID == nil || *event.TeamID <= 0 {
-			return errors.New("teamId must be positive for a team channel")
-		}
-	case "DM":
-		if event.TeamID != nil {
-			return errors.New("teamId must be null for a DM channel")
-		}
-	default:
-		return fmt.Errorf("unsupported channelType %q", event.ChannelType)
-	}
-	return nil
-}
-
-func (h *EventHandler) Handle(ctx context.Context, key string, payload []byte) error {
-	var event memberEvent
-	if err := json.Unmarshal(payload, &event); err != nil {
-		return fmt.Errorf("%w: decode payload: %v", ErrInvalidEvent, err)
-	}
-	if err := validateMemberEventContract(event); err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidEvent, err)
 	}
-	expectedKey := fmt.Sprintf("%d:%d", event.ChannelID, event.UserID)
-	if key != expectedKey {
-		return fmt.Errorf("%w: key %q does not match %q", ErrInvalidEvent, key, expectedKey)
-	}
-	occurredAt, err := parseOccurredAt(event.OccurredAt)
-	if err != nil {
-		return fmt.Errorf("%w: occurredAt: %v", ErrInvalidEvent, err)
-	}
-	// DM membership events are valid source records, but cowork-voice requires
-	// a positive team identity and therefore does not project them.
-	if event.ChannelType == "DM" {
-		return nil
-	}
-	teamID := int64(0)
-	if event.TeamID != nil {
-		teamID = *event.TeamID
-	}
-	membership := Membership{
-		ChannelID:     event.ChannelID,
-		TeamID:        teamID,
-		UserID:        event.UserID,
-		Role:          event.Role,
-		ChannelType:   event.ChannelType,
-		OccurredAt:    occurredAt,
-		SourceVersion: occurredAt.UnixNano(),
-	}
-
-	switch event.EventType {
-	case "JOIN":
-		return h.store.Upsert(ctx, membership)
-	case "LEAVE":
-		return h.store.Deactivate(ctx, membership)
-	default:
-		return fmt.Errorf("%w: unsupported eventType %q", ErrInvalidEvent, event.EventType)
-	}
+	return h.store.Apply(ctx, s)
 }
-
-func parseOccurredAt(value string) (time.Time, error) {
-	parsed, err := time.Parse(time.RFC3339Nano, value)
-	if err != nil {
-		return time.Time{}, err
+func parseState(topic, key string, payload []byte) (State, error) {
+	var e struct {
+		EventType     string           `json:"eventType"`
+		TeamID        int64            `json:"teamId"`
+		ChannelID     int64            `json:"channelId"`
+		UserID        int64            `json:"userId"`
+		AccountID     int64            `json:"accountId"`
+		RoleID        int64            `json:"roleId"`
+		Role          string           `json:"role"`
+		Type          string           `json:"type"`
+		Priority      *int             `json:"priority"`
+		Permissions   map[string]*bool `json:"permissions"`
+		SchemaVersion int              `json:"schemaVersion"`
+		OccurredAt    string           `json:"occurredAt"`
 	}
-	return parsed.UTC(), nil
+	if err := json.Unmarshal(payload, &e); err != nil {
+		return State{}, err
+	}
+	version, err := parseOccurredAt(e.OccurredAt)
+	if err != nil {
+		return State{}, err
+	}
+	permissions := make(map[string]bool, len(e.Permissions))
+	for name, value := range e.Permissions {
+		if value == nil {
+			return State{}, errors.New("permission must be a boolean")
+		}
+		permissions[name] = *value
+	}
+	s := State{TeamID: e.TeamID, ChannelID: e.ChannelID, UserID: e.UserID, RoleID: e.RoleID, Role: e.Role, ChannelType: e.Type, Permissions: permissions, Version: version.UnixNano()}
+	expected := ""
+	switch topic {
+	case "channel.event.v2":
+		if e.ChannelID <= 0 || (e.Type != "TEXT" && e.Type != "VOICE" && e.Type != "DM") || (e.Type != "DM" && e.TeamID <= 0) || (e.Type == "DM" && e.TeamID != 0) {
+			return s, errors.New("invalid channel identity")
+		}
+		if e.EventType != "CREATED" && e.EventType != "UPDATED" && e.EventType != "DELETED" {
+			return s, errors.New("invalid channel event")
+		}
+		expected = fmt.Sprint(e.ChannelID)
+		s.Kind = "channel"
+		s.Key = "channel:" + expected
+		s.Deleted = e.EventType == "DELETED"
+	case "team.member.event":
+		if e.TeamID <= 0 || e.UserID <= 0 || (e.Role != "OWNER" && e.Role != "ADMIN" && e.Role != "MEMBER") || (e.EventType != "UPSERT" && e.EventType != "DELETE") {
+			return s, errors.New("invalid team member")
+		}
+		expected = fmt.Sprintf("%d:%d", e.TeamID, e.UserID)
+		s.Kind = "member"
+		s.Key = "member:" + expected
+		s.Deleted = e.EventType == "DELETE"
+	case "preference.team-role.state.v2":
+		if e.TeamID <= 0 {
+			return s, errors.New("invalid team")
+		}
+		switch e.EventType {
+		case "ROLE_UPSERTED", "ROLE_DELETED":
+			if e.RoleID <= 0 {
+				return s, errors.New("invalid role")
+			}
+			expected = fmt.Sprintf("role:%d:%d", e.TeamID, e.RoleID)
+			s.Kind = "role"
+			s.Deleted = e.EventType == "ROLE_DELETED"
+			if !s.Deleted {
+				if e.Priority == nil || e.Permissions == nil {
+					return s, errors.New("missing role permissions")
+				}
+				s.Priority = *e.Priority
+			}
+		case "ASSIGNMENT_UPSERTED", "ASSIGNMENT_DELETED":
+			if e.RoleID <= 0 || e.AccountID <= 0 {
+				return s, errors.New("invalid assignment")
+			}
+			expected = fmt.Sprintf("assignment:%d:%d:%d", e.TeamID, e.AccountID, e.RoleID)
+			s.Kind = "assignment"
+			s.UserID = e.AccountID
+			s.Deleted = e.EventType == "ASSIGNMENT_DELETED"
+		case "MEMBER_ASSIGNMENTS_DELETED":
+			if e.AccountID <= 0 {
+				return s, errors.New("invalid account")
+			}
+			expected = fmt.Sprintf("member:%d:%d", e.TeamID, e.AccountID)
+			s.Kind = "member-fence"
+			s.UserID = e.AccountID
+			s.Deleted = true
+		default:
+			return s, errors.New("invalid role event")
+		}
+		s.Key = "role-source:" + expected
+	case "preference.channel-role-policy.state.v2":
+		if e.TeamID <= 0 || e.ChannelID <= 0 || e.RoleID <= 0 || e.SchemaVersion != 2 || (e.EventType != "UPSERT" && e.EventType != "DELETE") {
+			return s, errors.New("invalid policy")
+		}
+		s.Deleted = e.EventType == "DELETE"
+		if (!s.Deleted && len(e.Permissions) == 0) || (s.Deleted && e.Permissions != nil) {
+			return s, errors.New("invalid policy permissions")
+		}
+		expected = fmt.Sprintf("policy:%d:%d:%d", e.TeamID, e.ChannelID, e.RoleID)
+		s.Key = expected
+		s.Kind = "policy"
+	default:
+		return s, errors.New("unexpected topic")
+	}
+	if key != expected {
+		return s, errors.New("state key mismatch")
+	}
+	return s, nil
+}
+func parseOccurredAt(value string) (time.Time, error) {
+	p, e := time.Parse(time.RFC3339Nano, value)
+	if e != nil {
+		return time.Time{}, e
+	}
+	if p.UnixNano() <= 0 || !time.Unix(0, p.UnixNano()).Equal(p) {
+		return time.Time{}, errors.New("invalid event time range")
+	}
+	return p.UTC(), nil
 }
