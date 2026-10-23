@@ -152,15 +152,10 @@ services:
         github.issue-write.result.v1
         github.issue-write.result.v1-dlt
         github.repo.state.v1
-        github.repo.state.v1-dlt
         github.issue.state.v1
-        github.issue.state.v1-dlt
         github.pull-request.state.v1
-        github.pull-request.state.v1-dlt
         github.label.state.v1
-        github.label.state.v1-dlt
         github.issue-comment.state.v1
-        github.issue-comment.state.v1-dlt
         github.sync.command.v1
       KAFKA_COMPACTED_TOPICS: >-
         user.profile.event.v2

@@ -7,7 +7,7 @@ import {
 import {AttachmentDownloadService} from './attachment-download.service';
 
 const messageId = '123456789012345678901234';
-const attachment = {objectKey: 'chat-files/1/42/file.png'};
+const attachment = {objectKey: 'chat-files/1/42/file.png', name: '회의록.png'};
 
 describe('AttachmentDownloadService', () => {
     const messages = {findByIdAndChannelId: jest.fn()};
@@ -26,7 +26,7 @@ describe('AttachmentDownloadService', () => {
         const result = await service.execute(1, 7, messageId, 0);
         expect(readAccess.requireCanRead).toHaveBeenCalledWith(1, 7);
         expect(messages.findByIdAndChannelId).toHaveBeenCalledWith(messageId, 1);
-        expect(storage.createPresignedDownload).toHaveBeenCalledWith(attachment.objectKey, 1, 42);
+        expect(storage.createPresignedDownload).toHaveBeenCalledWith(attachment.objectKey, 1, 42, attachment.name);
         expect(result.expiresInSeconds).toBe(60);
     });
 
