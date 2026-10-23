@@ -182,8 +182,8 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "targets": [
         {
-          "expr": "preference_cache_repair_pending{service=\"preference\"}",
-          "legendFormat": "{{instance}}",
+          "expr": "sum(preference_cache_repair_pending{service=\"preference\"})",
+          "legendFormat": "복구 대기",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
           "instant": false,
@@ -199,6 +199,7 @@
           "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
         }
       },
+      "description": "인스턴스마다 따로 쌓이는 캐시 복구 대기 건수를 합한 값입니다.",
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
@@ -228,8 +229,8 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
       "targets": [
         {
-          "expr": "preference_cache_circuit_open{service=\"preference\"}",
-          "legendFormat": "{{instance}}",
+          "expr": "max(preference_cache_circuit_open{service=\"preference\"})",
+          "legendFormat": "Redis 캐시",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
           "instant": false,
@@ -247,7 +248,7 @@
           "custom": { "fillOpacity": 80, "lineWidth": 0 }
         }
       },
-      "description": "CLOSED는 Redis 호출을 허용하고, OPEN은 연속 실패로 호출을 일시 중단한 상태입니다.",
+      "description": "CLOSED는 Redis 호출을 허용하고, OPEN은 연속 실패로 호출을 일시 중단한 상태입니다. 인스턴스 하나라도 OPEN이면 OPEN입니다.",
       "options": { "mergeValues": true, "rowHeight": 0.8, "showValue": "auto", "alignValue": "left", "legend": {"showLegend": false}, "tooltip": {"mode": "single", "sort": "none"} }
     }
   ],
