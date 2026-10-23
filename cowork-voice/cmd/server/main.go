@@ -87,12 +87,18 @@ func main() {
 	}
 	if err := channel.CreateIndexes(indexCtx, db); err != nil {
 		indexCancel()
-		slog.Error("channel membership projection index creation failed", "err", err)
+		slog.Error("channel permission projection index creation failed", "err", err)
 		os.Exit(1)
 	}
 	if err := channel.CreateCheckpointIndexes(indexCtx, db); err != nil {
 		indexCancel()
-		slog.Error("channel membership projection checkpoint index creation failed", "err", err)
+		slog.Error("channel permission projection checkpoint index creation failed", "err", err)
+		os.Exit(1)
+	}
+	permissionCheckpoints, err := channel.NewMongoCheckpointStore(indexCtx, db)
+	if err != nil {
+		indexCancel()
+		slog.Error("permission checkpoint initialization failed", "err", err)
 		os.Exit(1)
 	}
 	indexCancel()
@@ -109,23 +115,22 @@ func main() {
 		cfg.LiveKitAPISecret,
 	)
 
-	channelMemberships := channel.NewProjection(db)
+	channelPermissions := channel.NewProjection(db)
 	projectionReadiness := health.NewReadiness()
-	channelMembershipConsumer, err := channel.NewConsumer(
+	channelPermissionConsumer, err := channel.NewConsumer(
 		cfg.KafkaBrokers,
-		cfg.KafkaTopicChannelMember,
-		cfg.KafkaGroupIDChannelMember,
-		channel.NewEventHandler(channelMemberships),
-		channel.NewMongoCheckpointStore(db),
+		cfg.KafkaGroupIDChannelAccess,
+		channel.NewEventHandler(channelPermissions),
+		permissionCheckpoints,
 		projectionReadiness,
 	)
 	if err != nil {
-		slog.Error("channel membership consumer init failed", "err", err)
+		slog.Error("channel permission consumer init failed", "err", err)
 		os.Exit(1)
 	}
-	channelMemberships.SetCurrentHighChecker(channelMembershipConsumer)
+	channelPermissions.SetCurrentHighChecker(channelPermissionConsumer)
 	runtimeCtx, runtimeCancel := context.WithCancel(context.Background())
-	channelMembershipConsumer.Start(runtimeCtx)
+	channelPermissionConsumer.Start(runtimeCtx)
 	sessionRepo := mongoinfra.NewMongoSessionRepository(db)
 	outboxRepo := mongoinfra.NewOutboxRepository(db)
 	livekitRoom := lkinfra.NewLiveKitRoom(
@@ -134,7 +139,7 @@ func main() {
 		cfg.LiveKitAPISecret,
 		cfg.LiveKitTokenTTLSecs,
 	)
-	roomSvc := roomdomain.NewRoomService(sessionRepo, channelMemberships, livekitRoom, cfg.LiveKitWsURL)
+	roomSvc := roomdomain.NewRoomService(sessionRepo, channelPermissions, livekitRoom, cfg.LiveKitWsURL)
 	roomHandler := roomdomain.NewHandler(roomSvc)
 	webhookSvc := webhookdomain.NewWebhookService(sessionRepo)
 
@@ -146,7 +151,7 @@ func main() {
 		cfg.LiveKitAPISecret,
 		cfg.LiveKitTokenTTLSecs,
 	)
-	liveSvc := livedomain.NewLiveService(liveMongoRepo, channelMemberships, liveLKRoom, cfg.LiveKitWsURL)
+	liveSvc := livedomain.NewLiveService(liveMongoRepo, channelPermissions, liveLKRoom, cfg.LiveKitWsURL)
 	liveHandler := livedomain.NewHandler(liveSvc)
 	liveWebhookSvc := webhookdomain.NewLiveWebhookService(liveMongoRepo, liveLKRoom)
 
@@ -227,8 +232,8 @@ func main() {
 		slog.Error("server shutdown error", "err", err)
 	}
 	outboxRelay.Stop()
-	if err := channelMembershipConsumer.Stop(); err != nil {
-		slog.Error("channel membership consumer close error", "err", err)
+	if err := channelPermissionConsumer.Stop(); err != nil {
+		slog.Error("channel permission consumer close error", "err", err)
 	}
 	if err := kafkaProducer.Close(); err != nil {
 		slog.Error("kafka producer close error", "err", err)
