@@ -74,4 +74,20 @@ class SettingStateEventsTest {
         assertEquals(true, event.payload.getBoolean("snapshot"))
         assertNull(event.payload.getValue("tag_spam_block"))
     }
+
+    @Test
+    fun `텍스트 채널 설정 state는 슬로우 모드 간격을 채널 키로 싣고 없으면 0으로 보낸다`() {
+        val enabled = PreferenceEvents.textChannelSettingState(
+            11L,
+            JsonObject().put("slowmode_seconds", 30),
+            occurredAt,
+            snapshot = false,
+        )
+        val unset = PreferenceEvents.textChannelSettingState(12L, JsonObject(), occurredAt, snapshot = true)
+
+        assertEquals(PreferenceEvents.TEXT_CHANNEL_SETTING_STATE_TOPIC, enabled.topic)
+        assertEquals("11", enabled.key)
+        assertEquals(30, enabled.payload.getInteger("slowmodeSeconds"))
+        assertEquals(0, unset.payload.getInteger("slowmodeSeconds"))
+    }
 }
