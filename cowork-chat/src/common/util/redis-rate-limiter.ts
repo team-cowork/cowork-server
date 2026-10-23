@@ -100,4 +100,26 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
             return true;
         }
     }
+
+    /**
+     `key`가 없을 때만 `ttlMs` 동안 점유한다.
+
+     @returns 점유했으면 `true`, 이미 점유 중이면 `false`. Redis 오류 시에는 `true`(fail-open)를 반환한다.
+     */
+    async tryReserve(key: string, ttlMs: number): Promise<boolean> {
+        try {
+            return (await this.client.set(key, '1', 'PX', ttlMs, 'NX')) === 'OK';
+        } catch (error) {
+            this.logger.warn(`Reservation failed, failing open [key=${key}]`, error);
+            return true;
+        }
+    }
+
+    async release(key: string): Promise<void> {
+        try {
+            await this.client.del(key);
+        } catch (error) {
+            this.logger.warn(`Reservation release failed [key=${key}]`, error);
+        }
+    }
 }
