@@ -264,8 +264,8 @@ export function isCheckpointWithinRetainedRange(
 
 /**
  정상적인 삭제 이벤트 처리로 생기는 document count 변동과, DB 복원·수동 삭제 같은 외부 개입으로
- 생기는 급격한 유실을 구분한다. 절대값과 비율을 모두 넘는 감소만 의심스럽다고 판정해, 작은
- 컬렉션의 정상적인 등락이나 실제로는 적은 수의 정상 삭제를 오탐하지 않는다.
+ 생기는 급격한 유실을 구분한다. 전체 유실은 크기와 무관하게 감지하고, 일부 유실에는
+ 절대값과 비율 임계값을 함께 적용해 작은 변동을 오탐하지 않는다.
  */
 export function isSuspiciousDocumentCountDrop(
     baseline: number,
@@ -274,6 +274,10 @@ export function isSuspiciousDocumentCountDrop(
 ): boolean {
     if (baseline <= 0 || observed >= baseline) {
         return false;
+    }
+
+    if (observed === 0) {
+        return true;
     }
 
     const minAbsoluteDrop = options.minAbsoluteDrop ?? MIN_DOCUMENT_COUNT_DROP;
