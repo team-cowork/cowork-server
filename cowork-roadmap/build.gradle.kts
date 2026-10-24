@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.spotless)
 }
 
-version = "20261023.0"
+version = "20261024.0"
 
 repositories {
     maven { url = uri("https://jitpack.io") }
