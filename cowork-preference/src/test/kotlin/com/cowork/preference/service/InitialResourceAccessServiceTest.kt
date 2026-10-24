@@ -200,6 +200,88 @@ class InitialResourceAccessServiceTest {
     }
 
     @Test
+    fun `같은 멤버 버전의 권한 메타데이터가 없으면 초기 접근을 재시도한다`() {
+        assertAuthorizationRepairRetry(null)
+    }
+
+    @Test
+    fun `같은 멤버 버전의 권한 메타데이터가 승인 버전보다 뒤처지면 초기 접근을 재시도한다`() {
+        assertAuthorizationRepairRetry(VERSION.minusSeconds(2))
+    }
+
+    private fun assertAuthorizationRepairRetry(currentAuthorizationVersion: Instant?) {
+        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(
+            authorizationVersion = currentAuthorizationVersion,
+        )
+        val approvedVersion = VERSION.minusSeconds(1)
+
+        assertThrows<IllegalStateException> {
+            runBlocking {
+                service.channel(client, channelEvent.copy(
+                    initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = approvedVersion),
+                ), channel)
+            }
+        }
+        assertThrows<IllegalStateException> {
+            runBlocking {
+                service.project(client, projectEvent.copy(
+                    initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, approvedVersion),
+                ), project)
+            }
+        }
+
+        coVerify(exactly = 0) { policies.upsertPolicy(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { projectRoles.assignRole(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `같은 멤버 버전의 권한 보정이 완료됐으면 승인한 초기 접근을 허용한다`() = runBlocking {
+        val approvedVersion = VERSION.minusSeconds(1)
+        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(authorizationVersion = approvedVersion)
+
+        service.channel(client, channelEvent.copy(
+            initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = approvedVersion),
+        ), channel)
+        assertTrue(service.project(client, projectEvent.copy(
+            initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, approvedVersion),
+        ), project))
+
+        coVerify { policies.upsertPolicy(client, TEAM, CHANNEL, ROLE, any()) }
+        coVerify { projectRoles.assignRole(ACTOR, PROJECT, "초기 접근", client) }
+    }
+
+    @Test
+    fun `같은 멤버 버전에서도 권한 버전이 승인보다 앞서면 이전 초기 접근을 거부한다`() = runBlocking {
+        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(authorizationVersion = VERSION)
+        val approvedVersion = VERSION.minusSeconds(1)
+
+        service.channel(client, channelEvent.copy(
+            initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = approvedVersion),
+        ), channel)
+        assertFalse(service.project(client, projectEvent.copy(
+            initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, approvedVersion),
+        ), project))
+
+        coVerify(exactly = 0) { policies.upsertPolicy(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { projectRoles.assignRole(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `삭제된 멤버의 권한 메타데이터 누락은 보정을 기다리지 않고 초기 접근을 거부한다`() = runBlocking {
+        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(deleted = true)
+
+        service.channel(client, channelEvent.copy(
+            initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = VERSION),
+        ), channel)
+        assertFalse(service.project(client, projectEvent.copy(
+            initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, VERSION),
+        ), project))
+
+        coVerify(exactly = 0) { policies.upsertPolicy(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { projectRoles.assignRole(any(), any(), any(), any()) }
+    }
+
+    @Test
     fun `팀 상태가 뒤처지면 초기 접근을 완료하지 않고 트랜잭션 재시도를 요청한다`() {
         coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(sourceOccurredAt = VERSION.minusSeconds(1))
 
