@@ -43,6 +43,9 @@ class TeamRoleProjection(
 
     @Column(name = "source_occurred_at", nullable = false)
     var sourceOccurredAt: Instant,
+
+    @Column(name = "is_default", nullable = false)
+    var isDefault: Boolean = false,
 ) {
     fun applyUpsert(
         name: String,
@@ -51,7 +54,10 @@ class TeamRoleProjection(
         mentionable: Boolean,
         permissionsJson: String,
         occurredAt: Instant,
+        isDefault: Boolean = false,
     ) {
+        // 역할 ID의 기본 역할 여부는 생성 후 바뀌지 않는다.
+        this.isDefault = this.isDefault || isDefault
         this.name = name
         this.colorHex = colorHex
         this.priority = priority

@@ -27,7 +27,7 @@ class CopySharedAccountCredentialServiceImpl(
     override fun copyCredential(userId: Long, channelId: Long, accountId: Long): String {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         sharedAccountAccessGuard.requireAccountShareChannel(channel)
-        teamPermissionService.requireTeamMember(channelAccessGuard.requireTeamChannel(channel), userId)
+        teamPermissionService.requireChannelAccess(channel, userId)
         val account = lookupSupport.findAccountOrThrow(accountId, channelId)
 
         if (account.credential == null) {

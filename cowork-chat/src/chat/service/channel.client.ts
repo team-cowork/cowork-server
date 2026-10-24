@@ -3,6 +3,7 @@ import {ChannelProjectionRepository} from '../repository';
 
 export type ChannelInfo = {
     id: number;
+    teamId: number | null;
     viewType: string;
 };
 
@@ -22,6 +23,6 @@ export class ChannelClient {
             throw new ServiceUnavailableException('채널 정보가 아직 동기화되지 않았습니다');
         }
 
-        return {id: channel.channelId, viewType: channel.viewType};
+        return {id: channel.channelId, teamId: channel.teamId ?? null, viewType: channel.viewType};
     }
 }

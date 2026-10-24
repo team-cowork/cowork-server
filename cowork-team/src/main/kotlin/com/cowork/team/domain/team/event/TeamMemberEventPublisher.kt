@@ -28,6 +28,7 @@ class TeamMemberEventPublisher(
         publishMutation(member, deleted = true, occurredAt = occurredAt)
 
     fun publishSnapshot(state: TeamMemberEventState) {
+        state.normalizeAuthorizationVersion()
         entityManager.flush()
         enqueue(state, snapshot = true)
     }
@@ -59,7 +60,9 @@ class TeamMemberEventPublisher(
             userId = state.userId,
             role = state.role.name,
             teamName = state.teamName,
+            nickname = state.nickname,
             occurredAt = state.stateOccurredAt,
+            authorizationVersion = checkNotNull(state.authorizationVersion),
             snapshot = snapshot,
         )
         val key = "${event.teamId}:${event.userId}"

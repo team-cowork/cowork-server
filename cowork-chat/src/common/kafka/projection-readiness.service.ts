@@ -150,6 +150,7 @@ type ProjectionCatchupState = {
     startOffsets: Map<number, string>;
     activatedDatasetGeneration?: string;
     catchupStartedAt: number;
+    lastDocumentCountCheckAt?: number;
     ready: boolean;
     checkPromise?: Promise<void>;
     pollTimer?: NodeJS.Timeout;
@@ -181,6 +182,15 @@ type ProjectionAdminConnection = {
 };
 
 const POLL_INTERVAL_MS = 1000;
+/**
+ 매 poll(1초)마다 document count를 정확히 세면 대용량 컬렉션에 상시 부하를 준다. 외부 개입으로 인한
+ 유실은 초 단위로 빠르게 잡을 이유가 없으므로, 훨씬 느슨한 주기로만 추정치를 다시 확인한다.
+ */
+const DOCUMENT_COUNT_CHECK_INTERVAL_MS = Number(
+    process.env.CHAT_PROJECTION_DOCUMENT_COUNT_CHECK_INTERVAL_MS ?? 60_000,
+);
+const MIN_DOCUMENT_COUNT_DROP = Number(process.env.CHAT_PROJECTION_PARTIAL_LOSS_MIN_DOCUMENTS ?? 20);
+const MIN_DOCUMENT_COUNT_DROP_RATIO = Number(process.env.CHAT_PROJECTION_PARTIAL_LOSS_MIN_RATIO ?? 0.2);
 /**
  Kafkajs RequestQueue는 broker throttling 등으로 pending queue에 남은 요청에는 requestTimeout을
  적용하지 않아(inflight 요청만 sweep한다) 한 번 막힌 admin 커넥션이 영원히 응답하지 않을 수 있다.
@@ -250,6 +260,30 @@ export function isCheckpointWithinRetainedRange(
 ): boolean {
     return compareOffsets(checkpoint, target.low) >= 0
         && compareOffsets(checkpoint, target.high) <= 0;
+}
+
+/**
+ 정상적인 삭제 이벤트 처리로 생기는 document count 변동과, DB 복원·수동 삭제 같은 외부 개입으로
+ 생기는 급격한 유실을 구분한다. 전체 유실은 크기와 무관하게 감지하고, 일부 유실에는
+ 절대값과 비율 임계값을 함께 적용해 작은 변동을 오탐하지 않는다.
+ */
+export function isSuspiciousDocumentCountDrop(
+    baseline: number,
+    observed: number,
+    options: {minAbsoluteDrop?: number; minRatio?: number} = {},
+): boolean {
+    if (baseline <= 0 || observed >= baseline) {
+        return false;
+    }
+
+    if (observed === 0) {
+        return true;
+    }
+
+    const minAbsoluteDrop = options.minAbsoluteDrop ?? MIN_DOCUMENT_COUNT_DROP;
+    const minRatio = options.minRatio ?? MIN_DOCUMENT_COUNT_DROP_RATIO;
+    const drop = baseline - observed;
+    return drop >= minAbsoluteDrop && drop / baseline >= minRatio;
 }
 
 /**
@@ -677,8 +711,9 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         stream: ProjectionStream,
         targets: StartupPartitionOffset[],
     ): Promise<ProjectionDatasetState> {
-        const [dataset, checkpoints, documentCount] = await Promise.all([
-            this.datasets.find(name),
+        // Read the dataset first so checkpoints cannot predate an already observed rebuild generation.
+        const dataset = await this.datasets.find(name);
+        const [checkpoints, documentCount] = await Promise.all([
             this.checkpoints.findAll(stream.groupId, stream.topic),
             this.datasets.countProjection(name),
         ]);
@@ -699,7 +734,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         }
 
         if (dataset.groupId !== stream.groupId || dataset.topic !== stream.topic) {
-            return this.datasets.markRebuildRequired(stream, 'Projection dataset stream identity changed');
+            return this.datasets.markRebuildRequired(stream, 'Projection dataset stream identity changed', dataset);
         }
 
         if (dataset.sourceGeneration !== stream.sourceGeneration) {
@@ -707,6 +742,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                 stream,
                 `Projection source generation mismatch: stored=${dataset.sourceGeneration} `
                 + `configured=${stream.sourceGeneration}`,
+                dataset,
             );
         }
 
@@ -714,14 +750,16 @@ export class ProjectionReadinessService implements OnModuleDestroy {
             return dataset;
         }
 
-        if (dataset.status === 'ACTIVE'
-            && dataset.activationDocumentCount > 0
-            && documentCount === 0) {
-            return this.datasets.markRebuildRequired(
-                stream,
-                'Projection collection was cleared after activation '
-                + `(expectedAtLeast=${dataset.activationDocumentCount})`,
-            );
+        if (dataset.status === 'ACTIVE') {
+            const baseline = dataset.lastObservedDocumentCount ?? dataset.activationDocumentCount;
+            if (isSuspiciousDocumentCountDrop(baseline, documentCount)) {
+                return this.datasets.markRebuildRequired(
+                    stream,
+                    'Projection collection lost documents since it was last observed '
+                    + `(baseline=${baseline}, observed=${documentCount})`,
+                    dataset,
+                );
+            }
         }
 
         const targetByPartition = new Map(targets.map(target => [target.partition, target]));
@@ -732,6 +770,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                 return this.datasets.markRebuildRequired(
                     stream,
                     `Projection checkpoint generation mismatch: ${stream.topic}[${checkpoint.partition}]`,
+                    dataset,
                 );
             }
 
@@ -740,6 +779,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                     stream,
                     `Projection checkpoint is outside retained log: ${stream.topic}[${checkpoint.partition}] `
                     + `checkpoint=${checkpoint.offset} retained=${target?.low ?? 'missing'}-${target?.high ?? 'missing'}`,
+                    dataset,
                 );
             }
         }
@@ -752,6 +792,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                     stream,
                     `Projection checkpoint partition set is incomplete: stored=${partitions.join(',')} `
                     + `broker=${expected.join(',')}`,
+                    dataset,
                 );
             }
 
@@ -761,6 +802,20 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                 return this.datasets.markRebuildRequired(
                     stream,
                     'Active projection dataset has no valid snapshot barrier',
+                    dataset,
+                );
+            }
+
+            // eslint-disable-next-line no-warning-comments -- Tracked compatibility cleanup with a deployment-dependent deadline.
+            // TODO(#596): 2026-11-01 05:00 KST 이후 구형 Kafka·Mongo stamp 보정과 rollback 종료 확인 후 이 자동 재구축 및 누락 조회 제거.
+            // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+            if (name === 'projectPermission' && await this.datasets.hasLegacyProjectPermission()) {
+                return this.datasets.requestRebuild(
+                    stream,
+                    'Project permission membership stamp is missing from legacy documents',
+                    targets.map(({partition, low}) => ({partition, offset: low})),
+                    targets.map(({partition, high}) => ({partition, offset: high})),
+                    dataset.datasetGeneration,
                 );
             }
         }
@@ -1480,12 +1535,46 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                     invalidRecordOffset === undefined ? [] : [[partition, invalidRecordOffset] as const]
                 )),
             );
+            if (state.dataset.status === 'ACTIVE' && await this.checkDocumentCountContinuity(name, state)) {
+                return;
+            }
+
             await this.updateReady(name, state);
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             this.closeStreamReadiness(name, state);
             this.logger.warn(`Kafka projection catch-up check failed [topic=${state.stream.topic}]: ${message}`);
         }
+    }
+
+    /**
+     DOCUMENT_COUNT_CHECK_INTERVAL_MS마다 한 번씩만 추정치를 다시 확인해, 매초 도는 catch-up
+     poll에서 대용량 컬렉션에 상시 count 부하를 주지 않는다. 의심스러운 감소를 찾으면 그 stream을
+     rebuild 대상으로 돌리고 true를 반환해, 호출자가 이번 tick의 readiness 판정을 건너뛰게 한다.
+     */
+    private async checkDocumentCountContinuity(name: ProjectionName, state: ProjectionCatchupState): Promise<boolean> {
+        const now = Date.now();
+        if (state.lastDocumentCountCheckAt !== undefined
+            && now - state.lastDocumentCountCheckAt < DOCUMENT_COUNT_CHECK_INTERVAL_MS) {
+            return false;
+        }
+
+        state.lastDocumentCountCheckAt = now;
+        const baseline = state.dataset.lastObservedDocumentCount ?? state.dataset.activationDocumentCount;
+        const observed = await this.datasets.estimateProjectionCount(name);
+        if (isSuspiciousDocumentCountDrop(baseline, observed)) {
+            await this.markStreamUnrecoverable(
+                name,
+                state,
+                'Projection collection lost documents while active '
+                + `(baseline=${baseline}, observed=${observed})`,
+            );
+            return true;
+        }
+
+        await this.datasets.recordObservedDocumentCount(name, state.dataset.datasetGeneration, observed);
+        state.dataset = {...state.dataset, lastObservedDocumentCount: observed};
+        return false;
     }
 
     private async updateReady(name: ProjectionName, state: ProjectionCatchupState): Promise<void> {
@@ -1575,7 +1664,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         state: ProjectionCatchupState,
         reason: string,
     ): Promise<void> {
-        state.dataset = await this.datasets.markRebuildRequired(state.stream, reason);
+        state.dataset = await this.datasets.markRebuildRequired(state.stream, reason, state.dataset);
         this.closeStreamReadiness(name, state);
         const partitions = [...state.localAssignmentLeases.keys()];
         if (partitions.length > 0) {

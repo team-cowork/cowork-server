@@ -6,6 +6,7 @@ import {
     TeamRoleProjectionRepository,
     TextChannelSettingProjectionRepository,
 } from '../repository';
+import {hasChannelPermission} from './channel-permission';
 
 export const SLOWMODE_BYPASS_PERMISSION = 'slowmode_bypass';
 const BYPASS_TEAM_ROLES = new Set(['OWNER', 'ADMIN']);
@@ -18,39 +19,27 @@ export type SlowmodeReservation = {
 export type SlowmodeBypassInput = {
     teamId: number;
     teamRole: string | undefined;
-    roles: Array<{roleId: number; teamId: number; priority: number; permissions: Record<string, boolean>}>;
+    roles: Array<{roleId: number; teamId: number; priority: number; isDefault?: boolean; permissions: Record<string, boolean>}>;
     channelPermissionsByRoleId: Map<number, Record<string, boolean>>;
 };
 
 /**
- OWNER, ADMIN은 항상 우회한다. 그 외에는 채널 덮어쓰기에 `slowmode_bypass` 명시값이 있는 역할 중 priority가 가장 높은 값을
- 따르고(같은 priority에서 충돌하면 거부), 명시값이 없으면 역할 기본 권한 중 하나라도 허용이면 우회한다.
- */
+Only active members can bypass; role and channel grants follow the shared permission rules.
+*/
 export function canBypassSlowmode(input: SlowmodeBypassInput): boolean {
-    if (input.teamRole !== undefined && BYPASS_TEAM_ROLES.has(input.teamRole)) {
+    if (input.teamRole === undefined) {
+        return false;
+    }
+
+    if (BYPASS_TEAM_ROLES.has(input.teamRole)) {
         return true;
     }
 
-    const roles = input.roles.filter(role => role.teamId === input.teamId);
-    let selectedPriority: number | undefined;
-    let isSelected = false;
-    for (const role of roles) {
-        const override = input.channelPermissionsByRoleId.get(role.roleId)?.[SLOWMODE_BYPASS_PERMISSION];
-        if (typeof override !== 'boolean') {
-            continue;
-        }
-
-        if (selectedPriority === undefined || role.priority > selectedPriority) {
-            selectedPriority = role.priority;
-            isSelected = override;
-        } else if (role.priority === selectedPriority && !override) {
-            isSelected = false;
-        }
-    }
-
-    return selectedPriority === undefined
-        ? roles.some(role => role.permissions[SLOWMODE_BYPASS_PERMISSION] ?? false)
-        : isSelected;
+    return hasChannelPermission(
+        input.roles.filter(role => role.teamId === input.teamId),
+        input.channelPermissionsByRoleId,
+        SLOWMODE_BYPASS_PERMISSION,
+    );
 }
 
 @Injectable()
@@ -108,8 +97,15 @@ export class SlowmodeService {
             return true;
         }
 
-        const assignments = await this.teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds([teamId], [userId]);
-        const roleIds = assignments.map(({roleId}) => roleId);
+        if (member === undefined) {
+            return false;
+        }
+
+        const [assignments, defaults] = await Promise.all([
+            this.teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds([teamId], [userId]),
+            this.teamRoleRepository.findDefaultRolesByTeamIds([teamId]),
+        ]);
+        const roleIds = [...new Set([...assignments, ...defaults].map(({roleId}) => roleId))];
         const [roles, policies] = await Promise.all([
             this.teamRoleRepository.findRolePermissionsByIds(roleIds),
             this.policyRepository.findPermissionsByChannelIdAndRoleIds(channelId, roleIds),
@@ -117,7 +113,7 @@ export class SlowmodeService {
         return canBypassSlowmode({
             teamId,
             teamRole: member?.role,
-            roles,
+            roles: [...roles, ...defaults.map(role => ({...role, permissions: role.permissions ?? {}}))],
             channelPermissionsByRoleId: new Map(policies
                 .filter(policy => policy.teamId === teamId)
                 .map(policy => [policy.roleId, policy.permissions])),
