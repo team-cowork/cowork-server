@@ -24,6 +24,7 @@ type ProjectPermissionEvent = {
     read: boolean;
     write: boolean;
     occurredAt: string;
+    // TODO(#596): 구버전 outbox·Kafka 보존 레코드 갱신과 rollback 종료 후 membership stamp 누락 허용·ZERO 대체를 제거한다.
     sourceMembershipVersion?: string;
     snapshot?: boolean;
 };

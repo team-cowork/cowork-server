@@ -93,6 +93,7 @@ data class TeamRoleResultRole(
     val permissions: Map<String, Boolean>,
     val createdAt: String?,
     val updatedAt: String?,
+    // TODO(#596): 구형 결과 재생·재전송 종료와 저장 결과 보정 후 isDefault 누락 기본값을 제거한다.
     @field:JsonProperty("isDefault")
     val isDefault: Boolean = false,
 )

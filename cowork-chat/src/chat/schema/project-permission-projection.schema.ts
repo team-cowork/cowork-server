@@ -11,6 +11,7 @@ export class ProjectPermissionProjection {
     @Prop({required: true, default: false}) write!: boolean;
     @Prop({required: true, type: Date}) sourceOccurredAt!: Date;
     @Prop({required: true}) sourceVersion!: bigint;
+    // TODO(#596): 보존 Kafka 이벤트와 Mongo 권한 문서의 stamp 보강·구버전 rollback 종료 후 default 옵션만 제거한다.
     @Prop({required: true, default: 0n}) sourceMembershipVersion!: bigint;
 }
 

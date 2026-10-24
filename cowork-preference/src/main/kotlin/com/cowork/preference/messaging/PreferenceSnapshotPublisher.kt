@@ -36,6 +36,7 @@ class PreferenceSnapshotPublisher(
         upstreamReadiness = teamStateReadiness,
     ) { connection ->
         val notificationCount = publishNotificationSettings(connection)
+        // TODO(#596): 모든 기존 팀의 @everyone 생성·상태 전파 완료 후 이 보정 블록과 findTeamsMissingDefaultRole을 제거한다.
         outboxRepository.inTransaction(connection) { client ->
             teamRoleRepository.findTeamsMissingDefaultRole(client).forEach { teamId ->
                 teamRoleRepository.ensureDefaultRole(client, teamId)?.let { role ->
