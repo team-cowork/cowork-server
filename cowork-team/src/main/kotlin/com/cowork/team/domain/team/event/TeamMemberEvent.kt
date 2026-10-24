@@ -10,5 +10,6 @@ data class TeamMemberEvent(
     val teamName: String,
     val nickname: String?,
     val occurredAt: Instant,
+    val authorizationVersion: Instant,
     val snapshot: Boolean = false,
 )
