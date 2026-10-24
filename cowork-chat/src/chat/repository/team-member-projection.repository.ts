@@ -19,6 +19,7 @@ export type TeamMemberProjectionView = {
 };
 
 export type VersionedTeamMemberProjectionView = {
+    nickname: string | null;
     occurredAt: Date;
     sourceVersion: mongo.Long;
 } & TeamMemberProjectionView;
@@ -51,6 +52,20 @@ export class TeamMemberProjectionRepository {
         ).lean<TeamMemberProjectionView[]>();
     }
 
+    async findNicknames(teamId: number, userIds: number[]): Promise<Map<number, string>> {
+        if (userIds.length === 0) {
+            return new Map();
+        }
+
+        const members = await this.model.find(
+            {
+                teamId, userId: {$in: userIds}, deleted: {$ne: true}, nickname: {$nin: [null, '']},
+            },
+            {_id: 0, userId: 1, nickname: 1},
+        ).lean<Array<{userId: number; nickname: string}>>();
+        return new Map(members.map(member => [member.userId, member.nickname]));
+    }
+
     async upsert(member: VersionedTeamMemberProjectionView): Promise<boolean> {
         const applyCondition = activeProjectionCondition(member.sourceVersion);
         const result = await this.model.updateOne(
@@ -62,6 +77,9 @@ export class TeamMemberProjectionRepository {
                     role: {$cond: [applyCondition, {$literal: member.role}, {$ifNull: ['$role', '']}]},
                     teamName: {
                         $cond: [applyCondition, {$literal: member.teamName}, {$ifNull: ['$teamName', '']}],
+                    },
+                    nickname: {
+                        $cond: [applyCondition, {$literal: member.nickname}, {$ifNull: ['$nickname', null]}],
                     },
                     deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
@@ -92,6 +110,7 @@ export class TeamMemberProjectionRepository {
                     userId,
                     role: {$ifNull: ['$role', '']},
                     teamName: {$ifNull: ['$teamName', '']},
+                    nickname: {$ifNull: ['$nickname', null]},
                     deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
                         $cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
