@@ -39,40 +39,46 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
         ).execute(Tuple.of(projectId, accountId)).coAwait().associateBy { it.getLong("account_id") }
         (members.keys + existing.keys).sorted().forEach { accountId ->
             val member = members[accountId]
-            val permissions = if (project.getBoolean("deleted") || member == null) {
+            val active = !project.getBoolean("deleted") && member != null
+            val teamPermissions = defaults + assigned[accountId].orEmpty()
+            val projectPermissions = projectRoles[accountId].orEmpty()
+            val manager = member?.getString("built_in_role") in setOf("OWNER", "ADMIN")
+            val permissions = if (!active) {
                 ProjectPermissions()
             } else {
                 ProjectPermissions.resolve(
-                    defaults + assigned[accountId].orEmpty(), projectRoles[accountId].orEmpty(),
-                    member.getString("built_in_role") in setOf("OWNER", "ADMIN"),
+                    teamPermissions, projectPermissions, manager,
                     isPrivate = project.getBoolean("is_private"),
                 )
             }
+            val canReadPrivate = active && ProjectPermissions.resolve(teamPermissions, projectPermissions, manager, isPrivate = true).read
             val previous = existing[accountId]
             val membershipVersion = member?.getOffsetDateTime("source_occurred_at") ?: Instant.EPOCH.atOffset(ZoneOffset.UTC)
             val authorizationVersion = member?.getOffsetDateTime("authorization_version")
             val previousAuthorizationVersion = previous?.getOffsetDateTime("source_authorization_version")
             // A nullable stamp repair must publish a newer decision even when its effective version is unchanged.
             if (previous != null && previous.permissions() == permissions &&
+                previous.getBoolean("can_read_private") == canReadPrivate &&
                 previous.getOffsetDateTime("source_membership_version").toInstant() == membershipVersion.toInstant() &&
                 previousAuthorizationVersion?.toInstant() == authorizationVersion?.toInstant()
             ) return@forEach
             val rows = client.preparedQuery(
                 """
                 INSERT INTO tb_project_access_states
-                    (project_id, account_id, can_read, can_write, can_manage, can_reorder,
+                    (project_id, account_id, can_read, can_write, can_manage, can_reorder, can_read_private,
                      source_membership_version, source_authorization_version, state_occurred_at)
-                VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6, ${'$'}7, ${'$'}8, clock_timestamp())
+                VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6, ${'$'}7, ${'$'}8, ${'$'}9, clock_timestamp())
                 ON CONFLICT (project_id, account_id) DO UPDATE SET
                     can_read = EXCLUDED.can_read, can_write = EXCLUDED.can_write,
                     can_manage = EXCLUDED.can_manage, can_reorder = EXCLUDED.can_reorder,
+                    can_read_private = EXCLUDED.can_read_private,
                     source_membership_version = EXCLUDED.source_membership_version,
                     source_authorization_version = EXCLUDED.source_authorization_version,
                     state_occurred_at = GREATEST(clock_timestamp(), tb_project_access_states.state_occurred_at + INTERVAL '1 microsecond')
                 RETURNING *
                 """.trimIndent(),
             ).execute(Tuple.tuple().addLong(projectId).addLong(accountId).addBoolean(permissions.read).addBoolean(permissions.write)
-                .addBoolean(permissions.manage).addBoolean(permissions.reorder).addOffsetDateTime(membershipVersion)
+                .addBoolean(permissions.manage).addBoolean(permissions.reorder).addBoolean(canReadPrivate).addOffsetDateTime(membershipVersion)
                 .addOffsetDateTime(authorizationVersion)).coAwait()
             rows.forEach { outbox.enqueue(client, event(it)) }
         }
@@ -152,6 +158,7 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
                 .put("projectId", projectId).put("accountId", accountId)
                 .put("read", row.getBoolean("can_read")).put("write", row.getBoolean("can_write"))
                 .put("manage", row.getBoolean("can_manage")).put("reorder", row.getBoolean("can_reorder"))
+                .put("readPrivate", row.getBoolean("can_read_private"))
                 .put("sourceMembershipVersion", row.getOffsetDateTime("source_membership_version").toInstant().toString())
                 .put("sourceAuthorizationVersion", authorizationVersion?.toString())
                 .put("occurredAt", version.toString()),

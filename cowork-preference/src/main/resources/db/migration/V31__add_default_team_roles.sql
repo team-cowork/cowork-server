@@ -5,6 +5,8 @@ ALTER TABLE tb_team_role_definitions ADD CONSTRAINT uq_tb_team_role_definitions_
 CREATE UNIQUE INDEX uq_tb_team_role_definitions_team_default ON tb_team_role_definitions (team_id) WHERE is_default;
 
 ALTER TABLE tb_project_access_states ADD COLUMN can_manage BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE tb_project_access_states ADD COLUMN can_read_private BOOLEAN NOT NULL DEFAULT FALSE;
+COMMENT ON COLUMN tb_project_access_states.can_read_private IS '현재 역할로 프로젝트가 비공개인 경우에도 읽을 수 있는지 여부';
 ALTER TABLE tb_project_lifecycle_projections ADD COLUMN is_private BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE tb_project_access_states ADD COLUMN source_membership_version TIMESTAMPTZ NOT NULL DEFAULT '1970-01-01 00:00:00+00';
 
