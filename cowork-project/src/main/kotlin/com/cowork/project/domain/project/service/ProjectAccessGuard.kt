@@ -8,6 +8,7 @@ import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.global.projection.ProjectionReadinessGate
+import java.time.Instant
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import team.themoment.sdk.exception.ExpectedException
@@ -108,6 +109,18 @@ class ProjectAccessGuard(
         requireTeamPermission(teamId, userId, "manage_projects")
     }
 
+    fun requireProjectCreation(teamId: Long, userId: Long, isPrivate: Boolean): Instant? {
+        val member = requireTeamPermission(teamId, userId, "manage_projects")
+        if (!isPrivate || isManager(member.role)) return null
+        if (!teamPermissions.hasPermission(teamId, userId, "project_read")) {
+            throw ExpectedException("비공개 프로젝트 생성에는 프로젝트 읽기 권한이 필요합니다.", HttpStatus.FORBIDDEN)
+        }
+        if (!member.sourceOccurredAt.isAfter(Instant.EPOCH)) {
+            throw ExpectedException("팀 멤버 권한 정보가 아직 준비되지 않았습니다.", HttpStatus.SERVICE_UNAVAILABLE)
+        }
+        return member.sourceOccurredAt
+    }
+
     fun requireProjectOwner(project: Project, userId: Long) {
         requireProjectReader(project, userId)
         requireTeamProjectManager(project.teamId, userId)
@@ -118,9 +131,13 @@ class ProjectAccessGuard(
         requireTeamPermission(project.teamId, userId, "manage_github")
     }
 
-    private fun requireTeamPermission(teamId: Long, userId: Long, permission: String) {
-        val role = requireTeamMember(teamId, userId)
-        if (isManager(role) || teamPermissions.hasPermission(teamId, userId, permission)) return
-        throw ExpectedException("팀 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
+    private fun requireTeamPermission(teamId: Long, userId: Long, permission: String): TeamMembership {
+        projectionReadinessGate.requireReady()
+        val member = teamMembershipRepository.findActiveByTeamIdAndUserId(teamId, userId)
+            ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
+        if (!isManager(member.role) && !teamPermissions.hasPermission(teamId, userId, permission)) {
+            throw ExpectedException("팀 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        }
+        return member
     }
 }

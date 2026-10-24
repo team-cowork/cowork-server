@@ -46,6 +46,9 @@ class Project(
 
     @Column(name = "is_private", nullable = false)
     var isPrivate: Boolean = false,
+
+    @Column(name = "initial_read_membership_version", updatable = false)
+    val initialReadMembershipVersion: Instant? = null,
 ) {
     fun updateName(newName: String) {
         name = newName
