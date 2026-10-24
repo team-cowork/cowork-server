@@ -15,7 +15,7 @@ class QueryInvitesServiceImpl(
 
     @Transactional(readOnly = true)
     override fun execute(userId: Long, teamId: Long): List<InviteResponse> {
-        teamInviteAccessGuard.requireMember(teamId, userId)
+        teamInviteAccessGuard.requirePermission(teamId, userId, "manage_invites")
         return teamInviteRepository.findAllByTeamId(teamId).map { InviteResponse.of(it) }
     }
 }

@@ -1,12 +1,14 @@
 package com.cowork.preference.service
 
 import com.cowork.preference.domain.AccountTeamRole
+import com.cowork.preference.domain.PermissionKeys
 import com.cowork.preference.domain.TeamRoleDefinition
 import com.cowork.preference.domain.TeamRolePermissions
 import com.cowork.preference.messaging.PreferenceEvent
 import com.cowork.preference.messaging.PreferenceEvents
 import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
+import com.cowork.preference.repository.ProjectAccessStateRepository
 import com.cowork.preference.repository.TeamRoleRepository
 import io.vertx.sqlclient.SqlClient
 import java.time.Instant
@@ -16,7 +18,14 @@ class TeamRoleService(
     private val repository: TeamRoleRepository,
     private val outboxRepository: PreferenceOutboxRepository,
     private val channelRolePolicyRepository: ChannelRolePolicyRepository,
+    private val projectAccess: ProjectAccessStateRepository,
 ) {
+
+    internal suspend fun ensureDefaultRole(client: SqlClient, teamId: Long): Boolean {
+        val role = repository.ensureDefaultRole(client, teamId) ?: return false
+        outboxRepository.enqueue(client, PreferenceEvents.roleUpserted(role, requireNotNull(role.updatedAt).toInstant()))
+        return true
+    }
 
     private val colorPattern = Regex("^#[0-9A-Fa-f]{6}$")
 
@@ -28,6 +37,7 @@ class TeamRoleService(
         mentionable: Boolean,
         permissions: Map<String, Boolean>,
     ): Result<TeamRoleDefinition> {
+        if (name == "@everyone") return Result.failure(IllegalArgumentException("기본 역할 이름은 사용할 수 없습니다."))
         validateName(name).onFailure { return Result.failure(it) }
         validateColor(colorHex).onFailure { return Result.failure(it) }
         if (repository.findRoleByName(teamId, name) != null) {
@@ -66,7 +76,14 @@ class TeamRoleService(
     ): Result<TeamRoleDefinition> {
         val existing = repository.findRole(teamId, roleId)
             ?: return Result.failure(NoSuchElementException("Role '$roleId' not found"))
+        if (existing.isDefault && ((name != null && name != existing.name) ||
+                (priority != null && priority != existing.priority))) {
+            return Result.failure(IllegalArgumentException("기본 역할의 이름과 우선순위는 변경할 수 없습니다."))
+        }
         val nextName = name ?: existing.name
+        if (!existing.isDefault && nextName == "@everyone" && nextName != existing.name) {
+            return Result.failure(IllegalArgumentException("기본 역할 이름은 사용할 수 없습니다."))
+        }
         val nextColorHex = colorHex ?: existing.colorHex
         validateName(nextName).onFailure { return Result.failure(it) }
         validateColor(nextColorHex).onFailure { return Result.failure(it) }
@@ -92,13 +109,21 @@ class TeamRoleService(
                     requireNotNull(persisted.updatedAt ?: persisted.createdAt).toInstant(),
                 ),
             )
+            val projectPermissionsChanged = PermissionKeys.PROJECT_SCOPED.any {
+                (existing.permissions[it] == true) != (persisted.permissions[it] == true)
+            }
+            if (projectPermissionsChanged) {
+                projectAccess.refreshTeam(connection, teamId)
+            }
             persisted
         }
         return Result.success(role)
     }
 
     suspend fun deleteRole(teamId: Long, roleId: Long): Result<Unit> {
-        if (repository.findRole(teamId, roleId) == null) {
+        val existing = repository.findRole(teamId, roleId)
+        if (existing?.isDefault == true) return Result.failure(IllegalArgumentException("기본 역할은 삭제할 수 없습니다."))
+        if (existing == null) {
             return runCatching {
                 outboxRepository.inTransaction { connection ->
                     val tombstone = repository.deleteRoleWithTombstone(
@@ -143,6 +168,7 @@ class TeamRoleService(
                         )
                     } + PreferenceEvents.roleDeleted(teamId, roleId, roleTombstone.stateOccurredAt),
                 )
+                projectAccess.refreshTeam(connection, teamId)
             }
         }
     }
@@ -153,8 +179,9 @@ class TeamRoleService(
         roleId: Long,
         sourceMembershipVersion: Instant,
     ): Result<TeamRoleDefinition> {
-        repository.findRole(teamId, roleId)
+        val existing = repository.findRole(teamId, roleId)
             ?: return Result.failure(NoSuchElementException("Role '$roleId' not found"))
+        if (existing.isDefault) return Result.failure(IllegalArgumentException("기본 역할은 자동으로 적용됩니다."))
         val role = outboxRepository.inTransaction { connection ->
             val persistedRole = repository.assignRole(
                 connection,
@@ -168,12 +195,14 @@ class TeamRoleService(
                 connection,
                 PreferenceEvents.assignmentUpserted(assignment, requireNotNull(assignment.updatedAt).toInstant()),
             )
+            projectAccess.refreshTeam(connection, teamId, accountId)
             persistedRole
         }
         return Result.success(role)
     }
 
     suspend fun removeRole(accountId: Long, teamId: Long, roleId: Long) {
+        require(repository.findRole(teamId, roleId)?.isDefault != true) { "기본 역할은 해제할 수 없습니다." }
         outboxRepository.inTransaction { connection ->
             val tombstone = repository.deleteAssignment(
                 connection,
@@ -189,12 +218,14 @@ class TeamRoleService(
                     tombstone.stateOccurredAt,
                 ),
             )
+            projectAccess.refreshTeam(connection, teamId, accountId)
         }
     }
 
     suspend fun removeMemberRolesAtOrBefore(accountId: Long, teamId: Long, occurredAt: Instant) {
         outboxRepository.inTransaction { connection ->
             removeMemberRolesAtOrBefore(connection, accountId, teamId, occurredAt)
+            projectAccess.refreshTeam(connection, teamId, accountId)
         }
     }
 
@@ -203,19 +234,21 @@ class TeamRoleService(
         accountId: Long,
         teamId: Long,
         occurredAt: Instant,
+        publishMemberFence: Boolean = true,
     ) {
         val removedAssignments = repository.removeMemberRolesAtOrBefore(client, accountId, teamId, occurredAt)
         val tombstoneVersion = nextProjectionVersion(
             sequenceOf(occurredAt) + removedAssignments.asSequence().mapNotNull { it.updatedAt?.toInstant() },
         )
-        val memberFence = repository.upsertMemberFence(client, teamId, accountId, tombstoneVersion)
+        // A delayed leave must not fence assignments granted after the member rejoined.
+        val memberFence = if (publishMemberFence) repository.upsertMemberFence(client, teamId, accountId, tombstoneVersion) else null
         val assignmentTombstones = removedAssignments.map { assignment ->
             repository.deleteAssignment(
                 client,
                 assignment.accountId,
                 assignment.teamId,
                 assignment.roleId,
-                memberFence.stateOccurredAt,
+                memberFence?.stateOccurredAt ?: tombstoneVersion,
             )
         }
         outboxRepository.enqueueAll(
@@ -225,13 +258,14 @@ class TeamRoleService(
                     AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
                     tombstone.stateOccurredAt,
                 )
-            } + PreferenceEvents.memberAssignmentsDeleted(teamId, accountId, memberFence.stateOccurredAt),
+            } + listOfNotNull(memberFence?.let { PreferenceEvents.memberAssignmentsDeleted(teamId, accountId, it.stateOccurredAt) }),
         )
     }
 
     suspend fun deleteTeamRoles(teamId: Long, occurredAt: Instant) {
         outboxRepository.inTransaction { connection ->
             deleteTeamRoles(connection, teamId, occurredAt)
+            projectAccess.refreshTeam(connection, teamId)
         }
     }
 

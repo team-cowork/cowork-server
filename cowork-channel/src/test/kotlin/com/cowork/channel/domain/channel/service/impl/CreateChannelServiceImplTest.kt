@@ -7,10 +7,12 @@ import com.cowork.channel.domain.channel.event.ChannelEventPublisher
 import com.cowork.channel.domain.channel.presentation.data.request.CreateChannelRequest
 import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.channel.service.TeamPermissionService
+import com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyPermissionSchema
 import com.cowork.channel.domain.meetingNote.service.CreateDefaultMeetingNoteTemplateService
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
@@ -29,11 +31,12 @@ class CreateChannelServiceImplTest {
         teamPermission,
         channelEventPublisher,
         createDefaultMeetingNoteTemplateService,
+        ChannelRolePolicyPermissionSchema(),
     )
 
     @Test
     fun `createChannel은 팀 비멤버이면 FORBIDDEN`() {
-        every { teamPermission.requireTeamMember(100L, 7L) } throws
+        every { teamPermission.requirePermission(100L, 7L, "manage_channels") } throws
             ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
 
         val ex = assertThrows(ExpectedException::class.java) {
@@ -47,7 +50,7 @@ class CreateChannelServiceImplTest {
 
     @Test
     fun `createChannel은 type+viewType 모두 저장`() {
-        every { teamPermission.requireTeamMember(any(), any()) } returns Unit
+        every { teamPermission.requirePermission(any(), any(), "manage_channels") } returns Unit
         every { channelRepository.findMaxPositionByTeamId(100L) } returns 4
         val saved = slot<Channel>()
         every { channelRepository.save(capture(saved)) } answers { saved.captured }
@@ -69,11 +72,28 @@ class CreateChannelServiceImplTest {
 
     @Test
     fun `createChannel은 type=DM이면 BAD_REQUEST`() {
-        every { teamPermission.requireTeamMember(any(), any()) } returns Unit
+        every { teamPermission.requirePermission(any(), any(), "manage_channels") } returns Unit
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.execute(1L, CreateChannelRequest(teamId = 100L, name = "n", type = "DM", viewType = "TEXT"))
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+    }
+
+    @Test
+    fun `생성자 접근을 보장하지 않는 비공개 요청은 채널을 저장하지 않는다`() {
+        every { teamPermission.requirePermission(any(), any(), "manage_channels") } returns Unit
+        every { teamPermission.prepareInitialRolePolicySeed(any(), 7L, emptyList()) } throws
+            ExpectedException("생성자가 접근할 수 있도록 초기 채널 역할 정책을 지정해야 합니다.", HttpStatus.BAD_REQUEST)
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.execute(
+                7L,
+                CreateChannelRequest(100L, "private", "TEXT", "TEXT", isPrivate = true),
+            )
+        }
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        verify(exactly = 0) { channelRepository.save(any()) }
     }
 }

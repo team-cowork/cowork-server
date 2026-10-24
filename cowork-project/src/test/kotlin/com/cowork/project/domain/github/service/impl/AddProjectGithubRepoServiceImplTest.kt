@@ -27,7 +27,7 @@ class AddProjectGithubRepoServiceImplTest {
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true))
+        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true), mockk(relaxed = true))
     private val repoEventPublisher = mockk<ProjectGithubRepoEventPublisher>(relaxed = true)
     private val githubSyncRequestScheduler = mockk<GithubSyncRequestScheduler>(relaxed = true)
 

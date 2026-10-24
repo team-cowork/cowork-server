@@ -20,7 +20,7 @@ class ClearProjectGithubWebhookChannelServiceImpl(
     @Transactional
     override fun execute(userId: Long, projectId: Long, repoId: Long): ProjectGithubRepoResDto {
         val project = projectAccessGuard.findProjectForUpdateOrThrow(projectId)
-        projectAccessGuard.requireProjectModifier(project, userId)
+        projectAccessGuard.requireGithubManager(project, userId)
         val repoLink = projectGithubRepoRepository.findByIdAndProjectIdForUpdate(repoId, projectId)
             ?: throw ExpectedException("등록된 레포를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
 

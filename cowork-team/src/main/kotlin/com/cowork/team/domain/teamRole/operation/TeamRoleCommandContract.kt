@@ -2,6 +2,7 @@ package com.cowork.team.domain.teamRole.operation
 
 import com.cowork.team.domain.teamRole.presentation.data.request.CreateTeamRoleRequest
 import com.cowork.team.domain.teamRole.presentation.data.request.UpdateTeamRoleRequest
+import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.Instant
 
 object TeamRoleContractTopics {
@@ -92,6 +93,11 @@ data class TeamRoleResultRole(
     val permissions: Map<String, Boolean>,
     val createdAt: String?,
     val updatedAt: String?,
+    // TODO(#596): 2026-11-01 05:00 KST 이후 아래 조건 완료를 확인하고 제거한다.
+    // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+    // producer 전환·저장 결과 보정 및 구형 결과 재처리 종료 후 isDefault 누락 기본값을 제거한다.
+    @field:JsonProperty("isDefault")
+    val isDefault: Boolean = false,
 )
 
 data class TeamRoleCommandError(val code: String, val message: String)

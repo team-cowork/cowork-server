@@ -39,7 +39,7 @@ class UpdateTeamIconServiceImplTest :
                         )
                         every { accessGuard.findTeamForUpdateOrThrow(1L) } returns team
                         every {
-                            accessGuard.requireRole(1L, 10L, TeamRole.OWNER, TeamRole.ADMIN)
+                            accessGuard.requirePermission(1L, 10L, "manage_team")
                         } returns TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
 
                         val result = service.execute(10L, 1L, requireNotNull(team.iconUrl))
