@@ -1,9 +1,11 @@
 package com.cowork.preference.service
 
+import com.cowork.preference.domain.AccountProjectRole
 import com.cowork.preference.domain.ProjectLifecycleProjection
 import com.cowork.preference.domain.ProjectPermissions
 import com.cowork.preference.domain.ProjectRoleDefinition
 import com.cowork.preference.domain.TeamMemberProjection
+import com.cowork.preference.domain.TeamRoleDefinition
 import com.cowork.preference.messaging.ProjectionReadinessView
 import com.cowork.preference.repository.ProjectLifecycleProjectionRepository
 import com.cowork.preference.repository.ProjectRoleRepository
@@ -24,6 +26,7 @@ import kotlinx.coroutines.runBlocking
 
 private const val PROJECT_ID = 7L
 private const val TEAM_ID = 42L
+private const val TARGET_ID = 200L
 private val MEMBER = RequesterContext(userId = 100L, role = "MEMBER")
 private val GLOBAL_ADMIN = RequesterContext(userId = 100L, role = "ADMIN")
 private val VERSION = Instant.parse("2026-10-13T01:00:00Z")
@@ -46,9 +49,15 @@ private class ProjectGuardFixture {
             if (found) ProjectLifecycleProjection(PROJECT_ID, TEAM_ID, deleted, VERSION) else null
     }
 
-    fun stubTeamMember(role: String = "MEMBER", deleted: Boolean = false, found: Boolean = true) {
-        coEvery { teamMemberRepository.findForRead(pool, TEAM_ID, MEMBER.userId) } returns
-            if (found) TeamMemberProjection(TEAM_ID, MEMBER.userId, role, deleted, VERSION) else null
+    fun stubTeamMember(role: String = "MEMBER", deleted: Boolean = false, found: Boolean = true, accountId: Long = MEMBER.userId) {
+        coEvery { teamMemberRepository.findForRead(pool, TEAM_ID, accountId) } returns
+            if (found) TeamMemberProjection(TEAM_ID, accountId, role, deleted, VERSION) else null
+    }
+
+    fun stubTeamRoles(accountId: Long = MEMBER.userId, priority: Int = 10, manageRoles: Boolean = false) {
+        coEvery { teamRoles.findAccountRoles(pool, TEAM_ID, accountId) } returns listOf(
+            TeamRoleDefinition(accountId, TEAM_ID, "role", "#99AAB5", priority, false, mapOf("manage_roles" to manageRoles), null, null),
+        )
     }
 }
 
@@ -68,7 +77,7 @@ class ProjectAccessGuardTest :
                     fixture.stubProject()
                     fixture.stubTeamMember()
                     coEvery { fixture.roles.effectivePermissions(PROJECT_ID, MEMBER.userId) } returns ProjectPermissions(read = true, manage = true)
-                    coEvery { fixture.teamRoles.hasPermission(TEAM_ID, MEMBER.userId, "manage_roles") } returns false
+                    fixture.stubTeamRoles()
                 }
                 it("설정 관리 권한만으로 역할을 생성할 수 없다") {
                     shouldThrow<ResourceAccessDeniedException> {
@@ -76,23 +85,103 @@ class ProjectAccessGuardTest :
                     }
                 }
                 it("역할 관리자도 보유하지 않은 쓰기 권한을 부여할 수 없다") {
-                    coEvery { fixture.teamRoles.hasPermission(TEAM_ID, MEMBER.userId, "manage_roles") } returns true
+                    fixture.stubTeamRoles(manageRoles = true)
                     shouldThrow<ResourceAccessDeniedException> {
                         fixture.guard.requireRoleCreation(PROJECT_ID, MEMBER, JsonObject().put("write", true))
                     }
                     shouldNotThrowAny { fixture.guard.requireRoleCreation(PROJECT_ID, MEMBER, JsonObject().put("read", true)) }
                 }
                 it("기존 역할을 할당할 때도 권한 범위를 확인한다") {
-                    coEvery { fixture.teamRoles.hasPermission(TEAM_ID, MEMBER.userId, "manage_roles") } returns true
+                    fixture.stubTeamRoles(manageRoles = true)
                     coEvery { fixture.roles.findRole(PROJECT_ID, "writer") } returns ProjectRoleDefinition(PROJECT_ID, "writer", JsonObject().put("write", true))
-                    shouldThrow<ResourceAccessDeniedException> { fixture.guard.requireRoleAssignment(PROJECT_ID, MEMBER, "writer") }
+                    shouldThrow<ResourceAccessDeniedException> { fixture.guard.requireRoleAssignment(PROJECT_ID, MEMBER, "writer", TARGET_ID) }
                 }
                 it("일반 역할 관리자는 거부 정책 제거로 권한을 복구할 수 없다") {
-                    coEvery { fixture.teamRoles.hasPermission(TEAM_ID, MEMBER.userId, "manage_roles") } returns true
+                    fixture.stubTeamRoles(manageRoles = true)
                     coEvery { fixture.roles.findRole(PROJECT_ID, "deny") } returns ProjectRoleDefinition(PROJECT_ID, "deny", JsonObject().put("read", false))
-                    shouldThrow<ResourceAccessDeniedException> { fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "deny") }
+                    shouldThrow<ResourceAccessDeniedException> { fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "deny", TARGET_ID) }
                     fixture.stubTeamMember("ADMIN")
-                    shouldNotThrowAny { fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "deny") }
+                    shouldNotThrowAny { fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "deny", TARGET_ID) }
+                }
+
+                context("일반 역할 관리자가 다른 멤버의 프로젝트 역할을 변경할 때") {
+                    beforeEach {
+                        fixture.stubTeamRoles(manageRoles = true)
+                        fixture.stubTeamMember(accountId = TARGET_ID)
+                        fixture.stubTeamRoles(accountId = TARGET_ID, priority = 5)
+                        coEvery { fixture.roles.effectivePermissions(PROJECT_ID, MEMBER.userId) } returns ProjectPermissions(read = true)
+                        coEvery { fixture.roles.findRole(PROJECT_ID, "deny") } returns
+                            ProjectRoleDefinition(PROJECT_ID, "deny", JsonObject().put("read", false))
+                        coEvery { fixture.roles.findRole(PROJECT_ID, "manager") } returns
+                            ProjectRoleDefinition(PROJECT_ID, "manager", JsonObject().put("manage", true))
+                    }
+
+                    it("설정 관리 권한 없이도 하위 멤버의 역할을 할당하고 해제할 수 있다") {
+                        shouldNotThrowAny { fixture.guard.requireRoleAssignment(PROJECT_ID, MEMBER, "deny", TARGET_ID) }
+                        shouldNotThrowAny { fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "manager", TARGET_ID) }
+                    }
+
+                    it("같거나 높은 최상위 팀 역할을 가진 멤버에게 거부 역할을 할당하거나 관리 역할을 해제할 수 없다") {
+                        listOf(10, 11).forEach { priority ->
+                            fixture.stubTeamRoles(accountId = TARGET_ID, priority = priority)
+                            shouldThrow<ResourceAccessDeniedException> {
+                                fixture.guard.requireRoleAssignment(PROJECT_ID, MEMBER, "deny", TARGET_ID)
+                            }
+                            shouldThrow<ResourceAccessDeniedException> {
+                                fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "manager", TARGET_ID)
+                            }
+                        }
+                    }
+
+                    it("팀 OWNER와 ADMIN의 프로젝트 역할을 변경할 수 없다") {
+                        listOf("OWNER", "ADMIN").forEach { role ->
+                            fixture.stubTeamMember(role = role, accountId = TARGET_ID)
+                            shouldThrow<ResourceAccessDeniedException> {
+                                fixture.guard.requireRoleAssignment(PROJECT_ID, MEMBER, "deny", TARGET_ID)
+                            }
+                            shouldThrow<ResourceAccessDeniedException> {
+                                fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "manager", TARGET_ID)
+                            }
+                        }
+                    }
+
+                    it("전역 역할 삭제로 상위 멤버 보호를 우회할 수 없다") {
+                        coEvery { fixture.roles.findMemberRoles(PROJECT_ID) } returns listOf(
+                            AccountProjectRole(TARGET_ID, PROJECT_ID, "manager"),
+                        )
+                        fixture.stubTeamRoles(accountId = TARGET_ID, priority = 11)
+                        shouldThrow<ResourceAccessDeniedException> {
+                            fixture.guard.requireRoleDeletion(PROJECT_ID, MEMBER, "manager")
+                        }
+                        fixture.stubTeamRoles(accountId = TARGET_ID, priority = 5)
+                        shouldNotThrowAny { fixture.guard.requireRoleDeletion(PROJECT_ID, MEMBER, "manager") }
+                    }
+
+                    it("삭제하는 역할을 가진 멤버만 우선순위를 확인한다") {
+                        coEvery { fixture.roles.findMemberRoles(PROJECT_ID) } returns listOf(
+                            AccountProjectRole(TARGET_ID, PROJECT_ID, "another-role"),
+                        )
+                        fixture.stubTeamRoles(accountId = TARGET_ID, priority = 11)
+                        shouldNotThrowAny { fixture.guard.requireRoleDeletion(PROJECT_ID, MEMBER, "manager") }
+                    }
+
+                    it("팀 OWNER와 ADMIN은 멤버의 우선순위에 관계없이 역할을 관리한다") {
+                        fixture.stubTeamRoles(accountId = TARGET_ID, priority = 11)
+                        listOf("OWNER", "ADMIN").forEach { role ->
+                            fixture.stubTeamMember(role = role)
+                            shouldNotThrowAny { fixture.guard.requireRoleAssignment(PROJECT_ID, MEMBER, "deny", TARGET_ID) }
+                            shouldNotThrowAny { fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "manager", TARGET_ID) }
+                            shouldNotThrowAny { fixture.guard.requireRoleDeletion(PROJECT_ID, MEMBER, "manager") }
+                        }
+                    }
+
+                    it("팀 관리자도 탈퇴한 멤버에게 역할을 할당할 수 없다") {
+                        fixture.stubTeamMember(role = "ADMIN")
+                        fixture.stubTeamMember(deleted = true, accountId = TARGET_ID)
+                        shouldThrow<ResourceAccessDeniedException> {
+                            fixture.guard.requireRoleAssignment(PROJECT_ID, MEMBER, "deny", TARGET_ID)
+                        }
+                    }
                 }
             }
 
