@@ -1,7 +1,9 @@
 package com.cowork.project.domain.project.service.impl
 
 import com.cowork.project.domain.membership.entity.TeamMembership
+import com.cowork.project.domain.membership.TeamRolePermissionReader
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
+import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.event.ProjectEventPublisher
 import com.cowork.project.domain.project.presentation.data.request.CreateProjectReqDto
 import com.cowork.project.domain.project.repository.ProjectRepository
@@ -9,7 +11,9 @@ import com.cowork.project.domain.project.service.ProjectAccessGuard
 import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.slot
 import io.mockk.verify
+import java.time.Instant
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Nested
@@ -22,8 +26,9 @@ class CreateProjectServiceImplTest {
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
+    private val teamPermissions = mockk<TeamRolePermissionReader>(relaxed = true)
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true), mockk(relaxed = true))
+        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true), teamPermissions)
 
     private val service =
         CreateProjectServiceImpl(
@@ -58,6 +63,25 @@ class CreateProjectServiceImplTest {
 
             assertEquals(4, response.position)
             assertEquals(false, response.isPrivate)
+        }
+
+        @Test
+        fun `createProject은 일반 멤버의 비공개 생성 승인을 초기 읽기 역할 요청으로 보존한다`() {
+            val version = Instant.parse("2026-10-25T00:00:00Z")
+            val saved = slot<Project>()
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns
+                TeamMembership(teamId = 100L, userId = 7L, role = "MEMBER", sourceOccurredAt = version)
+            every { teamPermissions.hasPermission(100L, 7L, "manage_projects") } returns true
+            every { teamPermissions.hasPermission(100L, 7L, "project_read") } returns true
+            every { projectRepository.findMaxPositionByTeamId(100L) } returns 0
+            every { projectRepository.save(capture(saved)) } answers { firstArg() }
+
+            val response = service.execute(7L, CreateProjectReqDto(teamId = 100L, name = "private", isPrivate = true))
+
+            assertEquals(true, response.isPrivate)
+            assertEquals(7L, saved.captured.createdBy)
+            assertEquals(version, saved.captured.initialReadMembershipVersion)
+            verify { projectEventPublisher.publishCreated(saved.captured, any()) }
         }
     }
 }
