@@ -4,6 +4,7 @@
 
 - 팀 채널·프로젝트의 멤버 추가·삭제 API, 프로젝트 멤버 역할 변경 API, 멤버 저장·동기화 코드를 제거한다. 권한 변경으로 멤버 행을 만들거나 지우지 않는다.
 - 채널 목록·상세·접근자 조회는 텍스트 `message_read`, 음성 `voice_connect`를 검사한다. 음성 서비스도 `voice_connect`를 검사한다. 채팅 본문 읽기는 `message_read`, 작성은 읽기 권한과 `message_send`가 필요하다.
+- 비공개 채널은 해당 채널의 `message_read` 또는 `voice_connect` 명시 허용이 필요하다. 팀 역할 기본값은 비공개 채널의 읽기 권한을 주지 않는다. 목록에서는 접근할 수 없는 항목만 숨긴다.
 - 프로젝트는 역할의 `read`·`write` 권한을 사용한다. Preference가 계산한 권한 상태를 Project와 Chat이 구독한다. 행의 존재는 권한이 아니다. 수정에는 두 권한이 모두 필요하다.
 - 높은 역할 `priority`가 우선한다. 같은 순위에서는 거부가 우선한다. 누락된 권한은 false다. 채널의 팀 OWNER, 프로젝트의 생성자·팀 OWNER/ADMIN은 기존 관리 권한을 유지한다. 모두 현재 팀 멤버여야 한다.
 - 팀 초대와 DM 참여는 유지한다. DM 참여와 채팅 읽음 위치는 팀 채널 권한과 별도로 저장한다.
@@ -25,7 +26,7 @@
 | 프로젝트 접근 역할 회수 | `DELETE /api/project/projects/{projectId}/members/{memberId}` | `DELETE /api/preference/preferences/project/{projectId}/roles/{roleName}/members/{accountId}` |
 | 프로젝트 역할 변경 | `PATCH /api/project/projects/{projectId}/members/{memberId}` | 기존 역할 회수 후 새 역할 부여 |
 
-채널 역할 정책은 `PUT /api/channel/channels/{channelId}/role-policies/{roleId}`로 설정한다. 텍스트 보기 본문은 `{"permissions":{"message_read":true}}`, 음성 보기는 `{"permissions":{"voice_connect":true}}`다. 이 정책은 해당 역할을 가진 모든 사용자에게 적용된다. 팀 역할 회수는 그 역할이 주던 다른 채널 권한에도 영향을 준다. 한 사람의 한 채널 접근을 관리하려면 그 범위를 표현하는 역할을 사용한다. 정책 삭제는 역할 기본값으로 복귀하므로, 접근 회수와 같지 않다.
+채널 역할 정책은 `PUT /api/channel/channels/{channelId}/role-policies/{roleId}`로 설정한다. 텍스트 보기 본문은 `{"permissions":{"message_read":true}}`, 음성 보기는 `{"permissions":{"voice_connect":true}}`다. 이 정책은 해당 역할을 가진 모든 사용자에게 적용된다. 팀 역할 회수는 그 역할이 주던 다른 채널 권한에도 영향을 준다. 한 사람의 한 채널 접근을 관리하려면 그 범위를 표현하는 역할을 사용한다. 공개 채널의 정책 삭제는 역할 기본값으로 복귀하므로 접근 회수와 같지 않다. 비공개 채널은 명시 허용이 없으면 숨긴다.
 
 팀 역할 부여·회수와 채널 정책 변경에는 `Idempotency-Key`가 필요하다. `202` 수락 후 다음 경로에서 `SUCCEEDED`를 확인한다.
 
