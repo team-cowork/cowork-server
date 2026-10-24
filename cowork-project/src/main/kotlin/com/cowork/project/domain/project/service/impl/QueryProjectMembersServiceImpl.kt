@@ -17,8 +17,9 @@ class QueryProjectMembersServiceImpl(
     override fun execute(userId: Long, projectId: Long): List<ProjectAccessUserResponse> {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectReader(project, userId)
-        return teamMembers.findAllByTeamIdAndActiveTrue(project.teamId)
-            .filter { projectAccessGuard.canRead(project, it.userId) }
-            .map { ProjectAccessUserResponse(projectId, it.userId, projectAccessGuard.canWrite(project, it.userId)) }
+        val members = teamMembers.findAllByTeamIdAndActiveTrue(project.teamId)
+        val permissions = projectAccessGuard.permissionsForUsers(project, members)
+        return members.filter { permissions[it.userId]?.read == true }
+            .map { ProjectAccessUserResponse(projectId, it.userId, permissions.getValue(it.userId).write) }
     }
 }
