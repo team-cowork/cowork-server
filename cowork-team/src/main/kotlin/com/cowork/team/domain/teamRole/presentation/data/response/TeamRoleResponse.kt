@@ -23,7 +23,9 @@ data class TeamRoleResponse(
     @field:Schema(description = "수정 일시")
     val updatedAt: String?,
     @field:Schema(description = "활성 팀 멤버 모두에게 자동 적용되는 기본 역할 여부")
-    // TODO(#596): isDefault가 없는 저장된 작업 결과를 보정·정리한 뒤 역직렬화 기본값을 제거한다.
+    // TODO(#596): 2026-11-01 05:00 KST 이후 아래 조건 완료를 확인하고 제거한다.
+    // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+    // 저장 작업 결과 보정 완료와 구형 결과 재처리 종료 확인 후 역직렬화 기본값을 제거한다.
     @field:JsonProperty("isDefault")
     val isDefault: Boolean = false,
 )
