@@ -34,7 +34,7 @@ func (l *liveKitLiveRoomService) CreateRoomIfNotExists(ctx context.Context, room
 }
 
 func (l *liveKitLiveRoomService) GenerateToken(userID int64, roomName string, speak, screenShare bool) (string, error) {
-	return GenerateToken(l.apiKey, l.apiSecret, userID, roomName, speak, screenShare, l.ttlSecs)
+	return GenerateLiveToken(l.apiKey, l.apiSecret, userID, roomName, speak, screenShare, l.ttlSecs)
 }
 
 func (l *liveKitLiveRoomService) RemoveParticipant(ctx context.Context, roomName, identity string) error {
