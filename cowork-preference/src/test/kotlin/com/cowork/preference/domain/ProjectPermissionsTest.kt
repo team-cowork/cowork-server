@@ -25,6 +25,14 @@ class ProjectPermissionsTest : DescribeSpec({
             ProjectPermissions.resolve(listOf(defaultRole), emptyList(), isPrivate = true) shouldBe ProjectPermissions()
             ProjectPermissions.resolve(listOf(defaultRole), listOf(JsonObject().put("read", true)), isPrivate = true) shouldBe ProjectPermissions(read = true)
         }
+        it("명시적 읽기 역할을 회수하면 공개 권한이 같아도 비공개 접근 판정은 달라진다") {
+            val teamRoles = listOf(defaultRole.copy().put("project_manage", true))
+            val explicitRead = listOf(JsonObject().put("read", true))
+
+            ProjectPermissions.resolve(teamRoles, explicitRead) shouldBe ProjectPermissions.resolve(teamRoles, emptyList())
+            ProjectPermissions.resolve(teamRoles, explicitRead, isPrivate = true).read shouldBe true
+            ProjectPermissions.resolve(teamRoles, emptyList(), isPrivate = true).read shouldBe false
+        }
         it("쓰기 관리 재정렬은 읽기가 없으면 허용되지 않는다") {
             val overrides = JsonObject().put("write", true).put("manage", true).put("reorder", true)
             ProjectPermissions.resolve(emptyList(), listOf(overrides)) shouldBe ProjectPermissions()
