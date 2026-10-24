@@ -10,8 +10,8 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 class ProjectRoleRepository(private val pool: Pool) {
-    suspend fun effectivePermissions(projectId: Long, accountId: Long): ProjectPermissions {
-        val rows = pool.preparedQuery(
+    suspend fun effectivePermissions(projectId: Long, accountId: Long, client: SqlClient = pool): ProjectPermissions {
+        val rows = client.preparedQuery(
             "SELECT a.can_read, a.can_write, a.can_manage, a.can_reorder FROM tb_project_access_states a " +
                 "JOIN tb_project_lifecycle_projections p ON p.project_id = a.project_id AND NOT p.deleted " +
                 "JOIN tb_team_member_projections m ON m.team_id = p.team_id AND m.account_id = a.account_id AND NOT m.deleted " +
@@ -44,8 +44,8 @@ class ProjectRoleRepository(private val pool: Pool) {
         }
     }
 
-    suspend fun findRole(projectId: Long, roleName: String): ProjectRoleDefinition? {
-        val rows = pool.preparedQuery(
+    suspend fun findRole(projectId: Long, roleName: String, client: SqlClient = pool): ProjectRoleDefinition? {
+        val rows = client.preparedQuery(
             "SELECT project_id, role_name, permissions, priority FROM project_role_definition WHERE project_id = \$1 AND role_name = \$2"
         ).execute(Tuple.of(projectId, roleName)).coAwait()
         return rows.firstOrNull()?.let {
@@ -70,8 +70,8 @@ class ProjectRoleRepository(private val pool: Pool) {
         ).execute(Tuple.of(projectId, roleName)).coAwait()
     }
 
-    suspend fun findMemberRoles(projectId: Long): List<AccountProjectRole> {
-        val rows = pool.preparedQuery(
+    suspend fun findMemberRoles(projectId: Long, client: SqlClient = pool): List<AccountProjectRole> {
+        val rows = client.preparedQuery(
             "SELECT account_id, project_id, role_name FROM account_project_role WHERE project_id = \$1"
         ).execute(Tuple.of(projectId)).coAwait()
         return rows.map {
