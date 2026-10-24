@@ -51,7 +51,10 @@ type State struct {
 	Version     int64           `bson:"source_version"`
 }
 
-type CurrentHighChecker interface{ EstablishCurrent(context.Context) error }
+type CurrentHighChecker interface {
+	EstablishCurrent(context.Context) error
+	IsCurrent() bool
+}
 type StateStore interface {
 	Apply(context.Context, State) error
 }
@@ -98,15 +101,38 @@ func (p *Projection) TeamStates(ctx context.Context, id int64) ([]State, error) 
 	return states, err
 }
 func (p *Projection) RequireConnect(ctx context.Context, channelID, userID int64) (permission.Access, error) {
+	check, err := p.CurrentConnectCheck(ctx)
+	if err != nil {
+		return permission.Access{}, err
+	}
+	return check(ctx, channelID, userID)
+}
+
+// CurrentConnectCheck shares one fresh broker check within a reconciliation pass.
+// Participant lookups still stop if the running consumer closes readiness.
+func (p *Projection) CurrentConnectCheck(ctx context.Context) (permission.ConnectCheck, error) {
 	p.currentHighMu.RLock()
 	checker := p.currentHigh
 	p.currentHighMu.RUnlock()
 	if checker == nil {
-		return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		return nil, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
 	}
 	if err := checker.EstablishCurrent(ctx); err != nil {
-		return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		return nil, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
 	}
+	return func(ctx context.Context, channelID, userID int64) (permission.Access, error) {
+		if !checker.IsCurrent() {
+			return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		}
+		access, err := p.requireProjectedConnect(ctx, channelID, userID)
+		if !checker.IsCurrent() {
+			return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		}
+		return access, err
+	}, nil
+}
+
+func (p *Projection) requireProjectedConnect(ctx context.Context, channelID, userID int64) (permission.Access, error) {
 	ch, found, err := p.lookup.Channel(ctx, channelID)
 	if err != nil {
 		return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")

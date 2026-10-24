@@ -33,6 +33,7 @@ var ErrProjectionTopologyChanged = errors.New("projection topic topology changed
 
 type readinessState interface {
 	Set(bool)
+	IsReady() bool
 }
 
 type offsetSnapshotter interface {
@@ -863,6 +864,10 @@ func (c *Consumer) EstablishCurrent(ctx context.Context) error {
 		return fmt.Errorf("%w: no active consumer generation", ErrProjectionNotCurrent)
 	}
 	return c.evaluateAndPublishCurrentHigh(ctx, generationToken, expectedRanges)
+}
+
+func (c *Consumer) IsCurrent() bool {
+	return c.readiness.IsReady()
 }
 
 func (c *Consumer) evaluateAndPublishCurrentHigh(

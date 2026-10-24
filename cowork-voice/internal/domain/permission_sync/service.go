@@ -19,7 +19,7 @@ import (
 )
 
 type PermissionChecker interface {
-	RequireConnect(context.Context, int64, int64) (permission.Access, error)
+	CurrentConnectCheck(context.Context) (permission.ConnectCheck, error)
 }
 
 type LiveSessions interface {
@@ -67,13 +67,24 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if len(rooms.GetRooms()) == 0 {
+		return nil
+	}
+	checkCtx, checkCancel := context.WithTimeout(ctx, 5*time.Second)
+	check, checkErr := s.permissions.CurrentConnectCheck(checkCtx)
+	checkCancel()
+	if checkErr != nil {
+		check = func(context.Context, int64, int64) (permission.Access, error) {
+			return permission.Access{}, checkErr
+		}
+	}
 	var failures []error
 	for _, room := range rooms.GetRooms() {
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 		roomCtx, roomCancel := context.WithTimeout(ctx, 5*time.Second)
-		err := s.reconcileRoom(roomCtx, room.GetName())
+		err := s.reconcileRoom(roomCtx, room.GetName(), check)
 		roomCancel()
 		if err != nil {
 			failures = append(failures, fmt.Errorf("room %s: %w", room.GetName(), err))
@@ -82,7 +93,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 	return errors.Join(failures...)
 }
 
-func (s *Service) reconcileRoom(ctx context.Context, name string) error {
+func (s *Service) reconcileRoom(ctx context.Context, name string, check permission.ConnectCheck) error {
 	var channelID, hostID int64
 	var hostAccess permission.Access
 	var hostErr error
@@ -97,7 +108,7 @@ func (s *Service) reconcileRoom(ctx context.Context, name string) error {
 			return err
 		}
 		hostID = session.HostUserID
-		hostAccess, hostErr = s.permissions.RequireConnect(ctx, channelID, hostID)
+		hostAccess, hostErr = check(ctx, channelID, hostID)
 		if denied(hostErr) || (hostErr == nil && !hostAccess.Broadcast) {
 			_, err := s.rooms.DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: name})
 			return err
@@ -119,7 +130,7 @@ func (s *Service) reconcileRoom(ctx context.Context, name string) error {
 		if parseErr != nil || userID <= 0 {
 			accessErr = apperr.PermissionDenied()
 		} else if userID != hostID {
-			access, accessErr = s.permissions.RequireConnect(ctx, channelID, userID)
+			access, accessErr = check(ctx, channelID, userID)
 		}
 		if denied(accessErr) {
 			_, err = s.rooms.RemoveParticipant(ctx, &livekit.RoomParticipantIdentity{Room: name, Identity: participant.GetIdentity()})
