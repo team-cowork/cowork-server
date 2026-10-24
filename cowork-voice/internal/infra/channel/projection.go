@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cowork/cowork-voice/internal/apperr"
+	"github.com/cowork/cowork-voice/internal/domain/permission"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -44,12 +45,16 @@ type State struct {
 	ChannelType string          `bson:"channel_type"`
 	IsPrivate   *bool           `bson:"is_private"`
 	Priority    int             `bson:"priority"`
+	IsDefault   bool            `bson:"is_default"`
 	Permissions map[string]bool `bson:"permissions"`
 	Deleted     bool            `bson:"deleted"`
 	Version     int64           `bson:"source_version"`
 }
 
-type CurrentHighChecker interface{ EstablishCurrent(context.Context) error }
+type CurrentHighChecker interface {
+	EstablishCurrent(context.Context) error
+	IsCurrent() bool
+}
 type StateStore interface {
 	Apply(context.Context, State) error
 }
@@ -95,33 +100,61 @@ func (p *Projection) TeamStates(ctx context.Context, id int64) ([]State, error) 
 	err = cursor.All(ctx, &states)
 	return states, err
 }
-func (p *Projection) RequireConnect(ctx context.Context, channelID, userID int64) (int64, error) {
+func (p *Projection) RequireConnect(ctx context.Context, channelID, userID int64) (permission.Access, error) {
+	check, err := p.CurrentConnectCheck(ctx)
+	if err != nil {
+		return permission.Access{}, err
+	}
+	return check(ctx, channelID, userID)
+}
+
+// CurrentConnectCheck shares one fresh broker check within a reconciliation pass.
+// Participant lookups still stop if the running consumer closes readiness.
+func (p *Projection) CurrentConnectCheck(ctx context.Context) (permission.ConnectCheck, error) {
 	p.currentHighMu.RLock()
 	checker := p.currentHigh
 	p.currentHighMu.RUnlock()
 	if checker == nil {
-		return 0, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		return nil, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
 	}
 	if err := checker.EstablishCurrent(ctx); err != nil {
-		return 0, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		return nil, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
 	}
+	return func(ctx context.Context, channelID, userID int64) (permission.Access, error) {
+		if !checker.IsCurrent() {
+			return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		}
+		access, err := p.requireProjectedConnect(ctx, channelID, userID)
+		if !checker.IsCurrent() {
+			return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		}
+		return access, err
+	}, nil
+}
+
+func (p *Projection) requireProjectedConnect(ctx context.Context, channelID, userID int64) (permission.Access, error) {
 	ch, found, err := p.lookup.Channel(ctx, channelID)
 	if err != nil {
-		return 0, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
 	}
 	if !found || ch.Deleted || ch.ChannelType != "VOICE" || ch.TeamID <= 0 {
-		return 0, apperr.PermissionDenied()
+		return permission.Access{}, apperr.PermissionDenied()
 	}
 	states, err := p.lookup.TeamStates(ctx, ch.TeamID)
 	if err != nil {
-		return 0, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
 	}
-	if !canConnect(ch, userID, states) {
-		return 0, apperr.PermissionDenied()
+	access := permissionsFor(ch, userID, states)
+	if !access["voice_connect"] {
+		return permission.Access{}, apperr.PermissionDenied()
 	}
-	return ch.TeamID, nil
+	return permission.Access{TeamID: ch.TeamID, Speak: access["voice_speak"], ScreenShare: access["screen_share"], Broadcast: access["live_broadcast"]}, nil
 }
 func canConnect(ch State, userID int64, states []State) bool {
+	return permissionsFor(ch, userID, states)["voice_connect"]
+}
+
+func permissionsFor(ch State, userID int64, states []State) map[string]bool {
 	var member *State
 	var fence int64
 	roles := map[int64]State{}
@@ -155,36 +188,53 @@ func canConnect(ch State, userID int64, states []State) bool {
 			}
 		}
 	}
-	if member == nil || member.Deleted {
-		return false
+	if member == nil || member.Deleted || ch.Deleted || ch.ChannelType != "VOICE" {
+		return nil
 	}
-	if member.Role == "OWNER" {
-		return true
+	keys := []string{"voice_connect", "voice_speak", "screen_share", "live_broadcast"}
+	allowed := make(map[string]bool, len(keys))
+	if member.Role == "OWNER" || member.Role == "ADMIN" {
+		for _, key := range keys {
+			allowed[key] = true
+		}
+		return allowed
 	}
-	found := false
-	highest := 0
-	allowed := false
-	for _, a := range assignments {
-		if a.Version <= fence {
-			continue
-		}
-		r, ok := roles[a.RoleID]
-		if !ok {
-			continue
-		}
-		permit := ch.IsPrivate != nil && !*ch.IsPrivate && r.Permissions["voice_connect"]
-		if v, ok := policies[a.RoleID].Permissions["voice_connect"]; ok {
-			permit = v
-		}
-		if !found || r.Priority > highest {
-			found = true
-			highest = r.Priority
-			allowed = permit
-		} else if r.Priority == highest {
-			allowed = allowed && permit
+	applicable := map[int64]State{}
+	for id, role := range roles {
+		if role.IsDefault {
+			applicable[id] = role
 		}
 	}
-	return found && allowed
+	for _, assignment := range assignments {
+		if role, ok := roles[assignment.RoleID]; ok && assignment.Version > fence {
+			applicable[assignment.RoleID] = role
+		}
+	}
+	for _, key := range keys {
+		for _, role := range applicable {
+			allowed[key] = allowed[key] || role.Permissions[key]
+		}
+		if key == "voice_connect" && (ch.IsPrivate == nil || *ch.IsPrivate) {
+			allowed[key] = false
+		}
+		for id, role := range applicable {
+			if value, exists := policies[id].Permissions[key]; role.IsDefault && exists {
+				allowed[key] = value
+			}
+		}
+		deny, allow := false, false
+		for id, role := range applicable {
+			if value, exists := policies[id].Permissions[key]; !role.IsDefault && exists {
+				deny = deny || !value
+				allow = allow || value
+			}
+		}
+		allowed[key] = (allowed[key] && !deny) || allow
+	}
+	if !allowed["voice_connect"] {
+		return nil
+	}
+	return allowed
 }
 func (p *Projection) Apply(ctx context.Context, s State) error {
 	op := "$lt"
@@ -194,6 +244,17 @@ func (p *Projection) Apply(ctx context.Context, s State) error {
 	filter := bson.M{"_id": s.Key, "$or": bson.A{bson.M{"source_version": bson.M{"$exists": false}}, bson.M{"source_version": bson.M{op: s.Version}}}}
 	_, err := p.col.UpdateOne(ctx, filter, bson.M{"$set": s}, options.UpdateOne().SetUpsert(true))
 	if mongo.IsDuplicateKeyError(err) {
+		// TODO(#596): 2026-11-01 05:00 KST 이후 역할 문서 보정·구버전 롤백 지원 종료 확인 후 이 동일 버전 보정을 제거한다.
+		// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+		if s.Kind == "role" && !s.Deleted {
+			legacy := bson.M{"_id": s.Key, "kind": "role", "source_version": s.Version, "deleted": false, "is_default": bson.M{"$exists": false}}
+			if s.IsDefault {
+				// Default-role identity is immutable; an older producer must never clear a restored true value.
+				legacy["is_default"] = bson.M{"$ne": true}
+			}
+			_, err = p.col.UpdateOne(ctx, legacy, bson.M{"$set": bson.M{"is_default": s.IsDefault}})
+			return err
+		}
 		return nil
 	}
 	return err
@@ -207,9 +268,17 @@ func (h *EventHandler) Handle(ctx context.Context, topic, key string, payload []
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidEvent, err)
 	}
+	if s.Kind == "member" && s.Deleted {
+		fence := State{Key: fmt.Sprintf("role-source:member:%d:%d", s.TeamID, s.UserID), Kind: "member-fence", TeamID: s.TeamID, UserID: s.UserID, Deleted: true, Version: s.Version}
+		if err := h.store.Apply(ctx, fence); err != nil {
+			return err
+		}
+	}
 	return h.store.Apply(ctx, s)
 }
 func parseState(topic, key string, payload []byte) (State, error) {
+	// TODO(#596): 2026-11-01 05:00 KST 이후 구형 레코드 재처리·롤백 지원 종료 확인 후 ROLE_UPSERTED의 isDefault 누락 허용 제거.
+	// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
 	var e struct {
 		EventType     string           `json:"eventType"`
 		TeamID        int64            `json:"teamId"`
@@ -221,6 +290,7 @@ func parseState(topic, key string, payload []byte) (State, error) {
 		Type          string           `json:"type"`
 		IsPrivate     *bool            `json:"isPrivate"`
 		Priority      *int             `json:"priority"`
+		IsDefault     bool             `json:"isDefault"`
 		Permissions   map[string]*bool `json:"permissions"`
 		SchemaVersion int              `json:"schemaVersion"`
 		OccurredAt    string           `json:"occurredAt"`
@@ -239,7 +309,7 @@ func parseState(topic, key string, payload []byte) (State, error) {
 		}
 		permissions[name] = *value
 	}
-	s := State{TeamID: e.TeamID, ChannelID: e.ChannelID, UserID: e.UserID, RoleID: e.RoleID, Role: e.Role, ChannelType: e.Type, IsPrivate: e.IsPrivate, Permissions: permissions, Version: version.UnixNano()}
+	s := State{TeamID: e.TeamID, ChannelID: e.ChannelID, UserID: e.UserID, RoleID: e.RoleID, Role: e.Role, ChannelType: e.Type, IsPrivate: e.IsPrivate, IsDefault: e.IsDefault, Permissions: permissions, Version: version.UnixNano()}
 	expected := ""
 	switch topic {
 	case "channel.event.v2":

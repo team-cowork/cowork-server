@@ -6,6 +6,8 @@ import com.cowork.team.domain.teamRole.operation.TeamRoleCommandType
 import com.cowork.team.domain.teamRole.operation.TeamRoleContractTopics
 import com.cowork.team.domain.teamRole.operation.TeamRoleOperationProjectionFinalizer
 import com.cowork.team.domain.teamRole.operation.TeamRoleOperationStatus
+import com.cowork.team.domain.teamRole.operation.TeamRoleResultJson
+import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionRepository
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
@@ -18,6 +20,7 @@ class PreferenceTeamRoleCommandResultConsumer(
     private val operationRepository: TeamRoleCommandOperationRepository,
     private val finalizer: TeamRoleOperationProjectionFinalizer,
     private val objectMapper: ObjectMapper,
+    private val roleRepository: TeamRoleProjectionRepository,
 ) {
     @KafkaListener(
         topics = [TeamRoleContractTopics.RESULT],
@@ -83,7 +86,28 @@ class PreferenceTeamRoleCommandResultConsumer(
                     "SUCCEEDED result의 occurredAt과 projection occurredAt이 일치해야 합니다."
                 }
                 validateSucceededResult(result)
-                operation.markProcessing(result.role?.let(objectMapper::writeValueAsString), expectation)
+                val knownDefaultRole = result.role?.let { role ->
+                    roleRepository.findById(role.id).orElse(null)?.let { it.teamId == result.teamId && it.isDefault }
+                } == true
+                // TODO(#596): 2026-11-01 05:00 KST 이후 아래 조건 완료를 확인하고 제거한다.
+                // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+                // producer 전환·저장 결과 보정과 구형 결과 재처리 종료 후 projection 기반 유형 보정을 제거한다.
+                val resultRole = if (knownDefaultRole) {
+                    result.role?.copy(isDefault = true)
+                } else {
+                    result.role
+                }
+                val resultRoleJson = resultRole?.let(objectMapper::writeValueAsString)
+                if (TeamRoleResultJson.matches(
+                        operation.resultRoleJson,
+                        resultRoleJson,
+                        objectMapper,
+                        knownDefaultRole,
+                    )
+                ) {
+                    operation.resultRoleJson = resultRoleJson
+                }
+                operation.markProcessing(resultRoleJson, expectation)
                 finalizer.tryFinalize(operation)
             }
 

@@ -37,6 +37,14 @@ class UpdateTeamRoleServiceImpl(
         teamRoleAccessGuard.lockTeamOrThrow(teamId)
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
         val role = teamRoleLookupSupport.findRoleOrThrow(teamId, roleId)
+        teamRoleAccessGuard.requireGrantablePermissions(
+            actor,
+            request.permissions?.let(permissionSchema::validate).orEmpty().filter { (key, allowed) ->
+                allowed &&
+                    role.permissions[key] != true
+            },
+        )
+        teamRoleAccessGuard.requireDefaultRoleIdentity(role, request.name, request.priority)
         teamRoleAccessGuard.requireManageablePriority(actor, role)
         request.priority?.let {
             teamRoleAccessGuard.requireManageablePriority(actor, role.copy(priority = it))

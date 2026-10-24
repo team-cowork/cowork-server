@@ -53,7 +53,7 @@ class BuildOAuthAuthorizeUrlServiceImplTest :
             channelRepository = mockk()
             teamPermissionService = mockk()
             every { channelRepository.findById(1L) } returns Optional.of(channel)
-            every { teamPermissionService.requireTeamMember(100L, 1L) } returns Unit
+            every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
             service = BuildOAuthAuthorizeUrlServiceImpl(
                 properties,
                 ChannelAccessGuard(channelRepository),
@@ -78,7 +78,7 @@ class BuildOAuthAuthorizeUrlServiceImplTest :
             }
 
             it("팀 비멤버이면 FORBIDDEN을 반환한다") {
-                every { teamPermissionService.requireTeamMember(100L, 7L) } throws
+                every { teamPermissionService.requireChannelAccess(any(), 7L) } throws
                     ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
 
                 shouldThrow<ExpectedException> {

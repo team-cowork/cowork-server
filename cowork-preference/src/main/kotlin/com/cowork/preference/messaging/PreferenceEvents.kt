@@ -107,6 +107,7 @@ object PreferenceEvents {
             .put("colorHex", role.colorHex)
             .put("priority", role.priority)
             .put("mentionable", role.mentionable)
+            .put("isDefault", role.isDefault)
             .put("permissions", TeamRolePermissions.toJson(role.permissions)),
         occurredAt = occurredAt,
     )

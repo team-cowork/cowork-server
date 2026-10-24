@@ -22,9 +22,13 @@ func NewLiveService(repo Repository, permissions ConnectPermissionChecker, livek
 }
 
 func (s *LiveService) Start(ctx context.Context, channelID, userID int64) (*StartResponse, error) {
-	teamID, err := s.permissions.RequireConnect(ctx, channelID, userID)
+	access, err := s.permissions.RequireConnect(ctx, channelID, userID)
 	if err != nil {
 		return nil, err
+	}
+
+	if !access.Broadcast {
+		return nil, apperr.PermissionDenied()
 	}
 
 	// CreateSession의 duplicate-key 경쟁 재조회가 (nil, false, nil)을 반환할 수 있다:
@@ -33,7 +37,7 @@ func (s *LiveService) Start(ctx context.Context, channelID, userID int64) (*Star
 	const maxAttempts = 2
 	var liveSession *LiveSession
 	for attempt := 0; attempt < maxAttempts; attempt++ {
-		created, isNew, cerr := s.repo.CreateSession(ctx, channelID, teamID, userID)
+		created, isNew, cerr := s.repo.CreateSession(ctx, channelID, access.TeamID, userID)
 		if cerr != nil {
 			return nil, cerr
 		}
@@ -55,7 +59,7 @@ func (s *LiveService) Start(ctx context.Context, channelID, userID int64) (*Star
 		return nil, err
 	}
 
-	token, err := s.livekit.GenerateToken(userID, liveSession.RoomName, true)
+	token, err := s.livekit.GenerateToken(userID, liveSession.RoomName, access.Speak, access.ScreenShare)
 	if err != nil {
 		s.compensateFailedStart(ctx, liveSession)
 		return nil, err
@@ -82,7 +86,8 @@ func (s *LiveService) compensateFailedStart(ctx context.Context, liveSession *Li
 }
 
 func (s *LiveService) Join(ctx context.Context, channelID, userID int64) (*JoinResponse, error) {
-	if _, err := s.permissions.RequireConnect(ctx, channelID, userID); err != nil {
+	access, err := s.permissions.RequireConnect(ctx, channelID, userID)
+	if err != nil {
 		return nil, err
 	}
 
@@ -95,9 +100,12 @@ func (s *LiveService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 	}
 
 	isHost := userID == liveSession.HostUserID
+	if isHost && !access.Broadcast {
+		return nil, apperr.PermissionDenied()
+	}
 
 	// 호스트 재입장이면 publish 권한 토큰을 재발급한다(시청자 행 미생성).
-	token, err := s.livekit.GenerateToken(userID, liveSession.RoomName, isHost)
+	token, err := s.livekit.GenerateToken(userID, liveSession.RoomName, isHost && access.Speak, isHost && access.ScreenShare)
 	if err != nil {
 		return nil, err
 	}
