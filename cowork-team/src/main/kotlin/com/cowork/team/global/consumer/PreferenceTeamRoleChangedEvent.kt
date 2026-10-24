@@ -14,6 +14,7 @@ data class PreferenceTeamRoleChangedEvent(
     val mentionable: Boolean? = null,
     val permissions: Map<String, Boolean>? = null,
     val occurredAt: Instant,
+    // TODO(#596): producer 전환·구형 이벤트 재생 종료 후 ROLE_UPSERTED의 isDefault 누락 호환을 제거한다.
     @field:JsonProperty("isDefault")
     val isDefault: Boolean = false,
 )

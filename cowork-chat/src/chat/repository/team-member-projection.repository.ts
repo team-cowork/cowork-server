@@ -16,6 +16,7 @@ export type TeamMemberProjectionView = {
     userId: number;
     role: string;
     teamName: string;
+    // TODO(#596): Mongo 멤버 문서의 sourceVersion 보강과 구버전 rollback 종료 후 조회 필드를 필수로 전환한다.
     sourceVersion?: bigint | mongo.Long;
 };
 

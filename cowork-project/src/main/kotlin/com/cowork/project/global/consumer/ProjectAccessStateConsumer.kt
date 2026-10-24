@@ -34,6 +34,7 @@ class ProjectAccessStateConsumer(
             val userId = node.path("accountId").asLong()
             require(projectId > 0 && userId > 0 && record.key() == "$projectId:$userId")
             require(node.path("read").isBoolean && node.path("write").isBoolean)
+            // TODO(#596): 구버전 생산자·롤백 지원 종료 및 구형 보관 레코드 교체 후 manage와 sourceMembershipVersion 필수화.
             require(!node.has("manage") || node.path("manage").isBoolean)
             require(!node.has("reorder") || node.path("reorder").isBoolean)
             ProjectAccessProjection(
