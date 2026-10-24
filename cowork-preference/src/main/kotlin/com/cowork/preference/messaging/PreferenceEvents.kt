@@ -90,7 +90,7 @@ object PreferenceEvents {
                 .put("accountId", preference.accountId)
                 .put("channelId", preference.channelId)
                 .put("notification", preference.notification)
-                .put("notificationLevel", preference.notificationLevel.name)
+                .put("notificationLevel", preference.notificationLevelName)
                 .put("mutedUntil", preference.mutedUntil?.toString()),
             occurredAt = occurredAt,
         )
