@@ -68,9 +68,10 @@ class CreateProjectServiceImplTest {
         @Test
         fun `createProject은 일반 멤버의 비공개 생성 승인을 초기 읽기 역할 요청으로 보존한다`() {
             val version = Instant.parse("2026-10-25T00:00:00Z")
+            val authorizationVersion = version.minusSeconds(1)
             val saved = slot<Project>()
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns
-                TeamMembership(teamId = 100L, userId = 7L, role = "MEMBER", sourceOccurredAt = version)
+                TeamMembership(teamId = 100L, userId = 7L, role = "MEMBER", sourceOccurredAt = version, authorizationVersion = authorizationVersion)
             every { teamPermissions.hasPermission(100L, 7L, "manage_projects") } returns true
             every { teamPermissions.hasPermission(100L, 7L, "project_read") } returns true
             every { projectRepository.findMaxPositionByTeamId(100L) } returns 0
@@ -81,6 +82,7 @@ class CreateProjectServiceImplTest {
             assertEquals(true, response.isPrivate)
             assertEquals(7L, saved.captured.createdBy)
             assertEquals(version, saved.captured.initialReadMembershipVersion)
+            assertEquals(authorizationVersion, saved.captured.initialReadAuthorizationVersion)
             verify { projectEventPublisher.publishCreated(saved.captured, any()) }
         }
     }
