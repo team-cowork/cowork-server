@@ -20,18 +20,24 @@ class ChannelLifecycleHandler(
     private val log = LoggerFactory.getLogger(ChannelLifecycleHandler::class.java)
 
     @Transactional
-    fun onMemberUpsert(teamId: Long, userId: Long, role: String, occurredAt: Instant) {
+    fun onMemberUpsert(
+        teamId: Long,
+        userId: Long,
+        role: String,
+        occurredAt: Instant,
+        authorizationVersion: Instant? = null,
+    ) {
         val version = occurredAt.toProjectionPrecision()
         val membership = teamMembershipRepository.findStateByTeamIdAndUserIdForUpdate(teamId, userId)
             ?: TeamMembership(teamId = teamId, userId = userId, role = role, sourceOccurredAt = version)
         val existingVersion = membership.sourceOccurredAt.toProjectionPrecision()
         if (existingVersion.isAfter(version) ||
-            (existingVersion == version && !membership.active)
+            (existingVersion == version && (!membership.active || membership.role != role))
         ) {
             return
         }
 
-        membership.applyUpsert(role, version)
+        membership.applyUpsert(role, version, authorizationVersion?.toProjectionPrecision())
         teamMembershipRepository.save(membership)
         log.info("team.member UPSERT 처리 [teamId={}, userId={}, role={}]", teamId, userId, role)
     }
@@ -55,7 +61,13 @@ class ChannelLifecycleHandler(
     }
 
     @Transactional
-    fun onMemberRemovedFromTeam(teamId: Long, targetUserId: Long, role: String, occurredAt: Instant) {
+    fun onMemberRemovedFromTeam(
+        teamId: Long,
+        targetUserId: Long,
+        role: String,
+        occurredAt: Instant,
+        authorizationVersion: Instant? = null,
+    ) {
         val version = occurredAt.toProjectionPrecision()
         roleProjectionHandler.handle(
             PreferenceTeamRoleChangedEvent(
@@ -74,12 +86,10 @@ class ChannelLifecycleHandler(
                 sourceOccurredAt = version,
             )
         val existingVersion = membership.sourceOccurredAt.toProjectionPrecision()
-        if (existingVersion.isAfter(version) ||
-            (existingVersion == version && !membership.active)
-        ) {
-            return
-        }
-        membership.markDeleted(version)
+        if (existingVersion.isAfter(version)) return
+        val sameDeletedState = existingVersion == version && !membership.active
+        val compatibleAuthorization = authorizationVersion?.takeUnless { sameDeletedState && membership.role != role }
+        membership.markDeleted(version, compatibleAuthorization?.toProjectionPrecision())
         teamMembershipRepository.save(membership)
 
         log.info("Revoke team member access [teamId={}, userId={}]", teamId, targetUserId)
