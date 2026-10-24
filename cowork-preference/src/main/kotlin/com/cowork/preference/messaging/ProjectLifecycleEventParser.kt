@@ -10,6 +10,7 @@ data class ProjectLifecycleEvent(
     val deleted: Boolean,
     val occurredAt: Instant,
     val createdBy: Long? = null,
+    val isPrivate: Boolean = true,
 )
 
 sealed interface ProjectLifecycleRecordDecision {
@@ -37,6 +38,7 @@ object ProjectLifecycleEventParser {
         ProjectLifecycleRecordDecision.Apply(
             ProjectLifecycleEvent(projectId, teamId, eventType == "DELETED", occurredAt,
                 payload.getValue("createdBy")?.let { positiveLong(it, "createdBy") },
+                if (payload.containsKey("isPrivate")) payload.getValue("isPrivate") as? Boolean ?: error("isPrivate must be a boolean") else true,
             ),
         )
     }.getOrElse { error ->

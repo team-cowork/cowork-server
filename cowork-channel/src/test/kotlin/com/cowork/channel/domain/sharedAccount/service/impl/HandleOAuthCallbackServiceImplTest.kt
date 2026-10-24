@@ -313,7 +313,7 @@ class HandleOAuthCallbackServiceImplTest :
             context("팀 멤버가 아니면") {
                 it("외부 제공자를 호출하기 전에 거부한다") {
                     every {
-                        teamPermissionService.requireTeamMember(teamId, userId)
+                        teamPermissionService.requireChannelAccess(any(), userId)
                     } throws ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
 
                     shouldThrow<ExpectedException> {

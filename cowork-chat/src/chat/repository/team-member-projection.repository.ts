@@ -16,6 +16,7 @@ export type TeamMemberProjectionView = {
     userId: number;
     role: string;
     teamName: string;
+    sourceVersion?: bigint | mongo.Long;
 };
 
 export type VersionedTeamMemberProjectionView = {
@@ -47,7 +48,7 @@ export class TeamMemberProjectionRepository {
         return this.model.find(
             {teamId: {$in: teamIds}, userId: {$in: userIds}, deleted: {$ne: true}},
             {
-                _id: 0, teamId: 1, userId: 1, role: 1, teamName: 1,
+                _id: 0, teamId: 1, userId: 1, role: 1, teamName: 1, sourceVersion: 1,
             },
         ).lean<TeamMemberProjectionView[]>();
     }
