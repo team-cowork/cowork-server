@@ -386,8 +386,8 @@
         "type": "object",
         "properties": {
           "tag_spam_block": { "type": "boolean", "example": false },
-          "nickname_format_enforced": { "type": "boolean", "example": true },
-          "nickname_format_example": { "type": "string", "minLength": 1, "example": "홍길동 / 프론트엔드" },
+          "nickname_format_enforced": { "type": "boolean", "description": "가입할 때 닉네임 형식을 안내하고 팀 닉네임 설정을 유도할지 여부. 서버는 형식을 판정하지 않으며 켜려면 nickname_format_example이 필요합니다.", "example": true },
+          "nickname_format_example": { "type": "string", "minLength": 1, "description": "닉네임 형식 안내에 보여 줄 예시", "example": "홍길동 / 프론트엔드" },
           "default_notification_level": { "type": "string", "enum": ["ALL", "MENTIONS", "NONE"], "description": "팀 채널의 기본 알림 수준", "example": "MENTIONS" }
         }
       },
