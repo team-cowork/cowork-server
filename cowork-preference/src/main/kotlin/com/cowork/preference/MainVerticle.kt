@@ -156,7 +156,6 @@ class MainVerticle : AbstractVerticle() {
             initialAccessRepo, teamMemberProjectionRepo, teamRoleRepo, channelRolePolicyRepo,
             roleRepo, outboxRepository, projectionReadiness,
         )
-        val roleService = ProjectRoleService(roleRepo, outboxRepository, projectAccessRepo, initialAccessRepo)
         val teamRoleService = TeamRoleService(teamRoleRepo, outboxRepository, channelRolePolicyRepo, projectAccessRepo)
         val channelLifecycleService = ChannelLifecycleService(
             projectionRepository = channelLifecycleProjectionRepo,
@@ -199,6 +198,7 @@ class MainVerticle : AbstractVerticle() {
             roleRepo,
             teamRoleRepo,
         )
+        val roleService = ProjectRoleService(roleRepo, outboxRepository, projectAccessRepo, initialAccessRepo, projectAccessGuard)
         val channelAccessGuard = ChannelAccessGuard(
             pool = pool,
             channelRepository = channelLifecycleProjectionRepo,

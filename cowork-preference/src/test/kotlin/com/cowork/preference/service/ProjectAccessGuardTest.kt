@@ -76,7 +76,7 @@ class ProjectAccessGuardTest :
                     fixture.stubReadiness(true)
                     fixture.stubProject()
                     fixture.stubTeamMember()
-                    coEvery { fixture.roles.effectivePermissions(PROJECT_ID, MEMBER.userId) } returns ProjectPermissions(read = true, manage = true)
+                    coEvery { fixture.roles.effectivePermissions(PROJECT_ID, MEMBER.userId, fixture.pool) } returns ProjectPermissions(read = true, manage = true)
                     fixture.stubTeamRoles()
                 }
                 it("설정 관리 권한만으로 역할을 생성할 수 없다") {
@@ -93,12 +93,12 @@ class ProjectAccessGuardTest :
                 }
                 it("기존 역할을 할당할 때도 권한 범위를 확인한다") {
                     fixture.stubTeamRoles(manageRoles = true)
-                    coEvery { fixture.roles.findRole(PROJECT_ID, "writer") } returns ProjectRoleDefinition(PROJECT_ID, "writer", JsonObject().put("write", true))
+                    coEvery { fixture.roles.findRole(PROJECT_ID, "writer", fixture.pool) } returns ProjectRoleDefinition(PROJECT_ID, "writer", JsonObject().put("write", true))
                     shouldThrow<ResourceAccessDeniedException> { fixture.guard.requireRoleAssignment(PROJECT_ID, MEMBER, "writer", TARGET_ID) }
                 }
                 it("일반 역할 관리자는 거부 정책 제거로 권한을 복구할 수 없다") {
                     fixture.stubTeamRoles(manageRoles = true)
-                    coEvery { fixture.roles.findRole(PROJECT_ID, "deny") } returns ProjectRoleDefinition(PROJECT_ID, "deny", JsonObject().put("read", false))
+                    coEvery { fixture.roles.findRole(PROJECT_ID, "deny", fixture.pool) } returns ProjectRoleDefinition(PROJECT_ID, "deny", JsonObject().put("read", false))
                     shouldThrow<ResourceAccessDeniedException> { fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "deny", TARGET_ID) }
                     fixture.stubTeamMember("ADMIN")
                     shouldNotThrowAny { fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "deny", TARGET_ID) }
@@ -109,10 +109,10 @@ class ProjectAccessGuardTest :
                         fixture.stubTeamRoles(manageRoles = true)
                         fixture.stubTeamMember(accountId = TARGET_ID)
                         fixture.stubTeamRoles(accountId = TARGET_ID, priority = 5)
-                        coEvery { fixture.roles.effectivePermissions(PROJECT_ID, MEMBER.userId) } returns ProjectPermissions(read = true)
-                        coEvery { fixture.roles.findRole(PROJECT_ID, "deny") } returns
+                        coEvery { fixture.roles.effectivePermissions(PROJECT_ID, MEMBER.userId, fixture.pool) } returns ProjectPermissions(read = true)
+                        coEvery { fixture.roles.findRole(PROJECT_ID, "deny", fixture.pool) } returns
                             ProjectRoleDefinition(PROJECT_ID, "deny", JsonObject().put("read", false))
-                        coEvery { fixture.roles.findRole(PROJECT_ID, "manager") } returns
+                        coEvery { fixture.roles.findRole(PROJECT_ID, "manager", fixture.pool) } returns
                             ProjectRoleDefinition(PROJECT_ID, "manager", JsonObject().put("manage", true))
                     }
 
@@ -126,7 +126,7 @@ class ProjectAccessGuardTest :
                     }
 
                     it("본인과 하위 멤버에게만 할당된 허용 역할을 삭제할 수 있다") {
-                        coEvery { fixture.roles.findMemberRoles(PROJECT_ID) } returns listOf(
+                        coEvery { fixture.roles.findMemberRoles(PROJECT_ID, fixture.pool) } returns listOf(
                             AccountProjectRole(MEMBER.userId, PROJECT_ID, "manager"),
                             AccountProjectRole(TARGET_ID, PROJECT_ID, "manager"),
                         )
@@ -174,7 +174,7 @@ class ProjectAccessGuardTest :
                     }
 
                     it("전역 역할 삭제로 상위 멤버 보호를 우회할 수 없다") {
-                        coEvery { fixture.roles.findMemberRoles(PROJECT_ID) } returns listOf(
+                        coEvery { fixture.roles.findMemberRoles(PROJECT_ID, fixture.pool) } returns listOf(
                             AccountProjectRole(MEMBER.userId, PROJECT_ID, "manager"),
                             AccountProjectRole(TARGET_ID, PROJECT_ID, "manager"),
                         )
@@ -187,7 +187,7 @@ class ProjectAccessGuardTest :
                     }
 
                     it("삭제하는 역할을 가진 멤버만 우선순위를 확인한다") {
-                        coEvery { fixture.roles.findMemberRoles(PROJECT_ID) } returns listOf(
+                        coEvery { fixture.roles.findMemberRoles(PROJECT_ID, fixture.pool) } returns listOf(
                             AccountProjectRole(TARGET_ID, PROJECT_ID, "another-role"),
                         )
                         fixture.stubTeamRoles(accountId = TARGET_ID, priority = 11)
