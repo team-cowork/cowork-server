@@ -26,8 +26,8 @@ class TeamMemberProjectionHandler(
             val applied = teamMemberProjectionRepository.apply(connection, event)
             if (event.eventType != "DELETE") {
                 if (!applied) return@inTransaction
-                teamRoleService.ensureDefaultRole(connection, event.teamId)
-                projectAccess.refreshTeam(connection, event.teamId)
+                val defaultCreated = teamRoleService.ensureDefaultRole(connection, event.teamId)
+                projectAccess.refreshTeam(connection, event.teamId, if (defaultCreated) null else event.userId)
                 return@inTransaction
             }
             when (TeamMemberCleanupPolicy.scope(event)) {
