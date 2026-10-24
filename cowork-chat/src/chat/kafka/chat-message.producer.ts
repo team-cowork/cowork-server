@@ -12,6 +12,7 @@ import {getRequiredCsvConfig} from '../../common/config/config.util';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {MessageScope} from '../service';
 import {ConfirmedAttachment} from '../../storage/attachment-upload.schema';
+import {connectWithRetry} from '../../common/kafka/connect-with-retry';
 import {CHAT_MESSAGE_CONTRACT_VERSION, CHAT_MESSAGE_TOPIC} from './event/chat-message-contract';
 import {ChatMessageEvent} from './event/chat-message.event';
 
@@ -40,8 +41,10 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
     /**
      모듈 초기화 시 Kafka 프로듀서 인스턴스를 생성하고 백그라운드 연결을 시도한다.
 
-     연결 실패는 오류 로그로만 기록되며, 모듈 초기화 자체는 성공으로 처리된다.
-     실제 연결은 첫 번째 메시지 발행 시 {@link ensureConnected}를 통해 재시도된다.
+     브로커 일시 장애에는 {@link connectWithRetry}가 백그라운드에서 재시도하므로, 그 사이 메시지
+     발행 요청이 없어도 `/health/ready`가 스스로 회복된다. 재시도 예산을 다 쓴 뒤에도 실패하면
+     오류 로그와 알림만 남기고 모듈 초기화 자체는 성공으로 처리하며, 그 이후의 발행 시도는
+     {@link ensureConnected}를 통해 다시 재시도된다.
      */
     onModuleInit() {
         const kafka = new Kafka({
@@ -49,18 +52,19 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         this.producer = kafka.producer({idempotent: true});
-        void this.ensureConnected().catch((error: unknown) => {
-            this.logger.error(`Kafka producer bootstrap connect failed: ${this.formatError(error)}`);
-            void this.dicoshot.sendCustom({
-                title: '🔴 Kafka Producer 연결 실패',
-                description: 'cowork-chat의 chat.message.v2 producer가 부트스트랩 연결에 실패했습니다.',
-                color: 'danger',
-                fields: [
-                    {name: 'Topic', value: 'chat.message.v2', inline: true},
-                    ...buildErrorFields(error),
-                ],
-            }).catch(() => {/* Alert delivery is best-effort. */});
-        });
+        void connectWithRetry(this.logger, 'Kafka producer startup: chat.message.v2', async () => this.ensureConnected())
+            .catch((error: unknown) => {
+                this.logger.error(`Kafka producer bootstrap connect failed: ${this.formatError(error)}`);
+                void this.dicoshot.sendCustom({
+                    title: '🔴 Kafka Producer 연결 실패',
+                    description: 'cowork-chat의 chat.message.v2 producer가 부트스트랩 연결에 실패했습니다.',
+                    color: 'danger',
+                    fields: [
+                        {name: 'Topic', value: 'chat.message.v2', inline: true},
+                        ...buildErrorFields(error),
+                    ],
+                }).catch(() => {/* Alert delivery is best-effort. */});
+            });
     }
 
     /**
