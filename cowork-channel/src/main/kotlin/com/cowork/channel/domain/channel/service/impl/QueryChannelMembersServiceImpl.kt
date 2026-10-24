@@ -25,8 +25,9 @@ class QueryChannelMembersServiceImpl(
         channelPermissionSupport.requireChannelAccess(channel, userId)
         val teamId = channel.teamId
             ?: return dmParticipantRepository.findByChannelId(channelId).map(ChannelAccessUserResponse::of)
-        return teamMembers.findAllByTeamIdAndActiveTrue(teamId)
-            .filter { evaluator.filterReadable(teamId, it.userId, listOf(channel)).isNotEmpty() }
+        val members = teamMembers.findAllByTeamIdAndActiveTrue(teamId)
+        val readableUserIds = evaluator.readableUserIds(channel, members)
+        return members.filter { it.userId in readableUserIds }
             .map { ChannelAccessUserResponse(channelId, it.userId) }
     }
 }
