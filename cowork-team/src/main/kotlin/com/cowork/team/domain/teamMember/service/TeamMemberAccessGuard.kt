@@ -2,6 +2,7 @@ package com.cowork.team.domain.teamMember.service
 
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
@@ -13,7 +14,11 @@ import team.themoment.sdk.exception.ExpectedException
 class TeamMemberAccessGuard(
     private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
+    private val permissions: TeamPermissionGuard,
 ) {
+
+    fun requirePermission(teamId: Long, userId: Long, permission: String): TeamMember =
+        permissions.requirePermission(teamId, userId, permission)
 
     fun findTeamOrThrow(teamId: Long): Team = teamRepository.findById(teamId).orElseThrow {
         ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)

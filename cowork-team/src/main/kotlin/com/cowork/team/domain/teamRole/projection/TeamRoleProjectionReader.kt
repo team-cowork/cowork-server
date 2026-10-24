@@ -26,7 +26,7 @@ class TeamRoleProjectionReader(
             .filterNot { it.deleted }
             .map { it.roleId }
             .toSet()
-        return findRoles(teamId).filter { it.id in roleIds }
+        return findRoles(teamId).filter { it.isDefault || it.id in roleIds }
     }
 
     fun getMemberRoleAssignments(teamId: Long): List<TeamMemberRoleAssignmentResponse> {
@@ -56,5 +56,6 @@ class TeamRoleProjectionReader(
         permissions = objectMapper.readValue<Map<String, Boolean>>(role.permissionsJson),
         createdAt = role.sourceCreatedAt.toString(),
         updatedAt = role.sourceOccurredAt.toString(),
+        isDefault = role.isDefault,
     )
 }

@@ -19,7 +19,7 @@ class CreateProjectServiceImpl(
 
     @Transactional
     override fun execute(userId: Long, request: CreateProjectReqDto): ProjectResDto {
-        projectAccessGuard.requireTeamMember(request.teamId, userId)
+        val initialReadAuthorization = projectAccessGuard.requireProjectCreation(request.teamId, userId, request.isPrivate)
 
         val project = projectRepository.save(
             Project(
@@ -28,6 +28,9 @@ class CreateProjectServiceImpl(
                 description = request.description,
                 position = projectRepository.findMaxPositionByTeamId(request.teamId) + 1,
                 createdBy = userId,
+                isPrivate = request.isPrivate,
+                initialReadMembershipVersion = initialReadAuthorization?.membershipVersion,
+                initialReadAuthorizationVersion = initialReadAuthorization?.authorizationVersion,
             ),
         )
 

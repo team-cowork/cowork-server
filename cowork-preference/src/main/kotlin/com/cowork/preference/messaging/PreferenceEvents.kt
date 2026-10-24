@@ -31,7 +31,6 @@ object PreferenceEvents {
     const val CHANNEL_ROLE_POLICY_STATE_TOPIC = "preference.channel-role-policy.state.v2"
     const val CHANNEL_ROLE_POLICY_COMMAND_RESULT_TOPIC = "preference.channel-role-policy.result.v2"
     const val STATUS_CHANGED_TOPIC = "preference.status.changed"
-    const val TEAM_SETTING_CHANGED_TOPIC = "preference.team.setting.changed"
     const val ACCOUNT_SETTING_STATE_TOPIC = "preference.account-setting.state.v1"
     const val TEAM_SETTING_STATE_TOPIC = "preference.team-setting.state.v1"
     const val TEXT_CHANNEL_SETTING_STATE_TOPIC = "preference.text-channel-setting.state.v1"
@@ -46,7 +45,6 @@ object PreferenceEvents {
         CHANNEL_ROLE_POLICY_STATE_TOPIC,
         CHANNEL_ROLE_POLICY_COMMAND_RESULT_TOPIC,
         STATUS_CHANGED_TOPIC,
-        TEAM_SETTING_CHANGED_TOPIC,
         ACCOUNT_SETTING_STATE_TOPIC,
         TEAM_SETTING_STATE_TOPIC,
         TEXT_CHANNEL_SETTING_STATE_TOPIC,
@@ -109,6 +107,7 @@ object PreferenceEvents {
             .put("colorHex", role.colorHex)
             .put("priority", role.priority)
             .put("mentionable", role.mentionable)
+            .put("isDefault", role.isDefault)
             .put("permissions", TeamRolePermissions.toJson(role.permissions)),
         occurredAt = occurredAt,
     )
@@ -224,22 +223,6 @@ object PreferenceEvents {
         occurredAt = occurredAt,
     )
 
-    fun teamSettingsChanged(
-        teamId: Long,
-        changedSettings: JsonObject,
-        settings: JsonObject,
-        occurredAt: Instant = Instant.now(),
-    ): PreferenceEvent = PreferenceEvent(
-        topic = TEAM_SETTING_CHANGED_TOPIC,
-        key = teamId.toString(),
-        payload = JsonObject()
-            .put("teamId", teamId)
-            .put("changedSettings", changedSettings)
-            .put("settings", settings)
-            .put("timestamp", occurredAt.toString()),
-        occurredAt = occurredAt,
-    )
-
     /** 알림 발송 판단에 쓰는 계정 설정만 싣는다. 검증을 통과하지 않는 과거 값은 소비자가 격리하지 않도록 null로 보낸다. */
     fun accountSettingState(
         accountId: Long,
@@ -268,24 +251,33 @@ object PreferenceEvents {
         occurredAt = occurredAt,
     )
 
+    /** 닉네임 형식 안내는 예시가 있을 때만 켠다. 형식 판정 기준이 아니므로 소비자는 안내 표시에만 쓴다. */
     fun teamSettingState(
         teamId: Long,
         settings: JsonObject,
         occurredAt: Instant,
         snapshot: Boolean,
-    ): PreferenceEvent = PreferenceEvent(
-        topic = TEAM_SETTING_STATE_TOPIC,
-        key = teamId.toString(),
-        payload = basePayload("UPSERT", occurredAt)
-            .put("schemaVersion", SETTING_STATE_SCHEMA_VERSION)
-            .put("teamId", teamId)
-            .put(
-                "defaultNotificationLevel",
-                validSetting(ResourceType.TEAM, settings, "default_notification_level"),
-            )
-            .put("snapshot", snapshot),
-        occurredAt = occurredAt,
-    )
+    ): PreferenceEvent {
+        val nicknameFormatExample = validSetting(ResourceType.TEAM, settings, "nickname_format_example")
+        return PreferenceEvent(
+            topic = TEAM_SETTING_STATE_TOPIC,
+            key = teamId.toString(),
+            payload = basePayload("UPSERT", occurredAt)
+                .put("schemaVersion", SETTING_STATE_SCHEMA_VERSION)
+                .put("teamId", teamId)
+                .put(
+                    "defaultNotificationLevel",
+                    validSetting(ResourceType.TEAM, settings, "default_notification_level"),
+                )
+                .put(
+                    "nicknameFormatEnforced",
+                    nicknameFormatExample != null && settings.getValue("nickname_format_enforced") == true,
+                )
+                .put("nicknameFormatExample", nicknameFormatExample)
+                .put("snapshot", snapshot),
+            occurredAt = occurredAt,
+        )
+    }
 
     fun textChannelSettingState(
         channelId: Long,

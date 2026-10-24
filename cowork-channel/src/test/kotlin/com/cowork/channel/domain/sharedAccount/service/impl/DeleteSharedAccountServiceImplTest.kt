@@ -26,7 +26,9 @@ class DeleteSharedAccountServiceImplTest {
 
     private val sharedAccountRepository = mockk<SharedAccountRepository>(relaxed = true)
     private val channelRepository = mockk<ChannelRepository>(relaxed = true)
-    private val teamPermissionService = mockk<TeamPermissionService>()
+    private val teamPermissionService = mockk<TeamPermissionService> {
+        every { requireChannelAccess(any(), any()) } returns Unit
+    }
     private val credentialEncryptionService = mockk<CredentialEncryptionService>()
     private val channelAccessGuard = ChannelAccessGuard(channelRepository)
     private val sharedAccountAccessGuard = SharedAccountAccessGuard()
@@ -87,7 +89,8 @@ class DeleteSharedAccountServiceImplTest {
         val acc = account(createdBy = 88L)
         every { channelRepository.findById(1L) } returns Optional.of(ch)
         every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns acc
-        every { teamPermissionService.isTeamOwnerOrAdmin(100L, 1L) } returns false
+        every { teamPermissionService.requireChannelPermission(any(), 1L, "channel_manage") } throws
+            ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
 
         val ex = assertThrows<ExpectedException> { service.deleteAccount(1L, 1L, 10L) }
         assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
