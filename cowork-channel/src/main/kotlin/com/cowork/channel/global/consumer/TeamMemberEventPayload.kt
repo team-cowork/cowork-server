@@ -10,4 +10,5 @@ data class TeamMemberEventPayload(
     val userId: Long,
     val role: String = "MEMBER",
     val occurredAt: Instant? = null,
+    val authorizationVersion: Instant? = null,
 )
