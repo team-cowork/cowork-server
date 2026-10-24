@@ -23,8 +23,10 @@ class ChannelRolePolicyPermissionsTest {
 
     @Test
     fun `채널 권한이 아닌 키는 거부한다`() {
-        assertThrows<IllegalArgumentException> {
-            ChannelRolePolicyPermissions.canonicalize(JsonObject().put(PermissionKeys.MANAGE_ROLES, true))
+        listOf(PermissionKeys.MANAGE_ROLES, "channel_member_manage").forEach { key ->
+            assertThrows<IllegalArgumentException> {
+                ChannelRolePolicyPermissions.canonicalize(JsonObject().put(key, true))
+            }
         }
     }
 

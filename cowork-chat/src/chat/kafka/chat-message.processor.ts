@@ -1,7 +1,7 @@
 import {Injectable, Logger} from '@nestjs/common';
 import {Types} from 'mongoose';
 import {Server} from 'socket.io';
-import {MessageRepository, toMessageBroadcastPayload, ChannelMemberRepository} from '../repository';
+import {MessageRepository, toMessageBroadcastPayload, ChannelReadStateRepository} from '../repository';
 import {ChannelMessageReadAccessService} from '../service';
 import {ChatMessageEvent} from './event/chat-message.event';
 import {ChatMessageScopeValidator} from './chat-message-scope-validator';
@@ -19,7 +19,7 @@ export class ChatMessageProcessor {
 
     constructor(
         private readonly messageRepository: MessageRepository,
-        private readonly channelMemberRepository: ChannelMemberRepository,
+        private readonly readStateRepository: ChannelReadStateRepository,
         private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
         private readonly scopeValidator: ChatMessageScopeValidator,
     ) {}
@@ -55,7 +55,7 @@ export class ChatMessageProcessor {
                 this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${event.channelId})`);
             }
 
-            void this.channelMemberRepository.updateLastRead(event.channelId, event.authorId, saved._id)
+            void this.readStateRepository.updateLastRead(event.channelId, event.authorId, saved._id)
                 .catch((error: unknown) => {
                     this.logger.warn(`Failed to update lastReadMessageId channelId=${event.channelId} authorId=${event.authorId}: ${String(error)}`);
                 });

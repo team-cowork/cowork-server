@@ -8,6 +8,7 @@ import com.cowork.channel.domain.channelRolePolicy.operation.ChannelRolePolicyCo
 import com.cowork.channel.domain.channelRolePolicy.operation.ChannelRolePolicyOperationProjectionFinalizer
 import com.cowork.channel.domain.channelRolePolicy.operation.ChannelRolePolicyOperationStatus
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjection
+import com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyPermissionSchema
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
@@ -103,11 +104,13 @@ class ChannelRolePolicyCommandResultConsumer(
         val deleted = result.commandType == ChannelRolePolicyCommandType.DELETE
         require(expectation.deleted == deleted) { "result projection deleted 계약이 유효하지 않습니다." }
         if (result.commandType == ChannelRolePolicyCommandType.UPSERT) {
+            val permissions: Map<String, Boolean?>? = result.permissions
             require(
-                result.permissions?.keys == setOf(MESSAGE_READ_KEY) &&
-                    result.permissions[MESSAGE_READ_KEY] != null,
+                !permissions.isNullOrEmpty() &&
+                    permissions.keys.all { it in ChannelRolePolicyPermissionSchema.KEYS } &&
+                    permissions.values.none { it == null },
             ) {
-                "UPSERT result permissions에는 message_read boolean 하나만 필요합니다."
+                "UPSERT result permissions에는 지원하는 boolean 권한이 하나 이상 필요합니다."
             }
         } else {
             require(result.permissions == null) { "DELETE result에는 permissions가 없어야 합니다." }
@@ -122,6 +125,5 @@ class ChannelRolePolicyCommandResultConsumer(
             ChannelRolePolicyOperationStatus.SUCCEEDED,
             ChannelRolePolicyOperationStatus.FAILED,
         )
-        const val MESSAGE_READ_KEY = "message_read"
     }
 }
