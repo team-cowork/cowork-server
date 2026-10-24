@@ -12,17 +12,17 @@ import (
 
 type LiveService struct {
 	repo         Repository
-	membership   MembershipChecker
+	permissions  ConnectPermissionChecker
 	livekit      LiveKitRoom
 	livekitWsURL string
 }
 
-func NewLiveService(repo Repository, membership MembershipChecker, livekit LiveKitRoom, livekitWsURL string) *LiveService {
-	return &LiveService{repo: repo, membership: membership, livekit: livekit, livekitWsURL: livekitWsURL}
+func NewLiveService(repo Repository, permissions ConnectPermissionChecker, livekit LiveKitRoom, livekitWsURL string) *LiveService {
+	return &LiveService{repo: repo, permissions: permissions, livekit: livekit, livekitWsURL: livekitWsURL}
 }
 
 func (s *LiveService) Start(ctx context.Context, channelID, userID int64) (*StartResponse, error) {
-	teamID, err := s.membership.VerifyMembership(ctx, channelID, userID)
+	teamID, err := s.permissions.RequireConnect(ctx, channelID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +82,7 @@ func (s *LiveService) compensateFailedStart(ctx context.Context, liveSession *Li
 }
 
 func (s *LiveService) Join(ctx context.Context, channelID, userID int64) (*JoinResponse, error) {
-	if _, err := s.membership.VerifyMembership(ctx, channelID, userID); err != nil {
+	if _, err := s.permissions.RequireConnect(ctx, channelID, userID); err != nil {
 		return nil, err
 	}
 
@@ -112,7 +112,7 @@ func (s *LiveService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 }
 
 func (s *LiveService) Leave(ctx context.Context, channelID, userID int64) error {
-	if _, err := s.membership.VerifyMembership(ctx, channelID, userID); err != nil {
+	if _, err := s.permissions.RequireConnect(ctx, channelID, userID); err != nil {
 		return err
 	}
 
@@ -158,7 +158,7 @@ func (s *LiveService) Leave(ctx context.Context, channelID, userID int64) error 
 }
 
 func (s *LiveService) GetStatus(ctx context.Context, channelID, userID int64) (*StatusResponse, error) {
-	if _, err := s.membership.VerifyMembership(ctx, channelID, userID); err != nil {
+	if _, err := s.permissions.RequireConnect(ctx, channelID, userID); err != nil {
 		return nil, err
 	}
 

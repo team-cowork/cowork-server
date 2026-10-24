@@ -19,6 +19,8 @@ import {
     ProjectionReadinessService,
 } from './common/kafka/projection-readiness.service';
 
+const CHANNEL_PERMISSION_STREAMS: ProjectionName[] = ['channel', 'teamMember', 'teamRole', 'channelRolePolicy', 'dmParticipant'];
+
 const ALL_PROJECTION_STREAMS = Object.keys(PROJECTION_STREAMS) as ProjectionName[];
 
 function requiredProjectionStreams(path: string): ProjectionName[] {
@@ -27,30 +29,30 @@ function requiredProjectionStreams(path: string): ProjectionName[] {
     }
 
     if (path.startsWith('/chat/dms')) {
-        return ['channelMember', 'userProfile'];
+        return ['channel', 'dmParticipant', 'userProfile'];
     }
 
     if (path.startsWith('/chat/projects/')) {
-        return ['projectMember', 'channelMember', 'userProfile'];
+        return [...CHANNEL_PERMISSION_STREAMS, 'project', 'projectPermission', 'userProfile'];
     }
 
     if (path.startsWith('/chat/teams/')) {
-        return ['channelMember'];
+        return CHANNEL_PERMISSION_STREAMS;
     }
 
     if (path.startsWith('/chat/search')) {
-        return ['channel', 'teamMember', 'channelMember', 'userProfile'];
+        return [...CHANNEL_PERMISSION_STREAMS, 'userProfile'];
     }
 
     if (path === '/graphql') {
-        return ['channel', 'teamMember', 'userProfile'];
+        return [...CHANNEL_PERMISSION_STREAMS, 'userProfile'];
     }
 
     if (path.includes('/github/issues')) {
-        return ['channelMember', 'projectMember', 'projectGithubRepo', 'userProfile'];
+        return [...CHANNEL_PERMISSION_STREAMS, 'project', 'projectPermission', 'projectGithubRepo', 'userProfile'];
     }
 
-    return path.startsWith('/chat/channels/') ? ['channelMember', 'channel', 'teamMember', 'userProfile'] : ALL_PROJECTION_STREAMS;
+    return path.startsWith('/chat/channels/') ? [...CHANNEL_PERMISSION_STREAMS, 'userProfile'] : ALL_PROJECTION_STREAMS;
 }
 
 function debugStartup(message: string) {
