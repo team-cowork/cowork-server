@@ -498,9 +498,8 @@ export class ChannelMessageReadAccessService {
                     const permission = isRead
                         ? (mode === 'CHANNEL_METADATA' && channel.type === 'VOICE' ? 'voice_connect' : 'message_read')
                         : mode;
-                    // TODO: 임시 호환 처리. permissions가 없는 정책 projection의 messageRead를 permissions로 이전한 뒤 제거한다.
                     const override = policy?.teamId === teamId
-                        ? (policy.permissions?.[permission] ?? (permission === 'message_read' ? policy.messageRead : undefined))
+                        ? policy.permissions?.[permission]
                         : undefined;
                     const requiresChannelPolicy = (channel.isPrivate ?? true) && isRead;
                     const isAllowed = override ?? (requiresChannelPolicy ? false : (role.permissions?.[permission] ?? false));
