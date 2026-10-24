@@ -250,24 +250,33 @@ object PreferenceEvents {
         occurredAt = occurredAt,
     )
 
+    /** 닉네임 형식 안내는 예시가 있을 때만 켠다. 형식 판정 기준이 아니므로 소비자는 안내 표시에만 쓴다. */
     fun teamSettingState(
         teamId: Long,
         settings: JsonObject,
         occurredAt: Instant,
         snapshot: Boolean,
-    ): PreferenceEvent = PreferenceEvent(
-        topic = TEAM_SETTING_STATE_TOPIC,
-        key = teamId.toString(),
-        payload = basePayload("UPSERT", occurredAt)
-            .put("schemaVersion", SETTING_STATE_SCHEMA_VERSION)
-            .put("teamId", teamId)
-            .put(
-                "defaultNotificationLevel",
-                validSetting(ResourceType.TEAM, settings, "default_notification_level"),
-            )
-            .put("snapshot", snapshot),
-        occurredAt = occurredAt,
-    )
+    ): PreferenceEvent {
+        val nicknameFormatExample = validSetting(ResourceType.TEAM, settings, "nickname_format_example")
+        return PreferenceEvent(
+            topic = TEAM_SETTING_STATE_TOPIC,
+            key = teamId.toString(),
+            payload = basePayload("UPSERT", occurredAt)
+                .put("schemaVersion", SETTING_STATE_SCHEMA_VERSION)
+                .put("teamId", teamId)
+                .put(
+                    "defaultNotificationLevel",
+                    validSetting(ResourceType.TEAM, settings, "default_notification_level"),
+                )
+                .put(
+                    "nicknameFormatEnforced",
+                    nicknameFormatExample != null && settings.getValue("nickname_format_enforced") == true,
+                )
+                .put("nicknameFormatExample", nicknameFormatExample)
+                .put("snapshot", snapshot),
+            occurredAt = occurredAt,
+        )
+    }
 
     fun textChannelSettingState(
         channelId: Long,
