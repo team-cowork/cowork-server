@@ -29,3 +29,24 @@ COMMENT ON TABLE tb_dm_participant_projections IS
 COMMENT ON COLUMN tb_dm_participant_projections.account_id IS 'cowork-user.tb_accounts.id';
 COMMENT ON COLUMN tb_dm_participant_projections.source_occurred_at IS
     'cowork-channel DM 참여 상태의 source mutation version';
+
+ALTER TABLE tb_preference_event_outbox
+    DROP CONSTRAINT ck_tb_preference_event_outbox_topic;
+
+ALTER TABLE tb_preference_event_outbox
+    ADD CONSTRAINT ck_tb_preference_event_outbox_topic CHECK (topic IN (
+        'preference.channel-notification.changed',
+        'preference.team-role.changed',
+        'preference.team-role.command-result',
+        'preference.team-role.state.v2',
+        'preference.team-role.result.v2',
+        'preference.github-repo.setting.state',
+        'preference.github-repo.setting.result',
+        'preference.channel-role-policy.changed',
+        'preference.channel-role-policy.command-result',
+        'preference.channel-role-policy.state.v2',
+        'preference.channel-role-policy.result.v2',
+        'preference.status.changed',
+        'preference.team.setting.changed',
+        'preference.project-access.state.v1'
+    ));
