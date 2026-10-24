@@ -184,6 +184,43 @@ class ChannelMessageReadPolicyEvaluatorTest {
     }
 
     @Test
+    fun `거부 overwrite만 추가할 때 변경하지 않는 기본 허용 권한은 요구하지 않는다`() {
+        roles(role(1L, "message_read" to true, "manage_roles" to true))
+        every { roleRepository.findById(2L) } returns Optional.of(role(2L, "message_manage" to true))
+
+        evaluator.requireRolePolicyManagement(10L, 7L, channel(), 2L, mapOf("message_send" to false))
+    }
+
+    @Test
+    fun `기존 거부를 유지하면 보유하지 않은 권한도 거부 상태로 저장할 수 있다`() {
+        roles(role(1L, "message_read" to true, "manage_roles" to true))
+        every { roleRepository.findById(2L) } returns Optional.of(role(2L, "message_manage" to true))
+        policies(policy(2L, "message_manage" to false))
+
+        evaluator.requireRolePolicyManagement(
+            10L,
+            7L,
+            channel(),
+            2L,
+            mapOf("message_send" to false, "message_manage" to false),
+        )
+    }
+
+    @Test
+    fun `기존 거부를 누락하거나 삭제하여 다른 역할의 권한을 복원할 수 없다`() {
+        roles(role(1L, "message_read" to true, "manage_roles" to true))
+        every { roleRepository.findById(2L) } returns Optional.of(role(2L))
+        policies(policy(2L, "message_manage" to false))
+
+        assertThrows(ExpectedException::class.java) {
+            evaluator.requireRolePolicyManagement(10L, 7L, channel(), 2L, mapOf("message_send" to false))
+        }
+        assertThrows(ExpectedException::class.java) {
+            evaluator.requireRolePolicyManagement(10L, 7L, channel(), 2L, null)
+        }
+    }
+
+    @Test
     fun `overwrite 삭제로 보유하지 않은 기본 권한을 복원할 수 없다`() {
         roles(role(1L, "message_read" to true, "manage_roles" to true))
         every { roleRepository.findById(2L) } returns Optional.of(role(2L, "message_manage" to true))
