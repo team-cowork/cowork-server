@@ -40,9 +40,6 @@ class TeamRolePermissionSchema {
             "github_issue_create",
             "channel_manage",
             "channel_reorder",
-            // TODO: 임시 호환 키이며 멤버 관리 기능은 없다.
-            // 저장된 역할과 보관 이벤트에서 이 키를 제거하고 생산자·소비자를 함께 전환한 뒤 삭제한다.
-            "channel_member_manage",
             "voice_connect",
             "voice_speak",
             "screen_share",
