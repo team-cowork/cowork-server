@@ -1,11 +1,14 @@
 package com.cowork.preference.service
 
 import com.cowork.preference.domain.ProjectRoleDefinition
+import com.cowork.preference.repository.PreferenceOutboxRepository
+import com.cowork.preference.repository.ProjectAccessStateRepository
 import com.cowork.preference.repository.ProjectRoleRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.vertx.core.json.JsonObject
+import io.vertx.sqlclient.SqlConnection
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -20,11 +23,17 @@ class ProjectRoleServiceTest {
     private val permissions = JsonObject().put("issue_write", true)
     private lateinit var repository: ProjectRoleRepository
     private lateinit var service: ProjectRoleService
+    private val access = mockk<ProjectAccessStateRepository>(relaxed = true)
 
     @BeforeEach
     fun setUp() {
         repository = mockk(relaxed = true)
-        service = ProjectRoleService(repository)
+        val outbox = mockk<PreferenceOutboxRepository>()
+        val connection = mockk<SqlConnection>()
+        coEvery { outbox.inTransaction<Unit>(any<suspend (SqlConnection) -> Unit>()) } coAnswers {
+            firstArg<suspend (SqlConnection) -> Unit>().invoke(connection)
+        }
+        service = ProjectRoleService(repository, outbox, access)
     }
 
     @Nested
@@ -38,7 +47,7 @@ class ProjectRoleServiceTest {
             val result = service.createRole(projectId, roleName, permissions)
 
             assertTrue(result.exceptionOrNull() is IllegalStateException)
-            coVerify(exactly = 0) { repository.insertRole(any(), any(), any()) }
+            coVerify(exactly = 0) { repository.insertRole(any(), any(), any(), any(), any()) }
         }
 
         @Test
@@ -48,8 +57,18 @@ class ProjectRoleServiceTest {
             val result = service.createRole(projectId, roleName, permissions)
 
             assertEquals(ProjectRoleDefinition(projectId, roleName, permissions), result.getOrThrow())
-            coVerify(exactly = 1) { repository.insertRole(projectId, roleName, permissions) }
+            coVerify(exactly = 1) { repository.insertRole(projectId, roleName, permissions, 0, any()) }
         }
+    }
+
+    @Test
+    fun `역할 부여와 회수는 같은 트랜잭션에서 접근 권한을 다시 계산한다`() = runBlocking {
+        coEvery { repository.findRole(projectId, roleName) } returns ProjectRoleDefinition(projectId, roleName, permissions, 20)
+        service.assignRole(217L, projectId, roleName).getOrThrow()
+        service.removeRole(217L, projectId, roleName)
+        coVerify(exactly = 2) { access.refresh(any(), projectId) }
+        coVerify { repository.assignRole(217L, projectId, roleName, any()) }
+        coVerify { repository.removeRole(217L, projectId, roleName, any()) }
     }
 
     @Nested

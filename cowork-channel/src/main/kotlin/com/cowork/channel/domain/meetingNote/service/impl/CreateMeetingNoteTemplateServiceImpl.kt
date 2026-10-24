@@ -21,7 +21,7 @@ class CreateMeetingNoteTemplateServiceImpl(
         channelId: Long,
         request: CreateMeetingNoteTemplateRequest,
     ): MeetingNoteTemplateResponse {
-        meetingNoteAccessGuard.requireChannelMember(channelId, userId)
+        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
         val template = templateRepository.save(
             MeetingNoteTemplate(
                 channelId = channelId,
