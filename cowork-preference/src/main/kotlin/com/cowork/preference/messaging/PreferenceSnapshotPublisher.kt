@@ -8,6 +8,7 @@ import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.PreferenceRepository
 import com.cowork.preference.repository.ProjectAccessStateRepository
 import com.cowork.preference.repository.ResourceSettingState
+import com.cowork.preference.repository.TeamRoleCommandInboxRepository
 import com.cowork.preference.repository.TeamRoleRepository
 import io.vertx.sqlclient.SqlConnection
 import java.time.Instant
@@ -21,6 +22,7 @@ class PreferenceSnapshotPublisher(
     private val notificationRepository: NotificationRepository,
     private val preferenceRepository: PreferenceRepository,
     private val teamRoleRepository: TeamRoleRepository,
+    private val teamRoleCommandInboxRepository: TeamRoleCommandInboxRepository,
     private val channelRolePolicyRepository: ChannelRolePolicyRepository,
     private val outboxRepository: PreferenceOutboxRepository,
     private val topicIdentity: ProjectionTopicIdentityProvider,
@@ -36,8 +38,18 @@ class PreferenceSnapshotPublisher(
         upstreamReadiness = teamStateReadiness,
     ) { connection ->
         val notificationCount = publishNotificationSettings(connection)
-        // TODO(#596): 모든 기존 팀의 @everyone 생성·상태 전파 완료 후 이 보정 블록과 findTeamsMissingDefaultRole을 제거한다.
         outboxRepository.inTransaction(connection) { client ->
+            // TODO(#596): 2026-11-01 05:00 KST 이후 아래 조건 완료를 확인하고 제거한다.
+            // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+            // 저장 inbox/outbox 보정 완료와 구형 producer·재처리 종료 확인 후 아래 두 보정을 제거한다.
+            val repairedResults = teamRoleCommandInboxRepository.repairLegacyResults(client)
+            val repairedOutbox = outboxRepository.repairLegacyTeamRoleRecords(client)
+            if (repairedResults + repairedOutbox > 0) {
+                log.info("Repaired legacy team role records: inbox={} outbox={}", repairedResults, repairedOutbox)
+            }
+            // TODO(#596): 2026-11-01 05:00 KST 이후 아래 조건 완료를 확인하고 제거한다.
+            // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+            // 모든 기존 팀의 @everyone 생성·전파 완료 후 아래 보정과 findTeamsMissingDefaultRole을 제거한다.
             teamRoleRepository.findTeamsMissingDefaultRole(client).forEach { teamId ->
                 teamRoleRepository.ensureDefaultRole(client, teamId)?.let { role ->
                     outboxRepository.enqueue(client, PreferenceEvents.roleUpserted(role, requireNotNull(role.updatedAt).toInstant()))
