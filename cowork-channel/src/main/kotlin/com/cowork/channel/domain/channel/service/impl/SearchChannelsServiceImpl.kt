@@ -19,7 +19,7 @@ class SearchChannelsServiceImpl(
     override fun execute(userId: Long, teamId: Long, q: String): List<ChannelResponse> {
         teamPermissionService.requireTeamMember(teamId, userId)
         if (q.isBlank()) return emptyList()
-        val structurallyVisible = channelRepository.searchVisibleByTeamIdAndName(teamId, userId, q)
+        val structurallyVisible = channelRepository.searchByTeamIdAndName(teamId, q)
         return messageReadPolicyEvaluator.filterReadable(teamId, userId, structurallyVisible).map {
             ChannelResponse.of(it)
         }

@@ -18,6 +18,7 @@ dependencies {
     implementation(libs.spring.cloud.starter.config)
     implementation(libs.spring.boot.starter.kafka)
     implementation(libs.jackson.module.kotlin)
+    implementation(libs.logstash.logback.encoder)
 
     implementation(libs.mysql.connector.j)
     implementation(libs.spring.boot.flyway)

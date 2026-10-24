@@ -24,7 +24,7 @@ class AddTemplateSectionServiceImpl(
         templateId: Long,
         request: CreateTemplateSectionRequest,
     ): TemplateSectionResponse {
-        meetingNoteAccessGuard.requireChannelMember(channelId, userId)
+        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
         val template = lookupSupport.findTemplateOrThrow(templateId)
         lookupSupport.requireTemplateOwnership(template, channelId)
         val section = sectionRepository.save(

@@ -2,12 +2,15 @@ package com.cowork.preference.service
 
 import com.cowork.preference.cache.PreferenceCache
 import com.cowork.preference.domain.ResourceType
+import com.cowork.preference.messaging.PreferenceEvent
+import com.cowork.preference.messaging.PreferenceEvents
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.PreferenceRepository
 import com.cowork.preference.repository.PreferenceSettingsUpdate
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
+import io.mockk.slot
 import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlConnection
 import kotlinx.coroutines.runBlocking
@@ -81,6 +84,30 @@ class PreferenceServiceTest {
             val result = service.updateSettings(ResourceType.TEAM, 3L, requested)
 
             assertEquals(persisted, result.getOrThrow())
+        }
+
+        @Test
+        fun `계정 설정을 바꾸면 저장된 전체 설정으로 계정 설정 state를 같은 transaction에 기록한다`() = runBlocking {
+            val connection = mockk<SqlConnection>()
+            val requested = JsonObject().put("notification_level", "MENTIONS")
+            val persisted = JsonObject().put("notification_level", "MENTIONS").put("timezone", "Asia/Seoul")
+            val updatedAt = Instant.parse("2026-10-23T01:02:03Z")
+            val stateOccurredAt = Instant.parse("2026-10-23T01:02:03.000001Z")
+            val event = slot<PreferenceEvent>()
+            coEvery { outboxRepository.inTransaction<JsonObject>(any()) } coAnswers {
+                firstArg<suspend (SqlConnection) -> JsonObject>().invoke(connection)
+            }
+            coEvery {
+                repository.upsertSettings(connection, 19L, ResourceType.ACCOUNT, requested, false)
+            } returns PreferenceSettingsUpdate(persisted, null, updatedAt, stateOccurredAt)
+            coEvery { outboxRepository.enqueue(connection, capture(event)) } returns Unit
+
+            service.updateSettings(ResourceType.ACCOUNT, 19L, requested).getOrThrow()
+
+            assertEquals(PreferenceEvents.ACCOUNT_SETTING_STATE_TOPIC, event.captured.topic)
+            assertEquals(stateOccurredAt, event.captured.occurredAt)
+            assertEquals("MENTIONS", event.captured.payload.getString("notificationLevel"))
+            assertEquals("Asia/Seoul", event.captured.payload.getString("timezone"))
         }
 
         @Test

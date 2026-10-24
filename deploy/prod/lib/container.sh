@@ -4,8 +4,6 @@
 before_container_cutover() { :; }
 rollback_container_cutover() { :; }
 finalize_container_cutover() { :; }
-# Runs after the previous container stops and before the candidate starts; receives the previous container ID, if any.
-before_candidate_start() { :; }
 
 wait_for_health() {
   # Snapshot republication alone can take 300s; allow a VM-specific readiness budget.
@@ -137,7 +135,6 @@ deploy_container_safely() (
     docker rename "$old_id" "$previous"
   fi
   docker rename "$candidate_id" "$container"
-  before_candidate_start "$old_id"
   docker start "$candidate_id" >/dev/null
   (ulimit -f 20480; exec docker logs --timestamps --follow "$candidate_id") > "$startup_log" 2>&1 &
   capture_pid=$!

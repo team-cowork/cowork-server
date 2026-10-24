@@ -32,11 +32,8 @@ class ReorderTeamChannelsServiceImpl(
         }
 
         val lockedChannels = channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(teamId)
-        val structurallyVisibleIds = channelRepository
-            .findVisibleByTeamIdOrderByPositionAscIdAsc(teamId, userId)
-            .mapTo(mutableSetOf()) { it.id }
         val readableChannels = messageReadPolicyEvaluator
-            .filterReadable(teamId, userId, lockedChannels.filter { it.id in structurallyVisibleIds })
+            .filterReadable(teamId, userId, lockedChannels)
             .sortedWith(compareBy({ it.position }, { it.id }))
         val readableChannelIds = readableChannels.mapTo(mutableSetOf()) { it.id }
         if (inputIds != readableChannelIds) {
@@ -45,12 +42,16 @@ class ReorderTeamChannelsServiceImpl(
 
         val visiblePositionSlots = readableChannels.map { it.position }.sorted()
         val channelById = readableChannels.associateBy { it.id }
+        val movedChannels = orderedChannelIds.mapIndexedNotNull { index, channelId ->
+            channelById.getValue(channelId).takeIf { it.position != visiblePositionSlots[index] }
+        }
+        messageReadPolicyEvaluator.requireReorder(teamId, userId, movedChannels)
         orderedChannelIds.forEachIndexed { index, channelId ->
             channelById.getValue(channelId).updatePosition(visiblePositionSlots[index])
         }
 
         val orderedChannels = orderedChannelIds.map(channelById::getValue)
-        orderedChannels.forEach(channelEventPublisher::publishUpdated)
+        movedChannels.forEach(channelEventPublisher::publishUpdated)
         return orderedChannels.map(ChannelResponse::of)
     }
 }

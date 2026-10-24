@@ -3,8 +3,9 @@ package com.cowork.channel.domain.thread.service.impl
 import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.entity.ChannelViewType
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
 import com.cowork.channel.domain.channel.service.ChannelAccessGuard
+import com.cowork.channel.domain.channel.service.support.ChannelPermissionSupport
+import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
 import com.cowork.channel.domain.thread.entity.Thread
 import com.cowork.channel.domain.thread.presentation.data.request.CreateThreadRequest
 import com.cowork.channel.domain.thread.repository.ThreadRepository
@@ -22,7 +23,8 @@ class CreateThreadServiceImplTest :
     DescribeSpec({
 
         lateinit var threadRepository: ThreadRepository
-        lateinit var memberRepository: ChannelMemberRepository
+        lateinit var permissions: ChannelPermissionSupport
+        lateinit var evaluator: ChannelMessageReadPolicyEvaluator
         lateinit var channelAccessGuard: ChannelAccessGuard
         lateinit var service: CreateThreadServiceImpl
         val channel = Channel(
@@ -39,17 +41,19 @@ class CreateThreadServiceImplTest :
 
         beforeEach {
             threadRepository = mockk(relaxed = true)
-            memberRepository = mockk()
+            permissions = mockk(relaxed = true)
+            evaluator = mockk(relaxed = true)
             channelAccessGuard = mockk()
             every { channelAccessGuard.findChannelOrThrow(1L) } returns channel
             every { channelAccessGuard.requireTeamChannel(channel) } returns 100L
-            service = CreateThreadServiceImpl(threadRepository, memberRepository, channelAccessGuard)
+            service = CreateThreadServiceImpl(threadRepository, permissions, evaluator, channelAccessGuard)
         }
 
         describe("CreateThreadServiceImpl 클래스의 createThread 메서드는") {
-            context("요청자가 채널 멤버가 아니면") {
+            context("요청자가 스레드 작성 권한이 없으면") {
                 it("FORBIDDEN으로 거부한다") {
-                    every { memberRepository.existsByChannelIdAndUserId(1L, 20L) } returns false
+                    every { evaluator.requirePermission(100L, 20L, channel, "thread_reply") } throws
+                        ExpectedException("스레드 작성 권한이 없습니다.", HttpStatus.FORBIDDEN)
 
                     val error = shouldThrow<ExpectedException> { service.createThread(20L, 1L, request) }
 
@@ -58,10 +62,10 @@ class CreateThreadServiceImplTest :
                 }
             }
 
-            context("요청자가 채널 멤버이면") {
+            context("요청자가 스레드 작성 권한이 있으면") {
                 it("부모 메시지에 연결된 스레드를 생성한다") {
                     val saved = slot<Thread>()
-                    every { memberRepository.existsByChannelIdAndUserId(1L, 20L) } returns true
+                    every { evaluator.requirePermission(100L, 20L, channel, "thread_reply") } returns Unit
                     every { threadRepository.save(capture(saved)) } answers { saved.captured }
 
                     val result = service.createThread(20L, 1L, request)

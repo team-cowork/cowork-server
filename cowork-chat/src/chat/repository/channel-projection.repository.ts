@@ -63,10 +63,9 @@ export class ChannelProjectionRepository {
         return this.model.distinct('channelId', {projectId, deleted: {$ne: true}});
     }
 
-    async searchVisibleByTeamAndName(
+    async searchByTeamAndName(
         teamId: number,
         query: string,
-        memberChannelIds: number[],
     ): Promise<ChannelProjectionView[]> {
         const escapedQuery = query.replaceAll(/[$()*+.?[\\\]^{|}]/gu, String.raw`\$&`);
         return this.model
@@ -74,10 +73,6 @@ export class ChannelProjectionRepository {
                 teamId,
                 deleted: {$ne: true},
                 name: {$regex: escapedQuery, $options: 'i'},
-                $or: [
-                    {isPrivate: false},
-                    {isPrivate: true, channelId: {$in: memberChannelIds}},
-                ],
             })
             .sort({position: 1, channelId: 1})
             .lean<ChannelProjectionView[]>();
