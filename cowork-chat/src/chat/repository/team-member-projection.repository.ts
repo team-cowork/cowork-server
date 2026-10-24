@@ -16,7 +16,9 @@ export type TeamMemberProjectionView = {
     userId: number;
     role: string;
     teamName: string;
-    // TODO(#596): Mongo 멤버 문서의 sourceVersion 보강과 구버전 rollback 종료 후 조회 필드를 필수로 전환한다.
+    // eslint-disable-next-line no-warning-comments -- Tracked compatibility cleanup with a deployment-dependent deadline.
+    // TODO(#596): 2026-11-01 05:00 KST 이후 구형 Kafka·Mongo 멤버 sourceVersion 보정과 rollback 종료 확인 후 조회 필드 필수화.
+    // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
     sourceVersion?: bigint | mongo.Long;
 };
 
