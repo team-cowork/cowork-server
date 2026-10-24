@@ -34,12 +34,31 @@ class ProjectAccessStateConsumer(
             val userId = node.path("accountId").asLong()
             require(projectId > 0 && userId > 0 && record.key() == "$projectId:$userId")
             require(node.path("read").isBoolean && node.path("write").isBoolean)
+            // TODO(#596): 2026-11-01 05:00 KST 이후 구형 레코드 재처리·롤백 지원 종료 확인 후 manage/reorder/sourceMembershipVersion 필수화.
+            // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+            require(!node.has("manage") || node.path("manage").isBoolean)
             require(!node.has("reorder") || node.path("reorder").isBoolean)
+            // TODO(#596): 2026-11-01 05:00 KST 이후 구형 producer·재처리·롤백 지원 종료와 snapshot 보정 완료 확인 후 readPrivate 필수화.
+            // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+            require(!node.has("readPrivate") || node.path("readPrivate").isBoolean)
+            val membershipVersion = if (node.has("sourceMembershipVersion")) {
+                Instant.parse(node.path("sourceMembershipVersion").asText())
+            } else Instant.EPOCH
+            // TODO(#596): 2026-11-01 05:00 KST 이후 구형 레코드·롤백 지원 종료와 snapshot 보정 완료 확인 후 sourceAuthorizationVersion 필수화.
+            val authorizationVersion = if (node.hasNonNull("sourceAuthorizationVersion")) {
+                Instant.parse(node.path("sourceAuthorizationVersion").asText()).also {
+                    require(it.isAfter(Instant.EPOCH) && !it.isAfter(membershipVersion))
+                }.toProjectionPrecision()
+            } else null
             ProjectAccessProjection(
                 record.key(), projectId, userId,
                 node.path("read").asBoolean(), node.path("write").asBoolean(),
                 Instant.parse(node.path("occurredAt").asText()).toProjectionPrecision(),
                 canReorder = node.path("reorder").asBoolean(false),
+                canManage = node.path("manage").asBoolean(false),
+                sourceMembershipVersion = membershipVersion.toProjectionPrecision(),
+                sourceAuthorizationVersion = authorizationVersion,
+                canReadPrivate = if (node.has("readPrivate")) node.path("readPrivate").asBoolean() else null,
             )
         }
         val event = parsed.getOrElse {
@@ -52,13 +71,24 @@ class ProjectAccessStateConsumer(
                 repository.save(event)
             } else if (event.sourceOccurredAt == existing.sourceOccurredAt) {
                 // Replayed snapshots are idempotent; conflicting equal versions never restore access.
-                val canRead = existing.canRead && event.canRead
+                val sameMembership = existing.sourceMembershipVersion == event.sourceMembershipVersion
+                val sameAuthorization = existing.sourceAuthorizationVersion == null || event.sourceAuthorizationVersion == null ||
+                    existing.sourceAuthorizationVersion == event.sourceAuthorizationVersion
+                val authorizationVersion = listOfNotNull(existing.sourceAuthorizationVersion, event.sourceAuthorizationVersion).maxOrNull()
+                val canRead = sameMembership && sameAuthorization && existing.canRead && event.canRead
+                val canReadPrivate = existing.privateReadForSameVersion(event)
                 val canWrite = existing.canWrite && event.canWrite
+                val canManage = existing.canManage && event.canManage
                 val canReorder = existing.canReorder && event.canReorder
-                if (existing.canRead != canRead || existing.canWrite != canWrite || existing.canReorder != canReorder) {
+                if (existing.canRead != canRead || existing.canWrite != canWrite || existing.canManage != canManage ||
+                    existing.canReorder != canReorder || existing.sourceAuthorizationVersion != authorizationVersion ||
+                    existing.canReadPrivate != canReadPrivate) {
+                    existing.canManage = canManage
                     existing.canRead = canRead
                     existing.canWrite = canWrite
                     existing.canReorder = canReorder
+                    existing.sourceAuthorizationVersion = authorizationVersion
+                    existing.canReadPrivate = canReadPrivate
                     repository.save(existing)
                 }
             }

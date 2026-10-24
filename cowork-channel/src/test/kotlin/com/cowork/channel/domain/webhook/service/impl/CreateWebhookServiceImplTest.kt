@@ -54,7 +54,7 @@ class CreateWebhookServiceImplTest {
     fun `TEXT 채널에서는 view_type 무관하게 웹훅 생성 가능`() {
         every { channelRepository.findById(1L) } returns
             Optional.of(channel(ChannelType.TEXT, view = ChannelViewType.MEETING_NOTE, createdBy = 1L))
-        every { teamPermission.isTeamOwnerOrAdmin(any(), any()) } returns false
+        every { teamPermission.requireChannelPermission(any(), any(), "channel_manage") } returns Unit
         every { webhookRepository.save(any()) } answers { firstArg() }
 
         val resp = service.createWebhook(1L, 1L, CreateWebhookRequest(name = "w", isSecure = true))

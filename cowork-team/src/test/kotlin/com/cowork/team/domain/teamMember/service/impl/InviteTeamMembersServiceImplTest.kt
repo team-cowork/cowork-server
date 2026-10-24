@@ -4,6 +4,7 @@ import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamInvite.presentation.data.request.InviteMembersRequest
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
@@ -35,7 +36,11 @@ class InviteTeamMembersServiceImplTest :
                 memberRepository,
                 mockk<TeamEventPublisher>(relaxed = true),
                 mockk<TeamMemberEventPublisher>(relaxed = true),
-                TeamMemberAccessGuard(teamRepository, memberRepository),
+                TeamMemberAccessGuard(
+                    teamRepository,
+                    memberRepository,
+                    TeamPermissionGuard(memberRepository, mockk(relaxed = true)),
+                ),
             )
             every { teamRepository.findByIdForUpdate(1L) } returns team
         }
@@ -44,11 +49,7 @@ class InviteTeamMembersServiceImplTest :
             context("일반 멤버가 다른 사용자를 초대하면") {
                 it("FORBIDDEN으로 거부한다") {
                     every {
-                        memberRepository.findByTeamIdAndUserIdAndRoleIn(
-                            1L,
-                            20L,
-                            listOf(TeamRole.OWNER, TeamRole.ADMIN),
-                        )
+                        memberRepository.findByTeamIdAndUserId(1L, 20L)
                     } returns null
 
                     val error = shouldThrow<ExpectedException> {
@@ -65,11 +66,7 @@ class InviteTeamMembersServiceImplTest :
                     val owner = TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
                     val existing = TeamMember(team = team, userId = 20L)
                     every {
-                        memberRepository.findByTeamIdAndUserIdAndRoleIn(
-                            1L,
-                            10L,
-                            listOf(TeamRole.OWNER, TeamRole.ADMIN),
-                        )
+                        memberRepository.findByTeamIdAndUserId(1L, 10L)
                     } returns owner
                     every { memberRepository.findAllByTeamIdForUpdate(1L) } returns listOf(owner, existing)
                     every { memberRepository.saveAll<TeamMember>(any()) } answers {

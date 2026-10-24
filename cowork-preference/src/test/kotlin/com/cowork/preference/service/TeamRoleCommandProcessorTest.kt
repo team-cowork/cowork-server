@@ -11,6 +11,7 @@ import com.cowork.preference.messaging.TeamRoleCommandRoleInput
 import com.cowork.preference.messaging.TeamRoleCommandType
 import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
+import com.cowork.preference.repository.ProjectAccessStateRepository
 import com.cowork.preference.repository.ProcessedTeamRoleCommandMatches
 import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.repository.TeamRoleCommandInboxRepository
@@ -106,6 +107,22 @@ class TeamRoleCommandProcessorTest {
         }
 
         @Test
+        fun `역할 관리자가 자신에게 없는 권한을 새 역할에 부여할 수 없다`() = runBlocking {
+            val command = createCommand.copy(role = requireNotNull(createCommand.role).copy(permissions = mapOf(PermissionKeys.MANAGE_GITHUB to true)))
+            val result = slot<JsonObject>()
+            fixture.stubCommand(command, actorRole = "MEMBER")
+            coEvery { fixture.roleRepository.findMemberRoles(fixture.connection, command.teamId) } returns
+                listOf(AccountTeamRole(command.actorId, command.teamId, 20L))
+            coEvery { fixture.roleRepository.findRoles(fixture.connection, command.teamId) } returns
+                listOf(role(20L, priority = 20, permissions = mapOf(PermissionKeys.MANAGE_ROLES to true)))
+            coEvery { fixture.roleRepository.findRoleByName(fixture.connection, command.teamId, "Reviewer") } returns null
+            coEvery { fixture.inboxRepository.insert(fixture.connection, command, capture(result)) } returns Unit
+            fixture.processor.process(command)
+            assertEquals("FORBIDDEN", result.captured.getJsonObject("error").getString("code"))
+            coVerify(exactly = 0) { fixture.roleRepository.insertRole(any(), any(), any(), any(), any(), any(), any()) }
+        }
+
+        @Test
         fun `같은 이름의 역할이 이미 있으면 중복 역할을 생성하지 않는다`() = runBlocking {
             val result = slot<JsonObject>()
             fixture.stubCommand(createCommand, actorRole = "OWNER")
@@ -148,6 +165,36 @@ class TeamRoleCommandProcessorTest {
         }
     }
 
+    @Test
+    fun `OWNER라도 사용자 정의 역할을 기본 역할의 예약 이름으로 변경할 수 없다`() = runBlocking {
+        val command = createCommand.copy(
+            commandType = TeamRoleCommandType.UPDATE,
+            roleId = 9L,
+            role = requireNotNull(createCommand.role).copy(name = "@everyone"),
+        )
+        val result = slot<JsonObject>()
+        fixture.stubCommand(command, actorRole = "OWNER")
+        coEvery { fixture.roleRepository.findRole(fixture.connection, command.teamId, 9L) } returns role(9L)
+        coEvery { fixture.inboxRepository.insert(fixture.connection, command, capture(result)) } returns Unit
+
+        fixture.processor.process(command)
+
+        assertEquals("RESERVED_ROLE_NAME", result.captured.getJsonObject("error").getString("code"))
+        coVerify(exactly = 0) { fixture.roleRepository.updateRole(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `OWNER도 기본 역할을 삭제할 수 없다`() = runBlocking {
+        val command = createCommand.copy(commandType = TeamRoleCommandType.DELETE, role = null, roleId = 9L)
+        val result = slot<JsonObject>()
+        fixture.stubCommand(command, actorRole = "OWNER")
+        coEvery { fixture.roleRepository.findRole(fixture.connection, command.teamId, 9L) } returns role(9L).copy(isDefault = true)
+        coEvery { fixture.inboxRepository.insert(fixture.connection, command, capture(result)) } returns Unit
+        fixture.processor.process(command)
+        assertEquals("DEFAULT_ROLE_PROTECTED", result.captured.getJsonObject("error").getString("code"))
+        coVerify(exactly = 0) { fixture.roleRepository.deleteRoleWithTombstone(any(), any(), any(), any()) }
+    }
+
     private class Fixture {
         val roleRepository = mockk<TeamRoleRepository>()
         val memberRepository = mockk<TeamMemberProjectionRepository>()
@@ -162,6 +209,7 @@ class TeamRoleCommandProcessorTest {
             outboxRepository,
             readiness,
             mockk<ChannelRolePolicyRepository>(relaxed = true),
+            mockk<ProjectAccessStateRepository>(relaxed = true),
         )
 
         fun stubCommand(command: TeamRoleCommand, actorRole: String) {

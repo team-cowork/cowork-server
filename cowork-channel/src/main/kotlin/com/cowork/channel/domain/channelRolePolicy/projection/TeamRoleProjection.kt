@@ -26,13 +26,17 @@ class TeamRoleProjection(
     @Column(name = "permissions_json", columnDefinition = "TEXT")
     var permissionsJson: String? = null,
 
+    @Column(name = "is_default", nullable = false)
+    var isDefault: Boolean = false,
+
     @Column(nullable = false)
     var deleted: Boolean = false,
 
     @Column(name = "source_occurred_at", nullable = false)
     var sourceOccurredAt: Instant,
 ) {
-    fun applyUpsert(priority: Int, occurredAt: Instant, permissionsJson: String) {
+    fun applyUpsert(priority: Int, occurredAt: Instant, permissionsJson: String, isDefault: Boolean = false) {
+        this.isDefault = isDefault
         this.priority = priority
         this.permissionsJson = permissionsJson
         deleted = false

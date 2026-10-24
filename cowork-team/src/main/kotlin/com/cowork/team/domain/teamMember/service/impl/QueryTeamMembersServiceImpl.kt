@@ -26,9 +26,7 @@ class QueryTeamMembersServiceImpl(
         return members.map { member ->
             TeamMemberResponse.of(
                 member,
-                roleIdsByUserId[member.userId]
-                    ?.mapNotNull { rolesById[it] }
-                    ?: emptyList(),
+                rolesById.values.filter { it.isDefault || it.id in roleIdsByUserId[member.userId].orEmpty() },
             )
         }
     }

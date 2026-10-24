@@ -66,7 +66,7 @@ class GetSharedAccountServiceImplTest {
     @Test
     fun `getAccount는 계정이 없으면 NOT_FOUND`() {
         every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
-        every { teamPermissionService.requireTeamMember(100L, 1L) } returns Unit
+        every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
         every { sharedAccountRepository.findByIdAndChannelId(99L, 1L) } returns null
 
         val ex = assertThrows<ExpectedException> { service.getAccount(1L, 1L, 99L) }
@@ -76,7 +76,7 @@ class GetSharedAccountServiceImplTest {
     @Test
     fun `getAccount는 credential을 복호화 후 마스킹하여 반환함`() {
         every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
-        every { teamPermissionService.requireTeamMember(100L, 1L) } returns Unit
+        every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
         every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns account(credential = "encrypted")
         every { credentialEncryptionService.decrypt("encrypted") } returns "plainPassword"
         every { credentialEncryptionService.mask("plainPassword") } returns "••••word"

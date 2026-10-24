@@ -26,6 +26,10 @@ type TeamRoleEvent = {
     accountId?: number;
     name?: string;
     priority?: number;
+    // eslint-disable-next-line no-warning-comments -- Tracked compatibility cleanup with a deployment-dependent deadline.
+    // TODO(#596): 2026-11-01 05:00 KST 이후 구형 outbox·Kafka 레코드 보정과 rollback 종료 확인 후 ROLE_UPSERTED의 isDefault 누락·false 대체 제거.
+    // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+    isDefault?: boolean;
     permissions?: Record<string, boolean>;
     occurredAt: string;
 };
@@ -109,6 +113,7 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
                     roleId: payload.roleId!,
                     name: payload.name!,
                     priority: payload.priority!,
+                    isDefault: payload.isDefault ?? false,
                     permissions: payload.permissions!,
                     ...eventTime,
                 });
@@ -181,6 +186,7 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
             return isSafePositiveInteger(event.roleId)
                 && typeof event.name === 'string' && event.name.length > 0
                 && Number.isSafeInteger(event.priority)
+                && (event.isDefault === undefined || typeof event.isDefault === 'boolean')
                 && isBooleanRecord(event.permissions);
         }
 

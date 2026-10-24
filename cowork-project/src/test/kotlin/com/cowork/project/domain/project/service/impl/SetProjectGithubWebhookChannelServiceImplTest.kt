@@ -30,7 +30,7 @@ class SetProjectGithubWebhookChannelServiceImplTest {
     private val channelProjectionReader = mockk<ChannelProjectionReader>()
     private val repoEventPublisher = mockk<ProjectGithubRepoEventPublisher>(relaxed = true)
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true))
+        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true), mockk(relaxed = true))
 
     private val service = SetProjectGithubWebhookChannelServiceImpl(
         projectGithubRepoRepository,

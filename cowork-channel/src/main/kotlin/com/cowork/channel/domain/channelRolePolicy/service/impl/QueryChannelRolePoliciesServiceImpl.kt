@@ -30,7 +30,7 @@ class QueryChannelRolePoliciesServiceImpl(
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         val teamId = channelAccessGuard.requireTeamChannel(channel)
         teamPermissionService.requireTeamMember(teamId, actorId)
-        channelPermissionSupport.requireChannelManager(channel, actorId)
+        channelPermissionSupport.requireRolePolicyAccess(channel, actorId)
         val policies = policyRepository.findAllByTeamIdAndChannelIdAndDeletedFalse(teamId, channelId)
         if (policies.isEmpty()) return emptyList()
         val rolesById = roleRepository

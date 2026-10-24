@@ -78,7 +78,13 @@ class ProjectEventPublisher(
         val event = ProjectEvent(
             eventType = eventType,
             projectId = project.id,
-                createdBy = project.createdBy,
+            createdBy = project.createdBy,
+            isPrivate = project.isPrivate,
+            initialReadGrant = if (eventType == ProjectEventType.DELETED) null else {
+                project.initialReadMembershipVersion?.let {
+                    ProjectInitialReadGrant(project.createdBy, it, project.initialReadAuthorizationVersion)
+                }
+            },
             teamId = project.teamId,
             name = project.name,
             description = project.description,

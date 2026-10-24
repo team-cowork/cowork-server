@@ -1,5 +1,9 @@
 package com.cowork.preference.service
 
+import com.cowork.preference.domain.ChannelLifecycleProjection
+import com.cowork.preference.domain.PermissionKeys
+import com.cowork.preference.domain.TeamMemberProjection
+import com.cowork.preference.domain.TeamRoleDefinition
 import com.cowork.preference.domain.ChannelRolePolicyPermissions
 import com.cowork.preference.domain.ChannelRolePolicyState
 import com.cowork.preference.messaging.ChannelRolePolicyCommand
@@ -13,6 +17,7 @@ import com.cowork.preference.messaging.ProjectionReadinessView
 import com.cowork.preference.repository.ChannelLifecycleProjectionRepository
 import com.cowork.preference.repository.ChannelRolePolicyCommandInboxRepository
 import com.cowork.preference.repository.ChannelRolePolicyRepository
+import com.cowork.preference.repository.InitialResourceAccessRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.ProcessedChannelRolePolicyCommand
 import com.cowork.preference.repository.TeamMemberProjectionRepository
@@ -32,6 +37,7 @@ class ChannelRolePolicyCommandProcessor(
     private val inboxRepository: ChannelRolePolicyCommandInboxRepository,
     private val outboxRepository: PreferenceOutboxRepository,
     private val readiness: ProjectionReadinessView,
+    private val initialAccess: InitialResourceAccessRepository,
 ) {
     suspend fun process(rawCommand: ChannelRolePolicyCommand) {
         val command = rawCommand.canonicalized()
@@ -107,15 +113,14 @@ class ChannelRolePolicyCommandProcessor(
     }
 
     private suspend fun applyCommand(connection: SqlConnection, command: ChannelRolePolicyCommand): CommandOutcome {
-        // 채널 관리 권한은 command producer인 cowork-channel이 검증한다. 이 서비스는 채널 수명주기와
-        // 팀 멤버 projection, 사용자 정의 role/team 관계를 다시 검증한다.
-        requireActiveChannel(connection, command)
+        val channel = requireActiveChannel(connection, command)
         if (roleRepository.isTeamDeleted(connection, command.teamId)) {
             reject("TEAM_DELETED", "삭제된 팀의 채널 역할 정책은 변경할 수 없습니다.")
         }
-        requireActiveActor(connection, command)
-        roleRepository.findRole(connection, command.teamId, command.roleId)
+        val actor = requireActiveActor(connection, command)
+        val role = roleRepository.findRole(connection, command.teamId, command.roleId)
             ?: reject("ROLE_NOT_FOUND", "같은 팀에 속한 역할을 찾을 수 없습니다.")
+        requirePolicyManager(connection, command, channel, actor, role)
 
         val state = when (command.commandType) {
             ChannelRolePolicyCommandType.UPSERT -> policyRepository.upsertPolicy(
@@ -132,15 +137,16 @@ class ChannelRolePolicyCommandProcessor(
                 roleId = command.roleId,
             )
         }
+        initialAccess.claim(connection, "CHANNEL", command.channelId)
         return success(command, state)
     }
 
     /**
-     * 채널 삭제 consumer가 갱신하는 projection row를 잠가 정책 변경과 삭제 정리의 순서를 직렬화한다.
+     * 채널 projection row를 잠가 기존 거부 검증과 정책 교체, 삭제 정리의 순서를 직렬화한다.
      * 삭제가 먼저 반영됐으면 command를 종료하고, 정책이 먼저 반영됐으면 뒤따른 삭제가 그 정책을 정리한다.
      */
-    private suspend fun requireActiveChannel(connection: SqlConnection, command: ChannelRolePolicyCommand) {
-        val channel = channelRepository.findForShare(connection, command.channelId)
+    private suspend fun requireActiveChannel(connection: SqlConnection, command: ChannelRolePolicyCommand): ChannelLifecycleProjection {
+        val channel = channelRepository.findForUpdate(connection, command.channelId)
             ?: throw ChannelRolePolicyProjectionNotReadyException(
                 "channel projection is missing for ${command.channelId}",
             )
@@ -148,9 +154,10 @@ class ChannelRolePolicyCommandProcessor(
         if (channel.teamId != command.teamId) {
             reject("CHANNEL_TEAM_MISMATCH", "요청한 팀에 속한 채널을 찾을 수 없습니다.")
         }
+        return channel
     }
 
-    private suspend fun requireActiveActor(connection: SqlConnection, command: ChannelRolePolicyCommand) {
+    private suspend fun requireActiveActor(connection: SqlConnection, command: ChannelRolePolicyCommand): TeamMemberProjection {
         val member = memberRepository.find(connection, command.teamId, command.actorId)
             ?: throw ChannelRolePolicyProjectionNotReadyException(
                 "member projection is missing for ${command.teamId}:${command.actorId}",
@@ -164,6 +171,46 @@ class ChannelRolePolicyCommandProcessor(
             reject("ACTOR_MEMBERSHIP_CHANGED", "요청 이후 팀 멤버십 상태가 변경되었습니다.")
         }
         if (member.deleted) reject("ACTOR_NOT_MEMBER", "해당 팀 멤버를 찾을 수 없습니다.")
+        return member
+    }
+
+    private suspend fun requirePolicyManager(
+        connection: SqlConnection,
+        command: ChannelRolePolicyCommand,
+        channel: ChannelLifecycleProjection,
+        actor: TeamMemberProjection,
+        target: TeamRoleDefinition,
+    ) {
+        if (actor.builtInRole in setOf("OWNER", "ADMIN")) return
+        val assigned = roleRepository.findMemberRoles(connection, command.teamId)
+            .filter { it.accountId == command.actorId }.map { it.roleId }.toSet()
+        val roles = roleRepository.findRoles(connection, command.teamId).filter { it.isDefault || it.id in assigned }
+        if (roles.none { it.permissions[PermissionKeys.MANAGE_ROLES] == true }) {
+            reject("FORBIDDEN", "역할 관리 권한이 없습니다.")
+        }
+        val highestCustomPriority = roles.filterNot { it.isDefault }.maxOfOrNull { it.priority }
+            ?: reject("FORBIDDEN", "사용자 정의 역할 관리 권한이 없습니다.")
+        if (!target.isDefault && target.priority >= highestCustomPriority) {
+            reject("FORBIDDEN", "자신의 최상위 역할보다 높거나 같은 역할은 관리할 수 없습니다.")
+        }
+        val accessPermission = when (channel.channelType) {
+            "TEXT" -> PermissionKeys.MESSAGE_READ
+            "VOICE" -> PermissionKeys.VOICE_CONNECT
+            else -> throw ChannelRolePolicyProjectionNotReadyException("channel type is not known yet")
+        }
+        if (!policyRepository.canAccess(connection, command.teamId, command.actorId, command.channelId, accessPermission, channel.isPrivate != false)) {
+            reject("FORBIDDEN", "채널에 접근할 권한이 없습니다.")
+        }
+        val currentOverwrite = policyRepository.findPolicy(connection, command.teamId, command.channelId, command.roleId)?.permissions
+        val grants = PermissionKeys.CHANNEL_SCOPED.filter { permission ->
+            command.permissions?.getValue(permission) as? Boolean
+                ?: (currentOverwrite?.getBoolean(permission) == false || (command.permissions == null && target.permissions[permission] == true))
+        }
+        for (permission in grants) {
+            if (!policyRepository.canAccess(connection, command.teamId, command.actorId, command.channelId, permission, channel.isPrivate != false)) {
+                reject("FORBIDDEN", "자신이 보유하지 않은 권한은 부여할 수 없습니다.")
+            }
+        }
     }
 
     private fun success(command: ChannelRolePolicyCommand, state: ChannelRolePolicyState): CommandOutcome {
