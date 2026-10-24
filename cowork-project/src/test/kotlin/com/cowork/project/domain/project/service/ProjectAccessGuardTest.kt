@@ -13,6 +13,7 @@ import io.mockk.every
 import io.mockk.mockk
 import java.time.Instant
 import java.util.Optional
+import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 
 class ProjectAccessGuardTest : DescribeSpec({
@@ -129,6 +130,60 @@ class ProjectAccessGuardTest : DescribeSpec({
             every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns TeamMembership(teamId = 1L, userId = 20L, role = "OWNER")
             guard.requireProjectOwner(project, 20L)
             guard.requireProjectModifier(project, 20L)
+        }
+    }
+
+    describe("ProjectAccessGuard 클래스의 requireProjectCreation 메서드는") {
+        context("일반 멤버에게 생성과 읽기 권한이 있는 경우") {
+            it("비공개 프로젝트의 초기 읽기 역할에 승인한 멤버십 버전을 반환한다") {
+                val version = Instant.parse("2026-10-25T00:00:00Z")
+                every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns
+                    TeamMembership(teamId = 1L, userId = 20L, role = "MEMBER", sourceOccurredAt = version)
+                every { teamPermissions.hasPermission(1L, 20L, "manage_projects") } returns true
+                every { teamPermissions.hasPermission(1L, 20L, "project_read") } returns true
+
+                guard.requireProjectCreation(1L, 20L, true) shouldBe version
+            }
+        }
+        context("일반 멤버에게 읽기 권한만 있는 경우") {
+            it("비공개 프로젝트 생성을 거부한다") {
+                every { teamPermissions.hasPermission(1L, 20L, "project_read") } returns true
+
+                shouldThrow<ExpectedException> { guard.requireProjectCreation(1L, 20L, true) }
+                    .statusCode shouldBe HttpStatus.FORBIDDEN
+            }
+        }
+        context("일반 멤버에게 생성 권한만 있는 경우") {
+            it("보유하지 않은 읽기 역할을 초기 설정하지 않는다") {
+                every { teamPermissions.hasPermission(1L, 20L, "manage_projects") } returns true
+
+                shouldThrow<ExpectedException> { guard.requireProjectCreation(1L, 20L, true) }
+                    .statusCode shouldBe HttpStatus.FORBIDDEN
+            }
+            it("공개 프로젝트는 별도의 초기 읽기 역할 없이 생성한다") {
+                every { teamPermissions.hasPermission(1L, 20L, "manage_projects") } returns true
+
+                guard.requireProjectCreation(1L, 20L, false) shouldBe null
+            }
+        }
+        context("허용된 일반 멤버의 원본 멤버십 버전이 없는 경우") {
+            it("재가입 후 사용할 수 있는 초기 권한을 만들지 않고 동기화를 기다린다") {
+                every { teamPermissions.hasPermission(1L, 20L, "manage_projects") } returns true
+                every { teamPermissions.hasPermission(1L, 20L, "project_read") } returns true
+
+                shouldThrow<ExpectedException> { guard.requireProjectCreation(1L, 20L, true) }
+                    .statusCode shouldBe HttpStatus.SERVICE_UNAVAILABLE
+            }
+        }
+        context("생성자가 팀 OWNER 또는 ADMIN인 경우") {
+            it("비공개 프로젝트를 허용하고 강등 뒤에도 남을 초기 읽기 역할은 만들지 않는다") {
+                listOf("OWNER", "ADMIN").forEach { role ->
+                    every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns
+                        TeamMembership(teamId = 1L, userId = 20L, role = role)
+
+                    guard.requireProjectCreation(1L, 20L, true) shouldBe null
+                }
+            }
         }
     }
 })
