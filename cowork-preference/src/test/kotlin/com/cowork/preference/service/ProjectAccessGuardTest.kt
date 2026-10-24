@@ -121,6 +121,34 @@ class ProjectAccessGuardTest :
                         shouldNotThrowAny { fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "manager", TARGET_ID) }
                     }
 
+                    it("본인에게 할당된 허용 역할은 서열과 관계없이 해제할 수 있다") {
+                        shouldNotThrowAny { fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "manager", MEMBER.userId) }
+                    }
+
+                    it("본인과 하위 멤버에게만 할당된 허용 역할을 삭제할 수 있다") {
+                        coEvery { fixture.roles.findMemberRoles(PROJECT_ID) } returns listOf(
+                            AccountProjectRole(MEMBER.userId, PROJECT_ID, "manager"),
+                            AccountProjectRole(TARGET_ID, PROJECT_ID, "manager"),
+                        )
+
+                        shouldNotThrowAny { fixture.guard.requireRoleDeletion(PROJECT_ID, MEMBER, "manager") }
+                    }
+
+                    it("본인 대상이어도 거부 역할 해제나 삭제로 권한을 복구할 수 없다") {
+                        shouldThrow<ResourceAccessDeniedException> {
+                            fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "deny", MEMBER.userId)
+                        }
+                        shouldThrow<ResourceAccessDeniedException> {
+                            fixture.guard.requireRoleDeletion(PROJECT_ID, MEMBER, "deny")
+                        }
+                    }
+
+                    it("본인 해제 예외로 자신에게 역할을 할당할 수 없다") {
+                        shouldThrow<ResourceAccessDeniedException> {
+                            fixture.guard.requireRoleAssignment(PROJECT_ID, MEMBER, "deny", MEMBER.userId)
+                        }
+                    }
+
                     it("같거나 높은 최상위 팀 역할을 가진 멤버에게 거부 역할을 할당하거나 관리 역할을 해제할 수 없다") {
                         listOf(10, 11).forEach { priority ->
                             fixture.stubTeamRoles(accountId = TARGET_ID, priority = priority)
@@ -147,6 +175,7 @@ class ProjectAccessGuardTest :
 
                     it("전역 역할 삭제로 상위 멤버 보호를 우회할 수 없다") {
                         coEvery { fixture.roles.findMemberRoles(PROJECT_ID) } returns listOf(
+                            AccountProjectRole(MEMBER.userId, PROJECT_ID, "manager"),
                             AccountProjectRole(TARGET_ID, PROJECT_ID, "manager"),
                         )
                         fixture.stubTeamRoles(accountId = TARGET_ID, priority = 11)
