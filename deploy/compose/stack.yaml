@@ -130,7 +130,6 @@ services:
         notification.trigger
         voice.event
         preference.status.changed
-        preference.team.setting.changed
         preference.channel-notification.changed
         preference.team-role.state.v2
         preference.team-role.command.v2
