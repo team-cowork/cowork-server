@@ -48,6 +48,9 @@ class ChannelEventState(
 
     @Column(name = "state_occurred_at", nullable = false)
     var stateOccurredAt: Instant,
+
+    @Column(name = "initial_role_policy_seed_json", columnDefinition = "JSON", updatable = false)
+    val initialRolePolicySeedJson: String? = null,
 ) {
     fun apply(channel: Channel, deleted: Boolean, requestedAt: Instant): Instant {
         require(channel.id == channelId) { "Channel event state must use the same channel id" }
@@ -66,7 +69,12 @@ class ChannelEventState(
     }
 
     companion object {
-        fun create(channel: Channel, deleted: Boolean, requestedAt: Instant): ChannelEventState = ChannelEventState(
+        fun create(
+            channel: Channel,
+            deleted: Boolean,
+            requestedAt: Instant,
+            initialRolePolicySeedJson: String? = null,
+        ): ChannelEventState = ChannelEventState(
             channelId = channel.id,
             teamId = channel.teamId,
             projectId = channel.projectId,
@@ -78,6 +86,7 @@ class ChannelEventState(
             position = channel.position,
             deleted = deleted,
             stateOccurredAt = nextChannelStateOccurredAt(null, requestedAt),
+            initialRolePolicySeedJson = initialRolePolicySeedJson,
         )
     }
 }

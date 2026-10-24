@@ -7,6 +7,7 @@ import {
 import {ConfigService} from '@nestjs/config';
 import {Consumer, Kafka} from 'kafkajs';
 import {Server} from 'socket.io';
+import {mongo} from 'mongoose';
 import {DicoshotService} from 'dicoshot-nest';
 import {getRequiredCsvConfig} from '../../common/config/config.util';
 import {parseEventTime} from '../../common/util/event-time.util';
@@ -14,8 +15,9 @@ import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
 import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
-import {TeamMemberProjectionRepository, ChannelProjectionRepository} from '../repository';
+import {TeamMemberProjectionRepository, ChannelProjectionRepository, TeamRoleProjectionRepository} from '../repository';
 import {ChannelMessageReadAccessService} from '../service';
+import {connectWithRetry} from '../../common/kafka/connect-with-retry';
 
 type TeamMemberEvent = {
     eventType: 'UPSERT' | 'DELETE';
@@ -23,7 +25,12 @@ type TeamMemberEvent = {
     userId: number;
     role: string;
     teamName: string;
+    nickname?: string | null;
     occurredAt: string;
+    // eslint-disable-next-line no-warning-comments -- Tracked compatibility cleanup with a deployment-dependent deadline.
+    // TODO(#596): 2026-11-01 05:00 KST 이후 구형 이벤트·Mongo auth stamp 보정과 rollback 종료 확인 후 nullable fallback 제거.
+    // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+    authorizationVersion?: string | null;
     snapshot?: boolean;
 };
 
@@ -40,6 +47,7 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
         private readonly projectionReadiness: ProjectionReadinessService,
         private readonly channelRepository: ChannelProjectionRepository,
         private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
+        private readonly roleRepository: TeamRoleProjectionRepository,
     ) {}
 
     setSocketServer(io: Server): void {
@@ -53,9 +61,11 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
         });
         const stream = PROJECTION_STREAMS.teamMember;
         this.consumer = kafka.consumer({groupId: stream.groupId});
-        await this.consumer.connect();
-        await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
-        await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+        await connectWithRetry(this.logger, `Kafka consumer startup: ${stream.topic}`, async () => {
+            await this.consumer.connect();
+            await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
+            await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+        });
 
         void this.consumer.run({
             eachMessage: async ({partition, message}): Promise<void> => {
@@ -102,16 +112,20 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
         }
 
         const {occurredAt, sourceVersion} = eventTime;
+        const authorizationVersion = parseEventTime(payload.authorizationVersion)?.sourceVersion ?? null;
         if (payload.eventType === 'DELETE') {
-            await this.memberRepository.remove(payload.teamId, payload.userId, occurredAt, sourceVersion);
+            await this.memberRepository.remove(payload.teamId, payload.userId, occurredAt, sourceVersion, authorizationVersion, payload.role);
+            await this.roleRepository.deleteMemberAssignments(payload.teamId, payload.userId, occurredAt, sourceVersion);
         } else {
             await this.memberRepository.upsert({
                 teamId: payload.teamId,
                 userId: payload.userId,
                 role: payload.role,
                 teamName: payload.teamName,
+                nickname: payload.nickname ?? null,
                 occurredAt,
                 sourceVersion,
+                authorizationVersion,
             });
         }
 
@@ -146,11 +160,19 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
             return false;
         }
 
+        const authorizationVersion = parseEventTime(event.authorizationVersion)?.sourceVersion;
+        const {sourceVersion} = parseEventTime(event.occurredAt)!;
+        if (event.authorizationVersion !== undefined && event.authorizationVersion !== null
+            && (!authorizationVersion || authorizationVersion.lessThanOrEqual(mongo.Long.ZERO) || authorizationVersion.greaterThan(sourceVersion))) {
+            return false;
+        }
+
         if (event.eventType === 'DELETE') {
             return true;
         }
 
         return typeof event.role === 'string' && event.role.length > 0
-            && typeof event.teamName === 'string' && event.teamName.length > 0;
+            && typeof event.teamName === 'string' && event.teamName.length > 0
+            && (event.nickname === undefined || event.nickname === null || typeof event.nickname === 'string');
     }
 }

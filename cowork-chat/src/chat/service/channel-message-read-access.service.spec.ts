@@ -15,6 +15,7 @@ describe('ChannelMessageReadAccessService', () => {
     const teamMemberRepository = {findByTeamIdsAndUserIds: jest.fn(), findByTeamIds: jest.fn()};
     const teamRoleRepository = {
         findAssignmentsByTeamIdsAndAccountIds: jest.fn(),
+        findDefaultRolesByTeamIds: jest.fn(),
         findRolesByIds: jest.fn(),
     };
     const policyRepository = {findByChannelIdsAndRoleIds: jest.fn()};
@@ -46,6 +47,7 @@ describe('ChannelMessageReadAccessService', () => {
             projectionReadiness as unknown as ProjectionReadinessService,
         );
         projectionReadiness.isReady.mockReturnValue(true);
+        teamRoleRepository.findDefaultRolesByTeamIds.mockResolvedValue([]);
         channelRepository.findByIds.mockResolvedValue([
             {
                 channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false,
@@ -127,21 +129,108 @@ describe('ChannelMessageReadAccessService', () => {
         ]);
     });
 
+    describe('default role permissions', () => {
+        beforeEach(() => {
+            teamRoleRepository.findDefaultRolesByTeamIds.mockResolvedValue([{
+                teamId: 1, roleId: 1, priority: 0, isDefault: true,
+                permissions: {message_read: true, voice_connect: true, message_send: false},
+            }]);
+        });
+
+        it('applies the default role without an assignment and requires active membership', async () => {
+            await expect(service.canReadChannel(10, 4)).resolves.toBe(true);
+            teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([]);
+            await expect(service.canReadChannel(10, 4)).resolves.toBe(false);
+        });
+
+        it('restores default access after rejoining without restoring removed custom roles', async () => {
+            teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds.mockResolvedValue([]);
+            await expect(service.canReadChannel(10, 2)).resolves.toBe(true);
+            await expect(service.requirePermission(10, 2, 'message_send')).rejects.toThrow(ForbiddenException);
+        });
+
+        it('requires explicit default or custom overwrite for private visibility', async () => {
+            await expect(service.canReadChannel(20, 4)).resolves.toBe(false);
+            policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([{
+                teamId: 1, channelId: 20, roleId: 1, permissions: {message_read: true},
+            }]);
+            await expect(service.canReadChannel(20, 4)).resolves.toBe(true);
+        });
+
+        it('applies default overwrite before custom denies and then allows', async () => {
+            policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([
+                {
+                    teamId: 1, channelId: 10, roleId: 1, permissions: {message_read: true},
+                },
+                {
+                    teamId: 1, channelId: 10, roleId: 101, permissions: {message_read: false},
+                },
+            ]);
+            await expect(service.canReadChannel(10, 2)).resolves.toBe(false);
+            policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([
+                {
+                    teamId: 1, channelId: 10, roleId: 1, permissions: {message_read: false},
+                },
+                {
+                    teamId: 1, channelId: 10, roleId: 101, permissions: {message_read: false},
+                },
+                {
+                    teamId: 1, channelId: 10, roleId: 102, permissions: {message_read: true},
+                },
+            ]);
+            await expect(service.canReadChannel(10, 2)).resolves.toBe(true);
+        });
+
+        it('allows thread replies independently of parent message sending', async () => {
+            policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([{
+                teamId: 1, channelId: 10, roleId: 1,
+                permissions: {message_send: false, thread_reply: true},
+            }]);
+            await expect(service.requirePermission(10, 4, 'thread_reply')).resolves.toBeUndefined();
+            await expect(service.requirePermission(10, 4, 'message_send')).rejects.toThrow(ForbiddenException);
+        });
+
+        it('checks visibility before allowing a granted action', async () => {
+            policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([{
+                teamId: 1, channelId: 10, roleId: 1,
+                permissions: {
+                    message_read: false, message_send: true, message_pin: true, message_manage: true,
+                },
+            }]);
+            await Promise.all((['message_send', 'message_pin', 'message_manage'] as const).map(async permission => {
+                await expect(service.requirePermission(10, 4, permission)).rejects.toThrow(ForbiddenException);
+            }));
+        });
+
+        it('gives active built-in ADMIN access without allowing stale roles to bypass membership', async () => {
+            teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 1, userId: 4, role: 'ADMIN'}]);
+            await expect(service.requirePermission(20, 4, 'message_manage')).resolves.toBeUndefined();
+            teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([]);
+            await expect(service.requirePermission(20, 4, 'message_manage')).rejects.toThrow(ForbiddenException);
+        });
+
+        it('does not let DM participants manage each other messages', async () => {
+            channelRepository.findByIds.mockResolvedValue([{channelId: 10, teamId: null, type: 'DM'}]);
+            await expect(service.canReadChannel(10, 4)).resolves.toBe(true);
+            await expect(service.requirePermission(10, 4, 'message_manage')).rejects.toThrow(ForbiddenException);
+        });
+    });
+
     describe('canReadChannel', () => {
         it('가장 높은 priority의 명시값을 적용하고 낮은 priority deny는 무시한다', async () => {
             await expect(service.canReadChannel(10, 2)).resolves.toBe(true);
         });
 
-        it('같은 priority에서 allow와 deny가 충돌하면 deny를 적용한다', async () => {
-            await expect(service.canReadChannel(10, 3)).resolves.toBe(false);
+        it('역할 overwrite의 allow는 priority와 무관하게 deny보다 우선한다', async () => {
+            await expect(service.canReadChannel(10, 3)).resolves.toBe(true);
         });
 
         it('어떤 role에도 message_read가 명시되지 않으면 기본 거부한다', async () => {
             await expect(service.canReadChannel(10, 4)).resolves.toBe(false);
         });
 
-        it('상위 역할의 기본 거부는 하위 역할의 허용보다 우선한다', async () => {
-            await expect(service.canReadChannel(10, 6)).resolves.toBe(false);
+        it('상위 역할의 기본 거부는 다른 역할의 허용을 취소하지 않는다', async () => {
+            await expect(service.canReadChannel(10, 6)).resolves.toBe(true);
         });
 
         it('built-in OWNER는 role policy 없이 공개 채널을 읽을 수 있다', async () => {
@@ -333,7 +422,7 @@ describe('ChannelMessageReadAccessService', () => {
                 emit: jest.fn(),
             };
             const deniedSocket = {
-                data: {userId: 3},
+                data: {userId: 4},
                 rooms: new Set(['chat:10']),
                 leave: jest.fn().mockResolvedValue(undefined),
                 emit: jest.fn(),
@@ -381,7 +470,7 @@ describe('ChannelMessageReadAccessService', () => {
 
         it('현재 권한이 없는 채널·팀 room에서만 socket을 제거한다', async () => {
             const allowed = makeSocket(2, ['socket-a', 'user:2', 'chat:10', 'team:1']);
-            const denied = makeSocket(3, ['socket-b', 'user:3', 'chat:10', 'team:2']);
+            const denied = makeSocket(4, ['socket-b', 'user:4', 'chat:10', 'team:2']);
 
             await expect(service.evictUnauthorizedRooms([allowed, denied])).resolves.toBe(2);
 
@@ -398,7 +487,7 @@ describe('ChannelMessageReadAccessService', () => {
                     channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false,
                 }];
             });
-            const denied = makeSocket(3, ['chat:10']);
+            const denied = makeSocket(4, ['chat:10']);
 
             await expect(service.evictUnauthorizedRooms([denied])).resolves.toBe(0);
 
@@ -444,6 +533,7 @@ describe('ChannelMessageReadAccessService', () => {
             projectionReadiness.isReady.mockReturnValue(false);
             await service.emitToReadableChannelUsers(io as never, 10, 'message', {value: 1});
             projectionReadiness.isReady.mockReturnValue(true);
+            teamRoleRepository.findDefaultRolesByTeamIds.mockResolvedValue([]);
             await service.emitToReadableChannelUsers(io as never, 10, 'message', {value: 2});
             await service.emitToReadableChannelUsers(io as never, 10, 'message', {value: 3});
 
@@ -463,11 +553,13 @@ describe('ChannelMessageReadAccessService', () => {
             projectionReadiness.isReady.mockReturnValue(false);
             await service.emitToReadableChannelUsers(io as never, 10, 'message', {value: 1});
             projectionReadiness.isReady.mockReturnValue(true);
+            teamRoleRepository.findDefaultRolesByTeamIds.mockResolvedValue([]);
             await service.emitToReadableChannelUsers(io as never, 10, 'message', {value: 2});
             expect(emit).not.toHaveBeenCalled();
 
             evict.mockImplementation(async () => 0);
             projectionReadiness.isReady.mockReturnValue(true);
+            teamRoleRepository.findDefaultRolesByTeamIds.mockResolvedValue([]);
             await service.emitToReadableChannelUsers(io as never, 10, 'message', {value: 3});
 
             expect(evict).toHaveBeenCalledTimes(2);

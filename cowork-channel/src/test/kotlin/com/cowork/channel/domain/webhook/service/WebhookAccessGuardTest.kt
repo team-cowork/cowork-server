@@ -49,12 +49,13 @@ class WebhookAccessGuardTest :
                 }
             }
 
-            context("채널 생성자도 팀 관리자도 아니면") {
+            context("채널 관리 권한이 없으면") {
                 it("FORBIDDEN으로 거부한다") {
                     val text = channel()
                     every { channelAccessGuard.findChannelOrThrow(1L) } returns text
                     every { channelAccessGuard.requireTeamChannel(text) } returns 100L
-                    every { teamPermissionService.isTeamOwnerOrAdmin(100L, 20L) } returns false
+                    every { teamPermissionService.requireChannelPermission(text, 20L, "channel_manage") } throws
+                        ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
 
                     val error = shouldThrow<ExpectedException> { guard.requireWebhookManager(1L, 20L) }
 
@@ -62,12 +63,12 @@ class WebhookAccessGuardTest :
                 }
             }
 
-            context("팀 관리자이면") {
+            context("채널 관리 권한이 있으면") {
                 it("TEXT 채널의 웹훅 관리를 허용한다") {
                     val text = channel()
                     every { channelAccessGuard.findChannelOrThrow(1L) } returns text
                     every { channelAccessGuard.requireTeamChannel(text) } returns 100L
-                    every { teamPermissionService.isTeamOwnerOrAdmin(100L, 20L) } returns true
+                    every { teamPermissionService.requireChannelPermission(text, 20L, "channel_manage") } returns Unit
 
                     guard.requireWebhookManager(1L, 20L) shouldBe text
                 }

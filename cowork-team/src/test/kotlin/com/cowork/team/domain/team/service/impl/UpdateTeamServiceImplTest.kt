@@ -7,6 +7,7 @@ import com.cowork.team.domain.team.presentation.data.request.UpdateTeamRequest
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.team.service.TeamIconOwnershipService
+import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
@@ -48,7 +49,11 @@ class UpdateTeamServiceImplTest :
                 memberRepository,
                 mockk<TeamEventPublisher>(relaxed = true),
                 mockk<TeamMemberEventPublisher>(relaxed = true),
-                TeamAccessGuard(teamRepository, memberRepository),
+                TeamAccessGuard(
+                    teamRepository,
+                    memberRepository,
+                    TeamPermissionGuard(memberRepository, mockk(relaxed = true)),
+                ),
             )
         }
 
@@ -58,11 +63,7 @@ class UpdateTeamServiceImplTest :
                     val team = team()
                     every { teamRepository.findByIdForUpdate(1L) } returns team
                     every {
-                        memberRepository.findByTeamIdAndUserIdAndRoleIn(
-                            1L,
-                            20L,
-                            listOf(TeamRole.OWNER, TeamRole.ADMIN),
-                        )
+                        memberRepository.findByTeamIdAndUserId(1L, 20L)
                     } returns null
 
                     val error = shouldThrow<ExpectedException> {
@@ -80,11 +81,7 @@ class UpdateTeamServiceImplTest :
                     val admin = TeamMember(team = team, userId = 20L, role = TeamRole.ADMIN)
                     every { teamRepository.findByIdForUpdate(1L) } returns team
                     every {
-                        memberRepository.findByTeamIdAndUserIdAndRoleIn(
-                            1L,
-                            20L,
-                            listOf(TeamRole.OWNER, TeamRole.ADMIN),
-                        )
+                        memberRepository.findByTeamIdAndUserId(1L, 20L)
                     } returns admin
                     every { memberRepository.findAllByTeamIdForUpdate(1L) } returns listOf(admin)
 

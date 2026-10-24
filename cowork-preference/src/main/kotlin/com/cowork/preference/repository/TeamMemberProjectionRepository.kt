@@ -13,18 +13,32 @@ class TeamMemberProjectionRepository {
         val rows = client.preparedQuery(
             """
             INSERT INTO tb_team_member_projections
-                (team_id, account_id, built_in_role, deleted, source_occurred_at)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5)
+                (team_id, account_id, built_in_role, deleted, source_occurred_at, authorization_version)
+            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6)
             ON CONFLICT (team_id, account_id)
             DO UPDATE SET
                 built_in_role = EXCLUDED.built_in_role,
                 deleted = EXCLUDED.deleted,
-                source_occurred_at = EXCLUDED.source_occurred_at
+                source_occurred_at = EXCLUDED.source_occurred_at,
+                authorization_version = CASE
+                    WHEN EXCLUDED.source_occurred_at = tb_team_member_projections.source_occurred_at
+                        THEN GREATEST(tb_team_member_projections.authorization_version, EXCLUDED.authorization_version)
+                    -- A newer legacy event cannot reuse authority proved by an older state.
+                    ELSE EXCLUDED.authorization_version
+                END
             WHERE EXCLUDED.source_occurred_at > tb_team_member_projections.source_occurred_at
                OR (
                     EXCLUDED.source_occurred_at = tb_team_member_projections.source_occurred_at
                     AND EXCLUDED.deleted = TRUE
                     AND tb_team_member_projections.deleted = FALSE
+               )
+               OR (
+                    EXCLUDED.source_occurred_at = tb_team_member_projections.source_occurred_at
+                    AND EXCLUDED.deleted = tb_team_member_projections.deleted
+                    AND EXCLUDED.built_in_role = tb_team_member_projections.built_in_role
+                    AND EXCLUDED.authorization_version IS NOT NULL
+                    AND (tb_team_member_projections.authorization_version IS NULL
+                         OR EXCLUDED.authorization_version > tb_team_member_projections.authorization_version)
                )
             """.trimIndent(),
         ).execute(
@@ -34,6 +48,7 @@ class TeamMemberProjectionRepository {
                 event.role,
                 event.eventType == "DELETE",
                 event.occurredAt.atOffset(ZoneOffset.UTC),
+                event.authorizationVersion?.atOffset(ZoneOffset.UTC),
             ),
         ).coAwait()
         return rows.rowCount() == 1
@@ -43,7 +58,7 @@ class TeamMemberProjectionRepository {
     suspend fun find(client: SqlClient, teamId: Long, accountId: Long): TeamMemberProjection? {
         val rows = client.preparedQuery(
             """
-            SELECT team_id, account_id, built_in_role, deleted, source_occurred_at
+            SELECT team_id, account_id, built_in_role, deleted, source_occurred_at, authorization_version
             FROM tb_team_member_projections
             WHERE team_id = ${'$'}1 AND account_id = ${'$'}2
             FOR SHARE
@@ -56,7 +71,7 @@ class TeamMemberProjectionRepository {
     suspend fun findForRead(client: SqlClient, teamId: Long, accountId: Long): TeamMemberProjection? {
         val rows = client.preparedQuery(
             """
-            SELECT team_id, account_id, built_in_role, deleted, source_occurred_at
+            SELECT team_id, account_id, built_in_role, deleted, source_occurred_at, authorization_version
             FROM tb_team_member_projections
             WHERE team_id = ${'$'}1 AND account_id = ${'$'}2
             """.trimIndent(),
@@ -70,5 +85,6 @@ class TeamMemberProjectionRepository {
         builtInRole = getString("built_in_role"),
         deleted = getBoolean("deleted"),
         sourceOccurredAt = getOffsetDateTime("source_occurred_at").toInstant(),
+        authorizationVersion = getOffsetDateTime("authorization_version")?.toInstant(),
     )
 }
