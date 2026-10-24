@@ -18,7 +18,7 @@ class GithubRepoAccessResolver(
 
     fun resolveForRead(userId: Long, projectId: Long, repoId: Long): GithubRepoRef {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
-        projectAccessGuard.requireTeamMember(project.teamId, userId)
+        projectAccessGuard.requireProjectReader(project, userId)
         return parseLinkedRepo(projectId, repoId)
     }
 

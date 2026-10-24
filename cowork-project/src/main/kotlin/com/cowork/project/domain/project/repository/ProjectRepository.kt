@@ -31,16 +31,30 @@ interface ProjectRepository :
     @Query("SELECT p.id FROM Project p WHERE p.teamId = :teamId")
     fun findIdsByTeamId(@Param("teamId") teamId: Long): List<Long>
 
-    fun findByTeamId(teamId: Long, pageable: Pageable): Page<Project>
+    @Query(
+        "SELECT p FROM Project p JOIN TeamMembership m ON m.teamId = p.teamId " +
+            "WHERE p.teamId = :teamId AND m.userId = :userId AND m.active = true " +
+            "AND (p.createdBy = :userId OR m.role IN ('OWNER', 'ADMIN') OR EXISTS (" +
+            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = :userId AND a.canRead = true))",
+    )
+    fun findReadableByTeamId(@Param("teamId") teamId: Long, @Param("userId") userId: Long, pageable: Pageable): Page<Project>
+
+    @Query(
+        "SELECT COUNT(m) FROM Project p JOIN TeamMembership m ON m.teamId = p.teamId " +
+            "WHERE p.id = :projectId AND m.active = true " +
+            "AND (p.createdBy = m.userId OR m.role IN ('OWNER', 'ADMIN') OR EXISTS (" +
+            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = m.userId AND a.canRead = true))",
+    )
+    fun countReadableUsers(@Param("projectId") projectId: Long): Long
 
     @Query("SELECT COALESCE(MAX(p.position), -1) FROM Project p WHERE p.teamId = :teamId")
     fun findMaxPositionByTeamId(@Param("teamId") teamId: Long): Int
 
     @Query(
-        value = "SELECT p FROM Project p JOIN ProjectMember m ON m.projectId = p.id " +
-            "WHERE m.userId = :userId",
-        countQuery = "SELECT COUNT(p) FROM Project p JOIN ProjectMember m ON m.projectId = p.id " +
-            "WHERE m.userId = :userId",
+        "SELECT p FROM Project p JOIN TeamMembership m ON m.teamId = p.teamId " +
+            "WHERE m.userId = :userId AND m.active = true " +
+            "AND (p.createdBy = :userId OR m.role IN ('OWNER', 'ADMIN') OR EXISTS (" +
+            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = :userId AND a.canRead = true))",
     )
-    fun findProjectsByMemberUserId(@Param("userId") userId: Long, pageable: Pageable): Page<Project>
+    fun findReadableByUserId(@Param("userId") userId: Long, pageable: Pageable): Page<Project>
 }

@@ -15,4 +15,5 @@ data class ProjectEvent(
     val position: Int,
     val occurredAt: Instant,
     val snapshot: Boolean = false,
+    val createdBy: Long? = null,
 )

@@ -4,6 +4,7 @@ import com.cowork.preference.domain.ProjectLifecycleProjection
 import com.cowork.preference.domain.TeamMemberProjection
 import com.cowork.preference.messaging.ProjectionReadinessView
 import com.cowork.preference.repository.ProjectLifecycleProjectionRepository
+import com.cowork.preference.repository.ProjectRoleRepository
 import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.security.RequesterContext
 import io.kotest.assertions.throwables.shouldNotThrowAny
@@ -14,8 +15,8 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.vertx.sqlclient.Pool
-import kotlinx.coroutines.runBlocking
 import java.time.Instant
+import kotlinx.coroutines.runBlocking
 
 private const val PROJECT_ID = 7L
 private const val TEAM_ID = 42L
@@ -28,7 +29,8 @@ private class ProjectGuardFixture {
     val teamMemberRepository = mockk<TeamMemberProjectionRepository>()
     val readiness = mockk<ProjectionReadinessView>()
     val pool = mockk<Pool>()
-    val guard = ProjectAccessGuard(pool, projectRepository, teamMemberRepository, readiness)
+    val roles = mockk<ProjectRoleRepository>()
+    val guard = ProjectAccessGuard(pool, projectRepository, teamMemberRepository, readiness, roles)
 
     fun stubReadiness(ready: Boolean) {
         every { readiness.isReady } returns ready
@@ -54,12 +56,23 @@ class ProjectAccessGuardTest :
         describe("ProjectAccessGuard 클래스의") {
             describe("requireMember 메서드는") {
                 context("프로젝트가 속한 팀의 멤버이면") {
-                    it("프로젝트 멤버가 아니어도 통과한다") {
+                    it("read 권한이 있으면 별도 멤버 등록 없이 통과한다") {
                         fixture.stubReadiness(true)
                         fixture.stubProject()
                         fixture.stubTeamMember(role = "MEMBER")
+                        coEvery { fixture.roles.canRead(PROJECT_ID, MEMBER.userId) } returns true
 
                         shouldNotThrowAny { runBlocking { fixture.guard.requireMember(PROJECT_ID, MEMBER) } }
+                    }
+                }
+
+                context("read 권한이 없는 일반 팀 멤버이면") {
+                    it("접근을 거부한다") {
+                        fixture.stubReadiness(true)
+                        fixture.stubProject()
+                        fixture.stubTeamMember()
+                        coEvery { fixture.roles.canRead(PROJECT_ID, MEMBER.userId) } returns false
+                        shouldThrow<ResourceAccessDeniedException> { runBlocking { fixture.guard.requireMember(PROJECT_ID, MEMBER) } }
                     }
                 }
 
