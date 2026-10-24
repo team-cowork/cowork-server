@@ -18,10 +18,6 @@ class ProjectAccessGuard(
     private val roles: ProjectRoleRepository,
     private val teamRoles: TeamRoleRepository,
 ) {
-    suspend fun requireTeamMember(projectId: Long, accountId: Long) {
-        activeTeamRole(projectId, accountId)
-    }
-
     /** 프로젝트 설정·역할 조회: read 권한 보유자 또는 프로젝트 관리자. */
     suspend fun requireMember(projectId: Long, requester: RequesterContext) {
         val role = activeTeamRole(projectId, requester.userId)
@@ -42,21 +38,38 @@ class ProjectAccessGuard(
         requireRoleMutation(projectId, requester, permissions, removing = false)
     }
 
-    suspend fun requireRoleAssignment(projectId: Long, requester: RequesterContext, roleName: String) {
+    suspend fun requireRoleAssignment(projectId: Long, requester: RequesterContext, roleName: String, accountId: Long) {
         val permissions = roles.findRole(projectId, roleName)?.permissions ?: JsonObject()
-        requireRoleMutation(projectId, requester, permissions, removing = false)
+        val actor = requireRoleMutation(projectId, requester, permissions, removing = false)
+        requireManageableTargets(actor, listOf(accountId), requireActiveMember = true)
     }
 
-    suspend fun requireRoleRemoval(projectId: Long, requester: RequesterContext, roleName: String) {
+    suspend fun requireRoleRemoval(projectId: Long, requester: RequesterContext, roleName: String, accountId: Long) {
         val permissions = roles.findRole(projectId, roleName)?.permissions ?: JsonObject()
-        requireRoleMutation(projectId, requester, permissions, removing = true)
+        val actor = requireRoleMutation(projectId, requester, permissions, removing = true)
+        requireManageableTargets(actor, listOf(accountId), requireActiveMember = false)
     }
 
-    private suspend fun requireRoleMutation(projectId: Long, requester: RequesterContext, permissions: JsonObject, removing: Boolean) {
-        if (activeTeamRole(projectId, requester.userId) in MANAGER_ROLES) return
+    suspend fun requireRoleDeletion(projectId: Long, requester: RequesterContext, roleName: String) {
+        val permissions = roles.findRole(projectId, roleName)?.permissions ?: JsonObject()
+        val actor = requireRoleMutation(projectId, requester, permissions, removing = true)
+        if (actor.builtInManager) return
+        val accountIds = roles.findMemberRoles(projectId).filter { it.roleName == roleName }.map { it.accountId }.distinct()
+        requireManageableTargets(actor, accountIds, requireActiveMember = false)
+    }
+
+    private suspend fun requireRoleMutation(
+        projectId: Long,
+        requester: RequesterContext,
+        permissions: JsonObject,
+        removing: Boolean,
+    ): RoleActor {
+        val builtInManager = activeTeamRole(projectId, requester.userId) in MANAGER_ROLES
         val project = requireNotNull(projectRepository.findForRead(pool, projectId))
+        if (builtInManager) return RoleActor(project.teamId, true, Int.MAX_VALUE)
         val effective = roles.effectivePermissions(projectId, requester.userId)
-        if (!effective.read || !teamRoles.hasPermission(project.teamId, requester.userId, "manage_roles")) {
+        val actorRoles = teamRoles.findAccountRoles(pool, project.teamId, requester.userId)
+        if (!effective.read || actorRoles.none { it.permissions["manage_roles"] == true }) {
             throw ResourceAccessDeniedException("프로젝트 역할을 관리할 권한이 없습니다.")
         }
         // Removing a read deny can restore additional inherited permissions on the target.
@@ -66,6 +79,26 @@ class ProjectAccessGuard(
         val held = mapOf("read" to effective.read, "write" to effective.write, "manage" to effective.manage, "reorder" to effective.reorder)
         if (!removing && permissions.map.any { (key, value) -> value == true && held[key] != true }) {
             throw ResourceAccessDeniedException("보유하지 않은 프로젝트 권한은 부여할 수 없습니다.")
+        }
+        return RoleActor(project.teamId, false, actorRoles.maxOfOrNull { it.priority } ?: 0)
+    }
+
+    private suspend fun requireManageableTargets(actor: RoleActor, accountIds: List<Long>, requireActiveMember: Boolean) {
+        if (actor.builtInManager && !requireActiveMember) return
+        accountIds.forEach { accountId ->
+            val target = teamMemberRepository.findForRead(pool, actor.teamId, accountId)?.takeUnless { it.deleted }
+            if (target == null) {
+                if (requireActiveMember) throw ResourceAccessDeniedException("프로젝트 팀 멤버만 접근할 수 있습니다.")
+                return@forEach
+            }
+            if (actor.builtInManager) return@forEach
+            if (target.builtInRole in MANAGER_ROLES) {
+                throw ResourceAccessDeniedException("팀 관리자의 프로젝트 역할은 변경할 수 없습니다.")
+            }
+            val targetPriority = teamRoles.findAccountRoles(pool, actor.teamId, accountId).maxOfOrNull { it.priority } ?: 0
+            if (targetPriority >= actor.maxPriority) {
+                throw ResourceAccessDeniedException("자신의 최상위 역할보다 높거나 같은 멤버의 프로젝트 역할은 변경할 수 없습니다.")
+            }
         }
     }
 
@@ -85,4 +118,6 @@ class ProjectAccessGuard(
     private companion object {
         val MANAGER_ROLES = setOf("OWNER", "ADMIN")
     }
+
+    private data class RoleActor(val teamId: Long, val builtInManager: Boolean, val maxPriority: Int)
 }
