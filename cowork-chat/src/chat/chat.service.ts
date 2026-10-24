@@ -208,7 +208,7 @@ export class ChatService {
     /**
      FILE_SHARE 채널의 첨부파일 목록을 커서 기반 페이지네이션으로 조회한다.
      FILE_SHARE 채널이 아니면 `BadRequestException`을 던진다.
-     업로더 이름은 Kafka로 동기화된 사용자 프로필 projection에서 일괄 조회한다.
+     업로더 이름은 Kafka로 동기화된 팀 멤버와 사용자 프로필 projection에서 일괄 조회한다.
 
      @param ctx - 채널·사용자 컨텍스트
      @param query - 커서, 페이지 크기
@@ -225,7 +225,7 @@ export class ChatService {
 
         const limit = query.limit ?? 20;
         const {items, nextCursor} = await this.messageRepository.findFileAttachments(ctx.channelId, query.before, limit);
-        const uploaderNames = await this.loadUploaderNames(items);
+        const uploaderNames = await this.loadUploaderNames(items, channel.teamId);
 
         return {
             files: items.map(item => ({
@@ -978,18 +978,22 @@ export class ChatService {
     }
 
     /**
-     업로더 ID 목록에 대한 표시 이름을 로컬 사용자 프로필 projection에서 조회한다.
+     업로더 ID 목록에 대한 표시 이름을 로컬 사용자 프로필과 팀 멤버 projection에서 조회한다.
      `SYSTEM_AUTHOR_ID(0)` 이하이면 projection 조회 없이 'System'으로 처리한다.
 
      @param items - uploaderId 필드를 포함하는 아이템 배열
+     @param teamId - 팀 닉네임을 적용할 팀 ID. 팀에 속하지 않은 채널이면 null
      @returns uploaderId → 표시 이름 매핑
      */
-    private async loadUploaderNames(items: Array<{uploaderId: number}>): Promise<Map<number, string>> {
+    private async loadUploaderNames(
+        items: Array<{uploaderId: number}>,
+        teamId: number | null,
+    ): Promise<Map<number, string>> {
         const uniqueUploaderIds = [...new Set(items.map(item => item.uploaderId))];
         const systemIds = uniqueUploaderIds.filter(id => id <= SYSTEM_AUTHOR_ID);
         const realIds = uniqueUploaderIds.filter(id => id > SYSTEM_AUTHOR_ID);
 
-        const names = await this.userClient.getDisplayNames(realIds);
+        const names = await this.userClient.getDisplayNames(realIds, teamId);
         for (const systemId of systemIds) {
             names.set(systemId, SYSTEM_AUTHOR_NAME);
         }
