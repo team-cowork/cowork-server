@@ -184,7 +184,7 @@
     },
     {
       "id": 5,
-      "title": "Kafka - 현행 그룹 소비 지연 (오프셋)",
+      "title": "Kafka - 소비 지연 (오프셋)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
       "targets": [
