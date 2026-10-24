@@ -27,9 +27,10 @@ class TeamRolePermissionSchemaTest :
                 }
 
                 it("지원하지 않는 권한 키를 BAD_REQUEST로 거부한다") {
-                    val error = shouldThrow<ExpectedException> { schema.validate(mapOf("MANAGE_ROLES" to true)) }
-
-                    error.statusCode shouldBe HttpStatus.BAD_REQUEST
+                    listOf("MANAGE_ROLES", "channel_member_manage").forEach { key ->
+                        val error = shouldThrow<ExpectedException> { schema.validate(mapOf(key to true)) }
+                        error.statusCode shouldBe HttpStatus.BAD_REQUEST
+                    }
                 }
 
                 it("boolean이 아닌 권한 값을 BAD_REQUEST로 거부한다") {
