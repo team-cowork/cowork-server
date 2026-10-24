@@ -5,21 +5,16 @@ import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.event.ProjectEventPublisher
 import com.cowork.project.domain.project.repository.ProjectRepository
-import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
-import com.cowork.project.domain.projectMember.event.ProjectMemberEventPublisher
-import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
 import com.cowork.project.global.projection.toProjectionPrecision
+import java.time.Instant
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.Instant
 
 @Service
 class ProjectLifecycleHandler(
     private val projectRepository: ProjectRepository,
-    private val projectMemberRepository: ProjectMemberRepository,
     private val teamMembershipRepository: TeamMembershipRepository,
-    private val projectMemberEventPublisher: ProjectMemberEventPublisher,
     private val projectEventPublisher: ProjectEventPublisher,
     private val repoDeletionSupport: ProjectGithubRepoDeletionSupport,
 ) {
@@ -55,9 +50,7 @@ class ProjectLifecycleHandler(
             log.info("TEAM_DELETED 처리: 대상 프로젝트 없음 [teamId={}]", teamId)
             return
         }
-        val members = projectMemberRepository.findAllByProjectIdInForUpdate(projects.map { it.id })
         repoDeletionSupport.deleteByProjectIds(projects.map { it.id }, version)
-        members.forEach { projectMemberEventPublisher.publishRemoved(it, version) }
         projects.forEach { projectEventPublisher.publishDeleted(it, version) }
         projectRepository.deleteAll(projects)
         log.info("TEAM_DELETED 처리 완료 [teamId={}, deletedProjects={}]", teamId, projects.size)
@@ -85,44 +78,17 @@ class ProjectLifecycleHandler(
 
         val teamProjects = projectRepository.findAllByTeamIdForUpdate(teamId)
         if (teamProjects.isEmpty()) return
-        val teamProjectIds = teamProjects.map { it.id }
-        val targetMemberships = projectMemberRepository.findAllByUserIdAndProjectIdInForUpdate(
-            targetUserId,
-            teamProjectIds,
-        )
-        val ownerProjects = targetMemberships.filter { it.role == ProjectMemberRole.OWNER }.map { it.projectId }
-
-        if (ownerProjects.isNotEmpty()) {
-            val members = projectMemberRepository.findAllByProjectIdInForUpdate(ownerProjects)
-            val deletedProjects = teamProjects.filter { it.id in ownerProjects }
-            repoDeletionSupport.deleteByProjectIds(ownerProjects, version)
-            members.forEach { projectMemberEventPublisher.publishRemoved(it, version) }
-            deletedProjects.forEach { projectEventPublisher.publishDeleted(it, version) }
-            projectRepository.deleteAll(deletedProjects)
-        }
-
-        val remaining = teamProjectIds - ownerProjects.toSet()
-        if (remaining.isNotEmpty()) {
-            val remainingMemberships = targetMemberships.filter { it.projectId in remaining }
-                .associateBy { it.projectId }
-            remaining.forEach { projectId ->
-                val activeMember = remainingMemberships[projectId]
-                if (activeMember == null) {
-                    projectMemberEventPublisher.publishRemoved(projectId, targetUserId, version)
-                } else {
-                    projectMemberEventPublisher.publishRemoved(activeMember, version)
-                }
-            }
-            if (remainingMemberships.isNotEmpty()) {
-                projectMemberRepository.deleteAll(remainingMemberships.values)
-            }
+        val ownedProjects = teamProjects.filter { it.createdBy == targetUserId }
+        if (ownedProjects.isNotEmpty()) {
+            repoDeletionSupport.deleteByProjectIds(ownedProjects.map { it.id }, version)
+            ownedProjects.forEach { projectEventPublisher.publishDeleted(it, version) }
+            projectRepository.deleteAll(ownedProjects)
         }
         log.info(
-            "MEMBER_REMOVED 처리 [teamId={}, userId={}, ownerProjectsDeleted={}, membershipsRemoved={}]",
+            "MEMBER_REMOVED 처리 [teamId={}, userId={}, ownerProjectsDeleted={}]",
             teamId,
             targetUserId,
-            ownerProjects.size,
-            remaining.size,
+            ownedProjects.size,
         )
     }
 }

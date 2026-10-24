@@ -20,8 +20,7 @@ SERVICE_COMMAND=(
    export LIVEKIT_WS_URL="${LIVEKIT_WS_URL:-ws://localhost:7880}"
    export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"
    export KAFKA_TOPIC_VOICE_EVENT="${KAFKA_TOPIC_VOICE_EVENT:-voice.event}"
-   export KAFKA_TOPIC_CHANNEL_MEMBER_EVENT="${KAFKA_TOPIC_CHANNEL_MEMBER_EVENT:-channel.member.event.v2}"
-   export KAFKA_GROUP_ID_CHANNEL_MEMBER="${KAFKA_GROUP_ID_CHANNEL_MEMBER:-cowork-voice.channel-member.v2}"
+   export KAFKA_GROUP_ID_CHANNEL_ACCESS="${KAFKA_GROUP_ID_CHANNEL_ACCESS:-cowork-voice.channel-permissions.v1}"
    export EUREKA_SERVER_URL="${EUREKA_SERVER_URL:-http://localhost:8761/eureka}"
    export APP_ADVERTISE_ADDRESS="${APP_ADVERTISE_ADDRESS:-localhost}"
    go run ./cmd/server'

@@ -1,14 +1,14 @@
 package com.cowork.channel.domain.channel.service.impl
 
 import com.cowork.channel.domain.channel.entity.Channel
-import com.cowork.channel.domain.channel.entity.ChannelMember
 import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.entity.ChannelViewType
+import com.cowork.channel.domain.channel.entity.DmParticipant
 import com.cowork.channel.domain.channel.event.ChannelEventPublisher
-import com.cowork.channel.domain.channel.event.ChannelMembershipSyncPublisher
+import com.cowork.channel.domain.channel.event.DmParticipantSyncPublisher
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
 import com.cowork.channel.domain.channel.repository.ChannelRepository
+import com.cowork.channel.domain.channel.repository.DmParticipantRepository
 import com.cowork.channel.domain.channel.service.CreateDmService
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
@@ -21,9 +21,9 @@ import kotlin.math.min
 @Service
 class CreateDmServiceImpl(
     private val channelRepository: ChannelRepository,
-    private val channelMemberRepository: ChannelMemberRepository,
+    private val dmParticipantRepository: DmParticipantRepository,
     private val channelEventPublisher: ChannelEventPublisher,
-    private val channelMembershipSyncPublisher: ChannelMembershipSyncPublisher,
+    private val dmParticipantshipSyncPublisher: DmParticipantSyncPublisher,
     private val transactionTemplate: TransactionTemplate,
 ) : CreateDmService {
 
@@ -61,10 +61,10 @@ class CreateDmServiceImpl(
             ),
         )
         val members = listOf(creatorId, targetUserId).map { memberId ->
-            channelMemberRepository.save(ChannelMember(channelId = channel.id, userId = memberId))
+            dmParticipantRepository.save(DmParticipant(channelId = channel.id, userId = memberId))
         }
         channelEventPublisher.publishCreated(channel)
-        channelMembershipSyncPublisher.publishChannelSnapshot(channel, members)
+        dmParticipantshipSyncPublisher.publishChannelSnapshot(channel, members)
         return ChannelResponse.of(channel)
     }
 

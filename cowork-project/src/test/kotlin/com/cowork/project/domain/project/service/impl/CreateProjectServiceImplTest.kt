@@ -6,9 +6,7 @@ import com.cowork.project.domain.project.event.ProjectEventPublisher
 import com.cowork.project.domain.project.presentation.data.request.CreateProjectReqDto
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
-import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
-import com.cowork.project.domain.projectMember.event.ProjectMemberEventPublisher
-import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
+import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -22,19 +20,15 @@ import team.themoment.sdk.exception.ExpectedException
 class CreateProjectServiceImplTest {
 
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
-    private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
-    private val projectMemberEventPublisher = mockk<ProjectMemberEventPublisher>(relaxed = true)
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository, mockk(relaxed = true))
+        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true))
 
     private val service =
         CreateProjectServiceImpl(
             projectRepository,
-            projectMemberRepository,
             projectEventPublisher,
-            projectMemberEventPublisher,
             projectAccessGuard,
         )
 
@@ -55,20 +49,14 @@ class CreateProjectServiceImplTest {
         }
 
         @Test
-        fun `createProject은 마지막 position 다음에 만들고 생성자를 OWNER로 등록한다`() {
+        fun `createProject은 마지막 position 다음에 만들고 권한 기반 접근 목록 갱신을 요청한다`() {
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
             every { projectRepository.findMaxPositionByTeamId(100L) } returns 3
             every { projectRepository.save(any()) } answers { firstArg() }
-            every { projectMemberRepository.save(any()) } answers { firstArg() }
 
             val response = service.execute(7L, CreateProjectReqDto(teamId = 100L, name = "p", description = null))
 
             assertEquals(4, response.position)
-            verify(exactly = 1) {
-                projectMemberRepository.save(
-                    match { it.userId == 7L && it.role == ProjectMemberRole.OWNER },
-                )
-            }
         }
     }
 }

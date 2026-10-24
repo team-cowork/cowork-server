@@ -7,6 +7,7 @@ import {Prop, Schema, SchemaFactory} from '@nestjs/mongoose';
 export class ProjectProjection {
     @Prop({required: true}) projectId!: number;
     @Prop({required: true}) teamId!: number;
+    @Prop({type: Number, default: null}) createdBy!: number | null;
     @Prop({required: true, default: ''}) name!: string;
     @Prop({type: String, default: null}) description!: string | null;
     @Prop({required: true, default: ''}) status!: string;

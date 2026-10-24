@@ -40,7 +40,7 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
             useFactory(configService: ConfigService) {
                 const isLoggerEnabled = (configService.get<string>('CHAT_LOGGER_ENABLED') ?? process.env.CHAT_LOGGER_ENABLED) !== 'false';
                 if (!isLoggerEnabled) {
-                    return {pinoHttp: {level: 'silent'}};
+                    return {pinoHttp: {level: 'silent'}, renameContext: 'module'};
                 }
                 const logDir = configService.get<string>('COWORK_CHAT_LOG_DIR') ?? process.env.COWORK_CHAT_LOG_DIR;
                 const nodeEnv = configService.get<string>('NODE_ENV') ?? process.env.NODE_ENV;
@@ -77,11 +77,12 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
                         },
                         timestamp: () => `,"@timestamp":"${new Date().toISOString()}"`,
                         formatters: {
-                            level: (label: string) => ({level: label}),
+                            level: (label: string) => ({level: label.toUpperCase()}),
                         },
                         base: {service: 'cowork-chat'},
                         messageKey: 'message',
                     },
+                    renameContext: 'module',
                 };
             },
         }),

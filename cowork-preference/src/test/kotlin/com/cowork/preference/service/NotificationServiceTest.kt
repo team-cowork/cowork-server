@@ -45,11 +45,11 @@ class NotificationServiceTest {
         }
 
         @Test
-        fun `저장된 채널 설정이 없으면 알림을 켠 기본값을 반환한다`() = runBlocking {
+        fun `저장된 채널 설정이 없으면 계정과 팀 수준을 따르는 DEFAULT를 반환한다`() = runBlocking {
             coEvery { repository.findNotification(11L, 22L) } returns null
 
             assertEquals(
-                settings(notification = true, level = "ALL", mutedUntil = null),
+                settings(notification = true, level = "DEFAULT", mutedUntil = null),
                 service.getNotification(11L, 22L),
             )
         }
@@ -84,6 +84,17 @@ class NotificationServiceTest {
         }
 
         @Test
+        fun `음소거 시각만 보내면 알림 수준은 DEFAULT로 저장한다`() = runBlocking {
+            val requested = JsonObject().put("muted_until", "2026-09-01T00:00:00Z")
+            val normalized = settings(notification = true, level = "DEFAULT", mutedUntil = "2026-09-01T00:00:00Z")
+            stubUpsert(normalized, null, Instant.parse("2026-09-01T00:00:00Z"))
+
+            val result = service.updateNotification(11L, 22L, requested)
+
+            assertEquals(normalized, result)
+        }
+
+        @Test
         fun `지원하지 않는 알림 수준이면 저장하지 않는다`() {
             val requested = JsonObject().put("notification_level", "SOMETIMES")
 
@@ -103,7 +114,7 @@ class NotificationServiceTest {
             coVerify(exactly = 0) { repository.upsertNotification(any(), any(), any(), any()) }
         }
 
-        private fun stubUpsert(normalized: JsonObject, level: NotificationLevel, mutedUntil: Instant?) {
+        private fun stubUpsert(normalized: JsonObject, level: NotificationLevel?, mutedUntil: Instant?) {
             val connection = mockk<SqlConnection>()
             coEvery { outboxRepository.inTransaction<ChannelNotificationPreference>(any()) } coAnswers {
                 firstArg<suspend (SqlConnection) -> ChannelNotificationPreference>().invoke(connection)

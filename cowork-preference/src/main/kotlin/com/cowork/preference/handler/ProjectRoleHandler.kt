@@ -3,6 +3,7 @@ package com.cowork.preference.handler
 import com.cowork.preference.security.RequesterContext
 import com.cowork.preference.service.ProjectAccessGuard
 import com.cowork.preference.service.ProjectRoleService
+import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.kotlin.coroutines.dispatcher
@@ -27,8 +28,8 @@ class ProjectRoleHandler(
             if (!authorizeMember(ctx, requester, projectId)) return@launch
             runCatching { service.getRoles(projectId) }
                 .onSuccess { roles ->
-                    val arr = io.vertx.core.json.JsonArray(roles.map {
-                        JsonObject().put("roleName", it.roleName).put("permissions", it.permissions)
+                    val arr = JsonArray(roles.map {
+                        JsonObject().put("roleName", it.roleName).put("permissions", it.permissions).put("priority", it.priority)
                     })
                     ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(arr.encode())
                 }
@@ -53,13 +54,17 @@ class ProjectRoleHandler(
         val permissions = body.getJsonObject("permissions") ?: JsonObject()
         scope.launch(ctx.vertx().dispatcher()) {
             if (!authorizeManager(ctx, requester, projectId)) return@launch
-            service.createRole(projectId, roleName, permissions)
+            service.createRole(projectId, roleName, permissions, body.getInteger("priority", 0))
                 .onSuccess {
-                    val resp = JsonObject().put("roleName", it.roleName).put("permissions", it.permissions)
+                    val resp = JsonObject().put("roleName", it.roleName).put("permissions", it.permissions).put("priority", it.priority)
                     ctx.response().setStatusCode(201).putHeader("Content-Type", "application/json").end(resp.encode())
                 }
                 .onFailure { e ->
-                    val status = if (e is IllegalStateException) 409 else 500
+                    val status = when (e) {
+                        is IllegalArgumentException -> 400
+                        is IllegalStateException -> 409
+                        else -> 500
+                    }
                     ctx.response().setStatusCode(status).end(errorBody(e.message))
                 }
         }
@@ -80,7 +85,11 @@ class ProjectRoleHandler(
             service.deleteRole(projectId, roleName)
                 .onSuccess { ctx.response().setStatusCode(204).end() }
                 .onFailure { e ->
-                    val status = if (e is NoSuchElementException) 404 else 500
+                    val status = when (e) {
+                        is NoSuchElementException -> 404
+                        is IllegalArgumentException -> 400
+                        else -> 500
+                    }
                     ctx.response().setStatusCode(status).end(errorBody(e.message))
                 }
         }
@@ -96,7 +105,7 @@ class ProjectRoleHandler(
             if (!authorizeMember(ctx, requester, projectId)) return@launch
             runCatching { service.getMemberRoles(projectId) }
                 .onSuccess { members ->
-                    val arr = io.vertx.core.json.JsonArray(members.map {
+                    val arr = JsonArray(members.map {
                         JsonObject().put("accountId", it.accountId).put("roleName", it.roleName)
                     })
                     ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(arr.encode())
@@ -125,10 +134,15 @@ class ProjectRoleHandler(
         }
         scope.launch(ctx.vertx().dispatcher()) {
             if (!authorizeManager(ctx, requester, projectId)) return@launch
+            if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireTeamMember(projectId, accountId) }) return@launch
             service.assignRole(accountId, projectId, roleName)
                 .onSuccess { ctx.response().setStatusCode(204).end() }
                 .onFailure { e ->
-                    val status = if (e is NoSuchElementException) 404 else 500
+                    val status = when (e) {
+                        is NoSuchElementException -> 404
+                        is IllegalArgumentException -> 400
+                        else -> 500
+                    }
                     ctx.response().setStatusCode(status).end(errorBody(e.message))
                 }
         }

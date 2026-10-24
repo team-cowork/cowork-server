@@ -16,7 +16,7 @@ class ListProjectGithubRepoLinksServiceImpl(
     @Transactional(readOnly = true)
     override fun execute(userId: Long, projectId: Long): List<ProjectGithubRepoResDto> {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
-        projectAccessGuard.requireTeamMember(project.teamId, userId)
+        projectAccessGuard.requireProjectReader(project, userId)
 
         return projectGithubRepoRepository.findAllByProjectId(projectId).map { ProjectGithubRepoResDto.of(it) }
     }

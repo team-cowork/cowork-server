@@ -24,7 +24,7 @@ class UpdateMeetingNoteTemplateServiceImpl(
         templateId: Long,
         request: UpdateMeetingNoteTemplateRequest,
     ): MeetingNoteTemplateResponse {
-        meetingNoteAccessGuard.requireChannelMember(channelId, userId)
+        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
         val template = lookupSupport.findTemplateOrThrow(templateId)
         lookupSupport.requireTemplateOwnership(template, channelId)
         template.updateName(request.name)
