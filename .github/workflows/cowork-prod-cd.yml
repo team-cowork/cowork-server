@@ -828,50 +828,6 @@ jobs:
           vault_addr: ${{ vars.VAULT_ADDR }}
           vault_kv_mount: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
 
-  retire-kafka-groups:
-    name: Retire Replaced Kafka Consumer Groups
-    needs: [deployment-plan, deploy]
-    if: >
-      !cancelled() && needs.deployment-plan.result == 'success' && needs.deploy.result == 'success' &&
-      !(github.event_name == 'workflow_dispatch' && inputs.check_only)
-    permissions:
-      contents: read
-      id-token: write
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    environment: Prod-IaC
-    concurrency:
-      group: kafka-consumer-retirement
-      cancel-in-progress: false
-    steps:
-      - name: Checkout Deployed Release Source
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
-      - name: Require This Attempt's Settings Plan
-        env:
-          SETTINGS_ATTEMPT: ${{ needs.deployment-plan.outputs.attempt }}
-        run: python3 deploy/prod/cd/rollout-settings.py check-attempt
-      - name: Verify Replacement Consumers And Retire Old Groups
-        id: retire
-        # Keep a healthy release when cleanup is blocked; retry after the next successful application deployment.
-        continue-on-error: true
-        env:
-          RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
-          APPLICATIONS: ${{ needs.deployment-plan.outputs.applications }}
-          VAULT_ADDR: ${{ vars.VAULT_ADDR }}
-          VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
-        run: |
-          if [ ! -f deploy/prod/cd/retire-kafka-groups.py ]; then
-            echo 'This release has no consumer retirement procedure'
-            exit 0
-          fi
-          python3 deploy/prod/cd/retire-kafka-groups.py \
-            --sha "$RELEASE_SHA" --applications "$APPLICATIONS" --apply
-      - name: Report Deferred Kafka Retirement
-        if: ${{ steps.retire.outcome == 'failure' }}
-        run: echo "::warning title=Kafka consumer group retirement::Cleanup did not complete. Inspect the retirement step and retry after verifying the replacement consumers. The deployed services remain running."
 
   retire-approle:
     name: Retire Superseded AppRole Secret IDs
