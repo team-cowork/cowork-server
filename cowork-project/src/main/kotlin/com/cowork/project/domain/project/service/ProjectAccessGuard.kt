@@ -87,7 +87,9 @@ class ProjectAccessGuard(
 
     private fun permissions(member: TeamMembership, access: ProjectAccessProjection?): Permissions {
         if (isManager(member.role)) return Permissions(true, true, true, true)
-        val read = access?.canRead == true && access.sourceMembershipVersion == member.sourceOccurredAt
+        // TODO(#596): 2026-11-01 05:00 KST 이후 구형 레코드·롤백 지원 종료와 snapshot 보정 완료 확인 후 fallback 제거.
+        val read = access?.canRead == true &&
+            (access.sourceAuthorizationVersion ?: access.sourceMembershipVersion) == (member.authorizationVersion ?: member.sourceOccurredAt)
         return Permissions(read, read && access?.canWrite == true, read && access?.canReorder == true, read && access?.canManage == true)
     }
 
@@ -109,7 +111,9 @@ class ProjectAccessGuard(
         requireTeamPermission(teamId, userId, "manage_projects")
     }
 
-    fun requireProjectCreation(teamId: Long, userId: Long, isPrivate: Boolean): Instant? {
+    data class InitialReadAuthorization(val membershipVersion: Instant, val authorizationVersion: Instant?)
+
+    fun requireProjectCreation(teamId: Long, userId: Long, isPrivate: Boolean): InitialReadAuthorization? {
         val member = requireTeamPermission(teamId, userId, "manage_projects")
         if (!isPrivate || isManager(member.role)) return null
         if (!teamPermissions.hasPermission(teamId, userId, "project_read")) {
@@ -118,7 +122,8 @@ class ProjectAccessGuard(
         if (!member.sourceOccurredAt.isAfter(Instant.EPOCH)) {
             throw ExpectedException("팀 멤버 권한 정보가 아직 준비되지 않았습니다.", HttpStatus.SERVICE_UNAVAILABLE)
         }
-        return member.sourceOccurredAt
+        // TODO(#596): 2026-11-01 05:00 KST 이후 구형 producer 중단·legacy seed 원장 소비·snapshot 보정 완료 확인 후 nullable 승인 제거.
+        return InitialReadAuthorization(member.sourceOccurredAt, member.authorizationVersion)
     }
 
     fun requireProjectOwner(project: Project, userId: Long) {
