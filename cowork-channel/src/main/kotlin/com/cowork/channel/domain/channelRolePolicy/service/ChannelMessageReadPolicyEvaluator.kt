@@ -7,6 +7,7 @@ import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleAssignment
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleMemberTombstone
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleMemberTombstoneRepository
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleProjectionRepository
+import com.cowork.channel.domain.membership.entity.TeamMembership
 import com.cowork.channel.domain.membership.repository.TeamMembershipRepository
 import com.cowork.channel.global.projection.ProjectionReadinessGate
 import org.springframework.http.HttpStatus
@@ -75,33 +76,78 @@ class ChannelMessageReadPolicyEvaluator(
             }
             .mapTo(mutableSetOf()) { it.roleId }
         if (assignedRoleIds.isEmpty()) return emptySet()
-        val rolesById = roleRepository.findAllByTeamIdAndRoleIdInAndDeletedFalse(teamId, assignedRoleIds)
-            .associateBy { it.roleId }
-        if (rolesById.isEmpty()) return emptySet()
-        val activeRoleIds = rolesById.keys
-        val policiesByChannel = policyRepository
-            .findAllByTeamIdAndChannelIdInAndRoleIdInAndDeletedFalse(teamId, channelIds, activeRoleIds)
-            .groupBy { it.channelId }
+        val roles = loadRoles(teamId, assignedRoleIds)
+        val policies = loadPolicies(teamId, channelIds, roles.keys)
+        return channels.filter { isAllowed(it, assignedRoleIds, roles, policies[it.id].orEmpty(), permission) }
+            .mapTo(mutableSetOf()) { it.id }
+    }
 
-        val defaults = rolesById.mapValues { (_, role) -> permissions(role.permissionsJson) }
-        return channels.filter { channel ->
-            val key = permission ?: if (channel.type == ChannelType.VOICE) "voice_connect" else "message_read"
-            val overrides = policiesByChannel[channel.id].orEmpty().associateBy { it.roleId }
-            val highestPriority = rolesById.values.maxOf { it.priority }
-            rolesById.values.filter { it.priority == highestPriority }.all { role ->
-                val policy = overrides[role.roleId]
-                val override = permissions(policy?.permissionsJson)[key]
-                    ?: if (key == "message_read") policy?.messageRead else null
-                override
-                    ?: if (channel.isPrivate &&
-                        key in ACCESS_PERMISSIONS
-                    ) {
-                        false
-                    } else {
-                        defaults.getValue(role.roleId)[key] ?: false
-                    }
+    fun readableUserIds(channel: Channel, memberships: List<TeamMembership>): Set<Long> {
+        projectionReadinessGate.requireReady()
+        val teamId = channel.teamId ?: return emptySet()
+        val activeMembers = memberships.filter { it.teamId == teamId && it.active }
+        val allowed = activeMembers.filter { it.role == OWNER_ROLE }.mapTo(mutableSetOf()) { it.userId }
+        val candidates = activeMembers.filter { it.role != OWNER_ROLE }.mapTo(mutableSetOf()) { it.userId }
+        if (candidates.isEmpty()) return allowed
+        val tombstones = memberTombstoneRepository.findAllById(
+            candidates.map {
+                TeamRoleMemberTombstone.key(teamId, it)
+            },
+        )
+            .associateBy { it.accountId }
+        val assignments = assignmentRepository.findAllByTeamIdAndAccountIdInAndDeletedFalse(teamId, candidates)
+            .filter { assignment ->
+                val fence = tombstones[assignment.accountId]
+                fence == null || assignment.sourceOccurredAt.isAfter(fence.sourceOccurredAt)
+            }.groupBy { it.accountId }
+        val roles = loadRoles(teamId, assignments.values.flatten().mapTo(mutableSetOf()) { it.roleId })
+        val policies = loadPolicies(teamId, setOf(channel.id), roles.keys)[channel.id].orEmpty()
+        candidates.filterTo(allowed) { userId ->
+            val roleIds = assignments[userId].orEmpty().mapTo(mutableSetOf()) { it.roleId }
+            isAllowed(channel, roleIds, roles, policies)
+        }
+        return allowed
+    }
+
+    private data class RolePermissions(val priority: Int, val permissions: Map<String, Boolean>)
+
+    private fun loadRoles(teamId: Long, roleIds: Set<Long>): Map<Long, RolePermissions> = if (roleIds.isEmpty()) {
+        emptyMap()
+    } else {
+        roleRepository.findAllByTeamIdAndRoleIdInAndDeletedFalse(teamId, roleIds)
+            .associate { it.roleId to RolePermissions(it.priority, permissions(it.permissionsJson)) }
+    }
+
+    private fun loadPolicies(
+        teamId: Long,
+        channelIds: Set<Long>,
+        roleIds: Set<Long>,
+    ): Map<Long, Map<Long, Map<String, Boolean>>> = if (roleIds.isEmpty()) {
+        emptyMap()
+    } else {
+        policyRepository.findAllByTeamIdAndChannelIdInAndRoleIdInAndDeletedFalse(teamId, channelIds, roleIds)
+            .groupBy { it.channelId }.mapValues { (_, policies) ->
+                policies.associate { policy ->
+                    val legacy = policy.messageRead?.let { mapOf("message_read" to it) }.orEmpty()
+                    policy.roleId to (legacy + permissions(policy.permissionsJson))
+                }
             }
-        }.mapTo(mutableSetOf()) { it.id }
+    }
+
+    private fun isAllowed(
+        channel: Channel,
+        roleIds: Set<Long>,
+        roles: Map<Long, RolePermissions>,
+        policies: Map<Long, Map<String, Boolean>>,
+        permission: String? = null,
+    ): Boolean {
+        val assigned = roleIds.mapNotNull { roleId -> roles[roleId]?.let { roleId to it } }
+        val highest = assigned.maxOfOrNull { it.second.priority } ?: return false
+        val key = permission ?: if (channel.type == ChannelType.VOICE) "voice_connect" else "message_read"
+        return assigned.filter { it.second.priority == highest }.all { (roleId, role) ->
+            val default = if (channel.isPrivate && key in ACCESS_PERMISSIONS) false else role.permissions[key] ?: false
+            policies[roleId]?.get(key) ?: default
+        }
     }
 
     private fun permissions(json: String?): Map<String, Boolean> = json?.let {
