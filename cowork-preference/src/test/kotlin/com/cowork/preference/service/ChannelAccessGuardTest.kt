@@ -79,14 +79,14 @@ class ChannelAccessGuardTest :
         describe("ChannelAccessGuard 클래스의") {
             describe("requireChannelAccess 메서드는") {
                 context("공개 팀 채널이고 팀 멤버이며 역할 정책이 메시지 읽기를 허용하면") {
-                    it("채널 멤버가 아니어도 통과한다") {
+                    it("DM 참여자를 조회하지 않고 통과한다") {
                         fixture.ready()
                         fixture.channel(isPrivate = false)
-                        fixture.dmParticipant(false)
                         fixture.teamMember()
                         fixture.messageRead(true)
 
                         shouldNotThrowAny { fixture.access() }
+                        coVerify(exactly = 0) { fixture.dmParticipantRepository.isActiveParticipant(any(), any(), any()) }
                     }
                 }
 
@@ -127,13 +127,14 @@ class ChannelAccessGuardTest :
                 }
 
                 context("팀 OWNER이면") {
-                    it("역할 정책을 조회하지 않고 통과한다") {
+                    it("공개 여부와 무관하게 역할 정책을 조회하지 않고 통과한다") {
                         fixture.ready()
-                        fixture.channel(isPrivate = false)
-                        fixture.dmParticipant(false)
                         fixture.teamMember(role = "OWNER")
 
-                        shouldNotThrowAny { fixture.access() }
+                        listOf(true, false, null).forEach { isPrivate ->
+                            fixture.channel(isPrivate = isPrivate)
+                            shouldNotThrowAny { fixture.access() }
+                        }
 
                         coVerify(exactly = 0) { fixture.policyRepository.canAccess(any(), any(), any(), any(), any()) }
                     }
@@ -143,7 +144,6 @@ class ChannelAccessGuardTest :
                     it("팀 멤버여도 거부한다") {
                         fixture.ready()
                         fixture.channel(isPrivate = false)
-                        fixture.dmParticipant(false)
                         fixture.teamMember(role = "ADMIN")
                         fixture.messageRead(false)
 
@@ -152,10 +152,9 @@ class ChannelAccessGuardTest :
                 }
 
                 context("팀 멤버가 아니거나 탈퇴한 멤버이면") {
-                    it("채널 멤버여도 거부한다") {
+                    it("채널 접근을 거부한다") {
                         fixture.ready()
                         fixture.channel(isPrivate = false)
-                        fixture.dmParticipant(true)
 
                         listOf({ fixture.teamMember(found = false) }, { fixture.teamMember(deleted = true) })
                             .forEach { stub ->
@@ -166,62 +165,8 @@ class ChannelAccessGuardTest :
                     }
                 }
 
-                context("팀 멤버이지만 채널 멤버가 아닌 경우") {
-                    it("비공개 채널도 OWNER 권한으로 접근한다") {
-                        fixture.ready()
-                        fixture.channel(isPrivate = true)
-                        fixture.teamMember(role = "OWNER")
-                        fixture.dmParticipant(false)
-
-                        shouldNotThrowAny { fixture.access() }
-                    }
-
-                    it("공개 채널이면 역할 정책 확인으로 넘어가 통과한다") {
-                        fixture.ready()
-                        fixture.channel(isPrivate = false)
-                        fixture.teamMember()
-                        fixture.dmParticipant(false)
-                        fixture.messageRead(true)
-
-                        shouldNotThrowAny { fixture.access() }
-                    }
-
-                    it("공개 여부 대신 권한으로 접근을 판단한다") {
-                        fixture.ready()
-                        fixture.channel(isPrivate = null)
-                        fixture.teamMember(role = "OWNER")
-                        fixture.dmParticipant(false)
-
-                        shouldNotThrowAny { fixture.access() }
-                    }
-                }
-
-                context("팀 멤버이면서 채널 멤버이면") {
-                    it("공개 여부와 무관하게 OWNER 권한으로 통과한다") {
-                        fixture.ready()
-                        fixture.teamMember(role = "OWNER")
-                        fixture.dmParticipant(true)
-
-                        listOf(true, false, null).forEach { isPrivate ->
-                            fixture.channel(isPrivate = isPrivate)
-
-                            shouldNotThrowAny { fixture.access() }
-                        }
-                    }
-
-                    it("공개 여부가 null이어도 역할 정책이 거부하면 거부한다") {
-                        fixture.ready()
-                        fixture.channel(isPrivate = null)
-                        fixture.teamMember(role = "ADMIN")
-                        fixture.dmParticipant(true)
-                        fixture.messageRead(false)
-
-                        shouldThrow<ResourceAccessDeniedException> { fixture.access() }
-                    }
-                }
-
                 context("DM 채널이면") {
-                    it("팀 멤버십을 보지 않고 채널 멤버일 때만 통과한다") {
+                    it("팀 멤버십을 보지 않고 DM 참여자일 때만 통과한다") {
                         fixture.ready()
                         fixture.channel(teamId = null)
 
