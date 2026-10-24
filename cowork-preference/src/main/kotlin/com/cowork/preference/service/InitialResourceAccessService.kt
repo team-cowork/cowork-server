@@ -18,6 +18,7 @@ import com.cowork.preference.repository.TeamRoleRepository
 import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlClient
 import java.time.Instant
+import org.slf4j.LoggerFactory
 
 class InitialResourceAccessService(
     private val ledger: InitialResourceAccessRepository,
@@ -28,6 +29,8 @@ class InitialResourceAccessService(
     private val outbox: PreferenceOutboxRepository,
     private val teamReadiness: ProjectionReadiness,
 ) {
+    private val log = LoggerFactory.getLogger(InitialResourceAccessService::class.java)
+
     suspend fun channel(client: SqlClient, event: ChannelLifecycleEvent, current: ChannelLifecycleProjection) {
         if (event.deleted || current.deleted) {
             ledger.claim(client, "CHANNEL", event.channelId)
@@ -43,17 +46,29 @@ class InitialResourceAccessService(
         if (ledger.hasChannelPolicyHistory(client, teamId, event.channelId)) return
         val actorRoles = roles.findAccountRoles(client, teamId, seed.actorId)
         val teamRoles = roles.findRoles(client, teamId).associateBy { it.id }
-        if (seed.overwrites.any { it.roleId !in teamRoles }) return
+        val survivingOverwrites = seed.overwrites.filter { it.roleId in teamRoles }
+        if (survivingOverwrites.size != seed.overwrites.size) {
+            log.warn(
+                "Skip deleted roles in initial channel access [teamId={}, channelId={}, skippedRoles={}]",
+                teamId, event.channelId, seed.overwrites.size - survivingOverwrites.size,
+            )
+        }
+        fun skip(reason: String) {
+            log.warn("Skip initial channel access [teamId={}, channelId={}, reason={}]", teamId, event.channelId, reason)
+        }
+        if (survivingOverwrites.isEmpty()) return skip("No requested roles remain")
         if (actor.builtInRole !in MANAGERS) {
             fun allowed(permission: String) = actorRoles.any { it.permissions[permission] == true }
-            if (!allowed(PermissionKeys.MANAGE_CHANNELS)) return
-            if (seed.overwrites.any { overwrite -> overwrite.permissions.fieldNames().any { !allowed(it) } }) return
+            if (!allowed(PermissionKeys.MANAGE_CHANNELS)) return skip("Creator no longer has channel management permission")
+            if (survivingOverwrites.any { overwrite -> overwrite.permissions.fieldNames().any { !allowed(it) } }) {
+                return skip("Creator does not hold the remaining overwrite permissions")
+            }
             val accessPermission = when (current.channelType) {
                 "TEXT" -> PermissionKeys.MESSAGE_READ
                 "VOICE" -> PermissionKeys.VOICE_CONNECT
-                else -> return
+                else -> return skip("Channel type is unsupported")
             }
-            val overwrites = seed.overwrites.associateBy { it.roleId }
+            val overwrites = survivingOverwrites.associateBy { it.roleId }
             val canAccess = ChannelRolePermissionResolver.resolve(
                 actorRoles.map { role ->
                     ChannelRolePermissionResolver.RolePermission(
@@ -65,9 +80,9 @@ class InitialResourceAccessService(
                 accessPermission,
                 current.isPrivate != false,
             )
-            if (!canAccess) return
+            if (!canAccess) return skip("Remaining overwrites do not grant creator access")
         }
-        for (overwrite in seed.overwrites) {
+        for (overwrite in survivingOverwrites) {
             val state = channelPolicies.upsertPolicy(
                 client, teamId, event.channelId, overwrite.roleId, overwrite.permissions,
             )
