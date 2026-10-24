@@ -180,7 +180,7 @@ class MainVerticle : AbstractVerticle() {
             readiness = channelRolePolicyReadiness,
         )
 
-        val teamMembershipGuard = TeamMembershipGuard(pool, teamMemberProjectionRepo, projectionReadiness)
+        val teamMembershipGuard = TeamMembershipGuard(pool, teamMemberProjectionRepo, projectionReadiness, teamRoleRepo)
         val projectAccessGuard = ProjectAccessGuard(
             pool,
             projectLifecycleProjectionRepo,

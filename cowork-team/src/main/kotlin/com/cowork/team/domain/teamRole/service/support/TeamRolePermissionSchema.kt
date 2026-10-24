@@ -20,6 +20,7 @@ class TeamRolePermissionSchema {
 
     companion object {
         const val MANAGE_ROLES = "manage_roles"
+        const val MANAGE_NICKNAMES = "manage_nicknames"
 
         val KEYS: Set<String> = linkedSetOf(
             "manage_team",
@@ -29,6 +30,8 @@ class TeamRolePermissionSchema {
             "manage_channels",
             "manage_projects",
             "manage_github",
+            MANAGE_NICKNAMES,
+            "manage_nickname_format",
             "message_read",
             "message_send",
             "thread_reply",

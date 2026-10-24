@@ -37,7 +37,6 @@ class PreferenceService(
         if (validationError != null) return Result.failure(IllegalArgumentException(validationError))
 
         val needPrevStatus = resourceType == ResourceType.ACCOUNT && filtered.containsKey("status")
-        val changedNicknameSettings = nicknameFormatSettings(filtered)
         val updated = outboxRepository.inTransaction { connection ->
             val result = repository.upsertSettings(
                 client = connection,
@@ -54,17 +53,6 @@ class PreferenceService(
                         previousStatus = result.previousStatus,
                         newStatus = filtered.getString("status"),
                         reason = "MANUAL",
-                        occurredAt = result.updatedAt,
-                    ),
-                )
-            }
-            if (resourceType == ResourceType.TEAM && changedNicknameSettings.size() > 0) {
-                outboxRepository.enqueue(
-                    connection,
-                    PreferenceEvents.teamSettingsChanged(
-                        teamId = resourceId,
-                        changedSettings = changedNicknameSettings,
-                        settings = result.settings,
                         occurredAt = result.updatedAt,
                     ),
                 )
@@ -115,17 +103,6 @@ class PreferenceService(
         cache.setSettings(resourceType, resourceId, updated)
 
         return Result.success(updated)
-    }
-
-    private fun nicknameFormatSettings(settings: JsonObject): JsonObject {
-        val result = JsonObject()
-        if (settings.containsKey(NICKNAME_FORMAT_ENFORCED)) {
-            result.put(NICKNAME_FORMAT_ENFORCED, settings.getValue(NICKNAME_FORMAT_ENFORCED))
-        }
-        if (settings.containsKey(NICKNAME_FORMAT_EXAMPLE)) {
-            result.put(NICKNAME_FORMAT_EXAMPLE, settings.getValue(NICKNAME_FORMAT_EXAMPLE))
-        }
-        return result
     }
 
     private suspend fun validationTarget(
