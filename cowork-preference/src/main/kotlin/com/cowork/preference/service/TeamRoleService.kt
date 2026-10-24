@@ -1,6 +1,7 @@
 package com.cowork.preference.service
 
 import com.cowork.preference.domain.AccountTeamRole
+import com.cowork.preference.domain.PermissionKeys
 import com.cowork.preference.domain.TeamRoleDefinition
 import com.cowork.preference.domain.TeamRolePermissions
 import com.cowork.preference.messaging.PreferenceEvent
@@ -20,9 +21,10 @@ class TeamRoleService(
     private val projectAccess: ProjectAccessStateRepository,
 ) {
 
-    internal suspend fun ensureDefaultRole(client: SqlClient, teamId: Long) {
-        val role = repository.ensureDefaultRole(client, teamId) ?: return
+    internal suspend fun ensureDefaultRole(client: SqlClient, teamId: Long): Boolean {
+        val role = repository.ensureDefaultRole(client, teamId) ?: return false
         outboxRepository.enqueue(client, PreferenceEvents.roleUpserted(role, requireNotNull(role.updatedAt).toInstant()))
+        return true
     }
 
     private val colorPattern = Regex("^#[0-9A-Fa-f]{6}$")
@@ -58,7 +60,6 @@ class TeamRoleService(
                     requireNotNull(persisted.updatedAt ?: persisted.createdAt).toInstant(),
                 ),
             )
-            projectAccess.refreshTeam(connection, teamId)
             persisted
         }
         return Result.success(role)
@@ -108,7 +109,12 @@ class TeamRoleService(
                     requireNotNull(persisted.updatedAt ?: persisted.createdAt).toInstant(),
                 ),
             )
-            projectAccess.refreshTeam(connection, teamId)
+            val projectPermissionsChanged = PermissionKeys.PROJECT_SCOPED.any {
+                (existing.permissions[it] == true) != (persisted.permissions[it] == true)
+            }
+            if (projectPermissionsChanged) {
+                projectAccess.refreshTeam(connection, teamId)
+            }
             persisted
         }
         return Result.success(role)
@@ -189,7 +195,7 @@ class TeamRoleService(
                 connection,
                 PreferenceEvents.assignmentUpserted(assignment, requireNotNull(assignment.updatedAt).toInstant()),
             )
-            projectAccess.refreshTeam(connection, teamId)
+            projectAccess.refreshTeam(connection, teamId, accountId)
             persistedRole
         }
         return Result.success(role)
@@ -212,13 +218,14 @@ class TeamRoleService(
                     tombstone.stateOccurredAt,
                 ),
             )
-            projectAccess.refreshTeam(connection, teamId)
+            projectAccess.refreshTeam(connection, teamId, accountId)
         }
     }
 
     suspend fun removeMemberRolesAtOrBefore(accountId: Long, teamId: Long, occurredAt: Instant) {
         outboxRepository.inTransaction { connection ->
             removeMemberRolesAtOrBefore(connection, accountId, teamId, occurredAt)
+            projectAccess.refreshTeam(connection, teamId, accountId)
         }
     }
 
@@ -253,12 +260,12 @@ class TeamRoleService(
                 )
             } + listOfNotNull(memberFence?.let { PreferenceEvents.memberAssignmentsDeleted(teamId, accountId, it.stateOccurredAt) }),
         )
-        projectAccess.refreshTeam(client, teamId)
     }
 
     suspend fun deleteTeamRoles(teamId: Long, occurredAt: Instant) {
         outboxRepository.inTransaction { connection ->
             deleteTeamRoles(connection, teamId, occurredAt)
+            projectAccess.refreshTeam(connection, teamId)
         }
     }
 
@@ -298,7 +305,6 @@ class TeamRoleService(
                 PreferenceEvents.roleDeleted(tombstone.teamId, tombstone.roleId, tombstone.stateOccurredAt)
             },
         )
-        projectAccess.refreshTeam(client, teamId)
     }
 
     private suspend fun deleteChannelRolePoliciesForRole(client: SqlClient, teamId: Long, roleId: Long) =
