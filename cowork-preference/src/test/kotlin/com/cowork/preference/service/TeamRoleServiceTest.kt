@@ -101,6 +101,32 @@ class TeamRoleServiceTest {
     inner class UpdateRole {
 
         @Test
+        fun `일반 역할을 기본 역할의 예약 이름으로 변경할 수 없다`() = runBlocking {
+            coEvery { repository.findRole(teamId, roleId) } returns role()
+
+            val result = service.updateRole(teamId, roleId, "@everyone", null, null, null, null)
+
+            assertTrue(result.exceptionOrNull() is IllegalArgumentException)
+            coVerify(exactly = 0) { repository.updateRole(any(), any(), any(), any(), any(), any(), any()) }
+        }
+
+        @Test
+        fun `기존에 예약 이름을 가진 사용자 역할은 이름을 유지한 채 수정할 수 있다`() = runBlocking {
+            val existing = role("@everyone")
+            val updated = existing.copy(colorHex = "#000000")
+            coEvery { repository.findRole(teamId, roleId) } returns existing
+            coEvery { repository.findRoleByNameExceptId(teamId, "@everyone", roleId) } returns null
+            coEvery { outboxRepository.inTransaction<TeamRoleDefinition>(any()) } coAnswers {
+                firstArg<suspend (SqlConnection) -> TeamRoleDefinition>().invoke(connection)
+            }
+            coEvery { repository.updateRole(any(), any(), any(), any(), any(), any(), any()) } returns updated
+
+            val result = service.updateRole(teamId, roleId, "@everyone", "#000000", null, null, null)
+
+            assertEquals(updated, result.getOrThrow())
+        }
+
+        @Test
         fun `대상 역할이 없으면 not found 실패를 반환한다`() = runBlocking {
             coEvery { repository.findRole(teamId, roleId) } returns null
 

@@ -166,6 +166,24 @@ class TeamRoleCommandProcessorTest {
     }
 
     @Test
+    fun `OWNER라도 사용자 정의 역할을 기본 역할의 예약 이름으로 변경할 수 없다`() = runBlocking {
+        val command = createCommand.copy(
+            commandType = TeamRoleCommandType.UPDATE,
+            roleId = 9L,
+            role = requireNotNull(createCommand.role).copy(name = "@everyone"),
+        )
+        val result = slot<JsonObject>()
+        fixture.stubCommand(command, actorRole = "OWNER")
+        coEvery { fixture.roleRepository.findRole(fixture.connection, command.teamId, 9L) } returns role(9L)
+        coEvery { fixture.inboxRepository.insert(fixture.connection, command, capture(result)) } returns Unit
+
+        fixture.processor.process(command)
+
+        assertEquals("RESERVED_ROLE_NAME", result.captured.getJsonObject("error").getString("code"))
+        coVerify(exactly = 0) { fixture.roleRepository.updateRole(any(), any(), any(), any(), any(), any(), any()) }
+    }
+
+    @Test
     fun `OWNER도 기본 역할을 삭제할 수 없다`() = runBlocking {
         val command = createCommand.copy(commandType = TeamRoleCommandType.DELETE, role = null, roleId = 9L)
         val result = slot<JsonObject>()
