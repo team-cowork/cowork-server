@@ -23,7 +23,9 @@ export class ProjectPermissionProjectionRepository {
         canWrite: boolean,
         occurredAt: Date,
         sourceVersion: mongo.Long,
-        // TODO(#596): 구버전 이벤트 재생·rollback 종료 후 호출자가 stamp를 필수 전달하도록 이 인자 기본값만 제거한다.
+        // eslint-disable-next-line no-warning-comments -- Tracked compatibility cleanup with a deployment-dependent deadline.
+        // TODO(#596): 2026-11-01 05:00 KST 이후 구형 이벤트·Mongo stamp 보정과 rollback 종료 확인 후 이 인자 기본값만 제거.
+        // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
         sourceMembershipVersion: mongo.Long = mongo.Long.ZERO,
     ): Promise<void> {
         const newer = {$gt: [sourceVersion, projectionSourceVersion]};
