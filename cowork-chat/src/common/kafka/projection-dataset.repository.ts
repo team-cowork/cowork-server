@@ -45,6 +45,7 @@ export type ProjectionDatasetState = {
     rebuildRequestedAt?: Date;
     activatedAt?: Date;
     activationDocumentCount: number;
+    lastObservedDocumentCount: number | null;
     baseOffsets: ProjectionDatasetPartitionOffset[];
     targetOffsets: ProjectionDatasetPartitionOffset[];
 };
@@ -207,6 +208,7 @@ export class ProjectionDatasetRepository {
                     mode: 'INCREMENTAL',
                     reason: null,
                     activationDocumentCount,
+                    lastObservedDocumentCount: activationDocumentCount,
                     activatedAt: new Date(),
                 },
             },
@@ -219,6 +221,30 @@ export class ProjectionDatasetRepository {
     async countProjection(stream: ProjectionStreamName): Promise<number> {
         const counts = await Promise.all(this.projectionModels[stream].map(model => model.countDocuments({})));
         return counts.reduce((total, count) => total + count, 0);
+    }
+
+    /**
+    주기 점검용 저비용 추정치. 대용량 컬렉션에서 매초 정확한 countDocuments를 도는 부담을 피한다.
+    */
+    async estimateProjectionCount(stream: ProjectionStreamName): Promise<number> {
+        const counts = await Promise.all(
+            this.projectionModels[stream].map(async model => model.estimatedDocumentCount()),
+        );
+        return counts.reduce((total, count) => total + count, 0);
+    }
+
+    /**
+    진행 중인 rebuild로 datasetGeneration이 바뀐 뒤에는 옛 관측치를 덮어쓰지 않는다.
+    */
+    async recordObservedDocumentCount(
+        stream: ProjectionStreamName,
+        datasetGeneration: string,
+        count: number,
+    ): Promise<void> {
+        await this.datasets.updateOne(
+            {stream, datasetGeneration},
+            {$set: {lastObservedDocumentCount: count}},
+        );
     }
 
     /**
@@ -253,6 +279,7 @@ export class ProjectionDatasetRepository {
             ...(dataset.rebuildRequestedAt && {rebuildRequestedAt: dataset.rebuildRequestedAt}),
             ...(dataset.activatedAt && {activatedAt: dataset.activatedAt}),
             activationDocumentCount: dataset.activationDocumentCount ?? 0,
+            lastObservedDocumentCount: dataset.lastObservedDocumentCount ?? null,
             baseOffsets: dataset.baseOffsets ?? [],
             targetOffsets: dataset.targetOffsets ?? [],
         };
