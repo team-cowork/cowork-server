@@ -32,6 +32,7 @@ import com.cowork.preference.repository.PreferenceRepository
 import com.cowork.preference.repository.ProjectAccessStateRepository
 import com.cowork.preference.repository.ProjectLifecycleProjectionRepository
 import com.cowork.preference.repository.ProjectRoleRepository
+import com.cowork.preference.repository.InitialResourceAccessRepository
 import com.cowork.preference.repository.ProjectionCheckpointRepository
 import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.repository.TeamRoleCommandInboxRepository
@@ -45,6 +46,7 @@ import com.cowork.preference.service.NotificationService
 import com.cowork.preference.service.PreferenceService
 import com.cowork.preference.service.ProjectAccessGuard
 import com.cowork.preference.service.ProjectRoleService
+import com.cowork.preference.service.InitialResourceAccessService
 import com.cowork.preference.service.TeamMembershipGuard
 import com.cowork.preference.service.TeamRoleCommandProcessor
 import com.cowork.preference.service.TeamRoleService
@@ -149,12 +151,18 @@ class MainVerticle : AbstractVerticle() {
         val prefService = PreferenceService(prefRepo, preferenceCache, outboxRepository)
         val notifService = NotificationService(notifRepo, outboxRepository)
         val projectAccessRepo = ProjectAccessStateRepository(outboxRepository)
-        val roleService = ProjectRoleService(roleRepo, outboxRepository, projectAccessRepo)
+        val initialAccessRepo = InitialResourceAccessRepository()
+        val initialAccessService = InitialResourceAccessService(
+            initialAccessRepo, teamMemberProjectionRepo, teamRoleRepo, channelRolePolicyRepo,
+            roleRepo, outboxRepository, projectionReadiness,
+        )
+        val roleService = ProjectRoleService(roleRepo, outboxRepository, projectAccessRepo, initialAccessRepo)
         val teamRoleService = TeamRoleService(teamRoleRepo, outboxRepository, channelRolePolicyRepo, projectAccessRepo)
         val channelLifecycleService = ChannelLifecycleService(
             projectionRepository = channelLifecycleProjectionRepo,
             policyRepository = channelRolePolicyRepo,
             outboxRepository = outboxRepository,
+            initialAccess = initialAccessService,
         )
         val teamRoleCommandProcessor = TeamRoleCommandProcessor(
             roleRepository = teamRoleRepo,
@@ -179,6 +187,7 @@ class MainVerticle : AbstractVerticle() {
             inboxRepository = channelRolePolicyCommandInboxRepository,
             outboxRepository = outboxRepository,
             readiness = channelRolePolicyReadiness,
+            initialAccess = initialAccessRepo,
         )
 
         val teamMembershipGuard = TeamMembershipGuard(pool, teamMemberProjectionRepo, projectionReadiness, teamRoleRepo)
@@ -279,7 +288,9 @@ class MainVerticle : AbstractVerticle() {
             groupId = appConfig.kafka.projectLifecycleConsumerGroupId,
             topic = appConfig.kafka.projectTopic,
             expectedSnapshotSource = PROJECT_SNAPSHOT_SOURCE,
-            handler = ProjectLifecycleProjectionHandler(projectLifecycleProjectionRepo, checkpointRepository, projectAccessRepo),
+            handler = ProjectLifecycleProjectionHandler(
+                projectLifecycleProjectionRepo, checkpointRepository, projectAccessRepo, initialAccessService,
+            ),
             checkpointRepository = checkpointRepository,
             topicIdentity = projectionTopicIdentity,
             readiness = projectLifecycleReadiness,
