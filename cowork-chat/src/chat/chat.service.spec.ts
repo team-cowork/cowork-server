@@ -80,6 +80,7 @@ const mockChannelMessageReadAccess = {
     canReadChannel: jest.fn().mockResolvedValue(true),
     requireCanRead: jest.fn().mockResolvedValue(undefined),
     requireCanSend: jest.fn().mockResolvedValue(undefined),
+    requirePermission: jest.fn().mockResolvedValue(undefined),
     findReadableProjectChannelIds: jest.fn(),
     findReadableTeamChannelIds: jest.fn(),
     filterReadableChannelIds: jest.fn(),
@@ -181,6 +182,7 @@ describe('ChatService', () => {
         mockChannelMessageReadAccess.canReadChannel.mockResolvedValue(true);
         mockChannelMessageReadAccess.requireCanRead.mockResolvedValue(undefined);
         mockChannelMessageReadAccess.requireCanSend.mockResolvedValue(undefined);
+        mockChannelMessageReadAccess.requirePermission.mockResolvedValue(undefined);
         mockChannelMessageReadAccess.findReadableProjectChannelIds.mockResolvedValue([]);
         mockChannelMessageReadAccess.findReadableTeamChannelIds.mockResolvedValue([]);
         mockChannelMessageReadAccess.filterReadableChannelIds.mockImplementation(
@@ -308,6 +310,16 @@ describe('ChatService', () => {
             expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
         });
 
+        it('메시지 작성 권한이 있어도 답글 권한이 없으면 답장을 발행하지 않는다', async () => {
+            mockChannelMessageReadAccess.requirePermission.mockRejectedValueOnce(new ForbiddenException());
+
+            await expect(service.sendMessage(ctx, {content: 'hi', parentMessageId: mockMessageId}))
+                .rejects.toThrow(ForbiddenException);
+
+            expect(mockChannelMessageReadAccess.requirePermission).toHaveBeenCalledWith(1, 42, 'thread_reply');
+            expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
+        });
+
         it('같은 채널의 부모 메시지에는 답장할 수 있다', async () => {
             mockDmParticipantRepository.findMembership.mockResolvedValue({teamId: 100, channelType: 'TEXT'});
             mockMessageRepository.findByIdAndChannelId.mockResolvedValue(makeMockMessage());
@@ -315,6 +327,7 @@ describe('ChatService', () => {
             await service.sendMessage(ctx, {content: 'hi', parentMessageId: mockMessageId});
 
             expect(mockMessageRepository.findByIdAndChannelId).toHaveBeenCalledWith(mockMessageId, 1);
+            expect(mockChannelMessageReadAccess.requirePermission).toHaveBeenCalledWith(1, 42, 'thread_reply');
             expect(mockChatMessageProducer.sendMessage).toHaveBeenCalled();
         });
 
@@ -344,6 +357,18 @@ describe('ChatService', () => {
             expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
         });
 
+        it('메시지 작성 권한이 있어도 첨부 권한이 없으면 파일을 사용하거나 발행하지 않는다', async () => {
+            mockChannelMessageReadAccess.requirePermission.mockRejectedValueOnce(new ForbiddenException());
+
+            await expect(service.sendMessage(ctx, {
+                content: 'hi', attachments: [{objectKey: 'chat-files/1/42/uuid.png'}], clientMessageId: 'file-message',
+            })).rejects.toThrow(ForbiddenException);
+
+            expect(mockChannelMessageReadAccess.requirePermission).toHaveBeenCalledWith(1, 42, 'file_attach');
+            expect(mockObjectStorageService.claimAttachments).not.toHaveBeenCalled();
+            expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
+        });
+
         it('첨부파일이 있으면 완료 확인한 파일의 소유권을 검증한다', async () => {
             mockDmParticipantRepository.findMembership.mockResolvedValue({teamId: 100, channelType: 'TEXT'});
             mockObjectStorageService.claimAttachments.mockReturnValue(undefined);
@@ -356,6 +381,7 @@ describe('ChatService', () => {
             await service.sendMessage(ctx, {content: 'hi', attachments, clientMessageId: 'file-message'});
 
             expect(mockObjectStorageService.claimAttachments).toHaveBeenCalledWith(attachments, 1, 42, expect.any(String));
+            expect(mockChannelMessageReadAccess.requirePermission).toHaveBeenCalledWith(1, 42, 'file_attach');
             expect(mockChatMessageProducer.sendMessage).toHaveBeenCalled();
         });
 
@@ -784,7 +810,52 @@ describe('ChatService', () => {
         });
     });
 
+    describe('파일 업로드 권한', () => {
+        it('읽기만 가능한 사용자는 업로드 URL을 발급받을 수 없다', async () => {
+            mockChannelMessageReadAccess.requirePermission.mockRejectedValueOnce(new ForbiddenException());
+
+            await expect(service.createFileUploadUrl({channelId: 1, userId: 42}, {
+                filename: 'file.png', contentType: 'image/png', size: 10,
+            })).rejects.toThrow(ForbiddenException);
+
+            expect(mockChannelMessageReadAccess.requirePermission).toHaveBeenCalledWith(1, 42, 'file_attach');
+            expect(mockObjectStorageService.createPresignedUpload).not.toHaveBeenCalled();
+        });
+
+        it('첨부 권한이 회수되면 이미 업로드한 파일도 확정할 수 없다', async () => {
+            mockChannelMessageReadAccess.requirePermission.mockRejectedValueOnce(new ForbiddenException());
+
+            await expect(service.confirmFileUpload({channelId: 1, userId: 42}, {
+                objectKey: 'chat-files/1/42/uuid.png',
+            })).rejects.toThrow(ForbiddenException);
+
+            expect(mockChannelMessageReadAccess.requirePermission).toHaveBeenCalledWith(1, 42, 'file_attach');
+            expect(mockObjectStorageService.confirmUpload).not.toHaveBeenCalled();
+        });
+    });
+
     describe('addReaction', () => {
+        it('읽기만 가능한 사용자는 반응을 추가할 수 없다', async () => {
+            mockChannelMessageReadAccess.requirePermission.mockRejectedValueOnce(new ForbiddenException());
+
+            await expect(service.addReaction({channelId: 1, userId: 42}, mockMessageId, '👍'))
+                .rejects.toThrow(ForbiddenException);
+
+            expect(mockChannelMessageReadAccess.requirePermission).toHaveBeenCalledWith(1, 42, 'reaction_add');
+            expect(mockMessageRepository.addReaction).not.toHaveBeenCalled();
+        });
+
+        it('반응 추가 권한은 메시지 작성 권한을 요구하지 않는다', async () => {
+            mockChannelMessageReadAccess.requireCanSend.mockRejectedValue(new ForbiddenException());
+            mockMessageRepository.addReaction.mockResolvedValue(1);
+
+            await expect(service.addReaction({channelId: 1, userId: 42}, mockMessageId, '👍')).resolves.toBeUndefined();
+
+            expect(mockChannelMessageReadAccess.requirePermission).toHaveBeenCalledWith(1, 42, 'reaction_add');
+            expect(mockChannelMessageReadAccess.requireCanSend).not.toHaveBeenCalled();
+            expect(mockMessageRepository.addReaction).toHaveBeenCalledWith(1, mockMessageId, '👍', 42);
+        });
+
         it('대상 메시지가 없으면 반응을 추가하지 않는다', async () => {
             mockMessageRepository.addReaction.mockResolvedValue(null);
 
@@ -797,6 +868,16 @@ describe('ChatService', () => {
     });
 
     describe('removeReaction', () => {
+        it('반응 추가 권한이 회수되어도 본인의 반응은 제거할 수 있다', async () => {
+            mockChannelMessageReadAccess.requirePermission.mockRejectedValue(new ForbiddenException());
+            mockMessageRepository.removeReaction.mockResolvedValue(0);
+
+            await expect(service.removeReaction({channelId: 1, userId: 42}, mockMessageId, '👍')).resolves.toBeUndefined();
+
+            expect(mockChannelMessageReadAccess.requireCanRead).toHaveBeenCalledWith(1, 42);
+            expect(mockMessageRepository.removeReaction).toHaveBeenCalledWith(1, mockMessageId, '👍', 42);
+        });
+
         it('대상 메시지가 없으면 반응을 제거하지 않는다', async () => {
             mockMessageRepository.removeReaction.mockResolvedValue(null);
 

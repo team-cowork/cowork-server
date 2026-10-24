@@ -15,7 +15,15 @@ export type ChannelReadAccessRequest = {
     userId: number;
 };
 
-type AccessMode = 'MESSAGE_READ' | 'CHANNEL_METADATA' | 'MESSAGE_SEND';
+type ChannelActionPermission = 'message_send' | 'thread_reply' | 'file_attach' | 'reaction_add';
+type AccessMode = 'MESSAGE_READ' | 'CHANNEL_METADATA' | ChannelActionPermission;
+
+const permissionErrors: Record<ChannelActionPermission, string> = {
+    message_send: '채널 메시지 작성 권한이 없습니다',
+    thread_reply: '채널 답글 작성 권한이 없습니다',
+    file_attach: '채널 파일 첨부 권한이 없습니다',
+    reaction_add: '채널 반응 추가 권한이 없습니다',
+};
 
 /**
 연결된 `Socket`과 `fetchSockets()`가 돌려주는 `RemoteSocket`에 공통인 room 조작 표면.
@@ -32,7 +40,7 @@ const teamUserKey = (teamId: number, userId: number) => `${teamId}:${userId}`;
 const policyKey = (channelId: number, roleId: number) => `${channelId}:${roleId}`;
 
 /**
- Role×channel `message_read` 정책의 단일 평가 지점.
+ Role×channel 읽기 및 채팅 작업 권한의 단일 평가 지점.
 
  custom role의 priority가 높은 단계부터 평가되며, 같은 priority에서 충돌하면 deny가 이긴다.
  역할 기본 권한에 채널별 값을 덮어쓰고, 기본값은 deny한다. built-in OWNER는 허용한다.
@@ -71,10 +79,14 @@ export class ChannelMessageReadAccessService {
     }
 
     async requireCanSend(channelId: number, userId: number): Promise<void> {
+        await this.requirePermission(channelId, userId, 'message_send');
+    }
+
+    async requirePermission(channelId: number, userId: number, permission: ChannelActionPermission): Promise<void> {
         await this.requireCanRead(channelId, userId);
-        const result = await this.evaluate([{channelId, userId}], 'MESSAGE_SEND');
+        const result = await this.evaluate([{channelId, userId}], permission);
         if (result.get(accessKey(channelId, userId)) !== true) {
-            throw new ForbiddenException('채널 메시지 작성 권한이 없습니다');
+            throw new ForbiddenException(permissionErrors[permission]);
         }
     }
 
@@ -485,13 +497,14 @@ export class ChannelMessageReadAccessService {
                 }
 
                 const policy = policyByKey.get(policyKey(request.channelId, roleId));
-                const permission = mode === 'MESSAGE_SEND'
-                    ? 'message_send'
-                    : (mode === 'CHANNEL_METADATA' && channel.type === 'VOICE' ? 'voice_connect' : 'message_read');
+                const isRead = mode === 'MESSAGE_READ' || mode === 'CHANNEL_METADATA';
+                const permission = isRead
+                    ? (mode === 'CHANNEL_METADATA' && channel.type === 'VOICE' ? 'voice_connect' : 'message_read')
+                    : mode;
                 const override = policy?.teamId === teamId
                     ? (policy.permissions?.[permission] ?? (permission === 'message_read' ? policy.messageRead : undefined))
                     : undefined;
-                const requiresChannelPolicy = (channel.isPrivate ?? true) && mode !== 'MESSAGE_SEND';
+                const requiresChannelPolicy = (channel.isPrivate ?? true) && isRead;
                 const isAllowed = override ?? (requiresChannelPolicy ? false : (role.permissions?.[permission] ?? false));
                 if (selectedPriority === undefined || role.priority > selectedPriority) {
                     selectedPriority = role.priority;
