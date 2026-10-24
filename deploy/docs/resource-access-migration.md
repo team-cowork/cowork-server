@@ -38,6 +38,21 @@
 
 `GET /api/channel/channels/{channelId}/members`와 `GET /api/project/projects/{projectId}/members`는 접근 가능한 사용자 조회로 유지한다. 응답 항목은 각각 `{channelId,userId}`, `{projectId,userId,write}`다. 과거 멤버 행의 `id`, 가입 시각, `OWNER/EDITOR/VIEWER` 필드를 사용하던 클라이언트는 변경해야 한다.
 
+## 채팅 작업 권한
+
+팀 채널의 모든 채팅 작업에는 `message_read`가 필요하다. 아래 권한은 기존 채널 역할 정책 API의 `permissions`에 각각 설정한다. `message_send`로 다른 작업 권한을 대신할 수 없다.
+
+| 상황 | 호출 | 추가 권한 |
+| --- | --- | --- |
+| 일반 메시지 전송 | `POST /api/chat/channels/{channelId}/messages` | `message_send` |
+| 답글 전송 | 위 경로에 `parentMessageId` 포함 | `message_send`, `thread_reply` |
+| 첨부 메시지 전송 | 위 경로에 `attachments` 포함 | `message_send`, `file_attach` |
+| 업로드 URL 발급 | `POST /api/chat/channels/{channelId}/files/presigned-url` | `file_attach` |
+| 업로드 완료 확인 | `POST /api/chat/channels/{channelId}/files/confirm` | `file_attach` |
+| 반응 추가 | `POST /api/chat/channels/{channelId}/messages/{messageId}/reactions` | `reaction_add` |
+
+첨부된 답글은 세 권한이 모두 필요하다. 본인의 반응 제거는 읽기 권한으로 가능하다. DM은 대화 참여 여부로 판단한다.
+
 ## 재정렬 호출
 
 - 채널: `PATCH /api/channel/teams/{teamId}/channels/reorder`, 본문 `{"orderedChannelIds":[11,9]}`.
