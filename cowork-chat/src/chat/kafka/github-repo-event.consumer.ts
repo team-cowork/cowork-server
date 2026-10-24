@@ -15,6 +15,7 @@ import {getRequiredCsvConfig} from '../../common/config/config.util';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
 import {toMessageBroadcastPayload} from '../repository';
+import {connectWithRetry} from '../../common/kafka/connect-with-retry';
 import {GithubRepoEvent} from './event/github-repo.event';
 
 /**
@@ -69,8 +70,10 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         this.consumer = kafka.consumer({groupId: 'cowork-chat-github-repo-event'});
-        await this.consumer.connect();
-        await this.consumer.subscribe({topic: 'github.repo.event', fromBeginning: false});
+        await connectWithRetry(this.logger, 'Kafka consumer startup: github.repo.event', async () => {
+            await this.consumer.connect();
+            await this.consumer.subscribe({topic: 'github.repo.event', fromBeginning: false});
+        });
 
         void this.consumer
             .run({
