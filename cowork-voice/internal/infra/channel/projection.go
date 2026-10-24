@@ -218,6 +218,17 @@ func (p *Projection) Apply(ctx context.Context, s State) error {
 	filter := bson.M{"_id": s.Key, "$or": bson.A{bson.M{"source_version": bson.M{"$exists": false}}, bson.M{"source_version": bson.M{op: s.Version}}}}
 	_, err := p.col.UpdateOne(ctx, filter, bson.M{"$set": s}, options.UpdateOne().SetUpsert(true))
 	if mongo.IsDuplicateKeyError(err) {
+		// TODO(#596): 2026-11-01 05:00 KST 이후 역할 문서 보정·구버전 롤백 지원 종료 확인 후 이 동일 버전 보정을 제거한다.
+		// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+		if s.Kind == "role" && !s.Deleted {
+			legacy := bson.M{"_id": s.Key, "kind": "role", "source_version": s.Version, "deleted": false, "is_default": bson.M{"$exists": false}}
+			if s.IsDefault {
+				// Default-role identity is immutable; an older producer must never clear a restored true value.
+				legacy["is_default"] = bson.M{"$ne": true}
+			}
+			_, err = p.col.UpdateOne(ctx, legacy, bson.M{"$set": bson.M{"is_default": s.IsDefault}})
+			return err
+		}
 		return nil
 	}
 	return err
@@ -240,7 +251,8 @@ func (h *EventHandler) Handle(ctx context.Context, topic, key string, payload []
 	return h.store.Apply(ctx, s)
 }
 func parseState(topic, key string, payload []byte) (State, error) {
-	// TODO(#596): 구버전 생산자·롤백 지원 종료 및 보관 중인 ROLE_UPSERTED 교체 후 isDefault 누락 허용 제거.
+	// TODO(#596): 2026-11-01 05:00 KST 이후 구형 레코드 재처리·롤백 지원 종료 확인 후 ROLE_UPSERTED의 isDefault 누락 허용 제거.
+	// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
 	var e struct {
 		EventType     string           `json:"eventType"`
 		TeamID        int64            `json:"teamId"`
