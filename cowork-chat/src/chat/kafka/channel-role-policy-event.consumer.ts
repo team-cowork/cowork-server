@@ -109,7 +109,6 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
                 channelId: payload.channelId,
                 roleId: payload.roleId,
                 permissions: payload.permissions!,
-                messageRead: payload.permissions!.message_read ?? null,
                 ...eventTime,
             });
         } else {

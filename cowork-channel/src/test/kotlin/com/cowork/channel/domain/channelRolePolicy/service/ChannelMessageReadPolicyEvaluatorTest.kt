@@ -370,7 +370,6 @@ class ChannelMessageReadPolicyEvaluatorTest {
                     voiceConnect?.let { put("voice_connect", it) }
                 },
             ),
-            messageRead = messageRead,
             sourceOccurredAt = occurredAt,
         )
 }
