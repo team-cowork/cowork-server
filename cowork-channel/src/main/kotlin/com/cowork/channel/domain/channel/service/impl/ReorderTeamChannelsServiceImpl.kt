@@ -42,12 +42,16 @@ class ReorderTeamChannelsServiceImpl(
 
         val visiblePositionSlots = readableChannels.map { it.position }.sorted()
         val channelById = readableChannels.associateBy { it.id }
+        val movedChannels = orderedChannelIds.mapIndexedNotNull { index, channelId ->
+            channelById.getValue(channelId).takeIf { it.position != visiblePositionSlots[index] }
+        }
+        messageReadPolicyEvaluator.requireReorder(teamId, userId, movedChannels)
         orderedChannelIds.forEachIndexed { index, channelId ->
             channelById.getValue(channelId).updatePosition(visiblePositionSlots[index])
         }
 
         val orderedChannels = orderedChannelIds.map(channelById::getValue)
-        orderedChannels.forEach(channelEventPublisher::publishUpdated)
+        movedChannels.forEach(channelEventPublisher::publishUpdated)
         return orderedChannels.map(ChannelResponse::of)
     }
 }

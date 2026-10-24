@@ -4,6 +4,7 @@ CREATE TABLE tb_project_access_states (
     account_id BIGINT NOT NULL,
     can_read BOOLEAN NOT NULL,
     can_write BOOLEAN NOT NULL,
+    can_reorder BOOLEAN NOT NULL DEFAULT FALSE,
     state_occurred_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (project_id, account_id)
 );
