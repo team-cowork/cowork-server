@@ -31,7 +31,11 @@ class ChannelRolePolicyPermissionSchemaTest {
 
     @Test
     fun `지원하는 키가 하나도 없으면 거부함`() {
-        listOf(emptyMap(), mapOf("future_permission" to null), mapOf("channel_member_manage" to true)).forEach { permissions ->
+        listOf(
+            emptyMap(),
+            mapOf("future_permission" to null),
+            mapOf("channel_member_manage" to true),
+        ).forEach { permissions ->
             val exception = assertThrows(ExpectedException::class.java) { schema.normalize(permissions) }
 
             assertEquals(HttpStatus.BAD_REQUEST, exception.statusCode)
