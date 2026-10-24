@@ -47,6 +47,33 @@ class ProjectAccessGuardTest : DescribeSpec({
             every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns null
             guard.canRead(project, 20L) shouldBe false
         }
+        it("접근자 일괄 판정은 사용자마다 read와 write를 구분하고 현재 팀 멤버만 포함한다") {
+            every { access.findAllByProjectId(3L) } returns listOf(
+                ProjectAccessProjection("3:20", 3L, 20L, true, false, Instant.now()),
+                ProjectAccessProjection("3:21", 3L, 21L, false, true, Instant.now()),
+                ProjectAccessProjection("3:22", 3L, 22L, true, true, Instant.now()),
+            )
+            val memberships = listOf(
+                TeamMembership(teamId = 1L, userId = 10L, role = "MEMBER"),
+                TeamMembership(teamId = 1L, userId = 20L, role = "MEMBER"),
+                TeamMembership(teamId = 1L, userId = 21L, role = "MEMBER"),
+                TeamMembership(teamId = 1L, userId = 22L, role = "MEMBER", active = false),
+                TeamMembership(teamId = 2L, userId = 23L, role = "OWNER"),
+            )
+            guard.permissionsForUsers(project, memberships) shouldBe mapOf(
+                10L to ProjectAccessGuard.Permissions(true, true),
+                20L to ProjectAccessGuard.Permissions(true, false),
+                21L to ProjectAccessGuard.Permissions(false, false),
+            )
+        }
+        it("프로젝트 일괄 판정은 권한 없는 프로젝트만 숨긴다") {
+            val hidden = Project(id = 4L, teamId = 1L, name = "hidden", description = null, createdBy = 10L)
+            every { access.findAllByUserIdAndProjectIdIn(20L, listOf(3L, 4L)) } returns
+                listOf(ProjectAccessProjection("3:20", 3L, 20L, true, false, Instant.now()))
+            val permissions = guard.permissionsForProjects(listOf(project, hidden), 20L, "MEMBER")
+            permissions.getValue(3L).read shouldBe true
+            permissions.getValue(4L).read shouldBe false
+        }
         it("팀 OWNER는 프로젝트를 관리할 수 있다") {
             every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns TeamMembership(teamId = 1L, userId = 20L, role = "OWNER")
             guard.requireProjectOwner(project, 20L)
