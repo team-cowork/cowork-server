@@ -56,6 +56,7 @@
       "put": {
         "tags": ["preference"],
         "summary": "팀 설정 수정",
+        "description": "팀 OWNER·ADMIN이 수정할 수 있습니다. 닉네임 형식 키만 바꾸는 요청은 manage_nickname_format 권한이 있는 역할 보유자도 수정할 수 있습니다.",
         "parameters": [{ "$ref": "#/components/parameters/ResourceId" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TeamSettings" } } } },
         "responses": {
