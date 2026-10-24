@@ -101,6 +101,58 @@ class InitialResourceAccessServiceTest {
     }
 
     @Test
+    fun `초기 정책의 일부 역할이 삭제됐어도 남은 정책이 생성자 접근을 허용하면 적용한다`() = runBlocking {
+        val seed = channelSeed.copy(overwrites = channelSeed.overwrites +
+            InitialChannelRoleOverwrite(ROLE + 1, JsonObject().put("message_manage", true)))
+
+        service.channel(client, channelEvent.copy(initialRolePolicySeed = seed), channel)
+
+        coVerify(exactly = 1) { policies.upsertPolicy(client, TEAM, CHANNEL, ROLE, JsonObject().put("message_read", true)) }
+        coVerify(exactly = 0) { policies.upsertPolicy(client, TEAM, CHANNEL, ROLE + 1, any()) }
+    }
+
+    @Test
+    fun `삭제된 역할을 제외한 초기 정책으로 생성자 접근이 불가능하면 적용하지 않는다`() = runBlocking {
+        coEvery { roles.findRoles(client, TEAM) } returns listOf(role, role.copy(id = ROLE + 2, isDefault = false))
+        val seed = channelSeed.copy(overwrites = listOf(
+            InitialChannelRoleOverwrite(ROLE + 1, JsonObject().put("message_read", true)),
+            InitialChannelRoleOverwrite(ROLE + 2, JsonObject().put("message_read", true)),
+        ))
+
+        service.channel(client, channelEvent.copy(initialRolePolicySeed = seed), channel)
+
+        coVerify(exactly = 0) { policies.upsertPolicy(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `초기 정책의 모든 대상 역할이 삭제됐으면 권한을 만들지 않는다`() = runBlocking {
+        val seed = channelSeed.copy(overwrites = listOf(
+            InitialChannelRoleOverwrite(ROLE + 1, JsonObject().put("message_read", true)),
+        ))
+
+        service.channel(client, channelEvent.copy(initialRolePolicySeed = seed), channel)
+
+        coVerify(exactly = 0) { policies.upsertPolicy(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `팀 관리자는 일부 역할 삭제 후에도 기본 권한과 초기 접근 검사를 우회한다`() = runBlocking {
+        coEvery { roles.findAccountRoles(client, TEAM, ACTOR) } returns emptyList()
+        val seed = channelSeed.copy(overwrites = listOf(
+            InitialChannelRoleOverwrite(ROLE, JsonObject().put("message_read", false)),
+            InitialChannelRoleOverwrite(ROLE + 1, JsonObject().put("message_read", true)),
+        ))
+        listOf("OWNER", "ADMIN").forEach { builtInRole ->
+            coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(builtInRole = builtInRole)
+
+            service.channel(client, channelEvent.copy(initialRolePolicySeed = seed), channel)
+        }
+
+        coVerify(exactly = 2) { policies.upsertPolicy(client, TEAM, CHANNEL, ROLE, JsonObject().put("message_read", false)) }
+        coVerify(exactly = 0) { policies.upsertPolicy(client, TEAM, CHANNEL, ROLE + 1, any()) }
+    }
+
+    @Test
     fun `원본에서 채널 생성 권한을 회수했으면 지연된 초기화가 권한을 부여하지 않는다`() = runBlocking {
         coEvery { roles.findAccountRoles(client, TEAM, ACTOR) } returns listOf(role.copy(permissions = emptyMap()))
 
