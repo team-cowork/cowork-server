@@ -38,6 +38,7 @@ object ProjectLifecycleEventParser {
         ProjectLifecycleRecordDecision.Apply(
             ProjectLifecycleEvent(projectId, teamId, eventType == "DELETED", occurredAt,
                 payload.getValue("createdBy")?.let { positiveLong(it, "createdBy") },
+                // TODO(#596): producer 전환과 구형 이벤트 재생·재전송 종료 후 isPrivate 누락 시 true 호환을 제거한다.
                 if (payload.containsKey("isPrivate")) payload.getValue("isPrivate") as? Boolean ?: error("isPrivate must be a boolean") else true,
             ),
         )
