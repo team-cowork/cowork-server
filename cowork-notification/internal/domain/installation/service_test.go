@@ -510,6 +510,30 @@ func TestServiceNotifyResolvesAccountAndTeamLevels(t *testing.T) {
 		assert.Equal(t, []int64{1}, enabledIDs)
 	})
 
+	t.Run("channel level DEFAULT follows the account level while its mute still applies", func(t *testing.T) {
+		fcm := &mockFCM{}
+		future := time.Now().Add(time.Hour)
+		past := time.Now().Add(-time.Hour)
+		pref := &mockPref{
+			preferences: map[int64]installation.ChannelNotificationPreference{
+				1: {Level: installation.NotificationLevelDefault, MutedUntil: &past},
+				2: {Level: installation.NotificationLevelDefault, MutedUntil: &future},
+				3: {Level: installation.NotificationLevelDefault},
+			},
+			accounts: map[int64]installation.AccountNotificationSetting{
+				1: {Level: levelPointer(installation.NotificationLevelMentions)},
+				2: {Level: levelPointer(installation.NotificationLevelAll)},
+				3: {Level: levelPointer(installation.NotificationLevelAll)},
+			},
+		}
+		svc := installation.NewService(installationsFor(1, 2, 3), fcm, pref, nil)
+
+		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2, 3}, nil, "title", "body", 42, 7)
+
+		require.NoError(t, err)
+		assert.Equal(t, []int64{3}, enabledIDs)
+	})
+
 	t.Run("direct-message channels ignore account and team levels", func(t *testing.T) {
 		fcm := &mockFCM{}
 		pref := &mockPref{

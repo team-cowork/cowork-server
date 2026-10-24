@@ -388,7 +388,7 @@ func channelNotificationLevel(event ChannelNotificationEvent) (string, bool) {
 		return "NONE", true
 	}
 	level := *event.NotificationLevel
-	return level, isNotificationLevel(level)
+	return level, level == "DEFAULT" || isNotificationLevel(level)
 }
 
 func (s *Service) ApplyUserProfile(ctx context.Context, event UserProfileEvent) error {
