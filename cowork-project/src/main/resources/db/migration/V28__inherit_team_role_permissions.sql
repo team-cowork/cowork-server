@@ -41,6 +41,10 @@ CREATE TABLE tb_team_role_member_tombstones
 
 ALTER TABLE tb_project_access_projections ADD COLUMN can_manage BOOLEAN NOT NULL DEFAULT FALSE;
 
+ALTER TABLE tb_project_access_projections
+    ADD COLUMN can_read_private BOOLEAN NULL
+    COMMENT '비공개 전환 후 읽기 가능 여부: cowork-preference.tb_project_access_states.can_read_private';
+
 ALTER TABLE tb_projects ADD COLUMN is_private BOOLEAN NOT NULL DEFAULT TRUE;
 
 ALTER TABLE tb_project_access_projections ADD COLUMN source_membership_version DATETIME(6) NOT NULL DEFAULT '1970-01-01 00:00:00.000000';
