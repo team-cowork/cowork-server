@@ -38,15 +38,23 @@ class ProjectAccessStateConsumer(
             // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
             require(!node.has("manage") || node.path("manage").isBoolean)
             require(!node.has("reorder") || node.path("reorder").isBoolean)
+            val membershipVersion = if (node.has("sourceMembershipVersion")) {
+                Instant.parse(node.path("sourceMembershipVersion").asText())
+            } else Instant.EPOCH
+            // TODO(#596): 2026-11-01 05:00 KST 이후 구형 레코드·롤백 지원 종료와 snapshot 보정 완료 확인 후 sourceAuthorizationVersion 필수화.
+            val authorizationVersion = if (node.hasNonNull("sourceAuthorizationVersion")) {
+                Instant.parse(node.path("sourceAuthorizationVersion").asText()).also {
+                    require(it.isAfter(Instant.EPOCH) && !it.isAfter(membershipVersion))
+                }.toProjectionPrecision()
+            } else null
             ProjectAccessProjection(
                 record.key(), projectId, userId,
                 node.path("read").asBoolean(), node.path("write").asBoolean(),
                 Instant.parse(node.path("occurredAt").asText()).toProjectionPrecision(),
                 canReorder = node.path("reorder").asBoolean(false),
                 canManage = node.path("manage").asBoolean(false),
-                sourceMembershipVersion = if (node.has("sourceMembershipVersion")) {
-                    Instant.parse(node.path("sourceMembershipVersion").asText()).toProjectionPrecision()
-                } else Instant.EPOCH,
+                sourceMembershipVersion = membershipVersion.toProjectionPrecision(),
+                sourceAuthorizationVersion = authorizationVersion,
             )
         }
         val event = parsed.getOrElse {
@@ -60,15 +68,20 @@ class ProjectAccessStateConsumer(
             } else if (event.sourceOccurredAt == existing.sourceOccurredAt) {
                 // Replayed snapshots are idempotent; conflicting equal versions never restore access.
                 val sameMembership = existing.sourceMembershipVersion == event.sourceMembershipVersion
-                val canRead = sameMembership && existing.canRead && event.canRead
+                val sameAuthorization = existing.sourceAuthorizationVersion == null || event.sourceAuthorizationVersion == null ||
+                    existing.sourceAuthorizationVersion == event.sourceAuthorizationVersion
+                val authorizationVersion = listOfNotNull(existing.sourceAuthorizationVersion, event.sourceAuthorizationVersion).maxOrNull()
+                val canRead = sameMembership && sameAuthorization && existing.canRead && event.canRead
                 val canWrite = existing.canWrite && event.canWrite
                 val canManage = existing.canManage && event.canManage
                 val canReorder = existing.canReorder && event.canReorder
-                if (existing.canRead != canRead || existing.canWrite != canWrite || existing.canManage != canManage || existing.canReorder != canReorder) {
+                if (existing.canRead != canRead || existing.canWrite != canWrite || existing.canManage != canManage ||
+                    existing.canReorder != canReorder || existing.sourceAuthorizationVersion != authorizationVersion) {
                     existing.canManage = canManage
                     existing.canRead = canRead
                     existing.canWrite = canWrite
                     existing.canReorder = canReorder
+                    existing.sourceAuthorizationVersion = authorizationVersion
                     repository.save(existing)
                 }
             }
