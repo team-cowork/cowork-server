@@ -240,6 +240,7 @@ func (h *EventHandler) Handle(ctx context.Context, topic, key string, payload []
 	return h.store.Apply(ctx, s)
 }
 func parseState(topic, key string, payload []byte) (State, error) {
+	// TODO(#596): 구버전 생산자·롤백 지원 종료 및 보관 중인 ROLE_UPSERTED 교체 후 isDefault 누락 허용 제거.
 	var e struct {
 		EventType     string           `json:"eventType"`
 		TeamID        int64            `json:"teamId"`
