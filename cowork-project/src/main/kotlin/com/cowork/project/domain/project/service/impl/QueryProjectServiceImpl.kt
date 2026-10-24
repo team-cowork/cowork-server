@@ -1,6 +1,5 @@
 package com.cowork.project.domain.project.service.impl
 
-import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.presentation.data.response.ProjectDetailResDto
 import com.cowork.project.domain.project.service.ProjectAccessGuard
 import com.cowork.project.domain.project.service.QueryProjectService
@@ -9,7 +8,6 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class QueryProjectServiceImpl(
-    private val teamMembers: TeamMembershipRepository,
     private val projectAccessGuard: ProjectAccessGuard,
 ) : QueryProjectService {
 
@@ -17,7 +15,7 @@ class QueryProjectServiceImpl(
     override fun execute(userId: Long, projectId: Long): ProjectDetailResDto {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectReader(project, userId)
-        val memberCount = teamMembers.findAllByTeamIdAndActiveTrue(project.teamId).count { projectAccessGuard.canRead(project, it.userId) }.toLong()
+        val memberCount = projectAccessGuard.countReaders(project)
         return ProjectDetailResDto.of(project, memberCount)
     }
 }
