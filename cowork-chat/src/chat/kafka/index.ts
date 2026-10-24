@@ -16,4 +16,5 @@ export * from './project-github-repo-event.consumer';
 export * from './project-permission-event.consumer';
 export * from './team-member-event.consumer';
 export * from './team-role-event.consumer';
+export * from './text-channel-setting-event.consumer';
 export * from './user-profile-event.consumer';
