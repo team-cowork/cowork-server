@@ -3,6 +3,7 @@ package com.cowork.team.domain.teamRole.operation
 import com.cowork.team.domain.teamRole.projection.TeamRoleAssignmentProjectionRepository
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjection
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionRepository
+import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
@@ -18,6 +19,16 @@ class TeamRoleOperationProjectionFinalizer(
     private val assignmentRepository: TeamRoleAssignmentProjectionRepository,
     private val objectMapper: ObjectMapper,
 ) {
+    // TODO(#596): 2026-11-01 05:00 KST 이후 아래 조건 완료를 확인하고 제거한다.
+    // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+    // 저장 결과 보정 완료와 구형 producer·결과 재처리 종료 확인 후 이 주기 작업을 제거한다.
+    @Scheduled(fixedDelay = 300_000)
+    @Transactional
+    fun repairLegacyResults() {
+        val repaired = operationRepository.repairLegacyResultRoles()
+        if (repaired > 0) log.info("Repaired {} legacy team role operation results", repaired)
+    }
+
     @Scheduled(fixedDelayString = "\${team-role.operation-finalizer-delay-ms:1000}")
     @Transactional
     fun finalizeVisibleOperations() {
@@ -98,6 +109,7 @@ class TeamRoleOperationProjectionFinalizer(
     }
 
     private companion object {
+        val log = LoggerFactory.getLogger(TeamRoleOperationProjectionFinalizer::class.java)
         const val FINALIZE_BATCH_SIZE = 100
     }
 }
