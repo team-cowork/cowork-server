@@ -50,22 +50,30 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
             }
             val previous = existing[accountId]
             val membershipVersion = member?.getOffsetDateTime("source_occurred_at") ?: Instant.EPOCH.atOffset(ZoneOffset.UTC)
+            val authorizationVersion = member?.getOffsetDateTime("authorization_version")
+            val previousAuthorizationVersion = previous?.getOffsetDateTime("source_authorization_version")
+            // A nullable stamp repair must publish a newer decision even when its effective version is unchanged.
             if (previous != null && previous.permissions() == permissions &&
-                previous.getOffsetDateTime("source_membership_version").toInstant() == membershipVersion.toInstant()
+                previous.getOffsetDateTime("source_membership_version").toInstant() == membershipVersion.toInstant() &&
+                previousAuthorizationVersion?.toInstant() == authorizationVersion?.toInstant()
             ) return@forEach
             val rows = client.preparedQuery(
                 """
-                INSERT INTO tb_project_access_states (project_id, account_id, can_read, can_write, can_manage, can_reorder, source_membership_version, state_occurred_at)
-                VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6, ${'$'}7, clock_timestamp())
+                INSERT INTO tb_project_access_states
+                    (project_id, account_id, can_read, can_write, can_manage, can_reorder,
+                     source_membership_version, source_authorization_version, state_occurred_at)
+                VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6, ${'$'}7, ${'$'}8, clock_timestamp())
                 ON CONFLICT (project_id, account_id) DO UPDATE SET
                     can_read = EXCLUDED.can_read, can_write = EXCLUDED.can_write,
                     can_manage = EXCLUDED.can_manage, can_reorder = EXCLUDED.can_reorder,
                     source_membership_version = EXCLUDED.source_membership_version,
+                    source_authorization_version = EXCLUDED.source_authorization_version,
                     state_occurred_at = GREATEST(clock_timestamp(), tb_project_access_states.state_occurred_at + INTERVAL '1 microsecond')
                 RETURNING *
                 """.trimIndent(),
             ).execute(Tuple.tuple().addLong(projectId).addLong(accountId).addBoolean(permissions.read).addBoolean(permissions.write)
-                .addBoolean(permissions.manage).addBoolean(permissions.reorder).addOffsetDateTime(membershipVersion)).coAwait()
+                .addBoolean(permissions.manage).addBoolean(permissions.reorder).addOffsetDateTime(membershipVersion)
+                .addOffsetDateTime(authorizationVersion)).coAwait()
             rows.forEach { outbox.enqueue(client, event(it)) }
         }
     }
@@ -83,7 +91,8 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
 
     private suspend fun loadTeamAccess(client: SqlClient, teamId: Long, accountId: Long?): TeamAccess {
         val members = client.preparedQuery(
-            "SELECT account_id, built_in_role, source_occurred_at FROM tb_team_member_projections " +
+            "SELECT account_id, built_in_role, source_occurred_at, authorization_version " +
+                "FROM tb_team_member_projections " +
                 "WHERE team_id = \$1 AND NOT deleted " +
                 "AND NOT EXISTS (SELECT 1 FROM tb_team_role_domain_tombstones WHERE team_id = \$1) " +
                 "AND (\$2::bigint IS NULL OR account_id = \$2)",
@@ -135,6 +144,7 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
         val projectId = row.getLong("project_id")
         val accountId = row.getLong("account_id")
         val version = row.getOffsetDateTime("state_occurred_at").toInstant()
+        val authorizationVersion = row.getOffsetDateTime("source_authorization_version")?.toInstant()
         return PreferenceEvent(
             PreferenceEvents.PROJECT_ACCESS_STATE_TOPIC,
             "$projectId:$accountId",
@@ -143,6 +153,7 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
                 .put("read", row.getBoolean("can_read")).put("write", row.getBoolean("can_write"))
                 .put("manage", row.getBoolean("can_manage")).put("reorder", row.getBoolean("can_reorder"))
                 .put("sourceMembershipVersion", row.getOffsetDateTime("source_membership_version").toInstant().toString())
+                .put("sourceAuthorizationVersion", authorizationVersion?.toString())
                 .put("occurredAt", version.toString()),
             version,
         )
