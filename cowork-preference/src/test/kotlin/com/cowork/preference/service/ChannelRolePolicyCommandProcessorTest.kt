@@ -104,6 +104,60 @@ class ChannelRolePolicyCommandProcessorTest {
         }
 
         @Test
+        fun `거부만 추가할 때 변경하지 않는 대상 역할의 기본 허용은 요구하지 않는다`() = runBlocking {
+            val denyCommand = command.copy(permissions = JsonObject().put("message_send", false))
+            fixture.stubPolicyManagerCommand(denyCommand, sameTeamRole.copy(permissions = mapOf("message_manage" to true)))
+            val result = slot<JsonObject>()
+            coEvery { fixture.inboxRepository.insert(fixture.connection, denyCommand, capture(result)) } returns Unit
+
+            fixture.processor.process(denyCommand)
+
+            assertEquals("SUCCEEDED", result.captured.getString("status"))
+        }
+
+        @Test
+        fun `기존 거부를 유지하는 요청은 미보유 권한도 거부 상태로 저장할 수 있다`() = runBlocking {
+            val denyCommand = command.copy(permissions = JsonObject().put("message_send", false).put("message_manage", false))
+            fixture.stubPolicyManagerCommand(
+                denyCommand,
+                sameTeamRole.copy(permissions = mapOf("message_manage" to true)),
+                JsonObject().put("message_manage", false),
+            )
+            val result = slot<JsonObject>()
+            coEvery { fixture.inboxRepository.insert(fixture.connection, denyCommand, capture(result)) } returns Unit
+
+            fixture.processor.process(denyCommand)
+
+            assertEquals("SUCCEEDED", result.captured.getString("status"))
+        }
+
+        @Test
+        fun `기존 거부 키를 누락하여 다른 역할의 미보유 권한을 복원할 수 없다`() = runBlocking {
+            val denyCommand = command.copy(permissions = JsonObject().put("message_send", false))
+            fixture.stubPolicyManagerCommand(denyCommand, existingPermissions = JsonObject().put("message_manage", false))
+            val result = slot<JsonObject>()
+            coEvery { fixture.inboxRepository.insert(fixture.connection, denyCommand, capture(result)) } returns Unit
+
+            fixture.processor.process(denyCommand)
+
+            assertEquals("FORBIDDEN", result.captured.getJsonObject("error").getString("code"))
+            coVerify(exactly = 0) { fixture.policyRepository.upsertPolicy(any(), any(), any(), any(), any()) }
+        }
+
+        @Test
+        fun `정책 삭제로 다른 역할의 미보유 권한에 대한 거부를 해제할 수 없다`() = runBlocking {
+            val deleteCommand = command.copy(commandType = ChannelRolePolicyCommandType.DELETE, permissions = null)
+            fixture.stubPolicyManagerCommand(deleteCommand, existingPermissions = JsonObject().put("message_manage", false))
+            val result = slot<JsonObject>()
+            coEvery { fixture.inboxRepository.insert(fixture.connection, deleteCommand, capture(result)) } returns Unit
+
+            fixture.processor.process(deleteCommand)
+
+            assertEquals("FORBIDDEN", result.captured.getJsonObject("error").getString("code"))
+            coVerify(exactly = 0) { fixture.policyRepository.deletePolicy(any(), any(), any(), any()) }
+        }
+
+        @Test
         fun `요청한 역할이 같은 팀에 없으면 정책을 변경하지 않는다`() = runBlocking {
             val result = slot<JsonObject>()
             fixture.stubActiveCommand(role = null)
@@ -212,7 +266,8 @@ class ChannelRolePolicyCommandProcessorTest {
             }
             coEvery { inboxRepository.findMatches(connection, command) } returns
                 ProcessedChannelRolePolicyCommandMatches(null, null)
-            coEvery { channelRepository.findForShare(connection, command.channelId) } returns channel
+            coEvery { channelRepository.findForUpdate(connection, command.channelId) } returns channel
+            coEvery { policyRepository.findPolicy(connection, command.teamId, command.channelId, command.roleId) } returns null
             coEvery { roleRepository.isTeamDeleted(connection, command.teamId) } returns false
             coEvery { memberRepository.find(connection, command.teamId, command.actorId) } returns
                 TeamMemberProjection(
@@ -224,6 +279,26 @@ class ChannelRolePolicyCommandProcessorTest {
                 )
             if (!actorDeleted) {
                 coEvery { roleRepository.findRole(connection, command.teamId, command.roleId) } returns role
+            }
+        }
+
+        fun stubPolicyManagerCommand(
+            command: ChannelRolePolicyCommand,
+            target: TeamRoleDefinition = sameTeamRole,
+            existingPermissions: JsonObject? = null,
+        ) {
+            stubActiveCommand(command, target, actorRole = "MEMBER", channel = activeChannel.copy(channelType = "TEXT", isPrivate = false))
+            coEvery { roleRepository.findMemberRoles(connection, command.teamId) } returns
+                listOf(AccountTeamRole(command.actorId, command.teamId, 20L))
+            coEvery { roleRepository.findRoles(connection, command.teamId) } returns
+                listOf(sameTeamRole.copy(id = 20L, priority = 100, permissions = mapOf("manage_roles" to true)))
+            coEvery { policyRepository.canAccess(connection, command.teamId, command.actorId, command.channelId, "message_read", false) } returns true
+            coEvery { policyRepository.findPolicy(connection, command.teamId, command.channelId, command.roleId) } returns
+                existingPermissions?.let {
+                    ChannelRolePolicyState(command.teamId, command.channelId, command.roleId, it, command.submittedAt)
+                }
+            coEvery { policyRepository.upsertPolicy(connection, command.teamId, command.channelId, command.roleId, any()) } coAnswers {
+                ChannelRolePolicyState(command.teamId, command.channelId, command.roleId, arg(4), command.submittedAt)
             }
         }
     }
