@@ -8,9 +8,13 @@ export class ChannelReadStateRepository {
     constructor(@InjectModel(ChannelReadState.name) private readonly model: Model<ChannelReadState>) {}
 
     async updateLastRead(channelId: number, userId: number, messageId: Types.ObjectId): Promise<void> {
+        const legacy = await this.model.db.collection<{lastReadMessageId?: Types.ObjectId | null}>('channelmembers')
+            .findOne({channelId, userId}, {projection: {lastReadMessageId: 1}});
+        const legacyId = legacy?.lastReadMessageId;
+        const latestId = legacyId && legacyId.toHexString() > messageId.toHexString() ? legacyId : messageId;
         await this.model.updateOne(
             {channelId, userId},
-            {$max: {lastReadMessageId: messageId}},
+            {$max: {lastReadMessageId: latestId}},
             {upsert: true},
         );
     }
