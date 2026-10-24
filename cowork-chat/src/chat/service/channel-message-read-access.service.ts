@@ -491,7 +491,8 @@ export class ChannelMessageReadAccessService {
                 const override = policy?.teamId === teamId
                     ? (policy.permissions?.[permission] ?? (permission === 'message_read' ? policy.messageRead : undefined))
                     : undefined;
-                const isAllowed = override ?? role.permissions?.[permission] ?? false;
+                const requiresChannelPolicy = (channel.isPrivate ?? true) && mode !== 'MESSAGE_SEND';
+                const isAllowed = override ?? (requiresChannelPolicy ? false : (role.permissions?.[permission] ?? false));
                 if (selectedPriority === undefined || role.priority > selectedPriority) {
                     selectedPriority = role.priority;
                     isSelected = isAllowed;
