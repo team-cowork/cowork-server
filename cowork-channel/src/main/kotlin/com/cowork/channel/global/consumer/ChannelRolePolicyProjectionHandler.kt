@@ -2,7 +2,6 @@ package com.cowork.channel.global.consumer
 
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjection
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjectionRepository
-import com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyPermissionSchema
 import com.cowork.channel.global.projection.toProjectionPrecision
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
@@ -41,7 +40,6 @@ class ChannelRolePolicyProjectionHandler(
                 val permissions = requireNotNull(event.permissions)
                 projection.applyUpsert(
                     permissionsJson = objectMapper.writeValueAsString(permissions),
-                    messageRead = permissions[ChannelRolePolicyPermissionSchema.MESSAGE_READ],
                     occurredAt = event.occurredAt,
                 )
             }

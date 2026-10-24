@@ -3,13 +3,12 @@ package com.cowork.project.domain.project.service.impl
 import com.cowork.project.domain.github.entity.ProjectGithubRepo
 import com.cowork.project.domain.github.event.ProjectGithubRepoEventPublisher
 import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
+import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
-import com.cowork.project.domain.projectMember.entity.ProjectMember
-import com.cowork.project.domain.projectMember.entity.ProjectMemberRole
-import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
+import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -23,10 +22,9 @@ class ClearProjectGithubWebhookChannelServiceImplTest {
 
     private val projectGithubRepoRepository = mockk<ProjectGithubRepoRepository>(relaxed = true)
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
-    private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository, mockk(relaxed = true))
+        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true))
     private val repoEventPublisher = mockk<ProjectGithubRepoEventPublisher>(relaxed = true)
 
     private val service =
@@ -51,8 +49,8 @@ class ClearProjectGithubWebhookChannelServiceImplTest {
             val proj = project()
             val link = repoLink()
             every { projectRepository.findByIdForUpdate(1L) } returns proj
-            every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
-                ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
+                TeamMembership(teamId = 100L, userId = 99L, role = "OWNER")
             every { projectGithubRepoRepository.findByIdAndProjectIdForUpdate(5L, 1L) } returns link
             every { projectGithubRepoRepository.save(any<ProjectGithubRepo>()) } answers { firstArg() }
 
@@ -62,11 +60,10 @@ class ClearProjectGithubWebhookChannelServiceImplTest {
         }
 
         @Test
-        fun `clearGithubWebhookChannel은 EDITOR가 아니면 FORBIDDEN`() {
+        fun `clearGithubWebhookChannel은 팀 멤버가 아니면 FORBIDDEN`() {
             val proj = project()
             every { projectRepository.findByIdForUpdate(1L) } returns proj
-            every { projectMemberRepository.findByProjectIdAndUserId(1L, 50L) } returns
-                ProjectMember(projectId = 1L, userId = 50L, role = ProjectMemberRole.VIEWER)
+
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 50L) } returns null
 
             val ex = assertThrows(ExpectedException::class.java) {
@@ -79,8 +76,8 @@ class ClearProjectGithubWebhookChannelServiceImplTest {
         fun `clearGithubWebhookChannel은 등록된 레포가 없으면 NOT_FOUND`() {
             val proj = project()
             every { projectRepository.findByIdForUpdate(1L) } returns proj
-            every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns
-                ProjectMember(projectId = 1L, userId = 99L, role = ProjectMemberRole.OWNER)
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
+                TeamMembership(teamId = 100L, userId = 99L, role = "OWNER")
             every { projectGithubRepoRepository.findByIdAndProjectIdForUpdate(5L, 1L) } returns null
 
             val ex = assertThrows(ExpectedException::class.java) {

@@ -9,6 +9,11 @@ interface TeamRoleProjectionRepository : JpaRepository<TeamRoleProjection, Long>
 interface TeamRoleAssignmentProjectionRepository : JpaRepository<TeamRoleAssignmentProjection, String> {
     fun findAllByTeamIdAndAccountIdAndDeletedFalse(teamId: Long, accountId: Long): List<TeamRoleAssignmentProjection>
 
+    fun findAllByTeamIdAndAccountIdInAndDeletedFalse(
+        teamId: Long,
+        accountIds: Set<Long>,
+    ): List<TeamRoleAssignmentProjection>
+
     fun findAllByTeamIdAndAccountId(teamId: Long, accountId: Long): List<TeamRoleAssignmentProjection>
 
     fun findAllByTeamIdAndRoleId(teamId: Long, roleId: Long): List<TeamRoleAssignmentProjection>

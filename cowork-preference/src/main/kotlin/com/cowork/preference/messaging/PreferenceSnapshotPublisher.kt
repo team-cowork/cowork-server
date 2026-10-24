@@ -5,14 +5,17 @@ import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.NotificationRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.PreferenceRepository
+import com.cowork.preference.repository.ProjectAccessStateRepository
 import com.cowork.preference.repository.TeamRoleRepository
 import io.vertx.sqlclient.SqlConnection
-import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import org.slf4j.LoggerFactory
 
 class PreferenceSnapshotPublisher(
+    private val projectAccessRepository: ProjectAccessStateRepository,
+    private val projectAccessReadiness: ProjectionReadinessView,
     private val notificationRepository: NotificationRepository,
     private val preferenceRepository: PreferenceRepository,
     private val teamRoleRepository: TeamRoleRepository,
@@ -46,6 +49,15 @@ class PreferenceSnapshotPublisher(
         upstreamReadiness = channelRolePolicyReadiness,
     ) { connection ->
         "channelRolePolicyCount=${publishChannelRolePolicies(connection)}"
+    }
+
+    suspend fun publishProjectAccessIfLeader(): Boolean = publishIfLeader(
+        aggregate = "project access",
+        topics = setOf(PreferenceEvents.PROJECT_ACCESS_STATE_TOPIC),
+        upstreamReadiness = projectAccessReadiness,
+    ) { connection ->
+        outboxRepository.inTransaction(connection) { projectAccessRepository.publishSnapshot(it) }
+        "project access states"
     }
 
     private suspend fun publishIfLeader(
