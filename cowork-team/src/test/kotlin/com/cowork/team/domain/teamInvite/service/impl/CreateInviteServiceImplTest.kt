@@ -2,6 +2,7 @@ package com.cowork.team.domain.teamInvite.service.impl
 
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamInvite.entity.TeamInvite
 import com.cowork.team.domain.teamInvite.presentation.data.request.CreateInviteRequest
 import com.cowork.team.domain.teamInvite.presentation.data.request.InviteDuration
@@ -25,12 +26,17 @@ class CreateInviteServiceImplTest {
     private val teamRepository = mockk<TeamRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>()
     private val teamInviteRepository = mockk<TeamInviteRepository>()
-    private val teamInviteAccessGuard = TeamInviteAccessGuard(teamRepository, teamMemberRepository)
+    private val teamInviteAccessGuard =
+        TeamInviteAccessGuard(
+            teamRepository,
+            teamMemberRepository,
+            TeamPermissionGuard(teamMemberRepository, mockk(relaxed = true)),
+        )
 
     private val service = CreateInviteServiceImpl(teamInviteRepository, teamInviteAccessGuard)
 
     private val team = Team(id = 1L, name = "테스트팀", description = null, iconUrl = null, ownerId = 10L)
-    private val normalMember = TeamMember(team = team, userId = 42L, role = TeamRole.MEMBER)
+    private val normalMember = TeamMember(team = team, userId = 42L, role = TeamRole.ADMIN)
 
     private fun makeInvite(
         inviteCode: String = "aB3xK9mZ",

@@ -43,6 +43,15 @@ class Project(
 
     @Column(name = "state_occurred_at", nullable = false)
     var stateOccurredAt: Instant = Instant.EPOCH,
+
+    @Column(name = "is_private", nullable = false)
+    var isPrivate: Boolean = false,
+
+    @Column(name = "initial_read_membership_version", updatable = false)
+    val initialReadMembershipVersion: Instant? = null,
+
+    @Column(name = "initial_read_authorization_version", updatable = false)
+    val initialReadAuthorizationVersion: Instant? = null,
 ) {
     fun updateName(newName: String) {
         name = newName
