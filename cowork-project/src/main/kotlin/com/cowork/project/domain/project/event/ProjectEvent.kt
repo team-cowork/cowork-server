@@ -20,4 +20,11 @@ data class ProjectEvent(
     val createdBy: Long? = null,
     @field:JsonProperty("isPrivate")
     val isPrivate: Boolean = true,
+    val initialReadGrant: ProjectInitialReadGrant? = null,
+)
+
+/** Preference applies this ordinary read role once per project, including after snapshot replay. */
+data class ProjectInitialReadGrant(
+    val accountId: Long,
+    val sourceMembershipVersion: Instant,
 )
