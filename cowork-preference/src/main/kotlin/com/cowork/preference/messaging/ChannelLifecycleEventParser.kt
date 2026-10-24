@@ -1,5 +1,6 @@
 package com.cowork.preference.messaging
 
+import com.cowork.preference.domain.InitialChannelRolePolicySeed
 import io.vertx.core.json.JsonObject
 import java.time.Instant
 
@@ -11,6 +12,7 @@ data class ChannelLifecycleEvent(
     /** null이면 이벤트에 값이 없는 것이며 공개로 가정하지 않는다. */
     val isPrivate: Boolean? = null,
     val channelType: String? = null,
+    val initialRolePolicySeed: InitialChannelRolePolicySeed? = null,
 )
 
 sealed interface ChannelLifecycleRecordDecision {
@@ -43,6 +45,7 @@ object ChannelLifecycleEventParser {
 
         val event = ChannelLifecycleEvent(channelId, teamId, eventType == "DELETED", occurredAt, isPrivate,
             payload.getString("channelType") ?: payload.getString("type"),
+            payload.getJsonObject("initialRolePolicySeed")?.let(InitialChannelRolePolicySeed::fromJson),
         )
         ChannelLifecycleRecordDecision.Apply(event)
     }.getOrElse { error ->
