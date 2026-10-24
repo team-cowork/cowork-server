@@ -36,6 +36,7 @@ class ChannelRolePolicyPermissionSchema {
             "github_issue_create",
             "channel_manage",
             "channel_reorder",
+            "slowmode_bypass",
             "voice_connect",
             "voice_speak",
             "screen_share",
