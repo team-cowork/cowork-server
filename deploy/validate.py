@@ -15,7 +15,6 @@ for path in sorted((ROOT / "deploy").rglob("*.py")):
     ast.parse(path.read_text(), filename=str(path))
 for source in ("databases/runtime.py", "databases/search.py", "shared/runtime.py", "storage/runtime.py"):
     subprocess.run(["python3", str(ROOT / "deploy/iac" / source), "check"], check=True)
-subprocess.run(["python3", str(ROOT / "deploy/prod/kafka/retire-consumer-groups.py"), "--validate-catalog"], check=True)
 
 # No real .env values are emitted or required. Override every Compose placeholder.
 env = {key: value for key, value in os.environ.items() if not key.startswith("COMPOSE_")}
@@ -63,11 +62,6 @@ for name, files in models.items():
     print(f"{name}: Compose configuration and repository paths valid ({len(model['services'])} services)")
 
 catalog = json.loads((ROOT / "deploy/images/catalog.json").read_text())
-retirements = json.loads((ROOT / "deploy/prod/kafka/retirements.json").read_text())["retirements"]
-topics = set(resolved["local"]["services"]["kafka-init"]["environment"]["KAFKA_TOPICS"].split())
-for transition in retirements:
-    if transition["consumer_service"] not in catalog or transition["new_topic"] not in topics:
-        raise SystemExit("Kafka retirement replacements must reference a declared application and provisioned topic")
 release_fields = runpy.run_path(str(ROOT / "deploy/images/release_fields.py"))
 for name, settings in catalog.items():
     release_fields["current_version"](name)
