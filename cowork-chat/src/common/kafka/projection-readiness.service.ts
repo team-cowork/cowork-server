@@ -711,8 +711,9 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         stream: ProjectionStream,
         targets: StartupPartitionOffset[],
     ): Promise<ProjectionDatasetState> {
-        const [dataset, checkpoints, documentCount] = await Promise.all([
-            this.datasets.find(name),
+        // Read the dataset first so checkpoints cannot predate an already observed rebuild generation.
+        const dataset = await this.datasets.find(name);
+        const [checkpoints, documentCount] = await Promise.all([
             this.checkpoints.findAll(stream.groupId, stream.topic),
             this.datasets.countProjection(name),
         ]);
@@ -733,7 +734,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         }
 
         if (dataset.groupId !== stream.groupId || dataset.topic !== stream.topic) {
-            return this.datasets.markRebuildRequired(stream, 'Projection dataset stream identity changed');
+            return this.datasets.markRebuildRequired(stream, 'Projection dataset stream identity changed', dataset);
         }
 
         if (dataset.sourceGeneration !== stream.sourceGeneration) {
@@ -741,6 +742,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                 stream,
                 `Projection source generation mismatch: stored=${dataset.sourceGeneration} `
                 + `configured=${stream.sourceGeneration}`,
+                dataset,
             );
         }
 
@@ -755,6 +757,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                     stream,
                     'Projection collection lost documents since it was last observed '
                     + `(baseline=${baseline}, observed=${documentCount})`,
+                    dataset,
                 );
             }
         }
@@ -767,6 +770,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                 return this.datasets.markRebuildRequired(
                     stream,
                     `Projection checkpoint generation mismatch: ${stream.topic}[${checkpoint.partition}]`,
+                    dataset,
                 );
             }
 
@@ -775,6 +779,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                     stream,
                     `Projection checkpoint is outside retained log: ${stream.topic}[${checkpoint.partition}] `
                     + `checkpoint=${checkpoint.offset} retained=${target?.low ?? 'missing'}-${target?.high ?? 'missing'}`,
+                    dataset,
                 );
             }
         }
@@ -787,6 +792,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                     stream,
                     `Projection checkpoint partition set is incomplete: stored=${partitions.join(',')} `
                     + `broker=${expected.join(',')}`,
+                    dataset,
                 );
             }
 
@@ -796,6 +802,20 @@ export class ProjectionReadinessService implements OnModuleDestroy {
                 return this.datasets.markRebuildRequired(
                     stream,
                     'Active projection dataset has no valid snapshot barrier',
+                    dataset,
+                );
+            }
+
+            // eslint-disable-next-line no-warning-comments -- Tracked compatibility cleanup with a deployment-dependent deadline.
+            // TODO(#596): 2026-11-01 05:00 KST 이후 구형 Kafka·Mongo stamp 보정과 rollback 종료 확인 후 이 자동 재구축 및 누락 조회 제거.
+            // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+            if (name === 'projectPermission' && await this.datasets.hasLegacyProjectPermission()) {
+                return this.datasets.requestRebuild(
+                    stream,
+                    'Project permission membership stamp is missing from legacy documents',
+                    targets.map(({partition, low}) => ({partition, offset: low})),
+                    targets.map(({partition, high}) => ({partition, offset: high})),
+                    dataset.datasetGeneration,
                 );
             }
         }
@@ -1644,7 +1664,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
         state: ProjectionCatchupState,
         reason: string,
     ): Promise<void> {
-        state.dataset = await this.datasets.markRebuildRequired(state.stream, reason);
+        state.dataset = await this.datasets.markRebuildRequired(state.stream, reason, state.dataset);
         this.closeStreamReadiness(name, state);
         const partitions = [...state.localAssignmentLeases.keys()];
         if (partitions.length > 0) {
