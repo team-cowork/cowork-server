@@ -64,7 +64,7 @@ class QueryChannelRolePoliciesServiceImplTest {
         assertEquals(listOf(100, 100, 1), result.map { it.priority })
         assertEquals(mapOf("message_read" to false, "message_send" to true), result.last().permissions)
         verify { teamPermissionService.requireTeamMember(10L, 7L) }
-        verify { permissionSupport.requireChannelManager(channel, 7L) }
+        verify { permissionSupport.requireRolePolicyAccess(channel, 7L) }
     }
 
     @Test
@@ -79,7 +79,7 @@ class QueryChannelRolePoliciesServiceImplTest {
         }
 
         assertEquals(HttpStatus.FORBIDDEN, exception.statusCode)
-        verify(exactly = 0) { permissionSupport.requireChannelManager(any(), any()) }
+        verify(exactly = 0) { permissionSupport.requireRolePolicyAccess(any(), any()) }
         verify(exactly = 0) { policyRepository.findAllByTeamIdAndChannelIdAndDeletedFalse(any(), any()) }
     }
 

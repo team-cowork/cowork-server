@@ -25,14 +25,27 @@ class TeamMembership(
 
     @Column(name = "source_occurred_at", nullable = false)
     var sourceOccurredAt: Instant = Instant.EPOCH,
+
+    @Column(name = "authorization_version")
+    var authorizationVersion: Instant? = null,
 ) {
-    fun applyUpsert(newRole: String, occurredAt: Instant) {
+    fun applyUpsert(newRole: String, occurredAt: Instant, newAuthorizationVersion: Instant? = null) {
+        authorizationVersion = if (occurredAt == sourceOccurredAt && active && role == newRole) {
+            listOfNotNull(authorizationVersion, newAuthorizationVersion).maxOrNull()
+        } else {
+            newAuthorizationVersion
+        }
         role = newRole
         active = true
         sourceOccurredAt = occurredAt
     }
 
-    fun markDeleted(occurredAt: Instant) {
+    fun markDeleted(occurredAt: Instant, newAuthorizationVersion: Instant? = null) {
+        authorizationVersion = if (occurredAt == sourceOccurredAt && !active) {
+            listOfNotNull(authorizationVersion, newAuthorizationVersion).maxOrNull()
+        } else {
+            newAuthorizationVersion
+        }
         active = false
         sourceOccurredAt = occurredAt
     }

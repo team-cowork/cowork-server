@@ -16,7 +16,7 @@ class TeamMembershipDeniedException(message: String) : RuntimeException(message)
 
 /**
  * 팀 범위 Preference API 호출자가 대상 팀에 접근할 권한이 있는지 [TeamMemberProjectionRepository] projection으로 검증한다.
- * 전역 `X-User-Role: ADMIN`은 팀 멤버십 검증을 우회하는 예외 경로로 취급한다.
+ * 활성 팀 멤버십을 먼저 확인한 뒤 기본 역할과 사용자 정의 역할의 권한을 합산한다.
  */
 class TeamMembershipGuard(
     private val pool: Pool,
@@ -24,27 +24,21 @@ class TeamMembershipGuard(
     private val readiness: ProjectionReadinessView,
     private val roleRepository: TeamRoleRepository,
 ) {
-    /** 팀 조회 최소 권한: 팀 멤버(어떤 역할이든) 또는 전역 ADMIN. */
+    /** 팀 조회 최소 권한: 활성 팀 멤버. */
     suspend fun requireMember(teamId: Long, requester: RequesterContext) {
-        if (requester.isGlobalAdmin) return
         requireActiveMember(teamId, requester.userId)
     }
 
-    /**
-     * 팀 설정 수정 최소 권한: 팀 OWNER/ADMIN 또는 전역 ADMIN.
-     * 닉네임 형식 키만 바꾸는 요청은 `manage_nickname_format`을 허용한 역할 보유자도 수정할 수 있다.
-     */
+    /** 팀 설정은 manage_team, 닉네임 형식 키만 수정할 때는 manage_nickname_format도 허용한다. */
     suspend fun requireSettingsManager(teamId: Long, requester: RequesterContext, settingKeys: Set<String>) {
-        if (requester.isGlobalAdmin) return
         val member = requireActiveMember(teamId, requester.userId)
         if (member.builtInRole in SETTINGS_MANAGER_ROLES) return
+        val roles = roleRepository.findAccountRoles(pool, teamId, member.accountId)
+        if (roles.any { it.permissions[PermissionKeys.MANAGE_TEAM] == true }) return
         if (settingKeys.isNotEmpty() &&
             NICKNAME_FORMAT_KEYS.containsAll(settingKeys) &&
-            roleRepository.findAccountRoles(pool, teamId, member.accountId)
-                .any { it.permissions[PermissionKeys.MANAGE_NICKNAME_FORMAT] == true }
-        ) {
-            return
-        }
+            roles.any { it.permissions[PermissionKeys.MANAGE_NICKNAME_FORMAT] == true }
+        ) return
         throw TeamMembershipDeniedException("팀 설정을 관리할 권한이 없습니다.")
     }
 

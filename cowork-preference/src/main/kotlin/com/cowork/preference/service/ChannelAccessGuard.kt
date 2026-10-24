@@ -43,24 +43,24 @@ class ChannelAccessGuard(
             "TEXT" -> "message_read"
             else -> throw ProjectionNotReadyException("team channel type is not known yet")
         }
-        if (teamMember.builtInRole != OWNER_ROLE && !policyRepository.canAccess(teamId, accountId, channelId, permission, channel.isPrivate != false)) {
+        if (teamMember.builtInRole !in MANAGER_ROLES && !policyRepository.canAccess(teamId, accountId, channelId, permission, channel.isPrivate != false)) {
             throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
         }
     }
 
-    /**
-     * 채널 설정 수정: 채널이 속한 팀의 OWNER/ADMIN.
-     * 채널 소유 서비스는 채널 생성자도 관리자로 보지만 채널 이벤트에 생성자가 없어 이 서비스에서는 판단할 수 없다.
-     * 삭제되었거나 알 수 없는 채널, 팀이 없는 DM 채널은 거부한다.
-     */
+    /** 채널 설정 수정은 접근 권한과 channel_manage가 모두 필요하다. */
     suspend fun requireSettingsManager(channelId: Long, requester: RequesterContext) {
         if (!managerReadiness.isReady) {
             throw ProjectionNotReadyException("channel lifecycle or team member projection is not ready")
         }
-        val teamId = channelRepository.findForRead(pool, channelId)?.takeUnless { it.deleted }?.teamId
+        val channel = channelRepository.findForRead(pool, channelId)?.takeUnless { it.deleted }
             ?: throw ResourceAccessDeniedException(MANAGER_DENIED)
+        val teamId = channel.teamId ?: throw ResourceAccessDeniedException(MANAGER_DENIED)
         val member = teamMemberRepository.findForRead(pool, teamId, requester.userId)
-        if (member == null || member.deleted || member.builtInRole !in MANAGER_ROLES) {
+        if (member == null || member.deleted) throw ResourceAccessDeniedException(MANAGER_DENIED)
+        if (member.builtInRole in MANAGER_ROLES) return
+        requireChannelAccess(channelId, requester.userId)
+        if (!policyRepository.canAccess(teamId, requester.userId, channelId, "channel_manage", channel.isPrivate != false)) {
             throw ResourceAccessDeniedException(MANAGER_DENIED)
         }
     }
@@ -72,7 +72,6 @@ class ChannelAccessGuard(
     }
 
     private companion object {
-        const val OWNER_ROLE = "OWNER"
         val MANAGER_ROLES = setOf("OWNER", "ADMIN")
         const val CHANNEL_ACCESS_DENIED = "채널에 접근할 권한이 없습니다."
         const val MANAGER_DENIED = "채널 설정을 관리할 권한이 없습니다."

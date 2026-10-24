@@ -11,6 +11,7 @@ class ChannelLifecycleService(
     private val projectionRepository: ChannelLifecycleProjectionRepository,
     private val policyRepository: ChannelRolePolicyRepository,
     private val outboxRepository: PreferenceOutboxRepository,
+    private val initialAccess: InitialResourceAccessService,
 ) {
     /**
      * 채널 삭제 fence 반영과 역할 정책 정리를 호출자의 transaction 안에서 함께 적용한다. projection row 갱신이
@@ -18,6 +19,11 @@ class ChannelLifecycleService(
      */
     internal suspend fun apply(client: SqlClient, event: ChannelLifecycleEvent) {
         val applied = projectionRepository.apply(client, event)
+        if (event.deleted || event.initialRolePolicySeed != null) {
+            projectionRepository.findForUpdate(client, event.channelId)?.let { current ->
+                initialAccess.channel(client, event, current)
+            }
+        }
         if (!applied || !event.deleted) return
         val teamId = event.teamId ?: return
         val tombstones = policyRepository.findPoliciesByChannel(client, teamId, event.channelId).map { policy ->
