@@ -277,6 +277,29 @@ class ChannelMessageReadPolicyEvaluatorTest {
     }
 
     @Test
+    fun `재정렬 대상 중 생성한 채널은 허용하고 다른 채널은 재정렬 권한을 검사한다`() {
+        val ownChannel = channel(1L, ChannelType.TEXT, createdBy = 7L)
+        val otherChannel = channel(2L, ChannelType.TEXT)
+        stubMemberWithRoles(listOf(role(1L, 10)), emptyList(), channelIds = setOf(2L))
+
+        evaluator.requireReorder(10L, 7L, listOf(ownChannel))
+        assertThrows(ExpectedException::class.java) {
+            evaluator.requireReorder(10L, 7L, listOf(ownChannel, otherChannel))
+        }
+
+        stubMemberWithRoles(
+            listOf(role(1L, 10).apply { permissionsJson = """{"channel_reorder":true}""" }),
+            emptyList(),
+            channelIds = setOf(2L),
+        )
+        evaluator.requireReorder(10L, 7L, listOf(ownChannel, otherChannel))
+
+        verify(exactly = 0) {
+            policyRepository.findAllByTeamIdAndChannelIdInAndRoleIdInAndDeletedFalse(10L, match { 1L in it }, any())
+        }
+    }
+
+    @Test
     fun `팀 관리자는 별도 재정렬 정책 없이 순서를 바꿀 수 있다`() {
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns membership("ADMIN")
         evaluator.requireReorder(10L, 7L, listOf(channel(1L, ChannelType.TEXT)))
@@ -325,14 +348,14 @@ class ChannelMessageReadPolicyEvaluatorTest {
         sourceOccurredAt = version,
     )
 
-    private fun channel(channelId: Long, type: ChannelType) = Channel(
+    private fun channel(channelId: Long, type: ChannelType, createdBy: Long = 1L) = Channel(
         id = channelId,
         teamId = 10L,
         name = "channel",
         type = type,
         viewType = if (type == ChannelType.VOICE) ChannelViewType.VOICE else ChannelViewType.TEXT,
         description = null,
-        createdBy = 1L,
+        createdBy = createdBy,
     )
 
     private fun policy(channelId: Long, roleId: Long, messageRead: Boolean? = null, voiceConnect: Boolean? = null) =
