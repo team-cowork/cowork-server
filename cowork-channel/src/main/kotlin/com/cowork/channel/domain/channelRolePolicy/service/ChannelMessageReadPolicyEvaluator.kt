@@ -55,6 +55,18 @@ class ChannelMessageReadPolicyEvaluator(
         }
     }
 
+    fun requireReorder(teamId: Long, userId: Long, channels: List<Channel>) {
+        projectionReadinessGate.requireReady()
+        val membership = membershipRepository.findByTeamIdAndUserId(teamId, userId)
+            ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
+        if (membership.role in setOf(OWNER_ROLE, "ADMIN")) return
+        val candidates = channels.filter { it.createdBy != userId }
+        val allowed = readableChannelIds(teamId, userId, candidates, "channel_reorder")
+        if (candidates.any { it.id !in allowed }) {
+            throw ExpectedException("채널 재정렬 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        }
+    }
+
     private fun readableChannelIds(
         teamId: Long,
         userId: Long,

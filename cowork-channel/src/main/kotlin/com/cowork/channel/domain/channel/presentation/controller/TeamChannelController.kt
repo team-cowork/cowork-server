@@ -39,13 +39,13 @@ class TeamChannelController(
 
     @Operation(
         summary = "팀 채널 순서 변경",
-        description = "요청자가 현재 조회 가능한 채널 ID만 모두 전달하며, 조회할 수 없는 채널의 위치는 유지합니다.",
+        description = "조회 가능한 모든 채널 ID를 전달합니다. 위치가 바뀌는 채널마다 관리 또는 channel_reorder 권한이 필요합니다. 숨겨진 채널의 위치는 유지합니다.",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "변경 성공"),
         ApiResponse(responseCode = "400", description = "유효하지 않은 채널 순서"),
-        ApiResponse(responseCode = "403", description = "해당 팀의 멤버가 아님"),
+        ApiResponse(responseCode = "403", description = "팀 멤버가 아니거나 재정렬 권한이 없음"),
     )
     @PatchMapping("/{teamId}/channels/reorder")
     fun reorderTeamChannels(

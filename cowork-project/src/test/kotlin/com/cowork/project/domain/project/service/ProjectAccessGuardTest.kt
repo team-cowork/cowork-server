@@ -61,7 +61,7 @@ class ProjectAccessGuardTest : DescribeSpec({
                 TeamMembership(teamId = 2L, userId = 23L, role = "OWNER"),
             )
             guard.permissionsForUsers(project, memberships) shouldBe mapOf(
-                10L to ProjectAccessGuard.Permissions(true, true),
+                10L to ProjectAccessGuard.Permissions(true, true, true),
                 20L to ProjectAccessGuard.Permissions(true, false),
                 21L to ProjectAccessGuard.Permissions(false, false),
             )
@@ -73,6 +73,14 @@ class ProjectAccessGuardTest : DescribeSpec({
             val permissions = guard.permissionsForProjects(listOf(project, hidden), 20L, "MEMBER")
             permissions.getValue(3L).read shouldBe true
             permissions.getValue(4L).read shouldBe false
+        }
+        it("재정렬 권한은 프로젝트 수정 권한을 주지 않는다") {
+            every { access.findAllByUserIdAndProjectIdIn(20L, listOf(3L)) } returns
+                listOf(ProjectAccessProjection("3:20", 3L, 20L, true, false, Instant.now(), canReorder = true))
+            val permissions = guard.permissionsForProjects(listOf(project), 20L, "MEMBER").getValue(3L)
+            permissions.read shouldBe true
+            permissions.reorder shouldBe true
+            permissions.write shouldBe false
         }
         it("팀 OWNER는 프로젝트를 관리할 수 있다") {
             every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns TeamMembership(teamId = 1L, userId = 20L, role = "OWNER")
