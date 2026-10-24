@@ -23,6 +23,7 @@ export class ProjectPermissionProjectionRepository {
         canWrite: boolean,
         occurredAt: Date,
         sourceVersion: mongo.Long,
+        // TODO(#596): 구버전 이벤트 재생·rollback 종료 후 호출자가 stamp를 필수 전달하도록 이 인자 기본값만 제거한다.
         sourceMembershipVersion: mongo.Long = mongo.Long.ZERO,
     ): Promise<void> {
         const newer = {$gt: [sourceVersion, projectionSourceVersion]};

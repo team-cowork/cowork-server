@@ -15,6 +15,7 @@ export type TeamRoleProjectionView = {
     teamId: number;
     roleId: number;
     priority: number;
+    // TODO(#596): Mongo 역할 문서의 isDefault 보강과 구버전 rollback 종료 후 조회 필드를 필수로 전환한다.
     isDefault?: boolean;
     permissions?: Record<string, boolean>;
 };
@@ -55,6 +56,7 @@ export class TeamRoleProjectionRepository {
         roleId: number;
         name: string;
         priority: number;
+        // TODO(#596): 구버전 outbox·Kafka 보존 레코드 갱신과 rollback 종료 후 입력 누락·false 대체를 제거한다.
         isDefault?: boolean;
         permissions: Record<string, boolean>;
     }): Promise<boolean> {
