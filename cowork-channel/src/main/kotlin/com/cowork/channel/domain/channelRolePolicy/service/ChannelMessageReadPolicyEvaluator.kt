@@ -140,9 +140,7 @@ class ChannelMessageReadPolicyEvaluator(
         policyRepository.findAllByTeamIdAndChannelIdInAndRoleIdInAndDeletedFalse(teamId, channelIds, roleIds)
             .groupBy { it.channelId }.mapValues { (_, policies) ->
                 policies.associate { policy ->
-                    // TODO: 임시 호환 처리. 기존 정책 projection의 messageRead를 permissionsJson으로 이전한 뒤 제거한다.
-                    val legacy = policy.messageRead?.let { mapOf("message_read" to it) }.orEmpty()
-                    policy.roleId to (legacy + permissions(policy.permissionsJson))
+                    policy.roleId to permissions(policy.permissionsJson)
                 }
             }
     }
