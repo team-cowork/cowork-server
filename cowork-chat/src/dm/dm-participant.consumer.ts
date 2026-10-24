@@ -7,7 +7,7 @@ import {
 import {ConfigService} from '@nestjs/config';
 import {Kafka, Consumer} from 'kafkajs';
 import {InjectModel} from '@nestjs/mongoose';
-import {Model, Types} from 'mongoose';
+import {Model} from 'mongoose';
 import {Server} from 'socket.io';
 import {DmParticipant} from '../chat/schema/dm-participant.schema';
 import {getRequiredCsvConfig} from '../common/config/config.util';
@@ -105,12 +105,6 @@ export class DmParticipantConsumer implements OnModuleInit, OnModuleDestroy {
 
         const {occurredAt, sourceVersion} = eventTime;
         const {eventType, channelId, teamId, userId, role, channelType} = event;
-        // Preserve chat-owned preferences when bootstrapping the DM-only projection.
-        const legacy = await this.memberModel.db.collection<{isHidden?: boolean; lastReadMessageId?: Types.ObjectId | null}>('channelmembers').findOne(
-            {channelId, userId, channelType: 'DM'},
-            {projection: {isHidden: 1, lastReadMessageId: 1}},
-        );
-
         try {
             if (eventType === 'JOIN') {
                 const applyCondition = activeProjectionCondition(sourceVersion);
@@ -131,8 +125,8 @@ export class DmParticipantConsumer implements OnModuleInit, OnModuleDestroy {
                                     {$ifNull: ['$channelType', 'TEXT']},
                                 ],
                             },
-                            isHidden: {$ifNull: ['$isHidden', legacy?.isHidden === true]},
-                            lastReadMessageId: {$ifNull: ['$lastReadMessageId', {$literal: legacy?.lastReadMessageId ?? null}]},
+                            isHidden: {$ifNull: ['$isHidden', false]},
+                            lastReadMessageId: {$ifNull: ['$lastReadMessageId', null]},
                             deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
                             sourceOccurredAt: {
                                 $cond: [
@@ -165,8 +159,8 @@ export class DmParticipantConsumer implements OnModuleInit, OnModuleDestroy {
                             teamId: {$ifNull: ['$teamId', {$literal: teamId ?? null}]},
                             role: {$ifNull: ['$role', {$literal: role}]},
                             channelType: {$ifNull: ['$channelType', {$literal: channelType}]},
-                            isHidden: {$ifNull: ['$isHidden', legacy?.isHidden === true]},
-                            lastReadMessageId: {$ifNull: ['$lastReadMessageId', {$literal: legacy?.lastReadMessageId ?? null}]},
+                            isHidden: {$ifNull: ['$isHidden', false]},
+                            lastReadMessageId: {$ifNull: ['$lastReadMessageId', null]},
                             deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
                             sourceOccurredAt: {
                                 $cond: [
