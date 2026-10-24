@@ -14,11 +14,12 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
         findPolicy(pool, teamId, channelId, roleId)
 
     /** 역할 기본 권한에 채널 값을 덮어쓴 뒤 최고 우선순위를 평가한다. 동순위 충돌은 거부한다. */
-    suspend fun canAccess(teamId: Long, accountId: Long, channelId: Long, permission: String): Boolean {
+    suspend fun canAccess(teamId: Long, accountId: Long, channelId: Long, permission: String, isPrivate: Boolean): Boolean {
         val rows = pool.preparedQuery(
             """
             WITH applicable AS (
-                SELECT d.priority, COALESCE((p.permissions ->> ${'$'}4)::boolean, (d.permissions ->> ${'$'}4)::boolean, false) AS allowed
+                SELECT d.priority, COALESCE((p.permissions ->> ${'$'}4)::boolean,
+                    CASE WHEN ${'$'}5 THEN false ELSE (d.permissions ->> ${'$'}4)::boolean END, false) AS allowed
                 FROM tb_account_team_roles a
                 JOIN tb_team_role_definitions d ON d.id = a.role_id AND d.team_id = a.team_id
                 LEFT JOIN tb_channel_role_policies p ON p.team_id = a.team_id AND p.role_id = a.role_id AND p.channel_id = ${'$'}3
@@ -27,7 +28,7 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
             SELECT COALESCE((SELECT bool_and(allowed) FROM applicable
                 WHERE priority = (SELECT max(priority) FROM applicable)), false) AS allowed
             """.trimIndent(),
-        ).execute(Tuple.of(accountId, teamId, channelId, permission)).coAwait()
+        ).execute(Tuple.of(accountId, teamId, channelId, permission, isPrivate)).coAwait()
         return rows.first().getBoolean("allowed")
     }
 
