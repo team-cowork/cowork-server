@@ -19,4 +19,13 @@ class TeamPermissionGuard(private val members: TeamMemberRepository, private val
         }
         return member
     }
+
+    fun requireLowerMemberPriority(teamId: Long, actor: TeamMember, target: TeamMember) {
+        if (actor.role == TeamRole.OWNER || actor.role == TeamRole.ADMIN) return
+        val actorPriority = roles.getMemberRoles(teamId, actor.userId).maxOfOrNull { it.priority } ?: Int.MIN_VALUE
+        val targetPriority = roles.getMemberRoles(teamId, target.userId).maxOfOrNull { it.priority } ?: Int.MIN_VALUE
+        if (targetPriority >= actorPriority) {
+            throw ExpectedException("자신보다 높거나 같은 역할의 멤버는 제거할 수 없습니다.", HttpStatus.FORBIDDEN)
+        }
+    }
 }
