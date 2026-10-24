@@ -139,5 +139,16 @@ class KafkaConsumerConfig(
     )
 
     @Bean
+    fun preferenceTeamSettingListenerContainerFactory() = projectionListenerContainerFactory(
+        ProjectionAssignmentCoordinator(
+            streams.teamSetting,
+            checkpointStore,
+            readinessState,
+            topicIdentityProvider,
+            topicGenerations,
+        ),
+    )
+
+    @Bean
     fun teamRoleCommandResultListenerContainerFactory() = durableResultListenerContainerFactory()
 }

@@ -9,6 +9,7 @@ export class TeamMemberProjection {
     @Prop({required: true}) userId!: number;
     @Prop({required: true, default: ''}) role!: string;
     @Prop({required: true, default: ''}) teamName!: string;
+    @Prop({type: String, default: null}) nickname!: string | null;
     @Prop({required: true, default: false}) deleted!: boolean;
     @Prop({required: true, type: Date}) sourceOccurredAt!: Date;
     @Prop({required: true}) sourceVersion!: bigint;

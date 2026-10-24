@@ -150,6 +150,19 @@ class TeamRoleRepository(private val pool: Pool) {
         return rows.map { it.toAccountTeamRole() }
     }
 
+    internal suspend fun findAccountRoles(client: SqlClient, teamId: Long, accountId: Long): List<TeamRoleDefinition> {
+        val rows = client.preparedQuery(
+            """
+            SELECT d.id, d.team_id, d.name, d.color_hex, d.priority, d.mentionable, d.permissions,
+                   d.created_at, d.updated_at
+            FROM tb_account_team_roles a
+            JOIN tb_team_role_definitions d ON d.team_id = a.team_id AND d.id = a.role_id
+            WHERE a.team_id = ${'$'}1 AND a.account_id = ${'$'}2
+            """.trimIndent(),
+        ).execute(Tuple.of(teamId, accountId)).coAwait()
+        return rows.map { it.toTeamRoleDefinition() }
+    }
+
     suspend fun findAssignment(accountId: Long, teamId: Long, roleId: Long): AccountTeamRole? =
         findAssignment(pool, accountId, teamId, roleId)
 

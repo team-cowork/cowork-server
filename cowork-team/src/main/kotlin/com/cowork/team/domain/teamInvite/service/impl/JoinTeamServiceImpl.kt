@@ -2,6 +2,7 @@ package com.cowork.team.domain.teamInvite.service.impl
 
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.presentation.data.response.JoinTeamResponse
+import com.cowork.team.domain.team.projection.TeamSettingProjectionReader
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
 import com.cowork.team.domain.teamInvite.service.JoinTeamService
@@ -18,6 +19,7 @@ class JoinTeamServiceImpl(
     private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
     private val teamMemberEventPublisher: TeamMemberEventPublisher,
+    private val teamSettingProjectionReader: TeamSettingProjectionReader,
 ) : JoinTeamService {
 
     @Transactional
@@ -36,6 +38,8 @@ class JoinTeamServiceImpl(
             throw ExpectedException("이미 팀 멤버입니다.", HttpStatus.CONFLICT)
         }
 
+        val nicknameFormat = teamSettingProjectionReader.getNicknameFormat(teamId)
+
         val member = teamMemberRepository.save(TeamMember(team = team, userId = userId))
         teamMemberEventPublisher.publishUpsert(member)
 
@@ -44,6 +48,8 @@ class JoinTeamServiceImpl(
             userId = userId,
             role = member.role.name,
             joinedAt = requireNotNull(member.joinedAt),
+            nicknameFormatEnforced = nicknameFormat.enforced,
+            nicknameFormatExample = nicknameFormat.example,
         )
     }
 }
