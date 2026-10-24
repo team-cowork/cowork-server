@@ -2,7 +2,7 @@
 
 ## Repository-specific behavior
 
-Production release PRs usually merge `develop` into `main` and use a version title. Confirm this against the live PR and workflow on each run. Resolve tags through the commit API rather than treating a release's `target_commitish` as an immutable SHA; older releases can store a branch name there.
+Production release PRs usually merge `develop` into `main` and use a version title. Confirm this against the live PR and workflow on each run. Resolve tags through the commit API rather than treating a release's `target_commitish` as an immutable SHA; older releases can store a branch name there. Current release tags are annotated reservation tags on the CI-validated source commit, which is the release PR's merge commit on `main`, not the later module-version push commit; `commits/TAG` dereferences them to that commit, which is what the collector compares with the current release PR's merge SHA.
 
 An observed example explains why release PRs and published releases must be distinguished: `v20260903.0` was created for PR #326, while the immediately preceding release PR was #313 (`v20260828.0`). The generated notes compared against the older published release `v20260818.0`. For a request for changes since the previous release PR, the boundary was therefore #313 to #326. These numbers are historical examples, not defaults for future runs.
 
