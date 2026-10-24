@@ -64,7 +64,7 @@ private class ChannelGuardFixture {
     }
 
     fun messageRead(allowed: Boolean) {
-        coEvery { policyRepository.canAccess(TEAM_ID, USER_ID, CHANNEL_ID, "message_read") } returns allowed
+        coEvery { policyRepository.canAccess(TEAM_ID, USER_ID, CHANNEL_ID, "message_read", any()) } returns allowed
     }
 
     fun access() = runBlocking { guard.requireChannelAccess(CHANNEL_ID, USER_ID) }
@@ -95,11 +95,25 @@ class ChannelAccessGuardTest :
                         fixture.ready()
                         fixture.channel(type = "VOICE")
                         fixture.teamMember()
-                        coEvery { fixture.policyRepository.canAccess(TEAM_ID, USER_ID, CHANNEL_ID, "voice_connect") } returns true
+                        coEvery { fixture.policyRepository.canAccess(TEAM_ID, USER_ID, CHANNEL_ID, "voice_connect", false) } returns true
                         shouldNotThrowAny { fixture.access() }
-                        coEvery { fixture.policyRepository.canAccess(TEAM_ID, USER_ID, CHANNEL_ID, "voice_connect") } returns false
+                        coEvery { fixture.policyRepository.canAccess(TEAM_ID, USER_ID, CHANNEL_ID, "voice_connect", false) } returns false
                         shouldThrow<ResourceAccessDeniedException> { fixture.access() }
-                        coVerify(exactly = 0) { fixture.policyRepository.canAccess(any(), any(), any(), "message_read") }
+                        coVerify(exactly = 0) { fixture.policyRepository.canAccess(any(), any(), any(), "message_read", any()) }
+                    }
+                }
+
+                context("비공개이거나 공개 여부를 모르는 채널이면") {
+                    it("채널에 명시한 접근 정책을 요구한다") {
+                        fixture.ready()
+                        fixture.teamMember()
+                        listOf(true, null).forEach { isPrivate ->
+                            fixture.channel(isPrivate = isPrivate)
+                            coEvery { fixture.policyRepository.canAccess(TEAM_ID, USER_ID, CHANNEL_ID, "message_read", true) } returns false
+                            shouldThrow<ResourceAccessDeniedException> { fixture.access() }
+                            coEvery { fixture.policyRepository.canAccess(TEAM_ID, USER_ID, CHANNEL_ID, "message_read", true) } returns true
+                            shouldNotThrowAny { fixture.access() }
+                        }
                     }
                 }
 
@@ -121,7 +135,7 @@ class ChannelAccessGuardTest :
 
                         shouldNotThrowAny { fixture.access() }
 
-                        coVerify(exactly = 0) { fixture.policyRepository.canAccess(any(), any(), any(), any()) }
+                        coVerify(exactly = 0) { fixture.policyRepository.canAccess(any(), any(), any(), any(), any()) }
                     }
                 }
 
