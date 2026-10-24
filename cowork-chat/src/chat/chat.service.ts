@@ -43,6 +43,7 @@ import {
     ChannelClient,
     UserClient,
     UnreadCounterService,
+    type ChannelActionPermission,
     ChannelMessageReadAccessService,
     RoomSocket,
     resolveMessageScope,
@@ -304,7 +305,12 @@ export class ChatService {
      @param dto - 메시지 내용, 타입, 첨부파일 등
      */
     async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
-        await this.channelMessageReadAccess.requireCanSend(ctx.channelId, ctx.userId);
+        const permissions: ChannelActionPermission[] = [
+            'message_send',
+            ...(dto.parentMessageId !== undefined && dto.parentMessageId !== '' ? ['thread_reply' as const] : []),
+            ...((dto.attachments?.length ?? 0) > 0 ? ['file_attach' as const] : []),
+        ];
+        await this.channelMessageReadAccess.requirePermissions(ctx.channelId, ctx.userId, permissions);
         const channel = await this.channelProjectionRepository.findById(ctx.channelId);
         if (!channel) {
             throw new NotFoundException('채널을 찾을 수 없습니다');
@@ -316,15 +322,10 @@ export class ChatService {
         }
 
         if (dto.parentMessageId !== undefined && dto.parentMessageId !== '') {
-            await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'thread_reply');
             const parent = await this.messageRepository.findByIdAndChannelId(dto.parentMessageId, ctx.channelId);
             if (!parent) {
                 throw new NotFoundException('답장 대상 메시지를 찾을 수 없습니다');
             }
-        }
-
-        if ((dto.attachments?.length ?? 0) > 0) {
-            await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'file_attach');
         }
 
         if (channel.type === DM_CHANNEL_TYPE) {
