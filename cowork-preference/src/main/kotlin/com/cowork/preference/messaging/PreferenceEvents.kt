@@ -18,6 +18,7 @@ data class PreferenceEvent(
 
 object PreferenceEvents {
     const val CHANNEL_NOTIFICATION_TOPIC = "preference.channel-notification.changed"
+    const val PROJECT_ACCESS_STATE_TOPIC = "preference.project-access.state.v1"
     const val TEAM_ROLE_TOPIC = "preference.team-role.state.v2"
     const val TEAM_ROLE_COMMAND_TOPIC = "preference.team-role.command.v2"
     const val TEAM_ROLE_COMMAND_RESULT_TOPIC = "preference.team-role.result.v2"
@@ -30,6 +31,7 @@ object PreferenceEvents {
     const val STATUS_CHANGED_TOPIC = "preference.status.changed"
     const val TEAM_SETTING_CHANGED_TOPIC = "preference.team.setting.changed"
     val OUTBOX_TOPICS = setOf(
+        PROJECT_ACCESS_STATE_TOPIC,
         CHANNEL_NOTIFICATION_TOPIC,
         TEAM_ROLE_TOPIC,
         TEAM_ROLE_COMMAND_RESULT_TOPIC,
@@ -46,7 +48,8 @@ object PreferenceEvents {
 
     fun snapshotCompleted(topic: String, partition: Int, snapshotId: String, occurredAt: Instant): PreferenceEvent {
         require(
-            topic == CHANNEL_NOTIFICATION_TOPIC ||
+            topic == PROJECT_ACCESS_STATE_TOPIC ||
+                topic == CHANNEL_NOTIFICATION_TOPIC ||
                 topic == TEAM_ROLE_TOPIC ||
                 topic == GITHUB_REPO_SETTING_STATE_TOPIC ||
                 topic == CHANNEL_ROLE_POLICY_STATE_TOPIC,

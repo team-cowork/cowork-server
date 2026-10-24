@@ -38,25 +38,20 @@ class ChannelRolePolicyProjection(
     @Column(name = "permissions_json", columnDefinition = "JSON")
     var permissionsJson: String? = null,
 
-    @Column(name = "message_read")
-    var messageRead: Boolean? = null,
-
     @Column(nullable = false)
     var deleted: Boolean = false,
 
     @Column(name = "source_occurred_at", nullable = false)
     var sourceOccurredAt: Instant,
 ) {
-    fun applyUpsert(permissionsJson: String, messageRead: Boolean?, occurredAt: Instant) {
+    fun applyUpsert(permissionsJson: String, occurredAt: Instant) {
         this.permissionsJson = permissionsJson
-        this.messageRead = messageRead
         deleted = false
         sourceOccurredAt = occurredAt
     }
 
     fun markDeleted(occurredAt: Instant) {
         permissionsJson = null
-        messageRead = null
         deleted = true
         sourceOccurredAt = occurredAt
     }

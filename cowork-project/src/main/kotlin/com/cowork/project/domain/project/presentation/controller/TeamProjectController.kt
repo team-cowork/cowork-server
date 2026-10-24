@@ -21,11 +21,15 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/teams")
 class TeamProjectController(private val reorderTeamProjectsService: ReorderTeamProjectsService) {
 
-    @Operation(summary = "팀 프로젝트 순서 변경", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(
+        summary = "팀 프로젝트 순서 변경",
+        description = "조회 가능한 모든 프로젝트 ID를 전달합니다. 위치가 바뀌는 프로젝트마다 관리 또는 reorder 권한이 필요합니다. 숨겨진 프로젝트의 위치는 유지합니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "변경 성공"),
         ApiResponse(responseCode = "400", description = "유효하지 않은 프로젝트 순서"),
-        ApiResponse(responseCode = "403", description = "해당 팀의 멤버가 아님"),
+        ApiResponse(responseCode = "403", description = "팀 멤버가 아니거나 재정렬 권한이 없음"),
     )
     @PatchMapping("/{teamId}/projects/reorder")
     fun reorderTeamProjects(

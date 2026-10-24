@@ -4,7 +4,7 @@ import com.cowork.preference.domain.ChannelLifecycleProjection
 import com.cowork.preference.domain.TeamMemberProjection
 import com.cowork.preference.messaging.ProjectionReadinessView
 import com.cowork.preference.repository.ChannelLifecycleProjectionRepository
-import com.cowork.preference.repository.ChannelMemberProjectionRepository
+import com.cowork.preference.repository.DmParticipantProjectionRepository
 import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.security.RequesterContext
@@ -16,8 +16,8 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.vertx.sqlclient.Pool
-import kotlinx.coroutines.runBlocking
 import java.time.Instant
+import kotlinx.coroutines.runBlocking
 
 private const val CHANNEL_ID = 11L
 private const val TEAM_ID = 42L
@@ -28,7 +28,7 @@ private val VERSION = Instant.parse("2026-10-13T01:00:00Z")
 
 private class ChannelGuardFixture {
     val channelRepository = mockk<ChannelLifecycleProjectionRepository>()
-    val channelMemberRepository = mockk<ChannelMemberProjectionRepository>()
+    val dmParticipantRepository = mockk<DmParticipantProjectionRepository>()
     val teamMemberRepository = mockk<TeamMemberProjectionRepository>()
     val policyRepository = mockk<ChannelRolePolicyRepository>()
     val accessReadiness = mockk<ProjectionReadinessView>()
@@ -37,7 +37,7 @@ private class ChannelGuardFixture {
     val guard = ChannelAccessGuard(
         pool,
         channelRepository,
-        channelMemberRepository,
+        dmParticipantRepository,
         teamMemberRepository,
         policyRepository,
         accessReadiness,
@@ -49,9 +49,9 @@ private class ChannelGuardFixture {
         every { managerReadiness.isReady } returns manager
     }
 
-    fun channel(teamId: Long? = TEAM_ID, isPrivate: Boolean? = false, deleted: Boolean = false, found: Boolean = true) {
+    fun channel(teamId: Long? = TEAM_ID, isPrivate: Boolean? = false, deleted: Boolean = false, found: Boolean = true, type: String? = "TEXT") {
         coEvery { channelRepository.findForRead(pool, CHANNEL_ID) } returns
-            if (found) ChannelLifecycleProjection(CHANNEL_ID, teamId, deleted, VERSION, isPrivate) else null
+            if (found) ChannelLifecycleProjection(CHANNEL_ID, teamId, deleted, VERSION, isPrivate, type) else null
     }
 
     fun teamMember(role: String = "MEMBER", deleted: Boolean = false, found: Boolean = true) {
@@ -59,12 +59,12 @@ private class ChannelGuardFixture {
             if (found) TeamMemberProjection(TEAM_ID, USER_ID, role, deleted, VERSION) else null
     }
 
-    fun channelMember(active: Boolean) {
-        coEvery { channelMemberRepository.isActiveMember(pool, CHANNEL_ID, USER_ID) } returns active
+    fun dmParticipant(active: Boolean) {
+        coEvery { dmParticipantRepository.isActiveParticipant(pool, CHANNEL_ID, USER_ID) } returns active
     }
 
     fun messageRead(allowed: Boolean) {
-        coEvery { policyRepository.canReadMessages(TEAM_ID, USER_ID, CHANNEL_ID) } returns allowed
+        coEvery { policyRepository.canAccess(TEAM_ID, USER_ID, CHANNEL_ID, "message_read", any()) } returns allowed
     }
 
     fun access() = runBlocking { guard.requireChannelAccess(CHANNEL_ID, USER_ID) }
@@ -79,27 +79,64 @@ class ChannelAccessGuardTest :
         describe("ChannelAccessGuard 클래스의") {
             describe("requireChannelAccess 메서드는") {
                 context("공개 팀 채널이고 팀 멤버이며 역할 정책이 메시지 읽기를 허용하면") {
-                    it("채널 멤버가 아니어도 통과한다") {
+                    it("DM 참여자를 조회하지 않고 통과한다") {
                         fixture.ready()
                         fixture.channel(isPrivate = false)
-                        fixture.channelMember(false)
                         fixture.teamMember()
                         fixture.messageRead(true)
 
                         shouldNotThrowAny { fixture.access() }
+                        coVerify(exactly = 0) { fixture.dmParticipantRepository.isActiveParticipant(any(), any(), any()) }
+                    }
+                }
+
+                context("음성 채널이면") {
+                    it("message_read 대신 voice_connect로 접근을 허용하고 회수한다") {
+                        fixture.ready()
+                        fixture.channel(type = "VOICE")
+                        fixture.teamMember()
+                        coEvery { fixture.policyRepository.canAccess(TEAM_ID, USER_ID, CHANNEL_ID, "voice_connect", false) } returns true
+                        shouldNotThrowAny { fixture.access() }
+                        coEvery { fixture.policyRepository.canAccess(TEAM_ID, USER_ID, CHANNEL_ID, "voice_connect", false) } returns false
+                        shouldThrow<ResourceAccessDeniedException> { fixture.access() }
+                        coVerify(exactly = 0) { fixture.policyRepository.canAccess(any(), any(), any(), "message_read", any()) }
+                    }
+                }
+
+                context("비공개이거나 공개 여부를 모르는 채널이면") {
+                    it("채널에 명시한 접근 정책을 요구한다") {
+                        fixture.ready()
+                        fixture.teamMember()
+                        listOf(true, null).forEach { isPrivate ->
+                            fixture.channel(isPrivate = isPrivate)
+                            coEvery { fixture.policyRepository.canAccess(TEAM_ID, USER_ID, CHANNEL_ID, "message_read", true) } returns false
+                            shouldThrow<ResourceAccessDeniedException> { fixture.access() }
+                            coEvery { fixture.policyRepository.canAccess(TEAM_ID, USER_ID, CHANNEL_ID, "message_read", true) } returns true
+                            shouldNotThrowAny { fixture.access() }
+                        }
+                    }
+                }
+
+                context("팀 채널 종류가 아직 반영되지 않았으면") {
+                    it("텍스트 채널로 추측하지 않고 준비되지 않음으로 처리한다") {
+                        fixture.ready()
+                        fixture.channel(type = null)
+                        fixture.teamMember()
+                        shouldThrow<ProjectionNotReadyException> { fixture.access() }
                     }
                 }
 
                 context("팀 OWNER이면") {
-                    it("역할 정책을 조회하지 않고 통과한다") {
+                    it("공개 여부와 무관하게 역할 정책을 조회하지 않고 통과한다") {
                         fixture.ready()
-                        fixture.channel(isPrivate = false)
-                        fixture.channelMember(false)
                         fixture.teamMember(role = "OWNER")
 
-                        shouldNotThrowAny { fixture.access() }
+                        listOf(true, false, null).forEach { isPrivate ->
+                            fixture.channel(isPrivate = isPrivate)
+                            shouldNotThrowAny { fixture.access() }
+                        }
 
-                        coVerify(exactly = 0) { fixture.policyRepository.canReadMessages(any(), any(), any()) }
+                        coVerify(exactly = 0) { fixture.policyRepository.canAccess(any(), any(), any(), any(), any()) }
                     }
                 }
 
@@ -107,7 +144,6 @@ class ChannelAccessGuardTest :
                     it("팀 멤버여도 거부한다") {
                         fixture.ready()
                         fixture.channel(isPrivate = false)
-                        fixture.channelMember(false)
                         fixture.teamMember(role = "ADMIN")
                         fixture.messageRead(false)
 
@@ -116,10 +152,9 @@ class ChannelAccessGuardTest :
                 }
 
                 context("팀 멤버가 아니거나 탈퇴한 멤버이면") {
-                    it("채널 멤버여도 거부한다") {
+                    it("채널 접근을 거부한다") {
                         fixture.ready()
                         fixture.channel(isPrivate = false)
-                        fixture.channelMember(true)
 
                         listOf({ fixture.teamMember(found = false) }, { fixture.teamMember(deleted = true) })
                             .forEach { stub ->
@@ -130,69 +165,15 @@ class ChannelAccessGuardTest :
                     }
                 }
 
-                context("팀 멤버이지만 채널 멤버가 아닌 경우") {
-                    it("비공개 채널이면 거부한다") {
-                        fixture.ready()
-                        fixture.channel(isPrivate = true)
-                        fixture.teamMember(role = "OWNER")
-                        fixture.channelMember(false)
-
-                        shouldThrow<ResourceAccessDeniedException> { fixture.access() }
-                    }
-
-                    it("공개 채널이면 역할 정책 확인으로 넘어가 통과한다") {
-                        fixture.ready()
-                        fixture.channel(isPrivate = false)
-                        fixture.teamMember()
-                        fixture.channelMember(false)
-                        fixture.messageRead(true)
-
-                        shouldNotThrowAny { fixture.access() }
-                    }
-
-                    it("공개 여부를 아직 알 수 없으면 공개로 가정하지 않고 준비 안 됨 예외를 던진다") {
-                        fixture.ready()
-                        fixture.channel(isPrivate = null)
-                        fixture.teamMember(role = "OWNER")
-                        fixture.channelMember(false)
-
-                        shouldThrow<ProjectionNotReadyException> { fixture.access() }
-                    }
-                }
-
-                context("팀 멤버이면서 채널 멤버이면") {
-                    it("공개 여부가 true·false·null이어도 비공개 멤버십 단계를 통과한다") {
-                        fixture.ready()
-                        fixture.teamMember(role = "OWNER")
-                        fixture.channelMember(true)
-
-                        listOf(true, false, null).forEach { isPrivate ->
-                            fixture.channel(isPrivate = isPrivate)
-
-                            shouldNotThrowAny { fixture.access() }
-                        }
-                    }
-
-                    it("공개 여부가 null이어도 역할 정책이 거부하면 거부한다") {
-                        fixture.ready()
-                        fixture.channel(isPrivate = null)
-                        fixture.teamMember(role = "ADMIN")
-                        fixture.channelMember(true)
-                        fixture.messageRead(false)
-
-                        shouldThrow<ResourceAccessDeniedException> { fixture.access() }
-                    }
-                }
-
                 context("DM 채널이면") {
-                    it("팀 멤버십을 보지 않고 채널 멤버일 때만 통과한다") {
+                    it("팀 멤버십을 보지 않고 DM 참여자일 때만 통과한다") {
                         fixture.ready()
                         fixture.channel(teamId = null)
 
-                        fixture.channelMember(false)
+                        fixture.dmParticipant(false)
                         shouldThrow<ResourceAccessDeniedException> { fixture.access() }
 
-                        fixture.channelMember(true)
+                        fixture.dmParticipant(true)
                         shouldNotThrowAny { fixture.access() }
 
                         coVerify(exactly = 0) { fixture.teamMemberRepository.findForRead(any(), any(), any()) }
@@ -210,7 +191,7 @@ class ChannelAccessGuardTest :
                                 shouldThrow<ResourceAccessDeniedException> { fixture.access() }
                             }
 
-                        coVerify(exactly = 0) { fixture.channelMemberRepository.isActiveMember(any(), any(), any()) }
+                        coVerify(exactly = 0) { fixture.dmParticipantRepository.isActiveParticipant(any(), any(), any()) }
                     }
                 }
 

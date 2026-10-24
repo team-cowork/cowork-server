@@ -1,5 +1,11 @@
-import {Injectable} from '@nestjs/common';
-import {ProjectGithubRepoProjectionRepository, ProjectMemberProjectionRepository} from '../repository';
+import {Injectable, ServiceUnavailableException} from '@nestjs/common';
+import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
+import {
+    ProjectGithubRepoProjectionRepository,
+    ProjectPermissionProjectionRepository,
+    ProjectProjectionRepository,
+    TeamMemberProjectionRepository,
+} from '../repository';
 
 /**
 GitHub 저장소 이벤트를 게시할 대상(팀/프로젝트/알림 채널) 정보.
@@ -11,20 +17,36 @@ export type GithubWebhookTarget = {
 };
 
 /**
-Kafka로 동기화된 프로젝트 멤버십·GitHub 저장소 projection 조회기.
+Kafka로 동기화된 프로젝트 권한·GitHub 저장소 projection 조회기.
 */
 @Injectable()
 export class ProjectClient {
     constructor(
-        private readonly memberRepository: ProjectMemberProjectionRepository,
+        private readonly permissionRepository: ProjectPermissionProjectionRepository,
         private readonly repoRepository: ProjectGithubRepoProjectionRepository,
+        private readonly projectRepository: ProjectProjectionRepository,
+        private readonly teamMemberRepository: TeamMemberProjectionRepository,
+        private readonly projectionReadiness: ProjectionReadinessService,
     ) {}
 
-    /**
-    Projection에 멤버십이 없으면 권한을 부여하지 않는다.
-    */
-    async isMember(projectId: number, userId: number): Promise<boolean> {
-        return this.memberRepository.exists(projectId, userId);
+    async canRead(projectId: number, userId: number): Promise<boolean> {
+        if (!this.projectionReadiness.isReady()) {
+            throw new ServiceUnavailableException('권한 정보가 아직 동기화되지 않았습니다');
+        }
+
+        const project = await this.projectRepository.findById(projectId);
+        if (!project) {
+            return false;
+        }
+
+        const members = await this.teamMemberRepository.findByTeamIdsAndUserIds([project.teamId], [userId]);
+        const member = members.at(0);
+        if (!member) {
+            return false;
+        }
+
+        return project.createdBy === userId || member.role === 'OWNER' || member.role === 'ADMIN'
+            || this.permissionRepository.canRead(projectId, userId);
     }
 
     /**
