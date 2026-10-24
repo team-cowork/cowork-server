@@ -14,11 +14,19 @@ var ErrTopicGenerationMismatch = errors.New(
 )
 
 type Store interface {
-	UpsertChannelNotification(ctx context.Context, accountID, channelID int64, enabled bool, occurredAt time.Time) error
+	UpsertChannelNotification(
+		ctx context.Context,
+		accountID, channelID int64,
+		level string,
+		mutedUntil *time.Time,
+		occurredAt time.Time,
+	) error
 	UpsertUserProfile(ctx context.Context, userID int64, displayName string, occurredAt time.Time) error
 	DeleteUserProfile(ctx context.Context, userID int64, occurredAt time.Time) error
 	UpsertTeamProfile(ctx context.Context, teamID int64, teamName string, occurredAt time.Time) error
 	DeleteTeamProfile(ctx context.Context, teamID int64, occurredAt time.Time) error
+	UpsertAccountNotificationSetting(ctx context.Context, setting AccountNotificationSetting, occurredAt time.Time) error
+	UpsertTeamNotificationSetting(ctx context.Context, teamID int64, defaultLevel *string, occurredAt time.Time) error
 }
 
 type Checkpoint struct {
@@ -75,11 +83,13 @@ type AtomicStore interface {
 }
 
 type ChannelNotificationEvent struct {
-	EventType    string `json:"eventType"`
-	AccountID    int64  `json:"accountId"`
-	ChannelID    int64  `json:"channelId"`
-	Notification *bool  `json:"notification"`
-	OccurredAt   string `json:"occurredAt"`
+	EventType         string  `json:"eventType"`
+	AccountID         int64   `json:"accountId"`
+	ChannelID         int64   `json:"channelId"`
+	Notification      *bool   `json:"notification"`
+	NotificationLevel *string `json:"notificationLevel"`
+	MutedUntil        *string `json:"mutedUntil"`
+	OccurredAt        string  `json:"occurredAt"`
 }
 
 type UserProfileEvent struct {
@@ -95,6 +105,48 @@ type TeamLifecycleEvent struct {
 	TeamID     int64  `json:"teamId"`
 	TeamName   string `json:"teamName"`
 	OccurredAt string `json:"occurredAt"`
+}
+
+const settingStateSchemaVersion = 1
+
+type DoNotDisturbScheduleEvent struct {
+	Enabled *bool  `json:"enabled"`
+	Start   string `json:"start"`
+	End     string `json:"end"`
+}
+
+type AccountSettingEvent struct {
+	EventType         string                     `json:"eventType"`
+	SchemaVersion     int                        `json:"schemaVersion"`
+	AccountID         int64                      `json:"accountId"`
+	NotificationLevel *string                    `json:"notificationLevel"`
+	Status            *string                    `json:"status"`
+	StatusExpiresAt   *string                    `json:"statusExpiresAt"`
+	Timezone          *string                    `json:"timezone"`
+	DNDSchedule       *DoNotDisturbScheduleEvent `json:"dndSchedule"`
+	OccurredAt        string                     `json:"occurredAt"`
+}
+
+type TeamSettingEvent struct {
+	EventType                string  `json:"eventType"`
+	SchemaVersion            int     `json:"schemaVersion"`
+	TeamID                   int64   `json:"teamId"`
+	DefaultNotificationLevel *string `json:"defaultNotificationLevel"`
+	OccurredAt               string  `json:"occurredAt"`
+}
+
+// AccountNotificationSetting is the validated projection row of an account setting state.
+// DND minutes are counted from midnight in Timezone. Timezone is stored as published because
+// preference accepts Java zone IDs, such as offsets, that Go cannot load; readers fall back.
+type AccountNotificationSetting struct {
+	AccountID         int64
+	NotificationLevel *string
+	Status            *string
+	StatusExpiresAt   *time.Time
+	Timezone          *string
+	DNDEnabled        bool
+	DNDStartMinute    *int
+	DNDEndMinute      *int
 }
 
 type Service struct {
@@ -144,6 +196,34 @@ func (s *Service) ApplyTeamLifecycleWithCheckpoint(
 	}
 	return store.ApplyWithCheckpoint(ctx, checkpoint, func(store Store) error {
 		return NewService(store).ApplyTeamLifecycle(ctx, event)
+	})
+}
+
+func (s *Service) ApplyAccountSettingWithCheckpoint(
+	ctx context.Context,
+	event AccountSettingEvent,
+	checkpoint Checkpoint,
+) error {
+	store, err := s.atomicStore()
+	if err != nil {
+		return err
+	}
+	return store.ApplyWithCheckpoint(ctx, checkpoint, func(store Store) error {
+		return NewService(store).ApplyAccountSetting(ctx, event)
+	})
+}
+
+func (s *Service) ApplyTeamSettingWithCheckpoint(
+	ctx context.Context,
+	event TeamSettingEvent,
+	checkpoint Checkpoint,
+) error {
+	store, err := s.atomicStore()
+	if err != nil {
+		return err
+	}
+	return store.ApplyWithCheckpoint(ctx, checkpoint, func(store Store) error {
+		return NewService(store).ApplyTeamSetting(ctx, event)
 	})
 }
 
@@ -215,7 +295,100 @@ func (s *Service) ApplyChannelNotification(ctx context.Context, event ChannelNot
 	if err != nil {
 		return invalidEvent("channel notification occurredAt", event.EventType)
 	}
-	return s.store.UpsertChannelNotification(ctx, event.AccountID, event.ChannelID, *event.Notification, occurredAt)
+	level, ok := channelNotificationLevel(event)
+	if !ok {
+		return invalidEvent("channel notification notificationLevel", event.EventType)
+	}
+	var mutedUntil *time.Time
+	if event.MutedUntil != nil {
+		parsed, err := time.Parse(time.RFC3339Nano, *event.MutedUntil)
+		if err != nil {
+			return invalidEvent("channel notification mutedUntil", event.EventType)
+		}
+		parsed = parsed.UTC()
+		mutedUntil = &parsed
+	}
+	return s.store.UpsertChannelNotification(ctx, event.AccountID, event.ChannelID, level, mutedUntil, occurredAt)
+}
+
+func (s *Service) ApplyAccountSetting(ctx context.Context, event AccountSettingEvent) error {
+	if event.EventType != "UPSERT" || event.SchemaVersion != settingStateSchemaVersion || event.AccountID <= 0 {
+		return invalidEvent("account setting", event.EventType)
+	}
+	occurredAt, err := parseOccurredAt(event.OccurredAt)
+	if err != nil {
+		return invalidEvent("account setting occurredAt", event.EventType)
+	}
+	if event.NotificationLevel != nil && !isNotificationLevel(*event.NotificationLevel) {
+		return invalidEvent("account setting notificationLevel", event.EventType)
+	}
+	if event.Status != nil && *event.Status != "ONLINE" && *event.Status != "DO_NOT_DISTURB" {
+		return invalidEvent("account setting status", event.EventType)
+	}
+	setting := AccountNotificationSetting{
+		AccountID:         event.AccountID,
+		NotificationLevel: event.NotificationLevel,
+		Status:            event.Status,
+		Timezone:          event.Timezone,
+	}
+	if event.StatusExpiresAt != nil {
+		expiresAt, err := time.Parse(time.RFC3339Nano, *event.StatusExpiresAt)
+		if err != nil {
+			return invalidEvent("account setting statusExpiresAt", event.EventType)
+		}
+		expiresAt = expiresAt.UTC()
+		setting.StatusExpiresAt = &expiresAt
+	}
+	if schedule := event.DNDSchedule; schedule != nil {
+		start, startErr := minuteOfDay(schedule.Start)
+		end, endErr := minuteOfDay(schedule.End)
+		if schedule.Enabled == nil || startErr != nil || endErr != nil {
+			return invalidEvent("account setting dndSchedule", event.EventType)
+		}
+		setting.DNDEnabled = *schedule.Enabled
+		setting.DNDStartMinute = &start
+		setting.DNDEndMinute = &end
+	}
+	return s.store.UpsertAccountNotificationSetting(ctx, setting, occurredAt)
+}
+
+func (s *Service) ApplyTeamSetting(ctx context.Context, event TeamSettingEvent) error {
+	if event.EventType != "UPSERT" || event.SchemaVersion != settingStateSchemaVersion || event.TeamID <= 0 {
+		return invalidEvent("team setting", event.EventType)
+	}
+	occurredAt, err := parseOccurredAt(event.OccurredAt)
+	if err != nil {
+		return invalidEvent("team setting occurredAt", event.EventType)
+	}
+	if event.DefaultNotificationLevel != nil && !isNotificationLevel(*event.DefaultNotificationLevel) {
+		return invalidEvent("team setting defaultNotificationLevel", event.EventType)
+	}
+	return s.store.UpsertTeamNotificationSetting(ctx, event.TeamID, event.DefaultNotificationLevel, occurredAt)
+}
+
+func isNotificationLevel(level string) bool {
+	return level == "ALL" || level == "MENTIONS" || level == "NONE"
+}
+
+func minuteOfDay(value string) (int, error) {
+	parsed, err := time.Parse("15:04", value)
+	if err != nil {
+		return 0, err
+	}
+	return parsed.Hour()*60 + parsed.Minute(), nil
+}
+
+// channelNotificationLevel falls back to the boolean notification flag for records
+// published before notificationLevel was added.
+func channelNotificationLevel(event ChannelNotificationEvent) (string, bool) {
+	if event.NotificationLevel == nil {
+		if *event.Notification {
+			return "ALL", true
+		}
+		return "NONE", true
+	}
+	level := *event.NotificationLevel
+	return level, level == "DEFAULT" || isNotificationLevel(level)
 }
 
 func (s *Service) ApplyUserProfile(ctx context.Context, event UserProfileEvent) error {

@@ -77,7 +77,7 @@ class ChannelRolePolicyAccessSupportTest :
                             teamId = 100L,
                             channelId = 1L,
                             roleId = 7L,
-                            messageRead = true,
+                            permissionsJson = """{"message_read":true}""",
                             sourceOccurredAt = occurredAt,
                         ),
                     )

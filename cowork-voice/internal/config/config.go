@@ -24,8 +24,7 @@ type AppConfig struct {
 	LiveKitTokenTTLSecs         int64
 	KafkaBrokers                string
 	KafkaTopicVoiceEvent        string
-	KafkaTopicChannelMember     string
-	KafkaGroupIDChannelMember   string
+	KafkaGroupIDChannelAccess   string
 	KafkaMessageTimeoutMs       int
 	EurekaEnabled               bool
 	EurekaServerURL             string
@@ -103,8 +102,7 @@ func Load() (*AppConfig, error) {
 		LiveKitTokenTTLSecs:         ttlSecs,
 		KafkaBrokers:                kafkaBrokers,
 		KafkaTopicVoiceEvent:        kafkaTopic,
-		KafkaTopicChannelMember:     lookup(flatMap, "KAFKA_TOPIC_CHANNEL_MEMBER_EVENT", "channel.member.event.v2"),
-		KafkaGroupIDChannelMember:   lookup(flatMap, "KAFKA_GROUP_ID_CHANNEL_MEMBER", "cowork-voice.channel-member.v2"),
+		KafkaGroupIDChannelAccess:   lookup(flatMap, "KAFKA_GROUP_ID_CHANNEL_ACCESS", "cowork-voice.channel-permissions.v1"),
 		KafkaMessageTimeoutMs:       timeoutMs,
 		EurekaEnabled:               lookup(flatMap, "EUREKA_ENABLED", "true") != "false",
 		EurekaServerURL:             lookup(flatMap, "EUREKA_SERVER_URL", "http://localhost:8761/eureka"),
@@ -190,11 +188,9 @@ func overrideFromEnv(cfg *AppConfig) {
 	if v := os.Getenv("KAFKA_TOPIC_VOICE_EVENT"); v != "" {
 		cfg.KafkaTopicVoiceEvent = v
 	}
-	if v := os.Getenv("KAFKA_TOPIC_CHANNEL_MEMBER_EVENT"); v != "" {
-		cfg.KafkaTopicChannelMember = v
-	}
-	if v := os.Getenv("KAFKA_GROUP_ID_CHANNEL_MEMBER"); v != "" {
-		cfg.KafkaGroupIDChannelMember = v
+
+	if v := os.Getenv("KAFKA_GROUP_ID_CHANNEL_ACCESS"); v != "" {
+		cfg.KafkaGroupIDChannelAccess = v
 	}
 	if v := os.Getenv("KAFKA_MESSAGE_TIMEOUT_MS"); v != "" {
 		if parsed, err := strconv.Atoi(v); err == nil {

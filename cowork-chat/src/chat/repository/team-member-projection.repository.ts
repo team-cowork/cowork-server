@@ -27,6 +27,10 @@ export type VersionedTeamMemberProjectionView = {
 export class TeamMemberProjectionRepository {
     constructor(@InjectModel(TeamMemberProjection.name) private readonly model: Model<TeamMemberProjection>) {}
 
+    async findByTeamIds(teamIds: number[]): Promise<TeamMemberProjectionView[]> {
+        return this.model.find({teamId: {$in: teamIds}, deleted: {$ne: true}}).lean<TeamMemberProjectionView[]>();
+    }
+
     async exists(teamId: number, userId: number): Promise<boolean> {
         return (await this.model.exists({teamId, userId, deleted: {$ne: true}})) !== null;
     }

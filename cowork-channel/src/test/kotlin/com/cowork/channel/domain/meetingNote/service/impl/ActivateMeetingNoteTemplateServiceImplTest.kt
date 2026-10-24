@@ -1,7 +1,5 @@
 package com.cowork.channel.domain.meetingNote.service.impl
 
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
-import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.meetingNote.entity.MeetingNoteTemplate
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteTemplateRepository
 import com.cowork.channel.domain.meetingNote.repository.TemplateSectionRepository
@@ -18,11 +16,7 @@ class ActivateMeetingNoteTemplateServiceImplTest {
 
     private val templateRepository = mockk<MeetingNoteTemplateRepository>(relaxed = true)
     private val sectionRepository = mockk<TemplateSectionRepository>(relaxed = true)
-    private val channelMemberRepository = mockk<ChannelMemberRepository>()
-    private val channelRepository = mockk<ChannelRepository> {
-        every { existsByIdAndType(any(), any()) } returns false
-    }
-    private val meetingNoteAccessGuard = MeetingNoteAccessGuard(channelMemberRepository, channelRepository)
+    private val meetingNoteAccessGuard = mockk<MeetingNoteAccessGuard>(relaxed = true)
     private val lookupSupport = MeetingNoteTemplateLookupSupport(templateRepository, sectionRepository)
 
     private val service =
@@ -45,7 +39,7 @@ class ActivateMeetingNoteTemplateServiceImplTest {
     fun `activateTemplate은 기존 활성 템플릿을 비활성화하고 대상을 활성화`() {
         val current = template(id = 5L, isActive = true)
         val next = template(id = 10L, isActive = false)
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(next)
         every { templateRepository.findByChannelIdAndIsActiveTrue(1L) } returns current
         every { sectionRepository.findAllByTemplateIdOrderByIdAsc(10L) } returns emptyList()
@@ -59,7 +53,7 @@ class ActivateMeetingNoteTemplateServiceImplTest {
     @Test
     fun `activateTemplate은 이미 활성 상태인 템플릿을 다시 활성화해도 오류 없음`() {
         val tmpl = template(id = 10L, isActive = true)
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(tmpl)
         every { templateRepository.findByChannelIdAndIsActiveTrue(1L) } returns tmpl
         every { sectionRepository.findAllByTemplateIdOrderByIdAsc(10L) } returns emptyList()
@@ -71,7 +65,7 @@ class ActivateMeetingNoteTemplateServiceImplTest {
     @Test
     fun `activateTemplate은 기존 활성 템플릿이 없어도 정상 동작`() {
         val next = template(id = 10L, isActive = false)
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(next)
         every { templateRepository.findByChannelIdAndIsActiveTrue(1L) } returns null
         every { sectionRepository.findAllByTemplateIdOrderByIdAsc(10L) } returns emptyList()

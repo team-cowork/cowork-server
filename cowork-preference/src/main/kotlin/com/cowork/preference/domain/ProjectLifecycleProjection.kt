@@ -7,4 +7,5 @@ data class ProjectLifecycleProjection(
     val teamId: Long,
     val deleted: Boolean,
     val sourceOccurredAt: Instant,
+    val createdBy: Long? = null,
 )

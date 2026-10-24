@@ -1,7 +1,5 @@
 package com.cowork.channel.domain.meetingNote.service.impl
 
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
-import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.meetingNote.entity.MeetingNoteTemplate
 import com.cowork.channel.domain.meetingNote.entity.SectionType
 import com.cowork.channel.domain.meetingNote.entity.TemplateSection
@@ -19,11 +17,7 @@ class DeleteTemplateSectionServiceImplTest {
 
     private val templateRepository = mockk<MeetingNoteTemplateRepository>(relaxed = true)
     private val sectionRepository = mockk<TemplateSectionRepository>(relaxed = true)
-    private val channelMemberRepository = mockk<ChannelMemberRepository>()
-    private val channelRepository = mockk<ChannelRepository> {
-        every { existsByIdAndType(any(), any()) } returns false
-    }
-    private val meetingNoteAccessGuard = MeetingNoteAccessGuard(channelMemberRepository, channelRepository)
+    private val meetingNoteAccessGuard = mockk<MeetingNoteAccessGuard>(relaxed = true)
     private val lookupSupport = MeetingNoteTemplateLookupSupport(templateRepository, sectionRepository)
 
     private val service = DeleteTemplateSectionServiceImpl(sectionRepository, meetingNoteAccessGuard, lookupSupport)
@@ -42,7 +36,7 @@ class DeleteTemplateSectionServiceImplTest {
     @Test
     fun `deleteSection은 정상적으로 섹션을 삭제`() {
         val sec = section()
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(template())
         every { sectionRepository.findById(20L) } returns Optional.of(sec)
 
