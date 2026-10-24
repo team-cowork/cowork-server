@@ -15,4 +15,5 @@ data class ChannelEvent(
     val position: Int,
     val occurredAt: Instant,
     val snapshot: Boolean = false,
+    val initialRolePolicySeed: InitialChannelRolePolicySeed? = null,
 )
