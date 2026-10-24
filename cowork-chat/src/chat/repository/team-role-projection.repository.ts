@@ -15,7 +15,9 @@ export type TeamRoleProjectionView = {
     teamId: number;
     roleId: number;
     priority: number;
-    // TODO(#596): Mongo 역할 문서의 isDefault 보강과 구버전 rollback 종료 후 조회 필드를 필수로 전환한다.
+    // eslint-disable-next-line no-warning-comments -- Tracked compatibility cleanup with a deployment-dependent deadline.
+    // TODO(#596): 2026-11-01 05:00 KST 이후 구형 Kafka·Mongo 역할의 isDefault 보정과 rollback 종료 확인 후 조회 필드 필수화.
+    // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
     isDefault?: boolean;
     permissions?: Record<string, boolean>;
 };
@@ -56,7 +58,9 @@ export class TeamRoleProjectionRepository {
         roleId: number;
         name: string;
         priority: number;
-        // TODO(#596): 구버전 outbox·Kafka 보존 레코드 갱신과 rollback 종료 후 입력 누락·false 대체를 제거한다.
+        // eslint-disable-next-line no-warning-comments -- Tracked compatibility cleanup with a deployment-dependent deadline.
+        // TODO(#596): 2026-11-01 05:00 KST 이후 구형 outbox·Kafka 레코드 보정과 rollback 종료 확인 후 입력 누락·false 대체 제거.
+        // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
         isDefault?: boolean;
         permissions: Record<string, boolean>;
     }): Promise<boolean> {
