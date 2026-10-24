@@ -74,24 +74,41 @@ func (s stubSessions) FindActiveSession(context.Context, int64) (*live.LiveSessi
 }
 
 func TestVoicePermissionReconciliation(t *testing.T) {
+	t.Run("video permission includes camera while connected users retain data publishing", func(t *testing.T) {
+		rooms := &stubRooms{name: "voice-10-session", participants: []*livekit.ParticipantInfo{{Identity: "7"}}}
+		permissions := &stubPermissions{access: permission.Access{ScreenShare: true}}
+		if err := New(rooms, permissions, stubSessions{}).Reconcile(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		if len(rooms.updates) != 1 || !rooms.updates[0].Permission.CanPublishData {
+			t.Fatal("connected voice participants must retain data publishing")
+		}
+		camera := false
+		for _, source := range rooms.updates[0].Permission.CanPublishSources {
+			camera = camera || source == livekit.TrackSource_CAMERA
+		}
+		if !camera {
+			t.Fatal("video permission must enable camera as well as screen sharing")
+		}
+	})
 	t.Run("one current check preserves each participant's permissions", func(t *testing.T) {
 		rooms := &stubRooms{name: "voice-10-session", participants: []*livekit.ParticipantInfo{
-			{Identity: "7", Permission: mediaPermission(true, true, true)},
-			{Identity: "8", Permission: mediaPermission(true, true, true)},
+			{Identity: "7", Permission: mediaPermission(true, true, true, false)},
+			{Identity: "8", Permission: mediaPermission(true, true, true, false)},
 		}}
 		permissions := &stubPermissions{access: permission.Access{Speak: true}, deniedUsers: map[int64]bool{8: true}}
 		if err := New(rooms, permissions, stubSessions{}).Reconcile(context.Background()); err != nil {
 			t.Fatal(err)
 		}
 		if permissions.preparations != 1 || len(rooms.removed) != 1 || rooms.removed[0] != "8" ||
-			len(rooms.updates) != 1 || !sameMedia(rooms.updates[0].Permission, mediaPermission(true, true, false)) {
+			len(rooms.updates) != 1 || !sameMedia(rooms.updates[0].Permission, mediaPermission(true, true, false, false)) {
 			t.Fatalf("unexpected participant permissions after %d current checks: %+v", permissions.preparations, rooms)
 		}
 	})
 	t.Run("failed current check pauses every participant without using projected grants", func(t *testing.T) {
 		rooms := &stubRooms{name: "voice-10-session", participants: []*livekit.ParticipantInfo{
-			{Identity: "7", Permission: mediaPermission(true, true, true)},
-			{Identity: "8", Permission: mediaPermission(true, true, true)},
+			{Identity: "7", Permission: mediaPermission(true, true, true, false)},
+			{Identity: "8", Permission: mediaPermission(true, true, true, false)},
 		}}
 		permissions := &stubPermissions{
 			access: permission.Access{Speak: true, ScreenShare: true}, prepareErr: apperr.ServiceUnavailable("catching up"),
@@ -103,7 +120,7 @@ func TestVoicePermissionReconciliation(t *testing.T) {
 			t.Fatal("unknown current permissions must pause every participant")
 		}
 		for _, update := range rooms.updates {
-			if !sameMedia(update.Permission, mediaPermission(false, false, false)) {
+			if !sameMedia(update.Permission, mediaPermission(false, false, false, false)) {
 				t.Fatal("a stale projected grant enabled media")
 			}
 		}
@@ -119,19 +136,19 @@ func TestVoicePermissionReconciliation(t *testing.T) {
 		}
 	})
 	t.Run("revoked speaking retains screen sharing and unchanged grants are not rewritten", func(t *testing.T) {
-		rooms := &stubRooms{name: "voice-10-session", participants: []*livekit.ParticipantInfo{{Identity: "7", Permission: mediaPermission(true, true, true)}}}
+		rooms := &stubRooms{name: "voice-10-session", participants: []*livekit.ParticipantInfo{{Identity: "7", Permission: mediaPermission(true, true, true, false)}}}
 		svc := New(rooms, &stubPermissions{access: permission.Access{ScreenShare: true}}, stubSessions{})
 		for range 2 {
 			if err := svc.Reconcile(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 		}
-		if len(rooms.updates) != 1 || !sameMedia(rooms.updates[0].Permission, mediaPermission(true, false, true)) {
+		if len(rooms.updates) != 1 || !sameMedia(rooms.updates[0].Permission, mediaPermission(true, false, true, false)) {
 			t.Fatalf("unexpected update: %+v", rooms.updates)
 		}
 	})
 	t.Run("unready projection pauses media without disconnect and restores when ready", func(t *testing.T) {
-		rooms := &stubRooms{name: "voice-10-session", participants: []*livekit.ParticipantInfo{{Identity: "7", Permission: mediaPermission(true, true, true)}}}
+		rooms := &stubRooms{name: "voice-10-session", participants: []*livekit.ParticipantInfo{{Identity: "7", Permission: mediaPermission(true, true, true, false)}}}
 		permissions := &stubPermissions{err: apperr.ServiceUnavailable("catching up")}
 		svc := New(rooms, permissions, stubSessions{})
 		if err := svc.Reconcile(context.Background()); err != nil {
@@ -145,7 +162,7 @@ func TestVoicePermissionReconciliation(t *testing.T) {
 		if err := svc.Reconcile(context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		if len(rooms.updates) != 2 || !sameMedia(rooms.updates[1].Permission, mediaPermission(true, true, false)) {
+		if len(rooms.updates) != 2 || !sameMedia(rooms.updates[1].Permission, mediaPermission(true, true, false, false)) {
 			t.Fatal("ready permissions were not restored")
 		}
 	})
@@ -155,8 +172,8 @@ func TestLivePermissionReconciliation(t *testing.T) {
 	session := &live.LiveSession{ChannelID: 10, SessionID: "session", RoomName: "live-10-session", HostUserID: 7}
 	t.Run("session lookup failure pauses everyone without deleting the room", func(t *testing.T) {
 		rooms := &stubRooms{name: session.RoomName, participants: []*livekit.ParticipantInfo{
-			{Identity: "7", Permission: mediaPermission(true, true, true)},
-			{Identity: "8", Permission: mediaPermission(true, false, false)},
+			{Identity: "7", Permission: mediaPermission(true, true, true, true)},
+			{Identity: "8", Permission: mediaPermission(true, false, false, true)},
 		}}
 		svc := New(rooms, &stubPermissions{}, stubSessions{err: errors.New("storage unavailable")})
 		if err := svc.Reconcile(context.Background()); err == nil {
@@ -182,17 +199,17 @@ func TestLivePermissionReconciliation(t *testing.T) {
 		}
 	})
 	t.Run("viewer stays subscribe-only even with broadcasting and speaking permissions", func(t *testing.T) {
-		rooms := &stubRooms{name: session.RoomName, participants: []*livekit.ParticipantInfo{{Identity: "8", Permission: mediaPermission(true, true, true)}}}
+		rooms := &stubRooms{name: session.RoomName, participants: []*livekit.ParticipantInfo{{Identity: "8", Permission: mediaPermission(true, true, true, true)}}}
 		svc := New(rooms, &stubPermissions{access: permission.Access{Speak: true, ScreenShare: true, Broadcast: true}}, stubSessions{session: session})
 		if err := svc.Reconcile(context.Background()); err != nil {
 			t.Fatal(err)
 		}
-		if rooms.deleted || len(rooms.updates) != 1 || !sameMedia(rooms.updates[0].Permission, mediaPermission(true, false, false)) {
+		if rooms.deleted || len(rooms.updates) != 1 || !sameMedia(rooms.updates[0].Permission, mediaPermission(true, false, false, true)) {
 			t.Fatal("viewer must never be promoted to publisher")
 		}
 	})
 	t.Run("unready host is paused without ending the broadcast session", func(t *testing.T) {
-		rooms := &stubRooms{name: session.RoomName, participants: []*livekit.ParticipantInfo{{Identity: "7", Permission: mediaPermission(true, true, true)}}}
+		rooms := &stubRooms{name: session.RoomName, participants: []*livekit.ParticipantInfo{{Identity: "7", Permission: mediaPermission(true, true, true, true)}}}
 		svc := New(rooms, &stubPermissions{err: apperr.ServiceUnavailable("catching up")}, stubSessions{session: session})
 		if err := svc.Reconcile(context.Background()); err != nil {
 			t.Fatal(err)
