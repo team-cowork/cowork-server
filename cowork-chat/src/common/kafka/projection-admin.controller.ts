@@ -17,7 +17,7 @@ import {ProjectionReadinessService} from './projection-readiness.service';
  서버에 직접 호출하면 `X-User-Role: ADMIN`과 양의 정수 `X-User-Id`를 함께 보내야 한다.
  */
 @ApiTags('Projection Admin')
-@ApiHeader({name: 'X-User-Id', description: 'Gateway 자동 주입 (양의 정수 사용자 ID)', required: true})
+@ApiHeader({name: 'X-User-Id', description: 'Gateway 자동 주입 (서비스 직접 호출 시 양의 안전 정수 필수)', required: false})
 @ApiHeader({name: 'X-User-Role', description: 'Gateway 자동 주입 (ADMIN)', required: true})
 @Roles(UserRole.ADMIN)
 @Controller('admin/projections')
