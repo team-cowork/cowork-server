@@ -18,6 +18,9 @@ class UpdateProjectServiceImpl(
     override fun execute(userId: Long, projectId: Long, request: UpdateProjectReqDto): ProjectResDto {
         val project = projectAccessGuard.findProjectForUpdateOrThrow(projectId)
         projectAccessGuard.requireProjectManager(project, userId)
+        if (!project.isPrivate && request.isPrivate == true) {
+            projectAccessGuard.requirePrivateTransitionAccess(project, userId)
+        }
 
         request.name?.let { project.updateName(it) }
         request.description?.let { project.updateDescription(it) }

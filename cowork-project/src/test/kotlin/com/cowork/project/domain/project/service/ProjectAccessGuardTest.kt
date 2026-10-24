@@ -169,6 +169,57 @@ class ProjectAccessGuardTest : DescribeSpec({
         }
     }
 
+    describe("ProjectAccessGuard 클래스의 requirePrivateTransitionAccess 메서드는") {
+        it("구형 이벤트로 비공개 읽기 여부를 아직 모르면 전환을 거절한다") {
+            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection(
+                "3:20", 3L, 20L, true, true, Instant.now(), canManage = true,
+            ))
+
+            shouldThrow<ExpectedException> { guard.requirePrivateTransitionAccess(project, 20L) }
+                .statusCode shouldBe HttpStatus.BAD_REQUEST
+        }
+
+        it("이전 멤버십의 비공개 읽기 승인은 재가입과 강등 후 사용하지 않는다") {
+            val version = Instant.parse("2026-10-25T00:00:00Z")
+            every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns TeamMembership(
+                teamId = 1L, userId = 20L, role = "MEMBER", sourceOccurredAt = version.plusSeconds(1),
+                authorizationVersion = version.plusSeconds(1),
+            )
+            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection(
+                "3:20", 3L, 20L, true, true, version, sourceMembershipVersion = version,
+                sourceAuthorizationVersion = version, canReadPrivate = true,
+            ))
+
+            shouldThrow<ExpectedException> { guard.requirePrivateTransitionAccess(project, 20L) }
+                .statusCode shouldBe HttpStatus.BAD_REQUEST
+        }
+
+        it("닉네임 변경 후에도 같은 권한 버전의 비공개 읽기 승인은 유지한다") {
+            val version = Instant.parse("2026-10-25T00:00:00Z")
+            every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns TeamMembership(
+                teamId = 1L, userId = 20L, role = "MEMBER", sourceOccurredAt = version.plusSeconds(1),
+                authorizationVersion = version,
+            )
+            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection(
+                "3:20", 3L, 20L, true, true, version, sourceMembershipVersion = version,
+                sourceAuthorizationVersion = version, canReadPrivate = true,
+            ))
+
+            guard.requirePrivateTransitionAccess(project, 20L)
+        }
+
+        it("활성 OWNER와 ADMIN만 비공개 읽기 정책을 우회한다") {
+            listOf("OWNER", "ADMIN").forEach { role ->
+                every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns TeamMembership(teamId = 1L, userId = 20L, role = role)
+                guard.requirePrivateTransitionAccess(project, 20L)
+            }
+            every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns null
+
+            shouldThrow<ExpectedException> { guard.requirePrivateTransitionAccess(project, 20L) }
+                .statusCode shouldBe HttpStatus.FORBIDDEN
+        }
+    }
+
     describe("ProjectAccessGuard 클래스의 requireProjectCreation 메서드는") {
         context("일반 멤버에게 생성과 읽기 권한이 있는 경우") {
             it("비공개 프로젝트의 초기 읽기 역할에 승인한 멤버십 버전을 반환한다") {
