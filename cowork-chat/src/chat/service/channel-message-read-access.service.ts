@@ -9,13 +9,14 @@ import {
     TeamMemberProjectionRepository,
     TeamRoleProjectionRepository,
 } from '../repository';
+import {hasChannelPermission} from './channel-permission';
 
 export type ChannelReadAccessRequest = {
     channelId: number;
     userId: number;
 };
 
-export type ChannelActionPermission = 'message_send' | 'thread_reply' | 'file_attach' | 'reaction_add';
+export type ChannelActionPermission = 'message_send' | 'thread_reply' | 'file_attach' | 'reaction_add' | 'message_pin' | 'message_manage' | 'slash_command_use' | 'github_issue_create';
 type AccessMode = 'MESSAGE_READ' | 'CHANNEL_METADATA' | ChannelActionPermission;
 
 /**
@@ -35,8 +36,8 @@ const policyKey = (channelId: number, roleId: number) => `${channelId}:${roleId}
 /**
  Role×channel 읽기 및 채팅 작업 권한의 단일 평가 지점.
 
- custom role의 priority가 높은 단계부터 평가되며, 같은 priority에서 충돌하면 deny가 이긴다.
- 역할 기본 권한에 채널별 값을 덮어쓰고, 기본값은 deny한다. built-in OWNER는 허용한다.
+ 기본·개별 역할 권한을 합친 뒤 기본 역할 overwrite, 개별 역할 deny, allow 순서로 적용한다.
+ 활성 팀 멤버의 built-in OWNER와 ADMIN은 허용한다.
  팀 채널 접근은 역할 권한으로 결정하고 DM만 대화 참여자를 확인한다.
  */
 @Injectable()
@@ -430,7 +431,8 @@ export class ChannelMessageReadAccessService {
             }
 
             if (this.isDm(channel)) {
-                result.set(accessKey(request.channelId, request.userId), memberKeys.has(accessKey(request.channelId, request.userId)));
+                result.set(accessKey(request.channelId, request.userId),
+                    memberKeys.has(accessKey(request.channelId, request.userId)) && !modes.includes('message_manage'));
                 return [];
             }
 
@@ -450,7 +452,7 @@ export class ChannelMessageReadAccessService {
                 return false;
             }
 
-            if (member.role === 'OWNER') {
+            if (member.role === 'OWNER' || member.role === 'ADMIN') {
                 result.set(accessKey(request.channelId, request.userId), true);
                 return false;
             }
@@ -462,14 +464,17 @@ export class ChannelMessageReadAccessService {
         }
 
         const accountIds = [...new Set(policyCandidates.map(({request}) => request.userId))];
-        const assignments = await this.teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds(teamIds, accountIds);
-        const roleIds = [...new Set(assignments.map(({roleId}) => roleId))];
+        const [assignments, defaults] = await Promise.all([
+            this.teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds(teamIds, accountIds),
+            this.teamRoleRepository.findDefaultRolesByTeamIds(teamIds),
+        ]);
+        const roleIds = [...new Set([...assignments, ...defaults].map(({roleId}) => roleId))];
         const candidateChannelIds = [...new Set(policyCandidates.map(({request}) => request.channelId))];
         const [roles, policies] = await Promise.all([
             this.teamRoleRepository.findRolesByIds(roleIds),
             this.policyRepository.findByChannelIdsAndRoleIds(candidateChannelIds, roleIds),
         ]);
-        const roleById = new Map(roles.map(role => [role.roleId, role]));
+        const roleById = new Map([...roles, ...defaults].map(role => [role.roleId, role]));
         const policyByKey = new Map(policies.map(policy => [policyKey(policy.channelId, policy.roleId), policy]));
         const assignmentsByTeamUser = new Map<string, number[]>();
         for (const assignment of assignments) {
@@ -484,35 +489,19 @@ export class ChannelMessageReadAccessService {
 
         for (const {request, channel, teamId} of policyCandidates) {
             const assignedRoleIds = assignmentsByTeamUser.get(teamUserKey(teamId, request.userId)) ?? [];
-            const isAllowed = modes.every(mode => {
-                let selectedPriority: number | undefined;
-                let isSelected = false;
-                for (const roleId of assignedRoleIds) {
-                    const role = roleById.get(roleId);
-                    if (role?.teamId !== teamId) {
-                        continue;
-                    }
-
-                    const policy = policyByKey.get(policyKey(request.channelId, roleId));
-                    const isRead = mode === 'MESSAGE_READ' || mode === 'CHANNEL_METADATA';
-                    const permission = isRead
-                        ? (mode === 'CHANNEL_METADATA' && channel.type === 'VOICE' ? 'voice_connect' : 'message_read')
-                        : mode;
-                    const override = policy?.teamId === teamId
-                        ? policy.permissions?.[permission]
-                        : undefined;
-                    const requiresChannelPolicy = (channel.isPrivate ?? true) && isRead;
-                    const isAllowed = override ?? (requiresChannelPolicy ? false : (role.permissions?.[permission] ?? false));
-                    if (selectedPriority === undefined || role.priority > selectedPriority) {
-                        selectedPriority = role.priority;
-                        isSelected = isAllowed;
-                    } else if (role.priority === selectedPriority && !isAllowed) {
-                        isSelected = false;
-                    }
-                }
-
-                return selectedPriority !== undefined && isSelected;
-            });
+            const applicable = [...roleById.values()].filter(role => role.teamId === teamId
+                && (role.isDefault === true || assignedRoleIds.includes(role.roleId)));
+            const channelPolicies = new Map(applicable.flatMap(role => {
+                const policy = policyByKey.get(policyKey(request.channelId, role.roleId));
+                return policy?.teamId === teamId ? [[role.roleId, policy.permissions ?? {}] as const] : [];
+            }));
+            const visibilityPermission = channel.type === 'VOICE' ? 'voice_connect' : 'message_read';
+            const canUse = (permission: string) => hasChannelPermission(
+                applicable, channelPolicies, permission, (channel.isPrivate ?? true) && (permission === 'message_read' || permission === 'voice_connect'),
+            );
+            const isAllowed = canUse(visibilityPermission) && modes.every(mode => canUse(
+                mode === 'CHANNEL_METADATA' ? visibilityPermission : (mode === 'MESSAGE_READ' ? 'message_read' : mode),
+            ));
             result.set(accessKey(request.channelId, request.userId), isAllowed);
         }
 

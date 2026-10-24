@@ -24,7 +24,7 @@ class ReorderTeamProjectsServiceImplTest {
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val accessRepository = mockk<ProjectAccessProjectionRepository>(relaxed = true)
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, accessRepository, teamMembershipRepository, mockk(relaxed = true))
+        ProjectAccessGuard(projectRepository, accessRepository, teamMembershipRepository, mockk(relaxed = true), mockk(relaxed = true))
     private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
 
     private val service = ReorderTeamProjectsServiceImpl(projectRepository, projectAccessGuard, projectEventPublisher)

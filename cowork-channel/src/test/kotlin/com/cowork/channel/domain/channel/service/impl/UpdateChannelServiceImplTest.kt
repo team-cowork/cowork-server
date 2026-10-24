@@ -10,8 +10,10 @@ import com.cowork.channel.domain.channel.repository.DmParticipantRepository
 import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channel.service.TeamPermissionService
 import com.cowork.channel.domain.channel.service.support.ChannelPermissionSupport
+import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
@@ -26,10 +28,11 @@ class UpdateChannelServiceImplTest {
     private val teamPermission = mockk<TeamPermissionService>()
     private val channelEventPublisher = mockk<ChannelEventPublisher>(relaxed = true)
     private val channelAccessGuard = ChannelAccessGuard(channelRepository)
+    private val permissionEvaluator = mockk<ChannelMessageReadPolicyEvaluator>(relaxed = true)
     private val channelPermissionSupport = ChannelPermissionSupport(
         dmParticipantRepository,
         teamPermission,
-        mockk(relaxed = true),
+        permissionEvaluator,
     )
 
     private val service = UpdateChannelServiceImpl(channelEventPublisher, channelAccessGuard, channelPermissionSupport)
@@ -57,7 +60,7 @@ class UpdateChannelServiceImplTest {
     fun `updateChannel은 팀 OWNER 등가 권한으로 통과`() {
         val ch = channel(createdBy = 99L)
         every { channelRepository.findById(1L) } returns Optional.of(ch)
-        every { teamPermission.isTeamOwnerOrAdmin(100L, 1L) } returns true
+        every { permissionEvaluator.requirePermission(100L, 1L, ch, "channel_manage") } returns Unit
 
         val res = service.execute(1L, 1L, UpdateChannelRequest(name = "newName"), false)
         assertEquals("newName", res.name)
@@ -67,7 +70,8 @@ class UpdateChannelServiceImplTest {
     fun `updateChannel은 비생성자 + 팀 일반멤버이면 FORBIDDEN`() {
         val ch = channel(createdBy = 99L)
         every { channelRepository.findById(1L) } returns Optional.of(ch)
-        every { teamPermission.isTeamOwnerOrAdmin(100L, 1L) } returns false
+        every { permissionEvaluator.requirePermission(100L, 1L, ch, "channel_manage") } throws
+            ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.execute(1L, 1L, UpdateChannelRequest(name = "x"), false)
@@ -100,6 +104,37 @@ class UpdateChannelServiceImplTest {
 
         val res = service.execute(1L, 1L, UpdateChannelRequest(projectId = null), true)
         assertEquals(null, res.projectId)
+    }
+
+    @Test
+    fun `비공개 전환으로 요청자 접근이 사라지면 채널 변경과 이벤트 발행을 거절한다`() {
+        val ch = channel(createdBy = 99L, projectId = 99L)
+        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { permissionEvaluator.requirePrivateTransitionAccess(100L, 1L, ch) } throws
+            ExpectedException("비공개 전환 후에도 접근할 수 있도록 채널 역할 권한을 먼저 설정해야 합니다.", HttpStatus.BAD_REQUEST)
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.execute(1L, 1L, UpdateChannelRequest(name = "new", isPrivate = true, projectId = 5L), true)
+        }
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        assertEquals(false, ch.isPrivate)
+        assertEquals("ch", ch.name)
+        assertEquals(99L, ch.projectId)
+        verify(exactly = 0) { channelEventPublisher.publishUpdated(any(), any()) }
+    }
+
+    @Test
+    fun `전환 후에도 접근 가능한 일반 관리자는 채널을 비공개로 변경한다`() {
+        val ch = channel(createdBy = 99L)
+        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { permissionEvaluator.requirePrivateTransitionAccess(100L, 1L, ch) } returns Unit
+
+        val result = service.execute(1L, 1L, UpdateChannelRequest(isPrivate = true), false)
+
+        assertEquals(true, result.isPrivate)
+        verify(exactly = 1) { permissionEvaluator.requirePrivateTransitionAccess(100L, 1L, ch) }
+        verify(exactly = 1) { channelEventPublisher.publishUpdated(ch, any()) }
     }
 
     @Test

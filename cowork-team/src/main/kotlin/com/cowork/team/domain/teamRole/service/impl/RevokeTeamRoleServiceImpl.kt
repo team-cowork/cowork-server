@@ -34,6 +34,7 @@ class RevokeTeamRoleServiceImpl(
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
         teamRoleAccessGuard.requireMemberExists(teamId, targetUserId)
         val role = teamRoleLookupSupport.findRoleOrThrow(teamId, roleId)
+        teamRoleAccessGuard.requireCustomRole(role)
         teamRoleAccessGuard.requireManageablePriority(actor, role)
     }
 }

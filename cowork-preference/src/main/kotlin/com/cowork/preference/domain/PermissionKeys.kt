@@ -61,5 +61,12 @@ object PermissionKeys {
         LIVE_BROADCAST,
     )
 
-    val ROLE_SCOPED: Set<String> = TEAM_SCOPED + CHANNEL_SCOPED
+    const val PROJECT_READ = "project_read"
+    const val PROJECT_WRITE = "project_write"
+    const val PROJECT_MANAGE = "project_manage"
+    const val PROJECT_REORDER = "project_reorder"
+
+    val PROJECT_SCOPED: Set<String> = linkedSetOf(PROJECT_READ, PROJECT_WRITE, PROJECT_MANAGE, PROJECT_REORDER)
+
+    val ROLE_SCOPED: Set<String> = TEAM_SCOPED + CHANNEL_SCOPED + PROJECT_SCOPED
 }

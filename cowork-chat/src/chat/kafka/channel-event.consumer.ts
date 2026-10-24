@@ -36,6 +36,7 @@ type ChannelEvent = {
     주기/startup state replay이면 변경 알림 부수효과를 억제한다.
     */
     snapshot?: boolean;
+    initialRolePolicySeed?: unknown;
     /**
     이전 producer 이벤트와의 호환을 위해 선택값이며, 누락 시 0으로 저장한다.
     */
@@ -167,7 +168,7 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
             return;
         }
 
-        const {eventType, snapshot, ...projectionPayload} = event;
+        const {eventType, snapshot, initialRolePolicySeed, ...projectionPayload} = event;
         if (eventType === 'DELETED') {
             if (!isApplied && await this.channelRepository.findById(event.channelId) !== null) {
                 return;

@@ -8,4 +8,5 @@ data class ProjectLifecycleProjection(
     val deleted: Boolean,
     val sourceOccurredAt: Instant,
     val createdBy: Long? = null,
+    val isPrivate: Boolean = true,
 )

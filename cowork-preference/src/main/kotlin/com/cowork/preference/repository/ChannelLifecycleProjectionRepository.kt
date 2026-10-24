@@ -58,13 +58,13 @@ class ChannelLifecycleProjectionRepository {
         return rows.rowCount() == 1
     }
 
-    suspend fun findForShare(client: SqlClient, channelId: Long): ChannelLifecycleProjection? {
+    suspend fun findForUpdate(client: SqlClient, channelId: Long): ChannelLifecycleProjection? {
         val rows = client.preparedQuery(
             """
             SELECT channel_id, team_id, deleted, is_private, source_occurred_at, channel_type
             FROM tb_channel_lifecycle_projections
             WHERE channel_id = ${'$'}1
-            FOR SHARE
+            FOR UPDATE
             """.trimIndent(),
         ).execute(Tuple.of(channelId)).coAwait()
         return rows.firstOrNull()?.toProjection()

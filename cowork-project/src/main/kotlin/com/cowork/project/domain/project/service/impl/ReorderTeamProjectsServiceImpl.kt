@@ -19,7 +19,7 @@ class ReorderTeamProjectsServiceImpl(
 
     @Transactional
     override fun execute(userId: Long, teamId: Long, orderedProjectIds: List<Long>): List<ProjectResDto> {
-        val teamRole = projectAccessGuard.requireTeamMember(teamId, userId)
+        projectAccessGuard.requireTeamMember(teamId, userId)
 
         if (orderedProjectIds.isEmpty()) {
             throw ExpectedException("프로젝트 순서 목록은 비어 있을 수 없습니다.", HttpStatus.BAD_REQUEST)
@@ -30,7 +30,7 @@ class ReorderTeamProjectsServiceImpl(
         }
 
         val lockedProjects = projectRepository.findAllByTeamIdForUpdate(teamId)
-        val permissions = projectAccessGuard.permissionsForProjects(lockedProjects, userId, teamRole)
+        val permissions = projectAccessGuard.permissionsForProjects(lockedProjects, userId)
         val projects = lockedProjects.filter { permissions.getValue(it.id).read }
         val teamProjectIds = projects.map { it.id }.toSet()
         if (inputIds != teamProjectIds) {

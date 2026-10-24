@@ -29,7 +29,7 @@ class BuildOAuthAuthorizeUrlServiceImpl(
     ): String {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         sharedAccountAccessGuard.requireAccountShareChannel(channel)
-        teamPermissionService.requireTeamMember(channelAccessGuard.requireTeamChannel(channel), userId)
+        teamPermissionService.requireChannelAccess(channel, userId)
         val config = oAuthStateSupport.providerConfigOf(provider)
         val state = oAuthStateSupport.buildState(channelId, userId, provider, returnOrigin)
         val callbackUrl = oAuthProperties.callbackUrl(provider.name)
