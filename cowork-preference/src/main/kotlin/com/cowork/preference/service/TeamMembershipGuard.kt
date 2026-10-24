@@ -1,8 +1,10 @@
 package com.cowork.preference.service
 
+import com.cowork.preference.domain.PermissionKeys
 import com.cowork.preference.domain.TeamMemberProjection
 import com.cowork.preference.messaging.ProjectionReadinessView
 import com.cowork.preference.repository.TeamMemberProjectionRepository
+import com.cowork.preference.repository.TeamRoleRepository
 import com.cowork.preference.security.RequesterContext
 import io.vertx.sqlclient.Pool
 
@@ -20,6 +22,7 @@ class TeamMembershipGuard(
     private val pool: Pool,
     private val memberRepository: TeamMemberProjectionRepository,
     private val readiness: ProjectionReadinessView,
+    private val roleRepository: TeamRoleRepository,
 ) {
     /** 팀 조회 최소 권한: 팀 멤버(어떤 역할이든) 또는 전역 ADMIN. */
     suspend fun requireMember(teamId: Long, requester: RequesterContext) {
@@ -27,13 +30,22 @@ class TeamMembershipGuard(
         requireActiveMember(teamId, requester.userId)
     }
 
-    /** 팀 설정 수정 최소 권한: 팀 OWNER/ADMIN 또는 전역 ADMIN. */
-    suspend fun requireSettingsManager(teamId: Long, requester: RequesterContext) {
+    /**
+     * 팀 설정 수정 최소 권한: 팀 OWNER/ADMIN 또는 전역 ADMIN.
+     * 닉네임 형식 키만 바꾸는 요청은 `manage_nickname_format`을 허용한 역할 보유자도 수정할 수 있다.
+     */
+    suspend fun requireSettingsManager(teamId: Long, requester: RequesterContext, settingKeys: Set<String>) {
         if (requester.isGlobalAdmin) return
         val member = requireActiveMember(teamId, requester.userId)
-        if (member.builtInRole !in SETTINGS_MANAGER_ROLES) {
-            throw TeamMembershipDeniedException("팀 설정을 관리할 권한이 없습니다.")
+        if (member.builtInRole in SETTINGS_MANAGER_ROLES) return
+        if (settingKeys.isNotEmpty() &&
+            NICKNAME_FORMAT_KEYS.containsAll(settingKeys) &&
+            roleRepository.findAccountRoles(pool, teamId, member.accountId)
+                .any { it.permissions[PermissionKeys.MANAGE_NICKNAME_FORMAT] == true }
+        ) {
+            return
         }
+        throw TeamMembershipDeniedException("팀 설정을 관리할 권한이 없습니다.")
     }
 
     private suspend fun requireActiveMember(teamId: Long, accountId: Long): TeamMemberProjection {
@@ -49,5 +61,6 @@ class TeamMembershipGuard(
 
     private companion object {
         val SETTINGS_MANAGER_ROLES = setOf("OWNER", "ADMIN")
+        val NICKNAME_FORMAT_KEYS = setOf("nickname_format_enforced", "nickname_format_example")
     }
 }

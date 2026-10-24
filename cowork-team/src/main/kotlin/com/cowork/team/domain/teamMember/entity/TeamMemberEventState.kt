@@ -34,6 +34,9 @@ class TeamMemberEventState(
     @Column(name = "team_name", nullable = false, length = 100)
     var teamName: String,
 
+    @Column(length = 50)
+    var nickname: String?,
+
     @Column(nullable = false)
     var deleted: Boolean,
 
@@ -47,6 +50,7 @@ class TeamMemberEventState(
         val nextVersion = nextTeamStateOccurredAt(stateOccurredAt, requestedAt)
         role = member.role
         teamName = team.name
+        nickname = member.nickname
         this.deleted = deleted
         stateOccurredAt = nextVersion
         return nextVersion
@@ -59,6 +63,7 @@ class TeamMemberEventState(
                 userId = member.userId,
                 role = member.role,
                 teamName = team.name,
+                nickname = member.nickname,
                 deleted = deleted,
                 stateOccurredAt = nextTeamStateOccurredAt(null, requestedAt),
             )

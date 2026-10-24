@@ -76,6 +76,27 @@ class SettingStateEventsTest {
     }
 
     @Test
+    fun `팀 설정 state는 예시가 있을 때만 닉네임 형식 안내를 켠다`() {
+        val enabled = PreferenceEvents.teamSettingState(
+            3L,
+            JsonObject().put("nickname_format_enforced", true).put("nickname_format_example", "홍길동 / 프론트엔드"),
+            occurredAt,
+            snapshot = false,
+        )
+        val missingExample = PreferenceEvents.teamSettingState(
+            4L,
+            JsonObject().put("nickname_format_enforced", true),
+            occurredAt,
+            snapshot = false,
+        )
+
+        assertEquals(true, enabled.payload.getBoolean("nicknameFormatEnforced"))
+        assertEquals("홍길동 / 프론트엔드", enabled.payload.getString("nicknameFormatExample"))
+        assertEquals(false, missingExample.payload.getBoolean("nicknameFormatEnforced"))
+        assertNull(missingExample.payload.getValue("nicknameFormatExample"))
+    }
+
+    @Test
     fun `텍스트 채널 설정 state는 슬로우 모드 간격을 채널 키로 싣고 없으면 0으로 보낸다`() {
         val enabled = PreferenceEvents.textChannelSettingState(
             11L,

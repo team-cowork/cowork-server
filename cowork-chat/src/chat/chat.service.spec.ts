@@ -584,7 +584,7 @@ describe('ChatService', () => {
         it('FILE_SHARE 채널의 첨부파일을 파일 단위로 반환한다', async () => {
             const createdAt = new Date('2026-05-12T02:03:04.000Z');
             mockDmParticipantRepository.exists.mockResolvedValue(true);
-            mockChannelClient.getChannel.mockResolvedValue({id: 1, viewType: 'FILE_SHARE'});
+            mockChannelClient.getChannel.mockResolvedValue({id: 1, teamId: 3, viewType: 'FILE_SHARE'});
             mockMessageRepository.findFileAttachments.mockResolvedValue({
                 items: [
                     {
@@ -606,7 +606,7 @@ describe('ChatService', () => {
 
             expect(mockChannelClient.getChannel).toHaveBeenCalledWith(1);
             expect(mockMessageRepository.findFileAttachments).toHaveBeenCalledWith(1, undefined, 20);
-            expect(mockUserClient.getDisplayNames).toHaveBeenCalledWith([42]);
+            expect(mockUserClient.getDisplayNames).toHaveBeenCalledWith([42], 3);
             expect(result.files).toEqual([
                 {
                     messageId: '665f00000000000000000001',
