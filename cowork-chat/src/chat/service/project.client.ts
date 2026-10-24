@@ -45,8 +45,11 @@ export class ProjectClient {
             return false;
         }
 
-        return project.createdBy === userId || member.role === 'OWNER' || member.role === 'ADMIN'
-            || this.permissionRepository.canRead(projectId, userId);
+        if (member.role === 'OWNER' || member.role === 'ADMIN') {
+            return true;
+        }
+
+        return member.sourceVersion === undefined ? false : this.permissionRepository.canRead(projectId, userId, member.sourceVersion);
     }
 
     /**

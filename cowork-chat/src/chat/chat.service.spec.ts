@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import {Types} from 'mongoose';
 import {ChatService} from './chat.service';
+import {SlashCommand} from './dto/slash-command.dto';
 import {type ChatGithubIssueCreateCommand} from './kafka/event/chat-github-issue.event';
 
 const mockMessageId = new Types.ObjectId().toString();
@@ -347,18 +348,24 @@ describe('ChatService', () => {
             await expect(service.sendMessage(ctx, {content: 'hi', parentMessageId: mockMessageId}))
                 .rejects.toThrow(ForbiddenException);
 
-            expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledWith(1, 42, ['message_send', 'thread_reply']);
+            expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledWith(1, 42, ['thread_reply']);
             expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
         });
 
-        it('같은 채널의 부모 메시지에는 답장할 수 있다', async () => {
+        it('부모 채널 메시지 작성이 거부되어도 thread_reply로 답장할 수 있다', async () => {
+            mockChannelMessageReadAccess.requirePermissions.mockImplementation(async (_channelId, _userId, permissions: string[]) => {
+                if (permissions.includes('message_send')) {
+                    throw new ForbiddenException();
+                }
+            });
+
             mockDmParticipantRepository.findMembership.mockResolvedValue({teamId: 100, channelType: 'TEXT'});
             mockMessageRepository.findByIdAndChannelId.mockResolvedValue(makeMockMessage());
 
             await service.sendMessage(ctx, {content: 'hi', parentMessageId: mockMessageId});
 
             expect(mockMessageRepository.findByIdAndChannelId).toHaveBeenCalledWith(mockMessageId, 1);
-            expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledWith(1, 42, ['message_send', 'thread_reply']);
+            expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledWith(1, 42, ['thread_reply']);
             expect(mockChatMessageProducer.sendMessage).toHaveBeenCalled();
         });
 
@@ -371,7 +378,7 @@ describe('ChatService', () => {
             });
 
             expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledTimes(1);
-            expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledWith(1, 42, ['message_send', 'thread_reply', 'file_attach']);
+            expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledWith(1, 42, ['thread_reply', 'file_attach']);
             expect(mockChatMessageProducer.sendMessage).toHaveBeenCalled();
         });
 
@@ -651,7 +658,8 @@ describe('ChatService', () => {
             expect(mockMessageSearchDeletion.deleteMessage).not.toHaveBeenCalled();
         });
 
-        it('다른 사용자가 올린 파일이면 삭제를 거부한다', async () => {
+        it('타인 파일 삭제에는 message_manage 권한이 필요하다', async () => {
+            mockChannelMessageReadAccess.requirePermission.mockRejectedValueOnce(new ForbiddenException());
             mockMessageRepository.findByIdAndChannelId.mockResolvedValue({
                 authorId: 7,
                 attachments: [],
@@ -690,6 +698,25 @@ describe('ChatService', () => {
     });
 
     describe('handleSlashCommand', () => {
+        it('requires slash permission before publishing a supported command', async () => {
+            mockChannelMessageReadAccess.requirePermission.mockRejectedValueOnce(new ForbiddenException());
+            await expect(service.handleSlashCommand({channelId: 1, userId: 42}, {
+                command: SlashCommand.GITHUB_ISSUE_CREATE,
+                payload: {projectId: 100, title: 'issue'},
+            })).rejects.toThrow(ForbiddenException);
+            expect(mockChannelMessageReadAccess.requirePermission).toHaveBeenCalledWith(1, 42, 'slash_command_use');
+            expect(mockChatGithubIssueCommandProducer.send).not.toHaveBeenCalled();
+        });
+
+        it('requires github_issue_create for the direct command entry point', async () => {
+            mockChannelMessageReadAccess.requirePermission.mockRejectedValueOnce(new ForbiddenException());
+            await expect(service.publishGithubIssueCreateCommand(
+                {channelId: 1, userId: 42}, {projectId: 100, title: 'issue'},
+            )).rejects.toThrow(ForbiddenException);
+            expect(mockChannelMessageReadAccess.requirePermission).toHaveBeenCalledWith(1, 42, 'github_issue_create');
+            expect(mockChatGithubIssueCommandProducer.send).not.toHaveBeenCalled();
+        });
+
         it('지원하지 않는 명령은 거부한다', async () => {
             await expect(service.handleSlashCommand(
                 {channelId: 1, userId: 42},
@@ -739,14 +766,14 @@ describe('ChatService', () => {
             ).rejects.toThrow(ForbiddenException);
         });
 
-        it('ADMIN은 다른 사람의 메시지도 수정할 수 있다', async () => {
+        it('전역 ADMIN도 타인 메시지를 수정할 수 없다', async () => {
             const message = makeMockMessage({authorId: 100});
             mockDmParticipantRepository.exists.mockResolvedValue(true);
             mockMessageRepository.findById.mockResolvedValue(message);
 
-            await service.editMessage(ctx({userRole: 'ADMIN'}), {content: '관리자 수정'});
-
-            expect(mockMessageRepository.applyEdit).toHaveBeenCalledWith(mockMessageId, '관리자 수정', true);
+            await expect(service.editMessage(ctx({userRole: 'ADMIN'}), {content: '관리자 수정'}))
+                .rejects.toThrow(ForbiddenException);
+            expect(mockMessageRepository.applyEdit).not.toHaveBeenCalled();
         });
 
         it('다른 채널의 메시지를 수정하려 하면 ForbiddenException을 던진다', async () => {
@@ -795,7 +822,8 @@ describe('ChatService', () => {
             ).rejects.toThrow(NotFoundException);
         });
 
-        it('다른 사람의 메시지를 삭제하면 ForbiddenException을 던진다', async () => {
+        it('타인 메시지 삭제에는 message_manage 권한이 필요하다', async () => {
+            mockChannelMessageReadAccess.requirePermission.mockRejectedValueOnce(new ForbiddenException());
             mockDmParticipantRepository.exists.mockResolvedValue(true);
             mockMessageRepository.findById.mockResolvedValue(makeMockMessage({authorId: 100}));
             await expect(
@@ -803,13 +831,14 @@ describe('ChatService', () => {
             ).rejects.toThrow(ForbiddenException);
         });
 
-        it('ADMIN은 다른 사람의 메시지도 삭제할 수 있다', async () => {
+        it('message_manage 권한이 있으면 타인 메시지를 삭제할 수 있다', async () => {
             mockDmParticipantRepository.exists.mockResolvedValue(true);
             mockMessageRepository.findById.mockResolvedValue(makeMockMessage({authorId: 100}));
 
             await expect(
-                service.deleteMessage(ctx({userRole: 'ADMIN'})),
+                service.deleteMessage(ctx()),
             ).resolves.toBeDefined();
+            expect(mockChannelMessageReadAccess.requirePermission).toHaveBeenCalledWith(1, 42, 'message_manage');
         });
 
         it('다른 요청이 이미 삭제를 진행 중이면 완료 이벤트를 내보내지 않는다', async () => {
@@ -822,6 +851,16 @@ describe('ChatService', () => {
             expect(mockChannelMessageReadAccess.emitToReadableChannelUsers).not.toHaveBeenCalled();
             expect(result.messageId).toBe(mockMessageId);
         });
+    });
+
+    it.each(['pinMessage', 'unpinMessage'] as const)('requires message_pin even for the author when %s', async action => {
+        mockMessageRepository.findById.mockResolvedValue(makeMockMessage());
+        mockChannelMessageReadAccess.requirePermission.mockRejectedValueOnce(new ForbiddenException());
+        await expect(service[action]({
+            channelId: 1, messageId: mockMessageId, userId: 42, userRole: 'ADMIN',
+        })).rejects.toThrow(ForbiddenException);
+        expect(mockChannelMessageReadAccess.requirePermission).toHaveBeenCalledWith(1, 42, 'message_pin');
+        expect(mockMessageRepository.setPinned).not.toHaveBeenCalled();
     });
 
     describe('pinMessage', () => {

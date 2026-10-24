@@ -1,6 +1,7 @@
 package com.cowork.preference.repository
 
 import com.cowork.preference.domain.ChannelRolePolicyState
+import com.cowork.preference.domain.ChannelRolePermissionResolver
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Pool
@@ -13,23 +14,29 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
     suspend fun findPolicy(teamId: Long, channelId: Long, roleId: Long): ChannelRolePolicyState? =
         findPolicy(pool, teamId, channelId, roleId)
 
-    /** 역할 기본 권한에 채널 값을 덮어쓴 뒤 최고 우선순위를 평가한다. 동순위 충돌은 거부한다. */
-    suspend fun canAccess(teamId: Long, accountId: Long, channelId: Long, permission: String, isPrivate: Boolean): Boolean {
-        val rows = pool.preparedQuery(
+    suspend fun canAccess(teamId: Long, accountId: Long, channelId: Long, permission: String, isPrivate: Boolean): Boolean =
+        canAccess(pool, teamId, accountId, channelId, permission, isPrivate)
+
+    internal suspend fun canAccess(client: SqlClient, teamId: Long, accountId: Long, channelId: Long, permission: String, isPrivate: Boolean): Boolean {
+        val rows = client.preparedQuery(
             """
-            WITH applicable AS (
-                SELECT d.priority, COALESCE((p.permissions ->> ${'$'}4)::boolean,
-                    CASE WHEN ${'$'}5 THEN false ELSE (d.permissions ->> ${'$'}4)::boolean END, false) AS allowed
-                FROM tb_account_team_roles a
-                JOIN tb_team_role_definitions d ON d.id = a.role_id AND d.team_id = a.team_id
-                LEFT JOIN tb_channel_role_policies p ON p.team_id = a.team_id AND p.role_id = a.role_id AND p.channel_id = ${'$'}3
-                WHERE a.account_id = ${'$'}1 AND a.team_id = ${'$'}2
-            )
-            SELECT COALESCE((SELECT bool_and(allowed) FROM applicable
-                WHERE priority = (SELECT max(priority) FROM applicable)), false) AS allowed
+            SELECT d.is_default, COALESCE((d.permissions ->> ${'$'}4)::boolean, FALSE) AS allowed,
+                   (p.permissions ->> ${'$'}4)::boolean AS overwrite
+            FROM tb_team_role_definitions d
+            LEFT JOIN tb_channel_role_policies p ON p.team_id = d.team_id AND p.role_id = d.id AND p.channel_id = ${'$'}3
+            WHERE d.team_id = ${'$'}2 AND (d.is_default OR EXISTS (
+                SELECT 1 FROM tb_account_team_roles a
+                WHERE a.team_id = d.team_id AND a.role_id = d.id AND a.account_id = ${'$'}1
+            ))
             """.trimIndent(),
-        ).execute(Tuple.of(accountId, teamId, channelId, permission, isPrivate)).coAwait()
-        return rows.first().getBoolean("allowed")
+        ).execute(Tuple.of(accountId, teamId, channelId, permission)).coAwait()
+        return ChannelRolePermissionResolver.resolve(
+            rows.map {
+                ChannelRolePermissionResolver.RolePermission(it.getBoolean("is_default"), it.getBoolean("allowed"), it.getBoolean("overwrite"))
+            },
+            permission,
+            isPrivate,
+        )
     }
 
     internal suspend fun findPolicy(

@@ -32,7 +32,7 @@ describe('canBypassSlowmode', () => {
         })).toBe(false);
     });
 
-    it('채널 덮어쓰기는 priority가 가장 높은 역할을 따르고 같은 priority에서는 거부가 이긴다', () => {
+    it('채널 덮어쓰기는 priority와 무관하게 하나라도 허용이면 허용한다', () => {
         const roles = [role(1, 5, {slowmode_bypass: true}), role(2, 9), role(3, 9)];
 
         expect(canBypassSlowmode({
@@ -40,13 +40,13 @@ describe('canBypassSlowmode', () => {
             teamRole: 'MEMBER',
             roles,
             channelPermissionsByRoleId: new Map([[1, {slowmode_bypass: true}], [2, {slowmode_bypass: false}]]),
-        })).toBe(false);
+        })).toBe(true);
         expect(canBypassSlowmode({
             teamId: 10,
             teamRole: 'MEMBER',
             roles,
             channelPermissionsByRoleId: new Map([[2, {slowmode_bypass: true}], [3, {slowmode_bypass: false}]]),
-        })).toBe(false);
+        })).toBe(true);
         expect(canBypassSlowmode({
             teamId: 10,
             teamRole: 'MEMBER',
@@ -75,6 +75,7 @@ describe('SlowmodeService.reserve', () => {
     const teamMemberRepository = {findByTeamIdsAndUserIds: jest.fn()};
     const teamRoleRepository = {
         findAssignmentsByTeamIdsAndAccountIds: jest.fn(),
+        findDefaultRolesByTeamIds: jest.fn(),
         findRolePermissionsByIds: jest.fn(),
     };
     const policyRepository = {findPermissionsByChannelIdAndRoleIds: jest.fn()};
@@ -91,6 +92,7 @@ describe('SlowmodeService.reserve', () => {
         jest.resetAllMocks();
         teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 10, userId: 42, role: 'MEMBER'}]);
         teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds.mockResolvedValue([]);
+        teamRoleRepository.findDefaultRolesByTeamIds.mockResolvedValue([]);
         teamRoleRepository.findRolePermissionsByIds.mockResolvedValue([]);
         policyRepository.findPermissionsByChannelIdAndRoleIds.mockResolvedValue([]);
     });

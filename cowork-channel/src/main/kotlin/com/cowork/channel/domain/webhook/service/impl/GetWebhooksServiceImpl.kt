@@ -9,16 +9,16 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class GetWebhooksServiceImpl(
     private val webhookRepository: WebhookRepository,
     private val channelAccessGuard: ChannelAccessGuard,
     private val teamPermissionService: TeamPermissionService,
 ) : GetWebhooksService {
 
+    @Transactional(readOnly = true)
     override fun getWebhooks(userId: Long, channelId: Long): List<WebhookResponse> {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
-        teamPermissionService.requireTeamMember(channelAccessGuard.requireTeamChannel(channel), userId)
+        teamPermissionService.requireChannelPermission(channel, userId, "channel_manage")
         return webhookRepository.findByChannelId(channelId).map { WebhookResponse.of(it) }
     }
 }

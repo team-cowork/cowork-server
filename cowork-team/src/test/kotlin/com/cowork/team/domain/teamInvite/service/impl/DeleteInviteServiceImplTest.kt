@@ -2,6 +2,7 @@ package com.cowork.team.domain.teamInvite.service.impl
 
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamInvite.entity.TeamInvite
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
 import com.cowork.team.domain.teamInvite.service.TeamInviteAccessGuard
@@ -22,13 +23,18 @@ class DeleteInviteServiceImplTest {
     private val teamRepository = mockk<TeamRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>()
     private val teamInviteRepository = mockk<TeamInviteRepository>()
-    private val teamInviteAccessGuard = TeamInviteAccessGuard(teamRepository, teamMemberRepository)
+    private val teamInviteAccessGuard =
+        TeamInviteAccessGuard(
+            teamRepository,
+            teamMemberRepository,
+            TeamPermissionGuard(teamMemberRepository, mockk(relaxed = true)),
+        )
 
     private val service = DeleteInviteServiceImpl(teamInviteRepository, teamInviteAccessGuard)
 
     private val team = Team(id = 1L, name = "테스트팀", description = null, iconUrl = null, ownerId = 10L)
     private val ownerMember = TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
-    private val normalMember = TeamMember(team = team, userId = 42L, role = TeamRole.MEMBER)
+    private val normalMember = TeamMember(team = team, userId = 42L, role = TeamRole.ADMIN)
 
     private fun makeInvite(
         inviteCode: String = "aB3xK9mZ",
@@ -47,7 +53,7 @@ class DeleteInviteServiceImplTest {
     }
 
     @Test
-    fun `deleteInvite는 생성자 본인이면 soft delete 성공`() {
+    fun `deleteInvite는 관리 권한이 있으면 soft delete 성공`() {
         every { teamMemberRepository.findByTeamIdAndUserId(1L, 42L) } returns normalMember
         val invite = makeInvite(createdBy = 42L)
         every { teamInviteRepository.findByTeamIdAndInviteCode(1L, "aB3xK9mZ") } returns invite

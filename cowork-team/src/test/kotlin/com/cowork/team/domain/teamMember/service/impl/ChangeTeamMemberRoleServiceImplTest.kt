@@ -3,6 +3,7 @@ package com.cowork.team.domain.teamMember.service.impl
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.presentation.data.request.ChangeRoleRequest
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
@@ -31,7 +32,11 @@ class ChangeTeamMemberRoleServiceImplTest :
             service = ChangeTeamMemberRoleServiceImpl(
                 memberRepository,
                 mockk<TeamMemberEventPublisher>(relaxed = true),
-                TeamMemberAccessGuard(teamRepository, memberRepository),
+                TeamMemberAccessGuard(
+                    teamRepository,
+                    memberRepository,
+                    TeamPermissionGuard(memberRepository, mockk(relaxed = true)),
+                ),
             )
             every { teamRepository.findByIdForUpdate(5L) } returns team
         }

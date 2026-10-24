@@ -24,11 +24,12 @@ class TeamMemberProjectionHandler(
     private suspend fun applyEvent(checkpoint: ProjectionCheckpoint, event: TeamMemberEvent) {
         checkpointRepository.inTransaction(checkpoint) { connection ->
             val applied = teamMemberProjectionRepository.apply(connection, event)
-            if (!applied || event.eventType != "DELETE") return@inTransaction
-            projectAccess.removeTeamAssignments(
-                connection, event.teamId,
-                if (TeamMemberCleanupPolicy.scope(event) == TeamMemberCleanupScope.TEAM) null else event.userId,
-            )
+            if (event.eventType != "DELETE") {
+                if (!applied) return@inTransaction
+                teamRoleService.ensureDefaultRole(connection, event.teamId)
+                projectAccess.refreshTeam(connection, event.teamId)
+                return@inTransaction
+            }
             when (TeamMemberCleanupPolicy.scope(event)) {
                 TeamMemberCleanupScope.TEAM -> {
                     teamRoleService.deleteTeamRoles(connection, event.teamId, event.occurredAt)
@@ -39,9 +40,15 @@ class TeamMemberProjectionHandler(
                         event.userId,
                         event.teamId,
                         event.occurredAt,
+                        publishMemberFence = applied,
                     )
                 }
             }
+            projectAccess.removeTeamAssignments(
+                connection, event.teamId,
+                if (TeamMemberCleanupPolicy.scope(event) == TeamMemberCleanupScope.TEAM) null else event.userId,
+                cutoff = if (TeamMemberCleanupPolicy.scope(event) == TeamMemberCleanupScope.MEMBER) event.occurredAt else null,
+            )
         }
     }
 }

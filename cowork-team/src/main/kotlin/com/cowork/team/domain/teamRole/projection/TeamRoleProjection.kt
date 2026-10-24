@@ -43,6 +43,9 @@ class TeamRoleProjection(
 
     @Column(name = "source_occurred_at", nullable = false)
     var sourceOccurredAt: Instant,
+
+    @Column(name = "is_default", nullable = false)
+    var isDefault: Boolean = false,
 ) {
     fun applyUpsert(
         name: String,
@@ -51,7 +54,9 @@ class TeamRoleProjection(
         mentionable: Boolean,
         permissionsJson: String,
         occurredAt: Instant,
+        isDefault: Boolean = false,
     ) {
+        this.isDefault = isDefault
         this.name = name
         this.colorHex = colorHex
         this.priority = priority
