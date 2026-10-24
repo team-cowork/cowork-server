@@ -184,6 +184,26 @@ describe('ChannelMessageReadAccessService', () => {
             await expect(service.canReadChannel(10, 2)).resolves.toBe(true);
             await expect(service.requireCanSend(10, 2)).rejects.toThrow(ForbiddenException);
         });
+        it('기본 읽기 허용은 공개 채널에만 적용하고 비공개 채널만 숨긴다', async () => {
+            await expect(service.filterVisibleChannelIds(1, 2, [10, 20])).resolves.toEqual([10]);
+            await expect(service.canReadChannel(20, 2)).resolves.toBe(false);
+            await expect(service.requireCanSend(20, 2)).rejects.toThrow(ForbiddenException);
+        });
+        it('비공개 채널에 명시한 read 허용으로 접근하고 send는 역할 기본값을 따른다', async () => {
+            teamRoleRepository.findRolesByIds.mockResolvedValue([{
+                teamId: 1, roleId: 101, priority: 100, permissions: {message_read: false, message_send: true},
+            }]);
+            policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([{
+                teamId: 1, channelId: 20, roleId: 101, messageRead: true,
+            }]);
+            await expect(service.requireCanSend(20, 2)).resolves.toBeUndefined();
+        });
+        it('비공개 음성 채널은 역할 기본 voice_connect로 열리지 않는다', async () => {
+            channelRepository.findByIds.mockResolvedValue([{
+                channelId: 20, teamId: 1, type: 'VOICE', isPrivate: true,
+            }]);
+            await expect(service.filterVisibleChannelIds(1, 2, [20])).resolves.toEqual([]);
+        });
         it('채널에서 send를 허용하면 역할 기본값을 덮어쓴다', async () => {
             policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([
                 {
@@ -198,7 +218,7 @@ describe('ChannelMessageReadAccessService', () => {
             }]);
             policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([
                 {
-                    teamId: 1, channelId: 10, roleId: 101, messageRead: false, permissions: {message_read: false},
+                    teamId: 1, channelId: 10, roleId: 101, messageRead: false, permissions: {message_read: false, voice_connect: true},
                 },
             ]);
             await expect(service.filterVisibleChannelIds(1, 2, [10])).resolves.toEqual([10]);

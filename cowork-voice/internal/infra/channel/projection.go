@@ -42,6 +42,7 @@ type State struct {
 	RoleID      int64           `bson:"role_id"`
 	Role        string          `bson:"role"`
 	ChannelType string          `bson:"channel_type"`
+	IsPrivate   *bool           `bson:"is_private"`
 	Priority    int             `bson:"priority"`
 	Permissions map[string]bool `bson:"permissions"`
 	Deleted     bool            `bson:"deleted"`
@@ -172,7 +173,7 @@ func canConnect(ch State, userID int64, states []State) bool {
 		if !ok {
 			continue
 		}
-		permit := r.Permissions["voice_connect"]
+		permit := ch.IsPrivate != nil && !*ch.IsPrivate && r.Permissions["voice_connect"]
 		if v, ok := policies[a.RoleID].Permissions["voice_connect"]; ok {
 			permit = v
 		}
@@ -219,6 +220,7 @@ func parseState(topic, key string, payload []byte) (State, error) {
 		RoleID        int64            `json:"roleId"`
 		Role          string           `json:"role"`
 		Type          string           `json:"type"`
+		IsPrivate     *bool            `json:"isPrivate"`
 		Priority      *int             `json:"priority"`
 		Permissions   map[string]*bool `json:"permissions"`
 		SchemaVersion int              `json:"schemaVersion"`
@@ -238,7 +240,7 @@ func parseState(topic, key string, payload []byte) (State, error) {
 		}
 		permissions[name] = *value
 	}
-	s := State{TeamID: e.TeamID, ChannelID: e.ChannelID, UserID: e.UserID, RoleID: e.RoleID, Role: e.Role, ChannelType: e.Type, Permissions: permissions, Version: version.UnixNano()}
+	s := State{TeamID: e.TeamID, ChannelID: e.ChannelID, UserID: e.UserID, RoleID: e.RoleID, Role: e.Role, ChannelType: e.Type, IsPrivate: e.IsPrivate, Permissions: permissions, Version: version.UnixNano()}
 	expected := ""
 	switch topic {
 	case "channel.event.v2":

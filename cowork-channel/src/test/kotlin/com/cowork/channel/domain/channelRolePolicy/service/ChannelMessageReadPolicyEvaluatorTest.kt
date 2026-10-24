@@ -195,6 +195,37 @@ class ChannelMessageReadPolicyEvaluatorTest {
         assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel(1L, ChannelType.TEXT))))
     }
 
+    @Test
+    fun `비공개 채널만 기본 읽기 허용에서 제외하고 채널별 허용은 적용한다`() {
+        val role = role(1L, 10).apply { permissionsJson = """{"message_read":true,"voice_connect":true}""" }
+        val channels = listOf(
+            channel(1L, ChannelType.TEXT),
+            channel(2L, ChannelType.TEXT).apply { isPrivate = true },
+            channel(3L, ChannelType.VOICE).apply { isPrivate = true },
+            channel(4L, ChannelType.VOICE).apply { isPrivate = true },
+            channel(5L, ChannelType.TEXT).apply { isPrivate = true },
+        )
+        stubMemberWithRoles(
+            listOf(role),
+            listOf(policy(4L, 1L, voiceConnect = true), policy(5L, 1L, messageRead = true)),
+            channels.mapTo(mutableSetOf()) { it.id },
+        )
+
+        assertEquals(listOf(1L, 4L, 5L), evaluator.filterReadable(10L, 7L, channels).map { it.id })
+    }
+
+    @Test
+    fun `비공개 채널도 높은 역할의 거부와 동순위 거부를 따른다`() {
+        val channel = channel(1L, ChannelType.TEXT).apply { isPrivate = true }
+        listOf(10, 20).forEach { priority ->
+            stubMemberWithRoles(
+                listOf(role(1L, priority), role(2L, 10)),
+                listOf(policy(1L, 1L, messageRead = false), policy(1L, 2L, messageRead = true)),
+            )
+            assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel)))
+        }
+    }
+
     private fun stubMemberWithRoles(
         roles: List<TeamRoleProjection>,
         policies: List<ChannelRolePolicyProjection>,
