@@ -8,6 +8,7 @@ data class TeamMemberEvent(
     val userId: Long,
     val role: String,
     val teamName: String,
+    val nickname: String?,
     val occurredAt: Instant,
     val snapshot: Boolean = false,
 )
