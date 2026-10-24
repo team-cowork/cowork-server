@@ -115,6 +115,12 @@ class InitialResourceAccessService(
         check(member != null && !member.sourceOccurredAt.isBefore(membershipVersion)) {
             "Team membership is behind initial access version"
         }
+        if (!member.deleted && authorizationVersion != null && member.sourceOccurredAt == membershipVersion) {
+            // TODO(#596): 2026-11-01 05:00 KST 이후 실제 CD + 7일·구형 producer 종료·전체 권한 버전 보정 확인 후 동일 source 보정 대기 제거.
+            check(member.authorizationVersion != null && member.authorizationVersion >= authorizationVersion) {
+                "Team authorization is behind initial access version"
+            }
+        }
         // TODO(#596): 2026-11-01 05:00 KST 이후 구버전 producer 중단·legacy seed ledger 처리·snapshot 확인 후 null seed 검사를 제거한다.
         // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
         val matches = if (authorizationVersion == null) {
