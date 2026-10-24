@@ -1,7 +1,7 @@
 package com.cowork.channel.domain.channel.event
 
 import com.cowork.channel.domain.channel.repository.ChannelEventStateRepository
-import com.cowork.channel.domain.channel.repository.ChannelMemberEventStateRepository
+import com.cowork.channel.domain.channel.repository.DmParticipantEventStateRepository
 import com.cowork.channel.global.projection.ProjectionReadinessState
 import com.cowork.channel.global.projection.ProjectionSnapshotCompletionPublisher
 import com.cowork.channel.global.projection.ProjectionSnapshotLock
@@ -17,9 +17,9 @@ import org.springframework.transaction.support.TransactionTemplate
 @Component
 class ChannelProjectionSnapshotPublisher(
     private val channelStateRepository: ChannelEventStateRepository,
-    private val memberStateRepository: ChannelMemberEventStateRepository,
+    private val memberStateRepository: DmParticipantEventStateRepository,
     private val channelEventPublisher: ChannelEventPublisher,
-    private val channelMemberEventPublisher: ChannelMemberEventPublisher,
+    private val dmParticipantEventPublisher: DmParticipantEventPublisher,
     private val readinessState: ProjectionReadinessState,
     private val streams: ProjectionStreams,
     private val completionPublisher: ProjectionSnapshotCompletionPublisher,
@@ -41,9 +41,10 @@ class ChannelProjectionSnapshotPublisher(
     private fun publishAllInTransactions() {
         if (!readinessState.isCaughtUp(streams.channelStateUpstream)) return
         publishChannelStates()
-        publishChannelMemberStates()
         if (!readinessState.isCaughtUp(streams.channelStateUpstream)) return
-        completionPublisher.publishCompleted(SNAPSHOT_TOPICS)
+        completionPublisher.publishCompleted(setOf(ChannelEventPublisher.TOPIC))
+        publishDmParticipantStates()
+        completionPublisher.publishCompleted(setOf(DmParticipantEventPublisher.TOPIC))
     }
 
     private fun publishChannelStates() {
@@ -58,7 +59,7 @@ class ChannelProjectionSnapshotPublisher(
         }
     }
 
-    private fun publishChannelMemberStates() {
+    private fun publishDmParticipantStates() {
         var afterChannelId = 0L
         var afterUserId = 0L
         while (true) {
@@ -68,7 +69,7 @@ class ChannelProjectionSnapshotPublisher(
                     afterUserId,
                     PageRequest.of(0, PAGE_SIZE),
                 )
-                states.forEach(channelMemberEventPublisher::publishSnapshot)
+                states.forEach(dmParticipantEventPublisher::publishSnapshot)
                 states.lastOrNull()?.let { it.channelId to it.userId }
             } ?: break
             afterChannelId = nextCursor.first
@@ -79,6 +80,5 @@ class ChannelProjectionSnapshotPublisher(
     private companion object {
         const val PAGE_SIZE = 500
         const val SNAPSHOT_LOCK_NAME = "publishAllChannelProjectionSnapshots"
-        val SNAPSHOT_TOPICS = setOf(ChannelEventPublisher.TOPIC, ChannelMemberEventPublisher.TOPIC)
     }
 }

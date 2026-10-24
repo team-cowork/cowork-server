@@ -1,5 +1,6 @@
 package com.cowork.preference.messaging
 
+import com.cowork.preference.repository.ProjectAccessStateRepository
 import com.cowork.preference.repository.ProjectionCheckpoint
 import com.cowork.preference.repository.ProjectionCheckpointRepository
 import com.cowork.preference.repository.TeamMemberProjectionRepository
@@ -9,6 +10,7 @@ class TeamMemberProjectionHandler(
     private val teamRoleService: TeamRoleService,
     private val teamMemberProjectionRepository: TeamMemberProjectionRepository,
     private val checkpointRepository: ProjectionCheckpointRepository,
+    private val projectAccess: ProjectAccessStateRepository,
 ) : ProjectionRecordHandler {
     override suspend fun apply(checkpoint: ProjectionCheckpoint, key: String?, value: String?): String? =
         when (val decision = TeamMemberEventParser.parse(key, value)) {
@@ -23,6 +25,10 @@ class TeamMemberProjectionHandler(
         checkpointRepository.inTransaction(checkpoint) { connection ->
             val applied = teamMemberProjectionRepository.apply(connection, event)
             if (!applied || event.eventType != "DELETE") return@inTransaction
+            projectAccess.removeTeamAssignments(
+                connection, event.teamId,
+                if (TeamMemberCleanupPolicy.scope(event) == TeamMemberCleanupScope.TEAM) null else event.userId,
+            )
             when (TeamMemberCleanupPolicy.scope(event)) {
                 TeamMemberCleanupScope.TEAM -> {
                     teamRoleService.deleteTeamRoles(connection, event.teamId, event.occurredAt)

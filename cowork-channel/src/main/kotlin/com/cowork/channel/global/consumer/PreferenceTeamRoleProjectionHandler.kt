@@ -9,9 +9,11 @@ import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleProjection
 import com.cowork.channel.global.projection.toProjectionPrecision
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.ObjectMapper
 
 @Component
 class PreferenceTeamRoleProjectionHandler(
+    private val objectMapper: ObjectMapper,
     private val roleRepository: TeamRoleProjectionRepository,
     private val assignmentRepository: TeamRoleAssignmentProjectionRepository,
     private val memberTombstoneRepository: TeamRoleMemberTombstoneRepository,
@@ -43,7 +45,11 @@ class PreferenceTeamRoleProjectionHandler(
             sourceOccurredAt = event.occurredAt,
         )
         check(role.teamId == event.teamId) { "같은 roleId를 다른 teamId로 이동할 수 없습니다." }
-        role.applyUpsert(requireNotNull(event.priority), event.occurredAt)
+        role.applyUpsert(
+            requireNotNull(event.priority),
+            event.occurredAt,
+            objectMapper.writeValueAsString(requireNotNull(event.permissions)),
+        )
         roleRepository.save(role)
     }
 

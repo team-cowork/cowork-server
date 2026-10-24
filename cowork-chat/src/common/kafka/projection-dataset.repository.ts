@@ -2,16 +2,17 @@ import {randomUUID} from 'node:crypto';
 import {Injectable} from '@nestjs/common';
 import {InjectModel} from '@nestjs/mongoose';
 import {Model} from 'mongoose';
-import {ChannelMember} from '../../chat/schema/channel-member.schema';
+import {DmParticipant} from '../../chat/schema/dm-participant.schema';
 import {ChannelProjection} from '../../chat/schema/channel-projection.schema';
 import {ChannelRolePolicyProjection} from '../../chat/schema/channel-role-policy-projection.schema';
 import {ProjectGithubRepoProjection} from '../../chat/schema/project-github-repo-projection.schema';
-import {ProjectMemberProjection} from '../../chat/schema/project-member-projection.schema';
+import {ProjectPermissionProjection} from '../../chat/schema/project-permission-projection.schema';
 import {ProjectProjection} from '../../chat/schema/project-projection.schema';
 import {TeamMemberProjection} from '../../chat/schema/team-member-projection.schema';
 import {TeamRoleAssignmentProjection} from '../../chat/schema/team-role-assignment-projection.schema';
 import {TeamRoleMemberTombstone} from '../../chat/schema/team-role-member-tombstone.schema';
 import {TeamRoleProjection} from '../../chat/schema/team-role-projection.schema';
+import {TextChannelSettingProjection} from '../../chat/schema/text-channel-setting-projection.schema';
 import {UserProfileProjection} from '../../chat/schema/user-profile-projection.schema';
 import {
     ProjectionDataset,
@@ -23,12 +24,13 @@ import {
 export type ProjectionStreamName =
     | 'channel'
     | 'project'
-    | 'channelMember'
-    | 'projectMember'
+    | 'dmParticipant'
+    | 'projectPermission'
     | 'projectGithubRepo'
     | 'teamMember'
     | 'teamRole'
     | 'channelRolePolicy'
+    | 'textChannelSetting'
     | 'userProfile';
 
 export type ProjectionDatasetState = {
@@ -62,8 +64,8 @@ export class ProjectionDatasetRepository {
         @InjectModel(ProjectionDataset.name) private readonly datasets: Model<ProjectionDataset>,
         @InjectModel(ChannelProjection.name) channel: Model<ChannelProjection>,
         @InjectModel(ProjectProjection.name) project: Model<ProjectProjection>,
-        @InjectModel(ChannelMember.name) channelMember: Model<ChannelMember>,
-        @InjectModel(ProjectMemberProjection.name) projectMember: Model<ProjectMemberProjection>,
+        @InjectModel(DmParticipant.name) dmParticipant: Model<DmParticipant>,
+        @InjectModel(ProjectPermissionProjection.name) projectPermission: Model<ProjectPermissionProjection>,
         @InjectModel(ProjectGithubRepoProjection.name) projectGithubRepo: Model<ProjectGithubRepoProjection>,
         @InjectModel(TeamMemberProjection.name) teamMember: Model<TeamMemberProjection>,
         @InjectModel(UserProfileProjection.name) userProfile: Model<UserProfileProjection>,
@@ -71,17 +73,19 @@ export class ProjectionDatasetRepository {
         @InjectModel(TeamRoleAssignmentProjection.name) teamRoleAssignment: Model<TeamRoleAssignmentProjection>,
         @InjectModel(TeamRoleMemberTombstone.name) teamRoleMemberTombstone: Model<TeamRoleMemberTombstone>,
         @InjectModel(ChannelRolePolicyProjection.name) channelRolePolicy: Model<ChannelRolePolicyProjection>,
+        @InjectModel(TextChannelSettingProjection.name) textChannelSetting: Model<TextChannelSettingProjection>,
     ) {
         this.projectionModels = {
             channel: [channel],
             project: [project],
-            channelMember: [channelMember],
-            projectMember: [projectMember],
+            dmParticipant: [dmParticipant],
+            projectPermission: [projectPermission],
             projectGithubRepo: [projectGithubRepo],
             teamMember: [teamMember],
             userProfile: [userProfile],
             teamRole: [teamRole, teamRoleAssignment, teamRoleMemberTombstone],
             channelRolePolicy: [channelRolePolicy],
+            textChannelSetting: [textChannelSetting],
         } as Record<ProjectionStreamName, Array<Model<unknown>>>;
     }
 
@@ -218,11 +222,11 @@ export class ProjectionDatasetRepository {
     }
 
     /**
-    Projection-only collection은 비우고, channelMember는 chat 소유 필드를 보존한 tombstone으로 만든다.
+    Projection-only collection은 비우고, dmParticipant는 chat 소유 필드를 보존한 tombstone으로 만든다.
     */
     async resetProjection(stream: ProjectionStreamName): Promise<void> {
         const models = this.projectionModels[stream];
-        if (stream !== 'channelMember') {
+        if (stream !== 'dmParticipant') {
             await Promise.all(models.map(async model => model.deleteMany({})));
             return;
         }

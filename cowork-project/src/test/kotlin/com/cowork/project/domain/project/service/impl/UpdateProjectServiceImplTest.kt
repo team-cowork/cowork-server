@@ -7,7 +7,7 @@ import com.cowork.project.domain.project.event.ProjectEventPublisher
 import com.cowork.project.domain.project.presentation.data.request.UpdateProjectReqDto
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
-import com.cowork.project.domain.projectMember.repository.ProjectMemberRepository
+import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -20,11 +20,10 @@ import team.themoment.sdk.exception.ExpectedException
 class UpdateProjectServiceImplTest {
 
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
-    private val projectMemberRepository = mockk<ProjectMemberRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, projectMemberRepository, teamMembershipRepository, mockk(relaxed = true))
+        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true))
 
     private val service = UpdateProjectServiceImpl(projectEventPublisher, projectAccessGuard)
 
@@ -40,7 +39,7 @@ class UpdateProjectServiceImplTest {
         fun `updateProject은 팀 OWNER 등가 권한으로 통과`() {
             val proj = project()
             every { projectRepository.findByIdForUpdate(1L) } returns proj
-            every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns null
+
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
                 membership(100L, 99L, "OWNER")
 
@@ -52,7 +51,7 @@ class UpdateProjectServiceImplTest {
         fun `updateProject은 팀 비멤버이면 FORBIDDEN`() {
             val proj = project()
             every { projectRepository.findByIdForUpdate(1L) } returns proj
-            every { projectMemberRepository.findByProjectIdAndUserId(1L, 99L) } returns null
+
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns null
 
             val ex = assertThrows(ExpectedException::class.java) {

@@ -20,14 +20,14 @@ import (
 )
 
 const (
-	projectionRetryDelay              = time.Second
-	barrierPollInterval               = time.Second
-	projectionMaxBytes                = 10e6
-	snapshotMarkerKeyPrefix           = "__cowork_projection_snapshot_complete__:"
-	snapshotMarkerEventType           = "PROJECTION_SNAPSHOT_COMPLETED"
-	channelNotificationSnapshotSource = "cowork-preference"
-	userProfileSnapshotSource         = "cowork-user"
-	teamLifecycleSnapshotSource       = "cowork-team"
+	projectionRetryDelay        = time.Second
+	barrierPollInterval         = time.Second
+	projectionMaxBytes          = 10e6
+	snapshotMarkerKeyPrefix     = "__cowork_projection_snapshot_complete__:"
+	snapshotMarkerEventType     = "PROJECTION_SNAPSHOT_COMPLETED"
+	preferenceSnapshotSource    = "cowork-preference"
+	userProfileSnapshotSource   = "cowork-user"
+	teamLifecycleSnapshotSource = "cowork-team"
 )
 
 var snapshotIDPattern = regexp.MustCompile(
@@ -42,16 +42,18 @@ type ProjectionTopics struct {
 	ChannelNotification string
 	UserProfile         string
 	TeamLifecycle       string
+	AccountSetting      string
+	TeamSetting         string
 }
 
 func (t ProjectionTopics) all() []string {
-	return []string{t.ChannelNotification, t.UserProfile, t.TeamLifecycle}
+	return []string{t.ChannelNotification, t.UserProfile, t.TeamLifecycle, t.AccountSetting, t.TeamSetting}
 }
 
 func (t ProjectionTopics) expectedSnapshotSource(topic string) (string, bool) {
 	switch topic {
-	case t.ChannelNotification:
-		return channelNotificationSnapshotSource, true
+	case t.ChannelNotification, t.AccountSetting, t.TeamSetting:
+		return preferenceSnapshotSource, true
 	case t.UserProfile:
 		return userProfileSnapshotSource, true
 	case t.TeamLifecycle:
@@ -79,6 +81,16 @@ type projectionProcessor interface {
 	ApplyTeamLifecycleWithCheckpoint(
 		context.Context,
 		projection.TeamLifecycleEvent,
+		projection.Checkpoint,
+	) error
+	ApplyAccountSettingWithCheckpoint(
+		context.Context,
+		projection.AccountSettingEvent,
+		projection.Checkpoint,
+	) error
+	ApplyTeamSettingWithCheckpoint(
+		context.Context,
+		projection.TeamSettingEvent,
 		projection.Checkpoint,
 	) error
 	RecordSnapshotMarkerWithCheckpoint(
@@ -871,6 +883,24 @@ func (c *ProjectionConsumer) handleWithCheckpoint(
 			return invalidKey(message.Topic, message.Key)
 		}
 		return c.processor.ApplyTeamLifecycleWithCheckpoint(ctx, event, checkpoint)
+	case c.topics.AccountSetting:
+		var event projection.AccountSettingEvent
+		if err := json.Unmarshal(message.Value, &event); err != nil {
+			return invalidJSON(message.Topic, err)
+		}
+		if string(message.Key) != fmt.Sprintf("%d", event.AccountID) {
+			return invalidKey(message.Topic, message.Key)
+		}
+		return c.processor.ApplyAccountSettingWithCheckpoint(ctx, event, checkpoint)
+	case c.topics.TeamSetting:
+		var event projection.TeamSettingEvent
+		if err := json.Unmarshal(message.Value, &event); err != nil {
+			return invalidJSON(message.Topic, err)
+		}
+		if string(message.Key) != fmt.Sprintf("%d", event.TeamID) {
+			return invalidKey(message.Topic, message.Key)
+		}
+		return c.processor.ApplyTeamSettingWithCheckpoint(ctx, event, checkpoint)
 	default:
 		return fmt.Errorf("%w: unsupported topic %q", projection.ErrInvalidEvent, message.Topic)
 	}

@@ -99,7 +99,6 @@ class QueryChannelRolePoliciesServiceImplTest {
         channelId = 3L,
         roleId = roleId,
         permissionsJson = """{"message_read":$read,"message_send":true}""",
-        messageRead = read,
         sourceOccurredAt = occurredAt,
     )
 
