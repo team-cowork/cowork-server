@@ -39,6 +39,14 @@ interface ProjectRepository :
     )
     fun findReadableByTeamId(@Param("teamId") teamId: Long, @Param("userId") userId: Long, pageable: Pageable): Page<Project>
 
+    @Query(
+        "SELECT COUNT(m) FROM Project p JOIN TeamMembership m ON m.teamId = p.teamId " +
+            "WHERE p.id = :projectId AND m.active = true " +
+            "AND (p.createdBy = m.userId OR m.role IN ('OWNER', 'ADMIN') OR EXISTS (" +
+            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = m.userId AND a.canRead = true))",
+    )
+    fun countReadableUsers(@Param("projectId") projectId: Long): Long
+
     @Query("SELECT COALESCE(MAX(p.position), -1) FROM Project p WHERE p.teamId = :teamId")
     fun findMaxPositionByTeamId(@Param("teamId") teamId: Long): Int
 
