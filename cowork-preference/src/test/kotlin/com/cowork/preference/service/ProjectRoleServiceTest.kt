@@ -33,7 +33,7 @@ class ProjectRoleServiceTest {
         coEvery { outbox.inTransaction<Unit>(any<suspend (SqlConnection) -> Unit>()) } coAnswers {
             firstArg<suspend (SqlConnection) -> Unit>().invoke(connection)
         }
-        service = ProjectRoleService(repository, outbox, access)
+        service = ProjectRoleService(repository, outbox, access, mockk(relaxed = true))
     }
 
     @Nested

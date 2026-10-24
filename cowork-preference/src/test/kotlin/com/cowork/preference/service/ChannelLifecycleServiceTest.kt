@@ -1,6 +1,7 @@
 package com.cowork.preference.service
 
 import com.cowork.preference.domain.ChannelRolePolicyState
+import com.cowork.preference.domain.ChannelLifecycleProjection
 import com.cowork.preference.messaging.ChannelLifecycleEvent
 import com.cowork.preference.messaging.PreferenceEvent
 import com.cowork.preference.messaging.PreferenceEvents
@@ -87,7 +88,15 @@ class ChannelLifecycleServiceTest {
         val policyRepository = mockk<ChannelRolePolicyRepository>()
         val outboxRepository = mockk<PreferenceOutboxRepository>(relaxed = true)
         val connection = mockk<SqlConnection>()
-        val service = ChannelLifecycleService(projectionRepository, policyRepository, outboxRepository)
+        val service = ChannelLifecycleService(
+            projectionRepository, policyRepository, outboxRepository, mockk(relaxed = true),
+        )
+
+        init {
+            coEvery { projectionRepository.findForUpdate(connection, CHANNEL_ID) } returns ChannelLifecycleProjection(
+                CHANNEL_ID, TEAM_ID, true, deletedEvent.occurredAt,
+            )
+        }
     }
 
     private companion object {

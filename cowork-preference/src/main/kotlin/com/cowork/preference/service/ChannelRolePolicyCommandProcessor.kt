@@ -17,6 +17,7 @@ import com.cowork.preference.messaging.ProjectionReadinessView
 import com.cowork.preference.repository.ChannelLifecycleProjectionRepository
 import com.cowork.preference.repository.ChannelRolePolicyCommandInboxRepository
 import com.cowork.preference.repository.ChannelRolePolicyRepository
+import com.cowork.preference.repository.InitialResourceAccessRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.ProcessedChannelRolePolicyCommand
 import com.cowork.preference.repository.TeamMemberProjectionRepository
@@ -36,6 +37,7 @@ class ChannelRolePolicyCommandProcessor(
     private val inboxRepository: ChannelRolePolicyCommandInboxRepository,
     private val outboxRepository: PreferenceOutboxRepository,
     private val readiness: ProjectionReadinessView,
+    private val initialAccess: InitialResourceAccessRepository,
 ) {
     suspend fun process(rawCommand: ChannelRolePolicyCommand) {
         val command = rawCommand.canonicalized()
@@ -135,6 +137,7 @@ class ChannelRolePolicyCommandProcessor(
                 roleId = command.roleId,
             )
         }
+        initialAccess.claim(connection, "CHANNEL", command.channelId)
         return success(command, state)
     }
 
