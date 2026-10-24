@@ -7,10 +7,12 @@ import com.cowork.channel.domain.channel.event.ChannelEventPublisher
 import com.cowork.channel.domain.channel.presentation.data.request.CreateChannelRequest
 import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.channel.service.TeamPermissionService
+import com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyPermissionSchema
 import com.cowork.channel.domain.meetingNote.service.CreateDefaultMeetingNoteTemplateService
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
@@ -29,6 +31,7 @@ class CreateChannelServiceImplTest {
         teamPermission,
         channelEventPublisher,
         createDefaultMeetingNoteTemplateService,
+        ChannelRolePolicyPermissionSchema(),
     )
 
     @Test
@@ -75,5 +78,22 @@ class CreateChannelServiceImplTest {
             service.execute(1L, CreateChannelRequest(teamId = 100L, name = "n", type = "DM", viewType = "TEXT"))
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+    }
+
+    @Test
+    fun `생성자 접근을 보장하지 않는 비공개 요청은 채널을 저장하지 않는다`() {
+        every { teamPermission.requirePermission(any(), any(), "manage_channels") } returns Unit
+        every { teamPermission.prepareInitialRolePolicySeed(any(), 7L, emptyList()) } throws
+            ExpectedException("생성자가 접근할 수 있도록 초기 채널 역할 정책을 지정해야 합니다.", HttpStatus.BAD_REQUEST)
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.execute(
+                7L,
+                CreateChannelRequest(100L, "private", "TEXT", "TEXT", isPrivate = true),
+            )
+        }
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        verify(exactly = 0) { channelRepository.save(any()) }
     }
 }
