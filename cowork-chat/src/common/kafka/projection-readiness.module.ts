@@ -25,6 +25,10 @@ import {
     TeamRoleMemberTombstoneSchema,
 } from '../../chat/schema/team-role-member-tombstone.schema';
 import {TeamRoleProjection, TeamRoleProjectionSchema} from '../../chat/schema/team-role-projection.schema';
+import {
+    TextChannelSettingProjection,
+    TextChannelSettingProjectionSchema,
+} from '../../chat/schema/text-channel-setting-projection.schema';
 import {UserProfileProjection, UserProfileProjectionSchema} from '../../chat/schema/user-profile-projection.schema';
 import {ProjectionAdminController} from './projection-admin.controller';
 import {ProjectionMetricsService} from './projection-metrics.service';
@@ -55,6 +59,7 @@ import {ProjectionCheckpoint, ProjectionCheckpointSchema} from './projection-che
             {name: TeamRoleAssignmentProjection.name, schema: TeamRoleAssignmentProjectionSchema},
             {name: TeamRoleMemberTombstone.name, schema: TeamRoleMemberTombstoneSchema},
             {name: ChannelRolePolicyProjection.name, schema: ChannelRolePolicyProjectionSchema},
+            {name: TextChannelSettingProjection.name, schema: TextChannelSettingProjectionSchema},
             {name: UserProfileProjection.name, schema: UserProfileProjectionSchema},
         ]),
     ],

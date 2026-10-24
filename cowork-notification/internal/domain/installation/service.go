@@ -94,19 +94,18 @@ func (s *Service) Notify(
 	targetUserIDs []int64,
 	forcedUserIDs []int64,
 	title, body string,
-	channelID int64,
+	channelID, teamID int64,
 ) ([]int64, error) {
+	forcedIDs := make([]int64, 0, len(forcedUserIDs))
 	forcedSet := make(map[int64]bool, len(forcedUserIDs))
-	enabledIDs := make([]int64, 0, len(targetUserIDs)+len(forcedUserIDs))
 	for _, id := range forcedUserIDs {
 		if forcedSet[id] {
 			continue
 		}
 		forcedSet[id] = true
-		enabledIDs = append(enabledIDs, id)
+		forcedIDs = append(forcedIDs, id)
 	}
 
-	// forcedUserIDs는 뮤트 무시하고 무조건 포함
 	nonForcedIDs := make([]int64, 0, len(targetUserIDs))
 	nonForcedSet := make(map[int64]bool, len(targetUserIDs))
 	for _, uid := range targetUserIDs {
@@ -116,23 +115,33 @@ func (s *Service) Notify(
 		}
 	}
 
-	// 나머지는 preference 확인
-	if channelID > 0 {
-		if len(nonForcedIDs) > 0 {
-			enabledMap, err := s.pref.AreNotificationsEnabled(ctx, nonForcedIDs, channelID)
-			if err != nil {
-				// Fail closed. The Kafka trigger remains uncommitted and is retried;
-				// defaulting to enabled could notify an explicitly opted-out user.
-				return nil, fmt.Errorf("resolve channel notification preferences: %w", err)
-			}
-			for _, uid := range nonForcedIDs {
-				if enabled, ok := enabledMap[uid]; !ok || enabled {
-					enabledIDs = append(enabledIDs, uid)
-				}
-			}
+	recipients := append(append(make([]int64, 0, len(forcedIDs)+len(nonForcedIDs)), forcedIDs...), nonForcedIDs...)
+	if len(recipients) == 0 {
+		return recipients, nil
+	}
+	preferences, err := s.pref.FindRecipientPreferences(ctx, recipients, channelID, teamID)
+	if err != nil {
+		// Fail closed. The Kafka trigger remains uncommitted and is retried;
+		// defaulting to enabled could notify an explicitly opted-out user.
+		return nil, fmt.Errorf("resolve recipient notification preferences: %w", err)
+	}
+
+	// 방해 금지는 모든 수신자에게 적용하고, 알림 수준과 음소거는 멘션, 답글 대상(forcedUserIDs)이 아닌 채널 메시지에만 적용한다.
+	now := time.Now()
+	enabledIDs := make([]int64, 0, len(recipients))
+	for _, uid := range forcedIDs {
+		if !preferences.DoNotDisturb(uid, now) {
+			enabledIDs = append(enabledIDs, uid)
 		}
-	} else {
-		enabledIDs = append(enabledIDs, nonForcedIDs...)
+	}
+	for _, uid := range nonForcedIDs {
+		if preferences.DoNotDisturb(uid, now) {
+			continue
+		}
+		if channelID > 0 && !preferences.ReceivesAllChannelMessages(uid, teamID > 0, now) {
+			continue
+		}
+		enabledIDs = append(enabledIDs, uid)
 	}
 
 	if len(enabledIDs) == 0 {

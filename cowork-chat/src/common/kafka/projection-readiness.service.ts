@@ -102,6 +102,13 @@ export const PROJECTION_STREAMS = {
         expectedSource: 'cowork-preference',
         sourceGeneration: sourceGeneration('CHANNEL_ROLE_POLICY'),
     },
+    textChannelSetting: {
+        name: 'textChannelSetting',
+        topic: 'preference.text-channel-setting.state.v1',
+        groupId: 'cowork-chat-text-channel-setting-state-v1-projection',
+        expectedSource: 'cowork-preference',
+        sourceGeneration: sourceGeneration('TEXT_CHANNEL_SETTING'),
+    },
     userProfile: {
         name: 'userProfile',
         topic: 'user.profile.event.v2',

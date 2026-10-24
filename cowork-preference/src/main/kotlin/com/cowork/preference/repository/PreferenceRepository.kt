@@ -4,6 +4,7 @@ import com.cowork.preference.domain.ResourceType
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Pool
+import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import java.time.Instant
@@ -16,6 +17,8 @@ data class PreferenceSettingsUpdate(
 )
 
 data class GithubRepoSettingState(val repoId: Long, val settings: JsonObject?, val stateOccurredAt: Instant)
+
+data class ResourceSettingState(val resourceId: Long, val settings: JsonObject, val stateOccurredAt: Instant)
 
 class PreferenceRepository(private val pool: Pool) {
 
@@ -217,14 +220,41 @@ class PreferenceRepository(private val pool: Pool) {
     }
 
     /** status_expires_at 및 status 필드를 배치 제거 (만료 후 클리어) */
-    internal suspend fun clearExpiredStatuses(client: SqlClient, resourceIds: List<Long>) {
-        if (resourceIds.isEmpty()) return
-        client.preparedQuery(
+    internal suspend fun clearExpiredStatuses(client: SqlClient, resourceIds: List<Long>): List<ResourceSettingState> {
+        if (resourceIds.isEmpty()) return emptyList()
+        val rows = client.preparedQuery(
             """
             UPDATE resource_setting
             SET settings = settings - 'status' - 'status_expires_at'
             WHERE resource_id = ANY(${'$'}1) AND resource_type = 'ACCOUNT'
+            RETURNING resource_id, settings, state_occurred_at
             """.trimIndent(),
         ).execute(Tuple.of(resourceIds.toTypedArray<Long>())).coAwait()
+        return rows.map { it.toResourceSettingState() }
     }
+
+    internal suspend fun findSettingStatePage(
+        client: SqlClient,
+        resourceType: ResourceType,
+        afterResourceId: Long,
+        limit: Int,
+    ): List<ResourceSettingState> {
+        val rows = client.preparedQuery(
+            """
+            SELECT resource_id, settings, state_occurred_at
+            FROM resource_setting
+            WHERE resource_type = ${'$'}1::resource_type AND resource_id > ${'$'}2
+            ORDER BY resource_id
+            LIMIT ${'$'}3
+            FOR SHARE
+            """.trimIndent(),
+        ).execute(Tuple.of(resourceType.name, afterResourceId, limit)).coAwait()
+        return rows.map { it.toResourceSettingState() }
+    }
+
+    private fun Row.toResourceSettingState() = ResourceSettingState(
+        resourceId = getLong("resource_id"),
+        settings = getJsonObject("settings"),
+        stateOccurredAt = getOffsetDateTime("state_occurred_at").toInstant(),
+    )
 }

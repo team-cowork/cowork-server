@@ -12,6 +12,7 @@ import {TeamMemberProjection} from '../../chat/schema/team-member-projection.sch
 import {TeamRoleAssignmentProjection} from '../../chat/schema/team-role-assignment-projection.schema';
 import {TeamRoleMemberTombstone} from '../../chat/schema/team-role-member-tombstone.schema';
 import {TeamRoleProjection} from '../../chat/schema/team-role-projection.schema';
+import {TextChannelSettingProjection} from '../../chat/schema/text-channel-setting-projection.schema';
 import {UserProfileProjection} from '../../chat/schema/user-profile-projection.schema';
 import {
     ProjectionDataset,
@@ -29,6 +30,7 @@ export type ProjectionStreamName =
     | 'teamMember'
     | 'teamRole'
     | 'channelRolePolicy'
+    | 'textChannelSetting'
     | 'userProfile';
 
 export type ProjectionDatasetState = {
@@ -71,6 +73,7 @@ export class ProjectionDatasetRepository {
         @InjectModel(TeamRoleAssignmentProjection.name) teamRoleAssignment: Model<TeamRoleAssignmentProjection>,
         @InjectModel(TeamRoleMemberTombstone.name) teamRoleMemberTombstone: Model<TeamRoleMemberTombstone>,
         @InjectModel(ChannelRolePolicyProjection.name) channelRolePolicy: Model<ChannelRolePolicyProjection>,
+        @InjectModel(TextChannelSettingProjection.name) textChannelSetting: Model<TextChannelSettingProjection>,
     ) {
         this.projectionModels = {
             channel: [channel],
@@ -82,6 +85,7 @@ export class ProjectionDatasetRepository {
             userProfile: [userProfile],
             teamRole: [teamRole, teamRoleAssignment, teamRoleMemberTombstone],
             channelRolePolicy: [channelRolePolicy],
+            textChannelSetting: [textChannelSetting],
         } as Record<ProjectionStreamName, Array<Model<unknown>>>;
     }
 

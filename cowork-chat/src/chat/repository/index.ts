@@ -11,6 +11,7 @@ export * from './project-permission-projection.repository';
 export * from './project-projection.repository';
 export * from './team-member-projection.repository';
 export * from './team-role-projection.repository';
+export * from './text-channel-setting-projection.repository';
 export * from './user-profile-projection.repository';
 export * from './versioned-projection.util';
 export * from './channel-read-state.repository';

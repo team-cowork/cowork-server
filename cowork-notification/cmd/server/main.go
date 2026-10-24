@@ -104,6 +104,8 @@ func main() {
 			ChannelNotification: cfg.KafkaTopicChannelNotification,
 			UserProfile:         cfg.KafkaTopicUserProfile,
 			TeamLifecycle:       cfg.KafkaTopicTeamLifecycle,
+			AccountSetting:      cfg.KafkaTopicAccountSetting,
+			TeamSetting:         cfg.KafkaTopicTeamSetting,
 		},
 		projectionService,
 		projectionReadiness,
@@ -177,6 +179,8 @@ func main() {
 			"channelPreferenceTopic", cfg.KafkaTopicChannelNotification,
 			"userProfileTopic", cfg.KafkaTopicUserProfile,
 			"teamLifecycleTopic", cfg.KafkaTopicTeamLifecycle,
+			"accountSettingTopic", cfg.KafkaTopicAccountSetting,
+			"teamSettingTopic", cfg.KafkaTopicTeamSetting,
 		)
 		projectionConsumer.Start(consumerCtx)
 	}()
