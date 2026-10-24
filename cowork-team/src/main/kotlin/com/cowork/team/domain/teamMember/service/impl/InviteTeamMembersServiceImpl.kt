@@ -24,7 +24,7 @@ class InviteTeamMembersServiceImpl(
     @Transactional
     override fun execute(actorId: Long, teamId: Long, request: InviteMembersRequest): List<TeamMemberResponse> {
         val team = teamMemberAccessGuard.findTeamForUpdateOrThrow(teamId)
-        teamMemberAccessGuard.requireRole(teamId, actorId, TeamRole.OWNER, TeamRole.ADMIN)
+        teamMemberAccessGuard.requirePermission(teamId, actorId, "manage_invites")
 
         val existingUserIds = teamMemberRepository.findAllByTeamIdForUpdate(teamId).map { it.userId }.toSet()
         val newMembers = request.userIds

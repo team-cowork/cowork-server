@@ -11,13 +11,13 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional(readOnly = true)
 class GetThreadsServiceImpl(
     private val threadRepository: ThreadRepository,
     private val channelAccessGuard: ChannelAccessGuard,
     private val teamPermissionService: TeamPermissionService,
 ) : GetThreadsService {
 
+    @Transactional(readOnly = true)
     override fun getThreads(
         userId: Long,
         channelId: Long,
@@ -25,7 +25,7 @@ class GetThreadsServiceImpl(
         pageable: Pageable,
     ): Page<ThreadResponse> {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
-        teamPermissionService.requireTeamMember(channelAccessGuard.requireTeamChannel(channel), userId)
+        teamPermissionService.requireChannelAccess(channel, userId)
 
         val page = if (includeArchived) {
             threadRepository.findByChannelId(channelId, pageable)

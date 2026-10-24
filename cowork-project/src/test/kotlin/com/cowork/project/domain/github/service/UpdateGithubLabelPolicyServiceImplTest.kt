@@ -50,7 +50,7 @@ class UpdateGithubLabelPolicyServiceImplTest :
                         repository.insertPendingOrGet(any(), any(), any(), any(), any(), any())
                     } returns InsertResult.Existing(operation)
                     every {
-                        accessResolver.resolveForModifyForUpdate(3L, 1L, 2L)
+                        accessResolver.resolveForManageForUpdate(3L, 1L, 2L)
                     } throws ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
 
                     // When
@@ -100,7 +100,7 @@ class UpdateGithubLabelPolicyServiceImplTest :
                         repository.insertPendingOrGet(any(), any(), any(), any(), any(), any())
                     } returns InsertResult.Inserted
                     every {
-                        accessResolver.resolveForModifyForUpdate(3L, 1L, 2L)
+                        accessResolver.resolveForManageForUpdate(3L, 1L, 2L)
                     } throws ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
 
                     // When

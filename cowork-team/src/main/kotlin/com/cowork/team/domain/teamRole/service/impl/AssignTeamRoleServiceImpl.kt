@@ -34,6 +34,8 @@ class AssignTeamRoleServiceImpl(
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
         teamRoleAccessGuard.requireMemberExists(teamId, targetUserId)
         val role = teamRoleLookupSupport.findRoleOrThrow(teamId, roleId)
+        teamRoleAccessGuard.requireGrantablePermissions(actor, role.permissions)
+        teamRoleAccessGuard.requireCustomRole(role)
         teamRoleAccessGuard.requireManageablePriority(actor, role)
     }
 }

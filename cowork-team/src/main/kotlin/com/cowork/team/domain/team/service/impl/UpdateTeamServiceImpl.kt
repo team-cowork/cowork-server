@@ -8,7 +8,6 @@ import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.team.service.TeamIconOwnershipService
 import com.cowork.team.domain.team.service.UpdateTeamService
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -24,7 +23,7 @@ class UpdateTeamServiceImpl(
     @Transactional
     override fun execute(userId: Long, teamId: Long, request: UpdateTeamRequest): TeamResponse {
         val team = teamAccessGuard.findTeamForUpdateOrThrow(teamId)
-        teamAccessGuard.requireRole(teamId, userId, TeamRole.OWNER, TeamRole.ADMIN)
+        teamAccessGuard.requirePermission(teamId, userId, "manage_team")
         request.iconUrl?.let { iconOwnership.replace(userId, team, it) }
         team.update(request.name, request.description, null)
         val members = teamMemberRepository.findAllByTeamIdForUpdate(teamId)
