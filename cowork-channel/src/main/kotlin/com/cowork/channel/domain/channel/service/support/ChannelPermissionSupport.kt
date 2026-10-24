@@ -43,6 +43,11 @@ class ChannelPermissionSupport(
         messageReadPolicyEvaluator.requireRolePolicyManagement(teamId, userId, channel, roleId, permissions)
     }
 
+    fun requirePrivateTransitionAccess(channel: Channel, userId: Long) {
+        val teamId = channel.teamId ?: throw ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
+        messageReadPolicyEvaluator.requirePrivateTransitionAccess(teamId, userId, channel)
+    }
+
     fun requireChannelManager(channel: Channel, userId: Long) {
         val teamId = channel.teamId ?: throw ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
         messageReadPolicyEvaluator.requirePermission(teamId, userId, channel, "channel_manage")

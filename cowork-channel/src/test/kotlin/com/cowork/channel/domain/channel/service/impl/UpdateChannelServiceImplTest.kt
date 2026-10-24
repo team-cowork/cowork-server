@@ -13,6 +13,7 @@ import com.cowork.channel.domain.channel.service.support.ChannelPermissionSuppor
 import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
@@ -103,6 +104,37 @@ class UpdateChannelServiceImplTest {
 
         val res = service.execute(1L, 1L, UpdateChannelRequest(projectId = null), true)
         assertEquals(null, res.projectId)
+    }
+
+    @Test
+    fun `비공개 전환으로 요청자 접근이 사라지면 채널 변경과 이벤트 발행을 거절한다`() {
+        val ch = channel(createdBy = 99L, projectId = 99L)
+        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { permissionEvaluator.requirePrivateTransitionAccess(100L, 1L, ch) } throws
+            ExpectedException("비공개 전환 후에도 접근할 수 있도록 채널 역할 권한을 먼저 설정해야 합니다.", HttpStatus.BAD_REQUEST)
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.execute(1L, 1L, UpdateChannelRequest(name = "new", isPrivate = true, projectId = 5L), true)
+        }
+
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        assertEquals(false, ch.isPrivate)
+        assertEquals("ch", ch.name)
+        assertEquals(99L, ch.projectId)
+        verify(exactly = 0) { channelEventPublisher.publishUpdated(any(), any()) }
+    }
+
+    @Test
+    fun `전환 후에도 접근 가능한 일반 관리자는 채널을 비공개로 변경한다`() {
+        val ch = channel(createdBy = 99L)
+        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { permissionEvaluator.requirePrivateTransitionAccess(100L, 1L, ch) } returns Unit
+
+        val result = service.execute(1L, 1L, UpdateChannelRequest(isPrivate = true), false)
+
+        assertEquals(true, result.isPrivate)
+        verify(exactly = 1) { permissionEvaluator.requirePrivateTransitionAccess(100L, 1L, ch) }
+        verify(exactly = 1) { channelEventPublisher.publishUpdated(ch, any()) }
     }
 
     @Test
