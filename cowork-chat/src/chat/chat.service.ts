@@ -338,9 +338,11 @@ export class ChatService {
             throw new BadRequestException('첨부 메시지에는 재시도에 사용할 clientMessageId가 필요합니다');
         }
 
-        const slowmodeKey = await this.slowmodeService.reserve(ctx.channelId, scope?.teamId, ctx.userId);
+        const clientMessageId = dto.clientMessageId ?? randomUUID();
+        const slowmodeReservation = await this.slowmodeService.reserve(
+            ctx.channelId, scope?.teamId, ctx.userId, clientMessageId,
+        );
         try {
-            const clientMessageId = dto.clientMessageId ?? randomUUID();
             const attachments = await this.objectStorageService.claimAttachments(
                 dto.attachments ?? [], ctx.channelId, ctx.userId, clientMessageId,
             );
@@ -354,7 +356,7 @@ export class ChatService {
                 clientMessageId,
             }, ctx.userId, ctx.userRole);
         } catch (error) {
-            await this.slowmodeService.release(slowmodeKey);
+            await this.slowmodeService.release(slowmodeReservation);
             throw error;
         }
     }

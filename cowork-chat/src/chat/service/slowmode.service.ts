@@ -10,6 +10,11 @@ import {
 export const SLOWMODE_BYPASS_PERMISSION = 'slowmode_bypass';
 const BYPASS_TEAM_ROLES = new Set(['OWNER', 'ADMIN']);
 
+export type SlowmodeReservation = {
+    key: string;
+    holder: string;
+};
+
 export type SlowmodeBypassInput = {
     teamId: number;
     teamRole: string | undefined;
@@ -59,11 +64,17 @@ export class SlowmodeService {
     ) {}
 
     /**
-     슬로우 모드 간격을 예약하고, 전송이 실패하면 {@link release}에 넘길 key를 돌려준다. 예약할 필요가 없으면 `undefined`다.
+     슬로우 모드 간격을 `clientMessageId`로 예약하고, 전송이 실패하면 {@link release}에 넘길 예약을 돌려준다.
+     예약할 필요가 없거나 같은 `clientMessageId`의 재시도면 `undefined`다.
 
-     @throws HttpException 429 간격 안에 다시 보낸 경우
+     @throws HttpException 429 간격 안에 다른 메시지를 보낸 경우
      */
-    async reserve(channelId: number, teamId: number | null | undefined, userId: number): Promise<string | undefined> {
+    async reserve(
+        channelId: number,
+        teamId: number | null | undefined,
+        userId: number,
+        clientMessageId: string,
+    ): Promise<SlowmodeReservation | undefined> {
         if (teamId === null || teamId === undefined) {
             return undefined;
         }
@@ -74,19 +85,20 @@ export class SlowmodeService {
         }
 
         const key = `chat:slowmode:${channelId}:${userId}`;
-        if (!(await this.rateLimiter.tryReserve(key, slowmodeSeconds * 1000))) {
+        const result = await this.rateLimiter.tryReserve(key, clientMessageId, slowmodeSeconds * 1000);
+        if (result === 'BUSY') {
             throw new HttpException(
                 '슬로우 모드가 켜진 채널입니다. 잠시 후 다시 시도하십시오.',
                 HttpStatus.TOO_MANY_REQUESTS,
             );
         }
 
-        return key;
+        return result === 'RESERVED' ? {key, holder: clientMessageId} : undefined;
     }
 
-    async release(key: string | undefined): Promise<void> {
-        if (key !== undefined) {
-            await this.rateLimiter.release(key);
+    async release(reservation: SlowmodeReservation | undefined): Promise<void> {
+        if (reservation !== undefined) {
+            await this.rateLimiter.release(reservation.key, reservation.holder);
         }
     }
 
