@@ -78,7 +78,8 @@ class ProjectEventPublisher(
         val event = ProjectEvent(
             eventType = eventType,
             projectId = project.id,
-                createdBy = project.createdBy,
+            createdBy = project.createdBy,
+            isPrivate = project.isPrivate,
             teamId = project.teamId,
             name = project.name,
             description = project.description,

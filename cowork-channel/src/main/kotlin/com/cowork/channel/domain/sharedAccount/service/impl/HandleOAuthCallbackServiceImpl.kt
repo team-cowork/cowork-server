@@ -69,7 +69,7 @@ class HandleOAuthCallbackServiceImpl(
     /** 채널 접근 권한을 검증한다. 외부 호출 전에 완료되어 connection을 즉시 반납한다. */
     private fun authorize(channelId: Long, userId: Long) {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
-        teamPermissionService.requireTeamMember(channelAccessGuard.requireTeamChannel(channel), userId)
+        teamPermissionService.requireChannelAccess(channel, userId)
     }
 
     /** 이미 연결된 계정이면 그대로 반환하고, 없으면 새로 저장한다. */

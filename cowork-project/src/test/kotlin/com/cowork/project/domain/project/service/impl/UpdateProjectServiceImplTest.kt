@@ -23,7 +23,7 @@ class UpdateProjectServiceImplTest {
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true))
+        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true), mockk(relaxed = true))
 
     private val service = UpdateProjectServiceImpl(projectEventPublisher, projectAccessGuard)
 
@@ -43,8 +43,9 @@ class UpdateProjectServiceImplTest {
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
                 membership(100L, 99L, "OWNER")
 
-            val response = service.execute(99L, 1L, UpdateProjectReqDto(name = "newName"))
+            val response = service.execute(99L, 1L, UpdateProjectReqDto(name = "newName", isPrivate = true))
             assertEquals("newName", response.name)
+            assertEquals(true, response.isPrivate)
         }
 
         @Test

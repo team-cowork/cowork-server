@@ -43,6 +43,9 @@ class Project(
 
     @Column(name = "state_occurred_at", nullable = false)
     var stateOccurredAt: Instant = Instant.EPOCH,
+
+    @Column(name = "is_private", nullable = false)
+    var isPrivate: Boolean = false,
 ) {
     fun updateName(newName: String) {
         name = newName

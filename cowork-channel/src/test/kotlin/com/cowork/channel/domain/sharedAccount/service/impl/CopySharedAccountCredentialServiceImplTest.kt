@@ -82,7 +82,7 @@ class CopySharedAccountCredentialServiceImplTest {
     @Test
     fun `copyCredential은 복호화된 credential을 반환하고 접근 로그를 저장함`() {
         every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
-        every { teamPermissionService.requireTeamMember(100L, 1L) } returns Unit
+        every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
         every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns account(credential = "encrypted")
         every { credentialEncryptionService.decrypt("encrypted") } returns "plainPassword"
         every { accountCredentialCopyRepository.save(any()) } answers { firstArg() }
@@ -96,7 +96,7 @@ class CopySharedAccountCredentialServiceImplTest {
     @Test
     fun `copyCredential은 credential이 null이면 NOT_FOUND`() {
         every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
-        every { teamPermissionService.requireTeamMember(100L, 1L) } returns Unit
+        every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
         every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns account(credential = null)
 
         val ex = assertThrows<ExpectedException> { service.copyCredential(1L, 1L, 10L) }
@@ -106,7 +106,7 @@ class CopySharedAccountCredentialServiceImplTest {
     @Test
     fun `copyCredential은 팀 비멤버이면 FORBIDDEN`() {
         every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
-        every { teamPermissionService.requireTeamMember(100L, 7L) } throws
+        every { teamPermissionService.requireChannelAccess(any(), 7L) } throws
             ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
 
         val ex = assertThrows<ExpectedException> { service.copyCredential(7L, 1L, 10L) }

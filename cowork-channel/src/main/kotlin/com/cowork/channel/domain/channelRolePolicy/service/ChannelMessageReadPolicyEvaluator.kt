@@ -7,6 +7,7 @@ import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleAssignment
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleMemberTombstone
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleMemberTombstoneRepository
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleProjectionRepository
+import com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyPermissionSchema
 import com.cowork.channel.domain.membership.entity.TeamMembership
 import com.cowork.channel.domain.membership.repository.TeamMembershipRepository
 import com.cowork.channel.global.projection.ProjectionReadinessGate
@@ -59,8 +60,8 @@ class ChannelMessageReadPolicyEvaluator(
         projectionReadinessGate.requireReady()
         val membership = membershipRepository.findByTeamIdAndUserId(teamId, userId)
             ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
-        if (membership.role in setOf(OWNER_ROLE, "ADMIN")) return
-        val candidates = channels.filter { it.createdBy != userId }
+        if (membership.active && membership.role in BYPASS_ROLES) return
+        val candidates = channels
         val allowed = readableChannelIds(teamId, userId, candidates, "channel_reorder")
         if (candidates.any { it.id !in allowed }) {
             throw ExpectedException("채널 재정렬 권한이 없습니다.", HttpStatus.FORBIDDEN)
@@ -76,7 +77,8 @@ class ChannelMessageReadPolicyEvaluator(
         if (channels.isEmpty()) return emptySet()
         val channelIds = channels.mapTo(mutableSetOf()) { it.id }
         val membership = membershipRepository.findByTeamIdAndUserId(teamId, userId) ?: return emptySet()
-        if (membership.role == OWNER_ROLE) return channelIds
+        if (!membership.active) return emptySet()
+        if (membership.role in BYPASS_ROLES) return channelIds
 
         val memberTombstone = memberTombstoneRepository.findById(
             TeamRoleMemberTombstone.key(teamId, userId),
@@ -87,7 +89,6 @@ class ChannelMessageReadPolicyEvaluator(
                 memberTombstone == null || assignment.sourceOccurredAt.isAfter(memberTombstone.sourceOccurredAt)
             }
             .mapTo(mutableSetOf()) { it.roleId }
-        if (assignedRoleIds.isEmpty()) return emptySet()
         val roles = loadRoles(teamId, assignedRoleIds)
         val policies = loadPolicies(teamId, channelIds, roles.keys)
         return channels.filter { isAllowed(it, assignedRoleIds, roles, policies[it.id].orEmpty(), permission) }
@@ -98,8 +99,8 @@ class ChannelMessageReadPolicyEvaluator(
         projectionReadinessGate.requireReady()
         val teamId = channel.teamId ?: return emptySet()
         val activeMembers = memberships.filter { it.teamId == teamId && it.active }
-        val allowed = activeMembers.filter { it.role == OWNER_ROLE }.mapTo(mutableSetOf()) { it.userId }
-        val candidates = activeMembers.filter { it.role != OWNER_ROLE }.mapTo(mutableSetOf()) { it.userId }
+        val allowed = activeMembers.filter { it.role in BYPASS_ROLES }.mapTo(mutableSetOf()) { it.userId }
+        val candidates = activeMembers.filter { it.role !in BYPASS_ROLES }.mapTo(mutableSetOf()) { it.userId }
         if (candidates.isEmpty()) return allowed
         val tombstones = memberTombstoneRepository.findAllById(
             candidates.map {
@@ -121,13 +122,69 @@ class ChannelMessageReadPolicyEvaluator(
         return allowed
     }
 
-    private data class RolePermissions(val priority: Int, val permissions: Map<String, Boolean>)
+    private data class RolePermissions(val priority: Int, val isDefault: Boolean, val permissions: Map<String, Boolean>)
 
-    private fun loadRoles(teamId: Long, roleIds: Set<Long>): Map<Long, RolePermissions> = if (roleIds.isEmpty()) {
-        emptyMap()
-    } else {
-        roleRepository.findAllByTeamIdAndRoleIdInAndDeletedFalse(teamId, roleIds)
-            .associate { it.roleId to RolePermissions(it.priority, permissions(it.permissionsJson)) }
+    private fun loadRoles(teamId: Long, roleIds: Set<Long>): Map<Long, RolePermissions> {
+        val defaults = roleRepository.findAllByTeamIdAndIsDefaultTrueAndDeletedFalse(teamId)
+        val assigned = if (roleIds.isEmpty()) {
+            emptyList()
+        } else {
+            roleRepository.findAllByTeamIdAndRoleIdInAndDeletedFalse(teamId, roleIds)
+        }
+        return (defaults + assigned).associate {
+            it.roleId to RolePermissions(it.priority, it.isDefault, permissions(it.permissionsJson))
+        }
+    }
+
+    fun requireTeamPermission(teamId: Long, userId: Long, permission: String) {
+        projectionReadinessGate.requireReady()
+        val membership = membershipRepository.findByTeamIdAndUserId(teamId, userId)
+        if (membership == null || !membership.active) {
+            throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
+        }
+        if (membership.role in BYPASS_ROLES) return
+        val fence = memberTombstoneRepository.findById(TeamRoleMemberTombstone.key(teamId, userId)).orElse(null)
+        val roleIds = assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(teamId, userId)
+            .filter { fence == null || it.sourceOccurredAt.isAfter(fence.sourceOccurredAt) }
+            .mapTo(mutableSetOf()) { it.roleId }
+        if (loadRoles(teamId, roleIds).values.none { it.permissions[permission] == true }) {
+            throw ExpectedException("해당 팀 작업 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        }
+    }
+
+    fun requireRolePolicyManagement(
+        teamId: Long,
+        userId: Long,
+        channel: Channel,
+        targetRoleId: Long,
+        overwrite: Map<String, Boolean>?,
+    ) {
+        requireTeamPermission(teamId, userId, "manage_roles")
+        requireChannelAccess(teamId, userId, channel)
+        val membership = membershipRepository.findByTeamIdAndUserId(teamId, userId)
+            ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
+        if (membership.active && membership.role in BYPASS_ROLES) return
+        val target = roleRepository.findById(targetRoleId).orElse(null)
+        if (target == null || target.teamId != teamId || target.deleted) {
+            throw ExpectedException("팀 역할을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+        }
+        val fence = memberTombstoneRepository.findById(TeamRoleMemberTombstone.key(teamId, userId)).orElse(null)
+        val roleIds = assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(teamId, userId)
+            .filter { fence == null || it.sourceOccurredAt.isAfter(fence.sourceOccurredAt) }
+            .mapTo(mutableSetOf()) { it.roleId }
+        val roles = loadRoles(teamId, roleIds)
+        val highestPriority = roles.values.filterNot { it.isDefault }.maxOfOrNull { it.priority }
+        if (highestPriority == null || (!target.isDefault && target.priority >= highestPriority)) {
+            throw ExpectedException("자신보다 낮은 역할의 채널 권한만 변경할 수 있습니다.", HttpStatus.FORBIDDEN)
+        }
+        val policies = loadPolicies(teamId, setOf(channel.id), roles.keys)[channel.id].orEmpty()
+        val targetBase = permissions(target.permissionsJson)
+        val granted = ChannelRolePolicyPermissionSchema.KEYS.filter { key ->
+            overwrite?.get(key) ?: (targetBase[key] == true)
+        }
+        if (granted.any { !isAllowed(channel, roleIds, roles, policies, it) }) {
+            throw ExpectedException("자신에게 없는 채널 권한을 부여할 수 없습니다.", HttpStatus.FORBIDDEN)
+        }
     }
 
     private fun loadPolicies(
@@ -152,13 +209,20 @@ class ChannelMessageReadPolicyEvaluator(
         policies: Map<Long, Map<String, Boolean>>,
         permission: String? = null,
     ): Boolean {
-        val assigned = roleIds.mapNotNull { roleId -> roles[roleId]?.let { roleId to it } }
-        val highest = assigned.maxOfOrNull { it.second.priority } ?: return false
-        val key = permission ?: if (channel.type == ChannelType.VOICE) "voice_connect" else "message_read"
-        return assigned.filter { it.second.priority == highest }.all { (roleId, role) ->
-            val default = if (channel.isPrivate && key in ACCESS_PERMISSIONS) false else role.permissions[key] ?: false
-            policies[roleId]?.get(key) ?: default
+        val applicable = roles.filter { (roleId, role) -> role.isDefault || roleId in roleIds }
+        val accessPermission = if (channel.type == ChannelType.VOICE) "voice_connect" else "message_read"
+        fun allows(key: String): Boolean {
+            var allowed = !((channel.isPrivate) && key in ACCESS_PERMISSIONS) &&
+                applicable.values.any { it.permissions[key] == true }
+            applicable.filterValues { it.isDefault }.forEach { (roleId, _) ->
+                policies[roleId]?.get(key)?.let { allowed = it }
+            }
+            val overrides = applicable.filterValues { !it.isDefault }.keys.mapNotNull { policies[it]?.get(key) }
+            if (false in overrides) allowed = false
+            if (true in overrides) allowed = true
+            return allowed
         }
+        return allows(accessPermission) && (permission == null || allows(permission))
     }
 
     private fun permissions(json: String?): Map<String, Boolean> = json?.let {
@@ -166,7 +230,7 @@ class ChannelMessageReadPolicyEvaluator(
     }.orEmpty()
 
     private companion object {
-        const val OWNER_ROLE = "OWNER"
+        val BYPASS_ROLES = setOf("OWNER", "ADMIN")
         val ACCESS_PERMISSIONS = setOf("message_read", "voice_connect")
     }
 }

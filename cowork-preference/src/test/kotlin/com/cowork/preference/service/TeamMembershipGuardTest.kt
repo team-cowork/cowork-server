@@ -28,7 +28,7 @@ private class Fixture {
     val memberRepository = mockk<TeamMemberProjectionRepository>()
     val readiness = mockk<ProjectionReadinessView>()
     val pool = mockk<Pool>()
-    val roleRepository = mockk<TeamRoleRepository>()
+    val roleRepository = mockk<TeamRoleRepository>(relaxed = true)
     val guard = TeamMembershipGuard(pool, memberRepository, readiness, roleRepository)
 
     fun stubReadiness(ready: Boolean) {
@@ -76,10 +76,12 @@ class TeamMembershipGuardTest :
         describe("TeamMembershipGuard 클래스의") {
             describe("requireMember 메서드는") {
                 context("전역 ADMIN이면") {
-                    it("팀 멤버십 조회 없이 통과한다") {
-                        runBlocking { fixture.guard.requireMember(TEAM_ID, GLOBAL_ADMIN) }
-
-                        coVerify(exactly = 0) { fixture.memberRepository.findForRead(any(), any(), any()) }
+                    it("활성 팀 멤버가 아니면 거부한다") {
+                        fixture.stubReadiness(true)
+                        coEvery { fixture.memberRepository.findForRead(any(), TEAM_ID, GLOBAL_ADMIN.userId) } returns null
+                        shouldThrow<TeamMembershipDeniedException> {
+                            runBlocking { fixture.guard.requireMember(TEAM_ID, GLOBAL_ADMIN) }
+                        }
                     }
                 }
 
@@ -129,10 +131,12 @@ class TeamMembershipGuardTest :
 
             describe("requireSettingsManager 메서드는") {
                 context("전역 ADMIN이면") {
-                    it("역할과 무관하게 설정 관리 권한을 허용한다") {
-                        runBlocking { fixture.guard.requireSettingsManager(TEAM_ID, GLOBAL_ADMIN, GENERAL_KEYS) }
-
-                        coVerify(exactly = 0) { fixture.memberRepository.findForRead(any(), any(), any()) }
+                    it("활성 팀 멤버가 아니면 설정 관리를 거부한다") {
+                        fixture.stubReadiness(true)
+                        coEvery { fixture.memberRepository.findForRead(any(), TEAM_ID, GLOBAL_ADMIN.userId) } returns null
+                        shouldThrow<TeamMembershipDeniedException> {
+                            runBlocking { fixture.guard.requireSettingsManager(TEAM_ID, GLOBAL_ADMIN, GENERAL_KEYS) }
+                        }
                     }
                 }
 
@@ -150,6 +154,15 @@ class TeamMembershipGuardTest :
                         fixture.stubReadiness(true)
                         fixture.stubMember(role = "ADMIN")
 
+                        runBlocking { fixture.guard.requireSettingsManager(TEAM_ID, MEMBER, GENERAL_KEYS) }
+                    }
+                }
+
+                context("역할이 manage_team을 허용하면") {
+                    it("활성 일반 멤버도 설정을 관리한다") {
+                        fixture.stubReadiness(true)
+                        fixture.stubMember()
+                        fixture.stubRolePermissions(PermissionKeys.MANAGE_TEAM)
                         runBlocking { fixture.guard.requireSettingsManager(TEAM_ID, MEMBER, GENERAL_KEYS) }
                     }
                 }

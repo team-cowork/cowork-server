@@ -3,6 +3,8 @@ package live
 import (
 	"context"
 	"time"
+
+	"github.com/cowork/cowork-voice/internal/domain/permission"
 )
 
 type Service interface {
@@ -34,7 +36,7 @@ type Repository interface {
 }
 
 type ConnectPermissionChecker interface {
-	RequireConnect(ctx context.Context, channelID, userID int64) (int64, error)
+	RequireConnect(ctx context.Context, channelID, userID int64) (permission.Access, error)
 }
 
 type LiveKitParticipant struct {
@@ -44,9 +46,8 @@ type LiveKitParticipant struct {
 
 type LiveKitRoom interface {
 	CreateRoomIfNotExists(ctx context.Context, roomName string) error
-	// GenerateToken은 isHost=true면 publish 권한(마이크·화면공유)을,
-	// false면 subscribe 전용 권한을 가진 토큰을 발급한다.
-	GenerateToken(userID int64, roomName string, isHost bool) (string, error)
+	// GenerateToken restricts publishing to the currently allowed media sources.
+	GenerateToken(userID int64, roomName string, speak, screenShare bool) (string, error)
 	RemoveParticipant(ctx context.Context, roomName, identity string) error
 	ListParticipants(ctx context.Context, roomName string) ([]LiveKitParticipant, error)
 	// DeleteRoom은 방을 삭제해 전원을 퇴장시킨다(호스트 종료 시 사용). 없는 방이면 무시한다.
