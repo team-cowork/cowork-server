@@ -52,7 +52,7 @@ class ReorderTeamProjectsServiceImplTest {
         }
 
         @Test
-        fun `쓰기 권한만으로 재정렬할 수 없고 재정렬 권한만으로는 수정할 수 없다`() {
+        fun `쓰기 권한만으로는 재정렬할 수 없고 재정렬 권한이 있으면 재정렬한다`() {
             val first = project(id = 1L, position = 0)
             val second = project(id = 2L, position = 1)
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
