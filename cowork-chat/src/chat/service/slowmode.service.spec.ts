@@ -98,25 +98,33 @@ describe('SlowmodeService.reserve', () => {
     it('슬로우 모드가 꺼져 있거나 DM이면 예약하지 않는다', async () => {
         settingRepository.findSlowmodeSeconds.mockResolvedValue(0);
 
-        await expect(service.reserve(1, 10, 42)).resolves.toBeUndefined();
-        await expect(service.reserve(1, null, 42)).resolves.toBeUndefined();
+        await expect(service.reserve(1, 10, 42, 'client-1')).resolves.toBeUndefined();
+        await expect(service.reserve(1, null, 42, 'client-1')).resolves.toBeUndefined();
         expect(rateLimiter.tryReserve).not.toHaveBeenCalled();
     });
 
-    it('간격만큼 사용자별 key를 예약하고 이미 예약되어 있으면 429를 던진다', async () => {
+    it('간격만큼 사용자별 key를 clientMessageId로 예약하고 다른 메시지로 점유 중이면 429를 던진다', async () => {
         settingRepository.findSlowmodeSeconds.mockResolvedValue(30);
-        rateLimiter.tryReserve.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+        rateLimiter.tryReserve.mockResolvedValueOnce('RESERVED').mockResolvedValueOnce('BUSY');
 
-        await expect(service.reserve(1, 10, 42)).resolves.toBe('chat:slowmode:1:42');
-        await expect(service.reserve(1, 10, 42)).rejects.toThrow(HttpException);
-        expect(rateLimiter.tryReserve).toHaveBeenCalledWith('chat:slowmode:1:42', 30_000);
+        await expect(service.reserve(1, 10, 42, 'client-1'))
+            .resolves.toEqual({key: 'chat:slowmode:1:42', holder: 'client-1'});
+        await expect(service.reserve(1, 10, 42, 'client-2')).rejects.toThrow(HttpException);
+        expect(rateLimiter.tryReserve).toHaveBeenCalledWith('chat:slowmode:1:42', 'client-1', 30_000);
+    });
+
+    it('같은 clientMessageId의 재시도는 통과시키고 해제할 예약을 돌려주지 않는다', async () => {
+        settingRepository.findSlowmodeSeconds.mockResolvedValue(30);
+        rateLimiter.tryReserve.mockResolvedValue('HELD_BY_SAME_HOLDER');
+
+        await expect(service.reserve(1, 10, 42, 'client-1')).resolves.toBeUndefined();
     });
 
     it('ADMIN은 예약하지 않는다', async () => {
         settingRepository.findSlowmodeSeconds.mockResolvedValue(30);
         teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 10, userId: 42, role: 'ADMIN'}]);
 
-        await expect(service.reserve(1, 10, 42)).resolves.toBeUndefined();
+        await expect(service.reserve(1, 10, 42, 'client-1')).resolves.toBeUndefined();
         expect(rateLimiter.tryReserve).not.toHaveBeenCalled();
     });
 });
