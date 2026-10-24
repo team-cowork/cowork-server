@@ -1,11 +1,13 @@
 package com.cowork.preference.messaging
 
 import com.cowork.preference.domain.AccountTeamRole
+import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.NotificationRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.PreferenceRepository
 import com.cowork.preference.repository.ProjectAccessStateRepository
+import com.cowork.preference.repository.ResourceSettingState
 import com.cowork.preference.repository.TeamRoleRepository
 import io.vertx.sqlclient.SqlConnection
 import java.time.Instant
@@ -60,20 +62,38 @@ class PreferenceSnapshotPublisher(
         "project access states"
     }
 
+    /** 계정, 팀, 텍스트 채널 설정은 preference만 바꾸므로 upstream projection을 기다리지 않는다. */
+    suspend fun publishSettingStatesIfLeader(): Boolean = publishIfLeader(
+        aggregate = "setting state",
+        topics = SETTING_STATE_TOPICS,
+        upstreamReadiness = null,
+    ) { connection ->
+        val accountCount = publishSettingStates(connection, ResourceType.ACCOUNT) {
+            PreferenceEvents.accountSettingState(it.resourceId, it.settings, it.stateOccurredAt, snapshot = true)
+        }
+        val teamCount = publishSettingStates(connection, ResourceType.TEAM) {
+            PreferenceEvents.teamSettingState(it.resourceId, it.settings, it.stateOccurredAt, snapshot = true)
+        }
+        val textChannelCount = publishSettingStates(connection, ResourceType.TEXT_CHANNEL) {
+            PreferenceEvents.textChannelSettingState(it.resourceId, it.settings, it.stateOccurredAt, snapshot = true)
+        }
+        "accountSettingCount=$accountCount teamSettingCount=$teamCount textChannelSettingCount=$textChannelCount"
+    }
+
     private suspend fun publishIfLeader(
         aggregate: String,
         topics: Set<String>,
-        upstreamReadiness: ProjectionReadinessView,
+        upstreamReadiness: ProjectionReadinessView?,
         publishStates: suspend (SqlConnection) -> String,
     ): Boolean {
-        if (!upstreamReadiness.isReady) {
+        if (upstreamReadiness?.isReady == false) {
             log.info("Deferred {} projection snapshot until upstream projections are ready", aggregate)
             return false
         }
         return runCatching {
             outboxRepository.withProjectionSnapshotLock { connection ->
                 val counts = publishStates(connection)
-                check(upstreamReadiness.isReady) {
+                check(upstreamReadiness?.isReady != false) {
                     "upstream projection became unavailable during $aggregate snapshot"
                 }
                 publishCompletionMarkers(connection, topics)
@@ -254,6 +274,30 @@ class PreferenceSnapshotPublisher(
         }
     }
 
+    private suspend fun publishSettingStates(
+        connection: SqlConnection,
+        resourceType: ResourceType,
+        toEvent: (ResourceSettingState) -> PreferenceEvent,
+    ): Int {
+        var afterResourceId = 0L
+        var published = 0
+        while (true) {
+            val page = outboxRepository.inTransaction(connection) { transactionConnection ->
+                val lockedPage = preferenceRepository.findSettingStatePage(
+                    transactionConnection,
+                    resourceType,
+                    afterResourceId,
+                    PAGE_SIZE,
+                )
+                outboxRepository.enqueueAll(transactionConnection, lockedPage.map(toEvent))
+                lockedPage
+            }
+            if (page.isEmpty()) return published
+            published += page.size
+            afterResourceId = page.last().resourceId
+        }
+    }
+
     private suspend fun publishChannelRolePolicies(connection: io.vertx.sqlclient.SqlConnection): Int {
         var afterTeamId = -1L
         var afterChannelId = -1L
@@ -300,6 +344,11 @@ class PreferenceSnapshotPublisher(
             PreferenceEvents.GITHUB_REPO_SETTING_STATE_TOPIC,
         )
         val CHANNEL_ROLE_POLICY_TOPICS = setOf(PreferenceEvents.CHANNEL_ROLE_POLICY_STATE_TOPIC)
+        val SETTING_STATE_TOPICS = setOf(
+            PreferenceEvents.ACCOUNT_SETTING_STATE_TOPIC,
+            PreferenceEvents.TEAM_SETTING_STATE_TOPIC,
+            PreferenceEvents.TEXT_CHANNEL_SETTING_STATE_TOPIC,
+        )
     }
 }
 

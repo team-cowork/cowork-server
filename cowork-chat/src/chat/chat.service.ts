@@ -45,6 +45,7 @@ import {
     UnreadCounterService,
     type ChannelActionPermission,
     ChannelMessageReadAccessService,
+    SlowmodeService,
     RoomSocket,
     resolveMessageScope,
 } from './service';
@@ -95,6 +96,7 @@ export class ChatService {
         private readonly unreadCounterService: UnreadCounterService,
         private readonly messageSearchDeletion: MessageSearchDeletionService,
         private readonly channelProjectionRepository: ChannelProjectionRepository,
+        private readonly slowmodeService: SlowmodeService,
     ) {}
 
     /**
@@ -337,18 +339,26 @@ export class ChatService {
         }
 
         const clientMessageId = dto.clientMessageId ?? randomUUID();
-        const attachments = await this.objectStorageService.claimAttachments(
-            dto.attachments ?? [], ctx.channelId, ctx.userId, clientMessageId,
+        const slowmodeReservation = await this.slowmodeService.reserve(
+            ctx.channelId, scope?.teamId, ctx.userId, clientMessageId,
         );
+        try {
+            const attachments = await this.objectStorageService.claimAttachments(
+                dto.attachments ?? [], ctx.channelId, ctx.userId, clientMessageId,
+            );
 
-        await this.chatMessageProducer.sendMessage(ctx.channelId, {
-            ...scope,
-            content: dto.content,
-            type: dto.type,
-            attachments,
-            parentMessageId: dto.parentMessageId,
-            clientMessageId,
-        }, ctx.userId, ctx.userRole);
+            await this.chatMessageProducer.sendMessage(ctx.channelId, {
+                ...scope,
+                content: dto.content,
+                type: dto.type,
+                attachments,
+                parentMessageId: dto.parentMessageId,
+                clientMessageId,
+            }, ctx.userId, ctx.userRole);
+        } catch (error) {
+            await this.slowmodeService.release(slowmodeReservation);
+            throw error;
+        }
     }
 
     /**
