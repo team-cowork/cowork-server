@@ -4,11 +4,13 @@ import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.entity.ChannelViewType
 import com.cowork.channel.domain.channel.event.ChannelEventPublisher
+import com.cowork.channel.domain.channel.event.InitialChannelRoleOverwrite
 import com.cowork.channel.domain.channel.presentation.data.request.CreateChannelRequest
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
 import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.channel.service.CreateChannelService
 import com.cowork.channel.domain.channel.service.TeamPermissionService
+import com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyPermissionSchema
 import com.cowork.channel.domain.meetingNote.service.CreateDefaultMeetingNoteTemplateService
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -21,6 +23,7 @@ class CreateChannelServiceImpl(
     private val teamPermissionService: TeamPermissionService,
     private val channelEventPublisher: ChannelEventPublisher,
     private val createDefaultMeetingNoteTemplateService: CreateDefaultMeetingNoteTemplateService,
+    private val permissionSchema: ChannelRolePolicyPermissionSchema,
 ) : CreateChannelService {
 
     private fun parseType(value: String): ChannelType {
@@ -45,22 +48,29 @@ class CreateChannelServiceImpl(
     override fun execute(userId: Long, request: CreateChannelRequest): ChannelResponse {
         teamPermissionService.requirePermission(request.teamId, userId, "manage_channels")
 
-        val channel = channelRepository.save(
-            Channel(
-                teamId = request.teamId,
-                name = request.name,
-                type = parseType(request.type),
-                viewType = parseViewType(request.viewType),
-                description = request.description,
-                isPrivate = request.isPrivate,
-                position = channelRepository.findMaxPositionByTeamId(request.teamId) + 1,
-                createdBy = userId,
-            ),
+        val proposedChannel = Channel(
+            teamId = request.teamId,
+            name = request.name,
+            type = parseType(request.type),
+            viewType = parseViewType(request.viewType),
+            description = request.description,
+            isPrivate = request.isPrivate,
+            position = channelRepository.findMaxPositionByTeamId(request.teamId) + 1,
+            createdBy = userId,
         )
+        val initialOverwrites = request.initialRoleOverwrites.map {
+            InitialChannelRoleOverwrite(it.roleId, permissionSchema.normalize(it.permissions))
+        }
+        val seed = if (proposedChannel.isPrivate || initialOverwrites.isNotEmpty()) {
+            teamPermissionService.prepareInitialRolePolicySeed(proposedChannel, userId, initialOverwrites)
+        } else {
+            null
+        }
+        val channel = channelRepository.save(proposedChannel)
         if (channel.viewType == ChannelViewType.MEETING_NOTE) {
             createDefaultMeetingNoteTemplateService.createDefaultTemplate(channel)
         }
-        channelEventPublisher.publishCreated(channel)
+        channelEventPublisher.publishCreated(channel, initialRolePolicySeed = seed)
         return ChannelResponse.of(channel)
     }
 }

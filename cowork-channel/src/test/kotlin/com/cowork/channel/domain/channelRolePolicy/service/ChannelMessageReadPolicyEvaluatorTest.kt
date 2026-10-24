@@ -3,6 +3,7 @@ package com.cowork.channel.domain.channelRolePolicy.service
 import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.entity.ChannelViewType
+import com.cowork.channel.domain.channel.event.InitialChannelRoleOverwrite
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjection
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjectionRepository
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleAssignmentProjection
@@ -17,9 +18,11 @@ import com.cowork.channel.global.projection.ProjectionReadinessGate
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.time.Instant
@@ -166,6 +169,114 @@ class ChannelMessageReadPolicyEvaluatorTest {
         evaluator.requireTeamPermission(10L, 7L, "manage_channels")
         roles(role(1L, "manage_channels" to false, default = true))
         assertThrows(ExpectedException::class.java) { evaluator.requireTeamPermission(10L, 7L, "manage_channels") }
+    }
+
+    @Test
+    fun `일반 채널 관리자는 초기 역할 정책으로 비공개 채널에 접근할 수 있다`() {
+        roles(role(1L, "message_read" to true, default = true), role(2L, "manage_channels" to true))
+        val overwrites = listOf(
+            InitialChannelRoleOverwrite(1L, mapOf("message_read" to false)),
+            InitialChannelRoleOverwrite(2L, mapOf("message_read" to true)),
+        )
+
+        val seed = evaluator.prepareInitialRolePolicySeed(10L, 7L, channel().apply { isPrivate = true }, overwrites)
+
+        assertEquals(overwrites, seed?.overwrites)
+        assertEquals(7L, seed?.actorId)
+        assertEquals(occurredAt, seed?.actorMembershipVersion)
+    }
+
+    @Test
+    fun `초기 역할 정책이 없거나 생성자의 역할을 허용하지 않으면 비공개 생성을 거절한다`() {
+        roles(role(1L, "message_read" to true, default = true), role(2L, "manage_channels" to true), role(3L))
+        every { assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(10L, 7L) } returns
+            listOf(assignment(2L))
+
+        for (overwrites in listOf(
+            emptyList(),
+            listOf(InitialChannelRoleOverwrite(3L, mapOf("message_read" to true))),
+        )) {
+            val ex = assertThrows(ExpectedException::class.java) {
+                evaluator.prepareInitialRolePolicySeed(10L, 7L, channel().apply { isPrivate = true }, overwrites)
+            }
+            assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        }
+    }
+
+    @Test
+    fun `초기 정책의 허용과 거부 모두 보유한 팀 권한 안에서만 지정할 수 있다`() {
+        roles(role(1L, "message_read" to true, "manage_channels" to true))
+        for (allowed in listOf(true, false)) {
+            val ex = assertThrows(ExpectedException::class.java) {
+                evaluator.prepareInitialRolePolicySeed(
+                    10L,
+                    7L,
+                    channel(),
+                    listOf(InitialChannelRoleOverwrite(1L, mapOf("message_manage" to allowed))),
+                )
+            }
+            assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+        }
+    }
+
+    @Test
+    fun `다른 팀이나 삭제된 역할 및 중복 역할의 초기 정책은 거절한다`() {
+        roles(role(1L, "message_read" to true, "manage_channels" to true))
+        val overwrite = InitialChannelRoleOverwrite(1L, mapOf("message_read" to true))
+        for (overwrites in listOf(listOf(overwrite, overwrite), listOf(overwrite.copy(roleId = 99L)))) {
+            val ex = assertThrows(ExpectedException::class.java) {
+                evaluator.prepareInitialRolePolicySeed(10L, 7L, channel(), overwrites)
+            }
+            assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        }
+    }
+
+    @Test
+    fun `비공개 음성 채널 생성은 초기 voice_connect 허용이 필요하다`() {
+        roles(role(1L, "voice_connect" to true, "message_read" to true, "manage_channels" to true))
+        val voice = channel(type = ChannelType.VOICE).apply { isPrivate = true }
+        assertThrows(ExpectedException::class.java) {
+            evaluator.prepareInitialRolePolicySeed(
+                10L,
+                7L,
+                voice,
+                listOf(InitialChannelRoleOverwrite(1L, mapOf("message_read" to true))),
+            )
+        }
+        evaluator.prepareInitialRolePolicySeed(
+            10L,
+            7L,
+            voice,
+            listOf(InitialChannelRoleOverwrite(1L, mapOf("voice_connect" to true))),
+        )
+    }
+
+    @Test
+    fun `활성 관리자는 초기 정책 없이도 비공개 채널에 접근한다`() {
+        every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member("ADMIN")
+        assertNull(evaluator.prepareInitialRolePolicySeed(10L, 7L, channel().apply { isPrivate = true }, emptyList()))
+        every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member("ADMIN", active = false)
+        assertThrows(ExpectedException::class.java) {
+            evaluator.prepareInitialRolePolicySeed(10L, 7L, channel().apply { isPrivate = true }, emptyList())
+        }
+    }
+
+    @Test
+    fun `멤버십 버전이 확인되지 않으면 초기 정책 생성을 보류한다`() {
+        every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member("ADMIN").apply {
+            sourceOccurredAt = Instant.EPOCH
+        }
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            evaluator.prepareInitialRolePolicySeed(
+                10L,
+                7L,
+                channel(),
+                listOf(InitialChannelRoleOverwrite(1L, mapOf("message_read" to true))),
+            )
+        }
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.statusCode)
     }
 
     @Test
