@@ -19,7 +19,7 @@
       "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "min by (service) (up{job=~\"cowork-.*\"})",
+          "expr": "min by (service) (up{job=~\"cowork-.*\"}) or on (service) (0 * max by (service) (up{job=\"blackbox\",service!~\"livekit|storage\"}))",
           "instant": true,
           "range": false,
           "legendFormat": "{{service}}",
