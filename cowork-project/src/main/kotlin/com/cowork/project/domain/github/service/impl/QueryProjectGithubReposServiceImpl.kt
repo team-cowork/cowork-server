@@ -20,7 +20,7 @@ class QueryProjectGithubReposServiceImpl(
     @Transactional(readOnly = true)
     override fun execute(userId: Long, projectId: Long): List<GithubRepoSummaryResDto> {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
-        projectAccessGuard.requireTeamMember(project.teamId, userId)
+        projectAccessGuard.requireProjectReader(project, userId)
 
         val installation = teamGithubInstallationRepository.findById(project.teamId).orElseThrow {
             ExpectedException("팀이 GitHub 조직에 연결되어 있지 않습니다.", HttpStatus.BAD_REQUEST)

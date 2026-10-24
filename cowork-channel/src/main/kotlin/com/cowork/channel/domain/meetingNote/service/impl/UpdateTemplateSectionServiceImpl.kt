@@ -22,7 +22,7 @@ class UpdateTemplateSectionServiceImpl(
         sectionId: Long,
         request: UpdateTemplateSectionRequest,
     ): TemplateSectionResponse {
-        meetingNoteAccessGuard.requireChannelMember(channelId, userId)
+        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
         val template = lookupSupport.findTemplateOrThrow(templateId)
         lookupSupport.requireTemplateOwnership(template, channelId)
         val section = lookupSupport.findSectionOrThrow(sectionId)

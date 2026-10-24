@@ -18,7 +18,7 @@ class ListTeamChannelsServiceImpl(
     @Transactional(readOnly = true)
     override fun execute(userId: Long, teamId: Long): List<Channel> {
         teamPermissionService.requireTeamMember(teamId, userId)
-        val structurallyVisible = channelRepository.findVisibleByTeamIdOrderByPositionAscIdAsc(teamId, userId)
+        val structurallyVisible = channelRepository.findByTeamIdOrderByPositionAscIdAsc(teamId)
         return messageReadPolicyEvaluator.filterReadable(teamId, userId, structurallyVisible)
     }
 }

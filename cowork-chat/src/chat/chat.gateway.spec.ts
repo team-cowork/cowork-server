@@ -32,7 +32,7 @@ const mockSocket = (authToken?: string, headers: Record<string, string> = {}) =>
 });
 
 const mockChatService = {
-    isMember: jest.fn(),
+    canReadChannel: jest.fn(),
     isTeamMember: jest.fn(),
     emitToReadableChannelUsers: jest.fn(),
     evictUnauthorizedRooms: jest.fn(),
@@ -62,7 +62,7 @@ const mockProjectEventConsumer = {
     setSocketServer: jest.fn(),
 };
 
-const mockMembershipConsumer = {
+const mockDmParticipantConsumer = {
     setSocketServer: jest.fn(),
     setReadAccessEvaluator: jest.fn(),
     setReadableEmitter: jest.fn(),
@@ -87,7 +87,7 @@ describe('ChatGateway', () => {
         jest.clearAllMocks();
         mockJwtService.verifyAsync.mockResolvedValue({sub: '42', role: 'MEMBER'});
         mockProjectionReadiness.isReady.mockReturnValue(true);
-        mockChatService.isMember.mockResolvedValue(true);
+        mockChatService.canReadChannel.mockResolvedValue(true);
         mockChatService.emitToReadableChannelUsers.mockResolvedValue(undefined);
         mockChatService.evictUnauthorizedRooms.mockResolvedValue(0);
 
@@ -99,7 +99,7 @@ describe('ChatGateway', () => {
             mockGithubRepoEventConsumer as never,
             mockChannelEventConsumer as never,
             mockProjectEventConsumer as never,
-            mockMembershipConsumer as never,
+            mockDmParticipantConsumer as never,
             mockTeamRoleEventConsumer as never,
             mockChannelRolePolicyEventConsumer as never,
             mockTeamMemberEventConsumer as never,
@@ -177,7 +177,7 @@ describe('ChatGateway', () => {
 
     describe('handleJoin', () => {
         it('채널 멤버이면 room에 참가한다', async () => {
-            mockChatService.isMember.mockResolvedValue(true);
+            mockChatService.canReadChannel.mockResolvedValue(true);
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
@@ -188,7 +188,7 @@ describe('ChatGateway', () => {
         });
 
         it('읽기 권한이 없으면 room에 가입하지 않고 error 이벤트를 emit한다', async () => {
-            mockChatService.isMember.mockResolvedValue(false);
+            mockChatService.canReadChannel.mockResolvedValue(false);
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
@@ -204,12 +204,12 @@ describe('ChatGateway', () => {
 
             await gateway.handleJoin(client as unknown as ChatSocket, {channelId: 1});
 
-            expect(mockChatService.isMember.mock.invocationCallOrder[0])
+            expect(mockChatService.canReadChannel.mock.invocationCallOrder[0])
                 .toBeLessThan(client.join.mock.invocationCallOrder[0]);
         });
 
         it('가입 직후 재확인에서 권한이 사라졌으면 room에서 제거한다', async () => {
-            mockChatService.isMember.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+            mockChatService.canReadChannel.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
@@ -221,7 +221,7 @@ describe('ChatGateway', () => {
         });
 
         it('가입 뒤 재확인이 실패하면 room에서 제거하고 오류를 다시 던진다', async () => {
-            mockChatService.isMember.mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('mongo down'));
+            mockChatService.canReadChannel.mockResolvedValueOnce(true).mockRejectedValueOnce(new Error('mongo down'));
             const client = mockSocket('valid-token');
             client.data.userId = 42;
 
@@ -303,7 +303,7 @@ describe('ChatGateway', () => {
         });
 
         it('typing 시점에 권한이 회수됐으면 sender를 room에서 제거하고 이벤트를 보내지 않는다', async () => {
-            mockChatService.isMember.mockResolvedValueOnce(false);
+            mockChatService.canReadChannel.mockResolvedValueOnce(false);
             const client = mockSocket('valid-token');
             client.data.userId = 42;
             client.rooms.add('chat:1');

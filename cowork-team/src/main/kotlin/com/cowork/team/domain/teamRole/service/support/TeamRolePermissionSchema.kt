@@ -39,7 +39,7 @@ class TeamRolePermissionSchema {
             "slash_command_use",
             "github_issue_create",
             "channel_manage",
-            "channel_member_manage",
+            "channel_reorder",
             "voice_connect",
             "voice_speak",
             "screen_share",

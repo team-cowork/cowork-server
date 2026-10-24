@@ -6,8 +6,8 @@ import {
 } from '@nestjs/common';
 import {Types} from 'mongoose';
 import {DicoshotService} from 'dicoshot-nest';
-import {Message, ChannelMember} from '../schema';
-import {MessageRepository, NotificationMessage, ChannelMemberRepository} from '../repository';
+import {Message} from '../schema';
+import {MessageRepository, NotificationMessage} from '../repository';
 import {UnreadCounterService, ChannelMessageReadAccessService} from '../service';
 import {AlertThrottleUtil} from '../../common/util/alert-throttle.util';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
@@ -40,7 +40,7 @@ const MESSAGE_FAILURE_ALERT_COOLDOWN_MS = 60_000;
  Outbox 패턴** 구현체로, 5초 간격으로 PENDING 상태의 메시지를 최대 10개씩 배치 처리한다.
  처리 실패 시 최대 {@link MAX_RETRY}회까지 재시도하며, 초과 시 FAILED 상태로 전환한다.
 
- 배치 내 중복 DB 조회를 줄이기 위해 `memberCache`와 `parentCache`를 활용한다.
+ 배치 내 중복 DB 조회를 줄이기 위해 `recipientCache`와 `parentCache`를 활용한다.
  */
 @Injectable()
 export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
@@ -51,7 +51,6 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 
     constructor(
         private readonly messageRepository: MessageRepository,
-        private readonly channelMemberRepository: ChannelMemberRepository,
         private readonly triggerProducer: NotificationTriggerProducer,
         private readonly unreadCounterService: UnreadCounterService,
         private readonly dicoshot: DicoshotService,
@@ -128,7 +127,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         }
 
         // 2단계: 배치 내 고유 channelId/parentMessageId를 한 번에 조회해 캐시 사전 채움
-        const memberCache = new Map<string, ChannelMember[]>();
+        const recipientCache = new Map<string, number[]>();
         const parentCache = new Map<string, {authorId: number} | null>();
         const parentRefs = new Map<string, {channelId: number; parentMessageId: Types.ObjectId}>();
         for (const message of msgs) {
@@ -148,32 +147,22 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         }
 
         const channelIds = [...new Set(msgs.map(m => m.channelId))];
-        const membersByChannel = await this.channelMemberRepository.findByChannelIds(channelIds);
-        const readableUsersByChannel = await this.channelMessageReadAccess.filterReadableUsersByChannel(
-            new Map(channelIds.map(channelId => [
-                channelId,
-                (membersByChannel.get(channelId) ?? []).map(({userId}) => userId),
-            ])),
-        );
+        const readableUsersByChannel = await this.channelMessageReadAccess.findReadableUsersByChannel(channelIds);
         for (const channelId of channelIds) {
-            const readableUserIds = new Set(readableUsersByChannel.get(channelId));
-            memberCache.set(
-                String(channelId),
-                (membersByChannel.get(channelId) ?? []).filter(({userId}) => readableUserIds.has(userId)),
-            );
+            recipientCache.set(String(channelId), readableUsersByChannel.get(channelId) ?? []);
         }
 
         // 3단계: 각 메시지 처리 (메시지 간 의존관계 없어 병렬 처리)
-        await Promise.all(msgs.map(async message => this.processMessageAndUpdateStatus(message, memberCache, parentCache)));
+        await Promise.all(msgs.map(async message => this.processMessageAndUpdateStatus(message, recipientCache, parentCache)));
     }
 
     private async processMessageAndUpdateStatus(
         message: NotificationMessage,
-        memberCache: Map<string, ChannelMember[]>,
+        recipientCache: Map<string, number[]>,
         parentCache: Map<string, {authorId: number} | null>,
     ): Promise<void> {
         try {
-            await this.processMessage(message, memberCache, parentCache);
+            await this.processMessage(message, recipientCache, parentCache);
             await this.messageRepository.updateNotificationStatus(message._id, message.notificationClaimId!, 'SENT');
         } catch (error) {
             const retryCount = (message.notificationRetryCount ?? 0) + 1;
@@ -199,28 +188,28 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
      단일 메시지에 대한 알림 트리거를 생성하고 발행한다.
 
      수신자 분류 전략**:
-     - `targetUserIds`: 채널 멤버 전체에서 메시지 작성자를 제외한 모든 사용자.
+     - `targetUserIds`: 읽기 권한이 있는 사용자 전체에서 메시지 작성자를 제외한 모든 사용자.
      - `forcedUserIds`: 멘션된 사용자 + 부모 메시지 작성자. 알림 수신 설정과 무관하게 항상 알림을 받는다.
-     단, 메시지 작성자 본인이거나 채널 멤버가 아닌 경우는 제외된다.
+     단, 메시지 작성자 본인이거나 읽기 권한이 있는 사용자가 아닌 경우는 제외된다.
 
      캐시 활용**:
-     - `memberCache`: 배치 시작 시 {@link poll}에서 일괄 채워지며, 채널 멤버 조회에 사용된다.
+     - `recipientCache`: 배치 시작 시 {@link poll}에서 일괄 채워지며, 읽기 권한이 있는 사용자 조회에 사용된다.
      - `parentCache`: 배치 시작 시 {@link poll}에서 일괄 채워지며, 부모 메시지 작성자 조회에 사용된다.
 
      @param message - 처리할 알림 대상 메시지
-     @param memberCache - 채널 ID를 키로 하는 채널 멤버 목록 캐시 (배치 범위 내 공유)
+     @param recipientCache - 채널 ID를 키로 하는 읽기 권한이 있는 사용자 목록 캐시 (배치 범위 내 공유)
      @param parentCache - 부모 메시지 ID를 키로 하는 작성자 정보 캐시 (배치 범위 내 공유)
-     @throws {Error} 채널 멤버 조회 또는 알림 트리거 발행 실패 시
+     @throws {Error} 읽기 권한이 있는 사용자 조회 또는 알림 트리거 발행 실패 시
      */
     private async processMessage(
         message: Message & {_id: Types.ObjectId; createdAt: Date},
-        memberCache: Map<string, ChannelMember[]>,
+        recipientCache: Map<string, number[]>,
         parentCache: Map<string, {authorId: number} | null>,
     ): Promise<void> {
-        const members = memberCache.get(String(message.channelId)) ?? [];
-        const memberIdSet = new Set(members.map(m => m.userId));
+        const recipientIds = recipientCache.get(String(message.channelId)) ?? [];
+        const recipientIdSet = new Set(recipientIds);
 
-        const targetUserIds = [...memberIdSet].filter(id => id !== message.authorId);
+        const targetUserIds = [...recipientIdSet].filter(id => id !== message.authorId);
 
         if (message.notificationRetryCount === 0) {
             await this.unreadCounterService.incrementIfPresent(message.channelId, targetUserIds);
@@ -228,14 +217,14 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 
         const forcedSet = new Set<number>();
         for (const mentionedId of message.mentions ?? []) {
-            if (mentionedId !== message.authorId && memberIdSet.has(mentionedId)) {
+            if (mentionedId !== message.authorId && recipientIdSet.has(mentionedId)) {
                 forcedSet.add(mentionedId);
             }
         }
 
         if (message.parentMessageId) {
             const parent = parentCache.get(`${message.channelId}:${message.parentMessageId.toString()}`) ?? null;
-            if (parent && parent.authorId !== message.authorId && memberIdSet.has(parent.authorId)) {
+            if (parent && parent.authorId !== message.authorId && recipientIdSet.has(parent.authorId)) {
                 forcedSet.add(parent.authorId);
             }
         }

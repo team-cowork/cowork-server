@@ -11,6 +11,7 @@ import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
@@ -28,6 +29,11 @@ class ReorderTeamChannelsServiceImplTest {
         channelEventPublisher,
         messageReadPolicyEvaluator,
     )
+
+    @BeforeEach
+    fun allowReorder() {
+        every { messageReadPolicyEvaluator.requireReorder(any(), any(), any()) } returns Unit
+    }
 
     private fun channel(
         id: Long = 1L,
@@ -49,7 +55,6 @@ class ReorderTeamChannelsServiceImplTest {
         val second = channel(id = 2L, position = 1)
         every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
         every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns listOf(first, second)
-        every { channelRepository.findVisibleByTeamIdOrderByPositionAscIdAsc(100L, 7L) } returns listOf(first, second)
         every { messageReadPolicyEvaluator.filterReadable(100L, 7L, listOf(first, second)) } returns
             listOf(first, second)
 
@@ -66,7 +71,6 @@ class ReorderTeamChannelsServiceImplTest {
         val first = channel(id = 1L)
         val second = channel(id = 2L)
         every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns listOf(first, second)
-        every { channelRepository.findVisibleByTeamIdOrderByPositionAscIdAsc(100L, 7L) } returns listOf(first, second)
         every { messageReadPolicyEvaluator.filterReadable(100L, 7L, listOf(first, second)) } returns
             listOf(first, second)
 
@@ -83,8 +87,7 @@ class ReorderTeamChannelsServiceImplTest {
         val third = channel(id = 3L, position = 2)
         every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
         every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns listOf(first, hidden, third)
-        every { channelRepository.findVisibleByTeamIdOrderByPositionAscIdAsc(100L, 7L) } returns listOf(first, third)
-        every { messageReadPolicyEvaluator.filterReadable(100L, 7L, listOf(first, third)) } returns
+        every { messageReadPolicyEvaluator.filterReadable(100L, 7L, listOf(first, hidden, third)) } returns
             listOf(first, third)
 
         val result = service.execute(7L, 100L, listOf(3L, 1L))
@@ -93,5 +96,38 @@ class ReorderTeamChannelsServiceImplTest {
         assertEquals(2, first.position)
         assertEquals(1, hidden.position)
         assertEquals(0, third.position)
+    }
+
+    @Test
+    fun `권한 없는 채널이 움직이면 전체 요청을 거부하고 위치를 바꾸지 않는다`() {
+        val first = channel(id = 1L, position = 0)
+        val second = channel(id = 2L, position = 1)
+        every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
+        every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns listOf(first, second)
+        every { messageReadPolicyEvaluator.filterReadable(100L, 7L, any()) } returns listOf(first, second)
+        every { messageReadPolicyEvaluator.requireReorder(100L, 7L, any()) } throws
+            ExpectedException("채널 재정렬 권한이 없습니다.", HttpStatus.FORBIDDEN)
+
+        assertThrows(ExpectedException::class.java) { service.execute(7L, 100L, listOf(2L, 1L)) }
+        assertEquals(0, first.position)
+        assertEquals(1, second.position)
+    }
+
+    @Test
+    fun `위치가 그대로인 채널은 다른 채널의 재정렬을 막지 않는다`() {
+        val first = channel(id = 1L, position = 0)
+        val fixed = channel(id = 2L, position = 1)
+        val third = channel(id = 3L, position = 2)
+        every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
+        every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns listOf(first, fixed, third)
+        every { messageReadPolicyEvaluator.filterReadable(100L, 7L, any()) } returns listOf(first, fixed, third)
+        every { messageReadPolicyEvaluator.requireReorder(100L, 7L, any()) } answers {
+            if (thirdArg<List<Channel>>().any { it.id == fixed.id }) {
+                throw ExpectedException("채널 재정렬 권한이 없습니다.", HttpStatus.FORBIDDEN)
+            }
+        }
+        val result = service.execute(7L, 100L, listOf(3L, 2L, 1L))
+        assertEquals(listOf(3L, 2L, 1L), result.map { it.id })
+        assertEquals(1, fixed.position)
     }
 }

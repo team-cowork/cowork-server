@@ -111,10 +111,9 @@ services:
         team.lifecycle-dlt
         team.member.event
         team.member.event-dlt
-        channel.member.event.v2
+        channel.dm-participant.state.v1
         channel.event.v2
         project.event.v2
-        project.member.event.v2
         project.github-repo.event
         chat.message.v2
         github.issue.create
@@ -144,6 +143,7 @@ services:
         preference.github-repo.setting.command
         preference.github-repo.setting.state
         preference.github-repo.setting.result
+        preference.project-access.state.v1
         preference.github-repo.setting.result-dlt
         project.chat-github-issue.command
         project.chat-github-issue.command-dlt
@@ -162,15 +162,15 @@ services:
         user.presence.event
         team.lifecycle
         team.member.event
-        channel.member.event.v2
+        channel.dm-participant.state.v1
         channel.event.v2
         project.event.v2
-        project.member.event.v2
         project.github-repo.event
         preference.channel-notification.changed
         preference.team-role.state.v2
         preference.channel-role-policy.state.v2
         preference.github-repo.setting.state
+        preference.project-access.state.v1
         github.repo.state.v1
         github.issue.state.v1
         github.pull-request.state.v1

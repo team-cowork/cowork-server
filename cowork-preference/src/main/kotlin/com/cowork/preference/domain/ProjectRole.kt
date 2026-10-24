@@ -6,6 +6,7 @@ data class ProjectRoleDefinition(
     val projectId: Long,
     val roleName: String,
     val permissions: JsonObject,
+    val priority: Int = 0,
 )
 
 data class AccountProjectRole(

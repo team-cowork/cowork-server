@@ -24,9 +24,9 @@ func TestVoiceRoomService(t *testing.T) {
 				StartedAt: time.Unix(1700000000, 0).UTC(),
 			},
 		}
-		membership := &stubMembershipChecker{teamID: 456}
+		permissions := &stubConnectPermissionChecker{teamID: 456}
 		livekit := &stubLiveKitRoom{token: "issued-token"}
-		svc := NewRoomService(repo, membership, livekit, "wss://livekit.example")
+		svc := NewRoomService(repo, permissions, livekit, "wss://livekit.example")
 
 		resp, err := svc.Join(context.Background(), 123, 42)
 		if err != nil {
@@ -69,7 +69,7 @@ func TestVoiceRoomService(t *testing.T) {
 				StartedAt: time.Unix(1700000000, 0).UTC(),
 			},
 		}
-		svc := NewRoomService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{token: "issued-token"}, "wss://livekit.example")
+		svc := NewRoomService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{token: "issued-token"}, "wss://livekit.example")
 
 		_, err := svc.Join(context.Background(), 123, 42)
 		if err != nil {
@@ -100,7 +100,7 @@ func TestVoiceRoomService(t *testing.T) {
 				{Identity: "84", JoinedAt: 1700000300},
 			},
 		}
-		svc := NewRoomService(repo, &stubMembershipChecker{teamID: 456}, livekit, "wss://livekit.example")
+		svc := NewRoomService(repo, &stubConnectPermissionChecker{teamID: 456}, livekit, "wss://livekit.example")
 
 		resp, err := svc.GetParticipants(context.Background(), 123, 42)
 		if err != nil {
@@ -121,7 +121,7 @@ func TestVoiceRoomService(t *testing.T) {
 	t.Run("GetParticipants - 활성 세션이 없으면 빈 목록을 반환한다", func(t *testing.T) {
 		t.Parallel()
 
-		svc := NewRoomService(&stubRepository{}, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+		svc := NewRoomService(&stubRepository{}, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 		resp, err := svc.GetParticipants(context.Background(), 123, 42)
 		if err != nil {
@@ -139,7 +139,7 @@ func TestVoiceRoomService(t *testing.T) {
 	t.Run("GetSession - 세션이 없으면 NotFound를 반환한다", func(t *testing.T) {
 		t.Parallel()
 
-		svc := NewRoomService(&stubRepository{}, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+		svc := NewRoomService(&stubRepository{}, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 		_, err := svc.GetSession(context.Background(), "missing-session", 42)
 		if err == nil {
@@ -169,7 +169,7 @@ func TestVoiceRoomService(t *testing.T) {
 				EndedAt:   &endedAt,
 			},
 		}
-		svc := NewRoomService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+		svc := NewRoomService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 		resp, err := svc.GetSession(context.Background(), "session-1", 42)
 		if err != nil {
@@ -200,7 +200,7 @@ func TestVoiceRoomService(t *testing.T) {
 			getParticipantJoinedAtValue: &joinedAt,
 			markParticipantLeftFirst:    true,
 		}
-		svc := NewRoomService(repo, &stubMembershipChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+		svc := NewRoomService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 		if err := svc.Leave(context.Background(), 123, 42); err != nil {
 			t.Fatalf("Leave() error = %v", err)
@@ -225,12 +225,12 @@ func TestVoiceRoomService(t *testing.T) {
 	})
 }
 
-type stubMembershipChecker struct {
+type stubConnectPermissionChecker struct {
 	teamID int64
 	err    error
 }
 
-func (s *stubMembershipChecker) VerifyMembership(_ context.Context, _, _ int64) (int64, error) {
+func (s *stubConnectPermissionChecker) RequireConnect(_ context.Context, _, _ int64) (int64, error) {
 	if s.err != nil {
 		return 0, s.err
 	}
