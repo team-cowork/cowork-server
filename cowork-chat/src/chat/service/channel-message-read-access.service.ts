@@ -15,15 +15,8 @@ export type ChannelReadAccessRequest = {
     userId: number;
 };
 
-type ChannelActionPermission = 'message_send' | 'thread_reply' | 'file_attach' | 'reaction_add';
+export type ChannelActionPermission = 'message_send' | 'thread_reply' | 'file_attach' | 'reaction_add';
 type AccessMode = 'MESSAGE_READ' | 'CHANNEL_METADATA' | ChannelActionPermission;
-
-const permissionErrors: Record<ChannelActionPermission, string> = {
-    message_send: '채널 메시지 작성 권한이 없습니다',
-    thread_reply: '채널 답글 작성 권한이 없습니다',
-    file_attach: '채널 파일 첨부 권한이 없습니다',
-    reaction_add: '채널 반응 추가 권한이 없습니다',
-};
 
 /**
 연결된 `Socket`과 `fetchSockets()`가 돌려주는 `RemoteSocket`에 공통인 room 조작 표면.
@@ -78,15 +71,18 @@ export class ChannelMessageReadAccessService {
         }
     }
 
-    async requireCanSend(channelId: number, userId: number): Promise<void> {
-        await this.requirePermission(channelId, userId, 'message_send');
+    async requirePermission(channelId: number, userId: number, permission: ChannelActionPermission): Promise<void> {
+        await this.requirePermissions(channelId, userId, [permission]);
     }
 
-    async requirePermission(channelId: number, userId: number, permission: ChannelActionPermission): Promise<void> {
-        await this.requireCanRead(channelId, userId);
-        const result = await this.evaluate([{channelId, userId}], permission);
+    async requirePermissions(channelId: number, userId: number, permissions: ChannelActionPermission[]): Promise<void> {
+        if (!this.projectionReadiness.isReady()) {
+            throw new ServiceUnavailableException('권한 정보가 아직 동기화되지 않았습니다');
+        }
+
+        const result = await this.evaluate([{channelId, userId}], ['MESSAGE_READ', ...new Set(permissions)]);
         if (result.get(accessKey(channelId, userId)) !== true) {
-            throw new ForbiddenException(permissionErrors[permission]);
+            throw new ForbiddenException('채널 메시지 읽기 또는 요청한 작업 권한이 없습니다');
         }
     }
 
@@ -393,16 +389,16 @@ export class ChannelMessageReadAccessService {
     }
 
     async evaluateMany(requests: ChannelReadAccessRequest[]): Promise<Map<string, boolean>> {
-        return this.evaluate(requests, 'MESSAGE_READ');
+        return this.evaluate(requests, ['MESSAGE_READ']);
     }
 
     async evaluateVisibilityMany(requests: ChannelReadAccessRequest[]): Promise<Map<string, boolean>> {
-        return this.evaluate(requests, 'CHANNEL_METADATA');
+        return this.evaluate(requests, ['CHANNEL_METADATA']);
     }
 
     private async evaluate(
         requests: ChannelReadAccessRequest[],
-        mode: AccessMode,
+        modes: AccessMode[],
     ): Promise<Map<string, boolean>> {
         const uniqueRequests = [...new Map(
             requests.map(request => [accessKey(request.channelId, request.userId), request]),
@@ -488,33 +484,36 @@ export class ChannelMessageReadAccessService {
 
         for (const {request, channel, teamId} of policyCandidates) {
             const assignedRoleIds = assignmentsByTeamUser.get(teamUserKey(teamId, request.userId)) ?? [];
-            let selectedPriority: number | undefined;
-            let isSelected = false;
-            for (const roleId of assignedRoleIds) {
-                const role = roleById.get(roleId);
-                if (role?.teamId !== teamId) {
-                    continue;
+            const isAllowed = modes.every(mode => {
+                let selectedPriority: number | undefined;
+                let isSelected = false;
+                for (const roleId of assignedRoleIds) {
+                    const role = roleById.get(roleId);
+                    if (role?.teamId !== teamId) {
+                        continue;
+                    }
+
+                    const policy = policyByKey.get(policyKey(request.channelId, roleId));
+                    const isRead = mode === 'MESSAGE_READ' || mode === 'CHANNEL_METADATA';
+                    const permission = isRead
+                        ? (mode === 'CHANNEL_METADATA' && channel.type === 'VOICE' ? 'voice_connect' : 'message_read')
+                        : mode;
+                    const override = policy?.teamId === teamId
+                        ? (policy.permissions?.[permission] ?? (permission === 'message_read' ? policy.messageRead : undefined))
+                        : undefined;
+                    const requiresChannelPolicy = (channel.isPrivate ?? true) && isRead;
+                    const isAllowed = override ?? (requiresChannelPolicy ? false : (role.permissions?.[permission] ?? false));
+                    if (selectedPriority === undefined || role.priority > selectedPriority) {
+                        selectedPriority = role.priority;
+                        isSelected = isAllowed;
+                    } else if (role.priority === selectedPriority && !isAllowed) {
+                        isSelected = false;
+                    }
                 }
 
-                const policy = policyByKey.get(policyKey(request.channelId, roleId));
-                const isRead = mode === 'MESSAGE_READ' || mode === 'CHANNEL_METADATA';
-                const permission = isRead
-                    ? (mode === 'CHANNEL_METADATA' && channel.type === 'VOICE' ? 'voice_connect' : 'message_read')
-                    : mode;
-                const override = policy?.teamId === teamId
-                    ? (policy.permissions?.[permission] ?? (permission === 'message_read' ? policy.messageRead : undefined))
-                    : undefined;
-                const requiresChannelPolicy = (channel.isPrivate ?? true) && isRead;
-                const isAllowed = override ?? (requiresChannelPolicy ? false : (role.permissions?.[permission] ?? false));
-                if (selectedPriority === undefined || role.priority > selectedPriority) {
-                    selectedPriority = role.priority;
-                    isSelected = isAllowed;
-                } else if (role.priority === selectedPriority && !isAllowed) {
-                    isSelected = false;
-                }
-            }
-
-            result.set(accessKey(request.channelId, request.userId), selectedPriority !== undefined && isSelected);
+                return selectedPriority !== undefined && isSelected;
+            });
+            result.set(accessKey(request.channelId, request.userId), isAllowed);
         }
 
         return result;
