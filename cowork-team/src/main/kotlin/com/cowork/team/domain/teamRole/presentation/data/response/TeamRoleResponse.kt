@@ -23,6 +23,7 @@ data class TeamRoleResponse(
     @field:Schema(description = "수정 일시")
     val updatedAt: String?,
     @field:Schema(description = "활성 팀 멤버 모두에게 자동 적용되는 기본 역할 여부")
+    // TODO(#596): isDefault가 없는 저장된 작업 결과를 보정·정리한 뒤 역직렬화 기본값을 제거한다.
     @field:JsonProperty("isDefault")
     val isDefault: Boolean = false,
 )
