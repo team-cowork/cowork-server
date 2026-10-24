@@ -19,7 +19,7 @@ class ReorderTeamProjectsServiceImpl(
 
     @Transactional
     override fun execute(userId: Long, teamId: Long, orderedProjectIds: List<Long>): List<ProjectResDto> {
-        projectAccessGuard.requireTeamMember(teamId, userId)
+        val teamRole = projectAccessGuard.requireTeamMember(teamId, userId)
 
         if (orderedProjectIds.isEmpty()) {
             throw ExpectedException("프로젝트 순서 목록은 비어 있을 수 없습니다.", HttpStatus.BAD_REQUEST)
@@ -29,14 +29,17 @@ class ReorderTeamProjectsServiceImpl(
             throw ExpectedException("프로젝트 순서 목록에 중복 ID가 포함되어 있습니다.", HttpStatus.BAD_REQUEST)
         }
 
-        val projects = projectRepository.findAllByTeamIdForUpdate(teamId)
-            .filter { projectAccessGuard.canRead(it, userId) }
+        val lockedProjects = projectRepository.findAllByTeamIdForUpdate(teamId)
+        val permissions = projectAccessGuard.permissionsForProjects(lockedProjects, userId, teamRole)
+        val projects = lockedProjects.filter { permissions.getValue(it.id).read }
         val teamProjectIds = projects.map { it.id }.toSet()
         if (inputIds != teamProjectIds) {
             throw ExpectedException("현재 조회 가능한 모든 프로젝트 ID를 정확히 포함해야 합니다.", HttpStatus.BAD_REQUEST)
         }
 
-        projects.forEach { projectAccessGuard.requireProjectModifier(it, userId) }
+        if (projects.any { !permissions.getValue(it.id).write }) {
+            throw ExpectedException("프로젝트 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        }
         val positionSlots = projects.map { it.position }.sorted()
         val projectById = projects.associateBy { it.id }
         orderedProjectIds.forEachIndexed { index, projectId ->
