@@ -26,6 +26,7 @@ type TeamRoleEvent = {
     accountId?: number;
     name?: string;
     priority?: number;
+    isDefault?: boolean;
     permissions?: Record<string, boolean>;
     occurredAt: string;
 };
@@ -109,6 +110,7 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
                     roleId: payload.roleId!,
                     name: payload.name!,
                     priority: payload.priority!,
+                    isDefault: payload.isDefault ?? false,
                     permissions: payload.permissions!,
                     ...eventTime,
                 });
@@ -181,6 +183,7 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
             return isSafePositiveInteger(event.roleId)
                 && typeof event.name === 'string' && event.name.length > 0
                 && Number.isSafeInteger(event.priority)
+                && (event.isDefault === undefined || typeof event.isDefault === 'boolean')
                 && isBooleanRecord(event.permissions);
         }
 

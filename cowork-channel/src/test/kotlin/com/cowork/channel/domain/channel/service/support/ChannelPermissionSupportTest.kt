@@ -125,6 +125,7 @@ class ChannelPermissionSupportTest {
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns
             TeamMembership(teamId = 10L, userId = 7L, role = "MEMBER")
         every { tombstoneRepository.findById("10:7") } returns Optional.empty()
+        every { roleRepository.findAllByTeamIdAndIsDefaultTrueAndDeletedFalse(10L) } returns emptyList()
         every { assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(10L, 7L) } returns listOf(
             TeamRoleAssignmentProjection("10:7:1", 10L, 7L, 1L, sourceOccurredAt = occurredAt),
         )

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cowork/cowork-voice/internal/apperr"
+	"github.com/cowork/cowork-voice/internal/domain/permission"
 	kafka "github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
@@ -211,28 +212,34 @@ func TestLiveService(t *testing.T) {
 type stubConnectPermissionChecker struct {
 	teamID int64
 	err    error
+	access *permission.Access
 }
 
-func (s *stubConnectPermissionChecker) RequireConnect(_ context.Context, _, _ int64) (int64, error) {
+func (s *stubConnectPermissionChecker) RequireConnect(_ context.Context, _, _ int64) (permission.Access, error) {
 	if s.err != nil {
-		return 0, s.err
+		return permission.Access{}, s.err
 	}
-	return s.teamID, nil
+	if s.access != nil {
+		return *s.access, nil
+	}
+	return permission.Access{TeamID: s.teamID, Speak: true, ScreenShare: true, Broadcast: true}, nil
 }
 
 type stubLiveKitRoom struct {
-	token           string
-	createErr       error
-	tokenErr        error
-	removeErr       error
-	listErr         error
-	deleteErr       error
-	participants    []LiveKitParticipant
-	createdRoomName string
-	deletedRoomName string
-	tokenUserID     int64
-	tokenRoomName   string
-	tokenIsHost     bool
+	token            string
+	createErr        error
+	tokenErr         error
+	removeErr        error
+	listErr          error
+	deleteErr        error
+	participants     []LiveKitParticipant
+	createdRoomName  string
+	deletedRoomName  string
+	tokenUserID      int64
+	tokenRoomName    string
+	tokenSpeak       bool
+	tokenScreenShare bool
+	tokenIsHost      bool
 }
 
 func (s *stubLiveKitRoom) CreateRoomIfNotExists(_ context.Context, roomName string) error {
@@ -240,10 +247,12 @@ func (s *stubLiveKitRoom) CreateRoomIfNotExists(_ context.Context, roomName stri
 	return s.createErr
 }
 
-func (s *stubLiveKitRoom) GenerateToken(userID int64, roomName string, isHost bool) (string, error) {
+func (s *stubLiveKitRoom) GenerateToken(userID int64, roomName string, speak, screenShare bool) (string, error) {
 	s.tokenUserID = userID
 	s.tokenRoomName = roomName
-	s.tokenIsHost = isHost
+	s.tokenSpeak = speak
+	s.tokenScreenShare = screenShare
+	s.tokenIsHost = speak || screenShare
 	if s.tokenErr != nil {
 		return "", s.tokenErr
 	}
@@ -351,4 +360,43 @@ func (s *stubRepository) GetViewerJoinedAt(_ context.Context, _ string, _ int64,
 
 func (s *stubRepository) CountActiveViewers(_ context.Context, _ string) (int, error) {
 	return s.countActiveViewersResult, s.countActiveViewersErr
+}
+
+func TestBroadcastPermissionRequiredForHost(t *testing.T) {
+	for _, start := range []bool{true, false} {
+		repo := &stubRepository{findActiveSessionResult: activeSession(), createSessionResult: activeSession(), createSessionCreated: true}
+		lk := &stubLiveKitRoom{}
+		svc := NewLiveService(repo, &stubConnectPermissionChecker{access: &permission.Access{TeamID: 456, Speak: true, ScreenShare: true}}, lk, "")
+		var err error
+		if start {
+			_, err = svc.Start(context.Background(), 123, 42)
+		} else {
+			_, err = svc.Join(context.Background(), 123, 42)
+		}
+		var appErr *apperr.Error
+		if !errors.As(err, &appErr) || appErr.HTTPStatus != 403 {
+			t.Fatalf("expected 403, got %v", err)
+		}
+		if repo.createSessionCalls != 0 || lk.tokenUserID != 0 {
+			t.Fatal("denied broadcast created session or token")
+		}
+	}
+}
+
+func TestBroadcastHostRespectsMediaPermissions(t *testing.T) {
+	repo := &stubRepository{findActiveSessionResult: activeSession()}
+	lk := &stubLiveKitRoom{token: "token"}
+	svc := NewLiveService(repo, &stubConnectPermissionChecker{access: &permission.Access{TeamID: 456, Broadcast: true, ScreenShare: true}}, lk, "")
+	if _, err := svc.Join(context.Background(), 123, 42); err != nil {
+		t.Fatal(err)
+	}
+	if lk.tokenSpeak || !lk.tokenScreenShare {
+		t.Fatal("host received unauthorized microphone permission")
+	}
+	if _, err := svc.Join(context.Background(), 123, 99); err != nil {
+		t.Fatal(err)
+	}
+	if lk.tokenSpeak || lk.tokenScreenShare {
+		t.Fatal("viewer received publishing permission")
+	}
 }

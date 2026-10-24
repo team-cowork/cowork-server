@@ -28,7 +28,7 @@ class SetProjectGithubWebhookChannelServiceImpl(
         request: SetProjectGithubWebhookChannelReqDto,
     ): ProjectGithubRepoResDto {
         val project = projectAccessGuard.findProjectForUpdateOrThrow(projectId)
-        projectAccessGuard.requireProjectModifier(project, userId)
+        projectAccessGuard.requireGithubManager(project, userId)
         projectGithubRepoRepository.findByIdAndProjectId(repoId, projectId)
             ?: throw ExpectedException("등록된 레포를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         channelProjectionReader.requireProjectChannel(request.channelId, projectId)

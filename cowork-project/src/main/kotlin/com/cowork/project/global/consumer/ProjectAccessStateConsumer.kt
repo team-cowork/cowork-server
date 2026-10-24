@@ -34,12 +34,17 @@ class ProjectAccessStateConsumer(
             val userId = node.path("accountId").asLong()
             require(projectId > 0 && userId > 0 && record.key() == "$projectId:$userId")
             require(node.path("read").isBoolean && node.path("write").isBoolean)
+            require(!node.has("manage") || node.path("manage").isBoolean)
             require(!node.has("reorder") || node.path("reorder").isBoolean)
             ProjectAccessProjection(
                 record.key(), projectId, userId,
                 node.path("read").asBoolean(), node.path("write").asBoolean(),
                 Instant.parse(node.path("occurredAt").asText()).toProjectionPrecision(),
                 canReorder = node.path("reorder").asBoolean(false),
+                canManage = node.path("manage").asBoolean(false),
+                sourceMembershipVersion = if (node.has("sourceMembershipVersion")) {
+                    Instant.parse(node.path("sourceMembershipVersion").asText()).toProjectionPrecision()
+                } else Instant.EPOCH,
             )
         }
         val event = parsed.getOrElse {
@@ -52,10 +57,13 @@ class ProjectAccessStateConsumer(
                 repository.save(event)
             } else if (event.sourceOccurredAt == existing.sourceOccurredAt) {
                 // Replayed snapshots are idempotent; conflicting equal versions never restore access.
-                val canRead = existing.canRead && event.canRead
+                val sameMembership = existing.sourceMembershipVersion == event.sourceMembershipVersion
+                val canRead = sameMembership && existing.canRead && event.canRead
                 val canWrite = existing.canWrite && event.canWrite
+                val canManage = existing.canManage && event.canManage
                 val canReorder = existing.canReorder && event.canReorder
-                if (existing.canRead != canRead || existing.canWrite != canWrite || existing.canReorder != canReorder) {
+                if (existing.canRead != canRead || existing.canWrite != canWrite || existing.canManage != canManage || existing.canReorder != canReorder) {
+                    existing.canManage = canManage
                     existing.canRead = canRead
                     existing.canWrite = canWrite
                     existing.canReorder = canReorder

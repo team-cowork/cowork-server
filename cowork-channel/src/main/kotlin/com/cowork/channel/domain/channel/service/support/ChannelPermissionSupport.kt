@@ -32,10 +32,19 @@ class ChannelPermissionSupport(
         }
     }
 
-    fun requireChannelManager(channel: Channel, userId: Long) {
-        if (channel.createdBy == userId) return
+    fun requireRolePolicyAccess(channel: Channel, userId: Long) {
         val teamId = channel.teamId ?: throw ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
-        if (teamPermissionService.isTeamOwnerOrAdmin(teamId, userId)) return
-        throw ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
+        messageReadPolicyEvaluator.requireTeamPermission(teamId, userId, "manage_roles")
+        messageReadPolicyEvaluator.requireChannelAccess(teamId, userId, channel)
+    }
+
+    fun requireRolePolicyManager(channel: Channel, userId: Long, roleId: Long, permissions: Map<String, Boolean>?) {
+        val teamId = channel.teamId ?: throw ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
+        messageReadPolicyEvaluator.requireRolePolicyManagement(teamId, userId, channel, roleId, permissions)
+    }
+
+    fun requireChannelManager(channel: Channel, userId: Long) {
+        val teamId = channel.teamId ?: throw ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
+        messageReadPolicyEvaluator.requirePermission(teamId, userId, channel, "channel_manage")
     }
 }

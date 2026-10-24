@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
 import {Consumer, Kafka} from 'kafkajs';
+import {mongo} from 'mongoose';
 import {DicoshotService} from 'dicoshot-nest';
 import {getRequiredCsvConfig} from '../../common/config/config.util';
 import {parseEventTime} from '../../common/util/event-time.util';
@@ -23,6 +24,7 @@ type ProjectPermissionEvent = {
     read: boolean;
     write: boolean;
     occurredAt: string;
+    sourceMembershipVersion?: string;
     snapshot?: boolean;
 };
 
@@ -97,7 +99,7 @@ export class ProjectPermissionEventConsumer implements OnModuleInit, OnModuleDes
 
         const {occurredAt, sourceVersion} = eventTime;
         await this.permissionRepository.upsert(
-            payload.projectId, payload.accountId, payload.read, payload.write, occurredAt, sourceVersion,
+            payload.projectId, payload.accountId, payload.read, payload.write, occurredAt, sourceVersion, parseEventTime(payload.sourceMembershipVersion)?.sourceVersion ?? mongo.Long.ZERO,
         );
     }
 
@@ -113,6 +115,7 @@ export class ProjectPermissionEventConsumer implements OnModuleInit, OnModuleDes
             && typeof event.read === 'boolean'
             && typeof event.write === 'boolean'
             && (event.snapshot === undefined || typeof event.snapshot === 'boolean')
+            && (event.sourceMembershipVersion === undefined || parseEventTime(event.sourceMembershipVersion) !== null)
             && parseEventTime(event.occurredAt) !== null;
     }
 }

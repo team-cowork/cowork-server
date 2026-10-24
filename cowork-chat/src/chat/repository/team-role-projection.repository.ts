@@ -15,6 +15,7 @@ export type TeamRoleProjectionView = {
     teamId: number;
     roleId: number;
     priority: number;
+    isDefault?: boolean;
     permissions?: Record<string, boolean>;
 };
 
@@ -54,6 +55,7 @@ export class TeamRoleProjectionRepository {
         roleId: number;
         name: string;
         priority: number;
+        isDefault?: boolean;
         permissions: Record<string, boolean>;
     }): Promise<boolean> {
         const applyCondition = activeProjectionCondition(input.sourceVersion);
@@ -65,6 +67,7 @@ export class TeamRoleProjectionRepository {
                     roleId: input.roleId,
                     name: {$cond: [applyCondition, {$literal: input.name}, {$ifNull: ['$name', '']}]},
                     priority: {$cond: [applyCondition, input.priority, {$ifNull: ['$priority', 0]}]},
+                    isDefault: {$cond: [applyCondition, input.isDefault ?? false, {$ifNull: ['$isDefault', false]}]},
                     permissions: {
                         $cond: [applyCondition, {$literal: input.permissions}, {$ifNull: ['$permissions', {}]}],
                     },
@@ -96,6 +99,7 @@ export class TeamRoleProjectionRepository {
                     roleId,
                     name: {$ifNull: ['$name', '']},
                     priority: {$ifNull: ['$priority', 0]},
+                    isDefault: {$ifNull: ['$isDefault', false]},
                     permissions: {$ifNull: ['$permissions', {}]},
                     deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
                     sourceOccurredAt: {
@@ -273,6 +277,19 @@ export class TeamRoleProjectionRepository {
             .map(({teamId, accountId, roleId}) => ({teamId, accountId, roleId}));
     }
 
+    async findDefaultRolesByTeamIds(teamIds: number[]): Promise<TeamRoleProjectionView[]> {
+        if (teamIds.length === 0) {
+            return [];
+        }
+
+        return this.roleModel.find(
+            {teamId: {$in: teamIds}, isDefault: true, deleted: {$ne: true}},
+            {
+                _id: 0, teamId: 1, roleId: 1, priority: 1, isDefault: 1, permissions: 1,
+            },
+        ).lean<TeamRoleProjectionView[]>();
+    }
+
     async findRolesByIds(roleIds: number[]): Promise<TeamRoleProjectionView[]> {
         if (roleIds.length === 0) {
             return [];
@@ -281,7 +298,7 @@ export class TeamRoleProjectionRepository {
         return this.roleModel.find(
             {roleId: {$in: roleIds}, deleted: {$ne: true}},
             {
-                _id: 0, teamId: 1, roleId: 1, priority: 1, permissions: 1,
+                _id: 0, teamId: 1, roleId: 1, priority: 1, isDefault: 1, permissions: 1,
             },
         ).lean<TeamRoleProjectionView[]>();
     }
@@ -296,7 +313,7 @@ export class TeamRoleProjectionRepository {
         return this.roleModel.find(
             {roleId: {$in: roleIds}, deleted: {$ne: true}},
             {
-                _id: 0, teamId: 1, roleId: 1, priority: 1, permissions: 1,
+                _id: 0, teamId: 1, roleId: 1, priority: 1, isDefault: 1, permissions: 1,
             },
         ).lean<Array<TeamRoleProjectionView & {permissions: Record<string, boolean>}>>();
     }

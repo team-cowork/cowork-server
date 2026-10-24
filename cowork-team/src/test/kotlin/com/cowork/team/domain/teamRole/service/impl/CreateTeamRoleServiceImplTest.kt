@@ -36,6 +36,7 @@ class CreateTeamRoleServiceImplTest :
             service = CreateTeamRoleServiceImpl(accessGuard, commandSubmission, TeamRolePermissionSchema())
 
             every { accessGuard.lockTeamOrThrow(1L) } just Runs
+            every { accessGuard.requireGrantablePermissions(any(), any()) } just Runs
             every {
                 commandSubmission.submit(any(), any(), any(), any(), any(), any(), any(), any())
             } answers {

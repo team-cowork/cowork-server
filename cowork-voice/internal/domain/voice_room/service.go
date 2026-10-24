@@ -22,7 +22,7 @@ func NewRoomService(repo Repository, permissions ConnectPermissionChecker, livek
 }
 
 func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinResponse, error) {
-	teamID, err := s.permissions.RequireConnect(ctx, channelID, userID)
+	access, err := s.permissions.RequireConnect(ctx, channelID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +33,7 @@ func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 	}
 	sessionCreatedByUs := false
 	if voiceSession == nil {
-		created, isNew, cerr := s.repo.CreateSession(ctx, channelID, teamID)
+		created, isNew, cerr := s.repo.CreateSession(ctx, channelID, access.TeamID)
 		if cerr != nil {
 			return nil, cerr
 		}
@@ -53,7 +53,7 @@ func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 		return nil, err
 	}
 
-	token, err := s.livekit.GenerateToken(userID, voiceSession.RoomName)
+	token, err := s.livekit.GenerateToken(userID, voiceSession.RoomName, access.Speak, access.ScreenShare)
 	if err != nil {
 		if sessionCreatedByUs {
 			if _, endErr := s.repo.EndSession(context.WithoutCancel(ctx), voiceSession.SessionID, time.Now().UTC()); endErr != nil {
