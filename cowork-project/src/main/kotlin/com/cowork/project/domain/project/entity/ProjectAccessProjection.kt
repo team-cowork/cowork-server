@@ -18,4 +18,5 @@ class ProjectAccessProjection(
     var canReorder: Boolean = false,
     var canManage: Boolean = false,
     @Column(nullable = false) var sourceMembershipVersion: Instant = Instant.EPOCH,
+    @Column(name = "source_authorization_version") var sourceAuthorizationVersion: Instant? = null,
 )

@@ -81,7 +81,9 @@ class ProjectEventPublisher(
             createdBy = project.createdBy,
             isPrivate = project.isPrivate,
             initialReadGrant = if (eventType == ProjectEventType.DELETED) null else {
-                project.initialReadMembershipVersion?.let { ProjectInitialReadGrant(project.createdBy, it) }
+                project.initialReadMembershipVersion?.let {
+                    ProjectInitialReadGrant(project.createdBy, it, project.initialReadAuthorizationVersion)
+                }
             },
             teamId = project.teamId,
             name = project.name,

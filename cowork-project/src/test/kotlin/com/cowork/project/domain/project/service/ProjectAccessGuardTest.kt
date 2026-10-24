@@ -28,6 +28,42 @@ class ProjectAccessGuardTest : DescribeSpec({
         every { access.findById("3:20") } returns Optional.empty()
     }
     describe("프로젝트 접근 권한") {
+        it("닉네임 변경으로 원본 이벤트 버전만 바뀌어도 같은 권한 버전의 접근을 유지한다") {
+            val authorizationVersion = Instant.EPOCH.plusSeconds(2)
+            val member = TeamMembership(
+                teamId = 1L, userId = 20L, role = "MEMBER", sourceOccurredAt = authorizationVersion.plusSeconds(1),
+                authorizationVersion = authorizationVersion,
+            )
+            val permission = ProjectAccessProjection(
+                "3:20", 3L, 20L, true, true, Instant.now(), sourceMembershipVersion = authorizationVersion,
+                sourceAuthorizationVersion = authorizationVersion,
+            )
+            every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns member
+            every { access.findById("3:20") } returns Optional.of(permission)
+            every { access.findAllByProjectId(3L) } returns listOf(permission)
+            every { access.findAllByUserIdAndProjectIdIn(20L, listOf(3L)) } returns listOf(permission)
+
+            guard.canWrite(project, 20L) shouldBe true
+            guard.permissionsForUsers(project, listOf(member)).getValue(20L).write shouldBe true
+            guard.permissionsForProjects(listOf(project), 20L).getValue(3L).write shouldBe true
+        }
+
+        it("재가입이나 관리자 강등으로 권한 버전이 바뀌면 이전 권한을 차단한다") {
+            val authorizationVersion = Instant.EPOCH.plusSeconds(2)
+            every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns TeamMembership(
+                teamId = 1L, userId = 20L, role = "MEMBER", sourceOccurredAt = authorizationVersion.plusSeconds(2),
+                authorizationVersion = authorizationVersion.plusSeconds(1),
+            )
+            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection(
+                "3:20", 3L, 20L, true, true, Instant.now(), canManage = true,
+                sourceMembershipVersion = authorizationVersion.plusSeconds(2), sourceAuthorizationVersion = authorizationVersion,
+            ))
+
+            guard.canRead(project, 20L) shouldBe false
+            guard.canWrite(project, 20L) shouldBe false
+            shouldThrow<ExpectedException> { guard.requireProjectManager(project, 20L) }
+        }
+
         it("재가입 또는 팀 역할 변경 뒤에는 이전 멤버십으로 계산한 권한을 사용하지 않는다") {
             val version = Instant.EPOCH.plusSeconds(2)
             every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns
@@ -142,7 +178,20 @@ class ProjectAccessGuardTest : DescribeSpec({
                 every { teamPermissions.hasPermission(1L, 20L, "manage_projects") } returns true
                 every { teamPermissions.hasPermission(1L, 20L, "project_read") } returns true
 
-                guard.requireProjectCreation(1L, 20L, true) shouldBe version
+                guard.requireProjectCreation(1L, 20L, true) shouldBe ProjectAccessGuard.InitialReadAuthorization(version, null)
+            }
+        }
+        context("닉네임 변경 후 안정적인 권한 버전을 보유한 일반 멤버인 경우") {
+            it("초기 읽기 승인에 원본 버전과 권한 버전을 따로 보존한다") {
+                val authorizationVersion = Instant.parse("2026-10-25T00:00:00Z")
+                val sourceVersion = authorizationVersion.plusSeconds(1)
+                every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns TeamMembership(
+                    teamId = 1L, userId = 20L, role = "MEMBER", sourceOccurredAt = sourceVersion, authorizationVersion = authorizationVersion,
+                )
+                every { teamPermissions.hasPermission(1L, 20L, "manage_projects") } returns true
+                every { teamPermissions.hasPermission(1L, 20L, "project_read") } returns true
+
+                guard.requireProjectCreation(1L, 20L, true) shouldBe ProjectAccessGuard.InitialReadAuthorization(sourceVersion, authorizationVersion)
             }
         }
         context("일반 멤버에게 읽기 권한만 있는 경우") {
