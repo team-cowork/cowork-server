@@ -172,6 +172,46 @@ class ChannelMessageReadPolicyEvaluatorTest {
     }
 
     @Test
+    fun `비공개 전환은 팀 기본 읽기만으로 허용하지 않고 현재 역할 overwrite를 요구한다`() {
+        roles(role(1L, "message_read" to true, "channel_manage" to true, default = true))
+        val publicChannel = channel()
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            evaluator.requirePrivateTransitionAccess(10L, 7L, publicChannel)
+        }
+        assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        assertEquals(false, publicChannel.isPrivate)
+
+        policies(policy(1L, "message_read" to true))
+        evaluator.requirePrivateTransitionAccess(10L, 7L, publicChannel)
+        assertEquals(false, publicChannel.isPrivate)
+    }
+
+    @Test
+    fun `음성 채널 비공개 전환은 message_read 대신 voice_connect overwrite를 요구한다`() {
+        roles(role(1L, "voice_connect" to true, "message_read" to true, "channel_manage" to true))
+        val voice = channel(type = ChannelType.VOICE)
+        policies(policy(1L, "message_read" to true))
+
+        assertThrows(ExpectedException::class.java) { evaluator.requirePrivateTransitionAccess(10L, 7L, voice) }
+
+        policies(policy(1L, "voice_connect" to true))
+        evaluator.requirePrivateTransitionAccess(10L, 7L, voice)
+    }
+
+    @Test
+    fun `비공개 전환의 관리자 우회는 활성 OWNER와 ADMIN에게만 적용한다`() {
+        for (role in listOf("OWNER", "ADMIN")) {
+            every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member(role)
+            evaluator.requirePrivateTransitionAccess(10L, 7L, channel())
+            every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member(role, active = false)
+            assertThrows(ExpectedException::class.java) {
+                evaluator.requirePrivateTransitionAccess(10L, 7L, channel())
+            }
+        }
+    }
+
+    @Test
     fun `일반 채널 관리자는 초기 역할 정책으로 비공개 채널에 접근할 수 있다`() {
         roles(role(1L, "message_read" to true, default = true), role(2L, "manage_channels" to true))
         val overwrites = listOf(
