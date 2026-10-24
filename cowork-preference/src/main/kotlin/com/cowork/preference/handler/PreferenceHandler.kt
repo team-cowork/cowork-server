@@ -1,6 +1,7 @@
 package com.cowork.preference.handler
 
 import com.cowork.preference.domain.ResourceType
+import com.cowork.preference.domain.SettingSchema
 import com.cowork.preference.security.RequesterContext
 import com.cowork.preference.service.AccountOwnershipGuard
 import com.cowork.preference.service.ChannelAccessGuard
@@ -81,7 +82,7 @@ class PreferenceHandler(
         }
         scope.launch(ctx.vertx().dispatcher()) {
             runCatching {
-                requireWriteAccess(resourceType, resourceId, requester)
+                requireWriteAccess(resourceType, resourceId, requester, body)
                 service.updateSettings(resourceType, resourceId, body).getOrThrow()
             }
                 .onSuccess {
@@ -106,10 +107,19 @@ class PreferenceHandler(
         }
     }
 
-    private suspend fun requireWriteAccess(resourceType: ResourceType, resourceId: Long, requester: RequesterContext) {
+    private suspend fun requireWriteAccess(
+        resourceType: ResourceType,
+        resourceId: Long,
+        requester: RequesterContext,
+        body: JsonObject,
+    ) {
         when (resourceType) {
             ResourceType.ACCOUNT -> AccountOwnershipGuard.requireOwner(resourceId, requester)
-            ResourceType.TEAM -> teamMembershipGuard.requireSettingsManager(resourceId, requester)
+            ResourceType.TEAM -> teamMembershipGuard.requireSettingsManager(
+                resourceId,
+                requester,
+                SettingSchema.filter(resourceType, body).fieldNames(),
+            )
             ResourceType.PROJECT -> projectAccessGuard.requireManager(resourceId, requester)
             ResourceType.VOICE_CHANNEL, ResourceType.TEXT_CHANNEL ->
                 channelAccessGuard.requireSettingsManager(resourceId, requester)

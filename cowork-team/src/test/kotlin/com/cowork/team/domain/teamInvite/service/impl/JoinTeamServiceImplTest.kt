@@ -2,6 +2,8 @@ package com.cowork.team.domain.teamInvite.service.impl
 
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
+import com.cowork.team.domain.team.projection.NicknameFormatGuide
+import com.cowork.team.domain.team.projection.TeamSettingProjectionReader
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.teamInvite.entity.TeamInvite
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
@@ -22,6 +24,7 @@ class JoinTeamServiceImplTest :
         lateinit var inviteRepository: TeamInviteRepository
         lateinit var teamRepository: TeamRepository
         lateinit var memberRepository: TeamMemberRepository
+        lateinit var settingReader: TeamSettingProjectionReader
         lateinit var service: JoinTeamServiceImpl
 
         val team = Team(id = 1L, name = "team", description = null, iconUrl = null, ownerId = 10L)
@@ -30,12 +33,15 @@ class JoinTeamServiceImplTest :
             inviteRepository = mockk()
             teamRepository = mockk()
             memberRepository = mockk()
+            settingReader = mockk()
             service = JoinTeamServiceImpl(
                 inviteRepository,
                 teamRepository,
                 memberRepository,
                 mockk<TeamMemberEventPublisher>(relaxed = true),
+                settingReader,
             )
+            every { settingReader.getNicknameFormat(1L) } returns NicknameFormatGuide(enforced = false, example = null)
         }
 
         describe("JoinTeamServiceImpl 클래스의 execute 메서드는") {
@@ -54,6 +60,24 @@ class JoinTeamServiceImplTest :
                     result.userId shouldBe 99L
                     result.role shouldBe "MEMBER"
                     result.joinedAt shouldBe joinedAt
+                    result.nicknameFormatEnforced shouldBe false
+                }
+            }
+
+            context("닉네임 형식 안내가 켜진 팀에 가입하면") {
+                it("가입 응답에 닉네임 형식 예시를 포함한다") {
+                    val member = TeamMember(team = team, userId = 99L).also { it.joinedAt = LocalDateTime.now() }
+                    every { inviteRepository.findActiveByInviteCode("valid") } returns invite(team)
+                    every { teamRepository.findByIdForUpdate(1L) } returns team
+                    every { memberRepository.existsByTeamIdAndUserId(1L, 99L) } returns false
+                    every { memberRepository.save(any()) } returns member
+                    every { settingReader.getNicknameFormat(1L) } returns
+                        NicknameFormatGuide(enforced = true, example = "홍길동 / 프론트엔드")
+
+                    val result = service.execute(99L, "valid")
+
+                    result.nicknameFormatEnforced shouldBe true
+                    result.nicknameFormatExample shouldBe "홍길동 / 프론트엔드"
                 }
             }
 

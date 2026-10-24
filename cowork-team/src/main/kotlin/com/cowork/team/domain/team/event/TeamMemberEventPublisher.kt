@@ -59,6 +59,7 @@ class TeamMemberEventPublisher(
             userId = state.userId,
             role = state.role.name,
             teamName = state.teamName,
+            nickname = state.nickname,
             occurredAt = state.stateOccurredAt,
             snapshot = snapshot,
         )
