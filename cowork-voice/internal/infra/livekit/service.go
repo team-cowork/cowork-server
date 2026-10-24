@@ -13,20 +13,33 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/cowork/cowork-voice/internal/apperr"
+	"github.com/cowork/cowork-voice/internal/domain/permission"
 )
 
 func GenerateToken(apiKey, apiSecret string, userID int64, roomName string, speak, screenShare bool, ttlSecs int64) (string, error) {
+	return generateToken(apiKey, apiSecret, userID, roomName, speak, screenShare, false, ttlSecs)
+}
+
+func GenerateLiveToken(apiKey, apiSecret string, userID int64, roomName string, speak, screenShare bool, ttlSecs int64) (string, error) {
+	return generateToken(apiKey, apiSecret, userID, roomName, speak, screenShare, true, ttlSecs)
+}
+
+func generateToken(apiKey, apiSecret string, userID int64, roomName string, speak, screenShare, liveRoom bool, ttlSecs int64) (string, error) {
 	identity := strconv.FormatInt(userID, 10)
 	at := auth.NewAccessToken(apiKey, apiSecret)
 	grant := &auth.VideoGrant{RoomJoin: true, Room: roomName}
-	grant.SetCanSubscribe(true)
-	grant.SetCanPublishData(false)
+	media := permission.MediaAccessFor(true, speak, screenShare, liveRoom)
+	grant.SetCanSubscribe(media.Subscribe)
+	grant.SetCanPublishData(media.PublishData)
 	sources := []livekit.TrackSource{}
-	if speak {
+	if media.Microphone {
 		sources = append(sources, livekit.TrackSource_MICROPHONE)
 	}
-	if screenShare {
+	if media.ScreenShare {
 		sources = append(sources, livekit.TrackSource_SCREEN_SHARE, livekit.TrackSource_SCREEN_SHARE_AUDIO)
+	}
+	if media.Camera {
+		sources = append(sources, livekit.TrackSource_CAMERA)
 	}
 	// An empty source list alone permits every source in LiveKit.
 	grant.SetCanPublish(len(sources) > 0)

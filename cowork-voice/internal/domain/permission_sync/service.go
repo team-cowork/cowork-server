@@ -138,7 +138,7 @@ func (s *Service) reconcileRoom(ctx context.Context, name string, check permissi
 			// Unknown authorization disables media without disconnecting; a later ready pass restores it.
 			known := accessErr == nil
 			publisher := hostID == 0 || userID == hostID
-			desired := mediaPermission(known, publisher && access.Speak, publisher && access.ScreenShare)
+			desired := mediaPermission(known, publisher && access.Speak, publisher && access.ScreenShare, hostID != 0)
 			if sameMedia(participant.GetPermission(), desired) {
 				continue
 			}
@@ -160,7 +160,7 @@ func (s *Service) pauseRoom(ctx context.Context, name string) error {
 	}
 	var failures []error
 	for _, participant := range participants.GetParticipants() {
-		desired := mediaPermission(false, false, false)
+		desired := mediaPermission(false, false, false, true)
 		if sameMedia(participant.GetPermission(), desired) {
 			continue
 		}
@@ -178,13 +178,17 @@ func denied(err error) bool {
 	return errors.As(err, &apiErr) && apiErr.HTTPStatus == http.StatusForbidden
 }
 
-func mediaPermission(known, speak, screenShare bool) *livekit.ParticipantPermission {
-	p := &livekit.ParticipantPermission{CanSubscribe: known}
-	if known && speak {
+func mediaPermission(known, speak, screenShare, liveRoom bool) *livekit.ParticipantPermission {
+	media := permission.MediaAccessFor(known, speak, screenShare, liveRoom)
+	p := &livekit.ParticipantPermission{CanSubscribe: media.Subscribe, CanPublishData: media.PublishData}
+	if media.Microphone {
 		p.CanPublishSources = append(p.CanPublishSources, livekit.TrackSource_MICROPHONE)
 	}
-	if known && screenShare {
+	if media.ScreenShare {
 		p.CanPublishSources = append(p.CanPublishSources, livekit.TrackSource_SCREEN_SHARE, livekit.TrackSource_SCREEN_SHARE_AUDIO)
+	}
+	if media.Camera {
+		p.CanPublishSources = append(p.CanPublishSources, livekit.TrackSource_CAMERA)
 	}
 	p.CanPublish = len(p.CanPublishSources) > 0
 	return p
@@ -192,7 +196,7 @@ func mediaPermission(known, speak, screenShare bool) *livekit.ParticipantPermiss
 
 func sameMedia(current, desired *livekit.ParticipantPermission) bool {
 	if current == nil || current.GetCanSubscribe() != desired.CanSubscribe ||
-		current.GetCanPublish() != desired.CanPublish || current.GetCanPublishData() ||
+		current.GetCanPublish() != desired.CanPublish || current.GetCanPublishData() != desired.CanPublishData ||
 		len(current.GetCanPublishSources()) != len(desired.CanPublishSources) {
 		return false
 	}
