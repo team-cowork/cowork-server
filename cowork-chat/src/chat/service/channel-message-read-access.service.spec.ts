@@ -226,6 +226,47 @@ describe('ChannelMessageReadAccessService', () => {
         });
     });
 
+    describe.each(['thread_reply', 'file_attach', 'reaction_add'] as const)('%s 권한', permission => {
+        it('메시지 작성 허용으로 다른 작업을 허용하지 않는다', async () => {
+            teamRoleRepository.findRolesByIds.mockResolvedValue([{
+                teamId: 1, roleId: 101, priority: 100, permissions: {message_read: true, message_send: true},
+            }]);
+            policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([]);
+
+            await expect(service.requireCanSend(10, 2)).resolves.toBeUndefined();
+            await expect(service.requirePermission(10, 2, permission)).rejects.toThrow(ForbiddenException);
+        });
+
+        it('비공개 채널 읽기를 명시 허용하면 작업 권한은 역할 기본값을 따른다', async () => {
+            teamRoleRepository.findRolesByIds.mockResolvedValue([{
+                teamId: 1, roleId: 101, priority: 100, permissions: {[permission]: true, message_send: false},
+            }]);
+
+            await expect(service.requirePermission(20, 2, permission)).resolves.toBeUndefined();
+            await expect(service.requireCanSend(20, 2)).rejects.toThrow(ForbiddenException);
+        });
+
+        it('채널의 명시 거부는 역할 기본 허용을 덮어쓴다', async () => {
+            teamRoleRepository.findRolesByIds.mockResolvedValue([{
+                teamId: 1, roleId: 101, priority: 100, permissions: {message_read: true, [permission]: true},
+            }]);
+            policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([{
+                teamId: 1, channelId: 10, roleId: 101, permissions: {[permission]: false},
+            }]);
+
+            await expect(service.requirePermission(10, 2, permission)).rejects.toThrow(ForbiddenException);
+        });
+
+        it('작업 권한만으로 비공개 채널의 읽기 제한을 우회할 수 없다', async () => {
+            teamRoleRepository.findRolesByIds.mockResolvedValue([{
+                teamId: 1, roleId: 101, priority: 100, permissions: {message_read: true, [permission]: true},
+            }]);
+            policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([]);
+
+            await expect(service.requirePermission(20, 2, permission)).rejects.toThrow(ForbiddenException);
+        });
+    });
+
     describe('evaluateMany', () => {
         it('teamId/type 조합이 정확한 DM만 멤버십으로 읽을 수 있다', async () => {
             channelRepository.findByIds.mockResolvedValue([

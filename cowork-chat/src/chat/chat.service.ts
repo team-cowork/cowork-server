@@ -173,7 +173,7 @@ export class ChatService {
         ctx: ChannelUserContext,
         dto: CreateFileUploadUrlRequestDto,
     ): Promise<CreateFileUploadUrlResponseDto> {
-        await this.requireChannelRead(ctx.channelId, ctx.userId);
+        await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'file_attach');
         const upload = await this.objectStorageService.createPresignedUpload({
             channelId: ctx.channelId,
             userId: ctx.userId,
@@ -198,7 +198,7 @@ export class ChatService {
      @returns 최종 objectKey와 서버가 확인한 파일 메타데이터
      */
     async confirmFileUpload(ctx: ChannelUserContext, dto: ConfirmFileUploadRequestDto): Promise<ConfirmedAttachment> {
-        await this.requireChannelRead(ctx.channelId, ctx.userId);
+        await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'file_attach');
         return this.objectStorageService.confirmUpload(ctx.channelId, ctx.userId, dto.objectKey);
     }
 
@@ -316,10 +316,15 @@ export class ChatService {
         }
 
         if (dto.parentMessageId !== undefined && dto.parentMessageId !== '') {
+            await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'thread_reply');
             const parent = await this.messageRepository.findByIdAndChannelId(dto.parentMessageId, ctx.channelId);
             if (!parent) {
                 throw new NotFoundException('답장 대상 메시지를 찾을 수 없습니다');
             }
+        }
+
+        if ((dto.attachments?.length ?? 0) > 0) {
+            await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'file_attach');
         }
 
         if (channel.type === DM_CHANNEL_TYPE) {
@@ -710,7 +715,7 @@ export class ChatService {
      @throws NotFoundException 메시지가 존재하지 않는 경우
      */
     async addReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
-        await this.requireChannelRead(ctx.channelId, ctx.userId);
+        await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'reaction_add');
         const count = await this.messageRepository.addReaction(ctx.channelId, messageId, emoji, ctx.userId);
         if (count === null) {
             throw new NotFoundException('메시지를 찾을 수 없습니다');
