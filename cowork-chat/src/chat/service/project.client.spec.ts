@@ -50,6 +50,36 @@ describe('ProjectClient project read permission', () => {
         expect(permission.canRead).toHaveBeenLastCalledWith(7, 217, 2000n);
     });
 
+    it('preserves a project grant when only the member nickname version changes', async () => {
+        permission.canRead.mockImplementation(async (_projectId, _userId, authorizationVersion) => authorizationVersion === 1000n);
+        members.findByTeamIdsAndUserIds.mockResolvedValue([{
+            teamId: 3, userId: 217, role: 'MEMBER', sourceVersion: 2000n, authorizationVersion: 1000n,
+        }]);
+
+        await expect(service.canRead(7, 217)).resolves.toBe(true);
+        expect(permission.canRead).toHaveBeenCalledWith(7, 217, 1000n);
+    });
+
+    it('rejects a grant for the previous authorization after a role change or rejoin', async () => {
+        permission.canRead.mockImplementation(async (_projectId, _userId, authorizationVersion) => authorizationVersion === 1000n);
+        members.findByTeamIdsAndUserIds.mockResolvedValue([{
+            teamId: 3, userId: 217, role: 'MEMBER', sourceVersion: 3000n, authorizationVersion: 2000n,
+        }]);
+
+        await expect(service.canRead(7, 217)).resolves.toBe(false);
+        expect(permission.canRead).toHaveBeenCalledWith(7, 217, 2000n);
+    });
+
+    it('uses the original membership fence while the explicit authorization stamp is unknown', async () => {
+        members.findByTeamIdsAndUserIds.mockResolvedValue([{
+            teamId: 3, userId: 217, role: 'MEMBER', sourceVersion: 1000n, authorizationVersion: null,
+        }]);
+        permission.canRead.mockImplementation(async (_projectId, _userId, authorizationVersion) => authorizationVersion === 1000n);
+
+        await expect(service.canRead(7, 217)).resolves.toBe(true);
+        expect(permission.canRead).toHaveBeenCalledWith(7, 217, 1000n);
+    });
+
     it('denies legacy membership without its source version', async () => {
         members.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 3, userId: 217, role: 'MEMBER'}]);
         permission.canRead.mockResolvedValue(true);
