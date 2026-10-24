@@ -21,6 +21,8 @@ object PermissionKeys {
     const val GITHUB_ISSUE_CREATE = "github_issue_create"
     const val CHANNEL_MANAGE = "channel_manage"
     const val CHANNEL_REORDER = "channel_reorder"
+    // TODO: 임시 호환 키이며 멤버 관리 기능은 없다.
+    // 저장된 역할·정책과 보관 이벤트에서 이 키를 제거하고 생산자·소비자를 함께 전환한 뒤 삭제한다.
     const val CHANNEL_MEMBER_MANAGE = "channel_member_manage"
 
     const val VOICE_CONNECT = "voice_connect"
