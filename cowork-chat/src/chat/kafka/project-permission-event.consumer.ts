@@ -28,6 +28,10 @@ type ProjectPermissionEvent = {
     // TODO(#596): 2026-11-01 05:00 KST 이후 구형 outbox·Kafka stamp 보정과 rollback 종료 확인 후 누락 허용·ZERO 대체 제거.
     // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
     sourceMembershipVersion?: string;
+    // eslint-disable-next-line no-warning-comments -- Tracked compatibility cleanup with a deployment-dependent deadline.
+    // TODO(#596): 2026-11-01 05:00 KST 이후 구형 이벤트·Mongo auth stamp 보정과 rollback 종료 확인 후 nullable fallback 제거.
+    // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+    sourceAuthorizationVersion?: string | null;
     snapshot?: boolean;
 };
 
@@ -102,7 +106,14 @@ export class ProjectPermissionEventConsumer implements OnModuleInit, OnModuleDes
 
         const {occurredAt, sourceVersion} = eventTime;
         await this.permissionRepository.upsert(
-            payload.projectId, payload.accountId, payload.read, payload.write, occurredAt, sourceVersion, parseEventTime(payload.sourceMembershipVersion)?.sourceVersion ?? mongo.Long.ZERO,
+            payload.projectId,
+            payload.accountId,
+            payload.read,
+            payload.write,
+            occurredAt,
+            sourceVersion,
+            parseEventTime(payload.sourceMembershipVersion)?.sourceVersion ?? mongo.Long.ZERO,
+            parseEventTime(payload.sourceAuthorizationVersion)?.sourceVersion ?? null,
         );
     }
 
@@ -112,6 +123,13 @@ export class ProjectPermissionEventConsumer implements OnModuleInit, OnModuleDes
         }
 
         const event = payload as Partial<ProjectPermissionEvent>;
+        const authorizationVersion = parseEventTime(event.sourceAuthorizationVersion)?.sourceVersion;
+        const membershipVersion = parseEventTime(event.sourceMembershipVersion)?.sourceVersion;
+        if (event.sourceAuthorizationVersion !== undefined && event.sourceAuthorizationVersion !== null
+            && (!authorizationVersion || !membershipVersion || authorizationVersion.lessThanOrEqual(mongo.Long.ZERO) || authorizationVersion.greaterThan(membershipVersion))) {
+            return false;
+        }
+
         return event.eventType === 'UPSERT'
             && isSafePositiveInteger(event.projectId)
             && isSafePositiveInteger(event.accountId)
