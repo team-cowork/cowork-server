@@ -766,8 +766,6 @@ jobs:
       (needs.deploy-vault.result == 'success' || needs.deploy-vault.result == 'skipped') &&
       (needs.deploy-config.result == 'success' || needs.deploy-config.result == 'skipped')
     permissions:
-      # TODO: Temporary. Remove with the "Wait For Preference Deployment" step below.
-      actions: read
       contents: read
       deployments: write
       packages: read
@@ -792,29 +790,6 @@ jobs:
         env:
           SETTINGS_ATTEMPT: ${{ needs.deployment-plan.outputs.attempt }}
         run: python3 deploy/prod/cd/rollout-settings.py check-attempt
-      # TODO: Temporary. Remove this step and the actions: read permission once production runs the #597
-      # preference release. Preference must accept slowmode_bypass and publish the setting state topics before
-      # team and channel send the new permission key and chat and notification wait for those snapshots.
-      - name: Wait For Preference Deployment
-        if: matrix.target != 'preference'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          APPLICATIONS: ${{ needs.deployment-plan.outputs.applications }}
-        run: |
-          if ! jq -e '.include[] | select(.target == "preference")' <<< "$APPLICATIONS" > /dev/null; then
-            echo 'Preference is not in this rollout'
-            exit 0
-          fi
-          while true; do
-            state=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/jobs?filter=latest&per_page=100" \
-              --paginate --jq '.jobs[] | select(.name == "Deploy (preference)") | "\(.status) \(.conclusion // "")"')
-            case "$state" in
-              'completed success') echo 'Preference deployment succeeded'; exit 0 ;;
-              completed*) echo "::error::Preference deployment finished as '${state#completed }'"; exit 1 ;;
-            esac
-            echo "Waiting for preference deployment [state=${state:-not started}]"
-            sleep 15
-          done
       - name: Deploy Target
         uses: ./.github/actions/deploy-target
         with:

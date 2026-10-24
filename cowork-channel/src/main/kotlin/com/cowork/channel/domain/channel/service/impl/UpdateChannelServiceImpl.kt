@@ -26,6 +26,9 @@ class UpdateChannelServiceImpl(
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         channelAccessGuard.requireTeamChannel(channel)
         channelPermissionSupport.requireChannelManager(channel, userId)
+        if (!channel.isPrivate && request.isPrivate == true) {
+            channelPermissionSupport.requirePrivateTransitionAccess(channel, userId)
+        }
         channel.update(request.name, request.description, request.isPrivate)
         if (updateProjectId) channel.assignProject(request.projectId)
         channelEventPublisher.publishUpdated(channel)

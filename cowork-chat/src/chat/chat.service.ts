@@ -11,7 +11,6 @@ import {
 } from '@nestjs/common';
 import {Types} from 'mongoose';
 import {ConfirmedAttachment} from '../storage/attachment-upload.schema';
-import {UserRole} from '../common/enum/user-role.enum';
 import {ElasticsearchService} from '../search/elasticsearch.service';
 import {ObjectStorageService} from '../storage/object-storage.service';
 import {BlockService} from '../block/block.service';
@@ -208,7 +207,7 @@ export class ChatService {
     /**
      FILE_SHARE 채널의 첨부파일 목록을 커서 기반 페이지네이션으로 조회한다.
      FILE_SHARE 채널이 아니면 `BadRequestException`을 던진다.
-     업로더 이름은 Kafka로 동기화된 사용자 프로필 projection에서 일괄 조회한다.
+     업로더 이름은 Kafka로 동기화된 팀 멤버와 사용자 프로필 projection에서 일괄 조회한다.
 
      @param ctx - 채널·사용자 컨텍스트
      @param query - 커서, 페이지 크기
@@ -225,7 +224,7 @@ export class ChatService {
 
         const limit = query.limit ?? 20;
         const {items, nextCursor} = await this.messageRepository.findFileAttachments(ctx.channelId, query.before, limit);
-        const uploaderNames = await this.loadUploaderNames(items);
+        const uploaderNames = await this.loadUploaderNames(items, channel.teamId);
 
         return {
             files: items.map(item => ({
@@ -255,7 +254,7 @@ export class ChatService {
      @returns 삭제된 채널 ID와 메시지 ID
      @throws BadRequestException fileId 디코딩 실패
      @throws NotFoundException 메시지가 존재하지 않는 경우
-     @throws ForbiddenException 본인 파일이 아니고 ADMIN도 아닌 경우
+     @throws ForbiddenException 본인 파일이 아니고 message_manage 권한도 없는 경우
      */
     async deleteFile(ctx: ChannelUserRoleContext, fileId: string): Promise<{channelId: number; messageId: string}> {
         const messageId = this.decodeFileId(fileId);
@@ -266,8 +265,8 @@ export class ChatService {
             throw new NotFoundException('파일(메시지)을 찾을 수 없습니다');
         }
 
-        if (message.authorId !== ctx.userId && !this.isAdmin(ctx.userRole)) {
-            throw new ForbiddenException('본인이 업로드한 파일만 삭제할 수 있습니다');
+        if (message.authorId !== ctx.userId) {
+            await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_manage');
         }
 
         await Promise.all(
@@ -308,8 +307,7 @@ export class ChatService {
      */
     async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
         const permissions: ChannelActionPermission[] = [
-            'message_send',
-            ...(dto.parentMessageId !== undefined && dto.parentMessageId !== '' ? ['thread_reply' as const] : []),
+            dto.parentMessageId !== undefined && dto.parentMessageId !== '' ? 'thread_reply' : 'message_send',
             ...((dto.attachments?.length ?? 0) > 0 ? ['file_attach' as const] : []),
         ];
         await this.channelMessageReadAccess.requirePermissions(ctx.channelId, ctx.userId, permissions);
@@ -457,6 +455,7 @@ export class ChatService {
             throw new BadRequestException('지원하지 않는 슬래시 커맨드입니다');
         }
 
+        await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'slash_command_use');
         await this.publishGithubIssueCreateCommand(ctx, dto.payload);
     }
 
@@ -474,6 +473,7 @@ export class ChatService {
      @throws ForbiddenException 채널 권한이 없는 경우
      */
     async publishGithubIssueCreateCommand(ctx: ChannelUserContext, dto: CreateGithubIssueDto): Promise<void> {
+        await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'github_issue_create');
         const channelTeamId = await this.requireReadAndGetTeamId(ctx.channelId, ctx.userId);
 
         await this.chatGithubIssueCommandProducer.send({
@@ -599,14 +599,14 @@ export class ChatService {
      수정 이력은 `editHistory`에 누적된다.
      본문 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
      성공 시 `chat:{channelId}` 룸에 `message:edited` 이벤트를 emit한다.
-     ADMIN은 타인 메시지도 수정할 수 있다.
+     본인 메시지만 수정할 수 있다.
 
      @param ctx - 메시지·사용자·역할 컨텍스트
      @param dto - 새 메시지 내용
      @returns 수정된 메시지 도큐먼트
      */
     async editMessage(ctx: MessageUserRoleContext, dto: EditMessageDto) {
-        const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 수정할 수 있습니다');
+        const message = await this.findAndVerifyMessage(ctx, 'edit');
 
         if (message.content === dto.content) {
             return this.toMessageResponse({...toMessageBroadcastPayload(message), mentionedMessage: null}, ctx.userId);
@@ -635,13 +635,13 @@ export class ChatService {
      메시지를 삭제한다.
      색인 대상 메시지는 삭제 tombstone을 먼저 기록한 뒤 삭제하므로 검색 색인에서도 반드시 제거된다.
      성공 시 `chat:{channelId}` 룸에 `message:deleted` 이벤트를 emit한다.
-     ADMIN은 타인 메시지도 삭제할 수 있다.
+     message_manage 권한으로 타인 메시지를 삭제할 수 있다.
 
      @param ctx - 메시지·사용자·역할 컨텍스트
      @returns 삭제된 채널 ID와 메시지 ID
      */
     async deleteMessage(ctx: MessageUserRoleContext) {
-        const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 삭제할 수 있습니다');
+        const message = await this.findAndVerifyMessage(ctx, 'delete');
 
         const result = await this.messageSearchDeletion.deleteMessage(ctx.messageId);
         if (result === 'DELETED') {
@@ -660,14 +660,14 @@ export class ChatService {
      메시지를 고정한다. 이미 고정된 메시지이면 `BadRequestException`을 던진다.
      고정 상태 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
      성공 시 `chat:{channelId}` 룸에 `message:pinned` 이벤트를 emit한다.
-     ADMIN은 타인 메시지도 고정할 수 있다.
+     message_pin 권한을 검사한다.
 
      @param ctx - 메시지·사용자·역할 컨텍스트
      @returns 업데이트된 메시지 도큐먼트
      @throws BadRequestException 이미 고정된 메시지인 경우
      */
     async pinMessage(ctx: MessageUserRoleContext) {
-        const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 고정할 수 있습니다');
+        const message = await this.findAndVerifyMessage(ctx, 'pin');
         if (message.isPinned) {
             throw new BadRequestException('이미 고정된 메시지입니다');
         }
@@ -691,13 +691,13 @@ export class ChatService {
      메시지 고정을 해제한다. 고정되지 않은 메시지이면 `BadRequestException`을 던진다.
      고정 상태 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
      성공 시 `chat:{channelId}` 룸에 `message:unpinned` 이벤트를 emit한다.
-     ADMIN은 타인 메시지도 고정 해제할 수 있다.
+     message_pin 권한을 검사한다.
 
      @param ctx - 메시지·사용자·역할 컨텍스트
      @throws BadRequestException 고정되지 않은 메시지인 경우
      */
     async unpinMessage(ctx: MessageUserRoleContext) {
-        const message = await this.findAndVerifyMessage(ctx, '본인 메시지만 고정 해제할 수 있습니다');
+        const message = await this.findAndVerifyMessage(ctx, 'pin');
         if (!message.isPinned) {
             throw new BadRequestException('고정되지 않은 메시지입니다');
         }
@@ -914,16 +914,6 @@ export class ChatService {
     }
 
     /**
-     관리자 역할인지 확인한다.
-
-     @param role - 사용자 역할 문자열
-     @returns ADMIN 역할이면 `true`
-     */
-    private isAdmin(role: string): boolean {
-        return role === (UserRole.ADMIN as string);
-    }
-
-    /**
      Base64 인코딩된 fileId에서 messageId를 추출한다.
      fileId는 `{ messageId: string }` 형태의 JSON을 base64로 인코딩한 값이다.
 
@@ -947,18 +937,17 @@ export class ChatService {
     }
 
     /**
-     채널 멤버십, 메시지 존재 여부, 채널 소속, 소유권(또는 ADMIN 여부)을 순서대로 검증한다.
-     소유권 검증에서 ADMIN은 타인 메시지에도 접근 가능하다.
+     채널 접근, 메시지 소속과 작업별 소유권·역할 권한을 검증한다.
 
      @param ctx - 메시지·사용자·역할 컨텍스트
-     @param forbiddenMessage - 소유권 위반 시 사용할 오류 메시지
+     @param action - 검증할 메시지 작업
      @returns 검증을 통과한 메시지 도큐먼트
      @throws ForbiddenException 멤버가 아니거나, 다른 채널의 메시지이거나, 소유권 없는 경우
      @throws NotFoundException 메시지가 존재하지 않는 경우
      */
     private async findAndVerifyMessage(
         ctx: MessageUserRoleContext,
-        forbiddenMessage: string,
+        action: 'edit' | 'delete' | 'pin',
     ): Promise<MessageDocument> {
         await this.requireChannelRead(ctx.channelId, ctx.userId);
         const message = await this.messageRepository.findById(ctx.messageId);
@@ -970,26 +959,36 @@ export class ChatService {
             throw new ForbiddenException('해당 채널의 메시지가 아닙니다');
         }
 
-        if (message.authorId !== ctx.userId && !this.isAdmin(ctx.userRole)) {
-            throw new ForbiddenException(forbiddenMessage);
+        if (action === 'pin') {
+            await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_pin');
+        } else if (message.authorId !== ctx.userId) {
+            if (action === 'edit') {
+                throw new ForbiddenException('본인 메시지만 수정할 수 있습니다');
+            }
+
+            await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_manage');
         }
 
         return message;
     }
 
     /**
-     업로더 ID 목록에 대한 표시 이름을 로컬 사용자 프로필 projection에서 조회한다.
+     업로더 ID 목록에 대한 표시 이름을 로컬 사용자 프로필과 팀 멤버 projection에서 조회한다.
      `SYSTEM_AUTHOR_ID(0)` 이하이면 projection 조회 없이 'System'으로 처리한다.
 
      @param items - uploaderId 필드를 포함하는 아이템 배열
+     @param teamId - 팀 닉네임을 적용할 팀 ID. 팀에 속하지 않은 채널이면 null
      @returns uploaderId → 표시 이름 매핑
      */
-    private async loadUploaderNames(items: Array<{uploaderId: number}>): Promise<Map<number, string>> {
+    private async loadUploaderNames(
+        items: Array<{uploaderId: number}>,
+        teamId: number | null,
+    ): Promise<Map<number, string>> {
         const uniqueUploaderIds = [...new Set(items.map(item => item.uploaderId))];
         const systemIds = uniqueUploaderIds.filter(id => id <= SYSTEM_AUTHOR_ID);
         const realIds = uniqueUploaderIds.filter(id => id > SYSTEM_AUTHOR_ID);
 
-        const names = await this.userClient.getDisplayNames(realIds);
+        const names = await this.userClient.getDisplayNames(realIds, teamId);
         for (const systemId of systemIds) {
             names.set(systemId, SYSTEM_AUTHOR_NAME);
         }

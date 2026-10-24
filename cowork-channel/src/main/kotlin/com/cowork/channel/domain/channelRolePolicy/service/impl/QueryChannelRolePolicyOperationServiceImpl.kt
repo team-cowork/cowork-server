@@ -42,7 +42,7 @@ class QueryChannelRolePolicyOperationServiceImpl(
             throw ExpectedException("채널 역할 정책 작업을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         }
         teamPermissionService.requireTeamMember(teamId, actorId)
-        channelPermissionSupport.requireChannelManager(channel, actorId)
+        channelPermissionSupport.requireRolePolicyAccess(channel, actorId)
         finalizer.tryFinalize(operation)
         return operationMapper.toResponse(operation)
     }
