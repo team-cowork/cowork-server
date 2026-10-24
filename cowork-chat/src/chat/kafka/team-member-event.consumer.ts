@@ -23,6 +23,7 @@ type TeamMemberEvent = {
     userId: number;
     role: string;
     teamName: string;
+    nickname?: string | null;
     occurredAt: string;
     snapshot?: boolean;
 };
@@ -110,6 +111,7 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
                 userId: payload.userId,
                 role: payload.role,
                 teamName: payload.teamName,
+                nickname: payload.nickname ?? null,
                 occurredAt,
                 sourceVersion,
             });
@@ -151,6 +153,7 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
         }
 
         return typeof event.role === 'string' && event.role.length > 0
-            && typeof event.teamName === 'string' && event.teamName.length > 0;
+            && typeof event.teamName === 'string' && event.teamName.length > 0
+            && (event.nickname === undefined || event.nickname === null || typeof event.nickname === 'string');
     }
 }
