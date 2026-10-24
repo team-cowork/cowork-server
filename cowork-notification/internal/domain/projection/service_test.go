@@ -145,6 +145,17 @@ func TestApplyAccountSetting(t *testing.T) {
 		assert.Equal(t, 7*60, *stored.DNDEndMinute)
 	})
 
+	t.Run("stores a timezone Go cannot load instead of quarantining the record", func(t *testing.T) {
+		store := &recordingStore{}
+		event := accountSettingEvent()
+		event.Timezone = stringPointer("+09:00")
+
+		require.NoError(t, projection.NewService(store).ApplyAccountSetting(context.Background(), event))
+
+		require.Len(t, store.accountSettings, 1)
+		assert.Equal(t, "+09:00", *store.accountSettings[0].Timezone)
+	})
+
 	t.Run("stores an empty setting when no notification value is set", func(t *testing.T) {
 		store := &recordingStore{}
 
@@ -162,7 +173,6 @@ func TestApplyAccountSetting(t *testing.T) {
 			func(e *projection.AccountSettingEvent) { e.NotificationLevel = stringPointer("LOUD") },
 			func(e *projection.AccountSettingEvent) { e.Status = stringPointer("BUSY") },
 			func(e *projection.AccountSettingEvent) { e.StatusExpiresAt = stringPointer("later") },
-			func(e *projection.AccountSettingEvent) { e.Timezone = stringPointer("Mars/Base") },
 			func(e *projection.AccountSettingEvent) {
 				e.DNDSchedule = &projection.DoNotDisturbScheduleEvent{Enabled: &enabled, Start: "25:00", End: "07:00"}
 			},
