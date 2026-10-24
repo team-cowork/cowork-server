@@ -17,6 +17,7 @@ import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka
 import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
 import {TeamRoleProjectionRepository, ChannelProjectionRepository} from '../repository';
 import {ChannelMessageReadAccessService} from '../service';
+import {connectWithRetry} from '../../common/kafka/connect-with-retry';
 
 type TeamRoleEvent = {
     eventType: 'ROLE_UPSERTED' | 'ROLE_DELETED' | 'ASSIGNMENT_UPSERTED' | 'ASSIGNMENT_DELETED' | 'MEMBER_ASSIGNMENTS_DELETED';
@@ -55,9 +56,11 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
         });
         const stream = PROJECTION_STREAMS.teamRole;
         this.consumer = kafka.consumer({groupId: stream.groupId});
-        await this.consumer.connect();
-        await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
-        await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+        await connectWithRetry(this.logger, `Kafka consumer startup: ${stream.topic}`, async () => {
+            await this.consumer.connect();
+            await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
+            await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+        });
 
         void this.consumer.run({
             eachMessage: async ({partition, message}): Promise<void> => {
