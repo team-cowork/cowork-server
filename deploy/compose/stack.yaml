@@ -111,11 +111,9 @@ services:
         team.lifecycle-dlt
         team.member.event
         team.member.event-dlt
-        channel.member.event.v2
         channel.dm-participant.state.v1
         channel.event.v2
         project.event.v2
-        project.member.event.v2
         project.github-repo.event
         chat.message.v2
         github.issue.create
@@ -164,11 +162,9 @@ services:
         user.presence.event
         team.lifecycle
         team.member.event
-        channel.member.event.v2
         channel.dm-participant.state.v1
         channel.event.v2
         project.event.v2
-        project.member.event.v2
         project.github-repo.event
         preference.channel-notification.changed
         preference.team-role.state.v2
