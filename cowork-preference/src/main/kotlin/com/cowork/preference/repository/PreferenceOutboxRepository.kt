@@ -21,6 +21,32 @@ enum class PreferenceOutboxDispatchResult {
 
 class PreferenceOutboxRepository(private val pool: Pool) {
 
+    // TODO(#596): 2026-11-01 05:00 KST 이후 아래 조건 완료를 확인하고 제거한다.
+    // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+    // 저장 outbox 보정과 구형 producer·재처리·롤백 종료 확인 후 제거한다.
+    internal suspend fun repairLegacyTeamRoleRecords(client: SqlClient): Int = client.preparedQuery(
+        """
+        WITH bodies AS (
+            SELECT id, topic, CASE WHEN jsonb_typeof(payload) = 'string'
+                THEN (payload #>> '{}')::jsonb ELSE payload END AS body
+            FROM tb_preference_event_outbox WHERE topic IN (${'$'}1, ${'$'}2)
+        ), legacy AS (
+            SELECT b.id, CASE WHEN b.topic = ${'$'}1
+                THEN jsonb_set(body, '{role,isDefault}', to_jsonb(COALESCE(d.is_default, false)))
+                ELSE jsonb_set(body, '{isDefault}', to_jsonb(COALESCE(d.is_default, false))) END AS repaired
+            FROM bodies b LEFT JOIN tb_team_role_definitions d
+                ON d.id = (CASE WHEN b.topic = ${'$'}1 THEN body #>> '{role,id}' ELSE body ->> 'roleId' END)::bigint
+                AND d.team_id = (body ->> 'teamId')::bigint
+            WHERE (b.topic = ${'$'}1 AND jsonb_typeof(body -> 'role') = 'object'
+                AND (NOT (body -> 'role' ? 'isDefault') OR (d.is_default AND body #> '{role,isDefault}' = 'false'::jsonb)))
+               OR (b.topic = ${'$'}2 AND body ->> 'eventType' = 'ROLE_UPSERTED'
+                AND (NOT (body ? 'isDefault') OR (d.is_default AND body -> 'isDefault' = 'false'::jsonb)))
+            ORDER BY b.id LIMIT 1000
+        )
+        UPDATE tb_preference_event_outbox o SET payload = legacy.repaired FROM legacy WHERE o.id = legacy.id
+        """.trimIndent(),
+    ).execute(Tuple.of(PreferenceEvents.TEAM_ROLE_COMMAND_RESULT_TOPIC, PreferenceEvents.TEAM_ROLE_TOPIC)).coAwait().rowCount()
+
     suspend fun <T> inTransaction(block: suspend (SqlConnection) -> T): T = withPooledTransaction(
         serializeOutboxWrites = true,
         block = block,
