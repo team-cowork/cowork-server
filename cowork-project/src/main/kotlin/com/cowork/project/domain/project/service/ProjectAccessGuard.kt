@@ -46,7 +46,7 @@ class ProjectAccessGuard(
     private fun isTeamOwnerOrAdmin(teamId: Long, userId: Long): Boolean =
         teamRoleOf(teamId, userId) in setOf(TEAM_ROLE_OWNER, TEAM_ROLE_ADMIN)
 
-    data class Permissions(val read: Boolean, val write: Boolean)
+    data class Permissions(val read: Boolean, val write: Boolean, val reorder: Boolean = false)
 
     fun canRead(project: Project, userId: Long): Boolean = permissionsForUser(project, userId).read
 
@@ -54,7 +54,7 @@ class ProjectAccessGuard(
 
     private fun permissionsForUser(project: Project, userId: Long): Permissions {
         val role = teamRoleOf(project.teamId, userId) ?: return Permissions(false, false)
-        if (isManager(project, userId, role)) return Permissions(true, true)
+        if (isManager(project, userId, role)) return Permissions(true, true, true)
         return permissions(project, userId, role, accessRepository.findById("${project.id}:$userId").orElse(null))
     }
 
@@ -79,9 +79,9 @@ class ProjectAccessGuard(
         project.createdBy == userId || teamRole in setOf(TEAM_ROLE_OWNER, TEAM_ROLE_ADMIN)
 
     private fun permissions(project: Project, userId: Long, role: String, access: ProjectAccessProjection?): Permissions {
-        if (isManager(project, userId, role)) return Permissions(true, true)
+        if (isManager(project, userId, role)) return Permissions(true, true, true)
         val read = access?.canRead == true
-        return Permissions(read, read && access?.canWrite == true)
+        return Permissions(read, read && access?.canWrite == true, read && access?.canReorder == true)
     }
 
     fun requireProjectReader(project: Project, userId: Long) {

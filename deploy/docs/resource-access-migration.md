@@ -7,6 +7,7 @@
 - 비공개 채널은 해당 채널의 `message_read` 또는 `voice_connect` 명시 허용이 필요하다. 팀 역할 기본값은 비공개 채널의 읽기 권한을 주지 않는다. 목록에서는 접근할 수 없는 항목만 숨긴다.
 - 프로젝트는 역할의 `read`·`write` 권한을 사용한다. Preference가 계산한 권한 상태를 Project와 Chat이 구독한다. 행의 존재는 권한이 아니다. 수정에는 두 권한이 모두 필요하다.
 - 높은 역할 `priority`가 우선한다. 같은 순위에서는 거부가 우선한다. 누락된 권한은 false다. 채널의 팀 OWNER, 프로젝트의 생성자·팀 OWNER/ADMIN은 기존 관리 권한을 유지한다. 모두 현재 팀 멤버여야 한다.
+- 재정렬은 채널 `channel_reorder`, 프로젝트 `reorder`로 별도 판단한다. 생성자 또는 현재 팀 OWNER/ADMIN도 재정렬할 수 있다. 메시지 작성 `message_send`나 프로젝트 수정 `write`만으로는 재정렬할 수 없다.
 - 팀 초대와 DM 참여는 유지한다. DM 참여와 채팅 읽음 위치는 팀 채널 권한과 별도로 저장한다.
 - 기존 팀 채널·프로젝트 멤버 기록은 권한으로 자동 변환하지 않는다. 접근을 유지할 사용자에게 필요한 역할을 부여해야 한다.
 - Project의 미사용 테이블 `tb_project_members`, `tb_project_member_event_tombstones`는 `V27__project_role_access_projections.sql`에서 삭제한다.
@@ -36,6 +37,14 @@
 프로젝트 역할이 없으면 먼저 `POST /api/preference/preferences/project/{projectId}/roles`를 호출한다. 예: `{"roleName":"viewer","priority":10,"permissions":{"read":true,"write":false}}`.
 
 `GET /api/channel/channels/{channelId}/members`와 `GET /api/project/projects/{projectId}/members`는 접근 가능한 사용자 조회로 유지한다. 응답 항목은 각각 `{channelId,userId}`, `{projectId,userId,write}`다. 과거 멤버 행의 `id`, 가입 시각, `OWNER/EDITOR/VIEWER` 필드를 사용하던 클라이언트는 변경해야 한다.
+
+## 재정렬 호출
+
+- 채널: `PATCH /api/channel/teams/{teamId}/channels/reorder`, 본문 `{"orderedChannelIds":[11,9]}`.
+- 프로젝트: `PATCH /api/project/teams/{teamId}/projects/reorder`, 본문 `{"orderedProjectIds":[4,2]}`.
+- 두 요청 모두 조회 가능한 ID 전체를 원하는 순서로 보낸다. 숨겨진 항목의 ID는 보내지 않는다. 위치가 실제로 바뀌는 모든 항목에 관리 또는 재정렬 권한이 필요하다. 권한이 없는 항목을 이동하면 전체 요청을 `403`으로 거부한다. 숨겨진 항목과 위치가 그대로인 항목은 이동하지 않는다.
+- 채널 재정렬 권한은 위 채널 정책 API에 `{"permissions":{"channel_reorder":true}}`로 부여하거나 팀 역할의 기본 권한에 설정한다. 프로젝트 역할에는 `{"read":true,"write":false,"reorder":true}`를 설정한다. 각 역할의 부여·회수 경로는 위 표와 같다.
+- `message_send`는 메시지 전송 권한이다. 채널 정보 수정 권한을 주지 않는다. 프로젝트의 `write`는 프로젝트 수정 권한이며 메시지 전송 권한과 별개다.
 
 ## CD 적용 범위
 

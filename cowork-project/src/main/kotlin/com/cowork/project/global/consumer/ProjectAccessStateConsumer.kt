@@ -34,10 +34,12 @@ class ProjectAccessStateConsumer(
             val userId = node.path("accountId").asLong()
             require(projectId > 0 && userId > 0 && record.key() == "$projectId:$userId")
             require(node.path("read").isBoolean && node.path("write").isBoolean)
+            require(!node.has("reorder") || node.path("reorder").isBoolean)
             ProjectAccessProjection(
                 record.key(), projectId, userId,
                 node.path("read").asBoolean(), node.path("write").asBoolean(),
                 Instant.parse(node.path("occurredAt").asText()).toProjectionPrecision(),
+                canReorder = node.path("reorder").asBoolean(false),
             )
         }
         val event = parsed.getOrElse {
@@ -52,9 +54,11 @@ class ProjectAccessStateConsumer(
                 // Replayed snapshots are idempotent; conflicting equal versions never restore access.
                 val canRead = existing.canRead && event.canRead
                 val canWrite = existing.canWrite && event.canWrite
-                if (existing.canRead != canRead || existing.canWrite != canWrite) {
+                val canReorder = existing.canReorder && event.canReorder
+                if (existing.canRead != canRead || existing.canWrite != canWrite || existing.canReorder != canReorder) {
                     existing.canRead = canRead
                     existing.canWrite = canWrite
+                    existing.canReorder = canReorder
                     repository.save(existing)
                 }
             }

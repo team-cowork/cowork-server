@@ -19,6 +19,7 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
                 SELECT a.account_id, d.priority,
                        CASE WHEN jsonb_typeof(d.permissions -> 'read') = 'boolean' THEN (d.permissions ->> 'read')::boolean ELSE false END AS can_read,
                        CASE WHEN jsonb_typeof(d.permissions -> 'write') = 'boolean' THEN (d.permissions ->> 'write')::boolean ELSE false END AS can_write,
+                       CASE WHEN jsonb_typeof(d.permissions -> 'reorder') = 'boolean' THEN (d.permissions ->> 'reorder')::boolean ELSE false END AS can_reorder,
                        max(d.priority) OVER (PARTITION BY a.account_id) AS highest
                 FROM account_project_role a
                 JOIN project_role_definition d USING (project_id, role_name)
@@ -26,21 +27,22 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
                 JOIN tb_team_member_projections m ON m.team_id = p.team_id AND m.account_id = a.account_id AND NOT m.deleted
                 WHERE a.project_id = ${'$'}1
             ), effective AS (
-                SELECT account_id, bool_and(can_read) AS can_read, bool_and(can_write) AS can_write
+                SELECT account_id, bool_and(can_read) AS can_read, bool_and(can_write) AS can_write, bool_and(can_reorder) AS can_reorder
                 FROM ranked WHERE priority = highest GROUP BY account_id
             ), accounts AS (
                 SELECT account_id FROM effective
                 UNION SELECT account_id FROM tb_project_access_states WHERE project_id = ${'$'}1
             )
-            INSERT INTO tb_project_access_states (project_id, account_id, can_read, can_write, state_occurred_at)
-            SELECT ${'$'}1, a.account_id, COALESCE(e.can_read, false), COALESCE(e.can_write, false), clock_timestamp()
+            INSERT INTO tb_project_access_states (project_id, account_id, can_read, can_write, can_reorder, state_occurred_at)
+            SELECT ${'$'}1, a.account_id, COALESCE(e.can_read, false), COALESCE(e.can_write, false), COALESCE(e.can_reorder, false), clock_timestamp()
             FROM accounts a LEFT JOIN effective e USING (account_id)
             ON CONFLICT (project_id, account_id) DO UPDATE SET
-                can_read = EXCLUDED.can_read, can_write = EXCLUDED.can_write,
+                can_read = EXCLUDED.can_read, can_write = EXCLUDED.can_write, can_reorder = EXCLUDED.can_reorder,
                 state_occurred_at = GREATEST(clock_timestamp(), tb_project_access_states.state_occurred_at + INTERVAL '1 microsecond')
             WHERE tb_project_access_states.can_read IS DISTINCT FROM EXCLUDED.can_read
                OR tb_project_access_states.can_write IS DISTINCT FROM EXCLUDED.can_write
-            RETURNING project_id, account_id, can_read, can_write, state_occurred_at
+               OR tb_project_access_states.can_reorder IS DISTINCT FROM EXCLUDED.can_reorder
+            RETURNING project_id, account_id, can_read, can_write, can_reorder, state_occurred_at
             """.trimIndent(),
         ).execute(Tuple.of(projectId)).coAwait()
         rows.forEach { outbox.enqueue(client, event(it)) }
@@ -77,6 +79,7 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
             JsonObject().put("eventType", "UPSERT")
                 .put("projectId", projectId).put("accountId", accountId)
                 .put("read", row.getBoolean("can_read")).put("write", row.getBoolean("can_write"))
+                .put("reorder", row.getBoolean("can_reorder"))
                 .put("occurredAt", version.toString()),
             version,
         )

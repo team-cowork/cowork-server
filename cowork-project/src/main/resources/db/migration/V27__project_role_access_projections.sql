@@ -4,6 +4,7 @@ CREATE TABLE tb_project_access_projections (
     user_id BIGINT NOT NULL COMMENT 'cowork-user.tb_accounts.id',
     can_read BOOLEAN NOT NULL,
     can_write BOOLEAN NOT NULL,
+    can_reorder BOOLEAN NOT NULL DEFAULT FALSE,
     source_occurred_at TIMESTAMP(6) NOT NULL,
     UNIQUE KEY uq_tb_project_access_projections_project_user (project_id, user_id)
 );
