@@ -35,7 +35,7 @@ class CreateInviteServiceImpl(
 
     @Transactional
     override fun execute(userId: Long, teamId: Long, request: CreateInviteRequest): InviteResponse {
-        teamInviteAccessGuard.requireMember(teamId, userId)
+        teamInviteAccessGuard.requirePermission(teamId, userId, "manage_invites")
         val team = teamInviteAccessGuard.findTeamOrThrow(teamId)
         val expiresAt = request.duration.toExpiresAt(LocalDateTime.now())
         val invite = TeamInvite(

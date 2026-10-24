@@ -58,7 +58,7 @@ class UpdateGithubLabelPolicyServiceImpl(
             }
         }
 
-        repoAccessResolver.resolveForModifyForUpdate(userId, projectId, repoId)
+        repoAccessResolver.resolveForManageForUpdate(userId, projectId, repoId)
         val command = UpdateGithubRepoSettingCommand(
             operationId = operationId,
             idempotencyKey = normalizedKey,

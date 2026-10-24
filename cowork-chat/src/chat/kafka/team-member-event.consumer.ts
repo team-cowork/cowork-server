@@ -7,6 +7,7 @@ import {
 import {ConfigService} from '@nestjs/config';
 import {Consumer, Kafka} from 'kafkajs';
 import {Server} from 'socket.io';
+import {mongo} from 'mongoose';
 import {DicoshotService} from 'dicoshot-nest';
 import {getRequiredCsvConfig} from '../../common/config/config.util';
 import {parseEventTime} from '../../common/util/event-time.util';
@@ -14,7 +15,7 @@ import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
 import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
-import {TeamMemberProjectionRepository, ChannelProjectionRepository} from '../repository';
+import {TeamMemberProjectionRepository, ChannelProjectionRepository, TeamRoleProjectionRepository} from '../repository';
 import {ChannelMessageReadAccessService} from '../service';
 import {connectWithRetry} from '../../common/kafka/connect-with-retry';
 
@@ -26,6 +27,10 @@ type TeamMemberEvent = {
     teamName: string;
     nickname?: string | null;
     occurredAt: string;
+    // eslint-disable-next-line no-warning-comments -- Tracked compatibility cleanup with a deployment-dependent deadline.
+    // TODO(#596): 2026-11-01 05:00 KST 이후 구형 이벤트·Mongo auth stamp 보정과 rollback 종료 확인 후 nullable fallback 제거.
+    // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+    authorizationVersion?: string | null;
     snapshot?: boolean;
 };
 
@@ -42,6 +47,7 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
         private readonly projectionReadiness: ProjectionReadinessService,
         private readonly channelRepository: ChannelProjectionRepository,
         private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
+        private readonly roleRepository: TeamRoleProjectionRepository,
     ) {}
 
     setSocketServer(io: Server): void {
@@ -106,8 +112,10 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
         }
 
         const {occurredAt, sourceVersion} = eventTime;
+        const authorizationVersion = parseEventTime(payload.authorizationVersion)?.sourceVersion ?? null;
         if (payload.eventType === 'DELETE') {
-            await this.memberRepository.remove(payload.teamId, payload.userId, occurredAt, sourceVersion);
+            await this.memberRepository.remove(payload.teamId, payload.userId, occurredAt, sourceVersion, authorizationVersion, payload.role);
+            await this.roleRepository.deleteMemberAssignments(payload.teamId, payload.userId, occurredAt, sourceVersion);
         } else {
             await this.memberRepository.upsert({
                 teamId: payload.teamId,
@@ -117,6 +125,7 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
                 nickname: payload.nickname ?? null,
                 occurredAt,
                 sourceVersion,
+                authorizationVersion,
             });
         }
 
@@ -148,6 +157,13 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
             || !isSafePositiveInteger(event.userId)
             || (event.snapshot !== undefined && typeof event.snapshot !== 'boolean')
             || parseEventTime(event.occurredAt) === null) {
+            return false;
+        }
+
+        const authorizationVersion = parseEventTime(event.authorizationVersion)?.sourceVersion;
+        const {sourceVersion} = parseEventTime(event.occurredAt)!;
+        if (event.authorizationVersion !== undefined && event.authorizationVersion !== null
+            && (!authorizationVersion || authorizationVersion.lessThanOrEqual(mongo.Long.ZERO) || authorizationVersion.greaterThan(sourceVersion))) {
             return false;
         }
 
