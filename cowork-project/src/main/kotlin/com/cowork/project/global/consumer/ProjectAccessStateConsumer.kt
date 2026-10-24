@@ -34,7 +34,8 @@ class ProjectAccessStateConsumer(
             val userId = node.path("accountId").asLong()
             require(projectId > 0 && userId > 0 && record.key() == "$projectId:$userId")
             require(node.path("read").isBoolean && node.path("write").isBoolean)
-            // TODO(#596): 구버전 생산자·롤백 지원 종료 및 구형 보관 레코드 교체 후 manage와 sourceMembershipVersion 필수화.
+            // TODO(#596): 2026-11-01 05:00 KST 이후 구형 레코드 재처리·롤백 지원 종료 확인 후 manage/reorder/sourceMembershipVersion 필수화.
+            // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
             require(!node.has("manage") || node.path("manage").isBoolean)
             require(!node.has("reorder") || node.path("reorder").isBoolean)
             ProjectAccessProjection(
