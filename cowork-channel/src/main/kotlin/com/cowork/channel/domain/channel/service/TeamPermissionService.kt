@@ -1,6 +1,8 @@
 package com.cowork.channel.domain.channel.service
 
 import com.cowork.channel.domain.channel.entity.Channel
+import com.cowork.channel.domain.channel.event.InitialChannelRoleOverwrite
+import com.cowork.channel.domain.channel.event.InitialChannelRolePolicySeed
 import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
 import com.cowork.channel.domain.membership.repository.TeamMembershipRepository
 import com.cowork.channel.global.projection.ProjectionReadinessGate
@@ -36,6 +38,15 @@ class TeamPermissionService(
 
     fun requirePermission(teamId: Long, userId: Long, permission: String) {
         permissionEvaluator.requireTeamPermission(teamId, userId, permission)
+    }
+
+    fun prepareInitialRolePolicySeed(
+        channel: Channel,
+        userId: Long,
+        overwrites: List<InitialChannelRoleOverwrite>,
+    ): InitialChannelRolePolicySeed? {
+        val teamId = channel.teamId ?: throw ExpectedException("팀 채널에서만 지원하는 기능입니다.", HttpStatus.BAD_REQUEST)
+        return permissionEvaluator.prepareInitialRolePolicySeed(teamId, userId, channel, overwrites)
     }
 
     fun requireTeamMember(teamId: Long, userId: Long) {
