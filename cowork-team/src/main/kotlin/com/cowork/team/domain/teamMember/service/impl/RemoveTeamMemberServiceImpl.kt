@@ -46,6 +46,7 @@ class RemoveTeamMemberServiceImpl(
         if (targetMember.role == TeamRole.OWNER) {
             throw ExpectedException("OWNER는 팀을 탈퇴하거나 제거할 수 없습니다.", HttpStatus.FORBIDDEN)
         }
+        if (!isSelf) permissions.requireLowerMemberPriority(teamId, actorMember, targetMember)
 
         teamMemberEventPublisher.publishDelete(targetMember)
         teamMemberRepository.delete(targetMember)
