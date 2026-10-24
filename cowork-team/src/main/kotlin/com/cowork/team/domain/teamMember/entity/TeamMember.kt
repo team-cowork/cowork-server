@@ -44,7 +44,14 @@ class TeamMember(
     @Column(name = "updated_at", nullable = false)
     var updatedAt: LocalDateTime? = null
 
+    @Column(length = 50)
+    var nickname: String? = null
+
     fun changeRole(newRole: TeamRole) {
         role = newRole
+    }
+
+    fun changeNickname(newNickname: String?) {
+        nickname = newNickname
     }
 }
