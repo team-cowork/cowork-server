@@ -32,8 +32,7 @@ class ChannelMessageReadPolicyEvaluator(
 
     internal fun filterAccess(teamId: Long, userId: Long, channels: List<Channel>): List<Channel> {
         if (channels.isEmpty()) return emptyList()
-        val voiceChannelIds = channels.filter { it.type == ChannelType.VOICE }.mapTo(mutableSetOf()) { it.id }
-        val readableIds = readableChannelIds(teamId, userId, channels.mapTo(mutableSetOf()) { it.id }, voiceChannelIds)
+        val readableIds = readableChannelIds(teamId, userId, channels)
         return channels.filter { it.id in readableIds }
     }
 
@@ -50,7 +49,7 @@ class ChannelMessageReadPolicyEvaluator(
 
     fun requirePermission(teamId: Long, userId: Long, channel: Channel, permission: String) {
         projectionReadinessGate.requireReady()
-        if (channel.id !in readableChannelIds(teamId, userId, setOf(channel.id), emptySet(), permission)) {
+        if (channel.id !in readableChannelIds(teamId, userId, listOf(channel), permission)) {
             throw ExpectedException("해당 채널 작업 권한이 없습니다.", HttpStatus.FORBIDDEN)
         }
     }
@@ -58,11 +57,11 @@ class ChannelMessageReadPolicyEvaluator(
     private fun readableChannelIds(
         teamId: Long,
         userId: Long,
-        channelIds: Set<Long>,
-        voiceChannelIds: Set<Long>,
+        channels: List<Channel>,
         permission: String? = null,
     ): Set<Long> {
-        if (channelIds.isEmpty()) return emptySet()
+        if (channels.isEmpty()) return emptySet()
+        val channelIds = channels.mapTo(mutableSetOf()) { it.id }
         val membership = membershipRepository.findByTeamIdAndUserId(teamId, userId) ?: return emptySet()
         if (membership.role == OWNER_ROLE) return channelIds
 
@@ -85,17 +84,24 @@ class ChannelMessageReadPolicyEvaluator(
             .groupBy { it.channelId }
 
         val defaults = rolesById.mapValues { (_, role) -> permissions(role.permissionsJson) }
-        return channelIds.filterTo(mutableSetOf()) { channelId ->
-            val key = permission ?: if (channelId in voiceChannelIds) "voice_connect" else "message_read"
-            val overrides = policiesByChannel[channelId].orEmpty().associateBy { it.roleId }
+        return channels.filter { channel ->
+            val key = permission ?: if (channel.type == ChannelType.VOICE) "voice_connect" else "message_read"
+            val overrides = policiesByChannel[channel.id].orEmpty().associateBy { it.roleId }
             val highestPriority = rolesById.values.maxOf { it.priority }
             rolesById.values.filter { it.priority == highestPriority }.all { role ->
                 val policy = overrides[role.roleId]
                 val override = permissions(policy?.permissionsJson)[key]
                     ?: if (key == "message_read") policy?.messageRead else null
-                override ?: defaults.getValue(role.roleId)[key] ?: false
+                override
+                    ?: if (channel.isPrivate &&
+                        key in ACCESS_PERMISSIONS
+                    ) {
+                        false
+                    } else {
+                        defaults.getValue(role.roleId)[key] ?: false
+                    }
             }
-        }
+        }.mapTo(mutableSetOf()) { it.id }
     }
 
     private fun permissions(json: String?): Map<String, Boolean> = json?.let {
@@ -104,5 +110,6 @@ class ChannelMessageReadPolicyEvaluator(
 
     private companion object {
         const val OWNER_ROLE = "OWNER"
+        val ACCESS_PERMISSIONS = setOf("message_read", "voice_connect")
     }
 }

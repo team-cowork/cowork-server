@@ -3,7 +3,8 @@ package channel
 import "testing"
 
 func TestVoiceConnectPermission(t *testing.T) {
-	ch := State{Kind: "channel", ChannelID: 11, TeamID: 3, ChannelType: "VOICE"}
+	isPrivate := false
+	ch := State{IsPrivate: &isPrivate, Kind: "channel", ChannelID: 11, TeamID: 3, ChannelType: "VOICE"}
 	member := State{Kind: "member", TeamID: 3, UserID: 217, Role: "MEMBER"}
 	assignment := State{Kind: "assignment", TeamID: 3, UserID: 217, RoleID: 10, Version: 2}
 	allow := State{Kind: "role", TeamID: 3, RoleID: 10, Priority: 10, Permissions: map[string]bool{"voice_connect": true, "message_read": false}}
@@ -39,4 +40,30 @@ func TestVoiceConnectPermission(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestPrivateVoiceConnectPermission(t *testing.T) {
+	private := true
+	ch := State{Kind: "channel", ChannelID: 11, TeamID: 3, ChannelType: "VOICE", IsPrivate: &private}
+	states := []State{
+		{Kind: "member", TeamID: 3, UserID: 217, Role: "MEMBER"},
+		{Kind: "assignment", TeamID: 3, UserID: 217, RoleID: 10, Version: 2},
+		{Kind: "role", TeamID: 3, RoleID: 10, Priority: 10, Permissions: map[string]bool{"voice_connect": true}},
+	}
+	if canConnect(ch, 217, states) {
+		t.Fatal("private channel inherited a team role permission")
+	}
+	ch.IsPrivate = nil
+	if canConnect(ch, 217, states) {
+		t.Fatal("unknown visibility inherited a team role permission")
+	}
+	ch.IsPrivate = &private
+	states = append(states, State{Kind: "policy", TeamID: 3, ChannelID: 12, RoleID: 10, Permissions: map[string]bool{"voice_connect": true}})
+	if canConnect(ch, 217, states) {
+		t.Fatal("another channel's permission granted access")
+	}
+	states = append(states, State{Kind: "policy", TeamID: 3, ChannelID: 11, RoleID: 10, Permissions: map[string]bool{"voice_connect": true}})
+	if !canConnect(ch, 217, states) {
+		t.Fatal("explicit voice_connect permission did not grant access")
+	}
 }
