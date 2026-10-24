@@ -126,9 +126,16 @@ export class ProjectionDatasetRepository {
     async markRebuildRequired(
         stream: ProjectionDatasetStream,
         reason: string,
+        expectedDataset?: Pick<ProjectionDatasetState, 'datasetGeneration' | 'status'>,
     ): Promise<ProjectionDatasetState> {
         const dataset = await this.datasets.findOneAndUpdate(
-            {stream: stream.name},
+            {
+                stream: stream.name,
+                ...(expectedDataset !== undefined && {
+                    datasetGeneration: expectedDataset.datasetGeneration,
+                    status: expectedDataset.status,
+                }),
+            },
             {
                 $set: {
                     groupId: stream.groupId,
@@ -145,8 +152,17 @@ export class ProjectionDatasetRepository {
                     targetOffsets: [],
                 },
             },
-            {upsert: true, new: true},
-        ).lean<ProjectionDataset>();
+            {upsert: expectedDataset === undefined, new: true},
+        ).lean<ProjectionDataset | null>();
+        if (!dataset) {
+            const current = await this.find(stream.name as ProjectionStreamName);
+            if (!current) {
+                throw new Error(`Projection dataset disappeared before marking rebuild required: ${stream.name}`);
+            }
+
+            return current;
+        }
+
         return this.toState(dataset);
     }
 
@@ -155,10 +171,20 @@ export class ProjectionDatasetRepository {
         reason: string,
         baseOffsets: ProjectionDatasetPartitionOffset[],
         targetOffsets: ProjectionDatasetPartitionOffset[],
+        // eslint-disable-next-line no-warning-comments -- Tracked compatibility cleanup with a deployment-dependent deadline.
+        // TODO(#596): 2026-11-01 05:00 KST 이후 구형 stamp 보정·rollback 종료 확인 후 호환 재구축 전용 CAS 인자·분기 제거.
+        // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+        expectedDatasetGeneration?: string,
     ): Promise<ProjectionDatasetState> {
         const datasetGeneration = randomUUID();
         const dataset = await this.datasets.findOneAndUpdate(
-            {stream: stream.name},
+            {
+                stream: stream.name,
+                ...(expectedDatasetGeneration !== undefined && {
+                    datasetGeneration: expectedDatasetGeneration,
+                    status: 'ACTIVE',
+                }),
+            },
             {
                 $set: {
                     groupId: stream.groupId,
@@ -175,9 +201,27 @@ export class ProjectionDatasetRepository {
                 $setOnInsert: {activationDocumentCount: 0},
                 $unset: {activatedAt: ''},
             },
-            {upsert: true, new: true},
-        ).lean<ProjectionDataset>();
+            {upsert: expectedDatasetGeneration === undefined, new: true},
+        ).lean<ProjectionDataset | null>();
+        if (!dataset) {
+            const current = await this.find(stream.name as ProjectionStreamName);
+            if (!current) {
+                throw new Error(`Projection dataset disappeared before requesting rebuild: ${stream.name}`);
+            }
+
+            return current;
+        }
+
         return this.toState(dataset);
+    }
+
+    // eslint-disable-next-line no-warning-comments -- Tracked compatibility cleanup with a deployment-dependent deadline.
+    // TODO(#596): 2026-11-01 05:00 KST 이후 구형 Kafka·Mongo stamp 보정·rollback 종료 확인 후 이 누락 조회 제거.
+    // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+    async hasLegacyProjectPermission(): Promise<boolean> {
+        return (await this.projectionModels.projectPermission[0].exists({
+            sourceMembershipVersion: {$exists: false},
+        })) !== null;
     }
 
     async tryBeginReset(stream: ProjectionStreamName, datasetGeneration: string): Promise<boolean> {
