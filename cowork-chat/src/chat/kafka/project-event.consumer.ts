@@ -32,6 +32,7 @@ type ProjectEvent = {
     주기/startup state replay이면 변경 알림 부수효과를 억제한다.
     */
     snapshot?: boolean;
+    initialReadGrant?: unknown;
 };
 
 @Injectable()
@@ -133,7 +134,7 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
             return;
         }
 
-        const {eventType, snapshot, ...projectionPayload} = event;
+        const {eventType, snapshot, initialReadGrant, ...projectionPayload} = event;
         switch (eventType) {
             case 'CREATED': {
                 await this.channelMessageReadAccess.emitToActiveTeamUsers(
