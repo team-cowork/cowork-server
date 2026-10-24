@@ -12,29 +12,34 @@ import java.time.Instant
 import java.time.ZoneOffset
 
 class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepository) {
-    suspend fun refresh(client: SqlClient, projectId: Long) {
+    suspend fun refresh(client: SqlClient, projectId: Long, accountId: Long? = null) {
         // Serialize recomputation so concurrent grants/revocations cannot publish an older decision last.
         val project = client.preparedQuery("SELECT team_id, deleted, is_private FROM tb_project_lifecycle_projections WHERE project_id = \$1 FOR UPDATE")
             .execute(Tuple.of(projectId)).coAwait().firstOrNull() ?: return
         val teamId = project.getLong("team_id")
         val members = client.preparedQuery(
             "SELECT account_id, built_in_role, source_occurred_at FROM tb_team_member_projections WHERE team_id = \$1 AND NOT deleted " +
-                "AND NOT EXISTS (SELECT 1 FROM tb_team_role_domain_tombstones WHERE team_id = \$1)",
-        ).execute(Tuple.of(teamId)).coAwait().associateBy { it.getLong("account_id") }
+                "AND NOT EXISTS (SELECT 1 FROM tb_team_role_domain_tombstones WHERE team_id = \$1) " +
+                "AND (\$2::bigint IS NULL OR account_id = \$2)",
+        ).execute(Tuple.of(teamId, accountId)).coAwait().associateBy { it.getLong("account_id") }
         val teamRoles = client.preparedQuery(
             "SELECT d.permissions, d.is_default, a.account_id FROM tb_team_role_definitions d " +
-                "LEFT JOIN tb_account_team_roles a ON a.role_id = d.id AND a.team_id = d.team_id WHERE d.team_id = \$1",
-        ).execute(Tuple.of(teamId)).coAwait().toList()
+                "LEFT JOIN tb_account_team_roles a ON a.role_id = d.id AND a.team_id = d.team_id " +
+                "AND (\$2::bigint IS NULL OR a.account_id = \$2) " +
+                "WHERE d.team_id = \$1 AND (d.is_default OR a.account_id IS NOT NULL)",
+        ).execute(Tuple.of(teamId, accountId)).coAwait().toList()
         val defaults = teamRoles.filter { it.getBoolean("is_default") }.map { it.getJsonObject("permissions") }
         val assigned = teamRoles.filter { !it.getBoolean("is_default") && it.getLong("account_id") != null }
             .groupBy({ it.getLong("account_id") }, { it.getJsonObject("permissions") })
         val projectRoles = client.preparedQuery(
             "SELECT a.account_id, d.permissions FROM account_project_role a " +
-                "JOIN project_role_definition d USING (project_id, role_name) WHERE a.project_id = \$1",
-        ).execute(Tuple.of(projectId)).coAwait()
+                "JOIN project_role_definition d USING (project_id, role_name) WHERE a.project_id = \$1 " +
+                "AND (\$2::bigint IS NULL OR a.account_id = \$2)",
+        ).execute(Tuple.of(projectId, accountId)).coAwait()
             .groupBy({ it.getLong("account_id") }, { it.getJsonObject("permissions") })
-        val existing = client.preparedQuery("SELECT * FROM tb_project_access_states WHERE project_id = \$1")
-            .execute(Tuple.of(projectId)).coAwait().associateBy { it.getLong("account_id") }
+        val existing = client.preparedQuery(
+            "SELECT * FROM tb_project_access_states WHERE project_id = \$1 AND (\$2::bigint IS NULL OR account_id = \$2)",
+        ).execute(Tuple.of(projectId, accountId)).coAwait().associateBy { it.getLong("account_id") }
         (members.keys + existing.keys).sorted().forEach { accountId ->
             val member = members[accountId]
             val permissions = if (project.getBoolean("deleted") || member == null) {
@@ -68,10 +73,10 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
         }
     }
 
-    suspend fun refreshTeam(client: SqlClient, teamId: Long) {
+    suspend fun refreshTeam(client: SqlClient, teamId: Long, accountId: Long? = null) {
         val projects = client.preparedQuery("SELECT project_id FROM tb_project_lifecycle_projections WHERE team_id = \$1 ORDER BY project_id")
             .execute(Tuple.of(teamId)).coAwait()
-        projects.forEach { refresh(client, it.getLong("project_id")) }
+        projects.forEach { refresh(client, it.getLong("project_id"), accountId) }
     }
 
     suspend fun removeTeamAssignments(client: SqlClient, teamId: Long, accountId: Long?, cutoff: Instant? = null) {
@@ -83,7 +88,7 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
               AND (${'$'}3::timestamptz IS NULL OR a.source_membership_version <= ${'$'}3)
             """.trimIndent(),
         ).execute(Tuple.of(teamId, accountId, cutoff?.atOffset(ZoneOffset.UTC))).coAwait()
-        refreshTeam(client, teamId)
+        refreshTeam(client, teamId, accountId)
     }
 
     suspend fun publishSnapshot(client: SqlClient) {
