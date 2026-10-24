@@ -2,6 +2,8 @@ package com.cowork.channel.domain.channelRolePolicy.service
 
 import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelType
+import com.cowork.channel.domain.channel.event.InitialChannelRoleOverwrite
+import com.cowork.channel.domain.channel.event.InitialChannelRolePolicySeed
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjectionRepository
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleAssignmentProjectionRepository
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleMemberTombstone
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
 import tools.jackson.core.type.TypeReference
 import tools.jackson.databind.ObjectMapper
+import java.time.Instant
 
 @Component
 class ChannelMessageReadPolicyEvaluator(
@@ -149,6 +152,49 @@ class ChannelMessageReadPolicyEvaluator(
             .mapTo(mutableSetOf()) { it.roleId }
         if (loadRoles(teamId, roleIds).values.none { it.permissions[permission] == true }) {
             throw ExpectedException("해당 팀 작업 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        }
+    }
+
+    fun prepareInitialRolePolicySeed(
+        teamId: Long,
+        userId: Long,
+        channel: Channel,
+        overwrites: List<InitialChannelRoleOverwrite>,
+    ): InitialChannelRolePolicySeed? {
+        requireTeamPermission(teamId, userId, "manage_channels")
+        val membership = membershipRepository.findByTeamIdAndUserId(teamId, userId)
+            ?.takeIf { it.active }
+            ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
+        if (overwrites.isNotEmpty() && !membership.sourceOccurredAt.isAfter(Instant.EPOCH)) {
+            throw ExpectedException("팀 멤버십 정보 동기화가 필요합니다.", HttpStatus.SERVICE_UNAVAILABLE)
+        }
+        val targetRoleIds = overwrites.mapTo(mutableSetOf()) { it.roleId }
+        if (targetRoleIds.size != overwrites.size) {
+            throw ExpectedException("초기 채널 역할 정책에 같은 역할을 중복 지정할 수 없습니다.", HttpStatus.BAD_REQUEST)
+        }
+        if (targetRoleIds.isNotEmpty() &&
+            roleRepository.findAllByTeamIdAndRoleIdInAndDeletedFalse(teamId, targetRoleIds).size != targetRoleIds.size
+        ) {
+            throw ExpectedException("초기 채널 역할 정책은 같은 팀의 활성 역할만 지정할 수 있습니다.", HttpStatus.BAD_REQUEST)
+        }
+        if (membership.role !in BYPASS_ROLES) {
+            val fence = memberTombstoneRepository.findById(TeamRoleMemberTombstone.key(teamId, userId)).orElse(null)
+            val roleIds = assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(teamId, userId)
+                .filter { fence == null || it.sourceOccurredAt.isAfter(fence.sourceOccurredAt) }
+                .mapTo(mutableSetOf()) { it.roleId }
+            val roles = loadRoles(teamId, roleIds)
+            if (overwrites.any { overwrite ->
+                    overwrite.permissions.keys.any { key -> roles.values.none { it.permissions[key] == true } }
+                }
+            ) {
+                throw ExpectedException("초기 채널 역할 정책에는 자신이 보유한 팀 권한만 지정할 수 있습니다.", HttpStatus.FORBIDDEN)
+            }
+            if (!isAllowed(channel, roleIds, roles, overwrites.associate { it.roleId to it.permissions })) {
+                throw ExpectedException("생성자가 접근할 수 있도록 초기 채널 역할 정책을 지정해야 합니다.", HttpStatus.BAD_REQUEST)
+            }
+        }
+        return overwrites.takeIf { it.isNotEmpty() }?.let {
+            InitialChannelRolePolicySeed(userId, membership.sourceOccurredAt, it)
         }
     }
 

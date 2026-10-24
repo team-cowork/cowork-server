@@ -9,6 +9,7 @@ import jakarta.persistence.EntityManager
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 
 @Component
@@ -18,9 +19,13 @@ class ChannelEventPublisher(
     private val stateRepository: ChannelEventStateRepository,
     private val entityManager: EntityManager,
     private val outboxWriter: OutboxWriter,
+    private val objectMapper: ObjectMapper,
 ) {
-    fun publishCreated(channel: Channel, requestedAt: Instant = Instant.now()): Instant =
-        publishMutation("CREATED", channel, deleted = false, requestedAt = requestedAt)
+    fun publishCreated(
+        channel: Channel,
+        requestedAt: Instant = Instant.now(),
+        initialRolePolicySeed: InitialChannelRolePolicySeed? = null,
+    ): Instant = publishMutation("CREATED", channel, deleted = false, requestedAt, initialRolePolicySeed)
 
     fun publishUpdated(channel: Channel, requestedAt: Instant = Instant.now()): Instant =
         publishMutation("UPDATED", channel, deleted = false, requestedAt = requestedAt)
@@ -37,12 +42,26 @@ class ChannelEventPublisher(
         )
     }
 
-    private fun publishMutation(eventType: String, channel: Channel, deleted: Boolean, requestedAt: Instant): Instant {
+    private fun publishMutation(
+        eventType: String,
+        channel: Channel,
+        deleted: Boolean,
+        requestedAt: Instant,
+        initialRolePolicySeed: InitialChannelRolePolicySeed? = null,
+    ): Instant {
         val lockedChannel = checkNotNull(channelRepository.findByIdForUpdate(channel.id)) {
             "Channel row must exist while publishing its state mutation: ${channel.id}"
         }
         val existingState = stateRepository.findByChannelIdForUpdate(lockedChannel.id)
-        val state = existingState ?: ChannelEventState.create(lockedChannel, deleted, requestedAt)
+        check(existingState == null || initialRolePolicySeed == null) {
+            "Initial channel role policies must only be attached to the first channel state"
+        }
+        val state = existingState ?: ChannelEventState.create(
+            lockedChannel,
+            deleted,
+            requestedAt,
+            initialRolePolicySeed?.let(objectMapper::writeValueAsString),
+        )
         val version = if (existingState == null) {
             state.stateOccurredAt
         } else {
@@ -68,6 +87,9 @@ class ChannelEventPublisher(
             position = state.position,
             occurredAt = state.stateOccurredAt,
             snapshot = snapshot,
+            initialRolePolicySeed = state.initialRolePolicySeedJson?.let {
+                objectMapper.readValue(it, InitialChannelRolePolicySeed::class.java)
+            },
         )
         outboxWriter.enqueue(TOPIC, state.channelId.toString(), event)
     }
