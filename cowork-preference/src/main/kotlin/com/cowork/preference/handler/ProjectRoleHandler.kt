@@ -53,14 +53,13 @@ class ProjectRoleHandler(
         }
         val permissions = body.getJsonObject("permissions") ?: JsonObject()
         scope.launch(ctx.vertx().dispatcher()) {
-            if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireRoleCreation(projectId, requester, permissions) }) return@launch
-            service.createRole(projectId, roleName, permissions, body.getInteger("priority", 0))
+            service.createRole(projectId, roleName, permissions, requester, body.getInteger("priority", 0))
                 .onSuccess {
                     val resp = JsonObject().put("roleName", it.roleName).put("permissions", it.permissions).put("priority", it.priority)
                     ctx.response().setStatusCode(201).putHeader("Content-Type", "application/json").end(resp.encode())
                 }
                 .onFailure { e ->
-                    val status = when (e) {
+                    val status = auditedAuthorizationStatus(e, requester, projectId) ?: when (e) {
                         is IllegalArgumentException -> 400
                         is IllegalStateException -> 409
                         else -> 500
@@ -81,11 +80,10 @@ class ProjectRoleHandler(
         }
         val requester = requesterOrReject(ctx) ?: return
         scope.launch(ctx.vertx().dispatcher()) {
-            if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireRoleDeletion(projectId, requester, roleName) }) return@launch
-            service.deleteRole(projectId, roleName)
+            service.deleteRole(projectId, roleName, requester)
                 .onSuccess { ctx.response().setStatusCode(204).end() }
                 .onFailure { e ->
-                    val status = when (e) {
+                    val status = auditedAuthorizationStatus(e, requester, projectId) ?: when (e) {
                         is NoSuchElementException -> 404
                         is IllegalArgumentException -> 400
                         else -> 500
@@ -133,11 +131,10 @@ class ProjectRoleHandler(
             return
         }
         scope.launch(ctx.vertx().dispatcher()) {
-            if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireRoleAssignment(projectId, requester, roleName, accountId) }) return@launch
-            service.assignRole(accountId, projectId, roleName)
+            service.assignRole(accountId, projectId, roleName, requester)
                 .onSuccess { ctx.response().setStatusCode(204).end() }
                 .onFailure { e ->
-                    val status = when (e) {
+                    val status = auditedAuthorizationStatus(e, requester, projectId) ?: when (e) {
                         is NoSuchElementException -> 404
                         is IllegalArgumentException -> 400
                         else -> 500
@@ -162,10 +159,12 @@ class ProjectRoleHandler(
         }
         val requester = requesterOrReject(ctx) ?: return
         scope.launch(ctx.vertx().dispatcher()) {
-            if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireRoleRemoval(projectId, requester, roleName, accountId) }) return@launch
-            runCatching { service.removeRole(accountId, projectId, roleName) }
+            runCatching { service.removeRole(accountId, projectId, roleName, requester) }
                 .onSuccess { ctx.response().setStatusCode(204).end() }
-                .onFailure { ctx.response().setStatusCode(500).end(errorBody(it.message)) }
+                .onFailure { e ->
+                    val status = auditedAuthorizationStatus(e, requester, projectId)
+                    ctx.response().setStatusCode(status ?: 500).end(errorBody(e.message))
+                }
         }
     }
 
@@ -187,13 +186,15 @@ class ProjectRoleHandler(
         check: suspend () -> Unit,
     ): Boolean {
         val failure = runCatching { check() }.exceptionOrNull() ?: return true
-        val status = authorizationStatus(failure)
-        if (status != null) {
-            auditAuthorizationFailure(log, status, requester.userId, "PROJECT_ROLE", projectId)
-        }
+        val status = auditedAuthorizationStatus(failure, requester, projectId)
         ctx.response().setStatusCode(status ?: 500).end(errorBody(failure.message))
         return false
     }
+
+    private fun auditedAuthorizationStatus(failure: Throwable, requester: RequesterContext, projectId: Long): Int? =
+        authorizationStatus(failure)?.also { status ->
+            auditAuthorizationFailure(log, status, requester.userId, "PROJECT_ROLE", projectId)
+        }
 
     private fun errorBody(message: String?) =
         JsonObject().put("error", message ?: "Internal server error").encode()
