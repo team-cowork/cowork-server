@@ -30,7 +30,7 @@ private class ChannelGuardFixture {
     val channelRepository = mockk<ChannelLifecycleProjectionRepository>()
     val dmParticipantRepository = mockk<DmParticipantProjectionRepository>()
     val teamMemberRepository = mockk<TeamMemberProjectionRepository>()
-    val policyRepository = mockk<ChannelRolePolicyRepository>()
+    val policyRepository = mockk<ChannelRolePolicyRepository>(relaxed = true)
     val accessReadiness = mockk<ProjectionReadinessView>()
     val managerReadiness = mockk<ProjectionReadinessView>()
     val pool = mockk<Pool>()
@@ -126,14 +126,15 @@ class ChannelAccessGuardTest :
                     }
                 }
 
-                context("팀 OWNER이면") {
+                context("팀 OWNER 또는 ADMIN이면") {
                     it("공개 여부와 무관하게 역할 정책을 조회하지 않고 통과한다") {
                         fixture.ready()
-                        fixture.teamMember(role = "OWNER")
-
-                        listOf(true, false, null).forEach { isPrivate ->
-                            fixture.channel(isPrivate = isPrivate)
-                            shouldNotThrowAny { fixture.access() }
+                        listOf("OWNER", "ADMIN").forEach { role ->
+                            fixture.teamMember(role = role)
+                            listOf(true, false, null).forEach { isPrivate ->
+                                fixture.channel(isPrivate = isPrivate)
+                                shouldNotThrowAny { fixture.access() }
+                            }
                         }
 
                         coVerify(exactly = 0) { fixture.policyRepository.canAccess(any(), any(), any(), any(), any()) }
@@ -144,7 +145,7 @@ class ChannelAccessGuardTest :
                     it("팀 멤버여도 거부한다") {
                         fixture.ready()
                         fixture.channel(isPrivate = false)
-                        fixture.teamMember(role = "ADMIN")
+                        fixture.teamMember(role = "MEMBER")
                         fixture.messageRead(false)
 
                         shouldThrow<ResourceAccessDeniedException> { fixture.access() }
@@ -219,6 +220,19 @@ class ChannelAccessGuardTest :
                                 runBlocking { fixture.guard.requireSettingsManager(CHANNEL_ID, REQUESTER) }
                             }
                         }
+                    }
+                }
+
+                context("활성 일반 멤버가 읽기와 channel_manage를 모두 가지면") {
+                    it("설정을 수정할 수 있다") {
+                        fixture.ready()
+                        fixture.channel()
+                        fixture.teamMember()
+                        fixture.messageRead(true)
+                        coEvery { fixture.policyRepository.canAccess(TEAM_ID, USER_ID, CHANNEL_ID, "channel_manage", false) } returns true
+                        shouldNotThrowAny { runBlocking { fixture.guard.requireSettingsManager(CHANNEL_ID, REQUESTER) } }
+                        fixture.messageRead(false)
+                        shouldThrow<ResourceAccessDeniedException> { runBlocking { fixture.guard.requireSettingsManager(CHANNEL_ID, REQUESTER) } }
                     }
                 }
 

@@ -24,11 +24,9 @@ class SharedAccountLookupSupport(
             ?: throw ExpectedException("공유 계정을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
 
     fun requireAccountEditor(account: SharedAccount, channel: Channel, userId: Long) {
-        if (account.createdBy != userId &&
-            channel.createdBy != userId &&
-            !teamPermissionService.isTeamOwnerOrAdmin(channelAccessGuard.requireTeamChannel(channel), userId)
-        ) {
-            throw ExpectedException("공유 계정을 수정하거나 삭제할 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        teamPermissionService.requireChannelAccess(channel, userId)
+        if (account.createdBy != userId) {
+            teamPermissionService.requireChannelPermission(channel, userId, "channel_manage")
         }
     }
 

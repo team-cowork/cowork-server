@@ -26,7 +26,9 @@ class UpdateSharedAccountServiceImplTest {
 
     private val sharedAccountRepository = mockk<SharedAccountRepository>(relaxed = true)
     private val channelRepository = mockk<ChannelRepository>(relaxed = true)
-    private val teamPermissionService = mockk<TeamPermissionService>()
+    private val teamPermissionService = mockk<TeamPermissionService> {
+        every { requireChannelAccess(any(), any()) } returns Unit
+    }
     private val credentialEncryptionService = mockk<CredentialEncryptionService>()
     private val channelAccessGuard = ChannelAccessGuard(channelRepository)
     private val sharedAccountAccessGuard = SharedAccountAccessGuard()
@@ -89,7 +91,8 @@ class UpdateSharedAccountServiceImplTest {
     }
 
     @Test
-    fun `updateAccount는 채널 생성자가 수정 가능함`() {
+    fun `updateAccount는 채널 관리 권한으로 수정 가능함`() {
+        every { teamPermissionService.requireChannelPermission(any(), 1L, "channel_manage") } returns Unit
         val ch = accountShareChannel(createdBy = 1L)
         val acc = account(createdBy = 99L)
         every { channelRepository.findById(1L) } returns Optional.of(ch)
@@ -112,7 +115,7 @@ class UpdateSharedAccountServiceImplTest {
         val acc = account(createdBy = 88L)
         every { channelRepository.findById(1L) } returns Optional.of(ch)
         every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns acc
-        every { teamPermissionService.isTeamOwnerOrAdmin(100L, 1L) } returns true
+        every { teamPermissionService.requireChannelPermission(any(), 1L, "channel_manage") } returns Unit
         every { credentialEncryptionService.decrypt(any()) } returns "plain"
         every { credentialEncryptionService.mask(any()) } returns "••••in"
 
@@ -131,7 +134,8 @@ class UpdateSharedAccountServiceImplTest {
         val acc = account(createdBy = 88L)
         every { channelRepository.findById(1L) } returns Optional.of(ch)
         every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns acc
-        every { teamPermissionService.isTeamOwnerOrAdmin(100L, 1L) } returns false
+        every { teamPermissionService.requireChannelPermission(any(), 1L, "channel_manage") } throws
+            ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
 
         val ex = assertThrows<ExpectedException> {
             service.updateAccount(

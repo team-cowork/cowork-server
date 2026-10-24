@@ -43,7 +43,7 @@ class CreateChannelServiceImpl(
 
     @Transactional
     override fun execute(userId: Long, request: CreateChannelRequest): ChannelResponse {
-        teamPermissionService.requireTeamMember(request.teamId, userId)
+        teamPermissionService.requirePermission(request.teamId, userId, "manage_channels")
 
         val channel = channelRepository.save(
             Channel(

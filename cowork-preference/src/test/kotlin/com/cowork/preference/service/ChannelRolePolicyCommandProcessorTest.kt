@@ -1,5 +1,6 @@
 package com.cowork.preference.service
 
+import com.cowork.preference.domain.AccountTeamRole
 import com.cowork.preference.domain.ChannelLifecycleProjection
 import com.cowork.preference.domain.ChannelRolePolicyState
 import com.cowork.preference.domain.TeamMemberProjection
@@ -72,6 +73,34 @@ class ChannelRolePolicyCommandProcessorTest {
                     requireNotNull(command.permissions),
                 )
             }
+        }
+
+        @Test
+        fun `명령 처리 전에 역할 관리 권한이 회수되면 정책 변경을 거부한다`() = runBlocking {
+            val result = slot<JsonObject>()
+            fixture.stubActiveCommand(actorRole = "MEMBER")
+            coEvery { fixture.roleRepository.findMemberRoles(fixture.connection, command.teamId) } returns emptyList()
+            coEvery { fixture.roleRepository.findRoles(fixture.connection, command.teamId) } returns emptyList()
+            coEvery { fixture.inboxRepository.insert(fixture.connection, command, capture(result)) } returns Unit
+            fixture.processor.process(command)
+            assertEquals("FORBIDDEN", result.captured.getJsonObject("error").getString("code"))
+            coVerify(exactly = 0) { fixture.policyRepository.upsertPolicy(any(), any(), any(), any(), any()) }
+        }
+
+        @Test
+        fun `역할 관리자가 자신의 현재 채널 권한에 없는 허용을 추가할 수 없다`() = runBlocking {
+            val grantCommand = command.copy(permissions = JsonObject().put("message_send", true))
+            val result = slot<JsonObject>()
+            fixture.stubActiveCommand(command = grantCommand, actorRole = "MEMBER", channel = activeChannel.copy(channelType = "TEXT", isPrivate = false))
+            coEvery { fixture.roleRepository.findMemberRoles(fixture.connection, command.teamId) } returns
+                listOf(AccountTeamRole(command.actorId, command.teamId, 20L))
+            coEvery { fixture.roleRepository.findRoles(fixture.connection, command.teamId) } returns
+                listOf(sameTeamRole.copy(id = 20L, priority = 100, permissions = mapOf("manage_roles" to true)))
+            coEvery { fixture.policyRepository.canAccess(fixture.connection, command.teamId, command.actorId, command.channelId, "message_read", false) } returns true
+            coEvery { fixture.inboxRepository.insert(fixture.connection, grantCommand, capture(result)) } returns Unit
+            fixture.processor.process(grantCommand)
+            assertEquals("FORBIDDEN", result.captured.getJsonObject("error").getString("code"))
+            coVerify(exactly = 0) { fixture.policyRepository.upsertPolicy(any(), any(), any(), any(), any()) }
         }
 
         @Test
@@ -174,6 +203,7 @@ class ChannelRolePolicyCommandProcessorTest {
             command: ChannelRolePolicyCommand = ChannelRolePolicyCommandProcessorTest.command,
             role: TeamRoleDefinition? = sameTeamRole,
             actorDeleted: Boolean = false,
+            actorRole: String = "ADMIN",
             channel: ChannelLifecycleProjection? = activeChannel,
         ) {
             every { readiness.isReady } returns true
@@ -188,7 +218,7 @@ class ChannelRolePolicyCommandProcessorTest {
                 TeamMemberProjection(
                     teamId = command.teamId,
                     accountId = command.actorId,
-                    builtInRole = "ADMIN",
+                    builtInRole = actorRole,
                     deleted = actorDeleted,
                     sourceOccurredAt = command.actorMembershipVersion,
                 )

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cowork/cowork-voice/internal/apperr"
+	"github.com/cowork/cowork-voice/internal/domain/permission"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
@@ -44,6 +45,7 @@ type State struct {
 	ChannelType string          `bson:"channel_type"`
 	IsPrivate   *bool           `bson:"is_private"`
 	Priority    int             `bson:"priority"`
+	IsDefault   bool            `bson:"is_default"`
 	Permissions map[string]bool `bson:"permissions"`
 	Deleted     bool            `bson:"deleted"`
 	Version     int64           `bson:"source_version"`
@@ -95,33 +97,38 @@ func (p *Projection) TeamStates(ctx context.Context, id int64) ([]State, error) 
 	err = cursor.All(ctx, &states)
 	return states, err
 }
-func (p *Projection) RequireConnect(ctx context.Context, channelID, userID int64) (int64, error) {
+func (p *Projection) RequireConnect(ctx context.Context, channelID, userID int64) (permission.Access, error) {
 	p.currentHighMu.RLock()
 	checker := p.currentHigh
 	p.currentHighMu.RUnlock()
 	if checker == nil {
-		return 0, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
 	}
 	if err := checker.EstablishCurrent(ctx); err != nil {
-		return 0, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
 	}
 	ch, found, err := p.lookup.Channel(ctx, channelID)
 	if err != nil {
-		return 0, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
 	}
 	if !found || ch.Deleted || ch.ChannelType != "VOICE" || ch.TeamID <= 0 {
-		return 0, apperr.PermissionDenied()
+		return permission.Access{}, apperr.PermissionDenied()
 	}
 	states, err := p.lookup.TeamStates(ctx, ch.TeamID)
 	if err != nil {
-		return 0, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+		return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
 	}
-	if !canConnect(ch, userID, states) {
-		return 0, apperr.PermissionDenied()
+	access := permissionsFor(ch, userID, states)
+	if !access["voice_connect"] {
+		return permission.Access{}, apperr.PermissionDenied()
 	}
-	return ch.TeamID, nil
+	return permission.Access{TeamID: ch.TeamID, Speak: access["voice_speak"], ScreenShare: access["screen_share"], Broadcast: access["live_broadcast"]}, nil
 }
 func canConnect(ch State, userID int64, states []State) bool {
+	return permissionsFor(ch, userID, states)["voice_connect"]
+}
+
+func permissionsFor(ch State, userID int64, states []State) map[string]bool {
 	var member *State
 	var fence int64
 	roles := map[int64]State{}
@@ -155,36 +162,53 @@ func canConnect(ch State, userID int64, states []State) bool {
 			}
 		}
 	}
-	if member == nil || member.Deleted {
-		return false
+	if member == nil || member.Deleted || ch.Deleted || ch.ChannelType != "VOICE" {
+		return nil
 	}
-	if member.Role == "OWNER" {
-		return true
+	keys := []string{"voice_connect", "voice_speak", "screen_share", "live_broadcast"}
+	allowed := make(map[string]bool, len(keys))
+	if member.Role == "OWNER" || member.Role == "ADMIN" {
+		for _, key := range keys {
+			allowed[key] = true
+		}
+		return allowed
 	}
-	found := false
-	highest := 0
-	allowed := false
-	for _, a := range assignments {
-		if a.Version <= fence {
-			continue
-		}
-		r, ok := roles[a.RoleID]
-		if !ok {
-			continue
-		}
-		permit := ch.IsPrivate != nil && !*ch.IsPrivate && r.Permissions["voice_connect"]
-		if v, ok := policies[a.RoleID].Permissions["voice_connect"]; ok {
-			permit = v
-		}
-		if !found || r.Priority > highest {
-			found = true
-			highest = r.Priority
-			allowed = permit
-		} else if r.Priority == highest {
-			allowed = allowed && permit
+	applicable := map[int64]State{}
+	for id, role := range roles {
+		if role.IsDefault {
+			applicable[id] = role
 		}
 	}
-	return found && allowed
+	for _, assignment := range assignments {
+		if role, ok := roles[assignment.RoleID]; ok && assignment.Version > fence {
+			applicable[assignment.RoleID] = role
+		}
+	}
+	for _, key := range keys {
+		for _, role := range applicable {
+			allowed[key] = allowed[key] || role.Permissions[key]
+		}
+		if key == "voice_connect" && (ch.IsPrivate == nil || *ch.IsPrivate) {
+			allowed[key] = false
+		}
+		for id, role := range applicable {
+			if value, exists := policies[id].Permissions[key]; role.IsDefault && exists {
+				allowed[key] = value
+			}
+		}
+		deny, allow := false, false
+		for id, role := range applicable {
+			if value, exists := policies[id].Permissions[key]; !role.IsDefault && exists {
+				deny = deny || !value
+				allow = allow || value
+			}
+		}
+		allowed[key] = (allowed[key] && !deny) || allow
+	}
+	if !allowed["voice_connect"] {
+		return nil
+	}
+	return allowed
 }
 func (p *Projection) Apply(ctx context.Context, s State) error {
 	op := "$lt"
@@ -207,6 +231,12 @@ func (h *EventHandler) Handle(ctx context.Context, topic, key string, payload []
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidEvent, err)
 	}
+	if s.Kind == "member" && s.Deleted {
+		fence := State{Key: fmt.Sprintf("role-source:member:%d:%d", s.TeamID, s.UserID), Kind: "member-fence", TeamID: s.TeamID, UserID: s.UserID, Deleted: true, Version: s.Version}
+		if err := h.store.Apply(ctx, fence); err != nil {
+			return err
+		}
+	}
 	return h.store.Apply(ctx, s)
 }
 func parseState(topic, key string, payload []byte) (State, error) {
@@ -221,6 +251,7 @@ func parseState(topic, key string, payload []byte) (State, error) {
 		Type          string           `json:"type"`
 		IsPrivate     *bool            `json:"isPrivate"`
 		Priority      *int             `json:"priority"`
+		IsDefault     bool             `json:"isDefault"`
 		Permissions   map[string]*bool `json:"permissions"`
 		SchemaVersion int              `json:"schemaVersion"`
 		OccurredAt    string           `json:"occurredAt"`
@@ -239,7 +270,7 @@ func parseState(topic, key string, payload []byte) (State, error) {
 		}
 		permissions[name] = *value
 	}
-	s := State{TeamID: e.TeamID, ChannelID: e.ChannelID, UserID: e.UserID, RoleID: e.RoleID, Role: e.Role, ChannelType: e.Type, IsPrivate: e.IsPrivate, Permissions: permissions, Version: version.UnixNano()}
+	s := State{TeamID: e.TeamID, ChannelID: e.ChannelID, UserID: e.UserID, RoleID: e.RoleID, Role: e.Role, ChannelType: e.Type, IsPrivate: e.IsPrivate, IsDefault: e.IsDefault, Permissions: permissions, Version: version.UnixNano()}
 	expected := ""
 	switch topic {
 	case "channel.event.v2":

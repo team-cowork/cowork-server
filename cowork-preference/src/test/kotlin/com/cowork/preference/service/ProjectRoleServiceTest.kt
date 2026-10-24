@@ -20,7 +20,7 @@ class ProjectRoleServiceTest {
 
     private val projectId = 3L
     private val roleName = "Reviewer"
-    private val permissions = JsonObject().put("issue_write", true)
+    private val permissions = JsonObject().put("write", true)
     private lateinit var repository: ProjectRoleRepository
     private lateinit var service: ProjectRoleService
     private val access = mockk<ProjectAccessStateRepository>(relaxed = true)

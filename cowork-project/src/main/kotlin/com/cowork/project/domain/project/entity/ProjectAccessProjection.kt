@@ -16,4 +16,6 @@ class ProjectAccessProjection(
     var canWrite: Boolean,
     @Column(nullable = false) var sourceOccurredAt: Instant,
     var canReorder: Boolean = false,
+    var canManage: Boolean = false,
+    @Column(nullable = false) var sourceMembershipVersion: Instant = Instant.EPOCH,
 )

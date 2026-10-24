@@ -14,7 +14,7 @@ import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
 import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
-import {TeamMemberProjectionRepository, ChannelProjectionRepository} from '../repository';
+import {TeamMemberProjectionRepository, ChannelProjectionRepository, TeamRoleProjectionRepository} from '../repository';
 import {ChannelMessageReadAccessService} from '../service';
 import {connectWithRetry} from '../../common/kafka/connect-with-retry';
 
@@ -42,6 +42,7 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
         private readonly projectionReadiness: ProjectionReadinessService,
         private readonly channelRepository: ChannelProjectionRepository,
         private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
+        private readonly roleRepository: TeamRoleProjectionRepository,
     ) {}
 
     setSocketServer(io: Server): void {
@@ -108,6 +109,7 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
         const {occurredAt, sourceVersion} = eventTime;
         if (payload.eventType === 'DELETE') {
             await this.memberRepository.remove(payload.teamId, payload.userId, occurredAt, sourceVersion);
+            await this.roleRepository.deleteMemberAssignments(payload.teamId, payload.userId, occurredAt, sourceVersion);
         } else {
             await this.memberRepository.upsert({
                 teamId: payload.teamId,

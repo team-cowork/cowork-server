@@ -35,7 +35,7 @@ class DeleteChannelRolePolicyServiceImpl(
             actorId = actorId,
             permissions = null,
         ) {
-            channelPermissionSupport.requireChannelManager(channel, actorId)
+            channelPermissionSupport.requireRolePolicyManager(channel, actorId, roleId, null)
             policyAccessSupport.requireRole(teamId, roleId)
             policyAccessSupport.requirePolicy(teamId, channelId, roleId)
         }

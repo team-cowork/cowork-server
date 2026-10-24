@@ -1,5 +1,7 @@
 package com.cowork.project.domain.project.event
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 import com.cowork.project.domain.project.entity.ProjectStatus
 import java.time.Instant
 
@@ -16,4 +18,6 @@ data class ProjectEvent(
     val occurredAt: Instant,
     val snapshot: Boolean = false,
     val createdBy: Long? = null,
+    @field:JsonProperty("isPrivate")
+    val isPrivate: Boolean = true,
 )

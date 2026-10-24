@@ -4,6 +4,7 @@ import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.TeamAccessGuard
+import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
@@ -28,7 +29,11 @@ class DisconnectGithubServiceImplTest :
             memberRepository = mockk()
             service = DisconnectGithubServiceImpl(
                 teamRepository,
-                TeamAccessGuard(teamRepository, memberRepository),
+                TeamAccessGuard(
+                    teamRepository,
+                    memberRepository,
+                    TeamPermissionGuard(memberRepository, mockk(relaxed = true)),
+                ),
                 mockk<TeamEventPublisher>(relaxed = true),
             )
         }
@@ -39,11 +44,7 @@ class DisconnectGithubServiceImplTest :
                     val team = team().also { it.connectGithub(42L, "my-org") }
                     every { teamRepository.findByIdForUpdate(1L) } returns team
                     every {
-                        memberRepository.findByTeamIdAndUserIdAndRoleIn(
-                            1L,
-                            10L,
-                            listOf(TeamRole.OWNER, TeamRole.ADMIN),
-                        )
+                        memberRepository.findByTeamIdAndUserId(1L, 10L)
                     } returns TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
                     every { teamRepository.save(team) } returns team
 
@@ -60,11 +61,7 @@ class DisconnectGithubServiceImplTest :
                     val team = team()
                     every { teamRepository.findByIdForUpdate(1L) } returns team
                     every {
-                        memberRepository.findByTeamIdAndUserIdAndRoleIn(
-                            1L,
-                            10L,
-                            listOf(TeamRole.OWNER, TeamRole.ADMIN),
-                        )
+                        memberRepository.findByTeamIdAndUserId(1L, 10L)
                     } returns TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
 
                     service.execute(10L, 1L)
@@ -77,11 +74,7 @@ class DisconnectGithubServiceImplTest :
                 it("FORBIDDEN으로 거부한다") {
                     every { teamRepository.findByIdForUpdate(1L) } returns team()
                     every {
-                        memberRepository.findByTeamIdAndUserIdAndRoleIn(
-                            1L,
-                            42L,
-                            listOf(TeamRole.OWNER, TeamRole.ADMIN),
-                        )
+                        memberRepository.findByTeamIdAndUserId(1L, 42L)
                     } returns null
 
                     val error = shouldThrow<ExpectedException> { service.execute(42L, 1L) }

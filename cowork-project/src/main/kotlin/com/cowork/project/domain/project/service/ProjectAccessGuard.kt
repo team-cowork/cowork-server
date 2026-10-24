@@ -1,5 +1,6 @@
 package com.cowork.project.domain.project.service
 
+import com.cowork.project.domain.membership.TeamRolePermissionReader
 import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.project.entity.ProjectAccessProjection
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
@@ -26,6 +27,7 @@ class ProjectAccessGuard(
     private val accessRepository: ProjectAccessProjectionRepository,
     private val teamMembershipRepository: TeamMembershipRepository,
     private val projectionReadinessGate: ProjectionReadinessGate,
+    private val teamPermissions: TeamRolePermissionReader,
 ) {
 
     fun findProjectOrThrow(projectId: Long): Project = projectRepository.findById(projectId).orElseThrow {
@@ -43,45 +45,49 @@ class ProjectAccessGuard(
     fun requireTeamMember(teamId: Long, userId: Long): String = teamRoleOf(teamId, userId)
         ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
 
-    private fun isTeamOwnerOrAdmin(teamId: Long, userId: Long): Boolean =
-        teamRoleOf(teamId, userId) in setOf(TEAM_ROLE_OWNER, TEAM_ROLE_ADMIN)
-
-    data class Permissions(val read: Boolean, val write: Boolean, val reorder: Boolean = false)
+    data class Permissions(val read: Boolean, val write: Boolean, val reorder: Boolean = false, val manage: Boolean = false)
 
     fun canRead(project: Project, userId: Long): Boolean = permissionsForUser(project, userId).read
 
     fun canWrite(project: Project, userId: Long): Boolean = permissionsForUser(project, userId).write
 
     private fun permissionsForUser(project: Project, userId: Long): Permissions {
-        val role = teamRoleOf(project.teamId, userId) ?: return Permissions(false, false)
-        if (isManager(project, userId, role)) return Permissions(true, true, true)
-        return permissions(project, userId, role, accessRepository.findById("${project.id}:$userId").orElse(null))
+        projectionReadinessGate.requireReady()
+        val member = teamMembershipRepository.findActiveByTeamIdAndUserId(project.teamId, userId)
+            ?: return Permissions(false, false)
+        if (isManager(member.role)) return Permissions(true, true, true, true)
+        return permissions(member, accessRepository.findById("${project.id}:$userId").orElse(null))
     }
 
     fun permissionsForUsers(project: Project, memberships: List<TeamMembership>): Map<Long, Permissions> {
         projectionReadinessGate.requireReady()
         val access = accessRepository.findAllByProjectId(project.id).associateBy { it.userId }
         return memberships.filter { it.active && it.teamId == project.teamId }.associate { member ->
-            member.userId to permissions(project, member.userId, member.role, access[member.userId])
+            member.userId to permissions(member, access[member.userId])
         }
     }
 
-    fun permissionsForProjects(projects: List<Project>, userId: Long, teamRole: String): Map<Long, Permissions> {
+    fun permissionsForProjects(projects: List<Project>, userId: Long): Map<Long, Permissions> {
+        projectionReadinessGate.requireReady()
         if (projects.isEmpty()) return emptyMap()
         val access = accessRepository.findAllByUserIdAndProjectIdIn(userId, projects.map { it.id })
             .associateBy { it.projectId }
-        return projects.associate { project -> project.id to permissions(project, userId, teamRole, access[project.id]) }
+        val members = projects.map { it.teamId }.distinct().associateWith {
+            teamMembershipRepository.findActiveByTeamIdAndUserId(it, userId)
+        }
+        return projects.associate { project ->
+            project.id to (members[project.teamId]?.let { permissions(it, access[project.id]) } ?: Permissions(false, false))
+        }
     }
 
     fun countReaders(project: Project): Long = projectRepository.countReadableUsers(project.id)
 
-    private fun isManager(project: Project, userId: Long, teamRole: String): Boolean =
-        project.createdBy == userId || teamRole in setOf(TEAM_ROLE_OWNER, TEAM_ROLE_ADMIN)
+    private fun isManager(teamRole: String): Boolean = teamRole in setOf(TEAM_ROLE_OWNER, TEAM_ROLE_ADMIN)
 
-    private fun permissions(project: Project, userId: Long, role: String, access: ProjectAccessProjection?): Permissions {
-        if (isManager(project, userId, role)) return Permissions(true, true, true)
-        val read = access?.canRead == true
-        return Permissions(read, read && access?.canWrite == true, read && access?.canReorder == true)
+    private fun permissions(member: TeamMembership, access: ProjectAccessProjection?): Permissions {
+        if (isManager(member.role)) return Permissions(true, true, true, true)
+        val read = access?.canRead == true && access.sourceMembershipVersion == member.sourceOccurredAt
+        return Permissions(read, read && access?.canWrite == true, read && access?.canReorder == true, read && access?.canManage == true)
     }
 
     fun requireProjectReader(project: Project, userId: Long) {
@@ -92,9 +98,29 @@ class ProjectAccessGuard(
         if (!canWrite(project, userId)) throw ExpectedException("프로젝트 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)
     }
 
+    fun requireProjectManager(project: Project, userId: Long) {
+        if (!permissionsForUser(project, userId).manage) {
+            throw ExpectedException("프로젝트 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        }
+    }
+
+    fun requireTeamProjectManager(teamId: Long, userId: Long) {
+        requireTeamPermission(teamId, userId, "manage_projects")
+    }
+
     fun requireProjectOwner(project: Project, userId: Long) {
-        requireTeamMember(project.teamId, userId)
-        if (project.createdBy == userId || isTeamOwnerOrAdmin(project.teamId, userId)) return
-        throw ExpectedException("프로젝트 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        requireProjectReader(project, userId)
+        requireTeamProjectManager(project.teamId, userId)
+    }
+
+    fun requireGithubManager(project: Project, userId: Long) {
+        requireProjectReader(project, userId)
+        requireTeamPermission(project.teamId, userId, "manage_github")
+    }
+
+    private fun requireTeamPermission(teamId: Long, userId: Long, permission: String) {
+        val role = requireTeamMember(teamId, userId)
+        if (isManager(role) || teamPermissions.hasPermission(teamId, userId, permission)) return
+        throw ExpectedException("팀 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
     }
 }

@@ -150,7 +150,7 @@ class MainVerticle : AbstractVerticle() {
         val notifService = NotificationService(notifRepo, outboxRepository)
         val projectAccessRepo = ProjectAccessStateRepository(outboxRepository)
         val roleService = ProjectRoleService(roleRepo, outboxRepository, projectAccessRepo)
-        val teamRoleService = TeamRoleService(teamRoleRepo, outboxRepository, channelRolePolicyRepo)
+        val teamRoleService = TeamRoleService(teamRoleRepo, outboxRepository, channelRolePolicyRepo, projectAccessRepo)
         val channelLifecycleService = ChannelLifecycleService(
             projectionRepository = channelLifecycleProjectionRepo,
             policyRepository = channelRolePolicyRepo,
@@ -163,6 +163,7 @@ class MainVerticle : AbstractVerticle() {
             outboxRepository = outboxRepository,
             readiness = projectionReadiness,
             channelRolePolicyRepository = channelRolePolicyRepo,
+            projectAccess = projectAccessRepo,
         )
         val githubRepoSettingCommandProcessor = GithubRepoSettingCommandProcessor(
             preferenceRepository = prefRepo,
@@ -187,6 +188,7 @@ class MainVerticle : AbstractVerticle() {
             teamMemberProjectionRepo,
             projectAccessReadiness,
             roleRepo,
+            teamRoleRepo,
         )
         val channelAccessGuard = ChannelAccessGuard(
             pool = pool,

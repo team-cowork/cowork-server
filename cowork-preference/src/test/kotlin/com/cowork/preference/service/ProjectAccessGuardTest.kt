@@ -1,11 +1,14 @@
 package com.cowork.preference.service
 
 import com.cowork.preference.domain.ProjectLifecycleProjection
+import com.cowork.preference.domain.ProjectPermissions
+import com.cowork.preference.domain.ProjectRoleDefinition
 import com.cowork.preference.domain.TeamMemberProjection
 import com.cowork.preference.messaging.ProjectionReadinessView
 import com.cowork.preference.repository.ProjectLifecycleProjectionRepository
 import com.cowork.preference.repository.ProjectRoleRepository
 import com.cowork.preference.repository.TeamMemberProjectionRepository
+import com.cowork.preference.repository.TeamRoleRepository
 import com.cowork.preference.security.RequesterContext
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
@@ -15,6 +18,7 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.vertx.sqlclient.Pool
+import io.vertx.core.json.JsonObject
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
 
@@ -30,7 +34,8 @@ private class ProjectGuardFixture {
     val readiness = mockk<ProjectionReadinessView>()
     val pool = mockk<Pool>()
     val roles = mockk<ProjectRoleRepository>()
-    val guard = ProjectAccessGuard(pool, projectRepository, teamMemberRepository, readiness, roles)
+    val teamRoles = mockk<TeamRoleRepository>()
+    val guard = ProjectAccessGuard(pool, projectRepository, teamMemberRepository, readiness, roles, teamRoles)
 
     fun stubReadiness(ready: Boolean) {
         every { readiness.isReady } returns ready
@@ -51,9 +56,46 @@ class ProjectAccessGuardTest :
     DescribeSpec({
         lateinit var fixture: ProjectGuardFixture
 
-        beforeEach { fixture = ProjectGuardFixture() }
+        beforeEach {
+            fixture = ProjectGuardFixture()
+            coEvery { fixture.roles.canManage(any(), any()) } returns false
+        }
 
         describe("ProjectAccessGuard 클래스의") {
+            describe("프로젝트 역할 변경") {
+                beforeEach {
+                    fixture.stubReadiness(true)
+                    fixture.stubProject()
+                    fixture.stubTeamMember()
+                    coEvery { fixture.roles.effectivePermissions(PROJECT_ID, MEMBER.userId) } returns ProjectPermissions(read = true, manage = true)
+                    coEvery { fixture.teamRoles.hasPermission(TEAM_ID, MEMBER.userId, "manage_roles") } returns false
+                }
+                it("설정 관리 권한만으로 역할을 생성할 수 없다") {
+                    shouldThrow<ResourceAccessDeniedException> {
+                        fixture.guard.requireRoleCreation(PROJECT_ID, MEMBER, JsonObject().put("write", true))
+                    }
+                }
+                it("역할 관리자도 보유하지 않은 쓰기 권한을 부여할 수 없다") {
+                    coEvery { fixture.teamRoles.hasPermission(TEAM_ID, MEMBER.userId, "manage_roles") } returns true
+                    shouldThrow<ResourceAccessDeniedException> {
+                        fixture.guard.requireRoleCreation(PROJECT_ID, MEMBER, JsonObject().put("write", true))
+                    }
+                    shouldNotThrowAny { fixture.guard.requireRoleCreation(PROJECT_ID, MEMBER, JsonObject().put("read", true)) }
+                }
+                it("기존 역할을 할당할 때도 권한 범위를 확인한다") {
+                    coEvery { fixture.teamRoles.hasPermission(TEAM_ID, MEMBER.userId, "manage_roles") } returns true
+                    coEvery { fixture.roles.findRole(PROJECT_ID, "writer") } returns ProjectRoleDefinition(PROJECT_ID, "writer", JsonObject().put("write", true))
+                    shouldThrow<ResourceAccessDeniedException> { fixture.guard.requireRoleAssignment(PROJECT_ID, MEMBER, "writer") }
+                }
+                it("일반 역할 관리자는 거부 정책 제거로 권한을 복구할 수 없다") {
+                    coEvery { fixture.teamRoles.hasPermission(TEAM_ID, MEMBER.userId, "manage_roles") } returns true
+                    coEvery { fixture.roles.findRole(PROJECT_ID, "deny") } returns ProjectRoleDefinition(PROJECT_ID, "deny", JsonObject().put("read", false))
+                    shouldThrow<ResourceAccessDeniedException> { fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "deny") }
+                    fixture.stubTeamMember("ADMIN")
+                    shouldNotThrowAny { fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "deny") }
+                }
+            }
+
             describe("requireMember 메서드는") {
                 context("프로젝트가 속한 팀의 멤버이면") {
                     it("read 권한이 있으면 별도 멤버 등록 없이 통과한다") {
@@ -137,6 +179,22 @@ class ProjectAccessGuardTest :
             }
 
             describe("requireManager 메서드는") {
+                it("명시적 관리 권한을 가진 일반 멤버를 허용한다") {
+                    fixture.stubReadiness(true)
+                    fixture.stubProject()
+                    fixture.stubTeamMember()
+                    coEvery { fixture.roles.canManage(PROJECT_ID, MEMBER.userId) } returns true
+                    shouldNotThrowAny { fixture.guard.requireManager(PROJECT_ID, MEMBER) }
+                }
+
+                it("생성자도 관리 권한 없이 설정을 변경할 수 없다") {
+                    fixture.stubReadiness(true)
+                    fixture.stubTeamMember()
+                    coEvery { fixture.projectRepository.findForRead(fixture.pool, PROJECT_ID) } returns
+                        ProjectLifecycleProjection(PROJECT_ID, TEAM_ID, false, VERSION, createdBy = MEMBER.userId)
+                    shouldThrow<ResourceAccessDeniedException> { fixture.guard.requireManager(PROJECT_ID, MEMBER) }
+                }
+
                 context("프로젝트가 속한 팀의 OWNER 또는 ADMIN이면") {
                     it("통과한다") {
                         fixture.stubReadiness(true)

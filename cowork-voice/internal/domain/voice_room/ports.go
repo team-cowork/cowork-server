@@ -3,6 +3,8 @@ package room
 import (
 	"context"
 	"time"
+
+	"github.com/cowork/cowork-voice/internal/domain/permission"
 )
 
 type Service interface {
@@ -35,7 +37,7 @@ type Repository interface {
 }
 
 type ConnectPermissionChecker interface {
-	RequireConnect(ctx context.Context, channelID, userID int64) (int64, error)
+	RequireConnect(ctx context.Context, channelID, userID int64) (permission.Access, error)
 }
 
 type LiveKitParticipant struct {
@@ -45,7 +47,7 @@ type LiveKitParticipant struct {
 
 type LiveKitRoom interface {
 	CreateRoomIfNotExists(ctx context.Context, roomName string) error
-	GenerateToken(userID int64, roomName string) (string, error)
+	GenerateToken(userID int64, roomName string, speak, screenShare bool) (string, error)
 	RemoveParticipant(ctx context.Context, roomName, identity string) error
 	ListParticipants(ctx context.Context, roomName string) ([]LiveKitParticipant, error)
 }

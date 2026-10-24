@@ -48,6 +48,10 @@ class TeamRolePermissionSchema {
             "voice_speak",
             "screen_share",
             "live_broadcast",
+            "project_read",
+            "project_write",
+            "project_manage",
+            "project_reorder",
         )
     }
 }
