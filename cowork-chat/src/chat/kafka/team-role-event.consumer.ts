@@ -26,6 +26,7 @@ type TeamRoleEvent = {
     accountId?: number;
     name?: string;
     priority?: number;
+    // TODO(#596): 구버전 outbox·Kafka 보존 레코드 갱신과 rollback 종료 후 ROLE_UPSERTED의 isDefault 누락·false 대체를 제거한다.
     isDefault?: boolean;
     permissions?: Record<string, boolean>;
     occurredAt: string;
