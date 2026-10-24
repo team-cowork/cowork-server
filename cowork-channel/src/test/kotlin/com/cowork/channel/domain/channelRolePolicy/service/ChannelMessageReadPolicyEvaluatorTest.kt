@@ -7,6 +7,7 @@ import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyP
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjectionRepository
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleAssignmentProjection
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleAssignmentProjectionRepository
+import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleMemberTombstone
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleMemberTombstoneRepository
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleProjection
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleProjectionRepository
@@ -224,6 +225,33 @@ class ChannelMessageReadPolicyEvaluatorTest {
             )
             assertEquals(emptyList<Channel>(), evaluator.filterReadable(10L, 7L, listOf(channel)))
         }
+    }
+
+    @Test
+    fun `접근자 일괄 판정은 탈퇴와 역할 회수 및 동순위 거부를 사용자별로 적용한다`() {
+        val channel = channel(1L, ChannelType.VOICE).apply { isPrivate = true }
+        val members = listOf(
+            TeamMembership(teamId = 10L, userId = 1L, role = "OWNER"),
+            TeamMembership(teamId = 10L, userId = 2L, role = "MEMBER"),
+            TeamMembership(teamId = 10L, userId = 3L, role = "MEMBER"),
+            TeamMembership(teamId = 10L, userId = 4L, role = "MEMBER"),
+            TeamMembership(teamId = 10L, userId = 5L, role = "OWNER", active = false),
+            TeamMembership(teamId = 20L, userId = 6L, role = "OWNER"),
+        )
+        every { tombstoneRepository.findAllById(any()) } returns
+            listOf(TeamRoleMemberTombstone("10:3", 10L, 3L, occurredAt))
+        every { assignmentRepository.findAllByTeamIdAndAccountIdInAndDeletedFalse(10L, setOf(2L, 3L, 4L)) } returns
+            listOf(2L to 1L, 3L to 1L, 4L to 1L, 4L to 2L).map { (userId, roleId) ->
+                TeamRoleAssignmentProjection("10:$userId:$roleId", 10L, userId, roleId, sourceOccurredAt = occurredAt)
+            }
+        every { roleRepository.findAllByTeamIdAndRoleIdInAndDeletedFalse(10L, setOf(1L, 2L)) } returns
+            listOf(role(1L, 10), role(2L, 10))
+        every {
+            policyRepository.findAllByTeamIdAndChannelIdInAndRoleIdInAndDeletedFalse(10L, setOf(1L), setOf(1L, 2L))
+        } returns
+            listOf(policy(1L, 1L, voiceConnect = true), policy(1L, 2L, voiceConnect = false))
+
+        assertEquals(setOf(1L, 2L), evaluator.readableUserIds(channel, members))
     }
 
     private fun stubMemberWithRoles(
