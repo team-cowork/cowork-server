@@ -1,5 +1,6 @@
 package com.cowork.preference.messaging
 
+import com.cowork.preference.domain.InitialProjectReadGrant
 import io.vertx.core.json.JsonObject
 import java.time.Instant
 
@@ -11,6 +12,7 @@ data class ProjectLifecycleEvent(
     val occurredAt: Instant,
     val createdBy: Long? = null,
     val isPrivate: Boolean = true,
+    val initialReadGrant: InitialProjectReadGrant? = null,
 )
 
 sealed interface ProjectLifecycleRecordDecision {
@@ -42,6 +44,7 @@ object ProjectLifecycleEventParser {
                 // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
                 // producer 전환·재동기화 및 구형 이벤트 재처리 종료 확인 후 누락 시 true 호환을 제거한다.
                 if (payload.containsKey("isPrivate")) payload.getValue("isPrivate") as? Boolean ?: error("isPrivate must be a boolean") else true,
+                payload.getJsonObject("initialReadGrant")?.let(InitialProjectReadGrant::fromJson),
             ),
         )
     }.getOrElse { error ->
