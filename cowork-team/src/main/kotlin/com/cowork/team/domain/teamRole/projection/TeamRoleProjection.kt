@@ -56,7 +56,8 @@ class TeamRoleProjection(
         occurredAt: Instant,
         isDefault: Boolean = false,
     ) {
-        this.isDefault = isDefault
+        // 역할 ID의 기본 역할 여부는 생성 후 바뀌지 않는다.
+        this.isDefault = this.isDefault || isDefault
         this.name = name
         this.colorHex = colorHex
         this.priority = priority
