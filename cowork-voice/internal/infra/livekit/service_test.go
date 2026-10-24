@@ -30,14 +30,14 @@ func TestTokenRestrictsMediaSources(t *testing.T) {
 				livekit.TrackSource_MICROPHONE:         speak,
 				livekit.TrackSource_SCREEN_SHARE:       screenShare,
 				livekit.TrackSource_SCREEN_SHARE_AUDIO: screenShare,
-				livekit.TrackSource_CAMERA:             false,
+				livekit.TrackSource_CAMERA:             screenShare,
 			} {
 				if got := grant.GetCanPublishSource(source); got != want {
 					t.Errorf("speak=%t screenShare=%t source=%s: allowed=%t, want %t", speak, screenShare, source, got, want)
 				}
 			}
-			if grant.GetCanPublishData() {
-				t.Fatal("media permissions granted data publishing")
+			if !grant.GetCanPublishData() {
+				t.Fatal("connected voice participants must retain data publishing")
 			}
 		}
 	}
