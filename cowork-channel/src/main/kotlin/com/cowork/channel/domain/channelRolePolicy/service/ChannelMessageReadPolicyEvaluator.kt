@@ -194,7 +194,7 @@ class ChannelMessageReadPolicyEvaluator(
             }
         }
         return overwrites.takeIf { it.isNotEmpty() }?.let {
-            InitialChannelRolePolicySeed(userId, membership.sourceOccurredAt, it)
+            InitialChannelRolePolicySeed(userId, membership.sourceOccurredAt, it, membership.authorizationVersion)
         }
     }
 

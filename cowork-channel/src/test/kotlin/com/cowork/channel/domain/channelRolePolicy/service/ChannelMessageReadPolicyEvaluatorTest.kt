@@ -184,6 +184,22 @@ class ChannelMessageReadPolicyEvaluatorTest {
         assertEquals(overwrites, seed?.overwrites)
         assertEquals(7L, seed?.actorId)
         assertEquals(occurredAt, seed?.actorMembershipVersion)
+        assertNull(seed?.actorAuthorizationVersion)
+    }
+
+    @Test
+    fun `닉네임 변경 후 초기 정책도 원본 버전과 안정적인 권한 버전을 따로 보존한다`() {
+        roles(role(1L, "message_read" to true, default = true), role(2L, "manage_channels" to true))
+        val membership = member().apply { authorizationVersion = occurredAt }
+        membership.applyUpsert("MEMBER", occurredAt.plusSeconds(1), occurredAt)
+        every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns membership
+        val overwrites = listOf(InitialChannelRoleOverwrite(2L, mapOf("message_read" to true)))
+
+        val seed = evaluator.prepareInitialRolePolicySeed(10L, 7L, channel().apply { isPrivate = true }, overwrites)
+
+        assertEquals(occurredAt.plusSeconds(1), seed?.actorMembershipVersion)
+        assertEquals(occurredAt, seed?.actorAuthorizationVersion)
+        assertEquals(overwrites, seed?.overwrites)
     }
 
     @Test
