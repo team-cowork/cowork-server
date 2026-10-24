@@ -136,7 +136,8 @@ type TeamSettingEvent struct {
 }
 
 // AccountNotificationSetting is the validated projection row of an account setting state.
-// DND minutes are counted from midnight in Timezone.
+// DND minutes are counted from midnight in Timezone. Timezone is stored as published because
+// preference accepts Java zone IDs, such as offsets, that Go cannot load; readers fall back.
 type AccountNotificationSetting struct {
 	AccountID         int64
 	NotificationLevel *string
@@ -337,11 +338,6 @@ func (s *Service) ApplyAccountSetting(ctx context.Context, event AccountSettingE
 		}
 		expiresAt = expiresAt.UTC()
 		setting.StatusExpiresAt = &expiresAt
-	}
-	if event.Timezone != nil {
-		if _, err := time.LoadLocation(*event.Timezone); err != nil {
-			return invalidEvent("account setting timezone", event.EventType)
-		}
 	}
 	if schedule := event.DNDSchedule; schedule != nil {
 		start, startErr := minuteOfDay(schedule.Start)
