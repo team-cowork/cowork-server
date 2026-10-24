@@ -44,3 +44,22 @@ ALTER TABLE tb_project_access_projections ADD COLUMN can_manage BOOLEAN NOT NULL
 ALTER TABLE tb_projects ADD COLUMN is_private BOOLEAN NOT NULL DEFAULT TRUE;
 
 ALTER TABLE tb_project_access_projections ADD COLUMN source_membership_version DATETIME(6) NOT NULL DEFAULT '1970-01-01 00:00:00.000000';
+
+ALTER TABLE tb_projects
+    ADD COLUMN initial_read_membership_version DATETIME(6) NULL
+    COMMENT '최초 읽기 역할 승인 시 확인한 cowork-team.tb_team_member_event_states.state_occurred_at';
+
+ALTER TABLE tb_team_memberships
+    ADD COLUMN authorization_version DATETIME(6) NULL
+    COMMENT '권한 변경 버전: cowork-team.tb_team_member_event_states.authorization_version';
+
+ALTER TABLE tb_project_access_projections
+    ADD COLUMN source_authorization_version DATETIME(6) NULL
+    COMMENT '계산에 사용한 권한 버전: cowork-preference.tb_project_access_states.source_authorization_version';
+
+ALTER TABLE tb_projects
+    ADD COLUMN initial_read_authorization_version DATETIME(6) NULL
+    COMMENT '최초 읽기 역할 승인 시 확인한 cowork-team.tb_team_member_event_states.authorization_version';
+
+-- Legacy seeds keep NULL: their original membership version remains the approval boundary.
+-- Never backfill them from the creator's current membership or authorization version.
