@@ -20,8 +20,31 @@ type WithTryAcquireScript<Context extends ClientContext = {type: 'default'}> = {
         windowMs: number,
         maxRequests: number,
     ): Result<number, Context>;
+    tryReserveScript(key: string, holder: string, ttlMs: number): Result<number, Context>;
+    releaseScript(key: string, holder: string): Result<number, Context>;
 };
 type RateLimiterRedis = Redis & WithTryAcquireScript;
+
+export type ReservationResult = 'RESERVED' | 'HELD_BY_SAME_HOLDER' | 'BUSY';
+
+// KEYS[1]=key ARGV[1]=holder ARGV[2]=ttlMs
+const TRY_RESERVE_SCRIPT = `
+if redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2], 'NX') then
+    return 1
+end
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return 2
+end
+return 0
+`;
+
+// KEYS[1]=key ARGV[1]=holder
+const RELEASE_SCRIPT = `
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return redis.call('DEL', KEYS[1])
+end
+return 0
+`;
 
 // KEYS[1]=key ARGV[1]=windowStart ARGV[2]=now ARGV[3]=member ARGV[4]=windowMs ARGV[5]=maxRequests
 const TRY_ACQUIRE_SCRIPT = `
@@ -56,6 +79,8 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
 
         this.client = new Redis({host, port, lazyConnect: true}) as RateLimiterRedis;
         this.client.defineCommand('tryAcquireScript', {numberOfKeys: 1, lua: TRY_ACQUIRE_SCRIPT});
+        this.client.defineCommand('tryReserveScript', {numberOfKeys: 1, lua: TRY_RESERVE_SCRIPT});
+        this.client.defineCommand('releaseScript', {numberOfKeys: 1, lua: RELEASE_SCRIPT});
         // Ioredis는 'error' 리스너가 없으면 unhandled error event로 프로세스가 죽는다
         this.client.on('error', (error: unknown) => {
             this.logger.error(`Redis client error: ${error instanceof Error ? error.message : String(error)}`);
@@ -102,22 +127,30 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     `key`가 없을 때만 `ttlMs` 동안 점유한다.
+     `key`가 비어 있으면 `holder`로 `ttlMs` 동안 점유한다. 같은 `holder`가 이미 점유 중이면 재시도로 보고 통과시킨다.
 
-     @returns 점유했으면 `true`, 이미 점유 중이면 `false`. Redis 오류 시에는 `true`(fail-open)를 반환한다.
+     @returns Redis 오류 시에는 `RESERVED`(fail-open)를 반환한다.
      */
-    async tryReserve(key: string, ttlMs: number): Promise<boolean> {
+    async tryReserve(key: string, holder: string, ttlMs: number): Promise<ReservationResult> {
         try {
-            return (await this.client.set(key, '1', 'PX', ttlMs, 'NX')) === 'OK';
+            const result = await this.client.tryReserveScript(key, holder, ttlMs);
+            if (result === 1) {
+                return 'RESERVED';
+            }
+
+            return result === 2 ? 'HELD_BY_SAME_HOLDER' : 'BUSY';
         } catch (error) {
             this.logger.warn(`Reservation failed, failing open [key=${key}]`, error);
-            return true;
+            return 'RESERVED';
         }
     }
 
-    async release(key: string): Promise<void> {
+    /**
+    `holder`가 점유한 경우에만 해제해 그 사이 다른 요청이 잡은 점유를 지우지 않는다.
+    */
+    async release(key: string, holder: string): Promise<void> {
         try {
-            await this.client.del(key);
+            await this.client.releaseScript(key, holder);
         } catch (error) {
             this.logger.warn(`Reservation release failed [key=${key}]`, error);
         }
