@@ -73,7 +73,6 @@ class ChannelRolePolicyCompletionTest :
                     channelId = 11L,
                     roleId = 1L,
                     permissionsJson = objectMapper.writeValueAsString(permissions),
-                    messageRead = permissions["message_read"],
                     sourceOccurredAt = occurredAt,
                 ),
             )

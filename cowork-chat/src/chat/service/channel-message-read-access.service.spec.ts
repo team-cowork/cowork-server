@@ -107,22 +107,22 @@ describe('ChannelMessageReadAccessService', () => {
         ]);
         policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([
             {
-                teamId: 1, channelId: 10, roleId: 101, messageRead: true,
+                teamId: 1, channelId: 10, roleId: 101, permissions: {message_read: true},
             },
             {
-                teamId: 1, channelId: 10, roleId: 102, messageRead: false,
+                teamId: 1, channelId: 10, roleId: 102, permissions: {message_read: false},
             },
             {
-                teamId: 1, channelId: 10, roleId: 201, messageRead: true,
+                teamId: 1, channelId: 10, roleId: 201, permissions: {message_read: true},
             },
             {
-                teamId: 1, channelId: 10, roleId: 202, messageRead: false,
+                teamId: 1, channelId: 10, roleId: 202, permissions: {message_read: false},
             },
             {
-                teamId: 1, channelId: 20, roleId: 101, messageRead: true,
+                teamId: 1, channelId: 20, roleId: 101, permissions: {message_read: true},
             },
             {
-                teamId: 1, channelId: 10, roleId: 302, messageRead: true,
+                teamId: 1, channelId: 10, roleId: 302, permissions: {message_read: true},
             },
         ]);
     });
@@ -194,7 +194,7 @@ describe('ChannelMessageReadAccessService', () => {
                 teamId: 1, roleId: 101, priority: 100, permissions: {message_read: false, message_send: true},
             }]);
             policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([{
-                teamId: 1, channelId: 20, roleId: 101, messageRead: true,
+                teamId: 1, channelId: 20, roleId: 101, permissions: {message_read: true},
             }]);
             await expect(service.requirePermissions(20, 2, ['message_send'])).resolves.toBeUndefined();
         });
@@ -207,7 +207,7 @@ describe('ChannelMessageReadAccessService', () => {
         it('채널에서 send를 허용하면 역할 기본값을 덮어쓴다', async () => {
             policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([
                 {
-                    teamId: 1, channelId: 10, roleId: 101, messageRead: null, permissions: {message_send: true},
+                    teamId: 1, channelId: 10, roleId: 101, permissions: {message_send: true},
                 },
             ]);
             await expect(service.requirePermissions(10, 2, ['message_send'])).resolves.toBeUndefined();
@@ -218,7 +218,7 @@ describe('ChannelMessageReadAccessService', () => {
             }]);
             policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([
                 {
-                    teamId: 1, channelId: 10, roleId: 101, messageRead: false, permissions: {message_read: false, voice_connect: true},
+                    teamId: 1, channelId: 10, roleId: 101, permissions: {message_read: false, voice_connect: true},
                 },
             ]);
             await expect(service.filterVisibleChannelIds(1, 2, [10])).resolves.toEqual([10]);

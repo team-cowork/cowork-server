@@ -139,7 +139,6 @@ class ChannelPermissionSupportTest {
                 teamId = 10L,
                 channelId = 3L,
                 roleId = 1L,
-                messageRead = messageRead,
                 permissionsJson = objectMapper.writeValueAsString(
                     buildMap {
                         put("message_read", messageRead)
