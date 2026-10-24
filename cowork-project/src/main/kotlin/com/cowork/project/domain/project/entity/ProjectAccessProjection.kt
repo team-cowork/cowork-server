@@ -15,4 +15,5 @@ class ProjectAccessProjection(
     var canRead: Boolean,
     var canWrite: Boolean,
     @Column(nullable = false) var sourceOccurredAt: Instant,
+    var canReorder: Boolean = false,
 )
