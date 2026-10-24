@@ -197,6 +197,9 @@ class TeamRoleCommandProcessor(
             reject("DEFAULT_ROLE_PROTECTED", "기본 역할의 이름과 우선순위는 변경할 수 없습니다.")
         }
         val nextName = input.name ?: current.name
+        if (!current.isDefault && nextName == "@everyone" && nextName != current.name) {
+            reject("RESERVED_ROLE_NAME", "기본 역할 이름은 사용할 수 없습니다.")
+        }
         val nextColor = input.colorHex ?: current.colorHex
         val nextPriority = input.priority ?: current.priority
         validateRole(nextName, nextColor)
