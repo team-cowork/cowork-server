@@ -139,11 +139,11 @@ class ChannelRolePolicyCommandProcessor(
     }
 
     /**
-     * 채널 삭제 consumer가 갱신하는 projection row를 잠가 정책 변경과 삭제 정리의 순서를 직렬화한다.
+     * 채널 projection row를 잠가 기존 거부 검증과 정책 교체, 삭제 정리의 순서를 직렬화한다.
      * 삭제가 먼저 반영됐으면 command를 종료하고, 정책이 먼저 반영됐으면 뒤따른 삭제가 그 정책을 정리한다.
      */
     private suspend fun requireActiveChannel(connection: SqlConnection, command: ChannelRolePolicyCommand): ChannelLifecycleProjection {
-        val channel = channelRepository.findForShare(connection, command.channelId)
+        val channel = channelRepository.findForUpdate(connection, command.channelId)
             ?: throw ChannelRolePolicyProjectionNotReadyException(
                 "channel projection is missing for ${command.channelId}",
             )
@@ -198,8 +198,10 @@ class ChannelRolePolicyCommandProcessor(
         if (!policyRepository.canAccess(connection, command.teamId, command.actorId, command.channelId, accessPermission, channel.isPrivate != false)) {
             reject("FORBIDDEN", "채널에 접근할 권한이 없습니다.")
         }
+        val currentOverwrite = policyRepository.findPolicy(connection, command.teamId, command.channelId, command.roleId)?.permissions
         val grants = PermissionKeys.CHANNEL_SCOPED.filter { permission ->
-            command.permissions?.getValue(permission) as? Boolean ?: (target.permissions[permission] == true)
+            command.permissions?.getValue(permission) as? Boolean
+                ?: (currentOverwrite?.getBoolean(permission) == false || (command.permissions == null && target.permissions[permission] == true))
         }
         for (permission in grants) {
             if (!policyRepository.canAccess(connection, command.teamId, command.actorId, command.channelId, permission, channel.isPrivate != false)) {
