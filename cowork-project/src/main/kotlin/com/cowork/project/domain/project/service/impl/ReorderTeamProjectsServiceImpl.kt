@@ -19,7 +19,7 @@ class ReorderTeamProjectsServiceImpl(
 
     @Transactional
     override fun execute(userId: Long, teamId: Long, orderedProjectIds: List<Long>): List<ProjectResDto> {
-        projectAccessGuard.requireTeamMember(teamId, userId)
+        val teamRole = projectAccessGuard.requireTeamMember(teamId, userId)
 
         if (orderedProjectIds.isEmpty()) {
             throw ExpectedException("프로젝트 순서 목록은 비어 있을 수 없습니다.", HttpStatus.BAD_REQUEST)
@@ -29,19 +29,28 @@ class ReorderTeamProjectsServiceImpl(
             throw ExpectedException("프로젝트 순서 목록에 중복 ID가 포함되어 있습니다.", HttpStatus.BAD_REQUEST)
         }
 
-        val projects = projectRepository.findAllByTeamIdForUpdate(teamId)
+        val lockedProjects = projectRepository.findAllByTeamIdForUpdate(teamId)
+        val permissions = projectAccessGuard.permissionsForProjects(lockedProjects, userId, teamRole)
+        val projects = lockedProjects.filter { permissions.getValue(it.id).read }
         val teamProjectIds = projects.map { it.id }.toSet()
         if (inputIds != teamProjectIds) {
-            throw ExpectedException("팀의 모든 프로젝트 ID를 정확히 포함해야 합니다.", HttpStatus.BAD_REQUEST)
+            throw ExpectedException("현재 조회 가능한 모든 프로젝트 ID를 정확히 포함해야 합니다.", HttpStatus.BAD_REQUEST)
         }
 
+        val positionSlots = projects.map { it.position }.sorted()
         val projectById = projects.associateBy { it.id }
+        val movedProjects = orderedProjectIds.mapIndexedNotNull { index, projectId ->
+            projectById.getValue(projectId).takeIf { it.position != positionSlots[index] }
+        }
+        if (movedProjects.any { !permissions.getValue(it.id).reorder }) {
+            throw ExpectedException("프로젝트 재정렬 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        }
         orderedProjectIds.forEachIndexed { index, projectId ->
-            projectById[projectId]?.updatePosition(index)
+            projectById.getValue(projectId).updatePosition(positionSlots[index])
         }
 
         val orderedProjects = orderedProjectIds.mapNotNull(projectById::get)
-        orderedProjects.forEach(projectEventPublisher::publishUpdated)
+        movedProjects.forEach(projectEventPublisher::publishUpdated)
         return orderedProjects.map(ProjectResDto::of)
     }
 }

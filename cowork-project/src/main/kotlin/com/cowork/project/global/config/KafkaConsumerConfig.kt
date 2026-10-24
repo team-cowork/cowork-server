@@ -75,6 +75,9 @@ class KafkaConsumerConfig(
     }
 
     @Bean
+    fun projectAccessListenerContainerFactory() = projectionListenerContainerFactory(streams.projectAccess)
+
+    @Bean
     fun channelStateListenerContainerFactory() = projectionListenerContainerFactory(streams.channelState)
 
     @Bean

@@ -4,9 +4,8 @@ import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.entity.ChannelViewType
 import com.cowork.channel.domain.channel.event.ChannelEventPublisher
-import com.cowork.channel.domain.channel.event.ChannelMemberEventPublisher
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
 import com.cowork.channel.domain.channel.repository.ChannelRepository
+import com.cowork.channel.domain.channel.repository.DmParticipantRepository
 import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channel.service.TeamPermissionService
 import com.cowork.channel.domain.channel.service.support.ChannelPermissionSupport
@@ -22,21 +21,18 @@ import java.util.Optional
 class DeleteChannelServiceImplTest {
 
     private val channelRepository = mockk<ChannelRepository>(relaxed = true)
-    private val channelMemberRepository = mockk<ChannelMemberRepository>(relaxed = true)
+    private val dmParticipantRepository = mockk<DmParticipantRepository>(relaxed = true)
     private val teamPermission = mockk<TeamPermissionService>()
-    private val channelMemberEventPublisher = mockk<ChannelMemberEventPublisher>(relaxed = true)
     private val channelEventPublisher = mockk<ChannelEventPublisher>(relaxed = true)
     private val channelAccessGuard = ChannelAccessGuard(channelRepository)
     private val channelPermissionSupport = ChannelPermissionSupport(
-        channelMemberRepository,
+        dmParticipantRepository,
         teamPermission,
         mockk(relaxed = true),
     )
 
     private val service = DeleteChannelServiceImpl(
         channelRepository,
-        channelMemberRepository,
-        channelMemberEventPublisher,
         channelEventPublisher,
         channelAccessGuard,
         channelPermissionSupport,

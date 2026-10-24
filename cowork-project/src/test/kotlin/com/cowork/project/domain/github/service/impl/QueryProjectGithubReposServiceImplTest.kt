@@ -13,9 +13,9 @@ import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import java.util.Optional
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
-import java.util.Optional
 
 class QueryProjectGithubReposServiceImplTest :
     DescribeSpec({
@@ -45,7 +45,7 @@ class QueryProjectGithubReposServiceImplTest :
                     it("연결된 조직의 레포 목록을 반환한다") {
                         val proj = project()
                         every { projectAccessGuard.findProjectOrThrow(1L) } returns proj
-                        every { projectAccessGuard.requireTeamMember(100L, 7L) } just Runs
+                        every { projectAccessGuard.requireProjectReader(proj, 7L) } just Runs
                         every { teamGithubInstallationRepository.findById(100L) } returns
                             Optional.of(TeamGithubInstallation(teamId = 100L, installationId = 1L, orgLogin = "my-org"))
                         every { repoReader.listOrgRepos("my-org") } returns listOf(
@@ -67,7 +67,7 @@ class QueryProjectGithubReposServiceImplTest :
                     it("BAD_REQUEST를 던진다") {
                         val proj = project()
                         every { projectAccessGuard.findProjectOrThrow(1L) } returns proj
-                        every { projectAccessGuard.requireTeamMember(100L, 7L) } just Runs
+                        every { projectAccessGuard.requireProjectReader(proj, 7L) } just Runs
                         every { teamGithubInstallationRepository.findById(100L) } returns Optional.empty()
 
                         val ex = shouldThrow<ExpectedException> { service.execute(7L, 1L) }
@@ -80,7 +80,7 @@ class QueryProjectGithubReposServiceImplTest :
                     it("ProjectAccessGuard의 예외를 그대로 전파한다") {
                         val proj = project()
                         every { projectAccessGuard.findProjectOrThrow(1L) } returns proj
-                        every { projectAccessGuard.requireTeamMember(100L, 7L) } throws
+                        every { projectAccessGuard.requireProjectReader(proj, 7L) } throws
                             ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
 
                         val ex = shouldThrow<ExpectedException> { service.execute(7L, 1L) }

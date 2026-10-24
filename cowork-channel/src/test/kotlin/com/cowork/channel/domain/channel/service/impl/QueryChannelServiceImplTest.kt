@@ -3,13 +3,14 @@ package com.cowork.channel.domain.channel.service.impl
 import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.entity.ChannelViewType
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
 import com.cowork.channel.domain.channel.repository.ChannelRepository
+import com.cowork.channel.domain.channel.repository.DmParticipantRepository
 import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channel.service.support.ChannelPermissionSupport
 import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
@@ -20,12 +21,12 @@ import java.util.Optional
 class QueryChannelServiceImplTest {
 
     private val channelRepository = mockk<ChannelRepository>(relaxed = true)
-    private val channelMemberRepository = mockk<ChannelMemberRepository>(relaxed = true)
+    private val dmParticipantRepository = mockk<DmParticipantRepository>(relaxed = true)
     private val teamPermissionService = mockk<com.cowork.channel.domain.channel.service.TeamPermissionService>()
     private val evaluator = mockk<ChannelMessageReadPolicyEvaluator>(relaxed = true)
     private val channelAccessGuard = ChannelAccessGuard(channelRepository)
     private val channelPermissionSupport = ChannelPermissionSupport(
-        channelMemberRepository,
+        dmParticipantRepository,
         teamPermissionService,
         evaluator,
     )
@@ -51,7 +52,7 @@ class QueryChannelServiceImplTest {
     @Test
     fun `getChannel은 DM 채널이면 채널 멤버에게 허용`() {
         every { channelRepository.findById(1L) } returns Optional.of(dmChannel())
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 2L) } returns true
+        every { dmParticipantRepository.existsByChannelIdAndUserId(1L, 2L) } returns true
 
         val res = service.execute(2L, 1L)
         assertEquals(null, res.teamId)
@@ -61,7 +62,7 @@ class QueryChannelServiceImplTest {
     @Test
     fun `getChannel은 DM 채널 비멤버이면 FORBIDDEN`() {
         every { channelRepository.findById(1L) } returns Optional.of(dmChannel())
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 9L) } returns false
+        every { dmParticipantRepository.existsByChannelIdAndUserId(1L, 9L) } returns false
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.execute(9L, 1L)
@@ -83,7 +84,7 @@ class QueryChannelServiceImplTest {
     fun `getChannel은 비공개 팀 채널이면 채널 멤버에게만 허용`() {
         every { channelRepository.findById(1L) } returns Optional.of(teamChannel(isPrivate = true))
         every { teamPermissionService.requireTeamMember(10L, 42L) } returns Unit
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 42L) } returns true
+        every { dmParticipantRepository.existsByChannelIdAndUserId(1L, 42L) } returns true
 
         val response = service.execute(42L, 1L)
 
@@ -91,15 +92,10 @@ class QueryChannelServiceImplTest {
     }
 
     @Test
-    fun `getChannel은 비공개 팀 채널 비멤버이면 FORBIDDEN`() {
+    fun `getChannel은 비공개 팀 채널도 역할 권한으로 조회한다`() {
         every { channelRepository.findById(1L) } returns Optional.of(teamChannel(isPrivate = true))
         every { teamPermissionService.requireTeamMember(10L, 99L) } returns Unit
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 99L) } returns false
-
-        val exception = assertThrows(ExpectedException::class.java) {
-            service.execute(99L, 1L)
-        }
-
-        assertEquals(HttpStatus.FORBIDDEN, exception.statusCode)
+        service.execute(99L, 1L)
+        verify(exactly = 0) { dmParticipantRepository.existsByChannelIdAndUserId(any(), any()) }
     }
 }

@@ -14,6 +14,8 @@ kafka:
     channel-notification: preference.channel-notification.changed
     user-profile: user.profile.event.v2
     team-lifecycle: team.lifecycle
+    account-setting: preference.account-setting.state.v1
+    team-setting: preference.team-setting.state.v1
 
 # Firebase 서비스 계정 JSON 문자열은 Vault secret/cowork-notification/prod의
 # fcm.credentials-json에서 주입한다. 실제 자격 증명은 이 파일에 기록하지 않는다.
