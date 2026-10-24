@@ -31,11 +31,13 @@ interface ProjectRepository :
     @Query("SELECT p.id FROM Project p WHERE p.teamId = :teamId")
     fun findIdsByTeamId(@Param("teamId") teamId: Long): List<Long>
 
+    // TODO(#596): 2026-11-01 05:00 KST 이후 구형 producer·재처리·롤백 종료와 snapshot 보정 완료 확인 후 아래 조회의 COALESCE fallback 제거.
+    // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
     @Query(
         "SELECT p FROM Project p JOIN TeamMembership m ON m.teamId = p.teamId " +
             "WHERE p.teamId = :teamId AND m.userId = :userId AND m.active = true " +
             "AND (m.role IN ('OWNER', 'ADMIN') OR EXISTS (" +
-            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = :userId AND a.canRead = true AND a.sourceMembershipVersion = m.sourceOccurredAt))",
+            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = :userId AND a.canRead = true AND COALESCE(a.sourceAuthorizationVersion, a.sourceMembershipVersion) = COALESCE(m.authorizationVersion, m.sourceOccurredAt)))",
     )
     fun findReadableByTeamId(@Param("teamId") teamId: Long, @Param("userId") userId: Long, pageable: Pageable): Page<Project>
 
@@ -43,7 +45,7 @@ interface ProjectRepository :
         "SELECT COUNT(m) FROM Project p JOIN TeamMembership m ON m.teamId = p.teamId " +
             "WHERE p.id = :projectId AND m.active = true " +
             "AND (m.role IN ('OWNER', 'ADMIN') OR EXISTS (" +
-            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = m.userId AND a.canRead = true AND a.sourceMembershipVersion = m.sourceOccurredAt))",
+            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = m.userId AND a.canRead = true AND COALESCE(a.sourceAuthorizationVersion, a.sourceMembershipVersion) = COALESCE(m.authorizationVersion, m.sourceOccurredAt)))",
     )
     fun countReadableUsers(@Param("projectId") projectId: Long): Long
 
@@ -54,7 +56,7 @@ interface ProjectRepository :
         "SELECT p FROM Project p JOIN TeamMembership m ON m.teamId = p.teamId " +
             "WHERE m.userId = :userId AND m.active = true " +
             "AND (m.role IN ('OWNER', 'ADMIN') OR EXISTS (" +
-            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = :userId AND a.canRead = true AND a.sourceMembershipVersion = m.sourceOccurredAt))",
+            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = :userId AND a.canRead = true AND COALESCE(a.sourceAuthorizationVersion, a.sourceMembershipVersion) = COALESCE(m.authorizationVersion, m.sourceOccurredAt)))",
     )
     fun findReadableByUserId(@Param("userId") userId: Long, pageable: Pageable): Page<Project>
 }

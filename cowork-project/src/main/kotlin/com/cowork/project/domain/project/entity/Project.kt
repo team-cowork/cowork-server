@@ -49,6 +49,9 @@ class Project(
 
     @Column(name = "initial_read_membership_version", updatable = false)
     val initialReadMembershipVersion: Instant? = null,
+
+    @Column(name = "initial_read_authorization_version", updatable = false)
+    val initialReadAuthorizationVersion: Instant? = null,
 ) {
     fun updateName(newName: String) {
         name = newName
