@@ -296,17 +296,20 @@ describe('ChatService', () => {
             mockSlowmodeService.reserve.mockRejectedValue(new HttpException('slowmode', HttpStatus.TOO_MANY_REQUESTS));
 
             await expect(service.sendMessage(ctx, {content: 'hi'})).rejects.toThrow(HttpException);
-            expect(mockSlowmodeService.reserve).toHaveBeenCalledWith(1, 100, 42);
+            expect(mockSlowmodeService.reserve).toHaveBeenCalledWith(1, 100, 42, expect.any(String));
             expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
         });
 
         it('발행에 실패하면 슬로우 모드 예약을 해제한다', async () => {
             mockDmParticipantRepository.findMembership.mockResolvedValue({teamId: 100, channelType: 'TEXT'});
-            mockSlowmodeService.reserve.mockResolvedValue('chat:slowmode:1:42');
+            const reservation = {key: 'chat:slowmode:1:42', holder: 'client-1'};
+            mockSlowmodeService.reserve.mockResolvedValue(reservation);
             mockChatMessageProducer.sendMessage.mockRejectedValueOnce(new Error('kafka down'));
 
-            await expect(service.sendMessage(ctx, {content: 'hi'})).rejects.toThrow('kafka down');
-            expect(mockSlowmodeService.release).toHaveBeenCalledWith('chat:slowmode:1:42');
+            await expect(service.sendMessage(ctx, {content: 'hi', clientMessageId: 'client-1'}))
+                .rejects.toThrow('kafka down');
+            expect(mockSlowmodeService.reserve).toHaveBeenCalledWith(1, 100, 42, 'client-1');
+            expect(mockSlowmodeService.release).toHaveBeenCalledWith(reservation);
         });
 
         it('프로젝트 채널은 채널 범위의 teamId·projectId로 발행한다', async () => {
