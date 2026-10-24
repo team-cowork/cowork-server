@@ -18,7 +18,9 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
+import team.themoment.sdk.exception.ExpectedException
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.time.Instant
 import java.util.Optional
@@ -252,6 +254,32 @@ class ChannelMessageReadPolicyEvaluatorTest {
             listOf(policy(1L, 1L, voiceConnect = true), policy(1L, 2L, voiceConnect = false))
 
         assertEquals(setOf(1L, 2L), evaluator.readableUserIds(channel, members))
+    }
+
+    @Test
+    fun `메시지 작성 권한만으로 채널을 재정렬할 수 없다`() {
+        val channel = channel(1L, ChannelType.TEXT)
+        stubMemberWithRoles(
+            listOf(role(1L, 10).apply { permissionsJson = """{"message_read":true,"message_send":true}""" }),
+            emptyList(),
+        )
+        assertThrows(ExpectedException::class.java) { evaluator.requireReorder(10L, 7L, listOf(channel)) }
+    }
+
+    @Test
+    fun `재정렬 권한은 메시지 작성 권한 없이 부여할 수 있고 높은 역할의 거부를 따른다`() {
+        val channel = channel(1L, ChannelType.TEXT)
+        val allow = role(1L, 10).apply { permissionsJson = """{"channel_reorder":true,"message_send":false}""" }
+        stubMemberWithRoles(listOf(allow), emptyList())
+        evaluator.requireReorder(10L, 7L, listOf(channel))
+        stubMemberWithRoles(listOf(allow, role(2L, 20)), emptyList())
+        assertThrows(ExpectedException::class.java) { evaluator.requireReorder(10L, 7L, listOf(channel)) }
+    }
+
+    @Test
+    fun `팀 관리자는 별도 재정렬 정책 없이 순서를 바꿀 수 있다`() {
+        every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns membership("ADMIN")
+        evaluator.requireReorder(10L, 7L, listOf(channel(1L, ChannelType.TEXT)))
     }
 
     private fun stubMemberWithRoles(
