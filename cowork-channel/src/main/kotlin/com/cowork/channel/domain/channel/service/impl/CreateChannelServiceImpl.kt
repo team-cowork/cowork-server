@@ -1,14 +1,11 @@
 package com.cowork.channel.domain.channel.service.impl
 
 import com.cowork.channel.domain.channel.entity.Channel
-import com.cowork.channel.domain.channel.entity.ChannelMember
 import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.entity.ChannelViewType
 import com.cowork.channel.domain.channel.event.ChannelEventPublisher
-import com.cowork.channel.domain.channel.event.ChannelMembershipSyncPublisher
 import com.cowork.channel.domain.channel.presentation.data.request.CreateChannelRequest
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
 import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.channel.service.CreateChannelService
 import com.cowork.channel.domain.channel.service.TeamPermissionService
@@ -21,9 +18,7 @@ import team.themoment.sdk.exception.ExpectedException
 @Service
 class CreateChannelServiceImpl(
     private val channelRepository: ChannelRepository,
-    private val channelMemberRepository: ChannelMemberRepository,
     private val teamPermissionService: TeamPermissionService,
-    private val channelMembershipSyncPublisher: ChannelMembershipSyncPublisher,
     private val channelEventPublisher: ChannelEventPublisher,
     private val createDefaultMeetingNoteTemplateService: CreateDefaultMeetingNoteTemplateService,
 ) : CreateChannelService {
@@ -62,11 +57,9 @@ class CreateChannelServiceImpl(
                 createdBy = userId,
             ),
         )
-        val member = channelMemberRepository.save(ChannelMember(channelId = channel.id, userId = userId))
         if (channel.viewType == ChannelViewType.MEETING_NOTE) {
             createDefaultMeetingNoteTemplateService.createDefaultTemplate(channel)
         }
-        channelMembershipSyncPublisher.publishChannelSnapshot(channel, listOf(member))
         channelEventPublisher.publishCreated(channel)
         return ChannelResponse.of(channel)
     }

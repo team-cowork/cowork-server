@@ -1,8 +1,6 @@
 package com.cowork.channel.global.consumer
 
 import com.cowork.channel.domain.channel.event.ChannelEventPublisher
-import com.cowork.channel.domain.channel.event.ChannelMemberEventPublisher
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
 import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.membership.entity.TeamMembership
 import com.cowork.channel.domain.membership.repository.TeamMembershipRepository
@@ -15,10 +13,8 @@ import java.time.Instant
 @Service
 class ChannelLifecycleHandler(
     private val channelRepository: ChannelRepository,
-    private val channelMemberRepository: ChannelMemberRepository,
     private val teamMembershipRepository: TeamMembershipRepository,
     private val channelEventPublisher: ChannelEventPublisher,
-    private val channelMemberEventPublisher: ChannelMemberEventPublisher,
 ) {
     private val log = LoggerFactory.getLogger(ChannelLifecycleHandler::class.java)
 
@@ -52,19 +48,7 @@ class ChannelLifecycleHandler(
             log.info("Skipped TEAM_DELETED event: no channels to delete [teamId={}]", teamId)
             return
         }
-        val membersByChannel = channels.associateWith {
-            channelMemberRepository.findAllByChannelIdForUpdateOrderByIdAsc(it.id)
-        }
-        membersByChannel.forEach { (channel, members) ->
-            val channelVersion = channelEventPublisher.publishDeleted(channel, version)
-            members.forEach { member ->
-                channelMemberEventPublisher.publishLeave(
-                    channel.id,
-                    member.userId,
-                    requestedAt = channelVersion,
-                )
-            }
-        }
+        channels.forEach { channelEventPublisher.publishDeleted(it, version) }
         channelRepository.deleteAll(channels)
         log.info("Processed TEAM_DELETED event [teamId={}, deletedChannels={}]", teamId, channels.size)
     }
@@ -91,41 +75,13 @@ class ChannelLifecycleHandler(
 
         val teamChannels = channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(teamId)
         val creatorOf = teamChannels.filter { it.createdBy == targetUserId }
-        val otherChannels = teamChannels.filter { it.createdBy != targetUserId }
-        val deletedMembers = creatorOf.associateWith {
-            channelMemberRepository.findAllByChannelIdForUpdateOrderByIdAsc(it.id)
-        }
-
-        deletedMembers.forEach { (channel, members) ->
-            val channelVersion = channelEventPublisher.publishDeleted(channel, version)
-            members.forEach { member ->
-                channelMemberEventPublisher.publishLeave(
-                    channel.id,
-                    member.userId,
-                    requestedAt = channelVersion,
-                )
-            }
-        }
-        otherChannels.forEach { channel ->
-            channelMemberEventPublisher.publishLeave(
-                channel.id,
-                targetUserId,
-                requestedAt = version,
-            )
-        }
-        if (creatorOf.isNotEmpty()) {
-            channelRepository.deleteAll(creatorOf)
-        }
-        val otherIds = otherChannels.map { it.id }
-        if (otherIds.isNotEmpty()) {
-            channelMemberRepository.deleteAllByUserIdAndChannelIdIn(targetUserId, otherIds)
-        }
+        creatorOf.forEach { channelEventPublisher.publishDeleted(it, version) }
+        if (creatorOf.isNotEmpty()) channelRepository.deleteAll(creatorOf)
         log.info(
-            "MEMBER_REMOVED 처리 [teamId={}, userId={}, channelsDeleted={}, membershipsRemoved={}]",
+            "MEMBER_REMOVED 처리 [teamId={}, userId={}, channelsDeleted={}]",
             teamId,
             targetUserId,
             creatorOf.size,
-            otherIds.size,
         )
     }
 }

@@ -1,7 +1,5 @@
 package com.cowork.channel.domain.meetingNote.service.impl
 
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
-import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.meetingNote.entity.MeetingNote
 import com.cowork.channel.domain.meetingNote.presentation.data.request.UpdateMeetingNoteRequest
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteRepository
@@ -19,11 +17,7 @@ import java.util.Optional
 class UpdateMeetingNoteServiceImplTest {
 
     private val meetingNoteRepository = mockk<MeetingNoteRepository>(relaxed = true)
-    private val channelMemberRepository = mockk<ChannelMemberRepository>()
-    private val channelRepository = mockk<ChannelRepository> {
-        every { existsByIdAndType(any(), any()) } returns false
-    }
-    private val meetingNoteAccessGuard = MeetingNoteAccessGuard(channelMemberRepository, channelRepository)
+    private val meetingNoteAccessGuard = mockk<MeetingNoteAccessGuard>(relaxed = true)
     private val meetingNoteLookupSupport = MeetingNoteLookupSupport(meetingNoteRepository)
 
     private val service = UpdateMeetingNoteServiceImpl(meetingNoteAccessGuard, meetingNoteLookupSupport)
@@ -46,7 +40,7 @@ class UpdateMeetingNoteServiceImplTest {
 
     @Test
     fun `updateNote는 작성자이면 title과 content를 수정`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
         every { meetingNoteRepository.findById(1L) } returns Optional.of(note())
 
         val request = UpdateMeetingNoteRequest(title = "수정된 제목", content = "{\"key\":\"value\"}")
@@ -58,7 +52,7 @@ class UpdateMeetingNoteServiceImplTest {
 
     @Test
     fun `updateNote는 null 필드는 수정하지 않음`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
         every { meetingNoteRepository.findById(1L) } returns Optional.of(note(title = "원래 제목"))
 
         val request = UpdateMeetingNoteRequest(title = null, content = "{\"updated\":true}")
@@ -69,7 +63,7 @@ class UpdateMeetingNoteServiceImplTest {
 
     @Test
     fun `updateNote는 title이 공백이면 BAD_REQUEST`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.updateNote(7L, 1L, 1L, UpdateMeetingNoteRequest(title = "   ", content = null))
@@ -79,7 +73,7 @@ class UpdateMeetingNoteServiceImplTest {
 
     @Test
     fun `updateNote는 title이 200자 초과이면 BAD_REQUEST`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.updateNote(7L, 1L, 1L, UpdateMeetingNoteRequest(title = "a".repeat(201), content = null))
@@ -89,7 +83,7 @@ class UpdateMeetingNoteServiceImplTest {
 
     @Test
     fun `updateNote는 변경 사항이 없으면 note를 그대로 반환`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
         every { meetingNoteRepository.findById(1L) } returns Optional.of(note(title = "주간 회의", content = "{}"))
 
         val request = UpdateMeetingNoteRequest(title = "주간 회의", content = "{}")
@@ -100,8 +94,9 @@ class UpdateMeetingNoteServiceImplTest {
     }
 
     @Test
-    fun `updateNote는 채널 비멤버이면 FORBIDDEN`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns false
+    fun `updateNote는 채널 읽기 권한이 없으면이면 FORBIDDEN`() {
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } throws
+            ExpectedException("채널 접근 권한이 없습니다.", HttpStatus.FORBIDDEN)
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.updateNote(7L, 1L, 1L, UpdateMeetingNoteRequest(title = "x", content = null))
@@ -111,7 +106,7 @@ class UpdateMeetingNoteServiceImplTest {
 
     @Test
     fun `updateNote는 작성자가 아니면 FORBIDDEN`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 99L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 99L) } returns Unit
         every { meetingNoteRepository.findById(1L) } returns Optional.of(note(createdBy = 7L))
 
         val ex = assertThrows(ExpectedException::class.java) {
@@ -122,7 +117,7 @@ class UpdateMeetingNoteServiceImplTest {
 
     @Test
     fun `updateNote는 다른 채널의 회의록이면 NOT_FOUND`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(2L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(2L, 7L) } returns Unit
         every { meetingNoteRepository.findById(1L) } returns Optional.of(note(channelId = 1L))
 
         val ex = assertThrows(ExpectedException::class.java) {

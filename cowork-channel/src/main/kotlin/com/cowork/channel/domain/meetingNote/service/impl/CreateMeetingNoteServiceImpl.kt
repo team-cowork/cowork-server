@@ -21,7 +21,7 @@ class CreateMeetingNoteServiceImpl(
 ) : CreateMeetingNoteService {
 
     override fun createNote(userId: Long, channelId: Long, request: CreateMeetingNoteRequest): MeetingNoteResponse {
-        meetingNoteAccessGuard.requireChannelMember(channelId, userId)
+        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
         val template = templateRepository.findById(request.templateId).orElseThrow {
             ExpectedException("템플릿을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         }

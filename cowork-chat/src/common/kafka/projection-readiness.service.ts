@@ -60,19 +60,19 @@ export const PROJECTION_STREAMS = {
         expectedSource: 'cowork-project',
         sourceGeneration: sourceGeneration('PROJECT'),
     },
-    channelMember: {
-        name: 'channelMember',
-        topic: 'channel.member.event.v2',
-        groupId: 'cowork-chat-membership-v2-projection',
+    dmParticipant: {
+        name: 'dmParticipant',
+        topic: 'channel.dm-participant.state.v1',
+        groupId: 'cowork-chat-dm-participant-v1-projection',
         expectedSource: 'cowork-channel',
-        sourceGeneration: sourceGeneration('CHANNEL_MEMBER'),
+        sourceGeneration: sourceGeneration('DM_PARTICIPANT'),
     },
-    projectMember: {
-        name: 'projectMember',
-        topic: 'project.member.event.v2',
-        groupId: 'cowork-chat-project-member-event-v2-projection',
-        expectedSource: 'cowork-project',
-        sourceGeneration: sourceGeneration('PROJECT_MEMBER'),
+    projectPermission: {
+        name: 'projectPermission',
+        topic: 'preference.project-access.state.v1',
+        groupId: 'cowork-chat-project-permission-v1-projection',
+        expectedSource: 'cowork-preference',
+        sourceGeneration: sourceGeneration('PROJECT_PERMISSION'),
     },
     projectGithubRepo: {
         name: 'projectGithubRepo',
@@ -101,6 +101,13 @@ export const PROJECTION_STREAMS = {
         groupId: 'cowork-chat-channel-role-policy-state-v2-projection',
         expectedSource: 'cowork-preference',
         sourceGeneration: sourceGeneration('CHANNEL_ROLE_POLICY'),
+    },
+    textChannelSetting: {
+        name: 'textChannelSetting',
+        topic: 'preference.text-channel-setting.state.v1',
+        groupId: 'cowork-chat-text-channel-setting-state-v1-projection',
+        expectedSource: 'cowork-preference',
+        sourceGeneration: sourceGeneration('TEXT_CHANNEL_SETTING'),
     },
     userProfile: {
         name: 'userProfile',
