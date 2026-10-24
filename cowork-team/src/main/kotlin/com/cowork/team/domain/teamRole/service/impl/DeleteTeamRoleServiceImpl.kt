@@ -31,6 +31,7 @@ class DeleteTeamRoleServiceImpl(
         teamRoleAccessGuard.lockTeamOrThrow(teamId)
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
         val role = teamRoleLookupSupport.findRoleOrThrow(teamId, roleId)
+        teamRoleAccessGuard.requireCustomRole(role)
         teamRoleAccessGuard.requireManageablePriority(actor, role)
     }
 }

@@ -26,11 +26,7 @@ class WebhookAccessGuard(
         if (channel.type != ChannelType.TEXT) {
             throw ExpectedException("TEXT 채널에서만 웹훅을 사용할 수 있습니다.", HttpStatus.BAD_REQUEST)
         }
-        if (channel.createdBy != userId &&
-            !teamPermissionService.isTeamOwnerOrAdmin(channelAccessGuard.requireTeamChannel(channel), userId)
-        ) {
-            throw ExpectedException("웹훅 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
-        }
+        teamPermissionService.requireChannelPermission(channel, userId, "channel_manage")
         return channel
     }
 }

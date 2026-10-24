@@ -13,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional
 class UpdateThreadServiceImpl(
     private val threadRepository: ThreadRepository,
     private val channelAccessGuard: ChannelAccessGuard,
@@ -24,6 +23,7 @@ class UpdateThreadServiceImpl(
         ExpectedException("스레드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
     }
 
+    @Transactional
     override fun updateThread(
         userId: Long,
         channelId: Long,
@@ -36,15 +36,9 @@ class UpdateThreadServiceImpl(
             throw ExpectedException("해당 채널의 스레드가 아닙니다.", HttpStatus.BAD_REQUEST)
         }
 
-        val isThreadCreator = thread.createdBy == userId
-        val isChannelCreator = channel.createdBy == userId
-        val isTeamManager = teamPermissionService.isTeamOwnerOrAdmin(
-            channelAccessGuard.requireTeamChannel(channel),
-            userId,
-        )
-
-        if (!isThreadCreator && !isChannelCreator && !isTeamManager) {
-            throw ExpectedException("스레드 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        teamPermissionService.requireChannelAccess(channel, userId)
+        if (thread.createdBy != userId) {
+            teamPermissionService.requireChannelPermission(channel, userId, "channel_manage")
         }
 
         thread.update(request.name, request.isArchived)

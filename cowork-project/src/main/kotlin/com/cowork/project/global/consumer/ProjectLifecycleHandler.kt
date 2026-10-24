@@ -3,6 +3,8 @@ package com.cowork.project.global.consumer
 import com.cowork.project.domain.github.service.ProjectGithubRepoDeletionSupport
 import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
+import com.cowork.project.domain.membership.projection.TeamRoleMemberTombstone
+import com.cowork.project.domain.membership.projection.TeamRoleMemberTombstoneRepository
 import com.cowork.project.domain.project.event.ProjectEventPublisher
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.global.projection.toProjectionPrecision
@@ -17,22 +19,23 @@ class ProjectLifecycleHandler(
     private val teamMembershipRepository: TeamMembershipRepository,
     private val projectEventPublisher: ProjectEventPublisher,
     private val repoDeletionSupport: ProjectGithubRepoDeletionSupport,
+    private val memberFences: TeamRoleMemberTombstoneRepository,
 ) {
     private val log = LoggerFactory.getLogger(ProjectLifecycleHandler::class.java)
 
     @Transactional
-    fun onMemberUpsert(teamId: Long, userId: Long, role: String, occurredAt: Instant) {
+    fun onMemberUpsert(teamId: Long, userId: Long, role: String, occurredAt: Instant, authorizationVersion: Instant? = null) {
         val version = occurredAt.toProjectionPrecision()
         val membership = teamMembershipRepository.findStateByTeamIdAndUserIdForUpdate(teamId, userId)
             ?: TeamMembership(teamId = teamId, userId = userId, role = role, sourceOccurredAt = version)
         val existingVersion = membership.sourceOccurredAt.toProjectionPrecision()
         if (existingVersion.isAfter(version) ||
-            (existingVersion == version && !membership.active)
+            (existingVersion == version && (!membership.active || membership.role != role))
         ) {
             return
         }
 
-        membership.applyUpsert(role, version)
+        membership.applyUpsert(role, version, authorizationVersion?.toProjectionPrecision())
         teamMembershipRepository.save(membership)
         log.info("team.member UPSERT 처리 [teamId={}, userId={}, role={}]", teamId, userId, role)
     }
@@ -57,8 +60,13 @@ class ProjectLifecycleHandler(
     }
 
     @Transactional
-    fun onMemberRemovedFromTeam(teamId: Long, targetUserId: Long, role: String, occurredAt: Instant) {
+    fun onMemberRemovedFromTeam(teamId: Long, targetUserId: Long, role: String, occurredAt: Instant, authorizationVersion: Instant? = null) {
         val version = occurredAt.toProjectionPrecision()
+        val fenceKey = TeamRoleMemberTombstone.key(teamId, targetUserId)
+        val fence = memberFences.findById(fenceKey).orElse(null)
+        if (fence == null || version.isAfter(fence.sourceOccurredAt)) {
+            memberFences.save(TeamRoleMemberTombstone(fenceKey, teamId, targetUserId, version))
+        }
         val membership = teamMembershipRepository.findStateByTeamIdAndUserIdForUpdate(teamId, targetUserId)
             ?: TeamMembership(
                 teamId = teamId,
@@ -68,27 +76,10 @@ class ProjectLifecycleHandler(
                 sourceOccurredAt = version,
             )
         val existingVersion = membership.sourceOccurredAt.toProjectionPrecision()
-        if (existingVersion.isAfter(version) ||
-            (existingVersion == version && !membership.active)
-        ) {
-            return
-        }
-        membership.markDeleted(version)
+        if (existingVersion.isAfter(version)) return
+        membership.markDeleted(version, authorizationVersion?.toProjectionPrecision())
         teamMembershipRepository.save(membership)
 
-        val teamProjects = projectRepository.findAllByTeamIdForUpdate(teamId)
-        if (teamProjects.isEmpty()) return
-        val ownedProjects = teamProjects.filter { it.createdBy == targetUserId }
-        if (ownedProjects.isNotEmpty()) {
-            repoDeletionSupport.deleteByProjectIds(ownedProjects.map { it.id }, version)
-            ownedProjects.forEach { projectEventPublisher.publishDeleted(it, version) }
-            projectRepository.deleteAll(ownedProjects)
-        }
-        log.info(
-            "MEMBER_REMOVED 처리 [teamId={}, userId={}, ownerProjectsDeleted={}]",
-            teamId,
-            targetUserId,
-            ownedProjects.size,
-        )
+        log.info("Remove team membership [teamId={}, userId={}]", teamId, targetUserId)
     }
 }

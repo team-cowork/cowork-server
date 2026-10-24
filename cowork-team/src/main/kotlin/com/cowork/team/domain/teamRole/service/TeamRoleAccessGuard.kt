@@ -38,18 +38,42 @@ class TeamRoleAccessGuard(
         }
     }
 
-    fun requireManageRoles(teamId: Long, userId: Long): ManageRoleContext {
+    fun requireManageRoles(teamId: Long, userId: Long): ManageRoleContext =
+        requirePermission(teamId, userId, TeamRolePermissionSchema.MANAGE_ROLES, "역할 관리 권한이 없습니다.")
+
+    /** OWNER와 ADMIN은 모든 권한을 가지며, 그 외 멤버는 부여받은 역할 중 하나라도 권한을 허용해야 한다. */
+    fun requirePermission(teamId: Long, userId: Long, permission: String, deniedMessage: String): ManageRoleContext {
         val member = findMemberOrThrow(teamId, userId)
         if (member.role == TeamRole.OWNER || member.role == TeamRole.ADMIN) {
             return ManageRoleContext(member, emptyList())
         }
 
         val roles = teamRoleProjectionReader.getMemberRoles(teamId, userId)
-        if (roles.any { it.permissions[TeamRolePermissionSchema.MANAGE_ROLES] == true }) {
+        if (roles.any { it.permissions[permission] == true }) {
             return ManageRoleContext(member, roles)
         }
 
-        throw ExpectedException("역할 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        throw ExpectedException(deniedMessage, HttpStatus.FORBIDDEN)
+    }
+
+    fun requireGrantablePermissions(actor: ManageRoleContext, permissions: Map<String, Boolean>) {
+        if (actor.member.role == TeamRole.OWNER || actor.member.role == TeamRole.ADMIN) return
+        val allowed = actor.roles.flatMap { it.permissions.filterValues { value -> value }.keys }.toSet()
+        if (permissions.any { (key, value) -> value && key !in allowed }) {
+            throw ExpectedException("자신이 보유하지 않은 권한은 부여할 수 없습니다.", HttpStatus.FORBIDDEN)
+        }
+    }
+
+    fun requireCustomRole(role: TeamRoleResponse) {
+        if (role.isDefault) throw ExpectedException("기본 역할은 삭제하거나 직접 할당 및 해제할 수 없습니다.", HttpStatus.BAD_REQUEST)
+    }
+
+    fun requireDefaultRoleIdentity(role: TeamRoleResponse, name: String?, priority: Int?) {
+        if (role.isDefault &&
+            ((name != null && name != role.name) || (priority != null && priority != role.priority))
+        ) {
+            throw ExpectedException("기본 역할의 이름과 우선순위는 변경할 수 없습니다.", HttpStatus.BAD_REQUEST)
+        }
     }
 
     fun requireManageablePriority(actor: ManageRoleContext, role: TeamRoleResponse) {

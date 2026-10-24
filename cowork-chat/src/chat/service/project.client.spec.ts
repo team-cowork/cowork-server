@@ -13,7 +13,9 @@ describe('ProjectClient project read permission', () => {
         service = new ProjectClient(permission as never, {} as never, projects as never, members as never, readiness as never);
         readiness.isReady.mockReturnValue(true);
         projects.findById.mockResolvedValue({projectId: 7, teamId: 3, createdBy: 1});
-        members.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 3, userId: 217, role: 'MEMBER'}]);
+        members.findByTeamIdsAndUserIds.mockResolvedValue([{
+            teamId: 3, userId: 217, role: 'MEMBER', sourceVersion: 1000n,
+        }]);
         permission.canRead.mockResolvedValue(false);
     });
 
@@ -33,8 +35,60 @@ describe('ProjectClient project read permission', () => {
         expect(permission.canRead).not.toHaveBeenCalled();
     });
 
-    it('keeps project creator access for an active team member', async () => {
+    it('requires permission even for the project creator', async () => {
         projects.findById.mockResolvedValue({projectId: 7, teamId: 3, createdBy: 217});
+        await expect(service.canRead(7, 217)).resolves.toBe(false);
+    });
+
+    it('binds a project grant to the active membership version after rejoining', async () => {
+        permission.canRead.mockImplementation(async (_projectId, _userId, sourceVersion) => sourceVersion === 1000n);
+        await expect(service.canRead(7, 217)).resolves.toBe(true);
+        members.findByTeamIdsAndUserIds.mockResolvedValue([{
+            teamId: 3, userId: 217, role: 'MEMBER', sourceVersion: 2000n,
+        }]);
+        await expect(service.canRead(7, 217)).resolves.toBe(false);
+        expect(permission.canRead).toHaveBeenLastCalledWith(7, 217, 2000n);
+    });
+
+    it('preserves a project grant when only the member nickname version changes', async () => {
+        permission.canRead.mockImplementation(async (_projectId, _userId, authorizationVersion) => authorizationVersion === 1000n);
+        members.findByTeamIdsAndUserIds.mockResolvedValue([{
+            teamId: 3, userId: 217, role: 'MEMBER', sourceVersion: 2000n, authorizationVersion: 1000n,
+        }]);
+
+        await expect(service.canRead(7, 217)).resolves.toBe(true);
+        expect(permission.canRead).toHaveBeenCalledWith(7, 217, 1000n);
+    });
+
+    it('rejects a grant for the previous authorization after a role change or rejoin', async () => {
+        permission.canRead.mockImplementation(async (_projectId, _userId, authorizationVersion) => authorizationVersion === 1000n);
+        members.findByTeamIdsAndUserIds.mockResolvedValue([{
+            teamId: 3, userId: 217, role: 'MEMBER', sourceVersion: 3000n, authorizationVersion: 2000n,
+        }]);
+
+        await expect(service.canRead(7, 217)).resolves.toBe(false);
+        expect(permission.canRead).toHaveBeenCalledWith(7, 217, 2000n);
+    });
+
+    it('uses the original membership fence while the explicit authorization stamp is unknown', async () => {
+        members.findByTeamIdsAndUserIds.mockResolvedValue([{
+            teamId: 3, userId: 217, role: 'MEMBER', sourceVersion: 1000n, authorizationVersion: null,
+        }]);
+        permission.canRead.mockImplementation(async (_projectId, _userId, authorizationVersion) => authorizationVersion === 1000n);
+
+        await expect(service.canRead(7, 217)).resolves.toBe(true);
+        expect(permission.canRead).toHaveBeenCalledWith(7, 217, 1000n);
+    });
+
+    it('denies legacy membership without its source version', async () => {
+        members.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 3, userId: 217, role: 'MEMBER'}]);
+        permission.canRead.mockResolvedValue(true);
+        await expect(service.canRead(7, 217)).resolves.toBe(false);
+        expect(permission.canRead).not.toHaveBeenCalled();
+    });
+
+    it.each(['OWNER', 'ADMIN'])('allows active built-in %s without a separate grant', async role => {
+        members.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 3, userId: 217, role}]);
         await expect(service.canRead(7, 217)).resolves.toBe(true);
     });
 

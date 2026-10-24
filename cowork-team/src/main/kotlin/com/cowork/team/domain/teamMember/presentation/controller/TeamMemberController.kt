@@ -1,8 +1,10 @@
 package com.cowork.team.domain.teamMember.presentation.controller
 
 import com.cowork.team.domain.teamInvite.presentation.data.request.InviteMembersRequest
+import com.cowork.team.domain.teamMember.presentation.data.request.ChangeNicknameRequest
 import com.cowork.team.domain.teamMember.presentation.data.request.ChangeRoleRequest
 import com.cowork.team.domain.teamMember.presentation.data.response.TeamMemberResponse
+import com.cowork.team.domain.teamMember.service.ChangeTeamMemberNicknameService
 import com.cowork.team.domain.teamMember.service.ChangeTeamMemberRoleService
 import com.cowork.team.domain.teamMember.service.InviteTeamMembersService
 import com.cowork.team.domain.teamMember.service.QueryTeamMembersService
@@ -16,13 +18,14 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 
-@Tag(name = "팀 멤버", description = "팀 멤버 초대/조회/역할 변경/추방 API")
+@Tag(name = "팀 멤버", description = "팀 멤버 초대/조회/역할 변경/닉네임 변경/추방 API")
 @RestController
 @RequestMapping("/teams/{teamId}/members")
 class TeamMemberController(
     private val inviteTeamMembersService: InviteTeamMembersService,
     private val queryTeamMembersService: QueryTeamMembersService,
     private val changeTeamMemberRoleService: ChangeTeamMemberRoleService,
+    private val changeTeamMemberNicknameService: ChangeTeamMemberNicknameService,
     private val removeTeamMemberService: RemoveTeamMemberService,
 ) {
 
@@ -65,6 +68,27 @@ class TeamMemberController(
         @RequestBody request: ChangeRoleRequest,
     ) {
         changeTeamMemberRoleService.execute(userId, teamId, targetUserId, request)
+    }
+
+    @Operation(
+        summary = "멤버 팀 닉네임 변경",
+        description = "다른 멤버의 닉네임은 manage_nicknames 권한이 필요하며, OWNER의 닉네임은 본인만 변경합니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "변경 성공"),
+        ApiResponse(responseCode = "400", description = "닉네임 길이 초과"),
+        ApiResponse(responseCode = "403", description = "권한 없음"),
+        ApiResponse(responseCode = "404", description = "멤버 없음"),
+    )
+    @PatchMapping("/{targetUserId}/nickname")
+    fun changeNickname(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable teamId: Long,
+        @PathVariable targetUserId: Long,
+        @RequestBody request: ChangeNicknameRequest,
+    ) {
+        changeTeamMemberNicknameService.execute(userId, teamId, targetUserId, request)
     }
 
     @Operation(summary = "멤버 추방 / 탈퇴", security = [SecurityRequirement(name = "BearerAuth")])
