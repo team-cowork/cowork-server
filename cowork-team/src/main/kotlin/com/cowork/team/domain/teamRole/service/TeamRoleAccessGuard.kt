@@ -56,6 +56,26 @@ class TeamRoleAccessGuard(
         throw ExpectedException(deniedMessage, HttpStatus.FORBIDDEN)
     }
 
+    fun requireGrantablePermissions(actor: ManageRoleContext, permissions: Map<String, Boolean>) {
+        if (actor.member.role == TeamRole.OWNER || actor.member.role == TeamRole.ADMIN) return
+        val allowed = actor.roles.flatMap { it.permissions.filterValues { value -> value }.keys }.toSet()
+        if (permissions.any { (key, value) -> value && key !in allowed }) {
+            throw ExpectedException("자신이 보유하지 않은 권한은 부여할 수 없습니다.", HttpStatus.FORBIDDEN)
+        }
+    }
+
+    fun requireCustomRole(role: TeamRoleResponse) {
+        if (role.isDefault) throw ExpectedException("기본 역할은 삭제하거나 직접 할당 및 해제할 수 없습니다.", HttpStatus.BAD_REQUEST)
+    }
+
+    fun requireDefaultRoleIdentity(role: TeamRoleResponse, name: String?, priority: Int?) {
+        if (role.isDefault &&
+            ((name != null && name != role.name) || (priority != null && priority != role.priority))
+        ) {
+            throw ExpectedException("기본 역할의 이름과 우선순위는 변경할 수 없습니다.", HttpStatus.BAD_REQUEST)
+        }
+    }
+
     fun requireManageablePriority(actor: ManageRoleContext, role: TeamRoleResponse) {
         if (actor.member.role == TeamRole.OWNER || actor.member.role == TeamRole.ADMIN) {
             return

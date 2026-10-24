@@ -9,6 +9,7 @@ data class TeamMemberEvent(
     val userId: Long,
     val role: String,
     val occurredAt: Instant,
+    val authorizationVersion: Instant? = null,
 )
 
 enum class TeamMemberCleanupScope {
@@ -45,7 +46,15 @@ object TeamMemberEventParser {
         val occurredAt = runCatching { Instant.parse(occurredAtValue) }
             .getOrElse { error("occurredAt must be an RFC3339 instant") }
 
-        val event = TeamMemberEvent(eventType, teamId, userId, role, occurredAt)
+        // TODO(#596): 2026-11-01 05:00 KST 이후 구형 producer/재처리 종료와 snapshot 보정 확인 후 누락 허용 제거.
+        // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+        val authorizationVersion = payload.getValue("authorizationVersion")?.let { value ->
+            require(value is String) { "authorizationVersion must be an RFC3339 string" }
+            Instant.parse(value).also {
+                require(it > Instant.EPOCH && it <= occurredAt) { "authorizationVersion is outside the event version" }
+            }
+        }
+        val event = TeamMemberEvent(eventType, teamId, userId, role, occurredAt, authorizationVersion)
         TeamMemberRecordDecision.Apply(event)
     }.getOrElse { error ->
         TeamMemberRecordDecision.Quarantine(error.message ?: "invalid team member record")

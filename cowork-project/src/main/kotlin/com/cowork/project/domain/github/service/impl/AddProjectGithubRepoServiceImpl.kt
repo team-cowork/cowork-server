@@ -26,7 +26,7 @@ class AddProjectGithubRepoServiceImpl(
     @Transactional
     override fun execute(userId: Long, projectId: Long, request: AddProjectGithubRepoReqDto): ProjectGithubRepoResDto {
         val project = projectAccessGuard.findProjectForUpdateOrThrow(projectId)
-        projectAccessGuard.requireProjectModifier(project, userId)
+        projectAccessGuard.requireGithubManager(project, userId)
 
         val ref = GithubRepoUrlParser.parse(request.githubRepoUrl)
             ?: throw ExpectedException("유효하지 않은 GitHub 레포지토리 URL입니다.", HttpStatus.BAD_REQUEST)
