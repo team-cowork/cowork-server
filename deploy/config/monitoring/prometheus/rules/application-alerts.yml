@@ -235,7 +235,28 @@ groups:
           severity: warning
         annotations:
           summary: "Kafka 메시지 처리 지연"
-          description: "컨슈머 그룹 {{ $labels.consumergroup }}의 소비 대기 메시지가 5분 동안 1,000건을 초과했습니다."
+          description: "컨슈머 그룹 {{ $labels.consumergroup }}의 소비 지연이 5분 동안 1,000 오프셋을 초과했습니다."
+
+      # offset은 gauge이며, 파티션별로 비교해야 다른 파티션의 진행이 정체를 가리지 않는다.
+      - alert: coworkChatKafkaConsumerStalled
+        expr: |
+          kafka_consumergroup_lag{service="kafka",consumergroup=~"cowork-chat(|-.*)"} > 0
+          and changes(kafka_consumergroup_current_offset{service="kafka",consumergroup=~"cowork-chat(|-.*)"}[5m]) == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Chat Kafka 소비 오프셋 정체"
+          description: "컨슈머 그룹 {{ $labels.consumergroup }}의 {{ $labels.topic }} 파티션 {{ $labels.partition }}에 지연이 남아 있고 최근 5분간 커밋 오프셋 변화가 없는 상태가 5분 더 지속됐습니다. 현재 지연은 {{ $value }}입니다."
+
+      - alert: coworkChatKafkaConsumerEmpty
+        expr: kafka_consumergroup_members{service="kafka",consumergroup=~"cowork-chat(|-.*)"} == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Chat Kafka 컨슈머 부재"
+          description: "컨슈머 그룹 {{ $labels.consumergroup }}에 5분 동안 활성 멤버가 없습니다. Chat 배포 버전과 컨슈머 시작 로그를 확인해 주세요."
 
   - name: cowork-datasource
     rules:
