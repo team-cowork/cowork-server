@@ -12,6 +12,8 @@ data class TeamMemberResponse(
     val userId: Long,
     @field:Schema(description = "역할", example = "MEMBER", allowableValues = ["OWNER", "ADMIN", "MEMBER"])
     val role: String,
+    @field:Schema(description = "팀 닉네임. null이면 계정 닉네임을 사용합니다.", example = "홍길동 / 프론트엔드")
+    val nickname: String?,
     @field:Schema(description = "커스텀 역할 목록")
     val roles: List<TeamRoleResponse> = emptyList(),
     @field:Schema(description = "가입 일시")
@@ -23,6 +25,7 @@ data class TeamMemberResponse(
                 id = member.id,
                 userId = member.userId,
                 role = member.role.name,
+                nickname = member.nickname,
                 roles = roles,
                 joinedAt = requireNotNull(member.joinedAt),
             )

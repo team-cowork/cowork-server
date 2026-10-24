@@ -14,6 +14,7 @@ import {parseEventTime} from '../../common/util/event-time.util';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
 import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
 import {ProjectGithubRepoProjectionRepository} from '../repository';
+import {connectWithRetry} from '../../common/kafka/connect-with-retry';
 
 type ProjectGithubRepoEvent = {
     schemaVersion: 1;
@@ -48,9 +49,11 @@ export class ProjectGithubRepoEventConsumer implements OnModuleInit, OnModuleDes
         });
         const stream = PROJECTION_STREAMS.projectGithubRepo;
         this.consumer = kafka.consumer({groupId: stream.groupId});
-        await this.consumer.connect();
-        await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
-        await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+        await connectWithRetry(this.logger, `Kafka consumer startup: ${stream.topic}`, async () => {
+            await this.consumer.connect();
+            await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
+            await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+        });
 
         void this.consumer.run({
             eachMessage: async ({partition, message}): Promise<void> => {

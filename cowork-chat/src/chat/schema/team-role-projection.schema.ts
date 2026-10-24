@@ -9,6 +9,7 @@ export class TeamRoleProjection {
     @Prop({required: true}) roleId!: number;
     @Prop({required: true, default: ''}) name!: string;
     @Prop({required: true, default: 0}) priority!: number;
+    @Prop({required: true, default: false}) isDefault!: boolean;
     @Prop({required: true, type: Object, default: {}}) permissions!: Record<string, boolean>;
     @Prop({required: true, default: false}) deleted!: boolean;
     @Prop({required: true, type: Date}) sourceOccurredAt!: Date;
@@ -18,3 +19,4 @@ export class TeamRoleProjection {
 export const TeamRoleProjectionSchema = SchemaFactory.createForClass(TeamRoleProjection);
 TeamRoleProjectionSchema.index({teamId: 1, roleId: 1}, {unique: true});
 TeamRoleProjectionSchema.index({roleId: 1, deleted: 1});
+TeamRoleProjectionSchema.index({teamId: 1, isDefault: 1, deleted: 1});

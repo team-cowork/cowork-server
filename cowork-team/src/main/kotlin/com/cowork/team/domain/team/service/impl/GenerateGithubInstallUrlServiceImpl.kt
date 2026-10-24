@@ -4,7 +4,6 @@ import com.cowork.team.domain.team.presentation.data.response.GithubInstallUrlRe
 import com.cowork.team.domain.team.service.GenerateGithubInstallUrlService
 import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.team.service.support.TeamGithubStateSupport
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.global.config.TeamGithubProperties
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -23,7 +22,7 @@ class GenerateGithubInstallUrlServiceImpl(
     @Transactional(readOnly = true)
     override fun execute(userId: Long, teamId: Long): GithubInstallUrlResponse {
         // 팀 전체에 영향을 주는 GitHub 연동은 연결 해제(OWNER/ADMIN)와 동일한 권한을 요구한다.
-        teamAccessGuard.requireRole(teamId, userId, TeamRole.OWNER, TeamRole.ADMIN)
+        teamAccessGuard.requirePermission(teamId, userId, "manage_github")
         val state = teamGithubStateSupport.buildState(teamId, userId)
         val installUrl = "https://github.com/apps/${teamGithubProperties.appSlug}/installations/new?state=$state"
         return GithubInstallUrlResponse(installUrl = installUrl)

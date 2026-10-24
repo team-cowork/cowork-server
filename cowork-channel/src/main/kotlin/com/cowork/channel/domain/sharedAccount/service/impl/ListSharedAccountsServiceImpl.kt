@@ -23,7 +23,7 @@ class ListSharedAccountsServiceImpl(
     override fun listAccounts(userId: Long, channelId: Long): List<SharedAccountResponse> {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         sharedAccountAccessGuard.requireAccountShareChannel(channel)
-        teamPermissionService.requireTeamMember(channelAccessGuard.requireTeamChannel(channel), userId)
+        teamPermissionService.requireChannelAccess(channel, userId)
         return sharedAccountRepository.findAllByChannelIdOrderByCreatedAtAscIdAsc(channelId)
             .map { lookupSupport.toResponse(it, listOnly = true) }
     }

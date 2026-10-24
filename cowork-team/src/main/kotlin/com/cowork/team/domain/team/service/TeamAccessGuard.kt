@@ -13,7 +13,11 @@ import team.themoment.sdk.exception.ExpectedException
 class TeamAccessGuard(
     private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
+    private val permissions: TeamPermissionGuard,
 ) {
+
+    fun requirePermission(teamId: Long, userId: Long, permission: String): TeamMember =
+        permissions.requirePermission(teamId, userId, permission)
 
     fun findTeamOrThrow(teamId: Long): Team = teamRepository.findById(teamId).orElseThrow {
         ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)

@@ -13,47 +13,37 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/cowork/cowork-voice/internal/apperr"
+	"github.com/cowork/cowork-voice/internal/domain/permission"
 )
 
-func GenerateToken(apiKey, apiSecret string, userID int64, roomName string, ttlSecs int64) (string, error) {
-	identity := strconv.FormatInt(userID, 10)
-	at := auth.NewAccessToken(apiKey, apiSecret)
-	grant := &auth.VideoGrant{
-		RoomJoin: true,
-		Room:     roomName,
-	}
-	at.SetVideoGrant(grant).
-		SetIdentity(identity).
-		SetName(identity).
-		SetValidFor(time.Duration(ttlSecs) * time.Second)
-	token, err := at.ToJWT()
-	if err != nil {
-		return "", apperr.Internal(err.Error())
-	}
-	return token, nil
+func GenerateToken(apiKey, apiSecret string, userID int64, roomName string, speak, screenShare bool, ttlSecs int64) (string, error) {
+	return generateToken(apiKey, apiSecret, userID, roomName, speak, screenShare, false, ttlSecs)
 }
 
-// GenerateLiveToken은 라이브 방송용 토큰을 발급한다.
-// 호스트는 마이크·화면공유 publish가 허용되고, 시청자는 subscribe 전용이다(서버 강제).
-func GenerateLiveToken(apiKey, apiSecret string, userID int64, roomName string, isHost bool, ttlSecs int64) (string, error) {
+func GenerateLiveToken(apiKey, apiSecret string, userID int64, roomName string, speak, screenShare bool, ttlSecs int64) (string, error) {
+	return generateToken(apiKey, apiSecret, userID, roomName, speak, screenShare, true, ttlSecs)
+}
+
+func generateToken(apiKey, apiSecret string, userID int64, roomName string, speak, screenShare, liveRoom bool, ttlSecs int64) (string, error) {
 	identity := strconv.FormatInt(userID, 10)
 	at := auth.NewAccessToken(apiKey, apiSecret)
-	grant := &auth.VideoGrant{
-		RoomJoin: true,
-		Room:     roomName,
+	grant := &auth.VideoGrant{RoomJoin: true, Room: roomName}
+	media := permission.MediaAccessFor(true, speak, screenShare, liveRoom)
+	grant.SetCanSubscribe(media.Subscribe)
+	grant.SetCanPublishData(media.PublishData)
+	sources := []livekit.TrackSource{}
+	if media.Microphone {
+		sources = append(sources, livekit.TrackSource_MICROPHONE)
 	}
-	grant.SetCanSubscribe(true)
-	if isHost {
-		// CanPublishSources는 CanPublish=true일 때만 유효하다. 카메라는 스펙상 제외.
-		grant.SetCanPublish(true)
-		grant.SetCanPublishSources([]livekit.TrackSource{
-			livekit.TrackSource_MICROPHONE,
-			livekit.TrackSource_SCREEN_SHARE,
-			livekit.TrackSource_SCREEN_SHARE_AUDIO,
-		})
-	} else {
-		grant.SetCanPublish(false)
+	if media.ScreenShare {
+		sources = append(sources, livekit.TrackSource_SCREEN_SHARE, livekit.TrackSource_SCREEN_SHARE_AUDIO)
 	}
+	if media.Camera {
+		sources = append(sources, livekit.TrackSource_CAMERA)
+	}
+	// An empty source list alone permits every source in LiveKit.
+	grant.SetCanPublish(len(sources) > 0)
+	grant.SetCanPublishSources(sources)
 	at.SetVideoGrant(grant).
 		SetIdentity(identity).
 		SetName(identity).

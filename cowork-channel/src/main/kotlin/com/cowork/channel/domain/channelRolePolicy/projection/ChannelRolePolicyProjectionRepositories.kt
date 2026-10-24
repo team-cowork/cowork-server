@@ -3,6 +3,8 @@ package com.cowork.channel.domain.channelRolePolicy.projection
 import org.springframework.data.jpa.repository.JpaRepository
 
 interface TeamRoleProjectionRepository : JpaRepository<TeamRoleProjection, Long> {
+    fun findAllByTeamIdAndIsDefaultTrueAndDeletedFalse(teamId: Long): List<TeamRoleProjection>
+
     fun findAllByTeamIdAndRoleIdInAndDeletedFalse(teamId: Long, roleIds: Set<Long>): List<TeamRoleProjection>
 }
 
