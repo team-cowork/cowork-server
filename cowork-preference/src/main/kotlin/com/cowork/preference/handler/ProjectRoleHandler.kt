@@ -81,7 +81,7 @@ class ProjectRoleHandler(
         }
         val requester = requesterOrReject(ctx) ?: return
         scope.launch(ctx.vertx().dispatcher()) {
-            if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireRoleRemoval(projectId, requester, roleName) }) return@launch
+            if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireRoleDeletion(projectId, requester, roleName) }) return@launch
             service.deleteRole(projectId, roleName)
                 .onSuccess { ctx.response().setStatusCode(204).end() }
                 .onFailure { e ->
@@ -133,8 +133,7 @@ class ProjectRoleHandler(
             return
         }
         scope.launch(ctx.vertx().dispatcher()) {
-            if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireRoleAssignment(projectId, requester, roleName) }) return@launch
-            if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireTeamMember(projectId, accountId) }) return@launch
+            if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireRoleAssignment(projectId, requester, roleName, accountId) }) return@launch
             service.assignRole(accountId, projectId, roleName)
                 .onSuccess { ctx.response().setStatusCode(204).end() }
                 .onFailure { e ->
@@ -163,7 +162,7 @@ class ProjectRoleHandler(
         }
         val requester = requesterOrReject(ctx) ?: return
         scope.launch(ctx.vertx().dispatcher()) {
-            if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireRoleRemoval(projectId, requester, roleName) }) return@launch
+            if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireRoleRemoval(projectId, requester, roleName, accountId) }) return@launch
             runCatching { service.removeRole(accountId, projectId, roleName) }
                 .onSuccess { ctx.response().setStatusCode(204).end() }
                 .onFailure { ctx.response().setStatusCode(500).end(errorBody(it.message)) }
