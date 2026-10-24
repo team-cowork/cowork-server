@@ -18,7 +18,7 @@ class ListMeetingNoteTemplatesServiceImpl(
 ) : ListMeetingNoteTemplatesService {
 
     override fun listTemplates(userId: Long, channelId: Long): List<MeetingNoteTemplateResponse> {
-        meetingNoteAccessGuard.requireChannelMember(channelId, userId)
+        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
         val templates = templateRepository.findAllByChannelIdOrderByIdAsc(channelId)
         if (templates.isEmpty()) return emptyList()
         val sectionsByTemplateId = sectionRepository

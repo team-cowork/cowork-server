@@ -32,12 +32,12 @@ class ListTeamChannelsServiceImplTest {
             createdBy = 1L,
         )
         every { teamPermissionService.requireTeamMember(10L, 42L) } returns Unit
-        every { channelRepository.findVisibleByTeamIdOrderByPositionAscIdAsc(10L, 42L) } returns listOf(channel)
+        every { channelRepository.findByTeamIdOrderByPositionAscIdAsc(10L) } returns listOf(channel)
         every { evaluator.filterReadable(10L, 42L, listOf(channel)) } returns listOf(channel)
 
         val result = service.execute(42L, 10L)
 
         assertEquals(listOf(1L), result.map { it.id })
-        verify { channelRepository.findVisibleByTeamIdOrderByPositionAscIdAsc(10L, 42L) }
+        verify { channelRepository.findByTeamIdOrderByPositionAscIdAsc(10L) }
     }
 }

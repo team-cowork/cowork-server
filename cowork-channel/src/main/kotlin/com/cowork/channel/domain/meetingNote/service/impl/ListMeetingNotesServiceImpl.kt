@@ -15,7 +15,7 @@ class ListMeetingNotesServiceImpl(
 ) : ListMeetingNotesService {
 
     override fun listNotes(userId: Long, channelId: Long): List<MeetingNoteResponse> {
-        meetingNoteAccessGuard.requireChannelMember(channelId, userId)
+        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
         return meetingNoteRepository.findAllByChannelIdOrderByIdDesc(channelId)
             .map { MeetingNoteResponse.of(it) }
     }

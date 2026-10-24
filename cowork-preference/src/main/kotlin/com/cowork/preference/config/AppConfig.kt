@@ -23,8 +23,8 @@ data class KafkaConfig(
     val channelTopic: String,
     val projectLifecycleConsumerGroupId: String,
     val projectTopic: String,
-    val channelMemberConsumerGroupId: String,
-    val channelMemberTopic: String,
+    val dmParticipantConsumerGroupId: String,
+    val dmParticipantTopic: String,
     val teamRoleCommandConsumerGroupId: String,
     val githubRepoSettingCommandConsumerGroupId: String,
     val channelRolePolicyCommandConsumerGroupId: String,
@@ -105,11 +105,11 @@ data class AppConfig(
                         "cowork-preference-project-lifecycle-projection",
                     ),
                     projectTopic = kafka.getString("project-topic", "project.event.v2"),
-                    channelMemberConsumerGroupId = kafka.getString(
-                        "channel-member-consumer-group-id",
-                        "cowork-preference-channel-member-projection",
+                    dmParticipantConsumerGroupId = kafka.getString(
+                        "dm-participant-consumer-group-id",
+                        "cowork-preference-dm-participant-projection",
                     ),
-                    channelMemberTopic = kafka.getString("channel-member-topic", "channel.member.event.v2"),
+                    dmParticipantTopic = kafka.getString("dm-participant-topic", "channel.dm-participant.state.v1"),
                     teamRoleCommandConsumerGroupId = kafka.getString(
                         "team-role-command-consumer-group-id",
                         "cowork-preference-team-role-command",
