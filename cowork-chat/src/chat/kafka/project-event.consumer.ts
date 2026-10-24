@@ -16,6 +16,7 @@ import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka
 import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
 import {ProjectProjectionRepository} from '../repository';
 import {ChannelMessageReadAccessService} from '../service';
+import {connectWithRetry} from '../../common/kafka/connect-with-retry';
 
 type ProjectEvent = {
     eventType: 'CREATED' | 'UPDATED' | 'DELETED';
@@ -58,9 +59,11 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
         });
         const stream = PROJECTION_STREAMS.project;
         this.consumer = kafka.consumer({groupId: stream.groupId});
-        await this.consumer.connect();
-        await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
-        await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+        await connectWithRetry(this.logger, `Kafka consumer startup: ${stream.topic}`, async () => {
+            await this.consumer.connect();
+            await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
+            await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+        });
 
         void this.consumer
             .run({

@@ -14,6 +14,7 @@ import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
 import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
 import {TextChannelSettingProjectionRepository} from '../repository';
+import {connectWithRetry} from '../../common/kafka/connect-with-retry';
 
 const MAX_SLOWMODE_SECONDS = 21_600;
 
@@ -45,9 +46,11 @@ export class TextChannelSettingEventConsumer implements OnModuleInit, OnModuleDe
         });
         const stream = PROJECTION_STREAMS.textChannelSetting;
         this.consumer = kafka.consumer({groupId: stream.groupId});
-        await this.consumer.connect();
-        await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
-        await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+        await connectWithRetry(this.logger, `Kafka consumer startup: ${stream.topic}`, async () => {
+            await this.consumer.connect();
+            await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
+            await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+        });
 
         void this.consumer.run({
             eachMessage: async ({partition, message}): Promise<void> => {

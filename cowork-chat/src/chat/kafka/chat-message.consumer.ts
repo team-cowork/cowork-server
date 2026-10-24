@@ -12,6 +12,7 @@ import {getOptionalConfig, getRequiredCsvConfig} from '../../common/config/confi
 import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
 import {ChatMessageQuarantineService} from '../service';
+import {connectWithRetry} from '../../common/kafka/connect-with-retry';
 import {
     ChatMessageContractError,
     validateChatMessageEvent,
@@ -77,9 +78,12 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
             clientId: 'cowork-chat-consumer',
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
-        this.consumer = kafka.consumer({groupId: 'cowork-chat'});
-        await this.consumer.connect();
-        await this.consumer.subscribe({topic: CHAT_MESSAGE_TOPIC, fromBeginning: true});
+        const consumer = kafka.consumer({groupId: 'cowork-chat'});
+        this.consumer = consumer;
+        await connectWithRetry(this.logger, `Kafka consumer startup: ${CHAT_MESSAGE_TOPIC}`, async () => {
+            await consumer.connect();
+            await consumer.subscribe({topic: CHAT_MESSAGE_TOPIC, fromBeginning: true});
+        });
         const partitionsConsumedConcurrently = this.resolveConcurrency();
         void this.consumer.run({
             partitionsConsumedConcurrently,

@@ -23,6 +23,7 @@ import {
     projectionTimestampFields,
     PROJECTION_EPOCH,
 } from '../chat/repository/versioned-projection.util';
+import {connectWithRetry} from '../common/kafka/connect-with-retry';
 import {DmParticipantEvent} from './event/dm-participant.event';
 
 @Injectable()
@@ -58,9 +59,11 @@ export class DmParticipantConsumer implements OnModuleInit, OnModuleDestroy {
         });
         const stream = PROJECTION_STREAMS.dmParticipant;
         this.consumer = kafka.consumer({groupId: stream.groupId});
-        await this.consumer.connect();
-        await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
-        await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+        await connectWithRetry(this.logger, `Kafka consumer startup: ${stream.topic}`, async () => {
+            await this.consumer.connect();
+            await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
+            await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+        });
 
         void this.consumer
             .run({

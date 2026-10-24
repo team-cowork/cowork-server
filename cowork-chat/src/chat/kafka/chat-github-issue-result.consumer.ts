@@ -13,6 +13,7 @@ import {getRequiredCsvConfig} from '../../common/config/config.util';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {ChannelMessageReadAccessService} from '../service';
 import {toMessageBroadcastPayload} from '../repository';
+import {connectWithRetry} from '../../common/kafka/connect-with-retry';
 import {ChatGithubIssueCreateResult} from './event/chat-github-issue.event';
 
 /**
@@ -61,8 +62,10 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
             brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
         });
         this.consumer = kafka.consumer({groupId: 'cowork-chat-chat-github-issue-result'});
-        await this.consumer.connect();
-        await this.consumer.subscribe({topic: 'project.chat-github-issue.result', fromBeginning: false});
+        await connectWithRetry(this.logger, 'Kafka consumer startup: project.chat-github-issue.result', async () => {
+            await this.consumer.connect();
+            await this.consumer.subscribe({topic: 'project.chat-github-issue.result', fromBeginning: false});
+        });
 
         void this.consumer
             .run({
