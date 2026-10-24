@@ -16,6 +16,33 @@ import java.time.ZoneOffset
 
 class TeamRoleRepository(private val pool: Pool) {
 
+    // Callers hold PreferenceOutboxOrdering together with lifecycle cleanup and the emitted role state.
+    internal suspend fun ensureDefaultRole(client: SqlClient, teamId: Long): TeamRoleDefinition? {
+        val rows = client.preparedQuery(
+            """
+            INSERT INTO tb_team_role_definitions (team_id, name, color_hex, priority, mentionable, permissions, is_default)
+            SELECT ${'$'}1, '@everyone', '#99AAB5', -2147483648, FALSE, ${'$'}2::jsonb, TRUE
+            WHERE NOT EXISTS (SELECT 1 FROM tb_team_role_domain_tombstones WHERE team_id = ${'$'}1)
+            ON CONFLICT (team_id) WHERE is_default DO NOTHING
+            RETURNING id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at, is_default
+            """.trimIndent(),
+        ).execute(Tuple.of(teamId, TeamRolePermissions.toJson(TeamRolePermissions.everyone()))).coAwait()
+        return rows.firstOrNull()?.toTeamRoleDefinition()
+    }
+
+    internal suspend fun findTeamsMissingDefaultRole(client: SqlClient): List<Long> = client.query(
+        """
+        SELECT DISTINCT m.team_id FROM tb_team_member_projections m
+        WHERE NOT m.deleted
+          AND NOT EXISTS (SELECT 1 FROM tb_team_role_definitions d WHERE d.team_id = m.team_id AND d.is_default)
+          AND NOT EXISTS (SELECT 1 FROM tb_team_role_domain_tombstones t WHERE t.team_id = m.team_id)
+        ORDER BY m.team_id
+        """.trimIndent(),
+    ).execute().coAwait().map { it.getLong("team_id") }
+
+    suspend fun hasPermission(teamId: Long, accountId: Long, permission: String): Boolean =
+        findAccountRoles(pool, teamId, accountId).any { it.permissions[permission] == true }
+
     internal suspend fun isTeamDeleted(client: SqlClient, teamId: Long): Boolean {
         val rows = client.preparedQuery(
             "SELECT EXISTS (SELECT 1 FROM tb_team_role_domain_tombstones WHERE team_id = \$1) AS deleted",
@@ -42,7 +69,7 @@ class TeamRoleRepository(private val pool: Pool) {
     internal suspend fun findRoles(client: SqlClient, teamId: Long): List<TeamRoleDefinition> {
         val rows = client.preparedQuery(
             """
-            SELECT id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at
+            SELECT id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at, is_default
             FROM tb_team_role_definitions
             WHERE team_id = ${'$'}1
             ORDER BY priority DESC, id ASC
@@ -56,7 +83,7 @@ class TeamRoleRepository(private val pool: Pool) {
     internal suspend fun findRole(client: SqlClient, teamId: Long, roleId: Long): TeamRoleDefinition? {
         val rows = client.preparedQuery(
             """
-            SELECT id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at
+            SELECT id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at, is_default
             FROM tb_team_role_definitions
             WHERE team_id = ${'$'}1 AND id = ${'$'}2
             """,
@@ -69,7 +96,7 @@ class TeamRoleRepository(private val pool: Pool) {
     internal suspend fun findRoleByName(client: SqlClient, teamId: Long, name: String): TeamRoleDefinition? {
         val rows = client.preparedQuery(
             """
-            SELECT id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at
+            SELECT id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at, is_default
             FROM tb_team_role_definitions
             WHERE team_id = ${'$'}1 AND name = ${'$'}2
             """,
@@ -88,9 +115,10 @@ class TeamRoleRepository(private val pool: Pool) {
     ): TeamRoleDefinition? {
         val rows = client.preparedQuery(
             """
-            SELECT id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at
+            SELECT id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at, is_default
             FROM tb_team_role_definitions
             WHERE team_id = ${'$'}1 AND name = ${'$'}2 AND id <> ${'$'}3
+              AND is_default = (SELECT is_default FROM tb_team_role_definitions WHERE id = ${'$'}3)
             """,
         ).execute(Tuple.of(teamId, name, roleId)).coAwait()
         return rows.firstOrNull()?.toTeamRoleDefinition()
@@ -109,7 +137,7 @@ class TeamRoleRepository(private val pool: Pool) {
             """
             INSERT INTO tb_team_role_definitions (team_id, name, color_hex, priority, mentionable, permissions)
             VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6::jsonb)
-            RETURNING id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at
+            RETURNING id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at, is_default
             """,
         ).execute(
             Tuple.of(teamId, name, colorHex, priority, mentionable, TeamRolePermissions.toJson(permissions)),
@@ -131,7 +159,7 @@ class TeamRoleRepository(private val pool: Pool) {
             UPDATE tb_team_role_definitions
             SET name = ${'$'}1, color_hex = ${'$'}2, priority = ${'$'}3, mentionable = ${'$'}4, permissions = ${'$'}5::jsonb
             WHERE id = ${'$'}6
-            RETURNING id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at
+            RETURNING id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at, is_default
             """,
         ).execute(
             Tuple.of(name, colorHex, priority, mentionable, TeamRolePermissions.toJson(permissions), roleId),
@@ -154,10 +182,12 @@ class TeamRoleRepository(private val pool: Pool) {
         val rows = client.preparedQuery(
             """
             SELECT d.id, d.team_id, d.name, d.color_hex, d.priority, d.mentionable, d.permissions,
-                   d.created_at, d.updated_at
-            FROM tb_account_team_roles a
-            JOIN tb_team_role_definitions d ON d.team_id = a.team_id AND d.id = a.role_id
-            WHERE a.team_id = ${'$'}1 AND a.account_id = ${'$'}2
+                   d.created_at, d.updated_at, d.is_default
+            FROM tb_team_role_definitions d
+            WHERE d.team_id = ${'$'}1 AND (d.is_default OR EXISTS (
+                SELECT 1 FROM tb_account_team_roles a
+                WHERE a.team_id = d.team_id AND a.role_id = d.id AND a.account_id = ${'$'}2
+            ))
             """.trimIndent(),
         ).execute(Tuple.of(teamId, accountId)).coAwait()
         return rows.map { it.toTeamRoleDefinition() }
@@ -198,6 +228,7 @@ class TeamRoleRepository(private val pool: Pool) {
                     color_hex,
                     priority,
                     mentionable,
+                    is_default,
                     permissions,
                     created_at,
                     updated_at,
@@ -216,6 +247,7 @@ class TeamRoleRepository(private val pool: Pool) {
                     NULL::VARCHAR(7) AS color_hex,
                     NULL::INTEGER AS priority,
                     NULL::BOOLEAN AS mentionable,
+                    FALSE AS is_default,
                     NULL::JSONB AS permissions,
                     NULL::TIMESTAMPTZ AS created_at,
                     NULL::TIMESTAMPTZ AS updated_at,
@@ -538,6 +570,7 @@ class TeamRoleRepository(private val pool: Pool) {
         colorHex = getString("color_hex"),
         priority = getInteger("priority"),
         mentionable = getBoolean("mentionable"),
+        isDefault = getBoolean("is_default"),
         permissions = TeamRolePermissions.fromStored(getJsonObject("permissions")),
         createdAt = getOffsetDateTime("created_at"),
         updatedAt = getOffsetDateTime("updated_at"),
@@ -568,6 +601,7 @@ class TeamRoleRepository(private val pool: Pool) {
         colorHex = getString("color_hex"),
         priority = getInteger("priority"),
         mentionable = getBoolean("mentionable"),
+        isDefault = getBoolean("is_default"),
         permissions = TeamRolePermissions.fromStored(getJsonObject("permissions")),
         createdAt = getOffsetDateTime("created_at"),
         updatedAt = getOffsetDateTime("updated_at"),

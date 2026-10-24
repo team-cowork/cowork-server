@@ -33,7 +33,7 @@ class CreateChannelServiceImplTest {
 
     @Test
     fun `createChannel은 팀 비멤버이면 FORBIDDEN`() {
-        every { teamPermission.requireTeamMember(100L, 7L) } throws
+        every { teamPermission.requirePermission(100L, 7L, "manage_channels") } throws
             ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
 
         val ex = assertThrows(ExpectedException::class.java) {
@@ -47,7 +47,7 @@ class CreateChannelServiceImplTest {
 
     @Test
     fun `createChannel은 type+viewType 모두 저장`() {
-        every { teamPermission.requireTeamMember(any(), any()) } returns Unit
+        every { teamPermission.requirePermission(any(), any(), "manage_channels") } returns Unit
         every { channelRepository.findMaxPositionByTeamId(100L) } returns 4
         val saved = slot<Channel>()
         every { channelRepository.save(capture(saved)) } answers { saved.captured }
@@ -69,7 +69,7 @@ class CreateChannelServiceImplTest {
 
     @Test
     fun `createChannel은 type=DM이면 BAD_REQUEST`() {
-        every { teamPermission.requireTeamMember(any(), any()) } returns Unit
+        every { teamPermission.requirePermission(any(), any(), "manage_channels") } returns Unit
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.execute(1L, CreateChannelRequest(teamId = 100L, name = "n", type = "DM", viewType = "TEXT"))

@@ -17,11 +17,12 @@ class UpdateProjectServiceImpl(
     @Transactional
     override fun execute(userId: Long, projectId: Long, request: UpdateProjectReqDto): ProjectResDto {
         val project = projectAccessGuard.findProjectForUpdateOrThrow(projectId)
-        projectAccessGuard.requireProjectModifier(project, userId)
+        projectAccessGuard.requireProjectManager(project, userId)
 
         request.name?.let { project.updateName(it) }
         request.description?.let { project.updateDescription(it) }
         request.status?.let { project.updateStatus(it) }
+        request.isPrivate?.let { project.isPrivate = it }
 
         projectEventPublisher.publishUpdated(project)
 

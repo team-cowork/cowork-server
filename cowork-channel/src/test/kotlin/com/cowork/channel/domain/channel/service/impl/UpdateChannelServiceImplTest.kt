@@ -10,6 +10,7 @@ import com.cowork.channel.domain.channel.repository.DmParticipantRepository
 import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channel.service.TeamPermissionService
 import com.cowork.channel.domain.channel.service.support.ChannelPermissionSupport
+import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -26,10 +27,11 @@ class UpdateChannelServiceImplTest {
     private val teamPermission = mockk<TeamPermissionService>()
     private val channelEventPublisher = mockk<ChannelEventPublisher>(relaxed = true)
     private val channelAccessGuard = ChannelAccessGuard(channelRepository)
+    private val permissionEvaluator = mockk<ChannelMessageReadPolicyEvaluator>(relaxed = true)
     private val channelPermissionSupport = ChannelPermissionSupport(
         dmParticipantRepository,
         teamPermission,
-        mockk(relaxed = true),
+        permissionEvaluator,
     )
 
     private val service = UpdateChannelServiceImpl(channelEventPublisher, channelAccessGuard, channelPermissionSupport)
@@ -57,7 +59,7 @@ class UpdateChannelServiceImplTest {
     fun `updateChannel은 팀 OWNER 등가 권한으로 통과`() {
         val ch = channel(createdBy = 99L)
         every { channelRepository.findById(1L) } returns Optional.of(ch)
-        every { teamPermission.isTeamOwnerOrAdmin(100L, 1L) } returns true
+        every { permissionEvaluator.requirePermission(100L, 1L, ch, "channel_manage") } returns Unit
 
         val res = service.execute(1L, 1L, UpdateChannelRequest(name = "newName"), false)
         assertEquals("newName", res.name)
@@ -67,7 +69,8 @@ class UpdateChannelServiceImplTest {
     fun `updateChannel은 비생성자 + 팀 일반멤버이면 FORBIDDEN`() {
         val ch = channel(createdBy = 99L)
         every { channelRepository.findById(1L) } returns Optional.of(ch)
-        every { teamPermission.isTeamOwnerOrAdmin(100L, 1L) } returns false
+        every { permissionEvaluator.requirePermission(100L, 1L, ch, "channel_manage") } throws
+            ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.execute(1L, 1L, UpdateChannelRequest(name = "x"), false)

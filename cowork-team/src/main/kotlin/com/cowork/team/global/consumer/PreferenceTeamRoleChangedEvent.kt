@@ -1,5 +1,6 @@
 package com.cowork.team.global.consumer
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.Instant
 
 data class PreferenceTeamRoleChangedEvent(
@@ -13,4 +14,6 @@ data class PreferenceTeamRoleChangedEvent(
     val mentionable: Boolean? = null,
     val permissions: Map<String, Boolean>? = null,
     val occurredAt: Instant,
+    @field:JsonProperty("isDefault")
+    val isDefault: Boolean = false,
 )

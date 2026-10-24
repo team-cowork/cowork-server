@@ -40,7 +40,7 @@ class UpsertChannelRolePolicyServiceImpl(
             actorId = actorId,
             permissions = permissions,
         ) {
-            channelPermissionSupport.requireChannelManager(channel, actorId)
+            channelPermissionSupport.requireRolePolicyManager(channel, actorId, roleId, permissions)
             policyAccessSupport.requireRole(teamId, roleId)
         }
     }

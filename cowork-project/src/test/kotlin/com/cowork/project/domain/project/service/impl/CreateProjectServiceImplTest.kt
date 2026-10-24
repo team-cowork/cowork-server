@@ -23,7 +23,7 @@ class CreateProjectServiceImplTest {
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true))
+        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true), mockk(relaxed = true))
 
     private val service =
         CreateProjectServiceImpl(
@@ -50,13 +50,14 @@ class CreateProjectServiceImplTest {
 
         @Test
         fun `createProject은 마지막 position 다음에 만들고 권한 기반 접근 목록 갱신을 요청한다`() {
-            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L, "OWNER")
             every { projectRepository.findMaxPositionByTeamId(100L) } returns 3
             every { projectRepository.save(any()) } answers { firstArg() }
 
             val response = service.execute(7L, CreateProjectReqDto(teamId = 100L, name = "p", description = null))
 
             assertEquals(4, response.position)
+            assertEquals(false, response.isPrivate)
         }
     }
 }

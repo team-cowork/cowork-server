@@ -4,6 +4,7 @@ import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
@@ -34,8 +35,12 @@ class RemoveTeamMemberServiceImplTest :
                 memberRepository,
                 mockk<TeamEventPublisher>(relaxed = true),
                 mockk<TeamMemberEventPublisher>(relaxed = true),
+                TeamPermissionGuard(memberRepository, mockk(relaxed = true)),
             )
             every { teamRepository.findByIdForUpdate(1L) } returns team
+            every { memberRepository.findByTeamIdAndUserId(any(), any()) } answers {
+                memberRepository.findByTeamIdAndUserIdForUpdate(firstArg(), secondArg())
+            }
         }
 
         describe("RemoveTeamMemberServiceImpl 클래스의 execute 메서드는") {

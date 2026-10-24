@@ -47,6 +47,7 @@ class UpdateThreadServiceImplTest :
             threadRepository = mockk()
             channelAccessGuard = mockk()
             teamPermissionService = mockk()
+            every { teamPermissionService.requireChannelAccess(any(), any()) } returns Unit
             every { channelAccessGuard.findChannelOrThrow(1L) } returns channel
             every { channelAccessGuard.requireTeamChannel(channel) } returns 100L
             service = UpdateThreadServiceImpl(threadRepository, channelAccessGuard, teamPermissionService)
@@ -65,10 +66,11 @@ class UpdateThreadServiceImplTest :
                 }
             }
 
-            context("요청자가 스레드 생성자도 채널 생성자도 팀 관리자도 아니면") {
+            context("요청자가 스레드 생성자가 아니고 채널 관리 권한도 없으면") {
                 it("FORBIDDEN으로 거부한다") {
                     every { threadRepository.findById(7L) } returns Optional.of(thread())
-                    every { teamPermissionService.isTeamOwnerOrAdmin(100L, 30L) } returns false
+                    every { teamPermissionService.requireChannelPermission(channel, 30L, "channel_manage") } throws
+                        ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
 
                     val error = shouldThrow<ExpectedException> {
                         service.updateThread(30L, 1L, 7L, UpdateThreadRequest(name = "변경"))
@@ -82,7 +84,6 @@ class UpdateThreadServiceImplTest :
                 it("이름과 보관 상태를 변경한다") {
                     val existing = thread()
                     every { threadRepository.findById(7L) } returns Optional.of(existing)
-                    every { teamPermissionService.isTeamOwnerOrAdmin(100L, 20L) } returns false
 
                     val result = service.updateThread(
                         20L,
