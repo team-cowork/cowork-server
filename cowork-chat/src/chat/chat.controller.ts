@@ -93,7 +93,7 @@ export class ChatController {
     @HttpCode(HttpStatus.CREATED)
     @ApiOperation({summary: '채팅 첨부파일 업로드용 오브젝트 스토리지 presigned URL 발급'})
     @ApiResponse({status: 201, type: CreateFileUploadUrlResponseDto})
-    @ApiResponse({status: 403, description: '채널 멤버 아님'})
+    @ApiResponse({status: 403, description: '메시지 읽기 또는 file_attach 권한 없음'})
     async createFileUploadUrl(
         @Param('channelId', SafePositiveIntPipe) channelId: number,
         @Body() dto: CreateFileUploadUrlRequestDto,
@@ -116,7 +116,7 @@ export class ChatController {
     @ApiOperation({summary: '채팅 첨부파일 업로드 완료 확인 및 검증'})
     @ApiResponse({status: 200, type: ConfirmFileUploadResponseDto})
     @ApiResponse({status: 400, description: '유효하지 않은 objectKey'})
-    @ApiResponse({status: 403, description: '채널 멤버 아님'})
+    @ApiResponse({status: 403, description: '메시지 읽기 또는 file_attach 권한 없음'})
     @ApiResponse({status: 409, description: '파일이 아직 업로드되지 않음'})
     @ApiResponse({status: 413, description: '파일 크기 초과'})
     async confirmFileUpload(
@@ -173,7 +173,7 @@ export class ChatController {
     })
     @ApiOperation({summary: '메시지 전송 (Kafka 비동기)'})
     @ApiResponse({status: 201, type: SendMessageResponseDto})
-    @ApiResponse({status: 403, description: '채널 멤버 아님'})
+    @ApiResponse({status: 403, description: '메시지 읽기/작성 권한 없음, 답글의 thread_reply 또는 첨부의 file_attach 권한 없음, DM 수신자가 차단함'})
     @ApiResponse({status: 429, description: '메시지 전송 요청이 너무 많음'})
     async sendMessage(
         @Param('channelId', SafePositiveIntPipe) channelId: number,
@@ -434,7 +434,7 @@ export class ChatController {
     @ApiOperation({summary: '메시지 이모지 반응 추가'})
     @ApiResponse({status: 200})
     @ApiResponse({status: 400, description: '유효하지 않은 이모지'})
-    @ApiResponse({status: 403, description: '채널 멤버 아님'})
+    @ApiResponse({status: 403, description: '메시지 읽기 또는 reaction_add 권한 없음'})
     @ApiResponse({status: 404, description: '메시지 없음'})
     async addReaction(
         @Param('channelId', SafePositiveIntPipe) channelId: number,
