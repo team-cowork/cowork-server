@@ -11,6 +11,7 @@ import com.cowork.preference.messaging.ProjectionReadinessView
 import com.cowork.preference.repository.ChannelLifecycleProjectionRepository
 import com.cowork.preference.repository.ChannelRolePolicyCommandInboxRepository
 import com.cowork.preference.repository.ChannelRolePolicyRepository
+import com.cowork.preference.repository.InitialResourceAccessRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.ProcessedChannelRolePolicyCommandMatches
 import com.cowork.preference.repository.TeamMemberProjectionRepository
@@ -85,6 +86,7 @@ class ChannelRolePolicyCommandProcessorTest {
             fixture.processor.process(command)
             assertEquals("FORBIDDEN", result.captured.getJsonObject("error").getString("code"))
             coVerify(exactly = 0) { fixture.policyRepository.upsertPolicy(any(), any(), any(), any(), any()) }
+            coVerify(exactly = 0) { fixture.initialAccess.claim(any(), any(), any()) }
         }
 
         @Test
@@ -243,6 +245,7 @@ class ChannelRolePolicyCommandProcessorTest {
         val outboxRepository = mockk<PreferenceOutboxRepository>(relaxed = true)
         val readiness = mockk<ProjectionReadinessView>()
         val connection = mockk<SqlConnection>()
+        val initialAccess = mockk<InitialResourceAccessRepository>(relaxed = true)
         val processor = ChannelRolePolicyCommandProcessor(
             policyRepository,
             roleRepository,
@@ -251,6 +254,7 @@ class ChannelRolePolicyCommandProcessorTest {
             inboxRepository,
             outboxRepository,
             readiness,
+            initialAccess,
         )
 
         fun stubActiveCommand(
