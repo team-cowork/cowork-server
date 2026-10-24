@@ -87,11 +87,13 @@ class ProjectAccessGuard(
 
     private fun permissions(member: TeamMembership, access: ProjectAccessProjection?): Permissions {
         if (isManager(member.role)) return Permissions(true, true, true, true)
-        // TODO(#596): 2026-11-01 05:00 KST 이후 구형 레코드·롤백 지원 종료와 snapshot 보정 완료 확인 후 fallback 제거.
-        val read = access?.canRead == true &&
-            (access.sourceAuthorizationVersion ?: access.sourceMembershipVersion) == (member.authorizationVersion ?: member.sourceOccurredAt)
+        val read = access?.canRead == true && hasCurrentAuthorization(member, access)
         return Permissions(read, read && access?.canWrite == true, read && access?.canReorder == true, read && access?.canManage == true)
     }
+
+    private fun hasCurrentAuthorization(member: TeamMembership, access: ProjectAccessProjection): Boolean =
+        // TODO(#596): 2026-11-01 05:00 KST 이후 구형 레코드·롤백 지원 종료와 snapshot 보정 완료 확인 후 fallback 제거.
+        (access.sourceAuthorizationVersion ?: access.sourceMembershipVersion) == (member.authorizationVersion ?: member.sourceOccurredAt)
 
     fun requireProjectReader(project: Project, userId: Long) {
         if (!canRead(project, userId)) throw ExpectedException("프로젝트 읽기 권한이 없습니다.", HttpStatus.FORBIDDEN)
@@ -104,6 +106,17 @@ class ProjectAccessGuard(
     fun requireProjectManager(project: Project, userId: Long) {
         if (!permissionsForUser(project, userId).manage) {
             throw ExpectedException("프로젝트 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        }
+    }
+
+    fun requirePrivateTransitionAccess(project: Project, userId: Long) {
+        projectionReadinessGate.requireReady()
+        val member = teamMembershipRepository.findActiveByTeamIdAndUserId(project.teamId, userId)
+            ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
+        if (isManager(member.role)) return
+        val access = accessRepository.findById("${project.id}:$userId").orElse(null)
+        if (access?.canReadPrivate != true || !hasCurrentAuthorization(member, access)) {
+            throw ExpectedException("비공개 전환 후에도 접근할 수 있도록 프로젝트 읽기 역할을 설정해야 합니다.", HttpStatus.BAD_REQUEST)
         }
     }
 
