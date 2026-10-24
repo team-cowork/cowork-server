@@ -23,6 +23,8 @@ type AppConfig struct {
 	KafkaTopicChannelNotification string
 	KafkaTopicUserProfile         string
 	KafkaTopicTeamLifecycle       string
+	KafkaTopicAccountSetting      string
+	KafkaTopicTeamSetting         string
 	FCMCredentialsJSON            string
 	EurekaServerURL               string
 	EurekaAppName                 string
@@ -47,6 +49,8 @@ func Load() (*AppConfig, error) {
 		KafkaTopicChannelNotification: lookup(flatMap, "kafka.topics.channel-notification", "preference.channel-notification.changed"),
 		KafkaTopicUserProfile:         lookup(flatMap, "kafka.topics.user-profile", "user.profile.event.v2"),
 		KafkaTopicTeamLifecycle:       lookup(flatMap, "kafka.topics.team-lifecycle", "team.lifecycle"),
+		KafkaTopicAccountSetting:      lookup(flatMap, "kafka.topics.account-setting", "preference.account-setting.state.v1"),
+		KafkaTopicTeamSetting:         lookup(flatMap, "kafka.topics.team-setting", "preference.team-setting.state.v1"),
 		FCMCredentialsJSON:            lookup(flatMap, "fcm.credentials-json", ""),
 		EurekaServerURL:               lookup(flatMap, "eureka.server-url", "http://localhost:8761/eureka"),
 		EurekaAppName:                 lookup(flatMap, "eureka.app-name", "cowork-notification"),
@@ -121,6 +125,12 @@ func overrideFromEnv(cfg *AppConfig, eurekaPortStr *string) {
 	}
 	if v := os.Getenv("KAFKA_TOPIC_TEAM_LIFECYCLE"); v != "" {
 		cfg.KafkaTopicTeamLifecycle = v
+	}
+	if v := os.Getenv("KAFKA_TOPIC_ACCOUNT_SETTING"); v != "" {
+		cfg.KafkaTopicAccountSetting = v
+	}
+	if v := os.Getenv("KAFKA_TOPIC_TEAM_SETTING"); v != "" {
+		cfg.KafkaTopicTeamSetting = v
 	}
 	if v := os.Getenv("EUREKA_SERVER_URL"); v != "" {
 		cfg.EurekaServerURL = v
