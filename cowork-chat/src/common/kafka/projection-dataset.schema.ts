@@ -30,6 +30,11 @@ export class ProjectionDataset {
     @Prop({type: Date, default: null}) rebuildRequestedAt!: Date | null;
     @Prop({type: Date, default: null}) activatedAt!: Date | null;
     @Prop({type: Number, default: 0}) activationDocumentCount!: number;
+    /**
+    주기적으로 갱신되는 마지막 관측 document count. 전체 소실(0)뿐 아니라 일부 유실도
+    이 값 대비 급격한 감소로 탐지한다.
+    */
+    @Prop({type: Number, default: null}) lastObservedDocumentCount!: number | null;
     @Prop({type: [{partition: Number, offset: String}], default: []})
     baseOffsets!: ProjectionDatasetPartitionOffset[];
 
