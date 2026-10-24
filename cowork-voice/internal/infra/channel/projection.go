@@ -91,7 +91,6 @@ func (p *Projection) TeamStates(ctx context.Context, id int64) ([]State, error) 
 	if err != nil {
 		return nil, err
 	}
-	defer cursor.Close(ctx)
 	var states []State
 	err = cursor.All(ctx, &states)
 	return states, err
