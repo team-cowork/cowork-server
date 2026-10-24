@@ -177,10 +177,11 @@ class ChannelMessageReadPolicyEvaluator(
         if (highestPriority == null || (!target.isDefault && target.priority >= highestPriority)) {
             throw ExpectedException("자신보다 낮은 역할의 채널 권한만 변경할 수 있습니다.", HttpStatus.FORBIDDEN)
         }
-        val policies = loadPolicies(teamId, setOf(channel.id), roles.keys)[channel.id].orEmpty()
+        val policies = loadPolicies(teamId, setOf(channel.id), roles.keys + targetRoleId)[channel.id].orEmpty()
+        val currentOverwrite = policies[targetRoleId].orEmpty()
         val targetBase = permissions(target.permissionsJson)
         val granted = ChannelRolePolicyPermissionSchema.KEYS.filter { key ->
-            overwrite?.get(key) ?: (targetBase[key] == true)
+            overwrite?.get(key) ?: (currentOverwrite[key] == false || (overwrite == null && targetBase[key] == true))
         }
         if (granted.any { !isAllowed(channel, roleIds, roles, policies, it) }) {
             throw ExpectedException("자신에게 없는 채널 권한을 부여할 수 없습니다.", HttpStatus.FORBIDDEN)
