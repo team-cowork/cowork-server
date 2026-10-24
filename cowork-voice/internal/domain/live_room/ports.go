@@ -33,8 +33,8 @@ type Repository interface {
 	CountActiveViewers(ctx context.Context, sessionID string) (int, error)
 }
 
-type MembershipChecker interface {
-	VerifyMembership(ctx context.Context, channelID, userID int64) (int64, error)
+type ConnectPermissionChecker interface {
+	RequireConnect(ctx context.Context, channelID, userID int64) (int64, error)
 }
 
 type LiveKitParticipant struct {

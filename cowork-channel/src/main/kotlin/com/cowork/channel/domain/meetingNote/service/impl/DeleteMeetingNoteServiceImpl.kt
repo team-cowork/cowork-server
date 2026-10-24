@@ -16,7 +16,7 @@ class DeleteMeetingNoteServiceImpl(
 ) : DeleteMeetingNoteService {
 
     override fun deleteNote(userId: Long, channelId: Long, noteId: Long) {
-        meetingNoteAccessGuard.requireChannelMember(channelId, userId)
+        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
         val note = meetingNoteLookupSupport.findNoteOrThrow(noteId, channelId)
         meetingNoteLookupSupport.requireNoteOwner(note, userId)
         meetingNoteRepository.delete(note)

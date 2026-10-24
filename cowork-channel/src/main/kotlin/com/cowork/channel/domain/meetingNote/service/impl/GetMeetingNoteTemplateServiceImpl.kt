@@ -18,7 +18,7 @@ class GetMeetingNoteTemplateServiceImpl(
 ) : GetMeetingNoteTemplateService {
 
     override fun getTemplate(userId: Long, channelId: Long, templateId: Long): MeetingNoteTemplateResponse {
-        meetingNoteAccessGuard.requireChannelMember(channelId, userId)
+        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
         val template = lookupSupport.findTemplateOrThrow(templateId)
         lookupSupport.requireTemplateOwnership(template, channelId)
         val sections = sectionRepository.findAllByTemplateIdOrderByIdAsc(templateId)

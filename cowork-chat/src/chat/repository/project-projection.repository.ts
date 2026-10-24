@@ -14,6 +14,7 @@ import {
 export type ProjectProjectionEvent = {
     projectId: number;
     teamId: number;
+    createdBy?: number | null;
     name: string;
     description: string | null;
     status: string;
@@ -26,6 +27,10 @@ export type ProjectProjectionEvent = {
 export class ProjectProjectionRepository {
     constructor(@InjectModel(ProjectProjection.name) private readonly model: Model<ProjectProjection>) {}
 
+    async findById(projectId: number): Promise<ProjectProjection | null> {
+        return this.model.findOne({projectId, deleted: {$ne: true}}).lean<ProjectProjection>();
+    }
+
     async upsert(event: ProjectProjectionEvent): Promise<boolean> {
         const applyCondition = activeProjectionCondition(event.sourceVersion);
         const result = await this.model.updateOne(
@@ -33,6 +38,13 @@ export class ProjectProjectionRepository {
             [{
                 $set: {
                     projectId: event.projectId,
+                    createdBy: {
+                        $cond: [
+                            {$or: [applyCondition, {$and: [{$eq: [event.sourceVersion, projectionSourceVersion]}, {$eq: [{$ifNull: ['$createdBy', null]}, null]}]}]},
+                            event.createdBy ?? null,
+                            {$ifNull: ['$createdBy', null]},
+                        ],
+                    },
                     teamId: {
                         $cond: [applyCondition, event.teamId, {$ifNull: ['$teamId', event.teamId]}],
                     },

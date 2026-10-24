@@ -1,7 +1,5 @@
 package com.cowork.channel.domain.meetingNote.service.impl
 
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
-import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.meetingNote.entity.MeetingNote
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteRepository
 import com.cowork.channel.domain.meetingNote.service.MeetingNoteAccessGuard
@@ -19,11 +17,7 @@ import java.util.Optional
 class DeleteMeetingNoteServiceImplTest {
 
     private val meetingNoteRepository = mockk<MeetingNoteRepository>(relaxed = true)
-    private val channelMemberRepository = mockk<ChannelMemberRepository>()
-    private val channelRepository = mockk<ChannelRepository> {
-        every { existsByIdAndType(any(), any()) } returns false
-    }
-    private val meetingNoteAccessGuard = MeetingNoteAccessGuard(channelMemberRepository, channelRepository)
+    private val meetingNoteAccessGuard = mockk<MeetingNoteAccessGuard>(relaxed = true)
     private val meetingNoteLookupSupport = MeetingNoteLookupSupport(meetingNoteRepository)
 
     private val service =
@@ -47,7 +41,7 @@ class DeleteMeetingNoteServiceImplTest {
 
     @Test
     fun `deleteNote는 작성자이면 삭제`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
         val n = note()
         every { meetingNoteRepository.findById(1L) } returns Optional.of(n)
 
@@ -57,8 +51,9 @@ class DeleteMeetingNoteServiceImplTest {
     }
 
     @Test
-    fun `deleteNote는 채널 비멤버이면 FORBIDDEN`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 7L) } returns false
+    fun `deleteNote는 채널 읽기 권한이 없으면이면 FORBIDDEN`() {
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } throws
+            ExpectedException("채널 접근 권한이 없습니다.", HttpStatus.FORBIDDEN)
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.deleteNote(7L, 1L, 1L)
@@ -68,7 +63,7 @@ class DeleteMeetingNoteServiceImplTest {
 
     @Test
     fun `deleteNote는 작성자가 아니면 FORBIDDEN`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(1L, 99L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 99L) } returns Unit
         every { meetingNoteRepository.findById(1L) } returns Optional.of(note(createdBy = 7L))
 
         val ex = assertThrows(ExpectedException::class.java) {
@@ -79,7 +74,7 @@ class DeleteMeetingNoteServiceImplTest {
 
     @Test
     fun `deleteNote는 다른 채널의 회의록이면 NOT_FOUND`() {
-        every { channelMemberRepository.existsByChannelIdAndUserId(2L, 7L) } returns true
+        every { meetingNoteAccessGuard.requireChannelAccess(2L, 7L) } returns Unit
         every { meetingNoteRepository.findById(1L) } returns Optional.of(note(channelId = 1L))
 
         val ex = assertThrows(ExpectedException::class.java) {

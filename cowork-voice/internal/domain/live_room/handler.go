@@ -29,7 +29,7 @@ func NewHandler(svc Service) *Handler {
 // @Param        channel_id  path      int  true  "채널 ID"
 // @Success      200  {object}  StartResponse
 // @Failure      401  {object}  apperr.Error
-// @Failure      403  {object}  apperr.Error  "채널 멤버가 아님"
+// @Failure      403  {object}  apperr.Error  "음성 채널 연결 권한 없음"
 // @Failure      409  {object}  apperr.Error  "이미 라이브 진행 중"
 // @Failure      500  {object}  apperr.Error
 // @Router       /live/channels/{channel_id}/start [post]
@@ -65,7 +65,7 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 // @Param        channel_id  path      int  true  "채널 ID"
 // @Success      200  {object}  JoinResponse
 // @Failure      401  {object}  apperr.Error
-// @Failure      403  {object}  apperr.Error  "채널 멤버가 아님"
+// @Failure      403  {object}  apperr.Error  "음성 채널 연결 권한 없음"
 // @Failure      404  {object}  apperr.Error  "진행 중인 라이브 없음"
 // @Router       /live/channels/{channel_id}/join [post]
 func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {

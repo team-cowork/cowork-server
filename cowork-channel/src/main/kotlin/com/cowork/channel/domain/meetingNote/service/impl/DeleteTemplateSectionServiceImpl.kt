@@ -16,7 +16,7 @@ class DeleteTemplateSectionServiceImpl(
 ) : DeleteTemplateSectionService {
 
     override fun deleteSection(userId: Long, channelId: Long, templateId: Long, sectionId: Long) {
-        meetingNoteAccessGuard.requireChannelMember(channelId, userId)
+        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
         val template = lookupSupport.findTemplateOrThrow(templateId)
         lookupSupport.requireTemplateOwnership(template, channelId)
         val section = lookupSupport.findSectionOrThrow(sectionId)

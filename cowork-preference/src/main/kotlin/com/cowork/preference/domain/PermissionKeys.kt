@@ -20,7 +20,8 @@ object PermissionKeys {
     const val SLASH_COMMAND_USE = "slash_command_use"
     const val GITHUB_ISSUE_CREATE = "github_issue_create"
     const val CHANNEL_MANAGE = "channel_manage"
-    const val CHANNEL_MEMBER_MANAGE = "channel_member_manage"
+    const val CHANNEL_REORDER = "channel_reorder"
+    const val SLOWMODE_BYPASS = "slowmode_bypass"
 
     const val VOICE_CONNECT = "voice_connect"
     const val VOICE_SPEAK = "voice_speak"
@@ -48,7 +49,8 @@ object PermissionKeys {
         SLASH_COMMAND_USE,
         GITHUB_ISSUE_CREATE,
         CHANNEL_MANAGE,
-        CHANNEL_MEMBER_MANAGE,
+        CHANNEL_REORDER,
+        SLOWMODE_BYPASS,
         VOICE_CONNECT,
         VOICE_SPEAK,
         SCREEN_SHARE,

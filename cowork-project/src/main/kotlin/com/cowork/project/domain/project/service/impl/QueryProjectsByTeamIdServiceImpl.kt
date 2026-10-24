@@ -18,6 +18,6 @@ class QueryProjectsByTeamIdServiceImpl(
     @Transactional(readOnly = true)
     override fun execute(userId: Long, teamId: Long, pageable: Pageable): Page<ProjectResDto> {
         projectAccessGuard.requireTeamMember(teamId, userId)
-        return projectRepository.findByTeamId(teamId, pageable).map { ProjectResDto.of(it) }
+        return projectRepository.findReadableByTeamId(teamId, userId, pageable).map { ProjectResDto.of(it) }
     }
 }

@@ -43,7 +43,9 @@ class TeamRolePermissionsTest {
 
     @Test
     fun `알 수 없는 키나 boolean이 아닌 값은 거부한다`() {
-        assertThrows<IllegalArgumentException> { TeamRolePermissions.validate(mapOf("MANAGE_ROLES" to true)) }
+        listOf("MANAGE_ROLES", "channel_member_manage").forEach { key ->
+            assertThrows<IllegalArgumentException> { TeamRolePermissions.validate(mapOf(key to true)) }
+        }
         assertThrows<IllegalArgumentException> { TeamRolePermissions.validate(mapOf(PermissionKeys.MANAGE_ROLES to 1)) }
     }
 }

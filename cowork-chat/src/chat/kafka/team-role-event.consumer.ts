@@ -15,7 +15,7 @@ import {isBooleanRecord} from '../../common/util/boolean-record.util';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
 import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor';
-import {TeamRoleProjectionRepository, ChannelRolePolicyProjectionRepository} from '../repository';
+import {TeamRoleProjectionRepository, ChannelProjectionRepository} from '../repository';
 import {ChannelMessageReadAccessService} from '../service';
 
 type TeamRoleEvent = {
@@ -39,7 +39,7 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
         private readonly configService: ConfigService,
         private readonly dicoshot: DicoshotService,
         private readonly repository: TeamRoleProjectionRepository,
-        private readonly policyRepository: ChannelRolePolicyProjectionRepository,
+        private readonly channels: ChannelProjectionRepository,
         private readonly accessService: ChannelMessageReadAccessService,
         private readonly projectionReadiness: ProjectionReadinessService,
     ) {}
@@ -98,7 +98,6 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
             throw new ProjectionContractError('team role event occurredAt must be RFC3339');
         }
 
-        let affectedChannelIds: number[];
         let affectedUserIds: number[] | undefined;
         switch (payload.eventType) {
             case 'ROLE_UPSERTED': {
@@ -110,14 +109,12 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
                     permissions: payload.permissions!,
                     ...eventTime,
                 });
-                affectedChannelIds = await this.policyRepository.findChannelIdsByRole(payload.teamId, payload.roleId!);
 
                 break;
             }
 
             case 'ROLE_DELETED': {
                 await this.repository.deleteRole(payload.teamId, payload.roleId!, eventTime.occurredAt, eventTime.sourceVersion);
-                affectedChannelIds = await this.policyRepository.findChannelIdsByRole(payload.teamId, payload.roleId!);
 
                 break;
             }
@@ -129,7 +126,6 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
                     roleId: payload.roleId!,
                     ...eventTime,
                 });
-                affectedChannelIds = await this.policyRepository.findChannelIdsByRole(payload.teamId, payload.roleId!);
                 affectedUserIds = [payload.accountId!];
 
                 break;
@@ -143,14 +139,12 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
                     eventTime.occurredAt,
                     eventTime.sourceVersion,
                 );
-                affectedChannelIds = await this.policyRepository.findChannelIdsByRole(payload.teamId, payload.roleId!);
                 affectedUserIds = [payload.accountId!];
 
                 break;
             }
 
             case 'MEMBER_ASSIGNMENTS_DELETED': {
-                affectedChannelIds = await this.policyRepository.findChannelIdsByTeam(payload.teamId);
                 await this.repository.deleteMemberAssignments(
                     payload.teamId,
                     payload.accountId!,
@@ -161,6 +155,7 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
             }
         }
 
+        const affectedChannelIds = await this.channels.findIdsByTeamId(payload.teamId);
         if (this.io && affectedChannelIds.length > 0) {
             await this.accessService.evictUnauthorizedSockets(this.io, affectedChannelIds, affectedUserIds);
         }
