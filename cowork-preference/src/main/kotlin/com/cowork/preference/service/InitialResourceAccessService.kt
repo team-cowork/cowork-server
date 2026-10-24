@@ -37,7 +37,9 @@ class InitialResourceAccessService(
         if (!ledger.claim(client, "CHANNEL", event.channelId)) return
         val teamId = event.teamId ?: return
         if (current.teamId != teamId || roles.isTeamDeleted(client, teamId)) return
-        val actor = actor(client, teamId, seed.actorId, seed.actorMembershipVersion) ?: return
+        val actor = actor(
+            client, teamId, seed.actorId, seed.actorMembershipVersion, seed.actorAuthorizationVersion,
+        ) ?: return
         if (ledger.hasChannelPolicyHistory(client, teamId, event.channelId)) return
         val actorRoles = roles.findAccountRoles(client, teamId, seed.actorId)
         val teamRoles = roles.findRoles(client, teamId).associateBy { it.id }
@@ -88,7 +90,9 @@ class InitialResourceAccessService(
         if (!ledger.claim(client, "PROJECT", event.projectId)) return false
         if (current.teamId != event.teamId || current.createdBy != seed.accountId || !current.isPrivate) return false
         if (roles.isTeamDeleted(client, event.teamId)) return false
-        val actor = actor(client, event.teamId, seed.accountId, seed.sourceMembershipVersion) ?: return false
+        val actor = actor(
+            client, event.teamId, seed.accountId, seed.sourceMembershipVersion, seed.sourceAuthorizationVersion,
+        ) ?: return false
         if (actor.builtInRole in MANAGERS || ledger.hasProjectAccessHistory(client, event.projectId)) return false
         val actorRoles = roles.findAccountRoles(client, event.teamId, seed.accountId)
         if (listOf(PermissionKeys.MANAGE_PROJECTS, PermissionKeys.PROJECT_READ).any { permission ->
@@ -103,15 +107,22 @@ class InitialResourceAccessService(
         client: SqlClient,
         teamId: Long,
         accountId: Long,
-        version: Instant,
+        membershipVersion: Instant,
+        authorizationVersion: Instant?,
     ): TeamMemberProjection? {
         check(teamReadiness.isReady) { "Team projection is not ready for initial access" }
         val member = members.find(client, teamId, accountId)
-        check(member != null && !member.sourceOccurredAt.isBefore(version)) {
+        check(member != null && !member.sourceOccurredAt.isBefore(membershipVersion)) {
             "Team membership is behind initial access version"
         }
-        // The existing command stamp rejects a newer membership, including leave/rejoin, without reviving an old seed.
-        return member.takeIf { !it.deleted && it.sourceOccurredAt == version }
+        // TODO(#596): 2026-11-01 05:00 KST 이후 구버전 producer 중단·legacy seed ledger 처리·snapshot 확인 후 null seed 검사를 제거한다.
+        // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+        val matches = if (authorizationVersion == null) {
+            member.sourceOccurredAt == membershipVersion
+        } else {
+            member.effectiveAuthorizationVersion == authorizationVersion
+        }
+        return member.takeIf { !it.deleted && matches }
     }
 
     companion object {

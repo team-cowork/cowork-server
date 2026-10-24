@@ -141,6 +141,65 @@ class InitialResourceAccessServiceTest {
     }
 
     @Test
+    fun `닉네임만 바뀌어 권한 버전이 같으면 생성 시 승인한 초기 접근을 허용한다`() = runBlocking {
+        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(
+            sourceOccurredAt = VERSION.plusSeconds(1), authorizationVersion = VERSION,
+        )
+
+        service.channel(client, channelEvent.copy(
+            initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = VERSION),
+        ), channel)
+        assertTrue(service.project(client, projectEvent.copy(
+            initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, VERSION),
+        ), project))
+
+        coVerify { policies.upsertPolicy(client, TEAM, CHANNEL, ROLE, any()) }
+        coVerify { projectRoles.assignRole(ACTOR, PROJECT, "초기 접근", client) }
+    }
+
+    @Test
+    fun `역할 변경이나 재가입으로 권한 버전이 바뀌면 이전 초기 접근을 거부한다`() = runBlocking {
+        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(
+            sourceOccurredAt = VERSION.plusSeconds(1), authorizationVersion = VERSION.plusSeconds(1),
+        )
+
+        service.channel(client, channelEvent.copy(
+            initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = VERSION),
+        ), channel)
+        assertFalse(service.project(client, projectEvent.copy(
+            initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, VERSION),
+        ), project))
+
+        coVerify(exactly = 0) { policies.upsertPolicy(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { projectRoles.assignRole(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `구형 초기 요청은 새 권한 버전으로 바꾸지 않고 당시 멤버 버전으로 검사한다`() = runBlocking {
+        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(
+            authorizationVersion = VERSION.minusSeconds(1),
+        )
+        assertTrue(service.project(client, projectEvent, project))
+
+        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(
+            sourceOccurredAt = VERSION.plusSeconds(1), authorizationVersion = VERSION.minusSeconds(1),
+        )
+        assertFalse(service.project(client, projectEvent, project))
+        coVerify(exactly = 1) { projectRoles.assignRole(ACTOR, PROJECT, "초기 접근", client) }
+    }
+
+    @Test
+    fun `새 구형 이벤트로 원본 권한 버전이 없어진 경우 이전 승인 버전을 재사용하지 않는다`() = runBlocking {
+        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(sourceOccurredAt = VERSION.plusSeconds(1))
+
+        assertFalse(service.project(client, projectEvent.copy(
+            initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, VERSION),
+        ), project))
+
+        coVerify(exactly = 0) { projectRoles.assignRole(any(), any(), any(), any()) }
+    }
+
+    @Test
     fun `팀 상태가 뒤처지면 초기 접근을 완료하지 않고 트랜잭션 재시도를 요청한다`() {
         coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(sourceOccurredAt = VERSION.minusSeconds(1))
 
