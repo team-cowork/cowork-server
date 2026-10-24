@@ -53,7 +53,7 @@ class ProjectRoleHandler(
         }
         val permissions = body.getJsonObject("permissions") ?: JsonObject()
         scope.launch(ctx.vertx().dispatcher()) {
-            if (!authorizeManager(ctx, requester, projectId)) return@launch
+            if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireRoleCreation(projectId, requester, permissions) }) return@launch
             service.createRole(projectId, roleName, permissions, body.getInteger("priority", 0))
                 .onSuccess {
                     val resp = JsonObject().put("roleName", it.roleName).put("permissions", it.permissions).put("priority", it.priority)
@@ -81,7 +81,7 @@ class ProjectRoleHandler(
         }
         val requester = requesterOrReject(ctx) ?: return
         scope.launch(ctx.vertx().dispatcher()) {
-            if (!authorizeManager(ctx, requester, projectId)) return@launch
+            if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireRoleRemoval(projectId, requester, roleName) }) return@launch
             service.deleteRole(projectId, roleName)
                 .onSuccess { ctx.response().setStatusCode(204).end() }
                 .onFailure { e ->
@@ -133,7 +133,7 @@ class ProjectRoleHandler(
             return
         }
         scope.launch(ctx.vertx().dispatcher()) {
-            if (!authorizeManager(ctx, requester, projectId)) return@launch
+            if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireRoleAssignment(projectId, requester, roleName) }) return@launch
             if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireTeamMember(projectId, accountId) }) return@launch
             service.assignRole(accountId, projectId, roleName)
                 .onSuccess { ctx.response().setStatusCode(204).end() }
@@ -163,7 +163,7 @@ class ProjectRoleHandler(
         }
         val requester = requesterOrReject(ctx) ?: return
         scope.launch(ctx.vertx().dispatcher()) {
-            if (!authorizeManager(ctx, requester, projectId)) return@launch
+            if (!authorize(ctx, requester, projectId) { projectAccessGuard.requireRoleRemoval(projectId, requester, roleName) }) return@launch
             runCatching { service.removeRole(accountId, projectId, roleName) }
                 .onSuccess { ctx.response().setStatusCode(204).end() }
                 .onFailure { ctx.response().setStatusCode(500).end(errorBody(it.message)) }
@@ -180,9 +180,6 @@ class ProjectRoleHandler(
     /** 응답을 이미 보냈으면 false를 반환한다. */
     private suspend fun authorizeMember(ctx: RoutingContext, requester: RequesterContext, projectId: Long): Boolean =
         authorize(ctx, requester, projectId) { projectAccessGuard.requireMember(projectId, requester) }
-
-    private suspend fun authorizeManager(ctx: RoutingContext, requester: RequesterContext, projectId: Long): Boolean =
-        authorize(ctx, requester, projectId) { projectAccessGuard.requireManager(projectId, requester) }
 
     private suspend fun authorize(
         ctx: RoutingContext,

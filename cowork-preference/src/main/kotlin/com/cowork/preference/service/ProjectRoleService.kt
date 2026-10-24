@@ -16,8 +16,8 @@ class ProjectRoleService(
 
     suspend fun createRole(projectId: Long, roleName: String, permissions: JsonObject, priority: Int = 0): Result<ProjectRoleDefinition> = runCatching {
         require(roleName.isNotBlank() && roleName.length <= 50) { "Invalid roleName" }
-        require(permissions.fieldNames().all { permissions.getValue(it) is Boolean }) {
-            "Project permissions must contain boolean values"
+        require(permissions.fieldNames().all { it in setOf("read", "write", "manage", "reorder") && permissions.getValue(it) is Boolean }) {
+            "Project permissions must use read, write, manage or reorder boolean values"
         }
         check(repository.findRole(projectId, roleName) == null) { "Role already exists" }
         val canonical = permissions.copy()

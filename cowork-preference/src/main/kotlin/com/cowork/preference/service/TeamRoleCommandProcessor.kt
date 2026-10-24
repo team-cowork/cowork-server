@@ -15,6 +15,7 @@ import com.cowork.preference.messaging.TeamRoleCommandQuarantineRecord
 import com.cowork.preference.messaging.TeamRoleCommandType
 import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
+import com.cowork.preference.repository.ProjectAccessStateRepository
 import com.cowork.preference.repository.ProcessedTeamRoleCommand
 import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.repository.TeamRoleCommandInboxRepository
@@ -33,6 +34,7 @@ class TeamRoleCommandProcessor(
     private val outboxRepository: PreferenceOutboxRepository,
     private val readiness: ProjectionReadiness,
     private val channelRolePolicyRepository: ChannelRolePolicyRepository,
+    private val projectAccess: ProjectAccessStateRepository,
 ) {
     suspend fun process(command: TeamRoleCommand) {
         outboxRepository.inTransaction { connection ->
@@ -72,6 +74,7 @@ class TeamRoleCommandProcessor(
             } catch (rejected: CommandRejected) {
                 rejected(command, rejected)
             }
+            if (outcome.stateEvents.isNotEmpty()) projectAccess.refreshTeam(connection, command.teamId)
             outboxRepository.enqueueAll(connection, outcome.stateEvents)
             outboxRepository.enqueue(
                 connection,
@@ -158,6 +161,7 @@ class TeamRoleCommandProcessor(
         val name = requireNotNull(input.name)
         val colorHex = requireNotNull(input.colorHex)
         val priority = requireNotNull(input.priority)
+        if (name == "@everyone") reject("RESERVED_ROLE_NAME", "기본 역할 이름은 사용할 수 없습니다.")
         validateRole(name, colorHex)
         if (!actor.builtInManager && priority >= actor.maxPriority) {
             reject("FORBIDDEN", "자신의 최상위 역할보다 높거나 같은 역할은 만들 수 없습니다.")
@@ -165,6 +169,7 @@ class TeamRoleCommandProcessor(
         if (roleRepository.findRoleByName(connection, command.teamId, name) != null) {
             reject("DUPLICATE_ROLE_NAME", "같은 이름의 역할이 이미 존재합니다.")
         }
+        requireGrantable(actor, requireNotNull(input.permissions))
         val role = roleRepository.insertRole(
             connection,
             command.teamId,
@@ -187,6 +192,10 @@ class TeamRoleCommandProcessor(
             ?: reject("ROLE_NOT_FOUND", "역할을 찾을 수 없습니다.")
         requireManageable(actor, current.priority)
         val input = requireNotNull(command.role)
+        if (current.isDefault && ((input.name != null && input.name != current.name) ||
+                (input.priority != null && input.priority != current.priority))) {
+            reject("DEFAULT_ROLE_PROTECTED", "기본 역할의 이름과 우선순위는 변경할 수 없습니다.")
+        }
         val nextName = input.name ?: current.name
         val nextColor = input.colorHex ?: current.colorHex
         val nextPriority = input.priority ?: current.priority
@@ -195,6 +204,7 @@ class TeamRoleCommandProcessor(
         if (roleRepository.findRoleByNameExceptId(connection, command.teamId, nextName, roleId) != null) {
             reject("DUPLICATE_ROLE_NAME", "같은 이름의 역할이 이미 존재합니다.")
         }
+        requireGrantable(actor, input.permissions.orEmpty().filter { (key, allowed) -> allowed && current.permissions[key] != true })
         val role = roleRepository.updateRole(
             connection,
             roleId,
@@ -215,6 +225,7 @@ class TeamRoleCommandProcessor(
         val roleId = requireNotNull(command.roleId)
         val role = roleRepository.findRole(connection, command.teamId, roleId)
             ?: reject("ROLE_NOT_FOUND", "역할을 찾을 수 없습니다.")
+        if (role.isDefault) reject("DEFAULT_ROLE_PROTECTED", "기본 역할은 삭제하거나 직접 할당 및 해제할 수 없습니다.")
         requireManageable(actor, role.priority)
         val occurredAt = now()
         val assignments = roleRepository.findMemberRoles(connection, command.teamId).filter { it.roleId == roleId }
@@ -283,7 +294,9 @@ class TeamRoleCommandProcessor(
         val roleId = requireNotNull(command.roleId)
         val role = roleRepository.findRole(connection, command.teamId, roleId)
             ?: reject("ROLE_NOT_FOUND", "역할을 찾을 수 없습니다.")
+        if (role.isDefault) reject("DEFAULT_ROLE_PROTECTED", "기본 역할은 삭제하거나 직접 할당 및 해제할 수 없습니다.")
         requireManageable(actor, role.priority)
+        requireGrantable(actor, role.permissions)
         roleRepository.assignRole(
             connection,
             targetId,
@@ -313,6 +326,7 @@ class TeamRoleCommandProcessor(
         val roleId = requireNotNull(command.roleId)
         val role = roleRepository.findRole(connection, command.teamId, roleId)
             ?: reject("ROLE_NOT_FOUND", "역할을 찾을 수 없습니다.")
+        if (role.isDefault) reject("DEFAULT_ROLE_PROTECTED", "기본 역할은 삭제하거나 직접 할당 및 해제할 수 없습니다.")
         requireManageable(actor, role.priority)
         val tombstone = roleRepository.deleteAssignment(
             connection,
@@ -355,11 +369,21 @@ class TeamRoleCommandProcessor(
         val assignments = roleRepository.findMemberRoles(connection, member.teamId)
             .filter { it.accountId == member.accountId }
         val assignedIds = assignments.mapTo(mutableSetOf()) { it.roleId }
-        val roles = roleRepository.findRoles(connection, member.teamId).filter { it.id in assignedIds }
+        val roles = roleRepository.findRoles(connection, member.teamId).filter { it.isDefault || it.id in assignedIds }
         if (roles.none { it.permissions[PermissionKeys.MANAGE_ROLES] == true }) {
             reject("FORBIDDEN", "역할 관리 권한이 없습니다.")
         }
-        return ActorContext(false, roles.maxOfOrNull(TeamRoleDefinition::priority) ?: 0)
+        return ActorContext(
+            false,
+            roles.maxOfOrNull(TeamRoleDefinition::priority) ?: 0,
+            roles.flatMap { it.permissions.filterValues { allowed -> allowed }.keys }.toSet(),
+        )
+    }
+
+    private fun requireGrantable(actor: ActorContext, permissions: Map<String, Boolean>) {
+        if (!actor.builtInManager && permissions.any { (key, allowed) -> allowed && key !in actor.permissions }) {
+            reject("FORBIDDEN", "자신이 보유하지 않은 권한은 부여할 수 없습니다.")
+        }
     }
 
     private fun requireManageable(actor: ActorContext, priority: Int) {
@@ -431,6 +455,7 @@ class TeamRoleCommandProcessor(
         .put("colorHex", colorHex)
         .put("priority", priority)
         .put("mentionable", mentionable)
+        .put("isDefault", isDefault)
         .put("permissions", TeamRolePermissions.toJson(permissions))
         .put("createdAt", createdAt?.toString())
         .put("updatedAt", updatedAt?.toString())
@@ -451,7 +476,7 @@ class TeamRoleCommandProcessor(
 
     private fun reject(code: String, message: String): Nothing = throw CommandRejected(code, message)
 
-    private data class ActorContext(val builtInManager: Boolean, val maxPriority: Int)
+    private data class ActorContext(val builtInManager: Boolean, val maxPriority: Int, val permissions: Set<String> = emptySet())
     private data class CommandOutcome(
         val stateEvents: List<PreferenceEvent>,
         val result: JsonObject,

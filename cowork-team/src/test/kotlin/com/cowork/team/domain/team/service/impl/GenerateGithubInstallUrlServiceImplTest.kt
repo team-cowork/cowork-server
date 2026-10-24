@@ -3,6 +3,7 @@ package com.cowork.team.domain.team.service.impl
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.TeamAccessGuard
+import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.team.service.support.TeamGithubStateSupport
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
@@ -20,7 +21,12 @@ class GenerateGithubInstallUrlServiceImplTest {
 
     private val teamRepository = mockk<TeamRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>()
-    private val teamAccessGuard = TeamAccessGuard(teamRepository, teamMemberRepository)
+    private val teamAccessGuard =
+        TeamAccessGuard(
+            teamRepository,
+            teamMemberRepository,
+            TeamPermissionGuard(teamMemberRepository, mockk(relaxed = true)),
+        )
     private val teamGithubStateSupport = mockk<TeamGithubStateSupport>()
     private val teamGithubProperties = TeamGithubProperties(stateSecret = "secret", appSlug = "my-app")
 
@@ -33,7 +39,7 @@ class GenerateGithubInstallUrlServiceImplTest {
     fun `execute는 OWNER_ADMIN이면 설치 URL을 발급한다`() {
         val ownerMember = TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
         every {
-            teamMemberRepository.findByTeamIdAndUserIdAndRoleIn(1L, 10L, listOf(TeamRole.OWNER, TeamRole.ADMIN))
+            teamMemberRepository.findByTeamIdAndUserId(1L, 10L)
         } returns ownerMember
         every { teamGithubStateSupport.buildState(1L, 10L) } returns "signed-state"
 
@@ -45,7 +51,7 @@ class GenerateGithubInstallUrlServiceImplTest {
     @Test
     fun `execute는 일반 MEMBER면 FORBIDDEN`() {
         every {
-            teamMemberRepository.findByTeamIdAndUserIdAndRoleIn(1L, 42L, listOf(TeamRole.OWNER, TeamRole.ADMIN))
+            teamMemberRepository.findByTeamIdAndUserId(1L, 42L)
         } returns null
 
         val ex = assertThrows(ExpectedException::class.java) {

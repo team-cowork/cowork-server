@@ -2,6 +2,7 @@ package com.cowork.team.domain.teamRole.operation
 
 import com.cowork.team.domain.teamRole.presentation.data.request.CreateTeamRoleRequest
 import com.cowork.team.domain.teamRole.presentation.data.request.UpdateTeamRoleRequest
+import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.Instant
 
 object TeamRoleContractTopics {
@@ -92,6 +93,8 @@ data class TeamRoleResultRole(
     val permissions: Map<String, Boolean>,
     val createdAt: String?,
     val updatedAt: String?,
+    @field:JsonProperty("isDefault")
+    val isDefault: Boolean = false,
 )
 
 data class TeamRoleCommandError(val code: String, val message: String)

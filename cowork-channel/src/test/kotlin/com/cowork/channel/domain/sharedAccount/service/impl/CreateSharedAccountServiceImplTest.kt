@@ -59,7 +59,7 @@ class CreateSharedAccountServiceImplTest {
     @Test
     fun `createAccount는 CUSTOM provider에 providerLabel이 없으면 BAD_REQUEST`() {
         every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
-        every { teamPermissionService.requireTeamMember(100L, 1L) } returns Unit
+        every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
 
         val ex = assertThrows<ExpectedException> {
             service.createAccount(
@@ -79,7 +79,7 @@ class CreateSharedAccountServiceImplTest {
     @Test
     fun `createAccount는 credential을 암호화하여 저장함`() {
         every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
-        every { teamPermissionService.requireTeamMember(100L, 1L) } returns Unit
+        every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
         every { credentialEncryptionService.encrypt("plainPwd") } returns "encryptedPwd"
         every { credentialEncryptionService.decrypt("encryptedPwd") } returns "plainPwd"
         every { credentialEncryptionService.mask("plainPwd") } returns "••••wd"
@@ -106,7 +106,7 @@ class CreateSharedAccountServiceImplTest {
     @Test
     fun `createAccount는 credential이 null이면 암호화를 수행하지 않음`() {
         every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
-        every { teamPermissionService.requireTeamMember(100L, 1L) } returns Unit
+        every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
 
         val saved = slot<SharedAccount>()
         every { sharedAccountRepository.save(capture(saved)) } answers { saved.captured }
