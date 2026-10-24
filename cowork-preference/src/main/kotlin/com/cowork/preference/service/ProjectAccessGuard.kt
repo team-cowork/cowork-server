@@ -47,14 +47,17 @@ class ProjectAccessGuard(
     suspend fun requireRoleRemoval(projectId: Long, requester: RequesterContext, roleName: String, accountId: Long) {
         val permissions = roles.findRole(projectId, roleName)?.permissions ?: JsonObject()
         val actor = requireRoleMutation(projectId, requester, permissions, removing = true)
-        requireManageableTargets(actor, listOf(accountId), requireActiveMember = false)
+        if (accountId != requester.userId) {
+            requireManageableTargets(actor, listOf(accountId), requireActiveMember = false)
+        }
     }
 
     suspend fun requireRoleDeletion(projectId: Long, requester: RequesterContext, roleName: String) {
         val permissions = roles.findRole(projectId, roleName)?.permissions ?: JsonObject()
         val actor = requireRoleMutation(projectId, requester, permissions, removing = true)
         if (actor.builtInManager) return
-        val accountIds = roles.findMemberRoles(projectId).filter { it.roleName == roleName }.map { it.accountId }.distinct()
+        val accountIds = roles.findMemberRoles(projectId)
+            .filter { it.roleName == roleName && it.accountId != requester.userId }.map { it.accountId }.distinct()
         requireManageableTargets(actor, accountIds, requireActiveMember = false)
     }
 
