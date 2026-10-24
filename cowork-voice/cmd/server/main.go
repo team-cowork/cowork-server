@@ -42,6 +42,7 @@ import (
 
 	"github.com/cowork/cowork-voice/internal/config"
 	livedomain "github.com/cowork/cowork-voice/internal/domain/live_room"
+	permissionsync "github.com/cowork/cowork-voice/internal/domain/permission_sync"
 	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
 	webhookdomain "github.com/cowork/cowork-voice/internal/domain/webhook"
 	"github.com/cowork/cowork-voice/internal/health"
@@ -154,6 +155,12 @@ func main() {
 	liveSvc := livedomain.NewLiveService(liveMongoRepo, channelPermissions, liveLKRoom, cfg.LiveKitWsURL)
 	liveHandler := livedomain.NewHandler(liveSvc)
 	liveWebhookSvc := webhookdomain.NewLiveWebhookService(liveMongoRepo, liveLKRoom)
+	permissionSync := permissionsync.New(livekitClient, channelPermissions, liveMongoRepo)
+	permissionSyncDone := make(chan struct{})
+	go func() {
+		defer close(permissionSyncDone)
+		permissionSync.Run(runtimeCtx)
+	}()
 
 	// outbox relay: 도메인 서비스가 Mongo에 적재한 이벤트를 Kafka로 전송(재시도 포함)
 	outboxRelay := relay.New(outboxRepo, kafkaProducer, 1*time.Second, 200)
@@ -223,6 +230,7 @@ func main() {
 	}
 
 	runtimeCancel()
+	<-permissionSyncDone
 	<-eurekaDone
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)

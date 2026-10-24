@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/cowork/cowork-voice/internal/apperr"
+	"github.com/cowork/cowork-voice/internal/domain/permission"
 	kafka "github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
@@ -228,25 +229,31 @@ func TestVoiceRoomService(t *testing.T) {
 type stubConnectPermissionChecker struct {
 	teamID int64
 	err    error
+	access *permission.Access
 }
 
-func (s *stubConnectPermissionChecker) RequireConnect(_ context.Context, _, _ int64) (int64, error) {
+func (s *stubConnectPermissionChecker) RequireConnect(_ context.Context, _, _ int64) (permission.Access, error) {
 	if s.err != nil {
-		return 0, s.err
+		return permission.Access{}, s.err
 	}
-	return s.teamID, nil
+	if s.access != nil {
+		return *s.access, nil
+	}
+	return permission.Access{TeamID: s.teamID, Speak: true, ScreenShare: true, Broadcast: true}, nil
 }
 
 type stubLiveKitRoom struct {
-	token           string
-	createErr       error
-	tokenErr        error
-	removeErr       error
-	listErr         error
-	participants    []LiveKitParticipant
-	createdRoomName string
-	tokenUserID     int64
-	tokenRoomName   string
+	token            string
+	createErr        error
+	tokenErr         error
+	removeErr        error
+	listErr          error
+	participants     []LiveKitParticipant
+	createdRoomName  string
+	tokenUserID      int64
+	tokenRoomName    string
+	tokenSpeak       bool
+	tokenScreenShare bool
 }
 
 func (s *stubLiveKitRoom) CreateRoomIfNotExists(_ context.Context, roomName string) error {
@@ -254,9 +261,11 @@ func (s *stubLiveKitRoom) CreateRoomIfNotExists(_ context.Context, roomName stri
 	return s.createErr
 }
 
-func (s *stubLiveKitRoom) GenerateToken(userID int64, roomName string) (string, error) {
+func (s *stubLiveKitRoom) GenerateToken(userID int64, roomName string, speak, screenShare bool) (string, error) {
 	s.tokenUserID = userID
 	s.tokenRoomName = roomName
+	s.tokenSpeak = speak
+	s.tokenScreenShare = screenShare
 	if s.tokenErr != nil {
 		return "", s.tokenErr
 	}
@@ -356,4 +365,18 @@ func (s *stubRepository) CleanupOrphanParticipants(_ context.Context, _ string, 
 
 func (s *stubRepository) GetParticipantJoinedAt(_ context.Context, _ string, _ int64, _ string) (*time.Time, error) {
 	return s.getParticipantJoinedAtValue, nil
+}
+
+func TestJoinLimitsPublishingToRolePermissions(t *testing.T) {
+	for _, access := range []permission.Access{{TeamID: 456}, {TeamID: 456, Speak: true}, {TeamID: 456, ScreenShare: true}} {
+		repo := &stubRepository{findActiveSessionResult: &VoiceSession{SessionID: "s", RoomName: "voice", ChannelID: 123, TeamID: 456}}
+		lk := &stubLiveKitRoom{token: "token"}
+		svc := NewRoomService(repo, &stubConnectPermissionChecker{access: &access}, lk, "")
+		if _, err := svc.Join(context.Background(), 123, 42); err != nil {
+			t.Fatal(err)
+		}
+		if lk.tokenSpeak != access.Speak || lk.tokenScreenShare != access.ScreenShare {
+			t.Fatalf("unexpected publish permission: %+v", lk)
+		}
+	}
 }

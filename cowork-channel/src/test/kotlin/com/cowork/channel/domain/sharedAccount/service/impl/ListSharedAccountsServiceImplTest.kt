@@ -86,7 +86,7 @@ class ListSharedAccountsServiceImplTest {
     @Test
     fun `listAccounts는 팀 비멤버이면 FORBIDDEN`() {
         every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
-        every { teamPermissionService.requireTeamMember(100L, 7L) } throws
+        every { teamPermissionService.requireChannelAccess(any(), 7L) } throws
             ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
 
         val ex = assertThrows<ExpectedException> { service.listAccounts(7L, 1L) }
@@ -96,7 +96,7 @@ class ListSharedAccountsServiceImplTest {
     @Test
     fun `listAccounts는 credential을 ••••로 마스킹하여 반환함`() {
         every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
-        every { teamPermissionService.requireTeamMember(100L, 1L) } returns Unit
+        every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
         every { sharedAccountRepository.findAllByChannelIdOrderByCreatedAtAscIdAsc(1L) } returns
             listOf(account(credential = "encrypted"))
 
@@ -109,7 +109,7 @@ class ListSharedAccountsServiceImplTest {
     @Test
     fun `listAccounts는 credential이 null이면 maskedCredential도 null임`() {
         every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
-        every { teamPermissionService.requireTeamMember(100L, 1L) } returns Unit
+        every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
         every { sharedAccountRepository.findAllByChannelIdOrderByCreatedAtAscIdAsc(1L) } returns
             listOf(account(credential = null))
 

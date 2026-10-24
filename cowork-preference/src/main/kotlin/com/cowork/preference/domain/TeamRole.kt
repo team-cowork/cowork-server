@@ -13,6 +13,7 @@ data class TeamRoleDefinition(
     val permissions: Map<String, Boolean>,
     val createdAt: OffsetDateTime?,
     val updatedAt: OffsetDateTime?,
+    val isDefault: Boolean = false,
 )
 
 data class AccountTeamRole(
