@@ -36,6 +36,8 @@ const (
 	NotificationLevelAll      NotificationLevel = "ALL"
 	NotificationLevelMentions NotificationLevel = "MENTIONS"
 	NotificationLevelNone     NotificationLevel = "NONE"
+	// NotificationLevelDefault means the channel has no level of its own and follows the account and team levels.
+	NotificationLevelDefault NotificationLevel = "DEFAULT"
 )
 
 // ChannelNotificationPreference is the notification choice an account made for one channel.
@@ -44,13 +46,8 @@ type ChannelNotificationPreference struct {
 	MutedUntil *time.Time
 }
 
-// ReceivesAllMessages reports whether channel messages that do not mention the account
-// reach it at now. Mentions and replies are decided by the caller.
-func (p ChannelNotificationPreference) ReceivesAllMessages(now time.Time) bool {
-	if p.MutedUntil != nil && now.Before(*p.MutedUntil) {
-		return false
-	}
-	return p.Level == NotificationLevelAll
+func (p ChannelNotificationPreference) Muted(now time.Time) bool {
+	return p.MutedUntil != nil && now.Before(*p.MutedUntil)
 }
 
 const StatusDoNotDisturb = "DO_NOT_DISTURB"
@@ -99,11 +96,18 @@ func (p RecipientPreferences) DoNotDisturb(accountID int64, now time.Time) bool 
 	return ok && account.DoNotDisturb(now)
 }
 
-// ReceivesAllChannelMessages resolves the level in channel, account, team default order.
-// Direct-message channels fall back to ALL because account and team levels describe team channels.
+// ReceivesAllChannelMessages reports whether channel messages that do not mention the account
+// reach it at now. A channel mute always applies, and the level resolves in channel, account,
+// team default order, skipping a channel level of DEFAULT. Direct-message channels fall back to
+// ALL because account and team levels describe team channels.
 func (p RecipientPreferences) ReceivesAllChannelMessages(accountID int64, teamChannel bool, now time.Time) bool {
 	if channel, ok := p.Channels[accountID]; ok {
-		return channel.ReceivesAllMessages(now)
+		if channel.Muted(now) {
+			return false
+		}
+		if channel.Level != NotificationLevelDefault {
+			return channel.Level == NotificationLevelAll
+		}
 	}
 	if !teamChannel {
 		return true
