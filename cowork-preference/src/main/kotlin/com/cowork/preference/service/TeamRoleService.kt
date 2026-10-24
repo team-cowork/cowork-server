@@ -80,6 +80,9 @@ class TeamRoleService(
             return Result.failure(IllegalArgumentException("기본 역할의 이름과 우선순위는 변경할 수 없습니다."))
         }
         val nextName = name ?: existing.name
+        if (!existing.isDefault && nextName == "@everyone" && nextName != existing.name) {
+            return Result.failure(IllegalArgumentException("기본 역할 이름은 사용할 수 없습니다."))
+        }
         val nextColorHex = colorHex ?: existing.colorHex
         validateName(nextName).onFailure { return Result.failure(it) }
         validateColor(nextColorHex).onFailure { return Result.failure(it) }
