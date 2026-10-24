@@ -11,14 +11,16 @@ enum class NotificationLevel {
     NONE,
 }
 
+/** `notificationLevel`이 null이면 채널에 등급을 정하지 않고 계정과 팀 수준을 따른다(`DEFAULT`). */
 data class ChannelNotificationPreference(
     val accountId: Long,
     val channelId: Long,
-    val notificationLevel: NotificationLevel,
+    val notificationLevel: NotificationLevel?,
     val mutedUntil: Instant?,
     val stateOccurredAt: OffsetDateTime,
 ) {
     val notification: Boolean = notificationLevel != NotificationLevel.NONE
+    val notificationLevelName: String = ChannelNotificationSettings.levelName(notificationLevel)
 }
 
 /**
@@ -29,8 +31,12 @@ object ChannelNotificationSettings {
     const val NOTIFICATION = "notification"
     const val NOTIFICATION_LEVEL = "notification_level"
     const val MUTED_UNTIL = "muted_until"
+    const val DEFAULT_LEVEL = "DEFAULT"
 
-    /** PUT 전체 교체 요청을 저장 형태로 바꾼다. `notification_level`이 `notification`보다 우선한다. */
+    /**
+     * PUT 전체 교체 요청을 저장 형태로 바꾼다. `notification_level`이 `notification`보다 우선하고,
+     * 둘 다 없으면 `DEFAULT`로 저장한다.
+     */
     fun fromRequest(raw: JsonObject): JsonObject {
         val level = when {
             raw.containsKey(NOTIFICATION_LEVEL) -> parseLevel(raw.getValue(NOTIFICATION_LEVEL))
@@ -39,7 +45,7 @@ object ChannelNotificationSettings {
                 require(enabled is Boolean) { "$NOTIFICATION must be a boolean" }
                 if (enabled) NotificationLevel.ALL else NotificationLevel.NONE
             }
-            else -> NotificationLevel.ALL
+            else -> null
         }
         val mutedUntil = raw.getValue(MUTED_UNTIL)?.let { value ->
             require(value is String) { "$MUTED_UNTIL must be an ISO-8601 datetime string" }
@@ -54,25 +60,32 @@ object ChannelNotificationSettings {
         return toJson(level, mutedUntil)
     }
 
-    fun level(settings: JsonObject?): NotificationLevel {
-        val stored = settings?.getValue(NOTIFICATION_LEVEL) as? String
+    /** 저장된 설정이 없거나 `DEFAULT`이면 null이다. 등급 없이 저장된 과거 설정은 `notification` 값으로 정한다. */
+    fun level(settings: JsonObject?): NotificationLevel? {
+        if (settings == null) return null
+        val stored = settings.getValue(NOTIFICATION_LEVEL) as? String
+        if (stored == DEFAULT_LEVEL) return null
         NotificationLevel.entries.firstOrNull { it.name == stored }?.let { return it }
-        return if (settings?.getValue(NOTIFICATION) == false) NotificationLevel.NONE else NotificationLevel.ALL
+        return if (settings.getValue(NOTIFICATION) == false) NotificationLevel.NONE else NotificationLevel.ALL
     }
+
+    fun levelName(level: NotificationLevel?): String = level?.name ?: DEFAULT_LEVEL
 
     fun mutedUntil(settings: JsonObject?): Instant? =
         (settings?.getValue(MUTED_UNTIL) as? String)?.let { runCatching { Instant.parse(it) }.getOrNull() }
 
     fun normalize(settings: JsonObject?): JsonObject = toJson(level(settings), mutedUntil(settings))
 
-    private fun toJson(level: NotificationLevel, mutedUntil: Instant?): JsonObject = JsonObject()
+    private fun toJson(level: NotificationLevel?, mutedUntil: Instant?): JsonObject = JsonObject()
         .put(NOTIFICATION, level != NotificationLevel.NONE)
-        .put(NOTIFICATION_LEVEL, level.name)
+        .put(NOTIFICATION_LEVEL, levelName(level))
         .put(MUTED_UNTIL, mutedUntil?.toString())
 
-    private fun parseLevel(value: Any?): NotificationLevel =
-        NotificationLevel.entries.firstOrNull { it.name == value }
+    private fun parseLevel(value: Any?): NotificationLevel? {
+        if (value == DEFAULT_LEVEL) return null
+        return NotificationLevel.entries.firstOrNull { it.name == value }
             ?: throw IllegalArgumentException(
-                "$NOTIFICATION_LEVEL must be one of ${NotificationLevel.entries.map { it.name }}",
+                "$NOTIFICATION_LEVEL must be one of ${NotificationLevel.entries.map { it.name } + DEFAULT_LEVEL}",
             )
+    }
 }
