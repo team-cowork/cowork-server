@@ -45,12 +45,23 @@ func (s *stubRooms) DeleteRoom(context.Context, *livekit.DeleteRoomRequest) (*li
 }
 
 type stubPermissions struct {
-	access permission.Access
-	err    error
+	access       permission.Access
+	err          error
+	prepareErr   error
+	preparations int
+	deniedUsers  map[int64]bool
 }
 
-func (s *stubPermissions) RequireConnect(context.Context, int64, int64) (permission.Access, error) {
+func (s *stubPermissions) RequireConnect(_ context.Context, _, userID int64) (permission.Access, error) {
+	if s.deniedUsers[userID] {
+		return permission.Access{}, apperr.PermissionDenied()
+	}
 	return s.access, s.err
+}
+
+func (s *stubPermissions) CurrentConnectCheck(context.Context) (permission.ConnectCheck, error) {
+	s.preparations++
+	return s.RequireConnect, s.prepareErr
 }
 
 type stubSessions struct {
@@ -63,6 +74,40 @@ func (s stubSessions) FindActiveSession(context.Context, int64) (*live.LiveSessi
 }
 
 func TestVoicePermissionReconciliation(t *testing.T) {
+	t.Run("one current check preserves each participant's permissions", func(t *testing.T) {
+		rooms := &stubRooms{name: "voice-10-session", participants: []*livekit.ParticipantInfo{
+			{Identity: "7", Permission: mediaPermission(true, true, true)},
+			{Identity: "8", Permission: mediaPermission(true, true, true)},
+		}}
+		permissions := &stubPermissions{access: permission.Access{Speak: true}, deniedUsers: map[int64]bool{8: true}}
+		if err := New(rooms, permissions, stubSessions{}).Reconcile(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		if permissions.preparations != 1 || len(rooms.removed) != 1 || rooms.removed[0] != "8" ||
+			len(rooms.updates) != 1 || !sameMedia(rooms.updates[0].Permission, mediaPermission(true, true, false)) {
+			t.Fatalf("unexpected participant permissions after %d current checks: %+v", permissions.preparations, rooms)
+		}
+	})
+	t.Run("failed current check pauses every participant without using projected grants", func(t *testing.T) {
+		rooms := &stubRooms{name: "voice-10-session", participants: []*livekit.ParticipantInfo{
+			{Identity: "7", Permission: mediaPermission(true, true, true)},
+			{Identity: "8", Permission: mediaPermission(true, true, true)},
+		}}
+		permissions := &stubPermissions{
+			access: permission.Access{Speak: true, ScreenShare: true}, prepareErr: apperr.ServiceUnavailable("catching up"),
+		}
+		if err := New(rooms, permissions, stubSessions{}).Reconcile(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		if permissions.preparations != 1 || len(rooms.removed) != 0 || len(rooms.updates) != 2 {
+			t.Fatal("unknown current permissions must pause every participant")
+		}
+		for _, update := range rooms.updates {
+			if !sameMedia(update.Permission, mediaPermission(false, false, false)) {
+				t.Fatal("a stale projected grant enabled media")
+			}
+		}
+	})
 	t.Run("revoked connect removes the participant", func(t *testing.T) {
 		rooms := &stubRooms{name: "voice-10-session", participants: []*livekit.ParticipantInfo{{Identity: "7"}}}
 		svc := New(rooms, &stubPermissions{err: apperr.PermissionDenied()}, stubSessions{})
