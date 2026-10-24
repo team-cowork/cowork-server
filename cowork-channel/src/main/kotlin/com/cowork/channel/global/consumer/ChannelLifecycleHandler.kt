@@ -15,6 +15,7 @@ class ChannelLifecycleHandler(
     private val channelRepository: ChannelRepository,
     private val teamMembershipRepository: TeamMembershipRepository,
     private val channelEventPublisher: ChannelEventPublisher,
+    private val roleProjectionHandler: PreferenceTeamRoleProjectionHandler,
 ) {
     private val log = LoggerFactory.getLogger(ChannelLifecycleHandler::class.java)
 
@@ -56,6 +57,14 @@ class ChannelLifecycleHandler(
     @Transactional
     fun onMemberRemovedFromTeam(teamId: Long, targetUserId: Long, role: String, occurredAt: Instant) {
         val version = occurredAt.toProjectionPrecision()
+        roleProjectionHandler.handle(
+            PreferenceTeamRoleChangedEvent(
+                eventType = "MEMBER_ASSIGNMENTS_DELETED",
+                teamId = teamId,
+                accountId = targetUserId,
+                occurredAt = version,
+            ),
+        )
         val membership = teamMembershipRepository.findStateByTeamIdAndUserIdForUpdate(teamId, targetUserId)
             ?: TeamMembership(
                 teamId = teamId,
@@ -73,15 +82,6 @@ class ChannelLifecycleHandler(
         membership.markDeleted(version)
         teamMembershipRepository.save(membership)
 
-        val teamChannels = channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(teamId)
-        val creatorOf = teamChannels.filter { it.createdBy == targetUserId }
-        creatorOf.forEach { channelEventPublisher.publishDeleted(it, version) }
-        if (creatorOf.isNotEmpty()) channelRepository.deleteAll(creatorOf)
-        log.info(
-            "MEMBER_REMOVED 처리 [teamId={}, userId={}, channelsDeleted={}]",
-            teamId,
-            targetUserId,
-            creatorOf.size,
-        )
+        log.info("Revoke team member access [teamId={}, userId={}]", teamId, targetUserId)
     }
 }

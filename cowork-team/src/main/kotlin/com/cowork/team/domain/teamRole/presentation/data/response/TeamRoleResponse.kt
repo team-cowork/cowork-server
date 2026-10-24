@@ -1,5 +1,6 @@
 package com.cowork.team.domain.teamRole.presentation.data.response
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import io.swagger.v3.oas.annotations.media.Schema
 
 data class TeamRoleResponse(
@@ -21,4 +22,7 @@ data class TeamRoleResponse(
     val createdAt: String?,
     @field:Schema(description = "수정 일시")
     val updatedAt: String?,
+    @field:Schema(description = "활성 팀 멤버 모두에게 자동 적용되는 기본 역할 여부")
+    @field:JsonProperty("isDefault")
+    val isDefault: Boolean = false,
 )

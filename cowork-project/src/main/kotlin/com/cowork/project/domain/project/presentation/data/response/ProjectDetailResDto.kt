@@ -1,31 +1,35 @@
 package com.cowork.project.domain.project.presentation.data.response
 
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.entity.ProjectStatus
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.LocalDateTime
 
 data class ProjectDetailResDto(
-    @Schema(description = "프로젝트 ID", example = "1")
+    @field:Schema(description = "프로젝트 ID", example = "1")
     val id: Long,
-    @Schema(description = "팀 ID", example = "1")
+    @field:Schema(description = "팀 ID", example = "1")
     val teamId: Long,
-    @Schema(description = "프로젝트 이름", example = "코워크 앱 개발")
+    @field:Schema(description = "프로젝트 이름", example = "코워크 앱 개발")
     val name: String,
-    @Schema(description = "프로젝트 설명", example = "모바일 앱 개발 프로젝트")
+    @field:Schema(description = "프로젝트 설명", example = "모바일 앱 개발 프로젝트")
     val description: String?,
-    @Schema(description = "프로젝트 상태", example = "ACTIVE")
+    @field:Schema(description = "프로젝트 상태", example = "ACTIVE")
     val status: ProjectStatus,
-    @Schema(description = "팀 내 프로젝트 정렬 순서", example = "0")
+    @field:Schema(description = "팀 내 프로젝트 정렬 순서", example = "0")
     val position: Int,
-    @Schema(description = "생성자 사용자 ID", example = "1")
+    @field:Schema(description = "생성자 사용자 ID", example = "1")
     val createdBy: Long,
-    @Schema(description = "생성 일시")
+    @field:Schema(description = "생성 일시")
     val createdAt: LocalDateTime,
-    @Schema(description = "수정 일시")
+    @field:Schema(description = "수정 일시")
     val updatedAt: LocalDateTime,
-    @Schema(description = "프로젝트 멤버 수", example = "5")
+    @field:Schema(description = "프로젝트 멤버 수", example = "5")
     val memberCount: Long,
+    @field:Schema(description = "비공개 여부")
+    @field:JsonProperty("isPrivate")
+    val isPrivate: Boolean = false,
 ) {
     companion object {
         fun of(project: Project, memberCount: Long): ProjectDetailResDto = ProjectDetailResDto(
@@ -39,6 +43,7 @@ data class ProjectDetailResDto(
             createdAt = project.createdAt,
             updatedAt = project.updatedAt,
             memberCount = memberCount,
+            isPrivate = project.isPrivate,
         )
     }
 }

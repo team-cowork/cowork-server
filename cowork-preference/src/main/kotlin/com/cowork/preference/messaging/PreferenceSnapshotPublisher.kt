@@ -36,6 +36,14 @@ class PreferenceSnapshotPublisher(
         upstreamReadiness = teamStateReadiness,
     ) { connection ->
         val notificationCount = publishNotificationSettings(connection)
+        outboxRepository.inTransaction(connection) { client ->
+            teamRoleRepository.findTeamsMissingDefaultRole(client).forEach { teamId ->
+                teamRoleRepository.ensureDefaultRole(client, teamId)?.let { role ->
+                    outboxRepository.enqueue(client, PreferenceEvents.roleUpserted(role, requireNotNull(role.updatedAt).toInstant()))
+                    projectAccessRepository.refreshTeam(client, teamId)
+                }
+            }
+        }
         val roleCount = publishRoles(connection)
         val assignmentCount = publishAssignments(connection)
         val memberFenceCount = publishMemberFences(connection)
