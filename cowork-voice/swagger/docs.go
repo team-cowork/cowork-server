@@ -99,7 +99,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "채널 멤버가 아님",
+                        "description": "음성 채널 연결 권한 없음",
                         "schema": {
                             "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
                         }
@@ -191,7 +191,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "채널 멤버가 아님",
+                        "description": "음성 채널 연결 권한 없음",
                         "schema": {
                             "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
                         }
@@ -249,7 +249,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "채널 멤버가 아님",
+                        "description": "음성 채널 연결 권한 없음",
                         "schema": {
                             "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
                         }

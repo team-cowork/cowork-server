@@ -4,9 +4,7 @@ import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.entity.ChannelViewType
 import com.cowork.channel.domain.channel.event.ChannelEventPublisher
-import com.cowork.channel.domain.channel.event.ChannelMembershipSyncPublisher
 import com.cowork.channel.domain.channel.presentation.data.request.CreateChannelRequest
-import com.cowork.channel.domain.channel.repository.ChannelMemberRepository
 import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.channel.service.TeamPermissionService
 import com.cowork.channel.domain.meetingNote.service.CreateDefaultMeetingNoteTemplateService
@@ -22,17 +20,13 @@ import team.themoment.sdk.exception.ExpectedException
 class CreateChannelServiceImplTest {
 
     private val channelRepository = mockk<ChannelRepository>(relaxed = true)
-    private val channelMemberRepository = mockk<ChannelMemberRepository>(relaxed = true)
     private val teamPermission = mockk<TeamPermissionService>()
-    private val channelMembershipSyncPublisher = mockk<ChannelMembershipSyncPublisher>(relaxed = true)
     private val channelEventPublisher = mockk<ChannelEventPublisher>(relaxed = true)
     private val createDefaultMeetingNoteTemplateService = mockk<CreateDefaultMeetingNoteTemplateService>(relaxed = true)
 
     private val service = CreateChannelServiceImpl(
         channelRepository,
-        channelMemberRepository,
         teamPermission,
-        channelMembershipSyncPublisher,
         channelEventPublisher,
         createDefaultMeetingNoteTemplateService,
     )
@@ -57,7 +51,6 @@ class CreateChannelServiceImplTest {
         every { channelRepository.findMaxPositionByTeamId(100L) } returns 4
         val saved = slot<Channel>()
         every { channelRepository.save(capture(saved)) } answers { saved.captured }
-        every { channelMemberRepository.save(any()) } answers { firstArg() }
 
         service.execute(
             1L,

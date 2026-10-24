@@ -18,7 +18,7 @@ class DeleteMeetingNoteTemplateServiceImpl(
 ) : DeleteMeetingNoteTemplateService {
 
     override fun deleteTemplate(userId: Long, channelId: Long, templateId: Long) {
-        meetingNoteAccessGuard.requireChannelMember(channelId, userId)
+        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
         val template = lookupSupport.findTemplateOrThrow(templateId)
         lookupSupport.requireTemplateOwnership(template, channelId)
         if (template.isActive) {

@@ -18,10 +18,6 @@ func (e *Error) Error() string {
 	return e.Message
 }
 
-func NotMember() *Error {
-	return &Error{HTTPStatus: http.StatusForbidden, Code: "FORBIDDEN", Message: "채널 멤버가 아닙니다."}
-}
-
 func ServiceUnavailable(msg string) *Error {
 	return &Error{HTTPStatus: http.StatusServiceUnavailable, Code: "SERVICE_UNAVAILABLE", Message: msg}
 }
@@ -51,4 +47,8 @@ func WriteResponse(w http.ResponseWriter, err *Error) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(err.HTTPStatus)
 	_ = json.NewEncoder(w).Encode(err)
+}
+
+func PermissionDenied() *Error {
+	return &Error{HTTPStatus: http.StatusForbidden, Code: "FORBIDDEN", Message: "음성 채널 연결 권한이 없습니다."}
 }
