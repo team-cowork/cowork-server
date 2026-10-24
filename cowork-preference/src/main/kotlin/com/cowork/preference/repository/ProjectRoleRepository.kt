@@ -15,7 +15,11 @@ class ProjectRoleRepository(private val pool: Pool) {
             "SELECT a.can_read, a.can_write, a.can_manage, a.can_reorder FROM tb_project_access_states a " +
                 "JOIN tb_project_lifecycle_projections p ON p.project_id = a.project_id AND NOT p.deleted " +
                 "JOIN tb_team_member_projections m ON m.team_id = p.team_id AND m.account_id = a.account_id AND NOT m.deleted " +
-                "WHERE a.project_id = \$1 AND a.account_id = \$2 AND a.source_membership_version = m.source_occurred_at",
+                "WHERE a.project_id = \$1 AND a.account_id = \$2 " +
+                // TODO(#596): 2026-11-01 05:00 KST 이후 구버전 중단·멤버 및 파생 snapshot 보정·구형 재처리 종료 후 fallback을 제거한다.
+                // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+                "AND COALESCE(a.source_authorization_version, a.source_membership_version) = " +
+                "COALESCE(m.authorization_version, m.source_occurred_at)",
         ).execute(Tuple.of(projectId, accountId)).coAwait()
         val row = rows.firstOrNull() ?: return ProjectPermissions()
         val read = row.getBoolean("can_read")
