@@ -38,18 +38,22 @@ class TeamRoleAccessGuard(
         }
     }
 
-    fun requireManageRoles(teamId: Long, userId: Long): ManageRoleContext {
+    fun requireManageRoles(teamId: Long, userId: Long): ManageRoleContext =
+        requirePermission(teamId, userId, TeamRolePermissionSchema.MANAGE_ROLES, "역할 관리 권한이 없습니다.")
+
+    /** OWNER와 ADMIN은 모든 권한을 가지며, 그 외 멤버는 부여받은 역할 중 하나라도 권한을 허용해야 한다. */
+    fun requirePermission(teamId: Long, userId: Long, permission: String, deniedMessage: String): ManageRoleContext {
         val member = findMemberOrThrow(teamId, userId)
         if (member.role == TeamRole.OWNER || member.role == TeamRole.ADMIN) {
             return ManageRoleContext(member, emptyList())
         }
 
         val roles = teamRoleProjectionReader.getMemberRoles(teamId, userId)
-        if (roles.any { it.permissions[TeamRolePermissionSchema.MANAGE_ROLES] == true }) {
+        if (roles.any { it.permissions[permission] == true }) {
             return ManageRoleContext(member, roles)
         }
 
-        throw ExpectedException("역할 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        throw ExpectedException(deniedMessage, HttpStatus.FORBIDDEN)
     }
 
     fun requireManageablePriority(actor: ManageRoleContext, role: TeamRoleResponse) {
