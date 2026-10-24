@@ -74,7 +74,6 @@ class TeamRoleCommandProcessor(
             } catch (rejected: CommandRejected) {
                 rejected(command, rejected)
             }
-            if (outcome.stateEvents.isNotEmpty()) projectAccess.refreshTeam(connection, command.teamId)
             outboxRepository.enqueueAll(connection, outcome.stateEvents)
             outboxRepository.enqueue(
                 connection,
@@ -217,6 +216,12 @@ class TeamRoleCommandProcessor(
             input.mentionable ?: current.mentionable,
             input.permissions?.let { TeamRolePermissions.merge(current.permissions, it) } ?: current.permissions,
         )
+        val projectPermissionsChanged = PermissionKeys.PROJECT_SCOPED.any {
+            (current.permissions[it] == true) != (role.permissions[it] == true)
+        }
+        if (projectPermissionsChanged) {
+            projectAccess.refreshTeam(connection, command.teamId)
+        }
         return success(command, role, PreferenceEvents.roleUpserted(role, role.version()), deleted = false)
     }
 
@@ -255,6 +260,7 @@ class TeamRoleCommandProcessor(
                 tombstone.stateOccurredAt,
             )
         } + roleEvent
+        projectAccess.refreshTeam(connection, command.teamId)
         return success(command, null, roleEvent, deleted = true, stateEvents = events)
     }
 
@@ -309,6 +315,7 @@ class TeamRoleCommandProcessor(
         )
         val assignment = requireNotNull(roleRepository.findAssignment(connection, targetId, command.teamId, roleId))
         val event = PreferenceEvents.assignmentUpserted(assignment, requireNotNull(assignment.updatedAt).toInstant())
+        projectAccess.refreshTeam(connection, command.teamId, targetId)
         return success(command, role, event, deleted = false)
     }
 
@@ -340,6 +347,7 @@ class TeamRoleCommandProcessor(
         )
         val assignment = AccountTeamRole(targetId, command.teamId, roleId)
         val event = PreferenceEvents.assignmentDeleted(assignment, tombstone.stateOccurredAt)
+        projectAccess.refreshTeam(connection, command.teamId, targetId)
         return success(command, role, event, deleted = true)
     }
 
