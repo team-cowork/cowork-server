@@ -52,6 +52,16 @@ class ChannelMessageReadPolicyEvaluator(
         }
     }
 
+    fun requirePrivateTransitionAccess(teamId: Long, userId: Long, channel: Channel) {
+        projectionReadinessGate.requireReady()
+        if (channel.id !in readableChannelIds(teamId, userId, listOf(channel), isPrivate = true)) {
+            throw ExpectedException(
+                "비공개 전환 후에도 접근할 수 있도록 채널 역할 권한을 먼저 설정해야 합니다.",
+                HttpStatus.BAD_REQUEST,
+            )
+        }
+    }
+
     fun requirePermission(teamId: Long, userId: Long, channel: Channel, permission: String) {
         projectionReadinessGate.requireReady()
         if (channel.id !in readableChannelIds(teamId, userId, listOf(channel), permission)) {
@@ -76,6 +86,7 @@ class ChannelMessageReadPolicyEvaluator(
         userId: Long,
         channels: List<Channel>,
         permission: String? = null,
+        isPrivate: Boolean? = null,
     ): Set<Long> {
         if (channels.isEmpty()) return emptySet()
         val channelIds = channels.mapTo(mutableSetOf()) { it.id }
@@ -94,7 +105,9 @@ class ChannelMessageReadPolicyEvaluator(
             .mapTo(mutableSetOf()) { it.roleId }
         val roles = loadRoles(teamId, assignedRoleIds)
         val policies = loadPolicies(teamId, channelIds, roles.keys)
-        return channels.filter { isAllowed(it, assignedRoleIds, roles, policies[it.id].orEmpty(), permission) }
+        return channels.filter {
+            isAllowed(it, assignedRoleIds, roles, policies[it.id].orEmpty(), permission, isPrivate ?: it.isPrivate)
+        }
             .mapTo(mutableSetOf()) { it.id }
     }
 
@@ -255,11 +268,12 @@ class ChannelMessageReadPolicyEvaluator(
         roles: Map<Long, RolePermissions>,
         policies: Map<Long, Map<String, Boolean>>,
         permission: String? = null,
+        isPrivate: Boolean = channel.isPrivate,
     ): Boolean {
         val applicable = roles.filter { (roleId, role) -> role.isDefault || roleId in roleIds }
         val accessPermission = if (channel.type == ChannelType.VOICE) "voice_connect" else "message_read"
         fun allows(key: String): Boolean {
-            var allowed = !((channel.isPrivate) && key in ACCESS_PERMISSIONS) &&
+            var allowed = !(isPrivate && key in ACCESS_PERMISSIONS) &&
                 applicable.values.any { it.permissions[key] == true }
             applicable.filterValues { it.isDefault }.forEach { (roleId, _) ->
                 policies[roleId]?.get(key)?.let { allowed = it }
