@@ -216,7 +216,8 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
         const targetUserIds = [...recipientIdSet].filter(id => id !== message.authorId);
 
         if (message.notificationRetryCount === 0) {
-            await this.unreadCounterService.incrementIfPresent(message.channelId, targetUserIds);
+            // Stale PROCESSING 회수는 재시도 횟수를 올리지 않으므로 메시지 ID로 (메시지, 수신자)당 한 번만 반영한다.
+            await this.unreadCounterService.incrementIfPresent(message.channelId, targetUserIds, message._id.toString());
         }
 
         const forcedSet = new Set<number>();
