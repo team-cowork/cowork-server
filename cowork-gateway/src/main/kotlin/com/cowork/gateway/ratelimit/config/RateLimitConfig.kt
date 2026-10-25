@@ -9,6 +9,12 @@ import reactor.core.publisher.Mono
 @Configuration
 class RateLimitConfig {
 
+    @Bean
+    fun webhookIpKeyResolver(): KeyResolver = KeyResolver { exchange ->
+        Mono.justOrEmpty(exchange.request.remoteAddress?.address?.hostAddress)
+            .map { "webhook:$it" }
+    }
+
     /**
      * Rate Limiting 키 전략:
      * 인증된 요청 → X-User-Id 기준
