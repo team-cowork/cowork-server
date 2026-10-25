@@ -18,6 +18,7 @@ import org.springframework.security.web.server.SecurityWebFilterChain
 import org.springframework.security.web.server.authentication.AuthenticationWebFilter
 import org.springframework.security.web.server.context.NoOpServerSecurityContextRepository
 import org.springframework.security.web.server.util.matcher.PathPatternParserServerWebExchangeMatcher
+import org.springframework.web.util.pattern.PathPatternParser
 
 @Configuration
 @EnableWebFluxSecurity
@@ -59,6 +60,10 @@ class SecurityConfig(
     @Bean
     @Order(2)
     fun securityWebFilterChain(http: ServerHttpSecurity): SecurityWebFilterChain {
+        val webhookPosts = PathPatternParserServerWebExchangeMatcher(
+            PathPatternParser().apply { isCaseSensitive = false }.parse("/api/chat/chat/webhooks/**"),
+            HttpMethod.POST,
+        )
         val jwtFilter = AuthenticationWebFilter(jwtAuthManager).apply {
             setServerAuthenticationConverter(jwtConverter)
             setSecurityContextRepository(NoOpServerSecurityContextRepository.getInstance())
@@ -96,7 +101,9 @@ class SecurityConfig(
                     .pathMatchers(HttpMethod.GET, "/api/chat/asyncapi.json").permitAll()
                     .pathMatchers(HttpMethod.POST, "/api/voice/voice/webhook").permitAll()
                     // 수신 웹훅의 공개/보안 모드는 Chat의 Preference projection으로 검증한다.
-                    .pathMatchers(HttpMethod.POST, "/api/chat/chat/webhooks/*/messages").permitAll()
+                    .pathMatchers(HttpMethod.POST, "/api/chat/chat/webhooks/*/*/messages").permitAll()
+                    // Express의 대소문자 무시 라우팅으로 서명 검증을 우회하지 못하게 한다.
+                    .matchers(webhookPosts).denyAll()
                     // GitHub webhook은 cowork-github가 X-Hub-Signature-256으로 검증하고, setup 콜백은 GitHub가 브라우저를
                     // 리다이렉트하므로 Cowork JWT가 없다. 콜백의 state 서명은 cowork-team이 검증한다
                     .pathMatchers(HttpMethod.POST, "/api/github/github/webhooks").permitAll()
