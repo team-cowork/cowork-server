@@ -21,5 +21,3 @@ webhook:
     window-ms: 60000
     public-limit: 10
     secure-limit: 60
-    public-ip-limit: 10
-    secure-ip-limit: 60
