@@ -185,7 +185,10 @@ func (w *Worker) attempt(ctx context.Context, rec Record) {
 	}
 
 	sendCtx, cancel := context.WithTimeout(ctx, fcmSendTimeout)
-	msg := fcm.Message{FID: rec.FID, Data: fcm.WithAccountID(rec.Data, accountID)}
+	data := fcm.WithAccountID(rec.Data, accountID)
+	// event_id, not data_json, so rows queued before eventId joined the payload carry it too.
+	data[fcm.DataKeyEventID] = rec.EventID
+	msg := fcm.Message{FID: rec.FID, Data: data}
 	results, err := w.fcm.Send(sendCtx, []fcm.Message{msg}, rec.Title, rec.Body)
 	cancel()
 	if err != nil || len(results) == 0 {
