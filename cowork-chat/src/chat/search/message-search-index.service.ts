@@ -151,7 +151,7 @@ export class MessageSearchIndexService {
         }
 
         const deletions = await Promise.allSettled(
-            tombstones.map(tombstone => this.messageRepository.deleteById(tombstone.messageId)),
+            tombstones.map(async tombstone => this.messageRepository.deleteById(tombstone.messageId)),
         );
         const succeeded: TombstoneRecord[] = [];
         const failures: Array<{tombstone: TombstoneRecord; error: unknown}> = [];
