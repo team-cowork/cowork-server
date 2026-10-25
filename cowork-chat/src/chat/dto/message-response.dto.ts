@@ -1,5 +1,11 @@
 import {ApiProperty, ApiPropertyOptional} from '@nestjs/swagger';
 
+export class WebhookAuthorResponseDto {
+    @ApiProperty() id!: number;
+    @ApiProperty() name!: string;
+    @ApiProperty({type: String, nullable: true}) avatarUrl!: string | null;
+}
+
 class ReactionResponseDto {
     @ApiProperty() emoji!: string;
     @ApiProperty() count!: number;
@@ -15,7 +21,8 @@ class AttachmentResponseDto {
 
 export class MentionedMessageDto {
     @ApiProperty({description: '부모 메시지 MongoDB ObjectId'}) _id!: string;
-    @ApiProperty({description: '부모 메시지 작성자 ID'}) authorId!: number;
+    @ApiProperty({type: Number, description: '부모 메시지 작성자 ID', nullable: true}) authorId!: number | null;
+    @ApiPropertyOptional({type: WebhookAuthorResponseDto}) webhook?: WebhookAuthorResponseDto;
     @ApiProperty({description: '부모 메시지 내용'}) content!: string;
     @ApiProperty({enum: ['TEXT', 'FILE', 'SYSTEM'], description: '부모 메시지 타입'}) type!: string;
     @ApiProperty({description: '부모 메시지 생성 시각 (ISO 8601)'}) createdAt!: string;
@@ -26,7 +33,8 @@ export class MessageResponseDto {
     @ApiProperty() teamId!: number;
     @ApiPropertyOptional({nullable: true}) projectId!: number | null;
     @ApiProperty() channelId!: number;
-    @ApiProperty() authorId!: number;
+    @ApiProperty({type: Number, nullable: true}) authorId!: number | null;
+    @ApiPropertyOptional({type: WebhookAuthorResponseDto}) webhook?: WebhookAuthorResponseDto;
     @ApiProperty() content!: string;
     @ApiProperty({enum: ['TEXT', 'FILE', 'SYSTEM']}) type!: string;
     @ApiProperty({type: [AttachmentResponseDto]}) attachments!: AttachmentResponseDto[];
