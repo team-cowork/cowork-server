@@ -52,6 +52,12 @@ type InvalidInstallationHandler interface {
 	DeleteInvalidFID(ctx context.Context, fid string) error
 }
 
+// EventInboxPurger bounds the completed-event inbox with the ledger's retention, so a
+// redelivered event is still recognized for as long as its FCM ledger rows exist.
+type EventInboxPurger interface {
+	PurgeCompleted(ctx context.Context, olderThan time.Time) (int64, error)
+}
+
 type fcmSender interface {
 	Send(ctx context.Context, messages []fcm.Message, title, body string) ([]fcm.Result, error)
 }
@@ -64,11 +70,12 @@ type Worker struct {
 	installations InstallationVerifier
 	invalid       InvalidInstallationHandler
 	fcm           fcmSender
+	inbox         EventInboxPurger
 	lastPurge     time.Time
 }
 
-func NewWorker(repo Repository, installations InstallationVerifier, invalid InvalidInstallationHandler, sender fcmSender) *Worker {
-	return &Worker{repo: repo, installations: installations, invalid: invalid, fcm: sender}
+func NewWorker(repo Repository, installations InstallationVerifier, invalid InvalidInstallationHandler, sender fcmSender, inbox EventInboxPurger) *Worker {
+	return &Worker{repo: repo, installations: installations, invalid: invalid, fcm: sender, inbox: inbox}
 }
 
 func (w *Worker) Run(ctx context.Context) {
@@ -140,6 +147,13 @@ func (w *Worker) purgeIfDue(ctx context.Context) {
 		return
 	}
 	w.lastPurge = now
+	if purged, err := w.inbox.PurgeCompleted(ctx, now.Add(-purgeRetention)); err != nil {
+		if ctx.Err() == nil {
+			slog.Error("fcm retry worker: purge completed event inbox failed", "err", err)
+		}
+	} else if purged > 0 {
+		slog.Info("fcm retry worker: purged completed event inbox rows", "count", purged)
+	}
 	purged, err := w.repo.PurgeTerminal(ctx, now.Add(-purgeRetention))
 	if err != nil {
 		if ctx.Err() == nil {
