@@ -396,7 +396,10 @@ export class MessageSearchRebuilder {
 
         const samples = await this.elasticsearchService.sampleDocuments(index, VERIFY_SAMPLE_SIZE);
         for (const sample of samples) {
-            const missing = MESSAGE_INDEX_REQUIRED_FIELDS.filter(field => sample[field] === undefined || sample[field] === null);
+            const isWebhookAuthor = sample.authorId === null && sample.webhook !== undefined
+                && Number.isSafeInteger(sample.webhook.id) && sample.webhook.id > 0 && sample.webhook.name.length > 0;
+            const missing = MESSAGE_INDEX_REQUIRED_FIELDS.filter(field =>
+                !(field === 'authorId' && isWebhookAuthor) && (sample[field] === undefined || sample[field] === null));
             if (missing.length > 0) {
                 throw new MessageSearchRebuildError(
                     `rebuilt document is missing required fields messageId=${sample.messageId ?? 'unknown'} fields=${missing.join(',')}`,

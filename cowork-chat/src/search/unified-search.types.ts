@@ -1,4 +1,16 @@
-import {Field, Int, ObjectType} from '@nestjs/graphql';
+import {
+    Field,
+    Float,
+    Int,
+    ObjectType,
+} from '@nestjs/graphql';
+
+@ObjectType()
+export class SearchWebhookAuthor {
+    @Field(() => Float, {description: '웹훅 ID (JavaScript safe integer 범위의 양의 정수)'}) id!: number;
+    @Field() name!: string;
+    @Field(() => String, {nullable: true}) avatarUrl!: string | null;
+}
 
 @ObjectType({description: '통합 검색 — 메시지 검색 결과 단건'})
 export class SearchMessageItem {
@@ -8,8 +20,11 @@ export class SearchMessageItem {
     @Field(() => Int, {description: '메시지가 속한 채널 ID'})
     channelId!: number;
 
-    @Field(() => Int, {description: '작성자 유저 ID'})
-    authorId!: number;
+    @Field(() => Int, {description: '작성자 유저 ID', nullable: true})
+    authorId!: number | null;
+
+    @Field(() => SearchWebhookAuthor, {nullable: true})
+    webhook?: SearchWebhookAuthor;
 
     @Field({description: '메시지 본문'})
     content!: string;
