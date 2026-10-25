@@ -71,7 +71,7 @@ func main() {
 
 	fcmCtx, fcmCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer fcmCancel()
-	fcmSender, err := fcm.NewSender(fcmCtx, cfg.FCMCredentialsJSON)
+	fcmSender, err := fcm.NewSender(fcmCtx, cfg.FCMCredentialsJSON, cfg.FCMDataOnly)
 	if err != nil {
 		slog.Error("fcm init failed", "err", err)
 		os.Exit(1)
