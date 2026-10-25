@@ -16,3 +16,10 @@ S3_CHAT_UPLOAD_RATE_LIMIT_MAX_REQUESTS: 20
 CHAT_MESSAGE_QUARANTINE_RETENTION_DAYS: 30
 # chat.message Kafka consumer가 서로 다른 파티션(채널)을 동시에 처리하는 워커 수
 CHAT_MESSAGE_CONSUMER_CONCURRENCY: 3
+webhook:
+  rate-limit:
+    window-ms: 60000
+    public-limit: 10
+    secure-limit: 60
+    public-ip-limit: 10
+    secure-ip-limit: 60

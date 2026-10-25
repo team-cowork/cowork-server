@@ -128,7 +128,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 
         // 2단계: 배치 내 고유 channelId/parentMessageId를 한 번에 조회해 캐시 사전 채움
         const recipientCache = new Map<string, number[]>();
-        const parentCache = new Map<string, {authorId: number} | null>();
+        const parentCache = new Map<string, {authorId: number | null} | null>();
         const parentRefs = new Map<string, {channelId: number; parentMessageId: Types.ObjectId}>();
         for (const message of msgs) {
             if (!message.parentMessageId) {
@@ -159,7 +159,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
     private async processMessageAndUpdateStatus(
         message: NotificationMessage,
         recipientCache: Map<string, number[]>,
-        parentCache: Map<string, {authorId: number} | null>,
+        parentCache: Map<string, {authorId: number | null} | null>,
     ): Promise<void> {
         try {
             await this.processMessage(message, recipientCache, parentCache);
@@ -204,8 +204,12 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
     private async processMessage(
         message: Message & {_id: Types.ObjectId; createdAt: Date},
         recipientCache: Map<string, number[]>,
-        parentCache: Map<string, {authorId: number} | null>,
+        parentCache: Map<string, {authorId: number | null} | null>,
     ): Promise<void> {
+        if (message.authorId === null) {
+            return;
+        }
+
         const recipientIds = recipientCache.get(String(message.channelId)) ?? [];
         const recipientIdSet = new Set(recipientIds);
 
@@ -224,7 +228,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 
         if (message.parentMessageId) {
             const parent = parentCache.get(`${message.channelId}:${message.parentMessageId.toString()}`) ?? null;
-            if (parent && parent.authorId !== message.authorId && recipientIdSet.has(parent.authorId)) {
+            if (parent && parent.authorId !== null && parent.authorId !== message.authorId && recipientIdSet.has(parent.authorId)) {
                 forcedSet.add(parent.authorId);
             }
         }
