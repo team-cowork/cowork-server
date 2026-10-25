@@ -55,8 +55,8 @@ func generateToken(apiKey, apiSecret string, userID int64, roomName string, spea
 	return token, nil
 }
 
-func CreateRoomIfNotExists(ctx context.Context, client *lksdk.RoomServiceClient, roomName string) error {
-	_, err := client.CreateRoom(ctx, &livekit.CreateRoomRequest{Name: roomName})
+func CreateRoomIfNotExists(ctx context.Context, client *lksdk.RoomServiceClient, roomName string, maxParticipants uint32) error {
+	_, err := client.CreateRoom(ctx, &livekit.CreateRoomRequest{Name: roomName, MaxParticipants: maxParticipants})
 	if err != nil {
 		if isRoomAlreadyExistsError(err) {
 			return nil
