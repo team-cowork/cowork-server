@@ -172,7 +172,7 @@ func (s *Service) Notify(
 	toSend := allTargets
 	durable := eventID != ""
 	if durable {
-		toSend, err = s.delivery.ResumeOrCreate(ctx, eventID, allTargets, title, body, nil)
+		toSend, err = s.delivery.ResumeOrCreate(ctx, eventID, allTargets, title, body, eventData(eventID))
 		if err != nil {
 			return nil, fmt.Errorf("resume or create delivery ledger: %w", err)
 		}
@@ -294,7 +294,7 @@ func (s *Service) excludeStaleTargets(ctx context.Context, eventID string, accou
 	for _, t := range targets {
 		if owner, ok := owners[generation{t.InstallationID, t.FID}]; ok {
 			live = append(live, t)
-			messages = append(messages, fcm.Message{FID: t.FID, Data: fcm.WithAccountID(nil, owner)})
+			messages = append(messages, fcm.Message{FID: t.FID, Data: fcm.WithAccountID(eventData(eventID), owner)})
 			continue
 		}
 		if eventID == "" {
@@ -305,6 +305,15 @@ func (s *Service) excludeStaleTargets(ctx context.Context, eventID string, accou
 		}
 	}
 	return live, messages, nil
+}
+
+// eventData is the FCM data payload shared by every installation of one event; the
+// ledger stores it so the retry worker resends the same eventId.
+func eventData(eventID string) map[string]string {
+	if eventID == "" {
+		return nil
+	}
+	return map[string]string{fcm.DataKeyEventID: eventID}
 }
 
 func (s *Service) finalizeFailure(ctx context.Context, eventID string, target delivery.Target, errClass delivery.ErrorClass) {
