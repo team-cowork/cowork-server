@@ -38,6 +38,7 @@ class WebhookServiceTest {
     private val requester = RequesterContext(3, "MEMBER")
     private val now = Instant.parse("2026-10-25T10:00:00Z")
     private val executionId = UUID.fromString("5b30857f-0bfa-48b5-ac0b-5c64e28078d1")
+    private val nextExecutionId = UUID.fromString("6cf6eda2-99a4-4f45-9bc9-14292c607df0")
     private val original = Webhook(7, 11, "bot", null, false, null, true, false, 3, now, now, null, executionId)
     private lateinit var service: WebhookService
     private var committed = false
@@ -159,7 +160,6 @@ class WebhookServiceTest {
         val result = service.changeMode(11, 7, requester, JsonObject().put("isSecure", true), "retry")
         assertEquals(token, result.getString("token"))
         assertEquals(executionId.toString(), result.getString("executionId"))
-        coVerify(exactly = 0) { repository.findForUpdate(any(), any()) }
         coVerify(exactly = 0) { repository.changeMode(any(), any(), any(), any(), any()) }
         coVerify { guard.requireSettingsManager(connection, 11, requester) }
     }
@@ -203,7 +203,7 @@ class WebhookServiceTest {
     }
 
     @Test
-    fun `실행 식별자는 사용자가 생성하거나 변경할 수 없다`() = runBlocking {
+    fun `실행 식별자는 생성이나 일반 수정에서 사용자가 지정할 수 없다`() = runBlocking {
         val input = JsonObject().put("executionId", executionId.toString())
         val createFailure = runCatching { service.create(11, requester, input.copy().put("name", "bot"), "chosen") }
             .exceptionOrNull() as WebhookRequestException
@@ -230,6 +230,118 @@ class WebhookServiceTest {
         coVerify(exactly = 0) { repository.changeMode(any(), any(), any(), any(), any()) }
         coVerify(exactly = 0) { repository.create(any(), any(), any(), any(), any()) }
         coVerify { guard.requireSettingsManager(connection, 11, requester) }
+    }
+
+    @Test
+    fun `실행 ID가 폐기된 보안 모드 재시도는 이전 URL과 비밀키를 반환하지 않는다`() = runBlocking {
+        val hash = WebhookSecrets.hash("MODE:11:7:true")
+        coEvery { repository.findOperation(connection, 3, "obsolete") } returns WebhookOperation(
+            hash, original.copy(isSecure = true).response(), secrets.encrypt("old-secret", "3:obsolete:$hash"), now,
+        )
+        coEvery { repository.findForUpdate(connection, 7) } returns original.copy(executionId = nextExecutionId)
+        val failure = runCatching {
+            service.changeMode(11, 7, requester, JsonObject().put("isSecure", true), "obsolete")
+        }.exceptionOrNull()
+        assertEquals(409, (failure as? WebhookRequestException)?.status)
+        coVerify(exactly = 0) { repository.changeMode(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `공개 웹훅 실행 ID 재발급과 같은 키 재시도는 한 번만 회전하고 숫자 ID를 유지한다`() = runBlocking {
+        var current = original
+        var operation: WebhookOperation? = null
+        coEvery { repository.findForUpdate(connection, 7) } coAnswers { current }
+        coEvery { repository.findOperation(connection, 3, "rotate") } coAnswers { operation }
+        coEvery { repository.rotateExecutionId(connection, 7) } coAnswers {
+            current.copy(executionId = nextExecutionId, updatedAt = now.plusNanos(1000)).also { current = it }
+        }
+        coEvery { repository.saveOperation(connection, 3, "rotate", any(), any(), null) } coAnswers {
+            operation = WebhookOperation(arg(3), arg(4), null, now)
+        }
+        val first = service.rotateExecutionId(11, 7, requester, "rotate")
+        val retry = service.rotateExecutionId(11, 7, requester, "rotate")
+        assertEquals(nextExecutionId.toString(), first.getString("executionId"))
+        assertEquals(original.id, first.getLong("id"))
+        assertEquals(original.name, first.getString("name"))
+        assertFalse(first.getBoolean("isSecure"))
+        assertNull(first.getString("token"))
+        assertEquals(first, retry)
+        coVerify(exactly = 1) { repository.rotateExecutionId(connection, 7) }
+        coVerify(exactly = 1) { outbox.enqueue(connection, any()) }
+    }
+
+    @Test
+    fun `보안 모드 cooldown 중에도 실행 ID만 재발급하고 비밀키와 모드 변경 시각을 유지한다`() = runBlocking {
+        val current = original.copy(isSecure = true, secretHash = "a".repeat(64), modeChangedAt = now.minusSeconds(1))
+        val updated = current.copy(executionId = nextExecutionId, updatedAt = now.plusNanos(1000))
+        val event = slot<PreferenceEvent>()
+        coEvery { repository.findForUpdate(connection, 7) } returns current
+        coEvery { repository.rotateExecutionId(connection, 7) } returns updated
+        coEvery { outbox.enqueue(connection, capture(event)) } returns Unit
+        val result = service.rotateExecutionId(11, 7, requester, "secure-rotate")
+        assertEquals(nextExecutionId.toString(), result.getString("executionId"))
+        assertTrue(result.getBoolean("isSecure"))
+        assertNull(result.getString("token"))
+        assertEquals(current.secretHash, event.captured.payload.getString("secretHash"))
+        coVerify(exactly = 0) { repository.changeMode(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 1) { repository.rotateExecutionId(connection, 7) }
+    }
+
+    @Test
+    fun `다른 재발급이나 삭제로 폐기된 재발급 키는 다시 회전하지 않고 거절한다`() = runBlocking {
+        val hash = WebhookSecrets.hash("ROTATE_EXECUTION_ID:11:7")
+        coEvery { repository.findOperation(connection, 3, "old-rotation") } returns WebhookOperation(
+            hash, original.response(), null, now,
+        )
+        for (current in listOf(original.copy(executionId = nextExecutionId), original.copy(deleted = true), null)) {
+            coEvery { repository.findForUpdate(connection, 7) } returns current
+            val failure = runCatching { service.rotateExecutionId(11, 7, requester, "old-rotation") }.exceptionOrNull()
+            assertEquals(409, (failure as? WebhookRequestException)?.status)
+        }
+        coVerify(exactly = 0) { repository.rotateExecutionId(any(), any()) }
+        coVerify(exactly = 0) { outbox.enqueue(any(), any()) }
+    }
+
+    @Test
+    fun `생성 응답의 실행 ID가 재발급 또는 삭제되면 재시도로 새 웹훅을 만들지 않는다`() = runBlocking {
+        var operation: WebhookOperation? = null
+        coEvery { repository.findOperation(connection, 3, "create-obsolete") } coAnswers { operation }
+        coEvery { repository.create(connection, 11, 3, any(), null) } returns original
+        coEvery { repository.saveOperation(connection, 3, "create-obsolete", any(), any(), null) } coAnswers {
+            operation = WebhookOperation(arg(3), arg(4), null, now)
+        }
+        val input = JsonObject().put("name", "bot")
+        service.create(11, requester, input, "create-obsolete")
+        for (current in listOf(original.copy(executionId = nextExecutionId), original.copy(deleted = true))) {
+            coEvery { repository.findForUpdate(connection, 7) } returns current
+            val failure = runCatching { service.create(11, requester, input, "create-obsolete") }.exceptionOrNull()
+            assertEquals(409, (failure as? WebhookRequestException)?.status)
+        }
+        coVerify(exactly = 1) { repository.create(any(), any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `재발급 재시도도 현재 관리 권한을 잃었으면 저장 결과를 조회하지 않는다`() = runBlocking {
+        coEvery { guard.requireSettingsManager(connection, 11, requester) } throws ResourceAccessDeniedException("권한이 없습니다.")
+        val failure = runCatching { service.rotateExecutionId(11, 7, requester, "retry") }.exceptionOrNull()
+        assertTrue(failure is ResourceAccessDeniedException)
+        coVerify(exactly = 0) { repository.findOperation(any(), any(), any()) }
+        coVerify(exactly = 0) { repository.rotateExecutionId(any(), any()) }
+    }
+
+    @Test
+    fun `실행 ID 재발급은 삭제되지 않은 TEXT 채널의 웹훅에만 허용한다`() = runBlocking {
+        coEvery { channels.findForUpdate(connection, 11) } returns ChannelLifecycleProjection(11, 2, false, now, false, "VOICE")
+        val voiceFailure = runCatching { service.rotateExecutionId(11, 7, requester, "voice") }.exceptionOrNull()
+        assertEquals(400, (voiceFailure as? WebhookRequestException)?.status)
+        coEvery { channels.findForUpdate(connection, 11) } returns ChannelLifecycleProjection(11, 2, true, now, false, "TEXT")
+        val deletedChannel = runCatching { service.rotateExecutionId(11, 7, requester, "deleted-channel") }.exceptionOrNull()
+        assertEquals(404, (deletedChannel as? WebhookRequestException)?.status)
+        coEvery { channels.findForUpdate(connection, 11) } returns ChannelLifecycleProjection(11, 2, false, now, false, "TEXT")
+        coEvery { repository.findForUpdate(connection, 7) } returns original.copy(deleted = true)
+        val deletedWebhook = runCatching { service.rotateExecutionId(11, 7, requester, "deleted-webhook") }.exceptionOrNull()
+        assertEquals(404, (deletedWebhook as? WebhookRequestException)?.status)
+        coVerify(exactly = 0) { repository.rotateExecutionId(any(), any()) }
     }
 
     @Test
