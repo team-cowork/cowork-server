@@ -1,3 +1,4 @@
+import {type WebhookMessageAuthor} from '../schema/message.schema';
 import {type MessageIndexDoc} from '../../search/message-index.contract';
 
 export const SEARCH_INDEX_STATUSES = [
@@ -18,6 +19,7 @@ export type SearchIndexStatus = typeof SEARCH_INDEX_STATUSES[number];
  `rebuild`를 한 번 돌려야 검색 결과에서 사라진다.
  */
 export const SEARCH_INDEX_SCOPE_FILTER = {
+    webhookDeleted: {$ne: true},
     teamId: {$ne: null},
     projectId: {$ne: null},
     type: {$ne: 'SYSTEM'},
@@ -41,7 +43,8 @@ export function isSearchIndexed(message: IndexableMessage): boolean {
 export type MessageIndexSource = {
     _id: {toString(): string};
     channelId: number;
-    authorId: number;
+    authorId: number | null;
+    webhook?: WebhookMessageAuthor;
     content: string;
     attachments?: unknown[];
     isPinned?: boolean;
@@ -61,6 +64,7 @@ export function buildMessageIndexDoc(message: MessageIndexSource): MessageIndexD
         projectId: message.projectId!,
         channelId: message.channelId,
         authorId: message.authorId,
+        ...(message.webhook && {webhook: message.webhook}),
         content: message.content,
         type: message.type,
         hasAttachments: (message.attachments?.length ?? 0) > 0,
