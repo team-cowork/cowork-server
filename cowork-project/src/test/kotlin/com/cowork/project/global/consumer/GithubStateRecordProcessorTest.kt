@@ -3,6 +3,7 @@ package com.cowork.project.global.consumer
 import com.cowork.project.domain.github.entity.GithubSyncMarker
 import com.cowork.project.domain.github.entity.GithubSyncStream
 import com.cowork.project.domain.github.event.GithubIssueStateEvent
+import com.cowork.project.domain.github.repository.GithubRepoProjectionRepository
 import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
 import com.cowork.project.domain.github.service.GithubSyncMarkers
 import com.cowork.project.global.projection.ProjectionRecordProcessor
@@ -31,7 +32,7 @@ class GithubStateRecordProcessorTest :
             markerRepository = mockk(relaxed = true)
             processor = GithubStateRecordProcessor(
                 projectionProcessor,
-                GithubSyncMarkers(markerRepository),
+                GithubSyncMarkers(markerRepository, mockk<GithubRepoProjectionRepository>()),
                 ObjectMapper().findAndRegisterModules(),
             )
         }
