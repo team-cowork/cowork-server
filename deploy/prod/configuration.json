@@ -155,6 +155,7 @@
         "DB_USERNAME": {"resources": ["database:preference"], "writes": [{"path": "cowork-preference/{profile}", "key": "preference.db.username"}]}
       },
       "secrets": {
+        "WEBHOOK_SECRET_ENCRYPTION_KEY": {"environment": true, "immutable": true, "writes": [{"path": "cowork-preference/{profile}", "key": "preference.webhook.secret-encryption-key"}]},
         "CONFIG_CLIENT_PASSWORD": {"environment": true, "writes": [{"key": "CONFIG_CLIENT_PASSWORD", "path": "control-plane/prod/preference"}]},
         "DB_ADMIN_PASSWORD": {"writes": [{"path": "iac/databases/preference", "key": "DB_ADMIN_PASSWORD"}], "resources": ["database:preference"]},
         "DB_MONITORING_PASSWORD": {"writes": [{"path": "iac/databases/preference", "key": "DB_MONITORING_PASSWORD"}], "resources": ["database:preference"]},
