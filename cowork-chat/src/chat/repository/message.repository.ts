@@ -218,7 +218,7 @@ export class MessageRepository {
 
      @param channelId - 조회할 채널의 식별자
      @param before - 이 ObjectId 문자열보다 이전 메시지를 조회하는 커서. 생략 시 최신부터 조회
-     @param parentMessageId
+     @param parentMessageId - 이 메시지에 달린 답글만 조회할 부모 메시지 식별자. 생략 시 채널 전체 조회
      @returns 배열 (최신순 정렬, 최대 100개)
      */
     async findMessages(channelId: number, before?: string, parentMessageId?: string): Promise<MessageRow[]> {
