@@ -23,7 +23,7 @@ type WithTryAcquireScript<Context extends ClientContext = {type: 'default'}> = {
     ): Result<number, Context>;
     tryReserveScript(key: string, holder: string, ttlMs: number): Result<number, Context>;
     releaseScript(key: string, holder: string): Result<number, Context>;
-    webhookAcquireScript(globalKey: string, ipKey: string, windowMs: number, limit: number, ipLimit: number, member: string): Result<number, Context>;
+    webhookAcquireScript(key: string, windowMs: number, limit: number, member: string): Result<number, Context>;
 };
 type RateLimiterRedis = Redis & WithTryAcquireScript;
 
@@ -64,21 +64,15 @@ const WEBHOOK_ACQUIRE_SCRIPT = `
 local clock = redis.call('TIME')
 local now = tonumber(clock[1]) * 1000 + math.floor(tonumber(clock[2]) / 1000)
 local window = tonumber(ARGV[1])
-local retry = 0
-for i = 1, 2 do
-    redis.call('ZREMRANGEBYSCORE', KEYS[i], 0, now - window)
-    local count = redis.call('ZCARD', KEYS[i])
-    local limit = tonumber(ARGV[i + 1])
-    if count >= limit then
-        local release = redis.call('ZRANGE', KEYS[i], count - limit, count - limit, 'WITHSCORES')
-        retry = math.max(retry, tonumber(release[2]) + window - now)
-    end
+local limit = tonumber(ARGV[2])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, now - window)
+local count = redis.call('ZCARD', KEYS[1])
+if count >= limit then
+    local release = redis.call('ZRANGE', KEYS[1], count - limit, count - limit, 'WITHSCORES')
+    return tonumber(release[2]) + window - now
 end
-if retry > 0 then return retry end
-for i = 1, 2 do
-    redis.call('ZADD', KEYS[i], now, ARGV[4])
-    redis.call('PEXPIRE', KEYS[i], window)
-end
+redis.call('ZADD', KEYS[1], now, ARGV[3])
+redis.call('PEXPIRE', KEYS[1], window)
 return 0
 `;
 
@@ -107,7 +101,7 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
         this.client.defineCommand('tryAcquireScript', {numberOfKeys: 1, lua: TRY_ACQUIRE_SCRIPT});
         this.client.defineCommand('tryReserveScript', {numberOfKeys: 1, lua: TRY_RESERVE_SCRIPT});
         this.client.defineCommand('releaseScript', {numberOfKeys: 1, lua: RELEASE_SCRIPT});
-        this.client.defineCommand('webhookAcquireScript', {numberOfKeys: 2, lua: WEBHOOK_ACQUIRE_SCRIPT});
+        this.client.defineCommand('webhookAcquireScript', {numberOfKeys: 1, lua: WEBHOOK_ACQUIRE_SCRIPT});
         // Ioredis는 'error' 리스너가 없으면 unhandled error event로 프로세스가 죽는다
         this.client.on('error', (error: unknown) => {
             this.logger.error(`Redis client error: ${error instanceof Error ? error.message : String(error)}`);
@@ -153,7 +147,7 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
         }
     }
 
-    async tryAcquireWebhook(key: string, ipHash: string, windowMs: number, limit: number, ipLimit: number): Promise<number> {
+    async tryAcquireWebhook(key: string, windowMs: number, limit: number): Promise<number> {
         if (this.client.status !== 'ready') {
             throw new ServiceUnavailableException('웹훅 요청 제한을 확인할 수 없습니다.');
         }
@@ -161,7 +155,7 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
         let timer: ReturnType<typeof setTimeout> | undefined;
         try {
             return await Promise.race([
-                this.client.webhookAcquireScript(`${key}:all`, `${key}:ip:${ipHash}`, windowMs, limit, ipLimit, randomUUID()),
+                this.client.webhookAcquireScript(`${key}:all`, windowMs, limit, randomUUID()),
                 new Promise<never>((_resolve, reject) => {
                     timer = setTimeout(() => {
                         reject(new Error('Webhook rate limiter timed out'));
