@@ -32,11 +32,8 @@ object SettingSchema {
     )
     private val PROJECT_KEYS = emptySet<String>() // TODO: 추후 확장 시 사용
     private val VOICE_CHANNEL_KEYS = setOf("bitrate", "max_participants")
-    private val TEXT_CHANNEL_KEYS = setOf("webhook", "slowmode_seconds")
+    private val TEXT_CHANNEL_KEYS = setOf("slowmode_seconds")
     private val GITHUB_REPO_KEYS = setOf("label_auto_apply")
-
-    // webhook은 PUT 전체 교체 계약 — 클라이언트는 항상 객체 전체를 전송해야 하며 부분 업데이트(PATCH)는 지원하지 않음
-    private val WEBHOOK_KEYS = setOf("is_active", "secret_key", "retry_count", "retry_interval_ms")
 
     // dnd_schedule도 PUT 전체 교체 계약 — start/end는 timezone 기준 HH:mm이며 end가 start보다 이르면 자정을 넘김
     private val DND_SCHEDULE_KEYS = setOf("enabled", "start", "end")
@@ -65,7 +62,6 @@ object SettingSchema {
         val result = validKeys(type).fold(JsonObject()) { acc, key ->
             if (raw.containsKey(key)) acc.put(key, raw.getValue(key)) else acc
         }
-        if (type == ResourceType.TEXT_CHANNEL) filterNested(result, "webhook", WEBHOOK_KEYS)
         if (type == ResourceType.ACCOUNT) filterNested(result, "dnd_schedule", DND_SCHEDULE_KEYS)
         return result
     }
