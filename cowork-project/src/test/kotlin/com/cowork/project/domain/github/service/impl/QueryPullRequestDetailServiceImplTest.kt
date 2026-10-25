@@ -4,6 +4,7 @@ import com.cowork.project.domain.github.client.GithubAppClient
 import com.cowork.project.domain.github.client.GithubPullRequestLiveStatus
 import com.cowork.project.domain.github.entity.GithubPullRequestProjection
 import com.cowork.project.domain.github.repository.GithubPullRequestProjectionRepository
+import com.cowork.project.domain.github.repository.GithubRepoProjectionRepository
 import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
 import com.cowork.project.domain.github.service.GithubAppCallExecutor
 import com.cowork.project.domain.github.service.GithubPullRequestReader
@@ -19,6 +20,7 @@ import io.mockk.verify
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 import java.time.Instant
+import java.util.Optional
 
 class QueryPullRequestDetailServiceImplTest :
     DescribeSpec({
@@ -34,13 +36,18 @@ class QueryPullRequestDetailServiceImplTest :
             githubAppClient = mockk()
             val repoAccessResolver = mockk<GithubRepoAccessResolver>()
             every { repoAccessResolver.resolveForRead(1L, 2L, 3L) } returns GithubRepoRef("my-org", "my-repo")
+            val repoProjectionRepository = mockk<GithubRepoProjectionRepository>()
+            every { repoProjectionRepository.findById(any()) } returns Optional.empty()
             val callExecutor = mockk<GithubAppCallExecutor>()
             every { callExecutor.execute(any<() -> GithubPullRequestLiveStatus>()) } answers {
                 firstArg<() -> GithubPullRequestLiveStatus>().invoke()
             }
             service = QueryPullRequestDetailServiceImpl(
                 repoAccessResolver,
-                GithubPullRequestReader(pullRequestRepository, GithubSyncMarkers(markerRepository)),
+                GithubPullRequestReader(
+                    pullRequestRepository,
+                    GithubSyncMarkers(markerRepository, repoProjectionRepository),
+                ),
                 callExecutor,
                 githubAppClient,
             )
