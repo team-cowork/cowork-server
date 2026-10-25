@@ -43,6 +43,7 @@ data class AppConfig(
     val eurekaInstanceId: String,
     val eurekaInstancePort: Int = serverPort,
     val webhookSecretEncryptionKey: String? = null,
+    val webhookUrlSigningKey: String? = null,
 ) {
     companion object {
         fun from(json: JsonObject): AppConfig {
@@ -130,6 +131,8 @@ data class AppConfig(
                 ),
                 webhookSecretEncryptionKey = System.getenv("WEBHOOK_SECRET_ENCRYPTION_KEY")?.takeIf(String::isNotBlank)
                     ?: pref.getJsonObject("webhook")?.getString("secret-encryption-key"),
+                webhookUrlSigningKey = System.getenv("WEBHOOK_URL_SIGNING_KEY")
+                    ?: (pref.getJsonObject("webhook")?.getValue("url-signing-key") as? String),
                 eurekaUrl = eureka.getString("url", "http://localhost:8761/eureka/"),
                 eurekaEnabled = eureka.getBoolean("enabled", true),
                 eurekaAppName = appName,
