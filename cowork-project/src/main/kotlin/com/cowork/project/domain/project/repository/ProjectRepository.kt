@@ -49,9 +49,6 @@ interface ProjectRepository :
     )
     fun countReadableUsers(@Param("projectId") projectId: Long): Long
 
-    @Query("SELECT COALESCE(MAX(p.position), -1) FROM Project p WHERE p.teamId = :teamId")
-    fun findMaxPositionByTeamId(@Param("teamId") teamId: Long): Int
-
     @Query(
         "SELECT p FROM Project p JOIN TeamMembership m ON m.teamId = p.teamId " +
             "WHERE m.userId = :userId AND m.active = true " +
