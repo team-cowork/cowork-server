@@ -1,5 +1,6 @@
 package com.cowork.preference.messaging
 
+import com.cowork.preference.domain.Webhook
 import com.cowork.preference.domain.AccountTeamRole
 import com.cowork.preference.domain.ChannelNotificationPreference
 import com.cowork.preference.domain.ChannelRolePolicyPermissions
@@ -34,6 +35,8 @@ object PreferenceEvents {
     const val ACCOUNT_SETTING_STATE_TOPIC = "preference.account-setting.state.v1"
     const val TEAM_SETTING_STATE_TOPIC = "preference.team-setting.state.v1"
     const val TEXT_CHANNEL_SETTING_STATE_TOPIC = "preference.text-channel-setting.state.v1"
+    const val WEBHOOK_STATE_TOPIC = "preference.webhook.state.v2"
+    const val WEBHOOK_LEGACY_STATE_TOPIC = "channel.webhook-legacy.state.v1"
     const val VOICE_CHANNEL_SETTING_STATE_TOPIC = "preference.voice-channel-setting.state.v1"
     const val SETTING_STATE_SCHEMA_VERSION = 1
     val OUTBOX_TOPICS = setOf(
@@ -49,6 +52,7 @@ object PreferenceEvents {
         ACCOUNT_SETTING_STATE_TOPIC,
         TEAM_SETTING_STATE_TOPIC,
         TEXT_CHANNEL_SETTING_STATE_TOPIC,
+        WEBHOOK_STATE_TOPIC,
         VOICE_CHANNEL_SETTING_STATE_TOPIC,
     )
 
@@ -65,6 +69,7 @@ object PreferenceEvents {
                 topic == ACCOUNT_SETTING_STATE_TOPIC ||
                 topic == TEAM_SETTING_STATE_TOPIC ||
                 topic == TEXT_CHANNEL_SETTING_STATE_TOPIC ||
+                topic == WEBHOOK_STATE_TOPIC ||
                 topic == VOICE_CHANNEL_SETTING_STATE_TOPIC,
         ) {
             "unsupported projection snapshot topic '$topic'"
@@ -320,6 +325,18 @@ object PreferenceEvents {
             .put("bitrate", validSetting(ResourceType.VOICE_CHANNEL, settings, "bitrate"))
             .put("snapshot", snapshot),
         occurredAt = occurredAt,
+    )
+
+    fun webhookState(webhook: Webhook, snapshot: Boolean): PreferenceEvent = PreferenceEvent(
+        topic = WEBHOOK_STATE_TOPIC,
+        key = webhook.id.toString(),
+        payload = basePayload("WEBHOOK_STATE", webhook.updatedAt)
+            .put("schemaVersion", 2).put("webhookId", webhook.id).put("channelId", webhook.channelId)
+            .put("executionId", webhook.requireExecutionId().toString())
+            .put("name", webhook.name).put("avatarUrl", webhook.avatarUrl).put("isSecure", webhook.isSecure)
+            .put("secretHash", webhook.secretHash).put("isActive", webhook.isActive)
+            .put("deleted", webhook.deleted).put("snapshot", snapshot),
+        occurredAt = webhook.updatedAt,
     )
 
     private fun validSetting(type: ResourceType, settings: JsonObject, key: String): Any? {
