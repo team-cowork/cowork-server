@@ -35,6 +35,7 @@ class WebhookServiceTest {
     private val readiness = mockk<ProjectionReadinessView>()
     private val connection = mockk<SqlConnection>()
     private val secrets = WebhookSecrets(Base64.getEncoder().encodeToString(ByteArray(32) { 7 }))
+    private val urlSigner = WebhookUrlSigner("CwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCws=")
     private val requester = RequesterContext(3, "MEMBER")
     private val now = Instant.parse("2026-10-25T10:00:00Z")
     private val executionId = UUID.fromString("5b30857f-0bfa-48b5-ac0b-5c64e28078d1")
@@ -53,7 +54,7 @@ class WebhookServiceTest {
         coEvery { repository.findForUpdate(connection, 7) } returns original
         coEvery { repository.findOperation(any(), any(), any()) } returns null
         coEvery { repository.now(connection) } returns now
-        service = WebhookService(pool, repository, channels, guard, outbox, readiness, secrets)
+        service = WebhookService(pool, repository, channels, guard, outbox, readiness, secrets, urlSigner)
     }
 
     @Test
@@ -74,6 +75,9 @@ class WebhookServiceTest {
         assertEquals(WebhookSecrets.hash(token), event.captured.payload.getString("secretHash"))
         assertFalse(event.captured.payload.encode().contains(token))
         assertNull(response.captured.getString("token"))
+        assertNull(response.captured.getString("executionPath"))
+        assertNull(event.captured.payload.getString("executionPath"))
+        assertEquals(urlSigner.executionPath(executionId.toString()), result.getString("executionPath"))
         assertFalse(ciphertext.captured.contains(token))
         assertTrue(committed)
     }
@@ -94,6 +98,7 @@ class WebhookServiceTest {
         }
         val result = service.changeMode(11, 7, requester, JsonObject().put("isSecure", true), "first")
         assertNotNull(result.getString("token"))
+        assertEquals(urlSigner.executionPath(executionId.toString()), result.getString("executionPath"))
         assertEquals(executionId.toString(), result.getString("executionId"))
         coVerify(exactly = 1) { repository.changeMode(connection, original, true, any(), now) }
         coVerify { guard.requireSettingsManager(connection, 11, requester) }
@@ -159,6 +164,7 @@ class WebhookServiceTest {
         )
         val result = service.changeMode(11, 7, requester, JsonObject().put("isSecure", true), "retry")
         assertEquals(token, result.getString("token"))
+        assertEquals(urlSigner.executionPath(executionId.toString()), result.getString("executionPath"))
         assertEquals(executionId.toString(), result.getString("executionId"))
         coVerify(exactly = 0) { repository.changeMode(any(), any(), any(), any(), any()) }
         coVerify { guard.requireSettingsManager(connection, 11, requester) }
@@ -261,6 +267,7 @@ class WebhookServiceTest {
         val first = service.rotateExecutionId(11, 7, requester, "rotate")
         val retry = service.rotateExecutionId(11, 7, requester, "rotate")
         assertEquals(nextExecutionId.toString(), first.getString("executionId"))
+        assertEquals(urlSigner.executionPath(nextExecutionId.toString()), first.getString("executionPath"))
         assertEquals(original.id, first.getLong("id"))
         assertEquals(original.name, first.getString("name"))
         assertFalse(first.getBoolean("isSecure"))
@@ -341,6 +348,61 @@ class WebhookServiceTest {
         coEvery { repository.findForUpdate(connection, 7) } returns original.copy(deleted = true)
         val deletedWebhook = runCatching { service.rotateExecutionId(11, 7, requester, "deleted-webhook") }.exceptionOrNull()
         assertEquals(404, (deletedWebhook as? WebhookRequestException)?.status)
+        coVerify(exactly = 0) { repository.rotateExecutionId(any(), any()) }
+    }
+
+    @Test
+    fun `서명키가 준비되지 않으면 비밀키 암호화 설정이 있어도 조회와 변경을 허용하지 않는다`() = runBlocking {
+        for (key in listOf(null, "not-base64", Base64.getEncoder().encodeToString(ByteArray(31)))) {
+            service = WebhookService(pool, repository, channels, guard, outbox, readiness, secrets, WebhookUrlSigner(key))
+            val calls: List<suspend () -> Any> = listOf(
+                { service.list(11, requester) },
+                { service.create(11, requester, JsonObject().put("name", "bot"), "create") },
+                { service.patch(11, 7, requester, JsonObject().put("name", "changed")) },
+                { service.changeMode(11, 7, requester, JsonObject().put("isSecure", true), "mode") },
+                { service.rotateExecutionId(11, 7, requester, "rotate") },
+            )
+            for (call in calls) {
+                val failure = runCatching { call() }.exceptionOrNull()
+                assertEquals(503, (failure as? WebhookRequestException)?.status)
+            }
+        }
+        assertFalse(committed)
+        coVerify(exactly = 0) { repository.create(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { repository.patch(any(), any(), any()) }
+        coVerify(exactly = 0) { repository.changeMode(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { repository.rotateExecutionId(any(), any()) }
+        coVerify(exactly = 0) { repository.findOperation(any(), any(), any()) }
+        coVerify(exactly = 0) { outbox.enqueue(any(), any()) }
+    }
+
+    @Test
+    fun `조회와 일반 수정 응답에도 같은 실행 ID의 서명 경로를 제공한다`() = runBlocking {
+        coEvery { channels.findForRead(pool, 11) } returns ChannelLifecycleProjection(11, 2, false, now, false, "TEXT")
+        coEvery { repository.list(pool, 11) } returns listOf(original)
+        coEvery { repository.patch(connection, original, any()) } returns original.copy(name = "changed")
+        val listed = service.list(11, requester).getJsonObject(0)
+        val patched = service.patch(11, 7, requester, JsonObject().put("name", "changed"))
+        val unchanged = service.patch(11, 7, requester, JsonObject())
+        for (response in listOf(listed, patched, unchanged)) {
+            assertEquals(urlSigner.executionPath(executionId.toString()), response.getString("executionPath"))
+            assertNull(response.getString("token"))
+        }
+    }
+
+    @Test
+    fun `기존 요청 재생은 서명을 저장하지 않고 현재 서명키로 경로를 발급한다`() = runBlocking {
+        val hash = WebhookSecrets.hash("ROTATE_EXECUTION_ID:11:7")
+        val saved = original.response()
+        coEvery { repository.findOperation(connection, 3, "signed-replay") } returns WebhookOperation(hash, saved, null, now)
+        val first = service.rotateExecutionId(11, 7, requester, "signed-replay")
+        val newSigner = WebhookUrlSigner(Base64.getEncoder().encodeToString(ByteArray(32) { 9 }))
+        service = WebhookService(pool, repository, channels, guard, outbox, readiness, secrets, newSigner)
+        val retry = service.rotateExecutionId(11, 7, requester, "signed-replay")
+        assertEquals(first.getString("executionId"), retry.getString("executionId"))
+        assertNotEquals(first.getString("executionPath"), retry.getString("executionPath"))
+        assertEquals(newSigner.executionPath(executionId.toString()), retry.getString("executionPath"))
+        assertNull(saved.getString("executionPath"))
         coVerify(exactly = 0) { repository.rotateExecutionId(any(), any()) }
     }
 
