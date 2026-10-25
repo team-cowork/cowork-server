@@ -107,6 +107,10 @@ class WebhookService(
         }
     }
 
+    suspend fun clearExpiredReplaySecrets() {
+        repository.clearExpiredOperationSecrets(pool, repository.now(pool).minusSeconds(SECRET_REPLAY_SECONDS))
+    }
+
     private suspend fun authorize(channelId: Long, requester: RequesterContext, client: SqlClient = pool) {
         if (!readiness.isReady) throw ProjectionNotReadyException("webhook ownership migration or channel projection is not ready")
         accessGuard.requireSettingsManager(client, channelId, requester)
@@ -128,7 +132,15 @@ class WebhookService(
         val context = "$actorId:$key:$hash"
         repository.findOperation(connection, actorId, key)?.let { saved ->
             if (saved.requestHash != hash) throw WebhookRequestException(409, "Idempotency-Key를 다른 요청에 재사용할 수 없습니다.")
-            return saved.response.copy().put("token", saved.secretCiphertext?.let { secrets.decrypt(it, context) })
+            val token = saved.secretCiphertext?.let {
+                if (repository.now(connection) >= saved.createdAt.plusSeconds(SECRET_REPLAY_SECONDS)) {
+                    repository.clearOperationSecret(connection, actorId, key)
+                    null
+                } else {
+                    secrets.decrypt(it, context)
+                }
+            }
+            return saved.response.copy().put("token", token)
         }
         val response = try {
             action()
@@ -141,5 +153,9 @@ class WebhookService(
         val encryptedToken = response.getString("token")?.let { secrets.encrypt(it, context) }
         repository.saveOperation(connection, actorId, key, hash, response.copy().put("token", null), encryptedToken)
         return response
+    }
+
+    companion object {
+        private const val SECRET_REPLAY_SECONDS = 24 * 60 * 60L
     }
 }
