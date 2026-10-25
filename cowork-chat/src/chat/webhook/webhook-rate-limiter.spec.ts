@@ -2,45 +2,74 @@ import {ConfigService} from '@nestjs/config';
 import {ServiceUnavailableException} from '@nestjs/common';
 import {WebhookRateLimiter, WebhookRateLimitExceeded} from './webhook-rate-limiter';
 
-describe('WebhookRateLimiter', () => {
+describe('WebhookRateLimiter security policy', () => {
     const redis = {tryAcquireWebhook: jest.fn()};
     const limiter = new WebhookRateLimiter(redis as never, new ConfigService());
 
     beforeEach(() => {
         jest.resetAllMocks();
-        redis.tryAcquireWebhook.mockResolvedValue(0);
+        const usage = new Map<string, number>();
+        redis.tryAcquireWebhook.mockImplementation(async (key: string, windowMs: number, limit: number): Promise<number> => {
+            const consumed = usage.get(key) ?? 0;
+            if (consumed >= limit) {
+                return windowMs;
+            }
+
+            usage.set(key, consumed + 1);
+            return 0;
+        });
     });
 
-    it('changes limits without changing counters or the retention window', async () => {
-        await limiter.acquire(7, false, '192.0.2.1');
-        await limiter.acquire(7, true, '192.0.2.1');
-        const [publicCall, secureCall] = redis.tryAcquireWebhook.mock.calls as Array<[string, string, number, number, number]>;
-        expect(publicCall.slice(0, 3)).toEqual(secureCall.slice(0, 3));
-        expect(publicCall.slice(2)).toEqual([60_000, 10, 10]);
-        expect(secureCall.slice(2)).toEqual([60_000, 60, 60]);
+    it('allows ten new public messages before rejecting further messages for the window', async () => {
+        // Given
+        await Promise.all(Array.from({length: 10}, async () => limiter.acquire(7, false)));
+
+        // When / Then
+        await expect(limiter.acquire(7, false)).rejects.toMatchObject({retryAfterSeconds: 60});
     });
 
-    it('separates webhook and IP scopes', async () => {
-        await limiter.acquire(7, false, '192.0.2.1');
-        await limiter.acquire(7, false, '192.0.2.2');
-        await limiter.acquire(8, false, '192.0.2.1');
-        const [first, second, third] = redis.tryAcquireWebhook.mock.calls as Array<[string, string, number, number, number]>;
-        expect(first[0]).toBe(second[0]);
-        expect(first[1]).not.toBe(second[1]);
-        expect(first[0]).not.toBe(third[0]);
+    it('allows sixty authenticated secure messages before rejecting further messages', async () => {
+        // Given
+        await Promise.all(Array.from({length: 60}, async () => limiter.acquire(7, true)));
+
+        // When / Then
+        await expect(limiter.acquire(7, true)).rejects.toBeInstanceOf(WebhookRateLimitExceeded);
     });
 
-    it('provides rounded-up retry time', async () => {
+    it('does not charge one webhook for messages sent to another webhook', async () => {
+        // Given
+        await Promise.all(Array.from({length: 10}, async () => limiter.acquire(7, false)));
+
+        // When / Then
+        await expect(limiter.acquire(7, false)).rejects.toBeInstanceOf(WebhookRateLimitExceeded);
+        await expect(limiter.acquire(8, false)).resolves.toBeUndefined();
+    });
+
+    it('keeps the already consumed quota when switching modes', async () => {
+        // Given
+        await Promise.all(Array.from({length: 10}, async () => limiter.acquire(7, false)));
+
+        // When
+        await Promise.all(Array.from({length: 50}, async () => limiter.acquire(7, true)));
+
+        // Then
+        await expect(limiter.acquire(7, true)).rejects.toBeInstanceOf(WebhookRateLimitExceeded);
+        await expect(limiter.acquire(7, false)).rejects.toBeInstanceOf(WebhookRateLimitExceeded);
+    });
+
+    it('does not tell callers to retry before the quota is available', async () => {
+        // Given
         redis.tryAcquireWebhook.mockResolvedValue(1501);
-        await expect(limiter.acquire(7, false, '192.0.2.1')).rejects.toMatchObject({retryAfterSeconds: 2});
-        await expect(limiter.acquire(7, false, '192.0.2.1')).rejects.toBeInstanceOf(WebhookRateLimitExceeded);
+
+        // When / Then
+        await expect(limiter.acquire(7, false)).rejects.toMatchObject({retryAfterSeconds: 2});
     });
 
-    it('fails closed when IP provenance or Redis availability cannot be established', async () => {
-        await expect(limiter.acquire(7, false)).rejects.toBeInstanceOf(ServiceUnavailableException);
-        await expect(limiter.acquire(7, false, 'client-supplied,forwarded')).rejects.toBeInstanceOf(ServiceUnavailableException);
-        expect(redis.tryAcquireWebhook).not.toHaveBeenCalled();
+    it('rejects new messages when the shared quota cannot be verified', async () => {
+        // Given
         redis.tryAcquireWebhook.mockRejectedValue(new ServiceUnavailableException());
-        await expect(limiter.acquire(7, true, '192.0.2.1')).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+        // When / Then
+        await expect(limiter.acquire(7, true)).rejects.toBeInstanceOf(ServiceUnavailableException);
     });
 });

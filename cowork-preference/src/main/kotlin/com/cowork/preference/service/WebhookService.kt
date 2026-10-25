@@ -132,6 +132,15 @@ class WebhookService(
         val context = "$actorId:$key:$hash"
         repository.findOperation(connection, actorId, key)?.let { saved ->
             if (saved.requestHash != hash) throw WebhookRequestException(409, "Idempotency-Key를 다른 요청에 재사용할 수 없습니다.")
+            val response = saved.response.copy()
+            if (response.getString("executionId") == null) {
+                response.getLong("id")?.let { id ->
+                    val webhook = checkNotNull(repository.findForUpdate(connection, id)) {
+                        "Webhook operation owner is missing"
+                    }
+                    response.put("executionId", webhook.requireExecutionId().toString())
+                }
+            }
             val token = saved.secretCiphertext?.let {
                 if (repository.now(connection) >= saved.createdAt.plusSeconds(SECRET_REPLAY_SECONDS)) {
                     repository.clearOperationSecret(connection, actorId, key)
@@ -140,7 +149,7 @@ class WebhookService(
                     secrets.decrypt(it, context)
                 }
             }
-            return saved.response.copy().put("token", token)
+            return response.put("token", token)
         }
         val response = try {
             action()

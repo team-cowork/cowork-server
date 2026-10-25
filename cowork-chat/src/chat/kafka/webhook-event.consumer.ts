@@ -83,6 +83,7 @@ export class WebhookEventConsumer implements OnModuleInit, OnModuleDestroy {
         const eventTime = parseEventTime(payload.occurredAt)!;
         await this.repository.upsert({
             webhookId: payload.webhookId,
+            executionId: payload.executionId,
             channelId: payload.channelId,
             name: payload.name,
             avatarUrl: payload.avatarUrl,

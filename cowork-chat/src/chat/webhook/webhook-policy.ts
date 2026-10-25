@@ -4,9 +4,20 @@ import {parseEventTime} from '../../common/util/event-time.util';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
 
 export const WEBHOOK_CONTENT_MAX_LENGTH = 2000;
+const WEBHOOK_EXECUTION_ID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-4[\da-f]{3}-[89ab][\da-f]{3}-[\da-f]{12}$/u;
+
+export function normalizeWebhookExecutionId(value: string): string {
+    const canonical = value.toLowerCase();
+    if (!WEBHOOK_EXECUTION_ID_PATTERN.test(canonical)) {
+        throw new BadRequestException('웹훅 실행 ID가 올바르지 않습니다.');
+    }
+
+    return canonical;
+}
 
 export type WebhookState = {
     webhookId: number;
+    executionId: string;
     channelId: number;
     name: string;
     avatarUrl: string | null;
@@ -17,7 +28,7 @@ export type WebhookState = {
 };
 
 type WebhookStateEvent = WebhookState & {
-    schemaVersion: 1;
+    schemaVersion: 2;
     eventType: 'WEBHOOK_STATE';
     occurredAt: string;
     snapshot: boolean;
@@ -29,8 +40,9 @@ export function isWebhookStateEvent(payload: unknown): payload is WebhookStateEv
     }
 
     const event = payload as Partial<WebhookStateEvent>;
-    return event.schemaVersion === 1
+    return event.schemaVersion === 2
         && event.eventType === 'WEBHOOK_STATE'
+        && typeof event.executionId === 'string' && WEBHOOK_EXECUTION_ID_PATTERN.test(event.executionId)
         && isSafePositiveInteger(event.webhookId)
         && isSafePositiveInteger(event.channelId)
         && typeof event.name === 'string' && event.name.length > 0 && event.name.length <= 100

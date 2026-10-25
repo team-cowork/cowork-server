@@ -220,6 +220,6 @@ class WebhookRepository {
         avatarUrl = getString("avatar_url"), isSecure = getBoolean("is_secure"), secretHash = getString("secret_hash"),
         isActive = getBoolean("is_active"), deleted = getBoolean("deleted"), createdBy = getLong("created_by"),
         createdAt = getOffsetDateTime("created_at").toInstant(), updatedAt = getOffsetDateTime("updated_at").toInstant(),
-        modeChangedAt = getOffsetDateTime("mode_changed_at")?.toInstant(),
+        modeChangedAt = getOffsetDateTime("mode_changed_at")?.toInstant(), executionId = getUUID("execution_id"),
     )
 }
