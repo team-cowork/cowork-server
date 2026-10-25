@@ -11,8 +11,13 @@ import {WebhookProjectionRepository} from '../repository/webhook-projection.repo
 import {ChannelMessageReadAccessService, UnreadCounterService, resolveMessageScope} from '../service';
 import {ChatService} from '../chat.service';
 import {WebhookMessageRepository} from './webhook-message.repository';
-import {WebhookRateLimiter, requireWebhookClientIp} from './webhook-rate-limiter';
-import {authenticateWebhook, webhookDeliveryKey, webhookRequestHash} from './webhook-policy';
+import {WebhookRateLimiter} from './webhook-rate-limiter';
+import {
+    authenticateWebhook,
+    normalizeWebhookExecutionId,
+    webhookDeliveryKey,
+    webhookRequestHash,
+} from './webhook-policy';
 
 @Injectable()
 export class WebhookService {
@@ -29,12 +34,13 @@ export class WebhookService {
         private readonly unread: UnreadCounterService,
     ) {}
 
-    async execute(webhookId: number, input: {content: string; secret?: string; clientIp?: string; idempotencyKey?: string}) {
+    async execute(executionId: string, input: {content: string; secret?: string; idempotencyKey?: string}) {
         if (!this.readiness.areReady(['webhook', 'channel', 'teamMember', 'teamRole', 'channelRolePolicy'])) {
             throw new ServiceUnavailableException('웹훅 정보가 아직 동기화되지 않았습니다.');
         }
 
-        const webhook = await this.webhooks.findById(webhookId);
+        const canonicalExecutionId = normalizeWebhookExecutionId(executionId);
+        const webhook = await this.webhooks.findByExecutionId(canonicalExecutionId);
         if (!webhook || webhook.deleted) {
             throw new NotFoundException('웹훅을 찾을 수 없습니다.');
         }
@@ -51,7 +57,6 @@ export class WebhookService {
         }
 
         const deliveryKey = webhookDeliveryKey(input.idempotencyKey);
-        const clientIp = requireWebhookClientIp(input.clientIp);
         const messageInput = {
             webhook,
             teamId: scope.teamId,
@@ -65,7 +70,7 @@ export class WebhookService {
             return toMessageBroadcastPayload(existing);
         }
 
-        await this.limiter.acquire(webhookId, webhook.isSecure, clientIp);
+        await this.limiter.acquire(webhook.webhookId, webhook.isSecure);
         const result = await this.messages.save(messageInput);
         const response = toMessageBroadcastPayload(result.message);
         if (result.created) {

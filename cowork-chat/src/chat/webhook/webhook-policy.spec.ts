@@ -57,7 +57,7 @@ describe('incoming webhook policy', () => {
 
     it('rejects incomplete secure state and malformed identity or versions', () => {
         const event = {
-            schemaVersion: 1, eventType: 'WEBHOOK_STATE', webhookId: 7, channelId: 8,
+            schemaVersion: 2, eventType: 'WEBHOOK_STATE', webhookId: 7, executionId: '6cf6eda2-99a4-4f45-9bc9-14292c607df0', channelId: 8,
             name: 'build', avatarUrl: null, isSecure: true, secretHash, isActive: true,
             deleted: false, occurredAt: '2026-10-25T12:00:00.123456Z', snapshot: false,
         };
