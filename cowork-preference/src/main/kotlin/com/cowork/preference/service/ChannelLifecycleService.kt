@@ -5,6 +5,7 @@ import com.cowork.preference.messaging.PreferenceEvents
 import com.cowork.preference.repository.ChannelLifecycleProjectionRepository
 import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
+import com.cowork.preference.repository.WebhookRepository
 import io.vertx.sqlclient.SqlClient
 
 class ChannelLifecycleService(
@@ -12,6 +13,7 @@ class ChannelLifecycleService(
     private val policyRepository: ChannelRolePolicyRepository,
     private val outboxRepository: PreferenceOutboxRepository,
     private val initialAccess: InitialResourceAccessService,
+    private val webhookRepository: WebhookRepository? = null,
 ) {
     /**
      * 채널 삭제 fence 반영과 역할 정책 정리를 호출자의 transaction 안에서 함께 적용한다. projection row 갱신이
@@ -25,6 +27,9 @@ class ChannelLifecycleService(
             }
         }
         if (!applied || !event.deleted) return
+        webhookRepository?.deleteChannel(client, event.channelId)?.let { deleted ->
+            outboxRepository.enqueueAll(client, deleted.map { PreferenceEvents.webhookState(it, snapshot = false) })
+        }
         val teamId = event.teamId ?: return
         val tombstones = policyRepository.findPoliciesByChannel(client, teamId, event.channelId).map { policy ->
             policyRepository.deletePolicy(client, policy.teamId, policy.channelId, policy.roleId)
