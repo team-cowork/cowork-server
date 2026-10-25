@@ -1,4 +1,5 @@
 import {type estypes} from '@elastic/elasticsearch';
+import {type WebhookMessageAuthor} from '../chat/schema/message.schema';
 
 /**
 검색 읽기·쓰기가 사용하는 alias. 전체 재구축은 이 alias만 원자적으로 교체한다.
@@ -34,7 +35,8 @@ export type MessageIndexDoc = {
     teamId: number;
     projectId: number;
     channelId: number;
-    authorId: number;
+    authorId: number | null;
+    webhook?: WebhookMessageAuthor;
     content: string;
     type: string;
     hasAttachments: boolean;
@@ -84,6 +86,7 @@ export const MESSAGE_INDEX_MAPPINGS: estypes.MappingTypeMapping = {
         projectId: {type: 'long'},
         channelId: {type: 'long'},
         authorId: {type: 'long'},
+        webhook: {properties: {id: {type: 'long'}, name: {type: 'keyword'}, avatarUrl: {type: 'keyword', index: false}}},
         content: {type: 'text', analyzer: 'nori_analyzer'},
         type: {type: 'keyword'},
         hasAttachments: {type: 'boolean'},

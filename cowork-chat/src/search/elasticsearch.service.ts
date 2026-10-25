@@ -7,6 +7,7 @@ import {
     ServiceUnavailableException,
 } from '@nestjs/common';
 import {Client, estypes} from '@elastic/elasticsearch';
+import {type WebhookMessageAuthor} from '../chat/schema/message.schema';
 import {ELASTICSEARCH_CLIENT} from './elasticsearch.constants';
 import {
     classifyBulkItemResult,
@@ -58,7 +59,8 @@ export type SearchTeamMessagesParameters = {
 export type SearchHit = {
     messageId: string;
     channelId: number;
-    authorId: number;
+    authorId: number | null;
+    webhook?: WebhookMessageAuthor;
     content: string;
     highlight: string[];
     type: string;
@@ -530,6 +532,7 @@ export class ElasticsearchService implements OnModuleInit {
                 messageId: source.messageId,
                 channelId: source.channelId,
                 authorId: source.authorId,
+                ...(source.webhook && {webhook: source.webhook}),
                 content: source.content,
                 highlight: hit.highlight?.content ?? [],
                 type: source.type,
