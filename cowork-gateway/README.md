@@ -32,3 +32,5 @@
 | `CONFIG_SERVER_URL`      | `http://cowork-config:8761` | 필수 Config Server 연결                                  |
 | `CONFIG_CLIENT_USERNAME` | 없음                        | 필수. `.env`의 `CONFIG_CLIENT_GATEWAY_USERNAME`에서 전달 |
 | `CONFIG_CLIENT_PASSWORD` | 없음                        | 필수. `.env`의 `CONFIG_CLIENT_GATEWAY_PASSWORD`에서 전달 |
+
+웹훅 URL 서명 검증에는 Config/Vault의 `webhook.url-signing-key`를 사용합니다. Preference와 공유하는 32바이트 키의 Base64 문자열이며 `WEBHOOK_URL_SIGNING_KEY` 환경변수로 재정의할 수 있습니다. 키가 없거나 유효하지 않으면 웹훅 실행 요청은 503을 반환합니다. 키를 변경하면 발급된 URL이 무효화됩니다.
