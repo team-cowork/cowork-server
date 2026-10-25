@@ -26,11 +26,13 @@ class WebhookService(
     private val outbox: PreferenceOutboxRepository,
     private val readiness: ProjectionReadinessView,
     private val secrets: WebhookSecrets,
+    private val urlSigner: WebhookUrlSigner,
 ) {
     suspend fun list(channelId: Long, requester: RequesterContext): JsonArray {
         authorize(channelId, requester)
+        urlSigner.requireReady()
         requireTextChannel(pool, channelId, lock = false)
-        return JsonArray(repository.list(pool, channelId).map { it.response() })
+        return JsonArray(repository.list(pool, channelId).map { withExecutionPath(it.response()) })
     }
 
     suspend fun create(channelId: Long, requester: RequesterContext, raw: JsonObject, idempotencyKey: String?): JsonObject {
@@ -39,13 +41,14 @@ class WebhookService(
         authorize(channelId, requester)
         return outbox.inTransaction { connection ->
             authorize(channelId, requester, connection)
+            urlSigner.requireReady()
             requireTextChannel(connection, channelId)
             idempotent(connection, requester.userId, key, "CREATE:$channelId:${input.encode()}") {
                 val token = if (input.getBoolean("isSecure")) secrets.generate() else null
                 val webhook = repository.create(connection, channelId, requester.userId, input, token?.let(WebhookSecrets::hash))
                 outbox.enqueue(connection, PreferenceEvents.webhookState(webhook, snapshot = false))
                 webhook.response(token)
-            }
+            }.let(::withExecutionPath)
         }
     }
 
@@ -54,12 +57,13 @@ class WebhookService(
         authorize(channelId, requester)
         return outbox.inTransaction { connection ->
             authorize(channelId, requester, connection)
+            urlSigner.requireReady()
             requireTextChannel(connection, channelId)
             val current = requireWebhook(connection, channelId, webhookId)
-            if (input.isEmpty) return@inTransaction current.response()
+            if (input.isEmpty) return@inTransaction withExecutionPath(current.response())
             val updated = repository.patch(connection, current, input)
             outbox.enqueue(connection, PreferenceEvents.webhookState(updated, snapshot = false))
-            updated.response()
+            withExecutionPath(updated.response())
         }
     }
 
@@ -70,6 +74,7 @@ class WebhookService(
         authorize(channelId, requester)
         val response = outbox.inTransaction { connection ->
             authorize(channelId, requester, connection)
+            urlSigner.requireReady()
             requireTextChannel(connection, channelId)
             idempotent(connection, requester.userId, key, "MODE:$channelId:$webhookId:$target") {
                 val current = requireWebhook(connection, channelId, webhookId)
@@ -83,7 +88,7 @@ class WebhookService(
                 val updated = repository.changeMode(connection, current, target, token?.let(WebhookSecrets::hash), now)
                 outbox.enqueue(connection, PreferenceEvents.webhookState(updated, snapshot = false))
                 updated.response(token)
-            }
+            }.let(::withExecutionPath)
         }
         response.getJsonObject("operationFailure")?.let { failure ->
             val nextAllowedAt = failure.getString("nextAllowedAt")?.let(Instant::parse)
@@ -102,13 +107,14 @@ class WebhookService(
         authorize(channelId, requester)
         return outbox.inTransaction { connection ->
             authorize(channelId, requester, connection)
+            urlSigner.requireReady()
             requireTextChannel(connection, channelId)
             idempotent(connection, requester.userId, key, "ROTATE_EXECUTION_ID:$channelId:$webhookId") {
                 val current = requireWebhook(connection, channelId, webhookId)
                 val updated = repository.rotateExecutionId(connection, current.id)
                 outbox.enqueue(connection, PreferenceEvents.webhookState(updated, snapshot = false))
                 updated.response()
-            }
+            }.let(::withExecutionPath)
         }
     }
 
@@ -125,6 +131,11 @@ class WebhookService(
 
     suspend fun clearExpiredReplaySecrets() {
         repository.clearExpiredOperationSecrets(pool, repository.now(pool).minusSeconds(SECRET_REPLAY_SECONDS))
+    }
+
+    private fun withExecutionPath(response: JsonObject): JsonObject {
+        if (response.containsKey("operationFailure")) return response
+        return response.copy().put("executionPath", urlSigner.executionPath(response.getString("executionId")))
     }
 
     private suspend fun authorize(channelId: Long, requester: RequesterContext, client: SqlClient = pool) {
