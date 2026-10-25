@@ -47,5 +47,5 @@ ALTER TABLE tb_preference_event_outbox ADD CONSTRAINT ck_tb_preference_event_out
     'preference.channel-role-policy.result.v2', 'preference.status.changed', 'preference.team.setting.changed',
     'preference.project-access.state.v1', 'preference.account-setting.state.v1',
     'preference.team-setting.state.v1', 'preference.text-channel-setting.state.v1',
-    'preference.webhook.state.v1', 'preference.webhook.state.v2'
+    'preference.webhook.state.v2'
 ));
