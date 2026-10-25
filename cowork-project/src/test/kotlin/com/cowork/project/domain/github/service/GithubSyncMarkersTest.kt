@@ -1,16 +1,21 @@
 package com.cowork.project.domain.github.service
 
+import com.cowork.project.domain.github.entity.GithubRepoProjection
 import com.cowork.project.domain.github.entity.GithubSyncMarker
 import com.cowork.project.domain.github.entity.GithubSyncStream
 import com.cowork.project.domain.github.event.GithubSyncCompletedMarker
+import com.cowork.project.domain.github.repository.GithubRepoProjectionRepository
 import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import org.springframework.http.HttpStatus
+import team.themoment.sdk.exception.ExpectedException
 import java.time.Instant
 import java.util.Optional
 
@@ -18,11 +23,13 @@ class GithubSyncMarkersTest :
     DescribeSpec({
 
         lateinit var repository: GithubSyncMarkerRepository
+        lateinit var repoProjectionRepository: GithubRepoProjectionRepository
         lateinit var markers: GithubSyncMarkers
 
         beforeEach {
             repository = mockk(relaxed = true)
-            markers = GithubSyncMarkers(repository)
+            repoProjectionRepository = mockk()
+            markers = GithubSyncMarkers(repository, repoProjectionRepository)
         }
 
         fun marker(repo: String?, completedAt: String, owner: String = "my-org") =
@@ -73,6 +80,48 @@ class GithubSyncMarkersTest :
                     markers.record(GithubSyncStream.REPO, marker(null, "2026-01-01T00:00:00Z"))
 
                     existing.completedAt shouldBe Instant.parse("2026-01-02T00:00:00Z")
+                }
+            }
+        }
+
+        describe("GithubSyncMarkers 클래스의 requireSynced 메서드는") {
+            fun repoProjection(deleted: Boolean) = GithubRepoProjection(
+                id = "my-org/my-repo",
+                installationId = 1L,
+                owner = "my-org",
+                repo = "my-repo",
+                fullName = "My-Org/My-Repo",
+                private = false,
+                htmlUrl = "https://github.com/My-Org/My-Repo",
+                deleted = deleted,
+                sourceOccurredAt = Instant.parse("2026-01-01T00:00:00Z"),
+            )
+
+            context("마커가 없고 repo가 설치 범위에서 빠지거나 삭제된 경우") {
+                it("동기화 지연과 구분해 404를 던진다") {
+                    every { repository.existsById("ISSUE:my-org/my-repo") } returns false
+                    every { repoProjectionRepository.findById("my-org/my-repo") } returns
+                        Optional.of(repoProjection(deleted = true))
+
+                    val ex = shouldThrow<ExpectedException> {
+                        markers.requireSynced(GithubSyncStream.ISSUE, "My-Org", "My-Repo")
+                    }
+
+                    ex.statusCode shouldBe HttpStatus.NOT_FOUND
+                }
+            }
+
+            context("마커가 없고 repo가 삭제되지 않은 경우") {
+                it("503을 던진다") {
+                    every { repository.existsById("ISSUE:my-org/my-repo") } returns false
+                    every { repoProjectionRepository.findById("my-org/my-repo") } returns
+                        Optional.of(repoProjection(deleted = false))
+
+                    val ex = shouldThrow<ExpectedException> {
+                        markers.requireSynced(GithubSyncStream.ISSUE, "my-org", "my-repo")
+                    }
+
+                    ex.statusCode shouldBe HttpStatus.SERVICE_UNAVAILABLE
                 }
             }
         }
