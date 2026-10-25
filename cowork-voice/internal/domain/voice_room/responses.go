@@ -5,6 +5,8 @@ type JoinResponse struct {
 	LiveKitURL string `json:"livekit_url" example:"wss://livekit.example.com"`
 	SessionID  string `json:"session_id"  example:"550e8400-e29b-41d4-a716-446655440000"`
 	RoomName   string `json:"room_name"   example:"channel-42"`
+	// Bitrate는 클라이언트가 오디오 publish에 적용할 bps 값이다. null이면 클라이언트 기본값을 쓴다.
+	Bitrate *int `json:"bitrate" example:"64000"`
 }
 
 type ParticipantResponse struct {
