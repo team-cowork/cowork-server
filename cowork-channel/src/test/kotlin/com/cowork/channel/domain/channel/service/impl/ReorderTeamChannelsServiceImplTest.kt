@@ -9,6 +9,7 @@ import com.cowork.channel.domain.channel.service.TeamPermissionService
 import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
@@ -129,5 +130,27 @@ class ReorderTeamChannelsServiceImplTest {
         val result = service.execute(7L, 100L, listOf(3L, 2L, 1L))
         assertEquals(listOf(3L, 2L, 1L), result.map { it.id })
         assertEquals(1, fixed.position)
+    }
+
+    @Test
+    fun `이동하는 채널만 음수 임시 position으로 먼저 flush한 뒤 최종 position을 저장함`() {
+        val first = channel(id = 1L, position = 0)
+        val fixed = channel(id = 2L, position = 1)
+        val third = channel(id = 3L, position = 2)
+        every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
+        every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns listOf(first, fixed, third)
+        every { messageReadPolicyEvaluator.filterReadable(100L, 7L, any()) } returns listOf(first, fixed, third)
+        var positionsAtFlush = emptyList<Int>()
+        every { channelRepository.flush() } answers {
+            positionsAtFlush = listOf(first.position, fixed.position, third.position)
+        }
+
+        service.execute(7L, 100L, listOf(3L, 2L, 1L))
+
+        assertEquals(listOf(-2, 1, -1), positionsAtFlush)
+        assertEquals(listOf(2, 1, 0), listOf(first.position, fixed.position, third.position))
+        verify(exactly = 1) { channelEventPublisher.publishUpdated(third, any()) }
+        verify(exactly = 1) { channelEventPublisher.publishUpdated(first, any()) }
+        verify(exactly = 0) { channelEventPublisher.publishUpdated(fixed, any()) }
     }
 }
