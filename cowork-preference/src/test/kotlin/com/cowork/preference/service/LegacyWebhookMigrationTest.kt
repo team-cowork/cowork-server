@@ -26,13 +26,16 @@ import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.time.Instant
+import java.util.UUID
 
 class LegacyWebhookMigrationTest {
     @Test
     fun `구형 버전에서 바꾼 웹훅은 최초 이관 이후 재이관에서도 반영한다`() = runBlocking {
         val fixture = Fixture()
         assertNull(fixture.state(fixture.source, 1))
+        val executionId = fixture.rows.getValue(7).requireExecutionId()
         assertNull(fixture.state(fixture.source.copy(name = "changed", updatedAt = now.plusSeconds(30)), 2))
+        assertEquals(executionId, fixture.rows.getValue(7).requireExecutionId())
         assertEquals("changed", fixture.rows[7]?.name)
         assertEquals(fixture.rows[7]?.updatedAt, fixture.metadata[7]?.ownerAppliedUpdatedAt)
         coVerify(exactly = 2) { fixture.outbox.enqueue(fixture.connection, any()) }
@@ -56,7 +59,7 @@ class LegacyWebhookMigrationTest {
     @Test
     fun `이관 기준이 없는 기존 owner는 변경하지 않는다`() = runBlocking {
         val fixture = Fixture()
-        fixture.rows[7] = fixture.source.copy(name = "existing owner")
+        fixture.rows[7] = fixture.source.copy(name = "existing owner", executionId = executionId)
         fixture.state(fixture.source, 1)
         fixture.state(fixture.source.copy(name = "new legacy", updatedAt = now.plusSeconds(30)), 2)
         fixture.manifest(emptySet(), 3)
@@ -119,7 +122,7 @@ class LegacyWebhookMigrationTest {
     fun `구형 Preference가 이미 처리한 채널 삭제도 manifest에서 신규 ID까지 정리한다`() = runBlocking {
         val fixture = Fixture()
         val id = WebhookMigrationIds.FIRST_OWNER_ID
-        fixture.rows[id] = fixture.source.copy(id = id, name = "owner created", updatedAt = now.plusSeconds(100))
+        fixture.rows[id] = fixture.source.copy(id = id, name = "owner created", updatedAt = now.plusSeconds(100), executionId = executionId)
         fixture.channelDeleted = true
         fixture.manifest(emptySet(), 1)
         assertTrue(fixture.rows.getValue(id).deleted)
@@ -172,11 +175,12 @@ class LegacyWebhookMigrationTest {
             }
             coEvery { repository.legacyActive(connection, any()) } returns true
             coEvery { repository.importLegacy(connection, any()) } coAnswers {
-                secondArg<Webhook>().let { if (rows.putIfAbsent(it.id, it) == null) it else null }
+                secondArg<Webhook>().copy(executionId = executionId).let { if (rows.putIfAbsent(it.id, it) == null) it else null }
             }
             coEvery { repository.applyLegacy(connection, any(), any()) } coAnswers {
                 val value = secondArg<Webhook>()
-                value.copy(isActive = thirdArg(), updatedAt = maxOf(value.updatedAt, rows.getValue(value.id).updatedAt).plusNanos(1000))
+                value.copy(isActive = thirdArg(), executionId = rows.getValue(value.id).executionId,
+                    updatedAt = maxOf(value.updatedAt, rows.getValue(value.id).updatedAt).plusNanos(1000))
                     .also { rows[it.id] = it }
             }
             coEvery { repository.delete(connection, any()) } coAnswers { tombstone(secondArg()) }
@@ -212,6 +216,7 @@ class LegacyWebhookMigrationTest {
 
     companion object {
         private val now = Instant.parse("2026-10-25T10:00:00Z")
+        private val executionId = UUID.fromString("5b30857f-0bfa-48b5-ac0b-5c64e28078d1")
         private fun snapshotId(generation: Int) = "00000000-0000-0000-0000-${generation.toString().padStart(12, '0')}"
     }
 }

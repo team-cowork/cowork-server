@@ -3,6 +3,7 @@ import {Prop, Schema, SchemaFactory} from '@nestjs/mongoose';
 @Schema({timestamps: true, versionKey: false})
 export class WebhookProjection {
     @Prop({required: true}) webhookId!: number;
+    @Prop({required: true}) executionId!: string;
     @Prop({required: true}) channelId!: number;
     @Prop({required: true}) name!: string;
     @Prop({type: String, default: null}) avatarUrl!: string | null;
@@ -16,3 +17,5 @@ export class WebhookProjection {
 
 export const WebhookProjectionSchema = SchemaFactory.createForClass(WebhookProjection);
 WebhookProjectionSchema.index({webhookId: 1}, {unique: true});
+
+WebhookProjectionSchema.index({executionId: 1}, {unique: true, partialFilterExpression: {executionId: {$type: 'string'}}});

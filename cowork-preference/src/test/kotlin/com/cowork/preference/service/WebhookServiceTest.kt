@@ -24,6 +24,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.Base64
+import java.util.UUID
 
 class WebhookServiceTest {
     private val pool = mockk<Pool>()
@@ -36,7 +37,8 @@ class WebhookServiceTest {
     private val secrets = WebhookSecrets(Base64.getEncoder().encodeToString(ByteArray(32) { 7 }))
     private val requester = RequesterContext(3, "MEMBER")
     private val now = Instant.parse("2026-10-25T10:00:00Z")
-    private val original = Webhook(7, 11, "bot", null, false, null, true, false, 3, now, now, null)
+    private val executionId = UUID.fromString("5b30857f-0bfa-48b5-ac0b-5c64e28078d1")
+    private val original = Webhook(7, 11, "bot", null, false, null, true, false, 3, now, now, null, executionId)
     private lateinit var service: WebhookService
     private var committed = false
 
@@ -65,6 +67,8 @@ class WebhookServiceTest {
         coEvery { repository.saveOperation(connection, 3, "create", any(), capture(response), capture(ciphertext)) } returns Unit
         val result = service.create(11, requester, JsonObject().put("name", "bot").put("isSecure", true), "create")
         val token = result.getString("token")
+        assertEquals(executionId.toString(), result.getString("executionId"))
+        assertEquals(executionId.toString(), event.captured.payload.getString("executionId"))
         assertEquals(32, Base64.getUrlDecoder().decode(token).size)
         assertEquals(WebhookSecrets.hash(token), event.captured.payload.getString("secretHash"))
         assertFalse(event.captured.payload.encode().contains(token))
@@ -89,6 +93,7 @@ class WebhookServiceTest {
         }
         val result = service.changeMode(11, 7, requester, JsonObject().put("isSecure", true), "first")
         assertNotNull(result.getString("token"))
+        assertEquals(executionId.toString(), result.getString("executionId"))
         coVerify(exactly = 1) { repository.changeMode(connection, original, true, any(), now) }
         coVerify { guard.requireSettingsManager(connection, 11, requester) }
     }
@@ -153,6 +158,7 @@ class WebhookServiceTest {
         )
         val result = service.changeMode(11, 7, requester, JsonObject().put("isSecure", true), "retry")
         assertEquals(token, result.getString("token"))
+        assertEquals(executionId.toString(), result.getString("executionId"))
         coVerify(exactly = 0) { repository.findForUpdate(any(), any()) }
         coVerify(exactly = 0) { repository.changeMode(any(), any(), any(), any(), any()) }
         coVerify { guard.requireSettingsManager(connection, 11, requester) }
@@ -194,6 +200,36 @@ class WebhookServiceTest {
         coVerify(exactly = 1) { repository.create(any(), any(), any(), any(), any()) }
         coVerify(exactly = 1) { outbox.enqueue(any(), any()) }
         coVerify(exactly = 3) { guard.requireSettingsManager(connection, 11, requester) }
+    }
+
+    @Test
+    fun `실행 식별자는 사용자가 생성하거나 변경할 수 없다`() = runBlocking {
+        val input = JsonObject().put("executionId", executionId.toString())
+        val createFailure = runCatching { service.create(11, requester, input.copy().put("name", "bot"), "chosen") }
+            .exceptionOrNull() as WebhookRequestException
+        val patchFailure = runCatching { service.patch(11, 7, requester, input) }
+            .exceptionOrNull() as WebhookRequestException
+        assertEquals(400, createFailure.status)
+        assertEquals(400, patchFailure.status)
+        coVerify(exactly = 0) { repository.create(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { repository.patch(any(), any(), any()) }
+    }
+
+    @Test
+    fun `이전 발급 응답 재생은 기존 실행 식별자만 보완하고 웹훅을 변경하지 않는다`() = runBlocking {
+        val hash = WebhookSecrets.hash("MODE:11:7:true")
+        val oldResponse = original.copy(isSecure = true).response().also { it.remove("executionId") }
+        coEvery { repository.findOperation(connection, 3, "before-uuid") } returns WebhookOperation(
+            hash, oldResponse, null, now.minusSeconds(24 * 60 * 60),
+        )
+        coEvery { repository.findForUpdate(connection, 7) } returns original.copy(name = "current name")
+        val result = service.changeMode(11, 7, requester, JsonObject().put("isSecure", true), "before-uuid")
+        assertEquals(executionId.toString(), result.getString("executionId"))
+        assertEquals("bot", result.getString("name"))
+        assertNull(result.getString("token"))
+        coVerify(exactly = 0) { repository.changeMode(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 0) { repository.create(any(), any(), any(), any(), any()) }
+        coVerify { guard.requireSettingsManager(connection, 11, requester) }
     }
 
     @Test

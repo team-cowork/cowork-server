@@ -159,7 +159,7 @@
               }
             }
           },
-          "description": "공개 모드는 비밀키가 없으며 보안 모드는 발급된 token을 X-Webhook-Secret 헤더로 전달합니다. token 원문은 생성 또는 실제 보안 모드 전환 성공 응답과 발급 후 24시간 미만의 동일 요청 재생에서만 반환됩니다."
+          "description": "수신 URL에는 응답의 executionId(UUIDv4)를 사용하고 관리 URL에는 숫자 id를 사용합니다. 공개 모드는 별도 비밀키가 없으며 보안 모드는 발급된 token을 X-Webhook-Secret 헤더로 전달합니다. token 원문은 생성 또는 실제 보안 모드 전환 성공 응답과 발급 후 24시간 미만의 동일 요청 재생에서만 반환됩니다."
         }
       },
       "/channels/{channelId}/webhooks/{webhookId}": {
@@ -741,10 +741,18 @@
     "schemas": {
         "Webhook": {
           "type": "object",
+          "required": ["id", "executionId", "channelId", "name", "isActive", "isSecure", "createdBy", "createdAt", "updatedAt"],
           "properties": {
             "id": {
               "type": "integer",
               "format": "int64"
+            },
+            "executionId": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+              "readOnly": true,
+              "description": "수신 URL /api/chat/chat/webhooks/{executionId}/messages에 사용하는 변경 불가 UUIDv4입니다. 관리 API는 숫자 id를 계속 사용합니다."
             },
             "channelId": {
               "type": "integer",
