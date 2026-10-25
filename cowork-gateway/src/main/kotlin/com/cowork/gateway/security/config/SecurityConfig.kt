@@ -95,6 +95,8 @@ class SecurityConfig(
                     .pathMatchers("/v3/api-docs/**").permitAll()
                     .pathMatchers(HttpMethod.GET, "/api/chat/asyncapi.json").permitAll()
                     .pathMatchers(HttpMethod.POST, "/api/voice/voice/webhook").permitAll()
+                    // 수신 웹훅의 공개/보안 모드는 Chat의 Preference projection으로 검증한다.
+                    .pathMatchers(HttpMethod.POST, "/api/chat/chat/webhooks/*/messages").permitAll()
                     // GitHub webhook은 cowork-github가 X-Hub-Signature-256으로 검증하고, setup 콜백은 GitHub가 브라우저를
                     // 리다이렉트하므로 Cowork JWT가 없다. 콜백의 state 서명은 cowork-team이 검증한다
                     .pathMatchers(HttpMethod.POST, "/api/github/github/webhooks").permitAll()
