@@ -2,6 +2,7 @@ package livekit
 
 import (
 	"context"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -56,7 +57,7 @@ func generateToken(apiKey, apiSecret string, userID int64, roomName string, spea
 }
 
 func CreateRoomIfNotExists(ctx context.Context, client *lksdk.RoomServiceClient, roomName string, maxParticipants uint32) error {
-	_, err := client.CreateRoom(ctx, &livekit.CreateRoomRequest{Name: roomName, MaxParticipants: maxParticipants})
+	_, err := client.CreateRoom(ctx, &livekit.CreateRoomRequest{Name: roomName, MaxParticipants: roomMaxParticipants(maxParticipants)})
 	if err != nil {
 		if isRoomAlreadyExistsError(err) {
 			return nil
@@ -64,6 +65,15 @@ func CreateRoomIfNotExists(ctx context.Context, client *lksdk.RoomServiceClient,
 		return apperr.Internal(err.Error())
 	}
 	return nil
+}
+
+// roomMaxParticipants는 제한 없음(0)을 최댓값으로 바꾼다.
+// LiveKit은 기존 방의 CreateRoom에서 0을 "변경 없음"으로 다뤄, 세션 중 제한을 해제해도 이전 정원이 남기 때문이다.
+func roomMaxParticipants(maxParticipants uint32) uint32 {
+	if maxParticipants == 0 {
+		return math.MaxUint32
+	}
+	return maxParticipants
 }
 
 // CreateRoomWithEmptyTimeout은 빈 방 자동 정리 시간을 명시해 방을 생성한다.
