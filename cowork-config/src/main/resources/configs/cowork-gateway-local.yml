@@ -15,6 +15,9 @@ gateway:
   response-wrapper:
     max-wrappable-size: 1MB
 
+webhook:
+  url-signing-key: "" # Vault 주입 또는 런타임 WEBHOOK_URL_SIGNING_KEY 사용
+
 cowork:
   swagger-ui:
     primary-name: user
@@ -82,18 +85,19 @@ spring:
           order: -2
           uri: lb://cowork-chat
           predicates:
-            - Path=/api/chat/chat/webhooks/{executionId}/messages
+            - Path=/api/chat/chat/webhooks/{executionId}/{signature}/messages
             - Method=POST
           filters:
             - RemoveRequestHeader=X-User-Id
             - RemoveRequestHeader=X-User-Role
+            - WebhookSignature
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 30
                 redis-rate-limiter.burstCapacity: 60
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@webhookKeyResolver}"
-            - StripPrefix=2
+            - SetPath=/chat/webhooks/{executionId}/messages
             - SetResponseHeader=Cache-Control, no-store
 
         - id: team-object-storage

@@ -42,6 +42,7 @@ import com.cowork.preference.repository.TeamRoleCommandInboxRepository
 import com.cowork.preference.repository.TeamRoleRepository
 import com.cowork.preference.router.buildRouter
 import com.cowork.preference.service.WebhookSecrets
+import com.cowork.preference.service.WebhookUrlSigner
 import com.cowork.preference.service.WebhookService
 import com.cowork.preference.service.ChannelAccessGuard
 import com.cowork.preference.service.ChannelLifecycleService
@@ -226,7 +227,8 @@ class MainVerticle : AbstractVerticle() {
             channelAccessGuard,
         )
         val webhookService = WebhookService(pool, webhookRepository, channelLifecycleProjectionRepo, channelAccessGuard,
-            outboxRepository, webhookReadiness, WebhookSecrets(appConfig.webhookSecretEncryptionKey))
+            outboxRepository, webhookReadiness, WebhookSecrets(appConfig.webhookSecretEncryptionKey),
+            WebhookUrlSigner(appConfig.webhookUrlSigningKey))
         val webhookHandler = WebhookHandler(webhookService, scope)
         val notifHandler = NotificationHandler(notifService, scope, channelAccessGuard)
         val roleHandler = ProjectRoleHandler(roleService, scope, projectAccessGuard)
