@@ -11,7 +11,7 @@ import {WebhookProjectionRepository} from '../repository/webhook-projection.repo
 import {ChannelMessageReadAccessService, UnreadCounterService, resolveMessageScope} from '../service';
 import {ChatService} from '../chat.service';
 import {WebhookMessageRepository} from './webhook-message.repository';
-import {WebhookRateLimiter} from './webhook-rate-limiter';
+import {WebhookRateLimiter, requireWebhookClientIp} from './webhook-rate-limiter';
 import {authenticateWebhook, webhookDeliveryKey, webhookRequestHash} from './webhook-policy';
 
 @Injectable()
@@ -51,15 +51,22 @@ export class WebhookService {
         }
 
         const deliveryKey = webhookDeliveryKey(input.idempotencyKey);
-        await this.limiter.acquire(webhookId, webhook.isSecure, input.clientIp);
-        const result = await this.messages.save({
+        const clientIp = requireWebhookClientIp(input.clientIp);
+        const messageInput = {
             webhook,
             teamId: scope.teamId,
             projectId: scope.projectId,
             content: input.content,
             deliveryKey,
             requestHash: webhookRequestHash(input.content),
-        });
+        };
+        const existing = await this.messages.findDelivery(messageInput);
+        if (existing) {
+            return toMessageBroadcastPayload(existing);
+        }
+
+        await this.limiter.acquire(webhookId, webhook.isSecure, clientIp);
+        const result = await this.messages.save(messageInput);
         const response = toMessageBroadcastPayload(result.message);
         if (result.created) {
             // HTTP success follows durable storage; failed realtime delivery is reconciled by message reads.
