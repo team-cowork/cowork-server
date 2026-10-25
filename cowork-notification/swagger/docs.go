@@ -141,7 +141,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "인증된 사용자의 실시간 알림 이벤트를 Server-Sent Events(SSE)로 스트리밍합니다. 30초마다 keepalive ping을 전송합니다.",
+                "description": "인증된 사용자의 실시간 알림 이벤트를 Server-Sent Events(SSE)로 스트리밍합니다. 30초마다 keepalive ping을 전송합니다. 같은 알림이 다시 전달될 수 있으므로(at-least-once) 클라이언트는 eventId로 중복을 제거합니다.",
                 "produces": [
                     "text/event-stream"
                 ],
@@ -161,7 +161,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "data: {type, title, body, channelId, teamId}",
+                        "description": "data: {eventId, type, title, body, channelId, teamId}",
                         "schema": {
                             "type": "string"
                         }
