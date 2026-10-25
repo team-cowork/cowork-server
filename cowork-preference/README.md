@@ -35,3 +35,5 @@
 | `CONFIG_CLIENT_PASSWORD` | 없음                        | 필수. `.env`의 `CONFIG_CLIENT_PREFERENCE_PASSWORD`에서 전달 |
 
 웹훅 비밀키 발급 응답의 재생에는 Config/Vault의 `preference.webhook.secret-encryption-key`를 사용합니다. 값은 32바이트 키의 Base64 문자열이며 `WEBHOOK_SECRET_ENCRYPTION_KEY` 환경변수로 재정의할 수 있습니다. 키가 없으면 비밀키 발급 요청은 503을 반환합니다.
+
+웹훅 URL 서명에는 Config/Vault의 `preference.webhook.url-signing-key`를 사용합니다. Gateway와 공유하는 별도의 32바이트 키의 Base64 문자열이며 `WEBHOOK_URL_SIGNING_KEY` 환경변수로 재정의할 수 있습니다. 키를 변경하면 발급된 URL이 무효화됩니다.
