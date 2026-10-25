@@ -28,6 +28,7 @@ data class KafkaConfig(
     val teamRoleCommandConsumerGroupId: String,
     val githubRepoSettingCommandConsumerGroupId: String,
     val channelRolePolicyCommandConsumerGroupId: String,
+    val webhookLegacyConsumerGroupId: String = "cowork-preference-webhook-legacy-projection",
 )
 
 data class AppConfig(
@@ -41,6 +42,8 @@ data class AppConfig(
     val eurekaInstanceHost: String,
     val eurekaInstanceId: String,
     val eurekaInstancePort: Int = serverPort,
+    val webhookSecretEncryptionKey: String? = null,
+    val webhookUrlSigningKey: String? = null,
 ) {
     companion object {
         fun from(json: JsonObject): AppConfig {
@@ -118,11 +121,18 @@ data class AppConfig(
                         "github-repo-setting-command-consumer-group-id",
                         "cowork-preference-github-repo-setting-command",
                     ),
+                    webhookLegacyConsumerGroupId = kafka.getString(
+                        "webhook-legacy-consumer-group-id", "cowork-preference-webhook-legacy-projection",
+                    ),
                     channelRolePolicyCommandConsumerGroupId = kafka.getString(
                         "channel-role-policy-command-consumer-group-id",
                         "cowork-preference-channel-role-policy-command",
                     ),
                 ),
+                webhookSecretEncryptionKey = System.getenv("WEBHOOK_SECRET_ENCRYPTION_KEY")?.takeIf(String::isNotBlank)
+                    ?: pref.getJsonObject("webhook")?.getString("secret-encryption-key"),
+                webhookUrlSigningKey = System.getenv("WEBHOOK_URL_SIGNING_KEY")
+                    ?: (pref.getJsonObject("webhook")?.getValue("url-signing-key") as? String),
                 eurekaUrl = eureka.getString("url", "http://localhost:8761/eureka/"),
                 eurekaEnabled = eureka.getBoolean("enabled", true),
                 eurekaAppName = appName,

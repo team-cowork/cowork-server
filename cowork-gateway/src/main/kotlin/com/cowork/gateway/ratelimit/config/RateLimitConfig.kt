@@ -1,6 +1,8 @@
 package com.cowork.gateway.ratelimit.config
 
+import com.cowork.gateway.webhook.WebhookUrlSignatureVerifier
 import org.springframework.cloud.gateway.filter.ratelimit.KeyResolver
+import org.springframework.cloud.gateway.support.ServerWebExchangeUtils
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.server.ServerWebExchange
@@ -8,6 +10,14 @@ import reactor.core.publisher.Mono
 
 @Configuration
 class RateLimitConfig {
+
+    @Bean
+    fun webhookKeyResolver(): KeyResolver = KeyResolver { exchange ->
+        val raw = ServerWebExchangeUtils.getUriTemplateVariables(exchange)["executionId"]
+        val executionId = WebhookUrlSignatureVerifier.canonicalExecutionId(raw)
+        Mono.justOrEmpty(executionId)
+            .map { "webhook:$it" }
+    }
 
     /**
      * Rate Limiting 키 전략:
