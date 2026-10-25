@@ -236,6 +236,7 @@ func (c *Consumer) handle(
 	// 데스크톱 앱(SSE)으로 알림 이벤트 브로드캐스트
 	if c.sseBroadcaster != nil {
 		ssePayload, err := json.Marshal(map[string]any{
+			"eventId":   event.EventID,
 			"type":      event.Type,
 			"title":     title,
 			"body":      body,

@@ -36,6 +36,11 @@ const (
 // the currently signed-in account.
 const DataKeyAccountID = "accountId"
 
+// DataKeyEventID is the data payload key carrying the trigger event's stable eventId.
+// Delivery is at-least-once (a send that succeeds before its ledger write can be
+// repeated), so the client must drop a message whose eventId it already showed.
+const DataKeyEventID = "eventId"
+
 // Message is one Firebase installation's send request. Data is per installation so
 // each message can carry the owning account (see DataKeyAccountID).
 type Message struct {
