@@ -146,6 +146,7 @@ services:
         preference.account-setting.state.v1
         preference.team-setting.state.v1
         preference.text-channel-setting.state.v1
+        preference.voice-channel-setting.state.v1
         preference.github-repo.setting.result-dlt
         project.chat-github-issue.command
         project.chat-github-issue.command-dlt
@@ -176,6 +177,7 @@ services:
         preference.account-setting.state.v1
         preference.team-setting.state.v1
         preference.text-channel-setting.state.v1
+        preference.voice-channel-setting.state.v1
         github.repo.state.v1
         github.issue.state.v1
         github.pull-request.state.v1

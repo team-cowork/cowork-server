@@ -111,4 +111,27 @@ class SettingStateEventsTest {
         assertEquals(30, enabled.payload.getInteger("slowmodeSeconds"))
         assertEquals(0, unset.payload.getInteger("slowmodeSeconds"))
     }
+
+    @Test
+    fun `음성 채널 설정 state는 범위를 벗어난 과거 값을 미설정으로 보낸다`() {
+        val configured = PreferenceEvents.voiceChannelSettingState(
+            21L,
+            JsonObject().put("max_participants", 10).put("bitrate", 64_000),
+            occurredAt,
+            snapshot = false,
+        )
+        val invalid = PreferenceEvents.voiceChannelSettingState(
+            22L,
+            JsonObject().put("max_participants", 500).put("bitrate", 1),
+            occurredAt,
+            snapshot = true,
+        )
+
+        assertEquals(PreferenceEvents.VOICE_CHANNEL_SETTING_STATE_TOPIC, configured.topic)
+        assertEquals("21", configured.key)
+        assertEquals(10, configured.payload.getInteger("maxParticipants"))
+        assertEquals(64_000, configured.payload.getInteger("bitrate"))
+        assertEquals(0, invalid.payload.getInteger("maxParticipants"))
+        assertNull(invalid.payload.getValue("bitrate"))
+    }
 }

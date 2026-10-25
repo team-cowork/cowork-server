@@ -34,6 +34,7 @@ object PreferenceEvents {
     const val ACCOUNT_SETTING_STATE_TOPIC = "preference.account-setting.state.v1"
     const val TEAM_SETTING_STATE_TOPIC = "preference.team-setting.state.v1"
     const val TEXT_CHANNEL_SETTING_STATE_TOPIC = "preference.text-channel-setting.state.v1"
+    const val VOICE_CHANNEL_SETTING_STATE_TOPIC = "preference.voice-channel-setting.state.v1"
     const val SETTING_STATE_SCHEMA_VERSION = 1
     val OUTBOX_TOPICS = setOf(
         PROJECT_ACCESS_STATE_TOPIC,
@@ -48,6 +49,7 @@ object PreferenceEvents {
         ACCOUNT_SETTING_STATE_TOPIC,
         TEAM_SETTING_STATE_TOPIC,
         TEXT_CHANNEL_SETTING_STATE_TOPIC,
+        VOICE_CHANNEL_SETTING_STATE_TOPIC,
     )
 
     const val SNAPSHOT_COMPLETED_EVENT_TYPE = "PROJECTION_SNAPSHOT_COMPLETED"
@@ -62,7 +64,8 @@ object PreferenceEvents {
                 topic == CHANNEL_ROLE_POLICY_STATE_TOPIC ||
                 topic == ACCOUNT_SETTING_STATE_TOPIC ||
                 topic == TEAM_SETTING_STATE_TOPIC ||
-                topic == TEXT_CHANNEL_SETTING_STATE_TOPIC,
+                topic == TEXT_CHANNEL_SETTING_STATE_TOPIC ||
+                topic == VOICE_CHANNEL_SETTING_STATE_TOPIC,
         ) {
             "unsupported projection snapshot topic '$topic'"
         }
@@ -294,6 +297,27 @@ object PreferenceEvents {
                 "slowmodeSeconds",
                 validSetting(ResourceType.TEXT_CHANNEL, settings, "slowmode_seconds") as? Int ?: 0,
             )
+            .put("snapshot", snapshot),
+        occurredAt = occurredAt,
+    )
+
+    /** maxParticipants 0은 제한 없음, bitrate null은 클라이언트 기본값을 뜻한다. */
+    fun voiceChannelSettingState(
+        channelId: Long,
+        settings: JsonObject,
+        occurredAt: Instant,
+        snapshot: Boolean,
+    ): PreferenceEvent = PreferenceEvent(
+        topic = VOICE_CHANNEL_SETTING_STATE_TOPIC,
+        key = channelId.toString(),
+        payload = basePayload("UPSERT", occurredAt)
+            .put("schemaVersion", SETTING_STATE_SCHEMA_VERSION)
+            .put("channelId", channelId)
+            .put(
+                "maxParticipants",
+                validSetting(ResourceType.VOICE_CHANNEL, settings, "max_participants") as? Int ?: 0,
+            )
+            .put("bitrate", validSetting(ResourceType.VOICE_CHANNEL, settings, "bitrate"))
             .put("snapshot", snapshot),
         occurredAt = occurredAt,
     )
