@@ -1,10 +1,7 @@
-import {isIP} from 'node:net';
-import {createHash} from 'node:crypto';
 import {
     HttpException,
     HttpStatus,
     Injectable,
-    ServiceUnavailableException,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
 import {getOptionalConfig} from '../../common/config/config.util';
@@ -16,21 +13,11 @@ export class WebhookRateLimitExceeded extends HttpException {
     }
 }
 
-export function requireWebhookClientIp(clientIp?: string): string {
-    if (clientIp === undefined || isIP(clientIp) === 0) {
-        throw new ServiceUnavailableException('웹훅 요청 정보를 확인할 수 없습니다.');
-    }
-
-    return clientIp;
-}
-
 @Injectable()
 export class WebhookRateLimiter {
     private readonly windowMs: number;
     private readonly publicLimit: number;
     private readonly secureLimit: number;
-    private readonly publicIpLimit: number;
-    private readonly secureIpLimit: number;
 
     constructor(private readonly redis: RedisRateLimiter, config: ConfigService) {
         const setting = (key: string, fallback: number): number => {
@@ -45,18 +32,13 @@ export class WebhookRateLimiter {
         this.windowMs = setting('window-ms', 60_000);
         this.publicLimit = setting('public-limit', 10);
         this.secureLimit = setting('secure-limit', 60);
-        this.publicIpLimit = setting('public-ip-limit', 10);
-        this.secureIpLimit = setting('secure-ip-limit', 60);
     }
 
-    async acquire(webhookId: number, isSecure: boolean, clientIp?: string): Promise<void> {
-        const ipHash = createHash('sha256').update(requireWebhookClientIp(clientIp).toLowerCase()).digest('hex');
+    async acquire(webhookId: number, isSecure: boolean): Promise<void> {
         const retryAfterMs = await this.redis.tryAcquireWebhook(
             `chat:webhook:{${webhookId}}`,
-            ipHash,
             this.windowMs,
             isSecure ? this.secureLimit : this.publicLimit,
-            isSecure ? this.secureIpLimit : this.publicIpLimit,
         );
         if (retryAfterMs > 0) {
             throw new WebhookRateLimitExceeded(Math.ceil(retryAfterMs / 1000));
