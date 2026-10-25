@@ -20,5 +20,6 @@ ALTER TABLE tb_preference_event_outbox
         'preference.account-setting.state.v1',
         'preference.team-setting.state.v1',
         'preference.text-channel-setting.state.v1',
+        'preference.webhook.state.v2',
         'preference.voice-channel-setting.state.v1'
     ));
