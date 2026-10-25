@@ -38,7 +38,8 @@ vault kv put secret/cowork-authorization \
 
 vault kv put secret/cowork-preference \
   preference.db.username="${POSTGRES_USER}" \
-  preference.db.password="${POSTGRES_PASSWORD}" >/dev/null
+  preference.db.password="${POSTGRES_PASSWORD}" \
+  preference.webhook.secret-encryption-key="${WEBHOOK_SECRET_ENCRYPTION_KEY:-}" >/dev/null
 
 vault kv put secret/cowork-user \
   DB_USERNAME="${MYSQL_USER}" \
