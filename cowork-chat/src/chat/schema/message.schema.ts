@@ -79,6 +79,13 @@ class Reaction {
     @Prop({type: [Number], default: []}) userIds!: number[];
 }
 
+@Schema({_id: false})
+export class WebhookMessageAuthor {
+    @Prop({required: true}) id!: number;
+    @Prop({required: true}) name!: string;
+    @Prop({type: String, default: null}) avatarUrl!: string | null;
+}
+
 /**
  채팅 메시지를 나타내는 MongoDB 도큐먼트 스키마.
 
@@ -120,7 +127,12 @@ export class Message {
     /**
     메시지를 작성한 사용자의 식별자
     */
-    @Prop({required: true}) authorId!: number;
+    @Prop({type: Number, default: null}) authorId!: number | null;
+
+    @Prop({type: WebhookMessageAuthor}) webhook?: WebhookMessageAuthor;
+    @Prop({type: String}) webhookDeliveryKey?: string;
+    @Prop({type: String}) webhookRequestHash?: string;
+    @Prop({type: Boolean}) webhookDeleted?: boolean;
 
     /**
      메시지 본문. 최대 25,000자까지 허용됩니다.
@@ -315,3 +327,8 @@ MessageSchema.index({searchIndexStatus: 1, searchIndexNextAttemptAt: 1});
 전체 재구축의 catch-up 스캔이 변경된 메시지만 추려내기 위한 인덱스
 */
 MessageSchema.index({updatedAt: 1, _id: 1});
+
+MessageSchema.index(
+    {'webhook.id': 1, webhookDeliveryKey: 1},
+    {name: 'webhook_idempotency', unique: true, partialFilterExpression: {webhookDeliveryKey: {$type: 'string'}}},
+);

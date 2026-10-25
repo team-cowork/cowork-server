@@ -153,6 +153,7 @@ jobs:
           GH_SECRET_JWT_SECRET: ${{ !inputs.check_only && inputs.service != 'vault' && secrets.JWT_SECRET || '' }}
           GH_SECRET_LIVEKIT_API_KEY: ${{ !inputs.check_only && inputs.service != 'vault' && secrets.LIVEKIT_API_KEY || '' }}
           GH_SECRET_LIVEKIT_API_SECRET: ${{ !inputs.check_only && inputs.service != 'vault' && secrets.LIVEKIT_API_SECRET || '' }}
+          GH_SECRET_WEBHOOK_URL_SIGNING_KEY: ${{ !inputs.check_only && inputs.service != 'vault' && secrets.WEBHOOK_URL_SIGNING_KEY || '' }}
           GH_TOKEN: ${{ github.token }}
           VAULT_ADDR: ${{ vars.VAULT_ADDR }}
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
@@ -237,6 +238,8 @@ jobs:
           GH_SECRET_S3_ADMIN_SECRET_KEY: ${{ contains(matrix.secret_names, 'S3_ADMIN_SECRET_KEY') && secrets.S3_ADMIN_SECRET_KEY || '' }}
           GH_SECRET_S3_SECRET_KEY: ${{ contains(matrix.secret_names, 'S3_SECRET_KEY') && secrets.S3_SECRET_KEY || '' }}
           GH_SECRET_TEAM_GITHUB_STATE_SECRET: ${{ contains(matrix.secret_names, 'TEAM_GITHUB_STATE_SECRET') && secrets.TEAM_GITHUB_STATE_SECRET || '' }}
+          GH_SECRET_WEBHOOK_SECRET_ENCRYPTION_KEY: ${{ contains(matrix.secret_names, 'WEBHOOK_SECRET_ENCRYPTION_KEY') && secrets.WEBHOOK_SECRET_ENCRYPTION_KEY || '' }}
+          GH_SECRET_WEBHOOK_URL_SIGNING_KEY: ${{ contains(matrix.secret_names, 'WEBHOOK_URL_SIGNING_KEY') && secrets.WEBHOOK_URL_SIGNING_KEY || '' }}
         run: |
           python3 deploy/prod/cd/github-settings.py sync --target "$TARGET" \
             --journal "$RUNNER_TEMP/settings/journal-$TARGET.json" \

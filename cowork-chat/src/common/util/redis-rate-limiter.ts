@@ -4,6 +4,7 @@ import {
     Logger,
     OnModuleDestroy,
     OnModuleInit,
+    ServiceUnavailableException,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
 import Redis, {ClientContext, Result} from 'ioredis';
@@ -22,6 +23,7 @@ type WithTryAcquireScript<Context extends ClientContext = {type: 'default'}> = {
     ): Result<number, Context>;
     tryReserveScript(key: string, holder: string, ttlMs: number): Result<number, Context>;
     releaseScript(key: string, holder: string): Result<number, Context>;
+    webhookAcquireScript(key: string, windowMs: number, limit: number, member: string): Result<number, Context>;
 };
 type RateLimiterRedis = Redis & WithTryAcquireScript;
 
@@ -57,6 +59,23 @@ redis.call('PEXPIRE', KEYS[1], ARGV[4])
 return 1
 `;
 
+// Both modes share keys and retention; switching modes cannot grant a fresh quota.
+const WEBHOOK_ACQUIRE_SCRIPT = `
+local clock = redis.call('TIME')
+local now = tonumber(clock[1]) * 1000 + math.floor(tonumber(clock[2]) / 1000)
+local window = tonumber(ARGV[1])
+local limit = tonumber(ARGV[2])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, now - window)
+local count = redis.call('ZCARD', KEYS[1])
+if count >= limit then
+    local release = redis.call('ZRANGE', KEYS[1], count - limit, count - limit, 'WITHSCORES')
+    return tonumber(release[2]) + window - now
+end
+redis.call('ZADD', KEYS[1], now, ARGV[3])
+redis.call('PEXPIRE', KEYS[1], window)
+return 0
+`;
+
 /**
  Redis Sorted Set 기반 슬라이딩 윈도우 rate limiter.
  키를 인스턴스 간에 공유하므로, 분산 멀티 인스턴스 환경에서도 사용자별 한도가 일관되게 적용된다
@@ -65,6 +84,7 @@ return 1
  한도 초과 시 되돌리기 위한 별도 `ZREM` 호출(비원자적)도 제거한다.
  Redis 장애 시에는 rate limit 기능을 비활성화(fail-open)하고 요청을 허용한다 —
  핵심 메시징 기능이 rate limiter의 가용성에 종속되지 않도록 하기 위함이다.
+ 인증 없는 외부 입력도 받는 `tryAcquireWebhook`은 예외로 Redis 장애 시 요청을 거부한다.
  */
 @Injectable()
 export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
@@ -81,6 +101,7 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
         this.client.defineCommand('tryAcquireScript', {numberOfKeys: 1, lua: TRY_ACQUIRE_SCRIPT});
         this.client.defineCommand('tryReserveScript', {numberOfKeys: 1, lua: TRY_RESERVE_SCRIPT});
         this.client.defineCommand('releaseScript', {numberOfKeys: 1, lua: RELEASE_SCRIPT});
+        this.client.defineCommand('webhookAcquireScript', {numberOfKeys: 1, lua: WEBHOOK_ACQUIRE_SCRIPT});
         // Ioredis는 'error' 리스너가 없으면 unhandled error event로 프로세스가 죽는다
         this.client.on('error', (error: unknown) => {
             this.logger.error(`Redis client error: ${error instanceof Error ? error.message : String(error)}`);
@@ -123,6 +144,30 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
         } catch (error) {
             this.logger.warn(`Rate limit check failed, failing open [key=${key}]`, error);
             return true;
+        }
+    }
+
+    async tryAcquireWebhook(key: string, windowMs: number, limit: number): Promise<number> {
+        if (this.client.status !== 'ready') {
+            throw new ServiceUnavailableException('웹훅 요청 제한을 확인할 수 없습니다.');
+        }
+
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+            return await Promise.race([
+                this.client.webhookAcquireScript(`${key}:all`, windowMs, limit, randomUUID()),
+                new Promise<never>((_resolve, reject) => {
+                    timer = setTimeout(() => {
+                        reject(new Error('Webhook rate limiter timed out'));
+                    }, 2000);
+                }),
+            ]);
+        } catch {
+            throw new ServiceUnavailableException('웹훅 요청 제한을 확인할 수 없습니다.');
+        } finally {
+            if (timer !== undefined) {
+                clearTimeout(timer);
+            }
         }
     }
 
