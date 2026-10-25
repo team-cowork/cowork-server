@@ -96,6 +96,22 @@ class WebhookService(
         return response
     }
 
+    suspend fun rotateExecutionId(channelId: Long, webhookId: Long, requester: RequesterContext,
+        idempotencyKey: String?): JsonObject {
+        val key = WebhookInput.idempotencyKey(idempotencyKey)
+        authorize(channelId, requester)
+        return outbox.inTransaction { connection ->
+            authorize(channelId, requester, connection)
+            requireTextChannel(connection, channelId)
+            idempotent(connection, requester.userId, key, "ROTATE_EXECUTION_ID:$channelId:$webhookId") {
+                val current = requireWebhook(connection, channelId, webhookId)
+                val updated = repository.rotateExecutionId(connection, current.id)
+                outbox.enqueue(connection, PreferenceEvents.webhookState(updated, snapshot = false))
+                updated.response()
+            }
+        }
+    }
+
     suspend fun delete(channelId: Long, webhookId: Long, requester: RequesterContext) {
         authorize(channelId, requester)
         outbox.inTransaction { connection ->
@@ -133,13 +149,14 @@ class WebhookService(
         repository.findOperation(connection, actorId, key)?.let { saved ->
             if (saved.requestHash != hash) throw WebhookRequestException(409, "Idempotency-Key를 다른 요청에 재사용할 수 없습니다.")
             val response = saved.response.copy()
-            if (response.getString("executionId") == null) {
-                response.getLong("id")?.let { id ->
-                    val webhook = checkNotNull(repository.findForUpdate(connection, id)) {
-                        "Webhook operation owner is missing"
-                    }
-                    response.put("executionId", webhook.requireExecutionId().toString())
+            response.getLong("id")?.let { id ->
+                val webhook = repository.findForUpdate(connection, id)
+                val executionId = response.getString("executionId")
+                if (webhook == null || webhook.deleted || webhook.channelId != response.getLong("channelId") ||
+                    executionId != null && executionId != webhook.requireExecutionId().toString()) {
+                    throw WebhookRequestException(409, "웹훅 실행 ID가 변경되었거나 삭제되어 이전 요청을 재생할 수 없습니다.")
                 }
+                response.put("executionId", webhook.requireExecutionId().toString())
             }
             val token = saved.secretCiphertext?.let {
                 if (repository.now(connection) >= saved.createdAt.plusSeconds(SECRET_REPLAY_SECONDS)) {
