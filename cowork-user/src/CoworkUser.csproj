@@ -7,7 +7,7 @@
     <RootNamespace>CoworkUser</RootNamespace>
     <AssemblyName>CoworkUser</AssemblyName>
     <!-- Prod CD stamps this field. AssemblyVersion cannot hold the date-based version. -->
-    <InformationalVersion>20261024.0</InformationalVersion>
+    <InformationalVersion>20261025.0</InformationalVersion>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
 
