@@ -62,6 +62,22 @@ spring:
             maxAge: 3600
 
       routes:
+        - id: webhook-management
+          order: -2
+          uri: lb://cowork-preference
+          predicates:
+            - Path=/api/channel/channels/*/webhooks, /api/channel/channels/*/webhooks/**
+            - Method=GET,POST,PATCH,PUT,DELETE
+          filters:
+            - StripPrefix=2
+            - SetResponseHeader=Cache-Control, no-store
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
         - id: team-object-storage
           uri: ${S3_TEAM_INTERNAL_ENDPOINT}
           predicates:
