@@ -21,7 +21,7 @@ CREATE TABLE tb_webhooks (
         (NOT deleted AND ((is_secure AND secret_hash IS NOT NULL AND secret_hash ~ '^[0-9a-f]{64}$') OR (NOT is_secure AND secret_hash IS NULL)))
     )
 );
-COMMENT ON COLUMN tb_webhooks.execution_id IS 'Random UUIDv4 for the inbound webhook URL; immutable after assignment';
+COMMENT ON COLUMN tb_webhooks.execution_id IS 'Random UUIDv4 for the inbound webhook URL; changed only by explicit execution ID rotation';
 COMMENT ON COLUMN tb_webhooks.channel_id IS 'cowork-channel.tb_channels.id; Kafka lifecycle projection';
 COMMENT ON COLUMN tb_webhooks.created_by IS 'cowork-user.tb_accounts.id; creating account ID';
 CREATE INDEX idx_tb_webhooks_channel_id ON tb_webhooks (channel_id);
