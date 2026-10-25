@@ -16,12 +16,15 @@ import (
 var errInvalidNotificationEvent = errors.New("invalid notification event")
 var errProjectionLeaseExpired = errors.New("projection readiness lease expired")
 
+const markCompletedTimeout = 30 * time.Second
+
 type NotificationTriggerEvent struct {
 	// EventID is the stable identity of this logical notification, reused by the
-	// producer across its own retries (e.g. an outbox poller). It is the canonical
-	// delivery key for FCM's per-installation selective retry. A producer that has
-	// not been updated to send one leaves this empty, and Notify falls back to a
-	// single non-durable attempt.
+	// producer across its own retries (e.g. an outbox poller). It keys the completed
+	// event inbox and FCM's per-installation selective retry, and is sent to clients in
+	// SSE and FCM payloads for duplicate removal. A producer that has not been updated
+	// to send one leaves this empty, and Notify falls back to a single non-durable
+	// attempt.
 	EventID       string         `json:"eventId"`
 	Type          string         `json:"type"`
 	TargetUserIDs []int64        `json:"targetUserIds"`
@@ -39,6 +42,13 @@ type TeamNameResolver interface {
 
 type UserNameResolver interface {
 	GetDisplayName(ctx context.Context, userID int64) (string, error)
+}
+
+// EventInbox remembers events whose recipient fan-out already completed, so a Kafka
+// redelivery of the same eventId is skipped instead of producing a new notification.
+type EventInbox interface {
+	IsCompleted(ctx context.Context, eventID string) (bool, error)
+	MarkCompleted(ctx context.Context, eventID string) error
 }
 
 // SSEBroadcaster는 SSE Hub의 Broadcast 메서드 인터페이스입니다.
@@ -73,6 +83,7 @@ type notificationReader interface {
 type Consumer struct {
 	reader         notificationReader
 	svc            NotificationService
+	inbox          EventInbox
 	teamNames      TeamNameResolver
 	userNames      UserNameResolver
 	sseBroadcaster SSEBroadcaster
@@ -82,6 +93,7 @@ type Consumer struct {
 func NewConsumer(
 	brokers, topic, groupID string,
 	svc NotificationService,
+	inbox EventInbox,
 	teamNames TeamNameResolver,
 	userNames UserNameResolver,
 	sseBroadcaster SSEBroadcaster,
@@ -94,6 +106,7 @@ func NewConsumer(
 			GroupID: groupID,
 		}),
 		svc:            svc,
+		inbox:          inbox,
 		teamNames:      teamNames,
 		userNames:      userNames,
 		sseBroadcaster: sseBroadcaster,
@@ -207,6 +220,16 @@ func (c *Consumer) handle(
 	if err := decoder.Decode(&event); err != nil {
 		return fmt.Errorf("%w: %v", errInvalidNotificationEvent, err)
 	}
+	if event.EventID != "" {
+		completed, err := c.inbox.IsCompleted(attemptCtx, event.EventID)
+		if err != nil {
+			return fmt.Errorf("check notification event inbox: %w", err)
+		}
+		if completed {
+			slog.Info("completed notification event redelivered; skipped", "eventId", event.EventID, "offset", msg.Offset)
+			return nil
+		}
+	}
 
 	title, body, ok := c.buildMessage(attemptCtx, event)
 	if !ok {
@@ -245,11 +268,26 @@ func (c *Consumer) handle(
 		})
 		if err != nil {
 			slog.Error("SSE 페이로드 직렬화 실패", "err", err, "type", event.Type)
-		} else {
-			return c.broadcastWhenCurrent(parentCtx, enabledUserIDs, ssePayload)
+		} else if err := c.broadcastWhenCurrent(parentCtx, enabledUserIDs, ssePayload); err != nil {
+			return err
 		}
 	}
+	c.markCompleted(parentCtx, event.EventID)
 	return nil
+}
+
+// markCompleted records the finished fan-out. at-least-once: a crash or write failure
+// after the SSE/FCM sends above redelivers the event, so clients drop repeats by eventId.
+func (c *Consumer) markCompleted(ctx context.Context, eventID string) {
+	if eventID == "" {
+		return
+	}
+	// The sends already happened; a cancelled lease must not abort recording them.
+	markCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), markCompletedTimeout)
+	defer cancel()
+	if err := c.inbox.MarkCompleted(markCtx, eventID); err != nil {
+		slog.Warn("failed to record completed notification event", "eventId", eventID, "err", err)
+	}
 }
 
 func (c *Consumer) broadcastWhenCurrent(
