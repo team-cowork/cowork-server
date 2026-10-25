@@ -22,8 +22,9 @@ import java.util.UUID
 // 관측 시각과 채널별 전체 ID 목록을 발행한다. Preference의 새 ID 범위와 함께 구형 ID 충돌도 방지한다.
 // v20261026.0 이후 추가 릴리즈가 배포되고 그동안 구버전 rollback이 없었으면 제거할 수 있다.
 // 이를 확인하기 어려우면 2026-11-01(2026-10-24 + 8일) 이후 제거할 수 있으며 자동 만료하지 않는다.
-// 전체 이관 완료·격리 해소를 확인하고 Preference의 legacy importer·readiness 의존과 관련 토픽 설정도 함께 제거한다.
-// 보존할 legacy 원본은 함께 삭제하지 않는다.
+// 전체 이관 완료·격리 해소와 구형 Channel 롤백 지원 종료를 확인한 뒤 이 publisher와 Preference의
+// legacy importer·readiness 의존, 관련 토픽 설정을 제거한다. 더 이상 참조하지 않는 Channel DB의
+// tb_webhooks 테이블과 원본 데이터도 이때 함께 제거한다.
 @Component
 class LegacyWebhookSnapshotPublisher(
     private val webhookRepository: WebhookRepository,
