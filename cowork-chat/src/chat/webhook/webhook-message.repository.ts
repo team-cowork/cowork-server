@@ -63,7 +63,7 @@ export class WebhookMessageRepository implements OnModuleInit {
         }
     }
 
-    private async findDelivery(input: WebhookMessageInput): Promise<MessageDocument | null> {
+    async findDelivery(input: Pick<WebhookMessageInput, 'webhook' | 'deliveryKey' | 'requestHash'>): Promise<MessageDocument | null> {
         if (input.deliveryKey === undefined) {
             return null;
         }

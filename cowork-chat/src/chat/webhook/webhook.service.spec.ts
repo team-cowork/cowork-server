@@ -6,6 +6,7 @@ import {
     NotFoundException,
 } from '@nestjs/common';
 import {Types} from 'mongoose';
+import {WebhookRateLimitExceeded} from './webhook-rate-limiter';
 import {WebhookService} from './webhook.service';
 
 const state = {
@@ -18,7 +19,7 @@ describe('WebhookService.execute', () => {
     const channels = {findById: jest.fn()};
     const readiness = {areReady: jest.fn()};
     const limiter = {acquire: jest.fn()};
-    const messages = {save: jest.fn()};
+    const messages = {findDelivery: jest.fn(), save: jest.fn()};
     const chat = {emitToReadableChannelUsers: jest.fn()};
     const readAccess = {findReadableUsersByChannel: jest.fn()};
     const unread = {incrementIfPresent: jest.fn()};
@@ -38,13 +39,19 @@ describe('WebhookService.execute', () => {
         channels.findById.mockResolvedValue({
             channelId: 8, type: 'TEXT', teamId: 9, projectId: 10,
         });
+        messages.findDelivery.mockResolvedValue(null);
         messages.save.mockResolvedValue({message: persisted, created: true});
         readAccess.findReadableUsersByChannel.mockResolvedValue(new Map([[8, [11]]]));
     });
 
     it('requires secure authentication before granting quota or writing a message', async () => {
+        // Given
         webhooks.findById.mockResolvedValue({...state, isSecure: true});
-        await expect(service.execute(7, {content: 'done', clientIp: '192.0.2.1'})).rejects.toBeInstanceOf(UnauthorizedException);
+        messages.findDelivery.mockResolvedValue(persisted);
+
+        // When / Then
+        await expect(service.execute(7, {content: 'done', clientIp: '192.0.2.1', idempotencyKey: 'delivery'})).rejects.toBeInstanceOf(UnauthorizedException);
+        expect(messages.findDelivery).not.toHaveBeenCalled();
         expect(limiter.acquire).not.toHaveBeenCalled();
         expect(messages.save).not.toHaveBeenCalled();
     });
@@ -74,9 +81,29 @@ describe('WebhookService.execute', () => {
         await expect(service.execute(7, {content: 'done', clientIp: '192.0.2.1'})).resolves.toMatchObject({_id: messageId, authorId: null});
     });
 
-    it('returns an existing delivery without repeating unread or live delivery effects', async () => {
-        messages.save.mockResolvedValue({message: persisted, created: false});
-        await expect(service.execute(7, {content: 'done', clientIp: '192.0.2.1', idempotencyKey: 'delivery'})).resolves.toMatchObject({_id: messageId});
+    it('returns an accepted delivery even when the new-message quota is exhausted', async () => {
+        // Given
+        messages.findDelivery.mockResolvedValue(persisted);
+        limiter.acquire.mockRejectedValue(new WebhookRateLimitExceeded(60));
+
+        // When
+        const response = await service.execute(7, {content: 'done', clientIp: '192.0.2.1', idempotencyKey: 'delivery'});
+
+        // Then
+        expect(response).toMatchObject({_id: messageId});
+        expect(limiter.acquire).not.toHaveBeenCalled();
+        expect(messages.save).not.toHaveBeenCalled();
+        expect(chat.emitToReadableChannelUsers).not.toHaveBeenCalled();
+        expect(unread.incrementIfPresent).not.toHaveBeenCalled();
+    });
+
+    it('rejects a new delivery when its message quota is exhausted', async () => {
+        // Given
+        limiter.acquire.mockRejectedValue(new WebhookRateLimitExceeded(60));
+
+        // When / Then
+        await expect(service.execute(7, {content: 'done', clientIp: '192.0.2.1', idempotencyKey: 'new-delivery'})).rejects.toBeInstanceOf(WebhookRateLimitExceeded);
+        expect(messages.save).not.toHaveBeenCalled();
         expect(chat.emitToReadableChannelUsers).not.toHaveBeenCalled();
         expect(unread.incrementIfPresent).not.toHaveBeenCalled();
     });
