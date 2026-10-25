@@ -57,7 +57,7 @@ spring:
             allowedOrigins: "${PUBLIC_WEB_ORIGINS}"
             allowedMethods: GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS
             allowedHeaders: "*"
-            exposedHeaders: Content-Length, Content-Range, Accept-Ranges, ETag
+            exposedHeaders: Content-Length, Content-Range, Accept-Ranges, ETag, Retry-After
             allowCredentials: true
             maxAge: 3600
 
@@ -77,6 +77,23 @@ spring:
                 redis-rate-limiter.burstCapacity: 40
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@userKeyResolver}"
+
+        - id: webhook-ingress
+          order: -2
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/chat/chat/webhooks/*/messages
+            - Method=POST
+          filters:
+            - WebhookIngress
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 30
+                redis-rate-limiter.burstCapacity: 60
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@webhookIpKeyResolver}"
+            - StripPrefix=2
+            - SetResponseHeader=Cache-Control, no-store
 
         - id: team-object-storage
           uri: ${S3_TEAM_INTERNAL_ENDPOINT}
