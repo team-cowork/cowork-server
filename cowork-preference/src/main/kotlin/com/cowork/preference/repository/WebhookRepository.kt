@@ -71,6 +71,14 @@ class WebhookRepository {
             """.trimIndent(),
         ).execute(Tuple.of(webhook.id, target, secretHash, now.atOffset(ZoneOffset.UTC))).coAwait().first().webhook()
 
+    suspend fun rotateExecutionId(client: SqlClient, webhookId: Long): Webhook = client.preparedQuery(
+        """
+        UPDATE tb_webhooks SET execution_id = gen_random_uuid(),
+            updated_at = GREATEST(clock_timestamp(), updated_at + INTERVAL '1 microsecond')
+        WHERE id = ${'$'}1 RETURNING *
+        """.trimIndent(),
+    ).execute(Tuple.of(webhookId)).coAwait().first().webhook()
+
     suspend fun delete(client: SqlClient, webhookId: Long): Webhook = client.preparedQuery(
         """
         UPDATE tb_webhooks SET deleted = true, is_active = false, secret_hash = NULL,

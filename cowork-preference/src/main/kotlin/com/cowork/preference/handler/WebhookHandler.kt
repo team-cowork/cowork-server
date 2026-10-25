@@ -28,6 +28,11 @@ class WebhookHandler(private val service: WebhookService, private val scope: Cor
         router.delete(item).handler { ctx ->
             handle(ctx, 204) { requester, channel -> service.delete(channel, id(ctx, "webhookId"), requester); null }
         }
+        router.post("$item/execution-id").handler { ctx ->
+            handle(ctx) { requester, channel ->
+                service.rotateExecutionId(channel, id(ctx, "webhookId"), requester, ctx.request().getHeader("Idempotency-Key"))
+            }
+        }
         router.put("$item/security-mode").handler { ctx ->
             handle(ctx) { requester, channel ->
                 service.changeMode(channel, id(ctx, "webhookId"), requester, body(ctx), ctx.request().getHeader("Idempotency-Key"))
