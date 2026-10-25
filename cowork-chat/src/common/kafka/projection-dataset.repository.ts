@@ -2,6 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {Injectable} from '@nestjs/common';
 import {InjectModel} from '@nestjs/mongoose';
 import {Model} from 'mongoose';
+import {WebhookProjection} from '../../chat/schema/webhook-projection.schema';
 import {DmParticipant} from '../../chat/schema/dm-participant.schema';
 import {ChannelProjection} from '../../chat/schema/channel-projection.schema';
 import {ChannelRolePolicyProjection} from '../../chat/schema/channel-role-policy-projection.schema';
@@ -31,6 +32,7 @@ export type ProjectionStreamName =
     | 'teamRole'
     | 'channelRolePolicy'
     | 'textChannelSetting'
+    | 'webhook'
     | 'userProfile';
 
 export type ProjectionDatasetState = {
@@ -75,6 +77,7 @@ export class ProjectionDatasetRepository {
         @InjectModel(TeamRoleMemberTombstone.name) teamRoleMemberTombstone: Model<TeamRoleMemberTombstone>,
         @InjectModel(ChannelRolePolicyProjection.name) channelRolePolicy: Model<ChannelRolePolicyProjection>,
         @InjectModel(TextChannelSettingProjection.name) textChannelSetting: Model<TextChannelSettingProjection>,
+        @InjectModel(WebhookProjection.name) webhook: Model<WebhookProjection>,
     ) {
         this.projectionModels = {
             channel: [channel],
@@ -87,6 +90,7 @@ export class ProjectionDatasetRepository {
             teamRole: [teamRole, teamRoleAssignment, teamRoleMemberTombstone],
             channelRolePolicy: [channelRolePolicy],
             textChannelSetting: [textChannelSetting],
+            webhook: [webhook],
         } as Record<ProjectionStreamName, Array<Model<unknown>>>;
     }
 

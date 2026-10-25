@@ -1,5 +1,6 @@
 import {Global, Module} from '@nestjs/common';
 import {MongooseModule} from '@nestjs/mongoose';
+import {WebhookProjection, WebhookProjectionSchema} from '../../chat/schema/webhook-projection.schema';
 import {DmParticipant, DmParticipantSchema} from '../../chat/schema/dm-participant.schema';
 import {ChannelProjection, ChannelProjectionSchema} from '../../chat/schema/channel-projection.schema';
 import {
@@ -60,6 +61,7 @@ import {ProjectionCheckpoint, ProjectionCheckpointSchema} from './projection-che
             {name: TeamRoleMemberTombstone.name, schema: TeamRoleMemberTombstoneSchema},
             {name: ChannelRolePolicyProjection.name, schema: ChannelRolePolicyProjectionSchema},
             {name: TextChannelSettingProjection.name, schema: TextChannelSettingProjectionSchema},
+            {name: WebhookProjection.name, schema: WebhookProjectionSchema},
             {name: UserProfileProjection.name, schema: UserProfileProjectionSchema},
         ]),
     ],
