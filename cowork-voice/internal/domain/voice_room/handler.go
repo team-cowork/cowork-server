@@ -30,6 +30,7 @@ func NewHandler(svc Service) *Handler {
 // @Success      200  {object}  JoinResponse
 // @Failure      401  {object}  apperr.Error
 // @Failure      403  {object}  apperr.Error  "음성 채널 연결 권한 없음"
+// @Failure      409  {object}  apperr.Error  "음성 채널 정원 초과"
 // @Failure      500  {object}  apperr.Error
 // @Router       /voice/channels/{channel_id}/join [post]
 func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {

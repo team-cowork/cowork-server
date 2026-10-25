@@ -82,6 +82,52 @@ func TestVoiceRoomService(t *testing.T) {
 		}
 	})
 
+	t.Run("Join - 새 방에 정원을 걸고 bitrate를 응답에 싣는다", func(t *testing.T) {
+		t.Parallel()
+
+		repo := &stubRepository{createSessionResult: &VoiceSession{SessionID: "session-1", ChannelID: 123, TeamID: 456, RoomName: "voice-123-session-1", Status: StatusActive}}
+		bitrate := 64000
+		livekit := &stubLiveKitRoom{token: "issued-token"}
+		access := &permission.Access{TeamID: 456, MaxParticipants: 2, Bitrate: &bitrate}
+		svc := NewRoomService(repo, &stubConnectPermissionChecker{access: access}, livekit, "wss://livekit.example")
+
+		resp, err := svc.Join(context.Background(), 123, 42)
+		if err != nil {
+			t.Fatalf("Join() error = %v", err)
+		}
+		if livekit.createdMax != 2 {
+			t.Fatalf("CreateRoomIfNotExists() maxParticipants = %d, want 2", livekit.createdMax)
+		}
+		if resp.Bitrate == nil || *resp.Bitrate != 64000 {
+			t.Fatalf("response bitrate = %v, want 64000", resp.Bitrate)
+		}
+	})
+
+	t.Run("Join - 정원이 찬 방은 토큰 발급 전에 거부하고 기존 참가자의 재입장은 허용한다", func(t *testing.T) {
+		t.Parallel()
+
+		active := &VoiceSession{SessionID: "session-1", ChannelID: 123, TeamID: 456, RoomName: "voice-123-session-1", Status: StatusActive}
+		full := []LiveKitParticipant{{Identity: "7"}, {Identity: "8"}}
+		access := &permission.Access{TeamID: 456, MaxParticipants: 2}
+
+		livekit := &stubLiveKitRoom{token: "issued-token", participants: full}
+		svc := NewRoomService(&stubRepository{findActiveSessionResult: active}, &stubConnectPermissionChecker{access: access}, livekit, "")
+		_, err := svc.Join(context.Background(), 123, 42)
+		var appErr *apperr.Error
+		if !errors.As(err, &appErr) || appErr.Code != "CONFLICT" {
+			t.Fatalf("Join() error = %v, want CONFLICT", err)
+		}
+		if livekit.tokenUserID != 0 {
+			t.Fatalf("GenerateToken() called for user %d after capacity rejection", livekit.tokenUserID)
+		}
+
+		livekit = &stubLiveKitRoom{token: "issued-token", participants: full}
+		svc = NewRoomService(&stubRepository{findActiveSessionResult: active}, &stubConnectPermissionChecker{access: access}, livekit, "")
+		if _, err := svc.Join(context.Background(), 123, 8); err != nil {
+			t.Fatalf("Join() rejoin error = %v", err)
+		}
+	})
+
 	t.Run("GetParticipants - 유효하지 않은 아이덴티티는 제외한다", func(t *testing.T) {
 		t.Parallel()
 
@@ -250,14 +296,16 @@ type stubLiveKitRoom struct {
 	listErr          error
 	participants     []LiveKitParticipant
 	createdRoomName  string
+	createdMax       uint32
 	tokenUserID      int64
 	tokenRoomName    string
 	tokenSpeak       bool
 	tokenScreenShare bool
 }
 
-func (s *stubLiveKitRoom) CreateRoomIfNotExists(_ context.Context, roomName string) error {
+func (s *stubLiveKitRoom) CreateRoomIfNotExists(_ context.Context, roomName string, maxParticipants uint32) error {
 	s.createdRoomName = roomName
+	s.createdMax = maxParticipants
 	return s.createErr
 }
 

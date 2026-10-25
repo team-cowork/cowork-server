@@ -18,7 +18,7 @@ import (
 const permissionCollection = "channel_permission_sources"
 
 var ErrInvalidEvent = errors.New("invalid permission state event")
-var permissionTopics = []string{"channel.event.v2", "team.member.event", "preference.team-role.state.v2", "preference.channel-role-policy.state.v2"}
+var permissionTopics = []string{"channel.event.v2", "team.member.event", "preference.team-role.state.v2", "preference.channel-role-policy.state.v2", "preference.voice-channel-setting.state.v1"}
 
 func expectedSource(topic string) string {
 	switch topic {
@@ -26,7 +26,7 @@ func expectedSource(topic string) string {
 		return "cowork-channel"
 	case "team.member.event":
 		return "cowork-team"
-	case "preference.team-role.state.v2", "preference.channel-role-policy.state.v2":
+	case "preference.team-role.state.v2", "preference.channel-role-policy.state.v2", "preference.voice-channel-setting.state.v1":
 		return "cowork-preference"
 	default:
 		return ""
@@ -49,6 +49,9 @@ type State struct {
 	Permissions map[string]bool `bson:"permissions"`
 	Deleted     bool            `bson:"deleted"`
 	Version     int64           `bson:"source_version"`
+	// MaxParticipants 0은 제한 없음, Bitrate nil은 클라이언트 기본값이다(voice-setting 전용).
+	MaxParticipants int  `bson:"max_participants"`
+	Bitrate         *int `bson:"bitrate"`
 }
 
 type CurrentHighChecker interface {
@@ -61,6 +64,7 @@ type StateStore interface {
 type accessLookup interface {
 	Channel(context.Context, int64) (State, bool, error)
 	TeamStates(context.Context, int64) ([]State, error)
+	VoiceSetting(context.Context, int64) (State, bool, error)
 }
 type Projection struct {
 	col           *mongo.Collection
@@ -86,6 +90,14 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) error {
 func (p *Projection) Channel(ctx context.Context, id int64) (State, bool, error) {
 	var state State
 	err := p.col.FindOne(ctx, bson.M{"_id": fmt.Sprintf("channel:%d", id)}).Decode(&state)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return state, false, nil
+	}
+	return state, err == nil, err
+}
+func (p *Projection) VoiceSetting(ctx context.Context, id int64) (State, bool, error) {
+	var state State
+	err := p.col.FindOne(ctx, bson.M{"_id": fmt.Sprintf("voice-setting:%d", id)}).Decode(&state)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return state, false, nil
 	}
@@ -148,7 +160,14 @@ func (p *Projection) requireProjectedConnect(ctx context.Context, channelID, use
 	if !access["voice_connect"] {
 		return permission.Access{}, apperr.PermissionDenied()
 	}
-	return permission.Access{TeamID: ch.TeamID, Speak: access["voice_speak"], ScreenShare: access["screen_share"], Broadcast: access["live_broadcast"]}, nil
+	setting, _, err := p.lookup.VoiceSetting(ctx, channelID)
+	if err != nil {
+		return permission.Access{}, apperr.ServiceUnavailable("권한 정보가 아직 동기화되지 않았습니다.")
+	}
+	return permission.Access{
+		TeamID: ch.TeamID, Speak: access["voice_speak"], ScreenShare: access["screen_share"], Broadcast: access["live_broadcast"],
+		MaxParticipants: setting.MaxParticipants, Bitrate: setting.Bitrate,
+	}, nil
 }
 func canConnect(ch State, userID int64, states []State) bool {
 	return permissionsFor(ch, userID, states)["voice_connect"]
@@ -280,20 +299,22 @@ func parseState(topic, key string, payload []byte) (State, error) {
 	// TODO(#596): 2026-11-01 05:00 KST 이후 구형 레코드 재처리·롤백 지원 종료 확인 후 ROLE_UPSERTED의 isDefault 누락 허용 제거.
 	// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
 	var e struct {
-		EventType     string           `json:"eventType"`
-		TeamID        int64            `json:"teamId"`
-		ChannelID     int64            `json:"channelId"`
-		UserID        int64            `json:"userId"`
-		AccountID     int64            `json:"accountId"`
-		RoleID        int64            `json:"roleId"`
-		Role          string           `json:"role"`
-		Type          string           `json:"type"`
-		IsPrivate     *bool            `json:"isPrivate"`
-		Priority      *int             `json:"priority"`
-		IsDefault     bool             `json:"isDefault"`
-		Permissions   map[string]*bool `json:"permissions"`
-		SchemaVersion int              `json:"schemaVersion"`
-		OccurredAt    string           `json:"occurredAt"`
+		EventType       string           `json:"eventType"`
+		TeamID          int64            `json:"teamId"`
+		ChannelID       int64            `json:"channelId"`
+		UserID          int64            `json:"userId"`
+		AccountID       int64            `json:"accountId"`
+		RoleID          int64            `json:"roleId"`
+		Role            string           `json:"role"`
+		Type            string           `json:"type"`
+		IsPrivate       *bool            `json:"isPrivate"`
+		Priority        *int             `json:"priority"`
+		IsDefault       bool             `json:"isDefault"`
+		Permissions     map[string]*bool `json:"permissions"`
+		SchemaVersion   int              `json:"schemaVersion"`
+		OccurredAt      string           `json:"occurredAt"`
+		MaxParticipants *int             `json:"maxParticipants"`
+		Bitrate         *int             `json:"bitrate"`
 	}
 	if err := json.Unmarshal(payload, &e); err != nil {
 		return State{}, err
@@ -380,6 +401,16 @@ func parseState(topic, key string, payload []byte) (State, error) {
 		expected = fmt.Sprintf("policy:%d:%d:%d", e.TeamID, e.ChannelID, e.RoleID)
 		s.Key = expected
 		s.Kind = "policy"
+	case "preference.voice-channel-setting.state.v1":
+		if e.ChannelID <= 0 || e.SchemaVersion != 1 || e.EventType != "UPSERT" ||
+			e.MaxParticipants == nil || *e.MaxParticipants < 0 || (e.Bitrate != nil && *e.Bitrate <= 0) {
+			return s, errors.New("invalid voice channel setting")
+		}
+		expected = fmt.Sprint(e.ChannelID)
+		s.Key = "voice-setting:" + expected
+		s.Kind = "voice-setting"
+		s.MaxParticipants = *e.MaxParticipants
+		s.Bitrate = e.Bitrate
 	default:
 		return s, errors.New("unexpected topic")
 	}
