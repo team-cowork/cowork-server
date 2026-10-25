@@ -7,6 +7,7 @@ import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.security.RequesterContext
 import io.vertx.sqlclient.Pool
+import io.vertx.sqlclient.SqlClient
 
 /**
  * 채널 범위 Preference API의 접근 권한을 cowork-channel의 `ChannelPermissionSupport` 기준으로 검증한다.
@@ -25,48 +26,52 @@ class ChannelAccessGuard(
     private val managerReadiness: ProjectionReadinessView,
 ) {
     /** 팀 채널은 역할 권한, DM은 대화 참여자로 접근을 판단한다. */
-    suspend fun requireChannelAccess(channelId: Long, accountId: Long) {
+    suspend fun requireChannelAccess(channelId: Long, accountId: Long) = requireChannelAccess(pool, channelId, accountId)
+
+    suspend fun requireChannelAccess(client: SqlClient, channelId: Long, accountId: Long) {
         if (!accessReadiness.isReady) {
             throw ProjectionNotReadyException("channel or team member projection is not ready")
         }
-        val channel = channelRepository.findForRead(pool, channelId)?.takeUnless { it.deleted }
+        val channel = channelRepository.findForRead(client, channelId)?.takeUnless { it.deleted }
             ?: throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
         val teamId = channel.teamId
         if (teamId == null) {
-            requireDmParticipant(channelId, accountId)
+            requireDmParticipant(client, channelId, accountId)
             return
         }
-        val teamMember = teamMemberRepository.findForRead(pool, teamId, accountId)
+        val teamMember = teamMemberRepository.findForRead(client, teamId, accountId)
         if (teamMember == null || teamMember.deleted) throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
         val permission = when (channel.channelType) {
             "VOICE" -> "voice_connect"
             "TEXT" -> "message_read"
             else -> throw ProjectionNotReadyException("team channel type is not known yet")
         }
-        if (teamMember.builtInRole !in MANAGER_ROLES && !policyRepository.canAccess(teamId, accountId, channelId, permission, channel.isPrivate != false)) {
+        if (teamMember.builtInRole !in MANAGER_ROLES && !policyRepository.canAccess(client, teamId, accountId, channelId, permission, channel.isPrivate != false)) {
             throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
         }
     }
 
     /** 채널 설정 수정은 접근 권한과 channel_manage가 모두 필요하다. */
-    suspend fun requireSettingsManager(channelId: Long, requester: RequesterContext) {
+    suspend fun requireSettingsManager(channelId: Long, requester: RequesterContext) = requireSettingsManager(pool, channelId, requester)
+
+    suspend fun requireSettingsManager(client: SqlClient, channelId: Long, requester: RequesterContext) {
         if (!managerReadiness.isReady) {
             throw ProjectionNotReadyException("channel lifecycle or team member projection is not ready")
         }
-        val channel = channelRepository.findForRead(pool, channelId)?.takeUnless { it.deleted }
+        val channel = channelRepository.findForRead(client, channelId)?.takeUnless { it.deleted }
             ?: throw ResourceAccessDeniedException(MANAGER_DENIED)
         val teamId = channel.teamId ?: throw ResourceAccessDeniedException(MANAGER_DENIED)
-        val member = teamMemberRepository.findForRead(pool, teamId, requester.userId)
+        val member = teamMemberRepository.findForRead(client, teamId, requester.userId)
         if (member == null || member.deleted) throw ResourceAccessDeniedException(MANAGER_DENIED)
         if (member.builtInRole in MANAGER_ROLES) return
-        requireChannelAccess(channelId, requester.userId)
-        if (!policyRepository.canAccess(teamId, requester.userId, channelId, "channel_manage", channel.isPrivate != false)) {
+        requireChannelAccess(client, channelId, requester.userId)
+        if (!policyRepository.canAccess(client, teamId, requester.userId, channelId, "channel_manage", channel.isPrivate != false)) {
             throw ResourceAccessDeniedException(MANAGER_DENIED)
         }
     }
 
-    private suspend fun requireDmParticipant(channelId: Long, accountId: Long) {
-        if (!dmParticipantRepository.isActiveParticipant(pool, channelId, accountId)) {
+    private suspend fun requireDmParticipant(client: SqlClient, channelId: Long, accountId: Long) {
+        if (!dmParticipantRepository.isActiveParticipant(client, channelId, accountId)) {
             throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
         }
     }
