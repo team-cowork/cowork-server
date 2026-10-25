@@ -111,8 +111,8 @@ export const PROJECTION_STREAMS = {
     },
     webhook: {
         name: 'webhook',
-        topic: 'preference.webhook.state.v1',
-        groupId: 'cowork-chat-webhook-state-v1-projection',
+        topic: 'preference.webhook.state.v2',
+        groupId: 'cowork-chat-webhook-state-v2-projection',
         expectedSource: 'cowork-preference',
         sourceGeneration: sourceGeneration('WEBHOOK'),
     },

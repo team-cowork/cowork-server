@@ -20,7 +20,7 @@ export class WebhookProjectionRepository {
             ? deletedProjectionCondition(input.sourceVersion)
             : activeProjectionCondition(input.sourceVersion);
         const fields = Object.fromEntries(
-            ['channelId', 'name', 'avatarUrl', 'isSecure', 'secretHash', 'isActive', 'deleted'].map(key => [key, {
+            ['executionId', 'channelId', 'name', 'avatarUrl', 'isSecure', 'secretHash', 'isActive', 'deleted'].map(key => [key, {
                 $cond: [apply, {$literal: input[key as keyof WebhookState]}, `$${key}`],
             }]),
         );
@@ -39,7 +39,7 @@ export class WebhookProjectionRepository {
         );
     }
 
-    async findById(webhookId: number): Promise<WebhookState | null> {
-        return this.model.findOne({webhookId}).lean<WebhookState | null>();
+    async findByExecutionId(executionId: string): Promise<WebhookState | null> {
+        return this.model.findOne({executionId}).lean<WebhookState | null>();
     }
 }

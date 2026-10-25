@@ -82,16 +82,17 @@ spring:
           order: -2
           uri: lb://cowork-chat
           predicates:
-            - Path=/api/chat/chat/webhooks/*/messages
+            - Path=/api/chat/chat/webhooks/{executionId}/messages
             - Method=POST
           filters:
-            - WebhookIngress
+            - RemoveRequestHeader=X-User-Id
+            - RemoveRequestHeader=X-User-Role
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 30
                 redis-rate-limiter.burstCapacity: 60
                 redis-rate-limiter.requestedTokens: 1
-                key-resolver: "#{@webhookIpKeyResolver}"
+                key-resolver: "#{@webhookKeyResolver}"
             - StripPrefix=2
             - SetResponseHeader=Cache-Control, no-store
 
