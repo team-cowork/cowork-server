@@ -83,7 +83,7 @@ class PreferenceSnapshotPublisher(
         "project access states"
     }
 
-    /** 계정, 팀, 텍스트 채널 설정은 preference만 바꾸므로 upstream projection을 기다리지 않는다. */
+    /** 계정, 팀, 텍스트·음성 채널 설정은 preference만 바꾸므로 upstream projection을 기다리지 않는다. */
     suspend fun publishSettingStatesIfLeader(): Boolean = publishIfLeader(
         aggregate = "setting state",
         topics = SETTING_STATE_TOPICS,
@@ -98,7 +98,11 @@ class PreferenceSnapshotPublisher(
         val textChannelCount = publishSettingStates(connection, ResourceType.TEXT_CHANNEL) {
             PreferenceEvents.textChannelSettingState(it.resourceId, it.settings, it.stateOccurredAt, snapshot = true)
         }
-        "accountSettingCount=$accountCount teamSettingCount=$teamCount textChannelSettingCount=$textChannelCount"
+        val voiceChannelCount = publishSettingStates(connection, ResourceType.VOICE_CHANNEL) {
+            PreferenceEvents.voiceChannelSettingState(it.resourceId, it.settings, it.stateOccurredAt, snapshot = true)
+        }
+        "accountSettingCount=$accountCount teamSettingCount=$teamCount " +
+            "textChannelSettingCount=$textChannelCount voiceChannelSettingCount=$voiceChannelCount"
     }
 
     private suspend fun publishIfLeader(
@@ -369,6 +373,7 @@ class PreferenceSnapshotPublisher(
             PreferenceEvents.ACCOUNT_SETTING_STATE_TOPIC,
             PreferenceEvents.TEAM_SETTING_STATE_TOPIC,
             PreferenceEvents.TEXT_CHANNEL_SETTING_STATE_TOPIC,
+            PreferenceEvents.VOICE_CHANNEL_SETTING_STATE_TOPIC,
         )
     }
 }
