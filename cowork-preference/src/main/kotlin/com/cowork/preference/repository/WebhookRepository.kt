@@ -13,7 +13,12 @@ import io.vertx.sqlclient.Tuple
 import java.time.Instant
 import java.time.ZoneOffset
 
-data class WebhookOperation(val requestHash: String, val response: JsonObject, val secretCiphertext: String?)
+data class WebhookOperation(
+    val requestHash: String,
+    val response: JsonObject,
+    val secretCiphertext: String?,
+    val createdAt: Instant,
+)
 
 class WebhookRepository {
     suspend fun list(client: SqlClient, channelId: Long): List<Webhook> = client.preparedQuery(
@@ -178,9 +183,26 @@ class WebhookRepository {
     ).execute(Tuple.of(afterId, limit)).coAwait().map { it.webhook() }
 
     suspend fun findOperation(client: SqlClient, actorId: Long, key: String): WebhookOperation? = client.preparedQuery(
-        "SELECT request_hash, response, secret_ciphertext FROM tb_webhook_operations WHERE actor_id = \$1 AND idempotency_key = \$2",
+        "SELECT request_hash, response, secret_ciphertext, created_at FROM tb_webhook_operations " +
+            "WHERE actor_id = \$1 AND idempotency_key = \$2",
     ).execute(Tuple.of(actorId, key)).coAwait().firstOrNull()?.let {
-        WebhookOperation(it.getString("request_hash"), it.getJsonObject("response"), it.getString("secret_ciphertext"))
+        WebhookOperation(it.getString("request_hash"), it.getJsonObject("response"), it.getString("secret_ciphertext"),
+            it.getOffsetDateTime("created_at").toInstant())
+    }
+
+    suspend fun clearOperationSecret(client: SqlClient, actorId: Long, key: String) {
+        client.preparedQuery(
+            "UPDATE tb_webhook_operations SET secret_ciphertext = NULL " +
+                "WHERE actor_id = ${'$'}1 AND actor_id > 0 AND idempotency_key = ${'$'}2",
+        ).execute(Tuple.of(actorId, key)).coAwait()
+    }
+
+    suspend fun clearExpiredOperationSecrets(client: SqlClient, cutoff: Instant) {
+        // Retain idempotency outcomes and actor=0 migration metadata; only response secrets expire.
+        client.preparedQuery(
+            "UPDATE tb_webhook_operations SET secret_ciphertext = NULL " +
+                "WHERE actor_id > 0 AND secret_ciphertext IS NOT NULL AND created_at <= ${'$'}1",
+        ).execute(Tuple.of(cutoff.atOffset(ZoneOffset.UTC))).coAwait()
     }
 
     suspend fun saveOperation(client: SqlClient, actorId: Long, key: String, requestHash: String,
