@@ -1,11 +1,21 @@
 package livekit
 
 import (
+	"math"
 	"testing"
 
 	"github.com/livekit/protocol/auth"
 	"github.com/livekit/protocol/livekit"
 )
+
+func TestRoomMaxParticipantsKeepsUnlimitedRoomsUpdatable(t *testing.T) {
+	if got := roomMaxParticipants(0); got != math.MaxUint32 {
+		t.Fatalf("roomMaxParticipants(0) = %d, want %d", got, uint32(math.MaxUint32))
+	}
+	if got := roomMaxParticipants(5); got != 5 {
+		t.Fatalf("roomMaxParticipants(5) = %d, want 5", got)
+	}
+}
 
 func TestTokenRestrictsMediaSources(t *testing.T) {
 	for _, speak := range []bool{false, true} {
