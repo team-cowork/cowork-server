@@ -16,6 +16,14 @@ export class WebhookRateLimitExceeded extends HttpException {
     }
 }
 
+export function requireWebhookClientIp(clientIp?: string): string {
+    if (clientIp === undefined || isIP(clientIp) === 0) {
+        throw new ServiceUnavailableException('웹훅 요청 정보를 확인할 수 없습니다.');
+    }
+
+    return clientIp;
+}
+
 @Injectable()
 export class WebhookRateLimiter {
     private readonly windowMs: number;
@@ -42,11 +50,7 @@ export class WebhookRateLimiter {
     }
 
     async acquire(webhookId: number, isSecure: boolean, clientIp?: string): Promise<void> {
-        if (clientIp === undefined || isIP(clientIp) === 0) {
-            throw new ServiceUnavailableException('웹훅 요청 정보를 확인할 수 없습니다.');
-        }
-
-        const ipHash = createHash('sha256').update(clientIp.toLowerCase()).digest('hex');
+        const ipHash = createHash('sha256').update(requireWebhookClientIp(clientIp).toLowerCase()).digest('hex');
         const retryAfterMs = await this.redis.tryAcquireWebhook(
             `chat:webhook:{${webhookId}}`,
             ipHash,
