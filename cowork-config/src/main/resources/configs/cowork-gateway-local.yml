@@ -15,6 +15,9 @@ gateway:
   response-wrapper:
     max-wrappable-size: 1MB
 
+webhook:
+  url-signing-key: "" # Vault 주입 또는 런타임 WEBHOOK_URL_SIGNING_KEY 사용
+
 cowork:
   swagger-ui:
     primary-name: user
@@ -57,11 +60,46 @@ spring:
             allowedOrigins: "${PUBLIC_WEB_ORIGINS}"
             allowedMethods: GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS
             allowedHeaders: "*"
-            exposedHeaders: Content-Length, Content-Range, Accept-Ranges, ETag
+            exposedHeaders: Content-Length, Content-Range, Accept-Ranges, ETag, Retry-After
             allowCredentials: true
             maxAge: 3600
 
       routes:
+        - id: webhook-management
+          order: -2
+          uri: lb://cowork-preference
+          predicates:
+            - Path=/api/channel/channels/*/webhooks, /api/channel/channels/*/webhooks/**
+            - Method=GET,POST,PATCH,PUT,DELETE
+          filters:
+            - StripPrefix=2
+            - SetResponseHeader=Cache-Control, no-store
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+
+        - id: webhook-ingress
+          order: -2
+          uri: lb://cowork-chat
+          predicates:
+            - Path=/api/chat/chat/webhooks/{executionId}/{signature}/messages
+            - Method=POST
+          filters:
+            - RemoveRequestHeader=X-User-Id
+            - RemoveRequestHeader=X-User-Role
+            - WebhookSignature
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 30
+                redis-rate-limiter.burstCapacity: 60
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@webhookKeyResolver}"
+            - SetPath=/chat/webhooks/{executionId}/messages
+            - SetResponseHeader=Cache-Control, no-store
+
         - id: team-object-storage
           uri: ${S3_TEAM_INTERNAL_ENDPOINT:${S3_INTERNAL_ENDPOINT:http://seaweedfs:9000}}
           predicates:

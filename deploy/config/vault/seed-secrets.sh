@@ -28,7 +28,8 @@ vault secrets enable -version=2 -path=secret kv >/dev/null 2>&1 || true
 # Config Server does not inherit secret/application. Only recipients receive each secret.
 
 vault kv put secret/cowork-gateway \
-  jwt.secret="${JWT_SECRET}" >/dev/null
+  jwt.secret="${JWT_SECRET}" \
+  webhook.url-signing-key="${WEBHOOK_URL_SIGNING_KEY:-}" >/dev/null
 
 vault kv put secret/cowork-authorization \
   DB_DSN="${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(mysql:3306)/cowork_authorization?charset=utf8mb4&parseTime=true&loc=UTC&time_zone=%27%2B00%3A00%27" \
@@ -38,7 +39,9 @@ vault kv put secret/cowork-authorization \
 
 vault kv put secret/cowork-preference \
   preference.db.username="${POSTGRES_USER}" \
-  preference.db.password="${POSTGRES_PASSWORD}" >/dev/null
+  preference.db.password="${POSTGRES_PASSWORD}" \
+  preference.webhook.secret-encryption-key="${WEBHOOK_SECRET_ENCRYPTION_KEY:-}" \
+  preference.webhook.url-signing-key="${WEBHOOK_URL_SIGNING_KEY:-}" >/dev/null
 
 vault kv put secret/cowork-user \
   DB_USERNAME="${MYSQL_USER}" \

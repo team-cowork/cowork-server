@@ -36,6 +36,24 @@ class PreferenceServiceTest {
         service = PreferenceService(repository, cache, outboxRepository)
     }
 
+    @Test
+    fun `일반 텍스트 채널 조회는 보관 중인 구형 webhook 비밀키를 반환하지 않는다`() = runBlocking {
+        val stored = JsonObject().put("slowmode_seconds", 10)
+            .put("webhook", JsonObject().put("secret_key", "retired-secret").put("is_active", false))
+        coEvery { cache.getSettings(ResourceType.TEXT_CHANNEL, 11) } returns stored
+        assertEquals(JsonObject().put("slowmode_seconds", 10), service.getSettings(ResourceType.TEXT_CHANNEL, 11))
+        assertTrue(stored.containsKey("webhook"))
+    }
+
+    @Test
+    fun `구형 webhook 설정을 보내면 null이어도 저장하지 않는다`() = runBlocking {
+        for (value in listOf(null, JsonObject().put("is_active", true))) {
+            val result = service.updateSettings(ResourceType.TEXT_CHANNEL, 11, JsonObject().put("webhook", value))
+            assertTrue(result.exceptionOrNull() is IllegalArgumentException)
+        }
+        coVerify(exactly = 0) { outboxRepository.inTransaction<JsonObject>(any()) }
+    }
+
     @Nested
     inner class GetSettings {
 

@@ -8,6 +8,13 @@
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
             <customFields>{"service":"${SERVICE_NAME}"}</customFields>
+            <decorator class="net.logstash.logback.mask.MaskingJsonGeneratorDecorator">
+                <valueMask>
+                    <!-- Mask signatures even in rejected, case-varied or percent-encoded request paths. -->
+                    <value>(?i)(?:[0-9a-f]|%[0-9a-f]{2}){64}</value>
+                    <mask>[REDACTED]</mask>
+                </valueMask>
+            </decorator>
             <includeMdcKeyName>userId</includeMdcKeyName>
             <includeMdcKeyName>teamId</includeMdcKeyName>
             <provider class="net.logstash.logback.composite.loggingevent.LoggingEventPatternJsonProvider">
@@ -25,6 +32,12 @@
         </rollingPolicy>
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
             <customFields>{"service":"${SERVICE_NAME}"}</customFields>
+            <decorator class="net.logstash.logback.mask.MaskingJsonGeneratorDecorator">
+                <valueMask>
+                    <value>(?i)(?:[0-9a-f]|%[0-9a-f]{2}){64}</value>
+                    <mask>[REDACTED]</mask>
+                </valueMask>
+            </decorator>
             <includeMdcKeyName>userId</includeMdcKeyName>
             <includeMdcKeyName>teamId</includeMdcKeyName>
             <provider class="net.logstash.logback.composite.loggingevent.LoggingEventPatternJsonProvider">
