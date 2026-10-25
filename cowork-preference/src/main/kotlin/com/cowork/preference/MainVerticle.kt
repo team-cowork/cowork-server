@@ -3,9 +3,11 @@ package com.cowork.preference
 import com.cowork.preference.cache.PreferenceCache
 import com.cowork.preference.config.AppConfig
 import com.cowork.preference.domain.ResourceType
+import com.cowork.preference.handler.WebhookHandler
 import com.cowork.preference.handler.NotificationHandler
 import com.cowork.preference.handler.PreferenceHandler
 import com.cowork.preference.handler.ProjectRoleHandler
+import com.cowork.preference.messaging.WebhookLegacyProjectionHandler
 import com.cowork.preference.messaging.ChannelLifecycleProjectionHandler
 import com.cowork.preference.messaging.DmParticipantProjectionHandler
 import com.cowork.preference.messaging.ChannelRolePolicyCommandConsumer
@@ -21,6 +23,7 @@ import com.cowork.preference.messaging.ProjectionStateConsumer
 import com.cowork.preference.messaging.ProjectionTopicIdentityProvider
 import com.cowork.preference.messaging.TeamMemberProjectionHandler
 import com.cowork.preference.messaging.TeamRoleCommandConsumer
+import com.cowork.preference.repository.WebhookRepository
 import com.cowork.preference.repository.ChannelLifecycleProjectionRepository
 import com.cowork.preference.repository.DmParticipantProjectionRepository
 import com.cowork.preference.repository.ChannelRolePolicyCommandInboxRepository
@@ -38,6 +41,9 @@ import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.repository.TeamRoleCommandInboxRepository
 import com.cowork.preference.repository.TeamRoleRepository
 import com.cowork.preference.router.buildRouter
+import com.cowork.preference.service.WebhookSecrets
+import com.cowork.preference.service.WebhookUrlSigner
+import com.cowork.preference.service.WebhookService
 import com.cowork.preference.service.ChannelAccessGuard
 import com.cowork.preference.service.ChannelLifecycleService
 import com.cowork.preference.service.ChannelRolePolicyCommandProcessor
@@ -95,6 +101,7 @@ class MainVerticle : AbstractVerticle() {
     private lateinit var channelLifecycleProjectionConsumer: ProjectionStateConsumer
     private lateinit var projectLifecycleProjectionConsumer: ProjectionStateConsumer
     private lateinit var dmParticipantProjectionConsumer: ProjectionStateConsumer
+    private lateinit var webhookLegacyProjectionConsumer: ProjectionStateConsumer
     private lateinit var teamRoleCommandConsumer: TeamRoleCommandConsumer
     private lateinit var githubRepoSettingCommandConsumer: GithubRepoSettingCommandConsumer
     private lateinit var channelRolePolicyCommandConsumer: ChannelRolePolicyCommandConsumer
@@ -118,6 +125,7 @@ class MainVerticle : AbstractVerticle() {
         val preferenceProducer = PreferenceProducer(producer)
 
         val prefRepo = PreferenceRepository(pool)
+        val webhookRepository = WebhookRepository()
         val notifRepo = NotificationRepository(pool)
         val roleRepo = ProjectRoleRepository(pool)
         val teamRoleRepo = TeamRoleRepository(pool)
@@ -135,6 +143,8 @@ class MainVerticle : AbstractVerticle() {
         val channelProjectionReadiness = ProjectionReadiness()
         val projectLifecycleReadiness = ProjectionReadiness()
         val dmParticipantReadiness = ProjectionReadiness()
+        val webhookLegacyReadiness = ProjectionReadiness()
+        val webhookReadiness = CombinedProjectionReadiness(listOf(webhookLegacyReadiness, channelProjectionReadiness))
         // 채널 역할 정책은 팀 삭제와 채널 삭제가 모두 정리하므로 정책 command와 snapshot만 두 projection을 기다린다.
         // 채널 설정 수정도 채널 소속 팀과 팀 역할을 함께 읽으므로 같은 조합을 쓴다.
         val channelRolePolicyReadiness = CombinedProjectionReadiness(
@@ -162,6 +172,7 @@ class MainVerticle : AbstractVerticle() {
             policyRepository = channelRolePolicyRepo,
             outboxRepository = outboxRepository,
             initialAccess = initialAccessService,
+            webhookRepository = webhookRepository,
         )
         val teamRoleCommandProcessor = TeamRoleCommandProcessor(
             roleRepository = teamRoleRepo,
@@ -215,6 +226,10 @@ class MainVerticle : AbstractVerticle() {
             projectAccessGuard,
             channelAccessGuard,
         )
+        val webhookService = WebhookService(pool, webhookRepository, channelLifecycleProjectionRepo, channelAccessGuard,
+            outboxRepository, webhookReadiness, WebhookSecrets(appConfig.webhookSecretEncryptionKey),
+            WebhookUrlSigner(appConfig.webhookUrlSigningKey))
+        val webhookHandler = WebhookHandler(webhookService, scope)
         val notifHandler = NotificationHandler(notifService, scope, channelAccessGuard)
         val roleHandler = ProjectRoleHandler(roleService, scope, projectAccessGuard)
 
@@ -225,8 +240,9 @@ class MainVerticle : AbstractVerticle() {
             roleHandler,
             projectionReadiness,
         )
+        webhookHandler.routes(router)
 
-        scheduleStatusExpiryCheck(prefRepo, outboxRepository, preferenceCache)
+        scheduleExpiryChecks(prefRepo, outboxRepository, preferenceCache, webhookService)
         scheduleCacheRepair(preferenceCache)
         val snapshotPublisher = PreferenceSnapshotPublisher(
             projectAccessRepository = projectAccessRepo,
@@ -240,11 +256,14 @@ class MainVerticle : AbstractVerticle() {
             topicIdentity = projectionTopicIdentity,
             teamStateReadiness = projectionReadiness,
             channelRolePolicyReadiness = channelRolePolicyReadiness,
+            webhookRepository = webhookRepository,
+            webhookReadiness = webhookReadiness,
         )
         scheduleProjectionSnapshots(snapshotPublisher::publishTeamStateIfLeader)
         scheduleProjectionSnapshots(snapshotPublisher::publishChannelRolePoliciesIfLeader)
         scheduleProjectionSnapshots(snapshotPublisher::publishProjectAccessIfLeader)
         scheduleProjectionSnapshots(snapshotPublisher::publishSettingStatesIfLeader)
+        scheduleProjectionSnapshots(snapshotPublisher::publishWebhooksIfLeader)
 
         preferenceOutboxDispatcher = PreferenceOutboxDispatcher(
             vertx = vertx,
@@ -281,6 +300,21 @@ class MainVerticle : AbstractVerticle() {
             scope = scope,
         )
         channelLifecycleProjectionConsumer.start()
+
+        webhookLegacyProjectionConsumer = ProjectionStateConsumer(
+            vertx = vertx,
+            bootstrapServers = appConfig.kafka.bootstrapServers,
+            groupId = appConfig.kafka.webhookLegacyConsumerGroupId,
+            topic = PreferenceEvents.WEBHOOK_LEGACY_STATE_TOPIC,
+            expectedSnapshotSource = CHANNEL_SNAPSHOT_SOURCE,
+            handler = WebhookLegacyProjectionHandler(webhookRepository, channelLifecycleProjectionRepo,
+                checkpointRepository, outboxRepository, channelProjectionReadiness),
+            checkpointRepository = checkpointRepository,
+            topicIdentity = projectionTopicIdentity,
+            readiness = webhookLegacyReadiness,
+            scope = scope,
+        )
+        webhookLegacyProjectionConsumer.start()
 
         projectLifecycleProjectionConsumer = ProjectionStateConsumer(
             vertx = vertx,
@@ -382,13 +416,16 @@ class MainVerticle : AbstractVerticle() {
             .onFailure { log.warn("eureka heartbeat failed", it) }
     }
 
-    private fun scheduleStatusExpiryCheck(
+    private fun scheduleExpiryChecks(
         prefRepo: PreferenceRepository,
         outboxRepository: PreferenceOutboxRepository,
         cache: PreferenceCache,
+        webhookService: WebhookService,
     ) {
         vertx.setPeriodic(60_000L) {
             scope.launch(vertx.dispatcher()) {
+                runCatching { webhookService.clearExpiredReplaySecrets() }
+                    .onFailure { log.error("Failed to clear expired webhook response secrets", it) }
                 checkExpiredStatuses(prefRepo, outboxRepository, cache)
             }
         }
@@ -525,6 +562,7 @@ class MainVerticle : AbstractVerticle() {
             quiesceFutures.add(channelRolePolicyCommandConsumer.close())
         }
         if (::teamRoleCommandConsumer.isInitialized) quiesceFutures.add(teamRoleCommandConsumer.close())
+        if (::webhookLegacyProjectionConsumer.isInitialized) quiesceFutures.add(webhookLegacyProjectionConsumer.close())
         if (::teamMemberProjectionConsumer.isInitialized) quiesceFutures.add(teamMemberProjectionConsumer.close())
         if (::channelLifecycleProjectionConsumer.isInitialized) {
             quiesceFutures.add(channelLifecycleProjectionConsumer.close())

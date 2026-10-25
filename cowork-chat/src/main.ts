@@ -24,6 +24,10 @@ const CHANNEL_PERMISSION_STREAMS: ProjectionName[] = ['channel', 'teamMember', '
 const ALL_PROJECTION_STREAMS = Object.keys(PROJECTION_STREAMS) as ProjectionName[];
 
 function requiredProjectionStreams(path: string): ProjectionName[] {
+    if (path.startsWith('/chat/webhooks/')) {
+        return ['webhook', 'channel', 'teamMember', 'teamRole', 'channelRolePolicy'];
+    }
+
     if (path.startsWith('/chat/block') || path.startsWith('/chat/admin/')) {
         return [];
     }
