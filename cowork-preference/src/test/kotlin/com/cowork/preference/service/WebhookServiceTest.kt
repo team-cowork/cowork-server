@@ -116,7 +116,7 @@ class WebhookServiceTest {
         assertEquals(429, failure.status)
         assertEquals(now.plusSeconds(20), failure.nextAllowedAt)
         assertTrue(committed)
-        coEvery { repository.findOperation(connection, 3, "cooldown") } returns WebhookOperation(requestHash.captured, saved.captured, null)
+        coEvery { repository.findOperation(connection, 3, "cooldown") } returns WebhookOperation(requestHash.captured, saved.captured, null, now)
         coEvery { repository.now(connection) } returns now.plusSeconds(90)
         val replay = runCatching { service.changeMode(11, 7, requester, JsonObject().put("isSecure", true), "cooldown") }.exceptionOrNull() as WebhookRequestException
         assertEquals(429, replay.status)
@@ -144,17 +144,56 @@ class WebhookServiceTest {
     }
 
     @Test
-    fun `성공한 전환 재생은 같은 비밀키를 반환하고 다시 변경하지 않는다`() = runBlocking {
+    fun `발급 후 24시간 직전까지 전환 재생은 같은 비밀키를 반환하고 다시 변경하지 않는다`() = runBlocking {
         val token = "original-secret"
         val hash = WebhookSecrets.hash("MODE:11:7:true")
         coEvery { repository.findOperation(connection, 3, "retry") } returns WebhookOperation(
             hash, original.copy(isSecure = true).response(), secrets.encrypt(token, "3:retry:$hash"),
+            now.minusSeconds(24 * 60 * 60).plusNanos(1),
         )
         val result = service.changeMode(11, 7, requester, JsonObject().put("isSecure", true), "retry")
         assertEquals(token, result.getString("token"))
         coVerify(exactly = 0) { repository.findForUpdate(any(), any()) }
         coVerify(exactly = 0) { repository.changeMode(any(), any(), any(), any(), any()) }
         coVerify { guard.requireSettingsManager(connection, 11, requester) }
+    }
+
+    @Test
+    fun `발급 후 정확히 24시간부터 보안 모드 재시도는 비밀키 없이 기존 결과만 반환한다`() = runBlocking {
+        val hash = WebhookSecrets.hash("MODE:11:7:true")
+        coEvery { repository.findOperation(connection, 3, "expired") } returns WebhookOperation(
+            hash, original.copy(isSecure = true).response(), secrets.encrypt("expired-secret", "3:expired:$hash"),
+            now.minusSeconds(24 * 60 * 60),
+        )
+        val result = service.changeMode(11, 7, requester, JsonObject().put("isSecure", true), "expired")
+        assertNull(result.getString("token"))
+        assertTrue(result.getBoolean("isSecure"))
+        coVerify(exactly = 0) { repository.changeMode(any(), any(), any(), any(), any()) }
+        coVerify { guard.requireSettingsManager(connection, 11, requester) }
+    }
+
+    @Test
+    fun `발급 응답이 만료된 생성 요청을 반복해도 웹훅을 중복 생성하지 않는다`() = runBlocking {
+        var operation: WebhookOperation? = null
+        coEvery { repository.findOperation(connection, 3, "create-once") } coAnswers { operation }
+        coEvery { repository.create(connection, 11, 3, any(), any()) } coAnswers {
+            original.copy(isSecure = true, secretHash = arg(4))
+        }
+        coEvery { repository.saveOperation(connection, 3, "create-once", any(), any(), any()) } coAnswers {
+            operation = WebhookOperation(arg(3), arg(4), arg(5), now)
+        }
+        val input = JsonObject().put("name", "bot").put("isSecure", true)
+        val first = service.create(11, requester, input, "create-once")
+        assertNotNull(first.getString("token"))
+        coEvery { repository.now(connection) } returns now.plusSeconds(24 * 60 * 60 + 1)
+        repeat(2) {
+            val retry = service.create(11, requester, input, "create-once")
+            assertNull(retry.getString("token"))
+            assertEquals(first.getLong("id"), retry.getLong("id"))
+        }
+        coVerify(exactly = 1) { repository.create(any(), any(), any(), any(), any()) }
+        coVerify(exactly = 1) { outbox.enqueue(any(), any()) }
+        coVerify(exactly = 3) { guard.requireSettingsManager(connection, 11, requester) }
     }
 
     @Test
@@ -166,7 +205,7 @@ class WebhookServiceTest {
 
     @Test
     fun `같은 key의 다른 요청은 409로 거부한다`() = runBlocking {
-        coEvery { repository.findOperation(connection, 3, "reused") } returns WebhookOperation("different", JsonObject(), null)
+        coEvery { repository.findOperation(connection, 3, "reused") } returns WebhookOperation("different", JsonObject(), null, now)
         val failure = runCatching { service.changeMode(11, 7, requester, JsonObject().put("isSecure", true), "reused") }.exceptionOrNull() as WebhookRequestException
         assertEquals(409, failure.status)
         coVerify(exactly = 0) { repository.changeMode(any(), any(), any(), any(), any()) }

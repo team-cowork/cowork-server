@@ -95,7 +95,7 @@
                 "minLength": 1,
                 "maxLength": 128
               },
-              "description": "요청자별 고유 키. 같은 요청의 결과와 최초 비밀키 발급 응답을 재생합니다. 다른 요청에 재사용하면 409입니다."
+              "description": "요청자별 고유 키. 같은 요청의 결과를 재생하며 비밀키는 발급 후 24시간 미만에만 다시 반환합니다. 이후 token은 null이고 요청 기록은 유지됩니다. 다른 요청에 재사용하면 409입니다."
             }
           ],
           "responses": {
@@ -159,7 +159,7 @@
               }
             }
           },
-          "description": "공개 모드는 비밀키가 없으며 보안 모드는 발급된 token을 X-Webhook-Secret 헤더로 전달합니다. token 원문은 생성 또는 실제 보안 모드 전환 성공 응답과 동일 요청의 재생에서만 반환됩니다."
+          "description": "공개 모드는 비밀키가 없으며 보안 모드는 발급된 token을 X-Webhook-Secret 헤더로 전달합니다. token 원문은 생성 또는 실제 보안 모드 전환 성공 응답과 발급 후 24시간 미만의 동일 요청 재생에서만 반환됩니다."
         }
       },
       "/channels/{channelId}/webhooks/{webhookId}": {
@@ -341,7 +341,7 @@
                 "minLength": 1,
                 "maxLength": 128
               },
-              "description": "요청자별 고유 키. 같은 요청의 결과와 최초 비밀키 발급 응답을 재생합니다. 다른 요청에 재사용하면 409입니다."
+              "description": "요청자별 고유 키. 같은 요청의 결과를 재생하며 비밀키는 발급 후 24시간 미만에만 다시 반환합니다. 이후 token은 null이고 요청 기록은 유지됩니다. 다른 요청에 재사용하면 409입니다."
             }
           ],
           "responses": {
@@ -770,7 +770,7 @@
             "token": {
               "type": "string",
               "nullable": true,
-              "description": "일반 조회·수정에서는 null. 새 비밀키 발급 응답에서만 제공됩니다."
+              "description": "일반 조회·수정에서는 null. 새 비밀키 발급 응답 및 발급 후 24시간 미만의 동일 요청 재생에서만 제공됩니다."
             },
             "createdBy": {
               "type": "integer",

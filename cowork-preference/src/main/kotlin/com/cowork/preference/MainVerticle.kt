@@ -225,10 +225,9 @@ class MainVerticle : AbstractVerticle() {
             projectAccessGuard,
             channelAccessGuard,
         )
-        val webhookHandler = WebhookHandler(
-            WebhookService(pool, webhookRepository, channelLifecycleProjectionRepo, channelAccessGuard,
-                outboxRepository, webhookReadiness, WebhookSecrets(appConfig.webhookSecretEncryptionKey)), scope,
-        )
+        val webhookService = WebhookService(pool, webhookRepository, channelLifecycleProjectionRepo, channelAccessGuard,
+            outboxRepository, webhookReadiness, WebhookSecrets(appConfig.webhookSecretEncryptionKey))
+        val webhookHandler = WebhookHandler(webhookService, scope)
         val notifHandler = NotificationHandler(notifService, scope, channelAccessGuard)
         val roleHandler = ProjectRoleHandler(roleService, scope, projectAccessGuard)
 
@@ -241,7 +240,7 @@ class MainVerticle : AbstractVerticle() {
         )
         webhookHandler.routes(router)
 
-        scheduleStatusExpiryCheck(prefRepo, outboxRepository, preferenceCache)
+        scheduleExpiryChecks(prefRepo, outboxRepository, preferenceCache, webhookService)
         scheduleCacheRepair(preferenceCache)
         val snapshotPublisher = PreferenceSnapshotPublisher(
             projectAccessRepository = projectAccessRepo,
@@ -415,13 +414,16 @@ class MainVerticle : AbstractVerticle() {
             .onFailure { log.warn("eureka heartbeat failed", it) }
     }
 
-    private fun scheduleStatusExpiryCheck(
+    private fun scheduleExpiryChecks(
         prefRepo: PreferenceRepository,
         outboxRepository: PreferenceOutboxRepository,
         cache: PreferenceCache,
+        webhookService: WebhookService,
     ) {
         vertx.setPeriodic(60_000L) {
             scope.launch(vertx.dispatcher()) {
+                runCatching { webhookService.clearExpiredReplaySecrets() }
+                    .onFailure { log.error("Failed to clear expired webhook response secrets", it) }
                 checkExpiredStatuses(prefRepo, outboxRepository, cache)
             }
         }
