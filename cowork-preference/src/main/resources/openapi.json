@@ -395,8 +395,8 @@
       "VoiceChannelSettings": {
         "type": "object",
         "properties": {
-          "bitrate": { "type": "integer", "example": 64000 },
-          "max_participants": { "type": "integer", "example": 20 }
+          "bitrate": { "type": "integer", "minimum": 8000, "maximum": 128000, "description": "클라이언트가 오디오 publish에 적용할 bps 값. 없으면 클라이언트 기본값을 씁니다.", "example": 64000 },
+          "max_participants": { "type": "integer", "minimum": 0, "maximum": 99, "description": "동시 입장 최대 인원. 0이거나 없으면 제한하지 않습니다.", "example": 20 }
         }
       },
       "WebhookSettings": {
