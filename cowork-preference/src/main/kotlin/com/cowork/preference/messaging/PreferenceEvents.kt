@@ -36,8 +36,6 @@ object PreferenceEvents {
     const val TEAM_SETTING_STATE_TOPIC = "preference.team-setting.state.v1"
     const val TEXT_CHANNEL_SETTING_STATE_TOPIC = "preference.text-channel-setting.state.v1"
     const val WEBHOOK_STATE_TOPIC = "preference.webhook.state.v2"
-    // Keep already queued v1 records dispatchable while new state and snapshots use v2.
-    const val PREVIOUS_WEBHOOK_STATE_TOPIC = "preference.webhook.state.v1"
     const val WEBHOOK_LEGACY_STATE_TOPIC = "channel.webhook-legacy.state.v1"
     const val SETTING_STATE_SCHEMA_VERSION = 1
     val OUTBOX_TOPICS = setOf(
@@ -54,7 +52,6 @@ object PreferenceEvents {
         TEAM_SETTING_STATE_TOPIC,
         TEXT_CHANNEL_SETTING_STATE_TOPIC,
         WEBHOOK_STATE_TOPIC,
-        PREVIOUS_WEBHOOK_STATE_TOPIC,
     )
 
     const val SNAPSHOT_COMPLETED_EVENT_TYPE = "PROJECTION_SNAPSHOT_COMPLETED"

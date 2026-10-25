@@ -146,7 +146,6 @@ services:
         preference.account-setting.state.v1
         preference.team-setting.state.v1
         preference.text-channel-setting.state.v1
-        preference.webhook.state.v1
         preference.webhook.state.v2
         channel.webhook-legacy.state.v1
         preference.github-repo.setting.result-dlt
@@ -179,7 +178,6 @@ services:
         preference.account-setting.state.v1
         preference.team-setting.state.v1
         preference.text-channel-setting.state.v1
-        preference.webhook.state.v1
         preference.webhook.state.v2
         channel.webhook-legacy.state.v1
         github.repo.state.v1
