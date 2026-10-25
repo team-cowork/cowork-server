@@ -2,9 +2,10 @@ import {randomUUID} from 'node:crypto';
 import {Injectable} from '@nestjs/common';
 import {InjectModel} from '@nestjs/mongoose';
 import {Model, PipelineStage, Types} from 'mongoose';
+import {type WebhookMessageAuthor} from '../schema/message.schema';
 import {ConfirmedAttachment} from '../../storage/attachment-upload.schema';
 import {Message, MessageDocument} from '../schema';
-import {isSearchIndexed} from '../search/message-index-scope';
+import {isSearchIndexed} from '../search';
 
 /**
 한 번에 조회하는 최대 메시지 수
@@ -28,7 +29,7 @@ const MAX_EDIT_HISTORY_ENTRIES = 20;
 */
 const MESSAGE_ROW_PROJECTION: PipelineStage.Project = {
     $project: {
-        _id: 1, teamId: 1, projectId: 1, channelId: 1, authorId: 1,
+        _id: 1, teamId: 1, projectId: 1, channelId: 1, authorId: 1, webhook: 1,
         content: 1, type: 1, attachments: 1, parentMessageId: 1,
         isEdited: 1, isPinned: 1, clientMessageId: 1, mentions: 1,
         reactions: 1, createdAt: 1, updatedAt: 1, mentionedMessage: 1,
@@ -117,7 +118,8 @@ export type NotificationMessage = Message & {_id: Types.ObjectId; createdAt: Dat
  */
 export type MentionedMessageRow = {
     _id: Types.ObjectId;
-    authorId: number;
+    authorId: number | null;
+    webhook?: WebhookMessageAuthor;
     content: string;
     type: string;
     createdAt: Date;
@@ -132,7 +134,8 @@ export type MessageRow = {
     teamId: number | null;
     projectId: number | null;
     channelId: number;
-    authorId: number;
+    authorId: number | null;
+    webhook?: WebhookMessageAuthor;
     content: string;
     type: string;
     attachments: Array<{name: string; objectKey?: string; url?: string; size: number; mimeType: string}>;
@@ -167,12 +170,12 @@ export type MessageBroadcastPayload = Omit<MessageRow, 'mentionedMessage'>;
  */
 export function toMessageBroadcastPayload(doc: MessageDocument): MessageBroadcastPayload {
     const {
-        _id, teamId, projectId, channelId, authorId, content, type,
+        _id, teamId, projectId, channelId, authorId, webhook, content, type,
         attachments, parentMessageId, isEdited, isPinned, clientMessageId,
         mentions, reactions, createdAt, updatedAt,
     } = doc.toObject();
     return {
-        _id, teamId, projectId, channelId, authorId, content, type,
+        _id, teamId, projectId, channelId, authorId, webhook, content, type,
         attachments: publicAttachments(attachments), parentMessageId, isEdited, isPinned, clientMessageId,
         mentions, reactions, createdAt, updatedAt,
     };
@@ -215,10 +218,12 @@ export class MessageRepository {
 
      @param channelId - 조회할 채널의 식별자
      @param before - 이 ObjectId 문자열보다 이전 메시지를 조회하는 커서. 생략 시 최신부터 조회
+     @param parentMessageId - 이 메시지에 달린 답글만 조회할 부모 메시지 식별자. 생략 시 채널 전체 조회
      @returns 배열 (최신순 정렬, 최대 100개)
      */
     async findMessages(channelId: number, before?: string, parentMessageId?: string): Promise<MessageRow[]> {
         const query: Record<string, unknown> = {
+            webhookDeleted: {$ne: true},
             channelId,
             ...(before !== undefined && before !== '' && {_id: {$lt: new Types.ObjectId(before)}}),
             ...(parentMessageId !== undefined && parentMessageId !== '' && {parentMessageId: new Types.ObjectId(parentMessageId)}),
@@ -234,11 +239,12 @@ export class MessageRepository {
                         foreignField: '_id',
                         as: 'mentionedMessage',
                         pipeline: [
-                            {$match: {channelId}},
+                            {$match: {webhookDeleted: {$ne: true}, channelId}},
                             {
                                 $project: {
                                     _id: 1,
                                     authorId: 1,
+                                    webhook: 1,
                                     content: 1,
                                     type: 1,
                                     createdAt: 1,
@@ -270,7 +276,7 @@ export class MessageRepository {
      @returns Mongoose 도큐먼트. 존재하지 않으면 `null`
      */
     async findById(messageId: string): Promise<MessageDocument | null> {
-        return this.messageModel.findById(messageId);
+        return this.messageModel.findOne({_id: messageId, webhookDeleted: {$ne: true}});
     }
 
     /**
@@ -284,7 +290,7 @@ export class MessageRepository {
      @returns Mongoose 도큐먼트. 존재하지 않거나 채널이 불일치하면 `null`
      */
     async findByIdAndChannelId(messageId: string, channelId: number): Promise<MessageDocument | null> {
-        return this.messageModel.findOne({_id: messageId, channelId});
+        return this.messageModel.findOne({_id: messageId, channelId, webhookDeleted: {$ne: true}});
     }
 
     /**
@@ -293,8 +299,22 @@ export class MessageRepository {
      @param messageId - 삭제할 메시지의 ObjectId 문자열
      @returns Mongoose `deleteOne` 결과 객체
      */
-    deleteById(messageId: string) {
-        return this.messageModel.deleteOne({_id: messageId});
+    async deleteById(messageId: string) {
+        // Keep the unique delivery key atomically with deletion; a retry must never recreate a deleted message.
+        const retained = await this.messageModel.updateOne(
+            {_id: messageId, webhookDeliveryKey: {$type: 'string'}},
+            [{
+                $replaceWith: {
+                    _id: '$_id',
+                    webhook: {id: '$webhook.id'},
+                    webhookDeliveryKey: '$webhookDeliveryKey',
+                    webhookRequestHash: '$webhookRequestHash',
+                    webhookDeleted: true,
+                },
+            }],
+            {timestamps: false, updatePipeline: true},
+        );
+        return retained.matchedCount > 0 ? {acknowledged: retained.acknowledged, deletedCount: 1} : this.messageModel.deleteOne({_id: messageId, webhookDeliveryKey: {$exists: false}});
     }
 
     /**
@@ -331,7 +351,7 @@ export class MessageRepository {
     async applyEdit(messageId: string, content: string, isIndexed: boolean): Promise<MessageDocument | null> {
         const now = new Date();
         return this.messageModel.findOneAndUpdate(
-            {_id: messageId, searchIndexStatus: {$ne: 'DELETING'}},
+            {_id: messageId, webhookDeleted: {$ne: true}, searchIndexStatus: {$ne: 'DELETING'}},
             [{
                 $set: {
                     content,
@@ -366,7 +386,7 @@ export class MessageRepository {
     async setPinned(messageId: string, isPinned: boolean, isIndexed: boolean): Promise<MessageDocument | null> {
         const now = new Date();
         return this.messageModel.findOneAndUpdate(
-            {_id: messageId, searchIndexStatus: {$ne: 'DELETING'}},
+            {_id: messageId, webhookDeleted: {$ne: true}, searchIndexStatus: {$ne: 'DELETING'}},
             [{$set: {isPinned, updatedAt: now, ...searchIndexIntent(isIndexed, now)}}],
             {new: true, timestamps: false, updatePipeline: true},
         );
@@ -384,7 +404,7 @@ export class MessageRepository {
     async reserveDeletion(messageId: string): Promise<MessageDocument | null> {
         const now = new Date();
         return this.messageModel.findOneAndUpdate(
-            {_id: messageId, searchIndexStatus: {$ne: 'DELETING'}},
+            {_id: messageId, webhookDeleted: {$ne: true}, searchIndexStatus: {$ne: 'DELETING'}},
             [{
                 $set: {
                     searchIndexStatus: 'DELETING',
@@ -401,7 +421,7 @@ export class MessageRepository {
     메시지가 여전히 존재하는지 확인합니다. {@link reserveDeletion} 실패 원인을 구분하는 데 사용합니다.
     */
     async existsById(messageId: string): Promise<boolean> {
-        return (await this.messageModel.exists({_id: messageId})) !== null;
+        return (await this.messageModel.exists({_id: messageId, webhookDeleted: {$ne: true}})) !== null;
     }
 
     /**
@@ -468,6 +488,7 @@ export class MessageRepository {
         const pipeline: PipelineStage[] = [
             {
                 $match: {
+                    webhookDeleted: {$ne: true},
                     channelId,
                     type: 'FILE',
                     'attachments.0': {$exists: true},
@@ -551,7 +572,7 @@ export class MessageRepository {
      */
     async findPendingAndMarkProcessing(batchSize: number): Promise<NotificationMessage[]> {
         const candidates = await this.messageModel
-            .find({notificationStatus: 'PENDING'})
+            .find({webhookDeleted: {$ne: true}, notificationStatus: 'PENDING'})
             .sort({createdAt: 1})
             .limit(batchSize)
             .select('_id')
@@ -563,7 +584,7 @@ export class MessageRepository {
         const ids = candidates.map(c => c._id);
         const notificationClaimId = randomUUID();
         await this.messageModel.updateMany(
-            {_id: {$in: ids}, notificationStatus: 'PENDING'},
+            {webhookDeleted: {$ne: true}, _id: {$in: ids}, notificationStatus: 'PENDING'},
             {
                 $set: {
                     notificationStatus: 'PROCESSING',
@@ -574,7 +595,9 @@ export class MessageRepository {
         );
 
         return this.messageModel
-            .find({_id: {$in: ids}, notificationStatus: 'PROCESSING', notificationClaimId})
+            .find({
+                webhookDeleted: {$ne: true}, _id: {$in: ids}, notificationStatus: 'PROCESSING', notificationClaimId,
+            })
             .sort({createdAt: 1})
             .lean();
     }
@@ -592,6 +615,7 @@ export class MessageRepository {
         const staleBeforeDate = new Date(Date.now() - staleThresholdMs);
         const result = await this.messageModel.updateMany(
             {
+                webhookDeleted: {$ne: true},
                 notificationStatus: 'PROCESSING',
                 notificationProcessingStartedAt: {$lt: staleBeforeDate},
             },
@@ -610,7 +634,7 @@ export class MessageRepository {
      */
     async findPinnedMessages(channelId: number): Promise<MessageRow[]> {
         return this.messageModel.aggregate([
-            {$match: {channelId, isPinned: true}},
+            {$match: {webhookDeleted: {$ne: true}, channelId, isPinned: true}},
             {$sort: {_id: -1}},
             {$limit: MESSAGE_FETCH_LIMIT},
             {
@@ -620,11 +644,12 @@ export class MessageRepository {
                     foreignField: '_id',
                     as: 'mentionedMessage',
                     pipeline: [
-                        {$match: {channelId}},
+                        {$match: {webhookDeleted: {$ne: true}, channelId}},
                         {
                             $project: {
                                 _id: 1,
                                 authorId: 1,
+                                webhook: 1,
                                 content: 1,
                                 type: 1,
                                 createdAt: 1,
@@ -652,15 +677,15 @@ export class MessageRepository {
      */
     async findParentAuthorsByChannel(
         parents: Array<{channelId: number; parentMessageId: Types.ObjectId}>,
-    ): Promise<Map<string, {authorId: number}>> {
+    ): Promise<Map<string, {authorId: number | null}>> {
         if (parents.length === 0) {
             return new Map();
         }
 
         const foundParents = await this.messageModel
-            .find({$or: parents.map(({channelId, parentMessageId}) => ({_id: parentMessageId, channelId}))})
+            .find({webhookDeleted: {$ne: true}, $or: parents.map(({channelId, parentMessageId}) => ({_id: parentMessageId, channelId}))})
             .select('channelId authorId')
-            .lean() as Array<{_id: Types.ObjectId; channelId: number; authorId: number}>;
+            .lean() as Array<{_id: Types.ObjectId; channelId: number; authorId: number | null}>;
 
         return new Map(foundParents.map(parent => [
             `${parent.channelId}:${parent._id.toString()}`, {authorId: parent.authorId},
@@ -686,7 +711,7 @@ export class MessageRepository {
      */
     async addReaction(channelId: number, messageId: string, emoji: string, userId: number): Promise<number | null> {
         const before = await this.messageModel.findOneAndUpdate(
-            {_id: messageId, channelId},
+            {webhookDeleted: {$ne: true}, _id: messageId, channelId},
             [
                 {
                     $set: {
@@ -752,6 +777,7 @@ export class MessageRepository {
     async removeReaction(channelId: number, messageId: string, emoji: string, userId: number): Promise<number | null> {
         const updated = await this.messageModel.findOneAndUpdate(
             {
+                webhookDeleted: {$ne: true},
                 _id: messageId,
                 channelId,
                 reactions: {$elemMatch: {emoji, userIds: userId}},
@@ -761,7 +787,7 @@ export class MessageRepository {
         ).lean() as ReactionDoc | null;
 
         if (!updated) {
-            const messageExists = await this.messageModel.exists({_id: messageId, channelId});
+            const messageExists = await this.messageModel.exists({_id: messageId, channelId, webhookDeleted: {$ne: true}});
             return messageExists ? -1 : null;
         }
 
@@ -769,7 +795,7 @@ export class MessageRepository {
 
         if (count === 0) {
             await this.messageModel.updateOne(
-                {_id: messageId, channelId},
+                {webhookDeleted: {$ne: true}, _id: messageId, channelId},
                 {$pull: {reactions: {emoji, userIds: {$size: 0}}}},
             );
         }
@@ -779,6 +805,7 @@ export class MessageRepository {
 
     async countUnread(channelId: number, afterId: Types.ObjectId | null): Promise<number> {
         const filter: Record<string, unknown> = {
+            webhookDeleted: {$ne: true},
             channelId,
             ...(afterId && {_id: {$gt: afterId}}),
         };
@@ -794,7 +821,8 @@ export class MessageRepository {
      */
     async findLastMessages(channelIds: number[]): Promise<Map<number, {
         messageId: string;
-        authorId: number;
+        authorId: number | null;
+        webhook?: WebhookMessageAuthor;
         content: string;
         type: string;
         createdAt: Date;
@@ -804,13 +832,14 @@ export class MessageRepository {
         }
 
         const rows = await this.messageModel.aggregate<{_id: number; doc: Message & {_id: Types.ObjectId; createdAt: Date}}>([
-            {$match: {channelId: {$in: channelIds}}},
+            {$match: {webhookDeleted: {$ne: true}, channelId: {$in: channelIds}}},
             {$sort: {channelId: 1, _id: -1}},
             {$group: {_id: '$channelId', doc: {$first: '$$ROOT'}}},
         ]);
         return new Map(rows.map(row => [row._id, {
             messageId: row.doc._id.toString(),
             authorId: row.doc.authorId,
+            ...(row.doc.webhook && {webhook: row.doc.webhook}),
             content: row.doc.content,
             type: row.doc.type,
             createdAt: row.doc.createdAt,
@@ -829,7 +858,7 @@ export class MessageRepository {
             ...(lastReadMessageId && {_id: {$gt: lastReadMessageId}}),
         }));
         const results = await this.messageModel.aggregate<{_id: number; count: number}>([
-            {$match: {$or: orConditions}},
+            {$match: {webhookDeleted: {$ne: true}, $or: orConditions}},
             {$group: {_id: '$channelId', count: {$sum: 1}}},
         ]);
         const countMap = new Map<number, number>();
@@ -870,7 +899,9 @@ export class MessageRepository {
         };
 
         return this.messageModel.updateOne(
-            {_id: messageId, notificationStatus: 'PROCESSING', notificationClaimId},
+            {
+                webhookDeleted: {$ne: true}, _id: messageId, notificationStatus: 'PROCESSING', notificationClaimId,
+            },
             {$set},
         );
     }
