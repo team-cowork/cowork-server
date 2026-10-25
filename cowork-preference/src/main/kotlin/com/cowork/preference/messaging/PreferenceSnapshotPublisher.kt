@@ -10,6 +10,7 @@ import com.cowork.preference.repository.ProjectAccessStateRepository
 import com.cowork.preference.repository.ResourceSettingState
 import com.cowork.preference.repository.TeamRoleCommandInboxRepository
 import com.cowork.preference.repository.TeamRoleRepository
+import com.cowork.preference.repository.WebhookRepository
 import io.vertx.sqlclient.SqlConnection
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -28,6 +29,8 @@ class PreferenceSnapshotPublisher(
     private val topicIdentity: ProjectionTopicIdentityProvider,
     private val teamStateReadiness: ProjectionReadinessView,
     private val channelRolePolicyReadiness: ProjectionReadinessView,
+    private val webhookRepository: WebhookRepository? = null,
+    private val webhookReadiness: ProjectionReadinessView? = null,
 ) {
     private val log = LoggerFactory.getLogger(PreferenceSnapshotPublisher::class.java)
 
@@ -103,6 +106,30 @@ class PreferenceSnapshotPublisher(
         }
         "accountSettingCount=$accountCount teamSettingCount=$teamCount " +
             "textChannelSettingCount=$textChannelCount voiceChannelSettingCount=$voiceChannelCount"
+    }
+
+    suspend fun publishWebhooksIfLeader(): Boolean {
+        val repository = webhookRepository ?: return false
+        val readiness = webhookReadiness ?: return false
+        return publishIfLeader(
+            aggregate = "webhook state",
+            topics = setOf(PreferenceEvents.WEBHOOK_STATE_TOPIC),
+            upstreamReadiness = readiness,
+        ) { connection ->
+            var afterId = 0L
+            var count = 0
+            while (true) {
+                val page = outboxRepository.inTransaction(connection) { client ->
+                    repository.snapshotPage(client, afterId, PAGE_SIZE).also { rows ->
+                        outboxRepository.enqueueAll(client, rows.map { PreferenceEvents.webhookState(it, snapshot = true) })
+                    }
+                }
+                if (page.isEmpty()) break
+                count += page.size
+                afterId = page.last().id
+            }
+            "webhookCount=$count"
+        }
     }
 
     private suspend fun publishIfLeader(

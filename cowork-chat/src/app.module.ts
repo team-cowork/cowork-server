@@ -68,6 +68,10 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
                 return {
                     pinoHttp: {
                         level,
+                        redact: {
+                            paths: ['req.headers["x-webhook-secret"]', 'req.headers.authorization', 'req.headers.cookie'],
+                            censor: '[REDACTED]',
+                        },
                         stream: createLogStream(),
                         autoLogging: {
                             ignore(request) {
