@@ -146,6 +146,8 @@ services:
         preference.account-setting.state.v1
         preference.team-setting.state.v1
         preference.text-channel-setting.state.v1
+        preference.webhook.state.v1
+        channel.webhook-legacy.state.v1
         preference.github-repo.setting.result-dlt
         project.chat-github-issue.command
         project.chat-github-issue.command-dlt
@@ -176,6 +178,8 @@ services:
         preference.account-setting.state.v1
         preference.team-setting.state.v1
         preference.text-channel-setting.state.v1
+        preference.webhook.state.v1
+        channel.webhook-legacy.state.v1
         github.repo.state.v1
         github.issue.state.v1
         github.pull-request.state.v1
@@ -279,6 +283,7 @@ services:
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-devsecret}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
       ACCOUNT_CREDENTIAL_ENCRYPTION_KEY: ${ACCOUNT_CREDENTIAL_ENCRYPTION_KEY}
+      WEBHOOK_SECRET_ENCRYPTION_KEY: ${WEBHOOK_SECRET_ENCRYPTION_KEY:-}
       ACCOUNT_SHARE_OAUTH_STATE_SECRET: ${ACCOUNT_SHARE_OAUTH_STATE_SECRET}
       COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID: ${COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID:-}
       COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET: ${COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET:-}
