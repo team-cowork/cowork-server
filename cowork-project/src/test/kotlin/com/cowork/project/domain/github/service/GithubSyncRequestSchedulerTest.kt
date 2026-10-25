@@ -1,10 +1,12 @@
 package com.cowork.project.domain.github.service
 
+import com.cowork.project.domain.github.entity.GithubRepoProjection
 import com.cowork.project.domain.github.entity.GithubSyncMarker
 import com.cowork.project.domain.github.entity.ProjectGithubRepo
 import com.cowork.project.domain.github.event.GITHUB_SYNC_COMMAND_TOPIC
 import com.cowork.project.domain.github.event.GithubSyncCommand
 import com.cowork.project.domain.github.event.GithubSyncCommandPublisher
+import com.cowork.project.domain.github.repository.GithubRepoProjectionRepository
 import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
 import com.cowork.project.domain.github.repository.GithubSyncRequestRepository
 import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
@@ -26,6 +28,7 @@ class GithubSyncRequestSchedulerTest :
 
         val now = Instant.parse("2026-10-22T12:00:00Z")
         lateinit var projectGithubRepoRepository: ProjectGithubRepoRepository
+        lateinit var repoProjectionRepository: GithubRepoProjectionRepository
         lateinit var installationRepository: TeamGithubInstallationRepository
         lateinit var markerRepository: GithubSyncMarkerRepository
         lateinit var requestRepository: GithubSyncRequestRepository
@@ -35,6 +38,8 @@ class GithubSyncRequestSchedulerTest :
 
         beforeEach {
             projectGithubRepoRepository = mockk()
+            repoProjectionRepository = mockk()
+            every { repoProjectionRepository.findAllById(any()) } returns emptyList()
             installationRepository = mockk()
             markerRepository = mockk()
             requestRepository = mockk(relaxed = true)
@@ -47,6 +52,7 @@ class GithubSyncRequestSchedulerTest :
             }
             scheduler = GithubSyncRequestScheduler(
                 projectGithubRepoRepository = projectGithubRepoRepository,
+                repoProjectionRepository = repoProjectionRepository,
                 installationRepository = installationRepository,
                 markerRepository = markerRepository,
                 requestRepository = requestRepository,
@@ -57,6 +63,18 @@ class GithubSyncRequestSchedulerTest :
                 staleAfterMs = Duration.ofDays(7).toMillis(),
             )
         }
+
+        fun repoProjection(repo: String, deleted: Boolean) = GithubRepoProjection(
+            id = GithubRepoProjection.id("my-org", repo),
+            installationId = 1L,
+            owner = "my-org",
+            repo = repo,
+            fullName = "my-org/$repo",
+            private = false,
+            htmlUrl = "https://github.com/my-org/$repo",
+            deleted = deleted,
+            sourceOccurredAt = now,
+        )
 
         describe("GithubSyncRequestScheduler 클래스의") {
             describe("requestSyncs 메서드는") {
@@ -85,6 +103,37 @@ class GithubSyncRequestSchedulerTest :
                         verify(exactly = 1) { publisher.publish(any()) }
                         command.captured.owner shouldBe "my-org"
                         command.captured.repo shouldBe "my-repo"
+                    }
+                }
+
+                context("연결된 repo가 설치 범위에서 빠지거나 삭제된 경우") {
+                    it("그 repo는 요청하지 않고 나머지 repo만 요청한다") {
+                        every { installationRepository.findAll() } returns emptyList()
+                        every { projectGithubRepoRepository.findAll() } returns listOf(
+                            ProjectGithubRepo(
+                                projectId = 1L,
+                                teamId = 1L,
+                                githubRepoUrl = "https://github.com/my-org/removed",
+                            ),
+                            ProjectGithubRepo(
+                                projectId = 2L,
+                                teamId = 1L,
+                                githubRepoUrl = "https://github.com/my-org/active",
+                            ),
+                        )
+                        every { repoProjectionRepository.findAllById(any()) } returns listOf(
+                            repoProjection("removed", deleted = true),
+                            repoProjection("active", deleted = false),
+                        )
+                        every { markerRepository.findAllById(any()) } returns emptyList()
+                        every { requestRepository.findAllById(any()) } returns emptyList()
+                        val command = slot<GithubSyncCommand>()
+                        every { publisher.publish(capture(command)) } returns Unit
+
+                        scheduler.requestSyncs()
+
+                        verify(exactly = 1) { publisher.publish(any()) }
+                        command.captured.repo shouldBe "active"
                     }
                 }
             }
