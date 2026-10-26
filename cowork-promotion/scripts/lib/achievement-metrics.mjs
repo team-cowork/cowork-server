@@ -83,20 +83,68 @@ function isHuman(user) {
 	return user && !user.id.startsWith('BOT_') && !user.login.endsWith('[bot]') && !aiAccounts.has(user.login.toLowerCase());
 }
 
-function countLines(value) {
+function expectCount(value, label) {
 	if (!Number.isSafeInteger(value) || value < 0) {
-		throw new Error('GitHub line counts must be non-negative safe integers.');
+		throw new Error(`GitHub ${label} counts must be non-negative safe integers.`);
 	}
 
 	return value;
 }
 
-function countCommits(value) {
-	if (!Number.isSafeInteger(value) || value < 0) {
-		throw new Error('GitHub total commit counts must be non-negative safe integers.');
+function aggregateCommitWork(commits, inPeriod, contributors, unlinkedAuthors) {
+	const people = new Set();
+	const seen = new Set();
+	let additions = 0;
+	let deletions = 0;
+	let periodCommits = 0;
+	let excludedMergeCommits = 0;
+	for (const commit of commits) {
+		if (!inPeriod(commit.committedDate) || seen.has(commit.oid)) {
+			continue;
+		}
+
+		seen.add(commit.oid);
+		if (commit.parents.totalCount > 1) {
+			excludedMergeCommits++;
+			continue;
+		}
+
+		additions += expectCount(commit.additions, 'line');
+		deletions += expectCount(commit.deletions, 'line');
+		periodCommits++;
+		const user = commit.author?.user;
+		if (isHuman(user)) {
+			contributors.set(user.id, {id: user.id, login: user.login});
+			people.add(user.id);
+		} else if (!user && commit.author?.email) {
+			unlinkedAuthors.add(commit.author.email.trim().toLowerCase());
+		}
 	}
 
-	return value;
+	return {
+		additions, deletions, periodCommits, contributors: people.size, excludedMergeCommits,
+	};
+}
+
+function aggregateMergedPullRequests(pullRequests, inPeriod) {
+	const seen = new Set();
+	let mergedPullRequests = 0;
+	let excludedReleasePullRequests = 0;
+	for (const pullRequest of pullRequests) {
+		if (!inPeriod(pullRequest.mergedAt) || seen.has(pullRequest.number)) {
+			continue;
+		}
+
+		seen.add(pullRequest.number);
+		if (isReleasePullRequest(pullRequest)) {
+			excludedReleasePullRequests++;
+			continue;
+		}
+
+		mergedPullRequests++;
+	}
+
+	return {mergedPullRequests, excludedReleasePullRequests};
 }
 
 export function aggregateAchievements(repositories, period, collectedAt = new Date().toISOString()) {
@@ -117,49 +165,10 @@ export function aggregateAchievements(repositories, period, collectedAt = new Da
 	let excludedReleasePullRequests = 0;
 	let excludedMergeCommits = 0;
 	const results = repositories.map(repository => {
-		const people = new Set();
-		const commitIds = new Set();
-		const pullRequestIds = new Set();
-		let additions = 0;
-		let deletions = 0;
-		let periodCommits = 0;
-		let mergedPullRequests = 0;
-		for (const commit of repository.commits) {
-			if (!inPeriod(commit.committedDate) || commitIds.has(commit.oid)) {
-				continue;
-			}
-
-			commitIds.add(commit.oid);
-			if (commit.parents.totalCount > 1) {
-				excludedMergeCommits++;
-				continue;
-			}
-
-			additions += countLines(commit.additions);
-			deletions += countLines(commit.deletions);
-			periodCommits++;
-			const user = commit.author?.user;
-			if (isHuman(user)) {
-				contributors.set(user.id, {id: user.id, login: user.login});
-				people.add(user.id);
-			} else if (!user && commit.author?.email) {
-				unlinkedAuthors.add(commit.author.email.trim().toLowerCase());
-			}
-		}
-
-		for (const pullRequest of repository.pullRequests) {
-			if (!inPeriod(pullRequest.mergedAt) || pullRequestIds.has(pullRequest.number)) {
-				continue;
-			}
-
-			pullRequestIds.add(pullRequest.number);
-			if (isReleasePullRequest(pullRequest)) {
-				excludedReleasePullRequests++;
-				continue;
-			}
-
-			mergedPullRequests++;
-		}
+		const work = aggregateCommitWork(repository.commits, inPeriod, contributors, unlinkedAuthors);
+		const pullRequests = aggregateMergedPullRequests(repository.pullRequests, inPeriod);
+		excludedMergeCommits += work.excludedMergeCommits;
+		excludedReleasePullRequests += pullRequests.excludedReleasePullRequests;
 
 		return {
 			name: repository.name,
@@ -167,13 +176,13 @@ export function aggregateAchievements(repositories, period, collectedAt = new Da
 			archived: repository.archived,
 			defaultBranch: repository.defaultBranch,
 			headOid: repository.headOid,
-			additions,
-			deletions,
-			changedLines: additions + deletions,
-			commits: countCommits(repository.totalCommits),
-			periodCommits,
-			mergedPullRequests,
-			contributors: people.size,
+			additions: work.additions,
+			deletions: work.deletions,
+			changedLines: work.additions + work.deletions,
+			commits: expectCount(repository.totalCommits, 'total commit'),
+			periodCommits: work.periodCommits,
+			mergedPullRequests: pullRequests.mergedPullRequests,
+			contributors: work.contributors,
 		};
 	});
 	const sum = key => results.reduce((total, repository) => total + repository[key], 0);
