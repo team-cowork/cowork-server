@@ -1,23 +1,16 @@
 import {readFile} from 'node:fs/promises';
 import process from 'node:process';
-import {execFile} from 'node:child_process';
-import {promisify} from 'node:util';
 import {renderAchievementRegions} from '../scripts/lib/achievement-render.mjs';
 import {collectAchievements} from '../scripts/lib/github-achievements.mjs';
+import {resolveGitHubToken} from '../scripts/lib/github-auth.mjs';
 
-const execute = promisify(execFile);
 const fallback = JSON.parse(await readFile(new URL('../data/achievements.json', import.meta.url), 'utf8'));
 let cached;
 let pending;
 
 async function refresh() {
 	try {
-		let token = process.env.GITHUB_TOKEN;
-		if (!token && !process.env.VERCEL) {
-			const {stdout} = await execute('gh', ['auth', 'token'], {timeout: 3000});
-			token = stdout.trim();
-		}
-
+		const token = await resolveGitHubToken({allowCli: !process.env.VERCEL, timeout: 3000});
 		const snapshot = await collectAchievements({token});
 		return {regions: renderAchievementRegions(snapshot), live: true};
 	} catch (error) {
