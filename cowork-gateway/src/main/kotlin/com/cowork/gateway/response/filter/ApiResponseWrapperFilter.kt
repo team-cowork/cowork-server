@@ -111,6 +111,11 @@ class ApiResponseWrapperFilter(
                 )
                 headers.contentType = MediaType.APPLICATION_JSON
                 headers.contentLength = bytes.size.toLong()
+                metrics.record(
+                    exchange = exchange,
+                    outcome = ApiResponseWrappingOutcome.WRAPPED,
+                    resultBytes = bytes.size.toLong(),
+                )
                 return super.writeWith(Mono.just(bufferFactory().wrap(bytes)))
             }
 

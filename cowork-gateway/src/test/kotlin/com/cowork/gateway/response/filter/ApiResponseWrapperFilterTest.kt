@@ -18,10 +18,11 @@ import tools.jackson.databind.json.JsonMapper
 class ApiResponseWrapperFilterTest :
     DescribeSpec({
         val objectMapper = JsonMapper.builder().build()
+        val registry = SimpleMeterRegistry()
         val filter = ApiResponseWrapperFilter(
             objectMapper,
             ApiResponseWrapperProperties(),
-            ApiResponseWrapperMetrics(SimpleMeterRegistry()),
+            ApiResponseWrapperMetrics(registry),
         )
 
         fun completeWith(status: HttpStatus): MockServerWebExchange {
@@ -46,6 +47,9 @@ class ApiResponseWrapperFilterTest :
                     body.get("status").asString() shouldBe "TOO_MANY_REQUESTS"
                     body.get("code").asInt() shouldBe 429
                     body.get("message").asString() shouldBe "요청이 너무 많습니다. 잠시 후 다시 시도하십시오."
+                    registry.find("gateway.response.wrapper.requests")
+                        .tags("outcome", "wrapped", "status", "4xx")
+                        .counter()?.count() shouldBe 1.0
                 }
             }
 
