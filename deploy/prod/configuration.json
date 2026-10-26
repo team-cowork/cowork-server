@@ -15,7 +15,8 @@
     "REDIS_HOST": {"kind": "variable", "targets": ["chat", "gateway", "github", "monitoring", "preference", "user"], "resources": ["monitoring"]},
     "REDIS_PORT": {"kind": "variable", "targets": ["chat", "gateway", "github", "preference", "user"]},
     "S3_BUCKET": {"kind": "variable", "targets": ["chat", "config", "gateway", "team", "user"], "resources": ["storage:chat", "storage:team", "storage:user"]},
-    "S3_REGION": {"kind": "variable", "targets": ["chat", "config", "gateway", "team", "user"], "resources": ["storage:chat", "storage:team", "storage:user"]}
+    "S3_REGION": {"kind": "variable", "targets": ["chat", "config", "gateway", "team", "user"], "resources": ["storage:chat", "storage:team", "storage:user"]},
+    "WEBHOOK_URL_SIGNING_KEY": {"kind": "secret", "targets": ["gateway", "preference"], "immutable": true, "environment": true, "writes": [{"path": "cowork-gateway/{profile}", "key": "webhook.url-signing-key", "target": "gateway"}, {"path": "cowork-preference/{profile}", "key": "preference.webhook.url-signing-key", "target": "preference"}]}
   },
   "targets": {
     "authorization": {
@@ -138,7 +139,8 @@
     "notification": {
       "variables": {
         "APP_CONFIG_PROFILE": {},
-        "CONFIG_CLIENT_USERNAME": {"writes": [{"key": "CONFIG_CLIENT_USERNAME", "path": "control-plane/prod/notification"}]}
+        "CONFIG_CLIENT_USERNAME": {"writes": [{"key": "CONFIG_CLIENT_USERNAME", "path": "control-plane/prod/notification"}]},
+        "FCM_DATA_ONLY": {"optional": true}
       },
       "secrets": {
         "CONFIG_CLIENT_PASSWORD": {"environment": true, "writes": [{"key": "CONFIG_CLIENT_PASSWORD", "path": "control-plane/prod/notification"}]},
@@ -155,6 +157,7 @@
         "DB_USERNAME": {"resources": ["database:preference"], "writes": [{"path": "cowork-preference/{profile}", "key": "preference.db.username"}]}
       },
       "secrets": {
+        "WEBHOOK_SECRET_ENCRYPTION_KEY": {"environment": true, "immutable": true, "writes": [{"path": "cowork-preference/{profile}", "key": "preference.webhook.secret-encryption-key"}]},
         "CONFIG_CLIENT_PASSWORD": {"environment": true, "writes": [{"key": "CONFIG_CLIENT_PASSWORD", "path": "control-plane/prod/preference"}]},
         "DB_ADMIN_PASSWORD": {"writes": [{"path": "iac/databases/preference", "key": "DB_ADMIN_PASSWORD"}], "resources": ["database:preference"]},
         "DB_MONITORING_PASSWORD": {"writes": [{"path": "iac/databases/preference", "key": "DB_MONITORING_PASSWORD"}], "resources": ["database:preference"]},

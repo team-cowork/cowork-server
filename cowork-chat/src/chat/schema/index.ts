@@ -15,3 +15,4 @@ export * from './team-role-projection.schema';
 export * from './text-channel-setting-projection.schema';
 export * from './user-profile-projection.schema';
 export * from './channel-read-state.schema';
+export * from './webhook-projection.schema';

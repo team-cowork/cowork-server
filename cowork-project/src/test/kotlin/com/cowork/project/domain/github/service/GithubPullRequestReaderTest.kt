@@ -3,6 +3,7 @@ package com.cowork.project.domain.github.service
 import com.cowork.project.domain.github.entity.GithubPullRequestProjection
 import com.cowork.project.domain.github.entity.GithubPullRequestProjectionFile
 import com.cowork.project.domain.github.repository.GithubPullRequestProjectionRepository
+import com.cowork.project.domain.github.repository.GithubRepoProjectionRepository
 import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
@@ -12,6 +13,7 @@ import io.mockk.mockk
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 import java.time.Instant
+import java.util.Optional
 
 class GithubPullRequestReaderTest :
     DescribeSpec({
@@ -23,7 +25,9 @@ class GithubPullRequestReaderTest :
         beforeEach {
             repository = mockk()
             markerRepository = mockk()
-            reader = GithubPullRequestReader(repository, GithubSyncMarkers(markerRepository))
+            val repoProjectionRepository = mockk<GithubRepoProjectionRepository>()
+            every { repoProjectionRepository.findById(any()) } returns Optional.empty()
+            reader = GithubPullRequestReader(repository, GithubSyncMarkers(markerRepository, repoProjectionRepository))
         }
 
         fun projection(
