@@ -12,7 +12,7 @@
 
 ## 전송 모드
 
-Config Server의 `fcm.data-only`(환경변수 `FCM_DATA_ONLY`가 우선)로 정합니다. 기본값은 `false`입니다.
+Config Server의 `fcm.data-only`(환경변수 `FCM_DATA_ONLY`가 우선)로 정합니다. 기본값은 `false`입니다. 운영에서는 GitHub Environment `Prod-CD(notification)`의 Variable `FCM_DATA_ONLY`를 `true`로 두면 다음 배포부터 적용되며, 비워 두면 Config Server 값을 따릅니다.
 
 - `false`(호환): `notification`과 `data`를 함께 보냅니다. 앱이 백그라운드이면 OS가 계정 확인 전에 알림을 표시하므로 계정 불일치 알림을 막지 못합니다.
 - `true`(data-only): `notification` 없이 `data`만 보냅니다. 클라이언트가 `accountId`를 확인한 뒤 `title`·`body`로 로컬 알림을 만듭니다. 이를 처리하지 않는 클라이언트는 백그라운드에서 아무것도 표시하지 않으므로, 아래 계약을 구현한 클라이언트를 배포한 뒤에 켭니다.
