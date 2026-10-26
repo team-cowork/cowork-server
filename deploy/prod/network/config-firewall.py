@@ -236,7 +236,8 @@ def main():
     action = sys.argv[1]
     if action == "render" and len(sys.argv) == 2:
         print(json.dumps(policy({
-            "bindings": [{"address": os.environ["BIND_IP"], "port": int(os.environ["HOST_PORT"])}],
+            # node-agent's node_exporter (9100) shares this VM; its chain admits only the Config peers.
+            "bindings": [{"address": os.environ["BIND_IP"], "port": port} for port in (int(os.environ["HOST_PORT"]), 9100)],
             "cidrs": [cidr.strip() for cidr in os.environ["CONFIG_ALLOWED_CIDRS"].split(",")],
         })))
         return

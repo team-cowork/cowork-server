@@ -46,7 +46,8 @@
       ansible.builtin.command:
         argv: [/bin/bash, "/root/cowork-iac/{{ cowork_policy_type }}/bootstrap-{{ cowork_policy_type }}-firewall.sh"]
       environment:
-        COWORK_BACKEND_POLICY_MODE: "{{ 'apply' if cowork_firewall_target | default('') == 'monitoring' else 'stage' }}"
+        # Static policies (monitoring and the gateway node_exporter) have no deployment cutover to activate them.
+        COWORK_BACKEND_POLICY_MODE: "{{ 'apply' if cowork_firewall_target | default('monitoring') == 'monitoring' else 'stage' }}"
         COWORK_BACKEND_SERVICE: "{{ cowork_firewall_target | default('') }}"
       changed_when: true
     - name: Validate the deployment account for the policy check
@@ -58,7 +59,7 @@
       ansible.builtin.copy:
         content: |
           {{ ansible_user }} ALL=(root) NOPASSWD: /usr/bin/python3 -I /usr/local/libexec/cowork-backend-firewall.py check-policy
-          {% if cowork_firewall_target | default('') != 'monitoring' %}
+          {% if cowork_firewall_target | default('monitoring') != 'monitoring' %}
           {{ ansible_user }} ALL=(root) NOPASSWD: /usr/bin/python3 -I /usr/local/libexec/cowork-backend-firewall.py prepare *, /usr/bin/python3 -I /usr/local/libexec/cowork-backend-firewall.py activate *, /usr/bin/python3 -I /usr/local/libexec/cowork-backend-firewall.py rollback *, /usr/bin/python3 -I /usr/local/libexec/cowork-backend-firewall.py finalize *
           {% endif %}
         dest: /etc/sudoers.d/cowork-backend-policy-check
