@@ -19,9 +19,6 @@ class TeamRolePermissionSchema {
     }
 
     companion object {
-        const val MANAGE_ROLES = "manage_roles"
-        const val MANAGE_NICKNAMES = "manage_nicknames"
-
         val KEYS: Set<String> = TeamRolePermission.KEYS
     }
 }
