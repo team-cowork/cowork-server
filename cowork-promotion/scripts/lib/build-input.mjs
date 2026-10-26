@@ -20,6 +20,7 @@ export const stylesheetPaths = Object.freeze({
 		'css/site.css',
 	],
 	home: ['css/home.css', 'css/showcase.css'],
+	achievements: ['css/achievements.css'],
 });
 
 function projectUrl(path) {
@@ -46,6 +47,10 @@ export async function loadBuildInput() {
 		homeScriptBundle,
 		sharedStylesheetSources,
 		homeStylesheetSources,
+		achievementsTemplate,
+		achievementSource,
+		achievementStylesheetSources,
+		achievementScriptBundle,
 	] = await Promise.all([
 		composeTemplate(new URL('index.html', htmlDirectory), htmlDirectory),
 		readFile(projectUrl('data/tech-stacks.yaml'), 'utf8'),
@@ -57,6 +62,10 @@ export async function loadBuildInput() {
 		bundleJavaScript(sourceUrl('js/main.js'), sourceDirectory),
 		loadStylesheets(stylesheetPaths.shared),
 		loadStylesheets(stylesheetPaths.home),
+		composeTemplate(new URL('achievements.html', htmlDirectory), htmlDirectory),
+		readFile(projectUrl('data/achievements.json'), 'utf8'),
+		loadStylesheets(stylesheetPaths.achievements),
+		bundleJavaScript(sourceUrl('js/achievements.js'), sourceDirectory),
 	]);
 
 	return {
@@ -68,9 +77,13 @@ export async function loadBuildInput() {
 		logoSource,
 		socialImageSource,
 		homeScriptBundle,
+		achievementsTemplate,
+		achievementSource,
+		achievementScriptBundle,
 		stylesheetSources: {
 			shared: sharedStylesheetSources,
 			home: homeStylesheetSources,
+			achievements: achievementStylesheetSources,
 		},
 	};
 }

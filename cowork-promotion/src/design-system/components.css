@@ -82,6 +82,17 @@
     background: var(--color-text-secondary);
 }
 
+.ui-button--secondary {
+    background: var(--color-surface);
+    color: var(--color-text-secondary);
+    border: 1px solid var(--color-border);
+}
+
+.ui-button--secondary:hover {
+    background: var(--color-surface-subtle);
+    border-color: rgb(var(--palette-gray-300));
+}
+
 .ui-badge {
     display: inline-flex;
     align-items: center;
