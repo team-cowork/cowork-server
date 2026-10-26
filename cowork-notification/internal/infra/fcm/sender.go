@@ -36,6 +36,11 @@ const (
 // the currently signed-in account.
 const DataKeyAccountID = "accountId"
 
+// DataKeyEventID is the data payload key carrying the trigger event's stable eventId.
+// Delivery is at-least-once (a send that succeeds before its ledger write can be
+// repeated), so the client must drop a message whose eventId it already showed.
+const DataKeyEventID = "eventId"
+
 // DataKeyTitle and DataKeyBody always carry the notification text in data so a client
 // can build its own local notification after checking DataKeyAccountID.
 const (
