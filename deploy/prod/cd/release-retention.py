@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """Preview, or with --apply remove, old releases, settings snapshots and unused images on this VM.
 
-Kept: the newest 5 unreferenced releases and snapshots per target, and anything named by a
-container (running, stopped, *-previous or *-candidate) or a *-runtime.json record. Generated
-Prometheus configuration lives in the monitoring snapshots and follows the same policy.
+Kept: the newest 5 unreferenced releases, snapshots per target and unused images per repository,
+and anything named by a container (running, stopped, *-previous or *-candidate) or a *-runtime.json
+record. Generated Prometheus configuration lives in the monitoring snapshots and follows the same policy.
+remote-deploy.sh runs this with --apply after each successful deploy.
 Run on the VM: python3 ~/.local/share/cowork/releases/<sha>/deploy/prod/cd/release-retention.py [--apply]
 """
 import argparse
@@ -74,7 +75,12 @@ def main():
     used = {container["Image"] for container in json.loads(inspected)}
     unused = [image for image in dict.fromkeys(docker("image", "ls", "--quiet", "--no-trunc").split())
               if image not in used]
-    images = json.loads(docker("image", "inspect", *unused)) if unused else []
+    # Previous image versions are rollback material: keep the newest unused ones per repository too.
+    groups = {}
+    for image in json.loads(docker("image", "inspect", *unused)) if unused else []:
+        repository = image["RepoTags"][0].rsplit(":", 1)[0] if image["RepoTags"] else ""
+        groups.setdefault(repository, []).append((image, image["Created"], image["Id"]))
+    images = [image for group in groups.values() for image in select(group, corpus)]
 
     failed = False
     for path in directories:
