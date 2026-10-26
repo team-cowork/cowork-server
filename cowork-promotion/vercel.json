@@ -4,6 +4,9 @@
   "buildCommand": "npm run build",
   "outputDirectory": "public",
   "cleanUrls": true,
+  "functions": {
+    "api/achievements.mjs": { "maxDuration": 150 }
+  },
   "headers": [
     {
       "source": "/assets/:path*",
