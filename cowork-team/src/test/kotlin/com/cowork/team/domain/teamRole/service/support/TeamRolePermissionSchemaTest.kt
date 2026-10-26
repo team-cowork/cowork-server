@@ -15,9 +15,9 @@ class TeamRolePermissionSchemaTest :
                 it("누락된 권한을 false로 채운 전체 권한을 반환한다") {
                     val permissions = schema.canonicalize(mapOf("message_send" to true))
 
-                    permissions.keys shouldBe TeamRolePermissionSchema.KEYS
+                    permissions.keys shouldBe TeamRolePermission.KEYS
                     permissions["message_send"] shouldBe true
-                    permissions[TeamRolePermissionSchema.MANAGE_ROLES] shouldBe false
+                    permissions[TeamRolePermission.MANAGE_ROLES.key] shouldBe false
                 }
             }
 
