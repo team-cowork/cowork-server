@@ -633,7 +633,6 @@ jobs:
                 data: { labels, datasets: [{ data, backgroundColor: data.map(colorFor) }] },
                 options: {
                   legend: { display: false },
-                  title: { display: true, fontSize: 16, fontFamily: 'Noto Sans CJK KR', text: '이 PR에서 추가한 모듈별 커밋 수' },
                   plugins: { datalabels: { anchor: 'end', align: 'right', color: '#444', formatter: '__FMT__' } },
                   scales: { xAxes: [{ ticks: { beginAtZero: true, suggestedMax: Math.ceil(vmax * 1.25) } }] },
                 },

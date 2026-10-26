@@ -10,7 +10,7 @@ import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
 import com.cowork.team.domain.teamRole.service.ManageRoleContext
 import com.cowork.team.domain.teamRole.service.TeamRoleAccessGuard
-import com.cowork.team.domain.teamRole.service.support.TeamRolePermissionSchema
+import com.cowork.team.domain.teamRole.service.support.TeamRolePermission
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -37,7 +37,7 @@ class ChangeTeamMemberNicknameServiceImpl(
             val actor = teamRoleAccessGuard.requirePermission(
                 teamId,
                 actorId,
-                TeamRolePermissionSchema.MANAGE_NICKNAMES,
+                TeamRolePermission.MANAGE_NICKNAMES.key,
                 "닉네임 관리 권한이 없습니다.",
             )
             val target = teamMemberRepository.findByTeamIdAndUserIdForUpdate(teamId, targetUserId)
