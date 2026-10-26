@@ -31,6 +31,11 @@ func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 	if err != nil {
 		return nil, err
 	}
+	if voiceSession != nil && access.MaxParticipants > 0 {
+		if err := s.requireSeat(ctx, voiceSession.RoomName, userID, access.MaxParticipants); err != nil {
+			return nil, err
+		}
+	}
 	sessionCreatedByUs := false
 	if voiceSession == nil {
 		created, isNew, cerr := s.repo.CreateSession(ctx, channelID, access.TeamID)
@@ -44,7 +49,7 @@ func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 		sessionCreatedByUs = isNew
 	}
 
-	if err := s.livekit.CreateRoomIfNotExists(ctx, voiceSession.RoomName); err != nil {
+	if err := s.livekit.CreateRoomIfNotExists(ctx, voiceSession.RoomName, uint32(access.MaxParticipants)); err != nil {
 		if sessionCreatedByUs {
 			if _, err := s.repo.EndSession(ctx, voiceSession.SessionID, time.Now().UTC()); err != nil {
 				slog.Error("failed to end session", "err", err, "session_id", voiceSession.SessionID)
@@ -68,7 +73,27 @@ func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 		LiveKitURL: s.livekitWsURL,
 		SessionID:  voiceSession.SessionID,
 		RoomName:   voiceSession.RoomName,
+		Bitrate:    access.Bitrate,
 	}, nil
+}
+
+// requireSeat는 토큰 발급 전에 정원을 확인한다. 이미 방에 있는 사용자의 재입장은 허용한다.
+// 동시 입장은 이 검사를 함께 통과할 수 있으므로 최종 상한은 LiveKit 방의 MaxParticipants가 맡는다.
+func (s *RoomService) requireSeat(ctx context.Context, roomName string, userID int64, maxParticipants int) error {
+	participants, err := s.livekit.ListParticipants(ctx, roomName)
+	if err != nil {
+		return err
+	}
+	identity := strconv.FormatInt(userID, 10)
+	for _, p := range participants {
+		if p.Identity == identity {
+			return nil
+		}
+	}
+	if len(participants) >= maxParticipants {
+		return apperr.Conflict("음성 채널 정원이 가득 찼습니다.")
+	}
+	return nil
 }
 
 func (s *RoomService) Leave(ctx context.Context, channelID, userID int64) error {
