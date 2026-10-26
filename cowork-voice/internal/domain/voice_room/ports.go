@@ -46,7 +46,8 @@ type LiveKitParticipant struct {
 }
 
 type LiveKitRoom interface {
-	CreateRoomIfNotExists(ctx context.Context, roomName string) error
+	// maxParticipants 0은 제한 없음이다.
+	CreateRoomIfNotExists(ctx context.Context, roomName string, maxParticipants uint32) error
 	GenerateToken(userID int64, roomName string, speak, screenShare bool) (string, error)
 	RemoveParticipant(ctx context.Context, roomName, identity string) error
 	ListParticipants(ctx context.Context, roomName string) ([]LiveKitParticipant, error)
