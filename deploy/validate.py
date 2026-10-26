@@ -98,7 +98,7 @@ settings_schema["validate_deployment"](json.loads((ROOT / "deploy/prod/settings.
 # The operator installs these root-owned Vault host policies; they must describe the Vault slot.
 vault_runtime = slots["load"]("vault")["runtime"]
 vault_bindings = [{"address": vault_runtime["VAULT_BIND_IP"], "host_port": int(port), "container_port": container}
-                  for port, container in ((vault_runtime["VAULT_HOST_PORT"], 8200), (vault_runtime["VAULT_TLS_HOST_PORT"], 8210))]
+                  for port, container in ((vault_runtime["VAULT_HOST_PORT"], 8200), (vault_runtime["VAULT_TLS_HOST_PORT"], 8210), (9100, 9100))]
 vault_firewall = (ROOT / "deploy/prod/vault/firewall.json").read_text()
 subprocess.run(["python3", str(ROOT / "deploy/prod/network/backend-firewall.py"), "validate"],
                input=vault_firewall, text=True, check=True, capture_output=True)
