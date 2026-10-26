@@ -54,6 +54,9 @@ def main():
     locks += [lock(path) for path in sorted(state.glob("*.lock"))]
 
     containers = docker("container", "ls", "--all", "--quiet", "--no-trunc").split()
+    if apply and not containers:
+        # A deploy VM always runs containers; none usually means the wrong Docker context, not "nothing is in use".
+        raise SystemExit("[retention] Docker reports no containers; refusing to delete")
     inspected = docker("container", "inspect", *containers) if containers else "[]"
     corpus = "\n".join([inspected, str(Path(__file__).resolve())] +
                        [path.read_text() for path in state.glob("*-runtime.json")])
