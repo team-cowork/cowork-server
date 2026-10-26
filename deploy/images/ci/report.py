@@ -406,7 +406,7 @@ def donut_url(covered: int, total: int) -> str:
         },
         "options": {
             "cutoutPercentage": 70,
-            "legend": {"position": "bottom", "labels": {"boxWidth": 12, "fontSize": 10, "fontFamily": "Noto Sans CJK KR"}},
+            "legend": {"display": False},
             "plugins": {
                 "datalabels": {"display": False},
                 "doughnutlabel": {"labels": [{"text": center_label, "font": {"size": 20}, "color": "#24292f"}]},
