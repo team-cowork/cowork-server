@@ -148,6 +148,7 @@ services:
         preference.text-channel-setting.state.v1
         preference.webhook.state.v2
         channel.webhook-legacy.state.v1
+        preference.voice-channel-setting.state.v1
         preference.github-repo.setting.result-dlt
         project.chat-github-issue.command
         project.chat-github-issue.command-dlt
@@ -180,6 +181,7 @@ services:
         preference.text-channel-setting.state.v1
         preference.webhook.state.v2
         channel.webhook-legacy.state.v1
+        preference.voice-channel-setting.state.v1
         github.repo.state.v1
         github.issue.state.v1
         github.pull-request.state.v1
