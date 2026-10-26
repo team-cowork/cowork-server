@@ -1,0 +1,478 @@
+.achievements {
+    --diff-add: #1a7f37;
+    --diff-add-surface: #dafbe1;
+    --diff-remove: #cf222e;
+    --diff-remove-surface: #ffebe9;
+    --merge-purple: #8250df;
+    padding-top: var(--header-height);
+}
+
+.achievement-story {
+    --scene-progress: 0;
+    --story-progress: 0;
+    position: relative;
+}
+
+.achievement-story:focus {
+    outline: none;
+}
+
+.achievement-story:focus-visible {
+    outline: var(--focus-ring);
+    outline-offset: calc(-1 * var(--focus-offset));
+}
+
+.achievement-stage {
+    position: relative;
+}
+
+.achievement-toolbar {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-6) var(--page-gutter);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: var(--font-weight-medium);
+    pointer-events: none;
+}
+
+.achievement-scene {
+    position: relative;
+    min-height: calc(100svh - var(--header-height));
+    overflow: hidden;
+    background: var(--color-surface);
+}
+
+.achievement-scene__inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-content: center;
+    align-items: center;
+    gap: clamp(2rem, 6vw, 5rem);
+    min-height: calc(100svh - var(--header-height));
+    padding: 6rem var(--page-gutter);
+}
+
+.achievement-copy {
+    position: relative;
+    z-index: 1;
+}
+
+.achievement-copy h1,
+.achievement-copy h2 {
+    font-size: clamp(2rem, 4vw, 3.5rem);
+    font-weight: var(--font-weight-black);
+    letter-spacing: var(--tracking-display);
+    line-height: 1.2;
+    word-break: keep-all;
+}
+
+.achievement-metric-label {
+    margin-top: var(--space-10);
+    margin-bottom: var(--space-2);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-sm);
+}
+
+.achievement-code-summary {
+    margin-top: var(--space-10);
+}
+
+.achievement-code-count {
+    font-size: clamp(3.25rem, 6.7vw, 6rem);
+    font-weight: var(--font-weight-bold);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.07em;
+    line-height: 1.05;
+    white-space: nowrap;
+}
+
+.achievement-code-count > span {
+    display: block;
+    margin-top: var(--space-3);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-medium);
+    letter-spacing: var(--tracking-tight);
+}
+
+.achievement-diff-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-6);
+    margin-top: var(--space-6);
+    font-size: clamp(1rem, 1.8vw, 1.25rem);
+    font-weight: var(--font-weight-semibold);
+    font-variant-numeric: tabular-nums;
+}
+
+.achievement-diff-add {
+    color: var(--diff-add);
+}
+
+.achievement-diff-remove {
+    color: var(--diff-remove);
+}
+
+.achievement-code-art {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-height: 25rem;
+    isolation: isolate;
+}
+
+.achievement-code-art__symbol {
+    position: absolute;
+    z-index: -1;
+    font-size: clamp(10rem, 24vw, 21rem);
+    font-weight: var(--font-weight-black);
+    line-height: 1;
+    user-select: none;
+}
+
+.achievement-code-art__symbol--add {
+    top: -2.5rem;
+    right: 0;
+    color: var(--diff-add-surface);
+}
+
+.achievement-code-art__symbol--remove {
+    bottom: -1rem;
+    left: 0;
+    color: var(--diff-remove-surface);
+}
+
+.achievement-code-art__file {
+    width: calc(100% + var(--space-5));
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    background: var(--color-surface);
+    box-shadow: 0 18px 60px rgb(var(--palette-black) / 0.06);
+    transform: rotate(-4deg);
+}
+
+.achievement-code-art__header {
+    padding: var(--space-4) var(--space-5);
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-surface-subtle);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+}
+
+.achievement-code-line {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    color: var(--color-text-muted);
+    font-size: clamp(0.625rem, 1.1vw, 0.875rem);
+    white-space: nowrap;
+}
+
+.achievement-code-line--add {
+    background: var(--diff-add-surface);
+    color: var(--diff-add);
+}
+
+.achievement-code-line--remove {
+    background: var(--diff-remove-surface);
+    color: var(--diff-remove);
+}
+
+.achievement-scene--prs {
+    background: #f8f7fc;
+}
+
+.achievement-number {
+    font-size: clamp(5rem, 10vw, 9rem);
+    font-weight: var(--font-weight-bold);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.075em;
+    line-height: 1;
+}
+
+.achievement-number > span {
+    margin-left: var(--space-3);
+    font-size: clamp(1.25rem, 2.5vw, 2rem);
+    font-weight: var(--font-weight-medium);
+    letter-spacing: var(--tracking-tight);
+}
+
+.achievement-scene--prs .achievement-number {
+    color: var(--merge-purple);
+}
+
+.achievement-pr-visual {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 5rem;
+    align-items: center;
+    gap: var(--space-7);
+}
+
+.achievement-merge-mark {
+    grid-column: 2;
+    grid-row: 1;
+    width: 5rem;
+    height: 5rem;
+    color: var(--merge-purple);
+    stroke: currentColor;
+    stroke-width: 1.5;
+}
+
+.achievement-pr-activity {
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(13, minmax(0, 1fr));
+    grid-column: 1;
+    grid-row: 1;
+    gap: var(--space-3) var(--space-2);
+    align-items: center;
+    justify-items: center;
+}
+
+.achievement-pr-activity::after {
+    position: absolute;
+    top: 50%;
+    left: calc(100% + var(--space-2));
+    width: var(--space-5);
+    border-top: 2px solid #c6b0ef;
+    content: '';
+}
+
+.achievement-pr-token {
+    position: relative;
+    display: block;
+    width: 100%;
+    max-width: var(--space-5);
+    aspect-ratio: 1;
+    border-radius: var(--radius-full);
+    background: var(--merge-purple);
+}
+
+.achievement-pr-token::before {
+    position: absolute;
+    top: 25%;
+    left: 33%;
+    width: 28%;
+    height: 42%;
+    border-right: 1px solid var(--color-surface);
+    border-bottom: 1px solid var(--color-surface);
+    content: '';
+    transform: rotate(45deg);
+}
+
+.achievement-scene--people {
+    background: var(--color-surface-subtle);
+}
+
+.achievement-people {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: var(--space-6) var(--space-5);
+    align-items: center;
+    justify-items: center;
+}
+
+.achievement-person {
+    position: relative;
+    display: block;
+    width: 100%;
+    max-width: 5rem;
+    aspect-ratio: 1;
+    border-radius: var(--radius-full);
+    background: var(--color-surface-muted);
+    outline-offset: var(--space-1);
+    transition: transform 180ms ease;
+}
+
+.achievement-person img {
+    width: 100%;
+    height: 100%;
+    border: 3px solid var(--color-surface);
+    border-radius: inherit;
+    object-fit: cover;
+    box-shadow: var(--shadow-sm);
+}
+
+.achievement-person > span {
+    position: absolute;
+    bottom: calc(100% + var(--space-2));
+    left: 50%;
+    z-index: 2;
+    width: max-content;
+    max-width: 12rem;
+    padding: var(--space-1-5) var(--space-2);
+    border-radius: var(--radius-md);
+    background: var(--color-text);
+    color: var(--color-surface);
+    font-size: 0.6875rem;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateX(-50%);
+}
+
+.achievement-person:hover,
+.achievement-person:focus-visible {
+    z-index: 3;
+    transform: translateY(-5px) scale(1.08);
+}
+
+.achievement-person:hover > span,
+.achievement-person:focus-visible > span {
+    opacity: 1;
+}
+
+.achievement-scene--ai {
+    background: #0d1117;
+    color: #f0f6fc;
+}
+
+.achievement-scene--ai .achievement-metric-label {
+    color: #c9d1d9;
+}
+
+.achievement-ai-percentage {
+    color: #7ee787;
+    font-size: clamp(4.5rem, 8vw, 7rem);
+    font-weight: var(--font-weight-semibold);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.06em;
+    line-height: 1;
+}
+
+.achievement-ai-percentage > span {
+    margin-left: var(--space-2);
+    color: #c9d1d9;
+    font-size: 0.35em;
+    letter-spacing: var(--tracking-tight);
+}
+
+.achievement-ai-mosaic {
+    display: grid;
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+    gap: var(--space-2);
+    width: 100%;
+    max-width: 30rem;
+    aspect-ratio: 1;
+    justify-self: center;
+    perspective: 800px;
+}
+
+.achievement-ai-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    border: 1px solid #238636;
+    border-radius: var(--radius-sm);
+    background: #163c24;
+    color: #7ee787;
+    font-family: var(--font-mono);
+    font-size: clamp(0.625rem, 1vw, 0.875rem);
+    line-height: 1;
+}
+
+.achievement-ai-cell--human {
+    border-color: #484f58;
+    background: #21262d;
+    color: #c9d1d9;
+}
+
+.achievement-home-link {
+    margin-top: var(--space-10);
+}
+
+.achievement-commit-visual {
+    width: 100%;
+    max-width: 32rem;
+    justify-self: center;
+}
+
+.achievement-commit-graph {
+    width: 100%;
+    height: auto;
+    overflow: visible;
+}
+
+.achievement-commit-path {
+    stroke-width: 3;
+    stroke-linecap: round;
+}
+
+.achievement-commit-path--main {
+    stroke: var(--diff-add);
+}
+
+.achievement-commit-path--branch {
+    stroke: var(--merge-purple);
+}
+
+.achievement-commit-path--second {
+    stroke: var(--diff-remove);
+}
+
+.achievement-commit-node {
+    transform-box: fill-box;
+    transform-origin: left center;
+}
+
+.achievement-commit-node:nth-of-type(2) {
+    --node-index: 0;
+}
+
+.achievement-commit-node:nth-of-type(3) {
+    --node-index: 1;
+}
+
+.achievement-commit-node:nth-of-type(4) {
+    --node-index: 2;
+}
+
+.achievement-commit-node:nth-of-type(5) {
+    --node-index: 3;
+}
+
+.achievement-commit-node:nth-of-type(6) {
+    --node-index: 4;
+}
+
+.achievement-commit-node:nth-of-type(7) {
+    --node-index: 5;
+}
+
+.achievement-commit-node:nth-of-type(8) {
+    --node-index: 6;
+}
+
+.achievement-commit-node:nth-of-type(9) {
+    --node-index: 7;
+}
+
+.achievement-commit-node:nth-of-type(10) {
+    --node-index: 8;
+}
+
+.achievement-commit-node circle {
+    fill: var(--color-surface);
+    stroke: var(--diff-add);
+    stroke-width: 3;
+}
+
+.achievement-commit-node--branch circle {
+    stroke: var(--merge-purple);
+}
+
+.achievement-commit-node--second circle {
+    stroke: var(--diff-remove);
+}
+
+.achievement-commit-node path {
+    stroke: var(--color-border);
+    stroke-width: 7;
+    stroke-linecap: round;
+}
