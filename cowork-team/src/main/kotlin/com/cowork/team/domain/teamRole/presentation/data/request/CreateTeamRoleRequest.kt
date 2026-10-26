@@ -12,7 +12,8 @@ data class CreateTeamRoleRequest(
     @param:Schema(description = "역할 멘션 허용 여부", example = "true")
     val mentionable: Boolean = false,
     @param:Schema(
-        description = "역할 기본 권한. 권한 키별 boolean이며 누락된 키는 false입니다.",
+        description = "역할 기본 권한. 권한 키별 boolean이며 누락된 키는 false입니다. " +
+            "사용할 수 있는 키는 역할 권한 목록 조회 API에서 확인합니다.",
         example = "{\"manage_roles\":true,\"message_send\":true}",
     )
     val permissions: Map<String, Any?> = emptyMap(),
