@@ -173,6 +173,45 @@ groups:
           summary: "HTTP 응답 지연"
           description: "서비스 {{ $labels.service }}의 HTTP P99 응답 시간이 5분 동안 2초를 초과했습니다."
 
+  - name: cowork-gateway-ratelimit
+    rules:
+      # Gateway 요청 제한기는 Redis 오류 시 요청을 허용하므로 제한이 꺼진 상태를 따로 알린다.
+      - alert: coworkGatewayRateLimiterRedisError
+        expr: |
+          sum by (service, route) (
+            increase(gateway_ratelimit_events_total{outcome="redis_error"}[5m])
+          ) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gateway 요청 제한기 Redis 오류"
+          description: "{{ $labels.route }} 라우트의 요청 제한기가 Redis 호출에 실패해 요청을 제한 없이 허용하고 있습니다. Redis 연결 상태를 확인해 주세요."
+
+      - alert: coworkGatewayRateLimitRejectSpike
+        expr: |
+          sum by (service, route) (
+            rate(gateway_ratelimit_events_total{outcome="rejected"}[5m])
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gateway 요청 제한 초과 증가"
+          description: "{{ $labels.route }} 라우트에서 요청 제한으로 거부한 요청이 10분 동안 초당 1건을 초과했습니다."
+
+      # 서명 키가 없거나 잘못되면 모든 웹훅 수신이 503으로 거부된다. 잘못된 서명(403)은 외부 입력이라 알리지 않는다.
+      - alert: coworkGatewayWebhookSigningKeyUnavailable
+        expr: |
+          sum by (service) (
+            increase(gateway_webhook_signature_rejections_total{reason="unavailable"}[5m])
+          ) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "웹훅 URL 서명 키 설정 오류"
+          description: "Gateway의 웹훅 URL 서명 키가 없거나 유효하지 않아 웹훅 수신 요청을 503으로 거부하고 있습니다. webhook.url-signing-key 설정을 확인해 주세요."
+
   - name: cowork-go
     rules:
       - alert: coworkGoHighMemory

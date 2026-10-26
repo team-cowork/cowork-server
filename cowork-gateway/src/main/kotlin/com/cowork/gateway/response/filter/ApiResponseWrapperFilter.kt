@@ -15,6 +15,7 @@ import org.springframework.core.Ordered
 import org.springframework.core.io.buffer.DataBuffer
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.http.server.reactive.ServerHttpResponseDecorator
 import org.springframework.stereotype.Component
 import org.springframework.web.server.ServerWebExchange
@@ -101,6 +102,23 @@ class ApiResponseWrapperFilter(
                 return super.writeWith(transformedBody)
             }
 
+            // RequestRateLimiter는 429를 빈 본문으로 끝내므로 다른 오류와 같은 공통 응답 본문을 채운다
+            override fun setComplete(): Mono<Void> {
+                val rateLimited = statusCode?.value() == HttpStatus.TOO_MANY_REQUESTS.value()
+                if (!rateLimited || isCommitted) return super.setComplete()
+                val bytes = objectMapper.writeValueAsBytes(
+                    CommonApiResponse.error(HttpStatus.TOO_MANY_REQUESTS, RATE_LIMITED_MESSAGE),
+                )
+                headers.contentType = MediaType.APPLICATION_JSON
+                headers.contentLength = bytes.size.toLong()
+                metrics.record(
+                    exchange = exchange,
+                    outcome = ApiResponseWrappingOutcome.WRAPPED,
+                    resultBytes = bytes.size.toLong(),
+                )
+                return super.writeWith(Mono.just(bufferFactory().wrap(bytes)))
+            }
+
             override fun writeAndFlushWith(body: Publisher<out Publisher<out DataBuffer>>): Mono<Void> {
                 metrics.record(
                     exchange = exchange,
@@ -165,4 +183,8 @@ class ApiResponseWrapperFilter(
         val outcome: ApiResponseWrappingOutcome,
         val wasTransformed: Boolean,
     )
+
+    companion object {
+        private const val RATE_LIMITED_MESSAGE = "요청이 너무 많습니다. 잠시 후 다시 시도하십시오."
+    }
 }
