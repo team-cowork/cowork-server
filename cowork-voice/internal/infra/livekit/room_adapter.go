@@ -25,8 +25,8 @@ func NewLiveKitRoom(client *lksdk.RoomServiceClient, apiKey, apiSecret string, t
 	}
 }
 
-func (l *liveKitRoomService) CreateRoomIfNotExists(ctx context.Context, roomName string) error {
-	return CreateRoomIfNotExists(ctx, l.client, roomName)
+func (l *liveKitRoomService) CreateRoomIfNotExists(ctx context.Context, roomName string, maxParticipants uint32) error {
+	return CreateRoomIfNotExists(ctx, l.client, roomName, maxParticipants)
 }
 
 func (l *liveKitRoomService) GenerateToken(userID int64, roomName string, speak, screenShare bool) (string, error) {
