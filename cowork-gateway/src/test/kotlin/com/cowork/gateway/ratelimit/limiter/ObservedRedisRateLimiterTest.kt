@@ -5,7 +5,10 @@ import io.kotest.matchers.shouldBe
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
+import org.springframework.cloud.gateway.event.FilterArgsEvent
 import org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter
+import org.springframework.cloud.gateway.support.ConfigurationService
+import org.springframework.core.convert.support.DefaultConversionService
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.data.redis.core.script.RedisScript
 import reactor.core.publisher.Flux
@@ -34,6 +37,34 @@ class ObservedRedisRateLimiterTest :
 
         fun SimpleMeterRegistry.count(outcome: String): Double =
             find("gateway.ratelimit.events").tags("route", route, "outcome", outcome).counter()?.count() ?: 0.0
+
+        describe("ObservedRedisRateLimiter 클래스의 onApplicationEvent 메서드는") {
+            val registry = SimpleMeterRegistry()
+            val configurationService = ConfigurationService(mockk(), { DefaultConversionService() }, { null })
+            val limiter = ObservedRedisRateLimiter(mockk(), mockk(), configurationService, registry)
+            fun SimpleMeterRegistry.eventCounter(routeId: String, outcome: String) =
+                find("gateway.ratelimit.events").tags("route", routeId, "outcome", outcome).counter()
+
+            context("라우트의 요청 제한 설정이 바인딩되면") {
+                it("첫 이벤트 전에 차단과 제한기 오류 카운터를 0으로 등록한다") {
+                    limiter.onApplicationEvent(
+                        FilterArgsEvent(this, route, mapOf("redis-rate-limiter.replenishRate" to "20")),
+                    )
+
+                    limiter.config[route]?.replenishRate shouldBe 20
+                    registry.eventCounter(route, "rejected")?.count() shouldBe 0.0
+                    registry.eventCounter(route, "redis_error")?.count() shouldBe 0.0
+                }
+            }
+
+            context("요청 제한과 무관한 필터 인자이면") {
+                it("카운터를 등록하지 않는다") {
+                    limiter.onApplicationEvent(FilterArgsEvent(this, "other", mapOf("regexp" to "/api/(?<segment>.*)")))
+
+                    registry.eventCounter("other", "rejected") shouldBe null
+                }
+            }
+        }
 
         describe("ObservedRedisRateLimiter 클래스의 isAllowed 메서드는") {
             context("토큰이 부족해 요청을 차단하면") {

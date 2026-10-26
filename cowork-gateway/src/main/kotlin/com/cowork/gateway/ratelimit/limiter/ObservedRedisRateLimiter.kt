@@ -2,6 +2,7 @@ package com.cowork.gateway.ratelimit.limiter
 
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
+import org.springframework.cloud.gateway.event.FilterArgsEvent
 import org.springframework.cloud.gateway.filter.ratelimit.RateLimiter
 import org.springframework.cloud.gateway.filter.ratelimit.RedisRateLimiter
 import org.springframework.cloud.gateway.support.ConfigurationService
@@ -38,18 +39,26 @@ class ObservedRedisRateLimiter(
             }
         }
 
-    private fun record(routeId: String, outcome: String) {
-        Counter.builder(EVENTS_METRIC)
-            .tag("route", routeId)
-            .tag("outcome", outcome)
-            .register(meterRegistry)
-            .increment()
+    // 첫 이벤트부터 increase()에 잡히도록 라우트 설정이 바인딩될 때 카운터를 0으로 미리 등록한다
+    override fun onApplicationEvent(event: FilterArgsEvent) {
+        super.onApplicationEvent(event)
+        if (config.containsKey(event.routeId)) {
+            OUTCOMES.forEach { counter(event.routeId, it) }
+        }
     }
+
+    private fun record(routeId: String, outcome: String) = counter(routeId, outcome).increment()
+
+    private fun counter(routeId: String, outcome: String): Counter = Counter.builder(EVENTS_METRIC)
+        .tag("route", routeId)
+        .tag("outcome", outcome)
+        .register(meterRegistry)
 
     companion object {
         private const val EVENTS_METRIC = "gateway.ratelimit.events"
         private const val OUTCOME_REJECTED = "rejected"
         private const val OUTCOME_REDIS_ERROR = "redis_error"
+        private val OUTCOMES = listOf(OUTCOME_REJECTED, OUTCOME_REDIS_ERROR)
 
         private fun isRedisError(response: RateLimiter.Response): Boolean =
             response.isAllowed && response.headers[RedisRateLimiter.REMAINING_HEADER] == "-1"
