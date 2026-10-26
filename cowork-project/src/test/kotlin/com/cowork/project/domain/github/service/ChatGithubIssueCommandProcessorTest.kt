@@ -4,7 +4,6 @@ import com.cowork.project.domain.github.entity.ChatGithubIssueCreateOperation
 import com.cowork.project.domain.github.entity.ProjectGithubRepo
 import com.cowork.project.domain.github.event.ChatGithubIssueCreateCommand
 import com.cowork.project.domain.github.event.ChatGithubIssueCreateResult
-import com.cowork.project.domain.github.event.GithubActionCommandPublisher
 import com.cowork.project.domain.github.event.GithubIssueCreateCommand
 import com.cowork.project.domain.github.repository.ChatGithubIssueCreateOperationRepository
 import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
@@ -29,7 +28,6 @@ class ChatGithubIssueCommandProcessorTest :
         lateinit var operationRepository: ChatGithubIssueCreateOperationRepository
         lateinit var projectAccessGuard: ProjectAccessGuard
         lateinit var projectGithubRepoRepository: ProjectGithubRepoRepository
-        lateinit var commandPublisher: GithubActionCommandPublisher
         lateinit var outboxWriter: OutboxWriter
         lateinit var processor: ChatGithubIssueCommandProcessor
 
@@ -64,19 +62,16 @@ class ChatGithubIssueCommandProcessorTest :
             operationRepository = mockk()
             projectAccessGuard = mockk()
             projectGithubRepoRepository = mockk()
-            commandPublisher = mockk()
             outboxWriter = mockk()
             processor = ChatGithubIssueCommandProcessor(
                 operationRepository,
                 projectAccessGuard,
                 projectGithubRepoRepository,
-                commandPublisher,
                 outboxWriter,
             )
 
             every { operationRepository.existsById(any()) } returns false
             every { operationRepository.save(any()) } answers { firstArg() }
-            every { commandPublisher.publishIssueCreate(any()) } just Runs
             every { outboxWriter.enqueue(any(), any(), any()) } just Runs
         }
 
@@ -91,7 +86,7 @@ class ChatGithubIssueCommandProcessorTest :
                     processor.process(command())
 
                     val publishedCommand = slot<GithubIssueCreateCommand>()
-                    verify { commandPublisher.publishIssueCreate(capture(publishedCommand)) }
+                    verify { outboxWriter.enqueue("github.issue.create", "my-org/my-repo", capture(publishedCommand)) }
                     publishedCommand.captured.owner shouldBe "my-org"
                     publishedCommand.captured.repo shouldBe "my-repo"
                     publishedCommand.captured.channelId shouldBe 3L
@@ -117,7 +112,7 @@ class ChatGithubIssueCommandProcessorTest :
 
                     processor.process(command())
 
-                    verify(exactly = 1) { commandPublisher.publishIssueCreate(any()) }
+                    verify(exactly = 1) { outboxWriter.enqueue("github.issue.create", any(), any()) }
                 }
             }
 
@@ -130,7 +125,7 @@ class ChatGithubIssueCommandProcessorTest :
 
                     processor.process(command())
 
-                    verify(exactly = 0) { commandPublisher.publishIssueCreate(any()) }
+                    verify(exactly = 0) { outboxWriter.enqueue("github.issue.create", any(), any()) }
                     val operation = slot<ChatGithubIssueCreateOperation>()
                     verify { operationRepository.save(capture(operation)) }
                     operation.captured.status.name shouldBe "REJECTED"
@@ -149,7 +144,7 @@ class ChatGithubIssueCommandProcessorTest :
 
                     processor.process(command(teamId = 999L))
 
-                    verify(exactly = 0) { commandPublisher.publishIssueCreate(any()) }
+                    verify(exactly = 0) { outboxWriter.enqueue("github.issue.create", any(), any()) }
                     verify(exactly = 0) { projectGithubRepoRepository.findAllByProjectId(any()) }
                     val result = slot<ChatGithubIssueCreateResult>()
                     verify { outboxWriter.enqueue(any(), any(), capture(result)) }
@@ -165,7 +160,7 @@ class ChatGithubIssueCommandProcessorTest :
 
                     processor.process(command())
 
-                    verify(exactly = 0) { commandPublisher.publishIssueCreate(any()) }
+                    verify(exactly = 0) { outboxWriter.enqueue("github.issue.create", any(), any()) }
                     val result = slot<ChatGithubIssueCreateResult>()
                     verify { outboxWriter.enqueue(any(), any(), capture(result)) }
                     result.captured.error?.code shouldBe "GITHUB_REPO_NOT_FOUND"
@@ -180,7 +175,7 @@ class ChatGithubIssueCommandProcessorTest :
 
                     processor.process(command())
 
-                    verify(exactly = 0) { commandPublisher.publishIssueCreate(any()) }
+                    verify(exactly = 0) { outboxWriter.enqueue("github.issue.create", any(), any()) }
                     val result = slot<ChatGithubIssueCreateResult>()
                     verify { outboxWriter.enqueue(any(), any(), capture(result)) }
                     result.captured.error?.code shouldBe "GITHUB_REPO_AMBIGUOUS"
@@ -194,7 +189,7 @@ class ChatGithubIssueCommandProcessorTest :
                     processor.process(command())
 
                     verify(exactly = 0) { projectAccessGuard.findProjectOrThrow(any()) }
-                    verify(exactly = 0) { commandPublisher.publishIssueCreate(any()) }
+                    verify(exactly = 0) { outboxWriter.enqueue("github.issue.create", any(), any()) }
                     verify(exactly = 0) { operationRepository.save(any()) }
                     verify(exactly = 0) { outboxWriter.enqueue(any(), any(), any()) }
                 }
