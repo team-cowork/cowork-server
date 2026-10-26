@@ -57,6 +57,22 @@ class SettingSchemaTest {
     }
 
     @Test
+    fun `음성 채널 최대 인원은 0에서 99, bitrate는 8000에서 128000 bps 정수만 허용한다`() {
+        fun validate(key: String, value: Any) =
+            SettingSchema.validate(ResourceType.VOICE_CHANNEL, JsonObject().put(key, value))
+
+        assertNull(validate("max_participants", 0))
+        assertNull(validate("max_participants", 99))
+        assertNotNull(validate("max_participants", 100))
+        assertNotNull(validate("max_participants", -1))
+        assertNotNull(validate("max_participants", "10"))
+        assertNull(validate("bitrate", 8_000))
+        assertNull(validate("bitrate", 128_000))
+        assertNotNull(validate("bitrate", 7_999))
+        assertNotNull(validate("bitrate", 128_001))
+    }
+
+    @Test
     fun `팀 기본 알림 수준은 정의된 값만 허용한다`() {
         assertNull(SettingSchema.validate(ResourceType.TEAM, JsonObject().put("default_notification_level", "ALL")))
         assertNotNull(SettingSchema.validate(ResourceType.TEAM, JsonObject().put("default_notification_level", "LOUD")))

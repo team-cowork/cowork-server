@@ -12,6 +12,9 @@ type Access struct {
 	// ScreenShare represents video permission: camera and screen sharing in ordinary voice rooms.
 	ScreenShare bool
 	Broadcast   bool
+	// MaxParticipants와 Bitrate는 같은 projection에서 읽은 음성 채널 설정이다. 0과 nil은 미설정이다.
+	MaxParticipants int
+	Bitrate         *int
 }
 
 type MediaAccess struct {
