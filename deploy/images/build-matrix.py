@@ -21,7 +21,10 @@ changed_paths = RELEASE_FIELDS["changed_paths"]
 def build_inputs(service):
     inputs = set()
     # CD may load these tools from a different checkout than the selected source.
-    for dockerfile in (Path.cwd() / f"cowork-{service}").glob("Dockerfile.*"):
+    dockerfiles = list((Path.cwd() / f"cowork-{service}").glob("Dockerfile.*"))
+    if not dockerfiles:
+        return {"."}
+    for dockerfile in dockerfiles:
         content = dockerfile.read_text()
         # Unsupported context expressions select broadly rather than miss a build.
         if re.search(r"(?im)^\s*#\s*escape\s*=\s*`", content) or any(
