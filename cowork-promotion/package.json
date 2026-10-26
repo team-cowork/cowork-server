@@ -8,6 +8,7 @@
   "scripts": {
     "dev": "node scripts/serve.mjs public --watch",
     "build": "node scripts/build.mjs",
+    "collect:achievements": "node scripts/collect-achievements.mjs",
     "preview": "npm run build && node scripts/serve.mjs public",
     "test": "node --test",
     "lint": "xo",

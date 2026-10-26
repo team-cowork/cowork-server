@@ -1,0 +1,339 @@
+{
+  "schemaVersion": 1,
+  "collectedAt": "2026-10-26T03:34:25.583Z",
+  "period": {
+    "start": "2026-04-26T00:00:00+09:00",
+    "end": "2026-10-26T00:00:00+09:00",
+    "months": 6
+  },
+  "totals": {
+    "additions": 505317,
+    "deletions": 254396,
+    "changedLines": 759713,
+    "commits": 4878,
+    "mergedPullRequests": 551,
+    "weeklyPeakPullRequests": 65,
+    "contributors": 20,
+    "repositories": 5,
+    "periodCommits": 3138
+  },
+  "peakWeek": {
+    "start": "2026-10-12T00:00:00+09:00",
+    "end": "2026-10-19T00:00:00+09:00",
+    "pullRequests": 65
+  },
+  "weekly": [
+    {
+      "start": "2026-04-13T00:00:00+09:00",
+      "end": "2026-04-20T00:00:00+09:00",
+      "pullRequests": 20
+    },
+    {
+      "start": "2026-04-20T00:00:00+09:00",
+      "end": "2026-04-27T00:00:00+09:00",
+      "pullRequests": 29
+    },
+    {
+      "start": "2026-04-27T00:00:00+09:00",
+      "end": "2026-05-04T00:00:00+09:00",
+      "pullRequests": 18
+    },
+    {
+      "start": "2026-05-04T00:00:00+09:00",
+      "end": "2026-05-11T00:00:00+09:00",
+      "pullRequests": 21
+    },
+    {
+      "start": "2026-05-11T00:00:00+09:00",
+      "end": "2026-05-18T00:00:00+09:00",
+      "pullRequests": 20
+    },
+    {
+      "start": "2026-05-18T00:00:00+09:00",
+      "end": "2026-05-25T00:00:00+09:00",
+      "pullRequests": 14
+    },
+    {
+      "start": "2026-05-25T00:00:00+09:00",
+      "end": "2026-06-01T00:00:00+09:00",
+      "pullRequests": 10
+    },
+    {
+      "start": "2026-06-01T00:00:00+09:00",
+      "end": "2026-06-08T00:00:00+09:00",
+      "pullRequests": 11
+    },
+    {
+      "start": "2026-06-08T00:00:00+09:00",
+      "end": "2026-06-15T00:00:00+09:00",
+      "pullRequests": 16
+    },
+    {
+      "start": "2026-06-15T00:00:00+09:00",
+      "end": "2026-06-22T00:00:00+09:00",
+      "pullRequests": 14
+    },
+    {
+      "start": "2026-06-22T00:00:00+09:00",
+      "end": "2026-06-29T00:00:00+09:00",
+      "pullRequests": 24
+    },
+    {
+      "start": "2026-06-29T00:00:00+09:00",
+      "end": "2026-07-06T00:00:00+09:00",
+      "pullRequests": 18
+    },
+    {
+      "start": "2026-07-06T00:00:00+09:00",
+      "end": "2026-07-13T00:00:00+09:00",
+      "pullRequests": 18
+    },
+    {
+      "start": "2026-07-13T00:00:00+09:00",
+      "end": "2026-07-20T00:00:00+09:00",
+      "pullRequests": 18
+    },
+    {
+      "start": "2026-07-20T00:00:00+09:00",
+      "end": "2026-07-27T00:00:00+09:00",
+      "pullRequests": 13
+    },
+    {
+      "start": "2026-07-27T00:00:00+09:00",
+      "end": "2026-08-03T00:00:00+09:00",
+      "pullRequests": 13
+    },
+    {
+      "start": "2026-08-03T00:00:00+09:00",
+      "end": "2026-08-10T00:00:00+09:00",
+      "pullRequests": 8
+    },
+    {
+      "start": "2026-08-10T00:00:00+09:00",
+      "end": "2026-08-17T00:00:00+09:00",
+      "pullRequests": 5
+    },
+    {
+      "start": "2026-08-17T00:00:00+09:00",
+      "end": "2026-08-24T00:00:00+09:00",
+      "pullRequests": 13
+    },
+    {
+      "start": "2026-08-24T00:00:00+09:00",
+      "end": "2026-08-31T00:00:00+09:00",
+      "pullRequests": 46
+    },
+    {
+      "start": "2026-08-31T00:00:00+09:00",
+      "end": "2026-09-07T00:00:00+09:00",
+      "pullRequests": 24
+    },
+    {
+      "start": "2026-09-07T00:00:00+09:00",
+      "end": "2026-09-14T00:00:00+09:00",
+      "pullRequests": 24
+    },
+    {
+      "start": "2026-09-14T00:00:00+09:00",
+      "end": "2026-09-21T00:00:00+09:00",
+      "pullRequests": 12
+    },
+    {
+      "start": "2026-09-21T00:00:00+09:00",
+      "end": "2026-09-28T00:00:00+09:00",
+      "pullRequests": 13
+    },
+    {
+      "start": "2026-09-28T00:00:00+09:00",
+      "end": "2026-10-05T00:00:00+09:00",
+      "pullRequests": 24
+    },
+    {
+      "start": "2026-10-05T00:00:00+09:00",
+      "end": "2026-10-12T00:00:00+09:00",
+      "pullRequests": 33
+    },
+    {
+      "start": "2026-10-12T00:00:00+09:00",
+      "end": "2026-10-19T00:00:00+09:00",
+      "pullRequests": 65
+    },
+    {
+      "start": "2026-10-19T00:00:00+09:00",
+      "end": "2026-10-26T00:00:00+09:00",
+      "pullRequests": 54
+    }
+  ],
+  "repositories": [
+    {
+      "name": "cowork-server",
+      "url": "https://github.com/team-cowork/cowork-server",
+      "archived": false,
+      "defaultBranch": "main",
+      "headOid": "68fdb5fc43665ed210e2372c32ae1c6cc700df4b",
+      "additions": 413620,
+      "deletions": 233470,
+      "changedLines": 647090,
+      "commits": 4203,
+      "mergedPullRequests": 471,
+      "contributors": 20,
+      "periodCommits": 2650
+    },
+    {
+      "name": "cowork-desktop-app-client",
+      "url": "https://github.com/team-cowork/cowork-desktop-app-client",
+      "archived": false,
+      "defaultBranch": "main",
+      "headOid": "a22500e4e90851bdcbd70e22dc9d914c7da00748",
+      "additions": 17109,
+      "deletions": 5774,
+      "changedLines": 22883,
+      "commits": 123,
+      "mergedPullRequests": 4,
+      "contributors": 2,
+      "periodCommits": 26
+    },
+    {
+      "name": "cowork-agent-system",
+      "url": "https://github.com/team-cowork/cowork-agent-system",
+      "archived": true,
+      "defaultBranch": "main",
+      "headOid": "abfc11643862790afe0650be59f70e97b052eb87",
+      "additions": 1790,
+      "deletions": 106,
+      "changedLines": 1896,
+      "commits": 5,
+      "mergedPullRequests": 0,
+      "contributors": 1,
+      "periodCommits": 5
+    },
+    {
+      "name": "cowork-mobile-app-client",
+      "url": "https://github.com/team-cowork/cowork-mobile-app-client",
+      "archived": false,
+      "defaultBranch": "develop",
+      "headOid": "6df64274c0cc7b987079ec54f28046b44e2e73f3",
+      "additions": 42414,
+      "deletions": 9227,
+      "changedLines": 51641,
+      "commits": 340,
+      "mergedPullRequests": 51,
+      "contributors": 3,
+      "periodCommits": 282
+    },
+    {
+      "name": "cowork-web-client",
+      "url": "https://github.com/team-cowork/cowork-web-client",
+      "archived": false,
+      "defaultBranch": "main",
+      "headOid": "8e48460be6b34dcec03f8f8fd1ae2d094b3fce1a",
+      "additions": 30384,
+      "deletions": 5819,
+      "changedLines": 36203,
+      "commits": 207,
+      "mergedPullRequests": 25,
+      "contributors": 2,
+      "periodCommits": 175
+    }
+  ],
+  "contributors": [
+    {
+      "id": "U_kgDOCDOe6Q",
+      "login": "aiden30015"
+    },
+    {
+      "id": "U_kgDOC0WdBw",
+      "login": "chaeeun-09"
+    },
+    {
+      "id": "U_kgDOCbauMQ",
+      "login": "Dino0204"
+    },
+    {
+      "id": "U_kgDODFiZBA",
+      "login": "hongjm0912"
+    },
+    {
+      "id": "U_kgDODFOmLg",
+      "login": "hyooeunn"
+    },
+    {
+      "id": "U_kgDOCeqK8A",
+      "login": "jihoonwjj"
+    },
+    {
+      "id": "U_kgDOCe0l1w",
+      "login": "junjuny0227"
+    },
+    {
+      "id": "U_kgDODFOmaw",
+      "login": "jyx-07"
+    },
+    {
+      "id": "U_kgDOD9nYYA",
+      "login": "kimseongchan0914"
+    },
+    {
+      "id": "U_kgDOCfgzMg",
+      "login": "LeeSangHyeok0731"
+    },
+    {
+      "id": "U_kgDOCfV4bw",
+      "login": "leesiuuuu"
+    },
+    {
+      "id": "U_kgDOCJ4wZA",
+      "login": "LIMSIHYEON"
+    },
+    {
+      "id": "U_kgDOCctQbQ",
+      "login": "minsol1031"
+    },
+    {
+      "id": "U_kgDODDMRiw",
+      "login": "ryusuye0n"
+    },
+    {
+      "id": "U_kgDOCwfgaQ",
+      "login": "Sean-mn"
+    },
+    {
+      "id": "U_kgDOB2e_3A",
+      "login": "SeoRace"
+    },
+    {
+      "id": "U_kgDOCGLSMA",
+      "login": "snowykte0426"
+    },
+    {
+      "id": "MDQ6VXNlcjY4MDEzOTIz",
+      "login": "wwwcomcomcomcom"
+    },
+    {
+      "id": "U_kgDODAlj4A",
+      "login": "yeondon125"
+    },
+    {
+      "id": "U_kgDODBC31g",
+      "login": "ZaMan0806"
+    }
+  ],
+  "unlinkedContributors": 3,
+  "excludedReleasePullRequests": 44,
+  "excludedMergeCommits": 676,
+  "methodology": {
+    "repositories": "All public, non-fork team-cowork repositories, including archived repositories.",
+    "changedLines": "Additions + deletions in non-merge commits reachable from each default-branch head, filtered by committedDate. Includes documentation, generated files and lockfiles.",
+    "pullRequests": "Merged in the period, excluding develop/dev/development-to-main/master release PRs. Bot-authored PRs are included.",
+    "weeklyPeakPullRequests": "All-time merged PRs before the exclusive period end, excluding release PRs, grouped Monday 00:00 through next Monday 00:00 in Asia/Seoul. Ties select the latest week.",
+    "contributors": "Unique GitHub account IDs of non-merge commit authors in the period, excluding BOT_ IDs, [bot] logins and known AI accounts. Unlinked email authors are not counted.",
+    "excludedAiAccounts": [
+      "claude",
+      "copilot",
+      "devin-ai-integration"
+    ],
+    "timeZone": "Asia/Seoul",
+    "periodBoundaries": "Inclusive start; exclusive end.",
+    "commits": "All-time history.totalCount reachable from each default-branch head, including merge and bot commits. Counts are summed per repository."
+  }
+}
