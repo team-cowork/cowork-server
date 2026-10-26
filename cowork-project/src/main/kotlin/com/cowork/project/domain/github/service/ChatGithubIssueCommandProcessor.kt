@@ -5,11 +5,11 @@ import com.cowork.project.domain.github.event.CHAT_GITHUB_ISSUE_RESULT_TOPIC
 import com.cowork.project.domain.github.event.ChatGithubIssueCreateCommand
 import com.cowork.project.domain.github.event.ChatGithubIssueCreateError
 import com.cowork.project.domain.github.event.ChatGithubIssueCreateResult
-import com.cowork.project.domain.github.event.GithubActionCommandPublisher
 import com.cowork.project.domain.github.event.GithubIssueCreateCommand
 import com.cowork.project.domain.github.repository.ChatGithubIssueCreateOperationRepository
 import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
+import com.cowork.project.global.consumer.Topics
 import com.cowork.project.global.outbox.OutboxWriter
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -26,13 +26,14 @@ import java.time.Instant
  *
  * 커맨드당 정확히 하나의 최종 결정(ACCEPTED/REJECTED)만 내리고, 그 결정과 결과 발행을
  * 하나의 트랜잭션으로 묶는다. 같은 `operationId`가 재전달되면 재처리 없이 무시한다.
+ * `github.issue.create` 커맨드도 같은 outbox로 기록한다 — 트랜잭션 안에서 Kafka에 직접 보내면
+ * 커밋이 실패해 재전달될 때 GitHub 이슈가 중복 생성되고, 브로커 응답을 기다리는 동안 DB 커넥션을 잡는다.
  */
 @Service
 class ChatGithubIssueCommandProcessor(
     private val operationRepository: ChatGithubIssueCreateOperationRepository,
     private val projectAccessGuard: ProjectAccessGuard,
     private val projectGithubRepoRepository: ProjectGithubRepoRepository,
-    private val commandPublisher: GithubActionCommandPublisher,
     private val outboxWriter: OutboxWriter,
 ) {
     private val log = LoggerFactory.getLogger(ChatGithubIssueCommandProcessor::class.java)
@@ -57,7 +58,9 @@ class ChatGithubIssueCommandProcessor(
         when (decision) {
             is Decision.Accepted -> {
                 operation.accept()
-                commandPublisher.publishIssueCreate(
+                outboxWriter.enqueue(
+                    Topics.GITHUB_ISSUE_CREATE,
+                    "${decision.repo.owner}/${decision.repo.repo}",
                     GithubIssueCreateCommand(
                         owner = decision.repo.owner,
                         repo = decision.repo.repo,
