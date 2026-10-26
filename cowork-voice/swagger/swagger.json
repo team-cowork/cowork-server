@@ -247,6 +247,12 @@
                             "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
                         }
                     },
+                    "409": {
+                        "description": "음성 채널 정원 초과",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                        }
+                    },
                     "500": {
                         "description": "Internal Server Error",
                         "schema": {
@@ -511,6 +517,11 @@
         "internal_domain_voice_room.JoinResponse": {
             "type": "object",
             "properties": {
+                "bitrate": {
+                    "description": "Bitrate는 클라이언트가 오디오 publish에 적용할 bps 값이다. null이면 클라이언트 기본값을 쓴다.",
+                    "type": "integer",
+                    "example": 64000
+                },
                 "livekit_url": {
                     "type": "string",
                     "example": "wss://livekit.example.com"

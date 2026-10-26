@@ -216,6 +216,13 @@ def prepare(args):
                 host['cowork_runtime_network'] = True
             if selection is None and 'slot' in entry and entry['service'] not in {'gateway', 'vault'}:
                 host['cowork_firewall_target'] = entry['slot']
+            if selection is None and entry['service'] == 'gateway':
+                # Gateway's public listener stays outside the backend policy; only node_exporter is restricted.
+                host['cowork_firewall_policy'] = {
+                    'bindings': [{'address': SLOTS['load'](entry['slot'])['container']['bind_address'],
+                                  'host_port': 9100, 'container_port': 9100}],
+                    'peers': [SLOTS['load']('monitoring')['runtime']['MONITORING_BIND_IP'] + '/32'],
+                }
             if host_id in databases and databases[host_id]['engine'] == 'sqlite' and selected('database', host_id):
                 settings_file = output / 'settings' / f'database-{host_id}.json'
                 write_private(settings_file, '{}')
@@ -275,12 +282,10 @@ def prepare(args):
                 settings_file = output / 'settings' / f'{target}.json'
                 write_private(settings_file, json.dumps(snapshot(target, mount, base={}, base_version=host_version)))
                 host['cowork_units'].append({'service': 'log-agent', 'target': target, 'settings_file': str(settings_file)})
-                node_agent_target = f'node-agent-{host_id}'
-                # Vault does not have a node-agent slot yet.
-                if (ROOT / 'deploy/prod/slots' / f'{node_agent_target}.json').is_file():
-                    settings_file = output / 'settings' / f'{node_agent_target}.json'
-                    write_private(settings_file, json.dumps(snapshot(node_agent_target, mount, base={}, base_version=host_version)))
-                    host['cowork_units'].append({'service': 'node-agent', 'target': node_agent_target, 'settings_file': str(settings_file)})
+                target = f'node-agent-{host_id}'
+                settings_file = output / 'settings' / f'{target}.json'
+                write_private(settings_file, json.dumps(snapshot(target, mount, base={}, base_version=host_version)))
+                host['cowork_units'].append({'service': 'node-agent', 'target': target, 'settings_file': str(settings_file)})
             inventory['all']['hosts'][host_id] = host
         write_private(output / 'inventory.json', json.dumps(inventory, indent=2) + '\n')
         write_private(output / 'ssh-config', '\n'.join(ssh_config) + '\n')

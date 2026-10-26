@@ -15,6 +15,7 @@ import sys
 SOURCE = Path(__file__).resolve().parent
 ROOT = SOURCE.parents[2]
 FIREWALL = runpy.run_path(str(SOURCE / 'firewall.py'))
+POLICY_KEYS = ('bind_ip', 'bindings', 'internal_ports', 'host_ports')
 REPOSITORIES = {'redis': 'redis', 'kafka': 'apache/kafka', 'livekit': 'livekit/livekit-server'}
 
 
@@ -27,6 +28,7 @@ def catalog():
     values = json.loads((SOURCE / 'catalog.json').read_text())
     demand(set(values) == set(REPOSITORIES), 'Declare Redis, Kafka and LiveKit as dedicated services')
     network = json.loads((ROOT / 'deploy/prod/network/host-network.json').read_text())['name']
+    monitoring = json.loads((ROOT / 'deploy/prod/slots/monitoring.json').read_text())['runtime']['MONITORING_BIND_IP']
     for service, value in values.items():
         demand(isinstance(value['secrets'], dict), 'Shared service secret references must be an object')
         for key, ref in value['secrets'].items():
@@ -38,7 +40,9 @@ def catalog():
                'Shared service images require official versioned digest pins')
         demand(re.fullmatch(r'[1-9][0-9]*[mg]', value['memory']) and type(value['cpus']) in {int, float}
                and 0 < value['cpus'] <= 16, 'Invalid shared service resource limits')
-        FIREWALL['policy']({'network': network, **{k: value[k] for k in ('bind_ip', 'bindings', 'internal_ports')}})
+        FIREWALL['policy']({'network': network, **{k: value[k] for k in POLICY_KEYS}})
+        demand(all(item['peers'] == [f'{monitoring}/32'] for item in value['host_ports']),
+               'Shared host port ingress must match the monitoring slot address')
         if service != 'livekit':
             demand(all(peer != '0.0.0.0/0' for b in value['bindings'] for peer in b['peers']),
                    'Redis and Kafka ingress must use explicit private peers')
@@ -208,7 +212,7 @@ def apply(service, value, network, directory):
     os.chmod(directory, 0o700)
     with (directory / '.lock').open('w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
-        desired = {'network': network, **{key: value[key] for key in ('bind_ip', 'bindings', 'internal_ports')}}
+        desired = {'network': network, **{key: value[key] for key in POLICY_KEYS}}
         installed = json.loads(Path('/etc/cowork/shared-firewall/policy.json').read_text())
         demand(all(installed[key] == item for key, item in desired.items()), 'Installed shared firewall does not match the catalog')
         run('systemctl', 'is-enabled', '--quiet', 'cowork-shared-firewall.service')
@@ -249,7 +253,7 @@ def main():
     demand(args.service in values, 'Select a dedicated shared service')
     value = values[args.service]
     if args.operation == 'policy':
-        print(json.dumps({'network': network, **{k: value[k] for k in ('bind_ip', 'bindings', 'internal_ports')}}))
+        print(json.dumps({'network': network, **{k: value[k] for k in POLICY_KEYS}}))
         return
     directory = args.directory or Path('/root/cowork-iac/shared') / args.service
     apply(args.service, value, network, directory.resolve())
