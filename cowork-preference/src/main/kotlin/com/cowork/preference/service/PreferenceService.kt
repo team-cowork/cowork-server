@@ -31,6 +31,9 @@ class PreferenceService(
     }
 
     suspend fun updateSettings(resourceType: ResourceType, resourceId: Long, raw: JsonObject): Result<JsonObject> {
+        if (resourceType == ResourceType.TEXT_CHANNEL && raw.containsKey("webhook")) {
+            return Result.failure(IllegalArgumentException("웹훅 설정은 웹훅 관리 API에서 변경해야 합니다."))
+        }
         val filtered = SettingSchema.filter(resourceType, raw)
         val validationTarget = validationTarget(resourceType, resourceId, filtered)
         val validationError = SettingSchema.validate(resourceType, validationTarget)
@@ -85,6 +88,15 @@ class PreferenceService(
                         snapshot = false,
                     ),
                 )
+                ResourceType.VOICE_CHANNEL -> outboxRepository.enqueue(
+                    connection,
+                    PreferenceEvents.voiceChannelSettingState(
+                        channelId = resourceId,
+                        settings = result.settings,
+                        occurredAt = result.stateOccurredAt,
+                        snapshot = false,
+                    ),
+                )
                 else -> Unit
             }
             if (resourceType == ResourceType.GITHUB_REPO) {
@@ -120,6 +132,7 @@ class PreferenceService(
         settings.containsKey(NICKNAME_FORMAT_ENFORCED) || settings.containsKey(NICKNAME_FORMAT_EXAMPLE)
 
     private fun normalizeSettings(resourceType: ResourceType, settings: JsonObject?): JsonObject {
+        if (resourceType == ResourceType.TEXT_CHANNEL) return (settings?.copy() ?: JsonObject()).apply { remove("webhook") }
         if (resourceType != ResourceType.GITHUB_REPO) return settings ?: JsonObject()
         val resolved = SettingDefaultsResolver.resolve(settings, GITHUB_REPO_DEFAULTS)
         return JsonObject()

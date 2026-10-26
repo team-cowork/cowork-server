@@ -11,6 +11,7 @@ import com.cowork.project.domain.project.service.ProjectAccessGuard
 import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Nested
@@ -85,6 +86,27 @@ class ReorderTeamProjectsServiceImplTest {
             assertEquals(listOf(4L, 3L, 1L), service.execute(7L, 100L, listOf(4L, 3L, 1L)).map { it.id })
             assertEquals(1, hidden.position)
             assertEquals(2, fixed.position)
+        }
+
+        @Test
+        fun `이동하는 프로젝트만 음수 임시 position으로 먼저 flush한 뒤 최종 position을 저장한다`() {
+            val first = project(id = 1L, position = 0)
+            val fixed = project(id = 2L, position = 1)
+            val last = project(id = 3L, position = 2)
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L, "OWNER")
+            every { projectRepository.findAllByTeamIdForUpdate(100L) } returns listOf(first, fixed, last)
+            var positionsAtFlush = emptyList<Int>()
+            every { projectRepository.flush() } answers {
+                positionsAtFlush = listOf(first.position, fixed.position, last.position)
+            }
+
+            service.execute(7L, 100L, listOf(3L, 2L, 1L))
+
+            assertEquals(listOf(-2, 1, -1), positionsAtFlush)
+            assertEquals(listOf(2, 1, 0), listOf(first.position, fixed.position, last.position))
+            verify(exactly = 1) { projectEventPublisher.publishUpdated(last, any()) }
+            verify(exactly = 1) { projectEventPublisher.publishUpdated(first, any()) }
+            verify(exactly = 0) { projectEventPublisher.publishUpdated(fixed, any()) }
         }
 
         @Test

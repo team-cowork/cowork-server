@@ -10,6 +10,7 @@ import com.cowork.preference.repository.ProjectAccessStateRepository
 import com.cowork.preference.repository.ResourceSettingState
 import com.cowork.preference.repository.TeamRoleCommandInboxRepository
 import com.cowork.preference.repository.TeamRoleRepository
+import com.cowork.preference.repository.WebhookRepository
 import io.vertx.sqlclient.SqlConnection
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -28,6 +29,8 @@ class PreferenceSnapshotPublisher(
     private val topicIdentity: ProjectionTopicIdentityProvider,
     private val teamStateReadiness: ProjectionReadinessView,
     private val channelRolePolicyReadiness: ProjectionReadinessView,
+    private val webhookRepository: WebhookRepository? = null,
+    private val webhookReadiness: ProjectionReadinessView? = null,
 ) {
     private val log = LoggerFactory.getLogger(PreferenceSnapshotPublisher::class.java)
 
@@ -83,7 +86,7 @@ class PreferenceSnapshotPublisher(
         "project access states"
     }
 
-    /** 계정, 팀, 텍스트 채널 설정은 preference만 바꾸므로 upstream projection을 기다리지 않는다. */
+    /** 계정, 팀, 텍스트·음성 채널 설정은 preference만 바꾸므로 upstream projection을 기다리지 않는다. */
     suspend fun publishSettingStatesIfLeader(): Boolean = publishIfLeader(
         aggregate = "setting state",
         topics = SETTING_STATE_TOPICS,
@@ -98,7 +101,35 @@ class PreferenceSnapshotPublisher(
         val textChannelCount = publishSettingStates(connection, ResourceType.TEXT_CHANNEL) {
             PreferenceEvents.textChannelSettingState(it.resourceId, it.settings, it.stateOccurredAt, snapshot = true)
         }
-        "accountSettingCount=$accountCount teamSettingCount=$teamCount textChannelSettingCount=$textChannelCount"
+        val voiceChannelCount = publishSettingStates(connection, ResourceType.VOICE_CHANNEL) {
+            PreferenceEvents.voiceChannelSettingState(it.resourceId, it.settings, it.stateOccurredAt, snapshot = true)
+        }
+        "accountSettingCount=$accountCount teamSettingCount=$teamCount " +
+            "textChannelSettingCount=$textChannelCount voiceChannelSettingCount=$voiceChannelCount"
+    }
+
+    suspend fun publishWebhooksIfLeader(): Boolean {
+        val repository = webhookRepository ?: return false
+        val readiness = webhookReadiness ?: return false
+        return publishIfLeader(
+            aggregate = "webhook state",
+            topics = setOf(PreferenceEvents.WEBHOOK_STATE_TOPIC),
+            upstreamReadiness = readiness,
+        ) { connection ->
+            var afterId = 0L
+            var count = 0
+            while (true) {
+                val page = outboxRepository.inTransaction(connection) { client ->
+                    repository.snapshotPage(client, afterId, PAGE_SIZE).also { rows ->
+                        outboxRepository.enqueueAll(client, rows.map { PreferenceEvents.webhookState(it, snapshot = true) })
+                    }
+                }
+                if (page.isEmpty()) break
+                count += page.size
+                afterId = page.last().id
+            }
+            "webhookCount=$count"
+        }
     }
 
     private suspend fun publishIfLeader(
@@ -369,6 +400,7 @@ class PreferenceSnapshotPublisher(
             PreferenceEvents.ACCOUNT_SETTING_STATE_TOPIC,
             PreferenceEvents.TEAM_SETTING_STATE_TOPIC,
             PreferenceEvents.TEXT_CHANNEL_SETTING_STATE_TOPIC,
+            PreferenceEvents.VOICE_CHANNEL_SETTING_STATE_TOPIC,
         )
     }
 }

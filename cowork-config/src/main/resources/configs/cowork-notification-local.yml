@@ -21,6 +21,8 @@ kafka:
 # fcm.credentials-json에서 주입한다. 실제 자격 증명은 이 파일에 기록하지 않는다.
 fcm:
   credentials-json: ""
+  # true면 notification 없이 data만 보낸다. accountId를 확인해 직접 표시하는 클라이언트 배포 후에 켠다.
+  data-only: false
 
 eureka:
   server-url: http://cowork-config:8761/eureka

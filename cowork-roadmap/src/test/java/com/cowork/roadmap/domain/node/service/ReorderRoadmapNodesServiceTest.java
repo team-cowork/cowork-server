@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -89,6 +90,30 @@ class ReorderRoadmapNodesServiceTest {
             assertEquals(List.of(0, 1), savedNodes.get().stream().map(RoadmapNode::getPosition).toList());
             assertEquals(List.of(7L, 7L), savedNodes.get().stream().map(RoadmapNode::getLastModifiedBy).toList());
         }
+
+        @Test
+        void movedNodes_areParkedAtNegativePositionsBeforeFinalSave() {
+            RoadmapNode first = node(1L, 10L, null, 0);
+            RoadmapNode fixed = node(2L, 10L, null, 1);
+            RoadmapNode last = node(3L, 10L, null, 2);
+            prepareNodes(List.of(first, fixed, last));
+            List<List<RoadmapNode>> saveCalls = new ArrayList<>();
+            when(nodeRepository.saveAll(anyList())).thenAnswer(invocation -> {
+                List<RoadmapNode> nodes = invocation.getArgument(0);
+                return Flux.fromIterable(nodes).doOnSubscribe(subscription -> saveCalls.add(nodes));
+            });
+
+            StepVerifier
+                    .create(reorderRoadmapNodesService
+                            .execute(7L, "MEMBER", 10L, new ReorderNodesReqDto(null, List.of(3L, 2L, 1L))))
+                    .verifyComplete();
+
+            assertEquals(2, saveCalls.size());
+            assertEquals(List.of(3L, 1L), saveCalls.get(0).stream().map(RoadmapNode::getId).toList());
+            assertEquals(List.of(-1, -3), saveCalls.get(0).stream().map(RoadmapNode::getPosition).toList());
+            assertEquals(List.of(3L, 2L, 1L), saveCalls.get(1).stream().map(RoadmapNode::getId).toList());
+            assertEquals(List.of(0, 1, 2), saveCalls.get(1).stream().map(RoadmapNode::getPosition).toList());
+        }
     }
 
     private void prepareNodes(List<RoadmapNode> nodes) {
@@ -102,11 +127,15 @@ class ReorderRoadmapNodesServiceTest {
     }
 
     private static RoadmapNode node(Long id, Long roadmapId, Long parentId) {
+        return node(id, roadmapId, parentId, 0);
+    }
+
+    private static RoadmapNode node(Long id, Long roadmapId, Long parentId, int position) {
         return RoadmapNode.builder()
                 .id(id)
                 .roadmapId(roadmapId)
                 .parentId(parentId)
-                .position(0)
+                .position(position)
                 .title("node" + id)
                 .build();
     }
