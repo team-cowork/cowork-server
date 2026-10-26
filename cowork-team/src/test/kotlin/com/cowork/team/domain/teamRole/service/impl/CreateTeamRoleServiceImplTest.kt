@@ -10,6 +10,7 @@ import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleOperat
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.domain.teamRole.service.ManageRoleContext
 import com.cowork.team.domain.teamRole.service.TeamRoleAccessGuard
+import com.cowork.team.domain.teamRole.service.support.TeamRolePermission
 import com.cowork.team.domain.teamRole.service.support.TeamRolePermissionSchema
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
@@ -86,7 +87,7 @@ class CreateTeamRoleServiceImplTest :
             colorHex = "#123ABC",
             priority = priority,
             mentionable = true,
-            permissions = mapOf(TeamRolePermissionSchema.MANAGE_ROLES to true),
+            permissions = mapOf(TeamRolePermission.MANAGE_ROLES.key to true),
             createdAt = null,
             updatedAt = null,
         )
