@@ -22,36 +22,6 @@ class TeamRolePermissionSchema {
         const val MANAGE_ROLES = "manage_roles"
         const val MANAGE_NICKNAMES = "manage_nicknames"
 
-        val KEYS: Set<String> = linkedSetOf(
-            "manage_team",
-            MANAGE_ROLES,
-            "manage_invites",
-            "kick_members",
-            "manage_channels",
-            "manage_projects",
-            "manage_github",
-            MANAGE_NICKNAMES,
-            "manage_nickname_format",
-            "message_read",
-            "message_send",
-            "thread_reply",
-            "file_attach",
-            "reaction_add",
-            "message_pin",
-            "message_manage",
-            "slash_command_use",
-            "github_issue_create",
-            "channel_manage",
-            "channel_reorder",
-            "slowmode_bypass",
-            "voice_connect",
-            "voice_speak",
-            "screen_share",
-            "live_broadcast",
-            "project_read",
-            "project_write",
-            "project_manage",
-            "project_reorder",
-        )
+        val KEYS: Set<String> = TeamRolePermission.KEYS
     }
 }
