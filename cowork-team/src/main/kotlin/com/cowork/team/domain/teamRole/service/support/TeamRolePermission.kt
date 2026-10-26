@@ -189,7 +189,7 @@ enum class TeamRolePermission(
         "project_read",
         TeamRolePermissionGroup.PROJECT,
         "프로젝트 보기",
-        "프로젝트와 연결된 GitHub 이슈·풀 리퀘스트를 보고 댓글을 남길 수 있습니다. 이 권한이 없으면 다른 프로젝트 권한도 사용할 수 없습니다. " +
+        "프로젝트를 보고, 연결된 GitHub 이슈·풀 리퀘스트를 조회하거나 댓글을 남길 수 있습니다. 이 권한이 없으면 다른 프로젝트 권한도 사용할 수 없습니다. " +
             "비공개 프로젝트는 프로젝트 역할로 허용해야 합니다.",
     ),
     PROJECT_WRITE(
