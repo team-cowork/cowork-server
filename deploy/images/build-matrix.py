@@ -1,19 +1,54 @@
 #!/usr/bin/env python3
 """Select image and verification builds without inferring a service runtime."""
 import argparse
+from fnmatch import fnmatchcase
+from functools import cache
 import json
 import os
+import re
 import runpy
+import shlex
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG = json.loads(Path(__file__).with_name("catalog.json").read_text())
 RELEASE_FIELDS = runpy.run_path(str(ROOT / "deploy/images/release_fields.py"))
 changed_paths = RELEASE_FIELDS["changed_paths"]
-SHARED_FILES = {"build.gradle.kts", "settings.gradle.kts", "gradle.properties", "gradlew", "gradlew.bat", ".editorconfig"}
-IMAGE_FILES = {".dockerignore", ".github/workflows/cowork-stage-ci.yml",
-               ".github/workflows/cowork-prod-ci.yml", ".github/workflows/cowork-prod-cd.yml"}
+
+
+@cache
+def build_inputs(service):
+    inputs = set()
+    # CD may load these tools from a different checkout than the selected source.
+    for dockerfile in (Path.cwd() / f"cowork-{service}").glob("Dockerfile.*"):
+        content = dockerfile.read_text()
+        # Unsupported context expressions select broadly rather than miss a build.
+        if re.search(r"(?im)^\s*#\s*escape\s*=\s*`", content) or any(
+            "type=cache" not in mount for mount in re.findall(r"--mount=(\S+)", content)
+        ):
+            return {"."}
+        content = "\n".join(line for line in content.splitlines() if not line.lstrip().startswith("#"))
+        content = re.sub(r"\\\n", " ", content)
+        for arguments in re.findall(r"(?im)^\s*(?:COPY|ADD)\s+(.+)$", content):
+            try:
+                flags = []
+                while arguments.startswith("--"):
+                    flag, arguments = arguments.split(None, 1)
+                    flags.append(flag)
+                if any(flag.startswith("--from=") for flag in flags):
+                    continue
+                sources = json.loads(arguments) if arguments.startswith("[") else shlex.split(arguments)
+                if not isinstance(sources, list) or len(sources) < 2 or not all(isinstance(source, str) for source in sources):
+                    return {"."}
+                for source in sources[:-1]:
+                    if "$" in source or source.startswith("<<") or ".." in PurePosixPath(source).parts:
+                        return {"."}
+                    if "://" not in source:
+                        inputs.add(str(PurePosixPath(source.lstrip("/"))))
+            except ValueError:
+                return {"."}
+    return inputs
 
 
 def documentation_path(path):
@@ -28,15 +63,14 @@ def affected(service, paths):
     for path in paths:
         if documentation_path(path):
             continue
-        if path in IMAGE_FILES or path.startswith(("deploy/images/", ".github/actions/build-image/", ".github/actions/verify-image/")):
+        if path == ".dockerignore" or fnmatchcase(path, ".github/workflows/*-ci.yml") or path.startswith(
+            ("deploy/images/", ".github/actions/build-image/", ".github/actions/verify-image/")
+        ):
             return True
         if path.startswith(f"cowork-{service}/"):
             return True
-        # All Dockerfiles have a root context. Shared build input changes
-        # conservatively select every image; the selected Dockerfile owns its toolchain.
-        if "/" not in path or path in SHARED_FILES or path.startswith(("gradle/", "build-logic/", "scripts/")) or (
-            path.startswith("cowork-") and path.endswith(("/build.gradle.kts", "/build.gradle"))
-        ):
+        if any(source == "." or fnmatchcase(str(candidate), source)
+               for source in build_inputs(service) for candidate in (PurePosixPath(path), *PurePosixPath(path).parents)):
             return True
     return False
 
