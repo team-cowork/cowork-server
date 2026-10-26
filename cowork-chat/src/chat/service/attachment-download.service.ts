@@ -24,7 +24,7 @@ export class AttachmentDownloadService {
         }
 
         const attachment = message.attachments[attachmentIndex];
-        if (attachment === undefined) {
+        if (attachment === undefined || message.authorId === null) {
             throw new NotFoundException('첨부파일을 찾을 수 없습니다');
         }
 

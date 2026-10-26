@@ -23,7 +23,10 @@ class GithubRepoReaderTest :
         beforeEach {
             markerRepository = mockk()
             repoProjectionRepository = mockk()
-            reader = GithubRepoReader(GithubSyncMarkers(markerRepository), repoProjectionRepository)
+            reader = GithubRepoReader(
+                GithubSyncMarkers(markerRepository, repoProjectionRepository),
+                repoProjectionRepository,
+            )
         }
 
         describe("GithubRepoReader 클래스의") {
