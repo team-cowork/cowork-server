@@ -36,9 +36,6 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
     )
     fun findByProjectIdOrderByIdAsc(@Param("projectId") projectId: Long): List<Channel>
 
-    @Query("SELECT COALESCE(MAX(c.position), -1) FROM Channel c WHERE c.teamId = :teamId")
-    fun findMaxPositionByTeamId(@Param("teamId") teamId: Long): Int
-
     @Query(
         "SELECT c FROM Channel c " +
             "WHERE c.teamId = :teamId " +

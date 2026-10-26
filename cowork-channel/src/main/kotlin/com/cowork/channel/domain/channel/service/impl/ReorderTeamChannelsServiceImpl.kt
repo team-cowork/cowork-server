@@ -8,6 +8,7 @@ import com.cowork.channel.domain.channel.service.TeamPermissionService
 import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Isolation
 import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
@@ -19,7 +20,8 @@ class ReorderTeamChannelsServiceImpl(
     private val messageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
 ) : ReorderTeamChannelsService {
 
-    @Transactional
+    /** 채널 생성과 같은 팀 채널 행 잠금으로 직렬화하고, 생성과 같은 이유로 READ COMMITTED로 실행한다. */
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     override fun execute(userId: Long, teamId: Long, orderedChannelIds: List<Long>): List<ChannelResponse> {
         teamPermissionService.requireTeamMember(teamId, userId)
 
@@ -46,6 +48,9 @@ class ReorderTeamChannelsServiceImpl(
             channelById.getValue(channelId).takeIf { it.position != visiblePositionSlots[index] }
         }
         messageReadPolicyEvaluator.requireReorder(teamId, userId, movedChannels)
+        // (team_id, position) 유일성 제약이 행 단위로 검사되므로 이동할 채널을 음수 임시 position으로 먼저 비운다.
+        movedChannels.forEachIndexed { index, channel -> channel.updatePosition(-1 - index) }
+        channelRepository.flush()
         orderedChannelIds.forEachIndexed { index, channelId ->
             channelById.getValue(channelId).updatePosition(visiblePositionSlots[index])
         }

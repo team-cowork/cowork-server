@@ -16,6 +16,7 @@ import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 
@@ -51,7 +52,8 @@ class CreateChannelServiceImplTest {
     @Test
     fun `createChannel은 type+viewType 모두 저장`() {
         every { teamPermission.requirePermission(any(), any(), "manage_channels") } returns Unit
-        every { channelRepository.findMaxPositionByTeamId(100L) } returns 4
+        every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns
+            listOf(channel(id = 1L, position = 4), channel(id = 2L, position = 2))
         val saved = slot<Channel>()
         every { channelRepository.save(capture(saved)) } answers { saved.captured }
 
@@ -68,6 +70,33 @@ class CreateChannelServiceImplTest {
         assertEquals(ChannelType.TEXT, saved.captured.type)
         assertEquals(ChannelViewType.MEETING_NOTE, saved.captured.viewType)
         assertEquals(5, saved.captured.position)
+    }
+
+    @Test
+    fun `createChannel은 채널이 없는 팀에 position 0을 할당`() {
+        every { teamPermission.requirePermission(any(), any(), "manage_channels") } returns Unit
+        every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns emptyList()
+        val saved = slot<Channel>()
+        every { channelRepository.save(capture(saved)) } answers { saved.captured }
+
+        service.execute(1L, CreateChannelRequest(teamId = 100L, name = "n", type = "TEXT", viewType = "TEXT"))
+
+        assertEquals(0, saved.captured.position)
+    }
+
+    @Test
+    fun `createChannel은 동시 생성으로 position 유일성 제약이 충돌하면 CONFLICT`() {
+        every { teamPermission.requirePermission(any(), any(), "manage_channels") } returns Unit
+        every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns emptyList()
+        every { channelRepository.save(any()) } throws
+            DataIntegrityViolationException("uq_tb_channels_team_id_position")
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.execute(1L, CreateChannelRequest(teamId = 100L, name = "n", type = "TEXT", viewType = "TEXT"))
+        }
+
+        assertEquals(HttpStatus.CONFLICT, ex.statusCode)
+        verify(exactly = 0) { channelEventPublisher.publishCreated(any(), any(), any()) }
     }
 
     @Test
@@ -96,4 +125,15 @@ class CreateChannelServiceImplTest {
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
         verify(exactly = 0) { channelRepository.save(any()) }
     }
+
+    private fun channel(id: Long, position: Int) = Channel(
+        id = id,
+        teamId = 100L,
+        name = "ch",
+        type = ChannelType.TEXT,
+        viewType = ChannelViewType.TEXT,
+        description = null,
+        position = position,
+        createdBy = 1L,
+    )
 }

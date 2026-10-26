@@ -98,7 +98,7 @@ settings_schema["validate_deployment"](json.loads((ROOT / "deploy/prod/settings.
 # The operator installs these root-owned Vault host policies; they must describe the Vault slot.
 vault_runtime = slots["load"]("vault")["runtime"]
 vault_bindings = [{"address": vault_runtime["VAULT_BIND_IP"], "host_port": int(port), "container_port": container}
-                  for port, container in ((vault_runtime["VAULT_HOST_PORT"], 8200), (vault_runtime["VAULT_TLS_HOST_PORT"], 8210))]
+                  for port, container in ((vault_runtime["VAULT_HOST_PORT"], 8200), (vault_runtime["VAULT_TLS_HOST_PORT"], 8210), (9100, 9100))]
 vault_firewall = (ROOT / "deploy/prod/vault/firewall.json").read_text()
 subprocess.run(["python3", str(ROOT / "deploy/prod/network/backend-firewall.py"), "validate"],
                input=vault_firewall, text=True, check=True, capture_output=True)
@@ -121,6 +121,12 @@ for target in inventory["targets"]:
     if not re.fullmatch(r"[a-z][a-z0-9-]{0,63}", target["target"]):
         raise SystemExit(f"Invalid deployment target: {name}")
 print(f"Shell/Python syntax and {len(seen)} inventory targets valid")
+
+# Referenced entries never count toward or fall out of the retained newest releases.
+retention = runpy.run_path(str(ROOT / "deploy/prod/cd/release-retention.py"))
+entries = [(f"r{age}", -age, f"token{age}") for age in range(9)]
+if retention["select"](entries, "token0 token7", keep=5) != ["r6", "r8"]:
+    raise SystemExit("release-retention.py must keep the newest unreferenced and every referenced entry")
 
 # CD passes GitHub secrets one binding at a time, so every catalog secret needs a workflow binding.
 settings = runpy.run_path(str(ROOT / "deploy/prod/cd/github-settings.py"))
