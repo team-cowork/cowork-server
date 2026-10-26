@@ -12,8 +12,10 @@ import com.cowork.channel.domain.channel.service.CreateChannelService
 import com.cowork.channel.domain.channel.service.TeamPermissionService
 import com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyPermissionSchema
 import com.cowork.channel.domain.meetingNote.service.CreateDefaultMeetingNoteTemplateService
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Isolation
 import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
@@ -44,9 +46,14 @@ class CreateChannelServiceImpl(
         throw ExpectedException("유효하지 않은 view_type 입니다.", HttpStatus.BAD_REQUEST)
     }
 
-    @Transactional
+    /**
+     * 재정렬과 같은 팀 채널 행 잠금 아래에서 다음 position을 정한다. READ COMMITTED로 실행해 빈 팀에서도 gap 잠금 교착 없이
+     * 동시 생성 경합을 (team_id, position) 유일성 제약 충돌로 끝낸다.
+     */
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     override fun execute(userId: Long, request: CreateChannelRequest): ChannelResponse {
         teamPermissionService.requirePermission(request.teamId, userId, "manage_channels")
+        val lockedChannels = channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(request.teamId)
 
         val proposedChannel = Channel(
             teamId = request.teamId,
@@ -55,7 +62,7 @@ class CreateChannelServiceImpl(
             viewType = parseViewType(request.viewType),
             description = request.description,
             isPrivate = request.isPrivate,
-            position = channelRepository.findMaxPositionByTeamId(request.teamId) + 1,
+            position = (lockedChannels.maxOfOrNull { it.position } ?: -1) + 1,
             createdBy = userId,
         )
         val initialOverwrites = request.initialRoleOverwrites.map {
@@ -66,7 +73,11 @@ class CreateChannelServiceImpl(
         } else {
             null
         }
-        val channel = channelRepository.save(proposedChannel)
+        val channel = try {
+            channelRepository.save(proposedChannel)
+        } catch (e: DataIntegrityViolationException) {
+            throw ExpectedException("다른 요청과 채널 순서가 충돌했습니다. 다시 시도해 주세요.", HttpStatus.CONFLICT)
+        }
         if (channel.viewType == ChannelViewType.MEETING_NOTE) {
             createDefaultMeetingNoteTemplateService.createDefaultTemplate(channel)
         }
