@@ -66,3 +66,9 @@ unset DEPLOY_GHCR_TOKEN DEPLOY_GHCR_USER
 printf '%s' "$DEPLOY_PAYLOAD" | python3 "$tools_release/deploy/prod/cd/apply-settings.py" \
   "$DEPLOY_SERVICE" "$DEPLOY_TARGET" "$DEPLOY_SHA" "${DEPLOY_OWNER,,}" "$DEPLOY_ACTION" \
   --release-directory "$release" --image-sha "$DEPLOY_IMAGE_SHA"
+if [ "$DEPLOY_ACTION" = deploy ]; then
+  # Release the shared lock so cleanup can take it; a busy lock or a cleanup error must not fail this deploy.
+  exec 8>&-
+  python3 "$tools_release/deploy/prod/cd/release-retention.py" --apply \
+    || echo "[retention] Cleanup skipped; run release-retention.py manually" >&2
+fi
