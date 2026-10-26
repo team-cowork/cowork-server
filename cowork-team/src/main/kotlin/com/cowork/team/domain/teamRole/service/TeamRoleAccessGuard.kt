@@ -6,7 +6,7 @@ import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
-import com.cowork.team.domain.teamRole.service.support.TeamRolePermissionSchema
+import com.cowork.team.domain.teamRole.service.support.TeamRolePermission
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import team.themoment.sdk.exception.ExpectedException
@@ -39,7 +39,7 @@ class TeamRoleAccessGuard(
     }
 
     fun requireManageRoles(teamId: Long, userId: Long): ManageRoleContext =
-        requirePermission(teamId, userId, TeamRolePermissionSchema.MANAGE_ROLES, "역할 관리 권한이 없습니다.")
+        requirePermission(teamId, userId, TeamRolePermission.MANAGE_ROLES.key, "역할 관리 권한이 없습니다.")
 
     /** OWNER와 ADMIN은 모든 권한을 가지며, 그 외 멤버는 부여받은 역할 중 하나라도 권한을 허용해야 한다. */
     fun requirePermission(teamId: Long, userId: Long, permission: String, deniedMessage: String): ManageRoleContext {

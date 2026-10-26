@@ -7,7 +7,7 @@ import team.themoment.sdk.exception.ExpectedException
 @Component
 class TeamRolePermissionSchema {
     fun validate(permissions: Map<String, Any?>): Map<String, Boolean> = permissions.mapValues { (key, value) ->
-        if (key !in KEYS) {
+        if (key !in TeamRolePermission.KEYS) {
             throw ExpectedException("지원하지 않는 역할 권한이 포함되어 있습니다.", HttpStatus.BAD_REQUEST)
         }
         value as? Boolean ?: throw ExpectedException("역할 권한 값은 boolean이어야 합니다.", HttpStatus.BAD_REQUEST)
@@ -15,43 +15,6 @@ class TeamRolePermissionSchema {
 
     fun canonicalize(permissions: Map<String, Any?>): Map<String, Boolean> {
         val validated = validate(permissions)
-        return KEYS.associateWith { validated[it] ?: false }
-    }
-
-    companion object {
-        const val MANAGE_ROLES = "manage_roles"
-        const val MANAGE_NICKNAMES = "manage_nicknames"
-
-        val KEYS: Set<String> = linkedSetOf(
-            "manage_team",
-            MANAGE_ROLES,
-            "manage_invites",
-            "kick_members",
-            "manage_channels",
-            "manage_projects",
-            "manage_github",
-            MANAGE_NICKNAMES,
-            "manage_nickname_format",
-            "message_read",
-            "message_send",
-            "thread_reply",
-            "file_attach",
-            "reaction_add",
-            "message_pin",
-            "message_manage",
-            "slash_command_use",
-            "github_issue_create",
-            "channel_manage",
-            "channel_reorder",
-            "slowmode_bypass",
-            "voice_connect",
-            "voice_speak",
-            "screen_share",
-            "live_broadcast",
-            "project_read",
-            "project_write",
-            "project_manage",
-            "project_reorder",
-        )
+        return TeamRolePermission.KEYS.associateWith { validated[it] ?: false }
     }
 }
