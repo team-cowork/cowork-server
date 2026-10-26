@@ -36,6 +36,18 @@ const (
 // the currently signed-in account.
 const DataKeyAccountID = "accountId"
 
+// DataKeyEventID is the data payload key carrying the trigger event's stable eventId.
+// Delivery is at-least-once (a send that succeeds before its ledger write can be
+// repeated), so the client must drop a message whose eventId it already showed.
+const DataKeyEventID = "eventId"
+
+// DataKeyTitle and DataKeyBody always carry the notification text in data so a client
+// can build its own local notification after checking DataKeyAccountID.
+const (
+	DataKeyTitle = "title"
+	DataKeyBody  = "body"
+)
+
 // Message is one Firebase installation's send request. Data is per installation so
 // each message can carry the owning account (see DataKeyAccountID).
 type Message struct {
@@ -62,6 +74,11 @@ type Result struct {
 type Sender struct {
 	client         messagingClient
 	isUnregistered func(error) bool
+	// dataOnly omits the notification payload so the OS never displays a message
+	// before the client has checked DataKeyAccountID. It stays off until clients that
+	// render data-only messages themselves are deployed, because older clients show
+	// nothing in the background without a notification payload.
+	dataOnly bool
 }
 
 type messagingClient interface {
@@ -97,7 +114,7 @@ func (s *Sender) classify(err error) Outcome {
 	}
 }
 
-func NewSender(ctx context.Context, credentialsJSON string) (*Sender, error) {
+func NewSender(ctx context.Context, credentialsJSON string, dataOnly bool) (*Sender, error) {
 	var account struct {
 		Type        string `json:"type"`
 		ProjectID   string `json:"project_id"`
@@ -124,10 +141,36 @@ func NewSender(ctx context.Context, credentialsJSON string) (*Sender, error) {
 	return &Sender{
 		client:         client,
 		isUnregistered: messaging.IsUnregistered,
+		dataOnly:       dataOnly,
 	}, nil
 }
 
 const fcmBatchSize = 500
+
+// buildMessage copies title and body into data and, in data-only mode, drops the
+// notification payload. Android then needs high priority to wake the app in Doze, and
+// APNs needs a background push (content-available, apns-priority 5) that iOS throttles
+// and does not deliver to a force-quit app.
+func (s *Sender) buildMessage(m Message, title, body string) *messaging.Message {
+	data := make(map[string]string, len(m.Data)+2)
+	for k, v := range m.Data {
+		data[k] = v
+	}
+	data[DataKeyTitle] = title
+	data[DataKeyBody] = body
+
+	msg := &messaging.Message{Data: data, Fid: m.FID}
+	if !s.dataOnly {
+		msg.Notification = &messaging.Notification{Title: title, Body: body}
+		return msg
+	}
+	msg.Android = &messaging.AndroidConfig{Priority: "high"}
+	msg.APNS = &messaging.APNSConfig{
+		Headers: map[string]string{"apns-push-type": "background", "apns-priority": "5"},
+		Payload: &messaging.APNSPayload{Aps: &messaging.Aps{ContentAvailable: true}},
+	}
+	return msg
+}
 
 // Send delivers every message to its FID, batched at fcmBatchSize, and returns a
 // classified result for each message attempted, in input order. SendEach returns one
@@ -153,11 +196,7 @@ func (s *Sender) Send(ctx context.Context, messages []Message, title, body strin
 
 		msgs := make([]*messaging.Message, len(batch))
 		for j, m := range batch {
-			msgs[j] = &messaging.Message{
-				Notification: &messaging.Notification{Title: title, Body: body},
-				Data:         m.Data,
-				Fid:          m.FID,
-			}
+			msgs[j] = s.buildMessage(m, title, body)
 		}
 		resp, err := s.client.SendEach(ctx, msgs)
 		if err != nil {
