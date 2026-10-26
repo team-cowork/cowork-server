@@ -59,15 +59,17 @@ groups:
       # Eureka가 죽거나 인증에 실패하는 것만으로는 이 규칙이 울리지 않는다. 실제로 걸리는 경우는
       # Eureka가 정상 응답했는데 등록된 인스턴스가 없을 때, 또는 Eureka가 죽은 상태에서 Prometheus가
       # (재)시작돼 처음부터 target을 하나도 못 받아온 때다. 대상이 0개가 되면 render-prometheus.py가
-      # slot마다 생성한 coworkServiceMissing(3m)도 뒤이어 함께 울린다.
+      # slot마다 생성한 coworkServiceMissing(3m)도 함께 울리는데, alertmanager.yml의 inhibit_rules가
+      # 이 알림이 울리는 동안 그 알림들을 묶어 막는다. 억제는 이 알림이 먼저 울려 있어야 적용되므로
+      # for를 coworkServiceMissing과 같은 3m으로 맞춰 group_wait(30s) 안에 함께 도착하게 한다.
       - alert: coworkServiceDiscoveryEmpty
         expr: absent(up{job="cowork-services"})
-        for: 5m
+        for: 3m
         labels:
           severity: critical
         annotations:
           summary: "서비스 검색 결과 없음"
-          description: "Prometheus에 cowork-services 수집 대상이 5분 동안 없습니다. Eureka에 등록된 인스턴스가 없거나, Eureka에 연결할 수 없는 상태에서 Prometheus가 시작 또는 재시작되었을 수 있습니다."
+          description: "Prometheus에 cowork-services 수집 대상이 3분 동안 없습니다. Eureka에 등록된 인스턴스가 없거나, Eureka에 연결할 수 없는 상태에서 Prometheus가 시작 또는 재시작되었을 수 있습니다."
 
   - name: cowork-host
     rules:
