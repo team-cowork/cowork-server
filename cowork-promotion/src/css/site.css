@@ -1,4 +1,4 @@
-/* Site chrome shared by the landing page and development dashboard. */
+/* Site chrome shared by the landing and achievements pages. */
 .skip-link {
     position: fixed;
     inset: var(--space-3) auto auto var(--space-3);
