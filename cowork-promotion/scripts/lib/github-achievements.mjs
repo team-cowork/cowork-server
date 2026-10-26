@@ -1,3 +1,4 @@
+import {setTimeout} from 'node:timers/promises';
 import {aggregateAchievements, sixMonthPeriod} from './achievement-metrics.mjs';
 
 const owner = 'team-cowork';
@@ -30,28 +31,50 @@ export async function collectAchievements({token, period = sixMonthPeriod(), sig
 		throw new Error('GitHub authentication is unavailable.');
 	}
 
-	async function request(path, body) {
-		const response = await fetch(`https://api.github.com/${path}`, {
-			method: body ? 'POST' : 'GET',
-			headers: {
-				Authorization: `Bearer ${token}`,
-				Accept: 'application/vnd.github+json',
-				'Content-Type': 'application/json',
-				'User-Agent': 'cowork-promotion',
-			},
-			...(body && {body: JSON.stringify(body)}),
-			signal,
-		});
-		if (!response.ok) {
-			throw new Error(`GitHub request failed: ${response.status}`);
-		}
+	const controller = new AbortController();
+	const collectionSignal = AbortSignal.any([signal, controller.signal]);
 
-		const data = await response.json();
-		if (data.errors?.length) {
-			throw new Error('GitHub returned an incomplete result.');
-		}
+	async function request(path, body, attempt = 0) {
+		collectionSignal.throwIfAborted();
+		let canRetry = false;
+		try {
+			const response = await fetch(`https://api.github.com/${path}`, {
+				method: body ? 'POST' : 'GET',
+				headers: {
+					Authorization: `Bearer ${token}`,
+					Accept: 'application/vnd.github+json',
+					'Content-Type': 'application/json',
+					'User-Agent': 'cowork-promotion',
+				},
+				...(body && {body: JSON.stringify(body)}),
+				signal: collectionSignal,
+			}).catch(error => {
+				canRetry = error instanceof TypeError;
+				throw error;
+			});
+			if (!response.ok) {
+				canRetry = response.status >= 500 && response.status < 600;
+				await response.body?.cancel();
+				throw new Error(`GitHub request failed: ${response.status}`);
+			}
 
-		return data;
+			const data = await response.json().catch(error => {
+				canRetry = error instanceof TypeError;
+				throw error;
+			});
+			if (data.errors?.length) {
+				throw new Error('GitHub returned an incomplete result.');
+			}
+
+			return data;
+		} catch (error) {
+			if (!canRetry || collectionSignal.aborted || attempt >= 2) {
+				throw error;
+			}
+
+			await setTimeout(1000 * (2 ** attempt), undefined, {signal: collectionSignal});
+			return request(path, body, attempt + 1);
+		}
 	}
 
 	async function graphql(query, variables) {
@@ -122,6 +145,9 @@ export async function collectAchievements({token, period = sixMonthPeriod(), sig
 			commits,
 			pullRequests,
 		};
-	}));
+	})).catch(error => {
+		controller.abort(error);
+		throw error;
+	});
 	return aggregateAchievements(collected, period);
 }
