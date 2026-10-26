@@ -60,10 +60,24 @@ spring:
             allowedOrigins: "${PUBLIC_WEB_ORIGINS}"
             allowedMethods: GET, HEAD, POST, PUT, PATCH, DELETE, OPTIONS
             allowedHeaders: "*"
-            exposedHeaders: Content-Length, Content-Range, Accept-Ranges, ETag, Retry-After
+            exposedHeaders: Content-Length, Content-Range, Accept-Ranges, ETag, Retry-After, X-RateLimit-Remaining, X-RateLimit-Burst-Capacity, X-RateLimit-Replenish-Rate, X-RateLimit-Requested-Tokens
             allowCredentials: true
             maxAge: 3600
 
+      # 요청 제한(RequestRateLimiter)은 라우트별로 명시한 곳에만 적용한다. 공통 기본 제한은 두지 않는다.
+      # - 키: userKeyResolver(인증 사용자 ID, 미인증은 연결 주소), webhookKeyResolver(웹훅 실행 ID)
+      # - Redis 오류 시 RedisRateLimiter는 요청을 허용한다(fail-open). 이때 gateway_ratelimit_events_total{outcome="redis_error"}로 집계한다.
+      # - 차단 시 429, CommonApiResponse 본문과 Retry-After를 반환한다.
+      # 제한이 없는 라우트와 이유:
+      # - chat-service(HTTP·GraphQL): Chat이 메시지 전송(chat:msgrate)과 슬로우 모드를 사용자·채널 단위로 직접 제한한다.
+      # - chat-service-ws: 연결 요청만 Gateway가 제한하고, 연결 후 이벤트(입력 중 표시 등)는 Chat이 제한한다.
+      # - webhook-ingress: Gateway는 웹훅별 30/60만 적용하고 수신 경로 전체 상한은 두지 않는다. 서명 검증으로 무작위 실행 ID를
+      #   먼저 차단하며, Chat 웹훅 제한기가 Redis 오류 시 신규 메시지를 막는다(fail-closed).
+      # - project, roadmap, preference, notification, 팀·프로젝트별 channel, DM, 검색: JWT 인증 요청이며 downstream이 권한을
+      #   검사한다. 일괄 제한은 도입하지 않았으므로 필요해지면 해당 라우트에 명시적으로 추가한다.
+      # - 스토리지 relay: StorageRelay가 허용 경로와 서명 여부를 검사하고 오브젝트 스토리지가 서명을 검증한다.
+      # - 외부 발신 웹훅(authorization, github, voice): 발신 서비스가 재전송하므로 Gateway에서 차단하지 않고 downstream 검증에 맡긴다.
+      # - API 문서 라우트: 정적 문서 조회다.
       routes:
         - id: webhook-management
           order: -2
@@ -166,6 +180,13 @@ spring:
               args:
                 name: defaultCB
                 fallbackUri: forward:/fallback
+            # Retry는 뒤 필터를 다시 실행하므로 외부 요청 한 건이 토큰을 한 번만 쓰도록 RequestRateLimiter를 앞에 둔다
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
             - name: Retry
               args:
                 retries: 3
@@ -175,12 +196,6 @@ spring:
                   firstBackoff: 100ms
                   maxBackoff: 500ms
                   factor: 2
-            - name: RequestRateLimiter
-              args:
-                redis-rate-limiter.replenishRate: 20
-                redis-rate-limiter.burstCapacity: 40
-                redis-rate-limiter.requestedTokens: 1
-                key-resolver: "#{@userKeyResolver}"
 
         - id: project-team-service
           uri: lb://cowork-project
