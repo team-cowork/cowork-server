@@ -66,6 +66,7 @@ def affected(service, paths):
     for path in paths:
         if documentation_path(path):
             continue
+        # CD-only edits reuse existing images until a source or build input changes.
         if path == ".dockerignore" or fnmatchcase(path, ".github/workflows/*-ci.yml") or path.startswith(
             ("deploy/images/", ".github/actions/build-image/", ".github/actions/verify-image/")
         ):
