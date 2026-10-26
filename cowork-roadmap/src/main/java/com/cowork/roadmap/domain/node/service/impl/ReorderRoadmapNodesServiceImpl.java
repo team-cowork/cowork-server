@@ -52,16 +52,26 @@ public class ReorderRoadmapNodesServiceImpl implements ReorderRoadmapNodesServic
                             }
                             Map<Long, RoadmapNode> byId = new HashMap<>();
                             siblings.forEach(node -> byId.put(node.getId(), node));
+                            List<RoadmapNode> parked = new ArrayList<>();
                             List<RoadmapNode> updated = new ArrayList<>();
                             List<Long> ordered = request.orderedNodeIds();
                             for (int i = 0; i < ordered.size(); i++) {
                                 RoadmapNode node = byId.get(ordered.get(i));
-                                RoadmapNode reordered = node.toBuilder().position(i).build();
-                                reordered.copyAuditFrom(node);
-                                reordered.setLastModifiedBy(userId);
-                                updated.add(reordered);
+                                if (node.getPosition() != i) {
+                                    parked.add(withPosition(node, -1 - i, userId));
+                                }
+                                updated.add(withPosition(node, i, userId));
                             }
-                            return nodeRepository.saveAll(updated).then();
+                            // (roadmap_id, parent_key, position) 유일성 제약이 행 단위로 검사되므로 이동할 노드를 음수 임시
+                            // position으로 먼저 비운 뒤 최종 position을 저장한다.
+                            return nodeRepository.saveAll(parked).thenMany(nodeRepository.saveAll(updated)).then();
                         }));
+    }
+
+    private RoadmapNode withPosition(RoadmapNode node, int position, Long userId) {
+        RoadmapNode reordered = node.toBuilder().position(position).build();
+        reordered.copyAuditFrom(node);
+        reordered.setLastModifiedBy(userId);
+        return reordered;
     }
 }
