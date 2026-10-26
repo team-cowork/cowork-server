@@ -17,7 +17,7 @@ class TeamRolePermissionSchemaTest :
 
                     permissions.keys shouldBe TeamRolePermissionSchema.KEYS
                     permissions["message_send"] shouldBe true
-                    permissions[TeamRolePermissionSchema.MANAGE_ROLES] shouldBe false
+                    permissions[TeamRolePermission.MANAGE_ROLES.key] shouldBe false
                 }
             }
 
