@@ -8,6 +8,12 @@ spring:
     config:
       username: ${CONFIG_CLIENT_USERNAME}
       password: ${CONFIG_CLIENT_PASSWORD}
+    openfeign:
+      client:
+        config:
+          cowork-github:
+            connect-timeout: 3000
+            read-timeout: 10000
   application:
     name: cowork-project
   config:
@@ -37,17 +43,6 @@ spring:
 
 github:
   internal-api-key: ${COWORK_GITHUB_INTERNAL_API_KEY:}
-
-feign:
-  client:
-    jersey:
-      enabled: false
-    webclient:
-      enabled: false
-    config:
-      cowork-github:
-        connect-timeout: 3000
-        read-timeout: 10000
 
 eureka:
   client:
