@@ -26,6 +26,7 @@ type AppConfig struct {
 	KafkaTopicAccountSetting      string
 	KafkaTopicTeamSetting         string
 	FCMCredentialsJSON            string
+	FCMDataOnly                   bool
 	EurekaServerURL               string
 	EurekaAppName                 string
 	EurekaInstanceHost            string
@@ -58,8 +59,12 @@ func Load() (*AppConfig, error) {
 	}
 
 	portStr := lookup(flatMap, "eureka.instance.port", "8086")
+	dataOnlyStr := lookup(flatMap, "fcm.data-only", "false")
 
 	overrideFromEnv(cfg, &portStr)
+	if v := os.Getenv("FCM_DATA_ONLY"); v != "" {
+		dataOnlyStr = v
+	}
 	cfg.DBDSN = sqliteDSN(cfg.DBPath)
 
 	eurekaPort, err := strconv.Atoi(portStr)
@@ -67,6 +72,10 @@ func Load() (*AppConfig, error) {
 		return nil, fmt.Errorf("invalid eureka instance port %q: %w", portStr, err)
 	}
 	cfg.EurekaInstancePort = eurekaPort
+	cfg.FCMDataOnly, err = strconv.ParseBool(dataOnlyStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid fcm data-only flag %q: %w", dataOnlyStr, err)
+	}
 	if err := configureEurekaIdentity(cfg); err != nil {
 		return nil, err
 	}

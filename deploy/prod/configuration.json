@@ -139,7 +139,8 @@
     "notification": {
       "variables": {
         "APP_CONFIG_PROFILE": {},
-        "CONFIG_CLIENT_USERNAME": {"writes": [{"key": "CONFIG_CLIENT_USERNAME", "path": "control-plane/prod/notification"}]}
+        "CONFIG_CLIENT_USERNAME": {"writes": [{"key": "CONFIG_CLIENT_USERNAME", "path": "control-plane/prod/notification"}]},
+        "FCM_DATA_ONLY": {"optional": true}
       },
       "secrets": {
         "CONFIG_CLIENT_PASSWORD": {"environment": true, "writes": [{"key": "CONFIG_CLIENT_PASSWORD", "path": "control-plane/prod/notification"}]},
