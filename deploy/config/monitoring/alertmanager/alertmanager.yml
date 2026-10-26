@@ -12,6 +12,14 @@ route:
         - severity = critical
       repeat_interval: 1h
 
+# 수집 대상이 통째로 사라지면 서비스별 누락 알림 대신 discovery 전체 알림 하나만 보낸다.
+inhibit_rules:
+  - source_matchers:
+      - alertname = coworkServiceDiscoveryEmpty
+    target_matchers:
+      - alertname = coworkServiceMissing
+    equal: [job]
+
 receivers:
   - name: discord
     discord_configs:
