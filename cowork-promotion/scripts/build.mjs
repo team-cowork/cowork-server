@@ -10,7 +10,7 @@ import {
 } from './lib/content.mjs';
 import {generateFeatureStates} from './lib/feature-render.mjs';
 import {replaceOutputDirectory} from './lib/output.mjs';
-import {concatenateStyles, renderHomePage} from './lib/page-render.mjs';
+import {concatenateStyles, renderAchievementsPage, renderHomePage} from './lib/page-render.mjs';
 import {generatePositionStates} from './lib/render.mjs';
 
 function addStylesheet(assets, name, paths, sources) {
@@ -61,7 +61,28 @@ export async function build(options = {}) {
 		siteUrl: config.siteUrl,
 	});
 
-	const outputFiles = new Map([...assets.files, ['index.html', homeHtml]]);
+	const achievementsHtml = renderAchievementsPage({
+		template: input.achievementsTemplate,
+		achievements: JSON.parse(input.achievementSource),
+		script: assets.add('achievements', 'js', input.achievementScriptBundle),
+		styles: [
+			sharedStyleUrl,
+			addStylesheet(
+				assets,
+				'achievements',
+				stylesheetPaths.achievements,
+				input.stylesheetSources.achievements,
+			),
+		],
+		logoUrl,
+		socialImageUrl,
+		siteUrl: config.siteUrl,
+	});
+	const outputFiles = new Map([
+		...assets.files,
+		['index.html', homeHtml],
+		['achievements/index.html', achievementsHtml],
+	]);
 
 	await replaceOutputDirectory(config.outputDirectory, outputFiles);
 
