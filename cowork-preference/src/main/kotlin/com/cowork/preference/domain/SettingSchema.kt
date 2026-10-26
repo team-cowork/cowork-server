@@ -32,11 +32,8 @@ object SettingSchema {
     )
     private val PROJECT_KEYS = emptySet<String>() // TODO: 추후 확장 시 사용
     private val VOICE_CHANNEL_KEYS = setOf("bitrate", "max_participants")
-    private val TEXT_CHANNEL_KEYS = setOf("webhook", "slowmode_seconds")
+    private val TEXT_CHANNEL_KEYS = setOf("slowmode_seconds")
     private val GITHUB_REPO_KEYS = setOf("label_auto_apply")
-
-    // webhook은 PUT 전체 교체 계약 — 클라이언트는 항상 객체 전체를 전송해야 하며 부분 업데이트(PATCH)는 지원하지 않음
-    private val WEBHOOK_KEYS = setOf("is_active", "secret_key", "retry_count", "retry_interval_ms")
 
     // dnd_schedule도 PUT 전체 교체 계약 — start/end는 timezone 기준 HH:mm이며 end가 start보다 이르면 자정을 넘김
     private val DND_SCHEDULE_KEYS = setOf("enabled", "start", "end")
@@ -51,6 +48,8 @@ object SettingSchema {
     private val MESSAGE_DISPLAY_VALUES = setOf("COZY", "COMPACT")
     private val HH_MM: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
     private const val MAX_SLOWMODE_SECONDS = 21_600
+    private const val MAX_VOICE_PARTICIPANTS = 99
+    private val VOICE_BITRATE_RANGE = 8_000..128_000
 
     fun validKeys(type: ResourceType): Set<String> = when (type) {
         ResourceType.ACCOUNT -> ACCOUNT_KEYS
@@ -65,7 +64,6 @@ object SettingSchema {
         val result = validKeys(type).fold(JsonObject()) { acc, key ->
             if (raw.containsKey(key)) acc.put(key, raw.getValue(key)) else acc
         }
-        if (type == ResourceType.TEXT_CHANNEL) filterNested(result, "webhook", WEBHOOK_KEYS)
         if (type == ResourceType.ACCOUNT) filterNested(result, "dnd_schedule", DND_SCHEDULE_KEYS)
         return result
     }
@@ -85,9 +83,8 @@ object SettingSchema {
         ResourceType.TEAM -> validateTeam(settings)
         ResourceType.GITHUB_REPO -> validateGithubRepo(settings)
         ResourceType.TEXT_CHANNEL -> validateTextChannel(settings)
-        ResourceType.PROJECT,
-        ResourceType.VOICE_CHANNEL,
-        -> null
+        ResourceType.VOICE_CHANNEL -> validateVoiceChannel(settings)
+        ResourceType.PROJECT -> null
     }
 
     private fun validateAccount(settings: JsonObject): String? {
@@ -145,6 +142,23 @@ object SettingSchema {
             val seconds = settings.getValue("slowmode_seconds")
             if (seconds !is Int || seconds !in 0..MAX_SLOWMODE_SECONDS) {
                 return "slowmode_seconds must be an integer between 0 and $MAX_SLOWMODE_SECONDS"
+            }
+        }
+        return null
+    }
+
+    // max_participants 0은 제한 없음이다. bitrate는 클라이언트가 오디오 publish에 쓰는 bps 값이다.
+    private fun validateVoiceChannel(settings: JsonObject): String? {
+        if (settings.containsKey("max_participants")) {
+            val count = settings.getValue("max_participants")
+            if (count !is Int || count !in 0..MAX_VOICE_PARTICIPANTS) {
+                return "max_participants must be an integer between 0 and $MAX_VOICE_PARTICIPANTS"
+            }
+        }
+        if (settings.containsKey("bitrate")) {
+            val bitrate = settings.getValue("bitrate")
+            if (bitrate !is Int || bitrate !in VOICE_BITRATE_RANGE) {
+                return "bitrate must be an integer between ${VOICE_BITRATE_RANGE.first} and ${VOICE_BITRATE_RANGE.last}"
             }
         }
         return null

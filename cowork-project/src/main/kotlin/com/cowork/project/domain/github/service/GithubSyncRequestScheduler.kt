@@ -1,5 +1,6 @@
 package com.cowork.project.domain.github.service
 
+import com.cowork.project.domain.github.entity.GithubRepoProjection
 import com.cowork.project.domain.github.entity.GithubSyncMarker
 import com.cowork.project.domain.github.entity.GithubSyncRequest
 import com.cowork.project.domain.github.entity.GithubSyncStream
@@ -7,6 +8,7 @@ import com.cowork.project.domain.github.event.GITHUB_SYNC_COMMAND_TOPIC
 import com.cowork.project.domain.github.event.GithubSyncCommand
 import com.cowork.project.domain.github.event.GithubSyncCommandPublisher
 import com.cowork.project.domain.github.event.key
+import com.cowork.project.domain.github.repository.GithubRepoProjectionRepository
 import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
 import com.cowork.project.domain.github.repository.GithubSyncRequestRepository
 import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
@@ -23,6 +25,8 @@ import java.util.Locale
 /** 동기화 대상. org는 repo 목록, repo는 이슈·PR·라벨·댓글이며, 각자 확인할 완료 마커가 다르다. */
 data class GithubSyncTarget(val owner: String, val repo: String?, val installationId: Long?) {
     val requestId: String get() = if (repo == null) "ORG_REPOSITORIES:$owner" else "REPOSITORY:$owner/$repo"
+
+    val repoProjectionId: String? get() = repo?.let { GithubRepoProjection.id(owner, it) }
 
     val markerIds: List<String>
         get() = if (repo == null) {
@@ -53,10 +57,12 @@ data class GithubSyncTarget(val owner: String, val repo: String?, val installati
  * 팀이 설치한 org(repo 목록)와 프로젝트에 연결된 repo(이슈·PR·라벨·댓글)의 완료 마커를 주기적으로 확인해,
  * 마커가 없거나 오래된 대상만 `cowork-github`에 동기화를 요청한다. 요청한 뒤 쿨다운 동안은 다시 요청하지
  * 않으므로, `cowork-github`가 처리 중이면 기다리고 실패했거나 처리 전에 내려갔으면 쿨다운 뒤 다시 요청한다.
+ * 설치 범위에서 빠지거나 삭제된 repo는 `cowork-github`가 접근할 수 없어 매번 실패하므로 요청하지 않는다.
  */
 @Component
 class GithubSyncRequestScheduler(
     private val projectGithubRepoRepository: ProjectGithubRepoRepository,
+    private val repoProjectionRepository: GithubRepoProjectionRepository,
     private val installationRepository: TeamGithubInstallationRepository,
     private val markerRepository: GithubSyncMarkerRepository,
     private val requestRepository: GithubSyncRequestRepository,
@@ -119,7 +125,17 @@ class GithubSyncRequestScheduler(
             .mapNotNull { GithubRepoUrlParser.parse(it.githubRepoUrl) }
             .map(::repositoryTarget)
             .distinct()
-        return orgs + repos
+        return orgs + repos.excludingRemovedRepos()
+    }
+
+    // 다시 설치 범위에 들어오면 `cowork-github`가 deleted=false repo state를 발행해 projection이 되살아나므로,
+    // 그다음 주기부터 다시 동기화 대상이 된다. projection이 아직 없는 repo는 상태를 모르므로 요청한다.
+    private fun List<GithubSyncTarget>.excludingRemovedRepos(): List<GithubSyncTarget> {
+        if (isEmpty()) return this
+        val removedIds = repoProjectionRepository.findAllById(mapNotNull { it.repoProjectionId })
+            .filter { it.deleted }
+            .mapTo(HashSet()) { it.id }
+        return filterNot { it.repoProjectionId in removedIds }
     }
 
     private fun repositoryTarget(ref: GithubRepoRef) =

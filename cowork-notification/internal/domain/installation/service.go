@@ -294,7 +294,7 @@ func (s *Service) excludeStaleTargets(ctx context.Context, eventID string, accou
 	for _, t := range targets {
 		if owner, ok := owners[generation{t.InstallationID, t.FID}]; ok {
 			live = append(live, t)
-			messages = append(messages, fcm.Message{FID: t.FID, Data: fcm.WithAccountID(nil, owner)})
+			messages = append(messages, fcm.Message{FID: t.FID, Data: fcm.WithAccountID(eventData(eventID), owner)})
 			continue
 		}
 		if eventID == "" {
@@ -305,6 +305,15 @@ func (s *Service) excludeStaleTargets(ctx context.Context, eventID string, accou
 		}
 	}
 	return live, messages, nil
+}
+
+// eventData is the FCM data payload shared by every installation of one event. The
+// retry worker rebuilds it from the ledger's event_id, so data_json need not carry it.
+func eventData(eventID string) map[string]string {
+	if eventID == "" {
+		return nil
+	}
+	return map[string]string{fcm.DataKeyEventID: eventID}
 }
 
 func (s *Service) finalizeFailure(ctx context.Context, eventID string, target delivery.Target, errClass delivery.ErrorClass) {

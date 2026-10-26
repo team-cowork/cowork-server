@@ -1,4 +1,5 @@
 import {renderRepositoryCard} from '../../src/design-system/index.mjs';
+import {renderAchievements} from './achievement-render.mjs';
 import {inlineJson, replaceBundleMarker} from './bundle.mjs';
 import {renderTeamMembers, renderTechStacks} from './render.mjs';
 import {renderShowcase} from './showcase-render.mjs';
@@ -19,7 +20,7 @@ function bundlePage({html, styles, stateData, script, logoUrl}) {
 		.join('\n');
 	const withStyles = replaceBundleMarker(html, 'styles', styleLinks);
 	const withState = replaceBundleMarker(withStyles, 'state-data', stateData);
-	const withScript = replaceBundleMarker(withState, 'script', `<script type="module" src="${script}"></script>`);
+	const withScript = replaceBundleMarker(withState, 'script', script ? `<script type="module" src="${script}"></script>` : '');
 	return withScript.replace('href="/logo.svg"', () => `href="${logoUrl}"`);
 }
 
@@ -40,6 +41,25 @@ function renderPageMetadata(html, metadata, {siteUrl, socialImageUrl}) {
 	}
 
 	return result;
+}
+
+export function renderAchievementsPage({template, achievements, styles, script, logoUrl, socialImageUrl, siteUrl}) {
+	return renderPageMetadata(
+		bundlePage({
+			html: renderAchievements(template, achievements),
+			styles,
+			script,
+			stateData: '',
+			logoUrl,
+		}),
+		{
+			title: '개발 성과 | cowork',
+			description: '함께 만든 cowork. 코드의 변화부터 주간 최다 Pull Request, 기여자와 AI 활용까지 개발의 성과를 소개합니다.',
+			route: '/achievements/',
+			type: 'website',
+		},
+		{siteUrl, socialImageUrl},
+	);
 }
 
 export function renderHomePage({
