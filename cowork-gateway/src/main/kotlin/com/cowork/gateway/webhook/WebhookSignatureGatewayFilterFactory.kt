@@ -12,11 +12,22 @@ import org.springframework.stereotype.Component
 @Component
 class WebhookSignatureGatewayFilterFactory(
     @param:Value("\${WEBHOOK_URL_SIGNING_KEY:\${webhook.url-signing-key:}}") encodedKey: String,
-    private val meterRegistry: MeterRegistry,
+    meterRegistry: MeterRegistry,
 ) : AbstractGatewayFilterFactory<WebhookSignatureGatewayFilterFactory.Config>(Config::class.java) {
     class Config
 
     private val verifier = WebhookUrlSignatureVerifier(encodedKey)
+
+    // 잘못된 서명(403)과 서명 키 설정 오류(503)는 다른 라우트의 같은 상태 코드와 섞이지 않게 따로 센다.
+    // 첫 거부부터 increase()에 잡히도록 시작 시 0으로 미리 등록한다.
+    private val rejections = listOf(
+        WebhookUrlSignatureVerifier.Verification.INVALID,
+        WebhookUrlSignatureVerifier.Verification.UNAVAILABLE,
+    ).associateWith { reason ->
+        Counter.builder(REJECTIONS_METRIC)
+            .tag("reason", reason.name.lowercase())
+            .register(meterRegistry)
+    }
 
     override fun apply(config: Config): GatewayFilter = GatewayFilter { exchange, chain ->
         val variables = ServerWebExchangeUtils.getUriTemplateVariables(exchange)
@@ -24,11 +35,7 @@ class WebhookSignatureGatewayFilterFactory(
         if (result == WebhookUrlSignatureVerifier.Verification.VALID) {
             chain.filter(exchange)
         } else {
-            // 잘못된 서명(403)과 서명 키 설정 오류(503)는 다른 라우트의 같은 상태 코드와 섞이지 않게 따로 센다
-            Counter.builder(REJECTIONS_METRIC)
-                .tag("reason", result.name.lowercase())
-                .register(meterRegistry)
-                .increment()
+            rejections.getValue(result).increment()
             exchange.response.statusCode = if (result == WebhookUrlSignatureVerifier.Verification.UNAVAILABLE) {
                 HttpStatus.SERVICE_UNAVAILABLE
             } else {
