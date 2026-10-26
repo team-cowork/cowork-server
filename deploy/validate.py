@@ -122,6 +122,12 @@ for target in inventory["targets"]:
         raise SystemExit(f"Invalid deployment target: {name}")
 print(f"Shell/Python syntax and {len(seen)} inventory targets valid")
 
+# Referenced entries never count toward or fall out of the retained newest releases.
+retention = runpy.run_path(str(ROOT / "deploy/prod/cd/release-retention.py"))
+entries = [(f"r{age}", -age, f"token{age}") for age in range(9)]
+if retention["select"](entries, "token0 token7", keep=5) != ["r6", "r8"]:
+    raise SystemExit("release-retention.py must keep the newest unreferenced and every referenced entry")
+
 # CD passes GitHub secrets one binding at a time, so every catalog secret needs a workflow binding.
 settings = runpy.run_path(str(ROOT / "deploy/prod/cd/github-settings.py"))
 settings_catalog = settings["load_catalog"](ROOT / "deploy/prod/configuration.json")
