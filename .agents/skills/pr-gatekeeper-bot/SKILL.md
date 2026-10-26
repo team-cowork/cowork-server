@@ -158,16 +158,16 @@ Report the PR number and URL. Confirm `author.is_bot` is `true` and `author.logi
    - there are conflicts (`mergeable` is `CONFLICTING` or `mergeStateStatus` is `DIRTY`)
 
    If checks are still running, ask whether to schedule auto-merge (`--auto` / `-f auto=true`).
-3. Show the PR number, base, and merge method (default `squash`, delete branch `true`) and get explicit confirmation.
+3. Show the PR number, base, and merge method (default `merge`, delete branch `true`) and get explicit confirmation.
 4. Execute:
    - Token mode:
      ```bash
-     "/absolute/path/to/this-skill/scripts/pr-gatekeeper-gh.sh" OWNER/REPO pr merge <number> --repo OWNER/REPO --squash --delete-branch
+     "/absolute/path/to/this-skill/scripts/pr-gatekeeper-gh.sh" OWNER/REPO pr merge <number> --repo OWNER/REPO --merge --delete-branch
      ```
    - Workflow mode:
      ```bash
      since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-     gh workflow run pr-gatekeeper-merge.yml --repo tmp-it-play/pr-gatekeeper-bot -f repo=OWNER/REPO -f pr=<number> -f method=squash -f delete_branch=true
+     gh workflow run pr-gatekeeper-merge.yml --repo tmp-it-play/pr-gatekeeper-bot -f repo=OWNER/REPO -f pr=<number> -f method=merge -f delete_branch=true
      ```
      Then find and watch the run exactly as in section 6, using `--workflow=pr-gatekeeper-merge.yml`.
 5. Verify and report:
