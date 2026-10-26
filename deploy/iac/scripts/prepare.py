@@ -216,6 +216,13 @@ def prepare(args):
                 host['cowork_runtime_network'] = True
             if selection is None and 'slot' in entry and entry['service'] not in {'gateway', 'vault'}:
                 host['cowork_firewall_target'] = entry['slot']
+            if selection is None and entry['service'] == 'gateway':
+                # Gateway's public listener stays outside the backend policy; only node_exporter is restricted.
+                host['cowork_firewall_policy'] = {
+                    'bindings': [{'address': SLOTS['load'](entry['slot'])['container']['bind_address'],
+                                  'host_port': 9100, 'container_port': 9100}],
+                    'peers': [SLOTS['load']('monitoring')['runtime']['MONITORING_BIND_IP'] + '/32'],
+                }
             if host_id in databases and databases[host_id]['engine'] == 'sqlite' and selected('database', host_id):
                 settings_file = output / 'settings' / f'database-{host_id}.json'
                 write_private(settings_file, '{}')

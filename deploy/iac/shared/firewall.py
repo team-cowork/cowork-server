@@ -31,7 +31,8 @@ def port(value):
 
 def policy(value, stored=False):
     keys = {'network', 'bind_ip', 'bindings', 'internal_ports'} | ({'bridge', 'subnet'} if stored else set())
-    if set(value) != keys or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,62}', value['network']):
+    # host_ports is optional so a policy stored before it existed still restores at boot.
+    if set(value) - {'host_ports'} != keys or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,62}', value['network']):
         raise ValueError('Invalid shared service firewall policy')
     private(str(ipaddress.IPv4Address(value['bind_ip'])))
     endpoints, hosts = set(), set()
@@ -54,6 +55,16 @@ def policy(value, stored=False):
         if endpoint in endpoints:
             raise ValueError('Internal and published ports must be distinct')
         endpoints.add(endpoint)
+    # Ports published on bind_ip by other Compose projects on this VM, such as node-agent's node_exporter.
+    for entry in value.get('host_ports', []):
+        if set(entry) != {'port', 'protocol', 'peers'} or entry['protocol'] not in {'tcp', 'udp'}:
+            raise ValueError('Invalid host port')
+        host = (entry['protocol'], port(entry['port']))
+        if host in hosts or not entry['peers']:
+            raise ValueError('Host ports must be distinct from service bindings and declare peers')
+        hosts.add(host)
+        for peer in entry['peers']:
+            private(peer)
     if not endpoints or len(endpoints) > 16:
         raise ValueError('Shared service port list is invalid')
     if stored:
@@ -83,6 +94,7 @@ def restore(value):
     entries = value['bindings'] + [{'container_port': p['port'],
                                     'protocol': p['protocol'], 'peers': []} for p in value['internal_ports']]
     chains = {f'{e["protocol"]}_{e["container_port"]}': e for e in entries}
+    chains.update({f'host_{e["protocol"]}_{e["port"]}': e for e in value.get('host_ports', [])})
     for tool in ('iptables', 'ip6tables'):
         previous = run(tool, '-w', '10', '-S').splitlines()
         parsed = [shlex.split(line) for line in previous]
@@ -103,7 +115,8 @@ def restore(value):
         for suffix, entry in chains.items():
             chain = PREFIX + suffix
             if tool == 'iptables':
-                rules.append(f'-A {chain} -i {value["bridge"]} -s {value["subnet"]} -j RETURN')
+                if 'port' not in entry:
+                    rules.append(f'-A {chain} -i {value["bridge"]} -s {value["subnet"]} -j RETURN')
                 for peer in entry['peers']:
                     rules.append(f'-A {chain} -s {peer} -j RETURN')
             rules.append(f'-A {chain} -j DROP')
@@ -111,6 +124,11 @@ def restore(value):
                 continue
             marker = f'-m comment --comment {MARK}'
             direction = '-m conntrack --ctdir ORIGINAL'
+            if 'port' in entry:
+                # The publishing container sits on another bridge, so match only the original destination.
+                rules.append(f'-I DOCKER-USER 1 -p {entry["protocol"]} {direction} --ctorigdst {value["bind_ip"]} --ctorigdstport {entry["port"]} {marker} -j {chain}')
+                rules.append(f'-I INPUT 1 ! -i lo -d {value["bind_ip"]} -p {entry["protocol"]} --dport {entry["port"]} {direction} {marker} -j {chain}')
+                continue
             forward = f'-I DOCKER-USER 1 -o {value["bridge"]} -p {entry["protocol"]} --dport {entry["container_port"]} {direction}'
             if 'host_port' in entry:
                 endpoint = f'--ctorigdst {value["bind_ip"]} --ctorigdstport {entry["host_port"]}'
