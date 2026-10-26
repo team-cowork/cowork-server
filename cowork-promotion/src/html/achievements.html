@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="ko">
+	<!-- @include components/head.html -->
+	<body>
+		<div id="app">
+			<div class="min-h-screen bg-white font-sans text-gray-900 antialiased">
+				<!-- @include components/navigation.html -->
+				<main
+					id="main-content"
+					class="achievements"
+					tabindex="-1"
+				>
+					<div
+						class="achievement-story"
+						aria-label="개발 성과 이야기"
+						tabindex="0"
+					>
+						<div class="achievement-stage showcase-viewport">
+							<div class="achievement-toolbar ui-container">
+								<span>개발 성과</span>
+							</div>
+							<section
+								class="achievement-scene achievement-scene--code is-active"
+								aria-labelledby="achievement-code-title"
+								data-scene="0"
+							>
+								<div class="achievement-scene__inner achievement-code-layout ui-container">
+									<div class="achievement-copy">
+										<h1 id="achievement-code-title">함께 만든 변화,<br>코드에 남다.</h1>
+										<div class="achievement-code-summary">
+											<!-- data:achievement-summary:start -->
+											<!-- data:achievement-summary:end -->
+										</div>
+									</div>
+									<div class="achievement-code-art" aria-hidden="true">
+										<span class="achievement-code-art__symbol achievement-code-art__symbol--add">+</span>
+										<span class="achievement-code-art__symbol achievement-code-art__symbol--remove">−</span>
+										<div class="achievement-code-art__file">
+											<div class="achievement-code-art__header">collaboration.ts</div>
+											<div class="achievement-code-line achievement-code-line--remove"><span>−</span><code>work.alone();</code></div>
+											<div class="achievement-code-line achievement-code-line--add"><span>+</span><code>work.together();</code></div>
+											<div class="achievement-code-line achievement-code-line--add"><span>+</span><code>progress.share();</code></div>
+										</div>
+									</div>
+								</div>
+							</section>
+							<section
+								class="achievement-scene achievement-scene--prs"
+								aria-labelledby="achievement-pr-title"
+								data-scene="1"
+							>
+								<div class="achievement-scene__inner achievement-pr-layout ui-container">
+									<div class="achievement-copy">
+										<h2 id="achievement-pr-title">가장 뜨거웠던<br>한 주.</h2>
+										<p class="achievement-metric-label">Pull Request</p>
+										<div class="achievement-pr-summary">
+											<!-- data:achievement-pr-summary:start -->
+											<!-- data:achievement-pr-summary:end -->
+										</div>
+									</div>
+									<div class="achievement-pr-visual">
+										<svg
+											class="achievement-merge-mark"
+											aria-hidden="true"
+											fill="none"
+											viewBox="0 0 24 24"
+										>
+											<circle
+												cx="6"
+												cy="5"
+												r="3"
+											></circle>
+											<circle
+												cx="6"
+												cy="19"
+												r="3"
+											></circle>
+											<circle
+												cx="18"
+												cy="19"
+												r="3"
+											></circle>
+											<path d="M6 8v8M9 5h1a8 8 0 0 1 8 8v3"></path>
+										</svg>
+										<div class="achievement-pr-activity" aria-hidden="true">
+											<!-- data:achievement-pr-activity:start -->
+											<!-- data:achievement-pr-activity:end -->
+										</div>
+									</div>
+								</div>
+							</section>
+							<section
+								class="achievement-scene achievement-scene--people"
+								aria-labelledby="achievement-people-title"
+								data-scene="2"
+							>
+								<div class="achievement-scene__inner achievement-people-layout ui-container">
+									<div class="achievement-copy">
+										<h2 id="achievement-people-title">혼자서는<br>만들 수 없는 변화.</h2>
+										<p class="achievement-metric-label">함께한 컨트리뷰터</p>
+										<div class="achievement-people-summary">
+											<!-- data:achievement-people-summary:start -->
+											<!-- data:achievement-people-summary:end -->
+										</div>
+									</div>
+									<div class="achievement-people" aria-label="cowork 컨트리뷰터">
+										<!-- data:achievements-contributors:start -->
+										<!-- data:achievements-contributors:end -->
+									</div>
+								</div>
+							</section>
+							<section
+								class="achievement-scene achievement-scene--ai"
+								aria-labelledby="achievement-ai-title"
+								data-scene="3"
+							>
+								<div class="achievement-scene__inner achievement-ai-layout ui-container">
+									<div class="achievement-copy">
+										<h2 id="achievement-ai-title">AI와 함께<br>만드는 코드.</h2>
+										<p class="achievement-metric-label">LLM 생성 코드</p>
+										<p class="achievement-ai-percentage">98<span>%</span></p>
+									</div>
+									<div class="achievement-ai-mosaic" aria-hidden="true">
+										<!-- data:achievement-ai-grid:start -->
+										<!-- data:achievement-ai-grid:end -->
+									</div>
+								</div>
+							</section>
+							<section
+								class="achievement-scene achievement-scene--commits"
+								aria-labelledby="achievement-commit-title"
+								data-scene="4"
+							>
+								<div class="achievement-scene__inner achievement-commit-layout ui-container">
+									<div class="achievement-copy">
+										<h2 id="achievement-commit-title">한 번의 커밋,<br>한 걸음의 전진.</h2>
+										<p class="achievement-metric-label">함께 쌓은 커밋</p>
+										<div class="achievement-commit-summary">
+											<!-- data:achievement-commit-summary:start -->
+											<!-- data:achievement-commit-summary:end -->
+										</div>
+										<a class="ui-button ui-button--primary achievement-home-link" href="/">cowork 둘러보기</a>
+									</div>
+									<div class="achievement-commit-visual" aria-hidden="true">
+										<svg
+											class="achievement-commit-graph"
+											fill="none"
+											viewBox="0 0 480 400"
+										>
+											<g class="achievement-commit-paths">
+												<path
+													class="achievement-commit-path achievement-commit-path--main"
+													d="M80 28V372"
+													pathLength="1"
+												></path>
+												<path
+													class="achievement-commit-path achievement-commit-path--branch"
+													d="M80 72C80 120 220 110 220 160V256C220 304 80 296 80 344"
+													pathLength="1"
+												></path>
+												<path
+													class="achievement-commit-path achievement-commit-path--second"
+													d="M220 176C220 208 368 188 368 232V280C368 324 220 308 220 340"
+													pathLength="1"
+												></path>
+											</g>
+											<g class="achievement-commit-node">
+												<circle
+													cx="80"
+													cy="32"
+													r="9"
+												></circle>
+												<path d="M106 32h72"></path>
+											</g>
+											<g class="achievement-commit-node">
+												<circle
+													cx="80"
+													cy="96"
+													r="9"
+												></circle>
+												<path d="M106 96h42"></path>
+											</g>
+											<g class="achievement-commit-node achievement-commit-node--branch">
+												<circle
+													cx="220"
+													cy="160"
+													r="9"
+												></circle>
+												<path d="M246 160h86"></path>
+											</g>
+											<g class="achievement-commit-node">
+												<circle
+													cx="80"
+													cy="192"
+													r="9"
+												></circle>
+												<path d="M106 192h46"></path>
+											</g>
+											<g class="achievement-commit-node achievement-commit-node--second">
+												<circle
+													cx="368"
+													cy="232"
+													r="9"
+												></circle>
+												<path d="M394 232h52"></path>
+											</g>
+											<g class="achievement-commit-node achievement-commit-node--branch">
+												<circle
+													cx="220"
+													cy="256"
+													r="9"
+												></circle>
+												<path d="M246 256h46"></path>
+											</g>
+											<g class="achievement-commit-node">
+												<circle
+													cx="80"
+													cy="280"
+													r="9"
+												></circle>
+												<path d="M106 280h74"></path>
+											</g>
+											<g class="achievement-commit-node achievement-commit-node--second">
+												<circle
+													cx="368"
+													cy="280"
+													r="9"
+												></circle>
+												<path d="M394 280h32"></path>
+											</g>
+											<g class="achievement-commit-node">
+												<circle
+													cx="80"
+													cy="344"
+													r="9"
+												></circle>
+												<path d="M106 344h80"></path>
+											</g>
+										</svg>
+									</div>
+								</div>
+							</section>
+							<div class="achievement-controls ui-container">
+								<div class="achievement-controls__position">
+									<span data-achievement-counter>1 / 5</span>
+									<div class="achievement-progress" aria-hidden="true"><span></span></div>
+								</div>
+								<div
+									class="achievement-dots"
+									aria-label="성과 선택"
+									role="group"
+								>
+									<button
+										type="button"
+										aria-label="코드 변경 성과"
+										data-achievement-dot="0"
+									></button>
+									<button
+										type="button"
+										aria-label="Pull Request 성과"
+										data-achievement-dot="1"
+									></button>
+									<button
+										type="button"
+										aria-label="컨트리뷰터 성과"
+										data-achievement-dot="2"
+									></button>
+									<button
+										type="button"
+										aria-label="AI 활용 성과"
+										data-achievement-dot="3"
+									></button>
+									<button
+										type="button"
+										aria-label="커밋 성과"
+										data-achievement-dot="4"
+									></button>
+								</div>
+								<span class="achievement-scroll-hint" aria-hidden="true">스크롤해서 더 보기 <span>↓</span></span>
+							</div>
+						</div>
+					</div>
+				</main>
+				<!-- @include components/footer.html -->
+			</div>
+		</div>
+	</body>
+</html>
