@@ -256,7 +256,7 @@
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "Prometheus가 평가하는 TLS 연결·인증서 갱신·만료 알림 중 현재 발생 중인 것을 표시합니다. 로그인 실패 급증 알림(coworkVaultLoginFailureBurst)은 Loki가 평가해 Discord로 바로 보내므로 여기에 나오지 않고, 아래 로그인 실패 패널에서 같은 기준의 건수를 볼 수 있습니다. 활성 알림이 없으면 결과가 비어 있습니다.",
+      "description": "Prometheus가 평가하는 TLS 연결·봉인·인증서 갱신·만료 알림 중 현재 발생 중인 것을 표시합니다. 로그인 실패 급증 알림(coworkVaultLoginFailureBurst)은 Loki가 평가해 Discord로 바로 보내므로 여기에 나오지 않고, 아래 로그인 실패 패널에서 같은 기준의 건수를 볼 수 있습니다. 활성 알림이 없으면 결과가 비어 있습니다.",
       "gridPos": {
         "h": 6,
         "w": 24,
