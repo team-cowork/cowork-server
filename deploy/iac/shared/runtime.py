@@ -28,6 +28,7 @@ def catalog():
     values = json.loads((SOURCE / 'catalog.json').read_text())
     demand(set(values) == set(REPOSITORIES), 'Declare Redis, Kafka and LiveKit as dedicated services')
     network = json.loads((ROOT / 'deploy/prod/network/host-network.json').read_text())['name']
+    monitoring = json.loads((ROOT / 'deploy/prod/slots/monitoring.json').read_text())['runtime']['MONITORING_BIND_IP']
     for service, value in values.items():
         demand(isinstance(value['secrets'], dict), 'Shared service secret references must be an object')
         for key, ref in value['secrets'].items():
@@ -40,6 +41,8 @@ def catalog():
         demand(re.fullmatch(r'[1-9][0-9]*[mg]', value['memory']) and type(value['cpus']) in {int, float}
                and 0 < value['cpus'] <= 16, 'Invalid shared service resource limits')
         FIREWALL['policy']({'network': network, **{k: value[k] for k in POLICY_KEYS}})
+        demand(all(item['peers'] == [f'{monitoring}/32'] for item in value['host_ports']),
+               'Shared host port ingress must match the monitoring slot address')
         if service != 'livekit':
             demand(all(peer != '0.0.0.0/0' for b in value['bindings'] for peer in b['peers']),
                    'Redis and Kafka ingress must use explicit private peers')
