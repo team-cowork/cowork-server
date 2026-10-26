@@ -4,11 +4,15 @@ import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 /**
  * 프로젝트에 등록된 GitHub 레포지토리 참조를 조회 권한(팀 멤버) 또는
  * 수정 권한(프로젝트 수정자) 기준으로 해석한다.
+ *
+ * 읽기용 해석은 자체 읽기 트랜잭션을 가진다. 트랜잭션 없이 호출한 서비스(cowork-github 호출·Kafka 발행)는
+ * 권한 확인이 끝나면 커넥션을 반납하고 불변 값 [GithubRepoRef]만 들고 외부 호출로 넘어간다.
  */
 @Component
 class GithubRepoAccessResolver(
@@ -16,12 +20,14 @@ class GithubRepoAccessResolver(
     private val projectGithubRepoRepository: ProjectGithubRepoRepository,
 ) {
 
+    @Transactional(readOnly = true)
     fun resolveForRead(userId: Long, projectId: Long, repoId: Long): GithubRepoRef {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectReader(project, userId)
         return parseLinkedRepo(projectId, repoId)
     }
 
+    @Transactional(readOnly = true)
     fun resolveForModify(userId: Long, projectId: Long, repoId: Long): GithubRepoRef {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectModifier(project, userId)
