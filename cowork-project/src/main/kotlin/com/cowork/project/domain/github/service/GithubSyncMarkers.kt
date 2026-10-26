@@ -1,21 +1,26 @@
 package com.cowork.project.domain.github.service
 
+import com.cowork.project.domain.github.entity.GithubRepoProjection
 import com.cowork.project.domain.github.entity.GithubSyncMarker
 import com.cowork.project.domain.github.entity.GithubSyncStream
 import com.cowork.project.domain.github.event.GithubSyncCompletedMarker
+import com.cowork.project.domain.github.repository.GithubRepoProjectionRepository
 import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
 import com.fasterxml.jackson.databind.JsonNode
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
+import java.util.Locale
 
 /**
  * state 토픽의 동기화 완료 마커를 기록하고, reader가 projection을 믿어도 되는지 판단한다.
  * 마커가 없으면 그 대상은 아직 동기화 전이거나 동기화가 끝나지 않았으므로 `503`으로 응답한다.
+ * 다만 설치 범위에서 빠지거나 삭제된 repo는 다시 동기화되지 않으므로 `404`로 구분한다.
  */
 @Component
 class GithubSyncMarkers(
     private val repository: GithubSyncMarkerRepository,
+    private val repoProjectionRepository: GithubRepoProjectionRepository,
 ) {
     fun isMarker(node: JsonNode): Boolean = node.path("recordType").asText() == SYNC_COMPLETED
 
@@ -52,9 +57,16 @@ class GithubSyncMarkers(
     }
 
     fun requireSynced(stream: GithubSyncStream, owner: String, repo: String? = null) {
-        if (!repository.existsById(GithubSyncMarker.id(stream, owner, repo))) {
-            throw ExpectedException("GitHub 데이터 동기화가 완료되지 않았습니다.", HttpStatus.SERVICE_UNAVAILABLE)
+        if (repository.existsById(GithubSyncMarker.id(stream, owner, repo))) return
+        if (repo != null && isRemovedRepo(owner, repo)) {
+            throw ExpectedException("GitHub에서 삭제되었거나 앱 설치 범위에서 빠진 레포입니다.", HttpStatus.NOT_FOUND)
         }
+        throw ExpectedException("GitHub 데이터 동기화가 완료되지 않았습니다.", HttpStatus.SERVICE_UNAVAILABLE)
+    }
+
+    private fun isRemovedRepo(owner: String, repo: String): Boolean {
+        val id = GithubRepoProjection.id(owner.lowercase(Locale.ROOT), repo.lowercase(Locale.ROOT))
+        return repoProjectionRepository.findById(id).map { it.deleted }.orElse(false)
     }
 
     private companion object {

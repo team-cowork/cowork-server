@@ -11,6 +11,10 @@ import {getOptionalConfig, getRequiredConfig} from '../common/config/config.util
 import {RedisRateLimiter} from '../common/util/redis-rate-limiter';
 import {SocketIoRedisConnection} from '../common/adapter/redis-io.adapter';
 import {ThrottleGuard} from '../common/guard/throttle.guard';
+import {WebhookRateLimiter} from './webhook/webhook-rate-limiter';
+import {WebhookMessageRepository} from './webhook/webhook-message.repository';
+import {WebhookController} from './webhook/webhook.controller';
+import {WebhookService} from './webhook/webhook.service';
 import {ChatGateway} from './chat.gateway';
 import {ChatService} from './chat.service';
 import {AttachmentDownloadService} from './service/attachment-download.service';
@@ -39,6 +43,7 @@ import {
     TeamRoleEventConsumer,
     ChannelRolePolicyEventConsumer,
     TextChannelSettingEventConsumer,
+    WebhookEventConsumer,
     ChatMessageScopeValidator,
     ChatMessageProcessor,
     ChatMessageQuarantinePoller,
@@ -83,6 +88,8 @@ import {
     ChannelRolePolicyProjectionSchema,
     TextChannelSettingProjection,
     TextChannelSettingProjectionSchema,
+    WebhookProjection,
+    WebhookProjectionSchema,
     ChatMessageQuarantineRecord,
     ChatMessageQuarantineRecordSchema,
     MessageSearchTombstone,
@@ -103,6 +110,7 @@ import {
     TeamRoleProjectionRepository,
     ChannelRolePolicyProjectionRepository,
     TextChannelSettingProjectionRepository,
+    WebhookProjectionRepository,
     ChatMessageQuarantineRepository,
     MessageSearchIndexRepository,
     MessageSearchTombstoneRepository,
@@ -143,6 +151,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
             {name: TeamRoleMemberTombstone.name, schema: TeamRoleMemberTombstoneSchema},
             {name: ChannelRolePolicyProjection.name, schema: ChannelRolePolicyProjectionSchema},
             {name: TextChannelSettingProjection.name, schema: TextChannelSettingProjectionSchema},
+            {name: WebhookProjection.name, schema: WebhookProjectionSchema},
             {name: ChatMessageQuarantineRecord.name, schema: ChatMessageQuarantineRecordSchema},
             {name: MessageSearchTombstone.name, schema: MessageSearchTombstoneSchema},
             {name: MessageSearchIndexState.name, schema: MessageSearchIndexStateSchema},
@@ -164,6 +173,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         SearchModule,
     ],
     controllers: [
+        WebhookController,
         ChatController,
         DmController,
         ProjectMessageController,
@@ -173,6 +183,9 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         MessageSearchAdminController,
     ],
     providers: [
+        WebhookService,
+        WebhookMessageRepository,
+        WebhookRateLimiter,
         ChatGateway,
         ChatService,
         AttachmentDownloadService,
@@ -209,6 +222,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         TeamRoleEventConsumer,
         ChannelRolePolicyEventConsumer,
         TextChannelSettingEventConsumer,
+        WebhookEventConsumer,
         ProjectClient,
         UnreadCounterService,
         ChannelClient,
@@ -223,6 +237,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         TeamRoleProjectionRepository,
         ChannelRolePolicyProjectionRepository,
         TextChannelSettingProjectionRepository,
+        WebhookProjectionRepository,
         ChannelMessageReadAccessService,
         SlowmodeService,
         UnifiedSearchResolver,

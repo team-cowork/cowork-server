@@ -71,7 +71,7 @@ func main() {
 
 	fcmCtx, fcmCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer fcmCancel()
-	fcmSender, err := fcm.NewSender(fcmCtx, cfg.FCMCredentialsJSON)
+	fcmSender, err := fcm.NewSender(fcmCtx, cfg.FCMCredentialsJSON, cfg.FCMDataOnly)
 	if err != nil {
 		slog.Error("fcm init failed", "err", err)
 		os.Exit(1)
@@ -79,11 +79,12 @@ func main() {
 
 	repo := sqliteinfra.NewInstallationRepository(db)
 	deliveryRepo := sqliteinfra.NewDeliveryRepository(db)
+	eventInbox := sqliteinfra.NewEventInboxRepository(db)
 	projectionRepo := sqliteinfra.NewProjectionRepository(db)
 	projectionService := projection.NewService(projectionRepo)
 	svc := installationdomain.NewService(repo, fcmSender, projectionRepo, deliveryRepo)
 	handler := installationdomain.NewHandler(svc)
-	deliveryWorker := delivery.NewWorker(deliveryRepo, repo, repo, fcmSender)
+	deliveryWorker := delivery.NewWorker(deliveryRepo, repo, repo, fcmSender, eventInbox)
 
 	sseHub := sseinfra.NewHub()
 	projectionReadiness := health.NewReadiness()
@@ -92,6 +93,7 @@ func main() {
 		cfg.KafkaTopicNotify,
 		cfg.KafkaGroupID,
 		svc,
+		eventInbox,
 		projectionRepo,
 		projectionRepo,
 		sseHub,

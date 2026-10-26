@@ -2,6 +2,9 @@ server:
   port: ${PORT:9001}
 
 preference:
+  webhook:
+    secret-encryption-key: "" # Vault 주입 또는 런타임 WEBHOOK_SECRET_ENCRYPTION_KEY 사용
+    url-signing-key: "" # Vault 주입 또는 런타임 WEBHOOK_URL_SIGNING_KEY 사용
   db:
     host: ${DB_HOST:postgres}
     port: ${DB_PORT:5432}

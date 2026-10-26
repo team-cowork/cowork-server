@@ -217,7 +217,7 @@ func TestServiceNotifyReverifiesOwnershipBeforeSend(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, []string{"kept"}, fcm.calledFIDs)
-		assert.Equal(t, []map[string]string{{"accountId": "1"}}, fcm.calledData)
+		assert.Equal(t, []map[string]string{{"accountId": "1", "eventId": "event-1"}}, fcm.calledData)
 		assert.ElementsMatch(t, []string{"claim-moved", "claim-deleted"}, ledger.cancelled)
 	})
 

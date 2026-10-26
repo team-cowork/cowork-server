@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 
@@ -40,6 +41,9 @@ class CreateProjectServiceImplTest {
     private fun membership(teamId: Long, userId: Long, role: String = "MEMBER") =
         TeamMembership(teamId = teamId, userId = userId, role = role)
 
+    private fun project(id: Long, position: Int) =
+        Project(id = id, teamId = 100L, name = "p", description = null, position = position, createdBy = 1L)
+
     @Nested
     inner class Execute {
         @Test
@@ -56,13 +60,39 @@ class CreateProjectServiceImplTest {
         @Test
         fun `createProject은 마지막 position 다음에 만들고 권한 기반 접근 목록 갱신을 요청한다`() {
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L, "OWNER")
-            every { projectRepository.findMaxPositionByTeamId(100L) } returns 3
+            every { projectRepository.findAllByTeamIdForUpdate(100L) } returns
+                listOf(project(id = 1L, position = 3), project(id = 2L, position = 1))
             every { projectRepository.save(any()) } answers { firstArg() }
 
             val response = service.execute(7L, CreateProjectReqDto(teamId = 100L, name = "p", description = null))
 
             assertEquals(4, response.position)
             assertEquals(false, response.isPrivate)
+        }
+
+        @Test
+        fun `createProject은 프로젝트가 없는 팀에 position 0을 할당한다`() {
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L, "OWNER")
+            every { projectRepository.findAllByTeamIdForUpdate(100L) } returns emptyList()
+            every { projectRepository.save(any()) } answers { firstArg() }
+
+            val response = service.execute(7L, CreateProjectReqDto(teamId = 100L, name = "p", description = null))
+
+            assertEquals(0, response.position)
+        }
+
+        @Test
+        fun `createProject은 동시 생성으로 position 유일성 제약이 충돌하면 CONFLICT`() {
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L, "OWNER")
+            every { projectRepository.findAllByTeamIdForUpdate(100L) } returns emptyList()
+            every { projectRepository.save(any()) } throws DataIntegrityViolationException("uq_tb_projects_team_id_position")
+
+            val ex = assertThrows(ExpectedException::class.java) {
+                service.execute(7L, CreateProjectReqDto(teamId = 100L, name = "p", description = null))
+            }
+
+            assertEquals(HttpStatus.CONFLICT, ex.statusCode)
+            verify(exactly = 0) { projectEventPublisher.publishCreated(any(), any()) }
         }
 
         @Test
@@ -74,7 +104,6 @@ class CreateProjectServiceImplTest {
                 TeamMembership(teamId = 100L, userId = 7L, role = "MEMBER", sourceOccurredAt = version, authorizationVersion = authorizationVersion)
             every { teamPermissions.hasPermission(100L, 7L, "manage_projects") } returns true
             every { teamPermissions.hasPermission(100L, 7L, "project_read") } returns true
-            every { projectRepository.findMaxPositionByTeamId(100L) } returns 0
             every { projectRepository.save(capture(saved)) } answers { firstArg() }
 
             val response = service.execute(7L, CreateProjectReqDto(teamId = 100L, name = "private", isPrivate = true))

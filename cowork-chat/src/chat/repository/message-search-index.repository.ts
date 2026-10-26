@@ -32,7 +32,7 @@ export type SearchIndexBacklog = {
 };
 
 const INDEX_SOURCE_PROJECTION = {
-    teamId: 1, projectId: 1, channelId: 1, authorId: 1, content: 1, type: 1,
+    teamId: 1, projectId: 1, channelId: 1, authorId: 1, webhook: 1, content: 1, type: 1,
     attachments: 1, isPinned: 1, createdAt: 1, updatedAt: 1,
     searchIndexVersion: 1, searchIndexRetryCount: 1,
 } as const;
@@ -63,7 +63,7 @@ export class MessageSearchIndexRepository {
         const now = new Date();
         const claimId = new Types.ObjectId().toString();
         const candidates = await this.messageModel
-            .find({searchIndexStatus: 'PENDING', searchIndexNextAttemptAt: {$lte: now}})
+            .find({webhookDeleted: {$ne: true}, searchIndexStatus: 'PENDING', searchIndexNextAttemptAt: {$lte: now}})
             .sort({searchIndexNextAttemptAt: 1})
             .limit(batchSize)
             .select('_id')
@@ -74,13 +74,15 @@ export class MessageSearchIndexRepository {
 
         const ids = candidates.map(candidate => candidate._id);
         await this.messageModel.updateMany(
-            {_id: {$in: ids}, searchIndexStatus: 'PENDING'},
+            {webhookDeleted: {$ne: true}, _id: {$in: ids}, searchIndexStatus: 'PENDING'},
             {$set: {searchIndexStatus: 'PROCESSING', searchIndexProcessingStartedAt: now, searchIndexClaimId: claimId}},
             OUTBOX_UPDATE_OPTIONS,
         );
 
         return this.messageModel
-            .find({_id: {$in: ids}, searchIndexStatus: 'PROCESSING', searchIndexClaimId: claimId})
+            .find({
+                webhookDeleted: {$ne: true}, _id: {$in: ids}, searchIndexStatus: 'PROCESSING', searchIndexClaimId: claimId,
+            })
             .select(INDEX_SOURCE_PROJECTION)
             .lean<ClaimedIndexMessage[]>();
     }
@@ -93,7 +95,9 @@ export class MessageSearchIndexRepository {
      */
     async markSynced(id: Types.ObjectId, version: number): Promise<void> {
         await this.messageModel.updateOne(
-            {_id: id, searchIndexStatus: 'PROCESSING', searchIndexVersion: version},
+            {
+                webhookDeleted: {$ne: true}, _id: id, searchIndexStatus: 'PROCESSING', searchIndexVersion: version,
+            },
             {
                 $set: {
                     searchIndexStatus: 'SYNCED',
@@ -118,7 +122,9 @@ export class MessageSearchIndexRepository {
      */
     async markSkipped(id: Types.ObjectId, version: number): Promise<void> {
         await this.messageModel.updateOne(
-            {_id: id, searchIndexStatus: 'PROCESSING', searchIndexVersion: version},
+            {
+                webhookDeleted: {$ne: true}, _id: id, searchIndexStatus: 'PROCESSING', searchIndexVersion: version,
+            },
             {
                 $set: {
                     searchIndexStatus: 'SKIPPED',
@@ -139,7 +145,9 @@ export class MessageSearchIndexRepository {
     */
     async markRetry(id: Types.ObjectId, version: number, retryCount: number, nextAttemptAt: Date, error: string): Promise<void> {
         await this.messageModel.updateOne(
-            {_id: id, searchIndexStatus: 'PROCESSING', searchIndexVersion: version},
+            {
+                webhookDeleted: {$ne: true}, _id: id, searchIndexStatus: 'PROCESSING', searchIndexVersion: version,
+            },
             {
                 $set: {
                     searchIndexStatus: 'PENDING',
@@ -159,7 +167,9 @@ export class MessageSearchIndexRepository {
     */
     async markFailed(id: Types.ObjectId, version: number, error: string): Promise<void> {
         await this.messageModel.updateOne(
-            {_id: id, searchIndexStatus: 'PROCESSING', searchIndexVersion: version},
+            {
+                webhookDeleted: {$ne: true}, _id: id, searchIndexStatus: 'PROCESSING', searchIndexVersion: version,
+            },
             {
                 $set: {
                     searchIndexStatus: 'FAILED',
@@ -179,6 +189,7 @@ export class MessageSearchIndexRepository {
     async reclaimStaleProcessing(staleThresholdMs: number): Promise<number> {
         const result = await this.messageModel.updateMany(
             {
+                webhookDeleted: {$ne: true},
                 searchIndexStatus: 'PROCESSING',
                 searchIndexProcessingStartedAt: {$lt: new Date(Date.now() - staleThresholdMs)},
             },
@@ -210,6 +221,7 @@ export class MessageSearchIndexRepository {
     ): Promise<Array<{_id: Types.ObjectId; teamId: number | null; projectId: number | null; type: string}>> {
         return this.messageModel
             .find({
+                webhookDeleted: {$ne: true},
                 searchIndexStatus: 'DELETING',
                 searchIndexProcessingStartedAt: {$lt: new Date(Date.now() - staleThresholdMs)},
             })
@@ -237,7 +249,7 @@ export class MessageSearchIndexRepository {
         let modifiedCount = 0;
         if (indexedIds.length > 0) {
             const result = await this.messageModel.updateMany(
-                {_id: {$in: indexedIds}, searchIndexStatus: 'DELETING'},
+                {webhookDeleted: {$ne: true}, _id: {$in: indexedIds}, searchIndexStatus: 'DELETING'},
                 {
                     $set: {
                         searchIndexStatus: 'PENDING',
@@ -253,7 +265,7 @@ export class MessageSearchIndexRepository {
 
         if (skippedIds.length > 0) {
             const result = await this.messageModel.updateMany(
-                {_id: {$in: skippedIds}, searchIndexStatus: 'DELETING'},
+                {webhookDeleted: {$ne: true}, _id: {$in: skippedIds}, searchIndexStatus: 'DELETING'},
                 {
                     $set: {
                         searchIndexStatus: 'SKIPPED',
@@ -281,7 +293,7 @@ export class MessageSearchIndexRepository {
      */
     async backfillLegacyState(batchSize: number): Promise<number> {
         const legacy = await this.messageModel
-            .find({searchIndexStatus: null})
+            .find({webhookDeleted: {$ne: true}, searchIndexStatus: null})
             .limit(batchSize)
             .select({teamId: 1, projectId: 1, type: 1})
             .lean();
@@ -294,7 +306,7 @@ export class MessageSearchIndexRepository {
 
         if (indexedIds.length > 0) {
             await this.messageModel.updateMany(
-                {_id: {$in: indexedIds}, searchIndexStatus: null},
+                {webhookDeleted: {$ne: true}, _id: {$in: indexedIds}, searchIndexStatus: null},
                 {
                     $set: {
                         searchIndexStatus: 'PENDING',
@@ -313,7 +325,7 @@ export class MessageSearchIndexRepository {
 
         if (skippedIds.length > 0) {
             await this.messageModel.updateMany(
-                {_id: {$in: skippedIds}, searchIndexStatus: null},
+                {webhookDeleted: {$ne: true}, _id: {$in: skippedIds}, searchIndexStatus: null},
                 {$set: {searchIndexStatus: 'SKIPPED', searchIndexVersion: 0}},
                 OUTBOX_UPDATE_OPTIONS,
             );
@@ -327,7 +339,7 @@ export class MessageSearchIndexRepository {
     */
     async retryFailed(): Promise<number> {
         const result = await this.messageModel.updateMany(
-            {searchIndexStatus: 'FAILED'},
+            {webhookDeleted: {$ne: true}, searchIndexStatus: 'FAILED'},
             {
                 $set: {
                     searchIndexStatus: 'PENDING',
@@ -354,7 +366,7 @@ export class MessageSearchIndexRepository {
      */
     async backlog(): Promise<SearchIndexBacklog> {
         const rows = await this.messageModel.aggregate<{_id: SearchIndexStatus | null; count: number; oldest: Date | null}>([
-            {$match: {searchIndexStatus: {$in: ['PENDING', 'PROCESSING', 'FAILED', 'DELETING']}}},
+            {$match: {webhookDeleted: {$ne: true}, searchIndexStatus: {$in: ['PENDING', 'PROCESSING', 'FAILED', 'DELETING']}}},
             {$group: {_id: '$searchIndexStatus', count: {$sum: 1}, oldest: {$min: '$searchIndexNextAttemptAt'}}},
         ]);
         const counts: Record<SearchIndexStatus, number> = {

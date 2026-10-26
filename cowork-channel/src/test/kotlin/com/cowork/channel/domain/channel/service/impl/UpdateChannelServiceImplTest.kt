@@ -19,7 +19,6 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
-import java.util.Optional
 
 class UpdateChannelServiceImplTest {
 
@@ -59,7 +58,7 @@ class UpdateChannelServiceImplTest {
     @Test
     fun `updateChannel은 팀 OWNER 등가 권한으로 통과`() {
         val ch = channel(createdBy = 99L)
-        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
         every { permissionEvaluator.requirePermission(100L, 1L, ch, "channel_manage") } returns Unit
 
         val res = service.execute(1L, 1L, UpdateChannelRequest(name = "newName"), false)
@@ -69,7 +68,7 @@ class UpdateChannelServiceImplTest {
     @Test
     fun `updateChannel은 비생성자 + 팀 일반멤버이면 FORBIDDEN`() {
         val ch = channel(createdBy = 99L)
-        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
         every { permissionEvaluator.requirePermission(100L, 1L, ch, "channel_manage") } throws
             ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
 
@@ -82,7 +81,7 @@ class UpdateChannelServiceImplTest {
     @Test
     fun `updateChannel은 updateProjectId=true이면 projectId를 할당함`() {
         val ch = channel(createdBy = 1L)
-        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
 
         val res = service.execute(1L, 1L, UpdateChannelRequest(projectId = 5L), true)
         assertEquals(5L, res.projectId)
@@ -91,7 +90,7 @@ class UpdateChannelServiceImplTest {
     @Test
     fun `updateChannel은 updateProjectId=false이면 기존 projectId를 유지함`() {
         val ch = channel(createdBy = 1L, projectId = 99L)
-        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
 
         val res = service.execute(1L, 1L, UpdateChannelRequest(), false)
         assertEquals(99L, res.projectId)
@@ -100,7 +99,7 @@ class UpdateChannelServiceImplTest {
     @Test
     fun `updateChannel은 updateProjectId=true에 projectId=null이면 프로젝트 귀속 해제`() {
         val ch = channel(createdBy = 1L, projectId = 99L)
-        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
 
         val res = service.execute(1L, 1L, UpdateChannelRequest(projectId = null), true)
         assertEquals(null, res.projectId)
@@ -109,7 +108,7 @@ class UpdateChannelServiceImplTest {
     @Test
     fun `비공개 전환으로 요청자 접근이 사라지면 채널 변경과 이벤트 발행을 거절한다`() {
         val ch = channel(createdBy = 99L, projectId = 99L)
-        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
         every { permissionEvaluator.requirePrivateTransitionAccess(100L, 1L, ch) } throws
             ExpectedException("비공개 전환 후에도 접근할 수 있도록 채널 역할 권한을 먼저 설정해야 합니다.", HttpStatus.BAD_REQUEST)
 
@@ -127,7 +126,7 @@ class UpdateChannelServiceImplTest {
     @Test
     fun `전환 후에도 접근 가능한 일반 관리자는 채널을 비공개로 변경한다`() {
         val ch = channel(createdBy = 99L)
-        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
         every { permissionEvaluator.requirePrivateTransitionAccess(100L, 1L, ch) } returns Unit
 
         val result = service.execute(1L, 1L, UpdateChannelRequest(isPrivate = true), false)
@@ -139,7 +138,7 @@ class UpdateChannelServiceImplTest {
 
     @Test
     fun `updateChannel은 DM 채널이면 BAD_REQUEST`() {
-        every { channelRepository.findById(1L) } returns Optional.of(dmChannel())
+        every { channelRepository.findByIdForUpdate(1L) } returns dmChannel()
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.execute(1L, 1L, UpdateChannelRequest(name = "x"), false)
