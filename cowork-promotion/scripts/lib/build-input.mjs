@@ -20,7 +20,7 @@ export const stylesheetPaths = Object.freeze({
 		'css/site.css',
 	],
 	home: ['css/home.css', 'css/showcase.css'],
-	achievements: ['css/achievements.css'],
+	achievements: ['css/achievements.css', 'css/achievement-showcase.css', 'css/achievement-responsive.css'],
 });
 
 function projectUrl(path) {
