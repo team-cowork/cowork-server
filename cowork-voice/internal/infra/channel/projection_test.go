@@ -2,6 +2,30 @@ package channel
 
 import "testing"
 
+func TestParseVoiceChannelSetting(t *testing.T) {
+	const topic = "preference.voice-channel-setting.state.v1"
+	s, err := parseState(topic, "11", []byte(`{"eventType":"UPSERT","schemaVersion":1,"channelId":11,"maxParticipants":5,"bitrate":64000,"occurredAt":"2026-10-26T00:00:00Z"}`))
+	if err != nil {
+		t.Fatalf("parseState() error = %v", err)
+	}
+	if s.Key != "voice-setting:11" || s.Kind != "voice-setting" || s.MaxParticipants != 5 || s.Bitrate == nil || *s.Bitrate != 64000 {
+		t.Fatalf("unexpected state: %+v", s)
+	}
+	invalid := []string{
+		`{"eventType":"UPSERT","schemaVersion":1,"channelId":11,"bitrate":null,"occurredAt":"2026-10-26T00:00:00Z"}`,
+		`{"eventType":"UPSERT","schemaVersion":1,"channelId":11,"maxParticipants":-1,"occurredAt":"2026-10-26T00:00:00Z"}`,
+		`{"eventType":"DELETE","schemaVersion":1,"channelId":11,"maxParticipants":0,"occurredAt":"2026-10-26T00:00:00Z"}`,
+	}
+	for _, payload := range invalid {
+		if _, err := parseState(topic, "11", []byte(payload)); err == nil {
+			t.Fatalf("parseState(%s) accepted invalid setting", payload)
+		}
+	}
+	if _, err := parseState(topic, "12", []byte(`{"eventType":"UPSERT","schemaVersion":1,"channelId":11,"maxParticipants":0,"occurredAt":"2026-10-26T00:00:00Z"}`)); err == nil {
+		t.Fatal("parseState() accepted mismatched key")
+	}
+}
+
 func TestVoiceConnectPermission(t *testing.T) {
 	isPrivate := false
 	ch := State{IsPrivate: &isPrivate, Kind: "channel", ChannelID: 11, TeamID: 3, ChannelType: "VOICE"}

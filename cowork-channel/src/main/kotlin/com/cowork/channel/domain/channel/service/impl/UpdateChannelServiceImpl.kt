@@ -23,7 +23,7 @@ class UpdateChannelServiceImpl(
         request: UpdateChannelRequest,
         updateProjectId: Boolean,
     ): ChannelResponse {
-        val channel = channelAccessGuard.findChannelOrThrow(channelId)
+        val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
         channelAccessGuard.requireTeamChannel(channel)
         channelPermissionSupport.requireChannelManager(channel, userId)
         if (!channel.isPrivate && request.isPrivate == true) {
