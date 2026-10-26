@@ -23,6 +23,9 @@ cache="$root/repository.git"
 release="$root/releases/$DEPLOY_SHA"
 tools_release="$root/releases/$DEPLOY_TOOLS_SHA"
 mkdir -p "$root/releases"
+# release-retention.py takes this exclusively, so cleanup never overlaps a deployment.
+exec 8>"$root/retention.lock"
+flock -s -w 120 8
 exec 9>"$root/source.lock"
 flock -w 120 9
 if [ ! -d "$cache" ]; then
