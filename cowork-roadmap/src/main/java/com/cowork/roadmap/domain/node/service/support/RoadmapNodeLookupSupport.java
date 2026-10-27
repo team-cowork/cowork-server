@@ -12,7 +12,6 @@ import com.cowork.roadmap.domain.node.repository.RoadmapNodeReferenceRepository;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Component
@@ -22,17 +21,25 @@ public class RoadmapNodeLookupSupport {
     private final RoadmapNodeRepository nodeRepository;
     private final RoadmapNodeReferenceRepository referenceRepository;
 
-    public Mono<RoadmapNode> findNodeOrThrow(Long nodeId) {
+    public Long findRoadmapIdByNodeOrThrow(Long nodeId) {
+        return nodeRepository.findRoadmapIdById(nodeId)
+                .orElseThrow(() -> new ExpectedException("노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+    }
+
+    public RoadmapNode findNodeOrThrow(Long nodeId) {
         return nodeRepository.findById(nodeId)
-                .switchIfEmpty(Mono.error(new ExpectedException("노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)));
+                .orElseThrow(() -> new ExpectedException("노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
     }
 
-    public Mono<RoadmapNodeReference> findReferenceOrThrow(Long referenceId) {
+    public RoadmapNodeReference findReferenceOrThrow(Long referenceId) {
         return referenceRepository.findById(referenceId)
-                .switchIfEmpty(Mono.error(new ExpectedException("관련 자료를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)));
+                .orElseThrow(() -> new ExpectedException("관련 자료를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
     }
 
-    public Mono<List<NodeReferenceResDto>> loadReferences(Long nodeId) {
-        return referenceRepository.findByNodeIdOrderByPositionAsc(nodeId).map(NodeReferenceResDto::from).collectList();
+    public List<NodeReferenceResDto> loadReferences(Long nodeId) {
+        return referenceRepository.findByNodeIdOrderByPositionAsc(nodeId)
+                .stream()
+                .map(NodeReferenceResDto::from)
+                .toList();
     }
 }

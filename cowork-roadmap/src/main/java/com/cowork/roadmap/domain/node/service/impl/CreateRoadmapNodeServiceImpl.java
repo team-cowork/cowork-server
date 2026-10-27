@@ -15,7 +15,6 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Service
@@ -28,43 +27,40 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
 
     @Override
     @Transactional
-    public Mono<NodeResDto> execute(Long userId, String userRole, Long roadmapId, CreateNodeReqDto request) {
-        return roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId)
-                .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
-                        .then(validateParent(roadmapId, request.parentId()))
-                        .then(nextPosition(roadmapId, request.parentId()))
-                        .flatMap(position -> {
-                            RoadmapNode node = RoadmapNode.builder()
-                                    .roadmapId(roadmapId)
-                                    .parentId(request.parentId())
-                                    .title(request.title())
-                                    .content(request.content())
-                                    .sourceUrl(request.sourceUrl())
-                                    .sourceTitle(request.sourceTitle())
-                                    .position(position)
-                                    .build();
-                            node.setCreatedBy(userId);
-                            node.setLastModifiedBy(userId);
-                            return nodeRepository.save(node).map(saved -> NodeResDto.of(saved, List.of()));
-                        }));
+    public NodeResDto execute(Long userId, String userRole, Long roadmapId, CreateNodeReqDto request) {
+        var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
+        accessGuard.requireMutable(roadmap, userId, userRole);
+        validateParent(roadmapId, request.parentId());
+        int position = nextPosition(roadmapId, request.parentId());
+        RoadmapNode node = RoadmapNode.builder()
+                .roadmapId(roadmapId)
+                .parentId(request.parentId())
+                .title(request.title())
+                .content(request.content())
+                .sourceUrl(request.sourceUrl())
+                .sourceTitle(request.sourceTitle())
+                .position(position)
+                .build();
+        node.setCreatedBy(userId);
+        node.setLastModifiedBy(userId);
+        return NodeResDto.of(nodeRepository.saveAndFlush(node), List.of());
     }
 
-    private Mono<Void> validateParent(Long roadmapId, Long parentId) {
+    private void validateParent(Long roadmapId, Long parentId) {
         if (parentId == null) {
-            return Mono.empty();
+            return;
         }
-        return nodeRepository.findByIdForShare(parentId)
-                .switchIfEmpty(Mono.error(new ExpectedException("상위 노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)))
-                .flatMap(parent -> roadmapId.equals(parent.getRoadmapId())
-                        ? Mono.empty()
-                        : Mono.error(new ExpectedException("상위 노드가 같은 로드맵에 속하지 않습니다.", HttpStatus.BAD_REQUEST)))
-                .then();
+        RoadmapNode parent = nodeRepository.findByIdForShare(parentId)
+                .orElseThrow(() -> new ExpectedException("상위 노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+        if (!roadmapId.equals(parent.getRoadmapId())) {
+            throw new ExpectedException("상위 노드가 같은 로드맵에 속하지 않습니다.", HttpStatus.BAD_REQUEST);
+        }
     }
 
-    private Mono<Integer> nextPosition(Long roadmapId, Long parentId) {
-        Mono<Long> next = parentId == null
+    private Integer nextPosition(Long roadmapId, Long parentId) {
+        Long next = parentId == null
                 ? nodeRepository.findNextRootPosition(roadmapId)
                 : nodeRepository.findNextChildPosition(roadmapId, parentId);
-        return next.map(Long::intValue);
+        return next.intValue();
     }
 }
