@@ -55,6 +55,7 @@ import {
     ChannelSearchClient,
     UserClient,
     ChannelMessageReadAccessService,
+    ChannelReadService,
     SlowmodeService,
     ChatMessageQuarantineService,
 } from './service';
@@ -239,6 +240,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
         TextChannelSettingProjectionRepository,
         WebhookProjectionRepository,
         ChannelMessageReadAccessService,
+        ChannelReadService,
         SlowmodeService,
         UnifiedSearchResolver,
         RedisRateLimiter,
