@@ -73,16 +73,15 @@ public_health_url = f"https://{public_api.netloc}/api/health"
 # Keep in sync with the gateway-api job in deploy/config/monitoring/prometheus/prometheus.yml.
 gateway_api_probes = [
     ("authorization", "http_gateway_downstream_post", "/api/authorization/auth/refresh"),
-    ("user", "http_gateway_protected_get", "/api/user/users/me"),
-    ("team", "http_gateway_protected_get", "/api/team/teams"),
-    ("channel", "http_gateway_protected_get", "/api/channel/search/channels"),
-    ("project", "http_gateway_protected_get", "/api/project/projects/me"),
-    ("roadmap", "http_gateway_protected_get", "/api/roadmap/roadmaps/assignments/me"),
-    ("notification", "http_gateway_protected_get", "/api/notification/notifications/stream"),
     ("chat", "http_gateway_downstream_get", "/api/chat/health"),
     ("voice", "http_gateway_downstream_post", "/api/voice/voice/webhook"),
     ("github", "http_gateway_downstream_post", "/api/github/github/webhooks"),
 ]
+# The CORS preflight probe sends the first HTTPS web origin that Gateway allows in prod, not a development origin.
+web_origins = json.loads((slots_directory / "config.json").read_text())["runtime"]["PUBLIC_WEB_ORIGINS"].split(",")
+cors_probe_origin = next((origin.strip() for origin in web_origins if origin.strip().startswith("https://")), None)
+if not cors_probe_origin or urlsplit(cors_probe_origin).path or any(char in cors_probe_origin for char in "|&\\"):
+    raise ValueError("Config PUBLIC_WEB_ORIGINS must include an HTTPS origin for the CORS probe")
 host_target_configs = host_targets(slots_directory)
 probe_targets = []
 for slot in application_slots:
@@ -288,3 +287,4 @@ for module, database in sorted(database_catalog.items()):
     })
 expected_rules["groups"].append({"name": "cowork-expected-databases", "rules": database_rules})
 Path(sys.argv[1] + ".rules.json").write_text(json.dumps(expected_rules, indent=2) + "\n")
+Path(sys.argv[1] + ".cors-origin").write_text(cors_probe_origin)

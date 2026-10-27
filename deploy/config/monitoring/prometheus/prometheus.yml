@@ -90,18 +90,6 @@ scrape_configs:
     static_configs:
       - targets: [http://cowork-gateway:8080/api/authorization/auth/refresh]
         labels: {service: authorization, __param_module: http_gateway_downstream_post}
-      - targets: [http://cowork-gateway:8080/api/user/users/me]
-        labels: {service: user, __param_module: http_gateway_protected_get}
-      - targets: [http://cowork-gateway:8080/api/team/teams]
-        labels: {service: team, __param_module: http_gateway_protected_get}
-      - targets: [http://cowork-gateway:8080/api/channel/search/channels]
-        labels: {service: channel, __param_module: http_gateway_protected_get}
-      - targets: [http://cowork-gateway:8080/api/project/projects/me]
-        labels: {service: project, __param_module: http_gateway_protected_get}
-      - targets: [http://cowork-gateway:8080/api/roadmap/roadmaps/assignments/me]
-        labels: {service: roadmap, __param_module: http_gateway_protected_get}
-      - targets: [http://cowork-gateway:8080/api/notification/notifications/stream]
-        labels: {service: notification, __param_module: http_gateway_protected_get}
       - targets: [http://cowork-gateway:8080/api/chat/health]
         labels: {service: chat, __param_module: http_gateway_downstream_get}
       - targets: [http://cowork-gateway:8080/api/voice/voice/webhook]
