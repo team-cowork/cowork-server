@@ -4,6 +4,8 @@
     <Console name="CONSOLE" target="SYSTEM_OUT">
       <JsonTemplateLayout eventTemplateUri="classpath:EcsLayout.json">
         <EventTemplateAdditionalField key="service" value="cowork-preference" format="STRING"/>
+        <!-- ECS의 log.level과 별도로 로그 규약의 level 키를 남긴다. -->
+        <EventTemplateAdditionalField key="level" value='{"$resolver": "level", "field": "name"}' format="JSON"/>
       </JsonTemplateLayout>
     </Console>
     <RollingFile name="FILE"
@@ -11,6 +13,7 @@
                  filePattern="${env:PREFERENCE_LOG_DIR:-build/logs/cowork/preference}/app.%d{yyyy-MM-dd}.log">
       <JsonTemplateLayout eventTemplateUri="classpath:EcsLayout.json">
         <EventTemplateAdditionalField key="service" value="cowork-preference" format="STRING"/>
+        <EventTemplateAdditionalField key="level" value='{"$resolver": "level", "field": "name"}' format="JSON"/>
       </JsonTemplateLayout>
       <Policies>
         <TimeBasedTriggeringPolicy/>
