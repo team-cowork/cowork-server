@@ -131,7 +131,7 @@ job "cowork-livekit" {
 
       template {
         data                 = <<-JSON
-{{ with secret "${var.vault_mount}/data/nomad/data/voice?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/voice/livekit?version=${var.secret_version}" }}
 {
   "port": 7880,
   "rtc": {"node_ip": "158.247.251.109", "use_external_ip": false, "tcp_port": 38970, "udp_port": 35268},

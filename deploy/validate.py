@@ -123,6 +123,24 @@ def check_secret_bindings(applications):
             raise ValueError(f"{name}: Kafka runtime identity differs from secret publishing")
         if not principal and any(key.startswith("KAFKA_") for key in runtime):
             raise ValueError(f"{name}: Kafka settings require a declared principal")
+    for name, spec in services.items():
+        grouped_keys = []
+        for group, keys in spec.get("data_secret_groups", {}).items():
+            if re.fullmatch(r"[a-z][a-z0-9-]*", group) is None or not keys:
+                raise ValueError(f"{name}: Invalid data secret group")
+            job = group if group == "livekit" else f"{name}-{group}"
+            paths = list((ROOT / "deploy/nomad").glob(f"*/{job}.nomad.hcl"))
+            if len(paths) != 1:
+                raise ValueError(f"{name}/{group}: Expected one Nomad consumer")
+            template = paths[0].read_text()
+            if set(re.findall(r"\.Data\.data\.(\w+)", template)) != set(keys):
+                raise ValueError(f"{name}/{group}: Secret keys differ from the Nomad templates")
+            expected_path = f"nomad/data/{name}/{group}"
+            if set(re.findall(r'/data/(nomad/[^?"\s]+)\?version=', template)) != {expected_path}:
+                raise ValueError(f"{name}/{group}: Nomad must read only its own secret path")
+            grouped_keys.extend(keys)
+        if len(grouped_keys) != len(set(grouped_keys)):
+            raise ValueError(f"{name}: Data secret groups must not overlap")
     print(f"{len(actual)} explicit CD secret bindings and Kafka application principals match the publishing schema")
 
 
@@ -170,18 +188,20 @@ def job_inputs(path, manifest=None, vault_mount="secret"):
         elif name == "user-migrations":
             values.update(image=manifest["infrastructure_images"][name],
                           secret_version=manifest["data_secret_versions"]["user"])
-        elif name.endswith(("-db", "-storage")):
+        elif name.endswith("-db"):
             values["secret_version"] = manifest["data_secret_versions"][name.rsplit("-", 1)[0]]
+        elif name.endswith("-storage"):
+            values["secret_version"] = manifest["data_secret_versions"][name.removesuffix("-storage") + "/storage"]
         elif name == "chat-search":
             values.update(image=manifest["infrastructure_images"][name],
-                          secret_version=manifest["data_secret_versions"]["chat"])
+                          secret_version=manifest["data_secret_versions"]["chat/search"])
         elif name == "kafka":
             values.update(init_image=manifest["infrastructure_images"]["kafka-init"],
                           secret_version=manifest["data_secret_versions"][name])
         elif name == "monitoring":
             values["secret_version"] = manifest["platform_secret_versions"][name]
         elif name == "livekit":
-            values["secret_version"] = manifest["data_secret_versions"]["voice"]
+            values["secret_version"] = manifest["data_secret_versions"]["voice/livekit"]
     if not declared <= values.keys():
         raise ValueError(f"Unknown Nomad input variables: {sorted(declared - values.keys())}")
     return {key: values[key] for key in declared}

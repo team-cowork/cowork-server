@@ -31,7 +31,7 @@ locals {
     { for owner in module.catalog.storage_owners : "cowork-${owner}-storage" => {
       jobspec = file("${local.root}/deploy/nomad/data/${owner}-storage.nomad.hcl")
       variables = merge(local.common, {
-        secret_version = tostring(var.manifest.data_secret_versions[owner])
+        secret_version = tostring(var.manifest.data_secret_versions["${owner}/storage"])
         runtime_env    = jsonencode({ for key, value in local.storage_env[owner] : key => replace(replace(value, "$${", "$$${"), "%%{", "%%%{") })
         config_files   = jsonencode({ for key, value in local.storage_files : key => replace(replace(value, "$${", "$$${"), "%%{", "%%%{") })
       })
@@ -41,7 +41,7 @@ locals {
         jobspec = file("${local.root}/deploy/nomad/data/chat-search.nomad.hcl")
         variables = merge(local.common, {
           image          = var.manifest.infrastructure_images["chat-search"]
-          secret_version = tostring(var.manifest.data_secret_versions.chat)
+          secret_version = tostring(var.manifest.data_secret_versions["chat/search"])
           config_files   = jsonencode({ for key, value in local.search_files : key => replace(replace(value, "$${", "$$${"), "%%{", "%%%{") })
         })
       }
@@ -62,7 +62,7 @@ locals {
       cowork-livekit = {
         jobspec = file("${local.root}/deploy/nomad/platform/livekit.nomad.hcl")
         variables = merge(local.common, {
-          secret_version = tostring(var.manifest.data_secret_versions.voice)
+          secret_version = tostring(var.manifest.data_secret_versions["voice/livekit"])
           runtime_env    = "{}"
         })
       }
