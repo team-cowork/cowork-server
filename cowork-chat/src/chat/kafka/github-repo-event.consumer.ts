@@ -1,4 +1,6 @@
 import {
+    forwardRef,
+    Inject,
     Injectable,
     OnModuleDestroy,
     OnModuleInit,
@@ -38,6 +40,7 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
     private io?: Server;
 
     constructor(
+        @Inject(forwardRef(() => ChatService))
         private readonly chatService: ChatService,
         private readonly projectClient: ProjectClient,
         private readonly configService: ConfigService,
