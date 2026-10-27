@@ -1,4 +1,4 @@
-// @title           Cowork Voice API
+// @title           cowork Voice API
 // @version         20261025.0
 // @description     음성 채널 서비스 — LiveKit 기반 음성 통화 세션 관리
 // @description

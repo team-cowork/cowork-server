@@ -2,7 +2,7 @@
     "swagger": "2.0",
     "info": {
         "description": "Firebase 설치(FID) 관리 및 푸시 알림 서비스",
-        "title": "cowork-notification API",
+        "title": "cowork Notification API",
         "contact": {},
         "version": "20261025.0"
     },

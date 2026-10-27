@@ -92,9 +92,6 @@ sdk:
       - "/swagger-ui/**"
   swagger:
     enabled: true
-    title: "cowork-team API"
-    description: "cowork-team 팀 관리 서비스 API"
-    version: "v1"
     group: "team"
     paths-to-match:
       - "/teams/**"
