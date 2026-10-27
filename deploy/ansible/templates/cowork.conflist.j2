@@ -1,0 +1,13 @@
+{
+  "cniVersion": "1.0.0",
+  "name": "cowork",
+  "plugins": [
+    {
+      "type": "bridge", "bridge": "cowork0", "isGateway": true,
+      "ipMasq": true, "hairpinMode": true, "mtu": 1400,
+      "ipam": {"type": "host-local", "ranges": [[{"subnet": "172.30.0.0/16"}]], "routes": [{"dst": "0.0.0.0/0"}]}
+    },
+    {"type": "firewall", "backend": "iptables"},
+    {"type": "portmap", "capabilities": {"portMappings": true}, "snat": true}
+  ]
+}
