@@ -47,7 +47,6 @@
           changed_when: true
         - name: Activate the replacement platform ingress
           ansible.builtin.include_tasks: tasks/firewall.yml
-          when: inventory_hostname not in groups.get('retired', [])
         - name: Read IPv4 legacy firewall chains
           ansible.builtin.command: iptables -S
           register: platform_ipv4_rules
@@ -73,7 +72,6 @@
             mode: '0755'
         - name: Start the staged native host observability
           ansible.builtin.include_tasks: tasks/observability.yml
-          when: inventory_hostname not in groups.get('retired', [])
         - name: Record the irreversible legacy retirement boundary
           ansible.builtin.copy:
             content: "{{ cowork_release_sha }}\n"
