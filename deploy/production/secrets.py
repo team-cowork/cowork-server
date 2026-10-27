@@ -35,19 +35,22 @@ def publish(service):
 
     app = values(spec["secret_bindings"])
     data = values(spec["data_secret_bindings"])
-    credentials = json.loads(os.environ["GH_SECRET_KAFKA_CREDENTIALS_JSON"])
-    if not isinstance(credentials, dict) or not all(
-        re.fullmatch(r"[a-z][a-z0-9-]+", k) and isinstance(v, str) and len(v) >= 32
-        and not any(c in v for c in "\0\r\n") for k, v in credentials.items()
-    ):
-        raise ValueError("Invalid Kafka credentials map")
-    principal = spec["kafka_principal"]
-    if principal not in credentials:
-        raise ValueError("Kafka principal is missing: " + principal)
-    if service == "kafka":
-        data["KAFKA_CREDENTIALS_JSON"] = json.dumps(credentials, sort_keys=True)
-    else:
-        app.update(KAFKA_SASL_USERNAME=principal, KAFKA_SASL_PASSWORD=credentials[principal])
+    if principal := spec.get("kafka_principal"):
+        credentials = json.loads(os.environ["GH_SECRET_KAFKA_CREDENTIALS_JSON"])
+        if not isinstance(credentials, dict) or not all(
+            re.fullmatch(r"[a-z][a-z0-9-]+", k) and isinstance(v, str) and len(v) >= 32
+            and not any(c in v for c in "\0\r\n") for k, v in credentials.items()
+        ):
+            raise ValueError("Invalid Kafka credentials map")
+        if principal not in credentials:
+            raise ValueError("Kafka principal is missing: " + principal)
+        if service == "kafka":
+            principals = {entry["kafka_principal"] for entry in catalog.values() if entry.get("kafka_principal")}
+            if missing := principals - credentials.keys():
+                raise ValueError("Kafka principals are missing: " + ", ".join(sorted(missing)))
+            data["KAFKA_CREDENTIALS_JSON"] = json.dumps({name: credentials[name] for name in sorted(principals)})
+        else:
+            app.update(KAFKA_SASL_USERNAME=principal, KAFKA_SASL_PASSWORD=credentials[principal])
     if service == "chat":
         search = urlsplit(data["ELASTICSEARCH_URL"])
         if not search.username or not search.password:
