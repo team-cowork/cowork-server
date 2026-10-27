@@ -266,5 +266,16 @@
         "label": "데이터 소스"
       }
     ]
-  }
+  },
+  "links": [
+    {
+      "title": "Platform · Nomad / Consul",
+      "type": "link",
+      "icon": "dashboard",
+      "url": "/d/cowork-platform",
+      "targetBlank": false,
+      "includeVars": false,
+      "keepTime": true
+    }
+  ]
 }
