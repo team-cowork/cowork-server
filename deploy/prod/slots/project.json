@@ -4,8 +4,8 @@
   "kind": "application",
   "runtime": {
     "APP_CONFIG_PROFILE": "prod",
-    "CONFIG_SERVER_URL": "http://10.0.0.169:8761",
-    "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
+    "CONFIG_SERVER_URL": "http://10.0.0.144:8761",
+    "EUREKA_SERVER_URL": "http://10.0.0.144:8761/eureka/",
     "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.167:9094",
     "DB_HOST": "cowork-project-db",
     "DB_PORT": "3306",
