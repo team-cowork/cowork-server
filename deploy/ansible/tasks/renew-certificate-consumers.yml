@@ -1,0 +1,47 @@
+---
+- name: Refresh the existing Alloy client TLS files
+  ansible.builtin.copy:
+    src: "{{ platform_state_dir }}/pki/{{ item.source }}"
+    dest: "/etc/alloy/tls/{{ item.destination }}"
+    owner: root
+    group: alloy
+    mode: "{{ item.mode }}"
+  loop:
+    - {source: ca.crt, destination: ca.crt, mode: '0644'}
+    - {source: "{{ inventory_hostname }}.crt", destination: client.crt, mode: '0644'}
+    - {source: "{{ inventory_hostname }}.key", destination: client.key, mode: '0640'}
+  no_log: true
+
+- name: Refresh the retained Vault TLS volume
+  when: inventory_hostname in groups['vault_hosts']
+  block:
+    - name: Locate the existing Vault TLS volume
+      ansible.builtin.command:
+        argv: [docker, volume, inspect, --format, '{{ "{{" }}.Mountpoint{{ "}}" }}', cowork-vault-tls]
+      register: platform_renewal_vault_volume
+      changed_when: false
+    - name: Require the retained named TLS volume
+      ansible.builtin.assert:
+        that: platform_renewal_vault_volume.stdout is match('^/[^\r\n]+/cowork-vault-tls/_data$')
+    - name: Install the Vault certificate chain
+      ansible.builtin.copy:
+        content: "{{ lookup('ansible.builtin.file', platform_state_dir ~ '/pki/vault.crt') }}\n{{ lookup('ansible.builtin.file', platform_state_dir ~ '/pki/ca.crt') }}\n"
+        dest: "{{ platform_renewal_vault_volume.stdout }}/server.crt"
+        owner: '100'
+        group: '1000'
+        mode: '0644'
+    - name: Install the Vault private key
+      ansible.builtin.copy:
+        src: "{{ platform_state_dir }}/pki/vault.key"
+        dest: "{{ platform_renewal_vault_volume.stdout }}/server.key"
+        owner: '100'
+        group: '1000'
+        mode: '0600'
+      no_log: true
+
+- name: Reconcile the certificates loaded by running services
+  ansible.builtin.script:
+    cmd: "{{ playbook_dir }}/files/renew-certificate-consumers.py --host {{ private_ip | quote }} --role {{ inventory_hostname | quote }}"
+    executable: "{{ platform_python_binary }}"
+  register: platform_renewal_consumers
+  changed_when: platform_renewal_consumers.rc == 0 and (platform_renewal_consumers.stdout | trim | from_json).reloaded | length > 0
