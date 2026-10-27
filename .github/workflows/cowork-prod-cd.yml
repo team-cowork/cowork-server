@@ -1,8 +1,6 @@
 name: Cowork Prod CD Workflow
 
 on:
-  schedule:
-    - cron: '15 19 * * *'
   workflow_run:
     workflows: ["Cowork Prod CI Workflow"]
     types: [completed]
@@ -14,18 +12,15 @@ on:
         required: true
         type: choice
         default: apply
-        options: [apply, release, plan, renew]
+        options: [apply, release, plan]
 
 permissions:
   contents: read
 
 concurrency:
-  # Renewal and bot writebacks must not displace queued production deployments.
+  # Bot writebacks must not displace queued production deployments.
   group: >-
-    ${{ (github.event_name == 'schedule' ||
-         (github.event_name == 'workflow_dispatch' && inputs.operation == 'renew')) &&
-        'cowork-production-renew' ||
-        github.event_name == 'workflow_run' &&
+    ${{ github.event_name == 'workflow_run' &&
         github.event.workflow_run.actor.login == 'cowork-server-versioning-bot[bot]' &&
         'cowork-version-writeback' || 'cowork-production' }}
   cancel-in-progress: false
@@ -35,7 +30,7 @@ jobs:
     name: Select Whole Cluster Release
     if: >-
       github.repository == 'team-cowork/cowork-server' &&
-      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.operation != 'renew') ||
+      ((github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
        (github.event.workflow_run.conclusion == 'success' &&
         github.event.workflow_run.event == 'push' &&
         github.event.workflow_run.actor.login != 'cowork-server-versioning-bot[bot]' &&
@@ -364,30 +359,3 @@ jobs:
           RELEASE_PUSH_TOKEN: ${{ steps.app.outputs.token }}
           RELEASE_APP_SLUG: ${{ steps.app.outputs.app-slug }}
         run: python3 deploy/production/release.py finalize
-
-  renew:
-    name: Renew Internal Certificates And Reconcile Hosts
-    if: >-
-      github.repository == 'team-cowork/cowork-server' && github.ref == 'refs/heads/main' &&
-      (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.operation == 'renew'))
-    runs-on: [self-hosted, linux, x64, cowork-deploy]
-    timeout-minutes: 45
-    environment: Prod-IaC
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-          ref: main
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.12'
-      - name: Install Pinned Deployment Dependencies
-        run: |
-          python3 -m pip install -r deploy/production/requirements.txt
-          ansible-galaxy collection install -r deploy/ansible/requirements.yml
-      - name: Renew Certificates Within Thirty Days Of Expiry
-        env:
-          GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
-          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
-          ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
-        run: flock "$COWORK_PLATFORM_STATE_DIR/deploy.lock" ansible-playbook -i deploy/ansible/inventory/production.yml deploy/ansible/site.yml
