@@ -20,9 +20,12 @@ permissions:
   contents: read
 
 concurrency:
-  # Bot writebacks must not displace queued production deployments.
+  # Renewal and bot writebacks must not displace queued production deployments.
   group: >-
-    ${{ github.event_name == 'workflow_run' &&
+    ${{ (github.event_name == 'schedule' ||
+         (github.event_name == 'workflow_dispatch' && inputs.operation == 'renew')) &&
+        'cowork-production-renew' ||
+        github.event_name == 'workflow_run' &&
         github.event.workflow_run.actor.login == 'cowork-server-versioning-bot[bot]' &&
         'cowork-version-writeback' || 'cowork-production' }}
   cancel-in-progress: false
@@ -313,9 +316,9 @@ jobs:
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
         run: |
           if [ "$DEPLOY_MODE" = plan ]; then
-            bash deploy/production/apply.sh deploy/production/releases.json --check
+            flock "$COWORK_PLATFORM_STATE_DIR/deploy.lock" bash deploy/production/apply.sh deploy/production/releases.json --check
           else
-            bash deploy/production/apply.sh deploy/production/releases.json
+            flock "$COWORK_PLATFORM_STATE_DIR/deploy.lock" bash deploy/production/apply.sh deploy/production/releases.json
           fi
       - name: Record Whole Cluster Result
         if: ${{ always() && steps.deployment.outputs.id != '' }}
@@ -387,4 +390,4 @@ jobs:
           GHCR_USERNAME: ${{ secrets.GHCR_USERNAME }}
           GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
           ANSIBLE_CONFIG: deploy/ansible/ansible.cfg
-        run: ansible-playbook -i deploy/ansible/inventory/production.yml deploy/ansible/site.yml
+        run: flock "$COWORK_PLATFORM_STATE_DIR/deploy.lock" ansible-playbook -i deploy/ansible/inventory/production.yml deploy/ansible/site.yml
