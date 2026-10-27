@@ -113,9 +113,16 @@ def check_secret_bindings(applications):
     if actual != expected:
         raise ValueError(f"CD secret bindings differ: missing {sorted(expected - actual)}, unused {sorted(actual - expected)}")
     policy = json.loads((RUNTIME / "kafka/policy.json").read_text())
-    expected_principals = {services[name]["kafka_principal"] for name in applications}
+    expected_principals = {services[name]["kafka_principal"] for name in applications if services[name].get("kafka_principal")}
     if set(policy["principals"]) != expected_principals:
         raise ValueError("Kafka policy principals and application secret publishing differ")
+    for name in applications:
+        runtime = environment(name)
+        principal = services[name].get("kafka_principal")
+        if principal and runtime.get("KAFKA_SASL_USERNAME") != principal:
+            raise ValueError(f"{name}: Kafka runtime identity differs from secret publishing")
+        if not principal and any(key.startswith("KAFKA_") for key in runtime):
+            raise ValueError(f"{name}: Kafka settings require a declared principal")
     print(f"{len(actual)} explicit CD secret bindings and Kafka application principals match the publishing schema")
 
 
