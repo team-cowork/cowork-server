@@ -67,7 +67,7 @@ modules:
         Access-Control-Request-Method: GET
       fail_if_header_not_matches:
         - header: Access-Control-Allow-Origin
-          regexp: '^http://localhost:3000$'
+          regexp: '^\Qhttp://localhost:3000\E$'
   tls_vault_private:
     prober: http
     timeout: 5s
