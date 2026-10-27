@@ -50,6 +50,9 @@ return incremented
 // 저장된 읽음 위치보다 오래된 위치로 계산한 값은 버린다. ObjectId hex는 길이가 같은 소문자라 문자열 비교가
 // MongoDB `$max`의 ObjectId 비교와 순서가 같고, ''(읽음 위치 없음)는 어떤 위치보다도 앞선다.
 // 읽음 위치가 기록되지 않은 이전 형식의 값은 읽음 처리는 덮어쓰고, 캐시미스 채움은 이미 값이 있으면 건드리지 않는다.
+// 두 필드에는 같은 필드 TTL을 건다. 해시 키 EXPIRE는 다른 채널에 쓸 때마다 늘어나 활동 중인 사용자에게는 만료되지 않지만,
+// 필드 TTL은 HINCRBY로는 늘어나지 않아 증가와 교차해 어긋난 값도 마지막 정확한 기록 뒤 TTL 안에 사라지고 캐시미스 폴백이
+// 다시 채운다. count와 cursor가 함께 만료되어야 cursor만 남아 같은 위치의 캐시미스 채움을 막는 일이 없다(Redis 7.4+).
 const SET_IF_NOT_STALE_SCRIPT = `
 local stored = redis.call('HGET', KEYS[1], ARGV[2])
 if stored then
@@ -60,6 +63,7 @@ elseif ARGV[6] ~= '1' and redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then
     return 0
 end
 redis.call('HSET', KEYS[1], ARGV[1], ARGV[4], ARGV[2], ARGV[3])
+redis.call('HEXPIRE', KEYS[1], ARGV[5], 'FIELDS', 2, ARGV[1], ARGV[2])
 redis.call('EXPIRE', KEYS[1], ARGV[5])
 return 1
 `;
@@ -98,7 +102,7 @@ export type UnreadCacheResult = {
  끝난 캐시미스 채움이 최신 읽음 처리 결과를 덮지 못하게 하기 위해서다.
  Ponytail: 같은 읽음 위치에서 새 메시지 증가와 정확한 값 쓰기가 교차하는 경우(계산 직후 도착한 메시지의 증가를
  계산 결과가 덮거나, 계산에 이미 포함된 메시지를 증가가 다시 더하는 경우)는 구분하지 않는다. 그 어긋남은 다음 읽음
- 처리나 키 만료까지 남는다.
+ 처리나, 마지막 정확한 기록부터 걸리는 필드 TTL이 끝날 때까지 남는다.
  */
 @Injectable()
 export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
@@ -249,7 +253,7 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
             const field = String(channelId);
             const appliedKey = eventId === undefined ? '' : `${APPLIED_KEY_PREFIX}${eventId}`;
             // Ponytail: 재처리 사이 멤버가 바뀌면 청크 경계가 밀려 일부 수신자가 한 번 덜/더 반영될 수 있다.
-            // set/setMany가 키 TTL을 계속 늘리므로 어긋난 값은 그 채널을 읽어 다시 설정하거나 키가 만료될 때까지 남는다.
+            // 어긋난 값은 그 채널을 읽어 다시 설정하거나, 마지막 set/setMany가 건 필드 TTL이 끝날 때까지 남는다.
             const keys = userIds.toSorted((a, b) => a - b).map(userId => this.key(userId));
             const pipeline = this.client.pipeline() as UnreadCounterPipeline;
             for (let i = 0; i < keys.length; i += INCREMENT_CHUNK_SIZE) {
