@@ -34,6 +34,7 @@ build/
 
 ### Spring Boot ###
 **/application-local.yml
+!cowork-channel/src/main/resources/application-local.yml
 **/application-local.properties
 **/application-secret.yml
 
