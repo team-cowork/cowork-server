@@ -1,8 +1,8 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "cowork-user API",
-    "version": "v1",
+    "title": "cowork User API",
+    "version": "20261025.0",
     "description": "cowork-user 사용자 관리 서비스 API"
   },
   "servers": [

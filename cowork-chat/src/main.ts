@@ -90,7 +90,7 @@ async function bootstrap() {
     app.useWebSocketAdapter(new RedisIoAdapter(app, socketIoRedis));
 
     const config = new DocumentBuilder()
-        .setTitle('Cowork Chat API')
+        .setTitle('cowork Chat API')
         .setDescription(
             '채팅 서비스 — Socket.io 기반 실시간 채팅\n\n'
             + '## WebSocket (/chat namespace)\n'
