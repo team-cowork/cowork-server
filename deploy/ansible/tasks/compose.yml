@@ -1,0 +1,21 @@
+---
+- name: Create the system Docker CLI plugin directory
+  ansible.builtin.file:
+    path: /usr/local/lib/docker/cli-plugins
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+- name: Install the pinned Docker Compose plugin for deployment validation
+  ansible.builtin.get_url:
+    url: "https://github.com/docker/compose/releases/download/v{{ platform_versions.docker_compose.version }}/docker-compose-linux-x86_64"
+    checksum: "sha256:{{ platform_versions.docker_compose.sha256.linux_amd64 }}"
+    dest: /usr/local/lib/docker/cli-plugins/docker-compose
+    owner: root
+    group: root
+    mode: '0755'
+- name: Verify the Docker Compose plugin version without accessing the daemon
+  ansible.builtin.command: docker compose version --short
+  register: platform_compose_version
+  changed_when: false
+  failed_when: platform_compose_version.stdout | trim != platform_versions.docker_compose.version
