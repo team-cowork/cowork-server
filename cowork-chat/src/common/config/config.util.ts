@@ -59,10 +59,12 @@ export function getKafkaClientConfig(configService: ConfigService): KafkaConfig 
     };
     if (protocol !== 'PLAINTEXT') {
         const caFile = getOptionalConfig(configService, 'KAFKA_SSL_CA_LOCATION');
-        config.ssl = caFile === undefined ? true : {
-            rejectUnauthorized: true,
-            ca: [readFileSync(caFile, 'utf8')],
-        };
+        config.ssl = caFile === undefined
+            ? true
+            : {
+                rejectUnauthorized: true,
+                ca: [readFileSync(caFile, 'utf8')],
+            };
     }
 
     if (protocol === 'SASL_SSL') {
