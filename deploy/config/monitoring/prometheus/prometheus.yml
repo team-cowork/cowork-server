@@ -83,6 +83,56 @@ scrape_configs:
       - target_label: __address__
         replacement: blackbox_exporter:9115
 
+  # ── Gateway 경유 업무 API (무인증 probe, 대상별 blackbox 모듈) ──
+  # prod 대상은 deploy/prod/monitoring/render-prometheus.py의 gateway_api_probes와 같게 유지한다.
+  - job_name: gateway-api
+    metrics_path: /probe
+    static_configs:
+      - targets: [http://cowork-gateway:8080/api/authorization/auth/refresh]
+        labels: {service: authorization, __param_module: http_gateway_downstream_post}
+      - targets: [http://cowork-gateway:8080/api/user/users/me]
+        labels: {service: user, __param_module: http_gateway_protected_get}
+      - targets: [http://cowork-gateway:8080/api/team/teams]
+        labels: {service: team, __param_module: http_gateway_protected_get}
+      - targets: [http://cowork-gateway:8080/api/channel/search/channels]
+        labels: {service: channel, __param_module: http_gateway_protected_get}
+      - targets: [http://cowork-gateway:8080/api/project/projects/me]
+        labels: {service: project, __param_module: http_gateway_protected_get}
+      - targets: [http://cowork-gateway:8080/api/roadmap/roadmaps/assignments/me]
+        labels: {service: roadmap, __param_module: http_gateway_protected_get}
+      - targets: [http://cowork-gateway:8080/api/notification/notifications/stream]
+        labels: {service: notification, __param_module: http_gateway_protected_get}
+      - targets: [http://cowork-gateway:8080/api/chat/health]
+        labels: {service: chat, __param_module: http_gateway_downstream_get}
+      - targets: [http://cowork-gateway:8080/api/voice/voice/webhook]
+        labels: {service: voice, __param_module: http_gateway_downstream_post}
+      - targets: [http://cowork-gateway:8080/api/github/github/webhooks]
+        labels: {service: github, __param_module: http_gateway_downstream_post}
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox_exporter:9115
+
+  # ── Gateway CORS preflight ──
+  - job_name: gateway-cors
+    metrics_path: /probe
+    params:
+      module: [http_gateway_cors_preflight]
+    static_configs:
+      - targets: [http://cowork-gateway:8080/api/user/users/me]
+        labels:
+          service: gateway
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox_exporter:9115
+
   # ── 인프라 Exporter (Docker 내부 고정 서비스) ──
   - job_name: infrastructure
     static_configs:
