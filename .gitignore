@@ -117,14 +117,6 @@ target/
 /cowork-chat/**/.idea/
 /cowork-chat/**/.vscode/
 
-# Config
-/cowork-config/**/*.jar
-/cowork-config/**/*.war
-/cowork-config/**/*.ear
-/cowork-config/**/out/
-/cowork-config/**/.idea/
-/cowork-config/**/.vscode/
-
 # Gateway
 /cowork-gateway/**/*.jar
 /cowork-gateway/**/*.war
