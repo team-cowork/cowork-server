@@ -5,8 +5,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import reactor.core.publisher.Mono;
-
 @Component
 public class TeamMemberProjectionProcessor {
 
@@ -26,36 +24,33 @@ public class TeamMemberProjectionProcessor {
     }
 
     @Transactional
-    public Mono<Void> apply(ConsumerRecord<String, String> record, TeamMemberEvent event) {
-        return handler.apply(event).then(advance(record));
+    public void apply(ConsumerRecord<String, String> record, TeamMemberEvent event) {
+        handler.apply(event);
+        advance(record);
     }
 
     @Transactional
-    public Mono<Void> discard(ConsumerRecord<String, String> record, String reason) {
+    public void discard(ConsumerRecord<String, String> record, String reason) {
         String topicId = topicGeneration.requireTopicId();
-        return checkpoints.quarantine(consumerGroup, record, reason)
-                .then(checkpoints
-                        .markInvalidRecord(consumerGroup, record.topic(), record.partition(), record.offset(), topicId))
-                .then(checkpoints
-                        .advance(consumerGroup, record.topic(), record.partition(), record.offset() + 1, topicId));
+        checkpoints.quarantine(consumerGroup, record, reason);
+        checkpoints.markInvalidRecord(consumerGroup, record.topic(), record.partition(), record.offset(), topicId);
+        checkpoints.advance(consumerGroup, record.topic(), record.partition(), record.offset() + 1, topicId);
     }
 
     @Transactional
-    public Mono<Void> completeSnapshot(ConsumerRecord<String, String> record, String snapshotId) {
+    public void completeSnapshot(ConsumerRecord<String, String> record, String snapshotId) {
         String topicId = topicGeneration.requireTopicId();
-        return checkpoints
-                .markSnapshotCompleted(consumerGroup,
-                        record.topic(),
-                        record.partition(),
-                        record.offset(),
-                        topicId,
-                        snapshotId)
-                .then(checkpoints
-                        .advance(consumerGroup, record.topic(), record.partition(), record.offset() + 1, topicId));
+        checkpoints.markSnapshotCompleted(consumerGroup,
+                record.topic(),
+                record.partition(),
+                record.offset(),
+                topicId,
+                snapshotId);
+        checkpoints.advance(consumerGroup, record.topic(), record.partition(), record.offset() + 1, topicId);
     }
 
-    private Mono<Void> advance(ConsumerRecord<String, String> record) {
-        return checkpoints.advance(consumerGroup,
+    private void advance(ConsumerRecord<String, String> record) {
+        checkpoints.advance(consumerGroup,
                 record.topic(),
                 record.partition(),
                 record.offset() + 1,
