@@ -1,8 +1,8 @@
 import {Injectable, Logger} from '@nestjs/common';
 import {Types} from 'mongoose';
 import {Server} from 'socket.io';
-import {MessageRepository, toMessageBroadcastPayload, ChannelReadStateRepository} from '../repository';
-import {ChannelMessageReadAccessService} from '../service';
+import {MessageRepository, toMessageBroadcastPayload} from '../repository';
+import {ChannelMessageReadAccessService, ChannelReadService} from '../service';
 import {ChatMessageEvent} from './event/chat-message.event';
 import {ChatMessageScopeValidator} from './chat-message-scope-validator';
 
@@ -19,7 +19,7 @@ export class ChatMessageProcessor {
 
     constructor(
         private readonly messageRepository: MessageRepository,
-        private readonly readStateRepository: ChannelReadStateRepository,
+        private readonly channelReadService: ChannelReadService,
         private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
         private readonly scopeValidator: ChatMessageScopeValidator,
     ) {}
@@ -55,7 +55,13 @@ export class ChatMessageProcessor {
                 this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${event.channelId})`);
             }
 
-            void this.readStateRepository.updateLastRead(event.channelId, event.authorId, saved._id)
+            // 작성자는 자기 메시지까지 읽은 것이므로 읽음 위치와 함께 안읽음 수 캐시·표시도 맞춘다.
+            void this.channelReadService.advance(event.channelId, event.authorId, saved._id)
+                .then(unreadCount => {
+                    if (unreadCount !== null) {
+                        this.io?.to(`user:${event.authorId}`).emit('channel:unread:updated', {channelId: event.channelId, unreadCount});
+                    }
+                })
                 .catch((error: unknown) => {
                     this.logger.warn(`Failed to update lastReadMessageId channelId=${event.channelId} authorId=${event.authorId}: ${String(error)}`);
                 });

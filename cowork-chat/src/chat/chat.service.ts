@@ -44,6 +44,7 @@ import {
     UnreadCounterService,
     type ChannelActionPermission,
     ChannelMessageReadAccessService,
+    ChannelReadService,
     SlowmodeService,
     RoomSocket,
     resolveMessageScope,
@@ -96,6 +97,7 @@ export class ChatService {
         private readonly messageSearchDeletion: MessageSearchDeletionService,
         private readonly channelProjectionRepository: ChannelProjectionRepository,
         private readonly slowmodeService: SlowmodeService,
+        private readonly channelReadService: ChannelReadService,
     ) {}
 
     /**
@@ -793,10 +795,11 @@ export class ChatService {
      */
     async readChannel(ctx: ChannelUserContext, lastReadMessageId: string): Promise<void> {
         await this.requireChannelRead(ctx.channelId, ctx.userId);
-        const oid = new Types.ObjectId(lastReadMessageId);
-        await this.readStateRepository.updateLastRead(ctx.channelId, ctx.userId, oid);
-        const unreadCount = await this.messageRepository.countUnread(ctx.channelId, oid);
-        await this.unreadCounterService.set(ctx.channelId, ctx.userId, unreadCount);
+        const unreadCount = await this.channelReadService.advance(ctx.channelId, ctx.userId, new Types.ObjectId(lastReadMessageId));
+        if (unreadCount === null) {
+            return;
+        }
+
         this.chatGateway.server
             ?.to(`user:${ctx.userId}`)
             .emit('channel:unread:updated', {channelId: ctx.channelId, unreadCount});
@@ -837,11 +840,15 @@ export class ChatService {
 
         const readStates = await this.readStateRepository.findForChannels(missedIds, userId);
         const recomputed = await this.messageRepository.countUnreadForChannels(readStates);
-        const filled = new Map(missedIds.map(id => [id, recomputed.get(id) ?? 0]));
+        // 집계 중 읽음 처리가 끝났다면 이 값은 오래된 위치 기준이므로, 기준 위치를 함께 넘겨 최신 값을 덮지 않게 한다.
+        const filled = new Map(readStates.map(({channelId, lastReadMessageId}) => [channelId, {
+            count: recomputed.get(channelId) ?? 0,
+            readCursor: lastReadMessageId?.toHexString() ?? null,
+        }]));
         void this.unreadCounterService.setMany(userId, filled);
 
         const result = new Map(cached?.hits);
-        for (const [channelId, count] of filled) {
+        for (const [channelId, {count}] of filled) {
             result.set(channelId, count);
         }
 
