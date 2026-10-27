@@ -24,16 +24,7 @@ modules:
       # Verify the JSON API identity; internal probes own service readiness.
       fail_if_body_json_not_matches_cel: "body.status == 'OK' && body.code == 200.0 && type(body.data) == map && size(body.data) > 0"
   # Unauthenticated business API probes through Gateway. They send no credentials and change no state.
-  # Gateway security returns this 401 before routing, so it proves the JWT filter, not the route or downstream.
-  http_gateway_protected_get:
-    prober: http
-    timeout: 5s
-    http:
-      method: GET
-      preferred_ip_protocol: ip4
-      valid_status_codes: [401]
-      follow_redirects: false
-      body_size_limit: 64KB
+  # Protected routes are not probed: Gateway security returns 401 before routing, which proves neither route nor downstream.
   # Public routes must reach downstream. Gateway's own 401 has no body; downstream JSON keeps its Content-Type.
   http_gateway_downstream_get:
     prober: http
@@ -60,7 +51,8 @@ modules:
       fail_if_header_not_matches:
         - header: Content-Type
           regexp: '^application/json(;.*)?$'
-  # Gateway global CORS preflight. Both the local default and the prod config slot PUBLIC_WEB_ORIGINS declare this Origin.
+  # Gateway global CORS preflight. Prod replaces this local Origin with the config slot's first HTTPS PUBLIC_WEB_ORIGINS entry
+  # (deploy/prod/monitoring/prepare-configs.sh).
   http_gateway_cors_preflight:
     prober: http
     timeout: 5s
