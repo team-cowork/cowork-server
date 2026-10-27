@@ -23,6 +23,7 @@ import (
 	httpswagger "github.com/swaggo/http-swagger/v2"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 
 	"github.com/cowork/cowork-notification/internal/config"
 	"github.com/cowork/cowork-notification/internal/domain/delivery"
@@ -52,6 +53,12 @@ func main() {
 	// SQLite compares DATETIME values as text, so every stored time must share the UTC offset.
 	db, err := gorm.Open(sqlite.Open(cfg.DBDSN), &gorm.Config{
 		NowFunc: func() time.Time { return time.Now().UTC() },
+		// gorm 기본 로거는 stdout에 plain text를 남기므로 JSON 로그 규약을 따르는 slog로 보낸다.
+		Logger: gormlogger.NewSlogLogger(logger.Default, gormlogger.Config{
+			SlowThreshold:             200 * time.Millisecond,
+			LogLevel:                  gormlogger.Warn,
+			IgnoreRecordNotFoundError: true,
+		}),
 	})
 	if err != nil {
 		slog.Error("sqlite open failed", "err", err)
