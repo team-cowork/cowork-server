@@ -47,3 +47,4 @@
   gather_facts: true
   tasks:
     - ansible.builtin.include_tasks: tasks/runner.yml
+    - ansible.builtin.include_tasks: tasks/certificate-renewal.yml

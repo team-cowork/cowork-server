@@ -20,6 +20,14 @@
       "darwin_arm64": "cb46112c095f1c4da721b6a18c8368f67341896a62205d1c117299e85993af61"
     }
   },
+  "python": {
+    "version": "3.12.16",
+    "build": "20261026",
+    "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.12.16%2B20261026-x86_64-unknown-linux-gnu-install_only.tar.gz",
+    "sha256": {
+      "linux_amd64": "6a79e922e50006b601f29e688407659da1c2b86ebcd4e9c7254cf234be8b89de"
+    }
+  },
   "cni": {
     "version": "1.9.1",
     "sha256": {
