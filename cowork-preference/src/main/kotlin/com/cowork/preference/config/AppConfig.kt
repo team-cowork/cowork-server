@@ -1,7 +1,6 @@
 package com.cowork.preference.config
 
 import io.vertx.core.json.JsonObject
-import java.net.NetworkInterface
 
 data class DbConfig(
     val host: String,
@@ -36,12 +35,6 @@ data class AppConfig(
     val db: DbConfig,
     val redis: RedisConfig,
     val kafka: KafkaConfig,
-    val eurekaUrl: String,
-    val eurekaEnabled: Boolean,
-    val eurekaAppName: String,
-    val eurekaInstanceHost: String,
-    val eurekaInstanceId: String,
-    val eurekaInstancePort: Int = serverPort,
     val webhookSecretEncryptionKey: String? = null,
     val webhookUrlSigningKey: String? = null,
 ) {
@@ -51,31 +44,7 @@ data class AppConfig(
             val db = pref.getJsonObject("db") ?: JsonObject()
             val redis = pref.getJsonObject("redis") ?: JsonObject()
             val kafka = pref.getJsonObject("kafka") ?: JsonObject()
-            val eureka = json.getJsonObject("eureka") ?: JsonObject()
-            val instance = eureka.getJsonObject("instance") ?: JsonObject()
             val serverPort = json.getJsonObject("server")?.getInt("port", 9001) ?: 9001
-            val instancePort = System.getenv("APP_ADVERTISE_PORT")?.let { value ->
-                value.toInt().also { require(it in 1..65535) { "Invalid Eureka advertised port" } }
-            } ?: serverPort
-            val appName = eureka.getString("app-name", "cowork-preference")
-            val configuredInstanceHost = instance.getString("host", "localhost")
-            val useRuntimeIdentity = System.getenv("EUREKA_USE_RUNTIME_HOSTNAME") == "true"
-            val runtimeHostname = System.getenv("HOSTNAME")?.takeIf(String::isNotBlank)
-            val advertisedAddress = System.getenv("APP_ADVERTISE_ADDRESS")?.takeIf(String::isNotBlank)
-            val instanceHost = advertisedAddress ?: if (useRuntimeIdentity) {
-                nonLoopbackIpv4()
-                    ?: error("No non-loopback IPv4 address is available for Eureka registration")
-            } else {
-                configuredInstanceHost
-            }
-            val instanceId = System.getenv("EUREKA_INSTANCE_ID")?.takeIf(String::isNotBlank)
-                ?: if (useRuntimeIdentity) {
-                    val identityHost = runtimeHostname
-                        ?: error("HOSTNAME is required for replica-unique Eureka identity")
-                    "$identityHost:$appName:$instancePort"
-                } else {
-                    instance.getString("id", "$instanceHost:$appName:$instancePort")
-                }
             return AppConfig(
                 serverPort = serverPort,
                 db = DbConfig(
@@ -133,21 +102,8 @@ data class AppConfig(
                     ?: pref.getJsonObject("webhook")?.getString("secret-encryption-key"),
                 webhookUrlSigningKey = System.getenv("WEBHOOK_URL_SIGNING_KEY")
                     ?: (pref.getJsonObject("webhook")?.getValue("url-signing-key") as? String),
-                eurekaUrl = eureka.getString("url", "http://localhost:8761/eureka/"),
-                eurekaEnabled = eureka.getBoolean("enabled", true),
-                eurekaAppName = appName,
-                eurekaInstanceHost = instanceHost,
-                eurekaInstanceId = instanceId,
-                eurekaInstancePort = instancePort,
             )
         }
-
-        private fun nonLoopbackIpv4(): String? = NetworkInterface.getNetworkInterfaces().toList()
-            .asSequence()
-            .filter { it.isUp && !it.isLoopback }
-            .flatMap { it.inetAddresses.toList().asSequence() }
-            .firstOrNull { !it.isLoopbackAddress && !it.isLinkLocalAddress && it.address.size == 4 }
-            ?.hostAddress
 
         private fun JsonObject.getInt(key: String, defaultValue: Int): Int = when (val value = getValue(key)) {
             is Number -> value.toInt()
