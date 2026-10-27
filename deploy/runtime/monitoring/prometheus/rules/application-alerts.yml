@@ -40,7 +40,7 @@ groups:
           description: "서비스 {{ $labels.service }}{{ if $labels.module }} (모듈: {{ $labels.module }}){{ end }}의 준비 상태 확인이 2분 동안 실패했습니다."
 
       - alert: coworkInfrastructureScrapeFailed
-        expr: up{job=~"infrastructure|infrastructure-discovery|monitoring|hosts|alloy"} == 0
+        expr: up{job=~"infrastructure|infrastructure-discovery|monitoring|hosts|alloy|nomad|consul"} == 0
         for: 2m
         labels:
           severity: critical

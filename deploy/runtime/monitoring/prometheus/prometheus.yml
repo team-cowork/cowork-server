@@ -236,7 +236,7 @@ scrape_configs:
   - target_label: __address__
     replacement: 127.0.0.1:9115
 - job_name: hosts
-  static_configs:
+  static_configs: &host_targets
   - targets:
     - 10.0.0.74:9100
     labels:
@@ -327,6 +327,57 @@ scrape_configs:
     labels:
       service: host
       host: control
+- job_name: nomad
+  scheme: https
+  metrics_path: /v1/metrics
+  params:
+    format: [prometheus]
+  tls_config:
+    ca_file: /etc/cowork/ca/ca.crt
+  static_configs: *host_targets
+  relabel_configs:
+  - source_labels: [host]
+    regex: vault
+    action: drop
+  - source_labels: [__address__]
+    regex: (.+):9100
+    replacement: $1:4646
+    target_label: __address__
+  - target_label: service
+    replacement: nomad
+  - target_label: role
+    replacement: client
+  - source_labels: [host]
+    regex: control
+    target_label: role
+    replacement: server
+- job_name: consul
+  scheme: https
+  follow_redirects: false
+  metrics_path: /v1/agent/metrics
+  params:
+    format: [prometheus]
+  authorization:
+    credentials_file: /secrets/consul-token
+  tls_config:
+    ca_file: /etc/cowork/ca/ca.crt
+  static_configs: *host_targets
+  relabel_configs:
+  - source_labels: [host]
+    regex: vault
+    action: drop
+  - source_labels: [__address__]
+    regex: (.+):9100
+    replacement: $1:8501
+    target_label: __address__
+  - target_label: service
+    replacement: consul
+  - target_label: role
+    replacement: client
+  - source_labels: [host]
+    regex: control
+    target_label: role
+    replacement: server
 - job_name: alloy
   static_configs:
   - targets:
