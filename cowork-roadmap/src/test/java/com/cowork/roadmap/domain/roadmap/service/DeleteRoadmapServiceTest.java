@@ -1,12 +1,17 @@
 package com.cowork.roadmap.domain.roadmap.service;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -17,8 +22,6 @@ import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.impl.DeleteRoadmapServiceImpl;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
-import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
 import team.themoment.sdk.exception.ExpectedException;
 
 class DeleteRoadmapServiceTest {
@@ -34,23 +37,20 @@ class DeleteRoadmapServiceTest {
     @Test
     void deleteRoadmap_whenMutable_deletes() {
         Roadmap roadmap = roadmap(10L);
-        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap));
-        when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        when(roadmapRepository.delete(roadmap)).thenReturn(Mono.empty());
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap));
 
-        StepVerifier.create(deleteRoadmapService.execute(1L, "ADMIN", 10L)).verifyComplete();
+        deleteRoadmapService.execute(1L, "ADMIN", 10L);
 
         verify(roadmapRepository).delete(roadmap);
     }
 
     @Test
     void deleteRoadmap_roadmapNotFound_failsWithNotFound() {
-        when(roadmapRepository.findByIdForUpdate(99L)).thenReturn(Mono.empty());
+        when(roadmapRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
 
-        StepVerifier.create(deleteRoadmapService.execute(1L, "ADMIN", 99L))
-                .expectErrorMatches(error -> error instanceof ExpectedException expected
-                        && expected.getStatusCode() == HttpStatus.NOT_FOUND)
-                .verify();
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> deleteRoadmapService.execute(1L, "ADMIN", 99L));
+        assertTrue(error.getStatusCode() == HttpStatus.NOT_FOUND);
 
         verify(roadmapRepository, never()).delete(any());
     }
@@ -58,27 +58,23 @@ class DeleteRoadmapServiceTest {
     @Test
     void deleteRoadmap_whenNotMutable_doesNotDelete() {
         Roadmap roadmap = roadmap(10L);
-        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap));
-        when(accessGuard.requireMutable(any(), anyLong(), anyString()))
-                .thenReturn(Mono.error(new ExpectedException("권한 없음", HttpStatus.FORBIDDEN)));
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap));
+        doThrow(new ExpectedException("권한 없음", HttpStatus.FORBIDDEN)).when(accessGuard)
+                .requireMutable(any(), anyLong(), anyString());
 
-        StepVerifier.create(deleteRoadmapService.execute(2L, "MEMBER", 10L))
-                .expectErrorMatches(error -> error instanceof ExpectedException expected
-                        && expected.getStatusCode() == HttpStatus.FORBIDDEN)
-                .verify();
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> deleteRoadmapService.execute(2L, "MEMBER", 10L));
+        assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
 
-        // delete는 Mono.defer로 감싸져 권한 검증 실패 시 호출되지 않는다.
         verify(roadmapRepository, never()).delete(any());
     }
 
     @Test
     void customRoadmap_keepsExistingDeletionPolicy() {
         Roadmap roadmap = Roadmap.builder().id(10L).scope(RoadmapScope.TEAM.name()).ownerTeamId(5L).build();
-        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap));
-        when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        when(roadmapRepository.delete(roadmap)).thenReturn(Mono.empty());
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap));
 
-        StepVerifier.create(deleteRoadmapService.execute(1L, "MEMBER", 10L)).verifyComplete();
+        deleteRoadmapService.execute(1L, "MEMBER", 10L);
         verify(roadmapRepository).delete(roadmap);
     }
 

@@ -10,7 +10,6 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
@@ -22,11 +21,10 @@ public class QueryRoadmapNodeServiceImpl implements QueryRoadmapNodeService {
 
     @Override
     @Transactional(readOnly = true)
-    public Mono<NodeResDto> execute(Long userId, String userRole, Long nodeId) {
-        return nodeLookupSupport.findNodeOrThrow(nodeId)
-                .flatMap(node -> roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId())
-                        .flatMap(roadmap -> accessGuard.requireReadable(roadmap, userId, userRole)
-                                .then(Mono.defer(() -> nodeLookupSupport.loadReferences(nodeId)))
-                                .map(refs -> NodeResDto.of(node, refs))));
+    public NodeResDto execute(Long userId, String userRole, Long nodeId) {
+        var node = nodeLookupSupport.findNodeOrThrow(nodeId);
+        var roadmap = roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId());
+        accessGuard.requireReadable(roadmap, userId, userRole);
+        return NodeResDto.of(node, nodeLookupSupport.loadReferences(nodeId));
     }
 }
