@@ -1,0 +1,41 @@
+---
+platform_state_dir: "{{ lookup('ansible.builtin.env', 'COWORK_PLATFORM_STATE_DIR') }}"
+platform_repository: "{{ playbook_dir }}/../.."
+platform_versions: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../production/versions.json') | from_json }}"
+platform_python_root: "/opt/cowork/python-{{ platform_versions.python.version }}-{{ platform_versions.python.build }}"
+platform_python_binary: "{{ platform_python_root }}/python/bin/python3"
+consul_bootstrap_token: "{{ lookup('ansible.builtin.file', platform_state_dir ~ '/consul-bootstrap.token') | trim }}"
+platform_control_ip: "{{ hostvars[groups['control_plane'][0]].private_ip }}"
+platform_vault_ip: "{{ hostvars[groups['vault_hosts'][0]].private_ip }}"
+platform_agent_hosts: "{{ groups['control_plane'] + groups['nomad_clients'] }}"
+platform_active_hosts: "{{ platform_agent_hosts + groups['vault_hosts'] }}"
+platform_agent_ips: "{{ platform_agent_hosts | map('extract', hostvars, 'private_ip') | list }}"
+ansible_ssh_common_args: "-o UserKnownHostsFile={{ inventory_dir }}/known_hosts -o StrictHostKeyChecking=yes"
+platform_data_volumes:
+  authorization: [{name: authorization-db, uid: 999}]
+  user: [{name: user-db, uid: 999}, {name: user-storage, uid: 10001}]
+  team: [{name: team-db, uid: 999}, {name: team-storage, uid: 10001}]
+  channel: [{name: channel-db, uid: 999}]
+  project: [{name: project-db, uid: 999}]
+  roadmap: [{name: roadmap-db, uid: 999}]
+  preference: [{name: preference-db, uid: 999}]
+  chat: [{name: chat-db, uid: 999}, {name: chat-storage, uid: 10001}, {name: chat-search, uid: 1000}]
+  voice: [{name: voice-db, uid: 999}]
+  notification: [{name: notification-data, uid: 10001}]
+  kafka: [{name: kafka-data, uid: 1000}]
+  redis: [{name: redis-data, uid: 999}]
+  monitoring:
+    - {name: monitoring-loki, uid: 10001}
+    - {name: monitoring-prometheus, uid: 10001}
+    - {name: monitoring-grafana, uid: 10001}
+    - {name: monitoring-alertmanager, uid: 10001}
+platform_legacy_units:
+  - cowork-config-firewall.service
+  - cowork-backend-firewall.service
+  - cowork-storage-firewall.service
+  - cowork-module-database-firewall.service
+  - cowork-shared-firewall.service
+platform_runner_repository: https://github.com/team-cowork/cowork-server
+platform_runner_token: "{{ lookup('ansible.builtin.env', 'GITHUB_RUNNER_REGISTRATION_TOKEN') }}"
+platform_ghcr_username: "{{ lookup('ansible.builtin.env', 'GHCR_USERNAME') }}"
+platform_ghcr_read_token: "{{ lookup('ansible.builtin.env', 'GHCR_READ_TOKEN') }}"

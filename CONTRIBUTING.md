@@ -385,12 +385,12 @@ class QueryTeamServiceTest : DescribeSpec({
 
 Run the owning module's tests from the repository root:
 
-| Scope                       | Command                                                                               |
-|-----------------------------|---------------------------------------------------------------------------------------|
-| Gradle Kotlin module        | `./gradlew :cowork-team:test` (replace `team` with `gateway`, `config`, or `channel`) |
-| Java roadmap                | `./gradlew :cowork-roadmap:test`                                                      |
-| Maven project               | `(cd cowork-project && ./mvnw test)`                                                  |
-| Kotlin Toolchain preference | `./gradlew :cowork-preference:kotlinToolchainTest`                                    |
+| Scope                       | Command                                                                    |
+|-----------------------------|----------------------------------------------------------------------------|
+| Gradle Kotlin module        | `./gradlew :cowork-team:test` (replace `team` with `gateway` or `channel`) |
+| Java roadmap                | `./gradlew :cowork-roadmap:test`                                           |
+| Maven project               | `(cd cowork-project && ./mvnw test)`                                       |
+| Kotlin Toolchain preference | `./gradlew :cowork-preference:kotlinToolchainTest`                         |
 
 The Kotlin Toolchain uses the checked-in `cowork-preference/kotlin` or `kotlin.bat` wrapper. It provisions the pinned toolchain and JDK; no global CLI installation is needed. Gradle, Docker, and CI use that project wrapper. `KOTLIN_CLI` can override the Gradle command; `~/` expands to the user home, and relative paths resolve against `cowork-preference`. Update both wrappers together with `./kotlin update --target-version=<version>` from the module directory. There is no `:cowork-preference:test` Gradle task.
 
@@ -403,13 +403,13 @@ The Kotlin Toolchain uses the checked-in `cowork-preference/kotlin` or `kotlin.b
 Inject secrets through environment variables, Vault, or configured secret providers. For Spring values, use constructor injection or configuration properties. JWT validation belongs to the Gateway, with the documented chat WebSocket exception in `.claude/rules/security.md`.
 
 ```yaml
-# Config Server YAML; resolve this through a supported client or secret source.
+# Application-owned Spring YAML; Nomad injects DB_PASSWORD from Vault.
 spring:
   datasource:
     password: ${DB_PASSWORD}
 ```
 
-Non-Spring clients do not all resolve `${VAR}` placeholders; follow `.claude/rules/config.md` for their actual configuration behavior. Do not replace unresolved placeholders with committed credentials.
+Non-Spring runtimes do not all resolve `${VAR}` placeholders; follow `.claude/rules/config.md` for their actual configuration behavior. Do not replace unresolved placeholders with committed credentials.
 
 ### SQL Injection Prevention
 

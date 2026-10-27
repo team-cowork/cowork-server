@@ -1,0 +1,111 @@
+---
+- name: Install the pinned agent binaries
+  ansible.builtin.include_tasks: install-binary.yml
+  loop: [consul, nomad]
+  loop_control:
+    loop_var: platform_binary
+- name: Install CNI networking on workload VMs
+  when: inventory_hostname in groups['nomad_clients']
+  block:
+    - name: Create CNI directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: '0755'
+      loop: [/opt/cni/bin, /etc/cni/net.d]
+    - name: Download verified CNI plugins
+      ansible.builtin.get_url:
+        url: "https://github.com/containernetworking/plugins/releases/download/v{{ platform_versions.cni.version }}/cni-plugins-linux-amd64-v{{ platform_versions.cni.version }}.tgz"
+        checksum: "sha256:{{ platform_versions.cni.sha256.linux_amd64 }}"
+        dest: "/var/cache/cowork/cni-{{ platform_versions.cni.version }}.tgz"
+        mode: '0644'
+    - name: Install CNI plugins
+      ansible.builtin.unarchive:
+        src: "/var/cache/cowork/cni-{{ platform_versions.cni.version }}.tgz"
+        dest: /opt/cni/bin
+        remote_src: true
+        owner: root
+        group: root
+    - name: Persist required kernel modules
+      ansible.builtin.copy:
+        content: "bridge\nbr_netfilter\n"
+        dest: /etc/modules-load.d/cowork.conf
+        mode: '0644'
+    - name: Load bridge packet filtering
+      ansible.builtin.command: modprobe br_netfilter
+      changed_when: false
+    - name: Configure native container forwarding
+      ansible.posix.sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        sysctl_file: /etc/sysctl.d/90-cowork.conf
+        reload: true
+        sysctl_set: true
+      loop:
+        - {name: net.ipv4.ip_forward, value: '1'}
+        - {name: net.bridge.bridge-nf-call-iptables, value: '1'}
+        - {name: net.bridge.bridge-nf-call-ip6tables, value: '1'}
+        - {name: vm.max_map_count, value: '262144'}
+    - name: Install the platform CNI network
+      ansible.builtin.template:
+        src: cowork.conflist.j2
+        dest: /etc/cni/net.d/cowork.conflist
+        mode: '0644'
+    - name: Install optional GHCR read credentials for the Docker driver
+      ansible.builtin.copy:
+        content: "{{ {'auths': {'ghcr.io': {'auth': (platform_ghcr_username ~ ':' ~ platform_ghcr_read_token) | b64encode}}} | to_nice_json }}\n"
+        dest: /etc/nomad.d/docker-auth.json
+        mode: '0600'
+      no_log: true
+      when: platform_ghcr_username | length > 0 and platform_ghcr_read_token | length > 0
+    - name: Check whether GHCR credentials are available
+      ansible.builtin.stat:
+        path: /etc/nomad.d/docker-auth.json
+      register: platform_docker_auth
+- name: Require scoped integration tokens before joining a workload VM
+  ansible.builtin.assert:
+    that:
+      - lookup('ansible.builtin.file', platform_state_dir ~ '/tokens/' ~ inventory_hostname ~ '.consul', errors='ignore') | default('', true) | trim | length > 0
+      - lookup('ansible.builtin.file', platform_state_dir ~ '/tokens/' ~ inventory_hostname ~ '.nomad-consul', errors='ignore') | default('', true) | trim | length > 0
+    fail_msg: Bootstrap the control-plane ACL identities before starting client agents.
+  no_log: true
+  when: inventory_hostname in groups['nomad_clients']
+- name: Render the Consul configuration
+  ansible.builtin.template:
+    src: consul.hcl.j2
+    dest: /etc/consul.d/consul.hcl
+    owner: consul
+    group: consul
+    mode: '0600'
+    validate: /usr/local/bin/consul validate %s
+  register: platform_consul_config
+  no_log: true
+- name: Render the Nomad configuration
+  ansible.builtin.template:
+    src: nomad.hcl.j2
+    dest: /etc/nomad.d/nomad.hcl
+    owner: root
+    group: root
+    mode: '0600'
+    validate: /usr/local/bin/nomad config validate %s
+  register: platform_nomad_config
+  no_log: true
+- name: Install native agent services
+  ansible.builtin.template:
+    src: "{{ item }}.service.j2"
+    dest: "/etc/systemd/system/{{ item }}.service"
+    mode: '0644'
+  register: platform_agent_units
+  loop: [consul, nomad]
+- name: Start or reconcile Consul
+  ansible.builtin.systemd_service:
+    name: consul
+    daemon_reload: true
+    enabled: true
+    state: "{{ 'restarted' if platform_consul_config.changed or platform_ca_installed.changed or platform_certificate_installed.changed or platform_private_key_installed.changed or platform_agent_units.changed or platform_versions_installed.changed else 'started' }}"
+- name: Start or reconcile Nomad
+  ansible.builtin.systemd_service:
+    name: nomad
+    daemon_reload: true
+    enabled: true
+    state: "{{ 'restarted' if platform_nomad_config.changed or platform_ca_installed.changed or platform_certificate_installed.changed or platform_private_key_installed.changed or platform_agent_units.changed or platform_versions_installed.changed else 'started' }}"

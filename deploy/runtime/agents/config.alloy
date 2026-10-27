@@ -1,0 +1,87 @@
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+discovery.relabel "containers" {
+  targets = discovery.docker.containers.targets
+  rule {
+    source_labels = ["__meta_docker_container_label_com_hashicorp_nomad_job_name"]
+    regex = "cowork-(.+)"
+    target_label = "service"
+    replacement = "$1"
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_cowork_service"]
+    regex = "(.+)"
+    target_label = "service"
+    replacement = "$1"
+  }
+  rule {
+    source_labels = ["service"]
+    regex = "^$"
+    target_label = "service"
+    replacement = sys.env("LOG_SERVICE")
+  }
+  rule {
+    source_labels = ["__meta_docker_container_label_com_hashicorp_nomad_task_name"]
+    target_label = "task"
+  }
+}
+
+loki.source.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+  targets = discovery.relabel.containers.output
+  labels = { env = "prod", host = sys.env("LOG_HOST") }
+  forward_to = [loki.process.containers.receiver]
+}
+
+loki.process "containers" {
+  stage.json {
+    expressions = {
+      json_level = "level",
+      ecs_level = "\"log.level\"",
+      app_timestamp = "\"@timestamp\"",
+    }
+  }
+  stage.regex {
+    expression = "(?i)\\[(?P<plain_level>trace|debug|info|warn|warning|error|fatal)\\]"
+  }
+  stage.template {
+    source = "level"
+    template = "{{ if .json_level }}{{ ToUpper .json_level }}{{ else if .ecs_level }}{{ ToUpper .ecs_level }}{{ else if .plain_level }}{{ ToUpper .plain_level }}{{ else }}UNKNOWN{{ end }}"
+  }
+  stage.template {
+    source = "level"
+    template = "{{ if eq .Value \"WARNING\" }}WARN{{ else }}{{ .Value }}{{ end }}"
+  }
+  stage.labels {
+    values = { level = "" }
+  }
+  stage.match {
+    selector = "{task=\"app\"}"
+    stage.template {
+      source = "parse_error"
+      template = "{{ if or (not .app_timestamp) (eq .level \"UNKNOWN\") }}true{{ end }}"
+    }
+    stage.labels {
+      values = { parse_error = "" }
+    }
+  }
+  stage.timestamp {
+    source = "app_timestamp"
+    format = "RFC3339Nano"
+    action_on_failure = "skip"
+  }
+  forward_to = [loki.write.central.receiver]
+}
+
+loki.write "central" {
+  endpoint {
+    url = "https://10.0.0.137:3100/loki/api/v1/push"
+    tls_config {
+      ca_file = "/etc/alloy/tls/ca.crt"
+      cert_file = "/etc/alloy/tls/client.crt"
+      key_file = "/etc/alloy/tls/client.key"
+    }
+  }
+}

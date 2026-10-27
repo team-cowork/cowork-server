@@ -1,0 +1,62 @@
+---
+- name: Create root-owned managed Python directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+    - /opt/cowork
+    - "{{ platform_python_root }}"
+    - /var/cache/cowork
+- name: Inspect the versioned managed Python executable
+  ansible.builtin.stat:
+    path: "{{ platform_python_binary }}"
+  register: platform_python_executable
+- name: Read the completed Python installation receipt
+  ansible.builtin.slurp:
+    src: "{{ platform_python_root }}/.installed"
+  register: platform_python_receipt
+  failed_when: false
+- name: Install the pinned independent Python runtime
+  when: not platform_python_executable.stat.exists or (platform_python_receipt.content | default('') | b64decode | trim) != platform_versions.python.sha256.linux_amd64
+  block:
+    - name: Download the verified Python archive
+      ansible.builtin.get_url:
+        url: "{{ platform_versions.python.url }}"
+        checksum: "sha256:{{ platform_versions.python.sha256.linux_amd64 }}"
+        dest: "/var/cache/cowork/python-{{ platform_versions.python.version }}-{{ platform_versions.python.build }}.tar.gz"
+        owner: root
+        group: root
+        mode: '0644'
+    - name: Clear the completion receipt before extracting Python
+      ansible.builtin.file:
+        path: "{{ platform_python_root }}/.installed"
+        state: absent
+    - name: Extract Python without replacing the operating system interpreter
+      ansible.builtin.unarchive:
+        src: "/var/cache/cowork/python-{{ platform_versions.python.version }}-{{ platform_versions.python.build }}.tar.gz"
+        dest: "{{ platform_python_root }}"
+        remote_src: true
+        owner: root
+        group: root
+- name: Verify the managed Python patch version and required standard library
+  ansible.builtin.command:
+    argv:
+      - "{{ platform_python_binary }}"
+      - -c
+      - 'import ensurepip, platform, ssl, venv; print(platform.python_version())'
+  register: platform_python_version
+  changed_when: false
+  failed_when: platform_python_version.rc != 0 or platform_python_version.stdout | trim != platform_versions.python.version
+- name: Record the verified Python archive checksum
+  ansible.builtin.copy:
+    content: "{{ platform_versions.python.sha256.linux_amd64 }}\n"
+    dest: "{{ platform_python_root }}/.installed"
+    owner: root
+    group: root
+    mode: '0644'
+- name: Record that the managed Python runtime is ready for this deployment
+  ansible.builtin.set_fact:
+    platform_python_ready: true

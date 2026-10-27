@@ -1,0 +1,66 @@
+flush table inet cowork
+table inet cowork {
+  set agents { type ipv4_addr; elements = { {{ platform_agent_ips | join(', ') }} } }
+  chain input {
+    type filter hook input priority -20; policy accept;
+    iifname "lo" accept
+    ct state established,related accept
+    ip protocol icmp accept
+    meta l4proto ipv6-icmp accept
+    tcp dport 22 accept
+    udp sport 67 udp dport 68 accept
+{% if inventory_hostname in platform_agent_hosts %}
+    ip saddr @agents tcp dport 8301 accept
+    ip saddr @agents udp dport 8301 accept
+    ip saddr { {{ platform_control_ip }}, {{ hostvars['monitoring'].private_ip }} } tcp dport { 4646, 8501 } accept
+    iifname "cowork0" ip saddr 172.30.0.0/16 tcp dport { 8501, 8503 } accept
+    ip saddr @agents tcp dport 22000-22999 accept
+{% endif %}
+{% if inventory_hostname in groups['control_plane'] %}
+    ip saddr @agents tcp dport { 8300, 4647, 4648 } accept
+    ip saddr @agents udp dport 4648 accept
+    ip saddr @agents tcp dport 4646 accept
+    ip saddr {{ platform_vault_ip }} tcp dport 4646 accept
+{% endif %}
+    ip saddr {{ hostvars['monitoring'].private_ip }} tcp dport { 9100, 12345 } accept
+{% if inventory_hostname == 'gateway' %}
+    ip saddr 10.0.0.117 tcp dport 8080 accept
+{% elif inventory_hostname == 'kafka' %}
+    ip saddr @agents tcp dport 9094 accept
+{% elif inventory_hostname == 'livekit' %}
+    ip saddr { 10.0.0.117, {{ hostvars['voice'].private_ip }}, {{ hostvars['gateway'].private_ip }} } tcp dport 7880 accept
+    tcp dport 7881 accept
+    udp dport 7882 accept
+{% elif inventory_hostname == 'monitoring' %}
+    ip saddr 10.0.0.117 tcp dport 8080 accept
+    ip saddr { {{ platform_agent_ips | join(', ') }}, {{ platform_vault_ip }} } tcp dport 3100 accept
+{% elif inventory_hostname in groups['vault_hosts'] %}
+    ip saddr @agents tcp dport 8210 accept
+    ip saddr 10.0.0.117 tcp dport 8200 accept
+{% endif %}
+    counter drop
+  }
+  chain forward {
+    type filter hook forward priority -20; policy accept;
+    ct state established,related accept
+    iifname "cowork0" accept
+    ip saddr @agents ct status dnat ct original proto-dst 22000-22999 accept
+{% if inventory_hostname == 'gateway' %}
+    ip saddr 10.0.0.117 ct status dnat ct original proto-dst 8080 accept
+{% elif inventory_hostname == 'kafka' %}
+    ip saddr @agents ct status dnat ct original proto-dst 9094 accept
+{% elif inventory_hostname == 'monitoring' %}
+    ip saddr 10.0.0.117 ct status dnat ct original proto-dst 8080 accept
+    ip saddr { {{ platform_agent_ips | join(', ') }}, {{ platform_vault_ip }} } ct status dnat ct original proto-dst 3100 accept
+{% elif inventory_hostname == 'livekit' %}
+    ip saddr { 10.0.0.117, {{ hostvars['voice'].private_ip }}, {{ hostvars['gateway'].private_ip }} } ct status dnat ct original proto-dst 7880 accept
+    ct status dnat ct original proto-dst { 7881, 7882 } accept
+{% endif %}
+{% if inventory_hostname in groups['vault_hosts'] %}
+    ip saddr @agents ct status dnat ct original proto-dst 8210 accept
+    ip saddr 10.0.0.117 ct status dnat ct original proto-dst 8200 accept
+    oifname "br*" tcp dport { 8200, 8210 } counter drop
+{% endif %}
+    oifname "cowork0" counter drop
+  }
+}

@@ -1,5 +1,5 @@
 name: Build A Cowork Image
-description: Build an image and inspect its slot contract without starting the application
+description: Build an image and inspect its runtime contract without starting the application
 inputs:
   service:
     required: true
@@ -82,7 +82,7 @@ runs:
         push: false
         load: true
         # The Docker exporter used by hosted runners cannot load attestations.
-        # Publish them separately after the slot contract inspection passes.
+        # Publish them separately after the runtime contract inspection passes.
         provenance: false
         sbom: false
         tags: ${{ inputs.tags }}

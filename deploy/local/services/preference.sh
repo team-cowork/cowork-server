@@ -13,11 +13,8 @@ SERVICE_COMMAND=(
    export DB_NAME="${DB_NAME:-cowork_preference}"
    export DB_USERNAME="${DB_USERNAME:-${POSTGRES_USER}}"
    export DB_PASSWORD="${DB_PASSWORD:-${POSTGRES_PASSWORD}}"
-   export CONFIG_SERVER_URL="${CONFIG_SERVER_URL:-http://localhost:8761}"
    export REDIS_HOST="${REDIS_HOST:-localhost}"
    export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"
-   export EUREKA_SERVER_URL="${EUREKA_SERVER_URL:-http://localhost:8761/eureka/}"
-   export APP_ADVERTISE_ADDRESS="${APP_ADVERTISE_ADDRESS:-localhost}"
    exec ./gradlew :cowork-preference:run'
 )
 

@@ -1,0 +1,20 @@
+[Unit]
+Description=Nomad workload scheduler
+Wants=network-online.target consul.service
+After=network-online.target consul.service{% if inventory_hostname in groups['nomad_clients'] %} docker.service{% endif %}
+
+[Service]
+ExecStart=/usr/local/bin/nomad agent -config=/etc/nomad.d/nomad.hcl
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+KillMode=process
+KillSignal=SIGINT
+LimitNOFILE=65536
+LimitNPROC=infinity
+TasksMax=infinity
+Delegate=yes
+OOMScoreAdjust=-1000
+
+[Install]
+WantedBy=multi-user.target

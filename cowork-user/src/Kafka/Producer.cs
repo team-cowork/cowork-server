@@ -14,7 +14,7 @@ public sealed class Producer : IDisposable
 
     public Producer(AppConfig config)
     {
-        producer = new ProducerBuilder<string, byte[]>(new ProducerConfig
+        producer = new ProducerBuilder<string, byte[]>(new ProducerConfig(config.KafkaSecurity.CreateClientConfig())
         {
             BootstrapServers = config.KafkaBootstrapServers,
             Acks = Acks.All,

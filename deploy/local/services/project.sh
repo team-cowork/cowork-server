@@ -8,13 +8,14 @@ SERVICE_NAME="cowork-project"
 SERVICE_WORKDIR="$PROJECT_ROOT/cowork-project"
 SERVICE_COMMAND=(
   bash -lc
-  'export DB_HOST="${DB_HOST:-localhost}"
+  'export COWORK_GITHUB_URL="${COWORK_GITHUB_URL:-http://localhost:8090}"
+   export GITHUB_INTERNAL_API_KEY="${COWORK_GITHUB_INTERNAL_API_KEY:-}"
+   export DB_HOST="${DB_HOST:-localhost}"
    export DB_PORT="${DB_PORT:-3306}"
    export DB_NAME="${DB_NAME:-cowork_project}"
    export DB_USERNAME="${DB_USERNAME:-${MYSQL_USER}}"
    export DB_PASSWORD="${DB_PASSWORD:-${MYSQL_PASSWORD}}"
    export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"
-   export EUREKA_SERVER_URL="${EUREKA_SERVER_URL:-http://localhost:8761/eureka/}"
    exec ./mvnw spring-boot:run'
 )
 

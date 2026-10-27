@@ -1,0 +1,10 @@
+[Unit]
+Description=Check Cowork internal host certificates daily
+
+[Timer]
+OnCalendar=*-*-* 19:15:00 UTC
+Persistent=true
+Unit=cowork-platform-certificates.service
+
+[Install]
+WantedBy=timers.target
