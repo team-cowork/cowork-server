@@ -131,7 +131,10 @@ job "cowork-chat-db" {
       config {
         image = "mongo:8.3.11@sha256:5d7043a4ffe02b9ed1b6e0bab057546981af5ca0a79107e9c461e49bc44c0a7b"
         args  = ["mongod", "--auth", "--bind_ip", "127.0.0.1", "--wiredTigerCacheSizeGB", "0.25"]
-        tmpfs = ["/data/configdb"]
+        mount {
+          type   = "tmpfs"
+          target = "/data/configdb"
+        }
       }
       env {
         MONGO_INITDB_ROOT_USERNAME = "cowork_admin"
