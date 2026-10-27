@@ -2,15 +2,9 @@ import {Logger, ValidationPipe} from '@nestjs/common';
 import {NestFactory} from '@nestjs/core';
 import {type MicroserviceOptions, Transport} from '@nestjs/microservices';
 import {Logger as PinoLogger} from 'nestjs-pino';
-import {loadConfigServerEnv} from './config/config-server';
 import {AppConfigService} from './config/app-config.service';
-import {EurekaClient} from './eureka/eureka-client';
-
-const EUREKA_RETRY_DELAY_MS = 5000;
 
 async function bootstrap() {
-    await loadConfigServerEnv();
-    // ConfigModule validates process.env when AppModule is evaluated, so import it after loading Config Server values.
     const {AppModule} = await import('./app.module');
     const app = await NestFactory.create(AppModule, {rawBody: true, bufferLogs: true});
     app.useLogger(app.get(PinoLogger));
@@ -20,7 +14,7 @@ async function bootstrap() {
         transport: Transport.KAFKA,
         options: {
             client: {
-                brokers: config.kafkaBrokers,
+                ...config.kafkaClientConfig,
             },
             consumer: {
                 groupId: config.kafkaGroupId,
@@ -42,28 +36,8 @@ async function bootstrap() {
     await app.startAllMicroservices();
     await app.listen(config.port);
 
-    const eureka = new EurekaClient({
-        enabled: config.eurekaEnabled,
-        serverUrl: config.eurekaEnabled ? config.eurekaServerUrl : '',
-        appName: config.eurekaAppName,
-        host: config.eurekaEnabled ? config.advertiseAddress : '',
-        port: config.advertisePort,
-        leaseRenewalIntervalSeconds: config.eurekaLeaseRenewalSeconds,
-    });
-    let isShuttingDown = false;
-    const registration = registerUntilStopped(eureka, () => isShuttingDown);
-
-    const shutdown = async () => {
-        isShuttingDown = true;
-        await registration;
-        await eureka.deregister().catch((error: unknown) => {
-            new Logger('Eureka').warn(`Failed to deregister: ${String(error)}`);
-        });
-    };
-
     const handleSignal = async (signal: NodeJS.Signals) => {
         try {
-            await shutdown();
             await app.close();
         } finally {
             // Re-raise after cleanup so the default handler terminates despite open Redis sockets.
@@ -78,20 +52,8 @@ async function bootstrap() {
     }
 }
 
-async function registerUntilStopped(eureka: EurekaClient, isStopped: () => boolean): Promise<void> {
-    while (!isStopped()) {
-        try {
-            // eslint-disable-next-line no-await-in-loop -- retry-with-backoff: each attempt must wait for the previous one to fail.
-            await eureka.register();
-            return;
-        } catch (error: unknown) {
-            new Logger('Eureka').warn(`Failed to register; retrying: ${String(error)}`);
-            // eslint-disable-next-line no-await-in-loop -- retry-with-backoff: each attempt must wait for the previous one to fail.
-            await new Promise(resolve => {
-                setTimeout(resolve, EUREKA_RETRY_DELAY_MS);
-            });
-        }
-    }
-}
-
-void bootstrap();
+bootstrap().catch((error: unknown) => {
+    new Logger('Bootstrap').error('Application failed to start', error instanceof Error ? error.stack : String(error));
+    // eslint-disable-next-line unicorn/no-process-exit -- Failed startup must terminate even when Redis clients have open sockets.
+    process.exit(1);
+});
