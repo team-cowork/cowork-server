@@ -14,7 +14,6 @@ SERVICE_COMMAND=(
    export DB_USERNAME="${DB_USERNAME:-${MYSQL_USER}}"
    export DB_PASSWORD="${DB_PASSWORD:-${MYSQL_PASSWORD}}"
    export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"
-   export EUREKA_SERVER_URL="${EUREKA_SERVER_URL:-http://localhost:8761/eureka/}"
    exec ./gradlew :cowork-roadmap:bootRun'
 )
 
