@@ -2,6 +2,8 @@
 platform_state_dir: "{{ lookup('ansible.builtin.env', 'COWORK_PLATFORM_STATE_DIR') }}"
 platform_repository: "{{ playbook_dir }}/../.."
 platform_versions: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../production/versions.json') | from_json }}"
+platform_python_root: "/opt/cowork/python-{{ platform_versions.python.version }}-{{ platform_versions.python.build }}"
+platform_python_binary: "{{ platform_python_root }}/python/bin/python3"
 consul_bootstrap_token: "{{ lookup('ansible.builtin.file', platform_state_dir ~ '/consul-bootstrap.token') | trim }}"
 platform_control_ip: "{{ hostvars[groups['control_plane'][0]].private_ip }}"
 platform_vault_ip: "{{ hostvars[groups['vault_hosts'][0]].private_ip }}"
