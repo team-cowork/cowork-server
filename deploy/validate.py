@@ -255,10 +255,11 @@ def check_nomad(manifest=None, render_json=None, vault_mount="secret"):
 
 def main(args):
     os.chdir(ROOT)
-    check_syntax()
-    local = check_compose()
-    applications = check_catalog(local)
-    check_secret_bindings(applications)
+    if not args.render_only:
+        check_syntax()
+        local = check_compose()
+        applications = check_catalog(local)
+        check_secret_bindings(applications)
     manifest = None
     if args.manifest is not None:
         manifest = json.loads(args.manifest.read_text())
@@ -274,10 +275,13 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=lambda value: Path(value).resolve(), help="Validate committed image/secret references")
     parser.add_argument("--render-json", type=lambda value: Path(value).resolve(), help="Write {jobID: native parsed job} without submitting jobs")
+    parser.add_argument("--render-only", action="store_true", help="Validate and render release jobs without local Compose or repository-wide checks")
     parser.add_argument("--vault-mount", default=os.environ.get("VAULT_KV_MOUNT", "secret"))
     args = parser.parse_args()
     if args.render_json is not None and args.manifest is None:
         parser.error("--render-json requires --manifest")
+    if args.render_only and (args.manifest is None or args.render_json is None):
+        parser.error("--render-only requires --manifest and --render-json")
     try:
         main(args)
     except (ValueError, OSError, KeyError, subprocess.CalledProcessError) as error:
