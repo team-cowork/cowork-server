@@ -23,6 +23,51 @@ modules:
       # /api/health returns HTTP 200 even when a downstream service is DOWN.
       # Verify the JSON API identity; internal probes own service readiness.
       fail_if_body_json_not_matches_cel: "body.status == 'OK' && body.code == 200.0 && type(body.data) == map && size(body.data) > 0"
+  # Unauthenticated business API probes through Gateway. They send no credentials and change no state.
+  # Protected routes are not probed: Gateway security returns 401 before routing, which proves neither route nor downstream.
+  # Public routes must reach downstream. Gateway's own 401 has no body; downstream JSON keeps its Content-Type.
+  http_gateway_downstream_get:
+    prober: http
+    timeout: 5s
+    http:
+      method: GET
+      preferred_ip_protocol: ip4
+      valid_status_codes: [200]
+      follow_redirects: false
+      body_size_limit: 64KB
+      fail_if_header_not_matches:
+        - header: Content-Type
+          regexp: '^application/json(;.*)?$'
+  # Downstream rejects a POST without body or signature with 400/401 before changing state.
+  http_gateway_downstream_post:
+    prober: http
+    timeout: 5s
+    http:
+      method: POST
+      preferred_ip_protocol: ip4
+      valid_status_codes: [400, 401]
+      follow_redirects: false
+      body_size_limit: 64KB
+      fail_if_header_not_matches:
+        - header: Content-Type
+          regexp: '^application/json(;.*)?$'
+  # Gateway global CORS preflight. Prod replaces this local Origin with the first HTTPS entry of the deployed PUBLIC_WEB_ORIGINS
+  # (deploy/prod/monitoring/render-prometheus.py, prepare-configs.sh).
+  http_gateway_cors_preflight:
+    prober: http
+    timeout: 5s
+    http:
+      method: OPTIONS
+      preferred_ip_protocol: ip4
+      valid_status_codes: [200]
+      follow_redirects: false
+      body_size_limit: 64KB
+      headers:
+        Origin: http://localhost:3000
+        Access-Control-Request-Method: GET
+      fail_if_header_not_matches:
+        - header: Access-Control-Allow-Origin
+          regexp: '^\Qhttp://localhost:3000\E$'
   tls_vault_private:
     prober: http
     timeout: 5s

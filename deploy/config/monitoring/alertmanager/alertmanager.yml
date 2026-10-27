@@ -19,6 +19,11 @@ inhibit_rules:
     target_matchers:
       - alertname = coworkServiceMissing
     equal: [job]
+  # 외부 공개 게이트웨이 자체가 실패하면 그 뒤의 업무 API·CORS probe 알림은 하나로 묶는다.
+  - source_matchers:
+      - alertname = coworkPublicGatewayUnavailable
+    target_matchers:
+      - alertname =~ "coworkGatewayApiProbeFailed|coworkGatewayCorsPreflightFailed"
 
 receivers:
   - name: discord
