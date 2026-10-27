@@ -114,7 +114,7 @@
   "platform_secret_versions": {
     "monitoring": 2
   },
-  "release_version": "20261028.0",
+  "release_version": "",
   "schema_version": 1,
-  "source_sha": "c8e9c28271fc14c19132b6e437ef26df4316cc54"
+  "source_sha": "48f388dfa794f046b6fdee592f019200e36c169a"
 }
