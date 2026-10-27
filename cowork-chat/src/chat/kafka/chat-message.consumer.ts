@@ -8,7 +8,7 @@ import {ConfigService} from '@nestjs/config';
 import {Consumer, Kafka, KafkaMessage} from 'kafkajs';
 import {DicoshotService} from 'dicoshot-nest';
 import {Server} from 'socket.io';
-import {getOptionalConfig, getRequiredCsvConfig} from '../../common/config/config.util';
+import {getOptionalConfig, getKafkaClientConfig} from '../../common/config/config.util';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
 import {ChatMessageQuarantineService} from '../service';
@@ -76,7 +76,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
     async onModuleInit(): Promise<void> {
         const kafka = new Kafka({
             clientId: 'cowork-chat-consumer',
-            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
+            ...getKafkaClientConfig(this.configService),
         });
         const consumer = kafka.consumer({groupId: 'cowork-chat'});
         this.consumer = consumer;

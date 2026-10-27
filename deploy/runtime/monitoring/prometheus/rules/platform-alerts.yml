@@ -1,0 +1,39 @@
+groups:
+  - name: cowork-platform
+    rules:
+      - alert: coworkPlatformUnhealthy
+        expr: nomad_nomad_autopilot_healthy{job="nomad",role="server"} == 0 or consul_autopilot_healthy{job="consul",role="server"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} 제어면 상태 이상"
+          description: "관리 VM의 {{ $labels.service }}가 클러스터를 정상 상태로 판단하지 못하고 있습니다. 에이전트 로그와 Raft 상태를 확인해 주세요."
+
+      - alert: coworkConsulLeaderMissing
+        expr: max(consul_server_isLeader{job="consul",role="server"}) < 1
+        for: 2m
+        labels:
+          severity: critical
+          service: consul
+        annotations:
+          summary: "Consul 리더 없음"
+          description: "2분 동안 Consul 리더가 없습니다. 단일 관리 VM의 Consul 프로세스와 데이터 디렉터리 상태를 확인해 주세요."
+
+      - alert: coworkNomadSchedulingBlocked
+        expr: nomad_nomad_blocked_evals_total_blocked{job="nomad",role="server"} > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Nomad 작업 배치 지연"
+          description: "배치할 수 없는 평가가 10분 이상 남아 있습니다. 작업의 VM 제약 조건과 클라이언트 상태, 남은 CPU·메모리를 확인해 주세요."
+
+      - alert: coworkPlatformCertificateRenewalOverdue
+        expr: nomad_agent_tls_cert_expiration_seconds{job="nomad"} < 21 * 86400 or consul_agent_tls_cert_expiry{job="consul"} < 21 * 86400
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.host }}의 {{ $labels.service }} 인증서 갱신 지연"
+          description: "내부 인증서가 {{ $value | humanizeDuration }} 뒤 만료됩니다. 관리 VM의 cowork-platform-certificates.timer와 갱신 로그, 해당 에이전트의 인증서 재적용 상태를 확인해 주세요."

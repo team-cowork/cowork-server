@@ -1,4 +1,4 @@
-// @title           Cowork Authorization API
+// @title           cowork Authorization API
 // @version         20261025.0
 // @description     인증/인가 서비스 — DataGSM OAuth2 PKCE 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신
 // @BasePath        /api/authorization
@@ -24,7 +24,6 @@ import (
 	"github.com/cowork/authorization/internal/monitoring"
 	"github.com/cowork/authorization/internal/repository"
 	"github.com/cowork/authorization/internal/service"
-	eurekaclient "github.com/cowork/authorization/pkg/eureka"
 	"github.com/cowork/authorization/pkg/logger"
 	_ "github.com/cowork/authorization/swagger"
 	"github.com/gin-gonic/gin"
@@ -33,6 +32,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 const (
@@ -50,7 +50,14 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	db, err := gorm.Open(mysql.Open(cfg.DBDSN), &gorm.Config{})
+	// gorm 기본 로거는 stdout에 plain text를 남기므로 JSON 로그 규약을 따르는 slog로 보낸다.
+	db, err := gorm.Open(mysql.Open(cfg.DBDSN), &gorm.Config{
+		Logger: gormlogger.NewSlogLogger(logger.Default, gormlogger.Config{
+			SlowThreshold:             200 * time.Millisecond,
+			LogLevel:                  gormlogger.Warn,
+			IgnoreRecordNotFoundError: true,
+		}),
+	})
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}
@@ -71,7 +78,7 @@ func main() {
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
 	webhookInbox := repository.NewWebhookInboxRepository(sqlDB)
 	identityOperationRepo := repository.NewUserIdentityOperationRepository(db)
-	kafkaProducer := kafkainfra.NewProducer(cfg.KafkaBootstrapServers, cfg.KafkaTopicUserSync)
+	kafkaProducer := kafkainfra.NewProducer(cfg.KafkaSecurity, cfg.KafkaBootstrapServers, cfg.KafkaTopicUserSync)
 	if err := refreshTokenRepo.DeleteExpiredSessions(
 		context.Background(),
 		time.Now().UTC().Truncate(time.Microsecond),
@@ -94,6 +101,7 @@ func main() {
 		kafkaProducer,
 	)
 	identityResultConsumer := kafkainfra.NewIdentityResultConsumer(
+		cfg.KafkaSecurity,
 		cfg.KafkaBootstrapServers,
 		cfg.KafkaTopicUserIdentityCommandResult,
 		cfg.KafkaGroupIDUserIdentityResult,
@@ -152,12 +160,6 @@ func main() {
 		events.POST("/datagsm", eventHandler.DataGSMWebhook)
 	}
 
-	eurekaClient := eurekaclient.NewClient(cfg)
-	if err := eurekaClient.Register(cfg); err != nil {
-		log.Printf("warning: eureka registration failed: %v", err)
-	}
-	eurekaClient.StartHeartbeat(cfg)
-
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
 		Handler: router,
@@ -196,7 +198,6 @@ func main() {
 	close(stopCleanup)
 
 	log.Println("shutting down server...")
-	eurekaClient.Deregister(cfg)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

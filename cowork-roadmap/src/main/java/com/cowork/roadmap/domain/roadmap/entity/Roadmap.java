@@ -1,38 +1,45 @@
 package com.cowork.roadmap.domain.roadmap.entity;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.relational.core.mapping.Column;
-import org.springframework.data.relational.core.mapping.Table;
-
 import com.cowork.roadmap.global.audit.BaseEntity;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 @Getter
-@Table("tb_roadmaps")
+@Entity
+@Table(name = "tb_roadmaps")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Roadmap extends BaseEntity {
 
     @Id
-    private final Long id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @Column("title")
-    private final String title;
+    @Column(name = "title", nullable = false, length = 150)
+    private String title;
 
-    @Column("description")
-    private final String description;
+    @Column(name = "description", length = 1000)
+    private String description;
 
-    @Column("category")
-    private final String category;
+    @Column(name = "category", nullable = false, length = 50)
+    private String category;
 
-    @Column("scope")
-    private final String scope;
+    @Column(name = "scope", nullable = false, length = 20)
+    private String scope;
 
-    @Column("owner_team_id")
-    private final Long ownerTeamId;
+    @Column(name = "owner_team_id")
+    private Long ownerTeamId;
 
-    @Column("owner_project_id")
-    private final Long ownerProjectId;
+    @Column(name = "owner_project_id")
+    private Long ownerProjectId;
 
     @Builder(toBuilder = true)
     public Roadmap(Long id,

@@ -19,7 +19,7 @@ export class IssueWriteResultProducer implements OnModuleInit, OnModuleDestroy {
     async onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-github',
-            brokers: this.config.kafkaBrokers,
+            ...this.config.kafkaClientConfig,
         });
         this.producer = kafka.producer();
         await this.producer.connect();

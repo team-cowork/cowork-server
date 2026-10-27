@@ -1,22 +1,20 @@
 package com.cowork.roadmap.domain.assignment.repository;
 
 import java.util.Collection;
+import java.util.List;
 
-import org.springframework.data.r2dbc.repository.Query;
-import org.springframework.data.r2dbc.repository.R2dbcRepository;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import com.cowork.roadmap.domain.assignment.entity.RoadmapAssignment;
 
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
+public interface RoadmapAssignmentRepository extends JpaRepository<RoadmapAssignment, Long> {
 
-public interface RoadmapAssignmentRepository extends R2dbcRepository<RoadmapAssignment, Long> {
+    List<RoadmapAssignment> findByAssigneeUserIdOrderByIdDesc(Long assigneeUserId);
 
-    Flux<RoadmapAssignment> findByAssigneeUserIdOrderByIdDesc(Long assigneeUserId);
-
-    Flux<RoadmapAssignment> findByRoadmapIdOrderByIdDesc(Long roadmapId);
+    List<RoadmapAssignment> findByRoadmapIdOrderByIdDesc(Long roadmapId);
 
     /** 잠금 읽기로 transaction snapshot 이후 커밋된 과제까지 센다. */
-    @Query("SELECT COUNT(*) FROM tb_roadmap_assignments WHERE roadmap_id = :roadmapId AND node_id IN (:nodeIds) FOR SHARE")
-    Mono<Long> countByRoadmapIdAndNodeIdInForShare(Long roadmapId, Collection<Long> nodeIds);
+    @Query(value = "SELECT COUNT(*) FROM tb_roadmap_assignments WHERE roadmap_id = :roadmapId AND node_id IN (:nodeIds) FOR SHARE", nativeQuery = true)
+    Long countByRoadmapIdAndNodeIdInForShare(Long roadmapId, Collection<Long> nodeIds);
 }
