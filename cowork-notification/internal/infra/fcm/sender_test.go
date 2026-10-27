@@ -35,6 +35,6 @@ func TestBuildMessageDataOnlyOmitsNotification(t *testing.T) {
 	assert.True(t, msg.APNS.Payload.Aps.MutableContent)
 	assert.False(t, msg.APNS.Payload.Aps.ContentAvailable)
 	require.NotNil(t, msg.APNS.Payload.Aps.Alert)
-	assert.Equal(t, "제목", msg.APNS.Payload.Aps.Alert.Title)
-	assert.Equal(t, "본문", msg.APNS.Payload.Aps.Alert.Body)
+	assert.Empty(t, msg.APNS.Payload.Aps.Alert.Title, "content must not be shown if the extension fails")
+	assert.Equal(t, apnsPlaceholderBody, msg.APNS.Payload.Aps.Alert.Body)
 }
