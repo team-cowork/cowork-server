@@ -8,7 +8,6 @@ export const TEST_ENV: Record<string, string> = {
     REDIS_PORT: '6379',
     INTERNAL_API_KEY: 'test-internal-api-key',
     GITHUB_WEBHOOK_SECRET: 'test-github-webhook-secret',
-    EUREKA_ENABLED: 'false',
 };
 
 export function applyTestEnv(): NodeJS.ProcessEnv {
