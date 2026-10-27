@@ -1,0 +1,636 @@
+{
+  "topics": {
+    "user.data.sync": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "user.identity.command": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "user.identity.command-result": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "user.identity.command-result-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "user.profile.event.v2": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "user.presence.event": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "team.lifecycle": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "team.lifecycle-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "team.member.event": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "team.member.event-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "channel.dm-participant.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "channel.event.v2": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "project.event.v2": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "project.github-repo.event": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "chat.message.v2": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "github.issue.create": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "github.issue.result": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "github.pr.approve": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "github.pr.approve.result": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "github.pr.merge": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "github.pr.merge.result": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "github.repo.event": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "team.github.connected": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "team.github.disconnected": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "team.github.connected-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "team.github.disconnected-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "notification.trigger": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "voice.event": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "preference.status.changed": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "preference.channel-notification.changed": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "preference.team-role.state.v2": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "preference.team-role.command.v2": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "preference.team-role.result.v2": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "preference.team-role.result.v2-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "preference.channel-role-policy.state.v2": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "preference.channel-role-policy.command.v2": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "preference.channel-role-policy.result.v2": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "preference.channel-role-policy.result.v2-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "preference.github-repo.setting.command": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "preference.github-repo.setting.state": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "preference.github-repo.setting.result": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "preference.project-access.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "preference.account-setting.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "preference.team-setting.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "preference.text-channel-setting.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "preference.webhook.state.v2": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "channel.webhook-legacy.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "preference.voice-channel-setting.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "preference.github-repo.setting.result-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "project.chat-github-issue.command": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "project.chat-github-issue.command-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "project.chat-github-issue.result": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "github.issue-write.command.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "github.issue-write.result.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "github.issue-write.result.v1-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "github.repo.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "github.issue.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "github.pull-request.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "github.label.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "github.issue-comment.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "github.sync.command.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    }
+  },
+  "principals": {
+    "cowork-authorization": {
+      "topics": [
+        "user.data.sync",
+        "user.identity.command",
+        "user.identity.command-result",
+        "user.identity.command-result-dlt",
+        "user.presence.event"
+      ]
+    },
+    "cowork-channel": {
+      "topics": [
+        "team.lifecycle",
+        "team.lifecycle-dlt",
+        "team.member.event",
+        "team.member.event-dlt",
+        "channel.dm-participant.state.v1",
+        "channel.event.v2",
+        "project.event.v2",
+        "preference.team-role.state.v2",
+        "preference.channel-role-policy.state.v2",
+        "preference.channel-role-policy.command.v2",
+        "preference.channel-role-policy.result.v2",
+        "preference.channel-role-policy.result.v2-dlt",
+        "channel.webhook-legacy.state.v1"
+      ]
+    },
+    "cowork-chat": {
+      "topics": [
+        "user.profile.event.v2",
+        "team.member.event",
+        "team.member.event-dlt",
+        "channel.dm-participant.state.v1",
+        "channel.event.v2",
+        "project.event.v2",
+        "project.github-repo.event",
+        "chat.message.v2",
+        "github.issue.create",
+        "github.issue.result",
+        "github.repo.event",
+        "notification.trigger",
+        "preference.team-role.state.v2",
+        "preference.channel-role-policy.state.v2",
+        "preference.project-access.state.v1",
+        "preference.text-channel-setting.state.v1",
+        "preference.webhook.state.v2",
+        "project.chat-github-issue.command",
+        "project.chat-github-issue.command-dlt",
+        "project.chat-github-issue.result"
+      ]
+    },
+    "cowork-gateway": {
+      "topics": []
+    },
+    "cowork-github": {
+      "topics": [
+        "project.github-repo.event",
+        "github.issue.create",
+        "github.issue.result",
+        "github.pr.approve",
+        "github.pr.approve.result",
+        "github.pr.merge",
+        "github.pr.merge.result",
+        "github.repo.event",
+        "team.github.connected",
+        "team.github.disconnected",
+        "team.github.connected-dlt",
+        "team.github.disconnected-dlt",
+        "github.issue-write.command.v1",
+        "github.issue-write.result.v1",
+        "github.issue-write.result.v1-dlt",
+        "github.repo.state.v1",
+        "github.issue.state.v1",
+        "github.pull-request.state.v1",
+        "github.label.state.v1",
+        "github.issue-comment.state.v1",
+        "github.sync.command.v1"
+      ]
+    },
+    "cowork-notification": {
+      "topics": [
+        "user.profile.event.v2",
+        "team.lifecycle",
+        "team.lifecycle-dlt",
+        "notification.trigger",
+        "preference.channel-notification.changed",
+        "preference.account-setting.state.v1",
+        "preference.team-setting.state.v1"
+      ]
+    },
+    "cowork-preference": {
+      "topics": [
+        "team.member.event",
+        "team.member.event-dlt",
+        "channel.dm-participant.state.v1",
+        "channel.event.v2",
+        "project.event.v2",
+        "preference.status.changed",
+        "preference.channel-notification.changed",
+        "preference.team-role.state.v2",
+        "preference.team-role.command.v2",
+        "preference.team-role.result.v2",
+        "preference.team-role.result.v2-dlt",
+        "preference.channel-role-policy.state.v2",
+        "preference.channel-role-policy.command.v2",
+        "preference.channel-role-policy.result.v2",
+        "preference.channel-role-policy.result.v2-dlt",
+        "preference.github-repo.setting.command",
+        "preference.github-repo.setting.state",
+        "preference.github-repo.setting.result",
+        "preference.project-access.state.v1",
+        "preference.account-setting.state.v1",
+        "preference.team-setting.state.v1",
+        "preference.text-channel-setting.state.v1",
+        "preference.webhook.state.v2",
+        "channel.webhook-legacy.state.v1",
+        "preference.voice-channel-setting.state.v1",
+        "preference.github-repo.setting.result-dlt"
+      ]
+    },
+    "cowork-project": {
+      "topics": [
+        "user.profile.event.v2",
+        "team.lifecycle",
+        "team.lifecycle-dlt",
+        "team.member.event",
+        "team.member.event-dlt",
+        "channel.event.v2",
+        "project.event.v2",
+        "project.github-repo.event",
+        "github.issue.create",
+        "github.issue.result",
+        "github.pr.approve",
+        "github.pr.approve.result",
+        "github.pr.merge",
+        "github.pr.merge.result",
+        "notification.trigger",
+        "preference.team-role.state.v2",
+        "preference.github-repo.setting.command",
+        "preference.github-repo.setting.state",
+        "preference.github-repo.setting.result",
+        "preference.project-access.state.v1",
+        "preference.github-repo.setting.result-dlt",
+        "project.chat-github-issue.command",
+        "project.chat-github-issue.command-dlt",
+        "project.chat-github-issue.result",
+        "github.issue-write.command.v1",
+        "github.issue-write.result.v1",
+        "github.issue-write.result.v1-dlt",
+        "github.repo.state.v1",
+        "github.issue.state.v1",
+        "github.pull-request.state.v1",
+        "github.label.state.v1",
+        "github.issue-comment.state.v1",
+        "github.sync.command.v1"
+      ]
+    },
+    "cowork-roadmap": {
+      "topics": [
+        "team.member.event",
+        "team.member.event-dlt"
+      ]
+    },
+    "cowork-team": {
+      "topics": [
+        "team.lifecycle",
+        "team.lifecycle-dlt",
+        "team.member.event",
+        "team.member.event-dlt",
+        "team.github.connected",
+        "team.github.disconnected",
+        "team.github.connected-dlt",
+        "team.github.disconnected-dlt",
+        "notification.trigger",
+        "preference.team-role.state.v2",
+        "preference.team-role.command.v2",
+        "preference.team-role.result.v2",
+        "preference.team-role.result.v2-dlt",
+        "preference.team-setting.state.v1"
+      ]
+    },
+    "cowork-user": {
+      "topics": [
+        "user.data.sync",
+        "user.identity.command",
+        "user.identity.command-result",
+        "user.identity.command-result-dlt",
+        "user.profile.event.v2",
+        "user.presence.event",
+        "team.member.event",
+        "team.member.event-dlt"
+      ]
+    },
+    "cowork-voice": {
+      "topics": [
+        "team.member.event",
+        "team.member.event-dlt",
+        "channel.event.v2",
+        "voice.event",
+        "preference.team-role.state.v2",
+        "preference.channel-role-policy.state.v2",
+        "preference.voice-channel-setting.state.v1"
+      ]
+    }
+  }
+}
