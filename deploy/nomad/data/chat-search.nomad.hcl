@@ -94,7 +94,7 @@ job "cowork-chat-search" {
       kill_timeout = "60s"
       config {
         image = var.image
-        args  = ["-Enetwork.host=127.0.0.1", "-Ediscovery.type=single-node", "-Ecluster.name=cowork-chat-search", "-Expack.security.enabled=true", "-Expack.security.autoconfiguration.enabled=false", "-Expack.security.http.ssl.enabled=false", "-Expack.security.transport.ssl.enabled=false"]
+        args  = ["elasticsearch", "-Enetwork.host=127.0.0.1", "-Ediscovery.type=single-node", "-Ecluster.name=cowork-chat-search", "-Expack.security.enabled=true", "-Expack.security.autoconfiguration.enabled=false", "-Expack.security.http.ssl.enabled=false", "-Expack.security.transport.ssl.enabled=false"]
         ulimit {
           nofile = "65535:65535"
         }
