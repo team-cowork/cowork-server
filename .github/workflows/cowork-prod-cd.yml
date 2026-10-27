@@ -170,6 +170,16 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Read The Declared Python Version
+        id: python-version
+        run: |
+          version=$(jq -er '.python.version' deploy/production/versions.json)
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: ${{ steps.python-version.outputs.version }}
+      - name: Install Pinned Deployment Dependencies
+        run: python3 -m pip install -r deploy/production/requirements.txt
       - name: Publish Declared Secrets To Vault
         env:
           SERVICE: ${{ matrix.service }}
@@ -278,9 +288,14 @@ jobs:
         with:
           persist-credentials: false
           ref: ${{ needs.manifest.outputs.sha || github.sha }}
+      - name: Read The Declared Python Version
+        id: python-version
+        run: |
+          version=$(jq -er '.python.version' deploy/production/versions.json)
+          printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
-          python-version: '3.12'
+          python-version: ${{ steps.python-version.outputs.version }}
       - name: Install Pinned Deployment Dependencies
         run: |
           python3 -m pip install -r deploy/production/requirements.txt
