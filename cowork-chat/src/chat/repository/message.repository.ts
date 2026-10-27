@@ -2,10 +2,10 @@ import {randomUUID} from 'node:crypto';
 import {Injectable} from '@nestjs/common';
 import {InjectModel} from '@nestjs/mongoose';
 import {Model, PipelineStage, Types} from 'mongoose';
-import {type WebhookMessageAuthor} from '../schema/message.schema';
 import {ConfirmedAttachment} from '../../storage/attachment-upload.schema';
-import {Message, MessageDocument} from '../schema';
-import {isSearchIndexed} from '../search';
+import {Message, MessageDocument, type WebhookMessageAuthor} from '../schema';
+// 검색 배럴은 이 저장소를 사용하는 서비스를 다시 불러오므로 직접 import한다.
+import {isSearchIndexed} from '../search/message-index-scope';
 
 /**
 한 번에 조회하는 최대 메시지 수
