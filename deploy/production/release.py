@@ -359,6 +359,10 @@ def finalize(args):
         app = data["applications"][module]
         if app["image_source_sha"] != source_sha() or app["version"] != version:
             raise ValueError("Successful manifest does not contain the reserved image versions")
+    tag = "v" + version
+    release = api("releases/tags/" + tag, missing=True)
+    if release and not release["draft"]:
+        return
     head = current_main()
     git("checkout", "--detach", head)
     files = {path for module in reserved["modules"] for path in module_files(module)}
@@ -375,8 +379,6 @@ def finalize(args):
     if staged:
         git(*bot_identity(), "commit", "-m", f"update(global): v{version} 릴리즈 버전 반영\n\nRelease-Source: {source_sha()}")
         git("push", "origin", "HEAD:refs/heads/main", token=os.environ["RELEASE_PUSH_TOKEN"])
-    tag = "v" + version
-    release = api("releases/tags/" + tag, missing=True)
     if release:
         if release["draft"]:
             subprocess.run(["gh", "release", "edit", tag, "--draft=false"], check=True)
