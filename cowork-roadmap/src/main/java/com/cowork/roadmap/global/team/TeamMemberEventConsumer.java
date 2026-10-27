@@ -1,7 +1,5 @@
 package com.cowork.roadmap.global.team;
 
-import java.time.Duration;
-
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,7 +14,6 @@ import tools.jackson.databind.ObjectMapper;
 public class TeamMemberEventConsumer {
 
     private static final Logger LOG = LoggerFactory.getLogger(TeamMemberEventConsumer.class);
-    private static final Duration APPLY_TIMEOUT = Duration.ofSeconds(10);
 
     private final ObjectMapper objectMapper;
     private final TeamMemberProjectionProcessor processor;
@@ -26,8 +23,7 @@ public class TeamMemberEventConsumer {
         if (ProjectionSnapshotCompletion.isReserved(record)) {
             String violation = ProjectionSnapshotCompletion.violation(objectMapper, record);
             if (violation == null) {
-                processor.completeSnapshot(record, ProjectionSnapshotCompletion.snapshotId(objectMapper, record))
-                        .block(APPLY_TIMEOUT);
+                processor.completeSnapshot(record, ProjectionSnapshotCompletion.snapshotId(objectMapper, record));
             } else {
                 LOG.error("Discarding invalid projection snapshot marker: {}", violation);
                 discard(record, violation);
@@ -58,7 +54,7 @@ public class TeamMemberEventConsumer {
         }
 
         try {
-            processor.apply(record, event).block(APPLY_TIMEOUT);
+            processor.apply(record, event);
         } catch (IllegalArgumentException exception) {
             LOG.error("Discarding invalid team.member.event payload", exception);
             discard(record, exception.getMessage());
@@ -66,6 +62,6 @@ public class TeamMemberEventConsumer {
     }
 
     private void discard(ConsumerRecord<String, String> record, String reason) {
-        processor.discard(record, reason == null ? "invalid team.member.event" : reason).block(APPLY_TIMEOUT);
+        processor.discard(record, reason == null ? "invalid team.member.event" : reason);
     }
 }

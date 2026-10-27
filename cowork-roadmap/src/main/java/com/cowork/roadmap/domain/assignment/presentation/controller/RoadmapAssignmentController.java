@@ -1,5 +1,7 @@
 package com.cowork.roadmap.domain.assignment.presentation.controller;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -26,8 +28,6 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 @Tag(name = "로드맵 과제", description = "온보딩 과제 출제·진도 관리 API")
 @RestController
@@ -43,23 +43,23 @@ public class RoadmapAssignmentController {
 
     @Operation(summary = "과제 출제")
     @PostMapping("/assignments")
-    public Mono<ResponseEntity<AssignmentResDto>> createAssignment(
+    public ResponseEntity<AssignmentResDto> createAssignment(
             @Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @Valid @RequestBody CreateAssignmentReqDto request) {
-        return createRoadmapAssignmentService.execute(userId, userRole, request)
-                .map(response -> ResponseEntity.status(HttpStatus.CREATED).body(response));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(createRoadmapAssignmentService.execute(userId, userRole, request));
     }
 
     @Operation(summary = "내 과제 목록")
     @GetMapping("/assignments/me")
-    public Flux<AssignmentResDto> listMyAssignments(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId) {
+    public List<AssignmentResDto> listMyAssignments(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId) {
         return listMyRoadmapAssignmentsService.execute(userId);
     }
 
     @Operation(summary = "로드맵별 과제 목록")
     @GetMapping("/{roadmapId}/assignments")
-    public Flux<AssignmentResDto> listByRoadmap(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
+    public List<AssignmentResDto> listByRoadmap(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long roadmapId) {
         return listRoadmapAssignmentsService.execute(userId, userRole, roadmapId);
@@ -67,7 +67,7 @@ public class RoadmapAssignmentController {
 
     @Operation(summary = "과제 진행 상태 변경")
     @PatchMapping("/assignments/{assignmentId}/status")
-    public Mono<AssignmentResDto> updateStatus(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
+    public AssignmentResDto updateStatus(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long assignmentId,
             @Valid @RequestBody UpdateAssignmentStatusReqDto request) {
@@ -76,11 +76,10 @@ public class RoadmapAssignmentController {
 
     @Operation(summary = "과제 삭제")
     @DeleteMapping("/assignments/{assignmentId}")
-    public Mono<ResponseEntity<Void>> deleteAssignment(
-            @Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
+    public ResponseEntity<Void> deleteAssignment(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long assignmentId) {
-        return deleteRoadmapAssignmentService.execute(userId, userRole, assignmentId)
-                .thenReturn(ResponseEntity.noContent().build());
+        deleteRoadmapAssignmentService.execute(userId, userRole, assignmentId);
+        return ResponseEntity.noContent().build();
     }
 }
