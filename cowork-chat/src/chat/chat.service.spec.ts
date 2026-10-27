@@ -984,19 +984,51 @@ describe('ChatService', () => {
         });
 
         it('lastReadMessageId를 업데이트하고 unreadCount를 계산한다', async () => {
-            mockDmParticipantRepository.exists.mockResolvedValue(true);
-            mockReadStateRepository.updateLastRead.mockResolvedValue(undefined);
+            mockReadStateRepository.updateLastRead.mockResolvedValue(messageId);
             mockMessageRepository.countUnread.mockResolvedValue(3);
+            mockUnreadCounterService.set.mockResolvedValueOnce(true);
 
             await service.readChannel({channelId: 1, userId: 42}, messageId.toString());
 
-            expect(mockReadStateRepository.updateLastRead).toHaveBeenCalledWith(
-                1,
-                42,
-                expect.any(Types.ObjectId),
-            );
-            expect(mockMessageRepository.countUnread).toHaveBeenCalledWith(1, expect.any(Types.ObjectId));
-            expect(mockUnreadCounterService.set).toHaveBeenCalledWith(1, 42, 3);
+            expect(mockReadStateRepository.updateLastRead).toHaveBeenCalledWith(1, 42, messageId);
+            expect(mockMessageRepository.countUnread).toHaveBeenCalledWith(1, messageId);
+            expect(mockUnreadCounterService.set).toHaveBeenCalledWith(1, 42, {count: 3, readCursor: messageId.toHexString()});
+            expect(mockTo).toHaveBeenCalledWith('user:42');
+            expect(mockEmit).toHaveBeenCalledWith('channel:unread:updated', {channelId: 1, unreadCount: 3});
+        });
+
+        it('다른 기기의 늦은 요청이 오래된 ID를 보내면 DB가 채택한 최신 읽음 위치로 센다', async () => {
+            const olderId = new Types.ObjectId('000000000000000000000001');
+            const adoptedId = new Types.ObjectId('000000000000000000000002');
+            mockReadStateRepository.updateLastRead.mockResolvedValue(adoptedId);
+            mockMessageRepository.countUnread.mockResolvedValue(0);
+            mockUnreadCounterService.set.mockResolvedValueOnce(true);
+
+            await service.readChannel({channelId: 1, userId: 42}, olderId.toString());
+
+            expect(mockMessageRepository.countUnread).toHaveBeenCalledWith(1, adoptedId);
+            expect(mockUnreadCounterService.set).toHaveBeenCalledWith(1, 42, {count: 0, readCursor: adoptedId.toHexString()});
+            expect(mockEmit).toHaveBeenCalledWith('channel:unread:updated', {channelId: 1, unreadCount: 0});
+        });
+
+        it('캐시에 더 최신 읽음 위치의 값이 이미 있으면 오래된 안읽음 수를 전송하지 않는다', async () => {
+            mockReadStateRepository.updateLastRead.mockResolvedValue(messageId);
+            mockMessageRepository.countUnread.mockResolvedValue(1);
+            mockUnreadCounterService.set.mockResolvedValueOnce(false);
+
+            await service.readChannel({channelId: 1, userId: 42}, messageId.toString());
+
+            expect(mockEmit).not.toHaveBeenCalled();
+        });
+
+        it('Redis 오류로 기록 여부를 모르면 계산한 값을 그대로 전송한다', async () => {
+            mockReadStateRepository.updateLastRead.mockResolvedValue(messageId);
+            mockMessageRepository.countUnread.mockResolvedValue(2);
+            mockUnreadCounterService.set.mockResolvedValueOnce(null);
+
+            await service.readChannel({channelId: 1, userId: 42}, messageId.toString());
+
+            expect(mockEmit).toHaveBeenCalledWith('channel:unread:updated', {channelId: 1, unreadCount: 2});
         });
     });
 
@@ -1022,6 +1054,10 @@ describe('ChatService', () => {
                 {channelId: 1, unreadCount: 5},
                 {channelId: 2, unreadCount: 0},
             ]);
+            expect(mockUnreadCounterService.setMany).toHaveBeenCalledWith(42, new Map([
+                [1, {count: 5, readCursor: oid1.toHexString()}],
+                [2, {count: 0, readCursor: oid2.toHexString()}],
+            ]));
         });
 
         it('읽기 권한이 있는 채널이 없으면 빈 배열을 반환한다', async () => {
