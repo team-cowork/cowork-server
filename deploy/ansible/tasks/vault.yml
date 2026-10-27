@@ -183,11 +183,12 @@
       delegate_to: localhost
       become: false
       no_log: true
-    - name: Refresh the initialized seal status
-      ansible.builtin.uri:
-        url: "https://{{ private_ip }}:8210/v1/sys/seal-status"
-        ca_path: /etc/cowork/ca/ca.crt
-      register: vault_seal_status
+
+- name: Refresh the Vault seal status before unsealing
+  ansible.builtin.uri:
+    url: "https://{{ private_ip }}:8210/v1/sys/seal-status"
+    ca_path: /etc/cowork/ca/ca.crt
+  register: vault_seal_status
 
 - name: Unseal a restarted Vault using the explicit operator recovery file
   when: vault_seal_status.json.sealed
