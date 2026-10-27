@@ -1,5 +1,6 @@
 package com.cowork.preference
 
+import com.cowork.preference.config.kafkaSecurityProperties
 import com.cowork.preference.cache.PreferenceCache
 import com.cowork.preference.config.AppConfig
 import com.cowork.preference.domain.ResourceType
@@ -79,8 +80,6 @@ import org.slf4j.LoggerFactory
 class MainVerticle : AbstractVerticle() {
 
     companion object {
-        private const val HEARTBEAT_INTERVAL_MS = 30_000L
-        private const val EUREKA_READINESS_INTERVAL_MS = 1_000L
         private const val INITIAL_PROJECTION_SNAPSHOT_RETRY_INTERVAL_MS = 1_000L
         private const val PROJECTION_SNAPSHOT_INTERVAL_MS = 300_000L
         private const val CACHE_REPAIR_INTERVAL_MS = 1_000L
@@ -106,10 +105,6 @@ class MainVerticle : AbstractVerticle() {
     private lateinit var githubRepoSettingCommandConsumer: GithubRepoSettingCommandConsumer
     private lateinit var channelRolePolicyCommandConsumer: ChannelRolePolicyCommandConsumer
     private lateinit var projectionTopicIdentity: ProjectionTopicIdentityProvider
-    private lateinit var eurekaRegistration: EurekaRegistration
-    private var eurekaReadinessTimerId: Long? = null
-    private var eurekaHeartbeatTimerId: Long? = null
-    private var eurekaRegistered = false
 
     override fun start(startPromise: Promise<Void>) {
         scopeJob = SupervisorJob()
@@ -151,7 +146,7 @@ class MainVerticle : AbstractVerticle() {
             listOf(projectionReadiness, channelProjectionReadiness),
         )
         // HTTP API는 팀·프로젝트·채널 projection을 읽지만 준비되기 전에는 해당 API만 503으로 응답한다.
-        // 소유 서비스 장애가 전체 트래픽 차단으로 번지지 않도록 /health/ready와 Eureka는 팀 projection만 기다린다.
+        // 소유 서비스 장애가 전체 트래픽 차단으로 번지지 않도록 /health/ready는 팀 projection만 기다린다.
         val projectAccessReadiness = CombinedProjectionReadiness(listOf(projectionReadiness, projectLifecycleReadiness))
         val channelAccessReadiness = CombinedProjectionReadiness(
             listOf(projectionReadiness, channelProjectionReadiness, dmParticipantReadiness),
@@ -381,39 +376,11 @@ class MainVerticle : AbstractVerticle() {
             .listen(appConfig.serverPort).onComplete { result ->
                 if (result.succeeded()) {
                     log.info("cowork-preference listening on port {}", appConfig.serverPort)
-                    eurekaRegistration = EurekaRegistration(appConfig)
-                    syncEurekaRegistration(projectionReadiness)
-                    eurekaReadinessTimerId = vertx.setPeriodic(EUREKA_READINESS_INTERVAL_MS) {
-                        syncEurekaRegistration(projectionReadiness)
-                    }
-                    eurekaHeartbeatTimerId = vertx.setPeriodic(HEARTBEAT_INTERVAL_MS) {
-                        registerHeartbeat(projectionReadiness)
-                    }
                     startPromise.complete()
                 } else {
                     startPromise.fail(result.cause())
                 }
             }
-    }
-
-    private fun syncEurekaRegistration(readiness: ProjectionReadiness) {
-        if (readiness.isReady && !eurekaRegistered) {
-            runCatching { eurekaRegistration.register() }
-                .onSuccess { eurekaRegistered = true }
-                .onFailure { log.warn("eureka registration failed", it) }
-            return
-        }
-        if (!readiness.isReady && eurekaRegistered) {
-            runCatching { eurekaRegistration.deregister() }
-                .onFailure { log.warn("eureka deregistration while unready failed", it) }
-            eurekaRegistered = false
-        }
-    }
-
-    private fun registerHeartbeat(readiness: ProjectionReadiness) {
-        if (!readiness.isReady || !eurekaRegistered) return
-        runCatching { eurekaRegistration.heartbeat() }
-            .onFailure { log.warn("eureka heartbeat failed", it) }
     }
 
     private fun scheduleExpiryChecks(
@@ -532,7 +499,7 @@ class MainVerticle : AbstractVerticle() {
     }
 
     private fun buildKafkaProducer(config: AppConfig): KafkaProducer<String, String> {
-        val kafkaConfig = mapOf(
+        val kafkaConfig = kafkaSecurityProperties() + mapOf(
             "bootstrap.servers" to config.kafka.bootstrapServers,
             "key.serializer" to "org.apache.kafka.common.serialization.StringSerializer",
             "value.serializer" to "org.apache.kafka.common.serialization.StringSerializer",
@@ -546,13 +513,8 @@ class MainVerticle : AbstractVerticle() {
     }
 
     override fun stop(stopPromise: Promise<Void>) {
-        eurekaReadinessTimerId?.let { vertx.cancelTimer(it) }
-        eurekaHeartbeatTimerId?.let { vertx.cancelTimer(it) }
         if (::preferenceOutboxDispatcher.isInitialized) preferenceOutboxDispatcher.close()
-        if (::eurekaRegistration.isInitialized && eurekaRegistered) {
-            runCatching { eurekaRegistration.deregister() }
-                .onFailure { log.warn("eureka deregister failed", it) }
-        }
+
 
         val quiesceFutures = mutableListOf<Future<Void>>()
         if (::githubRepoSettingCommandConsumer.isInitialized) {

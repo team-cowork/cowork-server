@@ -14,8 +14,6 @@ dependencies {
     implementation(libs.spring.boot.starter.actuator)
     implementation(libs.micrometer.registry.prometheus)
     implementation(libs.spring.boot.starter.data.jpa)
-    implementation(libs.spring.cloud.starter.netflix.eureka.client)
-    implementation(libs.spring.cloud.starter.config)
     implementation(libs.spring.boot.starter.kafka)
     implementation(libs.jackson.module.kotlin)
     implementation(libs.logstash.logback.encoder)

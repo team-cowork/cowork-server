@@ -8,7 +8,7 @@ import {ConfigService} from '@nestjs/config';
 import {Consumer, Kafka} from 'kafkajs';
 import {mongo} from 'mongoose';
 import {DicoshotService} from 'dicoshot-nest';
-import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {getKafkaClientConfig} from '../../common/config/config.util';
 import {parseEventTime} from '../../common/util/event-time.util';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
@@ -50,7 +50,7 @@ export class ProjectPermissionEventConsumer implements OnModuleInit, OnModuleDes
     async onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-project-permission-event',
-            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
+            ...getKafkaClientConfig(this.configService),
         });
         const stream = PROJECTION_STREAMS.projectPermission;
         this.consumer = kafka.consumer({groupId: stream.groupId});

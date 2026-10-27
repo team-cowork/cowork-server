@@ -1,5 +1,6 @@
 package com.cowork.preference.messaging
 
+import com.cowork.preference.config.kafkaSecurityProperties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.kafka.clients.admin.Admin
@@ -15,7 +16,7 @@ data class ProjectionBrokerRange(val beginningOffset: Long, val endOffset: Long)
 data class ProjectionTopicState(val topicId: String, val ranges: Map<Int, ProjectionBrokerRange>)
 
 class ProjectionTopicIdentityProvider(bootstrapServers: String) : AutoCloseable {
-    private val admin = Admin.create(mapOf(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrapServers))
+    private val admin = Admin.create(kafkaSecurityProperties() + mapOf(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrapServers))
 
     suspend fun topicState(topic: String): ProjectionTopicState = withContext(Dispatchers.IO) {
         val description = requireNotNull(

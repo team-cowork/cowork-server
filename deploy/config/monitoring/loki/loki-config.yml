@@ -34,7 +34,7 @@ compactor:
   retention_enabled: true
   delete_request_store: filesystem
 
-# prepare-configs.sh copies deploy/config/monitoring/loki/rules into the single-tenant ("fake") directory.
+# The local Compose config initializer places rules in the single-tenant ("fake") directory.
 ruler:
   alertmanager_url: http://alertmanager:9093
   # The ruler writes its evaluated copy here; the storage directory is the read-only source.

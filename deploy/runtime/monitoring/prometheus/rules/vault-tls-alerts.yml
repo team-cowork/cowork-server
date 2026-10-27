@@ -1,0 +1,45 @@
+groups:
+  - name: cowork-vault-tls
+    rules:
+      - alert: coworkVaultTlsUnavailable
+        expr: probe_success{job="vault-tls"} == 0 or up{job="vault-tls"} == 0 or absent(probe_success{job="vault-tls"})
+        for: 5m
+        labels:
+          severity: critical
+          service: vault
+        annotations:
+          summary: "Vault 사설 TLS 연결 실패"
+          description: "Nomad가 사용하는 Vault 사설 TLS 리스너에 5분 동안 연결하지 못했습니다. 인증서 만료와 갱신, 방화벽, Vault 상태를 확인해 주세요."
+
+      # The same probe calls the unauthenticated /v1/sys/health, which answers 503 only while sealed.
+      # It accepts 503 as a TLS success, so a sealed Vault never fires coworkVaultTlsUnavailable.
+      - alert: coworkVaultSealed
+        expr: probe_http_status_code{job="vault-tls"} == 503
+        for: 2m
+        labels:
+          severity: critical
+          service: vault
+        annotations:
+          summary: "Vault 봉인됨"
+          description: "Vault가 2분 동안 봉인(sealed) 상태입니다. Nomad 작업이 시크릿을 읽지 못하므로 Vault VM에서 컨테이너 재시작 여부를 확인하고 unseal 키로 봉인을 해제해 주세요."
+
+      # The served chain includes the CA, so this also covers CA expiry.
+      - alert: coworkVaultTlsRenewalOverdue
+        expr: probe_ssl_earliest_cert_expiry{job="vault-tls"} - time() < 21 * 86400
+        for: 1h
+        labels:
+          severity: warning
+          service: vault
+        annotations:
+          summary: "Vault 사설 TLS 인증서 갱신 지연"
+          description: "Vault 사설 TLS 인증서가 {{ $value | humanizeDuration }} 뒤 만료됩니다. 관리 VM cowork-control의 cowork-platform-certificates.timer와 갱신 로그, CA 만료일을 확인해 주세요."
+
+      - alert: coworkVaultTlsCertificateExpiring
+        expr: probe_ssl_earliest_cert_expiry{job="vault-tls"} - time() < 7 * 86400
+        for: 10m
+        labels:
+          severity: critical
+          service: vault
+        annotations:
+          summary: "Vault 사설 TLS 인증서 만료 임박"
+          description: "Vault 사설 TLS 인증서가 {{ $value | humanizeDuration }} 뒤 만료됩니다. 만료되면 Nomad가 Vault 시크릿을 읽지 못합니다. 관리 VM cowork-control에서 cowork-platform-certificates.service를 실행하고 갱신 로그를 확인해 주세요."

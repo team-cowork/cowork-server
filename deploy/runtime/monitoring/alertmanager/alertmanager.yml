@@ -1,0 +1,40 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: discord
+  group_by: [alertname, service]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    - matchers:
+        - severity = critical
+      repeat_interval: 1h
+
+# 수집 대상이 통째로 사라지면 서비스별 누락 알림 대신 discovery 전체 알림 하나만 보낸다.
+inhibit_rules:
+  - source_matchers:
+      - alertname = coworkServiceDiscoveryEmpty
+    target_matchers:
+      - alertname = coworkServiceMissing
+    equal: [job]
+  # 외부 공개 게이트웨이 자체가 실패하면 그 뒤의 업무 API·CORS probe 알림은 하나로 묶는다.
+  - source_matchers:
+      - alertname = coworkPublicGatewayUnavailable
+    target_matchers:
+      - alertname =~ "coworkGatewayApiProbeFailed|coworkGatewayCorsPreflightFailed"
+
+receivers:
+  - name: discord
+    discord_configs:
+      - webhook_url_file: /secrets/discord-webhook-url
+        title: '[{{ if eq .Status "firing" }}조치 필요{{ else }}해결{{ end }}] {{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}모니터링 알림{{ end }}'
+        message: |-
+          {{ range .Alerts }}
+          **상태**: {{ if eq .Status "firing" }}확인이 필요합니다.{{ else }}알림 조건이 해제되었습니다.{{ end }}
+          {{ if .Labels.service }}**서비스**: {{ .Labels.service }}{{ end }}
+          **심각도**: {{ if eq .Labels.severity "critical" }}긴급{{ else if eq .Labels.severity "warning" }}주의{{ else }}정보{{ end }}
+          **감지 내용**: {{ if .Annotations.description }}{{ .Annotations.description }}{{ else }}{{ .Annotations.summary }}{{ end }}
+          **알림 코드**: {{ .Labels.alertname }}
+          {{ end }}

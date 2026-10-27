@@ -1,9 +1,0 @@
-{
-  "ssh": {
-    "host": "ssh.example.com",
-    "port": 22,
-    "user": "ubuntu",
-    "key": "REPLACE_WITH_PRIVATE_KEY",
-    "fingerprint": "SHA256:REPLACE_WITH_VERIFIED_HOST_FINGERPRINT"
-  }
-}

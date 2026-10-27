@@ -42,17 +42,17 @@ def SQLite(label):
 
 
 SERVICES = [
-    ("authorization", MySQL, "10.0.0.140:8081"),
-    ("user", MySQL, "10.0.0.185:8082"),
-    ("channel", MySQL, "10.0.0.74:8083"),
-    ("project", MySQL, "10.0.0.88:8084"),
-    ("team", MySQL, "10.0.0.97:8085"),
-    ("notification", SQLite, "10.0.0.131:8086"),
-    ("chat", MongoDB, "10.0.0.174:8087"),
-    ("roadmap", MySQL, "10.0.0.132:8088"),
-    ("voice", MongoDB, "10.0.0.90:8089"),
-    ("preference", PostgreSQL, "10.0.0.89:9001"),
-    ("github", None, "10.0.0.150:8090"),
+    ("authorization", MySQL, "10.0.0.140"),
+    ("user", MySQL, "10.0.0.185"),
+    ("channel", MySQL, "10.0.0.74"),
+    ("project", MySQL, "10.0.0.88"),
+    ("team", MySQL, "10.0.0.97"),
+    ("notification", SQLite, "10.0.0.131"),
+    ("chat", MongoDB, "10.0.0.174"),
+    ("roadmap", MySQL, "10.0.0.132"),
+    ("voice", MongoDB, "10.0.0.90"),
+    ("preference", PostgreSQL, "10.0.0.89"),
+    ("github", None, "10.0.0.150"),
 ]
 WITH_STORAGE = {"user", "team", "chat"}
 REDIS_CLIENTS = {"user", "chat", "preference", "github"}
@@ -77,9 +77,10 @@ def platform(extend=None):
             gateway = service("gateway")
 
         with Cluster("Control Plane VMs"):
-            with Cluster("10.0.0.144:8761"):
-                config = service("config", "Config + Eureka")
-            with Cluster("10.0.0.91:8200"):
+            with Cluster("10.0.0.111  Management VM"):
+                consul = Docker("Consul\n서비스 메시 / ACL")
+                nomad = Docker("Nomad\n단일 서버 / 스케줄러")
+            with Cluster("10.0.0.91:8210  내부 TLS"):
                 vault = Vault("Vault")
 
         apps = {}
@@ -108,12 +109,12 @@ def platform(extend=None):
         with Cluster("Shared Infra VMs"):
             with Cluster("10.0.0.167:9094"):
                 kafka = Kafka("Kafka")
-            with Cluster("10.0.0.145:6379"):
+            with Cluster("10.0.0.145  Redis VM"):
                 redis = Redis("Redis")
             with Cluster("10.0.0.172:7880"):
                 livekit = Custom("LiveKit SFU", LIVEKIT_ICON)
 
-        nodes.update(edge_proxy=edge_proxy, network=network, gateway=gateway, config=config, vault=vault,
+        nodes.update(edge_proxy=edge_proxy, network=network, gateway=gateway, consul=consul, nomad=nomad, vault=vault,
                      apps=apps, service_vms=service_vms, kafka=kafka, redis=redis, livekit=livekit)
         if extend:
             extend(nodes)
@@ -128,8 +129,8 @@ def platform(extend=None):
     nodes["clients"] >> edge(HTTP, "HTTPS / WSS") >> edge_proxy >> edge(HTTP) >> gateway
     nodes["clients"] >> edge(HTTP, "WebRTC (TCP 7881 / UDP 7882)", "dashed") >> livekit
 
-    gateway >> edge(CONTROL, "lb:// 디스커버리", "dashed") >> config
-    config >> edge(CONTROL, "AppRole", "dashed") >> vault
+    gateway >> edge(CONTROL, "Envoy / Consul 메시", "dashed") >> consul
+    nomad >> edge(CONTROL, "Workload Identity", "dashed") >> vault
     gateway >> edge(DATA, "Rate Limiter", "dotted") >> redis
 
     for upper, lower in zip(rows[0][1], rows[1][0]):
@@ -145,7 +146,7 @@ def platform(extend=None):
             app >> edge(DATA, style="dotted", penwidth="0.8") >> redis
 
     apps["voice"] >> edge(HTTP, "Room API") >> livekit
-    apps["project"] >> edge(HTTP, "internal API (Eureka)") >> apps["github"]
+    apps["project"] >> edge(HTTP, "internal API (Envoy)") >> apps["github"]
     apps["github"] >> edge(EXTERNAL, "GitHub App API") >> github
     github >> edge(EXTERNAL, "서명 Webhook", "dashed", constraint="false") >> edge_proxy
     apps["authorization"] >> edge(EXTERNAL, "OAuth2") >> datagsm
@@ -197,23 +198,24 @@ def full():
 
         repo >> edge(HTTP, "push main") >> ci >> edge(HTTP, "workflow_run") >> cd
         cd >> edge(HTTP, "build & push") >> registry
-        cd >> edge(CONTROL, "OIDC 로그인", "dashed", constraint="false") >> nodes["vault"]
-        cd >> edge(HTTP, "SSH") >> bastion
-        bastion >> edge(HTTP, "Ansible / 슬롯 배포 (모든 VM)", lhead=network) >> nodes["gateway"]
+        cd >> edge(CONTROL, "OIDC / Workload Identity", "dashed", constraint="false") >> nodes["vault"]
+        cd >> edge(HTTP, "보호된 관리 VM 러너") >> nodes["nomad"]
+        nodes["nomad"] >> edge(HTTP, "Ansible SSH") >> bastion
+        bastion >> edge(HTTP, "Ansible 호스트 설정 (모든 VM)", lhead=network) >> nodes["gateway"]
         registry >> edge(DATA, "image pull", "dashed", lhead=network) >> nodes["gateway"]
 
         operators >> edge(HTTP, "cowork-monitoring.https.gsmsv.site") >> nodes["edge_proxy"]
         nodes["edge_proxy"] >> edge(HTTP, constraint="false") >> o["grafana"]
         o["grafana"] >> edge(DATA, style="dashed") >> o["prometheus"]
         o["grafana"] >> edge(DATA, style="dashed") >> o["loki"]
-        nodes["config"] >> edge(OBS, "eureka_sd", "dashed", constraint="false") >> o["prometheus"]
+        nodes["consul"] >> edge(OBS, "consul_sd", "dashed", constraint="false") >> o["prometheus"]
         o["prometheus"] >> edge(OBS, "scrape\n/metrics, /actuator/prometheus", lhead=service_vms, constraint="false") >> nodes["apps"]["authorization"]
         o["prometheus"] >> edge(OBS) >> o["node_agent"]
         o["prometheus"] >> edge(OBS) >> o["db_exporter"]
         o["prometheus"] >> edge(OBS) >> o["exporters"]
         o["exporters"] >> edge(OBS, style="dotted", constraint="false") >> nodes["kafka"]
         o["exporters"] >> edge(OBS, style="dotted", constraint="false") >> nodes["redis"]
-        o["log_agent"] >> edge(OBS, "push") >> o["loki"]
+        o["log_agent"] >> edge(OBS, "mTLS push") >> o["loki"]
         o["prometheus"] >> edge(OBS) >> o["blackbox"] >> edge(OBS, "probe", "dashed", constraint="false") >> nodes["edge_proxy"]
         o["prometheus"] >> edge(OBS, "alerts") >> o["alertmanager"] >> edge(EXTERNAL, "장애 알림", constraint="false") >> nodes["discord"]
 
@@ -223,29 +225,27 @@ def delivery():
                  direction="LR", graph_attr=GRAPH, node_attr=NODE, edge_attr=EDGE):
         with Cluster("GitHub"):
             repo = Github("cowork-server")
-            ci = GithubActions("cowork-prod-ci")
-            cd = GithubActions("cowork-prod-cd")
-            registry = Github("GHCR")
-
-        bastion = InternetAlt1("ssh.gsmsv.site\nSSH 포트포워딩")
-
-        with Cluster("GSM SV 사설망"):
-            vault = Vault("Vault")
-            config = service("config", "Config + Eureka")
-            with Cluster("각 VM"):
-                infra = Docker("IaC 리소스\n방화벽 / DB / 스토리지")
-                slot = service("{service}", "슬롯 컨테이너")
-
-        repo >> edge(HTTP, "push main") >> ci >> edge(HTTP, "workflow_run") >> cd
-        cd >> edge(HTTP, "build & push") >> registry
-        cd >> edge(CONTROL, "OIDC 로그인", "dashed") >> vault
-        cd >> edge(HTTP, "SSH") >> bastion
-        bastion >> edge(HTTP, "Ansible") >> infra
-        bastion >> edge(HTTP, "deploy-target") >> slot
-        registry >> edge(DATA, "image pull", "dashed") >> slot
-        vault >> edge(CONTROL, "slot-secrets") >> slot
-        vault >> edge(CONTROL, "AppRole") >> config
-        config >> edge(CONTROL, "설정 / 등록") >> slot
+            ci = GithubActions("호스티드 CI / 이미지 빌드")
+            registry = Github("GHCR digest")
+        with Cluster("관리 VM 10.0.0.111"):
+            cd = GithubActions("main 전용 배포 러너")
+            nomad = Docker("Nomad 단일 서버")
+            consul = Docker("Consul 단일 서버")
+        vault = Vault("Vault\n10.0.0.91")
+        with Cluster("기존 서비스 VM / 내부 IP 유지"):
+            agent = Docker("Nomad / Consul 클라이언트")
+            app = service("{service}", "할당 + Envoy")
+            data = Docker("전용 DB / 스토리지")
+        repo >> edge(HTTP, "main 릴리즈") >> ci >> edge(HTTP, "push") >> registry
+        ci >> edge(CONTROL, "검증된 릴리즈") >> cd
+        cd >> edge(CONTROL, "Ansible / OpenTofu") >> nomad
+        cd >> edge(CONTROL, "접근 정책") >> consul
+        cd >> edge(CONTROL, "OIDC / 비밀 버전") >> vault
+        nomad >> edge(CONTROL, "잡 스케줄링") >> agent >> edge(HTTP) >> app
+        registry >> edge(DATA, "image pull", "dashed") >> app
+        vault >> edge(CONTROL, "Workload Identity", "dashed") >> app
+        consul >> edge(CONTROL, "mTLS / intentions", "dashed") >> app
+        app >> edge(DATA, "Envoy") >> data
 
 
 def monitoring():
@@ -261,7 +261,7 @@ def monitoring():
             blackbox = Prometheus("Blackbox\nexporter")
             exporters = Prometheus("Redis / Kafka\nexporter")
 
-        eureka = service("config", "Eureka")
+        consul = Docker("Consul\n서비스 디스커버리")
 
         with Cluster("각 VM"):
             app = service("{service}", "/metrics\n/actuator/prometheus")
@@ -275,13 +275,13 @@ def monitoring():
         operators >> edge(HTTP, "cowork-monitoring.https.gsmsv.site") >> grafana
         grafana >> edge(DATA, style="dashed") >> prometheus
         grafana >> edge(DATA, style="dashed") >> loki
-        eureka >> edge(OBS, "eureka_sd", "dashed") >> prometheus
+        consul >> edge(OBS, "consul_sd", "dashed") >> prometheus
         prometheus >> edge(OBS, "scrape") >> app
         prometheus >> edge(OBS) >> db_exporter
         prometheus >> edge(OBS) >> node_agent
         prometheus >> edge(OBS) >> exporters
         prometheus >> edge(OBS) >> blackbox >> edge(OBS, "probe", "dashed") >> public
-        log_agent >> edge(OBS, "push") >> loki
+        log_agent >> edge(OBS, "mTLS push") >> loki
         prometheus >> edge(OBS, "alerts") >> alertmanager >> edge(EXTERNAL) >> discord
 
 

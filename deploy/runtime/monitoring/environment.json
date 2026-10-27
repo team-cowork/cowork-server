@@ -1,0 +1,8 @@
+{
+  "PUBLIC_API_BASE_URL": "https://cowork.https.gsmsv.site",
+  "PUBLIC_WEB_ORIGINS": "https://service.gsmsv.site:22118,http://localhost:3000",
+  "GRAFANA_ROOT_URL": "https://cowork-monitoring.https.gsmsv.site/",
+  "CONSUL_HTTP_ADDR": "https://10.0.0.137:8501",
+  "VAULT_ADDR": "https://10.0.0.91:8210",
+  "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.167:9094"
+}

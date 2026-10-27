@@ -1,0 +1,1418 @@
+{
+  "uid": "cowork-platform",
+  "title": "cowork / Platform",
+  "schemaVersion": 39,
+  "version": 1,
+  "editable": false,
+  "tags": [
+    "cowork",
+    "platform",
+    "nomad",
+    "consul"
+  ],
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "graphTooltip": 1,
+  "templating": {
+    "list": []
+  },
+  "links": [
+    {
+      "title": "Overview",
+      "type": "link",
+      "icon": "dashboard",
+      "url": "/d/cowork-overview",
+      "targetBlank": false,
+      "includeVars": false,
+      "keepTime": true
+    },
+    {
+      "title": "Infrastructure",
+      "type": "link",
+      "icon": "dashboard",
+      "url": "/d/cowork-infrastructure",
+      "targetBlank": false,
+      "includeVars": false,
+      "keepTime": true
+    },
+    {
+      "title": "Vault",
+      "type": "link",
+      "icon": "dashboard",
+      "url": "/d/cowork-vault",
+      "targetBlank": false,
+      "includeVars": false,
+      "keepTime": true
+    }
+  ],
+  "panels": [
+    {
+      "id": 1,
+      "title": "관리 VM — API 지표 수집",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "관리 VM의 Nomad·Consul HTTPS 메트릭 수집 결과입니다. UP은 수집 성공을 뜻하며, 클러스터 건강은 옆 Autopilot 패널에서 확인합니다.",
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "up{job=~\"nomad|consul\",host=\"control\"}",
+          "legendFormat": "{{service}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "max": 1,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 2,
+      "title": "관리 VM — 클러스터 건강",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "각 서버의 Autopilot 건강 판정입니다. 현재 Nomad·Consul 서버는 cowork-control 한 대에 있으므로 관리 VM 장애를 견디는 구성이 아닙니다.",
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "nomad_nomad_autopilot_healthy{job=\"nomad\",host=\"control\"}",
+          "legendFormat": "Nomad",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        },
+        {
+          "expr": "consul_autopilot_healthy{job=\"consul\",host=\"control\"}",
+          "legendFormat": "Consul",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "B",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "max": 1,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "이상",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "정상",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 3,
+      "title": "Consul 리더",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "cowork-control이 Consul 리더이면 1입니다. 현재 단일 서버 구성에서는 이 서버가 리더여야 합니다.",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 16,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "consul_server_isLeader{job=\"consul\",host=\"control\"}",
+          "legendFormat": "cowork-control",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "max": 1,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "리더 아님",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "리더",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 4,
+      "title": "Consul 허용 서버 장애 수",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "합의를 유지하면서 추가로 장애가 나도 되는 서버 수입니다. 단일 서버인 현재 구성의 0은 예상값이며 이중화가 없다는 뜻입니다.",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 20,
+        "y": 0
+      },
+      "targets": [
+        {
+          "expr": "consul_autopilot_failure_tolerance{job=\"consul\",host=\"control\"}",
+          "legendFormat": "서버 수",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "blue"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 5,
+      "title": "관리 VM — CPU 사용률",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "Nomad·Consul 서버와 배포 runner가 함께 사용하는 관리 VM의 전체 CPU 사용률입니다.",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 5
+      },
+      "targets": [
+        {
+          "expr": "100 * (1 - avg(rate(node_cpu_seconds_total{job=\"hosts\",host=\"control\",mode=\"idle\"}[$__rate_interval])))",
+          "legendFormat": "cowork-control",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "percent",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "max": 100,
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "관리 VM — 메모리 사용률",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "사용 가능한 메모리를 기준으로 계산합니다. 배포 시 runner와 제어 서비스가 같은 메모리를 사용합니다.",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 5
+      },
+      "targets": [
+        {
+          "expr": "100 * (1 - node_memory_MemAvailable_bytes{job=\"hosts\",host=\"control\"} / node_memory_MemTotal_bytes{job=\"hosts\",host=\"control\"})",
+          "legendFormat": "cowork-control",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "percent",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "spanNulls": false,
+            "showPoints": "never"
+          },
+          "max": 100,
+          "decimals": 1
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "관리 VM — 파일시스템 사용률",
+      "type": "bargauge",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "관리 VM의 영구 파일시스템 사용률입니다. 85%부터 주의, 93%부터 위험으로 표시합니다. 임시·컨테이너 파일시스템은 제외합니다.",
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 5
+      },
+      "targets": [
+        {
+          "expr": "sort_desc(100 * (1 - node_filesystem_avail_bytes{job=\"hosts\",host=\"control\",fstype!~\"tmpfs|devtmpfs|overlay|squashfs\"} / (node_filesystem_size_bytes{job=\"hosts\",host=\"control\",fstype!~\"tmpfs|devtmpfs|overlay|squashfs\"} > 0)))",
+          "legendFormat": "{{mountpoint}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "percent",
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 100,
+          "decimals": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 85
+              },
+              {
+                "color": "red",
+                "value": 93
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "color"
+      }
+    },
+    {
+      "id": 8,
+      "title": "관리 VM — 가동 시간",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "VM이 마지막으로 부팅된 뒤 경과한 시간입니다. Nomad·Consul 프로세스의 개별 실행 시간은 아닙니다.",
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 0,
+        "y": 13
+      },
+      "targets": [
+        {
+          "expr": "time() - node_boot_time_seconds{job=\"hosts\",host=\"control\"}",
+          "legendFormat": "부팅 후 경과",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "dtdurations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 9,
+      "title": "Nomad 연결 클라이언트",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "서버가 활성 heartbeat를 추적하는 클라이언트 수입니다. 연결 여부와 작업 배치 준비 상태는 다를 수 있습니다.",
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 4,
+        "y": 13
+      },
+      "targets": [
+        {
+          "expr": "nomad_nomad_heartbeat_active{job=\"nomad\",host=\"control\"}",
+          "legendFormat": "연결 수",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 10,
+      "title": "Nomad 준비 클라이언트",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "지표를 수집한 클라이언트 중 node_status가 ready인 노드 수입니다. 알려진 클라이언트가 모두 ready가 아니면 0, 클라이언트 지표 자체가 없으면 N/A입니다. 아래 수집 상태도 함께 확인하세요.",
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 9,
+        "y": 13
+      },
+      "targets": [
+        {
+          "expr": "count(max by (node_id) (nomad_client_allocations_running{job=\"nomad\",role=\"client\",node_status=\"ready\"})) or (0 * count(max by (node_id) (nomad_client_allocations_running{job=\"nomad\",role=\"client\"})))",
+          "legendFormat": "ready 노드",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 11,
+      "title": "Nomad 실행 할당 수",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "현재 실행 중인 allocation의 합계입니다. 앱·DB·플랫폼 작업을 모두 포함하며, 과거 실행 횟수 누계가 아닙니다.",
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 14,
+        "y": 13
+      },
+      "targets": [
+        {
+          "expr": "sum(nomad_client_allocations_running{job=\"nomad\",role=\"client\"})",
+          "legendFormat": "실행 중",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "decimals": 0
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 12,
+      "title": "Nomad 배치 차단 평가",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "스케줄러가 즉시 배치하지 못해 차단된 평가 수입니다. 자원·배치 제약과 작업 상태를 확인하세요.",
+      "gridPos": {
+        "h": 5,
+        "w": 5,
+        "x": 19,
+        "y": 13
+      },
+      "targets": [
+        {
+          "expr": "nomad_nomad_blocked_evals_total_blocked{job=\"nomad\",host=\"control\"}",
+          "legendFormat": "차단 평가 수",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 1
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 13,
+      "title": "Nomad — 현재 할당 상태",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "클라이언트가 보고한 현재 allocation 상태별 합계입니다. 지표 수집이 끊기면 합계가 줄 수 있으므로 에이전트 수집 상태와 함께 확인하세요.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "targets": [
+        {
+          "expr": "sum(nomad_client_allocations_running{job=\"nomad\",role=\"client\"})",
+          "legendFormat": "실행 중",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "sum(nomad_client_allocations_pending{job=\"nomad\",role=\"client\"})",
+          "legendFormat": "시작 대기",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "B",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "sum(nomad_client_allocations_blocked{job=\"nomad\",role=\"client\"})",
+          "legendFormat": "차단",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "C",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "sum(nomad_client_allocations_migrating{job=\"nomad\",role=\"client\"})",
+          "legendFormat": "이동 중",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "D",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 14,
+      "title": "Nomad — 작업별 대기·실패 할당",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "작업 요약의 대기·실패 allocation 수입니다. 작업이 아직 제출되지 않아 요약 지표가 없으면 N/A로 남습니다. 실패 수는 작업 요약이 보유한 상태이며 현재 API 가용성과는 별개입니다.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "targets": [
+        {
+          "expr": "sum by (namespace, exported_job) (nomad_nomad_job_summary_queued{job=\"nomad\",role=\"server\"})",
+          "legendFormat": "{{namespace}} / {{exported_job}} 대기",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "sum by (namespace, exported_job) (nomad_nomad_job_summary_failed{job=\"nomad\",role=\"server\"})",
+          "legendFormat": "{{namespace}} / {{exported_job}} 실패",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "B",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "전체 VM — Nomad·Consul 지표 수집",
+      "type": "state-timeline",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "control과 Nomad 클라이언트 VM의 각 HTTPS 메트릭 endpoint를 표시합니다. Vault 전용 VM은 두 에이전트가 없어 제외합니다. DOWN은 수집 실패, 비어 있는 구간은 시계열 부재입니다.",
+      "gridPos": {
+        "h": 18,
+        "w": 24,
+        "x": 0,
+        "y": 26
+      },
+      "targets": [
+        {
+          "expr": "up{job=~\"nomad|consul\"}",
+          "legendFormat": "{{service}} / {{host}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": {
+            "mode": "thresholds"
+          },
+          "max": 1,
+          "mappings": [
+            {
+              "type": "value",
+              "options": {
+                "0": {
+                  "text": "DOWN",
+                  "color": "red"
+                },
+                "1": {
+                  "text": "UP",
+                  "color": "green"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "custom": {
+            "fillOpacity": 80,
+            "lineWidth": 0
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "mergeValues": true,
+        "rowHeight": 0.8,
+        "showValue": "auto",
+        "alignValue": "left",
+        "legend": {
+          "showLegend": false
+        },
+        "tooltip": {
+          "mode": "single",
+          "sort": "none"
+        }
+      }
+    },
+    {
+      "id": 16,
+      "title": "VM 인증서 — 만료까지 남은 기간",
+      "type": "timeseries",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "VM별 Nomad·Consul 인증서의 남은 기간 중 작은 값입니다. 관리 VM 타이머가 매일 한국 시간 04:15에 만료 30일 전 인증서를 갱신합니다. Vault 인증서는 Vault 대시보드에서 별도로 확인합니다.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      },
+      "targets": [
+        {
+          "expr": "min by (host) ({__name__=~\"nomad_agent_tls_cert_expiration_seconds|consul_agent_tls_cert_expiry\",job=~\"nomad|consul\"})",
+          "legendFormat": "{{host}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "dtdurations",
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 17,
+      "title": "플랫폼 CA — 남은 기간",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "VM 인증서를 서명하는 플랫폼 CA의 남은 기간입니다. 일일 타이머는 VM 인증서를 갱신하며 CA 자체를 자동 교체하지 않습니다.",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 44
+      },
+      "targets": [
+        {
+          "expr": "min(nomad_agent_tls_ca_expiration_seconds{job=\"nomad\"})",
+          "legendFormat": "플랫폼 CA",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "dtdurations",
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "N/A",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 604800
+              },
+              {
+                "color": "green",
+                "value": 1814400
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 18,
+      "title": "Consul 메시 CA — 남은 기간",
+      "type": "stat",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "Consul이 관리하는 서비스 메시 CA입니다. VM 인증서용 플랫폼 CA와 별개입니다. 값이 NaN이거나 아직 노출되지 않으면 N/A로 남기며, 메시 사용 여부와 Consul 상태를 함께 확인합니다.",
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 18,
+        "y": 44
+      },
+      "targets": [
+        {
+          "expr": "consul_mesh_active_root_ca_expiry{job=\"consul\",host=\"control\"}",
+          "legendFormat": "루트 CA",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        },
+        {
+          "expr": "consul_mesh_active_signing_ca_expiry{job=\"consul\",host=\"control\"}",
+          "legendFormat": "서명 CA",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "B",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "dtdurations",
+          "color": {
+            "mode": "thresholds"
+          },
+          "decimals": 0,
+          "mappings": [
+            {
+              "type": "special",
+              "options": {
+                "match": "nan",
+                "result": {
+                  "text": "N/A",
+                  "color": "gray"
+                }
+              }
+            }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 604800
+              },
+              {
+                "color": "green",
+                "value": 1814400
+              }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto",
+        "orientation": "auto"
+      }
+    },
+    {
+      "id": 19,
+      "title": "현재 활성 Platform 알림",
+      "type": "table",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "cowork-prometheus"
+      },
+      "description": "Nomad·Consul과 관리 VM에서 발생 중인 알림입니다. 활성 알림이 없으면 비어 있습니다. 알림이 없다는 것만으로 수집 성공을 의미하지 않으므로 상단 수집 상태를 함께 확인하세요.",
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 52
+      },
+      "targets": [
+        {
+          "expr": "ALERTS{alertstate=\"firing\",service=~\"nomad|consul\"} or ALERTS{alertstate=\"firing\",host=\"control\"}",
+          "legendFormat": "",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "cowork-prometheus"
+          },
+          "refId": "A",
+          "instant": true,
+          "range": false,
+          "format": "table"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "sortBy": [
+          {
+            "displayName": "심각도",
+            "desc": false
+          }
+        ]
+      },
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "Time": true,
+              "Value": true,
+              "__name__": true,
+              "alertstate": true
+            },
+            "indexByName": {
+              "severity": 0,
+              "alertname": 1,
+              "service": 2,
+              "host": 3,
+              "instance": 4
+            },
+            "renameByName": {
+              "severity": "심각도",
+              "alertname": "알림",
+              "service": "서비스",
+              "host": "VM",
+              "instance": "대상"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

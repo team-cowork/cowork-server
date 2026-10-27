@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inspect the shared slot contract without starting or classifying the application."""
+"""Inspect the shared runtime contract without starting or classifying the application."""
 import io
 import json
 import subprocess
@@ -31,7 +31,7 @@ def main():
     metadata = json.loads(subprocess.check_output(["docker", "image", "inspect", image]))[0]
     config = metadata["Config"]
     if metadata["Os"] != "linux" or metadata["Architecture"] != "amd64":
-        raise ValueError("Production slots require linux/amd64 images")
+        raise ValueError("Production jobs require linux/amd64 images")
     user = config.get("User", "").split(":", 1)[0]
     if not user:
         raise ValueError("The image must declare a non-root runtime user")
@@ -43,7 +43,7 @@ def main():
             or not all(isinstance(part, str) for part in command)):
         raise ValueError("The image must declare an executable ENTRYPOINT or CMD")
     # Runtime files and migrations belong to Dockerfile packaging assertions. The
-    # slot does not know whether a command starts .NET, Java, Go, or Node.
+    # runtime contract does not know whether a command starts .NET, Java, Go, or Node.
     print(f"{service}: platform, non-root identity and command valid (application not started)")
 
 

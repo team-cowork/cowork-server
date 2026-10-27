@@ -51,7 +51,6 @@ builder.Services.AddHostedService<OutboxRelay>();
 builder.Services.AddHostedService(services => services.GetRequiredService<ProfileSnapshotPublisher>());
 builder.Services.AddHostedService(services => services.GetRequiredService<ProjectionReadiness>());
 builder.Services.AddHostedService(services => services.GetRequiredService<Consumers>());
-builder.Services.AddHostedService<Eureka>();
 
 var app = builder.Build();
 var readiness = app.Services.GetRequiredService<ProjectionReadiness>();

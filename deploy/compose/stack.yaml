@@ -100,7 +100,6 @@ services:
       KAFKA_TOPIC_PARTITIONS: ${KAFKA_TOPIC_PARTITIONS:-1}
       KAFKA_TOPIC_REPLICATION_FACTOR: ${KAFKA_TOPIC_REPLICATION_FACTOR:-1}
       KAFKA_TOPICS: >-
-        springCloudBus
         user.data.sync
         user.identity.command
         user.identity.command-result
@@ -233,7 +232,7 @@ services:
       KAFKA_CLUSTERS_0_NAME: cowork-local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
     ports:
-      - "8090:8080"
+      - "${KAFKA_UI_HOST_PORT:-8091}:8080"
 
   vault:
     image: hashicorp/vault:2.1.0@sha256:5520cc26271c024e6ffa45cdf95255bd26b70d71ba4b7e0bc18925bef4128adb
@@ -253,60 +252,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  vault-init:
-    image: hashicorp/vault:2.1.0@sha256:5520cc26271c024e6ffa45cdf95255bd26b70d71ba4b7e0bc18925bef4128adb
-    container_name: cowork-vault-init
-    restart: "no"
-    depends_on:
-      vault:
-        condition: service_healthy
-    environment:
-      VAULT_ADDR: http://cowork-vault:8200
-      VAULT_TOKEN: dev-root-token
-      JWT_SECRET: ${JWT_SECRET}
-      DATAGSM_CLIENT_ID: ${DATAGSM_CLIENT_ID}
-      DATAGSM_WEBHOOK_SECRET: ${DATAGSM_WEBHOOK_SECRET:-}
-      MYSQL_USER: ${MYSQL_USER}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      MONGO_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
-      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-seaweedfsadmin}
-      S3_SECRET_KEY: ${S3_SECRET_KEY:-seaweedfsadmin}
-      S3_TEAM_ACCESS_KEY: ${S3_TEAM_ACCESS_KEY:-local-team}
-      S3_TEAM_SECRET_KEY: ${S3_TEAM_SECRET_KEY:-local-team-secret}
-      S3_USER_ACCESS_KEY: ${S3_USER_ACCESS_KEY:-local-user}
-      S3_USER_SECRET_KEY: ${S3_USER_SECRET_KEY:-local-user-secret}
-      S3_CHAT_ACCESS_KEY: ${S3_CHAT_ACCESS_KEY:-local-chat}
-      S3_CHAT_SECRET_KEY: ${S3_CHAT_SECRET_KEY:-local-chat-secret}
-      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-devkey}
-      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-devsecret}
-      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
-      ACCOUNT_CREDENTIAL_ENCRYPTION_KEY: ${ACCOUNT_CREDENTIAL_ENCRYPTION_KEY}
-      WEBHOOK_SECRET_ENCRYPTION_KEY: ${WEBHOOK_SECRET_ENCRYPTION_KEY:-}
-      WEBHOOK_URL_SIGNING_KEY: ${WEBHOOK_URL_SIGNING_KEY:-}
-      ACCOUNT_SHARE_OAUTH_STATE_SECRET: ${ACCOUNT_SHARE_OAUTH_STATE_SECRET}
-      COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID: ${COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID:-}
-      COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET: ${COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET:-}
-      NOTION_ACCOUNT_SHARE_CLIENT_ID: ${NOTION_ACCOUNT_SHARE_CLIENT_ID:-}
-      NOTION_ACCOUNT_SHARE_CLIENT_SECRET: ${NOTION_ACCOUNT_SHARE_CLIENT_SECRET:-}
-      JIRA_ACCOUNT_SHARE_CLIENT_ID: ${JIRA_ACCOUNT_SHARE_CLIENT_ID:-}
-      JIRA_ACCOUNT_SHARE_CLIENT_SECRET: ${JIRA_ACCOUNT_SHARE_CLIENT_SECRET:-}
-      GOOGLE_ACCOUNT_SHARE_CLIENT_ID: ${GOOGLE_ACCOUNT_SHARE_CLIENT_ID:-}
-      GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET: ${GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET:-}
-      FACEBOOK_ACCOUNT_SHARE_CLIENT_ID: ${FACEBOOK_ACCOUNT_SHARE_CLIENT_ID:-}
-      FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET: ${FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET:-}
-      COWORK_GITHUB_INTERNAL_API_KEY: ${COWORK_GITHUB_INTERNAL_API_KEY:-}
-      COWORK_GITHUB_APP_ID: ${COWORK_GITHUB_APP_ID:-}
-      COWORK_GITHUB_PRIVATE_KEY: ${COWORK_GITHUB_PRIVATE_KEY:-}
-      COWORK_GITHUB_WEBHOOK_SECRET: ${COWORK_GITHUB_WEBHOOK_SECRET:-}
-      TEAM_GITHUB_STATE_SECRET: ${TEAM_GITHUB_STATE_SECRET}
-      COWORK_GITHUB_APP_SLUG: ${COWORK_GITHUB_APP_SLUG}
-    volumes:
-      - ./deploy/config/vault/seed-secrets.sh:/scripts/vault-init.sh:ro
-    entrypoint: ["/bin/sh", "/scripts/vault-init.sh"]
 
   seaweedfs:
     image: chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882
@@ -522,38 +467,15 @@ services:
     command:
       - '--config.file=/etc/blackbox_exporter/config.yml'
 
-  control-plane-monitoring-auth-init:
-    image: busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
-    restart: "no"
-    environment:
-      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_MONITORING_USERNAME:?Generate Config Server credentials}
-      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_MONITORING_PASSWORD:?Generate Config Server credentials}
-    volumes:
-      - config_monitoring_auth:/generated
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        set -eu
-        umask 077
-        printf '%s' "$${CONFIG_CLIENT_USERNAME}" > /generated/config-monitoring-username
-        printf '%s' "$${CONFIG_CLIENT_PASSWORD}" > /generated/config-monitoring-password
-        chown 65534:65534 /generated/config-monitoring-username /generated/config-monitoring-password
-        chmod 0400 /generated/config-monitoring-username /generated/config-monitoring-password
-
   prometheus:
     image: prom/prometheus:v3.14.0@sha256:5ce7540c3c00ef4ab0c9d2c995c6a5b9c421f44b4a115d97a2c7af3b1c21cbb0
     container_name: cowork-prometheus
     restart: unless-stopped
-    depends_on:
-      control-plane-monitoring-auth-init:
-        condition: service_completed_successfully
     ports:
       - "9090:9090"
     volumes:
       - ./deploy/config/monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - config_monitoring_auth:/run/secrets:ro
       - ./deploy/config/monitoring/prometheus/rules:/etc/prometheus/rules:ro
-      - ./deploy/config/monitoring/prometheus/sd:/etc/prometheus/sd:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -719,42 +641,6 @@ services:
 
   # ── Application Services ───────────────────────────────────────────────────
 
-  cowork-config:
-    image: cowork-config:local
-    container_name: cowork-config
-    restart: unless-stopped
-    depends_on:
-      logs-init:
-        condition: service_completed_successfully
-      kafka:
-        condition: service_healthy
-      kafka-init:
-        condition: service_completed_successfully
-      vault-init:
-        condition: service_completed_successfully
-    environment:
-      CONFIG_SERVER_ACCOUNTS_JSON: ${CONFIG_SERVER_ACCOUNTS_JSON:?Generate Config Server credentials}
-      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      VAULT_HOST: cowork-vault
-      S3_BUCKET: ${S3_BUCKET:-cowork-bucket}
-      S3_REGION: ${S3_REGION:-us-east-1}
-      S3_INTERNAL_ENDPOINT: ${S3_INTERNAL_ENDPOINT:-http://seaweedfs:9000}
-      PUBLIC_API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost:8080}
-      PUBLIC_WEB_ORIGINS: ${PUBLIC_WEB_ORIGINS:-http://localhost:3000,http://localhost:3001,http://localhost:5173}
-      LIVEKIT_URL: ${LIVEKIT_URL:-http://cowork-livekit:7880}
-      LIVEKIT_WS_URL: ${LIVEKIT_WS_URL:-ws://localhost:7880}
-    ports:
-      - "${COWORK_CONFIG_HOST_PORT:-8761}:8761"
-    volumes:
-      - cowork_logs:/var/log/cowork
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8761/actuator/health || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 15
-      start_period: 90s
-
   cowork-gateway:
     image: cowork-gateway:local
     container_name: cowork-gateway
@@ -762,15 +648,35 @@ services:
     depends_on:
       logs-init:
         condition: service_completed_successfully
-      cowork-config:
-        condition: service_healthy
       redis:
         condition: service_healthy
     environment:
-      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_GATEWAY_USERNAME:?Generate Config Server credentials}
-      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_GATEWAY_PASSWORD:?Generate Config Server credentials}
-      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
-      CONFIG_SERVER_URL: http://cowork-config:8761
+      APP_CONFIG_PROFILE: "${APP_CONFIG_PROFILE:-local}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_SECURITY_PROTOCOL: "PLAINTEXT"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      PUBLIC_API_BASE_URL: "${PUBLIC_API_BASE_URL:-http://localhost:8080}"
+      PUBLIC_WEB_ORIGINS: "${PUBLIC_WEB_ORIGINS:-http://localhost:3000,http://localhost:3001,http://localhost:5173}"
+      JWT_SECRET: "${JWT_SECRET}"
+      WEBHOOK_URL_SIGNING_KEY: "${WEBHOOK_URL_SIGNING_KEY}"
+      DEV_ORIGIN_CREDENTIAL: "${DEV_ORIGIN_CREDENTIAL:-}"
+      S3_BUCKET: "${S3_BUCKET:-cowork-bucket}"
+      S3_TEAM_INTERNAL_ENDPOINT: "${S3_INTERNAL_ENDPOINT:-http://seaweedfs:9000}"
+      S3_USER_INTERNAL_ENDPOINT: "${S3_INTERNAL_ENDPOINT:-http://seaweedfs:9000}"
+      S3_CHAT_INTERNAL_ENDPOINT: "${S3_INTERNAL_ENDPOINT:-http://seaweedfs:9000}"
+      COWORK_AUTHORIZATION_URL: "http://cowork-authorization:8081"
+      COWORK_USER_URL: "http://cowork-user:8082"
+      COWORK_CHANNEL_URL: "http://cowork-channel:8083"
+      COWORK_PROJECT_URL: "http://cowork-project:8084"
+      COWORK_TEAM_URL: "http://cowork-team:8085"
+      COWORK_NOTIFICATION_URL: "http://cowork-notification:8086"
+      COWORK_CHAT_URL: "http://cowork-chat:8087"
+      COWORK_ROADMAP_URL: "http://cowork-roadmap:8088"
+      COWORK_VOICE_URL: "http://cowork-voice:8089"
+      COWORK_GITHUB_URL: "http://cowork-github:8090"
+      COWORK_PREFERENCE_URL: "http://cowork-preference:9001"
+      COWORK_CHAT_WS_URL: "ws://cowork-chat:8087"
     ports:
       - "8080:8080"
     volumes:
@@ -795,13 +701,18 @@ services:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
-      cowork-config:
-        condition: service_healthy
     environment:
-      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_AUTHORIZATION_USERNAME:?Generate Config Server credentials}
-      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_AUTHORIZATION_PASSWORD:?Generate Config Server credentials}
-      CONFIG_SERVER_URL: http://cowork-config:8761
-      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
+      APP_CONFIG_PROFILE: "${APP_CONFIG_PROFILE:-local}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_SECURITY_PROTOCOL: "PLAINTEXT"
+      DB_HOST: "mysql"
+      DB_PORT: "3306"
+      DB_NAME: "cowork_authorization"
+      DB_USERNAME: "${MYSQL_USER}"
+      DB_PASSWORD: "${MYSQL_PASSWORD}"
+      DATAGSM_CLIENT_ID: "${DATAGSM_CLIENT_ID}"
+      DATAGSM_WEBHOOK_SECRET: "${DATAGSM_WEBHOOK_SECRET:-}"
+      JWT_SECRET: "${JWT_SECRET}"
     ports:
       - "8081:8081"
     volumes:
@@ -828,13 +739,19 @@ services:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
-      cowork-config:
-        condition: service_healthy
     environment:
-      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_PREFERENCE_USERNAME:?Generate Config Server credentials}
-      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_PREFERENCE_PASSWORD:?Generate Config Server credentials}
-      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
-      CONFIG_SERVER_URL: http://cowork-config:8761
+      APP_CONFIG_PROFILE: "${APP_CONFIG_PROFILE:-local}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_SECURITY_PROTOCOL: "PLAINTEXT"
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_NAME: "cowork_preference"
+      DB_USERNAME: "${POSTGRES_USER}"
+      DB_PASSWORD: "${POSTGRES_PASSWORD}"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      WEBHOOK_SECRET_ENCRYPTION_KEY: "${WEBHOOK_SECRET_ENCRYPTION_KEY}"
+      WEBHOOK_URL_SIGNING_KEY: "${WEBHOOK_URL_SIGNING_KEY}"
     ports:
       - "9001:9001"
     volumes:
@@ -857,8 +774,6 @@ services:
         condition: service_healthy
       cowork-authorization:
         condition: service_healthy
-      cowork-config:
-        condition: service_healthy
       redis:
         condition: service_healthy
       seaweedfs-init:
@@ -866,10 +781,23 @@ services:
       kafka-init:
         condition: service_completed_successfully
     environment:
-      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_USER_USERNAME:?Generate Config Server credentials}
-      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_USER_PASSWORD:?Generate Config Server credentials}
-      CONFIG_SERVER_URL: http://cowork-config:8761
-      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
+      APP_CONFIG_PROFILE: "${APP_CONFIG_PROFILE:-local}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_SECURITY_PROTOCOL: "PLAINTEXT"
+      DB_HOST: "mysql"
+      DB_PORT: "3306"
+      DB_NAME: "cowork_user"
+      DB_USERNAME: "${MYSQL_USER}"
+      DB_PASSWORD: "${MYSQL_PASSWORD}"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      PUBLIC_API_BASE_URL: "${PUBLIC_API_BASE_URL:-http://localhost:8080}"
+      PUBLIC_WEB_ORIGINS: "${PUBLIC_WEB_ORIGINS:-http://localhost:3000,http://localhost:3001,http://localhost:5173}"
+      S3_INTERNAL_ENDPOINT: "${S3_INTERNAL_ENDPOINT:-http://seaweedfs:9000}"
+      S3_BUCKET: "${S3_BUCKET:-cowork-bucket}"
+      S3_REGION: "${S3_REGION:-us-east-1}"
+      S3_ACCESS_KEY: "${S3_USER_ACCESS_KEY:-local-user}"
+      S3_SECRET_KEY: "${S3_USER_SECRET_KEY:-local-user-secret}"
     ports:
       - "8082:8082"
     volumes:
@@ -890,18 +818,29 @@ services:
         condition: service_completed_successfully
       mysql:
         condition: service_healthy
-      cowork-config:
-        condition: service_healthy
       seaweedfs-init:
         condition: service_completed_successfully
       kafka-init:
         condition: service_completed_successfully
     environment:
-      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_TEAM_USERNAME:?Generate Config Server credentials}
-      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_TEAM_PASSWORD:?Generate Config Server credentials}
-      COWORK_GITHUB_APP_SLUG: ${COWORK_GITHUB_APP_SLUG}
-      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
-      CONFIG_SERVER_URL: http://cowork-config:8761
+      APP_CONFIG_PROFILE: "${APP_CONFIG_PROFILE:-local}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_SECURITY_PROTOCOL: "PLAINTEXT"
+      DB_HOST: "mysql"
+      DB_PORT: "3306"
+      DB_NAME: "cowork_team"
+      DB_USERNAME: "${MYSQL_USER}"
+      DB_PASSWORD: "${MYSQL_PASSWORD}"
+      PUBLIC_API_BASE_URL: "${PUBLIC_API_BASE_URL:-http://localhost:8080}"
+      PUBLIC_WEB_ORIGINS: "${PUBLIC_WEB_ORIGINS:-http://localhost:3000,http://localhost:3001,http://localhost:5173}"
+      S3_INTERNAL_ENDPOINT: "${S3_INTERNAL_ENDPOINT:-http://seaweedfs:9000}"
+      S3_BUCKET: "${S3_BUCKET:-cowork-bucket}"
+      S3_REGION: "${S3_REGION:-us-east-1}"
+      S3_ACCESS_KEY: "${S3_TEAM_ACCESS_KEY:-local-team}"
+      S3_SECRET_KEY: "${S3_TEAM_SECRET_KEY:-local-team-secret}"
+      TEAM_GITHUB_STATE_SECRET: "${TEAM_GITHUB_STATE_SECRET}"
+      GITHUB_APP_SLUG: "${COWORK_GITHUB_APP_SLUG}"
+      COWORK_GITHUB_APP_SLUG: "${COWORK_GITHUB_APP_SLUG}"
     ports:
       - "8085:8085"
     volumes:
@@ -922,17 +861,31 @@ services:
         condition: service_completed_successfully
       mysql:
         condition: service_healthy
-      cowork-config:
-        condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
     environment:
-      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_CHANNEL_USERNAME:?Generate Config Server credentials}
-      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_CHANNEL_PASSWORD:?Generate Config Server credentials}
-      COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID: ${COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID:-}
-      COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET: ${COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET:-}
-      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
-      CONFIG_SERVER_URL: http://cowork-config:8761
+      APP_CONFIG_PROFILE: "${APP_CONFIG_PROFILE:-local}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_SECURITY_PROTOCOL: "PLAINTEXT"
+      DB_HOST: "mysql"
+      DB_PORT: "3306"
+      DB_NAME: "cowork_channel"
+      DB_USERNAME: "${MYSQL_USER}"
+      DB_PASSWORD: "${MYSQL_PASSWORD}"
+      PUBLIC_API_BASE_URL: "${PUBLIC_API_BASE_URL:-http://localhost:8080}"
+      PUBLIC_WEB_ORIGINS: "${PUBLIC_WEB_ORIGINS:-http://localhost:3000,http://localhost:3001,http://localhost:5173}"
+      ACCOUNT_CREDENTIAL_ENCRYPTION_KEY: "${ACCOUNT_CREDENTIAL_ENCRYPTION_KEY}"
+      ACCOUNT_SHARE_OAUTH_STATE_SECRET: "${ACCOUNT_SHARE_OAUTH_STATE_SECRET}"
+      GITHUB_ACCOUNT_SHARE_CLIENT_ID: "${COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID:-}"
+      GITHUB_ACCOUNT_SHARE_CLIENT_SECRET: "${COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET:-}"
+      NOTION_ACCOUNT_SHARE_CLIENT_ID: "${NOTION_ACCOUNT_SHARE_CLIENT_ID:-}"
+      NOTION_ACCOUNT_SHARE_CLIENT_SECRET: "${NOTION_ACCOUNT_SHARE_CLIENT_SECRET:-}"
+      JIRA_ACCOUNT_SHARE_CLIENT_ID: "${JIRA_ACCOUNT_SHARE_CLIENT_ID:-}"
+      JIRA_ACCOUNT_SHARE_CLIENT_SECRET: "${JIRA_ACCOUNT_SHARE_CLIENT_SECRET:-}"
+      GOOGLE_ACCOUNT_SHARE_CLIENT_ID: "${GOOGLE_ACCOUNT_SHARE_CLIENT_ID:-}"
+      GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET: "${GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET:-}"
+      FACEBOOK_ACCOUNT_SHARE_CLIENT_ID: "${FACEBOOK_ACCOUNT_SHARE_CLIENT_ID:-}"
+      FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET: "${FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET:-}"
     ports:
       - "8083:8083"
     volumes:
@@ -953,16 +906,20 @@ services:
         condition: service_completed_successfully
       mysql:
         condition: service_healthy
-      cowork-config:
-        condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
     environment:
-      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_PROJECT_USERNAME:?Generate Config Server credentials}
-      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_PROJECT_PASSWORD:?Generate Config Server credentials}
-      COWORK_GITHUB_INTERNAL_API_KEY: ${COWORK_GITHUB_INTERNAL_API_KEY:-}
-      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
-      CONFIG_SERVER_URL: http://cowork-config:8761
+      APP_CONFIG_PROFILE: "${APP_CONFIG_PROFILE:-local}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_SECURITY_PROTOCOL: "PLAINTEXT"
+      DB_HOST: "mysql"
+      DB_PORT: "3306"
+      DB_NAME: "cowork_project"
+      DB_USERNAME: "${MYSQL_USER}"
+      DB_PASSWORD: "${MYSQL_PASSWORD}"
+      COWORK_GITHUB_URL: "http://cowork-github:8090"
+      GITHUB_INTERNAL_API_KEY: "${COWORK_GITHUB_INTERNAL_API_KEY:-}"
+      COWORK_GITHUB_INTERNAL_API_KEY: "${COWORK_GITHUB_INTERNAL_API_KEY:-}"
     ports:
       - "${COWORK_PROJECT_HOST_PORT:-8084}:8084"
     volumes:
@@ -983,15 +940,17 @@ services:
         condition: service_completed_successfully
       mysql:
         condition: service_healthy
-      cowork-config:
-        condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
     environment:
-      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_ROADMAP_USERNAME:?Generate Config Server credentials}
-      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_ROADMAP_PASSWORD:?Generate Config Server credentials}
-      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
-      CONFIG_SERVER_URL: http://cowork-config:8761
+      APP_CONFIG_PROFILE: "${APP_CONFIG_PROFILE:-local}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_SECURITY_PROTOCOL: "PLAINTEXT"
+      DB_HOST: "mysql"
+      DB_PORT: "3306"
+      DB_NAME: "cowork_roadmap"
+      DB_USERNAME: "${MYSQL_USER}"
+      DB_PASSWORD: "${MYSQL_PASSWORD}"
     ports:
       - "8088:8088"
     volumes:
@@ -1014,13 +973,13 @@ services:
         condition: service_healthy
       kafka-init:
         condition: service_completed_successfully
-      cowork-config:
-        condition: service_healthy
     environment:
-      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_NOTIFICATION_USERNAME:?Generate Config Server credentials}
-      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_NOTIFICATION_PASSWORD:?Generate Config Server credentials}
-      CONFIG_SERVER_URL: http://cowork-config:8761
-      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
+      APP_CONFIG_PROFILE: "${APP_CONFIG_PROFILE:-local}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_SECURITY_PROTOCOL: "PLAINTEXT"
+      DB_PATH: "/app/data/notification.db"
+      FCM_CREDENTIALS_JSON: "${FCM_CREDENTIALS_JSON:-}"
+      FCM_DATA_ONLY: "${FCM_DATA_ONLY:-false}"
     ports:
       - "8086:8086"
     volumes:
@@ -1052,13 +1011,29 @@ services:
         condition: service_completed_successfully
       elasticsearch:
         condition: service_healthy
-      cowork-config:
-        condition: service_healthy
     environment:
-      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_CHAT_USERNAME:?Generate Config Server credentials}
-      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_CHAT_PASSWORD:?Generate Config Server credentials}
-      CONFIG_SERVER_URL: http://cowork-config:8761
-      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
+      APP_CONFIG_PROFILE: "${APP_CONFIG_PROFILE:-local}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_SECURITY_PROTOCOL: "PLAINTEXT"
+      DB_HOST: "mongodb"
+      DB_PORT: "27017"
+      DB_NAME: "cowork_chat"
+      DB_USERNAME: "${MONGO_ROOT_USERNAME}"
+      DB_PASSWORD: "${MONGO_ROOT_PASSWORD}"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      PUBLIC_API_BASE_URL: "${PUBLIC_API_BASE_URL:-http://localhost:8080}"
+      PUBLIC_WEB_ORIGINS: "${PUBLIC_WEB_ORIGINS:-http://localhost:3000,http://localhost:3001,http://localhost:5173}"
+      S3_INTERNAL_ENDPOINT: "${S3_INTERNAL_ENDPOINT:-http://seaweedfs:9000}"
+      S3_BUCKET: "${S3_BUCKET:-cowork-bucket}"
+      S3_REGION: "${S3_REGION:-us-east-1}"
+      S3_ACCESS_KEY: "${S3_CHAT_ACCESS_KEY:-local-chat}"
+      S3_SECRET_KEY: "${S3_CHAT_SECRET_KEY:-local-chat-secret}"
+      NODE_ENV: "production"
+      PORT: "8087"
+      ELASTICSEARCH_URL: "http://elasticsearch:9200"
+      JWT_SECRET: "${JWT_SECRET}"
+      DISCORD_WEBHOOK_URL: "${DISCORD_WEBHOOK_URL:-}"
     ports:
       - "8087:8087"
     volumes:
@@ -1085,13 +1060,20 @@ services:
         condition: service_completed_successfully
       livekit:
         condition: service_healthy
-      cowork-config:
-        condition: service_healthy
     environment:
-      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_VOICE_USERNAME:?Generate Config Server credentials}
-      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_VOICE_PASSWORD:?Generate Config Server credentials}
-      CONFIG_SERVER_URL: http://cowork-config:8761
-      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
+      APP_CONFIG_PROFILE: "${APP_CONFIG_PROFILE:-local}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_TOPIC_VOICE_EVENT: "voice.event"
+      KAFKA_SECURITY_PROTOCOL: "PLAINTEXT"
+      DB_HOST: "mongodb"
+      DB_PORT: "27017"
+      DB_NAME: "cowork_voice"
+      DB_USERNAME: "${MONGO_ROOT_USERNAME}"
+      DB_PASSWORD: "${MONGO_ROOT_PASSWORD}"
+      LIVEKIT_URL: "${LIVEKIT_URL:-http://cowork-livekit:7880}"
+      LIVEKIT_WS_URL: "${LIVEKIT_WS_URL:-ws://localhost:7880}"
+      LIVEKIT_API_KEY: "${LIVEKIT_API_KEY:-devkey}"
+      LIVEKIT_API_SECRET: "${LIVEKIT_API_SECRET:-devsecret}"
     ports:
       - "8089:8089"
     volumes:
@@ -1118,13 +1100,17 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
-      cowork-config:
-        condition: service_healthy
     environment:
-      CONFIG_CLIENT_USERNAME: ${CONFIG_CLIENT_GITHUB_USERNAME:-}
-      CONFIG_CLIENT_PASSWORD: ${CONFIG_CLIENT_GITHUB_PASSWORD:-}
-      CONFIG_SERVER_URL: http://cowork-config:8761
-      APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
+      APP_CONFIG_PROFILE: "${APP_CONFIG_PROFILE:-local}"
+      KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_SECURITY_PROTOCOL: "PLAINTEXT"
+      REDIS_HOST: "redis"
+      REDIS_PORT: "6379"
+      NODE_ENV: "production"
+      GITHUB_APP_ID: "${COWORK_GITHUB_APP_ID:-}"
+      GITHUB_PRIVATE_KEY: "${COWORK_GITHUB_PRIVATE_KEY:-}"
+      GITHUB_WEBHOOK_SECRET: "${COWORK_GITHUB_WEBHOOK_SECRET:-}"
+      INTERNAL_API_KEY: "${COWORK_GITHUB_INTERNAL_API_KEY:-}"
     ports:
       - "8090:8090"
     volumes:
@@ -1137,7 +1123,6 @@ services:
       start_period: 30s
 
 volumes:
-  config_monitoring_auth:
   mysql_data:
   postgres_data:
   mongo_data:

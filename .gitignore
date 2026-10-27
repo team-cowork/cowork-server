@@ -34,6 +34,11 @@ build/
 
 ### Spring Boot ###
 **/application-local.yml
+!cowork-gateway/src/main/resources/application-local.yml
+!cowork-team/src/main/resources/application-local.yml
+!cowork-channel/src/main/resources/application-local.yml
+!cowork-project/src/main/resources/application-local.yml
+!cowork-roadmap/src/main/resources/application-local.yml
 **/application-local.properties
 **/application-secret.yml
 
@@ -112,14 +117,6 @@ target/
 /cowork-chat/**/.idea/
 /cowork-chat/**/.vscode/
 
-# Config
-/cowork-config/**/*.jar
-/cowork-config/**/*.war
-/cowork-config/**/*.ear
-/cowork-config/**/out/
-/cowork-config/**/.idea/
-/cowork-config/**/.vscode/
-
 # Gateway
 /cowork-gateway/**/*.jar
 /cowork-gateway/**/*.war
@@ -186,5 +183,10 @@ target/
 
 ### Deployment ###
 /deploy/architecture/**/out/
-/deploy/iac/**/inventory*.yml
-!/deploy/iac/**/inventory.example.yml
+
+# Native platform local state and fetched artifacts
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+/deploy/.cache/
+/deploy/.bootstrap/
