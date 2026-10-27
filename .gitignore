@@ -35,6 +35,7 @@ build/
 ### Spring Boot ###
 **/application-local.yml
 !cowork-gateway/src/main/resources/application-local.yml
+!cowork-team/src/main/resources/application-local.yml
 !cowork-channel/src/main/resources/application-local.yml
 !cowork-project/src/main/resources/application-local.yml
 !cowork-roadmap/src/main/resources/application-local.yml
