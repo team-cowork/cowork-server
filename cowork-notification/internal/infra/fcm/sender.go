@@ -148,9 +148,10 @@ func NewSender(ctx context.Context, credentialsJSON string, dataOnly bool) (*Sen
 const fcmBatchSize = 500
 
 // buildMessage copies title and body into data and, in data-only mode, drops the
-// notification payload. Android then needs high priority to wake the app in Doze, and
-// APNs needs a background push (content-available, apns-priority 5) that iOS throttles
-// and does not deliver to a force-quit app.
+// notification payload. Android then needs high priority to wake the app in Doze. iOS
+// gets an alert push with mutable-content instead of a throttled background push, so the
+// client's Notification Service Extension (with the usernotifications.filtering
+// entitlement) can check DataKeyAccountID and suppress it before it is displayed.
 func (s *Sender) buildMessage(m Message, title, body string) *messaging.Message {
 	data := make(map[string]string, len(m.Data)+2)
 	for k, v := range m.Data {
@@ -166,8 +167,11 @@ func (s *Sender) buildMessage(m Message, title, body string) *messaging.Message 
 	}
 	msg.Android = &messaging.AndroidConfig{Priority: "high"}
 	msg.APNS = &messaging.APNSConfig{
-		Headers: map[string]string{"apns-push-type": "background", "apns-priority": "5"},
-		Payload: &messaging.APNSPayload{Aps: &messaging.Aps{ContentAvailable: true}},
+		Headers: map[string]string{"apns-push-type": "alert", "apns-priority": "10"},
+		Payload: &messaging.APNSPayload{Aps: &messaging.Aps{
+			Alert:          &messaging.ApsAlert{Title: title, Body: body},
+			MutableContent: true,
+		}},
 	}
 	return msg
 }
