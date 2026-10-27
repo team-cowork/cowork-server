@@ -1,4 +1,6 @@
 import {
+    forwardRef,
+    Inject,
     Injectable,
     OnModuleDestroy,
     OnModuleInit,
@@ -29,6 +31,7 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
     private io?: Server;
 
     constructor(
+        @Inject(forwardRef(() => ChatService))
         private readonly chatService: ChatService,
         private readonly configService: ConfigService,
         private readonly dicoshot: DicoshotService,
