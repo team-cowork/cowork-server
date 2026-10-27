@@ -1,0 +1,99 @@
+---
+- name: Read the existing agent token from controller state
+  ansible.builtin.set_fact:
+    agent_secret_id: "{{ lookup('ansible.builtin.file', platform_state_dir ~ '/tokens/' ~ token_name, errors='ignore') | default('', true) | trim }}"
+  no_log: true
+
+- name: Allocate a stable agent token
+  ansible.builtin.set_fact:
+    agent_secret_id: >-
+      {{ lookup('ansible.builtin.pipe', 'python3 -c "import uuid; print(uuid.uuid4())"') }}
+  when: agent_secret_id | length == 0
+  no_log: true
+
+- name: Read the agent policy
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:8501/v1/acl/policy/name/cowork-{{ token_name | replace('.', '-') }}"
+    ca_path: /etc/cowork/ca/ca.crt
+    headers:
+      X-Consul-Token: "{{ consul_bootstrap_token }}"
+    status_code: [200, 404]
+  register: existing_agent_policy
+  no_log: true
+
+- name: Apply the agent policy
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:8501/v1/acl/policy{{ '/' ~ existing_agent_policy.json.ID if existing_agent_policy.status == 200 else '' }}"
+    method: PUT
+    ca_path: /etc/cowork/ca/ca.crt
+    headers:
+      X-Consul-Token: "{{ consul_bootstrap_token }}"
+    body_format: json
+    body:
+      Name: "cowork-{{ token_name | replace('.', '-') }}"
+      Rules: "{{ token_policy }}"
+  register: applied_agent_policy
+  when: existing_agent_policy.status == 404 or existing_agent_policy.json.Rules != token_policy
+  changed_when: true
+  no_log: true
+
+- name: Select the agent policy ID
+  ansible.builtin.set_fact:
+    agent_policy_id: "{{ applied_agent_policy.json.ID if not applied_agent_policy.skipped | default(false) else existing_agent_policy.json.ID }}"
+  no_log: true
+
+- name: Check whether the agent token is already registered
+  ansible.builtin.uri:
+    url: https://127.0.0.1:8501/v1/acl/token/self
+    ca_path: /etc/cowork/ca/ca.crt
+    headers:
+      X-Consul-Token: "{{ agent_secret_id }}"
+    status_code: [200, 403, 404]
+  register: existing_agent_token
+  no_log: true
+
+- name: Register the agent token
+  ansible.builtin.uri:
+    url: https://127.0.0.1:8501/v1/acl/token
+    method: PUT
+    ca_path: /etc/cowork/ca/ca.crt
+    headers:
+      X-Consul-Token: "{{ consul_bootstrap_token }}"
+    body_format: json
+    body:
+      SecretID: "{{ agent_secret_id }}"
+      Description: "cowork-{{ token_name | replace('.', '-') }}"
+      Policies:
+        - ID: "{{ agent_policy_id }}"
+  when: existing_agent_token.status != 200
+  changed_when: true
+  no_log: true
+
+- name: Reconcile an existing token after policy replacement or permission drift
+  ansible.builtin.uri:
+    url: "https://127.0.0.1:8501/v1/acl/token/{{ existing_agent_token.json.AccessorID }}"
+    method: PUT
+    ca_path: /etc/cowork/ca/ca.crt
+    headers:
+      X-Consul-Token: "{{ consul_bootstrap_token }}"
+    body_format: json
+    body:
+      AccessorID: "{{ existing_agent_token.json.AccessorID }}"
+      Description: "cowork-{{ token_name | replace('.', '-') }}"
+      Local: "{{ existing_agent_token.json.Local }}"
+      Policies:
+        - ID: "{{ agent_policy_id }}"
+  when:
+    - existing_agent_token.status == 200
+    - (existing_agent_token.json.Policies | default([], true) | map(attribute='ID') | list) != [agent_policy_id]
+  changed_when: true
+  no_log: true
+
+- name: Retain the token outside the repository
+  ansible.builtin.copy:
+    content: "{{ agent_secret_id }}"
+    dest: "{{ platform_state_dir }}/tokens/{{ token_name }}"
+    mode: '0600'
+  delegate_to: localhost
+  become: false
+  no_log: true
