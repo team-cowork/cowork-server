@@ -79,9 +79,6 @@ sdk:
     enabled: false
   swagger:
     enabled: true
-    title: "cowork-channel API"
-    description: "cowork-channel 채널 관리 서비스 API"
-    version: "v1"
     group: "channel"
     paths-to-match:
       - "/teams/**"

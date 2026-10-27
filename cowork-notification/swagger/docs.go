@@ -217,7 +217,7 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "",
 	BasePath:         "/api/notification",
 	Schemes:          []string{},
-	Title:            "cowork-notification API",
+	Title:            "cowork Notification API",
 	Description:      "Firebase 설치(FID) 관리 및 푸시 알림 서비스",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
