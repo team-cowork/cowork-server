@@ -11,7 +11,7 @@ loki.source.file "application_logs" {
   forward_to = [loki.process.application_logs.receiver]
 }
 
-// 시각·필드 정책은 prod(deploy/prod/log-agent/config.alloy)와 같다. 다중 포맷 해석은 두지 않는다.
+// 시각·필드 정책은 prod(deploy/runtime/agents/config.alloy)와 같다. 다중 포맷 해석은 두지 않는다.
 loki.process "application_logs" {
   // prod가 Docker cowork.service 라벨을 쓰듯, service는 배포가 정한 로그 디렉터리 이름을 쓴다.
   stage.regex {

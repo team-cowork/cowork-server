@@ -1,0 +1,11 @@
+apiVersion: 1
+
+datasources:
+  - name: Loki
+    uid: cowork-loki
+    type: loki
+    url: http://127.0.0.1:3101
+    isDefault: false
+    editable: false
+    jsonData:
+      maxLines: 1000
