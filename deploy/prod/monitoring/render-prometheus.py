@@ -69,6 +69,20 @@ if (public_api.scheme != "https" or not public_api.hostname or public_api.userna
         or any(char.isspace() for char in public_api_url)):
     raise ValueError("Gateway PUBLIC_API_BASE_URL must be one HTTPS origin without credentials")
 public_health_url = f"https://{public_api.netloc}/api/health"
+# Unauthenticated business API probes use the same public path as public-gateway.
+# Keep in sync with the gateway-api job in deploy/config/monitoring/prometheus/prometheus.yml.
+gateway_api_probes = [
+    ("authorization", "http_gateway_downstream_post", "/api/authorization/auth/refresh"),
+    ("user", "http_gateway_protected_get", "/api/user/users/me"),
+    ("team", "http_gateway_protected_get", "/api/team/teams"),
+    ("channel", "http_gateway_protected_get", "/api/channel/search/channels"),
+    ("project", "http_gateway_protected_get", "/api/project/projects/me"),
+    ("roadmap", "http_gateway_protected_get", "/api/roadmap/roadmaps/assignments/me"),
+    ("notification", "http_gateway_protected_get", "/api/notification/notifications/stream"),
+    ("chat", "http_gateway_downstream_get", "/api/chat/health"),
+    ("voice", "http_gateway_downstream_post", "/api/voice/voice/webhook"),
+    ("github", "http_gateway_downstream_post", "/api/github/github/webhooks"),
+]
 host_target_configs = host_targets(slots_directory)
 probe_targets = []
 for slot in application_slots:
@@ -161,6 +175,30 @@ scrape_configs = [
         "metrics_path": "/probe",
         "params": {"module": ["http_public_gateway"]},
         "static_configs": [{"targets": [public_health_url], "labels": {"service": "gateway"}}],
+        "relabel_configs": [
+            {"source_labels": ["__address__"], "target_label": "__param_target"},
+            {"source_labels": ["__param_target"], "target_label": "instance"},
+            {"target_label": "__address__", "replacement": "blackbox_exporter:9115"},
+        ],
+    },
+    {
+        "job_name": "gateway-api",
+        "metrics_path": "/probe",
+        "static_configs": [
+            {"targets": [f"https://{public_api.netloc}{path}"], "labels": {"service": service, "__param_module": module}}
+            for service, module, path in gateway_api_probes
+        ],
+        "relabel_configs": [
+            {"source_labels": ["__address__"], "target_label": "__param_target"},
+            {"source_labels": ["__param_target"], "target_label": "instance"},
+            {"target_label": "__address__", "replacement": "blackbox_exporter:9115"},
+        ],
+    },
+    {
+        "job_name": "gateway-cors",
+        "metrics_path": "/probe",
+        "params": {"module": ["http_gateway_cors_preflight"]},
+        "static_configs": [{"targets": [f"https://{public_api.netloc}/api/user/users/me"], "labels": {"service": "gateway"}}],
         "relabel_configs": [
             {"source_labels": ["__address__"], "target_label": "__param_target"},
             {"source_labels": ["__param_target"], "target_label": "instance"},
