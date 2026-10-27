@@ -11,6 +11,25 @@ groups:
           summary: "외부 공개 게이트웨이 API 응답 이상"
           description: "외부 공개 HTTPS /api/health 경로나 상태 점검이 2분 동안 실패했습니다. DNS, TLS, 프록시 라우팅과 게이트웨이 응답을 확인해 주세요."
 
+      # 보호 API는 Gateway 인증 필터의 401, 공개 API는 downstream JSON 응답을 기대한다(blackbox.yml의 http_gateway_* 모듈).
+      - alert: coworkGatewayApiProbeFailed
+        expr: probe_success{job="gateway-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "게이트웨이 경유 업무 API 응답 이상"
+          description: "게이트웨이를 거친 {{ $labels.service }} 업무 API({{ $labels.instance }})의 무인증 요청이 2분 동안 예상 상태를 받지 못했습니다. 게이트웨이 라우트·인증 필터와 downstream 연결을 확인해 주세요."
+
+      - alert: coworkGatewayCorsPreflightFailed
+        expr: probe_success{job="gateway-cors"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "게이트웨이 CORS preflight 실패"
+          description: "게이트웨이 CORS preflight({{ $labels.instance }})가 2분 동안 허용 origin 응답을 돌려주지 않았습니다. 전역 CORS 설정과 PUBLIC_WEB_ORIGINS를 확인해 주세요."
+
       - alert: coworkReadinessFailed
         expr: probe_success{job="blackbox"} == 0
         for: 2m
