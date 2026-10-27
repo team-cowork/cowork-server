@@ -10,8 +10,7 @@
     "optional_secrets": [],
     "immutable_secrets": [
       "WEBHOOK_URL_SIGNING_KEY"
-    ],
-    "kafka_principal": "cowork-gateway"
+    ]
   },
   "authorization": {
     "environment": "Prod-CD(authorization)",

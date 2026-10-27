@@ -479,9 +479,6 @@
         "project.chat-github-issue.result"
       ]
     },
-    "cowork-gateway": {
-      "topics": []
-    },
     "cowork-github": {
       "topics": [
         "project.github-repo.event",
