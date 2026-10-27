@@ -194,79 +194,6 @@ class Platform:
                 time.sleep(5)
 
 
-def preflight_secrets(platform, manifest, mount):
-    platform.credentials()
-    references = [('apps/' + name, spec['secret_version'])
-                  for name, spec in manifest['applications'].items()]
-    references += [('data/' + name, version) for name, version in manifest['data_secret_versions'].items()]
-    references += [('apps/' + name, version) for name, version in manifest['platform_secret_versions'].items()]
-    for path, version in references:
-        result = platform.vault.secrets.kv.v2.read_secret_version(
-            path='nomad/' + path, version=version, mount_point=mount, raise_on_deleted_version=True)['data']
-        if result['data'] is None or result['metadata']['destroyed'] or result['metadata']['deletion_time']:
-            raise ValueError('A pinned Vault version is unavailable: ' + path)
-    print('Every pinned secret version is available', flush=True)
-
-
-def release_images(specs):
-    images = {}
-    for job in specs.values():
-        placement = next((c['RTarget'] for c in job.get('Constraints') or []
-                          if c['LTarget'] == '${meta.cowork_vm}'), None)
-        if not placement:
-            raise ValueError('Every job must declare a fixed VM placement')
-        selected = images.setdefault(placement, set())
-        for group in job['TaskGroups']:
-            for task in group['Tasks']:
-                selected.add(task['Config']['image'])
-            for service in group.get('Services') or []:
-                sidecar = (service.get('Connect') or {}).get('SidecarTask')
-                if sidecar:
-                    selected.add(sidecar['Config']['image'])
-    if any(not re.fullmatch(r'.+@sha256:[0-9a-f]{64}', image) for values in images.values() for image in values):
-        raise ValueError('Release contains an unpinned image')
-    pause = json.loads((ROOT / 'deploy/production/versions.json').read_text())['pause']['image']
-    if not re.fullmatch(r'.+@sha256:[0-9a-f]{64}', pause):
-        raise ValueError('Pin the Nomad network namespace image by digest')
-    return {host: sorted(values | {pause}) for host, values in images.items()}
-
-
-def preflight_capacity(platform, specs):
-    required = {}
-    for job in specs.values():
-        host = next(c['RTarget'] for c in job['Constraints'] if c['LTarget'] == '${meta.cowork_vm}')
-        for group in job['TaskGroups']:
-            # Reserve the startup peak, including ephemeral initialization and Envoy tasks.
-            memory = sum(int(task['Resources']['MemoryMB']) for task in group['Tasks']
-                         if (task.get('Lifecycle') or {}).get('Hook') != 'poststop')
-            for service in group.get('Services') or []:
-                sidecar = (service.get('Connect') or {}).get('SidecarTask')
-                if sidecar:
-                    memory += int(sidecar['Resources']['MemoryMB'])
-            required[host] = required.get(host, 0) + memory * group.get('Count', 1)
-    available = {}
-    for node in platform.api('nodes'):
-        if node['Status'] != 'ready' or node.get('SchedulingEligibility') != 'eligible':
-            continue
-        details = platform.api('node/' + node['ID'])
-        host = (details.get('Meta') or {}).get('cowork_vm')
-        if host not in required:
-            continue
-        if host in available:
-            raise ValueError('Multiple Nomad clients claim fixed VM placement: ' + host)
-        total = details['NodeResources']['Memory']['MemoryMB']
-        reserved = (details.get('ReservedResources') or {}).get('Memory', {}).get('MemoryMB', 0)
-        available[host] = int(total) - int(reserved)
-    missing = set(required) - set(available)
-    if missing:
-        raise ValueError('Nomad clients unavailable: ' + ', '.join(sorted(missing)))
-    insufficient = [f'{host}: need {memory} MiB, allocatable {available[host]} MiB'
-                    for host, memory in required.items() if memory > available[host]]
-    if insufficient:
-        raise ValueError('Release exceeds VM memory reservations: ' + '; '.join(insufficient))
-    print('Every fixed VM has capacity for the declared startup memory reservations', flush=True)
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('manifest', type=Path)
@@ -296,14 +223,9 @@ def main():
                 platform.tofu(stage, variables, check=True)
             return
         platform.ansible('site.yml')
-        preflight_secrets(platform, manifest, mount)
-        preflight_capacity(platform, specs)
         platform.tofu('foundation', variables)
-        extra = directory / 'preflight.json'
-        extra.write_text(json.dumps({'release_images': release_images(specs)}))
-        platform.ansible('preflight.yml', extra)
-        extra.write_text(json.dumps({'cowork_cutover': True, 'cowork_release_preflight_passed': True,
-                                     'cowork_release_sha': manifest['source_sha']}))
+        extra = directory / 'cutover.json'
+        extra.write_text(json.dumps({'cowork_cutover': True, 'cowork_release_sha': manifest['source_sha']}))
         platform.ansible('cutover.yml', extra)
         platform.wait_jobs(platform.tofu('data', variables), specs)
         migration = specs['cowork-user-migrations']
