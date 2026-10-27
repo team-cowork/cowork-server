@@ -1063,6 +1063,7 @@ services:
     environment:
       APP_CONFIG_PROFILE: "${APP_CONFIG_PROFILE:-local}"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+      KAFKA_TOPIC_VOICE_EVENT: "voice.event"
       KAFKA_SECURITY_PROTOCOL: "PLAINTEXT"
       DB_HOST: "mongodb"
       DB_PORT: "27017"
