@@ -1,18 +1,13 @@
 package config
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
-	"net"
 	"os"
 	"strconv"
-	"time"
-
-	"github.com/cowork/cowork-notification/internal/config/springconfig"
 )
 
 type AppConfig struct {
+	KafkaSecurity                 KafkaSecurity
 	Port                          string
 	DBPath                        string
 	DBDSN                         string
@@ -27,184 +22,58 @@ type AppConfig struct {
 	KafkaTopicTeamSetting         string
 	FCMCredentialsJSON            string
 	FCMDataOnly                   bool
-	EurekaServerURL               string
-	EurekaAppName                 string
-	EurekaInstanceHost            string
-	EurekaInstanceID              string
-	EurekaInstancePort            int
 }
 
 func Load() (*AppConfig, error) {
-	flatMap, err := fetchFromConfigServer()
+	security, err := loadKafkaSecurity()
 	if err != nil {
 		return nil, err
 	}
-
 	cfg := &AppConfig{
-		Port:                          lookup(flatMap, "server.port", "8086"),
-		DBPath:                        lookup(flatMap, "db.path", ""),
-		KafkaBrokers:                  lookup(flatMap, "kafka.brokers", ""),
-		KafkaTopicNotify:              lookup(flatMap, "kafka.topic", "notification.trigger"),
-		KafkaGroupID:                  lookup(flatMap, "kafka.group-id", "cowork-notification"),
-		KafkaProjectionGroupID:        lookup(flatMap, "kafka.projection-group-id", "cowork-notification-projections"),
-		KafkaTopicChannelNotification: lookup(flatMap, "kafka.topics.channel-notification", "preference.channel-notification.changed"),
-		KafkaTopicUserProfile:         lookup(flatMap, "kafka.topics.user-profile", "user.profile.event.v2"),
-		KafkaTopicTeamLifecycle:       lookup(flatMap, "kafka.topics.team-lifecycle", "team.lifecycle"),
-		KafkaTopicAccountSetting:      lookup(flatMap, "kafka.topics.account-setting", "preference.account-setting.state.v1"),
-		KafkaTopicTeamSetting:         lookup(flatMap, "kafka.topics.team-setting", "preference.team-setting.state.v1"),
-		FCMCredentialsJSON:            lookup(flatMap, "fcm.credentials-json", ""),
-		EurekaServerURL:               lookup(flatMap, "eureka.server-url", "http://localhost:8761/eureka"),
-		EurekaAppName:                 lookup(flatMap, "eureka.app-name", "cowork-notification"),
-		EurekaInstanceHost:            lookup(flatMap, "eureka.instance.host", "localhost"),
+		KafkaSecurity:                 security,
+		Port:                          getEnv("PORT", "8086"),
+		DBPath:                        os.Getenv("DB_PATH"),
+		KafkaBrokers:                  getEnv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9094"),
+		KafkaTopicNotify:              getEnv("KAFKA_TOPIC_NOTIFICATION", "notification.trigger"),
+		KafkaGroupID:                  getEnv("KAFKA_GROUP_ID", "cowork-notification"),
+		KafkaProjectionGroupID:        getEnv("KAFKA_PROJECTION_GROUP_ID", "cowork-notification-projections"),
+		KafkaTopicChannelNotification: getEnv("KAFKA_TOPIC_CHANNEL_NOTIFICATION_PREFERENCE", "preference.channel-notification.changed"),
+		KafkaTopicUserProfile:         getEnv("KAFKA_TOPIC_USER_PROFILE", "user.profile.event.v2"),
+		KafkaTopicTeamLifecycle:       getEnv("KAFKA_TOPIC_TEAM_LIFECYCLE", "team.lifecycle"),
+		KafkaTopicAccountSetting:      getEnv("KAFKA_TOPIC_ACCOUNT_SETTING", "preference.account-setting.state.v1"),
+		KafkaTopicTeamSetting:         getEnv("KAFKA_TOPIC_TEAM_SETTING", "preference.team-setting.state.v1"),
+		FCMCredentialsJSON:            os.Getenv("FCM_CREDENTIALS_JSON"),
 	}
-
-	portStr := lookup(flatMap, "eureka.instance.port", "8086")
-	dataOnlyStr := lookup(flatMap, "fcm.data-only", "false")
-
-	overrideFromEnv(cfg, &portStr)
-	if v := os.Getenv("FCM_DATA_ONLY"); v != "" {
-		dataOnlyStr = v
+	if path := os.Getenv("FCM_CREDENTIALS_FILE"); path != "" {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return nil, fmt.Errorf("read FCM_CREDENTIALS_FILE: %w", err)
+		}
+		cfg.FCMCredentialsJSON = string(data)
 	}
 	cfg.DBDSN = sqliteDSN(cfg.DBPath)
-
-	eurekaPort, err := strconv.Atoi(portStr)
+	cfg.FCMDataOnly, err = strconv.ParseBool(getEnv("FCM_DATA_ONLY", "false"))
 	if err != nil {
-		return nil, fmt.Errorf("invalid eureka instance port %q: %w", portStr, err)
+		return nil, fmt.Errorf("invalid FCM_DATA_ONLY: %w", err)
 	}
-	cfg.EurekaInstancePort = eurekaPort
-	cfg.FCMDataOnly, err = strconv.ParseBool(dataOnlyStr)
-	if err != nil {
-		return nil, fmt.Errorf("invalid fcm data-only flag %q: %w", dataOnlyStr, err)
-	}
-	if err := configureEurekaIdentity(cfg); err != nil {
-		return nil, err
-	}
-
 	return validate(cfg)
 }
 
-func fetchFromConfigServer() (map[string]string, error) {
-	configURL := os.Getenv("CONFIG_SERVER_URL")
-	if configURL == "" {
-		return map[string]string{}, nil
+func getEnv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
 	}
-
-	profile := getEnv("APP_CONFIG_PROFILE", "local")
-	client := springconfig.NewClient(configURL, "cowork-notification", profile)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	flatMap, err := client.Fetch(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("config server unreachable for profile %s: %w", profile, err)
-	}
-
-	slog.Info("config loaded from config server", "profile", profile, "keys", len(flatMap))
-	return flatMap, nil
-}
-
-func overrideFromEnv(cfg *AppConfig, eurekaPortStr *string) {
-	if v := os.Getenv("FCM_CREDENTIALS_JSON"); v != "" {
-		cfg.FCMCredentialsJSON = v
-	}
-	if v := os.Getenv("DB_PATH"); v != "" {
-		cfg.DBPath = v
-	}
-	if v := os.Getenv("PORT"); v != "" {
-		cfg.Port = v
-	}
-	if v := os.Getenv("KAFKA_BOOTSTRAP_SERVERS"); v != "" {
-		cfg.KafkaBrokers = v
-	}
-	if v := os.Getenv("KAFKA_TOPIC_NOTIFICATION"); v != "" {
-		cfg.KafkaTopicNotify = v
-	}
-	if v := os.Getenv("KAFKA_GROUP_ID"); v != "" {
-		cfg.KafkaGroupID = v
-	}
-	if v := os.Getenv("KAFKA_PROJECTION_GROUP_ID"); v != "" {
-		cfg.KafkaProjectionGroupID = v
-	}
-	if v := os.Getenv("KAFKA_TOPIC_CHANNEL_NOTIFICATION_PREFERENCE"); v != "" {
-		cfg.KafkaTopicChannelNotification = v
-	}
-	if v := os.Getenv("KAFKA_TOPIC_USER_PROFILE"); v != "" {
-		cfg.KafkaTopicUserProfile = v
-	}
-	if v := os.Getenv("KAFKA_TOPIC_TEAM_LIFECYCLE"); v != "" {
-		cfg.KafkaTopicTeamLifecycle = v
-	}
-	if v := os.Getenv("KAFKA_TOPIC_ACCOUNT_SETTING"); v != "" {
-		cfg.KafkaTopicAccountSetting = v
-	}
-	if v := os.Getenv("KAFKA_TOPIC_TEAM_SETTING"); v != "" {
-		cfg.KafkaTopicTeamSetting = v
-	}
-	if v := os.Getenv("EUREKA_SERVER_URL"); v != "" {
-		cfg.EurekaServerURL = v
-	}
-	if v := os.Getenv("EUREKA_APP_NAME"); v != "" {
-		cfg.EurekaAppName = v
-	}
-	if v := os.Getenv("APP_ADVERTISE_ADDRESS"); v != "" {
-		cfg.EurekaInstanceHost = v
-	}
-	if v := os.Getenv("APP_ADVERTISE_PORT"); v != "" {
-		*eurekaPortStr = v
-	}
-}
-
-func configureEurekaIdentity(cfg *AppConfig) error {
-	runtimeIdentity := os.Getenv("EUREKA_USE_RUNTIME_HOSTNAME") == "true"
-	identityHost := cfg.EurekaInstanceHost
-	if runtimeIdentity {
-		hostname, err := os.Hostname()
-		if err != nil {
-			return fmt.Errorf("resolve runtime hostname for Eureka instance id: %w", err)
-		}
-		if hostname == "" {
-			return fmt.Errorf("resolve runtime hostname for Eureka instance id: empty hostname")
-		}
-		identityHost = hostname
-		if explicitHost := os.Getenv("APP_ADVERTISE_ADDRESS"); explicitHost != "" {
-			cfg.EurekaInstanceHost = explicitHost
-		} else if address := firstNonLoopbackIPv4(); address != "" {
-			cfg.EurekaInstanceHost = address
-		} else {
-			return fmt.Errorf("resolve non-loopback address for Eureka registration")
-		}
-	}
-	if explicitID := os.Getenv("EUREKA_INSTANCE_ID"); explicitID != "" {
-		cfg.EurekaInstanceID = explicitID
-	} else {
-		cfg.EurekaInstanceID = fmt.Sprintf("%s:%s:%d", identityHost, cfg.EurekaAppName, cfg.EurekaInstancePort)
-	}
-	return nil
-}
-
-func firstNonLoopbackIPv4() string {
-	addresses, err := net.InterfaceAddrs()
-	if err != nil {
-		return ""
-	}
-	for _, address := range addresses {
-		ip, _, err := net.ParseCIDR(address.String())
-		if err == nil && ip.To4() != nil && !ip.IsLoopback() && !ip.IsLinkLocalUnicast() {
-			return ip.String()
-		}
-	}
-	return ""
+	return fallback
 }
 
 func validate(cfg *AppConfig) (*AppConfig, error) {
 	required := map[string]string{
-		"DB_PATH (or db.path from config server)":                                     cfg.DBPath,
-		"KAFKA_BOOTSTRAP_SERVERS (or kafka.brokers from config server)":               cfg.KafkaBrokers,
-		"KAFKA_TOPIC_NOTIFICATION (or kafka.topic from config server)":                cfg.KafkaTopicNotify,
-		"KAFKA_GROUP_ID (or kafka.group-id from config server)":                       cfg.KafkaGroupID,
-		"KAFKA_PROJECTION_GROUP_ID (or kafka.projection-group-id from config server)": cfg.KafkaProjectionGroupID,
-		"FCM_CREDENTIALS_JSON (or fcm.credentials-json from config server)":           cfg.FCMCredentialsJSON,
+		"DB_PATH":                   cfg.DBPath,
+		"KAFKA_BOOTSTRAP_SERVERS":   cfg.KafkaBrokers,
+		"KAFKA_TOPIC_NOTIFICATION":  cfg.KafkaTopicNotify,
+		"KAFKA_GROUP_ID":            cfg.KafkaGroupID,
+		"KAFKA_PROJECTION_GROUP_ID": cfg.KafkaProjectionGroupID,
+		"FCM_CREDENTIALS_JSON":      cfg.FCMCredentialsJSON,
 	}
 	for name, val := range required {
 		if val == "" {
@@ -213,20 +82,6 @@ func validate(cfg *AppConfig) (*AppConfig, error) {
 	}
 
 	return cfg, nil
-}
-
-func lookup(flatMap map[string]string, key, fallback string) string {
-	if v, ok := flatMap[key]; ok && v != "" {
-		return v
-	}
-	return fallback
-}
-
-func getEnv(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
 }
 
 // Transactions take the write lock at BEGIN, so a read-then-write transaction
