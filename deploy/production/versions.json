@@ -7,10 +7,10 @@
     }
   },
   "consul": {
-    "version": "2.0.4",
+    "version": "2.1.0",
     "sha256": {
-      "linux_amd64": "7a28033850a24fd411722593931625d8b548a27646c3ab70c1379ea7fd2af423",
-      "darwin_arm64": "1f51416d27cf5404106e6b2d24de60d4a3677d1a99045e38986f0cc23cb78303"
+      "linux_amd64": "a9c9cdf1ed93bd29a9671b02e5433131f3f777bab16c076fcef712a2820bfe33",
+      "darwin_arm64": "236d6a579c5fcfb065f416bd3a296ad199a1116c2667481bffdfdc60a5e61468"
     }
   },
   "tofu": {
