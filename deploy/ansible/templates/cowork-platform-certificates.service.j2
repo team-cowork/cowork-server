@@ -1,0 +1,19 @@
+[Unit]
+Description=Renew and distribute Cowork internal host certificates
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=cowork-runner
+Group=cowork-runner
+WorkingDirectory={{ platform_certificate_root }}/deploy/ansible
+Environment=HOME=/home/cowork-runner
+Environment=COWORK_PLATFORM_STATE_DIR=/var/lib/cowork/platform-state
+Environment=ANSIBLE_CONFIG={{ platform_certificate_root }}/deploy/ansible/ansible.cfg
+Environment=ANSIBLE_COLLECTIONS_PATH={{ platform_certificate_collections }}
+Environment=PATH={{ platform_certificate_venv }}/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/flock -n -E 75 /var/lib/cowork/platform-state/deploy.lock {{ platform_certificate_venv }}/bin/ansible-playbook -i {{ platform_certificate_root }}/deploy/ansible/inventory/production.yml {{ platform_certificate_root }}/deploy/ansible/renew-certificates.yml
+SuccessExitStatus=75
+TimeoutStartSec=45min
+UMask=0077
