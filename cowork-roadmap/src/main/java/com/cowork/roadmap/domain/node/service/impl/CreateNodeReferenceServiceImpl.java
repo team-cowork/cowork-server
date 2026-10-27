@@ -14,7 +14,6 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
@@ -31,20 +30,18 @@ public class CreateNodeReferenceServiceImpl implements CreateNodeReferenceServic
      */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public Mono<NodeReferenceResDto> execute(Long userId, String userRole, Long nodeId, NodeReferenceReqDto request) {
-        return nodeLookupSupport.findNodeOrThrow(nodeId)
-                .flatMap(node -> roadmapLookupSupport.findRoadmapForUpdateOrThrow(node.getRoadmapId())
-                        .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
-                                .then(nodeLookupSupport.findNodeOrThrow(nodeId))
-                                .then(Mono.defer(() -> referenceRepository.findNextPosition(nodeId)))
-                                .flatMap(position -> {
-                                    RoadmapNodeReference ref = RoadmapNodeReference.builder()
-                                            .nodeId(nodeId)
-                                            .title(request.title())
-                                            .url(request.url())
-                                            .position(position.intValue())
-                                            .build();
-                                    return referenceRepository.save(ref).map(NodeReferenceResDto::from);
-                                })));
+    public NodeReferenceResDto execute(Long userId, String userRole, Long nodeId, NodeReferenceReqDto request) {
+        Long roadmapId = nodeLookupSupport.findRoadmapIdByNodeOrThrow(nodeId);
+        var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
+        accessGuard.requireMutable(roadmap, userId, userRole);
+        nodeLookupSupport.findNodeOrThrow(nodeId);
+        Long position = referenceRepository.findNextPosition(nodeId);
+        RoadmapNodeReference ref = RoadmapNodeReference.builder()
+                .nodeId(nodeId)
+                .title(request.title())
+                .url(request.url())
+                .position(position.intValue())
+                .build();
+        return NodeReferenceResDto.from(referenceRepository.saveAndFlush(ref));
     }
 }
