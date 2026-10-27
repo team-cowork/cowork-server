@@ -10,19 +10,19 @@ describe('UnreadCounterService.incrementIfPresent', () => {
         return {service, script};
     };
 
-    it('eventId가 있으면 모든 청크가 같은 적용 기록 집합을 공유해 (이벤트, 수신자)당 한 번만 반영한다', async () => {
+    it('eventId가 있으면 정렬한 수신자를 청크로 나눠 청크 번호와 함께 같은 적용 기록 비트맵에 반영한다', async () => {
         const {service, script} = createService();
-        const userIds = Array.from({length: 150}, (_, i) => i + 1);
+        const userIds = Array.from({length: 150}, (_, i) => 150 - i);
 
         await service.incrementIfPresent(3, userIds, 'message-1');
 
         expect(script).toHaveBeenCalledTimes(2);
         const calls = script.mock.calls as unknown[][];
-        for (const [field, appliedKey, ttl] of calls) {
-            expect([field, appliedKey, ttl]).toEqual(['3', 'unread:applied:message-1', 86_400]);
-        }
-
-        expect(calls.flatMap(call => call.slice(3))).toEqual(userIds.map(id => `unread:${id}`));
+        expect(calls.map(call => call.slice(0, 4))).toEqual([
+            ['3', 'unread:applied-chunks:message-1', 86_400, 0],
+            ['3', 'unread:applied-chunks:message-1', 86_400, 1],
+        ]);
+        expect(calls.flatMap(call => call.slice(4))).toEqual(userIds.toReversed().map(id => `unread:${id}`));
     });
 
     it('eventId가 없으면 적용 기록 없이 증가한다', async () => {
@@ -30,6 +30,6 @@ describe('UnreadCounterService.incrementIfPresent', () => {
 
         await service.incrementIfPresent(3, [7]);
 
-        expect(script).toHaveBeenCalledWith('3', '', 86_400, 'unread:7');
+        expect(script).toHaveBeenCalledWith('3', '', 86_400, 0, 'unread:7');
     });
 });
