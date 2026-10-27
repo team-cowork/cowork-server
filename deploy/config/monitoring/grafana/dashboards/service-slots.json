@@ -139,6 +139,30 @@
         }
       },
       "options": { "mergeValues": true, "rowHeight": 0.8, "showValue": "auto", "alignValue": "left", "legend": {"showLegend": false}, "tooltip": {"mode": "single", "sort": "none"} }
+    },
+    {
+      "id": 6,
+      "type": "state-timeline",
+      "title": "게이트웨이 경유 업무 API",
+      "description": "게이트웨이를 거친 서비스별 대표 API의 무인증 요청 결과와 CORS preflight 결과입니다. 공개 API가 downstream 응답을 돌려주면 정상으로 봅니다. 데이터가 없는 구간은 비워 둡니다.",
+      "datasource": { "type": "prometheus", "uid": "cowork-prometheus" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "targets": [
+        { "expr": "min by (service) (probe_success{job=\"gateway-api\",service=~\"$service\"})", "refId": "A", "legendFormat": "{{service}}", "instant": false, "range": true },
+        { "expr": "probe_success{job=\"gateway-cors\"}", "refId": "B", "legendFormat": "CORS preflight", "instant": false, "range": true }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "noValue": "N/A",
+          "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}],
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] },
+          "custom": { "fillOpacity": 80, "lineWidth": 0 }
+        }
+      },
+      "options": { "mergeValues": true, "rowHeight": 0.8, "showValue": "auto", "alignValue": "left", "legend": {"showLegend": false}, "tooltip": {"mode": "single", "sort": "none"} }
     }
   ]
 }

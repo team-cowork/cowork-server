@@ -69,6 +69,22 @@ if (public_api.scheme != "https" or not public_api.hostname or public_api.userna
         or any(char.isspace() for char in public_api_url)):
     raise ValueError("Gateway PUBLIC_API_BASE_URL must be one HTTPS origin without credentials")
 public_health_url = f"https://{public_api.netloc}/api/health"
+# Unauthenticated business API probes use the same public path as public-gateway.
+# Keep in sync with the gateway-api job in deploy/config/monitoring/prometheus/prometheus.yml.
+gateway_api_probes = [
+    ("authorization", "http_gateway_downstream_post", "/api/authorization/auth/refresh"),
+    ("chat", "http_gateway_downstream_get", "/api/chat/health"),
+    ("voice", "http_gateway_downstream_post", "/api/voice/voice/webhook"),
+    ("github", "http_gateway_downstream_post", "/api/github/github/webhooks"),
+]
+# The CORS preflight probe sends the first HTTPS web origin that Gateway allows in prod, not a development origin.
+# Like PUBLIC_API_BASE_URL, prefer the deployed GitHub variable; Vault-backed deploys do not fall back to the slot value.
+web_origins = os.environ.get(
+    "PUBLIC_WEB_ORIGINS", json.loads((slots_directory / "config.json").read_text())["runtime"]["PUBLIC_WEB_ORIGINS"]
+).split(",")
+cors_probe_origin = next((origin.strip() for origin in web_origins if origin.strip().startswith("https://")), None)
+if not cors_probe_origin or urlsplit(cors_probe_origin).path or any(char in cors_probe_origin for char in "|&\\"):
+    raise ValueError("Config PUBLIC_WEB_ORIGINS must include an HTTPS origin for the CORS probe")
 host_target_configs = host_targets(slots_directory)
 probe_targets = []
 for slot in application_slots:
@@ -168,6 +184,30 @@ scrape_configs = [
         ],
     },
     {
+        "job_name": "gateway-api",
+        "metrics_path": "/probe",
+        "static_configs": [
+            {"targets": [f"https://{public_api.netloc}{path}"], "labels": {"service": service, "__param_module": module}}
+            for service, module, path in gateway_api_probes
+        ],
+        "relabel_configs": [
+            {"source_labels": ["__address__"], "target_label": "__param_target"},
+            {"source_labels": ["__param_target"], "target_label": "instance"},
+            {"target_label": "__address__", "replacement": "blackbox_exporter:9115"},
+        ],
+    },
+    {
+        "job_name": "gateway-cors",
+        "metrics_path": "/probe",
+        "params": {"module": ["http_gateway_cors_preflight"]},
+        "static_configs": [{"targets": [f"https://{public_api.netloc}/api/user/users/me"], "labels": {"service": "gateway"}}],
+        "relabel_configs": [
+            {"source_labels": ["__address__"], "target_label": "__param_target"},
+            {"source_labels": ["__param_target"], "target_label": "instance"},
+            {"target_label": "__address__", "replacement": "blackbox_exporter:9115"},
+        ],
+    },
+    {
         # Config reaches Vault through this listener; the probe tracks its certificate expiry.
         "job_name": "vault-tls",
         "metrics_path": "/probe",
@@ -250,3 +290,4 @@ for module, database in sorted(database_catalog.items()):
     })
 expected_rules["groups"].append({"name": "cowork-expected-databases", "rules": database_rules})
 Path(sys.argv[1] + ".rules.json").write_text(json.dumps(expected_rules, indent=2) + "\n")
+Path(sys.argv[1] + ".cors-origin").write_text(cors_probe_origin)
