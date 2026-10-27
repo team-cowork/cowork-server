@@ -33,6 +33,7 @@ import (
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 const (
@@ -50,7 +51,14 @@ func main() {
 		log.Fatalf("failed to load config: %v", err)
 	}
 
-	db, err := gorm.Open(mysql.Open(cfg.DBDSN), &gorm.Config{})
+	// gorm 기본 로거는 stdout에 plain text를 남기므로 JSON 로그 규약을 따르는 slog로 보낸다.
+	db, err := gorm.Open(mysql.Open(cfg.DBDSN), &gorm.Config{
+		Logger: gormlogger.NewSlogLogger(logger.Default, gormlogger.Config{
+			SlowThreshold:             200 * time.Millisecond,
+			LogLevel:                  gormlogger.Warn,
+			IgnoreRecordNotFoundError: true,
+		}),
+	})
 	if err != nil {
 		log.Fatalf("failed to connect to database: %v", err)
 	}

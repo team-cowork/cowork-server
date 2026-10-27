@@ -462,6 +462,8 @@ services:
       - "3100:3100"
     volumes:
       - ./deploy/config/monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      # prod의 prepare-configs.sh처럼 ruler의 단일 테넌트("fake") 디렉터리에 규칙을 둔다.
+      - ./deploy/config/monitoring/loki/rules:/etc/loki/rules/fake:ro
       - loki_data:/loki
     command: -config.file=/etc/loki/local-config.yaml
     healthcheck:
@@ -477,6 +479,8 @@ services:
     image: grafana/alloy:v1.19.2@sha256:b8ec653c44235fbe910879145dac3597d66b0aaecf60bcbbe82580767771a839
     container_name: cowork-alloy
     restart: unless-stopped
+    # prod log-agent와 같이 서비스별 UID가 쓴 로그를 모두 읽는다.
+    user: "0:0"
     environment:
       ENV: ${APP_CONFIG_PROFILE:-local}
     volumes:
@@ -487,6 +491,25 @@ services:
     depends_on:
       loki:
         condition: service_healthy
+
+  # 로그 수집 경로 생존 신호. 1분마다 남기는 이 로그가 끊기면 Loki 규칙 coworkLogCollectionStopped가 알린다.
+  # ponytail: 회전 없이 하루 약 170KB씩 늘어난다. 로컬 볼륨을 오래 유지해 문제가 되면 크기 기준 회전을 넣는다.
+  log-heartbeat:
+    image: busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
+    restart: unless-stopped
+    # PID 1인 sh는 SIGTERM을 무시하므로 init이 신호를 전달해 바로 종료되게 한다.
+    init: true
+    user: "10001:10001"
+    network_mode: none
+    depends_on:
+      logs-init:
+        condition: service_completed_successfully
+    volumes:
+      - cowork_logs:/var/log/cowork
+    command:
+      - sh
+      - -ec
+      - mkdir -p /var/log/cowork/log-agent; while :; do date -u +'{"@timestamp":"%Y-%m-%dT%H:%M:%SZ","level":"INFO","service":"cowork-log-agent","module":"heartbeat","message":"heartbeat"}' >> /var/log/cowork/log-agent/app.log; sleep 60; done
 
   blackbox_exporter:
     image: prom/blackbox-exporter:v0.28.0@sha256:e753ff9f3fc458d02cca5eddab5a77e1c175eee484a8925ac7d524f04366c2fc
@@ -764,6 +787,8 @@ services:
     container_name: cowork-authorization
     restart: unless-stopped
     depends_on:
+      logs-init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
       kafka:
@@ -779,6 +804,8 @@ services:
       APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
     ports:
       - "8081:8081"
+    volumes:
+      - cowork_logs:/var/log/cowork
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/health || exit 1"]
       interval: 10s
