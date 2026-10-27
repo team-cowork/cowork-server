@@ -51,8 +51,8 @@ modules:
       fail_if_header_not_matches:
         - header: Content-Type
           regexp: '^application/json(;.*)?$'
-  # Gateway global CORS preflight. Prod replaces this local Origin with the config slot's first HTTPS PUBLIC_WEB_ORIGINS entry
-  # (deploy/prod/monitoring/prepare-configs.sh).
+  # Gateway global CORS preflight. Prod replaces this local Origin with the first HTTPS entry of the deployed PUBLIC_WEB_ORIGINS
+  # (deploy/prod/monitoring/render-prometheus.py, prepare-configs.sh).
   http_gateway_cors_preflight:
     prober: http
     timeout: 5s
