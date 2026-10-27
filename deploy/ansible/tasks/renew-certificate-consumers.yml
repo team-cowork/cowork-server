@@ -42,6 +42,6 @@
 - name: Reconcile the certificates loaded by running services
   ansible.builtin.script:
     cmd: "{{ playbook_dir }}/files/renew-certificate-consumers.py --host {{ private_ip | quote }} --role {{ inventory_hostname | quote }}"
-    executable: /usr/bin/python3
+    executable: "{{ platform_python_binary }}"
   register: platform_renewal_consumers
   changed_when: platform_renewal_consumers.rc == 0 and (platform_renewal_consumers.stdout | trim | from_json).reloaded | length > 0
