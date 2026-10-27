@@ -43,10 +43,10 @@ def SQLite(label):
 
 SERVICES = [
     ("authorization", MySQL, "10.0.0.140:8081"),
-    ("user", MySQL, "10.0.0.144:8082"),
-    ("channel", MySQL, "10.0.0.97:8083"),
+    ("user", MySQL, "10.0.0.185:8082"),
+    ("channel", MySQL, "10.0.0.74:8083"),
     ("project", MySQL, "10.0.0.88:8084"),
-    ("team", MySQL, "10.0.0.74:8085"),
+    ("team", MySQL, "10.0.0.97:8085"),
     ("notification", SQLite, "10.0.0.131:8086"),
     ("chat", MongoDB, "10.0.0.174:8087"),
     ("roadmap", MySQL, "10.0.0.132:8088"),
@@ -77,7 +77,7 @@ def platform(extend=None):
             gateway = service("gateway")
 
         with Cluster("Control Plane VMs"):
-            with Cluster("10.0.0.169:8761"):
+            with Cluster("10.0.0.144:8761"):
                 config = service("config", "Config + Eureka")
             with Cluster("10.0.0.91:8200"):
                 vault = Vault("Vault")
