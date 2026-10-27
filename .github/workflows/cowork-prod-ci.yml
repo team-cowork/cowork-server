@@ -111,7 +111,7 @@ jobs:
         run: |
           python3 deploy/production/install-tools.py --directory "$RUNNER_TEMP/cowork-tools" --tools nomad
           echo "$RUNNER_TEMP/cowork-tools" >> "$GITHUB_PATH"
-      - name: Validate Deployment Syntax And Compose Paths
+      - name: Validate Deployment Syntax
         run: python3 deploy/validate.py
       - name: Select The Last Successful Push Baseline
         id: baseline
