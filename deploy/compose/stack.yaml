@@ -477,6 +477,8 @@ services:
     image: grafana/alloy:v1.19.2@sha256:b8ec653c44235fbe910879145dac3597d66b0aaecf60bcbbe82580767771a839
     container_name: cowork-alloy
     restart: unless-stopped
+    # prod log-agent와 같이 서비스별 UID가 쓴 로그를 모두 읽는다.
+    user: "0:0"
     environment:
       ENV: ${APP_CONFIG_PROFILE:-local}
     volumes:
@@ -764,6 +766,8 @@ services:
     container_name: cowork-authorization
     restart: unless-stopped
     depends_on:
+      logs-init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
       kafka:
@@ -779,6 +783,8 @@ services:
       APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
     ports:
       - "8081:8081"
+    volumes:
+      - cowork_logs:/var/log/cowork
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/health || exit 1"]
       interval: 10s

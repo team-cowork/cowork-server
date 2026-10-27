@@ -14,10 +14,13 @@ paths:
 
 - Every service writes one JSON object per log line to stdout, with at least these keys: `@timestamp`
   (ISO-8601/RFC3339Nano), `level` (uppercase `TRACE`/`DEBUG`/`INFO`/`WARN`/`ERROR`), `service`
-  (`cowork-<name>`), `module`, `message`. Alloy's local pipeline (`deploy/config/monitoring/alloy/config.alloy`)
-  reads exactly these key names as Loki labels; it has no per-service fallback, unlike the
-  defensive multi-format parsing in `deploy/prod/log-agent/config.alloy`. Do not grow that prod
-  fallback further — fix the app's log output instead.
+  (`cowork-<name>`), `module`, `message`. Both Alloy pipelines use `@timestamp` as the log time (keeping
+  the read time when it is missing or unparseable), label `level` (`UNKNOWN` when missing), take
+  `service` from the deployment (prod's Docker `cowork.service` label, the local
+  `/var/log/cowork/<service>` directory), and label application lines without `@timestamp` or `level`
+  `parse_error="true"`. The local pipeline (`deploy/config/monitoring/alloy/config.alloy`) has no format
+  fallback, unlike the defensive multi-format parsing in `deploy/prod/log-agent/config.alloy`. Do not
+  grow that prod fallback further — fix the app's log output instead.
 - `module` is derived automatically from the logger/caller, not set per call site. Logback's
   `ModuleNameConverter` takes the segment right after `domain`/`global` in `com.cowork.<service>.*`
   loggers (so logs group by feature, not by layer name like `service`/`impl`), and falls back to the
