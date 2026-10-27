@@ -93,6 +93,9 @@ job "cowork-team-storage" {
       driver       = "docker"
       user         = "10001:10001"
       kill_timeout = "60s"
+      env {
+        WEED_LEVELDB2_DIR = "/storage/data/filerldb2"
+      }
       config {
         image    = "chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882"
         args     = ["server", "-dir=/storage/data", "-ip=127.0.0.1", "-ip.bind=127.0.0.1", "-master.port=9333", "-master.telemetry=false", "-master.volumeSizeLimitMB=1024", "-volume.port=8080", "-volume.max=8", "-volume.minFreeSpace=2GiB", "-filer.port=8888", "-s3", "-s3.port=9000", "-s3.ip.bind=127.0.0.1", "-s3.port.iceberg=0", "-s3.port.lance=0", "-s3.config=/secrets/s3-config.json", "-s3.iam=false", "-s3.autoCreateBucket=false", "-s3.allowedOrigins=${var.runtime_env["PUBLIC_WEB_ORIGINS"]}"]
