@@ -71,9 +71,6 @@ sdk:
     enabled: false
   swagger:
     enabled: true
-    title: "cowork-project API"
-    description: "cowork-project 프로젝트 관리 서비스 API"
-    version: "v1"
     group: "project"
     paths-to-match:
       - "/projects/**"
