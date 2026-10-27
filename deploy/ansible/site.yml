@@ -6,10 +6,12 @@
   tasks:
     - ansible.builtin.include_tasks: tasks/bootstrap-state.yml
 
-- name: Prepare active VM hosts without stopping existing workloads
+- name: Reconcile pinned runtimes and active VM hosts
   hosts: control_plane:nomad_clients:vault_hosts
   become: true
   gather_facts: true
+  serial: 4
+  any_errors_fatal: true
   tasks:
     - ansible.builtin.include_tasks: tasks/base.yml
 

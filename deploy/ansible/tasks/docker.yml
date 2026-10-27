@@ -1,0 +1,119 @@
+---
+- name: Require the declared Docker package platform
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.distribution == 'Ubuntu'
+      - ansible_facts.distribution_release == platform_versions.docker.ubuntu_release
+      - ansible_facts.architecture == 'x86_64'
+- name: Create the APT keyring directory
+  ansible.builtin.file:
+    path: /etc/apt/keyrings
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+- name: Install the verified Docker repository signing key
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/ubuntu/gpg
+    checksum: "sha256:{{ platform_versions.docker.repository_key_sha256 }}"
+    dest: /etc/apt/keyrings/cowork-docker.asc
+    owner: root
+    group: root
+    mode: '0644'
+- name: Remove the superseded Docker repository list
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/docker.list
+    state: absent
+- name: Declare the signed Docker package repository
+  ansible.builtin.template:
+    src: docker.sources.j2
+    dest: /etc/apt/sources.list.d/docker.sources
+    owner: root
+    group: root
+    mode: '0644'
+- name: Refresh package availability before replacing a Docker installation
+  ansible.builtin.apt:
+    update_cache: true
+- name: Require each exact Docker package version to be available
+  ansible.builtin.command:
+    argv: [apt-cache, show, "{{ item.key }}={{ item.value }}"]
+  loop: "{{ platform_versions.docker.packages | dict2items }}"
+  register: platform_docker_available
+  changed_when: false
+  failed_when: >-
+    platform_docker_available.rc != 0 or ('Version: ' ~ item.value) not in platform_docker_available.stdout
+- name: Inspect installed packages before replacing conflicting Docker packages
+  ansible.builtin.package_facts:
+    manager: apt
+- name: Remove conflicting distribution packages while retaining Docker data
+  ansible.builtin.apt:
+    name: "{{ ['docker.io', 'docker-compose', 'docker-compose-v2', 'docker-doc', 'docker-buildx', 'podman-docker', 'containerd', 'runc'] | select('in', ansible_facts.packages) | list }}"
+    state: absent
+    purge: false
+    autoremove: false
+    force_apt_get: true
+    allow_change_held_packages: true
+  when: "['docker.io', 'docker-compose', 'docker-compose-v2', 'docker-doc', 'docker-buildx', 'podman-docker', 'containerd', 'runc'] | select('in', ansible_facts.packages) | list | length > 0"
+- name: Install the exact Docker Engine CLI and container runtime versions
+  ansible.builtin.apt:
+    name: "{{ platform_versions.docker.packages.items() | map('join', '=') | list }}"
+    state: present
+    force_apt_get: true
+    install_recommends: false
+    allow_downgrade: true
+    allow_change_held_packages: true
+    fail_on_autoremove: true
+    policy_rc_d: 101
+  register: platform_docker_packages
+- name: Keep unattended package upgrades from changing the declared runtime
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop: "{{ platform_versions.docker.packages.keys() | list }}"
+- name: Inspect the running Docker runtime before reconciliation
+  ansible.builtin.command:
+    argv: [docker, version, --format, '{{ "{{" }}json .{{ "}}" }}']
+  register: platform_docker_running
+  changed_when: false
+  failed_when: false
+- name: Decide whether installed runtime changes need a daemon restart
+  ansible.builtin.set_fact:
+    platform_docker_restart: >-
+      {{ platform_docker_packages.changed or platform_docker_running.rc != 0
+         or (platform_docker_running.stdout | from_json).Server.Version != platform_versions.docker.version
+         or ((platform_docker_running.stdout | from_json).Server.Components
+             | selectattr('Name', 'equalto', 'containerd') | map(attribute='Version')
+             | map('regex_replace', '^v', '') | list) != [platform_versions.docker.containerd_version] }}
+- name: Start or reconcile the declared container runtime
+  ansible.builtin.systemd_service:
+    name: containerd
+    daemon_reload: true
+    enabled: true
+    state: "{{ 'restarted' if platform_docker_restart else 'started' }}"
+- name: Start or reconcile the declared Docker Engine
+  ansible.builtin.systemd_service:
+    name: docker
+    enabled: true
+    state: "{{ 'restarted' if platform_docker_restart else 'started' }}"
+- name: Verify the installed Docker package versions
+  ansible.builtin.command:
+    argv: [dpkg-query, --show, '--showformat=${Version}', '{{ item.key }}']
+    expand_argument_vars: false
+  loop: "{{ platform_versions.docker.packages | dict2items }}"
+  register: platform_docker_package_version
+  changed_when: false
+  failed_when: platform_docker_package_version.rc != 0 or platform_docker_package_version.stdout | trim != item.value
+- name: Verify the Docker API and CLI use the declared versions
+  ansible.builtin.command:
+    argv: [docker, version, --format, '{{ "{{" }}json .{{ "}}" }}']
+  register: platform_docker_verified
+  changed_when: false
+  until: >-
+    platform_docker_verified.rc == 0
+    and (platform_docker_verified.stdout | from_json).Client.Version == platform_versions.docker.version
+    and (platform_docker_verified.stdout | from_json).Server.Version == platform_versions.docker.version
+    and ((platform_docker_verified.stdout | from_json).Server.Components
+         | selectattr('Name', 'equalto', 'containerd') | map(attribute='Version')
+         | map('regex_replace', '^v', '') | list) == [platform_versions.docker.containerd_version]
+  retries: 15
+  delay: 2
