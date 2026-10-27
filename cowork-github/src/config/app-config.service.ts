@@ -42,10 +42,12 @@ export class AppConfigService {
 
         if (protocol !== 'PLAINTEXT') {
             const caFile = this.configService.get<string>('KAFKA_SSL_CA_LOCATION');
-            config.ssl = caFile === undefined || caFile === '' ? true : {
-                rejectUnauthorized: true,
-                ca: [readFileSync(caFile, 'utf8')],
-            };
+            config.ssl = caFile === undefined || caFile === ''
+                ? true
+                : {
+                    rejectUnauthorized: true,
+                    ca: [readFileSync(caFile, 'utf8')],
+                };
         }
 
         if (protocol === 'SASL_SSL') {
