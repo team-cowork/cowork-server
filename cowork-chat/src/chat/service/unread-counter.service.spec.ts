@@ -33,3 +33,49 @@ describe('UnreadCounterService.incrementIfPresent', () => {
         expect(script).toHaveBeenCalledWith('3', '', 86_400, 0, 'unread:7');
     });
 });
+
+describe('UnreadCounterService 정확한 값 기록', () => {
+    const createService = (execResult: unknown = [[null, 1]]) => {
+        const script = jest.fn();
+        const pipeline = {setIfNotStaleScript: script, exec: jest.fn().mockResolvedValue(execResult)};
+        const service = new UnreadCounterService({} as ConfigService);
+        Object.assign(service, {client: {pipeline: () => pipeline}});
+        return {service, script, pipeline};
+    };
+
+    it('읽음 처리 값은 기준 읽음 위치와 함께 같은 위치면 덮어쓰도록 기록한다', async () => {
+        const {service, script} = createService();
+
+        const applied = await service.set(3, 7, {count: 2, readCursor: 'aa'});
+
+        expect(script).toHaveBeenCalledWith('unread:7', '3', '3:cursor', 'aa', '2', 86_400, '1');
+        expect(applied).toBe(true);
+    });
+
+    it('더 최신 읽음 위치의 값이 있어 버려지면 false를 반환한다', async () => {
+        const {service} = createService([[null, 0]]);
+
+        await expect(service.set(3, 7, {count: 1, readCursor: 'aa'})).resolves.toBe(false);
+    });
+
+    it('Redis 오류면 기록 여부를 알 수 없으므로 null을 반환한다', async () => {
+        const {service, pipeline} = createService();
+        pipeline.exec.mockRejectedValue(new Error('down'));
+
+        await expect(service.set(3, 7, {count: 1, readCursor: 'aa'})).resolves.toBeNull();
+    });
+
+    it('캐시미스 채움은 채널마다 기준 읽음 위치를 넘기고 같은 위치의 기존 값은 덮지 않는다', async () => {
+        const {service, script} = createService();
+
+        await service.setMany(7, new Map([
+            [3, {count: 4, readCursor: null}],
+            [5, {count: 0, readCursor: 'bb'}],
+        ]));
+
+        expect(script.mock.calls).toEqual([
+            ['unread:7', '3', '3:cursor', '', '4', 86_400, '0'],
+            ['unread:7', '5', '5:cursor', 'bb', '0', 86_400, '0'],
+        ]);
+    });
+});
