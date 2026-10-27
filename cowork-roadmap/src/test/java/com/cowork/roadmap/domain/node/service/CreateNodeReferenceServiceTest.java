@@ -1,13 +1,14 @@
 package com.cowork.roadmap.domain.node.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -25,8 +26,6 @@ import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
-import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
 import team.themoment.sdk.exception.ExpectedException;
 
 class CreateNodeReferenceServiceTest {
@@ -47,37 +46,36 @@ class CreateNodeReferenceServiceTest {
 
     @Test
     void createReference_usesNextPositionAfterMax() {
-        when(nodeRepository.findById(5L)).thenReturn(Mono.just(node(5L, 10L)));
-        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap(10L)));
-        when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        when(referenceRepository.findNextPosition(5L)).thenReturn(Mono.just(3L));
-        when(referenceRepository.save(any())).thenAnswer(invocation -> {
+        when(nodeRepository.findRoadmapIdById(5L)).thenReturn(Optional.of(10L));
+        when(nodeRepository.findById(5L)).thenReturn(Optional.of(node(5L, 10L)));
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
+
+        when(referenceRepository.findNextPosition(5L)).thenReturn(3L);
+        when(referenceRepository.saveAndFlush(any())).thenAnswer(invocation -> {
             RoadmapNodeReference ref = invocation.getArgument(0);
             RoadmapNodeReference saved = ref.toBuilder().id(100L).build();
-            // 실제 R2DBC save()는 @CreatedDate/@LastModifiedDate auditing이 채운 값을 돌려준다.
+            // 실제 JPA saveAndFlush()는 @CreatedDate/@LastModifiedDate auditing이 채운 값을 돌려준다.
             saved.setCreatedAt(LocalDateTime.now());
             saved.setUpdatedAt(LocalDateTime.now());
-            return Mono.just(saved);
+            return saved;
         });
 
         NodeReferenceReqDto request = new NodeReferenceReqDto("자료", "https://example.com");
 
-        StepVerifier.create(createNodeReferenceService.execute(7L, "ADMIN", 5L, request)).assertNext(response -> {
-            assertThat(response.position()).isEqualTo(3);
-            assertThat(response.title()).isEqualTo("자료");
-        }).verifyComplete();
+        var response = createNodeReferenceService.execute(7L, "ADMIN", 5L, request);
+        assertThat(response.position()).isEqualTo(3);
+        assertThat(response.title()).isEqualTo("자료");
     }
 
     @Test
     void createReference_nodeNotFound_failsWithNotFound() {
-        when(nodeRepository.findById(99L)).thenReturn(Mono.empty());
+        when(nodeRepository.findRoadmapIdById(99L)).thenReturn(Optional.empty());
 
         NodeReferenceReqDto request = new NodeReferenceReqDto("자료", "https://example.com");
 
-        StepVerifier.create(createNodeReferenceService.execute(7L, "ADMIN", 99L, request))
-                .expectErrorMatches(error -> error instanceof ExpectedException expected
-                        && expected.getStatusCode() == HttpStatus.NOT_FOUND)
-                .verify();
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> createNodeReferenceService.execute(7L, "ADMIN", 99L, request));
+        assertTrue(error.getStatusCode() == HttpStatus.NOT_FOUND);
     }
 
     private static Roadmap roadmap(Long id) {

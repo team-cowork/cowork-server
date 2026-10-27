@@ -7,7 +7,7 @@ import {
 import {ConfigService} from '@nestjs/config';
 import {Kafka, Producer} from 'kafkajs';
 import {DicoshotService} from 'dicoshot-nest';
-import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {getKafkaClientConfig} from '../../common/config/config.util';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {ChatGithubIssueCreateCommand} from './event/chat-github-issue.event';
 
@@ -39,7 +39,7 @@ export class ChatGithubIssueCommandProducer implements OnModuleInit, OnModuleDes
     onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-chat-github-issue-command',
-            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
+            ...getKafkaClientConfig(this.configService),
         });
         this.producer = kafka.producer({idempotent: true});
         void this.ensureConnected().catch((error: unknown) => {

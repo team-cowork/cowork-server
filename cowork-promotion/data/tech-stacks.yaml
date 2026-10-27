@@ -27,8 +27,6 @@ categories:
     items:
       - { name: Spring Boot, color: "#6db33f" }
       - { name: Spring Cloud Gateway, color: "#6db33f" }
-      - { name: Spring Cloud Config, color: "#6db33f" }
-      - { name: Eureka, color: "#e50914" }
       - { name: OpenFeign, color: "#1a86e0" }
       - { name: Vert.x, color: "#782a90" }
       - { name: Node.js, color: "#5fa04e" }
@@ -59,7 +57,11 @@ categories:
     items:
       - { name: Docker, color: "#2496ed" }
       - { name: Docker Compose, color: "#2496ed" }
+      - { name: Nomad, color: "#00ca8e" }
+      - { name: Consul, color: "#f24c53" }
+      - { name: Envoy, color: "#ac6199" }
       - { name: Ansible, color: "#ee0000" }
+      - { name: OpenTofu, color: "#ffda18" }
       - { name: GitHub Actions, color: "#2088ff" }
       - { name: Vault, color: "#ffec6e" }
       - { name: NGINX, color: "#009639" }
@@ -95,8 +97,6 @@ positions:
       - C#
       - Spring Boot
       - Spring Cloud Gateway
-      - Spring Cloud Config
-      - Eureka
       - OpenFeign
       - Vert.x
       - Node.js
@@ -147,12 +147,16 @@ positions:
       - Bloc
   Cloud:
     color: "#f97316"
-    description: GitHub Actions·Ansible·Docker Compose로 VM 배포를 자동화합니다. Vault로 설정을 관리하고, 메트릭·로그·알림을 수집하고 확인할 수 있도록 구성합니다.
+    description: Nomad·Consul로 서비스 실행과 내부 연결을 관리하고, Ansible·OpenTofu·GitHub Actions로 배포를 자동화합니다. Vault로 비밀 값을 관리하고 메트릭·로그·알림을 수집합니다.
     technologies:
       - Python
       - Docker
       - Docker Compose
+      - Nomad
+      - Consul
+      - Envoy
       - Ansible
+      - OpenTofu
       - GitHub Actions
       - Vault
       - NGINX

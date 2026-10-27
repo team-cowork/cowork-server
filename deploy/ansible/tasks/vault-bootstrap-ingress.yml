@@ -1,0 +1,20 @@
+---
+- name: Inspect the legacy Vault ingress chain
+  ansible.builtin.command:
+    argv: [iptables, -S, COWORK_BACKEND]
+  register: platform_vault_legacy_chain
+  changed_when: false
+  failed_when: platform_vault_legacy_chain.rc not in [0, 1]
+- name: Permit new platform clients on the private Vault TLS listener during bootstrap
+  ansible.builtin.iptables:
+    chain: COWORK_BACKEND
+    action: insert
+    rule_num: 1
+    source: "{{ item }}/32"
+    protocol: tcp
+    destination_port: '8210'
+    jump: RETURN
+    comment: cowork-platform-vault-bootstrap
+    wait: '10'
+  loop: "{{ platform_agent_ips }}"
+  when: platform_vault_legacy_chain.rc == 0 and not (platform_cutover_marker.stat.exists | default(false))
