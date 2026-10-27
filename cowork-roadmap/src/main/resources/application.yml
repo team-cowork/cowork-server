@@ -12,17 +12,27 @@ spring:
     name: cowork-roadmap
   config:
     import: "configserver:${CONFIG_SERVER_URL:http://localhost:8761}"
-  # Runtime queries go through R2DBC (reactive). With an R2DBC ConnectionFactory present, Spring Boot's
-  # JDBC DataSourceAutoConfiguration backs off, so Flyway builds its own JDBC DataSource from spring.flyway.url.
-  r2dbc:
-    url: ${SPRING_R2DBC_URL:r2dbc:mysql://localhost:3306/cowork_roadmap?serverZoneId=Asia/Seoul}
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/cowork_roadmap?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul}
     username: ${MYSQL_USER:cowork}
     password: ${MYSQL_PASSWORD:}
+    hikari:
+      connection-timeout: 10000
+      data-source-properties:
+        # Keep existing DATETIME values when the JVM and server time zones differ.
+        preserveInstants: false
+  jdbc:
+    template:
+      query-timeout: 10s
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
   flyway:
     enabled: true
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/cowork_roadmap?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul}
-    user: ${MYSQL_USER:cowork}
-    password: ${MYSQL_PASSWORD:}
     locations: classpath:db/migration
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}

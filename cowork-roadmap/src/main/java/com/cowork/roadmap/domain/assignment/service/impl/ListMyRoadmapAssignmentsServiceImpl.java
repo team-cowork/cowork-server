@@ -1,5 +1,7 @@
 package com.cowork.roadmap.domain.assignment.service.impl;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -8,7 +10,6 @@ import com.cowork.roadmap.domain.assignment.repository.RoadmapAssignmentReposito
 import com.cowork.roadmap.domain.assignment.service.ListMyRoadmapAssignmentsService;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Flux;
 
 @Service
 @RequiredArgsConstructor
@@ -18,7 +19,10 @@ public class ListMyRoadmapAssignmentsServiceImpl implements ListMyRoadmapAssignm
 
     @Override
     @Transactional(readOnly = true)
-    public Flux<AssignmentResDto> execute(Long userId) {
-        return assignmentRepository.findByAssigneeUserIdOrderByIdDesc(userId).map(AssignmentResDto::from);
+    public List<AssignmentResDto> execute(Long userId) {
+        return assignmentRepository.findByAssigneeUserIdOrderByIdDesc(userId)
+                .stream()
+                .map(AssignmentResDto::from)
+                .toList();
     }
 }
