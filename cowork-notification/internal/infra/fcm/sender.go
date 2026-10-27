@@ -173,8 +173,14 @@ func (s *Sender) buildMessage(m Message, title, body string) *messaging.Message 
 		return msg
 	}
 	msg.Android = &messaging.AndroidConfig{Priority: "high"}
+	headers := map[string]string{"apns-push-type": "alert", "apns-priority": "10"}
+	// iOS shows this alert itself, so a redelivered event would stack a second copy. A
+	// shared collapse id makes APNs replace the earlier one; APNs caps it at 64 bytes.
+	if eventID := data[DataKeyEventID]; eventID != "" && len(eventID) <= 64 {
+		headers["apns-collapse-id"] = eventID
+	}
 	msg.APNS = &messaging.APNSConfig{
-		Headers: map[string]string{"apns-push-type": "alert", "apns-priority": "10"},
+		Headers: headers,
 		Payload: &messaging.APNSPayload{Aps: &messaging.Aps{
 			Alert:          &messaging.ApsAlert{Body: apnsPlaceholderBody},
 			MutableContent: true,
