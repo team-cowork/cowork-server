@@ -8,7 +8,7 @@ import {ConfigService} from '@nestjs/config';
 import {Consumer, Kafka} from 'kafkajs';
 import {Server} from 'socket.io';
 import {DicoshotService} from 'dicoshot-nest';
-import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {getKafkaClientConfig} from '../../common/config/config.util';
 import {parseEventTime} from '../../common/util/event-time.util';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {isBooleanRecord} from '../../common/util/boolean-record.util';
@@ -51,7 +51,7 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
     async onModuleInit(): Promise<void> {
         const kafka = new Kafka({
             clientId: 'cowork-chat-channel-role-policy-event',
-            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
+            ...getKafkaClientConfig(this.configService),
         });
         const stream = PROJECTION_STREAMS.channelRolePolicy;
         this.consumer = kafka.consumer({groupId: stream.groupId});

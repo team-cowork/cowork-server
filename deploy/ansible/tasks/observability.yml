@@ -1,0 +1,90 @@
+---
+- name: Create the Alloy certificate group
+  ansible.builtin.group:
+    name: alloy
+    system: true
+- name: Create observability configuration and state directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: "{{ item.group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - {path: /etc/alloy, group: root, mode: '0755'}
+    - {path: /etc/alloy/tls, group: alloy, mode: '0750'}
+    - {path: /var/lib/cowork/alloy, group: root, mode: '0700'}
+- name: Stage the Docker stdout log pipeline
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../runtime/agents/config.alloy"
+    dest: /etc/alloy/config.alloy
+    mode: '0644'
+  register: platform_alloy_config
+- name: Stage the Alloy client certificate and CA
+  ansible.builtin.copy:
+    src: "{{ platform_state_dir }}/pki/{{ item.source }}"
+    dest: "/etc/alloy/tls/{{ item.destination }}"
+    owner: root
+    group: alloy
+    mode: "{{ item.mode }}"
+  loop:
+    - {source: ca.crt, destination: ca.crt, mode: '0644'}
+    - {source: "{{ inventory_hostname }}.crt", destination: client.crt, mode: '0644'}
+    - {source: "{{ inventory_hostname }}.key", destination: client.key, mode: '0640'}
+  register: platform_alloy_tls
+  no_log: true
+- name: Start observability after the legacy agents have stopped
+  when: platform_cutover_marker.stat.exists | default(false) or cowork_cutover | default(false) | bool
+  block:
+    - name: Reconcile the host metric exporter
+      community.docker.docker_container:
+        name: cowork-platform-node-exporter
+        image: "{{ platform_versions.node_exporter.image }}"
+        state: started
+        restart_policy: unless-stopped
+        network_mode: host
+        pid_mode: host
+        read_only: true
+        cap_drop: [ALL]
+        security_opts: ['no-new-privileges:true']
+        memory: 96M
+        cpus: 0.2
+        command:
+          - "--web.listen-address={{ private_ip }}:9100"
+          - --path.rootfs=/host
+          - '--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+)($|/)'
+          - '--collector.filesystem.fs-types-exclude=^(autofs|overlay|squashfs|tmpfs|devtmpfs|nsfs|fuse\..*)$'
+        volumes: ['/:/host:ro,rslave']
+        labels: {cowork.service: node-exporter}
+        log_driver: json-file
+        log_options: {max-size: 10m, max-file: '3'}
+    - name: Reconcile the Docker log collector
+      community.docker.docker_container:
+        name: cowork-platform-alloy
+        image: "{{ platform_versions.alloy.image }}"
+        state: started
+        restart_policy: unless-stopped
+        restart: "{{ platform_alloy_config.changed or platform_alloy_tls.changed }}"
+        network_mode: host
+        user: '0:0'
+        read_only: true
+        cap_drop: [ALL]
+        security_opts: ['no-new-privileges:true']
+        memory: 256M
+        cpus: 0.3
+        command:
+          - run
+          - --storage.path=/var/lib/alloy
+          - "--server.http.listen-addr={{ private_ip }}:12345"
+          - /etc/alloy/config.alloy
+        env:
+          LOG_HOST: "{{ inventory_hostname }}"
+          LOG_SERVICE: "{{ inventory_hostname }}"
+        volumes:
+          - /etc/alloy/config.alloy:/etc/alloy/config.alloy:ro
+          - /etc/alloy/tls:/etc/alloy/tls:ro
+          - /var/run/docker.sock:/var/run/docker.sock:ro
+          - /var/lib/cowork/alloy:/var/lib/alloy
+        labels: {cowork.service: log-agent}
+        log_driver: json-file
+        log_options: {max-size: 10m, max-file: '3'}

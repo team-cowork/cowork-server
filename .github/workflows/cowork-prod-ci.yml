@@ -36,7 +36,7 @@ jobs:
             const allowedScopes = [
               'global', 'gateway', 'authorization', 'user',
               'team', 'project', 'channel', 'roadmap', 'chat', 'voice', 'promotion', 'github',
-              'config', 'notification', 'preference', 'ci/cd'
+              'notification', 'preference', 'ci/cd'
             ];
 
             const versionPattern = /^v\d{8}\.\d+$/;
@@ -107,6 +107,10 @@ jobs:
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
+      - name: Install The Pinned Nomad Validator
+        run: |
+          python3 deploy/production/install-tools.py --directory "$RUNNER_TEMP/cowork-tools" --tools nomad
+          echo "$RUNNER_TEMP/cowork-tools" >> "$GITHUB_PATH"
       - name: Validate Deployment Syntax And Compose Paths
         run: python3 deploy/validate.py
       - name: Select The Last Successful Push Baseline
@@ -427,10 +431,8 @@ jobs:
               }
             };
 
-            const fs = require('fs');
-            const modules = fs.readdirSync('.', { withFileTypes: true })
-              .filter(d => d.isDirectory() && d.name.startsWith('cowork-'))
-              .map(d => d.name).sort();
+            const modules = sh('git ls-tree -d --name-only HEAD').trim().split('\n')
+              .filter(name => name.startsWith('cowork-')).sort();
             const AI = new Set(['.harness', '.claude', '.agents', '.codex']);
             const classify = (p) => {
               const top = p.split('/')[0];

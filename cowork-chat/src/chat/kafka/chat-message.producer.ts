@@ -8,7 +8,7 @@ import {ConfigService} from '@nestjs/config';
 import {Kafka, Producer} from 'kafkajs';
 import {DicoshotService} from 'dicoshot-nest';
 import {SendMessageDto} from '../dto';
-import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {getKafkaClientConfig} from '../../common/config/config.util';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {MessageScope} from '../service';
 import {ConfirmedAttachment} from '../../storage/attachment-upload.schema';
@@ -49,7 +49,7 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
     onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat',
-            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
+            ...getKafkaClientConfig(this.configService),
         });
         this.producer = kafka.producer({idempotent: true});
         void connectWithRetry(this.logger, 'Kafka producer startup: chat.message.v2', async () => this.ensureConnected())

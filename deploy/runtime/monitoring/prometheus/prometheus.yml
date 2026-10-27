@@ -1,0 +1,472 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    project: cowork
+rule_files:
+- /local/config/prometheus/rules/*.yml
+alerting:
+  alertmanagers:
+  - static_configs:
+    - targets:
+      - 127.0.0.1:9093
+scrape_configs:
+- job_name: cowork-services
+  consul_sd_configs:
+  - server: COWORK_CONSUL_SERVER
+    scheme: https
+    authorization:
+      credentials_file: /secrets/consul-token
+    follow_redirects: false
+    tls_config:
+      ca_file: /etc/cowork/ca/ca.crt
+    filter: '"application" in ServiceTags'
+  relabel_configs:
+  - source_labels:
+    - __meta_consul_service_metadata_metrics_port
+    regex: .+
+    action: keep
+  - source_labels:
+    - __meta_consul_service_metadata_metrics_address
+    - __meta_consul_service_metadata_metrics_port
+    separator: ':'
+    target_label: __address__
+  - source_labels:
+    - __meta_consul_service_metadata_metrics_path
+    target_label: __metrics_path__
+  - source_labels:
+    - __meta_consul_service
+    regex: cowork-(.+)
+    target_label: service
+  - source_labels:
+    - __meta_consul_node
+    target_label: host
+- job_name: infrastructure-discovery
+  consul_sd_configs:
+  - server: COWORK_CONSUL_SERVER
+    scheme: https
+    authorization:
+      credentials_file: /secrets/consul-token
+    follow_redirects: false
+    tls_config:
+      ca_file: /etc/cowork/ca/ca.crt
+    filter: '"application" not in ServiceTags'
+  relabel_configs:
+  - source_labels:
+    - __meta_consul_service_metadata_metrics_port
+    regex: .+
+    action: keep
+  - source_labels:
+    - __meta_consul_service_metadata_metrics_address
+    - __meta_consul_service_metadata_metrics_port
+    separator: ':'
+    target_label: __address__
+  - source_labels:
+    - __meta_consul_service_metadata_metrics_path
+    target_label: __metrics_path__
+  - source_labels:
+    - __meta_consul_service
+    regex: (?:cowork-)?(.+)
+    target_label: service
+  - source_labels:
+    - __meta_consul_service_metadata_metrics_service
+    regex: (.+)
+    target_label: service
+  - source_labels:
+    - __meta_consul_service_metadata_module
+    regex: (.+)
+    target_label: module
+  - source_labels:
+    - __meta_consul_node
+    target_label: host
+- job_name: infrastructure
+  static_configs:
+  - targets:
+    - 127.0.0.1:9121
+    labels:
+      service: redis
+  - targets:
+    - 127.0.0.1:9308
+    labels:
+      service: kafka
+- job_name: monitoring
+  static_configs:
+  - targets:
+    - 127.0.0.1:9090
+    labels:
+      service: prometheus
+  - targets:
+    - 127.0.0.1:9093
+    labels:
+      service: alertmanager
+  - targets:
+    - 127.0.0.1:3000
+    labels:
+      service: grafana
+  - targets:
+    - 127.0.0.1:3101
+    labels:
+      service: loki
+  - targets:
+    - 127.0.0.1:9115
+    labels:
+      service: blackbox
+- job_name: blackbox
+  metrics_path: /probe
+  params:
+    module:
+    - http_2xx
+  consul_sd_configs:
+  - server: COWORK_CONSUL_SERVER
+    scheme: https
+    authorization:
+      credentials_file: /secrets/consul-token
+    follow_redirects: false
+    tls_config:
+      ca_file: /etc/cowork/ca/ca.crt
+    filter: '"application" in ServiceTags'
+  relabel_configs:
+  - source_labels:
+    - __meta_consul_service_metadata_health_port
+    regex: .+
+    action: keep
+  - source_labels:
+    - __meta_consul_service_metadata_health_address
+    - __meta_consul_service_metadata_health_port
+    - __meta_consul_service_metadata_health_path
+    regex: (.+);(.+);(.+)
+    replacement: http://${1}:${2}${3}
+    target_label: __param_target
+  - source_labels:
+    - __param_target
+    target_label: instance
+  - source_labels:
+    - __meta_consul_service
+    regex: cowork-(.+)
+    target_label: service
+  - target_label: __address__
+    replacement: 127.0.0.1:9115
+- job_name: public-gateway
+  metrics_path: /probe
+  params:
+    module:
+    - http_public_gateway
+  static_configs:
+  - targets:
+    - COWORK_PUBLIC_API_ORIGIN/api/health
+    labels:
+      service: gateway
+  relabel_configs:
+  - source_labels:
+    - __address__
+    target_label: __param_target
+  - source_labels:
+    - __param_target
+    target_label: instance
+  - target_label: __address__
+    replacement: 127.0.0.1:9115
+- job_name: gateway-api
+  metrics_path: /probe
+  static_configs:
+  - targets:
+    - COWORK_PUBLIC_API_ORIGIN/api/authorization/auth/refresh
+    labels:
+      service: authorization
+      __param_module: http_gateway_downstream_post
+  - targets:
+    - COWORK_PUBLIC_API_ORIGIN/api/chat/health
+    labels:
+      service: chat
+      __param_module: http_gateway_downstream_get
+  - targets:
+    - COWORK_PUBLIC_API_ORIGIN/api/voice/voice/webhook
+    labels:
+      service: voice
+      __param_module: http_gateway_downstream_post
+  - targets:
+    - COWORK_PUBLIC_API_ORIGIN/api/github/github/webhooks
+    labels:
+      service: github
+      __param_module: http_gateway_downstream_post
+  relabel_configs:
+  - source_labels:
+    - __address__
+    target_label: __param_target
+  - source_labels:
+    - __param_target
+    target_label: instance
+  - target_label: __address__
+    replacement: 127.0.0.1:9115
+- job_name: gateway-cors
+  metrics_path: /probe
+  params:
+    module:
+    - http_gateway_cors_preflight
+  static_configs:
+  - targets:
+    - COWORK_PUBLIC_API_ORIGIN/api/user/users/me
+    labels:
+      service: gateway
+  relabel_configs:
+  - source_labels:
+    - __address__
+    target_label: __param_target
+  - source_labels:
+    - __param_target
+    target_label: instance
+  - target_label: __address__
+    replacement: 127.0.0.1:9115
+- job_name: vault-tls
+  metrics_path: /probe
+  params:
+    module:
+    - tls_vault_private
+  static_configs:
+  - targets:
+    - COWORK_VAULT_ADDR/v1/sys/health
+    labels:
+      service: vault
+  relabel_configs:
+  - source_labels:
+    - __address__
+    target_label: __param_target
+  - source_labels:
+    - __param_target
+    target_label: instance
+  - target_label: __address__
+    replacement: 127.0.0.1:9115
+- job_name: hosts
+  static_configs: &host_targets
+  - targets:
+    - 10.0.0.74:9100
+    labels:
+      service: host
+      host: channel
+  - targets:
+    - 10.0.0.97:9100
+    labels:
+      service: host
+      host: team
+  - targets:
+    - 10.0.0.131:9100
+    labels:
+      service: host
+      host: notification
+  - targets:
+    - 10.0.0.127:9100
+    labels:
+      service: host
+      host: gateway
+  - targets:
+    - 10.0.0.140:9100
+    labels:
+      service: host
+      host: authorization
+  - targets:
+    - 10.0.0.185:9100
+    labels:
+      service: host
+      host: user
+  - targets:
+    - 10.0.0.174:9100
+    labels:
+      service: host
+      host: chat
+  - targets:
+    - 10.0.0.89:9100
+    labels:
+      service: host
+      host: preference
+  - targets:
+    - 10.0.0.91:9100
+    labels:
+      service: host
+      host: vault
+  - targets:
+    - 10.0.0.90:9100
+    labels:
+      service: host
+      host: voice
+  - targets:
+    - 10.0.0.88:9100
+    labels:
+      service: host
+      host: project
+  - targets:
+    - 10.0.0.150:9100
+    labels:
+      service: host
+      host: github
+  - targets:
+    - 10.0.0.132:9100
+    labels:
+      service: host
+      host: roadmap
+  - targets:
+    - 10.0.0.137:9100
+    labels:
+      service: host
+      host: monitoring
+  - targets:
+    - 10.0.0.167:9100
+    labels:
+      service: host
+      host: kafka
+  - targets:
+    - 10.0.0.145:9100
+    labels:
+      service: host
+      host: redis
+  - targets:
+    - 10.0.0.172:9100
+    labels:
+      service: host
+      host: livekit
+  - targets:
+    - 10.0.0.111:9100
+    labels:
+      service: host
+      host: control
+- job_name: nomad
+  scheme: https
+  metrics_path: /v1/metrics
+  params:
+    format: [prometheus]
+  tls_config:
+    ca_file: /etc/cowork/ca/ca.crt
+  static_configs: *host_targets
+  relabel_configs:
+  - source_labels: [host]
+    regex: vault
+    action: drop
+  - source_labels: [__address__]
+    regex: (.+):9100
+    replacement: $1:4646
+    target_label: __address__
+  - target_label: service
+    replacement: nomad
+  - target_label: role
+    replacement: client
+  - source_labels: [host]
+    regex: control
+    target_label: role
+    replacement: server
+- job_name: consul
+  scheme: https
+  follow_redirects: false
+  metrics_path: /v1/agent/metrics
+  params:
+    format: [prometheus]
+  authorization:
+    credentials_file: /secrets/consul-token
+  tls_config:
+    ca_file: /etc/cowork/ca/ca.crt
+  static_configs: *host_targets
+  relabel_configs:
+  - source_labels: [host]
+    regex: vault
+    action: drop
+  - source_labels: [__address__]
+    regex: (.+):9100
+    replacement: $1:8501
+    target_label: __address__
+  - target_label: service
+    replacement: consul
+  - target_label: role
+    replacement: client
+  - source_labels: [host]
+    regex: control
+    target_label: role
+    replacement: server
+- job_name: alloy
+  static_configs:
+  - targets:
+    - 10.0.0.74:12345
+    labels:
+      service: alloy
+      host: channel
+  - targets:
+    - 10.0.0.97:12345
+    labels:
+      service: alloy
+      host: team
+  - targets:
+    - 10.0.0.131:12345
+    labels:
+      service: alloy
+      host: notification
+  - targets:
+    - 10.0.0.127:12345
+    labels:
+      service: alloy
+      host: gateway
+  - targets:
+    - 10.0.0.140:12345
+    labels:
+      service: alloy
+      host: authorization
+  - targets:
+    - 10.0.0.185:12345
+    labels:
+      service: alloy
+      host: user
+  - targets:
+    - 10.0.0.174:12345
+    labels:
+      service: alloy
+      host: chat
+  - targets:
+    - 10.0.0.89:12345
+    labels:
+      service: alloy
+      host: preference
+  - targets:
+    - 10.0.0.91:12345
+    labels:
+      service: alloy
+      host: vault
+  - targets:
+    - 10.0.0.90:12345
+    labels:
+      service: alloy
+      host: voice
+  - targets:
+    - 10.0.0.88:12345
+    labels:
+      service: alloy
+      host: project
+  - targets:
+    - 10.0.0.150:12345
+    labels:
+      service: alloy
+      host: github
+  - targets:
+    - 10.0.0.132:12345
+    labels:
+      service: alloy
+      host: roadmap
+  - targets:
+    - 10.0.0.137:12345
+    labels:
+      service: alloy
+      host: monitoring
+  - targets:
+    - 10.0.0.167:12345
+    labels:
+      service: alloy
+      host: kafka
+  - targets:
+    - 10.0.0.145:12345
+    labels:
+      service: alloy
+      host: redis
+  - targets:
+    - 10.0.0.172:12345
+    labels:
+      service: alloy
+      host: livekit
+  - targets:
+    - 10.0.0.111:12345
+    labels:
+      service: alloy
+      host: control
