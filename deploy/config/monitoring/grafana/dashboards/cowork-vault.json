@@ -68,7 +68,7 @@
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "monitoring이 Config와 같은 CA로 https://10.0.0.91:8210 인증서를 검증한 결과입니다. 공개 UI 경로는 프록시를 거치므로 여기에 포함되지 않습니다.",
+      "description": "monitoring이 플랫폼 CA로 https://10.0.0.91:8210 인증서를 검증한 결과입니다. 공개 UI 경로는 프록시를 거치므로 여기에 포함되지 않습니다.",
       "gridPos": {
         "h": 6,
         "w": 12,
