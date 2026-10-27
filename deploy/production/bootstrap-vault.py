@@ -117,8 +117,9 @@ def main():
     }
     for service, spec in catalog.items():
         paths = {}
-        for category in ("apps", "data"):
-            prefix = f"nomad/{category}/{service}"
+        prefixes = [f"nomad/apps/{service}", f"nomad/data/{service}"]
+        prefixes += [f"nomad/data/{service}/{group}" for group in spec.get("data_secret_groups", {})]
+        for prefix in prefixes:
             paths[f"{mount}/data/{prefix}"] = ["create", "read", "update"]
             paths[f"{mount}/metadata/{prefix}"] = ["read"]
             deployment[f"{mount}/data/{prefix}"] = ["read"]

@@ -111,7 +111,7 @@ job "cowork-chat-storage" {
       }
       template {
         data                 = <<-JSON
-{{ with secret "${var.vault_mount}/data/nomad/data/chat?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/chat/storage?version=${var.secret_version}" }}
 {"identities":[
   {"name":"cowork-admin","credentials":[{"accessKey":{{ .Data.data.S3_ADMIN_ACCESS_KEY | toJSON }},"secretKey":{{ .Data.data.S3_ADMIN_SECRET_KEY | toJSON }}}],"actions":["Admin"]},
   {"name":"cowork-chat","credentials":[{"accessKey":{{ .Data.data.S3_ACCESS_KEY | toJSON }},"secretKey":{{ .Data.data.S3_SECRET_KEY | toJSON }}}],"actions":${jsonencode(concat([for prefix in ["chat-files", "chat-uploads"] : "Read:${var.runtime_env["S3_BUCKET"]}/${prefix}/*"], [for prefix in ["chat-files", "chat-uploads"] : "Write:${var.runtime_env["S3_BUCKET"]}/${prefix}/*"]))}}
@@ -175,7 +175,7 @@ JSON
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/chat?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/chat/storage?version=${var.secret_version}" }}
 AWS_ACCESS_KEY_ID={{ .Data.data.S3_ADMIN_ACCESS_KEY | toJSON }}
 AWS_SECRET_ACCESS_KEY={{ .Data.data.S3_ADMIN_SECRET_KEY | toJSON }}
 {{ end }}
