@@ -8,9 +8,6 @@ import {DocumentBuilder, SwaggerModule} from '@nestjs/swagger';
 import {type NextFunction, type Request, type Response} from 'express';
 import {Logger as PinoLogger} from 'nestjs-pino';
 import {Gauge} from 'prom-client';
-import {EurekaClient} from './eureka/eureka-client';
-import {requireEnv} from './common/config/config.util';
-import {loadConfigServerEnv} from './common/config/config-server';
 import {GlobalExceptionFilter} from './common/filter/global-exception.filter';
 import {RedisIoAdapter, SocketIoRedisConnection} from './common/adapter/redis-io.adapter';
 import {
@@ -66,10 +63,6 @@ function debugStartup(message: string) {
 }
 
 async function bootstrap() {
-    debugStartup('loading config server properties');
-    await loadConfigServerEnv();
-    debugStartup('config server properties loaded');
-
     debugStartup('creating Nest application');
     const {AppModule} = await import('./app.module');
     const app = await NestFactory.create<NestExpressApplication>(AppModule, {bufferLogs: true});
@@ -80,7 +73,7 @@ async function bootstrap() {
         name: 'cowork_nodejs_heap_size_limit_bytes',
         help: 'V8 heap size limit in bytes.',
     }).set(getHeapStatistics().heap_size_limit);
-    // Eureka metadata(prometheus.path), AuthGuard, projection 미들웨어가 모두 접두사 없는 /metrics를 전제로 한다.
+    // Consul metrics metadata, AuthGuard, projection 미들웨어가 접두사 없는 /metrics를 사용한다.
     app.setGlobalPrefix('chat', {exclude: ['health', 'health/ready', 'metrics']});
     app.useGlobalPipes(new ValidationPipe({whitelist: true, transform: true}));
     app.useGlobalFilters(new GlobalExceptionFilter());
@@ -179,53 +172,16 @@ async function bootstrap() {
         next();
     });
 
-    const port = Number(requireEnv('PORT'));
+    const port = Number(process.env.PORT ?? 8087);
+    if (!Number.isSafeInteger(port) || port < 1 || port > 65_535) {
+        throw new Error('PORT must be an integer between 1 and 65535');
+    }
+
     debugStartup(`listening on ${port}`);
     await app.listen(port);
     debugStartup('HTTP server listening');
 
-    const eureka = EurekaClient.fromEnv(port);
     let isShuttingDown = false;
-    let isEurekaRegistered = false;
-    let eurekaRegistration: Promise<void> | undefined;
-    // 등록 후 Redis adapter가 끊기면 Gateway 라우팅에서 빠지고, 복구되면 다시 받는다.
-    socketIoRedis.onReadinessChange(ready => {
-        eureka.setStatus(ready ? 'UP' : 'OUT_OF_SERVICE');
-    });
-
-    void Promise.all([projectionReadiness.whenReady(), socketIoRedis.whenReady()]).then(async () => {
-        if (isShuttingDown) {
-            return;
-        }
-
-        debugStartup('projection replay and Socket.IO adapter ready; registering with Eureka');
-        eurekaRegistration = (async () => {
-            // eslint-disable-next-line no-unmodified-loop-condition -- Shutdown callbacks update shuttingDown while register/backoff is awaited.
-            while (!isShuttingDown && !isEurekaRegistered) {
-                try {
-                    // eslint-disable-next-line no-await-in-loop -- retry-with-backoff: each attempt must wait for the previous one to fail.
-                    await eureka.register();
-                    isEurekaRegistered = true;
-                    debugStartup('Eureka registration completed');
-                    return;
-                } catch (error: unknown) {
-                    new Logger('Eureka').warn(
-                        `registration failed; retrying: ${error instanceof Error ? error.message : String(error)}`,
-                    );
-                    // eslint-disable-next-line no-await-in-loop -- retry-with-backoff: each attempt must wait for the previous one to fail.
-                    await new Promise(resolve => {
-                        setTimeout(resolve, 1000);
-                    });
-                }
-            }
-        })()
-            .then(() => {
-                if (isShuttingDown) {
-                    debugStartup('Eureka registration stopped during shutdown');
-                }
-            });
-        return eurekaRegistration;
-    });
 
     projectionReadiness.onFatalInvariantViolation(reason => {
         if (isShuttingDown) {
@@ -235,25 +191,17 @@ async function bootstrap() {
         isShuttingDown = true;
         new Logger('ProjectionReadiness').error(`fatal projection invariant violation: ${reason}`);
         void (async () => {
-            await eurekaRegistration;
-            if (isEurekaRegistered) {
-                await eureka.deregister().catch(() => undefined);
-            }
-
             await app.close();
             process.exit(1);
         })();
     });
 
     const shutdown = async () => {
-        isShuttingDown = true;
-        await eurekaRegistration;
-        if (isEurekaRegistered) {
-            await eureka.deregister().catch((error: unknown) => {
-                new Logger('Eureka').warn(`deregister failed: ${error instanceof Error ? error.message : String(error)}`);
-            });
+        if (isShuttingDown) {
+            return;
         }
 
+        isShuttingDown = true;
         await app.close();
         process.exit(0);
     };
