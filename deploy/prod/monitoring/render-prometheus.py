@@ -78,7 +78,10 @@ gateway_api_probes = [
     ("github", "http_gateway_downstream_post", "/api/github/github/webhooks"),
 ]
 # The CORS preflight probe sends the first HTTPS web origin that Gateway allows in prod, not a development origin.
-web_origins = json.loads((slots_directory / "config.json").read_text())["runtime"]["PUBLIC_WEB_ORIGINS"].split(",")
+# Like PUBLIC_API_BASE_URL, prefer the deployed GitHub variable; Vault-backed deploys do not fall back to the slot value.
+web_origins = os.environ.get(
+    "PUBLIC_WEB_ORIGINS", json.loads((slots_directory / "config.json").read_text())["runtime"]["PUBLIC_WEB_ORIGINS"]
+).split(",")
 cors_probe_origin = next((origin.strip() for origin in web_origins if origin.strip().startswith("https://")), None)
 if not cors_probe_origin or urlsplit(cors_probe_origin).path or any(char in cors_probe_origin for char in "|&\\"):
     raise ValueError("Config PUBLIC_WEB_ORIGINS must include an HTTPS origin for the CORS probe")
