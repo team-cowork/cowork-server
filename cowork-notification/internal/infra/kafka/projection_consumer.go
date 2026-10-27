@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cowork/cowork-notification/internal/config"
 	"github.com/cowork/cowork-notification/internal/domain/projection"
 	"github.com/google/uuid"
 	segkafka "github.com/segmentio/kafka-go"
@@ -131,12 +132,13 @@ type projectionBrokerMetadata struct {
 	partitions        map[projection.TopicPartition]struct{}
 }
 
-func newKafkaProjectionOffsetSnapshotter(brokers []string) (*kafkaProjectionOffsetSnapshotter, error) {
-	client, err := kgo.NewClient(
+func newKafkaProjectionOffsetSnapshotter(brokers []string, security config.KafkaSecurity) (*kafkaProjectionOffsetSnapshotter, error) {
+	options := append(security.FranzOptions(),
 		kgo.SeedBrokers(brokers...),
 		kgo.ClientID("cowork-notification-projection-barrier"),
 		kgo.RequestTimeoutOverhead(10*time.Second),
 	)
+	client, err := kgo.NewClient(options...)
 	if err != nil {
 		return nil, fmt.Errorf("create projection metadata client: %w", err)
 	}
@@ -363,6 +365,7 @@ func (s *kafkaProjectionOffsetSnapshotter) Close() {
 }
 
 type ProjectionConsumer struct {
+	security       config.KafkaSecurity
 	brokers        []string
 	groupID        string
 	topics         ProjectionTopics
@@ -376,6 +379,7 @@ type ProjectionConsumer struct {
 }
 
 func NewProjectionConsumer(
+	security config.KafkaSecurity,
 	brokers string,
 	groupID string,
 	topics ProjectionTopics,
@@ -383,11 +387,12 @@ func NewProjectionConsumer(
 	readiness projectionReadiness,
 ) (*ProjectionConsumer, error) {
 	brokerList := splitBrokerList(brokers)
-	snapshotter, err := newKafkaProjectionOffsetSnapshotter(brokerList)
+	snapshotter, err := newKafkaProjectionOffsetSnapshotter(brokerList, security)
 	if err != nil {
 		return nil, err
 	}
 	group, err := segkafka.NewConsumerGroup(segkafka.ConsumerGroupConfig{
+		Dialer:                security.Dialer(),
 		ID:                    groupID,
 		Brokers:               brokerList,
 		Topics:                topics.all(),
@@ -399,6 +404,7 @@ func NewProjectionConsumer(
 		return nil, fmt.Errorf("create notification projection consumer group: %w", err)
 	}
 	return &ProjectionConsumer{
+		security:    security,
 		brokers:     brokerList,
 		groupID:     groupID,
 		topics:      topics,
@@ -573,6 +579,7 @@ func (c *ProjectionConsumer) consumePartition(
 		return
 	}
 	reader := segkafka.NewReader(segkafka.ReaderConfig{
+		Dialer:    c.security.Dialer(),
 		Brokers:   c.brokers,
 		Topic:     partition.Topic,
 		Partition: partition.Partition,
