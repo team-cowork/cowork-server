@@ -10,6 +10,7 @@ import org.springframework.cloud.gateway.support.ConfigurationService
 import org.springframework.cloud.gateway.support.ServerWebExchangeUtils
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Primary
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
 import org.springframework.data.redis.core.script.RedisScript
 import org.springframework.web.server.ServerWebExchange
@@ -43,8 +44,11 @@ class RateLimitConfig {
      * shortcut: 현재 입구 구성은 실제 발신 IP를 전달하지 않아 같은 프록시를 거친 미인증 요청이 한도를 공유한다.
      * 클라이언트가 바꿀 수 있는 X-Forwarded-For는 신뢰하지 않는다. 발신 IP를 보존하는 입구가 생기면
      * 그 프록시 범위만 신뢰하도록 바꾼다.
+     *
+     * 자동 구성에 주입할 기본 KeyResolver를 @Primary로 지정하며, 웹훅 라우트는 webhookKeyResolver를 명시해 사용한다.
      */
     @Bean
+    @Primary
     fun userKeyResolver(): KeyResolver = KeyResolver { exchange: ServerWebExchange ->
         val userId = exchange.request.headers.getFirst("X-User-Id")
         if (!userId.isNullOrBlank()) {
