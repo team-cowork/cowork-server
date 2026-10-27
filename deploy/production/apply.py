@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Reconcile native platform definitions, then wait for the requested Nomad versions."""
 import argparse
+from contextlib import closing
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 import time
 
@@ -36,13 +38,46 @@ class Platform:
                         ANSIBLE_CONFIG=str(ROOT / 'deploy/ansible/ansible.cfg'))
         self.refreshed = 0
         self.vault = None
+        self.leases = []
+        self.owns_vault_token = os.environ.get('GITHUB_ACTIONS') == 'true'
+
+    def close(self):
+        if self.vault is None:
+            return
+        errors = []
+        if self.owns_vault_token:
+            try:
+                self.vault.auth.token.revoke_self()
+            except Exception as error:
+                errors.append(type(error).__name__)
+        else:
+            # An operator's supplied token is not owned by this deployment.
+            for lease in self.leases:
+                try:
+                    self.vault.sys.revoke_lease(lease)
+                except Exception as error:
+                    errors.append(type(error).__name__)
+        self.vault = None
+        self.leases.clear()
+        for name in ('NOMAD_TOKEN', 'CONSUL_HTTP_TOKEN', 'VAULT_TOKEN'):
+            self.env.pop(name, None)
+        if errors:
+            # Expired tokens cannot revoke themselves; cleanup must not prevent
+            # fresh authentication or replace the original deployment failure.
+            print('Credential revocation could not be confirmed (' + ', '.join(errors) +
+                  '); the issued credentials retain their twenty-minute expiry', file=sys.stderr, flush=True)
 
     def credentials(self):
         if self.vault is not None and time.monotonic() - self.refreshed < 600:
             return
+        self.close()
         self.vault = client('prod-iac')
-        nomad = self.vault.read('nomad/creds/deployment')['data']['secret_id']
-        consul = self.vault.read('consul/creds/deployment')['data']['token']
+        nomad_credentials = self.vault.read('nomad/creds/deployment')
+        self.leases.append(nomad_credentials['lease_id'])
+        nomad = nomad_credentials['data']['secret_id']
+        consul_credentials = self.vault.read('consul/creds/deployment')
+        self.leases.append(consul_credentials['lease_id'])
+        consul = consul_credentials['data']['token']
         if os.environ.get('GITHUB_ACTIONS') == 'true':
             for token in (nomad, consul):
                 print('::add-mask::' + token.replace('%', '%25'), flush=True)
@@ -247,7 +282,7 @@ def main():
         raise ValueError('Production reconciliation is restricted to main')
     platform = Platform(state)
     mount = os.environ.get('VAULT_KV_MOUNT', 'secret')
-    with tempfile.TemporaryDirectory(prefix='cowork-release-', dir=state) as temp:
+    with closing(platform), tempfile.TemporaryDirectory(prefix='cowork-release-', dir=state) as temp:
         directory = Path(temp)
         rendered = directory / 'jobs.json'
         command(['python3', 'deploy/validate.py', '--manifest', str(args.manifest.resolve()),
