@@ -1,6 +1,5 @@
 package com.cowork.roadmap.global.team;
 
-import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -22,8 +21,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceListener, HealthIndicator {
-
-    private static final Duration CHECKPOINT_TIMEOUT = Duration.ofSeconds(10);
 
     private final ProjectionCheckpointRepository checkpoints;
     private final ProjectionTopicIdentityProvider topicIdentity;
@@ -68,11 +65,7 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
                 .map(TopicPartition::partition)
                 .collect(Collectors.toSet());
         Map<Integer, Long> seekOffsets = checkpoints
-                .initializeAssignment(consumerGroup, topic, topicId, ranges, assignedPartitions)
-                .block(CHECKPOINT_TIMEOUT);
-        if (seekOffsets == null) {
-            throw new IllegalStateException("Kafka projection checkpoints were not initialized");
-        }
+                .initializeAssignment(consumerGroup, topic, topicId, ranges, assignedPartitions);
         partitions.stream()
                 .filter(partition -> topic.equals(partition.topic()))
                 .forEach(partition -> consumer.seek(partition, requireSeekOffset(seekOffsets, partition.partition())));
@@ -91,8 +84,8 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
             return false;
         }
         try {
-            Map<Integer, ProjectionBarrier> barriers = requireBarriers();
-            Map<Integer, ProjectionCheckpoint> stored = requireCheckpoints();
+            Map<Integer, ProjectionBarrier> barriers = checkpoints.findBarriers(consumerGroup, topic);
+            Map<Integer, ProjectionCheckpoint> stored = checkpoints.findByTopic(consumerGroup, topic);
             // Observe the broker last so an append concurrent with the durable reads cannot
             // leave readiness open against an older high-watermark.
             ProjectionTopicState broker = topicIdentity.topicState(topic);
@@ -106,28 +99,6 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     @Override
     public Health health() {
         return isReady() ? Health.up().build() : Health.outOfService().withDetail("initialized", initialized).build();
-    }
-
-    void markInitializedForPolicyTest() {
-        initialized = true;
-    }
-
-    private Map<Integer, ProjectionCheckpoint> requireCheckpoints() {
-        Map<Integer, ProjectionCheckpoint> values = checkpoints.findByTopic(consumerGroup, topic)
-                .block(CHECKPOINT_TIMEOUT);
-        if (values == null) {
-            throw new IllegalStateException("Kafka projection checkpoints were not loaded");
-        }
-        return values;
-    }
-
-    private Map<Integer, ProjectionBarrier> requireBarriers() {
-        Map<Integer, ProjectionBarrier> values = checkpoints.findBarriers(consumerGroup, topic)
-                .block(CHECKPOINT_TIMEOUT);
-        if (values == null) {
-            throw new IllegalStateException("Kafka projection barriers were not loaded");
-        }
-        return values;
     }
 
     private long requireSeekOffset(Map<Integer, Long> seekOffsets, int partition) {

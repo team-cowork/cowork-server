@@ -1,12 +1,17 @@
 package com.cowork.roadmap.domain.assignment.service;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -18,8 +23,6 @@ import com.cowork.roadmap.domain.assignment.service.impl.DeleteRoadmapAssignment
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 
-import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
 import team.themoment.sdk.exception.ExpectedException;
 
 class DeleteRoadmapAssignmentServiceTest {
@@ -34,10 +37,9 @@ class DeleteRoadmapAssignmentServiceTest {
     @Test
     void deleteAssignment_byAssigner_deletesWithoutTeamCheck() {
         RoadmapAssignment assignment = assignment(5L, 200L);
-        when(assignmentRepository.findById(5L)).thenReturn(Mono.just(assignment));
-        when(assignmentRepository.delete(assignment)).thenReturn(Mono.empty());
+        when(assignmentRepository.findById(5L)).thenReturn(Optional.of(assignment));
 
-        StepVerifier.create(deleteRoadmapAssignmentService.execute(200L, "MEMBER", 5L)).verifyComplete();
+        deleteRoadmapAssignmentService.execute(200L, "MEMBER", 5L);
 
         verify(assignmentRepository).delete(assignment);
         verify(accessGuard, never()).requireTeamManagerOrAdmin(anyLong(), anyString(), anyLong());
@@ -46,10 +48,9 @@ class DeleteRoadmapAssignmentServiceTest {
     @Test
     void deleteAssignment_byAdmin_deletesWithoutTeamCheck() {
         RoadmapAssignment assignment = assignment(5L, 200L);
-        when(assignmentRepository.findById(5L)).thenReturn(Mono.just(assignment));
-        when(assignmentRepository.delete(assignment)).thenReturn(Mono.empty());
+        when(assignmentRepository.findById(5L)).thenReturn(Optional.of(assignment));
 
-        StepVerifier.create(deleteRoadmapAssignmentService.execute(999L, "ADMIN", 5L)).verifyComplete();
+        deleteRoadmapAssignmentService.execute(999L, "ADMIN", 5L);
 
         verify(assignmentRepository).delete(assignment);
         verify(accessGuard, never()).requireTeamManagerOrAdmin(anyLong(), anyString(), anyLong());
@@ -58,11 +59,9 @@ class DeleteRoadmapAssignmentServiceTest {
     @Test
     void deleteAssignment_byTeamManager_deletesAfterTeamCheck() {
         RoadmapAssignment assignment = assignment(5L, 200L);
-        when(assignmentRepository.findById(5L)).thenReturn(Mono.just(assignment));
-        when(accessGuard.requireTeamManagerOrAdmin(999L, "MEMBER", assignment.getTeamId())).thenReturn(Mono.empty());
-        when(assignmentRepository.delete(assignment)).thenReturn(Mono.empty());
+        when(assignmentRepository.findById(5L)).thenReturn(Optional.of(assignment));
 
-        StepVerifier.create(deleteRoadmapAssignmentService.execute(999L, "MEMBER", 5L)).verifyComplete();
+        deleteRoadmapAssignmentService.execute(999L, "MEMBER", 5L);
 
         verify(accessGuard).requireTeamManagerOrAdmin(999L, "MEMBER", assignment.getTeamId());
         verify(assignmentRepository).delete(assignment);
@@ -71,27 +70,24 @@ class DeleteRoadmapAssignmentServiceTest {
     @Test
     void deleteAssignment_byUnrelatedNonManager_isForbidden() {
         RoadmapAssignment assignment = assignment(5L, 200L);
-        when(assignmentRepository.findById(5L)).thenReturn(Mono.just(assignment));
-        when(accessGuard.requireTeamManagerOrAdmin(anyLong(), anyString(), anyLong()))
-                .thenReturn(Mono.error(new ExpectedException("권한 없음", HttpStatus.FORBIDDEN)));
+        when(assignmentRepository.findById(5L)).thenReturn(Optional.of(assignment));
+        doThrow(new ExpectedException("권한 없음", HttpStatus.FORBIDDEN)).when(accessGuard)
+                .requireTeamManagerOrAdmin(anyLong(), anyString(), anyLong());
 
-        StepVerifier.create(deleteRoadmapAssignmentService.execute(999L, "MEMBER", 5L))
-                .expectErrorMatches(error -> error instanceof ExpectedException expected
-                        && expected.getStatusCode() == HttpStatus.FORBIDDEN)
-                .verify();
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> deleteRoadmapAssignmentService.execute(999L, "MEMBER", 5L));
+        assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
 
-        // delete는 Mono.defer로 감싸져 권한 검증 실패 시 호출되지 않는다.
         verify(assignmentRepository, never()).delete(any());
     }
 
     @Test
     void deleteAssignment_assignmentNotFound_failsWithNotFound() {
-        when(assignmentRepository.findById(99L)).thenReturn(Mono.empty());
+        when(assignmentRepository.findById(99L)).thenReturn(Optional.empty());
 
-        StepVerifier.create(deleteRoadmapAssignmentService.execute(1L, "ADMIN", 99L))
-                .expectErrorMatches(error -> error instanceof ExpectedException expected
-                        && expected.getStatusCode() == HttpStatus.NOT_FOUND)
-                .verify();
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> deleteRoadmapAssignmentService.execute(1L, "ADMIN", 99L));
+        assertTrue(error.getStatusCode() == HttpStatus.NOT_FOUND);
     }
 
     private static RoadmapAssignment assignment(Long id, Long assignedBy) {

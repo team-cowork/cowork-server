@@ -2,7 +2,7 @@
 
 Kotlin/Java coding conventions for this project. `AGENTS.md` and `.claude/rules/**` take precedence when they state a rule explicitly; this document is the default otherwise.
 
-Spring MVC/JPA examples apply to `cowork-team`, `cowork-channel`, and `cowork-project`. `cowork-roadmap` uses Java with WebFlux/R2DBC; `cowork-preference` uses Kotlin with Vert.x and PostgreSQL clients. Do not apply Spring/JPA annotations to Vert.x code or copy blocking repository calls into reactive services. Go, C#, and TypeScript modules follow their own build files and module documentation.
+Spring MVC/JPA examples apply to `cowork-team`, `cowork-channel`, `cowork-project`, and `cowork-roadmap`. `cowork-roadmap` uses Java; `cowork-preference` uses Kotlin with Vert.x and PostgreSQL clients. Do not apply Spring/JPA annotations to Vert.x code or copy blocking repository calls into Vert.x event loops. Go, C#, and TypeScript modules follow their own build files and module documentation.
 
 Examples below omit imports unless the import itself is relevant. Existing code that differs from an explicit convention is not automatically an exception to it.
 
@@ -43,13 +43,13 @@ An action prefix is optional for shared or generic DTOs. Request and response DT
 
 Current domain entities use the domain name, such as `Team`, `Channel`, `Project`, and `Roadmap`. The package and mapping annotations identify the storage technology; these classes are not named `TeamJpaEntity` or `RoadmapJpaEntity`.
 
-`Team`, `Channel`, and `Project` are JPA entities. `Roadmap` uses Spring Data relational mapping for R2DBC. Follow the module's existing mapping model and the table conventions in `.claude/rules/database.md`.
+`Team`, `Channel`, `Project`, and `Roadmap` are JPA entities. Follow the module's existing mapping model and the table conventions in `.claude/rules/database.md`.
 
 ### Repositories
 
 **Pattern**: `{Domain}Repository`, such as `TeamRepository`, `ChannelRepository`, `ProjectRepository`, and `RoadmapRepository`.
 
-The first three use JPA; roadmap repositories use reactive Spring Data APIs. Do not introduce JPA-specific names or methods into R2DBC repositories.
+These repositories use Spring Data JPA. Keep native SQL for database-specific locking and queries when needed.
 
 ## Query Parameter Binding
 
@@ -162,7 +162,7 @@ Controller → Service → Repository
 **Repository Responsibilities:**
 
 - Data access and parameterized queries, without business decisions.
-- Use the module's configured JPA or R2DBC APIs. QueryDSL is not currently a configured dependency in these modules.
+- Use the module's configured JPA or JDBC APIs. QueryDSL is not currently a configured dependency in these modules.
 
 ### Example
 
@@ -339,7 +339,7 @@ log.warn("Rejected operation for team {}", teamId)
 
 Only core business logic, authorization, and security behavior receive unit tests. Do not add integration tests, regression tests that freeze implementation details, or tests for controllers, framework wiring, configuration shape, migrations, repositories, and transport mechanics. A test belongs in the suite only when its failure identifies a broken business decision or user-visible access rule.
 
-Kotest with MockK is the convention for Kotlin Spring business tests. Roadmap uses JUnit 5, Mockito, and Reactor `StepVerifier`. Preference uses JUnit 5/Vert.x test support and MockK. Use the dependencies and runner actually configured in the module; do not impose Kotest on Java, Vert.x, Go, C#, or TypeScript tests.
+Kotest with MockK is the convention for Kotlin Spring business tests. Roadmap uses JUnit 5, Mockito, and AssertJ. Preference uses JUnit 5/Vert.x test support and MockK. Use the dependencies and runner actually configured in the module; do not impose Kotest on Java, Vert.x, Go, C#, or TypeScript tests.
 
 This example tests the missing-team behavior in the query service shown above, using its real dependency and method names:
 
@@ -422,7 +422,7 @@ interface TeamRepository : JpaRepository<Team, Long> {
 }
 ```
 
-The query method is an illustrative addition, not an existing endpoint. Never interpolate request values into SQL/JPQL strings. Apply the same binding rule to R2DBC and Vert.x SQL clients.
+The query method is an illustrative addition, not an existing endpoint. Never interpolate request values into SQL/JPQL strings. Apply the same binding rule to JDBC and Vert.x SQL clients.
 
 ## Common Mistakes to Avoid
 
@@ -454,4 +454,4 @@ class QueryTeamServiceImpl(private val teamAccessGuard: TeamAccessGuard) : Query
 
 Keep state mutations and their outbox records atomic. Infrastructure components such as projection processors/checkpoint stores and outbox writers also declare method-level transactions for their own persistence units; they do not replace the service's business transaction. Do not add a database transaction to a method merely because it is named `execute` when it only calls an external provider or reads a cache.
 
-For roadmap, preserve the reactive chain so the R2DBC transaction covers the subscribed work; do not call `block()` or start detached subscriptions inside the transaction. Preference uses explicit Vert.x SQL transactions instead of Spring annotations.
+For roadmap, domain repositories and projection stores use JPA, with native queries for MySQL-specific projection SQL. Projection data and checkpoints share the processor's JPA transaction. Flush temporary node positions before saving the final order, and load entities after acquiring the roadmap lock to avoid stale persistence-context values. Preference uses explicit Vert.x SQL transactions instead of Spring annotations.

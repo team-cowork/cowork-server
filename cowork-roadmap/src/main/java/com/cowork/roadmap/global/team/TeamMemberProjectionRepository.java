@@ -1,12 +1,12 @@
 package com.cowork.roadmap.global.team;
 
-import reactor.core.publisher.Mono;
+import java.util.Optional;
 
 public interface TeamMemberProjectionRepository {
 
-    Mono<String> findActiveRole(Long teamId, Long userId);
+    Optional<String> findActiveRole(Long teamId, Long userId);
 
-    Mono<Void> upsert(TeamMemberEvent event);
+    void upsert(TeamMemberEvent event);
 
-    Mono<Void> deactivate(TeamMemberEvent event);
+    void deactivate(TeamMemberEvent event);
 }

@@ -2,13 +2,9 @@ server:
   port: ${PORT:8088}
 
 spring:
-  r2dbc:
-    url: r2dbc:mysql://${DB_HOST:mysql}:${DB_PORT:3306}/${DB_NAME:cowork_roadmap}?serverZoneId=Asia/Seoul
-    username: ${DB_USERNAME:${MYSQL_USER}}
-    password: ${DB_PASSWORD:${MYSQL_PASSWORD}}
-  flyway:
+  datasource:
     url: jdbc:mysql://${DB_HOST:mysql}:${DB_PORT:3306}/${DB_NAME:cowork_roadmap}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
-    user: ${DB_USERNAME:${MYSQL_USER}}
+    username: ${DB_USERNAME:${MYSQL_USER}}
     password: ${DB_PASSWORD:${MYSQL_PASSWORD}}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}

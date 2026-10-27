@@ -1,9 +1,13 @@
 package com.cowork.roadmap.domain.assignment.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -15,8 +19,6 @@ import com.cowork.roadmap.domain.assignment.repository.RoadmapAssignmentReposito
 import com.cowork.roadmap.domain.assignment.service.impl.ModifyRoadmapAssignmentStatusServiceImpl;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
 
-import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
 import team.themoment.sdk.exception.ExpectedException;
 
 class ModifyRoadmapAssignmentStatusServiceTest {
@@ -28,25 +30,21 @@ class ModifyRoadmapAssignmentStatusServiceTest {
 
     @Test
     void updateStatus_byUnrelatedNonAdmin_isForbidden() {
-        when(assignmentRepository.findById(5L)).thenReturn(Mono.just(assignment(5L, 100L, 200L)));
+        when(assignmentRepository.findById(5L)).thenReturn(Optional.of(assignment(5L, 100L, 200L)));
 
-        StepVerifier
-                .create(modifyRoadmapAssignmentStatusService.execute(999L, "MEMBER", 5L, status(AssignmentStatus.DONE)))
-                .expectErrorMatches(error -> error instanceof ExpectedException expected
-                        && expected.getStatusCode() == HttpStatus.FORBIDDEN)
-                .verify();
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> modifyRoadmapAssignmentStatusService.execute(999L, "MEMBER", 5L, status(AssignmentStatus.DONE)));
+        assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
     }
 
     @Test
     void updateStatus_byAssignee_updatesStatus() {
         RoadmapAssignment assignment = assignment(5L, 100L, 200L);
-        when(assignmentRepository.findById(5L)).thenReturn(Mono.just(assignment));
-        when(assignmentRepository.save(any())).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+        when(assignmentRepository.findById(5L)).thenReturn(Optional.of(assignment));
+        when(assignmentRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        StepVerifier
-                .create(modifyRoadmapAssignmentStatusService.execute(100L, "MEMBER", 5L, status(AssignmentStatus.DONE)))
-                .assertNext(response -> assertThat(response.status()).isEqualTo(AssignmentStatus.DONE.name()))
-                .verifyComplete();
+        var response = modifyRoadmapAssignmentStatusService.execute(100L, "MEMBER", 5L, status(AssignmentStatus.DONE));
+        assertThat(response.status()).isEqualTo(AssignmentStatus.DONE.name());
     }
 
     private static UpdateAssignmentStatusReqDto status(AssignmentStatus status) {

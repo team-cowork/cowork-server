@@ -9,7 +9,6 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
@@ -21,9 +20,9 @@ public class DeleteRoadmapServiceImpl implements DeleteRoadmapService {
 
     @Override
     @Transactional
-    public Mono<Void> execute(Long userId, String userRole, Long roadmapId) {
-        return lookupSupport.findRoadmapForUpdateOrThrow(roadmapId)
-                .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
-                        .then(Mono.defer(() -> roadmapRepository.delete(roadmap))));
+    public void execute(Long userId, String userRole, Long roadmapId) {
+        var roadmap = lookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
+        accessGuard.requireMutable(roadmap, userId, userRole);
+        roadmapRepository.delete(roadmap);
     }
 }

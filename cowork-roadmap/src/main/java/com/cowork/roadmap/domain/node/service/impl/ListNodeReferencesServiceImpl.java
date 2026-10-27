@@ -1,5 +1,7 @@
 package com.cowork.roadmap.domain.node.service.impl;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,7 +13,6 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Flux;
 
 @Service
 @RequiredArgsConstructor
@@ -24,11 +25,13 @@ public class ListNodeReferencesServiceImpl implements ListNodeReferencesService 
 
     @Override
     @Transactional(readOnly = true)
-    public Flux<NodeReferenceResDto> execute(Long userId, String userRole, Long nodeId) {
-        return nodeLookupSupport.findNodeOrThrow(nodeId)
-                .flatMap(node -> roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId())
-                        .flatMap(roadmap -> accessGuard.requireReadable(roadmap, userId, userRole).thenReturn(node)))
-                .flatMapMany(node -> referenceRepository.findByNodeIdOrderByPositionAsc(nodeId)
-                        .map(NodeReferenceResDto::from));
+    public List<NodeReferenceResDto> execute(Long userId, String userRole, Long nodeId) {
+        var node = nodeLookupSupport.findNodeOrThrow(nodeId);
+        var roadmap = roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId());
+        accessGuard.requireReadable(roadmap, userId, userRole);
+        return referenceRepository.findByNodeIdOrderByPositionAsc(nodeId)
+                .stream()
+                .map(NodeReferenceResDto::from)
+                .toList();
     }
 }
