@@ -12,11 +12,6 @@ all:
       ansible_port: 27123
       ansible_user: ubuntu
       private_ip: 10.0.0.97
-    config:
-      ansible_host: ssh.gsmsv.site
-      ansible_port: 27128
-      ansible_user: ubuntu
-      private_ip: 10.0.0.144
     notification:
       ansible_host: ssh.gsmsv.site
       ansible_port: 27110
@@ -125,6 +120,3 @@ all:
     vault_hosts:
       hosts:
         vault: {}
-    retired:
-      hosts:
-        config: {}
