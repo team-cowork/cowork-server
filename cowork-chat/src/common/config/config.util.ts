@@ -69,8 +69,8 @@ export function getKafkaClientConfig(configService: ConfigService): KafkaConfig 
 
     if (protocol === 'SASL_SSL') {
         const mechanism = (getOptionalConfig(configService, 'KAFKA_SASL_MECHANISM') ?? 'SCRAM-SHA-512').toLowerCase();
-        if (mechanism !== 'plain' && mechanism !== 'scram-sha-256' && mechanism !== 'scram-sha-512') {
-            throw new Error('KAFKA_SASL_MECHANISM must be PLAIN, SCRAM-SHA-256 or SCRAM-SHA-512');
+        if (mechanism !== 'scram-sha-256' && mechanism !== 'scram-sha-512') {
+            throw new Error('KAFKA_SASL_MECHANISM must be SCRAM-SHA-256 or SCRAM-SHA-512');
         }
 
         const sasl = {
