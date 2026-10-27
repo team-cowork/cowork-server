@@ -23,7 +23,8 @@ loki.process "docker_logs" {
       ecs_level   = "\"log.level\"",
       json_service = "service",
       ecs_service = "\"service.name\"",
-      timestamp   = "\"@timestamp\"",
+      // stage.docker가 extracted의 timestamp에 Docker 기록 시각을 넣으므로 앱 시각은 다른 이름으로 받는다.
+      app_timestamp = "\"@timestamp\"",
     }
   }
   stage.regex {
@@ -41,12 +42,18 @@ loki.process "docker_logs" {
     source = "service"
     template = "{{ if .docker_service }}{{ .docker_service }}{{ else if .ecs_service }}{{ TrimPrefix .ecs_service \"cowork-\" }}{{ else if .json_service }}{{ TrimPrefix .json_service \"cowork-\" }}{{ else }}" + sys.env("LOG_SERVICE") + "{{ end }}"
   }
+  // 애플리케이션 컨테이너(cowork.service 라벨) 줄인데 @timestamp나 level을 읽지 못하면 형식 위반으로 표시한다.
+  // 같은 VM의 DB·exporter 같은 다른 컨테이너 로그는 앱 로그 규약 대상이 아니므로 표시하지 않는다.
+  stage.template {
+    source   = "parse_error"
+    template = "{{ if and .docker_service (or (not .app_timestamp) (not .json_level)) }}true{{ end }}"
+  }
   stage.labels {
-    values = { level = "", service = "" }
+    values = { level = "", service = "", parse_error = "" }
   }
   // 앱이 기록한 시각을 쓴다. 없으면(plain text 등) Docker 기록 시각을 그대로 둔다.
   stage.timestamp {
-    source            = "timestamp"
+    source            = "app_timestamp"
     format            = "RFC3339Nano"
     action_on_failure = "skip"
   }
