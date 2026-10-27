@@ -1,7 +1,3 @@
-using System.Net;
-using System.Net.NetworkInformation;
-using System.Net.Sockets;
-using System.Text.Json;
 using MySqlConnector;
 
 namespace CoworkUser.Config;
@@ -9,12 +5,8 @@ namespace CoworkUser.Config;
 public sealed record AppConfig
 {
     public required int Port { get; init; }
+    public required KafkaSecurity KafkaSecurity { get; init; }
     public required string ConnectionString { get; init; }
-    public required string EurekaServerUrl { get; init; }
-    public required string EurekaAppName { get; init; }
-    public required string EurekaInstanceHost { get; init; }
-    public required string EurekaInstanceId { get; init; }
-    public required int EurekaInstancePort { get; init; }
     public required string ConfigProfile { get; init; }
     public required string KafkaBootstrapServers { get; init; }
     public required string KafkaTopic { get; init; }
@@ -44,22 +36,18 @@ public sealed record AppConfig
 
     public static AppConfig Load()
     {
-        var config = Build(FetchFromConfigServer());
+        var config = Build();
         ValidateStorage(config);
         return config;
     }
 
-    static AppConfig Build(IReadOnlyDictionary<string, string> remote)
+    static AppConfig Build()
     {
         string Lookup(string fallback, params string[] keys) =>
             keys.Select(Environment.GetEnvironmentVariable).FirstOrDefault(v => !string.IsNullOrEmpty(v))
-            ?? keys.Select(k => remote.GetValueOrDefault(k)).FirstOrDefault(v => !string.IsNullOrEmpty(v))
             ?? fallback;
 
         var port = int.Parse(Lookup("8082", "PORT", "SERVER_PORT", "server_port"));
-        var appName = Lookup("cowork-user", "EUREKA_APP_NAME", "eureka_app_name");
-        var instancePort = int.Parse(Lookup(port.ToString(), "APP_ADVERTISE_PORT"));
-        var (instanceHost, instanceId) = EurekaIdentity(Lookup, appName, instancePort);
 
         if (Lookup("true", "KAFKA_ENABLED") != "true")
             throw new InvalidOperationException("KAFKA_ENABLED=false is unsupported because owner commands and projections require Kafka");
@@ -67,12 +55,8 @@ public sealed record AppConfig
         return new AppConfig
         {
             Port = port,
+            KafkaSecurity = CoworkUser.Config.KafkaSecurity.Load(),
             ConnectionString = DatabaseConnectionString(Lookup),
-            EurekaServerUrl = Lookup("http://localhost:8761/eureka", "EUREKA_SERVER_URL", "eureka_server_url"),
-            EurekaAppName = appName,
-            EurekaInstanceHost = instanceHost,
-            EurekaInstanceId = instanceId,
-            EurekaInstancePort = instancePort,
             ConfigProfile = Profile,
             KafkaBootstrapServers = Lookup("localhost:9094", "KAFKA_BOOTSTRAP_SERVERS", "kafka_bootstrap_servers"),
             KafkaTopic = Lookup("user.data.sync", "KAFKA_TOPIC_USER_SYNC", "kafka_topic"),
@@ -106,61 +90,6 @@ public sealed record AppConfig
 
     static string? NonEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
 
-    static IReadOnlyDictionary<string, string> FetchFromConfigServer()
-    {
-        var url = NonEmpty(Environment.GetEnvironmentVariable("CONFIG_SERVER_URL"));
-        if (url is null) return new Dictionary<string, string>();
-
-        using var client = ControlPlane.Client();
-        var target = $"{url.TrimEnd('/')}/cowork-user/{Profile}";
-        using var request = ControlPlane.Request(HttpMethod.Get, target);
-        HttpResponseMessage response;
-        try
-        {
-            response = client.Send(request);
-        }
-        catch (Exception)
-        {
-            throw new InvalidOperationException($"Config Server unavailable for cowork-user/{Profile}");
-        }
-
-        using (response)
-        {
-            if (response.StatusCode != HttpStatusCode.OK)
-                throw new InvalidOperationException($"Config Server returned HTTP {(int)response.StatusCode} for cowork-user/{Profile}");
-            using var document = JsonDocument.Parse(response.Content.ReadAsStream());
-            return MergePropertySources(document.RootElement);
-        }
-    }
-
-    internal static Dictionary<string, string> MergePropertySources(JsonElement body)
-    {
-        if (body.ValueKind != JsonValueKind.Object
-            || !body.TryGetProperty("propertySources", out var sources)
-            || sources.ValueKind != JsonValueKind.Array)
-            throw new InvalidOperationException("invalid Config Server response: :invalid_response");
-
-        // The first property source has the highest precedence.
-        var merged = new Dictionary<string, string>();
-        foreach (var source in sources.EnumerateArray().Reverse())
-        {
-            if (source.ValueKind != JsonValueKind.Object
-                || !source.TryGetProperty("source", out var values)
-                || values.ValueKind != JsonValueKind.Object) continue;
-            foreach (var property in values.EnumerateObject())
-            {
-                var value = property.Value.ValueKind switch
-                {
-                    JsonValueKind.Null => "",
-                    JsonValueKind.String => property.Value.GetString()!,
-                    _ => property.Value.GetRawText(),
-                };
-                if (value != "") merged[property.Name] = value;
-            }
-        }
-        return merged;
-    }
-
     static void ValidateStorage(AppConfig config)
     {
         foreach (var (endpoint, isPublic) in new[] { (config.S3InternalEndpoint, false), (config.PublicApiBaseUrl, true) })
@@ -184,7 +113,6 @@ public sealed record AppConfig
         string Required(string key) =>
             NonEmpty(lookup("", [key, key.ToLowerInvariant()])) ?? throw new InvalidOperationException($"{key} is required for cowork-user database configuration");
 
-        // Slot environment values take precedence over Config Server values (see Lookup).
         return new MySqlConnectionStringBuilder
         {
             Server = Required("DB_HOST"),
@@ -209,30 +137,6 @@ public sealed record AppConfig
             throw new InvalidOperationException($"{key} must not exceed {max}");
         return parsed;
     }
-
-    static (string Host, string Id) EurekaIdentity(Func<string, string[], string> lookup, string appName, int instancePort)
-    {
-        if (Environment.GetEnvironmentVariable("EUREKA_USE_RUNTIME_HOSTNAME") == "true")
-        {
-            var hostname = Dns.GetHostName();
-            var advertised = NonEmpty(Environment.GetEnvironmentVariable("APP_ADVERTISE_ADDRESS")) ?? NonLoopbackIpv4();
-            var id = Environment.GetEnvironmentVariable("EUREKA_INSTANCE_ID") ?? $"{hostname}:{appName}:{instancePort}";
-            return (advertised, id);
-        }
-
-        var configuredHost = lookup("localhost", ["APP_ADVERTISE_ADDRESS"]);
-        return (configuredHost, lookup($"{configuredHost}:{appName}:{instancePort}", ["EUREKA_INSTANCE_ID"]));
-    }
-
-    static string NonLoopbackIpv4() =>
-        NetworkInterface.GetAllNetworkInterfaces()
-            .SelectMany(i => i.GetIPProperties().UnicastAddresses)
-            .Select(a => a.Address)
-            .FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork
-                                 && !IPAddress.IsLoopback(a)
-                                 && !a.ToString().StartsWith("169.254."))
-            ?.ToString()
-        ?? throw new InvalidOperationException("No non-loopback IPv4 address is available for Eureka registration");
 
     internal static List<string> ParseCsvOrList(string value) =>
         value.Trim().TrimStart('[').TrimEnd(']')
