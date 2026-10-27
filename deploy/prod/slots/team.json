@@ -4,8 +4,8 @@
   "kind": "application",
   "runtime": {
     "APP_CONFIG_PROFILE": "prod",
-    "CONFIG_SERVER_URL": "http://10.0.0.169:8761",
-    "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
+    "CONFIG_SERVER_URL": "http://10.0.0.144:8761",
+    "EUREKA_SERVER_URL": "http://10.0.0.144:8761/eureka/",
     "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.167:9094",
     "PUBLIC_API_BASE_URL": "https://cowork.https.gsmsv.site",
     "S3_BUCKET": "cowork-bucket",
@@ -43,8 +43,8 @@
   "container": {
     "port": 8085,
     "host_port": 8085,
-    "bind_address": "10.0.0.74",
-    "advertise_address": "10.0.0.74",
+    "bind_address": "10.0.0.97",
+    "advertise_address": "10.0.0.97",
     "readiness": {
       "path": "/actuator/health/readiness",
       "timeout_seconds": 420
