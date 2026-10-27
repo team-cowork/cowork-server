@@ -48,6 +48,11 @@ const (
 	DataKeyBody  = "body"
 )
 
+// apnsPlaceholderBody is the only text in a data-only iOS alert. iOS displays the
+// original alert when the Notification Service Extension times out or crashes, so the
+// real title and body stay in data for the extension to swap in after its account check.
+const apnsPlaceholderBody = "새 알림"
+
 // Message is one Firebase installation's send request. Data is per installation so
 // each message can carry the owning account (see DataKeyAccountID).
 type Message struct {
@@ -74,10 +79,11 @@ type Result struct {
 type Sender struct {
 	client         messagingClient
 	isUnregistered func(error) bool
-	// dataOnly omits the notification payload so the OS never displays a message
-	// before the client has checked DataKeyAccountID. It stays off until clients that
-	// render data-only messages themselves are deployed, because older clients show
-	// nothing in the background without a notification payload.
+	// dataOnly omits the notification payload so the OS never displays a message's
+	// content before the client has checked DataKeyAccountID. It stays off until clients
+	// that handle it are deployed: older Android and Web clients show nothing in the
+	// background, and iOS clients without a Notification Service Extension show only the
+	// placeholder alert.
 	dataOnly bool
 }
 
@@ -149,9 +155,10 @@ const fcmBatchSize = 500
 
 // buildMessage copies title and body into data and, in data-only mode, drops the
 // notification payload. Android then needs high priority to wake the app in Doze. iOS
-// gets an alert push with mutable-content instead of a throttled background push, so the
-// client's Notification Service Extension (with the usernotifications.filtering
-// entitlement) can check DataKeyAccountID and suppress it before it is displayed.
+// gets a placeholder alert push with mutable-content instead of a throttled background
+// push, so the client's Notification Service Extension (with the
+// usernotifications.filtering entitlement) can check DataKeyAccountID and suppress it, or
+// replace the placeholder with DataKeyTitle and DataKeyBody, before it is displayed.
 func (s *Sender) buildMessage(m Message, title, body string) *messaging.Message {
 	data := make(map[string]string, len(m.Data)+2)
 	for k, v := range m.Data {
@@ -169,7 +176,7 @@ func (s *Sender) buildMessage(m Message, title, body string) *messaging.Message 
 	msg.APNS = &messaging.APNSConfig{
 		Headers: map[string]string{"apns-push-type": "alert", "apns-priority": "10"},
 		Payload: &messaging.APNSPayload{Aps: &messaging.Aps{
-			Alert:          &messaging.ApsAlert{Title: title, Body: body},
+			Alert:          &messaging.ApsAlert{Body: apnsPlaceholderBody},
 			MutableContent: true,
 		}},
 	}
