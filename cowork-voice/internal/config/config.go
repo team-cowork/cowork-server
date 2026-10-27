@@ -38,11 +38,14 @@ func Load() (*AppConfig, error) {
 		Port:          getEnv("PORT", "8089"), MongoDBURI: mongoURI, MongoDBDB: mongoDB,
 		LiveKitURL: os.Getenv("LIVEKIT_URL"), LiveKitWsURL: os.Getenv("LIVEKIT_WS_URL"),
 		LiveKitAPIKey: os.Getenv("LIVEKIT_API_KEY"), LiveKitAPISecret: os.Getenv("LIVEKIT_API_SECRET"),
-		KafkaBrokers:              getEnv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9094"),
-		KafkaTopicVoiceEvent:      getEnv("KAFKA_TOPIC_VOICE_EVENT", "voice.event"),
+		KafkaBrokers:              os.Getenv("KAFKA_BOOTSTRAP_SERVERS"),
+		KafkaTopicVoiceEvent:      os.Getenv("KAFKA_TOPIC_VOICE_EVENT"),
 		KafkaGroupIDChannelAccess: getEnv("KAFKA_GROUP_ID_CHANNEL_ACCESS", "cowork-voice.channel-permissions.v1"),
 	}
-	for _, key := range []string{"LIVEKIT_URL", "LIVEKIT_WS_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"} {
+	for _, key := range []string{
+		"LIVEKIT_URL", "LIVEKIT_WS_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET",
+		"KAFKA_BOOTSTRAP_SERVERS", "KAFKA_TOPIC_VOICE_EVENT",
+	} {
 		if _, err := requireConfig(key); err != nil {
 			return nil, err
 		}
