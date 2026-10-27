@@ -52,8 +52,8 @@ export class AppConfigService {
 
         if (protocol === 'SASL_SSL') {
             const mechanism = (this.configService.get<string>('KAFKA_SASL_MECHANISM') ?? 'SCRAM-SHA-512').toLowerCase();
-            if (mechanism !== 'plain' && mechanism !== 'scram-sha-256' && mechanism !== 'scram-sha-512') {
-                throw new Error('KAFKA_SASL_MECHANISM must be PLAIN, SCRAM-SHA-256 or SCRAM-SHA-512');
+            if (mechanism !== 'scram-sha-256' && mechanism !== 'scram-sha-512') {
+                throw new Error('KAFKA_SASL_MECHANISM must be SCRAM-SHA-256 or SCRAM-SHA-512');
             }
 
             const username = this.configService.getOrThrow<string>('KAFKA_SASL_USERNAME');
