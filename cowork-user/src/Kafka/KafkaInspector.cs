@@ -17,7 +17,7 @@ public sealed class KafkaInspector : IDisposable
 
     public KafkaInspector(AppConfig config)
     {
-        consumer = new ConsumerBuilder<string, byte[]>(new ConsumerConfig
+        consumer = new ConsumerBuilder<string, byte[]>(new ConsumerConfig(config.KafkaSecurity.CreateClientConfig())
         {
             BootstrapServers = config.KafkaBootstrapServers,
             GroupId = "cowork-user.projection-inspector",
