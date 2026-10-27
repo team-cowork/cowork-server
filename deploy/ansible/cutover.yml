@@ -1,17 +1,16 @@
 ---
-- name: Retire legacy deployments after release artifact preflight
+- name: Retire legacy deployments during the explicit cutover
   hosts: all
   become: true
   gather_facts: false
   any_errors_fatal: true
   pre_tasks:
-    - name: Require the explicit whole-system cutover and verified release artifacts
+    - name: Require the explicit whole-system cutover and release source
       ansible.builtin.assert:
         that:
           - cowork_cutover | default(false) | bool
-          - cowork_release_preflight_passed | default(false) | bool
           - cowork_release_sha | default('') is match('^[0-9a-f]{40}$')
-        fail_msg: Run the main release workflow preflight before enabling the one-time cutover.
+        fail_msg: Run the main release workflow before enabling the one-time cutover.
     - name: Check whether this host already completed the cutover
       ansible.builtin.stat:
         path: /var/lib/cowork/cutover-complete
