@@ -51,8 +51,7 @@ modules:
       fail_if_header_not_matches:
         - header: Content-Type
           regexp: '^application/json(;.*)?$'
-  # Gateway global CORS preflight. Prod replaces this local Origin with the first HTTPS entry of the deployed PUBLIC_WEB_ORIGINS
-  # (deploy/prod/monitoring/render-prometheus.py, prepare-configs.sh).
+  # Local Compose CORS origin. Production probes have their own Nomad config bundle.
   http_gateway_cors_preflight:
     prober: http
     timeout: 5s
@@ -68,15 +67,3 @@ modules:
       fail_if_header_not_matches:
         - header: Access-Control-Allow-Origin
           regexp: '^\Qhttp://localhost:3000\E$'
-  tls_vault_private:
-    prober: http
-    timeout: 5s
-    http:
-      method: GET
-      preferred_ip_protocol: ip4
-      fail_if_not_ssl: true
-      follow_redirects: false
-      # Sealed or standby status codes still prove the served certificate chain.
-      valid_status_codes: [200, 429, 472, 473, 501, 503]
-      tls_config:
-        ca_file: /etc/blackbox_exporter/vault-tls-ca.crt

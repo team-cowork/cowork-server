@@ -1,0 +1,123 @@
+groups:
+- name: cowork-expected-services
+  rules:
+  - alert: coworkServiceMissing
+    expr: absent(up{job="cowork-services",service="authorization"})
+    for: 3m
+    labels:
+      severity: critical
+      service: authorization
+      job: cowork-services
+    annotations:
+      summary: authorization 서비스 검색 결과 누락
+      description: Nomad 배포 상태와 Consul 서비스 등록을 확인해 주세요.
+  - alert: coworkServiceMissing
+    expr: absent(up{job="cowork-services",service="channel"})
+    for: 3m
+    labels:
+      severity: critical
+      service: channel
+      job: cowork-services
+    annotations:
+      summary: channel 서비스 검색 결과 누락
+      description: Nomad 배포 상태와 Consul 서비스 등록을 확인해 주세요.
+  - alert: coworkServiceMissing
+    expr: absent(up{job="cowork-services",service="chat"})
+    for: 3m
+    labels:
+      severity: critical
+      service: chat
+      job: cowork-services
+    annotations:
+      summary: chat 서비스 검색 결과 누락
+      description: Nomad 배포 상태와 Consul 서비스 등록을 확인해 주세요.
+  - alert: coworkServiceMissing
+    expr: absent(up{job="cowork-services",service="gateway"})
+    for: 3m
+    labels:
+      severity: critical
+      service: gateway
+      job: cowork-services
+    annotations:
+      summary: gateway 서비스 검색 결과 누락
+      description: Nomad 배포 상태와 Consul 서비스 등록을 확인해 주세요.
+  - alert: coworkServiceMissing
+    expr: absent(up{job="cowork-services",service="github"})
+    for: 3m
+    labels:
+      severity: critical
+      service: github
+      job: cowork-services
+    annotations:
+      summary: github 서비스 검색 결과 누락
+      description: Nomad 배포 상태와 Consul 서비스 등록을 확인해 주세요.
+  - alert: coworkServiceMissing
+    expr: absent(up{job="cowork-services",service="notification"})
+    for: 3m
+    labels:
+      severity: critical
+      service: notification
+      job: cowork-services
+    annotations:
+      summary: notification 서비스 검색 결과 누락
+      description: Nomad 배포 상태와 Consul 서비스 등록을 확인해 주세요.
+  - alert: coworkServiceMissing
+    expr: absent(up{job="cowork-services",service="preference"})
+    for: 3m
+    labels:
+      severity: critical
+      service: preference
+      job: cowork-services
+    annotations:
+      summary: preference 서비스 검색 결과 누락
+      description: Nomad 배포 상태와 Consul 서비스 등록을 확인해 주세요.
+  - alert: coworkServiceMissing
+    expr: absent(up{job="cowork-services",service="project"})
+    for: 3m
+    labels:
+      severity: critical
+      service: project
+      job: cowork-services
+    annotations:
+      summary: project 서비스 검색 결과 누락
+      description: Nomad 배포 상태와 Consul 서비스 등록을 확인해 주세요.
+  - alert: coworkServiceMissing
+    expr: absent(up{job="cowork-services",service="roadmap"})
+    for: 3m
+    labels:
+      severity: critical
+      service: roadmap
+      job: cowork-services
+    annotations:
+      summary: roadmap 서비스 검색 결과 누락
+      description: Nomad 배포 상태와 Consul 서비스 등록을 확인해 주세요.
+  - alert: coworkServiceMissing
+    expr: absent(up{job="cowork-services",service="team"})
+    for: 3m
+    labels:
+      severity: critical
+      service: team
+      job: cowork-services
+    annotations:
+      summary: team 서비스 검색 결과 누락
+      description: Nomad 배포 상태와 Consul 서비스 등록을 확인해 주세요.
+  - alert: coworkServiceMissing
+    expr: absent(up{job="cowork-services",service="user"})
+    for: 3m
+    labels:
+      severity: critical
+      service: user
+      job: cowork-services
+    annotations:
+      summary: user 서비스 검색 결과 누락
+      description: Nomad 배포 상태와 Consul 서비스 등록을 확인해 주세요.
+  - alert: coworkServiceMissing
+    expr: absent(up{job="cowork-services",service="voice"})
+    for: 3m
+    labels:
+      severity: critical
+      service: voice
+      job: cowork-services
+    annotations:
+      summary: voice 서비스 검색 결과 누락
+      description: Nomad 배포 상태와 Consul 서비스 등록을 확인해 주세요.

@@ -1,9 +1,0 @@
-[
-  {
-    "targets": ["cowork-config:8761"],
-    "labels": {
-      "service": "config",
-      "__metrics_path__": "/actuator/prometheus"
-    }
-  }
-]
