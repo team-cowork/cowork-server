@@ -21,9 +21,6 @@ spring:
       data-source-properties:
         # Keep existing DATETIME values when the JVM and server time zones differ.
         preserveInstants: false
-  jdbc:
-    template:
-      query-timeout: 10s
   jpa:
     hibernate:
       ddl-auto: none
