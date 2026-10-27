@@ -8,13 +8,14 @@ SERVICE_NAME="cowork-github"
 SERVICE_WORKDIR="$PROJECT_ROOT/cowork-github"
 SERVICE_COMMAND=(
   bash -lc
-  'export CONFIG_SERVER_URL="${CONFIG_SERVER_URL:-http://localhost:8761}"
+  'export GITHUB_APP_ID="${COWORK_GITHUB_APP_ID:-}"
+   export GITHUB_PRIVATE_KEY="${COWORK_GITHUB_PRIVATE_KEY:-}"
+   export GITHUB_WEBHOOK_SECRET="${COWORK_GITHUB_WEBHOOK_SECRET:-}"
+   export INTERNAL_API_KEY="${COWORK_GITHUB_INTERNAL_API_KEY:-}"
    export APP_CONFIG_PROFILE="${APP_CONFIG_PROFILE:-local}"
    export PORT="${GITHUB_PORT:-8090}"
    export KAFKA_BOOTSTRAP_SERVERS="${KAFKA_BOOTSTRAP_SERVERS:-localhost:9094}"
    export REDIS_HOST="${REDIS_HOST:-localhost}"
-   export EUREKA_SERVER_URL="${EUREKA_SERVER_URL:-http://localhost:8761/eureka}"
-   export APP_ADVERTISE_ADDRESS="${APP_ADVERTISE_ADDRESS:-localhost}"
    npm run start:dev'
 )
 

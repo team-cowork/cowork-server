@@ -24,7 +24,6 @@ import (
 	"github.com/cowork/authorization/internal/monitoring"
 	"github.com/cowork/authorization/internal/repository"
 	"github.com/cowork/authorization/internal/service"
-	eurekaclient "github.com/cowork/authorization/pkg/eureka"
 	"github.com/cowork/authorization/pkg/logger"
 	_ "github.com/cowork/authorization/swagger"
 	"github.com/gin-gonic/gin"
@@ -79,7 +78,7 @@ func main() {
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
 	webhookInbox := repository.NewWebhookInboxRepository(sqlDB)
 	identityOperationRepo := repository.NewUserIdentityOperationRepository(db)
-	kafkaProducer := kafkainfra.NewProducer(cfg.KafkaBootstrapServers, cfg.KafkaTopicUserSync)
+	kafkaProducer := kafkainfra.NewProducer(cfg.KafkaSecurity, cfg.KafkaBootstrapServers, cfg.KafkaTopicUserSync)
 	if err := refreshTokenRepo.DeleteExpiredSessions(
 		context.Background(),
 		time.Now().UTC().Truncate(time.Microsecond),
@@ -102,6 +101,7 @@ func main() {
 		kafkaProducer,
 	)
 	identityResultConsumer := kafkainfra.NewIdentityResultConsumer(
+		cfg.KafkaSecurity,
 		cfg.KafkaBootstrapServers,
 		cfg.KafkaTopicUserIdentityCommandResult,
 		cfg.KafkaGroupIDUserIdentityResult,
@@ -160,12 +160,6 @@ func main() {
 		events.POST("/datagsm", eventHandler.DataGSMWebhook)
 	}
 
-	eurekaClient := eurekaclient.NewClient(cfg)
-	if err := eurekaClient.Register(cfg); err != nil {
-		log.Printf("warning: eureka registration failed: %v", err)
-	}
-	eurekaClient.StartHeartbeat(cfg)
-
 	srv := &http.Server{
 		Addr:    ":" + cfg.Port,
 		Handler: router,
@@ -204,7 +198,6 @@ func main() {
 	close(stopCleanup)
 
 	log.Println("shutting down server...")
-	eurekaClient.Deregister(cfg)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

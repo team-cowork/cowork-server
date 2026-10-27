@@ -1,11 +1,6 @@
 # Local build settings, included explicitly by the root docker-compose.yml.
 # 소스에서 직접 빌드하는 build: 설정만 관리한다.
 services:
-  cowork-config:
-    build:
-      context: .
-      dockerfile: cowork-config/Dockerfile.local
-
   cowork-gateway:
     build:
       context: .

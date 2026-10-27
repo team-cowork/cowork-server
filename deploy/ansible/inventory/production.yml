@@ -1,0 +1,122 @@
+all:
+  vars:
+    ansible_python_interpreter: /usr/bin/python3
+  hosts:
+    channel:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 27121
+      ansible_user: ubuntu
+      private_ip: 10.0.0.74
+    team:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 27123
+      ansible_user: ubuntu
+      private_ip: 10.0.0.97
+    notification:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 27110
+      ansible_user: ubuntu
+      private_ip: 10.0.0.131
+    gateway:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 27127
+      ansible_user: ubuntu
+      private_ip: 10.0.0.127
+    authorization:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 21100
+      ansible_user: ubuntu
+      private_ip: 10.0.0.140
+    user:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 27126
+      ansible_user: ubuntu
+      private_ip: 10.0.0.185
+    chat:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 24153
+      ansible_user: ubuntu
+      private_ip: 10.0.0.174
+    preference:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 24168
+      ansible_user: ubuntu
+      private_ip: 10.0.0.89
+    vault:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 21105
+      ansible_user: ubuntu
+      private_ip: 10.0.0.91
+    voice:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 21104
+      ansible_user: ubuntu
+      private_ip: 10.0.0.90
+    project:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 24167
+      ansible_user: ubuntu
+      private_ip: 10.0.0.88
+    github:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 27129
+      ansible_user: ubuntu
+      private_ip: 10.0.0.150
+    roadmap:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 24150
+      ansible_user: ubuntu
+      private_ip: 10.0.0.132
+    monitoring:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 21111
+      ansible_user: ubuntu
+      private_ip: 10.0.0.137
+    kafka:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 21129
+      ansible_user: ubuntu
+      private_ip: 10.0.0.167
+    redis:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 24134
+      ansible_user: ubuntu
+      private_ip: 10.0.0.145
+    livekit:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 21130
+      ansible_user: ubuntu
+      private_ip: 10.0.0.172
+    control:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 27130
+      ansible_user: ubuntu
+      private_ip: 10.0.0.111
+  children:
+    control_plane:
+      hosts:
+        control: {}
+    nomad_clients:
+      hosts:
+        channel: {}
+        team: {}
+        notification: {}
+        gateway: {}
+        authorization: {}
+        user: {}
+        chat: {}
+        preference: {}
+        voice: {}
+        project: {}
+        github: {}
+        roadmap: {}
+        monitoring: {}
+        kafka: {}
+        redis: {}
+        livekit: {}
+    deployment_runner:
+      hosts:
+        control: {}
+    vault_hosts:
+      hosts:
+        vault: {}

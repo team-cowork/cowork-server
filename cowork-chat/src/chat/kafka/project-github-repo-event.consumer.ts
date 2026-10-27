@@ -7,7 +7,7 @@ import {
 import {ConfigService} from '@nestjs/config';
 import {Consumer, Kafka} from 'kafkajs';
 import {DicoshotService} from 'dicoshot-nest';
-import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {getKafkaClientConfig} from '../../common/config/config.util';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
 import {parseEventTime} from '../../common/util/event-time.util';
@@ -45,7 +45,7 @@ export class ProjectGithubRepoEventConsumer implements OnModuleInit, OnModuleDes
     async onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-project-github-repo-event',
-            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
+            ...getKafkaClientConfig(this.configService),
         });
         const stream = PROJECTION_STREAMS.projectGithubRepo;
         this.consumer = kafka.consumer({groupId: stream.groupId});

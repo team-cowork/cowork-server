@@ -1,0 +1,288 @@
+{
+  "title": "cowork / Chat",
+  "uid": "cowork-chat",
+  "tags": ["cowork", "service", "chat"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "메트릭 수집 상태",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "min(up{job=~\"cowork-.*\",service=\"chat\"})",
+          "legendFormat": "chat",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": { "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "background", "graphMode": "none", "textMode": "auto", "orientation": "auto" },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "noValue": "N/A",
+          "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}],
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] }
+        }
+      },
+      "description": "애플리케이션 메트릭 수집 결과입니다. 서비스가 요청을 처리할 준비가 됐는지는 준비 상태 카드에서 확인합니다. 인스턴스 하나라도 수집에 실패하면 DOWN입니다."
+    },
+    {
+      "id": 100,
+      "title": "서비스 준비 상태",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "targets": [
+        {
+          "expr": "min(probe_success{job=\"blackbox\",service=\"chat\"})",
+          "legendFormat": "chat",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "noValue": "N/A",
+          "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}],
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] }
+        }
+      },
+      "description": "준비 상태 점검 결과입니다. 점검 대상이 없거나 결과가 누락되면 N/A입니다.",
+      "options": { "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "background", "graphMode": "none", "textMode": "auto", "orientation": "auto" }
+    },
+    {
+      "id": 101,
+      "title": "V8 힙 한도 대비 사용률",
+      "type": "gauge",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "max(nodejs_heap_size_used_bytes{service=\"chat\",job=~\"cowork-.*\"} / (cowork_nodejs_heap_size_limit_bytes{service=\"chat\",job=~\"cowork-.*\"} > 0)) * 100",
+          "legendFormat": "힙 사용률",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "noValue": "N/A",
+          "max": 100,
+          "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{"value": null, "color": "green"}, {"value": 85, "color": "orange"}, {"value": 95, "color": "red"}] }
+        }
+      },
+      "description": "현재 확보한 힙 크기가 아닌 V8 최대 힙 한도 기준입니다. 85%부터 주의, 95%부터 높음으로 표시합니다. 인스턴스 중 가장 높은 사용률입니다.",
+      "options": { "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true }
+    },
+    {
+      "id": 4,
+      "title": "Node.js 활성 핸들 수",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "expr": "nodejs_active_handles_total{service=\"chat\"}",
+          "legendFormat": "활성 핸들 수",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "instant": true,
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "options": { "reduceOptions": {"calcs": ["lastNotNull"]} },
+      "fieldConfig": { "defaults": {"noValue": "N/A", "min": 0, "color": {"mode": "fixed", "fixedColor": "blue"}} }
+    },
+    {
+      "id": 2,
+      "title": "Node.js 이벤트 루프 지연 (ms)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "nodejs_eventloop_lag_seconds{service=\"chat\"} * 1000",
+          "legendFormat": "이벤트 루프 지연",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms", "noValue": "N/A", "min": 0, "color": {"mode": "palette-classic"}, "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"} }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
+    },
+    {
+      "id": 3,
+      "title": "Node.js 힙 메모리 사용량",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "expr": "nodejs_heap_size_used_bytes{service=\"chat\"}",
+          "legendFormat": "힙 사용량",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "nodejs_heap_size_total_bytes{service=\"chat\"}",
+          "legendFormat": "전체 힙 용량",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "B",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "max(cowork_nodejs_heap_size_limit_bytes{service=\"chat\",job=~\"cowork-.*\"})",
+          "legendFormat": "V8 힙 한도",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "C",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "N/A",
+          "min": 0,
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
+    },
+    {
+      "id": 5,
+      "title": "GC 일시정지 시간 (ms/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(nodejs_gc_duration_seconds_sum{service=\"chat\"}[$__rate_interval]) * 1000",
+          "legendFormat": "GC {{kind}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "suffix:ms/s",
+          "noValue": "N/A",
+          "min": 0,
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
+    },
+    {
+      "id": 102,
+      "title": "프로세스 상주 메모리",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        {
+          "expr": "max(process_resident_memory_bytes{service=\"chat\",job=~\"cowork-.*\"})",
+          "legendFormat": "상주 메모리",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "noValue": "N/A",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
+    },
+    {
+      "id": 6,
+      "title": "Socket.IO 어댑터 준비 상태",
+      "type": "state-timeline",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        {
+          "expr": "min(sum by (instance) (cowork_chat_socketio_adapter_state{service=\"chat\",state=~\"READY|IN_MEMORY\"}))",
+          "legendFormat": "Socket.IO 어댑터",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "noValue": "N/A",
+          "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}],
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] },
+          "custom": { "fillOpacity": 80, "lineWidth": 0 }
+        }
+      },
+      "description": "READY 또는 IN_MEMORY 상태이면 UP입니다. 연결 중이거나 연결 저하·종료 상태이면 DOWN입니다. 인스턴스 하나라도 DOWN이면 DOWN입니다.",
+      "options": { "mergeValues": true, "rowHeight": 0.8, "showValue": "auto", "alignValue": "left", "legend": {"showLegend": false}, "tooltip": {"mode": "single", "sort": "none"} }
+    },
+    {
+      "id": 7,
+      "title": "초당 Socket.IO Redis 재연결 수",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        {
+          "expr": "sum by (client)(rate(cowork_chat_socketio_redis_reconnects_total{service=\"chat\"}[$__rate_interval]))",
+          "legendFormat": "{{client}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ops", "min": 0, "noValue": "N/A", "color": {"mode": "palette-classic"}, "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"} }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 0,
+        "label": "데이터 소스"
+      }
+    ]
+  }
+}

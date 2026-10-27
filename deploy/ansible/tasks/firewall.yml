@@ -1,0 +1,33 @@
+---
+- name: Install the native ingress policy
+  ansible.builtin.template:
+    src: firewall.nft.j2
+    dest: /etc/cowork/firewall.nft
+    mode: '0644'
+  register: platform_firewall_config
+- name: Install the firewall service
+  ansible.builtin.copy:
+    content: |
+      [Unit]
+      Description=Cowork platform ingress policy
+      Before=nomad.service consul.service
+      After=network-pre.target
+      Wants=network-pre.target
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStartPre=-/usr/sbin/nft add table inet cowork
+      ExecStart=/usr/sbin/nft -f /etc/cowork/firewall.nft
+      ExecReload=/usr/sbin/nft -f /etc/cowork/firewall.nft
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/cowork-firewall.service
+    mode: '0644'
+  register: platform_firewall_unit
+- name: Activate ingress only after the explicit cutover
+  ansible.builtin.systemd_service:
+    name: cowork-firewall
+    daemon_reload: true
+    enabled: true
+    state: "{{ 'restarted' if platform_firewall_config.changed or platform_firewall_unit.changed else 'started' }}"
+  when: platform_cutover_marker.stat.exists | default(false) or cowork_cutover | default(false) | bool

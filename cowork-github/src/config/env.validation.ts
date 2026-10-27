@@ -23,10 +23,4 @@ export const envValidationSchema = Joi.object({
     GITHUB_ISSUE_MAX_RETRIES: Joi.number().integer().min(1).default(3),
     INTERNAL_API_KEY: Joi.string().trim().required(),
     GITHUB_WEBHOOK_SECRET: Joi.string().trim().required(),
-    EUREKA_ENABLED: Joi.boolean().default(true),
-    EUREKA_SERVER_URL: Joi.string().trim().uri({scheme: ['http', 'https']}),
-    EUREKA_APP_NAME: Joi.string().trim().default('cowork-github'),
-    EUREKA_LEASE_RENEWAL_SECONDS: Joi.number().integer().positive().default(30),
-    APP_ADVERTISE_ADDRESS: Joi.string().trim(),
-    APP_ADVERTISE_PORT: Joi.number().port(),
 });

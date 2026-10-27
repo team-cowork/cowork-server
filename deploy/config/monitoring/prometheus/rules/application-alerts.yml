@@ -68,19 +68,7 @@ groups:
 
   - name: cowork-discovery
     rules:
-      # 서비스 하나가 통째로 discovery에서 빠지는 경우는 deploy/prod/monitoring/render-prometheus.py가
-      # application slot 목록으로부터 생성하는 coworkServiceMissing(3m, critical, rules.json)이 이미 감시한다.
-      # 그 규칙은 slot 파일을 단일 출처로 삼아 서비스 목록 드리프트가 생기지 않으므로, 여기서는 같은 조건을
-      # 하드코딩된 서비스 목록으로 중복 감시하지 않는다.
-
-      # 대상이 하나도 없으면 서비스별 규칙은 아무것도 평가되지 않아 모든 알림이 조용해진다.
-      # eureka_sd는 갱신에 실패해도 직전 target group을 유지하므로, Prometheus가 떠 있는 동안
-      # Eureka가 죽거나 인증에 실패하는 것만으로는 이 규칙이 울리지 않는다. 실제로 걸리는 경우는
-      # Eureka가 정상 응답했는데 등록된 인스턴스가 없을 때, 또는 Eureka가 죽은 상태에서 Prometheus가
-      # (재)시작돼 처음부터 target을 하나도 못 받아온 때다. 대상이 0개가 되면 render-prometheus.py가
-      # slot마다 생성한 coworkServiceMissing(3m)도 함께 울리는데, alertmanager.yml의 inhibit_rules가
-      # 이 알림이 울리는 동안 그 알림들을 묶어 막는다. 억제는 이 알림이 먼저 울려 있어야 적용되므로
-      # for를 coworkServiceMissing과 같은 3m으로 맞춰 group_wait(30s) 안에 함께 도착하게 한다.
+      # 로컬 Compose의 정적 서비스 목록에 대한 누락 감시.
       - alert: coworkServiceDiscoveryEmpty
         expr: absent(up{job="cowork-services"})
         for: 3m
@@ -88,7 +76,7 @@ groups:
           severity: critical
         annotations:
           summary: "서비스 검색 결과 없음"
-          description: "Prometheus에 cowork-services 수집 대상이 3분 동안 없습니다. Eureka에 등록된 인스턴스가 없거나, Eureka에 연결할 수 없는 상태에서 Prometheus가 시작 또는 재시작되었을 수 있습니다."
+          description: "Prometheus에 cowork-services 수집 대상이 3분 동안 없습니다. Prometheus의 정적 서비스 목록과 Compose 설정을 확인해 주세요."
 
   - name: cowork-host
     rules:
@@ -258,7 +246,7 @@ groups:
 
   - name: cowork-chat-socketio
     rules:
-      # adapter가 DEGRADED인 동안 Eureka status는 OUT_OF_SERVICE지만 lease는 유지되므로 수집은 계속된다.
+      # 어댑터 준비 상태가 실패해도 메트릭 수집은 계속된다.
       - alert: coworkSocketIoAdapterDegraded
         expr: cowork_chat_socketio_adapter_state{state="DEGRADED"} == 1
         for: 1m
