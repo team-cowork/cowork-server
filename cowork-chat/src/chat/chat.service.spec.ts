@@ -147,6 +147,10 @@ const mockSlowmodeService = {
     release: jest.fn(),
 };
 
+const mockChannelReadService = {
+    advance: jest.fn(),
+};
+
 describe('ChatService', () => {
     let service: ChatService;
 
@@ -170,6 +174,7 @@ describe('ChatService', () => {
             mockMessageSearchDeletion as never,
             mockChannelProjectionRepository as never,
             mockSlowmodeService as never,
+            mockChannelReadService as never,
         );
         jest.clearAllMocks();
         mockTeamMemberRepository.exists.mockResolvedValue(true);
@@ -983,52 +988,22 @@ describe('ChatService', () => {
             ).rejects.toThrow(ForbiddenException);
         });
 
-        it('lastReadMessageId를 업데이트하고 unreadCount를 계산한다', async () => {
-            mockReadStateRepository.updateLastRead.mockResolvedValue(messageId);
-            mockMessageRepository.countUnread.mockResolvedValue(3);
-            mockUnreadCounterService.set.mockResolvedValueOnce(true);
+        it('읽음 위치를 전진시키고 계산된 안읽음 수를 전송한다', async () => {
+            mockChannelReadService.advance.mockResolvedValue(3);
 
             await service.readChannel({channelId: 1, userId: 42}, messageId.toString());
 
-            expect(mockReadStateRepository.updateLastRead).toHaveBeenCalledWith(1, 42, messageId);
-            expect(mockMessageRepository.countUnread).toHaveBeenCalledWith(1, messageId);
-            expect(mockUnreadCounterService.set).toHaveBeenCalledWith(1, 42, {count: 3, readCursor: messageId.toHexString()});
+            expect(mockChannelReadService.advance).toHaveBeenCalledWith(1, 42, messageId);
             expect(mockTo).toHaveBeenCalledWith('user:42');
             expect(mockEmit).toHaveBeenCalledWith('channel:unread:updated', {channelId: 1, unreadCount: 3});
         });
 
-        it('다른 기기의 늦은 요청이 오래된 ID를 보내면 DB가 채택한 최신 읽음 위치로 센다', async () => {
-            const olderId = new Types.ObjectId('000000000000000000000001');
-            const adoptedId = new Types.ObjectId('000000000000000000000002');
-            mockReadStateRepository.updateLastRead.mockResolvedValue(adoptedId);
-            mockMessageRepository.countUnread.mockResolvedValue(0);
-            mockUnreadCounterService.set.mockResolvedValueOnce(true);
-
-            await service.readChannel({channelId: 1, userId: 42}, olderId.toString());
-
-            expect(mockMessageRepository.countUnread).toHaveBeenCalledWith(1, adoptedId);
-            expect(mockUnreadCounterService.set).toHaveBeenCalledWith(1, 42, {count: 0, readCursor: adoptedId.toHexString()});
-            expect(mockEmit).toHaveBeenCalledWith('channel:unread:updated', {channelId: 1, unreadCount: 0});
-        });
-
-        it('캐시에 더 최신 읽음 위치의 값이 이미 있으면 오래된 안읽음 수를 전송하지 않는다', async () => {
-            mockReadStateRepository.updateLastRead.mockResolvedValue(messageId);
-            mockMessageRepository.countUnread.mockResolvedValue(1);
-            mockUnreadCounterService.set.mockResolvedValueOnce(false);
+        it('더 최신 읽음 위치의 값이 이미 있으면 오래된 안읽음 수를 전송하지 않는다', async () => {
+            mockChannelReadService.advance.mockResolvedValue(null);
 
             await service.readChannel({channelId: 1, userId: 42}, messageId.toString());
 
             expect(mockEmit).not.toHaveBeenCalled();
-        });
-
-        it('Redis 오류로 기록 여부를 모르면 계산한 값을 그대로 전송한다', async () => {
-            mockReadStateRepository.updateLastRead.mockResolvedValue(messageId);
-            mockMessageRepository.countUnread.mockResolvedValue(2);
-            mockUnreadCounterService.set.mockResolvedValueOnce(null);
-
-            await service.readChannel({channelId: 1, userId: 42}, messageId.toString());
-
-            expect(mockEmit).toHaveBeenCalledWith('channel:unread:updated', {channelId: 1, unreadCount: 2});
         });
     });
 
