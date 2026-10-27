@@ -3,8 +3,8 @@
   "service": "monitoring",
   "kind": "infrastructure",
   "runtime": {
-    "CONFIG_SERVER_URL": "http://10.0.0.169:8761",
-    "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
+    "CONFIG_SERVER_URL": "http://10.0.0.144:8761",
+    "EUREKA_SERVER_URL": "http://10.0.0.144:8761/eureka/",
     "MONITORING_BIND_IP": "10.0.0.137",
     "MONITORING_ADMIN_BIND_IP": "127.0.0.1",
     "MONITORING_VOLUME_PREFIX": "cowork_monitoring",

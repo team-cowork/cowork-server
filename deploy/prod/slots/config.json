@@ -4,8 +4,8 @@
   "kind": "config",
   "runtime": {
     "APP_CONFIG_PROFILE": "prod",
-    "CONFIG_SERVER_URL": "http://10.0.0.169:8761",
-    "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
+    "CONFIG_SERVER_URL": "http://10.0.0.144:8761",
+    "EUREKA_SERVER_URL": "http://10.0.0.144:8761/eureka/",
     "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.167:9094",
     "LIVEKIT_URL": "http://10.0.0.172:7880",
     "LIVEKIT_WS_URL": "wss://cowork-livekit.https.gsmsv.site",
@@ -41,8 +41,8 @@
   "container": {
     "port": 8761,
     "host_port": 8761,
-    "bind_address": "10.0.0.169",
-    "advertise_address": "10.0.0.169",
+    "bind_address": "10.0.0.144",
+    "advertise_address": "10.0.0.144",
     "readiness": {
       "path": "/actuator/health",
       "timeout_seconds": 420
@@ -62,14 +62,14 @@
     "10.0.0.132/32",
     "10.0.0.137/32",
     "10.0.0.140/32",
-    "10.0.0.144/32",
+    "10.0.0.185/32",
     "10.0.0.150/32",
-    "10.0.0.169/32",
-    "10.0.0.74/32",
+    "10.0.0.144/32",
+    "10.0.0.97/32",
     "10.0.0.88/32",
     "10.0.0.89/32",
     "10.0.0.90/32",
-    "10.0.0.97/32",
+    "10.0.0.74/32",
     "10.0.0.174/32"
   ]
 }
