@@ -2,16 +2,16 @@ package com.cowork.roadmap.global.team;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.Optional;
 
-import org.springframework.r2dbc.core.DatabaseClient;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Mono;
 
 @Repository
 @RequiredArgsConstructor
-public class R2dbcTeamMemberProjectionRepository implements TeamMemberProjectionRepository {
+public class JdbcTeamMemberProjectionRepository implements TeamMemberProjectionRepository {
 
     private static final String APPLY_EVENT_SQL = """
             INSERT INTO tb_team_member_projections
@@ -28,41 +28,39 @@ public class R2dbcTeamMemberProjectionRepository implements TeamMemberProjection
                 event_occurred_at = GREATEST(event_occurred_at, VALUES(event_occurred_at))
             """;
 
-    private final DatabaseClient databaseClient;
+    private final JdbcClient jdbcClient;
 
     @Override
-    public Mono<String> findActiveRole(Long teamId, Long userId) {
-        return databaseClient.sql("""
+    public Optional<String> findActiveRole(Long teamId, Long userId) {
+        return jdbcClient.sql("""
                 SELECT role
                 FROM tb_team_member_projections
                 WHERE team_id = :teamId AND user_id = :userId AND active = TRUE
                 """)
-                .bind("teamId", teamId)
-                .bind("userId", userId)
-                .map((row, metadata) -> row.get("role", String.class))
-                .one();
+                .param("teamId", teamId)
+                .param("userId", userId)
+                .query((row, rowNum) -> row.getString("role"))
+                .optional();
     }
 
     @Override
-    public Mono<Void> upsert(TeamMemberEvent event) {
-        return apply(event, true);
+    public void upsert(TeamMemberEvent event) {
+        apply(event, true);
     }
 
     @Override
-    public Mono<Void> deactivate(TeamMemberEvent event) {
-        return apply(event, false);
+    public void deactivate(TeamMemberEvent event) {
+        apply(event, false);
     }
 
-    private Mono<Void> apply(TeamMemberEvent event, boolean active) {
-        return databaseClient.sql(APPLY_EVENT_SQL)
-                .bind("teamId", event.teamId())
-                .bind("userId", event.userId())
-                .bind("role", event.role())
-                .bind("teamName", event.teamName())
-                .bind("active", active)
-                .bind("occurredAt", LocalDateTime.ofInstant(event.occurredAt(), ZoneOffset.UTC))
-                .fetch()
-                .rowsUpdated()
-                .then();
+    private void apply(TeamMemberEvent event, boolean active) {
+        jdbcClient.sql(APPLY_EVENT_SQL)
+                .param("teamId", event.teamId())
+                .param("userId", event.userId())
+                .param("role", event.role())
+                .param("teamName", event.teamName())
+                .param("active", active)
+                .param("occurredAt", LocalDateTime.ofInstant(event.occurredAt(), ZoneOffset.UTC))
+                .update();
     }
 }
