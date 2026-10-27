@@ -10,9 +10,9 @@
 
 ## 스택
 
-- Java 26 / Spring Boot WebFlux
+- Java 26 / Spring Boot MVC
 - Gradle
-- Spring Data R2DBC / MySQL / Flyway (JDBC)
+- Spring Data JPA / MySQL / Flyway
 - Spring Kafka / Eureka / Config Client
 
 ## 포트
