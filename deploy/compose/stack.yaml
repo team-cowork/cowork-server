@@ -462,6 +462,8 @@ services:
       - "3100:3100"
     volumes:
       - ./deploy/config/monitoring/loki/loki-config.yml:/etc/loki/local-config.yaml:ro
+      # prod의 prepare-configs.sh처럼 ruler의 단일 테넌트("fake") 디렉터리에 규칙을 둔다.
+      - ./deploy/config/monitoring/loki/rules:/etc/loki/rules/fake:ro
       - loki_data:/loki
     command: -config.file=/etc/loki/local-config.yaml
     healthcheck:
@@ -489,6 +491,23 @@ services:
     depends_on:
       loki:
         condition: service_healthy
+
+  # 로그 수집 경로 생존 신호. 1분마다 남기는 이 로그가 끊기면 Loki 규칙 coworkLogCollectionStopped가 알린다.
+  # ponytail: 회전 없이 하루 약 170KB씩 늘어난다. 로컬 볼륨을 오래 유지해 문제가 되면 크기 기준 회전을 넣는다.
+  log-heartbeat:
+    image: busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
+    restart: unless-stopped
+    user: "10001:10001"
+    network_mode: none
+    depends_on:
+      logs-init:
+        condition: service_completed_successfully
+    volumes:
+      - cowork_logs:/var/log/cowork
+    command:
+      - sh
+      - -ec
+      - mkdir -p /var/log/cowork/log-agent; while :; do date -u +'{"@timestamp":"%Y-%m-%dT%H:%M:%SZ","level":"INFO","service":"cowork-log-agent","module":"heartbeat","message":"heartbeat"}' >> /var/log/cowork/log-agent/app.log; sleep 60; done
 
   blackbox_exporter:
     image: prom/blackbox-exporter:v0.28.0@sha256:e753ff9f3fc458d02cca5eddab5a77e1c175eee484a8925ac7d524f04366c2fc
