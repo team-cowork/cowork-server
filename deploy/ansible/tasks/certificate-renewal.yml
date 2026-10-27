@@ -2,8 +2,7 @@
 - name: Select the independent certificate maintenance runtime
   ansible.builtin.set_fact:
     platform_certificate_root: /opt/cowork-platform-certificates
-    platform_certificate_runtime: "/opt/cowork-platform-certificates/python-{{ platform_versions.python.version }}-{{ platform_versions.python.build }}"
-    platform_certificate_venv: "/opt/cowork-platform-certificates/venv-{{ platform_versions.python.version }}-{{ platform_versions.python.build }}-{{ (lookup('ansible.builtin.file', platform_repository ~ '/deploy/production/requirements.txt') | hash('sha256'))[:12] }}"
+    platform_certificate_venv: "{{ platform_python_root }}/venvs/certificates-{{ (lookup('ansible.builtin.file', platform_repository ~ '/deploy/production/requirements.txt') | hash('sha256'))[:12] }}"
     platform_certificate_collections: "/opt/cowork-platform-certificates/collections-{{ (lookup('ansible.builtin.file', platform_repository ~ '/deploy/ansible/requirements.yml') | hash('sha256'))[:12] }}"
     platform_certificate_install_complete: false
 - name: Discover an existing certificate timer
@@ -27,6 +26,9 @@
       retries: 180
       delay: 5
       when: platform_certificate_timer.stat.exists
+    - name: Ensure the shared managed Python runtime is installed
+      ansible.builtin.include_tasks: python.yml
+      when: not (platform_python_ready | default(false))
     - name: Create root-owned certificate maintenance directories
       ansible.builtin.file:
         path: "{{ item }}"
@@ -38,7 +40,7 @@
         - "{{ platform_certificate_root }}"
         - "{{ platform_certificate_root }}/deploy"
         - "{{ platform_certificate_root }}/deploy/production"
-        - "{{ platform_certificate_runtime }}"
+        - "{{ platform_python_root }}/venvs"
         - "{{ platform_certificate_collections }}"
     - name: Install the system prerequisite for managing the maintenance virtual environment
       ansible.builtin.apt:
@@ -59,25 +61,11 @@
         owner: root
         group: root
         mode: '0644'
-    - name: Download the verified independent Python runtime
-      ansible.builtin.get_url:
-        url: "{{ platform_versions.python.url }}"
-        checksum: "sha256:{{ platform_versions.python.sha256.linux_amd64 }}"
-        dest: "/var/cache/cowork/python-{{ platform_versions.python.version }}-{{ platform_versions.python.build }}.tar.gz"
-        mode: '0644'
-    - name: Extract the pinned Python runtime without changing the operating system
-      ansible.builtin.unarchive:
-        src: "/var/cache/cowork/python-{{ platform_versions.python.version }}-{{ platform_versions.python.build }}.tar.gz"
-        dest: "{{ platform_certificate_runtime }}"
-        remote_src: true
-        creates: "{{ platform_certificate_runtime }}/python/bin/python3"
-        owner: root
-        group: root
     - name: Install pinned dependencies in the maintenance virtual environment
       ansible.builtin.pip:
         requirements: "{{ platform_certificate_root }}/deploy/production/requirements.txt"
         virtualenv: "{{ platform_certificate_venv }}"
-        virtualenv_command: "{{ platform_certificate_runtime }}/python/bin/python3 -m venv"
+        virtualenv_command: "{{ platform_python_binary }} -m venv"
     - name: Inspect the completed collection installation marker
       ansible.builtin.stat:
         path: "{{ platform_certificate_collections }}/.installed"
