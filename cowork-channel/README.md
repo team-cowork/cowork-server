@@ -15,7 +15,7 @@
 - Kotlin / Java 26 / Spring Boot
 - Gradle
 - Spring Data JPA / MySQL / Flyway
-- Spring Kafka / Eureka / Config Client
+- Spring Kafka
 
 ## 포트
 
@@ -30,6 +30,10 @@
 | 변수                     | 기본값                      | 설명                                                     |
 |--------------------------|-----------------------------|----------------------------------------------------------|
 | `APP_CONFIG_PROFILE`     | `local`                     | 설정 프로파일                                            |
-| `CONFIG_SERVER_URL`      | `http://cowork-config:8761` | 필수 Config Server 연결                                  |
-| `CONFIG_CLIENT_USERNAME` | 없음                        | 필수. `.env`의 `CONFIG_CLIENT_CHANNEL_USERNAME`에서 전달 |
-| `CONFIG_CLIENT_PASSWORD` | 없음                        | 필수. `.env`의 `CONFIG_CLIENT_CHANNEL_PASSWORD`에서 전달 |
+| `DB_HOST`, `DB_PORT`, `DB_NAME` | 로컬 DB 설정 | 데이터베이스 접속 대상 |
+| `DB_USERNAME`, `DB_PASSWORD` | 사용자 `cowork`, 비밀번호 없음 | 데이터베이스 자격증명 |
+| `KAFKA_BOOTSTRAP_SERVERS` | 로컬 Kafka 설정 | Kafka broker 주소 |
+| `KAFKA_SECURITY_PROTOCOL` | `PLAINTEXT` | 운영에서는 `SASL_SSL` |
+| `KAFKA_SASL_MECHANISM` | `SCRAM-SHA-512` | SCRAM 인증 방식 |
+| `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` | 없음 | SASL 사용 시 필수 |
+| `KAFKA_SSL_CA_LOCATION` | 없음 | Kafka CA PEM 파일 경로 |

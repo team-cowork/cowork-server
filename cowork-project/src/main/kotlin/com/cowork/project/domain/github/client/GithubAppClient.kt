@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable
  */
 @FeignClient(
     name = "cowork-github",
+    url = "\${COWORK_GITHUB_URL:http://cowork-github:8090}",
     configuration = [GithubAppClientConfig::class],
 )
 interface GithubAppClient {

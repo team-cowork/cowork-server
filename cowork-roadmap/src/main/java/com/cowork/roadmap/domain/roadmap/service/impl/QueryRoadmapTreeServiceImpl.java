@@ -21,7 +21,6 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
@@ -34,21 +33,16 @@ public class QueryRoadmapTreeServiceImpl implements QueryRoadmapTreeService {
 
     @Override
     @Transactional(readOnly = true)
-    public Mono<RoadmapTreeResDto> execute(Long userId, String userRole, Long roadmapId) {
-        return lookupSupport.findRoadmapOrThrow(roadmapId)
-                .flatMap(roadmap -> accessGuard.requireReadable(roadmap, userId, userRole)
-                        .then(Mono
-                                .defer(() -> nodeRepository.findByRoadmapIdOrderByPositionAsc(roadmapId).collectList()))
-                        .flatMap(nodes -> {
-                            if (nodes.isEmpty()) {
-                                return Mono.just(new RoadmapTreeResDto(RoadmapResDto.from(roadmap), List.of()));
-                            }
-                            List<Long> nodeIds = nodes.stream().map(RoadmapNode::getId).toList();
-                            return referenceRepository.findByNodeIdInOrderByNodeIdAscPositionAsc(nodeIds)
-                                    .collectList()
-                                    .map(refs -> new RoadmapTreeResDto(RoadmapResDto.from(roadmap),
-                                            assembleTree(nodes, refs)));
-                        }));
+    public RoadmapTreeResDto execute(Long userId, String userRole, Long roadmapId) {
+        var roadmap = lookupSupport.findRoadmapOrThrow(roadmapId);
+        accessGuard.requireReadable(roadmap, userId, userRole);
+        List<RoadmapNode> nodes = nodeRepository.findByRoadmapIdOrderByPositionAsc(roadmapId);
+        if (nodes.isEmpty()) {
+            return new RoadmapTreeResDto(RoadmapResDto.from(roadmap), List.of());
+        }
+        List<Long> nodeIds = nodes.stream().map(RoadmapNode::getId).toList();
+        List<RoadmapNodeReference> refs = referenceRepository.findByNodeIdInOrderByNodeIdAscPositionAsc(nodeIds);
+        return new RoadmapTreeResDto(RoadmapResDto.from(roadmap), assembleTree(nodes, refs));
     }
 
     private List<NodeTreeResDto> assembleTree(List<RoadmapNode> nodes, List<RoadmapNodeReference> refs) {

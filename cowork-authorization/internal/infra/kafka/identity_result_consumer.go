@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/domain"
 	"github.com/segmentio/kafka-go"
 )
@@ -31,6 +32,7 @@ type IdentityResultConsumer struct {
 }
 
 func NewIdentityResultConsumer(
+	security config.KafkaSecurity,
 	bootstrapServers string,
 	topic string,
 	groupID string,
@@ -40,6 +42,7 @@ func NewIdentityResultConsumer(
 ) *IdentityResultConsumer {
 	return &IdentityResultConsumer{
 		reader: kafka.NewReader(kafka.ReaderConfig{
+			Dialer:         security.Dialer(),
 			Brokers:        strings.Split(bootstrapServers, ","),
 			Topic:          topic,
 			GroupID:        groupID,

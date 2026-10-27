@@ -1,9 +1,10 @@
 package com.cowork.roadmap.domain.node.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -14,6 +15,7 @@ import static org.mockito.Mockito.when;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import org.junit.jupiter.api.Test;
@@ -33,9 +35,6 @@ import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
 import team.themoment.sdk.exception.ExpectedException;
 
 class DeleteRoadmapNodeServiceTest {
@@ -59,14 +58,13 @@ class DeleteRoadmapNodeServiceTest {
     @Test
     void deleteNode_withoutAssignments_removesTargetAndAllDescendants() {
         prepareTree();
-        when(assignmentRepository.countByRoadmapIdAndNodeIdInForShare(anyLong(), any())).thenReturn(Mono.just(0L));
-        when(nodeRepository.deleteAllById(any())).thenReturn(Mono.empty());
+        when(assignmentRepository.countByRoadmapIdAndNodeIdInForShare(anyLong(), any())).thenReturn(0L);
 
-        StepVerifier.create(deleteRoadmapNodeService.execute(1L, "ADMIN", 1L)).verifyComplete();
+        deleteRoadmapNodeService.execute(1L, "ADMIN", 1L);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Iterable<Long>> captor = ArgumentCaptor.forClass(Iterable.class);
-        verify(nodeRepository).deleteAllById(captor.capture());
+        verify(nodeRepository).deleteAllByIdInBatch(captor.capture());
         assertThat(toSet(captor.getValue())).containsExactlyInAnyOrder(1L, 2L, 3L);
     }
 
@@ -74,15 +72,14 @@ class DeleteRoadmapNodeServiceTest {
     void deleteNode_computesSubtreeFromLockedReadAndCountsAssignmentsOnlyWithinSubtree() {
         prepareTree();
         RoadmapNode concurrentGrandChild = node(5L, 10L, 3L);
-        when(nodeRepository.findAllByRoadmapIdForUpdate(10L)).thenReturn(Flux.fromIterable(List.of(node(1L, 10L, null),
+        when(nodeRepository.findAllByRoadmapIdForUpdate(10L)).thenReturn(List.of(node(1L, 10L, null),
                 node(2L, 10L, 1L),
                 node(3L, 10L, 2L),
                 node(4L, 10L, null),
-                concurrentGrandChild)));
-        when(assignmentRepository.countByRoadmapIdAndNodeIdInForShare(anyLong(), any())).thenReturn(Mono.just(0L));
-        when(nodeRepository.deleteAllById(any())).thenReturn(Mono.empty());
+                concurrentGrandChild));
+        when(assignmentRepository.countByRoadmapIdAndNodeIdInForShare(anyLong(), any())).thenReturn(0L);
 
-        StepVerifier.create(deleteRoadmapNodeService.execute(1L, "ADMIN", 1L)).verifyComplete();
+        deleteRoadmapNodeService.execute(1L, "ADMIN", 1L);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Collection<Long>> countCaptor = ArgumentCaptor.forClass(Collection.class);
@@ -91,7 +88,7 @@ class DeleteRoadmapNodeServiceTest {
         InOrder inOrder = inOrder(nodeRepository, assignmentRepository);
         inOrder.verify(nodeRepository).findAllByRoadmapIdForUpdate(10L);
         inOrder.verify(assignmentRepository).countByRoadmapIdAndNodeIdInForShare(eq(10L), countCaptor.capture());
-        inOrder.verify(nodeRepository).deleteAllById(deleteCaptor.capture());
+        inOrder.verify(nodeRepository).deleteAllByIdInBatch(deleteCaptor.capture());
         assertThat(countCaptor.getValue()).containsExactlyInAnyOrder(1L, 2L, 3L, 5L);
         assertThat(toSet(deleteCaptor.getValue())).containsExactlyInAnyOrder(1L, 2L, 3L, 5L);
         verify(nodeRepository, never()).findByRoadmapIdOrderByPositionAsc(anyLong());
@@ -100,14 +97,13 @@ class DeleteRoadmapNodeServiceTest {
     @Test
     void deleteNode_withAssignmentInSubtree_failsWithConflictAndKeepsNodes() {
         prepareTree();
-        when(assignmentRepository.countByRoadmapIdAndNodeIdInForShare(anyLong(), any())).thenReturn(Mono.just(2L));
+        when(assignmentRepository.countByRoadmapIdAndNodeIdInForShare(anyLong(), any())).thenReturn(2L);
 
-        StepVerifier.create(deleteRoadmapNodeService.execute(1L, "ADMIN", 1L))
-                .expectErrorMatches(error -> error instanceof ExpectedException expected
-                        && expected.getStatusCode() == HttpStatus.CONFLICT && expected.getMessage().contains("2건"))
-                .verify();
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> deleteRoadmapNodeService.execute(1L, "ADMIN", 1L));
+        assertTrue(error.getStatusCode() == HttpStatus.CONFLICT && error.getMessage().contains("2건"));
 
-        verify(nodeRepository, never()).deleteAllById(any());
+        verify(nodeRepository, never()).deleteAllByIdInBatch(any());
     }
 
     private void prepareTree() {
@@ -116,11 +112,10 @@ class DeleteRoadmapNodeServiceTest {
         RoadmapNode grandChild = node(3L, 10L, 2L);
         RoadmapNode otherRoot = node(4L, 10L, null);
 
-        when(nodeRepository.findById(1L)).thenReturn(Mono.just(root));
-        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap(10L)));
-        when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        when(nodeRepository.findAllByRoadmapIdForUpdate(10L))
-                .thenReturn(Flux.fromIterable(List.of(root, child, grandChild, otherRoot)));
+        when(nodeRepository.findRoadmapIdById(1L)).thenReturn(Optional.of(10L));
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
+
+        when(nodeRepository.findAllByRoadmapIdForUpdate(10L)).thenReturn(List.of(root, child, grandChild, otherRoot));
     }
 
     private static Set<Long> toSet(Iterable<Long> ids) {
