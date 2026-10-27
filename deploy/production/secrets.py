@@ -58,8 +58,8 @@ def publish(service):
     for left, right in (("S3_ADMIN_ACCESS_KEY", "S3_ACCESS_KEY"),
                         ("S3_ADMIN_SECRET_KEY", "S3_SECRET_KEY"),
                         ("DB_ADMIN_PASSWORD", "DB_PASSWORD"),
-                        ("DB_ADMIN_PASSWORD", "DB_MONITOR_PASSWORD"),
-                        ("DB_PASSWORD", "DB_MONITOR_PASSWORD"),
+                        ("DB_ADMIN_PASSWORD", "DB_MONITORING_PASSWORD"),
+                        ("DB_PASSWORD", "DB_MONITORING_PASSWORD"),
                         ("ELASTICSEARCH_ADMIN_PASSWORD", "ELASTICSEARCH_PASSWORD")):
         if left in data and right in data and data[left] == data[right]:
             raise ValueError("Administrative and application credentials must differ: " + left + ", " + right)
