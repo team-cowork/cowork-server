@@ -1,5 +1,7 @@
 package com.cowork.roadmap.domain.node.presentation.controller;
 
+import java.util.List;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -34,8 +36,6 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 @Tag(name = "로드맵 노드", description = "로드맵 노드(문서)와 관련자료 구성 API")
 @RestController
@@ -55,28 +55,27 @@ public class RoadmapNodeController {
 
     @Operation(summary = "노드 생성")
     @PostMapping("/{roadmapId}/nodes")
-    public Mono<ResponseEntity<NodeResDto>> createNode(
-            @Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
+    public ResponseEntity<NodeResDto> createNode(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long roadmapId,
             @Valid @RequestBody CreateNodeReqDto request) {
-        return createRoadmapNodeService.execute(userId, userRole, roadmapId, request)
-                .map(response -> ResponseEntity.status(HttpStatus.CREATED).body(response));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(createRoadmapNodeService.execute(userId, userRole, roadmapId, request));
     }
 
     @Operation(summary = "형제 노드 순서 변경")
     @PutMapping("/{roadmapId}/nodes/reorder")
-    public Mono<ResponseEntity<Void>> reorderNodes(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
+    public ResponseEntity<Void> reorderNodes(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long roadmapId,
             @Valid @RequestBody ReorderNodesReqDto request) {
-        return reorderRoadmapNodesService.execute(userId, userRole, roadmapId, request)
-                .thenReturn(ResponseEntity.noContent().build());
+        reorderRoadmapNodesService.execute(userId, userRole, roadmapId, request);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "노드 상세 조회 (관련자료 포함)")
     @GetMapping("/nodes/{nodeId}")
-    public Mono<NodeResDto> getNode(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
+    public NodeResDto getNode(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long nodeId) {
         return queryRoadmapNodeService.execute(userId, userRole, nodeId);
@@ -84,7 +83,7 @@ public class RoadmapNodeController {
 
     @Operation(summary = "노드 수정")
     @PatchMapping("/nodes/{nodeId}")
-    public Mono<NodeResDto> updateNode(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
+    public NodeResDto updateNode(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long nodeId,
             @Valid @RequestBody UpdateNodeReqDto request) {
@@ -93,16 +92,16 @@ public class RoadmapNodeController {
 
     @Operation(summary = "노드 삭제 (하위 노드 포함)", description = "삭제할 노드나 하위 노드에 과제가 연결되어 있으면 409를 반환합니다.")
     @DeleteMapping("/nodes/{nodeId}")
-    public Mono<ResponseEntity<Void>> deleteNode(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
+    public ResponseEntity<Void> deleteNode(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long nodeId) {
-        return deleteRoadmapNodeService.execute(userId, userRole, nodeId)
-                .thenReturn(ResponseEntity.noContent().build());
+        deleteRoadmapNodeService.execute(userId, userRole, nodeId);
+        return ResponseEntity.noContent().build();
     }
 
     @Operation(summary = "노드 관련자료 목록")
     @GetMapping("/nodes/{nodeId}/references")
-    public Flux<NodeReferenceResDto> listReferences(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
+    public List<NodeReferenceResDto> listReferences(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long nodeId) {
         return listNodeReferencesService.execute(userId, userRole, nodeId);
@@ -110,18 +109,18 @@ public class RoadmapNodeController {
 
     @Operation(summary = "노드 관련자료 추가")
     @PostMapping("/nodes/{nodeId}/references")
-    public Mono<ResponseEntity<NodeReferenceResDto>> addReference(
+    public ResponseEntity<NodeReferenceResDto> addReference(
             @Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long nodeId,
             @Valid @RequestBody NodeReferenceReqDto request) {
-        return createNodeReferenceService.execute(userId, userRole, nodeId, request)
-                .map(response -> ResponseEntity.status(HttpStatus.CREATED).body(response));
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(createNodeReferenceService.execute(userId, userRole, nodeId, request));
     }
 
     @Operation(summary = "관련자료 수정")
     @PatchMapping("/references/{referenceId}")
-    public Mono<NodeReferenceResDto> updateReference(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
+    public NodeReferenceResDto updateReference(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long referenceId,
             @Valid @RequestBody NodeReferenceReqDto request) {
@@ -130,10 +129,10 @@ public class RoadmapNodeController {
 
     @Operation(summary = "관련자료 삭제")
     @DeleteMapping("/references/{referenceId}")
-    public Mono<ResponseEntity<Void>> deleteReference(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
+    public ResponseEntity<Void> deleteReference(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long referenceId) {
-        return deleteNodeReferenceService.execute(userId, userRole, referenceId)
-                .thenReturn(ResponseEntity.noContent().build());
+        deleteNodeReferenceService.execute(userId, userRole, referenceId);
+        return ResponseEntity.noContent().build();
     }
 }
