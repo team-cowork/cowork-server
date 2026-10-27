@@ -13,7 +13,6 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
@@ -26,21 +25,13 @@ public class ModifyNodeReferenceServiceImpl implements ModifyNodeReferenceServic
 
     @Override
     @Transactional
-    public Mono<NodeReferenceResDto> execute(Long userId,
-            String userRole,
-            Long referenceId,
-            NodeReferenceReqDto request) {
-        return nodeLookupSupport.findReferenceOrThrow(referenceId)
-                .flatMap(ref -> nodeLookupSupport.findNodeOrThrow(ref.getNodeId())
-                        .flatMap(node -> roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId())
-                                .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
-                                        .then(Mono.defer(() -> {
-                                            RoadmapNodeReference updated = ref.toBuilder()
-                                                    .title(request.title())
-                                                    .url(request.url())
-                                                    .build();
-                                            updated.copyAuditFrom(ref);
-                                            return referenceRepository.save(updated).map(NodeReferenceResDto::from);
-                                        })))));
+    public NodeReferenceResDto execute(Long userId, String userRole, Long referenceId, NodeReferenceReqDto request) {
+        var ref = nodeLookupSupport.findReferenceOrThrow(referenceId);
+        var node = nodeLookupSupport.findNodeOrThrow(ref.getNodeId());
+        var roadmap = roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId());
+        accessGuard.requireMutable(roadmap, userId, userRole);
+        RoadmapNodeReference updated = ref.toBuilder().title(request.title()).url(request.url()).build();
+        updated.prepareUpdateFrom(ref);
+        return NodeReferenceResDto.from(referenceRepository.saveAndFlush(updated));
     }
 }

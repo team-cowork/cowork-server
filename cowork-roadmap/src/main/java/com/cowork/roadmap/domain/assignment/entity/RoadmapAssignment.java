@@ -2,49 +2,56 @@ package com.cowork.roadmap.domain.assignment.entity;
 
 import java.time.LocalDateTime;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.relational.core.mapping.Column;
-import org.springframework.data.relational.core.mapping.Table;
-
 import com.cowork.roadmap.global.audit.TimestampEntity;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 /** 온보딩 과제: 로드맵(또는 특정 노드)을 팀/프로젝트 멤버에게 부여한다. */
 @Getter
-@Table("tb_roadmap_assignments")
+@Entity
+@Table(name = "tb_roadmap_assignments")
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RoadmapAssignment extends TimestampEntity {
 
     @Id
-    private final Long id;
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
-    @Column("roadmap_id")
-    private final Long roadmapId;
+    @Column(name = "roadmap_id", nullable = false)
+    private Long roadmapId;
 
-    @Column("node_id")
-    private final Long nodeId;
+    @Column(name = "node_id")
+    private Long nodeId;
 
-    @Column("scope")
-    private final String scope;
+    @Column(name = "scope", nullable = false, length = 20)
+    private String scope;
 
-    @Column("team_id")
-    private final Long teamId;
+    @Column(name = "team_id")
+    private Long teamId;
 
-    @Column("project_id")
-    private final Long projectId;
+    @Column(name = "project_id")
+    private Long projectId;
 
-    @Column("assignee_user_id")
-    private final Long assigneeUserId;
+    @Column(name = "assignee_user_id", nullable = false)
+    private Long assigneeUserId;
 
-    @Column("assigned_by")
-    private final Long assignedBy;
+    @Column(name = "assigned_by", nullable = false)
+    private Long assignedBy;
 
-    @Column("status")
-    private final String status;
+    @Column(name = "status", nullable = false, length = 20)
+    private String status;
 
-    @Column("due_date")
-    private final LocalDateTime dueDate;
+    @Column(name = "due_date")
+    private LocalDateTime dueDate;
 
     @Builder(toBuilder = true)
     public RoadmapAssignment(Long id,
