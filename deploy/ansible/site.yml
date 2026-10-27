@@ -1,0 +1,60 @@
+---
+- name: Prepare persistent bootstrap identities and certificates
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - ansible.builtin.include_tasks: tasks/bootstrap-state.yml
+
+- name: Prepare active VM hosts without stopping existing workloads
+  hosts: control_plane:nomad_clients:vault_hosts
+  become: true
+  gather_facts: true
+  tasks:
+    - ansible.builtin.include_tasks: tasks/base.yml
+
+- name: Authorize the runner to retire the former Config VM
+  hosts: retired
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Install the deployment identity without changing existing workloads
+      ansible.posix.authorized_key:
+        user: "{{ ansible_user }}"
+        key: "{{ lookup('ansible.builtin.file', platform_state_dir ~ '/deploy_ed25519.pub') }}"
+        state: present
+
+- name: Bootstrap the single management VM
+  hosts: control_plane
+  become: true
+  gather_facts: true
+  tasks:
+    - ansible.builtin.include_tasks: tasks/agents.yml
+    - ansible.builtin.include_tasks: tasks/platform-acl.yml
+    - name: Reload server agents with their scoped integration identities
+      ansible.builtin.include_tasks: tasks/agents.yml
+
+- name: Reconcile the existing Vault host with platform TLS
+  hosts: vault_hosts
+  become: true
+  gather_facts: true
+  handlers:
+    - ansible.builtin.import_tasks: ../runtime/vault/handlers.yml
+  tasks:
+    - ansible.builtin.include_tasks: tasks/vault-bootstrap-ingress.yml
+    - ansible.builtin.include_tasks: tasks/vault.yml
+
+- name: Join the existing workload VMs
+  hosts: nomad_clients
+  become: true
+  gather_facts: true
+  serial: 4
+  tasks:
+    - ansible.builtin.include_tasks: tasks/agents.yml
+
+- name: Prepare the main-branch deployment runner
+  hosts: deployment_runner
+  become: true
+  gather_facts: true
+  tasks:
+    - ansible.builtin.include_tasks: tasks/runner.yml
