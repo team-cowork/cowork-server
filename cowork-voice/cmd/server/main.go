@@ -53,7 +53,6 @@ import (
 	"github.com/cowork/cowork-voice/internal/middleware"
 	"github.com/cowork/cowork-voice/internal/monitoring"
 	"github.com/cowork/cowork-voice/internal/relay"
-	"github.com/cowork/cowork-voice/pkg/eureka"
 	"github.com/cowork/cowork-voice/pkg/logger"
 	_ "github.com/cowork/cowork-voice/swagger"
 )
@@ -105,6 +104,7 @@ func main() {
 	indexCancel()
 
 	kafkaProducer := kafkadomain.NewProducer(
+		cfg.KafkaSecurity,
 		cfg.KafkaBrokers,
 		cfg.KafkaTopicVoiceEvent,
 		cfg.KafkaMessageTimeoutMs,
@@ -119,6 +119,7 @@ func main() {
 	channelPermissions := channel.NewProjection(db)
 	projectionReadiness := health.NewReadiness()
 	channelPermissionConsumer, err := channel.NewConsumer(
+		cfg.KafkaSecurity,
 		cfg.KafkaBrokers,
 		cfg.KafkaGroupIDChannelAccess,
 		channel.NewEventHandler(channelPermissions),
@@ -207,12 +208,6 @@ func main() {
 	serverErrCh := make(chan error, 1)
 	signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
 	exitCode := 0
-	eurekaClient := eureka.New(cfg)
-	eurekaDone := make(chan struct{})
-	go func() {
-		defer close(eurekaDone)
-		eurekaClient.Run(runtimeCtx, cfg, projectionReadiness)
-	}()
 
 	go func() {
 		slog.Info("cowork-voice starting", "port", cfg.Port)
@@ -231,7 +226,6 @@ func main() {
 
 	runtimeCancel()
 	<-permissionSyncDone
-	<-eurekaDone
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
