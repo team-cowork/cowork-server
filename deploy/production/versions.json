@@ -34,6 +34,17 @@
       "linux_amd64": "b98f74a0f8522f0a83867178729c1aa70f2158f90c45a2ca8fa791db1c76b303"
     }
   },
+  "docker": {
+    "version": "29.9.0",
+    "containerd_version": "2.4.1",
+    "ubuntu_release": "jammy",
+    "repository_key_sha256": "1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570",
+    "packages": {
+      "docker-ce": "5:29.9.0-1~ubuntu.22.04~jammy",
+      "docker-ce-cli": "5:29.9.0-1~ubuntu.22.04~jammy",
+      "containerd.io": "2.4.1-2~ubuntu.22.04~jammy"
+    }
+  },
   "docker_compose": {
     "version": "5.6.1",
     "sha256": {
