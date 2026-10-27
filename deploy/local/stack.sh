@@ -18,6 +18,9 @@ REQUIRED_VARS=(
   ACCOUNT_SHARE_OAUTH_STATE_SECRET
   TEAM_GITHUB_STATE_SECRET
   COWORK_GITHUB_APP_SLUG
+  WEBHOOK_SECRET_ENCRYPTION_KEY
+  WEBHOOK_URL_SIGNING_KEY
+  FCM_CREDENTIALS_JSON
 )
 
 CONTAINERS=(
@@ -40,7 +43,6 @@ load_env() {
 
   set -a
   source "$PROJECT_ROOT/.env"
-  [ ! -f "$PROJECT_ROOT/deploy/local/secrets/config-access/compose.env" ] || source "$PROJECT_ROOT/deploy/local/secrets/config-access/compose.env"
   set +a
 
   local ip
@@ -115,7 +117,7 @@ start_stack() {
   cd "$PROJECT_ROOT"
 
   echo ">>> Starting Docker Compose local stack..."
-  docker compose --env-file .env --env-file deploy/local/secrets/config-access/compose.env up -d
+  docker compose --env-file .env up -d
 
   for container in "${CONTAINERS[@]}"; do
     wait_healthy "$container"
@@ -126,17 +128,17 @@ start_stack() {
 
 stop_stack() {
   cd "$PROJECT_ROOT"
-  docker compose --env-file .env --env-file deploy/local/secrets/config-access/compose.env down
+  docker compose --env-file .env down
 }
 
 status_stack() {
   cd "$PROJECT_ROOT"
-  docker compose --env-file .env --env-file deploy/local/secrets/config-access/compose.env ps
+  docker compose --env-file .env ps
 }
 
 logs_stack() {
   cd "$PROJECT_ROOT"
-  docker compose --env-file .env --env-file deploy/local/secrets/config-access/compose.env logs -f
+  docker compose --env-file .env logs -f
 }
 
 monitor_stack() {
