@@ -13,17 +13,6 @@
   tasks:
     - ansible.builtin.include_tasks: tasks/base.yml
 
-- name: Authorize the runner to retire the former Config VM
-  hosts: retired
-  become: true
-  gather_facts: false
-  tasks:
-    - name: Install the deployment identity without changing existing workloads
-      ansible.posix.authorized_key:
-        user: "{{ ansible_user }}"
-        key: "{{ lookup('ansible.builtin.file', platform_state_dir ~ '/deploy_ed25519.pub') }}"
-        state: present
-
 - name: Bootstrap the single management VM
   hosts: control_plane
   become: true
