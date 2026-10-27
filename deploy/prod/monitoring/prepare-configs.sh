@@ -11,9 +11,11 @@ done
 cp /source/loki/loki-config.yml /generated/loki/local-config.yaml
 mkdir -p /generated/loki/rules/fake
 cp -R /source/loki/rules/. /generated/loki/rules/fake/
-# render-prometheus.py가 config slot에서 고른 운영 origin으로 CORS probe의 local origin을 바꾼다.
+# render-prometheus.py가 고른 운영 origin으로 CORS probe의 Origin 헤더와 ACAO 정규식(\Q...\E 리터럴)만 바꾼다.
 cors_probe_origin=$(cat /source-cors-origin)
-sed "s|http://localhost:3000|${cors_probe_origin}|g" /source/blackbox/blackbox.yml > /generated/blackbox/config.yml
+sed -e 's|^\( *Origin: \)http://localhost:3000$|\1'"$cors_probe_origin"'|' \
+  -e 's|\\Qhttp://localhost:3000\\E|\\Q'"$cors_probe_origin"'\\E|' \
+  /source/blackbox/blackbox.yml > /generated/blackbox/config.yml
 cp /source-vault-tls-ca.crt /generated/blackbox/vault-tls-ca.crt
 cp -R /source/prometheus/rules /generated/prometheus/rules
 cp /source-expected-rules.json /generated/prometheus/rules/expected-services.json
