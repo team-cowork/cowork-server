@@ -8,10 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cowork/authorization/internal/config"
 	"github.com/segmentio/kafka-go"
 )
 
 type Producer struct {
+	transport    *kafka.Transport
 	writer       *kafka.Writer
 	addr         net.Addr
 	defaultTopic string
@@ -32,10 +34,13 @@ func (b *partitionAwareBalancer) Balance(message kafka.Message, partitions ...in
 	return b.fallback.Balance(message, partitions...)
 }
 
-func NewProducer(bootstrapServers, topic string) *Producer {
+func NewProducer(security config.KafkaSecurity, bootstrapServers, topic string) *Producer {
+	transport := security.Transport()
 	addr := kafka.TCP(strings.Split(bootstrapServers, ",")...)
 	return &Producer{
+		transport: transport,
 		writer: &kafka.Writer{
+			Transport:    transport,
 			Addr:         addr,
 			Balancer:     &partitionAwareBalancer{fallback: &kafka.Hash{}},
 			RequiredAcks: kafka.RequireAll,
@@ -89,7 +94,7 @@ func (p *Producer) PublishToPartition(
 }
 
 func (p *Producer) Partitions(ctx context.Context, topic string) ([]int, error) {
-	response, err := (&kafka.Client{Addr: p.addr}).Metadata(ctx, &kafka.MetadataRequest{
+	response, err := (&kafka.Client{Addr: p.addr, Transport: p.transport}).Metadata(ctx, &kafka.MetadataRequest{
 		Topics: []string{topic},
 	})
 	if err != nil {
@@ -116,5 +121,6 @@ func (p *Producer) Partitions(ctx context.Context, topic string) ([]int, error) 
 }
 
 func (p *Producer) Close() error {
+	defer p.transport.CloseIdleConnections()
 	return p.writer.Close()
 }

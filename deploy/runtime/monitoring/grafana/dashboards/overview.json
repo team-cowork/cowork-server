@@ -1,0 +1,281 @@
+{
+  "title": "cowork / Overview",
+  "uid": "cowork-overview",
+  "tags": [
+    "cowork"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "메트릭 수집 상태",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "min by (service) (up{job=~\"cowork-.*\"}) or on (service) (0 * max by (service) (up{job=\"blackbox\",service!~\"livekit|storage\"}))",
+          "instant": true,
+          "range": false,
+          "legendFormat": "{{service}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A"
+        }
+      ],
+      "options": { "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "background", "graphMode": "none", "textMode": "auto", "orientation": "auto" },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "noValue": "N/A",
+          "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}],
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] }
+        }
+      },
+      "description": "서비스별 메트릭 수집 결과입니다. 서비스 준비 상태와 검색 누락 알림은 Service Health 대시보드에서 확인합니다."
+    },
+    {
+      "id": 2,
+      "title": "초당 HTTP 요청 수 (req/s)",
+      "description": "Spring/.NET, Go, Vert.x가 제공하는 HTTP 메트릭을 서비스별로 표시합니다. HTTP 메트릭이 없는 Chat/GitHub는 포함되지 않습니다. 서비스 간 요청을 합산한 외부 트래픽 총량은 아닙니다.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "(sum by (service)(rate(http_server_requests_seconds_count{job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\"}[$__rate_interval]))) or (sum by (service)(rate({__name__=~\"cowork_(authorization|notification|voice)_http_requests_total\",job=~\"cowork-.*\"}[$__rate_interval]))) or (sum by (service)(rate(vertx_http_server_requests_total{route!~\"/health(/.*)?|/metrics\",job=~\"cowork-.*\"}[$__rate_interval])))",
+          "legendFormat": "{{service}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "reqps",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
+    },
+    {
+      "id": 3,
+      "title": "HTTP 5xx 오류 비율 (%)",
+      "description": "요청이 발생한 구간의 5xx 비율입니다. 요청이 없거나 메트릭이 없으면 N/A로 표시합니다.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "expr": "(((sum by (service)(rate(http_server_requests_seconds_count{job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\",status=~\"5..\"}[$__rate_interval]))) or (sum by (service)(rate({__name__=~\"cowork_(authorization|notification|voice)_http_requests_total\",job=~\"cowork-.*\",status=~\"5..\"}[$__rate_interval]))) or (sum by (service)(rate(vertx_http_server_requests_total{route!~\"/health(/.*)?|/metrics\",job=~\"cowork-.*\",code=~\"5..\"}[$__rate_interval])))) or (0 * ((sum by (service)(rate(http_server_requests_seconds_count{job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\"}[$__rate_interval]))) or (sum by (service)(rate({__name__=~\"cowork_(authorization|notification|voice)_http_requests_total\",job=~\"cowork-.*\"}[$__rate_interval]))) or (sum by (service)(rate(vertx_http_server_requests_total{route!~\"/health(/.*)?|/metrics\",job=~\"cowork-.*\"}[$__rate_interval])))))) / (((sum by (service)(rate(http_server_requests_seconds_count{job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\"}[$__rate_interval]))) or (sum by (service)(rate({__name__=~\"cowork_(authorization|notification|voice)_http_requests_total\",job=~\"cowork-.*\"}[$__rate_interval]))) or (sum by (service)(rate(vertx_http_server_requests_total{route!~\"/health(/.*)?|/metrics\",job=~\"cowork-.*\"}[$__rate_interval])))) > 0) * 100",
+          "legendFormat": "{{service}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "noValue": "N/A",
+          "min": 0,
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" },
+          "max": 100
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
+    },
+    {
+      "id": 6,
+      "title": "서비스별 HTTP 평균 응답 시간",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "(sum by (service)(rate(http_server_requests_seconds_sum{job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\"}[$__rate_interval])) / (sum by (service)(rate(http_server_requests_seconds_count{job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\"}[$__rate_interval])) > 0) * 1000) or (sum by (service)(rate({__name__=~\"cowork_(authorization|notification|voice)_http_request_duration_seconds_sum\",job=~\"cowork-.*\"}[$__rate_interval])) / (sum by (service)(rate({__name__=~\"cowork_(authorization|notification|voice)_http_request_duration_seconds_count\",job=~\"cowork-.*\"}[$__rate_interval])) > 0) * 1000) or (sum by (service)(rate(vertx_http_server_response_time_seconds_sum{route!~\"/health(/.*)?|/metrics\",job=~\"cowork-.*\"}[$__rate_interval])) / (sum by (service)(rate(vertx_http_server_response_time_seconds_count{route!~\"/health(/.*)?|/metrics\",job=~\"cowork-.*\"}[$__rate_interval])) > 0) * 1000)",
+          "legendFormat": "{{service}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "ms", "min": 0, "noValue": "N/A", "color": {"mode": "palette-classic"}, "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"} }
+      },
+      "description": "각 서비스의 응답 시간 합계 / 요청 수로 계산합니다. 요청이 없는 구간은 비워 둡니다.",
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
+    },
+    {
+      "id": 7,
+      "title": "현재 활성 알림",
+      "type": "bargauge",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        {
+          "expr": "sum by (alertname, service, severity) (ALERTS{alertstate=\"firing\"})",
+          "legendFormat": "{{service}} / {{alertname}} / {{severity}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "fieldConfig": { "defaults": {"unit": "short", "min": 0, "noValue": "N/A", "color": {"mode": "palette-classic"}} },
+      "description": "현재 발생 중인 알림만 표시합니다. 활성 알림이 없으면 결과가 비어 있습니다.",
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "orientation": "horizontal",
+        "displayMode": "basic",
+        "showUnfilled": true,
+        "valueMode": "color"
+      }
+    },
+    {
+      "id": 4,
+      "title": "JVM 힙 메모리 사용량",
+      "description": "해당 지표를 제공하는 서비스만 표시합니다.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        {
+          "expr": "sum by (service) (jvm_memory_used_bytes{area=\"heap\",job=\"cowork-services\"})",
+          "legendFormat": "{{service}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "N/A",
+          "min": 0,
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
+    },
+    {
+      "id": 5,
+      "title": "Go 힙 메모리 사용량",
+      "description": "해당 지표를 제공하는 서비스만 표시합니다.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        {
+          "expr": "go_memstats_heap_inuse_bytes{job=\"cowork-services\"}",
+          "legendFormat": "{{service}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "noValue": "N/A",
+          "min": 0,
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
+    },
+    {
+      "id": 8,
+      "title": "Node.js 힙 메모리 사용량",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "targets": [
+        {
+          "expr": "max by (service) (nodejs_heap_size_used_bytes{job=\"cowork-services\"})",
+          "legendFormat": "{{service}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "noValue": "N/A",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
+    },
+    {
+      "id": 9,
+      "title": ".NET 프로세스·힙 메모리 사용량",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "targets": [
+        {
+          "expr": "process_working_set_bytes{job=\"cowork-services\"}",
+          "legendFormat": "{{service}} 프로세스",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "dotnet_gc_heap_bytes{job=\"cowork-services\"}",
+          "legendFormat": "{{service}} GC 힙",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "B",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "min": 0,
+          "noValue": "N/A",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
+    }
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 0,
+        "label": "데이터 소스"
+      }
+    ]
+  },
+  "links": [
+    {
+      "title": "Platform · Nomad / Consul",
+      "type": "link",
+      "icon": "dashboard",
+      "url": "/d/cowork-platform",
+      "targetBlank": false,
+      "includeVars": false,
+      "keepTime": true
+    }
+  ]
+}
