@@ -62,6 +62,8 @@
   ansible.builtin.include_tasks: docker.yml
 - name: Reconcile the declared Compose plugin
   ansible.builtin.include_tasks: compose.yml
+- name: Install the declared operational Python runtime
+  ansible.builtin.include_tasks: python.yml
 - name: Create the declared persistent volumes
   ansible.builtin.file:
     path: "/var/lib/cowork/data/{{ item.name }}"
