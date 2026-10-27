@@ -32,10 +32,10 @@ loki.process "application_logs" {
     source   = "service"
     template = "{{ TrimPrefix .log_directory \"cowork-\" }}"
   }
-  // @timestamp나 level을 읽지 못한 줄(plain text, 잘못된 JSON, 필드 누락)을 형식 위반으로 표시한다.
+  // @timestamp가 없거나 level이 UNKNOWN인 줄(plain text, 잘못된 JSON, 필드 누락)을 형식 위반으로 표시한다.
   stage.template {
     source   = "parse_error"
-    template = "{{ if or (not .timestamp) (not .json_level) }}true{{ end }}"
+    template = "{{ if or (not .timestamp) (eq .level \"UNKNOWN\") }}true{{ end }}"
   }
   stage.labels {
     values = { level = "", service = "", parse_error = "" }
