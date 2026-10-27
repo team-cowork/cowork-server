@@ -167,30 +167,25 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
 
     /**
      새 메시지 발생 시 해당 채널 필드가 이미 캐시에 존재하는 유저에 대해서만 안읽음 수를 1 증가시킨다.
-     `event`(메시지 ID와 생성 시각)를 주면 `unread:applied-chunks:{id}` 비트맵으로 (이벤트, 수신자)당 한 번만
-     반영해, outbox 재처리가 같은 메시지로 안읽음 수를 다시 올리지 않는다. 비트맵은 캐시와 같은 TTL 동안 유지된다.
-     첫 처리는 생성 이후이므로 생성 후 TTL이 지나기 전에는 이전 처리의 기록이 남아 있다. 그 뒤에는 기록이 사라져
-     중복을 막을 수 없으므로 증가하지 않고, 해당 채널 값은 다음 캐시 갱신에서 DB 값으로 바로잡힌다.
+     `eventId`(메시지 ID)를 주면 `unread:applied-chunks:{eventId}` 비트맵으로 (eventId, 수신자)당 한 번만 반영해,
+     outbox 재처리가 같은 메시지로 안읽음 수를 다시 올리지 않는다. 비트맵 TTL은 처리할 때마다 캐시와 같은 TTL로
+     다시 늘어나므로, 기록이 사라진 뒤 재처리되는 경우는 처리 사이 간격이 TTL을 넘는 장애뿐이다.
      필드가 없는(캐시 미스 상태인) 유저는 건드리지 않는다 — 다음 조회의 캐시미스 폴백이 처리한다.
      유저별 "존재하면 증가" 조건분기를 Lua 스크립트로 옮기되, 유저 간 원자성이 필요 없는 연산이라
      `INCREMENT_CHUNK_SIZE` 단위로 잘라 파이프라인에 담는다 — 채널 멤버가 수천 명이어도 스크립트
      한 번의 실행 시간이 짧게 유지되어 그 사이 Redis 인스턴스가 길게 블로킹되지 않는다.
      재처리 때 같은 청크 번호가 같은 수신자를 가리키도록 유저 ID를 정렬해 자른다.
      */
-    async incrementIfPresent(channelId: number, userIds: number[], event?: {id: string; createdAt: Date}): Promise<void> {
+    async incrementIfPresent(channelId: number, userIds: number[], eventId?: string): Promise<void> {
         if (userIds.length === 0) {
-            return;
-        }
-
-        if (event && Date.now() - event.createdAt.getTime() >= TTL_SECONDS * 1000) {
-            this.logger.warn(`Skipping unread increment for event older than applied-record TTL [channelId=${channelId}, eventId=${event.id}]`);
             return;
         }
 
         try {
             const field = String(channelId);
-            const appliedKey = event === undefined ? '' : `${APPLIED_KEY_PREFIX}${event.id}`;
-            // Ponytail: 재처리 사이 멤버가 바뀌면 청크 경계가 밀려 일부 수신자가 한 번 덜/더 반영될 수 있다. 캐시는 TTL로 DB 값에 수렴한다.
+            const appliedKey = eventId === undefined ? '' : `${APPLIED_KEY_PREFIX}${eventId}`;
+            // Ponytail: 재처리 사이 멤버가 바뀌면 청크 경계가 밀려 일부 수신자가 한 번 덜/더 반영될 수 있다.
+            // set/setMany가 키 TTL을 계속 늘리므로 어긋난 값은 그 채널을 읽어 다시 설정하거나 키가 만료될 때까지 남는다.
             const keys = userIds.toSorted((a, b) => a - b).map(userId => this.key(userId));
             const pipeline = this.client.pipeline() as UnreadCounterPipeline;
             for (let i = 0; i < keys.length; i += INCREMENT_CHUNK_SIZE) {
