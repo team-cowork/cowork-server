@@ -1,13 +1,13 @@
 package com.cowork.roadmap.domain.roadmap.service;
 
+import java.util.List;
+
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
 import com.cowork.roadmap.domain.roadmap.presentation.data.response.RoadmapResDto;
 
-import reactor.core.publisher.Flux;
-
 public interface ListRoadmapsService {
 
-    Flux<RoadmapResDto> execute(Long userId,
+    List<RoadmapResDto> execute(Long userId,
             String userRole,
             RoadmapScope scope,
             String category,
