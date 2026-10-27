@@ -27,7 +27,7 @@ func loadKafkaSecurity() (KafkaSecurity, error) {
 	switch protocol {
 	case "PLAINTEXT":
 		if os.Getenv("KAFKA_SASL_USERNAME") != "" || os.Getenv("KAFKA_SASL_PASSWORD") != "" || os.Getenv("KAFKA_SSL_CA_LOCATION") != "" {
-			return security, fmt.Errorf("Kafka credentials and CA require KAFKA_SECURITY_PROTOCOL=SSL or SASL_SSL")
+			return security, fmt.Errorf("kafka credentials and CA require KAFKA_SECURITY_PROTOCOL=SSL or SASL_SSL")
 		}
 		return security, nil
 	case "SSL", "SASL_SSL":
@@ -51,7 +51,7 @@ func loadKafkaSecurity() (KafkaSecurity, error) {
 	}
 	if protocol == "SSL" {
 		if os.Getenv("KAFKA_SASL_USERNAME") != "" || os.Getenv("KAFKA_SASL_PASSWORD") != "" {
-			return security, fmt.Errorf("Kafka SASL credentials require KAFKA_SECURITY_PROTOCOL=SASL_SSL")
+			return security, fmt.Errorf("kafka SASL credentials require KAFKA_SECURITY_PROTOCOL=SASL_SSL")
 		}
 		return security, nil
 	}
