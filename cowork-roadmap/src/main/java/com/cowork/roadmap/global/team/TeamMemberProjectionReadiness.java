@@ -66,9 +66,6 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
                 .collect(Collectors.toSet());
         Map<Integer, Long> seekOffsets = checkpoints
                 .initializeAssignment(consumerGroup, topic, topicId, ranges, assignedPartitions);
-        if (seekOffsets == null) {
-            throw new IllegalStateException("Kafka projection checkpoints were not initialized");
-        }
         partitions.stream()
                 .filter(partition -> topic.equals(partition.topic()))
                 .forEach(partition -> consumer.seek(partition, requireSeekOffset(seekOffsets, partition.partition())));
@@ -87,8 +84,8 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
             return false;
         }
         try {
-            Map<Integer, ProjectionBarrier> barriers = requireBarriers();
-            Map<Integer, ProjectionCheckpoint> stored = requireCheckpoints();
+            Map<Integer, ProjectionBarrier> barriers = checkpoints.findBarriers(consumerGroup, topic);
+            Map<Integer, ProjectionCheckpoint> stored = checkpoints.findByTopic(consumerGroup, topic);
             // Observe the broker last so an append concurrent with the durable reads cannot
             // leave readiness open against an older high-watermark.
             ProjectionTopicState broker = topicIdentity.topicState(topic);
@@ -102,26 +99,6 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     @Override
     public Health health() {
         return isReady() ? Health.up().build() : Health.outOfService().withDetail("initialized", initialized).build();
-    }
-
-    void markInitializedForPolicyTest() {
-        initialized = true;
-    }
-
-    private Map<Integer, ProjectionCheckpoint> requireCheckpoints() {
-        Map<Integer, ProjectionCheckpoint> values = checkpoints.findByTopic(consumerGroup, topic);
-        if (values == null) {
-            throw new IllegalStateException("Kafka projection checkpoints were not loaded");
-        }
-        return values;
-    }
-
-    private Map<Integer, ProjectionBarrier> requireBarriers() {
-        Map<Integer, ProjectionBarrier> values = checkpoints.findBarriers(consumerGroup, topic);
-        if (values == null) {
-            throw new IllegalStateException("Kafka projection barriers were not loaded");
-        }
-        return values;
     }
 
     private long requireSeekOffset(Map<Integer, Long> seekOffsets, int partition) {
