@@ -183,7 +183,7 @@ public static class Router
         <head>
           <meta charset="utf-8" />
           <meta name="viewport" content="width=device-width, initial-scale=1" />
-          <title>cowork-user Swagger UI</title>
+          <title>cowork User API</title>
           <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.33.0/swagger-ui.css" />
         </head>
         <body>
