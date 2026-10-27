@@ -52,12 +52,12 @@ def publish(service):
         else:
             app.update(KAFKA_SASL_USERNAME=principal, KAFKA_SASL_PASSWORD=credentials[principal])
     if service == "chat":
-        search = urlsplit(data["ELASTICSEARCH_URL"])
+        search = urlsplit(app["ELASTICSEARCH_URL"])
         if not search.username or not search.password:
             raise ValueError("ELASTICSEARCH_URL must contain the application credentials")
         if unquote(search.username) != "cowork_chat":
             raise ValueError("Elasticsearch application username must be cowork_chat")
-        data.update(ELASTICSEARCH_USERNAME=unquote(search.username), ELASTICSEARCH_PASSWORD=unquote(search.password))
+        data["ELASTICSEARCH_PASSWORD"] = unquote(search.password)
     for left, right in (("S3_ADMIN_ACCESS_KEY", "S3_ACCESS_KEY"),
                         ("S3_ADMIN_SECRET_KEY", "S3_SECRET_KEY"),
                         ("DB_ADMIN_PASSWORD", "DB_PASSWORD"),
@@ -68,16 +68,30 @@ def publish(service):
             raise ValueError("Administrative and application credentials must differ: " + left + ", " + right)
     previous_app = read(vault, "nomad/apps/" + service, mount)
     previous_data = read(vault, "nomad/data/" + service, mount)
-    for new, previous, bindings in [(app, previous_app[0], spec["secret_bindings"]), (data, previous_data[0], spec["data_secret_bindings"])]:
+    groups = {name: {key: data.pop(key) for key in keys}
+              for name, keys in spec.get("data_secret_groups", {}).items()}
+    previous_groups = {name: read(vault, f"nomad/data/{service}/{name}", mount) for name in groups}
+    payloads = [(app, previous_app[0], spec["secret_bindings"]),
+                (data, previous_data[0], spec["data_secret_bindings"])]
+    payloads += [(values, {**previous_data[0], **previous_groups[name][0]}, spec["data_secret_bindings"])
+                 for name, values in groups.items()]
+    for new, previous, bindings in payloads:
         for destination, source in bindings.items():
-            if source in spec["immutable_secrets"] and destination in previous and previous[destination] != new.get(destination):
+            if (source in spec["immutable_secrets"] and destination in new and destination in previous
+                    and previous[destination] != new[destination]):
                 raise ValueError("Immutable secret changed: " + source)
     if service == "monitoring":
         # This token is issued by platform bootstrap, not an application GitHub secret.
         app["CONSUL_HTTP_TOKEN"] = previous_app[0]["CONSUL_HTTP_TOKEN"]
+    # Preserve the old immutable values until every split path is safely written.
+    group_versions = {
+        f"{service}/{name}": write(vault, f"nomad/data/{service}/{name}", values, mount, previous_groups[name])
+        for name, values in groups.items()
+    }
     return {
         "secret_version": write(vault, "nomad/apps/" + service, app, mount, previous_app),
         "data_secret_version": write(vault, "nomad/data/" + service, data, mount, previous_data),
+        "data_secret_versions": group_versions,
     }
 
 
@@ -97,5 +111,5 @@ if __name__ == "__main__":
     if os.environ.get("GITHUB_OUTPUT"):
         with open(os.environ["GITHUB_OUTPUT"], "a") as output:
             for key, value in result.items():
-                output.write(f"{key}={value}\n")
+                output.write(f"{key}={json.dumps(value)}\n")
     print(f"Published version references for {args.service}")

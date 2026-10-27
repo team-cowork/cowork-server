@@ -142,7 +142,10 @@ def validate_manifest(data):
     platform_versions = data.get("platform_secret_versions", {})
     if set(platform_versions) != {"monitoring"} or type(platform_versions["monitoring"]) is not int or platform_versions["monitoring"] < 1:
         raise ValueError("Manifest must pin the monitoring application secret version")
-    if set(data.get("data_secret_versions", {})) != set(services()):
+    catalog = services()
+    data_paths = set(catalog) | {f"{name}/{group}" for name, spec in catalog.items()
+                                for group in spec.get("data_secret_groups", {})}
+    if set(data.get("data_secret_versions", {})) != data_paths:
         raise ValueError("Manifest must pin data secrets for every target")
     if any(not isinstance(version, int) or version < 1 for version in data["data_secret_versions"].values()):
         raise ValueError("Data secret versions must be positive integers")
@@ -284,9 +287,14 @@ def assemble(args):
             apps[name] = {key: record[key] for key in ("image", "image_source_sha", "version")}
     versions = {}
     platform_versions = {}
-    for name in services():
+    for name, spec in services().items():
         record = json.loads((Path(args.artifacts) / f"secrets-{name}.json").read_text())
         versions[name] = int(record["data_secret_version"])
+        group_versions = record.get("data_secret_versions", {})
+        expected_paths = {f"{name}/{group}" for group in spec.get("data_secret_groups", {})}
+        if set(group_versions) != expected_paths:
+            raise ValueError("Missing or unexpected data secret versions for " + name)
+        versions.update(group_versions)
         if name == "monitoring":
             platform_versions[name] = int(record["secret_version"])
         if name in apps:

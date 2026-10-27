@@ -124,7 +124,7 @@ job "cowork-chat-search" {
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/chat?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/chat/search?version=${var.secret_version}" }}
 ELASTIC_PASSWORD={{ .Data.data.ELASTICSEARCH_ADMIN_PASSWORD | toJSON }}
 {{ end }}
 ENV
@@ -188,7 +188,7 @@ ENV
       }
       template {
         data                 = <<-CONFIG
-{{ with secret "${var.vault_mount}/data/nomad/data/chat?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/chat/search?version=${var.secret_version}" }}
 header = "Authorization: Basic {{ printf "elastic:%s" .Data.data.ELASTICSEARCH_ADMIN_PASSWORD | base64Encode }}"
 header = "Content-Type: application/json"
 {{ end }}
@@ -202,7 +202,7 @@ CONFIG
       }
       template {
         data                 = <<-CONFIG
-{{ with secret "${var.vault_mount}/data/nomad/data/chat?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/chat/search?version=${var.secret_version}" }}
 header = "Authorization: Basic {{ printf "cowork_chat:%s" .Data.data.ELASTICSEARCH_PASSWORD | base64Encode }}"
 header = "Content-Type: application/json"
 {{ end }}
@@ -216,7 +216,7 @@ CONFIG
       }
       template {
         data                 = <<-JSON
-{{ with secret "${var.vault_mount}/data/nomad/data/chat?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/chat/search?version=${var.secret_version}" }}
 {"password": {{ .Data.data.ELASTICSEARCH_PASSWORD | toJSON }}, "roles": ["cowork_chat_search"], "enabled": true}
 {{ end }}
 JSON

@@ -72,7 +72,15 @@
     "immutable_secrets": [
       "DB_ADMIN_PASSWORD"
     ],
-    "kafka_principal": "cowork-user"
+    "kafka_principal": "cowork-user",
+    "data_secret_groups": {
+      "storage": [
+        "S3_ADMIN_ACCESS_KEY",
+        "S3_ADMIN_SECRET_KEY",
+        "S3_ACCESS_KEY",
+        "S3_SECRET_KEY"
+      ]
+    }
   },
   "team": {
     "environment": "Prod-CD(team)",
@@ -95,7 +103,15 @@
     "immutable_secrets": [
       "DB_ADMIN_PASSWORD"
     ],
-    "kafka_principal": "cowork-team"
+    "kafka_principal": "cowork-team",
+    "data_secret_groups": {
+      "storage": [
+        "S3_ADMIN_ACCESS_KEY",
+        "S3_ADMIN_SECRET_KEY",
+        "S3_ACCESS_KEY",
+        "S3_SECRET_KEY"
+      ]
+    }
   },
   "channel": {
     "environment": "Prod-CD(channel)",
@@ -152,7 +168,6 @@
       "DB_MONITORING_PASSWORD": "DB_MONITORING_PASSWORD",
       "DB_PASSWORD": "DB_PASSWORD",
       "ELASTICSEARCH_ADMIN_PASSWORD": "ELASTICSEARCH_ADMIN_PASSWORD",
-      "ELASTICSEARCH_URL": "ELASTICSEARCH_URL",
       "S3_ACCESS_KEY": "S3_ACCESS_KEY",
       "S3_ADMIN_ACCESS_KEY": "S3_ADMIN_ACCESS_KEY",
       "S3_ADMIN_SECRET_KEY": "S3_ADMIN_SECRET_KEY",
@@ -165,7 +180,19 @@
       "DB_ADMIN_PASSWORD",
       "ELASTICSEARCH_ADMIN_PASSWORD"
     ],
-    "kafka_principal": "cowork-chat"
+    "kafka_principal": "cowork-chat",
+    "data_secret_groups": {
+      "storage": [
+        "S3_ADMIN_ACCESS_KEY",
+        "S3_ADMIN_SECRET_KEY",
+        "S3_ACCESS_KEY",
+        "S3_SECRET_KEY"
+      ],
+      "search": [
+        "ELASTICSEARCH_ADMIN_PASSWORD",
+        "ELASTICSEARCH_PASSWORD"
+      ]
+    }
   },
   "voice": {
     "environment": "Prod-CD(voice)",
@@ -185,7 +212,13 @@
     "immutable_secrets": [
       "DB_ADMIN_PASSWORD"
     ],
-    "kafka_principal": "cowork-voice"
+    "kafka_principal": "cowork-voice",
+    "data_secret_groups": {
+      "livekit": [
+        "LIVEKIT_API_KEY",
+        "LIVEKIT_API_SECRET"
+      ]
+    }
   },
   "project": {
     "environment": "Prod-CD(project)",

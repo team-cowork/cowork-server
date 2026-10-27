@@ -26,12 +26,12 @@ locals {
     "cowork-preference-db" : "nomad/data/preference",
     "cowork-chat-db" : "nomad/data/chat",
     "cowork-voice-db" : "nomad/data/voice",
-    "cowork-user-storage" : "nomad/data/user",
-    "cowork-team-storage" : "nomad/data/team",
-    "cowork-chat-storage" : "nomad/data/chat",
-    "cowork-chat-search" : "nomad/data/chat",
+    "cowork-user-storage" : "nomad/data/user/storage",
+    "cowork-team-storage" : "nomad/data/team/storage",
+    "cowork-chat-storage" : "nomad/data/chat/storage",
+    "cowork-chat-search" : "nomad/data/chat/search",
     "cowork-kafka" : "nomad/data/kafka",
-    "cowork-livekit" : "nomad/data/voice",
+    "cowork-livekit" : "nomad/data/voice/livekit",
     "cowork-monitoring" : "nomad/apps/monitoring",
     "cowork-user-migrations" : "nomad/data/user"
   }
