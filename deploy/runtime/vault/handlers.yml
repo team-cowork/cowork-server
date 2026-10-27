@@ -1,0 +1,6 @@
+---
+- name: Reload Vault certificate
+  ansible.builtin.command:
+    argv: [docker, kill, --signal, HUP, cowork-vault-prod]
+  changed_when: true
+  when: not (vault_container_reconciled.changed | default(false))

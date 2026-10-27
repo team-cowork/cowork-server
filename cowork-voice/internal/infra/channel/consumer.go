@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cowork/cowork-voice/internal/config"
 	"github.com/google/uuid"
 	segkafka "github.com/segmentio/kafka-go"
 	"github.com/twmb/franz-go/pkg/kerr"
@@ -50,12 +51,13 @@ type brokerTopicMetadata struct {
 	partitions        map[TopicPartition]struct{}
 }
 
-func newKafkaOffsetSnapshotter(brokers []string) (*kafkaOffsetSnapshotter, error) {
-	client, err := kgo.NewClient(
+func newKafkaOffsetSnapshotter(brokers []string, security config.KafkaSecurity) (*kafkaOffsetSnapshotter, error) {
+	options := append(security.FranzOptions(),
 		kgo.SeedBrokers(brokers...),
 		kgo.ClientID("cowork-voice-projection-barrier"),
 		kgo.RequestTimeoutOverhead(10*time.Second),
 	)
+	client, err := kgo.NewClient(options...)
 	if err != nil {
 		return nil, fmt.Errorf("create projection metadata client: %w", err)
 	}
@@ -282,6 +284,7 @@ func (s *kafkaOffsetSnapshotter) Close() {
 }
 
 type Consumer struct {
+	security            config.KafkaSecurity
 	brokers             []string
 	topics              []string
 	groupID             string
@@ -302,17 +305,19 @@ type Consumer struct {
 }
 
 func NewConsumer(
+	security config.KafkaSecurity,
 	brokers, groupID string,
 	handler *EventHandler,
 	checkpoints CheckpointStore,
 	readiness readinessState,
 ) (*Consumer, error) {
 	brokerList := splitBrokers(brokers)
-	snapshotter, err := newKafkaOffsetSnapshotter(brokerList)
+	snapshotter, err := newKafkaOffsetSnapshotter(brokerList, security)
 	if err != nil {
 		return nil, err
 	}
 	group, err := segkafka.NewConsumerGroup(segkafka.ConsumerGroupConfig{
+		Dialer:                security.Dialer(),
 		ID:                    groupID,
 		Brokers:               brokerList,
 		Topics:                permissionTopics,
@@ -324,6 +329,7 @@ func NewConsumer(
 		return nil, fmt.Errorf("create channel permission consumer group: %w", err)
 	}
 	return &Consumer{
+		security:    security,
 		brokers:     brokerList,
 		topics:      permissionTopics,
 		groupID:     groupID,
@@ -509,6 +515,7 @@ func (c *Consumer) consumePartition(ctx context.Context, partition TopicPartitio
 		return
 	}
 	reader := segkafka.NewReader(segkafka.ReaderConfig{
+		Dialer:    c.security.Dialer(),
 		Brokers:   c.brokers,
 		Topic:     partition.Topic,
 		Partition: partition.Partition,

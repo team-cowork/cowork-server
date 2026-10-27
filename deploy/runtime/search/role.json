@@ -1,0 +1,11 @@
+{
+  "cluster": [],
+  "indices": [
+    {
+      "names": ["chat_messages", "chat_messages-*"],
+      "privileges": ["manage", "read", "write"]
+    }
+  ],
+  "applications": [],
+  "run_as": []
+}

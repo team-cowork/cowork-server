@@ -1,0 +1,40 @@
+---
+- name: Verify every release image before retiring legacy workloads
+  hosts: nomad_clients
+  become: true
+  gather_facts: false
+  any_errors_fatal: true
+  tasks:
+    - name: Require an explicit image list for this VM
+      ansible.builtin.assert:
+        that:
+          - inventory_hostname in release_images
+          - release_images[inventory_hostname] | length > 0
+    - name: Create a private temporary registry configuration
+      ansible.builtin.file:
+        path: /run/cowork-image-auth
+        state: directory
+        mode: '0700'
+    - name: Pull all immutable images required on this VM
+      block:
+        - name: Use the same registry identity as the Nomad Docker driver
+          ansible.builtin.copy:
+            src: /etc/nomad.d/docker-auth.json
+            dest: /run/cowork-image-auth/config.json
+            remote_src: true
+            mode: '0600'
+          no_log: true
+        - name: Verify and cache the release image
+          ansible.builtin.command:
+            argv: [docker, --config, /run/cowork-image-auth, pull, '{{ item }}']
+          loop: "{{ release_images[inventory_hostname] }}"
+          register: release_pull
+          until: release_pull.rc == 0
+          retries: 3
+          delay: 5
+          changed_when: "'Downloaded newer image' in release_pull.stdout"
+      always:
+        - name: Remove the temporary registry configuration
+          ansible.builtin.file:
+            path: /run/cowork-image-auth
+            state: absent

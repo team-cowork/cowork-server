@@ -1,0 +1,251 @@
+---
+- name: Inspect the dedicated platform Vault data volume
+  ansible.builtin.command:
+    argv: [docker, volume, inspect, cowork-vault-platform]
+  register: vault_platform_volume
+  changed_when: false
+  failed_when: vault_platform_volume.rc not in [0, 1]
+
+- name: Require an explicit first-time Vault reset
+  ansible.builtin.assert:
+    that: cowork_initialize_vault | default(false) | bool
+    fail_msg: The first platform Vault initialization requires cowork_initialize_vault=true; the old data volume is retained.
+  when: vault_platform_volume.rc != 0
+
+- name: Create the separate platform Vault data volume
+  community.docker.docker_volume:
+    name: cowork-vault-platform
+    state: present
+
+- name: Locate the dedicated Vault data directory
+  ansible.builtin.command:
+    argv: [docker, volume, inspect, --format, '{{ "{{" }}.Mountpoint{{ "}}" }}', cowork-vault-platform]
+  register: vault_data_volume
+  changed_when: false
+
+- name: Require the exact Docker data volume path
+  ansible.builtin.assert:
+    that: vault_data_volume.stdout is match('^/[^\r\n]+/cowork-vault-platform/_data$')
+
+- name: Allow the unprivileged Vault process to write its dedicated volume
+  ansible.builtin.file:
+    path: "{{ vault_data_volume.stdout }}"
+    state: directory
+    owner: '100'
+    group: '1000'
+    mode: '0700'
+
+- name: Select the private controller recovery file
+  ansible.builtin.set_fact:
+    vault_recovery_file: "{{ lookup('ansible.builtin.env', 'COWORK_VAULT_BOOTSTRAP_FILE') | default(platform_state_dir ~ '/vault-recovery.json', true) }}"
+
+- name: Check recovery availability before changing an existing Vault
+  ansible.builtin.stat:
+    path: "{{ vault_recovery_file }}"
+  register: vault_recovery_stat
+  delegate_to: localhost
+  become: false
+
+- name: Require recovery credentials before an existing Vault can restart
+  ansible.builtin.assert:
+    that: vault_recovery_stat.stat.exists or cowork_initialize_vault | default(false) | bool
+    fail_msg: Restore the private platform Vault recovery file before reconciling Vault.
+
+- name: Find the existing Vault TLS volume
+  ansible.builtin.command:
+    argv: [docker, volume, inspect, --format, '{{ "{{" }}.Mountpoint{{ "}}" }}', cowork-vault-tls]
+  register: vault_tls_volume
+  changed_when: false
+
+- name: Require an absolute TLS volume path
+  ansible.builtin.assert:
+    that:
+      - vault_tls_volume.stdout is match('^/[^\r\n]+$')
+
+- name: Install the platform certificate into the retained TLS volume
+  ansible.builtin.copy:
+    content: "{{ lookup('ansible.builtin.file', platform_state_dir ~ '/pki/vault.crt') }}\n{{ lookup('ansible.builtin.file', platform_state_dir ~ '/pki/ca.crt') }}\n"
+    dest: "{{ vault_tls_volume.stdout }}/server.crt"
+    owner: '100'
+    group: '1000'
+    mode: '0644'
+  notify: Reload Vault certificate
+
+- name: Install the platform key into the retained TLS volume
+  ansible.builtin.copy:
+    src: "{{ platform_state_dir }}/pki/vault.key"
+    dest: "{{ vault_tls_volume.stdout }}/server.key"
+    owner: '100'
+    group: '1000'
+    mode: '0600'
+  no_log: true
+  notify: Reload Vault certificate
+
+- name: Create the managed Vault configuration directory
+  ansible.builtin.file:
+    path: /etc/cowork/vault
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Install the native Vault configuration
+  ansible.builtin.copy:
+    src: "{{ platform_repository }}/deploy/runtime/vault/server.hcl"
+    dest: /etc/cowork/vault/server.hcl
+    owner: root
+    group: root
+    mode: '0644'
+  register: vault_server_configuration
+
+- name: Install the independent Vault Compose definition
+  ansible.builtin.copy:
+    src: "{{ platform_repository }}/deploy/runtime/vault/compose.yaml"
+    dest: /etc/cowork/vault/compose.yaml
+    owner: root
+    group: root
+    mode: '0644'
+  register: vault_compose_configuration
+
+- name: Validate the retained-volume Compose definition
+  ansible.builtin.command:
+    argv: [docker, compose, --env-file, /dev/null, -f, /etc/cowork/vault/compose.yaml, config, --quiet]
+  changed_when: false
+
+- name: Inspect the current Vault container state
+  ansible.builtin.command:
+    argv: [docker, inspect, --format, '{{ "{{" }}.State.Running{{ "}}" }}', cowork-vault-prod]
+  register: vault_container_running
+  changed_when: false
+  failed_when: vault_container_running.rc not in [0, 1]
+
+- name: Reconcile Vault only when configuration or process state changed
+  ansible.builtin.command:
+    argv: >-
+      {{ ['docker', 'compose', '--env-file', '/dev/null', '-f', '/etc/cowork/vault/compose.yaml',
+          'up', '-d', '--no-deps']
+         + (['--force-recreate'] if vault_server_configuration.changed else []) + ['vault'] }}
+  when: vault_server_configuration.changed or vault_compose_configuration.changed or vault_container_running.stdout != 'true'
+  register: vault_container_reconciled
+  changed_when: true
+
+- name: Load the newly installed certificate before checking private TLS
+  ansible.builtin.meta: flush_handlers
+
+- name: Check whether a previous interrupted run left the old certificate loaded
+  ansible.builtin.uri:
+    url: "https://{{ private_ip }}:8210/v1/sys/seal-status"
+    ca_path: /etc/cowork/ca/ca.crt
+    timeout: 5
+  register: vault_tls_probe
+  failed_when: false
+
+- name: Reload an installed certificate after an interrupted update
+  ansible.builtin.debug:
+    msg: Reloading the installed platform certificate before verifying Vault.
+  when: vault_tls_probe.status | default(-1) != 200
+  changed_when: true
+  notify: Reload Vault certificate
+
+- name: Finish any deferred certificate reload
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for the existing Vault seal status over verified private TLS
+  ansible.builtin.uri:
+    url: "https://{{ private_ip }}:8210/v1/sys/seal-status"
+    ca_path: /etc/cowork/ca/ca.crt
+    return_content: true
+  register: vault_seal_status
+  until: vault_seal_status.status == 200
+  retries: 30
+  delay: 2
+
+- name: Initialize only an explicitly authorized empty platform Vault
+  when: not vault_seal_status.json.initialized
+  block:
+    - name: Require first-time initialization authorization
+      ansible.builtin.assert:
+        that: cowork_initialize_vault | default(false) | bool
+    - name: Initialize the new Vault key shares
+      ansible.builtin.uri:
+        url: "https://{{ private_ip }}:8210/v1/sys/init"
+        method: PUT
+        ca_path: /etc/cowork/ca/ca.crt
+        body_format: json
+        body: {secret_shares: 3, secret_threshold: 2}
+      register: vault_initialization
+      no_log: true
+    - name: Save recovery material outside Git before proceeding
+      ansible.builtin.copy:
+        content: "{{ vault_initialization.json | to_json }}"
+        dest: "{{ vault_recovery_file }}"
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+      no_log: true
+    - name: Refresh the initialized seal status
+      ansible.builtin.uri:
+        url: "https://{{ private_ip }}:8210/v1/sys/seal-status"
+        ca_path: /etc/cowork/ca/ca.crt
+      register: vault_seal_status
+
+- name: Unseal a restarted Vault using the explicit operator recovery file
+  when: vault_seal_status.json.sealed
+  block:
+    - name: Require the operator recovery file location
+      ansible.builtin.assert:
+        that: vault_recovery_file is match('^/')
+        fail_msg: Set COWORK_VAULT_BOOTSTRAP_FILE to the existing private controller recovery file before restarting Vault.
+    - name: Read the operator recovery keys privately
+      ansible.builtin.set_fact:
+        vault_recovery: "{{ lookup('ansible.builtin.file', vault_recovery_file) | from_json }}"
+      no_log: true
+    - name: Select the existing unseal keys
+      ansible.builtin.set_fact:
+        vault_unseal_keys: "{{ vault_recovery.unseal_keys_b64 | default(vault_recovery.keys_base64 | default(vault_recovery['keys'] | default([]))) }}"
+      no_log: true
+    - name: Require sufficient operator recovery keys
+      ansible.builtin.assert:
+        that:
+          - vault_unseal_keys is sequence
+          - vault_unseal_keys is not string
+          - vault_unseal_keys | length >= vault_seal_status.json.t
+      no_log: true
+    - name: Submit unseal keys only in the private request body
+      ansible.builtin.uri:
+        url: "https://{{ private_ip }}:8210/v1/sys/unseal"
+        method: PUT
+        ca_path: /etc/cowork/ca/ca.crt
+        body_format: json
+        body:
+          key: "{{ item }}"
+      loop: "{{ vault_unseal_keys[:vault_seal_status.json.t] }}"
+      no_log: true
+    - name: Discard temporary recovery facts
+      ansible.builtin.set_fact:
+        vault_recovery: null
+        vault_unseal_keys: []
+      no_log: true
+
+- name: Verify the unsealed Vault endpoint
+  ansible.builtin.uri:
+    url: "https://{{ private_ip }}:8210/v1/sys/health"
+    ca_path: /etc/cowork/ca/ca.crt
+  register: vault_health
+  until: vault_health.status == 200
+  retries: 15
+  delay: 2
+
+- name: Discover the previous certificate renewal units
+  ansible.builtin.stat:
+    path: "/etc/systemd/system/{{ item }}"
+  loop: [cowork-vault-tls.timer, cowork-vault-tls.service]
+  register: vault_previous_tls_units
+
+- name: Retire the old certificate issuer after verified platform TLS is active
+  ansible.builtin.systemd_service:
+    name: "{{ item.item }}"
+    enabled: false
+    state: stopped
+  loop: "{{ vault_previous_tls_units.results }}"
+  when: item.stat.exists
