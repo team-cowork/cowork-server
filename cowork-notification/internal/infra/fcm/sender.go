@@ -48,6 +48,11 @@ const (
 	DataKeyBody  = "body"
 )
 
+// apnsPlaceholderBody is the only text in a data-only iOS alert. iOS displays the
+// original alert when the Notification Service Extension times out or crashes, so the
+// real title and body stay in data for the extension to swap in after its account check.
+const apnsPlaceholderBody = "새 알림"
+
 // Message is one Firebase installation's send request. Data is per installation so
 // each message can carry the owning account (see DataKeyAccountID).
 type Message struct {
@@ -74,10 +79,11 @@ type Result struct {
 type Sender struct {
 	client         messagingClient
 	isUnregistered func(error) bool
-	// dataOnly omits the notification payload so the OS never displays a message
-	// before the client has checked DataKeyAccountID. It stays off until clients that
-	// render data-only messages themselves are deployed, because older clients show
-	// nothing in the background without a notification payload.
+	// dataOnly omits the notification payload so the OS never displays a message's
+	// content before the client has checked DataKeyAccountID. It stays off until clients
+	// that handle it are deployed: older Android and Web clients show nothing in the
+	// background, and iOS clients without a Notification Service Extension show only the
+	// placeholder alert.
 	dataOnly bool
 }
 
@@ -148,9 +154,11 @@ func NewSender(ctx context.Context, credentialsJSON string, dataOnly bool) (*Sen
 const fcmBatchSize = 500
 
 // buildMessage copies title and body into data and, in data-only mode, drops the
-// notification payload. Android then needs high priority to wake the app in Doze, and
-// APNs needs a background push (content-available, apns-priority 5) that iOS throttles
-// and does not deliver to a force-quit app.
+// notification payload. Android then needs high priority to wake the app in Doze. iOS
+// gets a placeholder alert push with mutable-content instead of a throttled background
+// push, so the client's Notification Service Extension (with the
+// usernotifications.filtering entitlement) can check DataKeyAccountID and suppress it, or
+// replace the placeholder with DataKeyTitle and DataKeyBody, before it is displayed.
 func (s *Sender) buildMessage(m Message, title, body string) *messaging.Message {
 	data := make(map[string]string, len(m.Data)+2)
 	for k, v := range m.Data {
@@ -165,9 +173,18 @@ func (s *Sender) buildMessage(m Message, title, body string) *messaging.Message 
 		return msg
 	}
 	msg.Android = &messaging.AndroidConfig{Priority: "high"}
+	headers := map[string]string{"apns-push-type": "alert", "apns-priority": "10"}
+	// iOS shows this alert itself, so a redelivered event would stack a second copy. A
+	// shared collapse id makes APNs replace the earlier one; APNs caps it at 64 bytes.
+	if eventID := data[DataKeyEventID]; eventID != "" && len(eventID) <= 64 {
+		headers["apns-collapse-id"] = eventID
+	}
 	msg.APNS = &messaging.APNSConfig{
-		Headers: map[string]string{"apns-push-type": "background", "apns-priority": "5"},
-		Payload: &messaging.APNSPayload{Aps: &messaging.Aps{ContentAvailable: true}},
+		Headers: headers,
+		Payload: &messaging.APNSPayload{Aps: &messaging.Aps{
+			Alert:          &messaging.ApsAlert{Body: apnsPlaceholderBody},
+			MutableContent: true,
+		}},
 	}
 	return msg
 }
