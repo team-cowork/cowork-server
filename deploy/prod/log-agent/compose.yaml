@@ -18,6 +18,31 @@ services:
       - ${DOCKER_CONTAINER_LOG_DIR:-/var/lib/docker/containers}:/var/lib/docker/containers:ro
       - positions:/var/lib/alloy
     command: run --storage.path=/var/lib/alloy /etc/alloy/config.alloy
+  # 수집 경로 생존 신호. 1분마다 남기는 이 로그가 Loki에서 끊기면 이 VM의 Docker 로그 → Alloy → Loki 경로가
+  # 멈춘 것이다(Loki 규칙 coworkLogCollectionStopped). 이 신호가 살아 있는데 서비스 로그만 없으면 서비스가 조용한 것이다.
+  heartbeat:
+    image: busybox:1.38.0@sha256:dc2d74b28e4cf8984fa52af1f39bc7c3d9c73760b41a74d629f5d11b1ab28616
+    restart: unless-stopped
+    # PID 1인 sh는 SIGTERM을 무시하므로 init이 신호를 전달해 바로 종료되게 한다.
+    init: true
+    user: '65534:65534'
+    read_only: true
+    network_mode: none
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    labels:
+      cowork.service: log-agent
+    logging:
+      driver: json-file
+      options:
+        max-size: 1m
+        max-file: '2'
+        labels: cowork.service
+    command:
+      - sh
+      - -c
+      - while :; do date -u +'{"@timestamp":"%Y-%m-%dT%H:%M:%SZ","level":"INFO","service":"cowork-log-agent","module":"heartbeat","message":"heartbeat"}'; sleep 60; done
 networks:
   default:
     name: ${COMPOSE_PROJECT_NAME:?Compose project name is required}-mtu1400
