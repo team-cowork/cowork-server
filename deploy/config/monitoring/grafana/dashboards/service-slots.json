@@ -144,7 +144,7 @@
       "id": 6,
       "type": "state-timeline",
       "title": "게이트웨이 경유 업무 API",
-      "description": "게이트웨이를 거친 서비스별 대표 API의 무인증 요청 결과와 CORS preflight 결과입니다. 보호 API는 인증 필터의 401, 공개 API는 downstream 응답을 정상으로 봅니다. 데이터가 없는 구간은 비워 둡니다.",
+      "description": "게이트웨이를 거친 서비스별 대표 API의 무인증 요청 결과와 CORS preflight 결과입니다. 공개 API가 downstream 응답을 돌려주면 정상으로 봅니다. 데이터가 없는 구간은 비워 둡니다.",
       "datasource": { "type": "prometheus", "uid": "cowork-prometheus" },
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
       "targets": [
