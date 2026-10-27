@@ -9,7 +9,7 @@ import {Consumer, Kafka} from 'kafkajs';
 import {Server} from 'socket.io';
 import {mongo} from 'mongoose';
 import {DicoshotService} from 'dicoshot-nest';
-import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {getKafkaClientConfig} from '../../common/config/config.util';
 import {parseEventTime} from '../../common/util/event-time.util';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
@@ -57,7 +57,7 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
     async onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-team-member-event',
-            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
+            ...getKafkaClientConfig(this.configService),
         });
         const stream = PROJECTION_STREAMS.teamMember;
         this.consumer = kafka.consumer({groupId: stream.groupId});

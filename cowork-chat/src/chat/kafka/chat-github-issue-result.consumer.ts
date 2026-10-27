@@ -11,7 +11,7 @@ import {Kafka, Consumer} from 'kafkajs';
 import {Server} from 'socket.io';
 import {DicoshotService} from 'dicoshot-nest';
 import {ChatService} from '../chat.service';
-import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {getKafkaClientConfig} from '../../common/config/config.util';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {ChannelMessageReadAccessService} from '../service';
 import {toMessageBroadcastPayload} from '../repository';
@@ -62,7 +62,7 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
     async onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-chat-github-issue-result',
-            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
+            ...getKafkaClientConfig(this.configService),
         });
         this.consumer = kafka.consumer({groupId: 'cowork-chat-chat-github-issue-result'});
         await connectWithRetry(this.logger, 'Kafka consumer startup: project.chat-github-issue.result', async () => {

@@ -31,7 +31,7 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
                 uri: getMongoDbUri(configService),
                 serverSelectionTimeoutMS: Number(getOptionalConfig(configService, 'MONGODB_SERVER_SELECTION_TIMEOUT_MS') ?? 5000),
                 connectTimeoutMS: Number(getOptionalConfig(configService, 'MONGODB_CONNECT_TIMEOUT_MS') ?? 5000),
-                directConnection: (getOptionalConfig(configService, 'MONGODB_DIRECT_CONNECTION') ?? 'true') !== 'false',
+                directConnection: (getOptionalConfig(configService, 'MONGODB_DIRECT_CONNECTION') ?? 'false') !== 'false',
             }),
         }),
         ProjectionReadinessModule,
