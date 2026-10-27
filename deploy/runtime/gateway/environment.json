@@ -1,6 +1,5 @@
 {
   "APP_CONFIG_PROFILE": "prod",
-  "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.167:9094",
   "PUBLIC_API_BASE_URL": "https://cowork.https.gsmsv.site",
   "REDIS_HOST": "127.0.0.1",
   "REDIS_PORT": "16379",
@@ -10,10 +9,6 @@
   "S3_USER_INTERNAL_ENDPOINT": "http://127.0.0.1:19102",
   "S3_CHAT_INTERNAL_ENDPOINT": "http://127.0.0.1:19103",
   "PUBLIC_WEB_ORIGINS": "https://service.gsmsv.site:22118,http://localhost:3000",
-  "KAFKA_SECURITY_PROTOCOL": "SASL_SSL",
-  "KAFKA_SASL_MECHANISM": "SCRAM-SHA-512",
-  "KAFKA_SASL_USERNAME": "cowork-gateway",
-  "KAFKA_SSL_CA_LOCATION": "/etc/cowork/ca/ca.crt",
   "SPRING_PROFILES_ACTIVE": "prod",
   "COWORK_AUTHORIZATION_URL": "http://127.0.0.1:18081",
   "COWORK_USER_URL": "http://127.0.0.1:18082",
