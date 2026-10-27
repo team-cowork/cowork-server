@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/cowork/cowork-notification/internal/config"
 	"github.com/cowork/cowork-notification/internal/health"
 	segkafka "github.com/segmentio/kafka-go"
 )
@@ -91,6 +92,7 @@ type Consumer struct {
 }
 
 func NewConsumer(
+	security config.KafkaSecurity,
 	brokers, topic, groupID string,
 	svc NotificationService,
 	inbox EventInbox,
@@ -101,6 +103,7 @@ func NewConsumer(
 ) *Consumer {
 	return &Consumer{
 		reader: segkafka.NewReader(segkafka.ReaderConfig{
+			Dialer:  security.Dialer(),
 			Brokers: splitBrokerList(brokers),
 			Topic:   topic,
 			GroupID: groupID,

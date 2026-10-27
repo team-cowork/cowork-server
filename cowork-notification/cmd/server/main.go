@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -36,7 +35,6 @@ import (
 	sseinfra "github.com/cowork/cowork-notification/internal/infra/sse"
 	"github.com/cowork/cowork-notification/internal/middleware"
 	"github.com/cowork/cowork-notification/internal/monitoring"
-	"github.com/cowork/cowork-notification/pkg/eureka"
 	"github.com/cowork/cowork-notification/pkg/logger"
 	_ "github.com/cowork/cowork-notification/swagger"
 )
@@ -96,6 +94,7 @@ func main() {
 	sseHub := sseinfra.NewHub()
 	projectionReadiness := health.NewReadiness()
 	notificationConsumer := kafkainfra.NewConsumer(
+		cfg.KafkaSecurity,
 		cfg.KafkaBrokers,
 		cfg.KafkaTopicNotify,
 		cfg.KafkaGroupID,
@@ -107,6 +106,7 @@ func main() {
 		projectionReadiness,
 	)
 	projectionConsumer, err := kafkainfra.NewProjectionConsumer(
+		cfg.KafkaSecurity,
 		cfg.KafkaBrokers,
 		cfg.KafkaProjectionGroupID,
 		kafkainfra.ProjectionTopics{
@@ -151,29 +151,6 @@ func main() {
 	exitCode := 0
 
 	consumerCtx, consumerCancel := context.WithCancel(context.Background())
-	eurekaClient := eureka.New(cfg)
-	var eurekaRegistered atomic.Bool
-	go func() {
-		if !projectionReadiness.Wait(consumerCtx) {
-			return
-		}
-		for {
-			if err := eurekaClient.Register(cfg); err == nil {
-				eurekaRegistered.Store(true)
-				eurekaClient.StartHeartbeat(cfg)
-				return
-			} else {
-				slog.Warn("eureka registration failed; retrying", "err", err)
-			}
-			timer := time.NewTimer(time.Second)
-			select {
-			case <-consumerCtx.Done():
-				timer.Stop()
-				return
-			case <-timer.C:
-			}
-		}
-	}()
 	go func() {
 		slog.Info("notification kafka consumer waiting for projection barrier", "topic", cfg.KafkaTopicNotify)
 		notificationConsumer.Start(consumerCtx)
@@ -221,11 +198,6 @@ func main() {
 	}
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("server shutdown error", "err", err)
-	}
-	if eurekaRegistered.Load() {
-		if err := eurekaClient.Deregister(cfg); err != nil {
-			slog.Warn("eureka deregister failed", "err", err)
-		}
 	}
 
 	slog.Info("shutdown complete")
