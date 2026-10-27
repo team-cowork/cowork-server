@@ -183,8 +183,6 @@ target/
 
 ### Deployment ###
 /deploy/architecture/**/out/
-/deploy/iac/**/inventory*.yml
-!/deploy/iac/**/inventory.example.yml
 
 # Native platform local state and fetched artifacts
 **/.terraform/
