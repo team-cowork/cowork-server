@@ -17,7 +17,6 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Service
@@ -31,51 +30,46 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
 
     @Override
     @Transactional
-    public Mono<AssignmentResDto> execute(Long userId, String userRole, CreateAssignmentReqDto request) {
+    public AssignmentResDto execute(Long userId, String userRole, CreateAssignmentReqDto request) {
         if (request.scope() == RoadmapScope.GLOBAL) {
-            return Mono.error(new ExpectedException("과제 할당 범위는 TEAM 또는 PROJECT여야 합니다.", HttpStatus.BAD_REQUEST));
+            throw new ExpectedException("과제 할당 범위는 TEAM 또는 PROJECT여야 합니다.", HttpStatus.BAD_REQUEST);
         }
         if (request.scope() == RoadmapScope.PROJECT && request.projectId() == null) {
-            return Mono.error(new ExpectedException("PROJECT 할당에는 projectId가 필요합니다.", HttpStatus.BAD_REQUEST));
+            throw new ExpectedException("PROJECT 할당에는 projectId가 필요합니다.", HttpStatus.BAD_REQUEST);
         }
-
-        return roadmapLookupSupport.findRoadmapForUpdateOrThrow(request.roadmapId())
-                .flatMap(roadmap -> validateAssignmentRoadmap(roadmap)
-                        .then(accessGuard.requireReadable(roadmap, userId, userRole))
-                        .then(accessGuard.requireTeamManagerOrAdmin(userId, userRole, request.teamId()))
-                        .then(validateNodeBelongsToRoadmap(request.nodeId(), request.roadmapId()))
-                        .then(Mono.defer(() -> {
-                            RoadmapAssignment assignment = RoadmapAssignment.builder()
-                                    .roadmapId(request.roadmapId())
-                                    .nodeId(request.nodeId())
-                                    .scope(request.scope().name())
-                                    .teamId(request.teamId())
-                                    .projectId(request.scope() == RoadmapScope.PROJECT ? request.projectId() : null)
-                                    .assigneeUserId(request.assigneeUserId())
-                                    .assignedBy(userId)
-                                    .status(AssignmentStatus.ASSIGNED.name())
-                                    .dueDate(request.dueDate())
-                                    .build();
-                            return assignmentRepository.save(assignment).map(AssignmentResDto::from);
-                        })));
+        Roadmap roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(request.roadmapId());
+        validateAssignmentRoadmap(roadmap);
+        accessGuard.requireReadable(roadmap, userId, userRole);
+        accessGuard.requireTeamManagerOrAdmin(userId, userRole, request.teamId());
+        validateNodeBelongsToRoadmap(request.nodeId(), request.roadmapId());
+        RoadmapAssignment assignment = RoadmapAssignment.builder()
+                .roadmapId(request.roadmapId())
+                .nodeId(request.nodeId())
+                .scope(request.scope().name())
+                .teamId(request.teamId())
+                .projectId(request.scope() == RoadmapScope.PROJECT ? request.projectId() : null)
+                .assigneeUserId(request.assigneeUserId())
+                .assignedBy(userId)
+                .status(AssignmentStatus.ASSIGNED.name())
+                .dueDate(request.dueDate())
+                .build();
+        return AssignmentResDto.from(assignmentRepository.saveAndFlush(assignment));
     }
 
-    private Mono<Void> validateAssignmentRoadmap(Roadmap roadmap) {
+    private void validateAssignmentRoadmap(Roadmap roadmap) {
         if (RoadmapScope.GLOBAL.name().equals(roadmap.getScope())) {
-            return Mono.error(new ExpectedException("글로벌 로드맵에는 과제를 연결할 수 없습니다.", HttpStatus.BAD_REQUEST));
+            throw new ExpectedException("글로벌 로드맵에는 과제를 연결할 수 없습니다.", HttpStatus.BAD_REQUEST);
         }
-        return Mono.empty();
     }
 
-    private Mono<Void> validateNodeBelongsToRoadmap(Long nodeId, Long roadmapId) {
+    private void validateNodeBelongsToRoadmap(Long nodeId, Long roadmapId) {
         if (nodeId == null) {
-            return Mono.empty();
+            return;
         }
-        return nodeRepository.findByIdForShare(nodeId)
-                .switchIfEmpty(Mono.error(new ExpectedException("노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)))
-                .flatMap(node -> roadmapId.equals(node.getRoadmapId())
-                        ? Mono.empty()
-                        : Mono.error(new ExpectedException("노드가 해당 로드맵에 속하지 않습니다.", HttpStatus.BAD_REQUEST)))
-                .then();
+        var node = nodeRepository.findByIdForShare(nodeId)
+                .orElseThrow(() -> new ExpectedException("노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
+        if (!roadmapId.equals(node.getRoadmapId())) {
+            throw new ExpectedException("노드가 해당 로드맵에 속하지 않습니다.", HttpStatus.BAD_REQUEST);
+        }
     }
 }

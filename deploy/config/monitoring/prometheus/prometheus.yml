@@ -14,43 +14,57 @@ alerting:
             - alertmanager:9093
 
 scrape_configs:
-  # ── 애플리케이션 서비스 (Eureka 자동 감지) ──
-  # eureka.instance.metadata-map에 prometheus.scrape=true가 있는 인스턴스만 스크랩
+  # 로컬 Compose 서비스는 고정 DNS 이름을 사용한다. 운영 discovery는 Consul이 담당한다.
   - job_name: cowork-services
-    eureka_sd_configs:
-      - server: http://cowork-config:8761/eureka
-        refresh_interval: 30s
-        follow_redirects: false
-        basic_auth:
-          username_file: /run/secrets/config-monitoring-username
-          password_file: /run/secrets/config-monitoring-password
-    relabel_configs:
-      - source_labels: [__meta_eureka_app_instance_metadata_prometheus_scrape]
-        regex: "true"
-        action: keep
-      - source_labels: [__meta_eureka_app_instance_metadata_prometheus_path]
-        target_label: __metrics_path__
-        regex: (.+)
-      - source_labels: [__meta_eureka_app_name]
-        target_label: service
-        regex: 'COWORK-(.*)'
-        replacement: '${1}'
-        action: replace
-      - source_labels: [service]
-        target_label: service
-        action: lowercase
-
-  # ── Eureka에 등록되지 않는 고정 대상 ──
-  # 대상 파일: deploy/config/monitoring/prometheus/sd/external-services.json
-  - job_name: cowork-external-services
-    follow_redirects: false
-    basic_auth:
-      username_file: /run/secrets/config-monitoring-username
-      password_file: /run/secrets/config-monitoring-password
-    file_sd_configs:
-      - files:
-          - /etc/prometheus/sd/*.json
-        refresh_interval: 30s
+    static_configs:
+      - targets: [cowork-gateway:8080]
+        labels:
+          service: gateway
+          __metrics_path__: /actuator/prometheus
+      - targets: [cowork-authorization:8081]
+        labels:
+          service: authorization
+          __metrics_path__: /metrics
+      - targets: [cowork-user:8082]
+        labels:
+          service: user
+          __metrics_path__: /actuator/prometheus
+      - targets: [cowork-channel:8083]
+        labels:
+          service: channel
+          __metrics_path__: /actuator/prometheus
+      - targets: [cowork-project:8084]
+        labels:
+          service: project
+          __metrics_path__: /actuator/prometheus
+      - targets: [cowork-team:8085]
+        labels:
+          service: team
+          __metrics_path__: /actuator/prometheus
+      - targets: [cowork-notification:8086]
+        labels:
+          service: notification
+          __metrics_path__: /metrics
+      - targets: [cowork-chat:8087]
+        labels:
+          service: chat
+          __metrics_path__: /metrics
+      - targets: [cowork-roadmap:8088]
+        labels:
+          service: roadmap
+          __metrics_path__: /actuator/prometheus
+      - targets: [cowork-voice:8089]
+        labels:
+          service: voice
+          __metrics_path__: /metrics
+      - targets: [cowork-preference:9001]
+        labels:
+          service: preference
+          __metrics_path__: /metrics
+      - targets: [cowork-github:8090]
+        labels:
+          service: github
+          __metrics_path__: /metrics
 
   # ── Blackbox Exporter (HTTP 엔드포인트 가용성 probe) ──
   - job_name: blackbox
@@ -80,6 +94,43 @@ scrape_configs:
         regex: 'http://cowork-([^:]+):.*'
         target_label: service
         replacement: '${1}'
+      - target_label: __address__
+        replacement: blackbox_exporter:9115
+
+  # ── Gateway 경유 업무 API (무인증 probe, 대상별 blackbox 모듈) ──
+  - job_name: gateway-api
+    metrics_path: /probe
+    static_configs:
+      - targets: [http://cowork-gateway:8080/api/authorization/auth/refresh]
+        labels: {service: authorization, __param_module: http_gateway_downstream_post}
+      - targets: [http://cowork-gateway:8080/api/chat/health]
+        labels: {service: chat, __param_module: http_gateway_downstream_get}
+      - targets: [http://cowork-gateway:8080/api/voice/voice/webhook]
+        labels: {service: voice, __param_module: http_gateway_downstream_post}
+      - targets: [http://cowork-gateway:8080/api/github/github/webhooks]
+        labels: {service: github, __param_module: http_gateway_downstream_post}
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox_exporter:9115
+
+  # ── Gateway CORS preflight ──
+  - job_name: gateway-cors
+    metrics_path: /probe
+    params:
+      module: [http_gateway_cors_preflight]
+    static_configs:
+      - targets: [http://cowork-gateway:8080/api/user/users/me]
+        labels:
+          service: gateway
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
       - target_label: __address__
         replacement: blackbox_exporter:9115
 

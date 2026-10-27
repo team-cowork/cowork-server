@@ -1,11 +1,13 @@
 package com.cowork.roadmap.domain.roadmap.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+
+import java.time.LocalDateTime;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -18,8 +20,6 @@ import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.impl.ModifyRoadmapServiceImpl;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
-import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
 import team.themoment.sdk.exception.ExpectedException;
 
 class ModifyRoadmapServiceTest {
@@ -35,33 +35,57 @@ class ModifyRoadmapServiceTest {
     @Test
     void modifyRoadmap_updatesOnlyNonNullFields() {
         Roadmap roadmap = roadmap(10L, "원제목", "원설명", "원카테고리");
-        when(roadmapRepository.findById(10L)).thenReturn(Mono.just(roadmap));
-        when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
+        when(roadmapRepository.findById(10L)).thenReturn(Optional.of(roadmap));
+
         ArgumentCaptor<Roadmap> savedCaptor = ArgumentCaptor.forClass(Roadmap.class);
-        when(roadmapRepository.save(savedCaptor.capture()))
-                .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
+        when(roadmapRepository.saveAndFlush(savedCaptor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
 
         UpdateRoadmapReqDto request = new UpdateRoadmapReqDto("새제목", null, null);
 
-        StepVerifier.create(modifyRoadmapService.execute(7L, "ADMIN", 10L, request)).assertNext(response -> {
-            assertThat(response.title()).isEqualTo("새제목");
-            assertThat(response.description()).isEqualTo("원설명");
-            assertThat(response.category()).isEqualTo("원카테고리");
-        }).verifyComplete();
+        var response = modifyRoadmapService.execute(7L, "ADMIN", 10L, request);
+        assertThat(response.title()).isEqualTo("새제목");
+        assertThat(response.description()).isEqualTo("원설명");
+        assertThat(response.category()).isEqualTo("원카테고리");
 
         assertThat(savedCaptor.getValue().getLastModifiedBy()).isEqualTo(7L);
     }
 
     @Test
+    void modifyRoadmap_withoutFieldChanges_refreshesModifiedTimeAndKeepsCreationAudit() {
+        Roadmap roadmap = roadmap(10L, "원제목", "원설명", "원카테고리");
+        LocalDateTime createdAt = LocalDateTime.of(2025, 1, 1, 0, 0);
+        LocalDateTime updatedAt = createdAt.plusDays(1);
+        roadmap.setCreatedAt(createdAt);
+        roadmap.setUpdatedAt(updatedAt);
+        roadmap.setCreatedBy(3L);
+        roadmap.setLastModifiedBy(7L);
+        when(roadmapRepository.findById(10L)).thenReturn(Optional.of(roadmap));
+        ArgumentCaptor<Roadmap> savedCaptor = ArgumentCaptor.forClass(Roadmap.class);
+        when(roadmapRepository.saveAndFlush(savedCaptor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = modifyRoadmapService.execute(7L, "ADMIN", 10L, new UpdateRoadmapReqDto(null, null, null));
+
+        Roadmap saved = savedCaptor.getValue();
+        assertThat(saved.getTitle()).isEqualTo(roadmap.getTitle());
+        assertThat(saved.getDescription()).isEqualTo(roadmap.getDescription());
+        assertThat(saved.getCategory()).isEqualTo(roadmap.getCategory());
+        assertThat(saved.getCreatedAt()).isEqualTo(createdAt);
+        assertThat(saved.getCreatedBy()).isEqualTo(3L);
+        assertThat(saved.getLastModifiedBy()).isEqualTo(7L);
+        assertThat(saved.getUpdatedAt()).isAfter(updatedAt);
+        assertThat(response.createdAt()).isEqualTo(createdAt);
+        assertThat(response.updatedAt()).isEqualTo(saved.getUpdatedAt());
+    }
+
+    @Test
     void modifyRoadmap_roadmapNotFound_failsWithNotFound() {
-        when(roadmapRepository.findById(99L)).thenReturn(Mono.empty());
+        when(roadmapRepository.findById(99L)).thenReturn(Optional.empty());
 
         UpdateRoadmapReqDto request = new UpdateRoadmapReqDto("새제목", null, null);
 
-        StepVerifier.create(modifyRoadmapService.execute(1L, "ADMIN", 99L, request))
-                .expectErrorMatches(error -> error instanceof ExpectedException expected
-                        && expected.getStatusCode() == HttpStatus.NOT_FOUND)
-                .verify();
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> modifyRoadmapService.execute(1L, "ADMIN", 99L, request));
+        assertTrue(error.getStatusCode() == HttpStatus.NOT_FOUND);
     }
 
     private static Roadmap roadmap(Long id, String title, String description, String category) {

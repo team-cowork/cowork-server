@@ -1,65 +1,33 @@
-server:
-  port: 8080
-
 spring:
+  reactor:
+    context-propagation: auto
   profiles:
     active: ${APP_CONFIG_PROFILE:local}
   application:
     name: cowork-gateway
-  # Config 서버에서 설정을 가져옴 (라우팅, jwt, resilience4j 등)
-  config:
-    import: "configserver:${CONFIG_SERVER_URL:http://localhost:8761}"
-  cloud:
-    config:
-      username: ${CONFIG_CLIENT_USERNAME}
-      password: ${CONFIG_CLIENT_PASSWORD}
-      retry:
-        max-attempts: 10
-        initial-interval: 2000
-        max-interval: 5000
-        multiplier: 1.5
-    bus:
-      enabled: true
-
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
-
   data:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
-
-eureka:
-  client:
-    jersey:
-      enabled: false
-    webclient:
-      enabled: false
-    service-url:
-      defaultZone: http://localhost:8761/eureka/
-  instance:
-    prefer-ip-address: true
-    metadata-map:
-      prometheus.scrape: "true"
-      prometheus.path: /actuator/prometheus
-
 management:
   endpoints:
     web:
       exposure:
-        include: health, info, refresh, busrefresh, prometheus
+        include: health, info, prometheus
   endpoint:
     prometheus:
       enabled: true
   metrics:
     tags:
       application: ${spring.application.name}
-
+server:
+  port: 8080
 logging:
   level:
     org.springframework.cloud.gateway: DEBUG
     org.springframework.security: DEBUG
-
 springdoc:
   api-docs:
     enabled: false
+jwt:
+  secret: ${JWT_SECRET}

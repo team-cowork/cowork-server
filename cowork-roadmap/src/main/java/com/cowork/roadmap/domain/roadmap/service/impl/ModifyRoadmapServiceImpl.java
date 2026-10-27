@@ -12,7 +12,6 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
@@ -24,18 +23,16 @@ public class ModifyRoadmapServiceImpl implements ModifyRoadmapService {
 
     @Override
     @Transactional
-    public Mono<RoadmapResDto> execute(Long userId, String userRole, Long roadmapId, UpdateRoadmapReqDto request) {
-        return lookupSupport.findRoadmapOrThrow(roadmapId)
-                .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole).then(Mono.defer(() -> {
-                    Roadmap updated = roadmap.toBuilder()
-                            .title(request.title() != null ? request.title() : roadmap.getTitle())
-                            .description(
-                                    request.description() != null ? request.description() : roadmap.getDescription())
-                            .category(request.category() != null ? request.category() : roadmap.getCategory())
-                            .build();
-                    updated.copyAuditFrom(roadmap);
-                    updated.setLastModifiedBy(userId);
-                    return roadmapRepository.save(updated).map(RoadmapResDto::from);
-                })));
+    public RoadmapResDto execute(Long userId, String userRole, Long roadmapId, UpdateRoadmapReqDto request) {
+        Roadmap roadmap = lookupSupport.findRoadmapOrThrow(roadmapId);
+        accessGuard.requireMutable(roadmap, userId, userRole);
+        Roadmap updated = roadmap.toBuilder()
+                .title(request.title() != null ? request.title() : roadmap.getTitle())
+                .description(request.description() != null ? request.description() : roadmap.getDescription())
+                .category(request.category() != null ? request.category() : roadmap.getCategory())
+                .build();
+        updated.prepareUpdateFrom(roadmap);
+        updated.setLastModifiedBy(userId);
+        return RoadmapResDto.from(roadmapRepository.saveAndFlush(updated));
     }
 }

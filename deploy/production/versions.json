@@ -1,0 +1,72 @@
+{
+  "nomad": {
+    "version": "2.0.7",
+    "sha256": {
+      "linux_amd64": "4c9b8a0850d6fd9caadbbab09b3e6fdf8b77aa777729543c70c61b85acca68c1",
+      "darwin_arm64": "4ada34db43f8b75c80c4e09ce50f4753e661bcb4a3745f415dd4aa7d01483e58"
+    }
+  },
+  "consul": {
+    "version": "2.0.4",
+    "sha256": {
+      "linux_amd64": "7a28033850a24fd411722593931625d8b548a27646c3ab70c1379ea7fd2af423",
+      "darwin_arm64": "1f51416d27cf5404106e6b2d24de60d4a3677d1a99045e38986f0cc23cb78303"
+    }
+  },
+  "tofu": {
+    "version": "1.13.2",
+    "sha256": {
+      "linux_amd64": "723bebb0df8411daff1e5fc3862e28ff5581fe5634087f4c29a9aa41d78208b5",
+      "darwin_arm64": "cb46112c095f1c4da721b6a18c8368f67341896a62205d1c117299e85993af61"
+    }
+  },
+  "python": {
+    "version": "3.12.16",
+    "build": "20261026",
+    "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.12.16%2B20261026-x86_64-unknown-linux-gnu-install_only.tar.gz",
+    "sha256": {
+      "linux_amd64": "6a79e922e50006b601f29e688407659da1c2b86ebcd4e9c7254cf234be8b89de"
+    }
+  },
+  "cni": {
+    "version": "1.9.1",
+    "sha256": {
+      "linux_amd64": "b98f74a0f8522f0a83867178729c1aa70f2158f90c45a2ca8fa791db1c76b303"
+    }
+  },
+  "docker": {
+    "version": "29.9.0",
+    "containerd_version": "2.4.1",
+    "ubuntu_release": "jammy",
+    "repository_key_sha256": "1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570",
+    "packages": {
+      "docker-ce": "5:29.9.0-1~ubuntu.22.04~jammy",
+      "docker-ce-cli": "5:29.9.0-1~ubuntu.22.04~jammy",
+      "containerd.io": "2.4.1-2~ubuntu.22.04~jammy"
+    }
+  },
+  "docker_compose": {
+    "version": "5.6.1",
+    "sha256": {
+      "linux_amd64": "47737f4236e6d3ccea7291995203f8f018058783b4c3a9469119811a0b5db8c0"
+    }
+  },
+  "envoy": {
+    "image": "envoyproxy/envoy:v1.38.9@sha256:b1f389c3a6148e85e9de364cb867aa2e5802153abb37ad80f1f2241d693da32a"
+  },
+  "github_runner": {
+    "version": "2.338.2",
+    "sha256": {
+      "linux_amd64": "baebf204307bac6193480852732f0aba2ae97b6c5597c244f4d5558390147c40"
+    }
+  },
+  "alloy": {
+    "image": "grafana/alloy:v1.19.2@sha256:b8ec653c44235fbe910879145dac3597d66b0aaecf60bcbbe82580767771a839"
+  },
+  "node_exporter": {
+    "image": "prom/node-exporter:v1.10.2@sha256:3ac34ce007accad95afed72149e0d2b927b7e42fd1c866149b945b84737c62c3"
+  },
+  "pause": {
+    "image": "registry.k8s.io/pause-amd64:3.3@sha256:de361176a97942ea59f238a88743f22dbd5684225974447df1f476817714499b"
+  }
+}

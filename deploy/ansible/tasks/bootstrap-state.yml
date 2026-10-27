@@ -1,0 +1,84 @@
+---
+- name: Require private bootstrap state outside the repository
+  ansible.builtin.assert:
+    that:
+      - platform_state_dir is match('^/')
+      - not (platform_state_dir | realpath).startswith(platform_repository | realpath)
+    fail_msg: Set COWORK_PLATFORM_STATE_DIR to a persistent directory outside this checkout.
+- name: Require operator-driven runner upgrades before a deployment workflow
+  ansible.builtin.assert:
+    that:
+      - lookup('ansible.builtin.file', '/opt/cowork-runner/.cowork-runner-version', errors='ignore') | default('', true) | trim == platform_versions.github_runner.version
+    fail_msg: The pinned GitHub runner version changed. Run site.yml from the operator bootstrap environment before starting another deployment.
+  when: lookup('ansible.builtin.env', 'GITHUB_ACTIONS') == 'true'
+- name: Create private controller state directories
+  ansible.builtin.file:
+    path: "{{ platform_state_dir }}/{{ item }}"
+    state: directory
+    mode: '0700'
+  loop: ['', pki, tokens]
+- name: Persist independent gossip encryption keys
+  ansible.builtin.command:
+    argv: [openssl, rand, -base64, '32']
+  register: platform_gossip_keys
+  loop: [consul, nomad]
+  no_log: true
+  changed_when: false
+- name: Save gossip keys once
+  ansible.builtin.copy:
+    content: "{{ item.stdout }}\n"
+    dest: "{{ platform_state_dir }}/{{ item.item }}-gossip.key"
+    mode: '0600'
+    force: false
+  loop: "{{ platform_gossip_keys.results }}"
+  no_log: true
+- name: Generate the initial Consul management token
+  ansible.builtin.command:
+    argv: ["{{ ansible_playbook_python }}", -c, 'import uuid; print(uuid.uuid4())']
+  register: platform_consul_bootstrap
+  no_log: true
+  changed_when: false
+- name: Persist the initial Consul management token once
+  ansible.builtin.copy:
+    content: "{{ platform_consul_bootstrap.stdout }}\n"
+    dest: "{{ platform_state_dir }}/consul-bootstrap.token"
+    mode: '0600'
+    force: false
+  no_log: true
+- name: Generate the deployment SSH identity
+  community.crypto.openssh_keypair:
+    path: "{{ platform_state_dir }}/deploy_ed25519"
+    type: ed25519
+    comment: cowork-deployment-runner
+    mode: '0600'
+  no_log: true
+- name: Create the private platform CA key
+  community.crypto.openssl_privatekey:
+    path: "{{ platform_state_dir }}/pki/ca.key"
+    type: ECC
+    curve: secp384r1
+    mode: '0600'
+  no_log: true
+- name: Create the platform CA signing request
+  community.crypto.openssl_csr:
+    path: "{{ platform_state_dir }}/pki/ca.csr"
+    privatekey_path: "{{ platform_state_dir }}/pki/ca.key"
+    common_name: Cowork Internal Platform CA
+    basic_constraints: ['CA:TRUE', 'pathlen:0']
+    basic_constraints_critical: true
+    key_usage: [keyCertSign, cRLSign]
+    key_usage_critical: true
+    mode: '0600'
+- name: Issue the platform CA certificate
+  community.crypto.x509_certificate:
+    path: "{{ platform_state_dir }}/pki/ca.crt"
+    csr_path: "{{ platform_state_dir }}/pki/ca.csr"
+    privatekey_path: "{{ platform_state_dir }}/pki/ca.key"
+    provider: selfsigned
+    selfsigned_not_after: '+3650d'
+    mode: '0644'
+- name: Issue certificates for the active VMs
+  ansible.builtin.include_tasks: certificate-host.yml
+  loop: "{{ platform_active_hosts }}"
+  loop_control:
+    loop_var: certificate_host

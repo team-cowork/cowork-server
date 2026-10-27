@@ -1,0 +1,91 @@
+---
+- name: Install the public platform CA
+  ansible.builtin.copy:
+    src: "{{ platform_state_dir }}/pki/ca.crt"
+    dest: /etc/cowork/ca/ca.crt
+    owner: root
+    group: root
+    mode: '0644'
+  register: platform_ca_installed
+- name: Install this VM certificate
+  ansible.builtin.copy:
+    src: "{{ platform_state_dir }}/pki/{{ inventory_hostname }}.crt"
+    dest: /etc/cowork/tls/host.crt
+    owner: root
+    group: cowork-tls
+    mode: '0644'
+  register: platform_certificate_installed
+- name: Install this VM private key
+  ansible.builtin.copy:
+    src: "{{ platform_state_dir }}/pki/{{ inventory_hostname }}.key"
+    dest: /etc/cowork/tls/host.key
+    owner: root
+    group: cowork-tls
+    mode: '0640'
+  register: platform_private_key_installed
+  no_log: true
+
+- name: Install the monitoring ingress TLS files
+  when: inventory_hostname == 'monitoring'
+  block:
+    - name: Create the protected monitoring ingress key directory
+      ansible.builtin.file:
+        path: /etc/cowork/ingress-tls
+        state: directory
+        owner: root
+        group: '10001'
+        mode: '0750'
+    - name: Copy the monitoring ingress certificate and key
+      ansible.builtin.copy:
+        src: "{{ platform_state_dir }}/pki/monitoring.{{ item.extension }}"
+        dest: "/etc/cowork/ingress-tls/server.{{ item.extension }}"
+        owner: root
+        group: '10001'
+        mode: "{{ item.mode }}"
+      loop:
+        - {extension: crt, mode: '0644'}
+        - {extension: key, mode: '0640'}
+      no_log: true
+
+- name: Install Kafka's private server TLS material
+  when: inventory_hostname == 'kafka'
+  block:
+    - name: Create the Kafka certificate directory
+      ansible.builtin.file:
+        path: /etc/cowork/kafka-tls
+        state: directory
+        owner: '1000'
+        group: '1000'
+        mode: '0700'
+    - name: Convert the Kafka key to unencrypted PKCS8
+      community.crypto.openssl_privatekey_convert:
+        src_path: /etc/cowork/tls/host.key
+        dest_path: /etc/cowork/kafka-tls/server.key
+        format: pkcs8
+        owner: '1000'
+        group: '1000'
+        mode: '0400'
+      no_log: true
+    - name: Install the Kafka certificate and CA
+      ansible.builtin.copy:
+        src: "{{ platform_state_dir }}/pki/{{ item.source }}"
+        dest: "/etc/cowork/kafka-tls/{{ item.destination }}"
+        owner: '1000'
+        group: '1000'
+        mode: '0400'
+      loop:
+        - {source: kafka.crt, destination: server.crt}
+        - {source: ca.crt, destination: ca.crt}
+    - name: Read the converted Kafka key
+      ansible.builtin.slurp:
+        src: /etc/cowork/kafka-tls/server.key
+      register: platform_kafka_key
+      no_log: true
+    - name: Install the Kafka PEM keystore
+      ansible.builtin.copy:
+        content: "{{ platform_kafka_key.content | b64decode }}\n{{ lookup('ansible.builtin.file', platform_state_dir ~ '/pki/kafka.crt') }}\n{{ lookup('ansible.builtin.file', platform_state_dir ~ '/pki/ca.crt') }}\n"
+        dest: /etc/cowork/kafka-tls/server.pem
+        owner: '1000'
+        group: '1000'
+        mode: '0400'
+      no_log: true

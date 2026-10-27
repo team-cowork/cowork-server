@@ -4,30 +4,31 @@ import java.time.LocalDateTime;
 
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.LastModifiedDate;
-import org.springframework.data.relational.core.mapping.Column;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
+import jakarta.persistence.Column;
+import jakarta.persistence.EntityListeners;
+import jakarta.persistence.MappedSuperclass;
 import lombok.Getter;
 import lombok.Setter;
 
+@MappedSuperclass
+@EntityListeners(AuditingEntityListener.class)
 @Getter
 @Setter
 public abstract class TimestampEntity {
 
     @CreatedDate
-    @Column("created_at")
+    @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
     @LastModifiedDate
-    @Column("updated_at")
+    @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
-    /**
-     * Lombok {@code @Builder}는 상속 필드를 인식하지 못해 {@code toBuilder()}로 만든 새 인스턴스에는
-     * createdAt/updatedAt이 비어 있다. 불변 엔티티를 부분 수정할 때 이 메서드로 원본 감사 필드를 옮겨야 UPDATE 시
-     * created_at이 NULL로 덮어써지는 것을 막을 수 있다.
-     */
-    public void copyAuditFrom(TimestampEntity source) {
+    /** 생성 시각을 보존하고, 값이 같은 수정도 JPA가 UPDATE하도록 수정 시각을 갱신한다. */
+    public void prepareUpdateFrom(TimestampEntity source) {
         this.setCreatedAt(source.getCreatedAt());
-        this.setUpdatedAt(source.getUpdatedAt());
+        this.setUpdatedAt(LocalDateTime.now());
     }
 }

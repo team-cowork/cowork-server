@@ -1,0 +1,21 @@
+[Unit]
+Description=Consul service discovery and mesh control plane
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=consul
+Group=consul
+ExecStart=/usr/local/bin/consul agent -config-dir=/etc/consul.d
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+LimitNOFILE=65536
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/consul /etc/consul.d
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

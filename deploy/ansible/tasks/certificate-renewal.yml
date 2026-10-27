@@ -1,0 +1,121 @@
+---
+- name: Select the independent certificate maintenance runtime
+  ansible.builtin.set_fact:
+    platform_certificate_root: /opt/cowork-platform-certificates
+    platform_certificate_venv: "{{ platform_python_root }}/venvs/certificates-{{ (lookup('ansible.builtin.file', platform_repository ~ '/deploy/production/requirements.txt') | hash('sha256'))[:12] }}"
+    platform_certificate_collections: "/opt/cowork-platform-certificates/collections-{{ (lookup('ansible.builtin.file', platform_repository ~ '/deploy/ansible/requirements.yml') | hash('sha256'))[:12] }}"
+    platform_certificate_install_complete: false
+- name: Discover an existing certificate timer
+  ansible.builtin.stat:
+    path: /etc/systemd/system/cowork-platform-certificates.timer
+  register: platform_certificate_timer
+- name: Install certificate renewal without changing a running maintenance job
+  block:
+    - name: Pause existing renewal scheduling during installation
+      ansible.builtin.systemd_service:
+        name: cowork-platform-certificates.timer
+        state: stopped
+      when: platform_certificate_timer.stat.exists
+    - name: Wait for any running renewal to finish before replacing its assets
+      ansible.builtin.command:
+        argv: [systemctl, show, --property=ActiveState, --value, cowork-platform-certificates.service]
+      register: platform_certificate_service_state
+      changed_when: false
+      failed_when: platform_certificate_service_state.rc != 0
+      until: platform_certificate_service_state.stdout not in ['active', 'activating', 'deactivating']
+      retries: 180
+      delay: 5
+      when: platform_certificate_timer.stat.exists
+    - name: Ensure the shared managed Python runtime is installed
+      ansible.builtin.include_tasks: python.yml
+      when: not (platform_python_ready | default(false))
+    - name: Create root-owned certificate maintenance directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+      loop:
+        - "{{ platform_certificate_root }}"
+        - "{{ platform_certificate_root }}/deploy"
+        - "{{ platform_certificate_root }}/deploy/production"
+        - "{{ platform_python_root }}/venvs"
+        - "{{ platform_certificate_collections }}"
+    - name: Install the system prerequisite for managing the maintenance virtual environment
+      ansible.builtin.apt:
+        name: python3-packaging
+        state: present
+    - name: Install the shared runtime version and dependency pins
+      ansible.builtin.copy:
+        src: "{{ platform_repository }}/deploy/production/{{ item }}"
+        dest: "{{ platform_certificate_root }}/deploy/production/{{ item }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop: [versions.json, requirements.txt]
+    - name: Stage the pinned collection requirements
+      ansible.builtin.copy:
+        src: "{{ platform_repository }}/deploy/ansible/requirements.yml"
+        dest: "{{ platform_certificate_root }}/requirements.yml"
+        owner: root
+        group: root
+        mode: '0644'
+    - name: Install pinned dependencies in the maintenance virtual environment
+      ansible.builtin.pip:
+        requirements: "{{ platform_certificate_root }}/deploy/production/requirements.txt"
+        virtualenv: "{{ platform_certificate_venv }}"
+        virtualenv_command: "{{ platform_python_binary }} -m venv"
+    - name: Inspect the completed collection installation marker
+      ansible.builtin.stat:
+        path: "{{ platform_certificate_collections }}/.installed"
+      register: platform_certificate_collections_installed
+    - name: Install pinned Ansible collections for certificate maintenance
+      ansible.builtin.command:
+        argv:
+          - "{{ platform_certificate_venv }}/bin/ansible-galaxy"
+          - collection
+          - install
+          - --force
+          - --requirements-file
+          - "{{ platform_certificate_root }}/requirements.yml"
+          - --collections-path
+          - "{{ platform_certificate_collections }}"
+      environment:
+        ANSIBLE_COLLECTIONS_PATH: "{{ platform_certificate_collections }}"
+      when: not platform_certificate_collections_installed.stat.exists
+      changed_when: true
+    - name: Record a complete pinned collection installation
+      ansible.builtin.copy:
+        content: "{{ lookup('ansible.builtin.file', platform_repository ~ '/deploy/ansible/requirements.yml') }}\n"
+        dest: "{{ platform_certificate_collections }}/.installed"
+        owner: root
+        group: root
+        mode: '0644'
+    - name: Install the certificate playbooks after their dependencies are ready
+      ansible.builtin.copy:
+        src: "{{ platform_repository }}/deploy/ansible/"
+        dest: "{{ platform_certificate_root }}/deploy/ansible/"
+        owner: root
+        group: root
+        mode: '0644'
+        directory_mode: '0755'
+    - name: Install the VM-local certificate service and timer
+      ansible.builtin.template:
+        src: "{{ platform_repository }}/deploy/ansible/templates/cowork-platform-certificates.{{ item }}.j2"
+        dest: "/etc/systemd/system/cowork-platform-certificates.{{ item }}"
+        owner: root
+        group: root
+        mode: '0644'
+      loop: [service, timer]
+    - name: Record a complete certificate scheduler installation
+      ansible.builtin.set_fact:
+        platform_certificate_install_complete: true
+  always:
+    - name: Enable certificate renewal or restore its previous schedule after an install failure
+      ansible.builtin.systemd_service:
+        name: cowork-platform-certificates.timer
+        daemon_reload: true
+        enabled: true
+        state: started
+      when: platform_certificate_install_complete or platform_certificate_timer.stat.exists

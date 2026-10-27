@@ -1,9 +1,0 @@
-[Unit]
-Description=Renew the cowork Vault private listener certificate
-After=docker.service
-Wants=docker.service
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/python3 -I /usr/local/libexec/cowork-vault-tls.py renew
-TimeoutStartSec=180

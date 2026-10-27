@@ -1,0 +1,42 @@
+---
+- name: Create a private key for {{ certificate_host }}
+  community.crypto.openssl_privatekey:
+    path: "{{ platform_state_dir }}/pki/{{ certificate_host }}.key"
+    type: ECC
+    curve: secp384r1
+    mode: '0600'
+  no_log: true
+- name: Create a signing request for {{ certificate_host }}
+  community.crypto.openssl_csr:
+    path: "{{ platform_state_dir }}/pki/{{ certificate_host }}.csr"
+    privatekey_path: "{{ platform_state_dir }}/pki/{{ certificate_host }}.key"
+    common_name: "{{ certificate_host }}.cowork.internal"
+    subject_alt_name: >-
+      {{ ['DNS:' ~ certificate_host ~ '.cowork.internal', 'DNS:localhost',
+          'IP:' ~ hostvars[certificate_host].private_ip, 'IP:127.0.0.1']
+         + (['DNS:server.global.nomad', 'DNS:server.gsm.consul']
+            if certificate_host in groups['control_plane'] else ['DNS:client.global.nomad']) }}
+    extended_key_usage: [serverAuth, clientAuth]
+    key_usage: [digitalSignature]
+    mode: '0600'
+- name: Check the existing certificate for {{ certificate_host }}
+  ansible.builtin.stat:
+    path: "{{ platform_state_dir }}/pki/{{ certificate_host }}.crt"
+  register: platform_existing_certificate
+- name: Check certificate renewal date for {{ certificate_host }}
+  community.crypto.x509_certificate_info:
+    path: "{{ platform_state_dir }}/pki/{{ certificate_host }}.crt"
+    valid_at:
+      renewal: '+30d'
+  register: platform_certificate_info
+  when: platform_existing_certificate.stat.exists
+- name: Issue or renew the certificate for {{ certificate_host }}
+  community.crypto.x509_certificate:
+    path: "{{ platform_state_dir }}/pki/{{ certificate_host }}.crt"
+    csr_path: "{{ platform_state_dir }}/pki/{{ certificate_host }}.csr"
+    ownca_path: "{{ platform_state_dir }}/pki/ca.crt"
+    ownca_privatekey_path: "{{ platform_state_dir }}/pki/ca.key"
+    provider: ownca
+    ownca_not_after: '+90d'
+    force: "{{ platform_existing_certificate.stat.exists and not (platform_certificate_info.valid_at.renewal | default(false)) }}"
+    mode: '0644'

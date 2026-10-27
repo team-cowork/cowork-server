@@ -1,0 +1,291 @@
+{
+  "gateway": {
+    "environment": "Prod-CD(gateway)",
+    "secret_bindings": {
+      "JWT_SECRET": "JWT_SECRET",
+      "WEBHOOK_URL_SIGNING_KEY": "WEBHOOK_URL_SIGNING_KEY",
+      "DEV_ORIGIN_CREDENTIAL": "DEV_ORIGIN_CREDENTIAL"
+    },
+    "data_secret_bindings": {},
+    "optional_secrets": [],
+    "immutable_secrets": [
+      "WEBHOOK_URL_SIGNING_KEY"
+    ]
+  },
+  "authorization": {
+    "environment": "Prod-CD(authorization)",
+    "secret_bindings": {
+      "JWT_SECRET": "JWT_SECRET",
+      "DATAGSM_WEBHOOK_SECRET": "DATAGSM_WEBHOOK_SECRET",
+      "DB_PASSWORD": "DB_PASSWORD"
+    },
+    "data_secret_bindings": {
+      "DB_ADMIN_PASSWORD": "DB_ADMIN_PASSWORD",
+      "DB_MONITORING_PASSWORD": "DB_MONITORING_PASSWORD",
+      "DB_PASSWORD": "DB_PASSWORD"
+    },
+    "optional_secrets": [
+      "DATAGSM_WEBHOOK_SECRET"
+    ],
+    "immutable_secrets": [
+      "DB_ADMIN_PASSWORD"
+    ],
+    "kafka_principal": "cowork-authorization"
+  },
+  "preference": {
+    "environment": "Prod-CD(preference)",
+    "secret_bindings": {
+      "WEBHOOK_URL_SIGNING_KEY": "WEBHOOK_URL_SIGNING_KEY",
+      "WEBHOOK_SECRET_ENCRYPTION_KEY": "WEBHOOK_SECRET_ENCRYPTION_KEY",
+      "DB_PASSWORD": "DB_PASSWORD"
+    },
+    "data_secret_bindings": {
+      "DB_ADMIN_PASSWORD": "DB_ADMIN_PASSWORD",
+      "DB_MONITORING_PASSWORD": "DB_MONITORING_PASSWORD",
+      "DB_PASSWORD": "DB_PASSWORD"
+    },
+    "optional_secrets": [],
+    "immutable_secrets": [
+      "WEBHOOK_URL_SIGNING_KEY",
+      "WEBHOOK_SECRET_ENCRYPTION_KEY",
+      "DB_ADMIN_PASSWORD"
+    ],
+    "kafka_principal": "cowork-preference"
+  },
+  "user": {
+    "environment": "Prod-CD(user)",
+    "secret_bindings": {
+      "DB_PASSWORD": "DB_PASSWORD",
+      "S3_ACCESS_KEY": "S3_ACCESS_KEY",
+      "S3_SECRET_KEY": "S3_SECRET_KEY"
+    },
+    "data_secret_bindings": {
+      "DB_ADMIN_PASSWORD": "DB_ADMIN_PASSWORD",
+      "DB_MONITORING_PASSWORD": "DB_MONITORING_PASSWORD",
+      "DB_PASSWORD": "DB_PASSWORD",
+      "S3_ACCESS_KEY": "S3_ACCESS_KEY",
+      "S3_ADMIN_ACCESS_KEY": "S3_ADMIN_ACCESS_KEY",
+      "S3_ADMIN_SECRET_KEY": "S3_ADMIN_SECRET_KEY",
+      "S3_SECRET_KEY": "S3_SECRET_KEY"
+    },
+    "optional_secrets": [],
+    "immutable_secrets": [
+      "DB_ADMIN_PASSWORD"
+    ],
+    "kafka_principal": "cowork-user",
+    "data_secret_groups": {
+      "storage": [
+        "S3_ADMIN_ACCESS_KEY",
+        "S3_ADMIN_SECRET_KEY",
+        "S3_ACCESS_KEY",
+        "S3_SECRET_KEY"
+      ]
+    }
+  },
+  "team": {
+    "environment": "Prod-CD(team)",
+    "secret_bindings": {
+      "DB_PASSWORD": "DB_PASSWORD",
+      "S3_ACCESS_KEY": "S3_ACCESS_KEY",
+      "S3_SECRET_KEY": "S3_SECRET_KEY",
+      "TEAM_GITHUB_STATE_SECRET": "TEAM_GITHUB_STATE_SECRET"
+    },
+    "data_secret_bindings": {
+      "DB_ADMIN_PASSWORD": "DB_ADMIN_PASSWORD",
+      "DB_MONITORING_PASSWORD": "DB_MONITORING_PASSWORD",
+      "DB_PASSWORD": "DB_PASSWORD",
+      "S3_ACCESS_KEY": "S3_ACCESS_KEY",
+      "S3_ADMIN_ACCESS_KEY": "S3_ADMIN_ACCESS_KEY",
+      "S3_ADMIN_SECRET_KEY": "S3_ADMIN_SECRET_KEY",
+      "S3_SECRET_KEY": "S3_SECRET_KEY"
+    },
+    "optional_secrets": [],
+    "immutable_secrets": [
+      "DB_ADMIN_PASSWORD"
+    ],
+    "kafka_principal": "cowork-team",
+    "data_secret_groups": {
+      "storage": [
+        "S3_ADMIN_ACCESS_KEY",
+        "S3_ADMIN_SECRET_KEY",
+        "S3_ACCESS_KEY",
+        "S3_SECRET_KEY"
+      ]
+    }
+  },
+  "channel": {
+    "environment": "Prod-CD(channel)",
+    "secret_bindings": {
+      "ACCOUNT_CREDENTIAL_ENCRYPTION_KEY": "ACCOUNT_CREDENTIAL_ENCRYPTION_KEY",
+      "ACCOUNT_SHARE_OAUTH_STATE_SECRET": "ACCOUNT_SHARE_OAUTH_STATE_SECRET",
+      "DB_PASSWORD": "DB_PASSWORD",
+      "FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET": "FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET",
+      "COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET": "COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET",
+      "GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET": "GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET",
+      "JIRA_ACCOUNT_SHARE_CLIENT_SECRET": "JIRA_ACCOUNT_SHARE_CLIENT_SECRET",
+      "NOTION_ACCOUNT_SHARE_CLIENT_SECRET": "NOTION_ACCOUNT_SHARE_CLIENT_SECRET"
+    },
+    "data_secret_bindings": {
+      "DB_ADMIN_PASSWORD": "DB_ADMIN_PASSWORD",
+      "DB_MONITORING_PASSWORD": "DB_MONITORING_PASSWORD",
+      "DB_PASSWORD": "DB_PASSWORD"
+    },
+    "optional_secrets": [
+      "FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET",
+      "COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET",
+      "GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET",
+      "JIRA_ACCOUNT_SHARE_CLIENT_SECRET",
+      "NOTION_ACCOUNT_SHARE_CLIENT_SECRET"
+    ],
+    "immutable_secrets": [
+      "ACCOUNT_CREDENTIAL_ENCRYPTION_KEY",
+      "DB_ADMIN_PASSWORD"
+    ],
+    "kafka_principal": "cowork-channel"
+  },
+  "notification": {
+    "environment": "Prod-CD(notification)",
+    "secret_bindings": {
+      "FCM_CREDENTIALS_JSON": "FCM_CREDENTIALS_JSON"
+    },
+    "data_secret_bindings": {},
+    "optional_secrets": [],
+    "immutable_secrets": [],
+    "kafka_principal": "cowork-notification"
+  },
+  "chat": {
+    "environment": "Prod-CD(chat)",
+    "secret_bindings": {
+      "JWT_SECRET": "JWT_SECRET",
+      "DB_PASSWORD": "DB_PASSWORD",
+      "DISCORD_WEBHOOK_URL": "DISCORD_WEBHOOK_URL",
+      "ELASTICSEARCH_URL": "ELASTICSEARCH_URL",
+      "S3_ACCESS_KEY": "S3_ACCESS_KEY",
+      "S3_SECRET_KEY": "S3_SECRET_KEY"
+    },
+    "data_secret_bindings": {
+      "DB_ADMIN_PASSWORD": "DB_ADMIN_PASSWORD",
+      "DB_MONITORING_PASSWORD": "DB_MONITORING_PASSWORD",
+      "DB_PASSWORD": "DB_PASSWORD",
+      "ELASTICSEARCH_ADMIN_PASSWORD": "ELASTICSEARCH_ADMIN_PASSWORD",
+      "S3_ACCESS_KEY": "S3_ACCESS_KEY",
+      "S3_ADMIN_ACCESS_KEY": "S3_ADMIN_ACCESS_KEY",
+      "S3_ADMIN_SECRET_KEY": "S3_ADMIN_SECRET_KEY",
+      "S3_SECRET_KEY": "S3_SECRET_KEY"
+    },
+    "optional_secrets": [
+      "DISCORD_WEBHOOK_URL"
+    ],
+    "immutable_secrets": [
+      "DB_ADMIN_PASSWORD",
+      "ELASTICSEARCH_ADMIN_PASSWORD"
+    ],
+    "kafka_principal": "cowork-chat",
+    "data_secret_groups": {
+      "storage": [
+        "S3_ADMIN_ACCESS_KEY",
+        "S3_ADMIN_SECRET_KEY",
+        "S3_ACCESS_KEY",
+        "S3_SECRET_KEY"
+      ],
+      "search": [
+        "ELASTICSEARCH_ADMIN_PASSWORD",
+        "ELASTICSEARCH_PASSWORD"
+      ]
+    }
+  },
+  "voice": {
+    "environment": "Prod-CD(voice)",
+    "secret_bindings": {
+      "LIVEKIT_API_KEY": "LIVEKIT_API_KEY",
+      "LIVEKIT_API_SECRET": "LIVEKIT_API_SECRET",
+      "DB_PASSWORD": "DB_PASSWORD"
+    },
+    "data_secret_bindings": {
+      "LIVEKIT_API_KEY": "LIVEKIT_API_KEY",
+      "LIVEKIT_API_SECRET": "LIVEKIT_API_SECRET",
+      "DB_ADMIN_PASSWORD": "DB_ADMIN_PASSWORD",
+      "DB_MONITORING_PASSWORD": "DB_MONITORING_PASSWORD",
+      "DB_PASSWORD": "DB_PASSWORD"
+    },
+    "optional_secrets": [],
+    "immutable_secrets": [
+      "DB_ADMIN_PASSWORD"
+    ],
+    "kafka_principal": "cowork-voice",
+    "data_secret_groups": {
+      "livekit": [
+        "LIVEKIT_API_KEY",
+        "LIVEKIT_API_SECRET"
+      ]
+    }
+  },
+  "project": {
+    "environment": "Prod-CD(project)",
+    "secret_bindings": {
+      "COWORK_GITHUB_INTERNAL_API_KEY": "COWORK_GITHUB_INTERNAL_API_KEY",
+      "DB_PASSWORD": "DB_PASSWORD"
+    },
+    "data_secret_bindings": {
+      "DB_ADMIN_PASSWORD": "DB_ADMIN_PASSWORD",
+      "DB_MONITORING_PASSWORD": "DB_MONITORING_PASSWORD",
+      "DB_PASSWORD": "DB_PASSWORD"
+    },
+    "optional_secrets": [],
+    "immutable_secrets": [
+      "DB_ADMIN_PASSWORD"
+    ],
+    "kafka_principal": "cowork-project"
+  },
+  "roadmap": {
+    "environment": "Prod-CD(roadmap)",
+    "secret_bindings": {
+      "DB_PASSWORD": "DB_PASSWORD"
+    },
+    "data_secret_bindings": {
+      "DB_ADMIN_PASSWORD": "DB_ADMIN_PASSWORD",
+      "DB_MONITORING_PASSWORD": "DB_MONITORING_PASSWORD",
+      "DB_PASSWORD": "DB_PASSWORD"
+    },
+    "optional_secrets": [],
+    "immutable_secrets": [
+      "DB_ADMIN_PASSWORD"
+    ],
+    "kafka_principal": "cowork-roadmap"
+  },
+  "github": {
+    "environment": "Prod-CD(github)",
+    "secret_bindings": {
+      "GITHUB_PRIVATE_KEY": "COWORK_GITHUB_PRIVATE_KEY",
+      "GITHUB_WEBHOOK_SECRET": "COWORK_GITHUB_WEBHOOK_SECRET",
+      "INTERNAL_API_KEY": "COWORK_GITHUB_INTERNAL_API_KEY"
+    },
+    "data_secret_bindings": {},
+    "optional_secrets": [],
+    "immutable_secrets": [],
+    "kafka_principal": "cowork-github"
+  },
+  "monitoring": {
+    "environment": "Prod-CD(monitoring)",
+    "secret_bindings": {
+      "DISCORD_MONITORING_ALERT_WEBHOOK": "DISCORD_MONITORING_ALERT_WEBHOOK",
+      "GRAFANA_ADMIN_PASSWORD": "GRAFANA_ADMIN_PASSWORD"
+    },
+    "data_secret_bindings": {},
+    "optional_secrets": [],
+    "immutable_secrets": [],
+    "kafka_principal": "cowork-monitoring"
+  },
+  "kafka": {
+    "environment": "Prod-IaC",
+    "secret_bindings": {},
+    "data_secret_bindings": {
+      "KAFKA_CLUSTER_ID": "KAFKA_CLUSTER_ID"
+    },
+    "optional_secrets": [],
+    "immutable_secrets": [
+      "KAFKA_CLUSTER_ID"
+    ],
+    "kafka_principal": "broker"
+  }
+}

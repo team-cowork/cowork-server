@@ -7,7 +7,7 @@ namespace CoworkUser.Kafka.Projections;
 /// <summary>
 /// Decides whether the presence and team projections are current: every partition must have replayed
 /// past the startup high-watermark and past a validated snapshot-completion marker from its source.
-/// HTTP reads that depend on projections, Eureka registration and profile snapshots follow it.
+/// HTTP reads that depend on projections, service readiness and profile snapshots follow it.
 /// </summary>
 public sealed class ProjectionReadiness(AppConfig config, KafkaInspector kafka, ILogger<ProjectionReadiness> logger) : BackgroundService
 {

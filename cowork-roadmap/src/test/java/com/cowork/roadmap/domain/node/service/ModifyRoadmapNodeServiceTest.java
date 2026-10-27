@@ -1,14 +1,18 @@
 package com.cowork.roadmap.domain.node.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.List;
+import java.util.Optional;
+
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.springframework.http.HttpStatus;
 
 import com.cowork.roadmap.domain.node.entity.RoadmapNode;
@@ -23,9 +27,6 @@ import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
 import team.themoment.sdk.exception.ExpectedException;
 
 class ModifyRoadmapNodeServiceTest {
@@ -47,19 +48,19 @@ class ModifyRoadmapNodeServiceTest {
     @Test
     void modifyNode_updatesOnlyNonNullFields() {
         RoadmapNode node = node(5L, 10L, "원제목", "원내용");
-        when(nodeRepository.findById(5L)).thenReturn(Mono.just(node));
-        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap(10L)));
-        when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
+        when(nodeRepository.findRoadmapIdById(5L)).thenReturn(Optional.of(10L));
+        when(nodeRepository.findById(5L)).thenReturn(Optional.of(node));
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
+
         ArgumentCaptor<RoadmapNode> savedCaptor = ArgumentCaptor.forClass(RoadmapNode.class);
-        when(nodeRepository.save(savedCaptor.capture())).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
-        when(referenceRepository.findByNodeIdOrderByPositionAsc(5L)).thenReturn(Flux.empty());
+        when(nodeRepository.saveAndFlush(savedCaptor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(referenceRepository.findByNodeIdOrderByPositionAsc(5L)).thenReturn(List.of());
 
         UpdateNodeReqDto request = new UpdateNodeReqDto("새제목", null, null, null);
 
-        StepVerifier.create(modifyRoadmapNodeService.execute(7L, "ADMIN", 5L, request)).assertNext(response -> {
-            assertThat(response.title()).isEqualTo("새제목");
-            assertThat(response.content()).isEqualTo("원내용");
-        }).verifyComplete();
+        var response = modifyRoadmapNodeService.execute(7L, "ADMIN", 5L, request);
+        assertThat(response.title()).isEqualTo("새제목");
+        assertThat(response.content()).isEqualTo("원내용");
 
         assertThat(savedCaptor.getValue().getLastModifiedBy()).isEqualTo(7L);
     }
@@ -68,32 +69,34 @@ class ModifyRoadmapNodeServiceTest {
     void modifyNode_savesPositionReReadAfterRoadmapLock() {
         RoadmapNode stale = node(5L, 10L, "원제목", "원내용");
         RoadmapNode reordered = stale.toBuilder().position(3).build();
-        when(nodeRepository.findById(5L)).thenReturn(Mono.just(stale)).thenReturn(Mono.just(reordered));
-        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap(10L)));
-        when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        ArgumentCaptor<RoadmapNode> savedCaptor = ArgumentCaptor.forClass(RoadmapNode.class);
-        when(nodeRepository.save(savedCaptor.capture())).thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
-        when(referenceRepository.findByNodeIdOrderByPositionAsc(5L)).thenReturn(Flux.empty());
+        when(nodeRepository.findRoadmapIdById(5L)).thenReturn(Optional.of(10L));
+        when(nodeRepository.findById(5L)).thenReturn(Optional.of(reordered));
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
 
-        StepVerifier
-                .create(modifyRoadmapNodeService
-                        .execute(7L, "ADMIN", 5L, new UpdateNodeReqDto("새제목", null, null, null)))
-                .expectNextCount(1)
-                .verifyComplete();
+        ArgumentCaptor<RoadmapNode> savedCaptor = ArgumentCaptor.forClass(RoadmapNode.class);
+        when(nodeRepository.saveAndFlush(savedCaptor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(referenceRepository.findByNodeIdOrderByPositionAsc(5L)).thenReturn(List.of());
+
+        assertThat(modifyRoadmapNodeService.execute(7L, "ADMIN", 5L, new UpdateNodeReqDto("새제목", null, null, null)))
+                .isNotNull();
 
         assertThat(savedCaptor.getValue().getPosition()).isEqualTo(3);
+        InOrder order = inOrder(nodeRepository, roadmapRepository);
+        order.verify(nodeRepository).findRoadmapIdById(5L);
+        order.verify(roadmapRepository).findByIdForUpdate(10L);
+        order.verify(nodeRepository).findById(5L);
+        order.verify(nodeRepository).saveAndFlush(savedCaptor.getValue());
     }
 
     @Test
     void modifyNode_nodeNotFound_failsWithNotFound() {
-        when(nodeRepository.findById(99L)).thenReturn(Mono.empty());
+        when(nodeRepository.findRoadmapIdById(99L)).thenReturn(Optional.empty());
 
         UpdateNodeReqDto request = new UpdateNodeReqDto("새제목", null, null, null);
 
-        StepVerifier.create(modifyRoadmapNodeService.execute(7L, "ADMIN", 99L, request))
-                .expectErrorMatches(error -> error instanceof ExpectedException expected
-                        && expected.getStatusCode() == HttpStatus.NOT_FOUND)
-                .verify();
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> modifyRoadmapNodeService.execute(7L, "ADMIN", 99L, request));
+        assertTrue(error.getStatusCode() == HttpStatus.NOT_FOUND);
     }
 
     private static Roadmap roadmap(Long id) {

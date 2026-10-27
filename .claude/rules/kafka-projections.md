@@ -11,9 +11,9 @@ paths:
   - "cowork-authorization/internal/{repository/refresh_token_repository.go,service/auth_service.go,service/event_service.go}"
   - "cowork-user/src/{Kafka/**,Users/Accounts.cs}"
   - "**/db/migration/**/*{kafka,projection,outbox,checkpoint,quarantine,event_state,tombstone}*.sql"
-  - "cowork-config/src/main/resources/configs/cowork-*.yml"
+  - "cowork-*/src/main/resources/application*.yml"
   - "deploy/compose/*.yaml"
-  - "deploy/prod/**/compose.yaml"
+  - "deploy/{production/**,nomad/**,runtime/**}"
   - "deploy/**/*.sh"
 ---
 
@@ -24,7 +24,7 @@ paths:
 - Name new topics `<domain>[.<resource>...].<state|command|result|event>.v<major>`, with lowercase kebab-case segments. Keep environment and consumer names out of topics. Preserve deployed names unless the wire contract changes.
 - Serialized keys, identity, partition routing, and incompatible payload changes require a new topic version. Keep partition count stable within a compacted state version. A consumer fallback cannot migrate retained keys.
 - Provision snapshot-backed state topics with compact retention before producers start. Provision a `-dlt` only when a consumer uses one; state projections quarantine in their own store.
-- Keep producer, consumer, snapshot marker, Config, and provisioning references consistent. Consumer group changes alone do not rebuild projection data.
+- Keep producer, consumer, snapshot marker, application configuration, and provisioning references consistent. Consumer group changes alone do not rebuild projection data.
 
 ## Publication
 
@@ -37,7 +37,7 @@ paths:
 
 - Persist `(group, topic, partition, next_offset)` with applied projection data, in the same transaction where supported. Verify topic identity, retained offset bounds, and dataset identity before resuming; broker group offsets are not the recovery authority.
 - Use broker topic UUIDs where available. Chat's existing KafkaJS path instead uses `sourceGeneration`, MongoDB dataset identity, and offset bounds, because KafkaJS has never implemented a Metadata request version that carries topic IDs (KIP-516); do not extend that exception to new clients. Chat compensates by also comparing each active dataset's document count against its last observed count, both at startup and periodically, and treating a suspicious drop the same as a cleared collection.
-- Hold readiness and Eureka traffic until checkpoints reach startup high-watermarks and valid snapshot markers. Continue checking current high-watermarks. Projection-dependent APIs return `503` while catch-up or continuity checks fail.
+- Hold readiness and Consul service health until checkpoints reach startup high-watermarks and valid snapshot markers. Continue checking current high-watermarks. Projection-dependent APIs return `503` while catch-up or continuity checks fail.
 - Malformed state records latch the projection unready until explicit repair/rebuild or a distinct full-snapshot recovery restores the gap. A single completion marker cannot clear the latch. Action-only poison records may advance after successful quarantine; transient storage failures must not advance offsets.
 - If continuity cannot be proved, fence old workers and rebuild affected projections and checkpoints. Replacing owner data or Kafka can remove deletion history; rebuild dependent stores together and preserve consumer-owned fields.
 - Data preservation is an operator choice. When preserving it, account for pending outbox records and retain deletion history before replacing topics. Retire old topics only after their producers stop and replacement consumers are ready.

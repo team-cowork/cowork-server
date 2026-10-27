@@ -1,0 +1,35 @@
+---
+- name: Renew VM certificates using the existing private platform CA
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Require persistent private state outside the installed sources
+      ansible.builtin.assert:
+        that:
+          - platform_state_dir is match('^/')
+          - not (platform_state_dir | realpath).startswith(platform_repository | realpath)
+    - name: Inspect the existing platform CA
+      ansible.builtin.stat:
+        path: "{{ platform_state_dir }}/pki/{{ item }}"
+      loop: [ca.crt, ca.key]
+      register: platform_renewal_ca
+      no_log: true
+    - name: Require operator recovery instead of generating a new trust root
+      ansible.builtin.assert:
+        that: platform_renewal_ca.results | map(attribute='stat.exists') | list == [true, true]
+        fail_msg: Restore the existing private platform CA before renewing certificates.
+    - name: Renew certificates approaching expiry
+      ansible.builtin.include_tasks: tasks/certificate-host.yml
+      loop: "{{ platform_active_hosts }}"
+      loop_control:
+        loop_var: certificate_host
+
+- name: Distribute VM certificates and reload their running consumers
+  hosts: control_plane:nomad_clients:vault_hosts
+  become: true
+  gather_facts: false
+  serial: 4
+  tasks:
+    - ansible.builtin.include_tasks: tasks/certificates.yml
+    - ansible.builtin.include_tasks: tasks/renew-certificate-consumers.yml

@@ -26,6 +26,11 @@ def field(path):
         return r'(?m)^(  version: ")[^"]+("[^\S\n]*)$'
     if path == "cowork-chat/src/main.ts":
         return r"(\.setVersion\(')[^']+('\))"
+    if path in {"cowork-user/src/openapi.json", "cowork-preference/src/main/resources/openapi.json",
+                "cowork-chat/public/asyncapi.json"}:
+        return r'(?m)^(    "version": ")[^"]+(",?[^\S\n]*)$'
+    if re.fullmatch(r"cowork-[a-z-]+/src/main/(?:kotlin|java)/com/cowork/[a-z]+/global/config/OpenApiConfig\.(?:kt|java)", path):
+        return r'(\bversion = ")[^"]+(")'
     return None
 
 
@@ -66,7 +71,14 @@ def module_files(module):
         "src/CoworkUser.csproj", "cmd/main.go", "cmd/server/main.go",
     )]
     if module == "chat":
-        candidates.append(directory / "src/main.ts")
+        candidates += [directory / "src/main.ts", directory / "public/asyncapi.json"]
+    if module == "user":
+        candidates.append(directory / "src/openapi.json")
+    if module == "preference":
+        candidates.append(directory / "src/main/resources/openapi.json")
+    if module in {"channel", "project", "team", "roadmap"}:
+        language, extension = ("java", "java") if module == "roadmap" else ("kotlin", "kt")
+        candidates.append(directory / f"src/main/{language}/com/cowork/{module}/global/config/OpenApiConfig.{extension}")
     if module in {"authorization", "notification", "voice"}:
         candidates += [directory / "swagger" / name for name in ("docs.go", "swagger.json", "swagger.yaml")]
     paths = [path.relative_to(ROOT).as_posix() for path in candidates if path.is_file()]

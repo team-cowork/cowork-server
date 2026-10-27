@@ -1,10 +1,10 @@
 package com.cowork.roadmap.domain.assignment.service;
 
-import com.cowork.roadmap.domain.assignment.presentation.data.response.AssignmentResDto;
+import java.util.List;
 
-import reactor.core.publisher.Flux;
+import com.cowork.roadmap.domain.assignment.presentation.data.response.AssignmentResDto;
 
 public interface ListRoadmapAssignmentsService {
 
-    Flux<AssignmentResDto> execute(Long userId, String userRole, Long roadmapId);
+    List<AssignmentResDto> execute(Long userId, String userRole, Long roadmapId);
 }

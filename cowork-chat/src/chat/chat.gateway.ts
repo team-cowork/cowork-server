@@ -93,8 +93,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         @Inject(forwardRef(() => ChatService))
         private readonly chatService: ChatService,
         private readonly consumer: ChatMessageConsumer,
+        @Inject(forwardRef(() => GithubIssueResultConsumer))
         private readonly githubIssueResultConsumer: GithubIssueResultConsumer,
+        @Inject(forwardRef(() => ChatGithubIssueResultConsumer))
         private readonly chatGithubIssueResultConsumer: ChatGithubIssueResultConsumer,
+        @Inject(forwardRef(() => GithubRepoEventConsumer))
         private readonly githubRepoEventConsumer: GithubRepoEventConsumer,
         private readonly channelEventConsumer: ChannelEventConsumer,
         private readonly projectEventConsumer: ProjectEventConsumer,

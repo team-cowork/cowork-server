@@ -1,0 +1,14 @@
+groups:
+- name: cowork-log-collection
+  rules:
+  - alert: coworkLogParseFailure
+    expr: 'sum by (env, service) (count_over_time({parse_error="true"}[10m])) > 0
+
+      '
+    for: 15m
+    labels:
+      severity: warning
+    annotations:
+      summary: 애플리케이션 로그 형식 위반 지속
+      description: 서비스 {{ $labels.service }}({{ $labels.env }})에서 @timestamp 또는 level을 읽지 못한 로그가 15분 넘게 계속 들어오고 있습니다. cowork
+        / Logs 대시보드의 형식 위반 로그에서 plain text, 잘못된 JSON, 필드 누락 여부를 확인해 주세요.

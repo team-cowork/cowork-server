@@ -1,8 +1,4 @@
 {
-  "config": {
-    "local": ".",
-    "prod": "."
-  },
   "gateway": {
     "local": ".",
     "prod": "."

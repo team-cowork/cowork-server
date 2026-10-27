@@ -10,7 +10,7 @@ import {InjectModel} from '@nestjs/mongoose';
 import {Model} from 'mongoose';
 import {Server} from 'socket.io';
 import {DmParticipant} from '../chat/schema/dm-participant.schema';
-import {getRequiredCsvConfig} from '../common/config/config.util';
+import {getKafkaClientConfig} from '../common/config/config.util';
 import {parseEventTime} from '../common/util/event-time.util';
 import {isSafePositiveInteger} from '../common/util/safe-integer.util';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../common/kafka/projection-readiness.service';
@@ -55,7 +55,7 @@ export class DmParticipantConsumer implements OnModuleInit, OnModuleDestroy {
     async onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-dm-participant',
-            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
+            ...getKafkaClientConfig(this.configService),
         });
         const stream = PROJECTION_STREAMS.dmParticipant;
         this.consumer = kafka.consumer({groupId: stream.groupId});
