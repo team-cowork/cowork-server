@@ -1,12 +1,14 @@
 package com.cowork.roadmap.domain.node.service;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -23,8 +25,6 @@ import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
-import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
 import team.themoment.sdk.exception.ExpectedException;
 
 class DeleteNodeReferenceServiceTest {
@@ -46,25 +46,22 @@ class DeleteNodeReferenceServiceTest {
     @Test
     void deleteReference_whenMutable_deletes() {
         RoadmapNodeReference ref = reference(100L, 5L);
-        when(referenceRepository.findById(100L)).thenReturn(Mono.just(ref));
-        when(nodeRepository.findById(5L)).thenReturn(Mono.just(node(5L, 10L)));
-        when(roadmapRepository.findById(10L)).thenReturn(Mono.just(roadmap(10L)));
-        when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        when(referenceRepository.delete(ref)).thenReturn(Mono.empty());
+        when(referenceRepository.findById(100L)).thenReturn(Optional.of(ref));
+        when(nodeRepository.findById(5L)).thenReturn(Optional.of(node(5L, 10L)));
+        when(roadmapRepository.findById(10L)).thenReturn(Optional.of(roadmap(10L)));
 
-        StepVerifier.create(deleteNodeReferenceService.execute(7L, "ADMIN", 100L)).verifyComplete();
+        deleteNodeReferenceService.execute(7L, "ADMIN", 100L);
 
         verify(referenceRepository).delete(ref);
     }
 
     @Test
     void deleteReference_referenceNotFound_failsWithNotFound() {
-        when(referenceRepository.findById(99L)).thenReturn(Mono.empty());
+        when(referenceRepository.findById(99L)).thenReturn(Optional.empty());
 
-        StepVerifier.create(deleteNodeReferenceService.execute(7L, "ADMIN", 99L))
-                .expectErrorMatches(error -> error instanceof ExpectedException expected
-                        && expected.getStatusCode() == HttpStatus.NOT_FOUND)
-                .verify();
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> deleteNodeReferenceService.execute(7L, "ADMIN", 99L));
+        assertTrue(error.getStatusCode() == HttpStatus.NOT_FOUND);
 
         verify(referenceRepository, never()).delete(any());
     }

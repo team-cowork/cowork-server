@@ -1,6 +1,5 @@
 package com.cowork.roadmap.global.team;
 
-import java.time.Duration;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -22,8 +21,6 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceListener, HealthIndicator {
-
-    private static final Duration CHECKPOINT_TIMEOUT = Duration.ofSeconds(10);
 
     private final ProjectionCheckpointRepository checkpoints;
     private final ProjectionTopicIdentityProvider topicIdentity;
@@ -68,8 +65,7 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
                 .map(TopicPartition::partition)
                 .collect(Collectors.toSet());
         Map<Integer, Long> seekOffsets = checkpoints
-                .initializeAssignment(consumerGroup, topic, topicId, ranges, assignedPartitions)
-                .block(CHECKPOINT_TIMEOUT);
+                .initializeAssignment(consumerGroup, topic, topicId, ranges, assignedPartitions);
         if (seekOffsets == null) {
             throw new IllegalStateException("Kafka projection checkpoints were not initialized");
         }
@@ -113,8 +109,7 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     }
 
     private Map<Integer, ProjectionCheckpoint> requireCheckpoints() {
-        Map<Integer, ProjectionCheckpoint> values = checkpoints.findByTopic(consumerGroup, topic)
-                .block(CHECKPOINT_TIMEOUT);
+        Map<Integer, ProjectionCheckpoint> values = checkpoints.findByTopic(consumerGroup, topic);
         if (values == null) {
             throw new IllegalStateException("Kafka projection checkpoints were not loaded");
         }
@@ -122,8 +117,7 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     }
 
     private Map<Integer, ProjectionBarrier> requireBarriers() {
-        Map<Integer, ProjectionBarrier> values = checkpoints.findBarriers(consumerGroup, topic)
-                .block(CHECKPOINT_TIMEOUT);
+        Map<Integer, ProjectionBarrier> values = checkpoints.findBarriers(consumerGroup, topic);
         if (values == null) {
             throw new IllegalStateException("Kafka projection barriers were not loaded");
         }

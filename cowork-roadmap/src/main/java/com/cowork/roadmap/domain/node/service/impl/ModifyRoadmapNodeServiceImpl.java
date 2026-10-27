@@ -14,7 +14,6 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
@@ -31,27 +30,20 @@ public class ModifyRoadmapNodeServiceImpl implements ModifyRoadmapNodeService {
      */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public Mono<NodeResDto> execute(Long userId, String userRole, Long nodeId, UpdateNodeReqDto request) {
-        return nodeLookupSupport.findNodeOrThrow(nodeId)
-                .flatMap(found -> roadmapLookupSupport.findRoadmapForUpdateOrThrow(found.getRoadmapId())
-                        .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
-                                .then(nodeLookupSupport.findNodeOrThrow(nodeId))
-                                .flatMap(node -> {
-                                    RoadmapNode updated = node.toBuilder()
-                                            .title(request.title() != null ? request.title() : node.getTitle())
-                                            .content(request.content() != null ? request.content() : node.getContent())
-                                            .sourceUrl(request.sourceUrl() != null
-                                                    ? request.sourceUrl()
-                                                    : node.getSourceUrl())
-                                            .sourceTitle(request.sourceTitle() != null
-                                                    ? request.sourceTitle()
-                                                    : node.getSourceTitle())
-                                            .build();
-                                    updated.copyAuditFrom(node);
-                                    updated.setLastModifiedBy(userId);
-                                    return nodeRepository.save(updated);
-                                })
-                                .flatMap(saved -> nodeLookupSupport.loadReferences(saved.getId())
-                                        .map(refs -> NodeResDto.of(saved, refs)))));
+    public NodeResDto execute(Long userId, String userRole, Long nodeId, UpdateNodeReqDto request) {
+        Long roadmapId = nodeLookupSupport.findRoadmapIdByNodeOrThrow(nodeId);
+        var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
+        accessGuard.requireMutable(roadmap, userId, userRole);
+        RoadmapNode node = nodeLookupSupport.findNodeOrThrow(nodeId);
+        RoadmapNode updated = node.toBuilder()
+                .title(request.title() != null ? request.title() : node.getTitle())
+                .content(request.content() != null ? request.content() : node.getContent())
+                .sourceUrl(request.sourceUrl() != null ? request.sourceUrl() : node.getSourceUrl())
+                .sourceTitle(request.sourceTitle() != null ? request.sourceTitle() : node.getSourceTitle())
+                .build();
+        updated.prepareUpdateFrom(node);
+        updated.setLastModifiedBy(userId);
+        RoadmapNode saved = nodeRepository.saveAndFlush(updated);
+        return NodeResDto.of(saved, nodeLookupSupport.loadReferences(saved.getId()));
     }
 }

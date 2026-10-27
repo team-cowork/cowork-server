@@ -11,7 +11,6 @@ import com.cowork.roadmap.domain.assignment.repository.RoadmapAssignmentReposito
 import com.cowork.roadmap.domain.assignment.service.ModifyRoadmapAssignmentStatusService;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Service
@@ -24,24 +23,23 @@ public class ModifyRoadmapAssignmentStatusServiceImpl implements ModifyRoadmapAs
 
     @Override
     @Transactional
-    public Mono<AssignmentResDto> execute(Long userId,
+    public AssignmentResDto execute(Long userId,
             String userRole,
             Long assignmentId,
             UpdateAssignmentStatusReqDto request) {
-        return findAssignmentOrThrow(assignmentId).flatMap(assignment -> {
-            boolean allowed = userId.equals(assignment.getAssigneeUserId()) || userId.equals(assignment.getAssignedBy())
-                    || ROLE_ADMIN.equals(userRole);
-            if (!allowed) {
-                return Mono.error(new ExpectedException("과제 상태를 변경할 권한이 없습니다.", HttpStatus.FORBIDDEN));
-            }
-            RoadmapAssignment updated = assignment.toBuilder().status(request.status().name()).build();
-            updated.copyAuditFrom(assignment);
-            return assignmentRepository.save(updated).map(AssignmentResDto::from);
-        });
+        RoadmapAssignment assignment = findAssignmentOrThrow(assignmentId);
+        boolean allowed = userId.equals(assignment.getAssigneeUserId()) || userId.equals(assignment.getAssignedBy())
+                || ROLE_ADMIN.equals(userRole);
+        if (!allowed) {
+            throw new ExpectedException("과제 상태를 변경할 권한이 없습니다.", HttpStatus.FORBIDDEN);
+        }
+        RoadmapAssignment updated = assignment.toBuilder().status(request.status().name()).build();
+        updated.prepareUpdateFrom(assignment);
+        return AssignmentResDto.from(assignmentRepository.saveAndFlush(updated));
     }
 
-    private Mono<RoadmapAssignment> findAssignmentOrThrow(Long assignmentId) {
+    private RoadmapAssignment findAssignmentOrThrow(Long assignmentId) {
         return assignmentRepository.findById(assignmentId)
-                .switchIfEmpty(Mono.error(new ExpectedException("과제를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)));
+                .orElseThrow(() -> new ExpectedException("과제를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
     }
 }
