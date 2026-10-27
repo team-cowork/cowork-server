@@ -1,6 +1,7 @@
 local.file_match "application_logs" {
   path_targets = [{
-    "__path__" = "/var/log/cowork/*/*.log",
+    // 롤링된 app.<날짜>.log를 새 파일로 다시 읽지 않도록 현재 파일만 수집한다. prod가 *-json.log만 읽는 것과 같다.
+    "__path__" = "/var/log/cowork/*/{app,application}.log",
     "env"      = sys.env("ENV"),
   }]
 }
@@ -10,20 +11,43 @@ loki.source.file "application_logs" {
   forward_to = [loki.process.application_logs.receiver]
 }
 
+// 시각·필드 정책은 prod(deploy/prod/log-agent/config.alloy)와 같다. 다중 포맷 해석은 두지 않는다.
 loki.process "application_logs" {
+  // prod가 Docker cowork.service 라벨을 쓰듯, service는 배포가 정한 로그 디렉터리 이름을 쓴다.
+  stage.regex {
+    source     = "filename"
+    expression = "^/var/log/cowork/(?P<log_directory>[^/]+)/"
+  }
   stage.json {
     expressions = {
-      level     = "level",
-      service   = "service",
-      timestamp = "\"@timestamp\"",
+      json_level = "level",
+      timestamp  = "\"@timestamp\"",
     }
   }
-  stage.labels {
-    values = { level = "", service = "" }
+  stage.template {
+    source   = "level"
+    template = "{{ if .json_level }}{{ ToUpper .json_level }}{{ else }}UNKNOWN{{ end }}"
   }
+  stage.template {
+    source   = "service"
+    template = "{{ TrimPrefix .log_directory \"cowork-\" }}"
+  }
+  // @timestamp가 없거나 level이 UNKNOWN인 줄(plain text, 잘못된 JSON, 필드 누락)을 형식 위반으로 표시한다.
+  stage.template {
+    source   = "parse_error"
+    template = "{{ if or (not .timestamp) (eq .level \"UNKNOWN\") }}true{{ end }}"
+  }
+  stage.labels {
+    values = { level = "", service = "", parse_error = "" }
+  }
+  // 앱이 기록한 시각을 쓴다. 없거나 해석하지 못하면 읽은 시각을 그대로 둔다.
   stage.timestamp {
-    source = "timestamp"
-    format = "RFC3339Nano"
+    source            = "timestamp"
+    format            = "RFC3339Nano"
+    action_on_failure = "skip"
+  }
+  stage.label_drop {
+    values = ["filename"]
   }
   forward_to = [loki.write.local.receiver]
 }
