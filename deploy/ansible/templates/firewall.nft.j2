@@ -32,6 +32,7 @@ table inet cowork {
     tcp dport 7881 accept
     udp dport 7882 accept
 {% elif inventory_hostname == 'monitoring' %}
+    iifname "cowork0" ip saddr 172.30.0.0/16 tcp dport { 4646, 9100 } accept
     ip saddr 10.0.0.117 tcp dport 8080 accept
     ip saddr { {{ platform_agent_ips | join(', ') }}, {{ platform_vault_ip }} } tcp dport 3100 accept
 {% elif inventory_hostname in groups['vault_hosts'] %}
@@ -44,21 +45,22 @@ table inet cowork {
     type filter hook forward priority -20; policy accept;
     ct state established,related accept
     iifname "cowork0" accept
-    ip saddr @agents ct status dnat ct original proto-dst 22000-22999 accept
+    ip saddr @agents meta l4proto tcp ct status dnat ct original proto-dst 22000-22999 accept
 {% if inventory_hostname == 'gateway' %}
-    ip saddr 10.0.0.117 ct status dnat ct original proto-dst 8080 accept
+    ip saddr 10.0.0.117 meta l4proto tcp ct status dnat ct original proto-dst 8080 accept
 {% elif inventory_hostname == 'kafka' %}
-    ip saddr @agents ct status dnat ct original proto-dst 9094 accept
+    ip saddr @agents meta l4proto tcp ct status dnat ct original proto-dst 9094 accept
 {% elif inventory_hostname == 'monitoring' %}
-    ip saddr 10.0.0.117 ct status dnat ct original proto-dst 8080 accept
-    ip saddr { {{ platform_agent_ips | join(', ') }}, {{ platform_vault_ip }} } ct status dnat ct original proto-dst 3100 accept
+    ip saddr 10.0.0.117 meta l4proto tcp ct status dnat ct original proto-dst 8080 accept
+    ip saddr { {{ platform_agent_ips | join(', ') }}, {{ platform_vault_ip }} } meta l4proto tcp ct status dnat ct original proto-dst 3100 accept
 {% elif inventory_hostname == 'livekit' %}
-    ip saddr { 10.0.0.117, {{ hostvars['voice'].private_ip }}, {{ hostvars['gateway'].private_ip }} } ct status dnat ct original proto-dst 7880 accept
-    ct status dnat ct original proto-dst { 7881, 7882 } accept
+    ip saddr { 10.0.0.117, {{ hostvars['voice'].private_ip }}, {{ hostvars['gateway'].private_ip }} } meta l4proto tcp ct status dnat ct original proto-dst 7880 accept
+    meta l4proto tcp ct status dnat ct original proto-dst 7881 accept
+    meta l4proto udp ct status dnat ct original proto-dst 7882 accept
 {% endif %}
 {% if inventory_hostname in groups['vault_hosts'] %}
-    ip saddr @agents ct status dnat ct original proto-dst 8210 accept
-    ip saddr 10.0.0.117 ct status dnat ct original proto-dst 8200 accept
+    ip saddr @agents meta l4proto tcp ct status dnat ct original proto-dst 8210 accept
+    ip saddr 10.0.0.117 meta l4proto tcp ct status dnat ct original proto-dst 8200 accept
     oifname "br*" tcp dport { 8200, 8210 } counter drop
 {% endif %}
     oifname "cowork0" counter drop
