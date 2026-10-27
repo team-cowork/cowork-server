@@ -1,0 +1,29 @@
+namespace "default" { policy = "write" }
+node { policy = "read" }
+agent { policy = "read" }
+operator { policy = "read" }
+
+host_volume "cowork-ca" { policy = "read" }
+host_volume "kafka-tls" { policy = "read" }
+host_volume "monitoring-ingress-tls" { policy = "read" }
+
+host_volume "authorization-db" { policy = "write" }
+host_volume "user-db" { policy = "write" }
+host_volume "user-storage" { policy = "write" }
+host_volume "team-db" { policy = "write" }
+host_volume "team-storage" { policy = "write" }
+host_volume "channel-db" { policy = "write" }
+host_volume "project-db" { policy = "write" }
+host_volume "roadmap-db" { policy = "write" }
+host_volume "preference-db" { policy = "write" }
+host_volume "chat-db" { policy = "write" }
+host_volume "chat-storage" { policy = "write" }
+host_volume "chat-search" { policy = "write" }
+host_volume "voice-db" { policy = "write" }
+host_volume "notification-data" { policy = "write" }
+host_volume "kafka-data" { policy = "write" }
+host_volume "redis-data" { policy = "write" }
+host_volume "monitoring-loki" { policy = "write" }
+host_volume "monitoring-prometheus" { policy = "write" }
+host_volume "monitoring-grafana" { policy = "write" }
+host_volume "monitoring-alertmanager" { policy = "write" }

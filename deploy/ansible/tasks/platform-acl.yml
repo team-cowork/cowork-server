@@ -93,3 +93,32 @@
   delegate_to: localhost
   become: false
   no_log: true
+
+- name: Reconcile the scoped Nomad deployment policy
+  vars:
+    nomad_deploy_rules: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/files/nomad-deploy-policy.hcl') }}"
+  no_log: true
+  block:
+    - name: Read the current Nomad deployment policy
+      ansible.builtin.uri:
+        url: https://127.0.0.1:4646/v1/acl/policy/cowork-deploy
+        ca_path: /etc/cowork/ca/ca.crt
+        headers:
+          X-Nomad-Token: "{{ (nomad_saved_acl.content | b64decode | from_json).SecretID }}"
+        status_code: [200, 404]
+      register: nomad_deploy_policy
+
+    - name: Apply the declared Nomad deployment policy
+      ansible.builtin.uri:
+        url: https://127.0.0.1:4646/v1/acl/policy/cowork-deploy
+        method: POST
+        ca_path: /etc/cowork/ca/ca.crt
+        headers:
+          X-Nomad-Token: "{{ (nomad_saved_acl.content | b64decode | from_json).SecretID }}"
+        body_format: json
+        body:
+          Name: cowork-deploy
+          Description: Cowork production deployments
+          Rules: "{{ nomad_deploy_rules }}"
+      when: nomad_deploy_policy.status == 404 or nomad_deploy_policy.json.Rules | trim != nomad_deploy_rules | trim
+      changed_when: true
