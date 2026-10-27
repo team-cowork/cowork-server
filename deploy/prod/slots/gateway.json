@@ -4,16 +4,16 @@
   "kind": "application",
   "runtime": {
     "APP_CONFIG_PROFILE": "prod",
-    "CONFIG_SERVER_URL": "http://10.0.0.169:8761",
-    "EUREKA_SERVER_URL": "http://10.0.0.169:8761/eureka/",
+    "CONFIG_SERVER_URL": "http://10.0.0.144:8761",
+    "EUREKA_SERVER_URL": "http://10.0.0.144:8761/eureka/",
     "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.167:9094",
     "PUBLIC_API_BASE_URL": "https://cowork.https.gsmsv.site",
     "REDIS_HOST": "10.0.0.145",
     "REDIS_PORT": "6379",
     "S3_BUCKET": "cowork-bucket",
     "S3_REGION": "us-east-1",
-    "S3_TEAM_INTERNAL_ENDPOINT": "http://10.0.0.74:9000",
-    "S3_USER_INTERNAL_ENDPOINT": "http://10.0.0.144:9000",
+    "S3_TEAM_INTERNAL_ENDPOINT": "http://10.0.0.97:9000",
+    "S3_USER_INTERNAL_ENDPOINT": "http://10.0.0.185:9000",
     "S3_CHAT_INTERNAL_ENDPOINT": "http://10.0.0.174:9000"
   },
   "secrets": {
