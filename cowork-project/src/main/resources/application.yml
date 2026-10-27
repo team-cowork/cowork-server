@@ -1,13 +1,18 @@
-server:
-  port: 8084
-
 spring:
+  reactor:
+    context-propagation: auto
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    consumer:
+      auto-offset-reset: earliest
+    properties:
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+      sasl.mechanism: ${KAFKA_SASL_MECHANISM:SCRAM-SHA-512}
+      ssl.truststore.type: PEM
+      ssl.truststore.location: ${KAFKA_SSL_CA_LOCATION:}
   profiles:
     active: ${APP_CONFIG_PROFILE:local}
   cloud:
-    config:
-      username: ${CONFIG_CLIENT_USERNAME}
-      password: ${CONFIG_CLIENT_PASSWORD}
     openfeign:
       client:
         config:
@@ -16,8 +21,6 @@ spring:
             read-timeout: 10000
   application:
     name: cowork-project
-  config:
-    import: "configserver:${CONFIG_SERVER_URL:http://localhost:8761}"
   jackson:
     mapper:
       accept-case-insensitive-enums: true
@@ -36,44 +39,50 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-  kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
-    consumer:
-      auto-offset-reset: earliest
-
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+kafka:
+  outbox:
+    relay-initial-delay-ms: 1000
+    relay-delay-ms: 1000
+    batch-size: 100
+    claim-lease-ms: 30000
+    send-timeout-ms: 10000
+    max-attempts: 8
+    backoff-initial-ms: 5000
+    backoff-max-ms: 600000
+sdk:
+  logging:
+    not-logging-urls:
+    - /actuator/**
+    - /v3/api-docs/**
+    - /swagger-ui/**
+    enabled: true
+  response:
+    enabled: false
+  swagger:
+    enabled: true
+    group: project
+    paths-to-match:
+    - /projects/**
+    - /teams/**
+  exception:
+    enabled: false
+server:
+  port: 8084
 github:
   internal-api-key: ${COWORK_GITHUB_INTERNAL_API_KEY:}
-
-eureka:
-  client:
-    service-url:
-      defaultZone: http://localhost:8761/eureka/
-  instance:
-    prefer-ip-address: true
-    metadata-map:
-      prometheus.scrape: "true"
-      prometheus.path: /actuator/prometheus
-
 springdoc:
   api-docs:
     path: /v3/api-docs
   swagger-ui:
     path: /swagger-ui.html
-
-sdk:
-  logging:
-    enabled: true
-    not-logging-urls:
-      - "/actuator/**"
-      - "/v3/api-docs/**"
-      - "/swagger-ui/**"
-  response:
-    enabled: false
-  swagger:
-    enabled: true
-    group: "project"
-    paths-to-match:
-      - "/projects/**"
-      - "/teams/**"
-  exception:
-    enabled: false
