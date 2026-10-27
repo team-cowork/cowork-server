@@ -147,6 +147,10 @@ const mockSlowmodeService = {
     release: jest.fn(),
 };
 
+const mockChannelReadService = {
+    advance: jest.fn(),
+};
+
 describe('ChatService', () => {
     let service: ChatService;
 
@@ -170,6 +174,7 @@ describe('ChatService', () => {
             mockMessageSearchDeletion as never,
             mockChannelProjectionRepository as never,
             mockSlowmodeService as never,
+            mockChannelReadService as never,
         );
         jest.clearAllMocks();
         mockTeamMemberRepository.exists.mockResolvedValue(true);
@@ -983,20 +988,22 @@ describe('ChatService', () => {
             ).rejects.toThrow(ForbiddenException);
         });
 
-        it('lastReadMessageId를 업데이트하고 unreadCount를 계산한다', async () => {
-            mockDmParticipantRepository.exists.mockResolvedValue(true);
-            mockReadStateRepository.updateLastRead.mockResolvedValue(undefined);
-            mockMessageRepository.countUnread.mockResolvedValue(3);
+        it('읽음 위치를 전진시키고 계산된 안읽음 수를 전송한다', async () => {
+            mockChannelReadService.advance.mockResolvedValue(3);
 
             await service.readChannel({channelId: 1, userId: 42}, messageId.toString());
 
-            expect(mockReadStateRepository.updateLastRead).toHaveBeenCalledWith(
-                1,
-                42,
-                expect.any(Types.ObjectId),
-            );
-            expect(mockMessageRepository.countUnread).toHaveBeenCalledWith(1, expect.any(Types.ObjectId));
-            expect(mockUnreadCounterService.set).toHaveBeenCalledWith(1, 42, 3);
+            expect(mockChannelReadService.advance).toHaveBeenCalledWith(1, 42, messageId);
+            expect(mockTo).toHaveBeenCalledWith('user:42');
+            expect(mockEmit).toHaveBeenCalledWith('channel:unread:updated', {channelId: 1, unreadCount: 3});
+        });
+
+        it('더 최신 읽음 위치의 값이 이미 있으면 오래된 안읽음 수를 전송하지 않는다', async () => {
+            mockChannelReadService.advance.mockResolvedValue(null);
+
+            await service.readChannel({channelId: 1, userId: 42}, messageId.toString());
+
+            expect(mockEmit).not.toHaveBeenCalled();
         });
     });
 
@@ -1022,6 +1029,10 @@ describe('ChatService', () => {
                 {channelId: 1, unreadCount: 5},
                 {channelId: 2, unreadCount: 0},
             ]);
+            expect(mockUnreadCounterService.setMany).toHaveBeenCalledWith(42, new Map([
+                [1, {count: 5, readCursor: oid1.toHexString()}],
+                [2, {count: 0, readCursor: oid2.toHexString()}],
+            ]));
         });
 
         it('읽기 권한이 있는 채널이 없으면 빈 배열을 반환한다', async () => {
