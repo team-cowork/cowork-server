@@ -15,7 +15,9 @@ scrape_configs:
   consul_sd_configs:
   - server: COWORK_CONSUL_SERVER
     scheme: https
-    token_file: /secrets/consul-token
+    authorization:
+      credentials_file: /secrets/consul-token
+    follow_redirects: false
     tls_config:
       ca_file: /etc/cowork/ca/ca.crt
     filter: '"application" in ServiceTags'
@@ -43,7 +45,9 @@ scrape_configs:
   consul_sd_configs:
   - server: COWORK_CONSUL_SERVER
     scheme: https
-    token_file: /secrets/consul-token
+    authorization:
+      credentials_file: /secrets/consul-token
+    follow_redirects: false
     tls_config:
       ca_file: /etc/cowork/ca/ca.crt
     filter: '"application" not in ServiceTags'
@@ -64,6 +68,14 @@ scrape_configs:
     - __meta_consul_service
     regex: (?:cowork-)?(.+)
     target_label: service
+  - source_labels:
+    - __meta_consul_service_metadata_metrics_service
+    regex: (.+)
+    target_label: service
+  - source_labels:
+    - __meta_consul_service_metadata_module
+    regex: (.+)
+    target_label: module
   - source_labels:
     - __meta_consul_node
     target_label: host
@@ -107,7 +119,9 @@ scrape_configs:
   consul_sd_configs:
   - server: COWORK_CONSUL_SERVER
     scheme: https
-    token_file: /secrets/consul-token
+    authorization:
+      credentials_file: /secrets/consul-token
+    follow_redirects: false
     tls_config:
       ca_file: /etc/cowork/ca/ca.crt
     filter: '"application" in ServiceTags'

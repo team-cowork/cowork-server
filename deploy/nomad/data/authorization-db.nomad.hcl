@@ -110,6 +110,8 @@ job "cowork-authorization-db" {
         metrics_address = "${attr.unique.network.ip-address}"
         metrics_port    = "${NOMAD_HOST_PORT_metrics}"
         metrics_path    = "/metrics"
+        metrics_service = "mysql"
+        module          = "authorization"
       }
       identity {
         aud = ["consul.io"]
