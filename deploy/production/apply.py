@@ -251,7 +251,7 @@ def main():
         directory = Path(temp)
         rendered = directory / 'jobs.json'
         command(['python3', 'deploy/validate.py', '--manifest', str(args.manifest.resolve()),
-                 '--render-json', str(rendered)])
+                 '--render-json', str(rendered), '--render-only'])
         specs = json.loads(rendered.read_text())
         variables = directory / 'release.tfvars.json'
         variables.write_text(json.dumps({'manifest': manifest, 'platform_ca_file': str(platform.ca),
