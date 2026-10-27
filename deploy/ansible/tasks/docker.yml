@@ -141,17 +141,32 @@
          or ((platform_docker_running.stdout | from_json).Server.Components
              | selectattr('Name', 'equalto', 'containerd') | map(attribute='Version')
              | map('regex_replace', '^v', '') | list) != [platform_versions.docker.containerd_version] }}
+- name: Reload installed runtime unit definitions
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+- name: Stop Docker and its activation socket before runtime reconciliation
+  ansible.builtin.command:
+    argv: [systemctl, stop, docker.service, docker.socket]
+  when: platform_docker_restart
+- name: Clear failed Docker activation and start rate limits
+  ansible.builtin.command:
+    argv: [systemctl, reset-failed, docker.service, docker.socket]
+  when: platform_docker_restart
 - name: Start or reconcile the declared container runtime
   ansible.builtin.systemd_service:
     name: containerd
-    daemon_reload: true
     enabled: true
     state: "{{ 'restarted' if platform_containerd_restart else 'started' }}"
+- name: Start the Docker activation socket before the daemon
+  ansible.builtin.systemd_service:
+    name: docker.socket
+    enabled: true
+    state: started
 - name: Start or reconcile the declared Docker Engine
   ansible.builtin.systemd_service:
     name: docker
     enabled: true
-    state: "{{ 'restarted' if platform_docker_restart else 'started' }}"
+    state: started
 - name: Verify the installed Docker package versions
   ansible.builtin.command:
     argv: [dpkg-query, --show, '--showformat=${Version}', '{{ item.key }}']
