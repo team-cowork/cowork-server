@@ -11,7 +11,6 @@ import {createAdapter} from '@socket.io/redis-adapter';
 import Redis from 'ioredis';
 import {Counter, Gauge, register} from 'prom-client';
 import {getOptionalConfig, getRequiredConfig} from '../config/config.util';
-import {activeProfile} from '../config/config-server';
 
 export type SocketIoAdapterState = 'CONNECTING' | 'READY' | 'DEGRADED' | 'IN_MEMORY' | 'STOPPED';
 
@@ -68,7 +67,7 @@ export function resolveAdapterMode(mode: string | undefined, profile: string): '
 
  Redis 준비를 기다리지 않고 adapter를 서버 생성 시점에 바로 설치한다. ioredis는 연결 전 명령을 offline queue에
  보관했다가 연결되면 보내고, 재연결 때 기존 구독을 다시 등록하므로 Redis가 늦게 뜨거나 중간에 끊겨도 프로세스
- 재시작 없이 같은 adapter가 복구된다. 대신 준비되지 않은 동안에는 readiness, Eureka 등록, WebSocket 가입을 막는다.
+ 재시작 없이 같은 adapter가 복구된다. 대신 준비되지 않은 동안에는 readiness와 WebSocket 가입을 막는다.
  */
 @Injectable()
 export class SocketIoRedisConnection implements OnApplicationShutdown {
@@ -92,7 +91,7 @@ export class SocketIoRedisConnection implements OnApplicationShutdown {
     private readonly errors: Counter<'client'>;
 
     constructor(configService: ConfigService) {
-        this.mode = resolveAdapterMode(getOptionalConfig(configService, ADAPTER_MODE_KEY), activeProfile());
+        this.mode = resolveAdapterMode(getOptionalConfig(configService, ADAPTER_MODE_KEY), getOptionalConfig(configService, 'APP_CONFIG_PROFILE') ?? 'local');
         if (this.mode === 'redis') {
             this.host = getRequiredConfig(configService, ['REDIS_HOST', 'redis.host']);
             this.port = Number(getOptionalConfig(configService, ['REDIS_PORT', 'redis.port']) ?? 6379);
