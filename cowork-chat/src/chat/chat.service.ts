@@ -44,6 +44,7 @@ import {
     UnreadCounterService,
     type ChannelActionPermission,
     ChannelMessageReadAccessService,
+    ChannelReadService,
     SlowmodeService,
     RoomSocket,
     resolveMessageScope,
@@ -96,6 +97,7 @@ export class ChatService {
         private readonly messageSearchDeletion: MessageSearchDeletionService,
         private readonly channelProjectionRepository: ChannelProjectionRepository,
         private readonly slowmodeService: SlowmodeService,
+        private readonly channelReadService: ChannelReadService,
     ) {}
 
     /**
@@ -793,12 +795,8 @@ export class ChatService {
      */
     async readChannel(ctx: ChannelUserContext, lastReadMessageId: string): Promise<void> {
         await this.requireChannelRead(ctx.channelId, ctx.userId);
-        // 요청값이 아니라 DB가 채택한 읽음 위치로 센다 — 다른 기기의 늦은 요청이 이미 읽은 메시지를 다시 세지 않게 한다.
-        const readCursor = await this.readStateRepository.updateLastRead(ctx.channelId, ctx.userId, new Types.ObjectId(lastReadMessageId));
-        const unreadCount = await this.messageRepository.countUnread(ctx.channelId, readCursor);
-        const applied = await this.unreadCounterService.set(ctx.channelId, ctx.userId, {count: unreadCount, readCursor: readCursor.toHexString()});
-        if (applied === false) {
-            // 더 최신 읽음 위치로 계산한 값이 이미 기록·전송되었으니 오래된 값을 다시 보내지 않는다.
+        const unreadCount = await this.channelReadService.advance(ctx.channelId, ctx.userId, new Types.ObjectId(lastReadMessageId));
+        if (unreadCount === null) {
             return;
         }
 
