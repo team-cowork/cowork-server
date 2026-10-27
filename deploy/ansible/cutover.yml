@@ -19,6 +19,8 @@
     - name: Stop the legacy workload and firewall units once
       when: not platform_cutover_marker.stat.exists
       block:
+        - name: Activate the replacement platform ingress
+          ansible.builtin.include_tasks: tasks/firewall.yml
         - name: Read installed units
           ansible.builtin.service_facts:
         - name: Disable only the legacy Cowork firewall services
@@ -44,8 +46,6 @@
             argv: [docker, stop, --time, '30', "{{ item }}"]
           loop: "{{ platform_legacy_containers.stdout_lines | default([]) | reject('match', '^cowork-vault(?:-|$)') | reject('match', '^cowork-platform-') | list }}"
           changed_when: true
-        - name: Activate the replacement platform ingress
-          ansible.builtin.include_tasks: tasks/firewall.yml
         - name: Read IPv4 legacy firewall chains
           ansible.builtin.command: iptables -S
           register: platform_ipv4_rules
