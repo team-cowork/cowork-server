@@ -11,7 +11,7 @@
     "LIVEKIT_URL": {"kind": "variable", "targets": ["config", "voice"]},
     "LIVEKIT_WS_URL": {"kind": "variable", "targets": ["config", "voice"]},
     "PUBLIC_API_BASE_URL": {"kind": "variable", "targets": ["channel", "chat", "config", "gateway", "monitoring", "team", "user"], "resources": ["monitoring"]},
-    "PUBLIC_WEB_ORIGINS": {"kind": "variable", "targets": ["channel", "config", "gateway"], "resources": ["storage:chat", "storage:team", "storage:user"]},
+    "PUBLIC_WEB_ORIGINS": {"kind": "variable", "targets": ["channel", "config", "gateway", "monitoring"], "resources": ["monitoring", "storage:chat", "storage:team", "storage:user"]},
     "REDIS_HOST": {"kind": "variable", "targets": ["chat", "gateway", "github", "monitoring", "preference", "user"], "resources": ["monitoring"]},
     "REDIS_PORT": {"kind": "variable", "targets": ["chat", "gateway", "github", "preference", "user"]},
     "S3_BUCKET": {"kind": "variable", "targets": ["chat", "config", "gateway", "team", "user"], "resources": ["storage:chat", "storage:team", "storage:user"]},
