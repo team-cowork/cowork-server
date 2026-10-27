@@ -8,7 +8,7 @@ import {ConfigService} from '@nestjs/config';
 import {Kafka, Consumer} from 'kafkajs';
 import {Server} from 'socket.io';
 import {DicoshotService} from 'dicoshot-nest';
-import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {getKafkaClientConfig} from '../../common/config/config.util';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
 import {parseEventTime} from '../../common/util/event-time.util';
@@ -56,7 +56,7 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
     async onModuleInit() {
         const kafka = new Kafka({
             clientId: 'cowork-chat-project-event',
-            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
+            ...getKafkaClientConfig(this.configService),
         });
         const stream = PROJECTION_STREAMS.project;
         this.consumer = kafka.consumer({groupId: stream.groupId});

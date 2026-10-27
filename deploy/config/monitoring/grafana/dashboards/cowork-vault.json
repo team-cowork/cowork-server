@@ -68,7 +68,7 @@
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "monitoring이 Config와 같은 CA로 https://10.0.0.91:8210 인증서를 검증한 결과입니다. 공개 UI 경로는 프록시를 거치므로 여기에 포함되지 않습니다.",
+      "description": "monitoring이 플랫폼 CA로 https://10.0.0.91:8210 인증서를 검증한 결과입니다. 공개 UI 경로는 프록시를 거치므로 여기에 포함되지 않습니다.",
       "gridPos": {
         "h": 6,
         "w": 12,
@@ -148,7 +148,7 @@
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "서빙 중인 체인에서 가장 먼저 만료되는 인증서 기준입니다. 만료 30일 전부터 Vault VM의 cowork-vault-tls.timer가 매일 갱신하므로 21일 미만이면 갱신 실패를 의심합니다.",
+      "description": "서빙 중인 체인에서 가장 먼저 만료되는 인증서 기준입니다. 관리 VM cowork-control의 cowork-platform-certificates.timer가 매일 한국 시간 04:15에 만료까지 30일 이하인 내부 인증서를 갱신·배포합니다. 21일 미만이면 갱신 실패를 의심합니다.",
       "gridPos": {
         "h": 6,
         "w": 6,
