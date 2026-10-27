@@ -137,11 +137,7 @@ def main():
     consul_address = origin(os.environ.get("CONSUL_HTTP_ADDR", consul_server))
     nomad_token = token_file(state / "nomad-bootstrap.token")
     consul_token = token_file(state / "consul-bootstrap.token")
-    nomad_rules = '''namespace "default" { policy = "write" }
-node { policy = "read" }
-agent { policy = "read" }
-operator { policy = "read" }
-'''
+    nomad_rules = (ROOT / "deploy/ansible/files/nomad-deploy-policy.hcl").read_text()
     platform_request(nomad_address, ca, "X-Nomad-Token", nomad_token, "POST", "acl/policy/cowork-deploy",
                      {"Name": "cowork-deploy", "Description": "Cowork production deployments", "Rules": nomad_rules})
     consul_rules = '''service_prefix "cowork-" {
