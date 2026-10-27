@@ -1,22 +1,23 @@
 package com.cowork.roadmap.global.team;
 
-import java.sql.Types;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Tuple;
 import lombok.RequiredArgsConstructor;
 
 @Repository
 @RequiredArgsConstructor
 public class ProjectionCheckpointRepository {
+
+    private static final int QUERY_TIMEOUT_MS = 10_000;
 
     private static final String ENSURE_CHECKPOINT_SQL = """
             INSERT INTO tb_kafka_projection_offsets
@@ -55,7 +56,7 @@ public class ProjectionCheckpointRepository {
                 updated_at = CURRENT_TIMESTAMP(6)
             """;
 
-    private final JdbcClient jdbcClient;
+    private final EntityManager entityManager;
 
     @Transactional
     public Map<Integer, Long> initializeAssignment(String consumerGroup,
@@ -78,19 +79,20 @@ public class ProjectionCheckpointRepository {
     }
 
     public void advance(String consumerGroup, String topic, int partition, long nextOffset, String topicId) {
-        int updated = jdbcClient.sql("""
+        int updated = entityManager.createNativeQuery("""
                 UPDATE tb_kafka_projection_offsets
                 SET next_offset = GREATEST(next_offset, :nextOffset),
                     updated_at = CURRENT_TIMESTAMP(6)
                 WHERE consumer_group = :consumerGroup AND topic_name = :topic
                   AND partition_id = :partition AND BINARY topic_id = BINARY :topicId
                 """)
-                .param("consumerGroup", consumerGroup)
-                .param("topic", topic)
-                .param("partition", partition)
-                .param("nextOffset", nextOffset)
-                .param("topicId", topicId)
-                .update();
+                .setHint("jakarta.persistence.query.timeout", QUERY_TIMEOUT_MS)
+                .setParameter("consumerGroup", consumerGroup)
+                .setParameter("topic", topic)
+                .setParameter("partition", partition)
+                .setParameter("nextOffset", nextOffset)
+                .setParameter("topicId", topicId)
+                .executeUpdate();
         if (updated != 1) {
             throw new IllegalStateException("Kafka projection checkpoint generation mismatch");
         }
@@ -101,7 +103,7 @@ public class ProjectionCheckpointRepository {
             int partition,
             long recordOffset,
             String topicId) {
-        int updated = jdbcClient.sql("""
+        int updated = entityManager.createNativeQuery("""
                 UPDATE tb_kafka_projection_offsets
                 SET recovery_snapshot_id = IF(
                         invalid_record_offset IS NULL OR :recordOffset > invalid_record_offset,
@@ -116,12 +118,13 @@ public class ProjectionCheckpointRepository {
                 WHERE consumer_group = :consumerGroup AND topic_name = :topic
                   AND partition_id = :partition AND BINARY topic_id = BINARY :topicId
                 """)
-                .param("consumerGroup", consumerGroup)
-                .param("topic", topic)
-                .param("partition", partition)
-                .param("recordOffset", recordOffset)
-                .param("topicId", topicId)
-                .update();
+                .setHint("jakarta.persistence.query.timeout", QUERY_TIMEOUT_MS)
+                .setParameter("consumerGroup", consumerGroup)
+                .setParameter("topic", topic)
+                .setParameter("partition", partition)
+                .setParameter("recordOffset", recordOffset)
+                .setParameter("topicId", topicId)
+                .executeUpdate();
         if (updated != 1) {
             throw new IllegalStateException("Kafka projection checkpoint generation mismatch");
         }
@@ -133,7 +136,7 @@ public class ProjectionCheckpointRepository {
             long markerOffset,
             String topicId,
             String snapshotId) {
-        int updated = jdbcClient.sql("""
+        int updated = entityManager.createNativeQuery("""
                 UPDATE tb_kafka_projection_offsets
                 SET invalid_record_offset = IF(
                         invalid_record_offset IS NOT NULL
@@ -166,20 +169,21 @@ public class ProjectionCheckpointRepository {
                 WHERE consumer_group = :consumerGroup AND topic_name = :topic
                   AND partition_id = :partition AND BINARY topic_id = BINARY :topicId
                 """)
-                .param("consumerGroup", consumerGroup)
-                .param("topic", topic)
-                .param("partition", partition)
-                .param("markerOffset", markerOffset)
-                .param("topicId", topicId)
-                .param("snapshotId", snapshotId)
-                .update();
+                .setHint("jakarta.persistence.query.timeout", QUERY_TIMEOUT_MS)
+                .setParameter("consumerGroup", consumerGroup)
+                .setParameter("topic", topic)
+                .setParameter("partition", partition)
+                .setParameter("markerOffset", markerOffset)
+                .setParameter("topicId", topicId)
+                .setParameter("snapshotId", snapshotId)
+                .executeUpdate();
         if (updated != 1) {
             throw new IllegalStateException("Kafka projection snapshot generation mismatch");
         }
     }
 
     public void quarantine(String consumerGroup, ConsumerRecord<String, String> record, String reason) {
-        JdbcClient.StatementSpec spec = jdbcClient.sql("""
+        entityManager.createNativeQuery("""
                 INSERT INTO tb_kafka_projection_quarantine
                     (consumer_group, topic_name, partition_id, record_offset, record_key, payload, reason)
                 VALUES (:consumerGroup, :topic, :partition, :recordOffset, :recordKey, :payload, :reason)
@@ -187,58 +191,63 @@ public class ProjectionCheckpointRepository {
                     record_key = VALUES(record_key), payload = VALUES(payload), reason = VALUES(reason),
                     updated_at = CURRENT_TIMESTAMP(6)
                 """)
-                .param("consumerGroup", consumerGroup)
-                .param("topic", record.topic())
-                .param("partition", record.partition())
-                .param("recordOffset", record.offset())
-                .param("reason", reason.length() > 1_000 ? reason.substring(0, 1_000) : reason);
-        spec = record.key() == null
-                ? spec.param("recordKey", null, Types.VARCHAR)
-                : spec.param("recordKey", truncate(record.key(), 512));
-        spec = record.value() == null
-                ? spec.param("payload", null, Types.LONGVARCHAR)
-                : spec.param("payload", record.value());
-        spec.update();
+                .setHint("jakarta.persistence.query.timeout", QUERY_TIMEOUT_MS)
+                .setParameter("consumerGroup", consumerGroup)
+                .setParameter("topic", record.topic())
+                .setParameter("partition", record.partition())
+                .setParameter("recordOffset", record.offset())
+                .setParameter("reason", reason.length() > 1_000 ? reason.substring(0, 1_000) : reason)
+                .setParameter("recordKey", record.key() == null ? null : truncate(record.key(), 512))
+                .setParameter("payload", record.value())
+                .executeUpdate();
     }
 
     public Map<Integer, ProjectionCheckpoint> findByTopic(String consumerGroup, String topic) {
-        return jdbcClient.sql("""
+        List<?> results = entityManager.createNativeQuery("""
                 SELECT partition_id, topic_id, next_offset, invalid_checkpoint_offset,
                        snapshot_completed_offset, invalid_record_offset
                 FROM tb_kafka_projection_offsets
                 WHERE consumer_group = :consumerGroup AND topic_name = :topic
-                """)
-                .param("consumerGroup", consumerGroup)
-                .param("topic", topic)
-                .query((row, rowNum) -> Map.entry(row.getObject("partition_id", Integer.class),
-                        new ProjectionCheckpoint(row.getObject("next_offset", Long.class),
-                                row.getObject("topic_id", String.class),
-                                row.getObject("invalid_checkpoint_offset", Long.class),
-                                row.getObject("snapshot_completed_offset", Long.class),
-                                row.getObject("invalid_record_offset", Long.class))))
-                .list()
-                .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                """, Tuple.class)
+                .setHint("jakarta.persistence.query.timeout", QUERY_TIMEOUT_MS)
+                .setParameter("consumerGroup", consumerGroup)
+                .setParameter("topic", topic)
+                .getResultList();
+        Map<Integer, ProjectionCheckpoint> checkpoints = new HashMap<>();
+        for (Object result : results) {
+            Tuple row = (Tuple) result;
+            checkpoints.put(row.get("partition_id", Number.class).intValue(),
+                    new ProjectionCheckpoint(row.get("next_offset", Number.class).longValue(),
+                            row.get("topic_id", String.class),
+                            nullableOffset(row, "invalid_checkpoint_offset"),
+                            nullableOffset(row, "snapshot_completed_offset"),
+                            nullableOffset(row, "invalid_record_offset")));
+        }
+        return checkpoints;
     }
 
     public Map<Integer, ProjectionBarrier> findBarriers(String consumerGroup, String topic) {
-        return jdbcClient.sql("""
+        List<?> results = entityManager.createNativeQuery("""
                 SELECT partition_id, topic_id, target_offset
                 FROM tb_kafka_projection_barriers
                 WHERE consumer_group = :consumerGroup AND topic_name = :topic
-                """)
-                .param("consumerGroup", consumerGroup)
-                .param("topic", topic)
-                .query((row, rowNum) -> Map.entry(row.getObject("partition_id", Integer.class),
-                        new ProjectionBarrier(row.getObject("topic_id", String.class),
-                                row.getObject("target_offset", Long.class))))
-                .list()
-                .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                """, Tuple.class)
+                .setHint("jakarta.persistence.query.timeout", QUERY_TIMEOUT_MS)
+                .setParameter("consumerGroup", consumerGroup)
+                .setParameter("topic", topic)
+                .getResultList();
+        Map<Integer, ProjectionBarrier> barriers = new HashMap<>();
+        for (Object result : results) {
+            Tuple row = (Tuple) result;
+            barriers.put(row.get("partition_id", Number.class).intValue(),
+                    new ProjectionBarrier(row.get("topic_id", String.class),
+                            row.get("target_offset", Number.class).longValue()));
+        }
+        return barriers;
     }
 
     private void upsertBarrier(String consumerGroup, String topic, String topicId, ProjectionPartitionRange range) {
-        jdbcClient.sql("""
+        entityManager.createNativeQuery("""
                 INSERT INTO tb_kafka_projection_barriers
                     (consumer_group, topic_name, partition_id, topic_id, target_offset)
                 VALUES (:consumerGroup, :topic, :partition, :topicId, :targetOffset)
@@ -247,25 +256,30 @@ public class ProjectionCheckpointRepository {
                         GREATEST(target_offset, VALUES(target_offset)), VALUES(target_offset)),
                     topic_id = VALUES(topic_id), captured_at = CURRENT_TIMESTAMP(6)
                 """)
-                .param("consumerGroup", consumerGroup)
-                .param("topic", topic)
-                .param("partition", range.partition())
-                .param("topicId", topicId)
-                .param("targetOffset", range.endOffset())
-                .update();
+                .setHint("jakarta.persistence.query.timeout", QUERY_TIMEOUT_MS)
+                .setParameter("consumerGroup", consumerGroup)
+                .setParameter("topic", topic)
+                .setParameter("partition", range.partition())
+                .setParameter("topicId", topicId)
+                .setParameter("targetOffset", range.endOffset())
+                .executeUpdate();
     }
 
     private void ensureCheckpoint(String consumerGroup, String topic, int partition, ProjectionSeekDecision decision) {
-        JdbcClient.StatementSpec spec = jdbcClient.sql(ENSURE_CHECKPOINT_SQL)
-                .param("consumerGroup", consumerGroup)
-                .param("topic", topic)
-                .param("partition", partition)
-                .param("topicId", decision.topicId())
-                .param("nextOffset", decision.seekOffset());
-        spec = decision.invalidCheckpointOffset() == null
-                ? spec.param("invalidOffset", null, Types.BIGINT)
-                : spec.param("invalidOffset", decision.invalidCheckpointOffset());
-        spec.update();
+        entityManager.createNativeQuery(ENSURE_CHECKPOINT_SQL)
+                .setHint("jakarta.persistence.query.timeout", QUERY_TIMEOUT_MS)
+                .setParameter("consumerGroup", consumerGroup)
+                .setParameter("topic", topic)
+                .setParameter("partition", partition)
+                .setParameter("topicId", decision.topicId())
+                .setParameter("nextOffset", decision.seekOffset())
+                .setParameter("invalidOffset", decision.invalidCheckpointOffset())
+                .executeUpdate();
+    }
+
+    private static Long nullableOffset(Tuple row, String column) {
+        Number value = row.get(column, Number.class);
+        return value == null ? null : value.longValue();
     }
 
     private static String truncate(String value, int length) {
