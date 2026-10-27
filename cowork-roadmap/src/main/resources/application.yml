@@ -1,70 +1,74 @@
-server:
-  port: 8088
-
 spring:
-  profiles:
-    active: ${APP_CONFIG_PROFILE:local}
-  cloud:
-    config:
-      username: ${CONFIG_CLIENT_USERNAME}
-      password: ${CONFIG_CLIENT_PASSWORD}
-  application:
-    name: cowork-roadmap
-  config:
-    import: "configserver:${CONFIG_SERVER_URL:http://localhost:8761}"
-  # Runtime queries go through R2DBC (reactive). With an R2DBC ConnectionFactory present, Spring Boot's
-  # JDBC DataSourceAutoConfiguration backs off, so Flyway builds its own JDBC DataSource from spring.flyway.url.
-  r2dbc:
-    url: ${SPRING_R2DBC_URL:r2dbc:mysql://localhost:3306/cowork_roadmap?serverZoneId=Asia/Seoul}
-    username: ${MYSQL_USER:cowork}
-    password: ${MYSQL_PASSWORD:}
-  flyway:
-    enabled: true
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/cowork_roadmap?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul}
-    user: ${MYSQL_USER:cowork}
-    password: ${MYSQL_PASSWORD:}
-    locations: classpath:db/migration
+  reactor:
+    context-propagation: auto
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
     consumer:
       auto-offset-reset: earliest
       enable-auto-commit: false
-
-eureka:
-  client:
-    jersey:
-      enabled: false
-    webclient:
-      enabled: false
-    healthcheck:
-      enabled: true
-    service-url:
-      defaultZone: http://localhost:8761/eureka/
-  instance:
-    initial-status: starting
-    prefer-ip-address: true
-    metadata-map:
-      prometheus.scrape: "true"
-      prometheus.path: /actuator/prometheus
-
+    properties:
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
+      sasl.mechanism: ${KAFKA_SASL_MECHANISM:SCRAM-SHA-512}
+      ssl.truststore.type: PEM
+      ssl.truststore.location: ${KAFKA_SSL_CA_LOCATION:}
+  profiles:
+    active: ${APP_CONFIG_PROFILE:local}
+  application:
+    name: cowork-roadmap
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/cowork_roadmap?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul}
+    username: ${MYSQL_USER:cowork}
+    password: ${MYSQL_PASSWORD:}
+    hikari:
+      connection-timeout: 10000
+      data-source-properties:
+        preserveInstants: false
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
 management:
   endpoints:
     web:
       exposure:
-        include: health, info, refresh, busrefresh, prometheus
+        include: health, info, prometheus
   endpoint:
+    prometheus:
+      enabled: true
     health:
       probes:
         enabled: true
       group:
         readiness:
           include: readinessState,teamMemberProjectionReadiness
-    prometheus:
-      enabled: true
   metrics:
     tags:
       application: ${spring.application.name}
-
+kafka:
+  outbox:
+    relay-initial-delay-ms: 1000
+    relay-delay-ms: 1000
+    batch-size: 100
+    claim-lease-ms: 30000
+    send-timeout-ms: 10000
+    max-attempts: 8
+    backoff-initial-ms: 5000
+    backoff-max-ms: 600000
+sdk:
+  logging:
+    not-logging-urls:
+    - /actuator/**
+    - /metrics
+    - /health
+    - /api/health
+server:
+  port: 8088
 springdoc:
   api-docs:
     path: /v3/api-docs

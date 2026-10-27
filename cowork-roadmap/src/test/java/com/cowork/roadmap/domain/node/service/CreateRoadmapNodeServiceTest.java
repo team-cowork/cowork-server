@@ -1,13 +1,14 @@
 package com.cowork.roadmap.domain.node.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
+import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -22,8 +23,6 @@ import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
-import reactor.core.publisher.Mono;
-import reactor.test.StepVerifier;
 import team.themoment.sdk.exception.ExpectedException;
 
 class CreateRoadmapNodeServiceTest {
@@ -40,74 +39,68 @@ class CreateRoadmapNodeServiceTest {
 
     @Test
     void createNode_asRoot_usesNextPositionAfterSiblingMax() {
-        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap(10L)));
-        when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        when(nodeRepository.findNextRootPosition(10L)).thenReturn(Mono.just(2L));
-        when(nodeRepository.save(any())).thenAnswer(invocation -> {
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
+
+        when(nodeRepository.findNextRootPosition(10L)).thenReturn(2L);
+        when(nodeRepository.saveAndFlush(any())).thenAnswer(invocation -> {
             RoadmapNode node = invocation.getArgument(0);
-            return Mono.just(simulateSaved(node, 100L));
+            return simulateSaved(node, 100L);
         });
 
         CreateNodeReqDto request = new CreateNodeReqDto(null, "제목", "내용", null, null);
 
-        StepVerifier.create(createRoadmapNodeService.execute(7L, "ADMIN", 10L, request)).assertNext(response -> {
-            assertThat(response.position()).isEqualTo(2);
-            assertThat(response.parentId()).isNull();
-            assertThat(response.references()).isEmpty();
-        }).verifyComplete();
+        var response = createRoadmapNodeService.execute(7L, "ADMIN", 10L, request);
+        assertThat(response.position()).isEqualTo(2);
+        assertThat(response.parentId()).isNull();
+        assertThat(response.references()).isEmpty();
     }
 
     @Test
     void createNode_withValidParent_usesNextPositionAfterChildMax() {
         RoadmapNode parent = node(50L, 10L);
-        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap(10L)));
-        when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        when(nodeRepository.findByIdForShare(50L)).thenReturn(Mono.just(parent));
-        when(nodeRepository.findNextChildPosition(10L, 50L)).thenReturn(Mono.just(1L));
-        when(nodeRepository.save(any())).thenAnswer(invocation -> {
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
+
+        when(nodeRepository.findByIdForShare(50L)).thenReturn(Optional.of(parent));
+        when(nodeRepository.findNextChildPosition(10L, 50L)).thenReturn(1L);
+        when(nodeRepository.saveAndFlush(any())).thenAnswer(invocation -> {
             RoadmapNode node = invocation.getArgument(0);
-            return Mono.just(simulateSaved(node, 101L));
+            return simulateSaved(node, 101L);
         });
 
         CreateNodeReqDto request = new CreateNodeReqDto(50L, "제목", null, null, null);
 
-        StepVerifier.create(createRoadmapNodeService.execute(7L, "ADMIN", 10L, request)).assertNext(response -> {
-            assertThat(response.position()).isEqualTo(1);
-            assertThat(response.parentId()).isEqualTo(50L);
-        }).verifyComplete();
+        var response = createRoadmapNodeService.execute(7L, "ADMIN", 10L, request);
+        assertThat(response.position()).isEqualTo(1);
+        assertThat(response.parentId()).isEqualTo(50L);
     }
 
     @Test
     void createNode_parentNotFound_failsWithNotFound() {
-        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap(10L)));
-        when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        when(nodeRepository.findByIdForShare(99L)).thenReturn(Mono.empty());
-        // validateParent 에러 뒤 nextPosition 인자가 eager 평가되므로 position stub 필요(NPE 방지).
-        when(nodeRepository.findNextChildPosition(10L, 99L)).thenReturn(Mono.just(0L));
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
+
+        when(nodeRepository.findByIdForShare(99L)).thenReturn(Optional.empty());
+        when(nodeRepository.findNextChildPosition(10L, 99L)).thenReturn(0L);
 
         CreateNodeReqDto request = new CreateNodeReqDto(99L, "제목", null, null, null);
 
-        StepVerifier.create(createRoadmapNodeService.execute(7L, "ADMIN", 10L, request))
-                .expectErrorMatches(error -> error instanceof ExpectedException expected
-                        && expected.getStatusCode() == HttpStatus.NOT_FOUND)
-                .verify();
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> createRoadmapNodeService.execute(7L, "ADMIN", 10L, request));
+        assertTrue(error.getStatusCode() == HttpStatus.NOT_FOUND);
     }
 
     @Test
     void createNode_parentInDifferentRoadmap_failsWithBadRequest() {
         RoadmapNode parent = node(50L, 999L);
-        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Mono.just(roadmap(10L)));
-        when(accessGuard.requireMutable(any(), anyLong(), anyString())).thenReturn(Mono.empty());
-        when(nodeRepository.findByIdForShare(50L)).thenReturn(Mono.just(parent));
-        // validateParent 에러 뒤 nextPosition 인자가 eager 평가되므로 position stub 필요(NPE 방지).
-        when(nodeRepository.findNextChildPosition(10L, 50L)).thenReturn(Mono.just(0L));
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
+
+        when(nodeRepository.findByIdForShare(50L)).thenReturn(Optional.of(parent));
+        when(nodeRepository.findNextChildPosition(10L, 50L)).thenReturn(0L);
 
         CreateNodeReqDto request = new CreateNodeReqDto(50L, "제목", null, null, null);
 
-        StepVerifier.create(createRoadmapNodeService.execute(7L, "ADMIN", 10L, request))
-                .expectErrorMatches(error -> error instanceof ExpectedException expected
-                        && expected.getStatusCode() == HttpStatus.BAD_REQUEST)
-                .verify();
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> createRoadmapNodeService.execute(7L, "ADMIN", 10L, request));
+        assertTrue(error.getStatusCode() == HttpStatus.BAD_REQUEST);
     }
 
     private static Roadmap roadmap(Long id) {
@@ -120,7 +113,7 @@ class CreateRoadmapNodeServiceTest {
 
     // toBuilder()는 상속 필드(createdBy/lastModifiedBy/createdAt/updatedAt)를 인식하지 못해
     // 누락시키므로,
-    // 실제 R2DBC save() 후 auditing이 채운 값을 보존한 엔티티가 반환되는 동작을 흉내낸다.
+    // 실제 JPA saveAndFlush() 후 auditing이 채운 값을 보존한 엔티티가 반환되는 동작을 흉내낸다.
     private static RoadmapNode simulateSaved(RoadmapNode node, Long id) {
         RoadmapNode saved = node.toBuilder().id(id).build();
         saved.setCreatedBy(node.getCreatedBy());

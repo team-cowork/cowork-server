@@ -6,7 +6,6 @@ import io.micrometer.prometheusmetrics.PrometheusMeterRegistry
 import io.vertx.core.DeploymentOptions
 import io.vertx.core.Vertx
 import io.vertx.core.VertxOptions
-import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import io.vertx.micrometer.Label
 import io.vertx.micrometer.MicrometerMetricsFactory
@@ -14,14 +13,8 @@ import io.vertx.micrometer.MicrometerMetricsOptions
 import io.vertx.micrometer.VertxPrometheusOptions
 import org.flywaydb.core.Flyway
 import org.slf4j.LoggerFactory
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.HttpRequest
-import java.net.http.HttpResponse
-import java.time.Duration
 
 private val log = LoggerFactory.getLogger("CoworkPreferenceMain")
-private val PLACEHOLDER_REGEX = Regex("""\$\{([^:}]+)(?::([^}]*))?\}""")
 
 fun main() {
     System.setProperty("vertx.logger-delegate-factory-class-name", "io.vertx.core.logging.SLF4JLogDelegateFactory")
@@ -62,7 +55,7 @@ private fun requireDbCredentials(appConfig: AppConfig) {
     )
     if (missing.isNotEmpty()) {
         log.error(
-            "Required config resolved to empty: {}. Check Vault secret/cowork-preference. Aborting startup.",
+            "Required config resolved to empty: {}. Check the injected DB credentials. Aborting startup.",
             missing.joinToString(", "),
         )
         System.exit(1)
@@ -70,12 +63,9 @@ private fun requireDbCredentials(appConfig: AppConfig) {
 }
 
 private fun loadConfig(): JsonObject {
-    val configServerUrl = System.getenv("CONFIG_SERVER_URL") ?: "http://localhost:8761"
-    val profile = System.getenv("APP_CONFIG_PROFILE") ?: "local"
-
-    log.info("Fetch configuration for profile={}", profile)
-    val serverConfig = fetchFromConfigServer(configServerUrl, profile)
-    return applyEnvironmentOverrides(resolveJsonObject(serverConfig))
+    val poolSize = if (System.getenv("APP_CONFIG_PROFILE") == "prod") 10 else 5
+    val config = JsonObject().put("preference", JsonObject().put("db", JsonObject().put("pool-size", poolSize)))
+    return applyEnvironmentOverrides(config)
 }
 
 private fun applyEnvironmentOverrides(config: JsonObject): JsonObject {
@@ -100,16 +90,12 @@ private fun applyEnvironmentOverrides(config: JsonObject): JsonObject {
             "KAFKA_TOPIC_PROJECT_EVENT" to "preference.kafka.project-topic",
             "KAFKA_GROUP_ID_DM_PARTICIPANT_PROJECTION" to "preference.kafka.dm-participant-consumer-group-id",
             "KAFKA_TOPIC_DM_PARTICIPANT_STATE" to "preference.kafka.dm-participant-topic",
+            "KAFKA_GROUP_ID_WEBHOOK_LEGACY_PROJECTION" to "preference.kafka.webhook-legacy-consumer-group-id",
             "KAFKA_GROUP_ID_TEAM_ROLE_COMMAND" to "preference.kafka.team-role-command-consumer-group-id",
             "KAFKA_GROUP_ID_GITHUB_REPO_SETTING_COMMAND" to
                 "preference.kafka.github-repo-setting-command-consumer-group-id",
             "KAFKA_GROUP_ID_CHANNEL_ROLE_POLICY_COMMAND" to
                 "preference.kafka.channel-role-policy-command-consumer-group-id",
-            "EUREKA_SERVER_URL" to "eureka.url",
-            "EUREKA_ENABLED" to "eureka.enabled",
-            "EUREKA_APP_NAME" to "eureka.app-name",
-            "EUREKA_INSTANCE_ID" to "eureka.instance.id",
-            "APP_ADVERTISE_ADDRESS" to "eureka.instance.host",
         )
 
     mappings.forEach { (environmentKey, configKey) ->
@@ -118,43 +104,6 @@ private fun applyEnvironmentOverrides(config: JsonObject): JsonObject {
         }
     }
     return config
-}
-
-private fun fetchFromConfigServer(baseUrl: String, profile: String): JsonObject {
-    val url = "$baseUrl/cowork-preference/$profile"
-    val client = HttpClient.newHttpClient()
-    val request = HttpRequest.newBuilder()
-        .uri(URI.create(url))
-        .header("Accept", "application/json")
-        .header("Authorization", ControlPlaneAuthentication.authorization(url))
-        .timeout(Duration.ofSeconds(5))
-        .build()
-
-    repeat(3) { attempt ->
-        try {
-            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
-            if (response.statusCode() == 200) return parseSpringConfig(JsonObject(response.body()))
-            log.warn("Config server returned HTTP {} (attempt {})", response.statusCode(), attempt + 1)
-        } catch (e: Exception) {
-            log.warn("Config server unreachable (attempt {}): {}", attempt + 1, e.message)
-        }
-        if (attempt < 2) Thread.sleep(2_000)
-    }
-
-    log.error("Config server unreachable after 3 attempts. Aborting startup.")
-    System.exit(1)
-    error("unreachable")
-}
-
-private fun parseSpringConfig(json: JsonObject): JsonObject {
-    val result = JsonObject()
-    val sources = json.getJsonArray("propertySources") ?: return result
-    // 낮은 우선순위부터 역순으로 처리하여 높은 우선순위가 덮어쓰도록
-    for (i in sources.size() - 1 downTo 0) {
-        val source = (sources.getValue(i) as? JsonObject)?.getJsonObject("source") ?: continue
-        source.fieldNames().forEach { key -> setNested(result, key, source.getValue(key)) }
-    }
-    return result
 }
 
 private fun setNested(root: JsonObject, dotKey: String, value: Any?) {
@@ -166,21 +115,6 @@ private fun setNested(root: JsonObject, dotKey: String, value: Any?) {
         node = node.getJsonObject(part)
     }
     node.put(parts.last(), value)
-}
-
-private fun resolveJsonObject(obj: JsonObject): JsonObject {
-    val resolved = JsonObject()
-    obj.fieldNames().forEach { key -> resolved.put(key, resolveValue(obj.getValue(key))) }
-    return resolved
-}
-
-private fun resolveValue(value: Any?): Any? = when (value) {
-    is String -> PLACEHOLDER_REGEX.replace(value) { match ->
-        System.getenv(match.groupValues[1]) ?: match.groupValues[2]
-    }
-    is JsonObject -> resolveJsonObject(value)
-    is JsonArray -> JsonArray(value.map { resolveValue(it) })
-    else -> value
 }
 
 private fun runFlyway(config: AppConfig) {

@@ -13,7 +13,7 @@
 - Go / Chi
 - Go modules + Makefile
 - GORM / SQLite
-- Kafka / Firebase Admin SDK / Eureka / Config Server
+- Kafka / Firebase Admin SDK
 
 ## 포트
 
@@ -23,11 +23,17 @@
 
 ## 환경변수
 
-아래 값은 [로컬 Compose 설정](../deploy/compose/stack.yaml)의 컨테이너 입력입니다.
+설정은 환경변수와 secret 파일에서 읽습니다. 운영의 서비스 등록과 내부 통신 인증은 Nomad와 Consul이 담당합니다.
 
-| 변수                     | 기본값                      | 설명                                                          |
-|--------------------------|-----------------------------|---------------------------------------------------------------|
-| `APP_CONFIG_PROFILE`     | `local`                     | 설정 프로파일                                                 |
-| `CONFIG_SERVER_URL`      | `http://cowork-config:8761` | 필수 Config Server 연결                                       |
-| `CONFIG_CLIENT_USERNAME` | 없음                        | 필수. `.env`의 `CONFIG_CLIENT_NOTIFICATION_USERNAME`에서 전달 |
-| `CONFIG_CLIENT_PASSWORD` | 없음                        | 필수. `.env`의 `CONFIG_CLIENT_NOTIFICATION_PASSWORD`에서 전달 |
+| 변수 | 기본값 | 설명 |
+|------|--------|------|
+| `PORT` | `8086` | HTTP와 SSE 포트 |
+| `DB_PATH` | 없음 | 필수 SQLite 영속 파일 경로 |
+| `FCM_CREDENTIALS_FILE` | 없음 | Firebase 서비스 계정 JSON 파일. JSON 환경변수보다 우선 |
+| `FCM_CREDENTIALS_JSON` | 없음 | 파일을 지정하지 않을 때 필수인 Firebase JSON |
+| `FCM_DATA_ONLY` | `false` | FCM data 메시지만 발행할지 여부 |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9094` | Kafka broker 목록 |
+| `KAFKA_SECURITY_PROTOCOL` | `PLAINTEXT` | 로컬은 PLAINTEXT, 운영은 SASL_SSL |
+| `KAFKA_SASL_MECHANISM` | `SCRAM-SHA-512` | SCRAM-SHA-256 또는 SCRAM-SHA-512 |
+| `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` | 없음 | SASL_SSL에서 필수인 서비스 계정 |
+| `KAFKA_SSL_CA_LOCATION` | 시스템 CA | Kafka CA PEM 파일 경로 |

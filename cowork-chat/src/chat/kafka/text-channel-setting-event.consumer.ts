@@ -7,7 +7,7 @@ import {
 import {ConfigService} from '@nestjs/config';
 import {Consumer, Kafka} from 'kafkajs';
 import {DicoshotService} from 'dicoshot-nest';
-import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {getKafkaClientConfig} from '../../common/config/config.util';
 import {parseEventTime} from '../../common/util/event-time.util';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
@@ -42,7 +42,7 @@ export class TextChannelSettingEventConsumer implements OnModuleInit, OnModuleDe
     async onModuleInit(): Promise<void> {
         const kafka = new Kafka({
             clientId: 'cowork-chat-text-channel-setting-event',
-            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
+            ...getKafkaClientConfig(this.configService),
         });
         const stream = PROJECTION_STREAMS.textChannelSetting;
         this.consumer = kafka.consumer({groupId: stream.groupId});

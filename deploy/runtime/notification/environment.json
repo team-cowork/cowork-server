@@ -1,0 +1,10 @@
+{
+  "APP_CONFIG_PROFILE": "prod",
+  "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.167:9094",
+  "DB_PATH": "/app/data/notification.db",
+  "FCM_DATA_ONLY": "false",
+  "KAFKA_SECURITY_PROTOCOL": "SASL_SSL",
+  "KAFKA_SASL_MECHANISM": "SCRAM-SHA-512",
+  "KAFKA_SASL_USERNAME": "cowork-notification",
+  "KAFKA_SSL_CA_LOCATION": "/etc/cowork/ca/ca.crt"
+}

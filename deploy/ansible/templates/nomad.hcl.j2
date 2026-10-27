@@ -1,0 +1,114 @@
+name = "{{ inventory_hostname }}"
+region = "global"
+datacenter = "gsm"
+data_dir = "/var/lib/nomad"
+bind_addr = "{{ private_ip }}"
+addresses { http = "127.0.0.1 {{ private_ip }}" }
+advertise {
+  http = "{{ private_ip }}"
+  rpc = "{{ private_ip }}"
+  serf = "{{ private_ip }}"
+}
+acl { enabled = true }
+tls {
+  http = true
+  rpc = true
+  ca_file = "/etc/cowork/ca/ca.crt"
+  cert_file = "/etc/cowork/tls/host.crt"
+  key_file = "/etc/cowork/tls/host.key"
+  verify_server_hostname = true
+  verify_https_client = false
+}
+{% if inventory_hostname in groups['control_plane'] %}
+server {
+  enabled = true
+  bootstrap_expect = 1
+  encrypt = "{{ lookup('ansible.builtin.file', platform_state_dir ~ '/nomad-gossip.key') | trim }}"
+}
+{% else %}
+client {
+  enabled = true
+  servers = ["{{ platform_control_ip }}:4647"]
+  network_interface = "{{ ansible_facts.default_ipv4.interface }}"
+  cni_path = "/opt/cni/bin"
+  cni_config_dir = "/etc/cni/net.d"
+  min_dynamic_port = 22000
+  max_dynamic_port = 22999
+  meta { cowork_vm = "{{ inventory_hostname }}" }
+  reserved { memory = 512 }
+  host_network "private" { cidr = "{{ private_ip }}/32" }
+  host_volume "cowork-ca" {
+    path = "/etc/cowork/ca"
+    read_only = true
+  }
+{% if inventory_hostname == 'kafka' %}
+  host_volume "kafka-tls" {
+    path = "/etc/cowork/kafka-tls"
+    read_only = true
+  }
+{% endif %}
+{% if inventory_hostname == 'monitoring' %}
+  host_volume "monitoring-ingress-tls" {
+    path = "/etc/cowork/ingress-tls"
+    read_only = true
+  }
+{% endif %}
+{% for volume in platform_data_volumes.get(inventory_hostname, []) %}
+  host_volume "{{ volume.name }}" {
+    path = "/var/lib/cowork/data/{{ volume.name }}"
+    read_only = false
+  }
+{% endfor %}
+}
+plugin "docker" {
+  config {
+    infra_image = "{{ platform_versions.pause.image }}"
+    extra_labels = ["job_name", "task_name", "namespace"]
+    allow_privileged = false
+    volumes { enabled = false }
+{% if platform_docker_auth.stat.exists | default(false) %}
+    auth { config = "/etc/nomad.d/docker-auth.json" }
+{% endif %}
+  }
+}
+{% endif %}
+consul {
+  address = "127.0.0.1:8501"
+  ssl = true
+  verify_ssl = true
+  ca_file = "/etc/cowork/ca/ca.crt"
+  grpc_address = "127.0.0.1:8503"
+  grpc_ca_file = "/etc/cowork/ca/ca.crt"
+  auto_advertise = false
+  server_auto_join = false
+  client_auto_join = false
+  service_auth_method = "nomad-workloads"
+  task_auth_method = "nomad-workloads"
+{% set nomad_token = lookup('ansible.builtin.file', platform_state_dir ~ '/tokens/' ~ inventory_hostname ~ '.nomad-consul', errors='ignore') %}
+{% if nomad_token %}
+  token = "{{ nomad_token | trim }}"
+{% endif %}
+  service_identity {
+    aud = ["consul.io"]
+    ttl = "1h"
+  }
+  task_identity {
+    aud = ["consul.io"]
+    ttl = "1h"
+  }
+}
+vault {
+  enabled = true
+  address = "https://{{ platform_vault_ip }}:8210"
+  ca_file = "/etc/cowork/ca/ca.crt"
+  jwt_auth_backend_path = "jwt-nomad"
+  default_identity {
+    aud = ["vault.io"]
+    ttl = "1h"
+  }
+}
+telemetry {
+  publish_allocation_metrics = true
+  publish_node_metrics = true
+  prometheus_metrics = true
+}

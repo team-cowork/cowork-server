@@ -7,7 +7,7 @@ import {
 import {ConfigService} from '@nestjs/config';
 import {Consumer, Kafka} from 'kafkajs';
 import {DicoshotService} from 'dicoshot-nest';
-import {getRequiredCsvConfig} from '../../common/config/config.util';
+import {getKafkaClientConfig} from '../../common/config/config.util';
 import {parseEventTime} from '../../common/util/event-time.util';
 import {isWebhookStateEvent} from '../webhook/webhook-policy';
 import {buildErrorFields} from '../../common/util/discord-alert.util';
@@ -31,7 +31,7 @@ export class WebhookEventConsumer implements OnModuleInit, OnModuleDestroy {
     async onModuleInit(): Promise<void> {
         const kafka = new Kafka({
             clientId: 'cowork-chat-webhook-event',
-            brokers: getRequiredCsvConfig(this.configService, 'KAFKA_BOOTSTRAP_SERVERS'),
+            ...getKafkaClientConfig(this.configService),
         });
         const stream = PROJECTION_STREAMS.webhook;
         this.consumer = kafka.consumer({groupId: stream.groupId});

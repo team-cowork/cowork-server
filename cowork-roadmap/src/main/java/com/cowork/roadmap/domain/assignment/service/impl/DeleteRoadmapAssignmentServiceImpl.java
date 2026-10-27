@@ -10,7 +10,6 @@ import com.cowork.roadmap.domain.assignment.service.DeleteRoadmapAssignmentServi
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Service
@@ -24,18 +23,16 @@ public class DeleteRoadmapAssignmentServiceImpl implements DeleteRoadmapAssignme
 
     @Override
     @Transactional
-    public Mono<Void> execute(Long userId, String userRole, Long assignmentId) {
-        return findAssignmentOrThrow(assignmentId).flatMap(assignment -> {
-            if (userId.equals(assignment.getAssignedBy()) || ROLE_ADMIN.equals(userRole)) {
-                return assignmentRepository.delete(assignment);
-            }
-            return accessGuard.requireTeamManagerOrAdmin(userId, userRole, assignment.getTeamId())
-                    .then(Mono.defer(() -> assignmentRepository.delete(assignment)));
-        });
+    public void execute(Long userId, String userRole, Long assignmentId) {
+        RoadmapAssignment assignment = findAssignmentOrThrow(assignmentId);
+        if (!userId.equals(assignment.getAssignedBy()) && !ROLE_ADMIN.equals(userRole)) {
+            accessGuard.requireTeamManagerOrAdmin(userId, userRole, assignment.getTeamId());
+        }
+        assignmentRepository.delete(assignment);
     }
 
-    private Mono<RoadmapAssignment> findAssignmentOrThrow(Long assignmentId) {
+    private RoadmapAssignment findAssignmentOrThrow(Long assignmentId) {
         return assignmentRepository.findById(assignmentId)
-                .switchIfEmpty(Mono.error(new ExpectedException("과제를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)));
+                .orElseThrow(() -> new ExpectedException("과제를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
     }
 }

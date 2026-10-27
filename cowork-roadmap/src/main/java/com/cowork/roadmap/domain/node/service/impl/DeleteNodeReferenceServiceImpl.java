@@ -10,7 +10,6 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Mono;
 
 @Service
 @RequiredArgsConstructor
@@ -23,11 +22,11 @@ public class DeleteNodeReferenceServiceImpl implements DeleteNodeReferenceServic
 
     @Override
     @Transactional
-    public Mono<Void> execute(Long userId, String userRole, Long referenceId) {
-        return nodeLookupSupport.findReferenceOrThrow(referenceId)
-                .flatMap(ref -> nodeLookupSupport.findNodeOrThrow(ref.getNodeId())
-                        .flatMap(node -> roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId())
-                                .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
-                                        .then(Mono.defer(() -> referenceRepository.delete(ref))))));
+    public void execute(Long userId, String userRole, Long referenceId) {
+        var ref = nodeLookupSupport.findReferenceOrThrow(referenceId);
+        var node = nodeLookupSupport.findNodeOrThrow(ref.getNodeId());
+        var roadmap = roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId());
+        accessGuard.requireMutable(roadmap, userId, userRole);
+        referenceRepository.delete(ref);
     }
 }

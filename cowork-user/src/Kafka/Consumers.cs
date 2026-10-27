@@ -115,7 +115,7 @@ public sealed class Consumers(AppConfig config, ProjectionReadiness readiness, K
 
     void RunActionConsumer(string topic, string groupId, Func<KafkaRecord, Task> handle, CancellationToken cancellationToken)
     {
-        using var consumer = new ConsumerBuilder<byte[], byte[]>(new ConsumerConfig
+        using var consumer = new ConsumerBuilder<byte[], byte[]>(new ConsumerConfig(config.KafkaSecurity.CreateClientConfig())
         {
             BootstrapServers = config.KafkaBootstrapServers,
             GroupId = groupId,
@@ -167,7 +167,7 @@ public sealed class Consumers(AppConfig config, ProjectionReadiness readiness, K
             }
         }
 
-        using var consumer = new ConsumerBuilder<byte[], byte[]>(new ConsumerConfig
+        using var consumer = new ConsumerBuilder<byte[], byte[]>(new ConsumerConfig(config.KafkaSecurity.CreateClientConfig())
             {
                 BootstrapServers = config.KafkaBootstrapServers,
                 GroupId = groupId,

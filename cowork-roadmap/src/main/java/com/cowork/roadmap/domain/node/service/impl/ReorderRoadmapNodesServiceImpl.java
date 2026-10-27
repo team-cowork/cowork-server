@@ -20,7 +20,6 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import lombok.RequiredArgsConstructor;
-import reactor.core.publisher.Mono;
 import team.themoment.sdk.exception.ExpectedException;
 
 @Service
@@ -33,44 +32,39 @@ public class ReorderRoadmapNodesServiceImpl implements ReorderRoadmapNodesServic
 
     @Override
     @Transactional
-    public Mono<Void> execute(Long userId, String userRole, Long roadmapId, ReorderNodesReqDto request) {
-        return roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId)
-                .flatMap(roadmap -> accessGuard.requireMutable(roadmap, userId, userRole)
-                        .then(Mono
-                                .defer(() -> nodeRepository.findByRoadmapIdOrderByPositionAsc(roadmapId).collectList()))
-                        .flatMap(all -> {
-                            List<RoadmapNode> siblings = all.stream()
-                                    .filter(node -> Objects.equals(node.getParentId(), request.parentId()))
-                                    .toList();
-                            Set<Long> siblingIds = new HashSet<>();
-                            siblings.forEach(node -> siblingIds.add(node.getId()));
-                            Set<Long> requested = new HashSet<>(request.orderedNodeIds());
-                            if (requested.size() != request.orderedNodeIds().size() || !requested.equals(siblingIds)) {
-                                return Mono.error(
-                                        new ExpectedException("orderedNodeIds는 해당 부모의 모든 자식을 중복 없이 정확히 포함해야 합니다.",
-                                                HttpStatus.BAD_REQUEST));
-                            }
-                            Map<Long, RoadmapNode> byId = new HashMap<>();
-                            siblings.forEach(node -> byId.put(node.getId(), node));
-                            List<RoadmapNode> parked = new ArrayList<>();
-                            List<RoadmapNode> updated = new ArrayList<>();
-                            List<Long> ordered = request.orderedNodeIds();
-                            for (int i = 0; i < ordered.size(); i++) {
-                                RoadmapNode node = byId.get(ordered.get(i));
-                                if (node.getPosition() != i) {
-                                    parked.add(withPosition(node, -1 - i, userId));
-                                }
-                                updated.add(withPosition(node, i, userId));
-                            }
-                            // (roadmap_id, parent_key, position) 유일성 제약이 행 단위로 검사되므로 이동할 노드를 음수 임시
-                            // position으로 먼저 비운 뒤 최종 position을 저장한다.
-                            return nodeRepository.saveAll(parked).thenMany(nodeRepository.saveAll(updated)).then();
-                        }));
+    public void execute(Long userId, String userRole, Long roadmapId, ReorderNodesReqDto request) {
+        var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
+        accessGuard.requireMutable(roadmap, userId, userRole);
+        List<RoadmapNode> siblings = nodeRepository.findByRoadmapIdOrderByPositionAsc(roadmapId)
+                .stream()
+                .filter(node -> Objects.equals(node.getParentId(), request.parentId()))
+                .toList();
+        Set<Long> siblingIds = new HashSet<>();
+        siblings.forEach(node -> siblingIds.add(node.getId()));
+        Set<Long> requested = new HashSet<>(request.orderedNodeIds());
+        if (requested.size() != request.orderedNodeIds().size() || !requested.equals(siblingIds)) {
+            throw new ExpectedException("orderedNodeIds는 해당 부모의 모든 자식을 중복 없이 정확히 포함해야 합니다.", HttpStatus.BAD_REQUEST);
+        }
+        Map<Long, RoadmapNode> byId = new HashMap<>();
+        siblings.forEach(node -> byId.put(node.getId(), node));
+        List<RoadmapNode> parked = new ArrayList<>();
+        List<RoadmapNode> updated = new ArrayList<>();
+        List<Long> ordered = request.orderedNodeIds();
+        for (int i = 0; i < ordered.size(); i++) {
+            RoadmapNode node = byId.get(ordered.get(i));
+            if (node.getPosition() != i) {
+                parked.add(withPosition(node, -1 - i, userId));
+            }
+            updated.add(withPosition(node, i, userId));
+        }
+        // 유일성 제약과 충돌하지 않도록 임시 position을 DB에 반영한 뒤 최종 position을 저장한다.
+        nodeRepository.saveAllAndFlush(parked);
+        nodeRepository.saveAll(updated);
     }
 
     private RoadmapNode withPosition(RoadmapNode node, int position, Long userId) {
         RoadmapNode reordered = node.toBuilder().position(position).build();
-        reordered.copyAuditFrom(node);
+        reordered.prepareUpdateFrom(node);
         reordered.setLastModifiedBy(userId);
         return reordered;
     }
