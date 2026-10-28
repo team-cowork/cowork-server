@@ -20,6 +20,7 @@ lombok = "1.18.48"
 micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus" }
 spring-boot-starter-web = { module = "org.springframework.boot:spring-boot-starter-web" }
 spring-boot-starter-restclient = { module = "org.springframework.boot:spring-boot-starter-restclient" }
+spring-boot-starter-webclient = { module = "org.springframework.boot:spring-boot-starter-webclient" }
 spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }
 spring-boot-starter-data-jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
 spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }

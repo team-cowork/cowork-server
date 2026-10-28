@@ -19,13 +19,6 @@ variable "vault_mount" {
 variable "config_files" {
   type = map(string)
 }
-variable "runtime_env" {
-  type = map(string)
-  default = {
-    DB_NAME     = "cowork_voice"
-    DB_USERNAME = "cowork_voice"
-  }
-}
 
 job "cowork-voice-db" {
   datacenters = ["gsm"]
@@ -40,7 +33,7 @@ job "cowork-voice-db" {
     shutdown_delay = "5s"
     # A changed credential or initializer needs a fresh allocation to rerun poststart.
     meta {
-      initialization = sha256(jsonencode({ version = var.secret_version, scripts = var.config_files, identity = var.runtime_env }))
+      initialization = sha256(jsonencode({ version = var.secret_version, scripts = var.config_files }))
     }
     network {
       mode = "cni/cowork"
@@ -178,7 +171,6 @@ ENV
     }
     task "initialize" {
       driver = "docker"
-      env    = var.runtime_env
       lifecycle {
         hook    = "poststart"
         sidecar = false
@@ -210,6 +202,8 @@ ENV
       template {
         data                 = <<-ENV
 {{ with secret "${var.vault_mount}/data/nomad/data/voice?version=${var.secret_version}" }}
+DB_NAME={{ .Data.data.DB_NAME | toJSON }}
+DB_USERNAME={{ .Data.data.DB_USERNAME | toJSON }}
 DB_ADMIN_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
 DB_PASSWORD={{ .Data.data.DB_PASSWORD | toJSON }}
 DB_MONITORING_PASSWORD={{ .Data.data.DB_MONITORING_PASSWORD | toJSON }}
@@ -240,10 +234,10 @@ ENV
     }
     task "exporter" {
       driver = "docker"
-      env = merge(var.runtime_env, {
+      env {
         MONGODB_URI  = "mongodb://127.0.0.1:27017/admin?authSource=admin"
         MONGODB_USER = "cowork_monitoring"
-      })
+      }
       config {
         image = "percona/mongodb_exporter:0.53.0@sha256:0214e482b2cd4b1849f9f4dcef90d328a99ba3727dd1103e7da48b42060bcec1"
         args  = ["--compatible-mode"]

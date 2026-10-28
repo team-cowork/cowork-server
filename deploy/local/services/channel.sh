@@ -8,9 +8,7 @@ SERVICE_NAME="cowork-channel"
 SERVICE_WORKDIR="$PROJECT_ROOT"
 SERVICE_COMMAND=(
   bash -lc
-  'export GITHUB_ACCOUNT_SHARE_CLIENT_ID="${COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID:-}"
-   export GITHUB_ACCOUNT_SHARE_CLIENT_SECRET="${COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET:-}"
-   export DB_HOST="${DB_HOST:-localhost}"
+  'export DB_HOST="${DB_HOST:-localhost}"
    export DB_PORT="${DB_PORT:-3306}"
    export DB_NAME="${DB_NAME:-cowork_channel}"
    export DB_USERNAME="${DB_USERNAME:-${MYSQL_USER}}"

@@ -1,3 +1,5 @@
+[[[ with secret "COWORK_MONITORING_SECRET_PATH" ]]]
+[[[ $webOrigin := index (.Data.data.PUBLIC_WEB_ORIGINS | split ",") 0 | trimSpace ]]]
 modules:
   http_2xx:
     prober: http
@@ -62,11 +64,11 @@ modules:
       follow_redirects: false
       body_size_limit: 64KB
       headers:
-        Origin: COWORK_WEB_ORIGIN
+        Origin: [[[ $webOrigin | toJSON ]]]
         Access-Control-Request-Method: GET
       fail_if_header_not_matches:
         - header: Access-Control-Allow-Origin
-          regexp: '^\QCOWORK_WEB_ORIGIN\E$'
+          regexp: [[[ printf "^\\Q%s\\E$" $webOrigin | toJSON ]]]
   tls_vault_private:
     prober: http
     timeout: 5s
@@ -79,3 +81,4 @@ modules:
       valid_status_codes: [200, 429, 472, 473, 501, 503]
       tls_config:
         ca_file: /etc/cowork/ca/ca.crt
+[[[ end ]]]
