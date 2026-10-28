@@ -122,7 +122,7 @@ export class ProjectionDatasetRepository {
                     targetOffsets,
                 },
             },
-            {upsert: true, new: true},
+            {upsert: true, returnDocument: 'after'},
         ).lean<ProjectionDataset>();
         return this.toState(created);
     }
@@ -156,7 +156,7 @@ export class ProjectionDatasetRepository {
                     targetOffsets: [],
                 },
             },
-            {upsert: expectedDataset === undefined, new: true},
+            {upsert: expectedDataset === undefined, returnDocument: 'after'},
         ).lean<ProjectionDataset | null>();
         if (!dataset) {
             const current = await this.find(stream.name as ProjectionStreamName);
@@ -205,7 +205,7 @@ export class ProjectionDatasetRepository {
                 $setOnInsert: {activationDocumentCount: 0},
                 $unset: {activatedAt: ''},
             },
-            {upsert: expectedDatasetGeneration === undefined, new: true},
+            {upsert: expectedDatasetGeneration === undefined, returnDocument: 'after'},
         ).lean<ProjectionDataset | null>();
         if (!dataset) {
             const current = await this.find(stream.name as ProjectionStreamName);
