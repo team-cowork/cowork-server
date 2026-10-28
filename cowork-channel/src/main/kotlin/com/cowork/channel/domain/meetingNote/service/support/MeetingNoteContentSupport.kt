@@ -9,9 +9,7 @@ import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.ObjectReader
 
 @Component
-class MeetingNoteContentSupport(
-    objectMapper: ObjectMapper,
-) {
+class MeetingNoteContentSupport(objectMapper: ObjectMapper) {
 
     // 중복 키는 파서마다 해석이 달라 클라이언트별로 다른 내용이 보일 수 있으므로 거부한다.
     private val reader: ObjectReader = objectMapper.reader().with(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
