@@ -803,6 +803,13 @@ export class MessageRepository {
         return count;
     }
 
+    /**
+    삭제되지 않은 메시지가 해당 채널에 있는지 확인합니다. 읽음 위치로 채택할 수 있는 메시지인지 검증하는 데 사용합니다.
+    */
+    async existsInChannel(messageId: string, channelId: number): Promise<boolean> {
+        return (await this.messageModel.exists({_id: messageId, channelId, webhookDeleted: {$ne: true}})) !== null;
+    }
+
     async countUnread(channelId: number, afterId: Types.ObjectId | null): Promise<number> {
         const filter: Record<string, unknown> = {
             webhookDeleted: {$ne: true},
