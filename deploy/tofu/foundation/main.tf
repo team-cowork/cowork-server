@@ -116,7 +116,4 @@ resource "vault_jwt_auth_backend_role" "workload" {
   token_ttl               = 1800
   depends_on              = [vault_generic_endpoint.nomad_jwt]
 }
-output "job_versions" { value = tomap({}) }
-output "expected_jobs" { value = tomap({}) }
-
 output "job_modify_indices" { value = tomap({}) }
