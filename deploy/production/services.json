@@ -10,7 +10,12 @@
     "optional_secrets": [],
     "immutable_secrets": [
       "WEBHOOK_URL_SIGNING_KEY"
-    ]
+    ],
+    "variable_bindings": {
+      "PUBLIC_API_BASE_URL": "PUBLIC_API_BASE_URL",
+      "PUBLIC_WEB_ORIGINS": "PUBLIC_WEB_ORIGINS",
+      "S3_BUCKET": "S3_BUCKET"
+    }
   },
   "authorization": {
     "environment": "Prod-CD(authorization)",
@@ -30,7 +35,22 @@
     "immutable_secrets": [
       "DB_ADMIN_PASSWORD"
     ],
-    "kafka_principal": "cowork-authorization"
+    "kafka_principal": "cowork-authorization",
+    "variable_bindings": {
+      "DATAGSM_CLIENT_ID": "DATAGSM_CLIENT_ID",
+      "JWT_ACCESS_EXPIRE": "JWT_ACCESS_EXPIRE",
+      "JWT_REFRESH_EXPIRE": "JWT_REFRESH_EXPIRE",
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME"
+    },
+    "optional_variables": [
+      "JWT_ACCESS_EXPIRE",
+      "JWT_REFRESH_EXPIRE"
+    ],
+    "data_variable_bindings": {
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME"
+    }
   },
   "preference": {
     "environment": "Prod-CD(preference)",
@@ -50,7 +70,15 @@
       "WEBHOOK_SECRET_ENCRYPTION_KEY",
       "DB_ADMIN_PASSWORD"
     ],
-    "kafka_principal": "cowork-preference"
+    "kafka_principal": "cowork-preference",
+    "variable_bindings": {
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME"
+    },
+    "data_variable_bindings": {
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME"
+    }
   },
   "user": {
     "environment": "Prod-CD(user)",
@@ -78,8 +106,25 @@
         "S3_ADMIN_ACCESS_KEY",
         "S3_ADMIN_SECRET_KEY",
         "S3_ACCESS_KEY",
-        "S3_SECRET_KEY"
+        "S3_SECRET_KEY",
+        "PUBLIC_WEB_ORIGINS",
+        "S3_BUCKET",
+        "S3_REGION"
       ]
+    },
+    "variable_bindings": {
+      "PUBLIC_API_BASE_URL": "PUBLIC_API_BASE_URL",
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME",
+      "S3_BUCKET": "S3_BUCKET",
+      "S3_REGION": "S3_REGION"
+    },
+    "data_variable_bindings": {
+      "PUBLIC_WEB_ORIGINS": "PUBLIC_WEB_ORIGINS",
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME",
+      "S3_BUCKET": "S3_BUCKET",
+      "S3_REGION": "S3_REGION"
     }
   },
   "team": {
@@ -109,8 +154,26 @@
         "S3_ADMIN_ACCESS_KEY",
         "S3_ADMIN_SECRET_KEY",
         "S3_ACCESS_KEY",
-        "S3_SECRET_KEY"
+        "S3_SECRET_KEY",
+        "PUBLIC_WEB_ORIGINS",
+        "S3_BUCKET",
+        "S3_REGION"
       ]
+    },
+    "variable_bindings": {
+      "PUBLIC_API_BASE_URL": "PUBLIC_API_BASE_URL",
+      "COWORK_GITHUB_APP_SLUG": "COWORK_GITHUB_APP_SLUG",
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME",
+      "S3_BUCKET": "S3_BUCKET",
+      "S3_REGION": "S3_REGION"
+    },
+    "data_variable_bindings": {
+      "PUBLIC_WEB_ORIGINS": "PUBLIC_WEB_ORIGINS",
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME",
+      "S3_BUCKET": "S3_BUCKET",
+      "S3_REGION": "S3_REGION"
     }
   },
   "channel": {
@@ -141,7 +204,29 @@
       "ACCOUNT_CREDENTIAL_ENCRYPTION_KEY",
       "DB_ADMIN_PASSWORD"
     ],
-    "kafka_principal": "cowork-channel"
+    "kafka_principal": "cowork-channel",
+    "variable_bindings": {
+      "PUBLIC_API_BASE_URL": "PUBLIC_API_BASE_URL",
+      "PUBLIC_WEB_ORIGINS": "PUBLIC_WEB_ORIGINS",
+      "COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID": "COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID",
+      "NOTION_ACCOUNT_SHARE_CLIENT_ID": "NOTION_ACCOUNT_SHARE_CLIENT_ID",
+      "JIRA_ACCOUNT_SHARE_CLIENT_ID": "JIRA_ACCOUNT_SHARE_CLIENT_ID",
+      "GOOGLE_ACCOUNT_SHARE_CLIENT_ID": "GOOGLE_ACCOUNT_SHARE_CLIENT_ID",
+      "FACEBOOK_ACCOUNT_SHARE_CLIENT_ID": "FACEBOOK_ACCOUNT_SHARE_CLIENT_ID",
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME"
+    },
+    "optional_variables": [
+      "COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID",
+      "NOTION_ACCOUNT_SHARE_CLIENT_ID",
+      "JIRA_ACCOUNT_SHARE_CLIENT_ID",
+      "GOOGLE_ACCOUNT_SHARE_CLIENT_ID",
+      "FACEBOOK_ACCOUNT_SHARE_CLIENT_ID"
+    ],
+    "data_variable_bindings": {
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME"
+    }
   },
   "notification": {
     "environment": "Prod-CD(notification)",
@@ -151,7 +236,13 @@
     "data_secret_bindings": {},
     "optional_secrets": [],
     "immutable_secrets": [],
-    "kafka_principal": "cowork-notification"
+    "kafka_principal": "cowork-notification",
+    "variable_bindings": {
+      "FCM_DATA_ONLY": "FCM_DATA_ONLY"
+    },
+    "optional_variables": [
+      "FCM_DATA_ONLY"
+    ]
   },
   "chat": {
     "environment": "Prod-CD(chat)",
@@ -186,12 +277,29 @@
         "S3_ADMIN_ACCESS_KEY",
         "S3_ADMIN_SECRET_KEY",
         "S3_ACCESS_KEY",
-        "S3_SECRET_KEY"
+        "S3_SECRET_KEY",
+        "PUBLIC_WEB_ORIGINS",
+        "S3_BUCKET",
+        "S3_REGION"
       ],
       "search": [
         "ELASTICSEARCH_ADMIN_PASSWORD",
         "ELASTICSEARCH_PASSWORD"
       ]
+    },
+    "variable_bindings": {
+      "PUBLIC_API_BASE_URL": "PUBLIC_API_BASE_URL",
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME",
+      "S3_BUCKET": "S3_BUCKET",
+      "S3_REGION": "S3_REGION"
+    },
+    "data_variable_bindings": {
+      "PUBLIC_WEB_ORIGINS": "PUBLIC_WEB_ORIGINS",
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME",
+      "S3_BUCKET": "S3_BUCKET",
+      "S3_REGION": "S3_REGION"
     }
   },
   "voice": {
@@ -218,6 +326,15 @@
         "LIVEKIT_API_KEY",
         "LIVEKIT_API_SECRET"
       ]
+    },
+    "variable_bindings": {
+      "LIVEKIT_WS_URL": "LIVEKIT_WS_URL",
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME"
+    },
+    "data_variable_bindings": {
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME"
     }
   },
   "project": {
@@ -235,7 +352,15 @@
     "immutable_secrets": [
       "DB_ADMIN_PASSWORD"
     ],
-    "kafka_principal": "cowork-project"
+    "kafka_principal": "cowork-project",
+    "variable_bindings": {
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME"
+    },
+    "data_variable_bindings": {
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME"
+    }
   },
   "roadmap": {
     "environment": "Prod-CD(roadmap)",
@@ -251,7 +376,15 @@
     "immutable_secrets": [
       "DB_ADMIN_PASSWORD"
     ],
-    "kafka_principal": "cowork-roadmap"
+    "kafka_principal": "cowork-roadmap",
+    "variable_bindings": {
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME"
+    },
+    "data_variable_bindings": {
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME"
+    }
   },
   "github": {
     "environment": "Prod-CD(github)",
@@ -263,7 +396,10 @@
     "data_secret_bindings": {},
     "optional_secrets": [],
     "immutable_secrets": [],
-    "kafka_principal": "cowork-github"
+    "kafka_principal": "cowork-github",
+    "variable_bindings": {
+      "GITHUB_APP_ID": "COWORK_GITHUB_APP_ID"
+    }
   },
   "monitoring": {
     "environment": "Prod-CD(monitoring)",
@@ -274,7 +410,12 @@
     "data_secret_bindings": {},
     "optional_secrets": [],
     "immutable_secrets": [],
-    "kafka_principal": "cowork-monitoring"
+    "kafka_principal": "cowork-monitoring",
+    "variable_bindings": {
+      "GRAFANA_ROOT_URL": "GRAFANA_ROOT_URL",
+      "PUBLIC_API_BASE_URL": "PUBLIC_API_BASE_URL",
+      "PUBLIC_WEB_ORIGINS": "PUBLIC_WEB_ORIGINS"
+    }
   },
   "kafka": {
     "environment": "Prod-IaC",

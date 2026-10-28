@@ -203,7 +203,9 @@ def prepare(args):
         names = set(spec.get("secret_bindings", {}).values()) | set(spec.get("data_secret_bindings", {}).values())
         if spec.get("kafka_principal"):
             names.add("KAFKA_CREDENTIALS_JSON")
-        sync.append({"service": name, "environment": spec["environment"], "secret_names": sorted(names)})
+        variables = set(spec.get("variable_bindings", {}).values()) | set(spec.get("data_variable_bindings", {}).values())
+        sync.append({"service": name, "environment": spec["environment"],
+                     "secret_names": sorted(names), "variable_names": sorted(variables)})
     plan = {"source_sha": sha, "version": version, "selected": selected, "previous": previous}
     save(args.output, plan)
     emit(matrix={"include": selected}, sync_matrix={"include": sync}, version=version)
