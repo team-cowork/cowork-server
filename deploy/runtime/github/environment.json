@@ -7,6 +7,5 @@
   "KAFKA_SASL_MECHANISM": "SCRAM-SHA-512",
   "KAFKA_SASL_USERNAME": "cowork-github",
   "KAFKA_SSL_CA_LOCATION": "/etc/cowork/ca/ca.crt",
-  "GITHUB_APP_ID": "3485100",
   "NODE_ENV": "production"
 }
