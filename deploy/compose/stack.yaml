@@ -489,7 +489,7 @@ services:
     container_name: cowork-alertmanager-config-init
     restart: "no"
     environment:
-      DISCORD_MONITORING_ALERT_WEBHOOK: ${DISCORD_MONITORING_ALERT_WEBHOOK:-}
+      DISCORD_MONITORING_ALERT_WEBHOOK_URL: ${DISCORD_MONITORING_ALERT_WEBHOOK_URL:-}
       APP_CONFIG_PROFILE: ${APP_CONFIG_PROFILE:-local}
     volumes:
       - ./deploy/config/monitoring/alertmanager/alertmanager.yml:/source/alertmanager.yml:ro
@@ -500,17 +500,17 @@ services:
       - |
         set -eu
         umask 077
-        rm -f /generated/alertmanager.yml /generated/discord-webhook-url
+        rm -f /generated/alertmanager.yml /generated/discord-monitoring-alert-webhook-url
 
-        if [ -n "$${DISCORD_MONITORING_ALERT_WEBHOOK}" ]; then
+        if [ -n "$${DISCORD_MONITORING_ALERT_WEBHOOK_URL}" ]; then
           cp /source/alertmanager.yml /generated/alertmanager.yml
-          printf '%s' "$${DISCORD_MONITORING_ALERT_WEBHOOK}" > /generated/discord-webhook-url
-          chown 65534:65534 /generated/discord-webhook-url
-          chmod 0400 /generated/discord-webhook-url
+          printf '%s' "$${DISCORD_MONITORING_ALERT_WEBHOOK_URL}" > /generated/discord-monitoring-alert-webhook-url
+          chown 65534:65534 /generated/discord-monitoring-alert-webhook-url
+          chmod 0400 /generated/discord-monitoring-alert-webhook-url
         elif [ "$${APP_CONFIG_PROFILE}" = "local" ]; then
           cp /source/alertmanager-noop.yml /generated/alertmanager.yml
         else
-          echo "DISCORD_MONITORING_ALERT_WEBHOOK is required outside the local profile" >&2
+          echo "DISCORD_MONITORING_ALERT_WEBHOOK_URL is required outside the local profile" >&2
           exit 1
         fi
 
@@ -876,8 +876,8 @@ services:
       PUBLIC_WEB_ORIGINS: "${PUBLIC_WEB_ORIGINS:-http://localhost:3000,http://localhost:3001,http://localhost:5173}"
       ACCOUNT_CREDENTIAL_ENCRYPTION_KEY: "${ACCOUNT_CREDENTIAL_ENCRYPTION_KEY}"
       ACCOUNT_SHARE_OAUTH_STATE_SECRET: "${ACCOUNT_SHARE_OAUTH_STATE_SECRET}"
-      GITHUB_ACCOUNT_SHARE_CLIENT_ID: "${COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID:-}"
-      GITHUB_ACCOUNT_SHARE_CLIENT_SECRET: "${COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET:-}"
+      COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID: "${COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID:-}"
+      COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET: "${COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET:-}"
       NOTION_ACCOUNT_SHARE_CLIENT_ID: "${NOTION_ACCOUNT_SHARE_CLIENT_ID:-}"
       NOTION_ACCOUNT_SHARE_CLIENT_SECRET: "${NOTION_ACCOUNT_SHARE_CLIENT_SECRET:-}"
       JIRA_ACCOUNT_SHARE_CLIENT_ID: "${JIRA_ACCOUNT_SHARE_CLIENT_ID:-}"
@@ -1033,7 +1033,7 @@ services:
       PORT: "8087"
       ELASTICSEARCH_URL: "http://elasticsearch:9200"
       JWT_SECRET: "${JWT_SECRET}"
-      DISCORD_WEBHOOK_URL: "${DISCORD_WEBHOOK_URL:-}"
+      DISCORD_CHAT_ERROR_WEBHOOK_URL: "${DISCORD_CHAT_ERROR_WEBHOOK_URL:-}"
     ports:
       - "8087:8087"
     volumes:
