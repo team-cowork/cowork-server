@@ -226,7 +226,8 @@ def main():
         platform.wait_jobs(platform.tofu('data', variables), specs)
         migration = specs['cowork-user-migrations']
         previous = platform.api('job/cowork-user-migrations', missing=True)
-        migration.setdefault('Meta', {})['release_run'] = str(time.time_ns())
+        migration['Meta'] = migration.get('Meta') or {}
+        migration['Meta']['release_run'] = str(time.time_ns())
         registered = platform.api('jobs', method='POST', body={'Job': migration, 'EnforceIndex': True,
                                   'JobModifyIndex': previous['JobModifyIndex'] if previous else 0})
         platform.wait_jobs({'cowork-user-migrations': registered['JobModifyIndex']}, specs, batch=True)
