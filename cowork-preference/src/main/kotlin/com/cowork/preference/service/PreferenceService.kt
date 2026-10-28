@@ -1,13 +1,16 @@
 package com.cowork.preference.service
 
 import com.cowork.preference.cache.PreferenceCache
+import com.cowork.preference.cache.VersionedSettings
 import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.domain.SettingDefaultsResolver
 import com.cowork.preference.domain.SettingSchema
 import com.cowork.preference.messaging.PreferenceEvents
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.PreferenceRepository
+import com.cowork.preference.repository.ResourceSettingState
 import io.vertx.core.json.JsonObject
+import java.time.Instant
 
 class PreferenceService(
     private val repository: PreferenceRepository,
@@ -17,17 +20,17 @@ class PreferenceService(
 
     suspend fun getSettings(resourceType: ResourceType, resourceId: Long): JsonObject {
         cache.getSettings(resourceType, resourceId)?.let { return normalizeSettings(resourceType, it) }
-        val settings = normalizeSettings(resourceType, repository.findSettings(resourceId, resourceType))
-        cache.populateSettings(resourceType, resourceId, settings)
-        return settings
+        val stored = versioned(resourceType, repository.findSettings(resourceId, resourceType))
+        cache.populateSettings(resourceType, resourceId, stored)
+        return stored.settings
     }
 
     suspend fun getSettingsBulk(resourceType: ResourceType, resourceIds: List<Long>): Map<Long, JsonObject> {
         if (resourceIds.isEmpty()) return emptyMap()
         val found = repository.findSettingsForResources(resourceIds, resourceType)
-        val normalized = resourceIds.associateWith { normalizeSettings(resourceType, found[it]) }
-        cache.populateSettingsBulk(resourceType, normalized)
-        return normalized
+        val stored = resourceIds.associateWith { versioned(resourceType, found[it]) }
+        cache.populateSettingsBulk(resourceType, stored)
+        return stored.mapValues { it.value.settings }
     }
 
     suspend fun updateSettings(resourceType: ResourceType, resourceId: Long, raw: JsonObject): Result<JsonObject> {
@@ -110,11 +113,11 @@ class PreferenceService(
                     ),
                 )
             }
-            normalizeSettings(resourceType, result.settings)
+            VersionedSettings(normalizeSettings(resourceType, result.settings), result.stateOccurredAt)
         }
         cache.setSettings(resourceType, resourceId, updated)
 
-        return Result.success(updated)
+        return Result.success(updated.settings)
     }
 
     private suspend fun validationTarget(
@@ -130,6 +133,10 @@ class PreferenceService(
 
     private fun containsNicknameFormatSettings(settings: JsonObject): Boolean =
         settings.containsKey(NICKNAME_FORMAT_ENFORCED) || settings.containsKey(NICKNAME_FORMAT_EXAMPLE)
+
+    /** 행이 없으면 어떤 변경보다 오래된 version으로 기본값을 채워, 이후 변경의 기록을 막지 않게 한다. */
+    private fun versioned(resourceType: ResourceType, state: ResourceSettingState?) =
+        VersionedSettings(normalizeSettings(resourceType, state?.settings), state?.stateOccurredAt ?: Instant.EPOCH)
 
     private fun normalizeSettings(resourceType: ResourceType, settings: JsonObject?): JsonObject {
         if (resourceType == ResourceType.TEXT_CHANNEL) return (settings?.copy() ?: JsonObject()).apply { remove("webhook") }
