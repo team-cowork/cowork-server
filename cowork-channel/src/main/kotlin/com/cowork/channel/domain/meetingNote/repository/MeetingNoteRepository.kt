@@ -6,4 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository
 interface MeetingNoteRepository : JpaRepository<MeetingNote, Long> {
 
     fun findAllByChannelIdOrderByIdDesc(channelId: Long): List<MeetingNote>
+
+    fun existsByTemplateId(templateId: Long): Boolean
 }
