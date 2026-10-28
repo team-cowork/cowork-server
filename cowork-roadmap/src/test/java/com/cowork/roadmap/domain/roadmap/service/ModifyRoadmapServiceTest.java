@@ -3,7 +3,10 @@ package com.cowork.roadmap.domain.roadmap.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
@@ -35,7 +38,7 @@ class ModifyRoadmapServiceTest {
     @Test
     void modifyRoadmap_updatesOnlyNonNullFields() {
         Roadmap roadmap = roadmap(10L, "원제목", "원설명", "원카테고리");
-        when(roadmapRepository.findById(10L)).thenReturn(Optional.of(roadmap));
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap));
 
         ArgumentCaptor<Roadmap> savedCaptor = ArgumentCaptor.forClass(Roadmap.class);
         when(roadmapRepository.saveAndFlush(savedCaptor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
@@ -48,6 +51,7 @@ class ModifyRoadmapServiceTest {
         assertThat(response.category()).isEqualTo("원카테고리");
 
         assertThat(savedCaptor.getValue().getLastModifiedBy()).isEqualTo(7L);
+        verify(roadmapRepository, never()).findById(any());
     }
 
     @Test
@@ -59,7 +63,7 @@ class ModifyRoadmapServiceTest {
         roadmap.setUpdatedAt(updatedAt);
         roadmap.setCreatedBy(3L);
         roadmap.setLastModifiedBy(7L);
-        when(roadmapRepository.findById(10L)).thenReturn(Optional.of(roadmap));
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap));
         ArgumentCaptor<Roadmap> savedCaptor = ArgumentCaptor.forClass(Roadmap.class);
         when(roadmapRepository.saveAndFlush(savedCaptor.capture())).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -79,7 +83,7 @@ class ModifyRoadmapServiceTest {
 
     @Test
     void modifyRoadmap_roadmapNotFound_failsWithNotFound() {
-        when(roadmapRepository.findById(99L)).thenReturn(Optional.empty());
+        when(roadmapRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
 
         UpdateRoadmapReqDto request = new UpdateRoadmapReqDto("새제목", null, null);
 
