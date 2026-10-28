@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reserve immutable releases, pin image/secret versions, and publish successful deployments."""
+"""Reserve immutable releases, pin image/secret versions, and publish committed releases."""
 import argparse
 from datetime import datetime
 import json
@@ -151,6 +151,13 @@ def validate_manifest(data):
         raise ValueError("Data secret versions must be positive integers")
 
 
+def manifest_version(data):
+    return data.get("release_version") or max(
+        (app["version"] for app in data.get("applications", {}).values()),
+        key=lambda version: tuple(map(int, version.split("."))), default="",
+    )
+
+
 def prepare(args):
     sha = source_sha()
     if git("rev-parse", "HEAD") != sha:
@@ -161,7 +168,7 @@ def prepare(args):
         manifest = json.loads((ROOT / MANIFEST).read_text())
         validate_manifest(manifest)
         emit(matrix={"include": []}, sync_matrix={"include": []},
-             version=manifest.get("release_version", ""), source_sha=manifest["source_sha"])
+             version=manifest_version(manifest), source_sha=manifest["source_sha"])
         return
     if not os.environ.get("RELEASE_APP_CLIENT_ID") or not os.environ.get("RELEASE_APP_PRIVATE_KEY"):
         raise ValueError("Release App credentials are required before reserving a version or changing secrets")
@@ -179,7 +186,7 @@ def prepare(args):
         if not prior or affected(name, changed_paths(prior["image_source_sha"], sha)):
             selected.append({"service": name, "context": spec["prod"],
                              "dockerfile": f"cowork-{name}/Dockerfile.prod", "application": True})
-    version = reserve(sha, [item["service"] for item in selected])
+    version = reserve(sha, [item["service"] for item in selected]) or manifest_version(previous)
     changed = changed_paths(previous["source_sha"], sha) if previous.get("source_sha") else None
     for name, dockerfile in INFRASTRUCTURE.items():
         prefixes = {
@@ -333,52 +340,43 @@ def commit_manifest(args):
     git("restore", "--worktree", "--", str(MANIFEST)) if git("ls-files", "--", str(MANIFEST)) else (ROOT / MANIFEST).unlink()
     git("checkout", "--detach", head)
     (ROOT / MANIFEST).write_text(content)
-    git("add", "--", str(MANIFEST))
-    staged = git("diff", "--cached", "--name-only").splitlines()
-    if any(path != str(MANIFEST) for path in staged):
-        raise ValueError("Manifest commit contains unexpected files")
+    files = {path: app["version"] for module, app in data["applications"].items() for path in module_files(module)}
+    for path, version in files.items():
+        (ROOT / path).write_text(rewrite(path, (ROOT / path).read_text(), version))
+    git("add", "--", str(MANIFEST), *sorted(files))
+    staged = set(git("diff", "--cached", "--name-only").splitlines())
+    if not staged <= set(files) | {str(MANIFEST)}:
+        raise ValueError("Release commit contains unexpected files")
+    for path in staged - {str(MANIFEST)}:
+        if normalized(path, git("show", f"HEAD:{path}")) != normalized(path, git("show", f":{path}")):
+            raise ValueError(f"Release commit changes application code: {path}")
     if staged:
         git(*bot_identity(), "commit", "-m", f"update(ci/cd): 배포 버전 고정\n\nRelease-Source: {source_sha()}")
         git("push", "origin", "HEAD:refs/heads/main", token=os.environ["RELEASE_PUSH_TOKEN"])
     emit(manifest_sha=git("rev-parse", "HEAD"))
 
 
-def finalize(args):
+def publish(args):
     data = json.loads((ROOT / MANIFEST).read_text())
     validate_manifest(data)
     if data["source_sha"] != source_sha():
-        raise ValueError("Successful manifest identifies another source")
-    version = data["release_version"]
+        raise ValueError("Release manifest identifies another source")
+    version = manifest_version(data)
     if not version:
         return
     git("fetch", "--quiet", "--tags", "origin")
-    reserved = reservation("v" + version, source_sha())
-    if not reserved or git("rev-parse", f"refs/tags/v{version}^{{commit}}") != source_sha():
+    tag = "v" + version
+    release_source = git("rev-parse", f"refs/tags/{tag}^{{commit}}")
+    reserved = reservation(tag, release_source)
+    if not reserved:
         raise ValueError("Release tag must identify the original source")
     for module in reserved["modules"]:
         app = data["applications"][module]
-        if app["image_source_sha"] != source_sha() or app["version"] != version:
-            raise ValueError("Successful manifest does not contain the reserved image versions")
-    tag = "v" + version
+        if app["image_source_sha"] != release_source or app["version"] != version:
+            raise ValueError("Release manifest does not contain the reserved image versions")
     release = api("releases/tags/" + tag, missing=True)
     if release and not release["draft"]:
         return
-    head = current_main()
-    git("checkout", "--detach", head)
-    files = {path for module in reserved["modules"] for path in module_files(module)}
-    updates = {path: rewrite(path, (ROOT / path).read_text(), version) for path in files}
-    for path, updated in updates.items():
-        (ROOT / path).write_text(updated)
-    git("add", "--", *sorted(files))
-    staged = set(git("diff", "--cached", "--name-only").splitlines())
-    if not staged <= files:
-        raise ValueError("Version commit contains unexpected files")
-    for path in staged:
-        if normalized(path, git("show", f"HEAD:{path}")) != normalized(path, git("show", f":{path}")):
-            raise ValueError(f"Version commit changes application code: {path}")
-    if staged:
-        git(*bot_identity(), "commit", "-m", f"update(global): v{version} 릴리즈 버전 반영\n\nRelease-Source: {source_sha()}")
-        git("push", "origin", "HEAD:refs/heads/main", token=os.environ["RELEASE_PUSH_TOKEN"])
     if release:
         if release["draft"]:
             subprocess.run(["gh", "release", "edit", tag, "--draft=false"], check=True)
@@ -389,7 +387,7 @@ def finalize(args):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
-    for command in ("prepare", "stamp", "reuse-image", "record-image", "assemble", "commit-manifest", "finalize", "validate"):
+    for command in ("prepare", "stamp", "reuse-image", "record-image", "assemble", "commit-manifest", "publish", "validate"):
         sub = commands.add_parser(command)
         if command in {"prepare", "record-image"}:
             sub.add_argument("--output", required=True)
