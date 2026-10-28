@@ -232,11 +232,11 @@ ENV
     task "exporter" {
       driver = "docker"
       env = merge(var.runtime_env, {
+        DATA_SOURCE_URI  = "127.0.0.1:5432/${var.runtime_env["DB_NAME"]}?sslmode=disable"
         DATA_SOURCE_USER = "cowork_monitoring"
       })
       config {
         image = "prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e"
-        args  = ["--datasource.uri=127.0.0.1:5432/${DB_NAME}?sslmode=disable"]
         ports = ["metrics"]
       }
       resources {
