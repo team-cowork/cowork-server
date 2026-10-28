@@ -6,10 +6,10 @@ import com.cowork.project.domain.github.entity.GithubSyncStream
 import com.cowork.project.domain.github.event.GithubSyncCompletedMarker
 import com.cowork.project.domain.github.repository.GithubRepoProjectionRepository
 import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
-import com.fasterxml.jackson.databind.JsonNode
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
+import tools.jackson.databind.JsonNode
 import java.util.Locale
 
 /**
@@ -22,7 +22,7 @@ class GithubSyncMarkers(
     private val repository: GithubSyncMarkerRepository,
     private val repoProjectionRepository: GithubRepoProjectionRepository,
 ) {
-    fun isMarker(node: JsonNode): Boolean = node.path("recordType").asText() == SYNC_COMPLETED
+    fun isMarker(node: JsonNode): Boolean = node.path("recordType").asString() == SYNC_COMPLETED
 
     /** 완료 마커를 기록한다. 같은 대상의 더 오래된 마커는 완료 시각을 되돌리지 않는다. consumer 트랜잭션 안에서 호출한다. */
     fun record(stream: GithubSyncStream, marker: GithubSyncCompletedMarker) {

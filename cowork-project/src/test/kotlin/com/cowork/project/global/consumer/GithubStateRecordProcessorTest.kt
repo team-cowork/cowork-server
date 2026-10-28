@@ -8,13 +8,13 @@ import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
 import com.cowork.project.domain.github.service.GithubSyncMarkers
 import com.cowork.project.global.projection.ProjectionRecordProcessor
 import com.cowork.project.global.projection.ProjectionStream
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import org.apache.kafka.clients.consumer.ConsumerRecord
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.util.Optional
 
 class GithubStateRecordProcessorTest :
@@ -33,7 +33,7 @@ class GithubStateRecordProcessorTest :
             processor = GithubStateRecordProcessor(
                 projectionProcessor,
                 GithubSyncMarkers(markerRepository, mockk<GithubRepoProjectionRepository>()),
-                ObjectMapper().findAndRegisterModules(),
+                jacksonObjectMapper(),
             )
         }
 
