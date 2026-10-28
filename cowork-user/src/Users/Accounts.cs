@@ -178,16 +178,14 @@ public static partial class Accounts
     internal sealed record ProfilePatch(
         IReadOnlyDictionary<string, JsonElement> Profile,
         IReadOnlyDictionary<string, JsonElement> Account,
-        IReadOnlyList<string>? Roles
+        IReadOnlyList<string>? Roles,
+        JsonElement? Github
         );
 
     internal static ProfilePatch ParseProfilePatch(JsonElement attrs)
     {
         Dictionary<string, JsonElement> Take(params (string Key, string Field)[] fields) =>
             fields.Where(f => attrs.TryGetProperty(f.Key, out _)).ToDictionary(f => f.Field, f => attrs.GetProperty(f.Key));
-
-        // The GitHub login authorizes GitHub actions elsewhere, so only DataGSM sync may set it.
-        if (attrs.TryGetProperty("github_id", out _)) throw ApiError.Validation("github_id는 수정할 수 없습니다.");
 
         IReadOnlyList<string>? roles = null;
         if (attrs.TryGetProperty("roles", out var rawRoles))
@@ -200,7 +198,14 @@ public static partial class Accounts
         }
 
         return new ProfilePatch(Take(("nickname", "nickname"), ("description", "description")),
-            Take(("name", "name")), roles);
+            Take(("name", "name")), roles, attrs.TryGetProperty("github_id", out var github) ? github : null);
+    }
+
+    /// <summary>Only DataGSM sync sets the GitHub login that authorizes GitHub actions; a patch may only echo the stored value.</summary>
+    internal static void EnsureGithubUnchanged(JsonElement? requested, string? current)
+    {
+        if (requested is { } value && !(TryCastString(value, out var github) && github == current))
+            throw ApiError.Validation("github_id는 수정할 수 없습니다.");
     }
 
     /// <summary>Casts a JSON value into a nullable string column; whitespace-only text is empty.</summary>
@@ -231,8 +236,9 @@ public static partial class Accounts
 
         await App.TransactionAsync<int>(async (connection, transaction) =>
         {
-            var accountName = await connection.QuerySingleOrDefaultAsync<string>(
-                "SELECT name FROM tb_accounts WHERE id = @userId FOR UPDATE", new { userId }, transaction) ?? throw ApiError.NotFound();
+            var account = await connection.QueryAsync<(string Name, string? Github)>(
+                "SELECT name, github FROM tb_accounts WHERE id = @userId FOR UPDATE", new { userId }, transaction).FirstOrNullAsync() ?? throw ApiError.NotFound();
+            EnsureGithubUnchanged(patch.Github, account.Github);
             var profile = await connection.QueryAsync<(long Id, string? Nickname, string? Description)>(
                 "SELECT id, nickname, description FROM tb_profiles WHERE account_id = @userId FOR UPDATE", new { userId }, transaction).FirstOrNullAsync() ?? throw ApiError.NotFound();
 
@@ -274,7 +280,7 @@ public static partial class Accounts
             var accountErrors = new FieldErrors();
             var accountChanges = CastStrings(patch.Account, accountErrors);
             accountErrors.ThrowIfAny();
-            var accountChanged = accountChanges.TryGetValue("name", out var name) && name != accountName;
+            var accountChanged = accountChanges.TryGetValue("name", out var name) && name != account.Name;
             if (accountChanged)
             {
                 if (name is null)
