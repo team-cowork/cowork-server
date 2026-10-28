@@ -282,9 +282,9 @@ SECRET
 
       template {
         data                 = <<-SECRET
-{{ with secret "${var.vault_mount}/data/nomad/apps/monitoring?version=${var.secret_version}" }}{{ .Data.data.DISCORD_MONITORING_ALERT_WEBHOOK }}{{ end }}
+{{ with secret "${var.vault_mount}/data/nomad/apps/monitoring?version=${var.secret_version}" }}{{ .Data.data.DISCORD_MONITORING_ALERT_WEBHOOK_URL }}{{ end }}
 SECRET
-        destination          = "secrets/discord-webhook-url"
+        destination          = "secrets/discord-monitoring-alert-webhook-url"
         perms                = "0400"
         uid                  = 10001
         gid                  = 10001
