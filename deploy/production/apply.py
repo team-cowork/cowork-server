@@ -117,6 +117,9 @@ class Platform:
         if check:
             print(f'{stage}: ' + ('drift detected' if result.returncode == 2 else 'matches Git'), flush=True)
             return {}
+        # Nomad provider 2.6.1 keeps planned indices when only hcl2.vars change.
+        command(prefix + ['apply', '-refresh-only', '-auto-approve', '-input=false',
+                          '-lock-timeout=120s', '-var-file=' + str(variables)], env=self.env)
         output = json.loads(command(prefix + ['output', '-json'], env=self.env, capture=True).stdout)
         indices = output['job_modify_indices']['value']
         return {job_id: int(index) for job_id, index in indices.items()}
