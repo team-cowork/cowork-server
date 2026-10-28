@@ -1,5 +1,6 @@
 package com.cowork.channel.domain.meetingNote.service.impl
 
+import com.cowork.channel.domain.meetingNote.repository.MeetingNoteRepository
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteTemplateRepository
 import com.cowork.channel.domain.meetingNote.service.DeleteMeetingNoteTemplateService
 import com.cowork.channel.domain.meetingNote.service.MeetingNoteAccessGuard
@@ -13,6 +14,7 @@ import team.themoment.sdk.exception.ExpectedException
 @Transactional
 class DeleteMeetingNoteTemplateServiceImpl(
     private val templateRepository: MeetingNoteTemplateRepository,
+    private val meetingNoteRepository: MeetingNoteRepository,
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
     private val lookupSupport: MeetingNoteTemplateLookupSupport,
 ) : DeleteMeetingNoteTemplateService {
@@ -23,6 +25,9 @@ class DeleteMeetingNoteTemplateServiceImpl(
         lookupSupport.requireTemplateOwnership(template, channelId)
         if (template.isActive) {
             throw ExpectedException("활성 템플릿은 삭제할 수 없습니다. 다른 템플릿을 활성화한 후 삭제해 주세요.", HttpStatus.BAD_REQUEST)
+        }
+        if (meetingNoteRepository.existsByTemplateId(template.id)) {
+            throw ExpectedException("회의록이 작성된 템플릿은 삭제할 수 없습니다.", HttpStatus.BAD_REQUEST)
         }
         templateRepository.delete(template)
     }
