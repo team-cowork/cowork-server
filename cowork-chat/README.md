@@ -49,6 +49,6 @@
 | `S3_INTERNAL_ENDPOINT`, `S3_BUCKET` | 없음 | 필수. 내부 S3 주소와 bucket |
 | `S3_ACCESS_KEY`, `S3_SECRET_KEY` | 없음 | Chat prefix 권한을 가진 S3 자격증명 |
 | `S3_REGION` | `us-east-1` | S3 서명 region |
-| `DISCORD_WEBHOOK_URL` | 없음 | 선택. 업무 장애 알림 webhook |
+| `DISCORD_CHAT_ERROR_WEBHOOK_URL` | 없음 | 선택. Kafka·Outbox·검색 색인 등 Chat 처리 오류 알림 webhook |
 
 Kafka projection과 Redis adapter가 준비되기 전에는 `/health/ready`가 `503`을 반환합니다. 서비스 검색과 배포에서 이 경로를 readiness로 사용합니다.
