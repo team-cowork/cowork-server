@@ -12,7 +12,7 @@ function account(target, name, password, roles) {
   if (target.getUser(name)) target.updateUser(name, value);
   else target.createUser({ user: name, ...value });
 }
-account(db.getSiblingDB(database), username, process.env.DB_PASSWORD, [{ role: 'readWrite', db: database }]);
+account(admin, username, process.env.DB_PASSWORD, [{ role: 'readWrite', db: database }]);
 account(admin, 'cowork_monitoring', process.env.DB_MONITORING_PASSWORD, [
   { role: 'clusterMonitor', db: 'admin' },
   { role: 'read', db: 'local' },
