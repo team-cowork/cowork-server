@@ -51,10 +51,39 @@ class RoadmapAccessGuardTest {
         }
 
         @Test
-        void customScopeByCreator_succeedsWithoutTeamCall() {
+        void customScopeByActiveCreator_succeeds() {
             Roadmap roadmap = roadmap(RoadmapScope.TEAM, 7L, 99L);
+            when(teamMemberships.findActiveRole(99L, 7L)).thenReturn(Optional.of("MEMBER"));
 
             accessGuard.requireMutable(roadmap, 7L, "MEMBER");
+        }
+
+        @Test
+        void customScopeByLeftCreator_isForbidden() {
+            Roadmap roadmap = roadmap(RoadmapScope.TEAM, 7L, 99L);
+            when(teamMemberships.findActiveRole(99L, 7L)).thenReturn(Optional.empty());
+
+            ExpectedException error = assertThrows(ExpectedException.class,
+                    () -> accessGuard.requireMutable(roadmap, 7L, "MEMBER"));
+            assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
+        }
+
+        @Test
+        void customScopeByTeamAdmin_succeeds() {
+            Roadmap roadmap = roadmap(RoadmapScope.TEAM, 7L, 99L);
+            when(teamMemberships.findActiveRole(99L, 8L)).thenReturn(Optional.of("ADMIN"));
+
+            accessGuard.requireMutable(roadmap, 8L, "MEMBER");
+        }
+
+        @Test
+        void customScopeByCreator_whenProjectionNotReady_isUnavailable() {
+            Roadmap roadmap = roadmap(RoadmapScope.TEAM, 7L, 99L);
+            when(projectionReadiness.isReady()).thenReturn(false);
+
+            ExpectedException error = assertThrows(ExpectedException.class,
+                    () -> accessGuard.requireMutable(roadmap, 7L, "MEMBER"));
+            assertTrue(error.getStatusCode() == HttpStatus.SERVICE_UNAVAILABLE);
             verifyNoInteractions(teamMemberships);
         }
 
@@ -66,6 +95,36 @@ class RoadmapAccessGuardTest {
             ExpectedException error = assertThrows(ExpectedException.class,
                     () -> accessGuard.requireMutable(roadmap, 8L, "MEMBER"));
             assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
+        }
+    }
+
+    @Nested
+    class RequireTeamMember {
+
+        @Test
+        void activeMember_succeeds() {
+            when(teamMemberships.findActiveRole(99L, 7L)).thenReturn(Optional.of("MEMBER"));
+
+            accessGuard.requireTeamMember(99L, 7L);
+        }
+
+        @Test
+        void leftMember_isForbidden() {
+            when(teamMemberships.findActiveRole(99L, 7L)).thenReturn(Optional.empty());
+
+            ExpectedException error = assertThrows(ExpectedException.class,
+                    () -> accessGuard.requireTeamMember(99L, 7L));
+            assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
+        }
+
+        @Test
+        void projectionNotReady_isUnavailable() {
+            when(projectionReadiness.isReady()).thenReturn(false);
+
+            ExpectedException error = assertThrows(ExpectedException.class,
+                    () -> accessGuard.requireTeamMember(99L, 7L));
+            assertTrue(error.getStatusCode() == HttpStatus.SERVICE_UNAVAILABLE);
+            verifyNoInteractions(teamMemberships);
         }
     }
 
