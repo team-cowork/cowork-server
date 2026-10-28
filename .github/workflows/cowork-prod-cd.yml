@@ -261,7 +261,7 @@ jobs:
           client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           permission-contents: write
-      - name: Commit Immutable References Before Applying
+      - name: Commit Versions And Immutable References Before Applying
         id: commit
         env:
           GH_TOKEN: ${{ github.token }}
@@ -346,11 +346,11 @@ jobs:
           PYTHON
 
   publish:
-    name: Stamp Successful Versions And Publish Release
-    needs: [prepare, manifest, apply]
+    name: Publish Committed Release
+    needs: [prepare, manifest]
     if: >-
-      !cancelled() && needs.prepare.outputs.mode != 'plan' && needs.prepare.outputs.version != '' &&
-      needs.apply.result == 'success' &&
+      !cancelled() && needs.prepare.result == 'success' &&
+      needs.prepare.outputs.mode != 'plan' && needs.prepare.outputs.version != '' &&
       (needs.manifest.result == 'success' || needs.prepare.outputs.mode == 'apply')
     runs-on: ubuntu-latest
     permissions:
@@ -361,16 +361,8 @@ jobs:
           persist-credentials: false
           ref: ${{ needs.manifest.outputs.sha || github.sha }}
           fetch-depth: 0
-      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
-        id: app
-        with:
-          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          permission-contents: write
-      - name: Finalize Successful Source Release
+      - name: Publish Committed Source Release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ needs.prepare.outputs.source_sha }}
-          RELEASE_PUSH_TOKEN: ${{ steps.app.outputs.token }}
-          RELEASE_APP_SLUG: ${{ steps.app.outputs.app-slug }}
-        run: python3 deploy/production/release.py finalize
+        run: python3 deploy/production/release.py publish
