@@ -2,7 +2,8 @@
 export const PULL_REQUEST_FILES_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 export const githubCacheKeys = {
-    installation: (owner: string): string => `github:installation:${owner}`,
+    // GitHub login은 대소문자를 구분하지 않아, 설치 이벤트와 API 호출의 owner 표기가 달라도 같은 키를 쓴다.
+    installation: (owner: string): string => `github:installation:${owner.toLowerCase()}`,
     token: (installationId: number): string => `github:token:${installationId}`,
     installationRevision: (installationId: number): string =>
         `github:installation:revision:${installationId}`,
