@@ -1,12 +1,12 @@
 {
   "uid": "cowork-platform",
-  "title": "cowork / Platform",
+  "title": "cowork / Control",
   "schemaVersion": 39,
   "version": 1,
   "editable": false,
   "tags": [
     "cowork",
-    "platform",
+    "control",
     "nomad",
     "consul"
   ],
@@ -52,13 +52,13 @@
   "panels": [
     {
       "id": 1,
-      "title": "관리 VM — API 지표 수집",
+      "title": "관리 VM API 지표 수집",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "관리 VM의 Nomad·Consul HTTPS 메트릭 수집 결과입니다. UP은 수집 성공을 뜻하며, 클러스터 건강은 옆 Autopilot 패널에서 확인합니다.",
+      "description": "관리 VM의 Nomad·Consul 메트릭 수집 성공 여부입니다.",
       "gridPos": {
         "h": 5,
         "w": 8,
@@ -135,13 +135,13 @@
     },
     {
       "id": 2,
-      "title": "관리 VM — 클러스터 건강",
+      "title": "관리 VM 클러스터 건강",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "각 서버의 Autopilot 건강 판정입니다. 현재 Nomad·Consul 서버는 cowork-control 한 대에 있으므로 관리 VM 장애를 견디는 구성이 아닙니다.",
+      "description": "Nomad·Consul 서버의 Autopilot 상태 판정입니다.",
       "gridPos": {
         "h": 5,
         "w": 8,
@@ -235,7 +235,7 @@
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "cowork-control이 Consul 리더이면 1입니다. 현재 단일 서버 구성에서는 이 서버가 리더여야 합니다.",
+      "description": "cowork-control이 Consul 리더이면 1, 아니면 0입니다.",
       "gridPos": {
         "h": 5,
         "w": 4,
@@ -318,7 +318,7 @@
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "합의를 유지하면서 추가로 장애가 나도 되는 서버 수입니다. 단일 서버인 현재 구성의 0은 예상값이며 이중화가 없다는 뜻입니다.",
+      "description": "Consul이 합의를 유지하면서 추가로 허용할 수 있는 서버 장애 수입니다.",
       "gridPos": {
         "h": 5,
         "w": 4,
@@ -367,13 +367,13 @@
     },
     {
       "id": 5,
-      "title": "관리 VM — CPU 사용률",
+      "title": "관리 VM CPU 사용률",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "Nomad·Consul 서버와 배포 runner가 함께 사용하는 관리 VM의 전체 CPU 사용률입니다.",
+      "description": "관리 VM의 전체 CPU 코어 평균 사용률입니다.",
       "gridPos": {
         "h": 8,
         "w": 8,
@@ -430,13 +430,13 @@
     },
     {
       "id": 6,
-      "title": "관리 VM — 메모리 사용률",
+      "title": "관리 VM 메모리 사용률",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "사용 가능한 메모리를 기준으로 계산합니다. 배포 시 runner와 제어 서비스가 같은 메모리를 사용합니다.",
+      "description": "사용 가능한 메모리를 기준으로 계산한 관리 VM의 메모리 사용률입니다.",
       "gridPos": {
         "h": 8,
         "w": 8,
@@ -493,13 +493,13 @@
     },
     {
       "id": 7,
-      "title": "관리 VM — 파일시스템 사용률",
+      "title": "관리 VM 파일시스템 사용률",
       "type": "bargauge",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "관리 VM의 영구 파일시스템 사용률입니다. 85%부터 주의, 93%부터 위험으로 표시합니다. 임시·컨테이너 파일시스템은 제외합니다.",
+      "description": "임시·컨테이너 파일시스템을 제외한 관리 VM의 마운트 지점별 사용률입니다.",
       "gridPos": {
         "h": 8,
         "w": 8,
@@ -565,13 +565,13 @@
     },
     {
       "id": 8,
-      "title": "관리 VM — 가동 시간",
+      "title": "관리 VM 가동 시간",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "VM이 마지막으로 부팅된 뒤 경과한 시간입니다. Nomad·Consul 프로세스의 개별 실행 시간은 아닙니다.",
+      "description": "관리 VM이 마지막으로 부팅된 뒤 경과한 시간입니다.",
       "gridPos": {
         "h": 5,
         "w": 4,
@@ -625,7 +625,7 @@
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "서버가 활성 heartbeat를 추적하는 클라이언트 수입니다. 연결 여부와 작업 배치 준비 상태는 다를 수 있습니다.",
+      "description": "Nomad 서버가 활성 heartbeat를 추적하는 클라이언트 수입니다.",
       "gridPos": {
         "h": 5,
         "w": 5,
@@ -679,7 +679,7 @@
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "지표를 수집한 클라이언트 중 node_status가 ready인 노드 수입니다. 알려진 클라이언트가 모두 ready가 아니면 0, 클라이언트 지표 자체가 없으면 N/A입니다. 아래 수집 상태도 함께 확인하세요.",
+      "description": "수집된 Nomad 클라이언트 중 node_status가 ready인 노드 수입니다. 준비된 노드가 없으면 0, 클라이언트 지표가 없으면 N/A입니다.",
       "gridPos": {
         "h": 5,
         "w": 5,
@@ -733,7 +733,7 @@
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "현재 실행 중인 allocation의 합계입니다. 앱·DB·플랫폼 작업을 모두 포함하며, 과거 실행 횟수 누계가 아닙니다.",
+      "description": "애플리케이션·DB·플랫폼 작업의 현재 실행 중인 할당 수 합계입니다.",
       "gridPos": {
         "h": 5,
         "w": 5,
@@ -787,7 +787,7 @@
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "스케줄러가 즉시 배치하지 못해 차단된 평가 수입니다. 자원·배치 제약과 작업 상태를 확인하세요.",
+      "description": "Nomad 스케줄러가 즉시 배치하지 못해 차단된 평가 수입니다.",
       "gridPos": {
         "h": 5,
         "w": 5,
@@ -848,13 +848,13 @@
     },
     {
       "id": 13,
-      "title": "Nomad — 현재 할당 상태",
+      "title": "Nomad 현재 할당 상태",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "클라이언트가 보고한 현재 allocation 상태별 합계입니다. 지표 수집이 끊기면 합계가 줄 수 있으므로 에이전트 수집 상태와 함께 확인하세요.",
+      "description": "지표가 수집된 Nomad 클라이언트의 현재 할당 수를 상태별로 합산한 값입니다.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -942,13 +942,13 @@
     },
     {
       "id": 14,
-      "title": "Nomad — 작업별 대기·실패 할당",
+      "title": "Nomad 작업별 대기·실패 할당",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "작업 요약의 대기·실패 allocation 수입니다. 작업이 아직 제출되지 않아 요약 지표가 없으면 N/A로 남습니다. 실패 수는 작업 요약이 보유한 상태이며 현재 API 가용성과는 별개입니다.",
+      "description": "Nomad 작업 요약에 기록된 작업별 대기·실패 할당 수입니다. 요약 지표가 없으면 N/A입니다.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1014,13 +1014,13 @@
     },
     {
       "id": 15,
-      "title": "전체 VM — Nomad·Consul 지표 수집",
+      "title": "전체 VM Nomad·Consul 지표 수집",
       "type": "state-timeline",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "control과 Nomad 클라이언트 VM의 각 HTTPS 메트릭 endpoint를 표시합니다. Vault 전용 VM은 두 에이전트가 없어 제외합니다. DOWN은 수집 실패, 비어 있는 구간은 시계열 부재입니다.",
+      "description": "관리 VM과 Nomad 클라이언트 VM의 Nomad·Consul 메트릭 수집 상태입니다. DOWN은 수집 실패, 빈 구간은 데이터 없음입니다.",
       "gridPos": {
         "h": 18,
         "w": 24,
@@ -1100,13 +1100,13 @@
     },
     {
       "id": 16,
-      "title": "VM 인증서 — 만료까지 남은 기간",
+      "title": "VM 인증서 만료까지 남은 기간",
       "type": "timeseries",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "VM별 Nomad·Consul 인증서의 남은 기간 중 작은 값입니다. 관리 VM 타이머가 매일 한국 시간 04:15에 만료 30일 전 인증서를 갱신합니다. Vault 인증서는 Vault 대시보드에서 별도로 확인합니다.",
+      "description": "VM별 Nomad·Consul 인증서 중 가장 먼저 만료되는 인증서의 남은 기간입니다.",
       "gridPos": {
         "h": 8,
         "w": 12,
@@ -1161,13 +1161,13 @@
     },
     {
       "id": 17,
-      "title": "플랫폼 CA — 남은 기간",
+      "title": "플랫폼 CA 만료까지 남은 기간",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "VM 인증서를 서명하는 플랫폼 CA의 남은 기간입니다. 일일 타이머는 VM 인증서를 갱신하며 CA 자체를 자동 교체하지 않습니다.",
+      "description": "VM 인증서 서명에 사용하는 플랫폼 CA의 만료까지 남은 기간입니다.",
       "gridPos": {
         "h": 8,
         "w": 6,
@@ -1244,13 +1244,13 @@
     },
     {
       "id": 18,
-      "title": "Consul 메시 CA — 남은 기간",
+      "title": "Consul 메시 CA 만료까지 남은 기간",
       "type": "stat",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "Consul이 관리하는 서비스 메시 CA입니다. VM 인증서용 플랫폼 CA와 별개입니다. 값이 NaN이거나 아직 노출되지 않으면 N/A로 남기며, 메시 사용 여부와 Consul 상태를 함께 확인합니다.",
+      "description": "Consul 서비스 메시의 루트·서명 CA가 만료되기까지 남은 기간입니다. 1시간마다 갱신됩니다.",
       "gridPos": {
         "h": 8,
         "w": 6,
@@ -1338,13 +1338,13 @@
     },
     {
       "id": 19,
-      "title": "현재 활성 Platform 알림",
+      "title": "현재 활성 Control 알림",
       "type": "table",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "Nomad·Consul과 관리 VM에서 발생 중인 알림입니다. 활성 알림이 없으면 비어 있습니다. 알림이 없다는 것만으로 수집 성공을 의미하지 않으므로 상단 수집 상태를 함께 확인하세요.",
+      "description": "Nomad·Consul과 관리 VM에서 현재 발생 중인 알림입니다. 활성 알림이 없으면 비어 있습니다.",
       "gridPos": {
         "h": 8,
         "w": 24,
