@@ -5,11 +5,11 @@ import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepos
 import com.cowork.project.global.projection.ProjectionRecordProcessor
 import com.cowork.project.global.projection.ProjectionStreams
 import com.cowork.project.global.projection.toProjectionPrecision
-import com.fasterxml.jackson.databind.ObjectMapper
-import java.time.Instant
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
+import tools.jackson.databind.ObjectMapper
+import java.time.Instant
 
 @Component
 class ProjectAccessStateConsumer(
@@ -28,7 +28,7 @@ class ProjectAccessStateConsumer(
         if (processor.processControlRecord(stream, record)) return
         val parsed = runCatching {
             val node = mapper.readTree(record.value())
-            require(node.path("eventType").asText() == "UPSERT")
+            require(node.path("eventType").asString() == "UPSERT")
             require(node.path("projectId").isIntegralNumber && node.path("accountId").isIntegralNumber)
             val projectId = node.path("projectId").asLong()
             val userId = node.path("accountId").asLong()
@@ -42,18 +42,18 @@ class ProjectAccessStateConsumer(
             // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
             require(!node.has("readPrivate") || node.path("readPrivate").isBoolean)
             val membershipVersion = if (node.has("sourceMembershipVersion")) {
-                Instant.parse(node.path("sourceMembershipVersion").asText())
+                Instant.parse(node.path("sourceMembershipVersion").asString())
             } else Instant.EPOCH
             // TODO(#596): 2026-11-01 05:00 KST 이후 구형 레코드·롤백 지원 종료와 snapshot 보정 완료 확인 후 sourceAuthorizationVersion 필수화.
             val authorizationVersion = if (node.hasNonNull("sourceAuthorizationVersion")) {
-                Instant.parse(node.path("sourceAuthorizationVersion").asText()).also {
+                Instant.parse(node.path("sourceAuthorizationVersion").asString()).also {
                     require(it.isAfter(Instant.EPOCH) && !it.isAfter(membershipVersion))
                 }.toProjectionPrecision()
             } else null
             ProjectAccessProjection(
                 record.key(), projectId, userId,
                 node.path("read").asBoolean(), node.path("write").asBoolean(),
-                Instant.parse(node.path("occurredAt").asText()).toProjectionPrecision(),
+                Instant.parse(node.path("occurredAt").asString()).toProjectionPrecision(),
                 canReorder = node.path("reorder").asBoolean(false),
                 canManage = node.path("manage").asBoolean(false),
                 sourceMembershipVersion = membershipVersion.toProjectionPrecision(),

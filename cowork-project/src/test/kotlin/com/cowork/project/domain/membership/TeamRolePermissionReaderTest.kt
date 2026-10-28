@@ -2,15 +2,15 @@ package com.cowork.project.domain.membership
 
 import com.cowork.project.domain.membership.projection.TeamRoleAssignmentProjection
 import com.cowork.project.domain.membership.projection.TeamRoleAssignmentProjectionRepository
-import com.cowork.project.domain.membership.projection.TeamRoleProjection
-import com.cowork.project.domain.membership.projection.TeamRoleProjectionRepository
 import com.cowork.project.domain.membership.projection.TeamRoleMemberTombstone
 import com.cowork.project.domain.membership.projection.TeamRoleMemberTombstoneRepository
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.cowork.project.domain.membership.projection.TeamRoleProjection
+import com.cowork.project.domain.membership.projection.TeamRoleProjectionRepository
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.time.Instant
 import java.util.Optional
 
@@ -18,7 +18,7 @@ class TeamRolePermissionReaderTest : DescribeSpec({
     val roles = mockk<TeamRoleProjectionRepository>()
     val assignments = mockk<TeamRoleAssignmentProjectionRepository>()
     val fences = mockk<TeamRoleMemberTombstoneRepository>()
-    val reader = TeamRolePermissionReader(roles, assignments, ObjectMapper(), fences)
+    val reader = TeamRolePermissionReader(roles, assignments, jacksonObjectMapper(), fences)
     fun role(id: Long, allowed: Boolean, priority: Int = 0) = TeamRoleProjection(
         roleId = id, teamId = 1L, priority = priority,
         permissionsJson = "{\"manage_projects\":$allowed}", sourceOccurredAt = Instant.EPOCH,
