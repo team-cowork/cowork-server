@@ -64,7 +64,6 @@ class GithubRepoSettingCommandProcessor(
         }
         when (cacheAction) {
             is CacheAction.Set -> cache.setSettings(ResourceType.GITHUB_REPO, command.repoId, cacheAction.settings)
-            CacheAction.Invalidate -> cache.invalidateSettings(ResourceType.GITHUB_REPO, command.repoId)
             CacheAction.None -> Unit
         }
     }
@@ -101,13 +100,33 @@ class GithubRepoSettingCommandProcessor(
                 connection,
                 PreferenceEvents.githubRepoSettingResult(operationId, result, occurredAt),
             )
-            CacheAction.Invalidate
+            currentState(connection, existing.repoId)
         }
         GithubRepoSettingCommandType.DELETE -> {
             require(existing.result == null) { "DELETE inbox must not contain a result" }
-            CacheAction.Invalidate
+            currentState(connection, existing.repoId)
         }
     }
+
+    /**
+     * 재처리 시 처음 처리 뒤의 캐시 기록이 빠졌을 수 있으므로 현재 DB 상태를 그 version으로 기록한다.
+     * 처리된 명령은 설정 행이나 tombstone을 남기므로 상태가 없으면 기록할 값도 없다.
+     */
+    private suspend fun currentState(connection: SqlConnection, repoId: Long): CacheAction {
+        val state = preferenceRepository.findGithubRepoSettingPage(connection, afterRepoId = repoId - 1, limit = 1)
+            .singleOrNull()
+            ?.takeIf { it.repoId == repoId }
+            ?: return CacheAction.None
+        return cacheState(state.settings, state.stateOccurredAt)
+    }
+
+    /** 삭제된 설정(null)은 조회와 같은 기본값으로 기록해, 삭제 전 값을 늦게 채우는 조회를 version으로 막는다. */
+    private fun cacheState(settings: JsonObject?, stateOccurredAt: Instant) = CacheAction.Set(
+        VersionedSettings(
+            JsonObject().put("label_auto_apply", settings?.getBoolean("label_auto_apply", true) ?: true),
+            stateOccurredAt,
+        ),
+    )
 
     private suspend fun enqueueFailure(
         connection: SqlConnection,
@@ -194,12 +213,11 @@ class GithubRepoSettingCommandProcessor(
             ),
         )
         inboxRepository.insert(connection, command, null)
-        return CacheAction.Invalidate
+        return cacheState(null, stateOccurredAt)
     }
 
     private sealed interface CacheAction {
         data class Set(val settings: VersionedSettings) : CacheAction
-        data object Invalidate : CacheAction
         data object None : CacheAction
     }
 

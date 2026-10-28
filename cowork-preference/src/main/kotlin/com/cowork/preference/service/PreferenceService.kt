@@ -120,6 +120,47 @@ class PreferenceService(
         return Result.success(updated.settings)
     }
 
+    /**
+     * 만료된 계정 상태를 지우고 지운 결과를 그 version으로 캐시에 기록한다. 만료된 계정 id를 반환한다.
+     * key를 지우면 만료 전 값을 읽은 조회가 빈 key를 다시 채울 수 있으므로 무효화하지 않는다.
+     */
+    suspend fun clearExpiredStatuses(): List<Long> {
+        val clearedStates = outboxRepository.inTransaction { connection ->
+            val lockedExpired = repository.findExpiredAccountStatuses(connection)
+            if (lockedExpired.isEmpty()) return@inTransaction emptyList()
+            val clearedStates = repository.clearExpiredStatuses(connection, lockedExpired.map { it.first })
+            val occurredAt = Instant.now()
+            outboxRepository.enqueueAll(
+                connection,
+                clearedStates.map { state ->
+                    PreferenceEvents.accountSettingState(
+                        accountId = state.resourceId,
+                        settings = state.settings,
+                        occurredAt = state.stateOccurredAt,
+                        snapshot = false,
+                    )
+                },
+            )
+            outboxRepository.enqueueAll(
+                connection,
+                lockedExpired.map { (accountId, previousStatus) ->
+                    PreferenceEvents.statusChanged(
+                        accountId = accountId,
+                        previousStatus = previousStatus,
+                        newStatus = null,
+                        reason = "EXPIRED",
+                        occurredAt = occurredAt,
+                    )
+                },
+            )
+            clearedStates
+        }
+        clearedStates.forEach { state ->
+            cache.setSettings(ResourceType.ACCOUNT, state.resourceId, versioned(ResourceType.ACCOUNT, state))
+        }
+        return clearedStates.map { it.resourceId }
+    }
+
     private suspend fun validationTarget(
         resourceType: ResourceType,
         resourceId: Long,

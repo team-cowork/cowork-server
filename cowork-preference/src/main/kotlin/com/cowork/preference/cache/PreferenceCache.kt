@@ -42,12 +42,13 @@ return 1
 """
 
 /**
- * Redis는 선택적 가속 계층이므로 조회·기록·무효화 실패를 호출자에게 전파하지 않는다.
- * DB commit 뒤 기록·무효화에 실패한 key는 [CacheRepairQueue]로 수렴시키고,
+ * Redis는 선택적 가속 계층이므로 조회·기록 실패를 호출자에게 전파하지 않는다.
+ * DB commit 뒤 기록에 실패한 값은 [CacheRepairQueue]로 다시 기록하고,
  * 연속 실패 중에는 [CacheCircuitBreaker]로 Redis 호출을 건너뛴다.
  *
  * 모든 기록은 DB의 `state_occurred_at`을 version으로 함께 저장하고, 캐시에 더 새로운 version이 있으면 버린다.
- * 늦게 도착한 조회 결과나 이전 변경의 기록이 최신 설정을 되돌리지 않게 하기 위해서다.
+ * 삭제·만료도 key를 지우지 않고 그 결과를 새 version으로 기록하므로, version을 비교할 대상이 사라지지 않는다.
+ * 따라서 늦게 도착한 조회 결과나 이전 변경의 기록은 TTL 안에서 최신 설정을 되돌리지 않는다.
  */
 class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
 
@@ -94,21 +95,14 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
      */
     suspend fun setSettings(resourceType: ResourceType, resourceId: Long, settings: VersionedSettings) {
         val key = settingKey(resourceType, resourceId)
-        val keys = listOf(key, legacySettingKey(resourceType, resourceId))
-        val written = attempt(CacheOperation.SET, key) { redis.send(writeIfNewer(keys, settings)).coAwait() }.isSuccess
-        if (written) repairQueue.markRepaired(key) else repairQueue.schedule(key)
+        val written = attempt(CacheOperation.SET, key) { writeCommitted(key, settings) }.isSuccess
+        if (written) repairQueue.markRepaired(key, settings.version) else repairQueue.schedule(key, settings)
     }
 
-    suspend fun invalidateSettings(resourceType: ResourceType, resourceId: Long) {
-        val key = settingKey(resourceType, resourceId)
-        val deleted = attempt(CacheOperation.INVALIDATE, key) { deleteSetting(key) }.isSuccess
-        if (deleted) repairQueue.markRepaired(key) else repairQueue.schedule(key)
-    }
-
-    /** circuit이 열려 있으면 만료 정리만 하고 Redis 삭제는 시도하지 않는다. */
+    /** circuit이 열려 있으면 만료 정리만 하고 Redis 기록은 시도하지 않는다. */
     suspend fun repairPending() {
-        repairQueue.repairDue(canAttempt = { !circuitBreaker.isOpen(it) }) { key ->
-            attempt(CacheOperation.REPAIR, key) { deleteSetting(key) }.isSuccess
+        repairQueue.repairDue(canAttempt = { !circuitBreaker.isOpen(it) }) { key, settings ->
+            attempt(CacheOperation.REPAIR, key) { writeCommitted(key, settings) }.isSuccess
         }
     }
 
@@ -130,8 +124,10 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
             .arg(TTL_SECONDS)
     }
 
-    private suspend fun deleteSetting(key: String) {
-        redisApi.del(listOf(key, LEGACY_KEY_PREFIX + key.removePrefix(KEY_PREFIX))).coAwait()
+    /** commit된 값을 기록하면서 구형 인스턴스가 읽는 key는 지운다. */
+    private suspend fun writeCommitted(key: String, settings: VersionedSettings) {
+        val legacyKey = LEGACY_KEY_PREFIX + key.removePrefix(KEY_PREFIX)
+        redis.send(writeIfNewer(listOf(key, legacyKey), settings)).coAwait()
     }
 
     private suspend fun <T> attempt(operation: CacheOperation, target: String, block: suspend () -> T): Result<T> {
@@ -156,14 +152,10 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
 
     private fun settingKey(resourceType: ResourceType, resourceId: Long) = "$KEY_PREFIX${resourceType.name}:$resourceId"
 
-    private fun legacySettingKey(resourceType: ResourceType, resourceId: Long) =
-        "$LEGACY_KEY_PREFIX${resourceType.name}:$resourceId"
-
     private enum class CacheOperation(val tag: String) {
         GET("get"),
         SET("set"),
         SET_BULK("set_bulk"),
-        INVALIDATE("invalidate"),
         REPAIR("repair"),
         EXPIRY_LOCK("expiry_lock"),
     }
