@@ -6,6 +6,7 @@ version = "20261025.0"
 
 dependencies {
     implementation(libs.spring.cloud.starter.gateway)
+    implementation("org.springframework.boot:spring-boot-starter-webclient")
     implementation(libs.spring.cloud.starter.circuitbreaker.reactor.resilience4j)
     implementation(libs.spring.boot.starter.security)
     implementation(libs.spring.boot.starter.actuator)
