@@ -36,8 +36,13 @@ public class AccountsPolicyTests
         Assert.Equal(JsonValueKind.Null, patch.Profile["nickname"].ValueKind);
         Assert.Equal(["name"], patch.Account.Keys);
         Assert.Null(patch.Roles);
+    }
 
-        Assert.Equal(["github"], Accounts.ParseProfilePatch(Json("""{"github_id": "octo"}""")).Account.Keys);
+    [Fact]
+    public void Profile_patch_rejects_github_id_even_when_null()
+    {
+        Assert.Equal("github_id는 수정할 수 없습니다.", Assert.Throws<ApiError>(() => Accounts.ParseProfilePatch(Json("""{"github_id": "octo"}"""))).Message);
+        Assert.Equal(400, Assert.Throws<ApiError>(() => Accounts.ParseProfilePatch(Json("""{"name": "김코워크", "github_id": null}"""))).Status);
     }
 
     [Fact]
