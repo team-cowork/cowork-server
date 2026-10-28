@@ -17,6 +17,10 @@
       Type=oneshot
       RemainAfterExit=yes
       ExecStartPre=-/usr/sbin/nft add table inet cowork
+      {% if inventory_hostname in groups['nomad_clients'] %}
+      ExecStartPre=-/usr/sbin/iptables -w -N CNI-ADMIN
+      ExecStartPre=/bin/sh -ec '/usr/sbin/iptables -w -C CNI-ADMIN -o cowork0 -m conntrack --ctstate DNAT -j ACCEPT || /usr/sbin/iptables -w -A CNI-ADMIN -o cowork0 -m conntrack --ctstate DNAT -j ACCEPT'
+      {% endif %}
       ExecStart=/usr/sbin/nft -f /etc/cowork/firewall.nft
       ExecReload=/usr/sbin/nft -f /etc/cowork/firewall.nft
       [Install]
