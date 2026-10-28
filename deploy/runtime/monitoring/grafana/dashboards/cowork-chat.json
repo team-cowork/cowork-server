@@ -33,7 +33,7 @@
           "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] }
         }
       },
-      "description": "애플리케이션 메트릭 수집 결과입니다. 서비스가 요청을 처리할 준비가 됐는지는 준비 상태 카드에서 확인합니다. 인스턴스 하나라도 수집에 실패하면 DOWN입니다."
+      "description": "애플리케이션 메트릭 수집 성공 여부입니다. 인스턴스 하나라도 수집에 실패하면 DOWN입니다."
     },
     {
       "id": 100,
@@ -89,7 +89,7 @@
           "thresholds": { "mode": "absolute", "steps": [{"value": null, "color": "green"}, {"value": 85, "color": "orange"}, {"value": 95, "color": "red"}] }
         }
       },
-      "description": "현재 확보한 힙 크기가 아닌 V8 최대 힙 한도 기준입니다. 85%부터 주의, 95%부터 높음으로 표시합니다. 인스턴스 중 가장 높은 사용률입니다.",
+      "description": "각 인스턴스의 V8 최대 힙 한도 대비 사용률 중 가장 높은 값입니다.",
       "options": { "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true }
     },
     {
@@ -250,7 +250,7 @@
           "custom": { "fillOpacity": 80, "lineWidth": 0 }
         }
       },
-      "description": "READY 또는 IN_MEMORY 상태이면 UP입니다. 연결 중이거나 연결 저하·종료 상태이면 DOWN입니다. 인스턴스 하나라도 DOWN이면 DOWN입니다.",
+      "description": "READY·IN_MEMORY 상태는 UP이며, 인스턴스 하나라도 다른 상태이면 DOWN입니다.",
       "options": { "mergeValues": true, "rowHeight": 0.8, "showValue": "auto", "alignValue": "left", "legend": {"showLegend": false}, "tooltip": {"mode": "single", "sort": "none"} }
     },
     {
