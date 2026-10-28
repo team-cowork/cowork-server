@@ -94,6 +94,32 @@
   become: false
   no_log: true
 
+- name: Read the current Nomad scheduler configuration
+  ansible.builtin.uri:
+    url: https://127.0.0.1:4646/v1/operator/scheduler/configuration
+    ca_path: /etc/cowork/ca/ca.crt
+    headers:
+      X-Nomad-Token: "{{ (nomad_saved_acl.content | b64decode | from_json).SecretID }}"
+  register: nomad_scheduler_config
+  no_log: true
+
+- name: Enable the declared task memory limits
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/nomad
+      - operator
+      - scheduler
+      - set-config
+      - "-check-index={{ nomad_scheduler_config.json.SchedulerConfig.ModifyIndex }}"
+      - -memory-oversubscription=true
+  environment:
+    NOMAD_ADDR: https://127.0.0.1:4646
+    NOMAD_CACERT: /etc/cowork/ca/ca.crt
+    NOMAD_TOKEN: "{{ (nomad_saved_acl.content | b64decode | from_json).SecretID }}"
+  when: not nomad_scheduler_config.json.SchedulerConfig.MemoryOversubscriptionEnabled
+  changed_when: true
+  no_log: true
+
 - name: Reconcile the scoped Nomad deployment policy
   vars:
     nomad_deploy_rules: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/files/nomad-deploy-policy.hcl') }}"
