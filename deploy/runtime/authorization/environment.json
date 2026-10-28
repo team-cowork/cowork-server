@@ -1,13 +1,8 @@
 {
   "APP_CONFIG_PROFILE": "prod",
-  "JWT_ACCESS_EXPIRE": "30m",
-  "JWT_REFRESH_EXPIRE": "2160h",
   "KAFKA_BOOTSTRAP_SERVERS": "10.0.0.167:9094",
   "DB_HOST": "127.0.0.1",
   "DB_PORT": "13306",
-  "DB_USERNAME": "cowork_authorization",
-  "DB_NAME": "cowork_authorization",
-  "DATAGSM_CLIENT_ID": "e7cbba21-deb8-41a2-8648-f9a2234b343f",
   "KAFKA_SECURITY_PROTOCOL": "SASL_SSL",
   "KAFKA_SASL_MECHANISM": "SCRAM-SHA-512",
   "KAFKA_SASL_USERNAME": "cowork-authorization",
