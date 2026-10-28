@@ -4,7 +4,6 @@ import {ConfigService} from '@nestjs/config';
 import {type KafkaConfig, type SASLOptions} from 'kafkajs';
 import {
     DEFAULT_GITHUB_INSTALLATION_CACHE_TTL_SECONDS,
-    DEFAULT_GITHUB_INSTALLATION_MEMORY_CACHE_MAX_SIZE,
     DEFAULT_GITHUB_ISSUE_MAX_RETRIES,
     DEFAULT_GITHUB_TOKEN_CACHE_TTL_SECONDS,
 } from '../github/constants';
@@ -105,13 +104,6 @@ export class AppConfigService {
         return this.getNumber(
             'GITHUB_ISSUE_MAX_RETRIES',
             DEFAULT_GITHUB_ISSUE_MAX_RETRIES,
-        );
-    }
-
-    get githubInstallationMemoryCacheMaxSize(): number {
-        return this.getNumber(
-            'GITHUB_INSTALLATION_MEMORY_CACHE_MAX_SIZE',
-            DEFAULT_GITHUB_INSTALLATION_MEMORY_CACHE_MAX_SIZE,
         );
     }
 
