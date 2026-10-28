@@ -186,6 +186,9 @@ public static partial class Accounts
         Dictionary<string, JsonElement> Take(params (string Key, string Field)[] fields) =>
             fields.Where(f => attrs.TryGetProperty(f.Key, out _)).ToDictionary(f => f.Field, f => attrs.GetProperty(f.Key));
 
+        // The GitHub login authorizes GitHub actions elsewhere, so only DataGSM sync may set it.
+        if (attrs.TryGetProperty("github_id", out _)) throw ApiError.Validation("github_id는 수정할 수 없습니다.");
+
         IReadOnlyList<string>? roles = null;
         if (attrs.TryGetProperty("roles", out var rawRoles))
         {
@@ -197,7 +200,7 @@ public static partial class Accounts
         }
 
         return new ProfilePatch(Take(("nickname", "nickname"), ("description", "description")),
-            Take(("name", "name"), ("github_id", "github")), roles);
+            Take(("name", "name")), roles);
     }
 
     /// <summary>Casts a JSON value into a nullable string column; whitespace-only text is empty.</summary>
@@ -228,8 +231,8 @@ public static partial class Accounts
 
         await App.TransactionAsync<int>(async (connection, transaction) =>
         {
-            var account = await connection.QueryAsync<(string Name, string? Github)>(
-                "SELECT name, github FROM tb_accounts WHERE id = @userId FOR UPDATE", new { userId }, transaction).FirstOrNullAsync() ?? throw ApiError.NotFound();
+            var accountName = await connection.QuerySingleOrDefaultAsync<string>(
+                "SELECT name FROM tb_accounts WHERE id = @userId FOR UPDATE", new { userId }, transaction) ?? throw ApiError.NotFound();
             var profile = await connection.QueryAsync<(long Id, string? Nickname, string? Description)>(
                 "SELECT id, nickname, description FROM tb_profiles WHERE account_id = @userId FOR UPDATE", new { userId }, transaction).FirstOrNullAsync() ?? throw ApiError.NotFound();
 
@@ -271,29 +274,16 @@ public static partial class Accounts
             var accountErrors = new FieldErrors();
             var accountChanges = CastStrings(patch.Account, accountErrors);
             accountErrors.ThrowIfAny();
-            var accountChanged = (accountChanges.TryGetValue("name", out var name) && name != account.Name)
-                                 | (accountChanges.TryGetValue("github", out var github) && github != account.Github);
+            var accountChanged = accountChanges.TryGetValue("name", out var name) && name != accountName;
             if (accountChanged)
             {
-                if (accountChanges.ContainsKey("name") && name is null)
+                if (name is null)
                     throw ApiError.Validation("name can't be blank");
-                try
-                {
-                    await connection.ExecuteAsync("""
-                        UPDATE tb_accounts
-                        SET name = @name, github = @github, last_modified_by = @userId, updated_at = UTC_TIMESTAMP(6)
-                        WHERE id = @userId
-                        """, new
-                    {
-                        name = accountChanges.ContainsKey("name") ? name : account.Name,
-                        github = accountChanges.ContainsKey("github") ? github : account.Github,
-                        userId,
-                    }, transaction);
-                }
-                catch (MySqlException error) when (error.ErrorCode == MySqlErrorCode.DuplicateKeyEntry && error.Message.Contains("uq_tb_accounts_github"))
-                {
-                    throw ApiError.Validation("github has already been taken");
-                }
+                await connection.ExecuteAsync("""
+                    UPDATE tb_accounts
+                    SET name = @name, last_modified_by = @userId, updated_at = UTC_TIMESTAMP(6)
+                    WHERE id = @userId
+                    """, new { name, userId }, transaction);
             }
 
             if (profileChanged || rolesChanged || accountChanged)
