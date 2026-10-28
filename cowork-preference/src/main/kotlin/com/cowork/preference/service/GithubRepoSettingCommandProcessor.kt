@@ -1,6 +1,7 @@
 package com.cowork.preference.service
 
 import com.cowork.preference.cache.PreferenceCache
+import com.cowork.preference.cache.VersionedSettings
 import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.messaging.GithubRepoSettingCommand
 import com.cowork.preference.messaging.GithubRepoSettingCommandEnvelope
@@ -177,7 +178,7 @@ class GithubRepoSettingCommandProcessor(
             PreferenceEvents.githubRepoSettingResult(command.operationId, result, occurredAt),
         )
         inboxRepository.insert(connection, command, result)
-        return CacheAction.Set(normalizedSettings)
+        return CacheAction.Set(VersionedSettings(normalizedSettings, update.stateOccurredAt))
     }
 
     private suspend fun applyDelete(connection: SqlConnection, command: GithubRepoSettingCommand): CacheAction {
@@ -197,7 +198,7 @@ class GithubRepoSettingCommandProcessor(
     }
 
     private sealed interface CacheAction {
-        data class Set(val settings: JsonObject) : CacheAction
+        data class Set(val settings: VersionedSettings) : CacheAction
         data object Invalidate : CacheAction
         data object None : CacheAction
     }
