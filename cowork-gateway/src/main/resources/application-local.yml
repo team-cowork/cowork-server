@@ -460,8 +460,8 @@ app:
 
 resilience4j:
   circuitbreaker:
-    instances:
-      defaultCB:
+    configs:
+      default:
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
