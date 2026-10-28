@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Reconcile native platform definitions, then wait for the requested Nomad versions."""
+"""Reconcile native platform definitions, then wait for the submitted Nomad jobs."""
 import argparse
 from contextlib import closing
 import json
@@ -118,25 +118,21 @@ class Platform:
             print(f'{stage}: ' + ('drift detected' if result.returncode == 2 else 'matches Git'), flush=True)
             return {}
         output = json.loads(command(prefix + ['output', '-json'], env=self.env, capture=True).stdout)
-        versions = output.get('job_versions', {}).get('value', {})
-        indices = output.get('job_modify_indices', {}).get('value', {})
-        if set(versions) != set(indices):
-            raise ValueError(stage + ': job versions and modification indices must cover the same jobs')
-        return {job_id: {'version': int(version), 'modify_index': int(indices[job_id])}
-                for job_id, version in versions.items()}
+        indices = output['job_modify_indices']['value']
+        return {job_id: int(index) for job_id, index in indices.items()}
 
-    def wait_jobs(self, versions, specs, *, batch=False):
-        remaining = dict(versions)
+    def wait_jobs(self, indices, specs, *, batch=False):
+        remaining = dict(indices)
         deadline = time.monotonic() + 900
         last_report = 0
         while remaining:
             if time.monotonic() > deadline:
                 raise RuntimeError('Nomad readiness deadline exceeded: ' + ', '.join(remaining))
-            for job_id, expected in list(remaining.items()):
-                version = expected['version']
+            for job_id, expected_index in list(remaining.items()):
                 job = self.api('job/' + job_id)
-                if job['Version'] != version or job['JobModifyIndex'] != expected['modify_index']:
-                    raise RuntimeError(job_id + ': job version changed while waiting; deployment was not accepted')
+                if job['JobModifyIndex'] != expected_index:
+                    raise RuntimeError(job_id + ': job changed while waiting; deployment was not accepted')
+                version = job['Version']
                 allocations = self.api('job/' + job_id + '/allocations') or []
                 candidates = [a for a in allocations if a['JobVersion'] == int(version)
                               and a['DesiredStatus'] == 'run' and a['ClientStatus'] in ('running', 'complete')]
@@ -186,7 +182,7 @@ class Platform:
                             ready = False
                 if ready:
                     del remaining[job_id]
-                    print(f'{job_id}: requested version {version} is ready', flush=True)
+                    print(f'{job_id}: submitted job index {expected_index} is ready', flush=True)
             if remaining:
                 if time.monotonic() - last_report >= 30:
                     print('Waiting for Nomad: ' + ', '.join(remaining), flush=True)
@@ -233,10 +229,7 @@ def main():
         migration.setdefault('Meta', {})['release_run'] = str(time.time_ns())
         registered = platform.api('jobs', method='POST', body={'Job': migration, 'EnforceIndex': True,
                                   'JobModifyIndex': previous['JobModifyIndex'] if previous else 0})
-        version = previous['Version'] + 1 if previous else 0
-        platform.wait_jobs({'cowork-user-migrations': {
-            'version': version, 'modify_index': registered['JobModifyIndex'],
-        }}, specs, batch=True)
+        platform.wait_jobs({'cowork-user-migrations': registered['JobModifyIndex']}, specs, batch=True)
         for stage in ('apps', 'edge'):
             platform.wait_jobs(platform.tofu(stage, variables), specs)
         print('The entire declared production release is ready', flush=True)
