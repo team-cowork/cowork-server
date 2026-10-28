@@ -9,6 +9,7 @@ import {
     UseGuards,
 } from '@nestjs/common';
 import type Redis from 'ioredis';
+import {GithubAuthService} from '../../auth/github-auth.service';
 import {
     extractCommentAuthor,
 } from '../../common/comment-author-marker';
@@ -39,6 +40,7 @@ export class GithubWebhookController {
         private readonly repoEventProducer: RepoEventProducer,
         private readonly readModelProducers: GithubReadModelEventProducers,
         private readonly pullRequestService: PullRequestService,
+        private readonly authService: GithubAuthService,
         @Inject(REDIS_CLIENT) private readonly redis: Redis,
     ) {}
 
@@ -121,15 +123,28 @@ export class GithubWebhookController {
     private async handleInstallation(
         payload: GithubWebhookPayload,
     ): Promise<void> {
-        // 'created'는 state가 없어 상관관계를 지을 수 없음 — setup 콜백에서만 처리
+        // 'created'는 state가 없어 팀과 상관관계를 지을 수 없음 — 팀 연결은 setup 콜백에서만 처리하고 여기선 인증 캐시만 갱신
         // 'suspend'는 일시 중단일 뿐이라 연동을 끊지 않음 — 'unsuspend' 시 별도 이벤트 없이 API 호출이 다시 성공하며 자연히 복구됨
         const action = payload?.action;
-        if (action === undefined
-            || !GithubWebhookController.DISCONNECT_ACTIONS.has(action) || !payload.installation) {
+        if (action === undefined || !payload.installation) {
             return;
         }
 
         const installationId = payload.installation.id;
+        const owner = payload.installation.account?.login;
+        if (action === 'created' && owner !== undefined) {
+            await this.authService.cacheInstallation(owner, installationId);
+            return;
+        }
+
+        if (!GithubWebhookController.DISCONNECT_ACTIONS.has(action)) {
+            return;
+        }
+
+        if (owner !== undefined) {
+            await this.authService.evictInstallation(owner, installationId);
+        }
+
         const revision = await this.redis.incr(
             githubCacheKeys.installationRevision(installationId),
         );
