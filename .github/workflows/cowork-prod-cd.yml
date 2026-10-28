@@ -151,7 +151,7 @@ jobs:
           retention-days: 7
 
   sync-secrets:
-    name: Pin Secrets For ${{ matrix.service }}
+    name: Pin Runtime Settings For ${{ matrix.service }}
     needs: [prepare, build-images]
     if: >-
       !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.mode == 'release' &&
@@ -180,11 +180,30 @@ jobs:
           python-version: ${{ steps.python-version.outputs.version }}
       - name: Install Pinned Deployment Dependencies
         run: python3 -m pip install -r deploy/production/requirements.txt
-      - name: Publish Declared Secrets To Vault
+      - name: Publish Declared Settings To Vault
         env:
           SERVICE: ${{ matrix.service }}
           VAULT_ADDR: ${{ vars.VAULT_ADDR }}
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          GH_VARIABLE_COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID: ${{ contains(matrix.variable_names, 'COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID') && vars.COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID || '' }}
+          GH_VARIABLE_COWORK_GITHUB_APP_ID: ${{ contains(matrix.variable_names, 'COWORK_GITHUB_APP_ID') && vars.COWORK_GITHUB_APP_ID || '' }}
+          GH_VARIABLE_COWORK_GITHUB_APP_SLUG: ${{ contains(matrix.variable_names, 'COWORK_GITHUB_APP_SLUG') && vars.COWORK_GITHUB_APP_SLUG || '' }}
+          GH_VARIABLE_DATAGSM_CLIENT_ID: ${{ contains(matrix.variable_names, 'DATAGSM_CLIENT_ID') && vars.DATAGSM_CLIENT_ID || '' }}
+          GH_VARIABLE_DB_NAME: ${{ contains(matrix.variable_names, 'DB_NAME') && vars.DB_NAME || '' }}
+          GH_VARIABLE_DB_USERNAME: ${{ contains(matrix.variable_names, 'DB_USERNAME') && vars.DB_USERNAME || '' }}
+          GH_VARIABLE_FACEBOOK_ACCOUNT_SHARE_CLIENT_ID: ${{ contains(matrix.variable_names, 'FACEBOOK_ACCOUNT_SHARE_CLIENT_ID') && vars.FACEBOOK_ACCOUNT_SHARE_CLIENT_ID || '' }}
+          GH_VARIABLE_FCM_DATA_ONLY: ${{ contains(matrix.variable_names, 'FCM_DATA_ONLY') && vars.FCM_DATA_ONLY || '' }}
+          GH_VARIABLE_GOOGLE_ACCOUNT_SHARE_CLIENT_ID: ${{ contains(matrix.variable_names, 'GOOGLE_ACCOUNT_SHARE_CLIENT_ID') && vars.GOOGLE_ACCOUNT_SHARE_CLIENT_ID || '' }}
+          GH_VARIABLE_GRAFANA_ROOT_URL: ${{ contains(matrix.variable_names, 'GRAFANA_ROOT_URL') && vars.GRAFANA_ROOT_URL || '' }}
+          GH_VARIABLE_JIRA_ACCOUNT_SHARE_CLIENT_ID: ${{ contains(matrix.variable_names, 'JIRA_ACCOUNT_SHARE_CLIENT_ID') && vars.JIRA_ACCOUNT_SHARE_CLIENT_ID || '' }}
+          GH_VARIABLE_JWT_ACCESS_EXPIRE: ${{ contains(matrix.variable_names, 'JWT_ACCESS_EXPIRE') && vars.JWT_ACCESS_EXPIRE || '' }}
+          GH_VARIABLE_JWT_REFRESH_EXPIRE: ${{ contains(matrix.variable_names, 'JWT_REFRESH_EXPIRE') && vars.JWT_REFRESH_EXPIRE || '' }}
+          GH_VARIABLE_LIVEKIT_WS_URL: ${{ contains(matrix.variable_names, 'LIVEKIT_WS_URL') && vars.LIVEKIT_WS_URL || '' }}
+          GH_VARIABLE_NOTION_ACCOUNT_SHARE_CLIENT_ID: ${{ contains(matrix.variable_names, 'NOTION_ACCOUNT_SHARE_CLIENT_ID') && vars.NOTION_ACCOUNT_SHARE_CLIENT_ID || '' }}
+          GH_VARIABLE_PUBLIC_API_BASE_URL: ${{ contains(matrix.variable_names, 'PUBLIC_API_BASE_URL') && vars.PUBLIC_API_BASE_URL || '' }}
+          GH_VARIABLE_PUBLIC_WEB_ORIGINS: ${{ contains(matrix.variable_names, 'PUBLIC_WEB_ORIGINS') && vars.PUBLIC_WEB_ORIGINS || '' }}
+          GH_VARIABLE_S3_BUCKET: ${{ contains(matrix.variable_names, 'S3_BUCKET') && vars.S3_BUCKET || '' }}
+          GH_VARIABLE_S3_REGION: ${{ contains(matrix.variable_names, 'S3_REGION') && vars.S3_REGION || '' }}
           GH_SECRET_ACCOUNT_CREDENTIAL_ENCRYPTION_KEY: ${{ contains(matrix.secret_names, 'ACCOUNT_CREDENTIAL_ENCRYPTION_KEY') && secrets.ACCOUNT_CREDENTIAL_ENCRYPTION_KEY || '' }}
           GH_SECRET_ACCOUNT_SHARE_OAUTH_STATE_SECRET: ${{ contains(matrix.secret_names, 'ACCOUNT_SHARE_OAUTH_STATE_SECRET') && secrets.ACCOUNT_SHARE_OAUTH_STATE_SECRET || '' }}
           GH_SECRET_COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET') && secrets.COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET || '' }}
