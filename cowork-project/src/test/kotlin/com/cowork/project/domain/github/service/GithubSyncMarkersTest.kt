@@ -6,7 +6,6 @@ import com.cowork.project.domain.github.entity.GithubSyncStream
 import com.cowork.project.domain.github.event.GithubSyncCompletedMarker
 import com.cowork.project.domain.github.repository.GithubRepoProjectionRepository
 import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -16,6 +15,7 @@ import io.mockk.slot
 import io.mockk.verify
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.time.Instant
 import java.util.Optional
 
@@ -38,7 +38,7 @@ class GithubSyncMarkersTest :
         describe("GithubSyncMarkers 클래스의 isMarker 메서드는") {
             context("엔티티 state 레코드인 경우") {
                 it("false를 반환한다") {
-                    val state = ObjectMapper().readTree("""{"owner":"my-org","repo":"my-repo","number":1}""")
+                    val state = jacksonObjectMapper().readTree("""{"owner":"my-org","repo":"my-repo","number":1}""")
 
                     markers.isMarker(state) shouldBe false
                 }

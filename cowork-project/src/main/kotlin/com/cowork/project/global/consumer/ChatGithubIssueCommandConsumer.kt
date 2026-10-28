@@ -3,10 +3,10 @@ package com.cowork.project.global.consumer
 import com.cowork.project.domain.github.event.CHAT_GITHUB_ISSUE_COMMAND_TOPIC
 import com.cowork.project.domain.github.event.ChatGithubIssueCreateCommand
 import com.cowork.project.domain.github.service.ChatGithubIssueCommandProcessor
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
+import tools.jackson.databind.ObjectMapper
 import java.util.UUID
 
 @Component
