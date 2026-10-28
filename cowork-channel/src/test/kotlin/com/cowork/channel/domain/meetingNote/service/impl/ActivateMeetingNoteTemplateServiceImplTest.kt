@@ -7,6 +7,7 @@ import com.cowork.channel.domain.meetingNote.service.MeetingNoteAccessGuard
 import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteTemplateLookupSupport
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verifyOrder
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -39,9 +40,9 @@ class ActivateMeetingNoteTemplateServiceImplTest {
     fun `activateTemplate은 기존 활성 템플릿을 비활성화하고 대상을 활성화`() {
         val current = template(id = 5L, isActive = true)
         val next = template(id = 10L, isActive = false)
-        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
+        every { meetingNoteAccessGuard.requireChannelAccessForUpdate(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(next)
-        every { templateRepository.findByChannelIdAndIsActiveTrue(1L) } returns current
+        every { templateRepository.findAllByChannelIdAndIsActiveTrue(1L) } returns listOf(current)
         every { sectionRepository.findAllByTemplateIdOrderByIdAsc(10L) } returns emptyList()
 
         service.activateTemplate(7L, 1L, 10L)
@@ -53,9 +54,9 @@ class ActivateMeetingNoteTemplateServiceImplTest {
     @Test
     fun `activateTemplate은 이미 활성 상태인 템플릿을 다시 활성화해도 오류 없음`() {
         val tmpl = template(id = 10L, isActive = true)
-        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
+        every { meetingNoteAccessGuard.requireChannelAccessForUpdate(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(tmpl)
-        every { templateRepository.findByChannelIdAndIsActiveTrue(1L) } returns tmpl
+        every { templateRepository.findAllByChannelIdAndIsActiveTrue(1L) } returns listOf(tmpl)
         every { sectionRepository.findAllByTemplateIdOrderByIdAsc(10L) } returns emptyList()
 
         service.activateTemplate(7L, 1L, 10L)
@@ -65,12 +66,44 @@ class ActivateMeetingNoteTemplateServiceImplTest {
     @Test
     fun `activateTemplate은 기존 활성 템플릿이 없어도 정상 동작`() {
         val next = template(id = 10L, isActive = false)
-        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
+        every { meetingNoteAccessGuard.requireChannelAccessForUpdate(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(next)
-        every { templateRepository.findByChannelIdAndIsActiveTrue(1L) } returns null
+        every { templateRepository.findAllByChannelIdAndIsActiveTrue(1L) } returns emptyList()
         every { sectionRepository.findAllByTemplateIdOrderByIdAsc(10L) } returns emptyList()
 
         service.activateTemplate(7L, 1L, 10L)
         assertTrue(next.isActive)
+    }
+
+    @Test
+    fun `activateTemplate은 채널 잠금 후 템플릿을 조회`() {
+        val next = template(id = 10L, isActive = false)
+        every { templateRepository.findById(10L) } returns Optional.of(next)
+        every { templateRepository.findAllByChannelIdAndIsActiveTrue(1L) } returns emptyList()
+        every { sectionRepository.findAllByTemplateIdOrderByIdAsc(10L) } returns emptyList()
+
+        service.activateTemplate(7L, 1L, 10L)
+
+        verifyOrder {
+            meetingNoteAccessGuard.requireChannelAccessForUpdate(1L, 7L)
+            templateRepository.findById(10L)
+            templateRepository.findAllByChannelIdAndIsActiveTrue(1L)
+        }
+    }
+
+    @Test
+    fun `activateTemplate은 활성 템플릿이 여러 개면 대상 외 모두 비활성화`() {
+        val first = template(id = 5L, isActive = true)
+        val second = template(id = 6L, isActive = true)
+        val target = template(id = 10L, isActive = true)
+        every { templateRepository.findById(10L) } returns Optional.of(target)
+        every { templateRepository.findAllByChannelIdAndIsActiveTrue(1L) } returns listOf(first, second, target)
+        every { sectionRepository.findAllByTemplateIdOrderByIdAsc(10L) } returns emptyList()
+
+        service.activateTemplate(7L, 1L, 10L)
+
+        assertFalse(first.isActive)
+        assertFalse(second.isActive)
+        assertTrue(target.isActive)
     }
 }
