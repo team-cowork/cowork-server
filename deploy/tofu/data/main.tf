@@ -14,17 +14,12 @@ locals {
   kafka_files      = { for name in toset(["server.properties", "start-broker.sh", "policy.json"]) : name => file("${local.root}/deploy/runtime/kafka/${name}") }
   monitoring_files = { for name in fileset("${local.root}/deploy/runtime/monitoring", "**/*.{yml,yaml,json,conf}") : name => file("${local.root}/deploy/runtime/monitoring/${name}") if name != "environment.json" }
   monitoring_env   = jsondecode(file("${local.root}/deploy/runtime/monitoring/environment.json"))
-  storage_env = { for owner in module.catalog.storage_owners : owner => merge(
-    { PUBLIC_WEB_ORIGINS = module.catalog.runtime_env.gateway.PUBLIC_WEB_ORIGINS },
-    module.catalog.runtime_env[owner]
-  ) }
-  common = { envoy_image = local.envoy_image, vault_mount = var.vault_mount }
+  common           = { envoy_image = local.envoy_image, vault_mount = var.vault_mount }
   jobs = merge(
     { for owner in module.catalog.database_owners : "cowork-${owner}-db" => {
       jobspec = file("${local.root}/deploy/nomad/data/${owner}-db.nomad.hcl")
       variables = merge(local.common, {
         secret_version = tostring(var.manifest.data_secret_versions[owner])
-        runtime_env    = jsonencode({ for key, value in module.catalog.runtime_env[owner] : key => replace(replace(value, "$${", "$$${"), "%%{", "%%%{") if contains(["DB_NAME", "DB_USERNAME"], key) })
         config_files   = jsonencode({ for key, value in local.database_files[owner] : key => replace(replace(value, "$${", "$$${"), "%%{", "%%%{") })
       })
     } },
@@ -32,7 +27,7 @@ locals {
       jobspec = file("${local.root}/deploy/nomad/data/${owner}-storage.nomad.hcl")
       variables = merge(local.common, {
         secret_version = tostring(var.manifest.data_secret_versions["${owner}/storage"])
-        runtime_env    = jsonencode({ for key, value in local.storage_env[owner] : key => replace(replace(value, "$${", "$$${"), "%%{", "%%%{") })
+        runtime_env    = jsonencode({ for key, value in module.catalog.runtime_env[owner] : key => replace(replace(value, "$${", "$$${"), "%%{", "%%%{") })
         config_files   = jsonencode({ for key, value in local.storage_files : key => replace(replace(value, "$${", "$$${"), "%%{", "%%%{") })
       })
     } },
