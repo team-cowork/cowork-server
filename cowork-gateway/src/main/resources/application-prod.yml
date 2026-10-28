@@ -163,7 +163,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: authorizationWebhookCB
                 fallbackUri: forward:/fallback
 
         - id: user-service
@@ -178,7 +178,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: userCB
                 fallbackUri: forward:/fallback
             # Retry는 뒤 필터를 다시 실행하므로 외부 요청 한 건이 토큰을 한 번만 쓰도록 RequestRateLimiter를 앞에 둔다
             - name: RequestRateLimiter
@@ -208,7 +208,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: projectCB
                 fallbackUri: forward:/fallback
 
         - id: team-channel-service
@@ -222,7 +222,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: channelCB
                 fallbackUri: forward:/fallback
 
         - id: team-service
@@ -236,7 +236,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: teamCB
                 fallbackUri: forward:/fallback
             - name: RequestRateLimiter
               args:
@@ -254,7 +254,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: channelCB
                 fallbackUri: forward:/fallback
 
         - id: project-channel-service
@@ -265,7 +265,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: channelCB
                 fallbackUri: forward:/fallback
 
         - id: project-service
@@ -276,7 +276,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: projectCB
                 fallbackUri: forward:/fallback
 
         - id: roadmap-service
@@ -290,7 +290,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: roadmapCB
                 fallbackUri: forward:/fallback
 
         - id: chat-service
@@ -301,7 +301,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: chatCB
                 fallbackUri: forward:/fallback
 
         - id: channel-service
@@ -312,7 +312,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: channelCB
                 fallbackUri: forward:/fallback
             - name: RequestRateLimiter
               args:
@@ -350,7 +350,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: preferenceCB
                 fallbackUri: forward:/fallback
 
         - id: live-service
@@ -364,7 +364,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: voiceCB
                 fallbackUri: forward:/fallback
 
         - id: github-service-webhook
@@ -412,7 +412,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: voiceCB
                 fallbackUri: forward:/fallback
             - name: RequestRateLimiter
               args:
@@ -476,7 +476,7 @@ spring:
             - StripPrefix=2
             - name: CircuitBreaker
               args:
-                name: defaultCB
+                name: notificationCB
                 fallbackUri: forward:/fallback
 
         - id: notification-service-docs
@@ -524,13 +524,17 @@ app:
 
 resilience4j:
   circuitbreaker:
-    instances:
-      defaultCB:
+    # 차단기는 이름별로 상태를 가지므로 대상 서비스마다 이름을 두고, 같은 서비스의 라우트는 상태를 공유한다.
+    # instances에 없는 이름은 아래 default 설정을 쓴다. 로그인(authorizationCB)은 시간 제한이 달라
+    # 같은 서비스의 datagsm 웹훅(authorizationWebhookCB)과 이름을 나눈다.
+    configs:
+      default:
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
         permittedNumberOfCallsInHalfOpenState: 3
         automaticTransitionFromOpenToHalfOpenEnabled: true
+    instances:
       authorizationCB:
         slidingWindowSize: 10
         failureRateThreshold: 50
