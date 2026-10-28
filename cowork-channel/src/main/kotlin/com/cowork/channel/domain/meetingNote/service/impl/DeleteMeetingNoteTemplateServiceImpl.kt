@@ -10,15 +10,15 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional
 class DeleteMeetingNoteTemplateServiceImpl(
     private val templateRepository: MeetingNoteTemplateRepository,
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
     private val lookupSupport: MeetingNoteTemplateLookupSupport,
 ) : DeleteMeetingNoteTemplateService {
 
+    @Transactional
     override fun deleteTemplate(userId: Long, channelId: Long, templateId: Long) {
-        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
+        meetingNoteAccessGuard.requireChannelAccessForUpdate(channelId, userId)
         val template = lookupSupport.findTemplateOrThrow(templateId)
         lookupSupport.requireTemplateOwnership(template, channelId)
         if (template.isActive) {
