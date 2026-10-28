@@ -9,7 +9,7 @@ import com.cowork.project.domain.membership.projection.TeamRoleProjectionReposit
 import com.cowork.project.global.projection.toProjectionPrecision
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 
 @Component
 class PreferenceTeamRoleProjectionHandler(

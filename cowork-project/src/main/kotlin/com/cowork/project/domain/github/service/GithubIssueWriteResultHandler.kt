@@ -5,10 +5,10 @@ import com.cowork.project.domain.github.event.GithubIssueWriteCommandType
 import com.cowork.project.domain.github.event.GithubIssueWriteCommentResultPayload
 import com.cowork.project.domain.github.event.GithubIssueWriteResult
 import com.cowork.project.domain.github.repository.GithubIssueWriteOperationRepository
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.ObjectMapper
 
 /** [GithubIssueWriteResultHandler.apply]가 반환하는, 트랜잭션 밖에서 처리해야 할 부모 작성자 알림 정보. */
 data class PendingCommentCreatedNotification(

@@ -5,11 +5,11 @@ import com.cowork.project.domain.githubPreference.event.GithubRepoSettingState
 import com.cowork.project.domain.githubPreference.service.GithubRepoPreferenceProjectionHandler
 import com.cowork.project.global.projection.ProjectionRecordProcessor
 import com.cowork.project.global.projection.ProjectionStreams
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
+import tools.jackson.databind.ObjectMapper
 
 @Component
 class GithubRepoSettingStateConsumer(

@@ -6,13 +6,13 @@ import com.cowork.project.domain.github.event.GithubIssueWriteCommandType
 import com.cowork.project.domain.github.event.GithubIssueWriteError
 import com.cowork.project.domain.github.event.GithubIssueWriteResult
 import com.cowork.project.domain.github.repository.GithubIssueWriteOperationRepository
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.mockk.every
 import io.mockk.mockk
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.time.Instant
 
 class GithubIssueWriteResultHandlerTest :
@@ -41,7 +41,7 @@ class GithubIssueWriteResultHandlerTest :
 
         beforeEach {
             operationRepository = mockk()
-            handler = GithubIssueWriteResultHandler(operationRepository, ObjectMapper())
+            handler = GithubIssueWriteResultHandler(operationRepository, jacksonObjectMapper())
             every { operationRepository.save(any()) } answers { firstArg() }
         }
 
