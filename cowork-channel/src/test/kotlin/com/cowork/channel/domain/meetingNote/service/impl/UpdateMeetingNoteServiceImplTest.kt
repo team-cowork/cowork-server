@@ -90,7 +90,7 @@ class UpdateMeetingNoteServiceImplTest {
     fun `updateNote는 content가 JSON 객체가 아니면 BAD_REQUEST`() {
         every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
 
-        listOf("not-json", "[\"a\"]", "\"text\"", "").forEach { content ->
+        listOf("not-json", "[\"a\"]", "\"text\"", "", "{\"a\":\"1\",\"a\":\"2\"}").forEach { content ->
             val ex = assertThrows(ExpectedException::class.java) {
                 service.updateNote(7L, 1L, 1L, UpdateMeetingNoteRequest(title = null, content = content))
             }
