@@ -7,6 +7,7 @@ import com.cowork.channel.domain.meetingNote.repository.MeetingNoteRepository
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteTemplateRepository
 import com.cowork.channel.domain.meetingNote.service.CreateMeetingNoteService
 import com.cowork.channel.domain.meetingNote.service.MeetingNoteAccessGuard
+import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteContentSupport
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -18,10 +19,12 @@ class CreateMeetingNoteServiceImpl(
     private val meetingNoteRepository: MeetingNoteRepository,
     private val templateRepository: MeetingNoteTemplateRepository,
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
+    private val meetingNoteContentSupport: MeetingNoteContentSupport,
 ) : CreateMeetingNoteService {
 
     override fun createNote(userId: Long, channelId: Long, request: CreateMeetingNoteRequest): MeetingNoteResponse {
         meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
+        meetingNoteContentSupport.requireJsonObject(request.content)
         val template = templateRepository.findById(request.templateId).orElseThrow {
             ExpectedException("템플릿을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         }
