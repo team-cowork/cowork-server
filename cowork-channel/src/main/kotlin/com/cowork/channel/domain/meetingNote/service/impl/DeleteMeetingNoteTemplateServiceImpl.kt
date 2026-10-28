@@ -39,6 +39,5 @@ class DeleteMeetingNoteTemplateServiceImpl(
         }
     }
 
-    private fun templateInUseException() =
-        ExpectedException("회의록이 작성된 템플릿은 삭제할 수 없습니다.", HttpStatus.BAD_REQUEST)
+    private fun templateInUseException() = ExpectedException("회의록이 작성된 템플릿은 삭제할 수 없습니다.", HttpStatus.BAD_REQUEST)
 }
