@@ -15,10 +15,6 @@ resource "nomad_job" "this" {
     vars     = each.value.variables
   }
 }
-output "job_versions" {
-  value = { for id, job in nomad_job.this : id => job.version }
-}
-
 output "job_modify_indices" {
   value = { for id, job in nomad_job.this : id => job.modify_index }
 }
