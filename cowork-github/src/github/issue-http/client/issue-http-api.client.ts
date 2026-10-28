@@ -67,13 +67,14 @@ export class IssueHttpApiClient {
         owner: string,
         repo: string,
         issueNumber: number,
+        since?: string,
     ): Promise<GithubComment[]> {
         const token = await this.authService.getInstallationToken(owner);
         try {
             const {data} = await firstValueFrom(
                 this.httpService.get<GithubComment[]>(
                     `${GITHUB_API}/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
-                    {params: {per_page: 100}, headers: this.authHeaders(token)},
+                    {params: {per_page: 100, ...(since !== undefined && {since})}, headers: this.authHeaders(token)},
                 ),
             );
             return data;

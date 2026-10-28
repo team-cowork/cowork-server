@@ -33,5 +33,16 @@ describe('comment-author-marker', () => {
 
             expect(result).toBe('수정된 댓글\n\n<!-- cowork:author=new-author -->');
         });
+
+        it('operationId를 함께 남기면 읽을 때 작성자와 operationId를 모두 돌려주고 본문에서 제거한다', () => {
+            const marked = appendAuthorMarker('새 댓글', 'real-author', 'op-1');
+
+            expect(marked).toBe('새 댓글\n\n<!-- cowork:author=real-author operation=op-1 -->');
+            expect(extractCommentAuthor(marked, 'cowork-bot')).toEqual({
+                author: 'real-author',
+                body: '새 댓글',
+                operationId: 'op-1',
+            });
+        });
     });
 });
