@@ -1,18 +1,22 @@
 package com.cowork.preference.service
 
 import com.cowork.preference.cache.PreferenceCache
+import com.cowork.preference.cache.VersionedSettings
 import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.messaging.PreferenceEvent
 import com.cowork.preference.messaging.PreferenceEvents
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.PreferenceRepository
 import com.cowork.preference.repository.PreferenceSettingsUpdate
+import com.cowork.preference.repository.ResourceSettingState
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
 import io.mockk.slot
 import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlConnection
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -51,7 +55,7 @@ class PreferenceServiceTest {
             val result = service.updateSettings(ResourceType.TEXT_CHANNEL, 11, JsonObject().put("webhook", value))
             assertTrue(result.exceptionOrNull() is IllegalArgumentException)
         }
-        coVerify(exactly = 0) { outboxRepository.inTransaction<JsonObject>(any()) }
+        coVerify(exactly = 0) { outboxRepository.inTransaction<VersionedSettings>(any()) }
     }
 
     @Nested
@@ -70,6 +74,124 @@ class PreferenceServiceTest {
     }
 
     @Nested
+    inner class CacheFreshness {
+
+        private val connection = mockk<SqlConnection>()
+        private val cached = mutableMapOf<Long, VersionedSettings>()
+        private val olderVersion = Instant.parse("2026-10-28T01:00:00Z")
+        private val newerVersion = Instant.parse("2026-10-28T01:00:00.000001Z")
+        private val older = JsonObject().put("tag_spam_block", false)
+        private val newer = JsonObject().put("tag_spam_block", true)
+
+        /** PreferenceCache의 계약대로 캐시에 있는 version보다 새로운 기록만 남긴다. */
+        @BeforeEach
+        fun setUpCache() {
+            coEvery { cache.getSettings(ResourceType.TEAM, any()) } answers { cached[secondArg()]?.settings }
+            coEvery { cache.populateSettings(ResourceType.TEAM, any(), any()) } answers {
+                keepNewest(secondArg(), thirdArg())
+            }
+            coEvery { cache.setSettings(ResourceType.TEAM, any(), any()) } answers {
+                keepNewest(secondArg(), thirdArg())
+            }
+            coEvery { cache.populateSettingsBulk(ResourceType.TEAM, any()) } answers {
+                secondArg<Map<Long, VersionedSettings>>().forEach { (id, settings) -> keepNewest(id, settings) }
+            }
+            coEvery { outboxRepository.inTransaction<VersionedSettings>(any()) } coAnswers {
+                firstArg<suspend (SqlConnection) -> VersionedSettings>().invoke(connection)
+            }
+            coEvery { repository.upsertSettings(connection, 3L, ResourceType.TEAM, older, false) } returns
+                PreferenceSettingsUpdate(older, null, olderVersion, olderVersion)
+            coEvery { repository.upsertSettings(connection, 3L, ResourceType.TEAM, newer, false) } returns
+                PreferenceSettingsUpdate(newer, null, newerVersion, newerVersion)
+        }
+
+        @Test
+        fun `단건 조회가 변경 전에 읽은 값을 늦게 채워도 변경된 설정을 반환한다`() = runBlocking {
+            val readDone = CompletableDeferred<Unit>()
+            val resumeRead = CompletableDeferred<Unit>()
+            coEvery { repository.findSettings(3L, ResourceType.TEAM) } coAnswers {
+                readDone.complete(Unit)
+                resumeRead.await()
+                ResourceSettingState(3L, older, olderVersion)
+            }
+
+            val lateRead = async { service.getSettings(ResourceType.TEAM, 3L) }
+            readDone.await()
+            service.updateSettings(ResourceType.TEAM, 3L, newer).getOrThrow()
+            resumeRead.complete(Unit)
+            lateRead.await()
+
+            assertEquals(newer, service.getSettings(ResourceType.TEAM, 3L))
+        }
+
+        @Test
+        fun `묶음 조회가 변경 전에 읽은 값을 늦게 채워도 변경된 설정을 반환한다`() = runBlocking {
+            val readDone = CompletableDeferred<Unit>()
+            val resumeRead = CompletableDeferred<Unit>()
+            coEvery { repository.findSettingsForResources(listOf(3L), ResourceType.TEAM) } coAnswers {
+                readDone.complete(Unit)
+                resumeRead.await()
+                mapOf(3L to ResourceSettingState(3L, older, olderVersion))
+            }
+
+            val lateRead = async { service.getSettingsBulk(ResourceType.TEAM, listOf(3L)) }
+            readDone.await()
+            service.updateSettings(ResourceType.TEAM, 3L, newer).getOrThrow()
+            resumeRead.complete(Unit)
+            lateRead.await()
+
+            assertEquals(newer, service.getSettings(ResourceType.TEAM, 3L))
+        }
+
+        @Test
+        fun `이전 변경의 캐시 기록이 늦게 도착해도 나중 변경의 설정을 반환한다`() = runBlocking {
+            val olderCommitted = CompletableDeferred<Unit>()
+            val resumeOlder = CompletableDeferred<Unit>()
+            var transactions = 0
+            coEvery { outboxRepository.inTransaction<VersionedSettings>(any()) } coAnswers {
+                val committed = firstArg<suspend (SqlConnection) -> VersionedSettings>().invoke(connection)
+                if (transactions++ == 0) {
+                    olderCommitted.complete(Unit)
+                    resumeOlder.await()
+                }
+                committed
+            }
+
+            val olderChange = async { service.updateSettings(ResourceType.TEAM, 3L, older) }
+            olderCommitted.await()
+            service.updateSettings(ResourceType.TEAM, 3L, newer).getOrThrow()
+            resumeOlder.complete(Unit)
+            olderChange.await().getOrThrow()
+
+            assertEquals(newer, service.getSettings(ResourceType.TEAM, 3L))
+        }
+
+        @Test
+        fun `설정 행이 없을 때 늦게 채운 기본값은 그 뒤 변경된 설정을 덮지 않는다`() = runBlocking {
+            val readDone = CompletableDeferred<Unit>()
+            val resumeRead = CompletableDeferred<Unit>()
+            coEvery { repository.findSettingsForResources(listOf(3L), ResourceType.TEAM) } coAnswers {
+                readDone.complete(Unit)
+                resumeRead.await()
+                emptyMap()
+            }
+
+            val lateRead = async { service.getSettingsBulk(ResourceType.TEAM, listOf(3L)) }
+            readDone.await()
+            service.updateSettings(ResourceType.TEAM, 3L, newer).getOrThrow()
+            resumeRead.complete(Unit)
+            lateRead.await()
+
+            assertEquals(newer, service.getSettings(ResourceType.TEAM, 3L))
+        }
+
+        private fun keepNewest(resourceId: Long, incoming: VersionedSettings) {
+            val current = cached[resourceId]
+            if (current == null || incoming.version > current.version) cached[resourceId] = incoming
+        }
+    }
+
+    @Nested
     inner class UpdateSettings {
 
         @Test
@@ -81,7 +203,7 @@ class PreferenceServiceTest {
             )
 
             assertTrue(result.exceptionOrNull() is IllegalArgumentException)
-            coVerify(exactly = 0) { outboxRepository.inTransaction<JsonObject>(any()) }
+            coVerify(exactly = 0) { outboxRepository.inTransaction<VersionedSettings>(any()) }
         }
 
         @Test
@@ -92,8 +214,8 @@ class PreferenceServiceTest {
             val persisted = current.copy().mergeIn(requested)
             val now = Instant.parse("2026-08-30T01:02:03Z")
             coEvery { cache.getSettings(ResourceType.TEAM, 3L) } returns current
-            coEvery { outboxRepository.inTransaction<JsonObject>(any()) } coAnswers {
-                firstArg<suspend (SqlConnection) -> JsonObject>().invoke(connection)
+            coEvery { outboxRepository.inTransaction<VersionedSettings>(any()) } coAnswers {
+                firstArg<suspend (SqlConnection) -> VersionedSettings>().invoke(connection)
             }
             coEvery {
                 repository.upsertSettings(connection, 3L, ResourceType.TEAM, requested, false)
@@ -112,8 +234,8 @@ class PreferenceServiceTest {
             val updatedAt = Instant.parse("2026-10-23T01:02:03Z")
             val stateOccurredAt = Instant.parse("2026-10-23T01:02:03.000001Z")
             val event = slot<PreferenceEvent>()
-            coEvery { outboxRepository.inTransaction<JsonObject>(any()) } coAnswers {
-                firstArg<suspend (SqlConnection) -> JsonObject>().invoke(connection)
+            coEvery { outboxRepository.inTransaction<VersionedSettings>(any()) } coAnswers {
+                firstArg<suspend (SqlConnection) -> VersionedSettings>().invoke(connection)
             }
             coEvery {
                 repository.upsertSettings(connection, 19L, ResourceType.ACCOUNT, requested, false)
@@ -139,7 +261,7 @@ class PreferenceServiceTest {
             )
 
             assertTrue(result.exceptionOrNull() is IllegalArgumentException)
-            coVerify(exactly = 0) { outboxRepository.inTransaction<JsonObject>(any()) }
+            coVerify(exactly = 0) { outboxRepository.inTransaction<VersionedSettings>(any()) }
         }
     }
 }
