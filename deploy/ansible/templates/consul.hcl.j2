@@ -52,6 +52,7 @@ tls {
   grpc { verify_incoming = false }
 }
 telemetry {
-  prometheus_retention_time = "1m"
+  # Retain hourly mesh CA expiry samples between emissions on servers.
+  prometheus_retention_time = "{{ '2h' if inventory_hostname in groups['control_plane'] else '1m' }}"
   disable_hostname = true
 }
