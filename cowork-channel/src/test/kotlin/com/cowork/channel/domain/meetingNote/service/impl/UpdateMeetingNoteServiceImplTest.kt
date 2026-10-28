@@ -4,6 +4,7 @@ import com.cowork.channel.domain.meetingNote.entity.MeetingNote
 import com.cowork.channel.domain.meetingNote.presentation.data.request.UpdateMeetingNoteRequest
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteRepository
 import com.cowork.channel.domain.meetingNote.service.MeetingNoteAccessGuard
+import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteContentSupport
 import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteLookupSupport
 import io.mockk.every
 import io.mockk.mockk
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
+import tools.jackson.databind.json.JsonMapper
 import java.util.Optional
 
 class UpdateMeetingNoteServiceImplTest {
@@ -20,7 +22,10 @@ class UpdateMeetingNoteServiceImplTest {
     private val meetingNoteAccessGuard = mockk<MeetingNoteAccessGuard>(relaxed = true)
     private val meetingNoteLookupSupport = MeetingNoteLookupSupport(meetingNoteRepository)
 
-    private val service = UpdateMeetingNoteServiceImpl(meetingNoteAccessGuard, meetingNoteLookupSupport)
+    private val meetingNoteContentSupport = MeetingNoteContentSupport(JsonMapper.builder().build())
+
+    private val service =
+        UpdateMeetingNoteServiceImpl(meetingNoteAccessGuard, meetingNoteLookupSupport, meetingNoteContentSupport)
 
     private fun note(
         id: Long = 1L,
@@ -79,6 +84,18 @@ class UpdateMeetingNoteServiceImplTest {
             service.updateNote(7L, 1L, 1L, UpdateMeetingNoteRequest(title = "a".repeat(201), content = null))
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+    }
+
+    @Test
+    fun `updateNote는 content가 JSON 객체가 아니면 BAD_REQUEST`() {
+        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
+
+        listOf("not-json", "[\"a\"]", "\"text\"", "").forEach { content ->
+            val ex = assertThrows(ExpectedException::class.java) {
+                service.updateNote(7L, 1L, 1L, UpdateMeetingNoteRequest(title = null, content = content))
+            }
+            assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        }
     }
 
     @Test
