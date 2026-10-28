@@ -20,7 +20,7 @@ table inet cowork {
     ip saddr @agents tcp dport { 8300, 4647, 4648 } accept
     ip saddr @agents udp dport 4648 accept
     ip saddr @agents tcp dport 4646 accept
-    ip saddr {{ platform_vault_ip }} tcp dport 4646 accept
+    ip saddr {{ platform_vault_ip }} tcp dport { 4646, 8501 } accept
 {% endif %}
     ip saddr {{ hostvars['monitoring'].private_ip }} tcp dport { 9100, 12345 } accept
 {% if inventory_hostname == 'gateway' %}
