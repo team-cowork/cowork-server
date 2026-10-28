@@ -25,8 +25,12 @@ public class DeleteRoadmapAssignmentServiceImpl implements DeleteRoadmapAssignme
     @Transactional
     public void execute(Long userId, String userRole, Long assignmentId) {
         RoadmapAssignment assignment = findAssignmentOrThrow(assignmentId);
-        if (!userId.equals(assignment.getAssignedBy()) && !ROLE_ADMIN.equals(userRole)) {
-            accessGuard.requireTeamManagerOrAdmin(userId, userRole, assignment.getTeamId());
+        if (!ROLE_ADMIN.equals(userRole)) {
+            if (userId.equals(assignment.getAssignedBy())) {
+                accessGuard.requireTeamMember(assignment.getTeamId(), userId);
+            } else {
+                accessGuard.requireTeamManagerOrAdmin(userId, userRole, assignment.getTeamId());
+            }
         }
         assignmentRepository.delete(assignment);
     }
