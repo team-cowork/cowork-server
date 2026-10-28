@@ -371,7 +371,7 @@ export class MessageRepository {
                     ...searchIndexIntent(isIndexed, now),
                 },
             }],
-            {new: true, timestamps: false, updatePipeline: true},
+            {returnDocument: 'after', timestamps: false, updatePipeline: true},
         );
     }
 
@@ -388,7 +388,7 @@ export class MessageRepository {
         return this.messageModel.findOneAndUpdate(
             {_id: messageId, webhookDeleted: {$ne: true}, searchIndexStatus: {$ne: 'DELETING'}},
             [{$set: {isPinned, updatedAt: now, ...searchIndexIntent(isIndexed, now)}}],
-            {new: true, timestamps: false, updatePipeline: true},
+            {returnDocument: 'after', timestamps: false, updatePipeline: true},
         );
     }
 
@@ -413,7 +413,7 @@ export class MessageRepository {
                     updatedAt: now,
                 },
             }],
-            {new: true, timestamps: false, updatePipeline: true},
+            {returnDocument: 'after', timestamps: false, updatePipeline: true},
         );
     }
 
@@ -697,7 +697,7 @@ export class MessageRepository {
 
      "이모지 항목 생성"과 "userId 추가"를 집계 파이프라인 업데이트 하나로 원자적으로 처리합니다.
      MongoDB는 단일 도큐먼트에 대한 업데이트를 원자적으로 실행하므로 별도의 재시도 로직이 필요 없습니다.
-     `new: false`로 업데이트 이전 상태를 반환받아, 추가 조회 없이 "이미 반응했는지"와 "추가 후 카운트"를
+     `returnDocument: 'before'`로 업데이트 이전 상태를 반환받아, 추가 조회 없이 "이미 반응했는지"와 "추가 후 카운트"를
      같은 요청 안에서 계산합니다.
 
      @param channelId - 메시지가 속한 채널의 식별자 (채널 귀속 검증용)
@@ -746,7 +746,7 @@ export class MessageRepository {
                     },
                 },
             ],
-            {new: false, updatePipeline: true},
+            {returnDocument: 'before', updatePipeline: true},
         ).lean() as ReactionDoc | null;
 
         if (!before) {
@@ -783,7 +783,7 @@ export class MessageRepository {
                 reactions: {$elemMatch: {emoji, userIds: userId}},
             },
             {$pull: {'reactions.$[elem].userIds': userId}},
-            {arrayFilters: [{'elem.emoji': emoji}], new: true},
+            {arrayFilters: [{'elem.emoji': emoji}], returnDocument: 'after'},
         ).lean() as ReactionDoc | null;
 
         if (!updated) {
