@@ -2,7 +2,7 @@ type WebhookRepository = {full_name: string; private?: boolean};
 
 export type GithubWebhookPayload = {
     action?: string;
-    installation?: {id: number};
+    installation?: {id: number; account?: {login?: string}};
     repository?: WebhookRepository;
     repositories_added?: WebhookRepository[];
     repositories_removed?: WebhookRepository[];

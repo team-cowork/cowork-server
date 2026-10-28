@@ -1,4 +1,5 @@
 import {Test, type TestingModule} from '@nestjs/testing';
+import {GithubAuthService} from '../../auth/github-auth.service';
 import {REDIS_CLIENT} from '../../constants';
 import {PULL_REQUEST_FILES_TTL_SECONDS} from '../../github.cache';
 import {PullRequestService} from '../../pull-request/pull-request.service';
@@ -21,6 +22,7 @@ describe('GithubWebhookController', () => {
     };
     let pullRequestService: {listPullRequestFiles: jest.Mock};
     let redis: {incr: jest.Mock; get: jest.Mock; set: jest.Mock};
+    let authService: {cacheInstallation: jest.Mock; evictInstallation: jest.Mock};
 
     beforeEach(async () => {
         producer = {send: jest.fn()};
@@ -33,6 +35,7 @@ describe('GithubWebhookController', () => {
             issueComment: {send: jest.fn()},
         };
         pullRequestService = {listPullRequestFiles: jest.fn().mockResolvedValue([])};
+        authService = {cacheInstallation: jest.fn(), evictInstallation: jest.fn()};
         redis = {
             incr: jest.fn().mockResolvedValue(5),
             get: jest.fn().mockResolvedValue(null),
@@ -46,6 +49,7 @@ describe('GithubWebhookController', () => {
                 {provide: RepoEventProducer, useValue: repoEventProducer},
                 {provide: GithubReadModelEventProducers, useValue: readModelProducers},
                 {provide: PullRequestService, useValue: pullRequestService},
+                {provide: GithubAuthService, useValue: authService},
                 {provide: REDIS_CLIENT, useValue: redis},
             ],
         })
@@ -56,13 +60,14 @@ describe('GithubWebhookController', () => {
         controller = module.get<GithubWebhookController>(GithubWebhookController);
     });
 
-    it('installation.deleted 이벤트는 team.github.disconnected를 발행한다', async () => {
+    it('installation.deleted 이벤트는 인증 캐시를 정리하고 team.github.disconnected를 발행한다', async () => {
         const result = await controller.handle('installation', {
             action: 'deleted',
-            installation: {id: 42},
+            installation: {id: 42, account: {login: 'my-org'}},
         });
 
         expect(result).toEqual({ok: true});
+        expect(authService.evictInstallation).toHaveBeenCalledWith('my-org', 42);
         expect(redis.incr).toHaveBeenCalledWith('github:installation:revision:42');
         expect(producer.send).toHaveBeenCalledWith('team.github.disconnected', {
             installationId: 42,
@@ -70,22 +75,24 @@ describe('GithubWebhookController', () => {
         });
     });
 
-    it('installation.created 이벤트는 무시한다', async () => {
+    it('installation.created 이벤트는 인증 캐시만 갱신하고 팀 연결 이벤트는 발행하지 않는다', async () => {
         await controller.handle('installation', {
             action: 'created',
-            installation: {id: 42},
+            installation: {id: 42, account: {login: 'my-org'}},
         });
 
+        expect(authService.cacheInstallation).toHaveBeenCalledWith('my-org', 42);
         expect(producer.send).not.toHaveBeenCalled();
     });
 
     it('installation.suspend 이벤트는 연동을 끊지 않는다', async () => {
         await controller.handle('installation', {
             action: 'suspend',
-            installation: {id: 42},
+            installation: {id: 42, account: {login: 'my-org'}},
         });
 
         expect(producer.send).not.toHaveBeenCalled();
+        expect(authService.evictInstallation).not.toHaveBeenCalled();
     });
 
     it('push 이벤트는 github.repo.event를 발행한다', async () => {
