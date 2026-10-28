@@ -249,7 +249,7 @@
     "secret_bindings": {
       "JWT_SECRET": "JWT_SECRET",
       "DB_PASSWORD": "DB_PASSWORD",
-      "DISCORD_WEBHOOK_URL": "DISCORD_WEBHOOK_URL",
+      "DISCORD_CHAT_ERROR_WEBHOOK_URL": "DISCORD_CHAT_ERROR_WEBHOOK_URL",
       "ELASTICSEARCH_URL": "ELASTICSEARCH_URL",
       "S3_ACCESS_KEY": "S3_ACCESS_KEY",
       "S3_SECRET_KEY": "S3_SECRET_KEY"
@@ -265,7 +265,7 @@
       "S3_SECRET_KEY": "S3_SECRET_KEY"
     },
     "optional_secrets": [
-      "DISCORD_WEBHOOK_URL"
+      "DISCORD_CHAT_ERROR_WEBHOOK_URL"
     ],
     "immutable_secrets": [
       "DB_ADMIN_PASSWORD",
@@ -404,7 +404,7 @@
   "monitoring": {
     "environment": "Prod-CD(monitoring)",
     "secret_bindings": {
-      "DISCORD_MONITORING_ALERT_WEBHOOK": "DISCORD_MONITORING_ALERT_WEBHOOK",
+      "DISCORD_MONITORING_ALERT_WEBHOOK_URL": "DISCORD_MONITORING_ALERT_WEBHOOK_URL",
       "GRAFANA_ADMIN_PASSWORD": "GRAFANA_ADMIN_PASSWORD"
     },
     "data_secret_bindings": {},
