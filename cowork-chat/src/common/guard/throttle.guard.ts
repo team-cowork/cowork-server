@@ -11,7 +11,7 @@ import {Request} from 'express';
 import {RedisRateLimiter} from '../util/redis-rate-limiter';
 import {RequestContextUtil} from '../util/request-context.util';
 import {getOptionalConfig} from '../config/config.util';
-import {THROTTLE_OPTIONS_KEY, ThrottleOptions} from '../decorator/throttle.decorator';
+import {THROTTLE_OPTIONS_KEY, type ThrottleOptions} from '../decorator/throttle.options';
 
 const DEFAULT_THROTTLE_MESSAGE = '짧은 시간에 요청이 너무 많습니다. 잠시 후 다시 시도하십시오.';
 
