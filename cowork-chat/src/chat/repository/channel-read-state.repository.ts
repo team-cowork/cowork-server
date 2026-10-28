@@ -7,12 +7,17 @@ import {ChannelReadState} from '../schema';
 export class ChannelReadStateRepository {
     constructor(@InjectModel(ChannelReadState.name) private readonly model: Model<ChannelReadState>) {}
 
-    async updateLastRead(channelId: number, userId: number, messageId: Types.ObjectId): Promise<void> {
-        await this.model.updateOne(
+    /**
+     읽음 위치를 `$max`로 전진시키고, 갱신 뒤 DB에 남은 위치를 반환한다.
+     다른 기기의 늦은 요청이 더 오래된 ID를 보내면 반환값은 요청값이 아니라 이미 채택된 더 최신 위치다.
+     */
+    async updateLastRead(channelId: number, userId: number, messageId: Types.ObjectId): Promise<Types.ObjectId> {
+        const state = await this.model.findOneAndUpdate(
             {channelId, userId},
             {$max: {lastReadMessageId: messageId}},
-            {upsert: true},
-        );
+            {upsert: true, returnDocument: 'after', projection: {lastReadMessageId: 1}},
+        ).lean();
+        return state?.lastReadMessageId ?? messageId;
     }
 
     async findForChannels(channelIds: number[], userId: number): Promise<Array<{

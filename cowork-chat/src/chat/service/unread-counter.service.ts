@@ -10,11 +10,12 @@ import {getOptionalConfig, getRequiredConfig} from '../../common/config/config.u
 
 // This.client와 그 pipeline()에만 캐스팅해서 붙이는 타입 — ioredis의 공유 RedisCommander를 전역으로
 // 확장하면 defineCommand를 호출하지 않은 다른 Redis 클라이언트에도 이 메서드가 타입상 노출되어 버린다.
-type WithIncrementIfPresentScript<Context extends ClientContext = {type: 'default'}> = {
+type WithUnreadCounterScripts<Context extends ClientContext = {type: 'default'}> = {
     incrementIfPresentScript(field: string, appliedKey: string, appliedTtlSeconds: number, chunkIndex: number, ...keys: string[]): Result<number, Context>;
+    setIfNotStaleScript(key: string, field: string, cursorField: string, cursor: string, count: string, ttlSeconds: number, replaceSameCursorFlag: string): Result<number, Context>;
 };
-type UnreadCounterRedis = Redis & WithIncrementIfPresentScript;
-type UnreadCounterPipeline = ChainableCommander & WithIncrementIfPresentScript<{type: 'pipeline'}>;
+type UnreadCounterRedis = Redis & WithUnreadCounterScripts;
+type UnreadCounterPipeline = ChainableCommander & WithUnreadCounterScripts<{type: 'pipeline'}>;
 
 // ARGV[1]=field ARGV[2]=적용 기록 비트맵 키('' 이면 기록 없음) ARGV[3]=그 TTL ARGV[4]=청크 번호
 // ARGV[5..]=유저별 unread:{userId} 해시 키 — 필드가 이미 존재하는 키에 대해서만 1 증가시킨다.
@@ -44,11 +45,41 @@ end
 return incremented
 `;
 
+// KEYS[1]=unread:{userId} ARGV[1]=channelId 필드 ARGV[2]=그 읽음 위치 필드 ARGV[3]=이번 값의 읽음 위치(hex, 없으면 '')
+// ARGV[4]=안읽음 수 ARGV[5]=TTL ARGV[6]=같은 읽음 위치면 덮어쓸지('1'|'0')
+// 저장된 읽음 위치보다 오래된 위치로 계산한 값은 버린다. ObjectId hex는 길이가 같은 소문자라 문자열 비교가
+// MongoDB `$max`의 ObjectId 비교와 순서가 같고, ''(읽음 위치 없음)는 어떤 위치보다도 앞선다.
+// 읽음 위치가 기록되지 않은 이전 형식의 값은 읽음 처리는 덮어쓰고, 캐시미스 채움은 이미 값이 있으면 건드리지 않는다.
+// 두 필드에는 같은 필드 TTL을 건다. 해시 키 EXPIRE는 다른 채널에 쓸 때마다 늘어나 활동 중인 사용자에게는 만료되지 않지만,
+// 필드 TTL은 HINCRBY로는 늘어나지 않아 증가와 교차해 어긋난 값도 마지막 정확한 기록 뒤 TTL 안에 사라지고 캐시미스 폴백이
+// 다시 채운다. count와 cursor가 함께 만료되어야 cursor만 남아 같은 위치의 캐시미스 채움을 막는 일이 없다(Redis 7.4+).
+const SET_IF_NOT_STALE_SCRIPT = `
+local stored = redis.call('HGET', KEYS[1], ARGV[2])
+if stored then
+    if ARGV[3] < stored or (ARGV[3] == stored and ARGV[6] ~= '1') then
+        return 0
+    end
+elseif ARGV[6] ~= '1' and redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then
+    return 0
+end
+redis.call('HSET', KEYS[1], ARGV[1], ARGV[4], ARGV[2], ARGV[3])
+redis.call('HEXPIRE', KEYS[1], ARGV[5], 'FIELDS', 2, ARGV[1], ARGV[2])
+redis.call('EXPIRE', KEYS[1], ARGV[5])
+return 1
+`;
+
 const KEY_PREFIX = 'unread:';
+const CURSOR_FIELD_SUFFIX = ':cursor';
 // 수신자별 set을 쓰던 이전 `unread:applied:` 키와 타입이 달라 접두사를 분리한다.
 const APPLIED_KEY_PREFIX = 'unread:applied-chunks:';
 const TTL_SECONDS = 86_400;
 const INCREMENT_CHUNK_SIZE = 100;
+
+export type UnreadCacheEntry = {
+    count: number;
+    // 이 값을 계산한 기준 읽음 위치(ObjectId hex). 읽음 기록이 없으면 null.
+    readCursor: string | null;
+};
 
 export type UnreadCacheResult = {
     hits: Map<number, number>;
@@ -65,6 +96,13 @@ export type UnreadCacheResult = {
  증가(`incrementIfPresent`)는 필드가 이미 존재하는 유저에게만 적용된다 — 존재하지 않는 채널에
  무작정 1부터 증가시키면 실제 안읽음 수(과거 누적분)를 무시한 잘못된 값이 캐시에 고정되기 때문이다.
  필드가 없는 경우는 그대로 비워두고, 다음 조회 시 캐시미스 폴백이 정확한 값을 계산해 채운다.
+
+ 정확한 값을 쓰는 경로(`set`/`setMany`)는 그 값을 계산한 읽음 위치를 `{channelId}:cursor` 필드에 함께 남기고,
+ 이미 더 최신 읽음 위치로 계산된 값이 있으면 쓰지 않는다. 다른 기기의 늦은 읽음 요청이나 읽음 처리보다 늦게
+ 끝난 캐시미스 채움이 최신 읽음 처리 결과를 덮지 못하게 하기 위해서다.
+ Ponytail: 같은 읽음 위치에서 새 메시지 증가와 정확한 값 쓰기가 교차하는 경우(계산 직후 도착한 메시지의 증가를
+ 계산 결과가 덮거나, 계산에 이미 포함된 메시지를 증가가 다시 더하는 경우)는 구분하지 않는다. 그 어긋남은 다음 읽음
+ 처리나, 마지막 정확한 기록부터 걸리는 필드 TTL이 끝날 때까지 남는다.
  */
 @Injectable()
 export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
@@ -85,6 +123,7 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
             maxRetriesPerRequest: 0,
         }) as UnreadCounterRedis;
         this.client.defineCommand('incrementIfPresentScript', {numberOfKeys: 0, lua: INCREMENT_IF_PRESENT_SCRIPT});
+        this.client.defineCommand('setIfNotStaleScript', {numberOfKeys: 1, lua: SET_IF_NOT_STALE_SCRIPT});
         this.client.on('error', (error: unknown) => {
             this.logger.error(`Redis client error: ${error instanceof Error ? error.message : String(error)}`);
         });
@@ -133,36 +172,65 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     여러 채널의 안읽음 수를 캐시에 채운다 (캐시미스 폴백 계산 결과를 기록할 때 사용).
+     캐시미스 폴백으로 계산한 여러 채널의 안읽음 수를 채운다.
+     그 사이 같거나 더 최신 읽음 위치로 값이 기록된 채널은 건너뛴다.
      */
-    async setMany(userId: number, values: Map<number, number>): Promise<void> {
+    async setMany(userId: number, values: Map<number, UnreadCacheEntry>): Promise<void> {
         if (values.size === 0) {
             return;
         }
 
         try {
-            const args: string[] = [];
-            for (const [channelId, count] of values) {
-                args.push(String(channelId), String(count));
+            const key = this.key(userId);
+            const pipeline = this.client.pipeline() as UnreadCounterPipeline;
+            for (const [channelId, entry] of values) {
+                this.queueSetIfNotStale(pipeline, key, channelId, entry, false);
             }
 
-            const key = this.key(userId);
-            await this.client.pipeline().hset(key, ...args).expire(key, TTL_SECONDS).exec();
+            await pipeline.exec();
         } catch (error) {
             this.logger.warn(`Redis setMany failed [userId=${userId}]`, error);
         }
     }
 
     /**
-     단일 채널의 안읽음 수를 정확한 값으로 설정한다 (읽음 처리 시 사용).
+     읽음 처리로 계산한 단일 채널의 안읽음 수를 기록한다. 같은 읽음 위치의 값은 덮어쓴다.
+
+     @returns 기록했으면 `true`, 이미 더 최신 읽음 위치의 값이 있어 버렸으면 `false`, Redis 오류면 `null`
      */
-    async set(channelId: number, userId: number, count: number): Promise<void> {
+    async set(channelId: number, userId: number, entry: UnreadCacheEntry): Promise<boolean | null> {
         try {
-            const key = this.key(userId);
-            await this.client.pipeline().hset(key, String(channelId), String(count)).expire(key, TTL_SECONDS).exec();
+            const pipeline = this.client.pipeline() as UnreadCounterPipeline;
+            this.queueSetIfNotStale(pipeline, this.key(userId), channelId, entry, true);
+            const [[error, applied]] = (await pipeline.exec())!;
+            if (error) {
+                throw error;
+            }
+
+            return applied === 1;
         } catch (error) {
             this.logger.warn(`Redis set failed [channelId=${channelId}, userId=${userId}]`, error);
+            return null;
         }
+    }
+
+    private queueSetIfNotStale(
+        pipeline: UnreadCounterPipeline,
+        key: string,
+        channelId: number,
+        entry: UnreadCacheEntry,
+        shouldReplaceSameCursor: boolean,
+    ): void {
+        const field = String(channelId);
+        pipeline.setIfNotStaleScript(
+            key,
+            field,
+            `${field}${CURSOR_FIELD_SUFFIX}`,
+            entry.readCursor ?? '',
+            String(entry.count),
+            TTL_SECONDS,
+            shouldReplaceSameCursor ? '1' : '0',
+        );
     }
 
     /**
@@ -185,7 +253,7 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
             const field = String(channelId);
             const appliedKey = eventId === undefined ? '' : `${APPLIED_KEY_PREFIX}${eventId}`;
             // Ponytail: 재처리 사이 멤버가 바뀌면 청크 경계가 밀려 일부 수신자가 한 번 덜/더 반영될 수 있다.
-            // set/setMany가 키 TTL을 계속 늘리므로 어긋난 값은 그 채널을 읽어 다시 설정하거나 키가 만료될 때까지 남는다.
+            // 어긋난 값은 그 채널을 읽어 다시 설정하거나, 마지막 set/setMany가 건 필드 TTL이 끝날 때까지 남는다.
             const keys = userIds.toSorted((a, b) => a - b).map(userId => this.key(userId));
             const pipeline = this.client.pipeline() as UnreadCounterPipeline;
             for (let i = 0; i < keys.length; i += INCREMENT_CHUNK_SIZE) {
