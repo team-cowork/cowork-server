@@ -249,10 +249,10 @@ jobs:
           echo "status=${status}" >> "$GITHUB_OUTPUT"
           echo "color=${color}" >> "$GITHUB_OUTPUT"
 
-      - name: Send Discord Notification
+      - name: Send CI Status to Discord
         uses: sarisia/actions-status-discord@v1
         with:
-          webhook: ${{ secrets.DISCORD_INFORMATION_ALERT_CHANNEL_WEBHOOK }}
+          webhook: ${{ secrets.DISCORD_CICD_STATUS_WEBHOOK_URL }}
           status: ${{ steps.status.outputs.status }}
           color: ${{ steps.status.outputs.color }}
           nodetail: true
