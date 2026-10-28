@@ -17,7 +17,4 @@ module "jobs" {
   source = "../modules/jobs"
   jobs   = local.jobs
 }
-output "job_versions" { value = module.jobs.job_versions }
-output "expected_jobs" { value = module.jobs.job_versions }
-
 output "job_modify_indices" { value = module.jobs.job_modify_indices }
