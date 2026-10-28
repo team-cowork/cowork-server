@@ -3,7 +3,7 @@
   community.crypto.openssl_privatekey:
     path: "{{ platform_state_dir }}/pki/{{ certificate_host }}.key"
     type: ECC
-    curve: secp384r1
+    curve: secp256r1
     mode: '0600'
   no_log: true
 - name: Create a signing request for {{ certificate_host }}
