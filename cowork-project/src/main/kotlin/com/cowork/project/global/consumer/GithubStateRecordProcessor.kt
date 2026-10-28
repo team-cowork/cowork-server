@@ -5,12 +5,12 @@ import com.cowork.project.domain.github.event.GithubSyncCompletedMarker
 import com.cowork.project.domain.github.service.GithubSyncMarkers
 import com.cowork.project.global.projection.ProjectionRecordProcessor
 import com.cowork.project.global.projection.ProjectionStream
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
 
 /**
  * GitHub state 토픽 레코드를 projection 체크포인트와 같은 트랜잭션에 반영한다. 해석할 수 없는 레코드는
@@ -75,7 +75,7 @@ class GithubStateRecordProcessor(
         processor.quarantineRecord(stream, record, reason)
     }
 
-    private fun JsonNode.text(field: String): String? = path(field).takeIf { it.isTextual }?.asText()?.takeIf {
+    private fun JsonNode.text(field: String): String? = path(field).takeIf { it.isTextual }?.asString()?.takeIf {
         it.isNotBlank()
     }
 }

@@ -5,10 +5,10 @@ import com.cowork.project.domain.github.event.GithubIssueWriteCommandType
 import com.cowork.project.domain.github.event.GithubIssueWriteResult
 import com.cowork.project.domain.github.service.GithubCommentParentAuthorNotifier
 import com.cowork.project.domain.github.service.GithubIssueWriteResultHandler
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
+import tools.jackson.databind.ObjectMapper
 import java.util.UUID
 
 @Component

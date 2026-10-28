@@ -1,11 +1,11 @@
 package com.cowork.project.domain.membership
 
 import com.cowork.project.domain.membership.projection.TeamRoleAssignmentProjectionRepository
-import com.cowork.project.domain.membership.projection.TeamRoleProjectionRepository
 import com.cowork.project.domain.membership.projection.TeamRoleMemberTombstone
 import com.cowork.project.domain.membership.projection.TeamRoleMemberTombstoneRepository
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.cowork.project.domain.membership.projection.TeamRoleProjectionRepository
 import org.springframework.stereotype.Component
+import tools.jackson.databind.ObjectMapper
 
 @Component
 class TeamRolePermissionReader(
