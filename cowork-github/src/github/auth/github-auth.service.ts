@@ -9,10 +9,16 @@ import {GITHUB_API, GITHUB_HEADERS, REDIS_CLIENT} from '../constants';
 import {githubCacheKeys} from '../github.cache';
 import {GithubClientError} from '../github.errors';
 
+const EVICT_INSTALLATION_SCRIPT = `
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return redis.call('DEL', KEYS[1])
+end
+return 0
+`;
+
 @Injectable()
 export class GithubAuthService {
     private readonly logger = new Logger(GithubAuthService.name);
-    private readonly installationIdCache = new Map<string, number>();
 
     constructor(
         private readonly httpService: HttpService,
@@ -66,18 +72,32 @@ export class GithubAuthService {
         return data.account.login;
     }
 
-    private async resolveInstallationId(owner: string): Promise<number> {
-        const cachedInMemory = this.getCachedInstallationId(owner);
-        if (cachedInMemory !== undefined) {
-            return cachedInMemory;
-        }
+    // 설치 이벤트가 알려준 매핑은 조회 결과보다 우선하므로 그대로 덮어쓴다.
+    async cacheInstallation(owner: string, installationId: number): Promise<void> {
+        await this.redis.set(
+            githubCacheKeys.installation(owner),
+            installationId.toString(),
+            'EX',
+            this.config.githubInstallationCacheTtlSeconds,
+        );
+    }
 
+    // 늦게 도착한 이전 설치의 삭제가 재설치한 매핑을 지우지 않도록, 같은 설치 ID일 때만 지운다.
+    async evictInstallation(owner: string, installationId: number): Promise<void> {
+        await this.redis.eval(
+            EVICT_INSTALLATION_SCRIPT,
+            1,
+            githubCacheKeys.installation(owner),
+            installationId.toString(),
+        );
+        await this.redis.del(githubCacheKeys.token(installationId));
+    }
+
+    private async resolveInstallationId(owner: string): Promise<number> {
         const installationCacheKey = githubCacheKeys.installation(owner);
         const cachedInRedis = await this.redis.get(installationCacheKey);
         if (cachedInRedis !== null && cachedInRedis !== '') {
-            const installationId = Number(cachedInRedis);
-            this.cacheInstallationId(owner, installationId);
-            return installationId;
+            return Number(cachedInRedis);
         }
 
         const jwt = this.generateJwt();
@@ -93,47 +113,16 @@ export class GithubAuthService {
         );
         const installationId = data.id;
 
-        this.cacheInstallationId(owner, installationId);
+        // NX: 조회 중에 설치 이벤트가 기록한 새 매핑을 이전 조회 결과로 덮지 않는다.
         await this.redis.set(
             installationCacheKey,
             installationId.toString(),
             'EX',
             this.config.githubInstallationCacheTtlSeconds,
+            'NX',
         );
 
         return installationId;
-    }
-
-    private getCachedInstallationId(owner: string): number | undefined {
-        const installationId = this.installationIdCache.get(owner);
-        if (installationId === undefined) {
-            return undefined;
-        }
-
-        this.installationIdCache.delete(owner);
-        this.installationIdCache.set(owner, installationId);
-        return installationId;
-    }
-
-    private cacheInstallationId(owner: string, installationId: number): void {
-        if (this.installationIdCache.has(owner)) {
-            this.installationIdCache.delete(owner);
-        }
-
-        this.installationIdCache.set(owner, installationId);
-
-        const isOverCapacity = this.installationIdCache.size
-            > this.config.githubInstallationMemoryCacheMaxSize;
-        if (!isOverCapacity) {
-            return;
-        }
-
-        const oldestOwner = this.installationIdCache.keys().next().value as
-            | string
-            | undefined;
-        if (oldestOwner !== undefined) {
-            this.installationIdCache.delete(oldestOwner);
-        }
     }
 
     private generateJwt(): string {

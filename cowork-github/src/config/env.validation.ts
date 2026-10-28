@@ -16,10 +16,6 @@ export const envValidationSchema = Joi.object({
         .integer()
         .positive()
         .default(86_400),
-    GITHUB_INSTALLATION_MEMORY_CACHE_MAX_SIZE: Joi.number()
-        .integer()
-        .min(1)
-        .default(1000),
     GITHUB_ISSUE_MAX_RETRIES: Joi.number().integer().min(1).default(3),
     INTERNAL_API_KEY: Joi.string().trim().required(),
     GITHUB_WEBHOOK_SECRET: Joi.string().trim().required(),
