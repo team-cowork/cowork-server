@@ -6,6 +6,7 @@ import com.cowork.channel.domain.meetingNote.presentation.data.request.CreateMee
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteRepository
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteTemplateRepository
 import com.cowork.channel.domain.meetingNote.service.MeetingNoteAccessGuard
+import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteContentSupport
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -15,6 +16,7 @@ import io.mockk.slot
 import io.mockk.verify
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
+import tools.jackson.databind.json.JsonMapper
 import java.util.Optional
 
 class CreateMeetingNoteServiceImplTest :
@@ -30,10 +32,26 @@ class CreateMeetingNoteServiceImplTest :
             noteRepository = mockk(relaxed = true)
             templateRepository = mockk()
             accessGuard = mockk(relaxed = true)
-            service = CreateMeetingNoteServiceImpl(noteRepository, templateRepository, accessGuard)
+            service = CreateMeetingNoteServiceImpl(
+                noteRepository,
+                templateRepository,
+                accessGuard,
+                MeetingNoteContentSupport(JsonMapper.builder().build()),
+            )
         }
 
         describe("CreateMeetingNoteServiceImpl 클래스의 createNote 메서드는") {
+            context("content가 JSON 객체가 아니면") {
+                it("BAD_REQUEST로 거부한다") {
+                    val invalid = CreateMeetingNoteRequest(7L, "주간 회의", "[\"agenda\"]")
+
+                    val error = shouldThrow<ExpectedException> { service.createNote(20L, 1L, invalid) }
+
+                    error.statusCode shouldBe HttpStatus.BAD_REQUEST
+                    verify(exactly = 0) { noteRepository.save(any()) }
+                }
+            }
+
             context("요청한 템플릿이 없으면") {
                 it("NOT_FOUND로 거부한다") {
                     every { templateRepository.findById(7L) } returns Optional.empty()
