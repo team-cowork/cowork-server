@@ -14,16 +14,40 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
 import org.slf4j.LoggerFactory
 import java.time.Duration
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 
 private const val TTL_SECONDS = 300L
 private const val EXPIRY_LOCK_KEY = "status:expiry:lock"
 private const val LOCK_TTL_SECONDS = 55L
 private const val OPERATION_TIMEOUT_MS = 500L
 
+/** version 없는 값을 쓰는 구형 인스턴스와 key를 나눠, 그 기록이 version 비교 없이 새 인스턴스에 읽히지 않게 한다. */
+private const val KEY_PREFIX = "pref:v2:"
+
+/** 구형 인스턴스가 읽는 key다. 모든 인스턴스가 [KEY_PREFIX]를 쓰게 되면 이 key 삭제와 함께 제거한다. */
+private const val LEGACY_KEY_PREFIX = "pref:"
+
+/**
+ * KEYS[1]의 version이 ARGV[1]보다 작을 때만 settings를 바꾼다. 같은 version은 같은 DB 상태이므로 그대로 둔다.
+ * KEYS[2]가 있으면 구형 인스턴스가 읽는 unversioned key를 지운다.
+ */
+private const val WRITE_IF_NEWER_SCRIPT = """
+for i = 2, #KEYS do redis.call('DEL', KEYS[i]) end
+local current = redis.call('HGET', KEYS[1], 'version')
+if current and tonumber(current) >= tonumber(ARGV[1]) then return 0 end
+redis.call('HSET', KEYS[1], 'version', ARGV[1], 'settings', ARGV[2])
+redis.call('EXPIRE', KEYS[1], ARGV[3])
+return 1
+"""
+
 /**
  * Redis는 선택적 가속 계층이므로 조회·기록·무효화 실패를 호출자에게 전파하지 않는다.
  * DB commit 뒤 기록·무효화에 실패한 key는 [CacheRepairQueue]로 수렴시키고,
  * 연속 실패 중에는 [CacheCircuitBreaker]로 Redis 호출을 건너뛴다.
+ *
+ * 모든 기록은 DB의 `state_occurred_at`을 version으로 함께 저장하고, 캐시에 더 새로운 version이 있으면 버린다.
+ * 늦게 도착한 조회 결과나 이전 변경의 기록이 최신 설정을 되돌리지 않게 하기 위해서다.
  */
 class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
 
@@ -41,7 +65,7 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
         val key = settingKey(resourceType, resourceId)
         if (repairQueue.contains(key)) return null
         return attempt(CacheOperation.GET, key) {
-            redisApi.get(key).coAwait()?.toString()?.let { JsonObject(it) }
+            redisApi.hget(key, "settings").coAwait()?.toString()?.let { JsonObject(it) }
         }.getOrNull()
     }
 
@@ -49,29 +73,29 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
      * DB에서 읽은 값을 채운다. 실패해도 stale 값을 만들지 않으므로 repair 대상으로 등록하지 않는다.
      * 동시 쓰기보다 먼저 읽은 값일 수 있으므로 repair 대상 key를 해제하지도 않는다.
      */
-    suspend fun populateSettings(resourceType: ResourceType, resourceId: Long, settings: JsonObject) {
+    suspend fun populateSettings(resourceType: ResourceType, resourceId: Long, settings: VersionedSettings) {
         val key = settingKey(resourceType, resourceId)
-        attempt(CacheOperation.SET, key) { writeSetting(key, settings) }
+        attempt(CacheOperation.SET, key) { redis.send(writeIfNewer(listOf(key), settings)).coAwait() }
     }
 
     /** DB에서 읽은 여러 값을 한 번의 pipeline으로 채운다. */
-    suspend fun populateSettingsBulk(resourceType: ResourceType, settingsById: Map<Long, JsonObject>) {
+    suspend fun populateSettingsBulk(resourceType: ResourceType, settingsById: Map<Long, VersionedSettings>) {
         if (settingsById.isEmpty()) return
         val requests = settingsById.map { (resourceId, settings) ->
-            Request.cmd(Command.SET)
-                .arg(settingKey(resourceType, resourceId))
-                .arg(settings.encode())
-                .arg("EX")
-                .arg(TTL_SECONDS)
+            writeIfNewer(listOf(settingKey(resourceType, resourceId)), settings)
         }
-        val target = "pref:${resourceType.name}:*(${requests.size})"
+        val target = "$KEY_PREFIX${resourceType.name}:*(${requests.size})"
         attempt(CacheOperation.SET_BULK, target) { redis.batch(requests).coAwait() }
     }
 
-    /** DB commit으로 바뀐 값을 기록한다. 실패하면 이전 값이 남아 있을 수 있으므로 repair 대상으로 등록한다. */
-    suspend fun setSettings(resourceType: ResourceType, resourceId: Long, settings: JsonObject) {
+    /**
+     * DB commit으로 바뀐 값을 기록한다. 실패하면 이전 값이 남아 있을 수 있으므로 repair 대상으로 등록한다.
+     * 더 새로운 version이 이미 있어 기록하지 않은 경우도 이전 값이 남지 않으므로 성공으로 본다.
+     */
+    suspend fun setSettings(resourceType: ResourceType, resourceId: Long, settings: VersionedSettings) {
         val key = settingKey(resourceType, resourceId)
-        val written = attempt(CacheOperation.SET, key) { writeSetting(key, settings) }.isSuccess
+        val keys = listOf(key, legacySettingKey(resourceType, resourceId))
+        val written = attempt(CacheOperation.SET, key) { redis.send(writeIfNewer(keys, settings)).coAwait() }.isSuccess
         if (written) repairQueue.markRepaired(key) else repairQueue.schedule(key)
     }
 
@@ -97,12 +121,17 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
             ?.toString() == "OK"
     }.getOrDefault(true)
 
-    private suspend fun writeSetting(key: String, settings: JsonObject) {
-        redisApi.set(listOf(key, settings.encode(), "EX", TTL_SECONDS.toString())).coAwait()
+    private fun writeIfNewer(keys: List<String>, settings: VersionedSettings): Request {
+        val request = Request.cmd(Command.EVAL).arg(WRITE_IF_NEWER_SCRIPT).arg(keys.size)
+        keys.forEach { request.arg(it) }
+        return request
+            .arg(ChronoUnit.MICROS.between(Instant.EPOCH, settings.version))
+            .arg(settings.settings.encode())
+            .arg(TTL_SECONDS)
     }
 
     private suspend fun deleteSetting(key: String) {
-        redisApi.del(listOf(key)).coAwait()
+        redisApi.del(listOf(key, LEGACY_KEY_PREFIX + key.removePrefix(KEY_PREFIX))).coAwait()
     }
 
     private suspend fun <T> attempt(operation: CacheOperation, target: String, block: suspend () -> T): Result<T> {
@@ -125,7 +154,10 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
         return error
     }
 
-    private fun settingKey(resourceType: ResourceType, resourceId: Long) = "pref:${resourceType.name}:$resourceId"
+    private fun settingKey(resourceType: ResourceType, resourceId: Long) = "$KEY_PREFIX${resourceType.name}:$resourceId"
+
+    private fun legacySettingKey(resourceType: ResourceType, resourceId: Long) =
+        "$LEGACY_KEY_PREFIX${resourceType.name}:$resourceId"
 
     private enum class CacheOperation(val tag: String) {
         GET("get"),
@@ -136,3 +168,6 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
         EXPIRY_LOCK("expiry_lock"),
     }
 }
+
+/** [version]은 DB의 `state_occurred_at`이며 같은 행을 변경할 때마다 커진다. */
+data class VersionedSettings(val settings: JsonObject, val version: Instant)
