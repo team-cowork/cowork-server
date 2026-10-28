@@ -43,6 +43,8 @@ export class GithubSetupController {
         try {
             const orgLogin =
                 await this.authService.getInstallationAccountLogin(installationId);
+            // 팀 연결 여부와 무관하게, 백필이 이전 설치로 토큰을 받지 않도록 먼저 반영한다.
+            await this.authService.cacheInstallation(orgLogin, installationId);
             if (state === undefined || state === '') {
                 this.logger.warn(
                     `Setup callback missing state, cannot correlate to a team [installationId=${installationId}]`,
