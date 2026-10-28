@@ -163,6 +163,11 @@
                     "nullable": true,
                     "description": "생략하면 기존 값을 유지하고 null이면 값을 비웁니다."
                   },
+                  "github_id": {
+                    "type": "string",
+                    "nullable": true,
+                    "description": "수정할 수 없습니다. DataGSM 값만 사용하며, 현재 값과 같으면 무시하고 다르면 400을 반환합니다."
+                  },
                   "roles": {
                     "type": "array",
                     "items": {
