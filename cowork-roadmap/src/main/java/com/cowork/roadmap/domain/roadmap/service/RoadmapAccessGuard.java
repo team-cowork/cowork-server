@@ -41,15 +41,16 @@ public class RoadmapAccessGuard {
         requireTeamManager(ownerTeamId, userId, "커스텀 로드맵은 팀 OWNER/ADMIN만 생성할 수 있습니다.");
     }
 
-    /** 로드맵 변경/삭제 권한. GLOBAL은 ADMIN, 커스텀은 생성자 또는 팀 OWNER/ADMIN. */
+    /** 로드맵 변경/삭제 권한. GLOBAL은 ADMIN, 커스텀은 소유 팀의 활성 멤버인 생성자 또는 팀 OWNER/ADMIN. */
     public void requireMutable(Roadmap roadmap, Long userId, String userRole) {
         if (RoadmapScope.GLOBAL.name().equals(roadmap.getScope())) {
             requireGlobalAdmin(userRole);
             return;
         }
-        if (!userId.equals(roadmap.getCreatedBy())) {
-            requireTeamManager(roadmap.getOwnerTeamId(), userId, "로드맵을 수정할 권한이 없습니다.");
-        }
+        Predicate<String> accepted = userId.equals(roadmap.getCreatedBy())
+                ? ignored -> true
+                : TEAM_MANAGER_ROLES::contains;
+        requireTeamRole(roadmap.getOwnerTeamId(), userId, accepted, "로드맵을 수정할 권한이 없습니다.");
     }
 
     /** 로드맵 읽기 권한. GLOBAL은 모두, 커스텀은 ADMIN 또는 소유 팀 멤버. */
@@ -84,6 +85,11 @@ public class RoadmapAccessGuard {
         if (!ROLE_ADMIN.equals(userRole)) {
             requireTeamManager(teamId, userId, "팀 OWNER/ADMIN만 수행할 수 있습니다.");
         }
+    }
+
+    /** 출제자/담당자 같은 과거 관계로 과제를 변경할 때도 해당 팀의 활성 멤버여야 한다. */
+    public void requireTeamMember(Long teamId, Long userId) {
+        requireTeamRole(teamId, userId, ignored -> true, "팀 멤버만 수행할 수 있습니다.");
     }
 
     private void requireGlobalAdmin(String userRole) {
