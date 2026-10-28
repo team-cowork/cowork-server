@@ -15,7 +15,7 @@ jest.mock('jsonwebtoken', () => ({
 describe('GithubAuthService', () => {
     let service: GithubAuthService;
     let httpService: {get: jest.Mock; post: jest.Mock};
-    let redis: {get: jest.Mock; set: jest.Mock};
+    let redis: {get: jest.Mock; set: jest.Mock; del: jest.Mock; eval: jest.Mock};
 
     const mockConfig = {
         githubAppId: 'app-123',
@@ -26,7 +26,9 @@ describe('GithubAuthService', () => {
 
     beforeEach(async () => {
         httpService = {get: jest.fn(), post: jest.fn()};
-        redis = {get: jest.fn(), set: jest.fn().mockResolvedValue('OK')};
+        redis = {
+            get: jest.fn(), set: jest.fn().mockResolvedValue('OK'), del: jest.fn(), eval: jest.fn(),
+        };
 
         const module: TestingModule = await Test.createTestingModule({
             providers: [
@@ -51,20 +53,7 @@ describe('GithubAuthService', () => {
             data: {message},
         });
 
-    it('installationId 메모리 캐시 히트 시 GitHub API를 호출하지 않는다', async () => {
-        (
-            service as unknown as {installationIdCache: Map<string, number>}
-        ).installationIdCache.set('my-org', 111);
-        redis.get.mockResolvedValueOnce('cached-token');
-
-        const token = await service.getInstallationToken('my-org');
-
-        expect(token).toBe('cached-token');
-        expect(httpService.get).not.toHaveBeenCalled();
-        expect(redis.get).toHaveBeenCalledWith(githubCacheKeys.token(111));
-    });
-
-    it('installationId Redis 캐시 히트 시 GitHub API를 호출하지 않고 메모리 캐시를 채운다', async () => {
+    it('installationId Redis 캐시 히트 시 GitHub API를 호출하지 않는다', async () => {
         redis.get
             .mockResolvedValueOnce('999') // Installation cache hit
             .mockResolvedValueOnce('redis-token'); // Token cache hit
@@ -73,11 +62,7 @@ describe('GithubAuthService', () => {
 
         expect(token).toBe('redis-token');
         expect(httpService.get).not.toHaveBeenCalled();
-        expect(
-            (
-                service as unknown as {installationIdCache: Map<string, number>}
-            ).installationIdCache.get('my-org'),
-        ).toBe(999);
+        expect(redis.get).toHaveBeenCalledWith(githubCacheKeys.token(999));
     });
 
     it('캐시 미스 시 GitHub API를 호출해 토큰을 발급하고 Redis에 저장한다', async () => {
@@ -95,6 +80,7 @@ describe('GithubAuthService', () => {
             '555',
             'EX',
             86_400,
+            'NX',
         );
         expect(redis.set).toHaveBeenCalledWith(
             githubCacheKeys.token(555),
@@ -104,17 +90,88 @@ describe('GithubAuthService', () => {
         );
     });
 
-    it('연속 요청 시 메모리 캐시로 API 재호출을 방지한다', async () => {
-        redis.get.mockResolvedValue(null);
-        httpService.get.mockReturnValue(of({data: {id: 777}}));
-        httpService.post.mockReturnValue(of({data: {token: 'token-a'}}));
+    describe('설치 변경', () => {
+        let store: Map<string, string>;
 
-        await service.getInstallationToken('my-org');
+        // 설치 매핑의 덮어쓰기·조건부 삭제 결과를 확인하려고 필요한 명령만 흉내 낸다.
+        const useFakeRedis = (): void => {
+            store = new Map();
+            redis.get.mockImplementation(async (key: string) => store.get(key) ?? null);
+            redis.set.mockImplementation(async (key: string, value: string, ...options: string[]) => {
+                if (options.includes('NX') && store.has(key)) {
+                    return null;
+                }
 
-        redis.get.mockResolvedValue('token-a'); // Token still cached
-        await service.getInstallationToken('my-org');
+                store.set(key, value);
+                return 'OK';
+            });
+            redis.del.mockImplementation(async (key: string) => Number(store.delete(key)));
+            redis.eval.mockImplementation(async (_script: string, _keyCount: number, key: string, value: string) =>
+                store.get(key) === value ? Number(store.delete(key)) : 0);
+        };
 
-        expect(httpService.get).toHaveBeenCalledTimes(1); // InstallationId API: 1번만
+        const installationIdUsed = async (owner: string): Promise<number> => {
+            httpService.post.mockClear();
+            await service.getInstallationToken(owner);
+            const [[url]] = httpService.post.mock.calls as Array<[string]>;
+            return Number(/installations\/(?<id>\d+)\//v.exec(url)?.groups?.id);
+        };
+
+        beforeEach(() => {
+            useFakeRedis();
+            httpService.post.mockReturnValue(of({data: {token: 'token'}}));
+        });
+
+        it('재설치를 반영하면 이전 설치 ID와 토큰을 쓰지 않는다', async () => {
+            await service.cacheInstallation('my-org', 1);
+            await service.getInstallationToken('my-org');
+
+            await service.evictInstallation('my-org', 1);
+            await service.cacheInstallation('my-org', 2);
+
+            expect(store.has(githubCacheKeys.token(1))).toBe(false);
+            expect(await installationIdUsed('my-org')).toBe(2);
+        });
+
+        it('이전 설치의 삭제가 늦게 도착해도 새 설치 매핑을 지우지 않는다', async () => {
+            await service.cacheInstallation('my-org', 2);
+
+            await service.evictInstallation('my-org', 1);
+
+            expect(store.get(githubCacheKeys.installation('my-org'))).toBe('2');
+        });
+
+        it('중복 설치 이벤트는 같은 매핑을 유지한다', async () => {
+            await service.cacheInstallation('my-org', 2);
+            await service.cacheInstallation('my-org', 2);
+
+            expect(await installationIdUsed('my-org')).toBe(2);
+        });
+
+        it('조회 중에 기록된 새 설치 매핑을 이전 조회 결과로 덮지 않는다', async () => {
+            httpService.get.mockImplementation(() => {
+                store.set(githubCacheKeys.installation('my-org'), '2'); // 조회 중에 설치 이벤트가 먼저 반영됨
+                return of({data: {id: 1}});
+            });
+
+            await service.getInstallationToken('my-org');
+
+            expect(store.get(githubCacheKeys.installation('my-org'))).toBe('2');
+        });
+
+        it('설치 이벤트의 owner 대소문자가 달라도 같은 매핑을 갱신한다', async () => {
+            await service.cacheInstallation('My-Org', 2);
+
+            expect(await installationIdUsed('my-org')).toBe(2);
+        });
+
+        it('웹훅을 놓쳐도 매핑이 만료되면 다음 요청에서 현재 설치를 다시 조회한다', async () => {
+            await service.cacheInstallation('my-org', 1);
+            store.delete(githubCacheKeys.installation('my-org')); // Redis TTL 만료
+            httpService.get.mockReturnValue(of({data: {id: 2}}));
+
+            expect(await installationIdUsed('my-org')).toBe(2);
+        });
     });
 
     it('installation 조회의 4xx 에러는 GithubClientError로 변환한다', async () => {
