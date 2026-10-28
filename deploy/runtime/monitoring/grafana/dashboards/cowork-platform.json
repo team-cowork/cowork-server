@@ -1259,7 +1259,7 @@
       },
       "targets": [
         {
-          "expr": "consul_mesh_active_root_ca_expiry{job=\"consul\",host=\"control\"}",
+          "expr": "consul_mesh_active_root_ca_expiry{job=\"consul\",host=\"control\",datacenter!=\"\"}",
           "legendFormat": "루트 CA",
           "datasource": {
             "type": "prometheus",
@@ -1270,7 +1270,7 @@
           "range": false
         },
         {
-          "expr": "consul_mesh_active_signing_ca_expiry{job=\"consul\",host=\"control\"}",
+          "expr": "consul_mesh_active_signing_ca_expiry{job=\"consul\",host=\"control\",datacenter!=\"\"}",
           "legendFormat": "서명 CA",
           "datasource": {
             "type": "prometheus",
