@@ -5,7 +5,7 @@ set -euo pipefail
 export MYSQL_PWD="$DB_ADMIN_PASSWORD"
 ready=false
 for ((attempt = 0; attempt < 120; attempt++)); do
-  if mysql --protocol=tcp -h 127.0.0.1 -u root --connect-timeout=3 -N -e 'SELECT 1' >/dev/null 2>&1; then
+  if mysql --protocol=socket --socket="$NOMAD_ALLOC_DIR/tmp/mysql.sock" -u root --connect-timeout=3 -N -e 'SELECT 1' >/dev/null 2>&1; then
     ready=true
     break
   fi
@@ -19,7 +19,7 @@ fi
 # NO_BACKSLASH_ESCAPES makes doubled quotes sufficient for SQL string literals.
 app=${DB_PASSWORD//\'/\'\'}
 monitor=${DB_MONITORING_PASSWORD//\'/\'\'}
-if ! mysql --protocol=tcp -h 127.0.0.1 -u root --binary-mode >/dev/null 2>&1 <<SQL
+if ! mysql --protocol=socket --socket="$NOMAD_ALLOC_DIR/tmp/mysql.sock" -u root --binary-mode >/dev/null 2>&1 <<SQL
 SET SESSION sql_mode='NO_BACKSLASH_ESCAPES';
 CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '$DB_USERNAME'@'%' IDENTIFIED BY '$app';

@@ -83,7 +83,7 @@ job "cowork-authorization-db" {
         type     = "script"
         task     = "database"
         command  = "/bin/sh"
-        args     = ["-c", "mysqladmin --protocol=tcp -h 127.0.0.1 ping --silent >/dev/null 2>&1"]
+        args     = ["-c", "mysqladmin --protocol=socket --socket=/alloc/tmp/mysql.sock ping --silent >/dev/null 2>&1"]
         interval = "10s"
         timeout  = "5s"
       }
@@ -130,7 +130,7 @@ job "cowork-authorization-db" {
       kill_timeout = "60s"
       config {
         image = "mysql:9.7.2@sha256:29abb0a179982e4a8928138bfc7f918af9eda64e7eeb1b1d084c1720a20159e6"
-        args  = ["--bind-address=127.0.0.1", "--skip-name-resolve=OFF", "--mysqlx=0", "--innodb-buffer-pool-size=134217728", "--max-connections=100", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+        args  = ["--bind-address=127.0.0.1", "--socket=/alloc/tmp/mysql.sock", "--mysqlx=0", "--innodb-buffer-pool-size=134217728", "--max-connections=100", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
       }
       env {
         MYSQL_DATABASE  = var.runtime_env["DB_NAME"]
