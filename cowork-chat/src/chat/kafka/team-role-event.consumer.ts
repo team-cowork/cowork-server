@@ -27,7 +27,7 @@ type TeamRoleEvent = {
 	accountId?: number;
 	name?: string;
 	priority?: number;
-	// 호환 정리(#596): 2026-11-01 05:00 KST 이후 구형 outbox·Kafka 레코드 보정과 rollback 종료 확인 후 ROLE_UPSERTED의 isDefault 누락·false 대체 제거.
+	// @todo #596: 2026-11-01 05:00 KST 이후 구형 outbox·Kafka 레코드 보정과 rollback 종료 확인 후 ROLE_UPSERTED의 isDefault 누락·false 대체 제거.
 	// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
 	isDefault?: boolean;
 	permissions?: Record<string, boolean>;
