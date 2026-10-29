@@ -32,6 +32,10 @@ if not ok or value.runId~=ARGV[2] then return redis.error_reply('ERR deployment 
 return redis.call('HDEL',KEYS[1],ARGV[1])""".replace('\n', ' ')
 
 
+class TransientPlatformError(RuntimeError):
+    pass
+
+
 def command(argv, *, env=None, capture=False, allowed=(0,), timeout=None, input=None):
     result = subprocess.run(argv, cwd=ROOT, env=env, input=input, text=True,
                             stdout=subprocess.PIPE if capture else None, check=False, timeout=timeout)
@@ -102,11 +106,18 @@ class Platform:
         address = self.env['CONSUL_HTTP_ADDR' if consul else 'NOMAD_ADDR']
         header = 'X-Consul-Token' if consul else 'X-Nomad-Token'
         token = self.env['CONSUL_HTTP_TOKEN' if consul else 'NOMAD_TOKEN']
-        response = requests.request(method, address + '/v1/' + path, json=body,
-                                    headers={header: token}, verify=str(self.ca), timeout=30,
-                                    allow_redirects=False)
+        try:
+            response = requests.request(method, address + '/v1/' + path, json=body,
+                                        headers={header: token}, verify=str(self.ca), timeout=30,
+                                        allow_redirects=False)
+        except requests.exceptions.SSLError:
+            raise
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as error:
+            raise TransientPlatformError(f'Platform API {path.split("?")[0]} is unavailable') from error
         if missing and response.status_code == 404:
             return None
+        if response.status_code >= 500:
+            raise TransientPlatformError(f'Platform API {path.split("?")[0]} failed (HTTP {response.status_code})')
         if not 200 <= response.status_code < 300:
             raise RuntimeError(f'Platform API {path.split("?")[0]} failed (HTTP {response.status_code})')
         return response.json() if response.content else None
@@ -253,7 +264,11 @@ class Platform:
         output = self.alloc_exec(allocation['ID'], 'redis', ['redis-cli', '--raw'],
                                  input=line + '\nWAITAOF 1 0 2000\n')
         lines = [line.strip() for line in output.splitlines() if line.strip()]
-        if any(line.startswith('ERR ') for line in lines) or len(lines) < 3 or lines[-2:] != ['1', '0']:
+        if lines and lines[0] == 'ERR deployment state owned by another run':
+            raise RuntimeError('Redis deployment state is owned by another run')
+        if not lines or lines[0] not in ('0', '1'):
+            raise RuntimeError('Redis deployment state script failed')
+        if lines[1:] != ['1', '0']:
             raise RuntimeError('Redis deployment state write was not confirmed on AOF')
 
     def state_set(self, service, run_id, phase):
@@ -346,30 +361,33 @@ class Platform:
     def gateway_candidate(self, previous_id, expected_index, expected_port):
         deadline = time.monotonic() + 900
         while time.monotonic() < deadline:
-            job = self.api('job/cowork-gateway')
-            if job['JobModifyIndex'] != expected_index:
-                raise RuntimeError('Gateway job changed during candidate readiness')
-            allocations = self.api('job/cowork-gateway/allocations') or []
-            candidates = [allocation for allocation in allocations
-                          if allocation['ID'] != previous_id and allocation['JobVersion'] == job['Version']
-                          and allocation['DesiredStatus'] == 'run' and allocation['ClientStatus'] == 'running']
-            entries = self.api('health/service/cowork-gateway?passing=true', consul=True) or []
-            for allocation in candidates:
-                details = self.api('allocation/' + allocation['ID'])
-                states = details.get('TaskStates') or {}
-                tasks = details['Job']['TaskGroups'][0]['Tasks']
-                if not all(states.get(task['Name'], {}).get('State') == 'running' for task in tasks):
-                    continue
-                if not any(re.search(r'(?:^|-)' + re.escape(allocation['ID']) + r'(?:-|$)',
-                                     entry['Service']['ID']) for entry in entries):
-                    continue
-                try:
-                    self.gateway_snapshot(allocation)
-                    port = self.gateway_host_port(allocation)
-                    if port == expected_port:
-                        return allocation, port
-                except (RuntimeError, ValueError, subprocess.TimeoutExpired):
-                    pass
+            try:
+                job = self.api('job/cowork-gateway')
+                if job['JobModifyIndex'] != expected_index:
+                    raise RuntimeError('Gateway job changed during candidate readiness')
+                allocations = self.api('job/cowork-gateway/allocations') or []
+                candidates = [allocation for allocation in allocations
+                              if allocation['ID'] != previous_id and allocation['JobVersion'] == job['Version']
+                              and allocation['DesiredStatus'] == 'run' and allocation['ClientStatus'] == 'running']
+                entries = self.api('health/service/cowork-gateway?passing=true', consul=True) or []
+                for allocation in candidates:
+                    details = self.api('allocation/' + allocation['ID'])
+                    states = details.get('TaskStates') or {}
+                    tasks = details['Job']['TaskGroups'][0]['Tasks']
+                    if not all(states.get(task['Name'], {}).get('State') == 'running' for task in tasks):
+                        continue
+                    if not any(re.search(r'(?:^|-)' + re.escape(allocation['ID']) + r'(?:-|$)',
+                                         entry['Service']['ID']) for entry in entries):
+                        continue
+                    try:
+                        self.gateway_snapshot(allocation)
+                        port = self.gateway_host_port(allocation)
+                        if port == expected_port:
+                            return allocation, port
+                    except (RuntimeError, ValueError, subprocess.TimeoutExpired):
+                        pass
+            except TransientPlatformError:
+                pass
             time.sleep(5)
         raise RuntimeError('New Gateway candidate did not become ready')
 
@@ -479,9 +497,7 @@ class Platform:
         if target_port not in (21000, 21001) or target_port == previous_port:
             raise RuntimeError('Gateway planned host port does not alternate from the active allocation')
         self.ansible('gateway-capacity.yml')
-        submitted = False
         try:
-            submitted = True
             indices = self.tofu_apply_plan('edge', variables, plan_file)
             candidate, port = self.gateway_candidate(previous_allocation['ID'], indices['cowork-gateway'], target_port)
             self.wait_gateway_upstreams(business_services, candidate)
@@ -492,13 +508,17 @@ class Platform:
             self.gateway_verify(port, directory)
             self.gateway_snapshot(candidate)
             print('Gateway traffic switched to verified allocation ' + candidate['ID'], flush=True)
-        except Exception as error:
-            if submitted:
+        except Exception:
+            try:
+                current_job = self.api('job/cowork-gateway', missing=True)
+            except Exception:
+                current_job = None
+            if current_job is None or current_job['JobModifyIndex'] != previous_job['JobModifyIndex']:
                 try:
                     self.rollback_gateway(previous_job, previous_allocation, business_services, directory)
-                except Exception as error:
+                except Exception as rollback_error:
                     raise RuntimeError('Gateway switch and automatic rollback both failed (' +
-                                       type(error).__name__ + ')') from None
+                                       type(rollback_error).__name__ + ')') from None
             raise
 
     def apply_business_apps(self, variables, plan_file, changed, specs, run_id,
