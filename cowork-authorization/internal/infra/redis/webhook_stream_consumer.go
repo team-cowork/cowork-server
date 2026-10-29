@@ -2,6 +2,7 @@ package redisinfra
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log"
 	"strconv"
@@ -161,11 +162,37 @@ func (c *WebhookStreamConsumer) recoverPending(ctx context.Context, minIdle time
 func (c *WebhookStreamConsumer) process(ctx context.Context, message redis.XMessage) {
 	result, err := processQueuedWebhook(ctx, c.processor, message, c.ackAndDelete)
 	if err != nil {
-		monitoring.RecordWebhookStreamFailure(streamErrorKind(err))
-		log.Println("DataGSM webhook stream entry remains pending")
+		kind := streamErrorKind(err)
+		monitoring.RecordWebhookStreamFailure(kind)
+		if kind == "invalid" {
+			log.Printf("reject invalid DataGSM webhook stream entry: stream_id=%q event_id=%q",
+				message.ID, queuedWebhookEventID(message))
+			if ackErr := c.ackAndDelete(ctx, message.ID); ackErr != nil {
+				monitoring.RecordWebhookStreamFailure("processing")
+				log.Printf("failed to discard invalid DataGSM webhook stream entry: stream_id=%q: %v", message.ID, ackErr)
+			}
+			return
+		}
+		log.Printf("DataGSM webhook stream entry remains pending: stream_id=%q", message.ID)
 		return
 	}
 	monitoring.RecordWebhookStreamProcessed(string(result))
+}
+
+func queuedWebhookEventID(message redis.XMessage) string {
+	body, ok := message.Values["body"].(string)
+	if !ok || len(body) > maxWebhookBodyBytes {
+		return ""
+	}
+	var fields map[string]json.RawMessage
+	if json.Unmarshal([]byte(body), &fields) != nil {
+		return ""
+	}
+	var id string
+	if json.Unmarshal(fields["id"], &id) != nil || len(id) > 255 {
+		return ""
+	}
+	return id
 }
 
 func processQueuedWebhook(ctx context.Context, processor WebhookProcessor, message redis.XMessage,
