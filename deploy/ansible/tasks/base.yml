@@ -62,9 +62,6 @@
   ansible.builtin.include_tasks: docker.yml
 - name: Reconcile the declared Compose plugin
   ansible.builtin.include_tasks: compose.yml
-- name: Reconcile the emergency duplicate application log limit
-  ansible.builtin.include_tasks: emergency-logrotate.yml
-  when: inventory_hostname in platform_emergency_app_log_paths
 - name: Install the declared operational Python runtime
   ansible.builtin.include_tasks: python.yml
 - name: Create the declared persistent volumes
