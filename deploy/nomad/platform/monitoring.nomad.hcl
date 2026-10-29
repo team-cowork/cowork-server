@@ -155,11 +155,7 @@ job "cowork-monitoring" {
       dynamic "template" {
         for_each = { for path, body in var.config_files : path => body if regex_replace(path, "^loki/", "") != path }
         content {
-          data = replace(replace(replace(replace(template.value,
-            "COWORK_PUBLIC_API_ORIGIN", trimsuffix(var.runtime_env["PUBLIC_API_BASE_URL"], "/")),
-            "COWORK_WEB_ORIGIN", trimspace(split(",", var.runtime_env["PUBLIC_WEB_ORIGINS"])[0])),
-            "COWORK_CONSUL_SERVER", trimprefix(lookup(var.runtime_env, "CONSUL_HTTP_ADDR", "https://10.0.0.137:8501"), "https://")),
-          "COWORK_VAULT_ADDR", trimsuffix(lookup(var.runtime_env, "VAULT_ADDR", "https://10.0.0.91:8210"), "/"))
+          data            = template.value
           destination     = "local/config/${template.key}"
           perms           = "0444"
           left_delimiter  = "[[["
@@ -199,16 +195,16 @@ job "cowork-monitoring" {
       dynamic "template" {
         for_each = { for path, body in var.config_files : path => body if regex_replace(path, "^prometheus/", "") != path }
         content {
-          data = replace(replace(replace(replace(template.value,
-            "COWORK_PUBLIC_API_ORIGIN", trimsuffix(var.runtime_env["PUBLIC_API_BASE_URL"], "/")),
-            "COWORK_WEB_ORIGIN", trimspace(split(",", var.runtime_env["PUBLIC_WEB_ORIGINS"])[0])),
-            "COWORK_CONSUL_SERVER", trimprefix(lookup(var.runtime_env, "CONSUL_HTTP_ADDR", "https://10.0.0.137:8501"), "https://")),
-          "COWORK_VAULT_ADDR", trimsuffix(lookup(var.runtime_env, "VAULT_ADDR", "https://10.0.0.91:8210"), "/"))
-          destination     = "local/config/${template.key}"
-          perms           = "0444"
-          left_delimiter  = "[[["
-          right_delimiter = "]]]"
-          change_mode     = "restart"
+          data = replace(replace(replace(template.value,
+            "COWORK_MONITORING_SECRET_PATH", "${var.vault_mount}/data/nomad/apps/monitoring?version=${var.secret_version}"),
+            "COWORK_CONSUL_SERVER", trimprefix(var.runtime_env["CONSUL_HTTP_ADDR"], "https://")),
+          "COWORK_VAULT_ADDR", trimsuffix(var.runtime_env["VAULT_ADDR"], "/"))
+          destination          = "local/config/${template.key}"
+          perms                = "0444"
+          left_delimiter       = "[[["
+          right_delimiter      = "]]]"
+          change_mode          = "restart"
+          error_on_missing_key = true
         }
       }
 
@@ -263,11 +259,7 @@ SECRET
       dynamic "template" {
         for_each = { for path, body in var.config_files : path => body if regex_replace(path, "^alertmanager/", "") != path }
         content {
-          data = replace(replace(replace(replace(template.value,
-            "COWORK_PUBLIC_API_ORIGIN", trimsuffix(var.runtime_env["PUBLIC_API_BASE_URL"], "/")),
-            "COWORK_WEB_ORIGIN", trimspace(split(",", var.runtime_env["PUBLIC_WEB_ORIGINS"])[0])),
-            "COWORK_CONSUL_SERVER", trimprefix(lookup(var.runtime_env, "CONSUL_HTTP_ADDR", "https://10.0.0.137:8501"), "https://")),
-          "COWORK_VAULT_ADDR", trimsuffix(lookup(var.runtime_env, "VAULT_ADDR", "https://10.0.0.91:8210"), "/"))
+          data            = template.value
           destination     = "local/config/${template.key}"
           perms           = "0444"
           left_delimiter  = "[[["
@@ -290,9 +282,9 @@ SECRET
 
       template {
         data                 = <<-SECRET
-{{ with secret "${var.vault_mount}/data/nomad/apps/monitoring?version=${var.secret_version}" }}{{ .Data.data.DISCORD_MONITORING_ALERT_WEBHOOK }}{{ end }}
+{{ with secret "${var.vault_mount}/data/nomad/apps/monitoring?version=${var.secret_version}" }}{{ .Data.data.DISCORD_MONITORING_ALERT_WEBHOOK_URL }}{{ end }}
 SECRET
-        destination          = "secrets/discord-webhook-url"
+        destination          = "secrets/discord-monitoring-alert-webhook-url"
         perms                = "0400"
         uid                  = 10001
         gid                  = 10001
@@ -316,7 +308,6 @@ SECRET
       kill_timeout = "30s"
       env = {
         GF_SECURITY_ADMIN_PASSWORD__FILE = "/secrets/admin-password"
-        GF_SERVER_ROOT_URL               = var.runtime_env["GRAFANA_ROOT_URL"]
         GF_SERVER_HTTP_ADDR              = "127.0.0.1"
         GF_SERVER_HTTP_PORT              = "3000"
         GF_SECURITY_COOKIE_SECURE        = "true"
@@ -338,11 +329,7 @@ SECRET
       dynamic "template" {
         for_each = { for path, body in var.config_files : path => body if regex_replace(path, "^grafana/", "") != path }
         content {
-          data = replace(replace(replace(replace(template.value,
-            "COWORK_PUBLIC_API_ORIGIN", trimsuffix(var.runtime_env["PUBLIC_API_BASE_URL"], "/")),
-            "COWORK_WEB_ORIGIN", trimspace(split(",", var.runtime_env["PUBLIC_WEB_ORIGINS"])[0])),
-            "COWORK_CONSUL_SERVER", trimprefix(lookup(var.runtime_env, "CONSUL_HTTP_ADDR", "https://10.0.0.137:8501"), "https://")),
-          "COWORK_VAULT_ADDR", trimsuffix(lookup(var.runtime_env, "VAULT_ADDR", "https://10.0.0.91:8210"), "/"))
+          data            = template.value
           destination     = "local/config/${template.key}"
           perms           = "0444"
           left_delimiter  = "[[["
@@ -361,6 +348,19 @@ SECRET
         env          = false
         disable_file = true
         change_mode  = "noop"
+      }
+
+      template {
+        data                 = <<-SECRET
+{{ with secret "${var.vault_mount}/data/nomad/apps/monitoring?version=${var.secret_version}" }}GF_SERVER_ROOT_URL={{ .Data.data.GRAFANA_ROOT_URL | toJSON }}{{ end }}
+SECRET
+        destination          = "secrets/grafana.env"
+        perms                = "0400"
+        uid                  = 10001
+        gid                  = 10001
+        env                  = true
+        change_mode          = "restart"
+        error_on_missing_key = true
       }
 
       template {
@@ -443,17 +443,26 @@ SECRET
       dynamic "template" {
         for_each = { for path, body in var.config_files : path => body if regex_replace(path, "^blackbox/", "") != path }
         content {
-          data = replace(replace(replace(replace(template.value,
-            "COWORK_PUBLIC_API_ORIGIN", trimsuffix(var.runtime_env["PUBLIC_API_BASE_URL"], "/")),
-            "COWORK_WEB_ORIGIN", trimspace(split(",", var.runtime_env["PUBLIC_WEB_ORIGINS"])[0])),
-            "COWORK_CONSUL_SERVER", trimprefix(lookup(var.runtime_env, "CONSUL_HTTP_ADDR", "https://10.0.0.137:8501"), "https://")),
-          "COWORK_VAULT_ADDR", trimsuffix(lookup(var.runtime_env, "VAULT_ADDR", "https://10.0.0.91:8210"), "/"))
-          destination     = "local/config/${template.key}"
-          perms           = "0444"
-          left_delimiter  = "[[["
-          right_delimiter = "]]]"
-          change_mode     = "restart"
+          data = replace(template.value,
+          "COWORK_MONITORING_SECRET_PATH", "${var.vault_mount}/data/nomad/apps/monitoring?version=${var.secret_version}")
+          destination          = "local/config/${template.key}"
+          perms                = "0444"
+          left_delimiter       = "[[["
+          right_delimiter      = "]]]"
+          change_mode          = "restart"
+          error_on_missing_key = true
         }
+      }
+      identity {
+        name = "vault_default"
+        aud  = ["vault.io"]
+        ttl  = "1h"
+      }
+      vault {
+        role         = "cowork-monitoring"
+        env          = false
+        disable_file = true
+        change_mode  = "noop"
       }
       resources {
         cpu        = 100

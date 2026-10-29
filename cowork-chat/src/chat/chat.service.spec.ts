@@ -42,6 +42,7 @@ const mockMessageRepository = {
 	findByIdAndChannelId: jest.fn(),
 	deleteById: jest.fn(),
 	createSystemMessage: jest.fn(),
+	existsInChannel: jest.fn(),
 	countUnread: jest.fn(),
 	countUnreadForChannels: jest.fn(),
 	findLastMessages: jest.fn(),
@@ -981,12 +982,28 @@ describe('ChatService', () => {
 	describe('readChannel', () => {
 		const messageId = new Types.ObjectId();
 
+		beforeEach(() => {
+			mockMessageRepository.existsInChannel.mockResolvedValue(true);
+		});
+
 		it('멤버가 아니면 ForbiddenException을 던진다', async () => {
 			mockChannelMessageReadAccess.requireCanRead.mockRejectedValueOnce(new ForbiddenException());
 
 			await expect(
 				service.readChannel({channelId: 1, userId: 42}, messageId.toString()),
 			).rejects.toThrow(ForbiddenException);
+			expect(mockMessageRepository.existsInChannel).not.toHaveBeenCalled();
+		});
+
+		it('채널에 없는 메시지 ID면 BadRequestException을 던지고 읽음 위치를 바꾸지 않는다', async () => {
+			mockMessageRepository.existsInChannel.mockResolvedValue(false);
+
+			await expect(
+				service.readChannel({channelId: 1, userId: 42}, messageId.toString()),
+			).rejects.toBeInstanceOf(BadRequestException);
+			expect(mockMessageRepository.existsInChannel).toHaveBeenCalledWith(messageId.toString(), 1);
+			expect(mockChannelReadService.advance).not.toHaveBeenCalled();
+			expect(mockEmit).not.toHaveBeenCalled();
 		});
 
 		it('읽음 위치를 전진시키고 계산된 안읽음 수를 전송한다', async () => {
@@ -994,6 +1011,7 @@ describe('ChatService', () => {
 
 			await service.readChannel({channelId: 1, userId: 42}, messageId.toString());
 
+			expect(mockMessageRepository.existsInChannel).toHaveBeenCalledWith(messageId.toString(), 1);
 			expect(mockChannelReadService.advance).toHaveBeenCalledWith(1, 42, messageId);
 			expect(mockTo).toHaveBeenCalledWith('user:42');
 			expect(mockEmit).toHaveBeenCalledWith('channel:unread:updated', {channelId: 1, unreadCount: 3});

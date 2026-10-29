@@ -956,6 +956,11 @@ export class ChatService {
      */
 	async readChannel(ctx: ChannelUserContext, lastReadMessageId: string): Promise<void> {
 		await this.requireChannelRead(ctx.channelId, ctx.userId);
+		// `$max`로 저장되어 되돌릴 수 없으므로, 다른 채널이나 존재하지 않는 ID가 읽음 위치를 고정하지 못하게 한다.
+		if (!(await this.messageRepository.existsInChannel(lastReadMessageId, ctx.channelId))) {
+			throw new BadRequestException('채널에 존재하지 않는 메시지입니다');
+		}
+
 		const unreadCount = await this.channelReadService.advance(ctx.channelId, ctx.userId, new Types.ObjectId(lastReadMessageId));
 		if (unreadCount === null) {
 			return;

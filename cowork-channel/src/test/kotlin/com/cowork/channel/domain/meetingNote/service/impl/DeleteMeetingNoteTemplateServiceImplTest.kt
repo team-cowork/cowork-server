@@ -8,6 +8,7 @@ import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteTemplate
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import io.mockk.verifyOrder
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
@@ -35,7 +36,7 @@ class DeleteMeetingNoteTemplateServiceImplTest {
 
     @Test
     fun `deleteTemplate은 활성 템플릿이면 BAD_REQUEST`() {
-        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
+        every { meetingNoteAccessGuard.requireChannelAccessForUpdate(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(template(isActive = true))
 
         val ex = assertThrows(ExpectedException::class.java) {
@@ -48,11 +49,15 @@ class DeleteMeetingNoteTemplateServiceImplTest {
     @Test
     fun `deleteTemplate은 비활성 템플릿을 삭제`() {
         val tmpl = template(isActive = false)
-        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
+        every { meetingNoteAccessGuard.requireChannelAccessForUpdate(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(tmpl)
 
         service.deleteTemplate(7L, 1L, 10L)
 
-        verify { templateRepository.delete(tmpl) }
+        verifyOrder {
+            meetingNoteAccessGuard.requireChannelAccessForUpdate(1L, 7L)
+            templateRepository.findById(10L)
+            templateRepository.delete(tmpl)
+        }
     }
 }

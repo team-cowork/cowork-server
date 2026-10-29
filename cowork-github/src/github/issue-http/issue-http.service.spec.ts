@@ -134,6 +134,40 @@ describe('IssueHttpService', () => {
         });
     });
 
+    describe('findCommentByOperation', () => {
+        const parameters = {
+            owner: 'my-org',
+            repo: 'my-repo',
+            issueNumber: 1,
+            operationId: 'op-1',
+            since: '2026-09-26T00:00:00.000Z',
+        };
+
+        it('since 이후 댓글에서 operation 마커가 같은 댓글을 찾는다', async () => {
+            apiClient.listComments.mockResolvedValue([
+                {...baseComment, id: 99, body: '다른 댓글\n\n<!-- cowork:author=octocat operation=op-0 -->'},
+                {...baseComment, body: '확인했습니다\n\n<!-- cowork:author=octocat operation=op-1 -->'},
+            ]);
+
+            const result = await service.findCommentByOperation(parameters);
+
+            expect(apiClient.listComments).toHaveBeenCalledWith('my-org', 'my-repo', 1, parameters.since);
+            expect(result).toEqual(expect.objectContaining({id: 100, author: 'octocat', body: '확인했습니다'}));
+        });
+
+        it('한 페이지가 가득 찼는데 없으면 없다고 단정하지 않는다', async () => {
+            apiClient.listComments.mockResolvedValue(Array.from({length: 100}, () => baseComment));
+
+            await expect(service.findCommentByOperation(parameters)).resolves.toBe('unknown');
+        });
+
+        it('페이지가 덜 찼는데 없으면 absent다', async () => {
+            apiClient.listComments.mockResolvedValue([baseComment]);
+
+            await expect(service.findCommentByOperation(parameters)).resolves.toBe('absent');
+        });
+    });
+
     describe('listComments', () => {
         it('마커가 있으면 author를 마커 값으로, body는 마커를 제거한 값으로 반환한다', async () => {
             apiClient.listComments.mockResolvedValue([

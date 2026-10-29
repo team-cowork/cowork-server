@@ -151,7 +151,7 @@ def platform(extend=None):
     github >> edge(EXTERNAL, "서명 Webhook", "dashed", constraint="false") >> edge_proxy
     apps["authorization"] >> edge(EXTERNAL, "OAuth2") >> datagsm
     apps["notification"] >> edge(EXTERNAL, "푸시") >> fcm
-    apps["chat"] >> edge(EXTERNAL, "업무 알림") >> discord
+    apps["chat"] >> edge(EXTERNAL, "Chat 처리 오류 알림") >> discord
     return nodes
 
 
