@@ -32,7 +32,7 @@ table inet cowork {
     tcp dport 7881 accept
     udp dport 7882 accept
 {% elif inventory_hostname == 'monitoring' %}
-    iifname "cowork0" ip saddr 172.30.0.0/16 tcp dport { 4646, 9100 } accept
+    iifname "cowork0" ip saddr 172.30.0.0/16 tcp dport { 4646, 9100, 12345 } accept
     ip saddr 10.0.0.117 tcp dport 8080 accept
     ip saddr { {{ platform_agent_ips | join(', ') }}, {{ platform_vault_ip }} } tcp dport 3100 accept
 {% elif inventory_hostname in groups['vault_hosts'] %}
