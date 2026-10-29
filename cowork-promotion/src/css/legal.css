@@ -1,0 +1,115 @@
+.legal {
+    max-width: 50rem;
+    min-height: 100vh;
+    margin-inline: auto;
+    padding: calc(var(--header-height) + var(--space-16)) var(--page-gutter) var(--space-24);
+    color: var(--color-text-secondary);
+    line-height: 1.8;
+    overflow-wrap: anywhere;
+    word-break: keep-all;
+}
+
+.legal h1,
+.legal h2,
+.legal h3,
+.legal strong,
+.legal dt {
+    color: var(--color-text);
+}
+
+.legal h1 {
+    margin-bottom: var(--space-5);
+    font-size: clamp(2rem, 5vw, var(--font-size-5xl));
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--tracking-display);
+    line-height: var(--leading-tight);
+}
+
+.legal h2 {
+    margin-bottom: var(--space-4);
+    font-size: var(--font-size-lg);
+    font-weight: var(--font-weight-bold);
+    letter-spacing: var(--tracking-tight);
+    line-height: var(--leading-body);
+}
+
+.legal h3 {
+    margin-block: var(--space-6) var(--space-3);
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-semibold);
+}
+
+.legal a {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+}
+
+.legal a:hover {
+    color: var(--color-text);
+}
+
+.legal-details {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5) var(--space-8);
+    margin-block: var(--space-8);
+    font-size: var(--font-size-sm);
+}
+
+.legal-details dt {
+    margin-bottom: var(--space-1);
+    font-weight: var(--font-weight-semibold);
+}
+
+.legal-toc {
+    margin-block: var(--space-10) var(--space-12);
+    padding-block: var(--space-6);
+    border-block: 1px solid var(--color-border);
+}
+
+.legal-toc ol {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2) var(--space-6);
+    padding-left: var(--space-5);
+    list-style: decimal;
+    font-size: var(--font-size-sm);
+}
+
+.legal-toc a {
+    display: inline-block;
+    padding-block: var(--space-1);
+}
+
+.legal-section {
+    scroll-margin-top: calc(var(--header-height) + var(--space-6));
+}
+
+.legal-section + .legal-section {
+    margin-top: var(--space-10);
+}
+
+.legal-section p + p,
+.legal-section ul,
+.legal-section ul + p {
+    margin-top: var(--space-3);
+}
+
+.legal-section ul {
+    padding-left: var(--space-6);
+    list-style: disc;
+}
+
+.legal-section li + li {
+    margin-top: var(--space-2);
+}
+
+@media (max-width: 639px) {
+    .legal {
+        padding-top: calc(var(--header-height) + var(--space-10));
+    }
+
+    .legal-toc ol {
+        grid-template-columns: 1fr;
+    }
+}
