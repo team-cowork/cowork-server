@@ -1,12 +1,12 @@
-import {Prop, Schema, SchemaFactory} from '@nestjs/mongoose';
+import {Prop as prop, Schema as schema, SchemaFactory} from '@nestjs/mongoose';
 import {Types} from 'mongoose';
 
-@Schema({versionKey: false})
+@schema({versionKey: false})
 export class ChannelReadState {
-    @Prop({required: true}) channelId!: number;
-    @Prop({required: true}) userId!: number;
-    @Prop({required: true, type: Types.ObjectId}) lastReadMessageId!: Types.ObjectId;
+	@prop({required: true}) channelId!: number;
+	@prop({required: true}) userId!: number;
+	@prop({required: true, type: Types.ObjectId}) lastReadMessageId!: Types.ObjectId;
 }
 
-export const ChannelReadStateSchema = SchemaFactory.createForClass(ChannelReadState);
-ChannelReadStateSchema.index({channelId: 1, userId: 1}, {unique: true});
+export const channelReadStateSchema = SchemaFactory.createForClass(ChannelReadState)
+	.index({channelId: 1, userId: 1}, {unique: true});

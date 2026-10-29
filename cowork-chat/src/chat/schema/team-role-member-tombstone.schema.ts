@@ -1,15 +1,15 @@
-import {Prop, Schema, SchemaFactory} from '@nestjs/mongoose';
+import {Prop as prop, Schema as schema, SchemaFactory} from '@nestjs/mongoose';
 
 /**
 이전 assignment 이벤트의 부활을 막는 member 단위 tombstone.
 */
-@Schema({timestamps: true, versionKey: false})
+@schema({timestamps: true, versionKey: false})
 export class TeamRoleMemberTombstone {
-    @Prop({required: true}) teamId!: number;
-    @Prop({required: true}) accountId!: number;
-    @Prop({required: true, type: Date}) sourceOccurredAt!: Date;
-    @Prop({required: true}) sourceVersion!: bigint;
+	@prop({required: true}) teamId!: number;
+	@prop({required: true}) accountId!: number;
+	@prop({required: true, type: Date}) sourceOccurredAt!: Date;
+	@prop({required: true}) sourceVersion!: bigint;
 }
 
-export const TeamRoleMemberTombstoneSchema = SchemaFactory.createForClass(TeamRoleMemberTombstone);
-TeamRoleMemberTombstoneSchema.index({teamId: 1, accountId: 1}, {unique: true});
+export const teamRoleMemberTombstoneSchema = SchemaFactory.createForClass(TeamRoleMemberTombstone)
+	.index({teamId: 1, accountId: 1}, {unique: true});

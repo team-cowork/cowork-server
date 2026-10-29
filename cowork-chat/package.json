@@ -1,23 +1,24 @@
 {
   "name": "cowork-chat",
   "version": "20261025.0.0",
+  "private": true,
   "description": "채팅 서비스.",
-  "main": "index.js",
+  "license": "ISC",
+  "type": "module",
+  "engines": {
+    "node": ">=26.8.2 <27"
+  },
   "scripts": {
     "start": "node dist/main.js",
-    "start:dev": "ts-node src/main.ts",
+    "start:dev": "npm run build && npm start",
     "build": "tsc",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "npm run test -- --watch",
     "test:cov": "npm run test -- --coverage",
-    "lint": "xo \"src/**/*.ts\" \"*.config.{js,mjs}\"",
+    "lint": "xo",
     "lint:fix": "npm run lint -- --fix",
     "lint:circular": "npx --yes madge --circular --extensions ts src"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
     "@apollo/server": "^5.5.1",
     "@as-integrations/express5": "^1.1.2",
@@ -58,17 +59,11 @@
     "@types/jest": "^30.0.0",
     "@types/mime-types": "^3.0.1",
     "@types/node": "^26.6.1",
-    "globals": "^17.12.0",
     "jest": "^30.5.1",
     "ts-jest": "^29.4.12",
-    "ts-node": "^10.9.2",
     "typescript": "^6.0.3",
-    "xo": "5.0.1"
+    "xo": "^5.0.1"
   },
-  "//": [
-    "TODO: micromark-extension-math의 KaTeX ^0.16.0 의존성에 GHSA-238p-pmpm-9mq7 취약점이 있어 0.18.2로 고정합니다.",
-    "상위 의존성 갱신 후 override 없이도 KaTeX 0.18.2 이상이 설치되는 것을 확인하면 KaTeX override와 이 TODO를 제거합니다."
-  ],
   "overrides": {
     "@nestjs/graphql": {
       "ws": "8.21.3"
@@ -95,7 +90,8 @@
       "katex": "0.18.2"
     }
   },
-  "engines": {
-    "node": ">=26.8.2 <27"
-  }
+  "//": [
+    "TODO: micromark-extension-math의 KaTeX ^0.16.0 의존성에 GHSA-238p-pmpm-9mq7 취약점이 있어 0.18.2로 고정합니다.",
+    "상위 의존성 갱신 후 override 없이도 KaTeX 0.18.2 이상이 설치되는 것을 확인하면 KaTeX override와 이 TODO를 제거합니다."
+  ]
 }
