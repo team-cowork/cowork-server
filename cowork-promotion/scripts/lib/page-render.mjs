@@ -62,6 +62,16 @@ export function renderAchievementsPage({template, achievements, styles, script, 
 	);
 }
 
+export function renderLegalPage({template, metadata, styles, logoUrl, socialImageUrl, siteUrl}) {
+	return renderPageMetadata(
+		bundlePage({
+			html: template, styles, stateData: '', logoUrl,
+		}),
+		{...metadata, type: 'website'},
+		{siteUrl, socialImageUrl},
+	);
+}
+
 export function renderHomePage({
 	template,
 	repositories,
