@@ -1,0 +1,59 @@
+---
+- name: Install the host Gateway proxy
+  ansible.builtin.apt:
+    name: nginx
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+- name: Remove the distribution default website
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  register: gateway_proxy_default_site
+- name: Keep the active Gateway target across releases
+  ansible.builtin.copy:
+    content: "set $cowork_gateway_target http://{{ private_ip }}:9;\n"
+    dest: /etc/cowork/gateway-upstream.conf
+    owner: root
+    group: root
+    mode: '0644'
+    force: false
+- name: Install the static Gateway proxy configuration
+  ansible.builtin.template:
+    src: gateway-proxy.conf.j2
+    dest: /etc/nginx/conf.d/cowork-gateway.conf
+    owner: root
+    group: root
+    mode: '0644'
+  register: gateway_proxy_config
+- name: Bound graceful worker drain for WebSocket and SSE connections
+  ansible.builtin.lineinfile:
+    path: /etc/nginx/nginx.conf
+    regexp: '^worker_shutdown_timeout '
+    line: 'worker_shutdown_timeout 300s;'
+    insertbefore: '^events\s*\{'
+  register: gateway_proxy_drain
+- name: Check Gateway proxy syntax
+  ansible.builtin.command: nginx -t
+  changed_when: false
+- name: Check whether Gateway proxy has been activated
+  ansible.builtin.stat:
+    path: /var/lib/cowork/gateway-proxy-active
+  register: gateway_proxy_marker
+- name: Keep the proxy disabled until its first verified target is ready
+  ansible.builtin.systemd_service:
+    name: nginx
+    enabled: false
+    state: stopped
+  when: not gateway_proxy_marker.stat.exists
+- name: Keep an activated Gateway proxy running
+  ansible.builtin.systemd_service:
+    name: nginx
+    enabled: true
+    state: started
+  when: gateway_proxy_marker.stat.exists
+- name: Reload an activated proxy after static configuration changes
+  ansible.builtin.systemd_service:
+    name: nginx
+    state: reloaded
+  when: gateway_proxy_marker.stat.exists and (gateway_proxy_default_site.changed or gateway_proxy_config.changed or gateway_proxy_drain.changed)

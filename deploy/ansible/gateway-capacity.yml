@@ -1,0 +1,11 @@
+---
+- name: Require headroom before two Gateway allocations coexist
+  hosts: gateway
+  become: false
+  gather_facts: true
+  tasks:
+    - name: Verify the Gateway VM has at least 8 GB RAM
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.memtotal_mb >= 7600
+        fail_msg: Gateway canary rollout requires an 8 GB VM; use the explicit first stop/start cutover or resize first.
