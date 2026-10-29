@@ -116,6 +116,11 @@ job "cowork-authorization" {
               local_bind_port    = 13306
               local_bind_address = "127.0.0.1"
             }
+            upstreams {
+              destination_name   = "cowork-redis"
+              local_bind_port    = 16379
+              local_bind_address = "127.0.0.1"
+            }
             expose {
               path {
                 path            = "/health"
