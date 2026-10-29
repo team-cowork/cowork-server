@@ -1,3 +1,4 @@
+# actionlint needs this label to recognize the custom runner in cowork-prod-cd.yml.
 self-hosted-runner:
   labels:
     - cowork-deploy
