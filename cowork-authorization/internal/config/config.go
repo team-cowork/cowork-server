@@ -24,6 +24,8 @@ type AppConfig struct {
 	DataGSMTokenURL      string
 	DataGSMUserInfoURL   string
 	DataGSMWebhookSecret string
+	RedisHost            string
+	RedisPort            string
 
 	KafkaBootstrapServers               string
 	KafkaTopicUserSync                  string
@@ -63,6 +65,8 @@ func Load() (*AppConfig, error) {
 		DataGSMTokenURL:                     getEnvOrDefault("DATAGSM_TOKEN_URL", "https://oauth.authorization.datagsm.kr/v1/oauth/token"),
 		DataGSMUserInfoURL:                  getEnvOrDefault("DATAGSM_USERINFO_URL", "https://oauth.resource.datagsm.kr/userinfo"),
 		DataGSMWebhookSecret:                os.Getenv("DATAGSM_WEBHOOK_SECRET"),
+		RedisHost:                           getEnvOrDefault("REDIS_HOST", "127.0.0.1"),
+		RedisPort:                           getEnvOrDefault("REDIS_PORT", "6379"),
 		KafkaBootstrapServers:               getEnvOrDefault("KAFKA_BOOTSTRAP_SERVERS", "localhost:9094"),
 		KafkaTopicUserSync:                  getEnvOrDefault("KAFKA_TOPIC_USER_SYNC", "user.data.sync"),
 		KafkaTopicUserIdentityCommand:       getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND", "user.identity.command"),
