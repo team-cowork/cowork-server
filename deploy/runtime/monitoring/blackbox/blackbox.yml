@@ -1,6 +1,9 @@
 [[[ with secret "COWORK_MONITORING_SECRET_PATH" ]]]
 [[[ $webOrigin := index (.Data.data.PUBLIC_WEB_ORIGINS | split ",") 0 | trimSpace ]]]
 modules:
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
   http_2xx:
     prober: http
     timeout: 5s
