@@ -18,6 +18,7 @@ import {WebhookController} from './webhook/webhook.controller.js';
 import {WebhookService} from './webhook/webhook.service.js';
 import {ChatGateway} from './chat.gateway.js';
 import {ChatService} from './chat.service.js';
+import {CHAT_SOCKET_SERVER} from './chat-socket-server.token.js';
 import {AttachmentDownloadService} from './service/attachment-download.service.js';
 import {ChatController} from './chat.controller.js';
 import {DmController} from './dm.controller.js';
@@ -189,6 +190,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 		WebhookMessageRepository,
 		WebhookRateLimiter,
 		ChatGateway,
+		{provide: CHAT_SOCKET_SERVER, useExisting: ChatGateway},
 		ChatService,
 		AttachmentDownloadService,
 		ChannelReadStateRepository,
