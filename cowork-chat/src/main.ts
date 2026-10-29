@@ -116,14 +116,9 @@ async function bootstrap() {
 			+ '}\n'
 			+ '```\n\n'
 			+ '선택 인자: `channelId`, `authorId`, `type`, `hasFile`, `before`, `limit`\n\n'
-			+ 'GraphQL Playground(로컬 환경): `/api/chat/graphql` (GET)\n\n'
 			+ '## 인증\n'
 			+ 'REST API: Gateway에서 주입된 `X-User-Id`, `X-User-Role` 헤더 사용.\n'
 			+ 'WebSocket: Gateway가 `/ws/chat`에서 JWT를 검증하고 같은 사용자 헤더를 주입합니다.\n'
-			+ 'Gateway 헤더가 없는 로컬 개발 연결에만 `auth.token` fallback을 사용합니다.\n'
-			+ '```js\n'
-			+ 'io(url, { auth: { token: "<JWT>" } })\n'
-			+ '```\n'
 			+ '인증 실패 시 `connect_error`가 전달됩니다.',
 		)
 		.setVersion('20261029.0')
