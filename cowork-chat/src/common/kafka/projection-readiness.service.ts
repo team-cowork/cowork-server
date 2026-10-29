@@ -226,7 +226,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 			return this.datasets.markRebuildRequired(stream, checkpointProblem, dataset);
 		}
 
-		// 호환 정리(#596): 2026-11-01 05:00 KST 이후 구형 Kafka·Mongo stamp 보정과 rollback 종료 확인 후 이 자동 재구축 및 누락 조회 제거.
+		// @todo #596: 2026-11-01 05:00 KST 이후 구형 Kafka·Mongo stamp 보정과 rollback 종료 확인 후 이 자동 재구축 및 누락 조회 제거.
 		// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
 		if (name === 'projectPermission' && dataset.status === 'ACTIVE' && await this.datasets.hasLegacyProjectPermission()) {
 			return this.datasets.requestRebuild(stream, {
