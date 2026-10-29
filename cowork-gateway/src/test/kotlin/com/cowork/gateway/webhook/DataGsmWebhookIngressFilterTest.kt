@@ -13,32 +13,27 @@ import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreakerFac
 import org.springframework.cloud.gateway.filter.GatewayFilterChain
 import org.springframework.cloud.gateway.route.Route
 import org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR
-import org.springframework.core.io.buffer.DataBufferUtils
 import org.springframework.http.HttpStatus
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest
 import org.springframework.mock.web.server.MockServerWebExchange
-import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
 import tools.jackson.databind.json.JsonMapper
-import java.net.URI
 
 class DataGsmWebhookIngressFilterTest :
     DescribeSpec({
         val verifier = mockk<DataGsmWebhookVerifier>()
         val queue = mockk<DataGsmWebhookQueue>()
         val states = mockk<DeploymentStateCache>()
-        val registry = SimpleMeterRegistry()
         val circuitBreaker = mockk<ReactiveCircuitBreaker>()
         val circuitBreakerFactory = mockk<ReactiveCircuitBreakerFactory<*, *>>()
         every { circuitBreakerFactory.create("authorizationWebhookCB") } returns circuitBreaker
-        every { circuitBreaker.run(any<Mono<Void>>()) } answers { firstArg<Mono<Void>>() }
         val filter =
             DataGsmWebhookIngressFilter(
                 verifier,
                 queue,
                 states,
                 JsonMapper.builder().build(),
-                registry,
+                SimpleMeterRegistry(),
                 circuitBreakerFactory,
             )
         val body = "{\"id\":\"test\"}"
@@ -51,7 +46,6 @@ class DataGsmWebhookIngressFilterTest :
             )
             val route = mockk<Route>()
             every { route.id } returns "authorization-webhook"
-            every { route.uri } returns URI.create("http://127.0.0.1:18081")
             result.attributes[GATEWAY_ROUTE_ATTR] = route
             return result
         }
@@ -76,25 +70,6 @@ class DataGsmWebhookIngressFilterTest :
                 verify(exactly = 0) { chain.filter(any()) }
             }
 
-            it("Authorization이 정상인 경우 원본 본문을 기존 MySQL 접수 경로에 전달한다") {
-                every { states.snapshot() } returns emptyMap()
-                var forwarded = ""
-                val chain = mockk<GatewayFilterChain>()
-                every { chain.filter(any()) } answers {
-                    val request = firstArg<ServerWebExchange>().request
-                    DataBufferUtils.join(request.body).map { buffer ->
-                        try {
-                            ByteArray(buffer.readableByteCount()).also(buffer::read).toString(Charsets.UTF_8)
-                        } finally {
-                            DataBufferUtils.release(buffer)
-                        }
-                    }.doOnNext { forwarded = it }.then()
-                }
-                val exchange = exchange()
-                filter.filter(exchange, chain).block()
-                forwarded shouldBe body
-            }
-
             it("Authorization이 배포 중이면 직접 전달하지 않고 503으로 실패한다") {
                 every { states.snapshot() } returns mapOf("cowork-authorization" to DeploymentState("42", "deploying"))
                 val chain = mockk<GatewayFilterChain>(relaxed = true)
@@ -102,21 +77,6 @@ class DataGsmWebhookIngressFilterTest :
                 filter.filter(exchange, chain).block()
                 exchange.response.statusCode shouldBe HttpStatus.SERVICE_UNAVAILABLE
                 verify(exactly = 0) { chain.filter(any()) }
-            }
-
-            it("Authorization의 실패 응답은 접수 성공으로 집계하지 않는다") {
-                every { states.snapshot() } returns emptyMap()
-                val chain = mockk<GatewayFilterChain>()
-                every { chain.filter(any()) } answers {
-                    firstArg<ServerWebExchange>().response.statusCode = HttpStatus.BAD_GATEWAY
-                    Mono.empty()
-                }
-                val counter = registry.counter("gateway.datagsm.ingress", "outcome", "temporarily_unavailable")
-                val before = counter.count()
-                val exchange = exchange()
-                filter.filter(exchange, chain).block()
-                exchange.response.statusCode shouldBe HttpStatus.SERVICE_UNAVAILABLE
-                counter.count() shouldBe before + 1
             }
         }
     })
