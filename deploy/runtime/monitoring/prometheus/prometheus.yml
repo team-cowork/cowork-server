@@ -1,3 +1,5 @@
+[[[ with secret "COWORK_MONITORING_SECRET_PATH" ]]]
+[[[ $publicAPI := .Data.data.PUBLIC_API_BASE_URL | trimSuffix "/" ]]]
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
@@ -153,7 +155,7 @@ scrape_configs:
     - http_public_gateway
   static_configs:
   - targets:
-    - COWORK_PUBLIC_API_ORIGIN/api/health
+    - [[[ printf "%s/api/health" $publicAPI | toJSON ]]]
     labels:
       service: gateway
   relabel_configs:
@@ -169,22 +171,22 @@ scrape_configs:
   metrics_path: /probe
   static_configs:
   - targets:
-    - COWORK_PUBLIC_API_ORIGIN/api/authorization/auth/refresh
+    - [[[ printf "%s/api/authorization/auth/refresh" $publicAPI | toJSON ]]]
     labels:
       service: authorization
       __param_module: http_gateway_downstream_post
   - targets:
-    - COWORK_PUBLIC_API_ORIGIN/api/chat/health
+    - [[[ printf "%s/api/chat/health" $publicAPI | toJSON ]]]
     labels:
       service: chat
       __param_module: http_gateway_downstream_get
   - targets:
-    - COWORK_PUBLIC_API_ORIGIN/api/voice/voice/webhook
+    - [[[ printf "%s/api/voice/voice/webhook" $publicAPI | toJSON ]]]
     labels:
       service: voice
       __param_module: http_gateway_downstream_post
   - targets:
-    - COWORK_PUBLIC_API_ORIGIN/api/github/github/webhooks
+    - [[[ printf "%s/api/github/github/webhooks" $publicAPI | toJSON ]]]
     labels:
       service: github
       __param_module: http_gateway_downstream_post
@@ -204,7 +206,7 @@ scrape_configs:
     - http_gateway_cors_preflight
   static_configs:
   - targets:
-    - COWORK_PUBLIC_API_ORIGIN/api/user/users/me
+    - [[[ printf "%s/api/user/users/me" $publicAPI | toJSON ]]]
     labels:
       service: gateway
   relabel_configs:
@@ -470,3 +472,4 @@ scrape_configs:
     labels:
       service: alloy
       host: control
+[[[ end ]]]
