@@ -17,26 +17,26 @@
 
 ## 포트
 
-| 용도 | 컨테이너 포트 | Compose 기본 호스트 포트 |
-|------|---------------|--------------------------|
-| HTTP | `8082`        | `8082`                   |
+| 용도 | 컨테이너 포트 |
+|------|---------------|
+| HTTP | `8082` |
 
 ## 환경변수
 
 설정은 환경변수와 secret 파일에서 읽습니다. 운영의 서비스 등록과 내부 통신 인증은 Nomad와 Consul이 담당합니다.
 
-| 변수 | 기본값 | 설명 |
-|------|--------|------|
-| `PORT` | `8082` | HTTP 포트 |
-| `APP_CONFIG_PROFILE` | `local` | prod에서는 공개 API origin의 HTTPS 검증 적용 |
-| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` | 없음 | 필수 MySQL 접속 정보 |
-| `REDIS_HOST`, `REDIS_PORT` | `localhost`, `6379` | Redis 접속 주소 |
-| `S3_INTERNAL_ENDPOINT` | `http://localhost:9000` | S3 API 주소 |
-| `S3_ACCESS_KEY`, `S3_SECRET_KEY` | 없음 | 필수 서비스별 S3 자격증명 |
-| `S3_BUCKET`, `S3_REGION` | `cowork-bucket`, `ap-northeast-2` | S3 bucket과 서명 region |
-| `PUBLIC_API_BASE_URL` | `http://localhost:8080` | Gateway의 공개 origin. prod는 외부 HTTPS 주소 |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9094` | Kafka broker 목록 |
-| `KAFKA_SECURITY_PROTOCOL` | `PLAINTEXT` | 로컬은 PLAINTEXT, 운영은 SASL_SSL |
-| `KAFKA_SASL_MECHANISM` | `SCRAM-SHA-512` | SCRAM-SHA-256 또는 SCRAM-SHA-512 |
-| `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` | 없음 | SASL_SSL에서 필수인 서비스 계정 |
-| `KAFKA_SSL_CA_LOCATION` | 시스템 CA | Kafka CA PEM 파일 경로 |
+| 변수 | 설명 |
+|------|------|
+| `PORT` | HTTP 포트 |
+| `APP_CONFIG_PROFILE` | prod에서는 공개 API origin의 HTTPS 검증 적용 |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` | 필수 MySQL 접속 정보 |
+| `REDIS_HOST`, `REDIS_PORT` | Redis 접속 주소 |
+| `S3_INTERNAL_ENDPOINT` | S3 API 주소 |
+| `S3_ACCESS_KEY`, `S3_SECRET_KEY` | 필수 서비스별 S3 자격증명 |
+| `S3_BUCKET`, `S3_REGION` | S3 bucket과 서명 region |
+| `PUBLIC_API_BASE_URL` | Gateway의 공개 origin. prod는 외부 HTTPS 주소 |
+| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker 목록 |
+| `KAFKA_SECURITY_PROTOCOL` | 운영에서는 SASL_SSL |
+| `KAFKA_SASL_MECHANISM` | SCRAM-SHA-256 또는 SCRAM-SHA-512 |
+| `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` | SASL_SSL에서 필수인 서비스 계정 |
+| `KAFKA_SSL_CA_LOCATION` | Kafka CA PEM 파일 경로 |
