@@ -21,36 +21,35 @@ changed_paths = RELEASE_FIELDS["changed_paths"]
 def build_inputs(service):
     inputs = set()
     # CD may load these tools from a different checkout than the selected source.
-    dockerfiles = list((Path.cwd() / f"cowork-{service}").glob("Dockerfile.*"))
-    if not dockerfiles:
+    dockerfile = Path.cwd() / f"cowork-{service}" / "Dockerfile"
+    if not dockerfile.is_file():
         return {"."}
-    for dockerfile in dockerfiles:
-        content = dockerfile.read_text()
-        # Unsupported context expressions select broadly rather than miss a build.
-        if re.search(r"(?im)^\s*#\s*escape\s*=\s*`", content) or any(
-            "type=cache" not in mount for mount in re.findall(r"--mount=(\S+)", content)
-        ):
-            return {"."}
-        content = "\n".join(line for line in content.splitlines() if not line.lstrip().startswith("#"))
-        content = re.sub(r"\\\n", " ", content)
-        for arguments in re.findall(r"(?im)^\s*(?:COPY|ADD)\s+(.+)$", content):
-            try:
-                flags = []
-                while arguments.startswith("--"):
-                    flag, arguments = arguments.split(None, 1)
-                    flags.append(flag)
-                if any(flag.startswith("--from=") for flag in flags):
-                    continue
-                sources = json.loads(arguments) if arguments.startswith("[") else shlex.split(arguments)
-                if not isinstance(sources, list) or len(sources) < 2 or not all(isinstance(source, str) for source in sources):
-                    return {"."}
-                for source in sources[:-1]:
-                    if "$" in source or source.startswith("<<") or ".." in PurePosixPath(source).parts:
-                        return {"."}
-                    if "://" not in source:
-                        inputs.add(str(PurePosixPath(source.lstrip("/"))))
-            except ValueError:
+    content = dockerfile.read_text()
+    # Unsupported context expressions select broadly rather than miss a build.
+    if re.search(r"(?im)^\s*#\s*escape\s*=\s*`", content) or any(
+        "type=cache" not in mount for mount in re.findall(r"--mount=(\S+)", content)
+    ):
+        return {"."}
+    content = "\n".join(line for line in content.splitlines() if not line.lstrip().startswith("#"))
+    content = re.sub(r"\\\n", " ", content)
+    for arguments in re.findall(r"(?im)^\s*(?:COPY|ADD)\s+(.+)$", content):
+        try:
+            flags = []
+            while arguments.startswith("--"):
+                flag, arguments = arguments.split(None, 1)
+                flags.append(flag)
+            if any(flag.startswith("--from=") for flag in flags):
+                continue
+            sources = json.loads(arguments) if arguments.startswith("[") else shlex.split(arguments)
+            if not isinstance(sources, list) or len(sources) < 2 or not all(isinstance(source, str) for source in sources):
                 return {"."}
+            for source in sources[:-1]:
+                if "$" in source or source.startswith("<<") or ".." in PurePosixPath(source).parts:
+                    return {"."}
+                if "://" not in source:
+                    inputs.add(str(PurePosixPath(source.lstrip("/"))))
+        except ValueError:
+            return {"."}
     return inputs
 
 
@@ -79,28 +78,24 @@ def affected(service, paths):
     return False
 
 
-def matrix(environments, paths=None):
+def matrix(paths=None):
     return {"include": [
-        {"service": service, "environment": environment, "context": settings[environment],
-         "dockerfile": f"cowork-{service}/Dockerfile.{environment}"}
-        for service, settings in CATALOG.items() if paths is None or affected(service, paths)
-        for environment in environments
+        {"service": service, "context": context, "dockerfile": f"cowork-{service}/Dockerfile"}
+        for service, context in CATALOG.items() if paths is None or affected(service, paths)
     ]}
 
 
-def verification_matrix(environments, paths=None):
+def verification_matrix(paths=None):
     return {"include": [
-        {"service": dockerfile.parent.name.removeprefix("cowork-"), "environment": environment,
+        {"service": dockerfile.parent.name.removeprefix("cowork-"),
          "dockerfile": str(dockerfile.relative_to(ROOT))}
-        for environment in environments
-        for dockerfile in sorted(ROOT.glob(f"cowork-*/Dockerfile.{environment}"))
+        for dockerfile in sorted(ROOT.glob("cowork-*/Dockerfile"))
         if paths is None or affected(dockerfile.parent.name.removeprefix("cowork-"), paths)
     ]}
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--environment", choices=("local", "prod", "all"), default="all")
     parser.add_argument("--base")
     parser.add_argument("--head", default="HEAD")
     parser.add_argument("--verify", action="store_true")
@@ -109,8 +104,7 @@ def main():
     if args.base:
         base = subprocess.check_output(["git", "merge-base", args.base, args.head], text=True).strip()
         paths = changed_paths(base, args.head)
-    environments = ("local", "prod") if args.environment == "all" else (args.environment,)
-    selected = verification_matrix(environments, paths) if args.verify else matrix(environments, paths)
+    selected = verification_matrix(paths) if args.verify else matrix(paths)
     result = json.dumps(selected, separators=(",", ":"))
     print(result)
     if "GITHUB_OUTPUT" in os.environ:
