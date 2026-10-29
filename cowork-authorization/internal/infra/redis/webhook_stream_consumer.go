@@ -165,6 +165,7 @@ func (c *WebhookStreamConsumer) process(ctx context.Context, message redis.XMess
 		kind := streamErrorKind(err)
 		monitoring.RecordWebhookStreamFailure(kind)
 		if kind == "invalid" {
+			// After a key change, this also removes webhooks accepted with the previous key.
 			log.Printf("reject invalid DataGSM webhook stream entry: stream_id=%q event_id=%q",
 				message.ID, queuedWebhookEventID(message))
 			if ackErr := c.ackAndDelete(ctx, message.ID); ackErr != nil {
@@ -199,6 +200,7 @@ func processQueuedWebhook(ctx context.Context, processor WebhookProcessor, messa
 	ack func(context.Context, string) error) (domain.WebhookResult, error) {
 	body, bodyOK := message.Values["body"].(string)
 	signature, signatureOK := message.Values["signature"].(string)
+	// The currently loaded DATAGSM_WEBHOOK_SECRET is used even for entries queued before a key change.
 	if !bodyOK || !signatureOK || len(body) == 0 || len(body) > maxWebhookBodyBytes ||
 		!processor.VerifySignature([]byte(body), signature) {
 		return "", domain.ErrInvalidWebhookPayload

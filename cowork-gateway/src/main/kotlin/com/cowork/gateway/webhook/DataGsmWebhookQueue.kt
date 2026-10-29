@@ -21,6 +21,8 @@ class DataGsmWebhookQueue(connectionFactory: LettuceConnectionFactory) {
         Mono.fromCallable { client.connect(StringCodec.UTF8) }.subscribeOn(Schedulers.boundedElastic()),
         { connection ->
             val commands = connection.reactive()
+            // Keep the original signature. Authorization using a new DATAGSM_WEBHOOK_SECRET
+            // treats signatures from the previous key as invalid and discards those queued entries.
             commands.xadd(
                 STREAM_KEY,
                 mapOf("body" to String(body, StandardCharsets.UTF_8), "signature" to signature),
