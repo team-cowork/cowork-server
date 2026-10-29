@@ -98,7 +98,7 @@ job "cowork-team-storage" {
       }
       config {
         image    = "chrislusf/seaweedfs:4.47@sha256:ce9e796f1fe6f06968f4c04bdaf8f678dad9c8acdfef3d244133d71bfa6bf882"
-        args     = ["server", "-dir=/storage/data", "-ip=127.0.0.1", "-ip.bind=127.0.0.1", "-master.port=9333", "-master.telemetry=false", "-master.volumeSizeLimitMB=1024", "-volume.port=8080", "-volume.max=8", "-volume.minFreeSpace=2GiB", "-filer.port=8888", "-s3", "-s3.port=9000", "-s3.ip.bind=127.0.0.1", "-s3.port.iceberg=0", "-s3.port.lance=0", "-s3.config=/secrets/s3-config.json", "-s3.iam=false", "-s3.autoCreateBucket=false", "-s3.allowedOrigins=${var.runtime_env["PUBLIC_WEB_ORIGINS"]}"]
+        args     = ["server", "-dir=/storage/data", "-ip=127.0.0.1", "-ip.bind=127.0.0.1", "-master.port=9333", "-master.telemetry=false", "-master.volumeSizeLimitMB=1024", "-volume.port=8080", "-volume.max=8", "-volume.minFreeSpace=2GiB", "-filer.port=8888", "-s3", "-s3.port=9000", "-s3.ip.bind=127.0.0.1", "-s3.port.iceberg=0", "-s3.port.lance=0", "-s3.config=/secrets/s3-config.json", "-s3.iam=false", "-s3.autoCreateBucket=false", "-s3.allowedOrigins=${PUBLIC_WEB_ORIGINS}"]
         cap_drop = ["ALL"]
       }
       identity {
@@ -113,12 +113,24 @@ job "cowork-team-storage" {
         change_mode  = "noop"
       }
       template {
+        data                 = <<-ENV
+{{ with secret "${var.vault_mount}/data/nomad/data/team/storage?version=${var.secret_version}" }}
+PUBLIC_WEB_ORIGINS={{ .Data.data.PUBLIC_WEB_ORIGINS | toJSON }}
+{{ end }}
+ENV
+        destination          = "secrets/runtime.env"
+        env                  = true
+        perms                = "0600"
+        change_mode          = "restart"
+        error_on_missing_key = true
+      }
+      template {
         data                 = <<-JSON
 {{ with secret "${var.vault_mount}/data/nomad/data/team/storage?version=${var.secret_version}" }}
 {"identities":[
   {"name":"cowork-admin","credentials":[{"accessKey":{{ .Data.data.S3_ADMIN_ACCESS_KEY | toJSON }},"secretKey":{{ .Data.data.S3_ADMIN_SECRET_KEY | toJSON }}}],"actions":["Admin"]},
-  {"name":"cowork-team","credentials":[{"accessKey":{{ .Data.data.S3_ACCESS_KEY | toJSON }},"secretKey":{{ .Data.data.S3_SECRET_KEY | toJSON }}}],"actions":${jsonencode(concat([for prefix in ["team-icons", "team-icon-uploads"] : "Read:${var.runtime_env["S3_BUCKET"]}/${prefix}/*"], [for prefix in ["team-icons", "team-icon-uploads"] : "Write:${var.runtime_env["S3_BUCKET"]}/${prefix}/*"]))}},
-  {"name":"anonymous","actions":["Read:${var.runtime_env["S3_BUCKET"]}/team-icons/*"]}
+  {"name":"cowork-team","credentials":[{"accessKey":{{ .Data.data.S3_ACCESS_KEY | toJSON }},"secretKey":{{ .Data.data.S3_SECRET_KEY | toJSON }}}],"actions":[{{ printf "Read:%s/team-icons/*" .Data.data.S3_BUCKET | toJSON }}, {{ printf "Read:%s/team-icon-uploads/*" .Data.data.S3_BUCKET | toJSON }}, {{ printf "Write:%s/team-icons/*" .Data.data.S3_BUCKET | toJSON }}, {{ printf "Write:%s/team-icon-uploads/*" .Data.data.S3_BUCKET | toJSON }}]},
+  {"name":"anonymous","actions":[{{ printf "Read:%s/team-icons/*" .Data.data.S3_BUCKET | toJSON }}]}
 ]}
 {{ end }}
 JSON
@@ -151,7 +163,6 @@ JSON
         sidecar = false
       }
       env = merge(var.runtime_env, {
-        AWS_DEFAULT_REGION        = lookup(var.runtime_env, "S3_REGION", "us-east-1")
         AWS_EC2_METADATA_DISABLED = "true"
         AWS_PAGER                 = ""
         HOME                      = "/tmp"
@@ -182,6 +193,9 @@ JSON
 {{ with secret "${var.vault_mount}/data/nomad/data/team/storage?version=${var.secret_version}" }}
 AWS_ACCESS_KEY_ID={{ .Data.data.S3_ADMIN_ACCESS_KEY | toJSON }}
 AWS_SECRET_ACCESS_KEY={{ .Data.data.S3_ADMIN_SECRET_KEY | toJSON }}
+AWS_DEFAULT_REGION={{ .Data.data.S3_REGION | toJSON }}
+S3_BUCKET={{ .Data.data.S3_BUCKET | toJSON }}
+PUBLIC_WEB_ORIGINS={{ .Data.data.PUBLIC_WEB_ORIGINS | toJSON }}
 {{ end }}
 ENV
         destination          = "secrets/admin.env"
@@ -202,11 +216,18 @@ ENV
         }
       }
       template {
-        data = jsonencode({ Version = "2012-10-17", Statement = concat([
-          { Sid = "DenyServiceBucketAdministration", Effect = "Deny", Principal = { AWS = ["arn:aws:iam::000000000000:user/cowork-team"] }, Action = ["s3:PutBucketAcl", "s3:PutObjectAcl", "s3:PutBucketPolicy", "s3:DeleteBucketPolicy"], Resource = ["arn:aws:s3:::${var.runtime_env["S3_BUCKET"]}", "arn:aws:s3:::${var.runtime_env["S3_BUCKET"]}/*"] }
-        ], [{ Sid = "PublicTeamIcons", Effect = "Allow", Principal = "*", Action = ["s3:GetObject"], Resource = ["arn:aws:s3:::${var.runtime_env["S3_BUCKET"]}/team-icons/*"] }]) })
-        destination = "local/storage/bucket-policy.json"
-        perms       = "0444"
+        data                 = <<-JSON
+{{ with secret "${var.vault_mount}/data/nomad/data/team/storage?version=${var.secret_version}" }}
+{"Version":"2012-10-17","Statement":[
+  {"Sid":"DenyServiceBucketAdministration","Effect":"Deny","Principal":{"AWS":["arn:aws:iam::000000000000:user/cowork-team"]},"Action":["s3:PutBucketAcl","s3:PutObjectAcl","s3:PutBucketPolicy","s3:DeleteBucketPolicy"],"Resource":[{{ printf "arn:aws:s3:::%s" .Data.data.S3_BUCKET | toJSON }},{{ printf "arn:aws:s3:::%s/*" .Data.data.S3_BUCKET | toJSON }}]},
+  {"Sid":"PublicTeamIcons","Effect":"Allow","Principal":"*","Action":["s3:GetObject"],"Resource":[{{ printf "arn:aws:s3:::%s/team-icons/*" .Data.data.S3_BUCKET | toJSON }}]}
+]}
+{{ end }}
+JSON
+        destination          = "local/storage/bucket-policy.json"
+        perms                = "0444"
+        change_mode          = "restart"
+        error_on_missing_key = true
       }
       template {
         data        = jsonencode({ Rules = [{ ID = "expire-temporary-uploads", Status = "Enabled", Filter = { Prefix = "team-icon-uploads/" }, Expiration = { Days = 1 } }] })

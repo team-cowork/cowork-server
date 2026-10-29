@@ -1,9 +1,8 @@
 package com.cowork.preference
 
-import com.cowork.preference.config.kafkaSecurityProperties
+import com.cowork.preference.config.kafkaClientProperties
 import com.cowork.preference.cache.PreferenceCache
 import com.cowork.preference.config.AppConfig
-import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.handler.WebhookHandler
 import com.cowork.preference.handler.NotificationHandler
 import com.cowork.preference.handler.PreferenceHandler
@@ -68,7 +67,6 @@ import io.vertx.redis.client.Redis
 import io.vertx.redis.client.RedisOptions
 import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.PoolOptions
-import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableJob
@@ -237,7 +235,7 @@ class MainVerticle : AbstractVerticle() {
         )
         webhookHandler.routes(router)
 
-        scheduleExpiryChecks(prefRepo, outboxRepository, preferenceCache, webhookService)
+        scheduleExpiryChecks(prefService, preferenceCache, webhookService)
         scheduleCacheRepair(preferenceCache)
         val snapshotPublisher = PreferenceSnapshotPublisher(
             projectAccessRepository = projectAccessRepo,
@@ -384,8 +382,7 @@ class MainVerticle : AbstractVerticle() {
     }
 
     private fun scheduleExpiryChecks(
-        prefRepo: PreferenceRepository,
-        outboxRepository: PreferenceOutboxRepository,
+        prefService: PreferenceService,
         cache: PreferenceCache,
         webhookService: WebhookService,
     ) {
@@ -393,7 +390,7 @@ class MainVerticle : AbstractVerticle() {
             scope.launch(vertx.dispatcher()) {
                 runCatching { webhookService.clearExpiredReplaySecrets() }
                     .onFailure { log.error("Failed to clear expired webhook response secrets", it) }
-                checkExpiredStatuses(prefRepo, outboxRepository, cache)
+                checkExpiredStatuses(prefService, cache)
             }
         }
     }
@@ -431,46 +428,10 @@ class MainVerticle : AbstractVerticle() {
         }
     }
 
-    private suspend fun checkExpiredStatuses(
-        prefRepo: PreferenceRepository,
-        outboxRepository: PreferenceOutboxRepository,
-        cache: PreferenceCache,
-    ) {
+    private suspend fun checkExpiredStatuses(prefService: PreferenceService, cache: PreferenceCache) {
         if (!cache.acquireExpiryLock()) return
         runCatching {
-            val expired = outboxRepository.inTransaction { connection ->
-                val lockedExpired = prefRepo.findExpiredAccountStatuses(connection)
-                if (lockedExpired.isEmpty()) return@inTransaction emptyList()
-                val clearedStates = prefRepo.clearExpiredStatuses(connection, lockedExpired.map { it.first })
-                val occurredAt = Instant.now()
-                outboxRepository.enqueueAll(
-                    connection,
-                    clearedStates.map { state ->
-                        PreferenceEvents.accountSettingState(
-                            accountId = state.resourceId,
-                            settings = state.settings,
-                            occurredAt = state.stateOccurredAt,
-                            snapshot = false,
-                        )
-                    },
-                )
-                outboxRepository.enqueueAll(
-                    connection,
-                    lockedExpired.map { (accountId, previousStatus) ->
-                        PreferenceEvents.statusChanged(
-                            accountId = accountId,
-                            previousStatus = previousStatus,
-                            newStatus = null,
-                            reason = "EXPIRED",
-                            occurredAt = occurredAt,
-                        )
-                    },
-                )
-                lockedExpired
-            }
-            if (expired.isEmpty()) return
-            expired.forEach { (accountId, _) ->
-                cache.invalidateSettings(ResourceType.ACCOUNT, accountId)
+            prefService.clearExpiredStatuses().forEach { accountId ->
                 log.info("Status expired for accountId={}", accountId)
             }
         }.onFailure { log.error("Error checking expired statuses", it) }
@@ -499,7 +460,7 @@ class MainVerticle : AbstractVerticle() {
     }
 
     private fun buildKafkaProducer(config: AppConfig): KafkaProducer<String, String> {
-        val kafkaConfig = kafkaSecurityProperties() + mapOf(
+        val kafkaConfig = kafkaClientProperties() + mapOf(
             "bootstrap.servers" to config.kafka.bootstrapServers,
             "key.serializer" to "org.apache.kafka.common.serialization.StringSerializer",
             "value.serializer" to "org.apache.kafka.common.serialization.StringSerializer",

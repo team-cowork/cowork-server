@@ -19,13 +19,6 @@ variable "vault_mount" {
 variable "config_files" {
   type = map(string)
 }
-variable "runtime_env" {
-  type = map(string)
-  default = {
-    DB_NAME     = "cowork_preference"
-    DB_USERNAME = "cowork_preference"
-  }
-}
 
 job "cowork-preference-db" {
   datacenters = ["gsm"]
@@ -40,7 +33,7 @@ job "cowork-preference-db" {
     shutdown_delay = "5s"
     # A changed credential or initializer needs a fresh allocation to rerun poststart.
     meta {
-      initialization = sha256(jsonencode({ version = var.secret_version, scripts = var.config_files, identity = var.runtime_env }))
+      initialization = sha256(jsonencode({ version = var.secret_version, scripts = var.config_files }))
     }
     network {
       mode = "cni/cowork"
@@ -133,7 +126,6 @@ job "cowork-preference-db" {
         args  = ["postgres", "-c", "listen_addresses=127.0.0.1", "-c", "shared_buffers=128MB", "-c", "max_connections=100"]
       }
       env {
-        POSTGRES_DB          = var.runtime_env["DB_NAME"]
         POSTGRES_INITDB_ARGS = "--auth-host=scram-sha-256"
       }
       resources {
@@ -159,6 +151,7 @@ job "cowork-preference-db" {
       template {
         data                 = <<-ENV
 {{ with secret "${var.vault_mount}/data/nomad/data/preference?version=${var.secret_version}" }}
+POSTGRES_DB={{ .Data.data.DB_NAME | toJSON }}
 POSTGRES_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
 {{ end }}
 ENV
@@ -175,7 +168,6 @@ ENV
     }
     task "initialize" {
       driver = "docker"
-      env    = var.runtime_env
       lifecycle {
         hook    = "poststart"
         sidecar = false
@@ -207,6 +199,8 @@ ENV
       template {
         data                 = <<-ENV
 {{ with secret "${var.vault_mount}/data/nomad/data/preference?version=${var.secret_version}" }}
+DB_NAME={{ .Data.data.DB_NAME | toJSON }}
+DB_USERNAME={{ .Data.data.DB_USERNAME | toJSON }}
 DB_ADMIN_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
 DB_PASSWORD={{ .Data.data.DB_PASSWORD | toJSON }}
 DB_MONITORING_PASSWORD={{ .Data.data.DB_MONITORING_PASSWORD | toJSON }}
@@ -231,10 +225,9 @@ ENV
     }
     task "exporter" {
       driver = "docker"
-      env = merge(var.runtime_env, {
-        DATA_SOURCE_URI  = "127.0.0.1:5432/${var.runtime_env["DB_NAME"]}?sslmode=disable"
+      env {
         DATA_SOURCE_USER = "cowork_monitoring"
-      })
+      }
       config {
         image = "prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e"
         ports = ["metrics"]
@@ -257,6 +250,7 @@ ENV
       template {
         data                 = <<-ENV
 {{ with secret "${var.vault_mount}/data/nomad/data/preference?version=${var.secret_version}" }}
+DATA_SOURCE_URI={{ printf "127.0.0.1:5432/%s?sslmode=disable" .Data.data.DB_NAME | toJSON }}
 DATA_SOURCE_PASS={{ .Data.data.DB_MONITORING_PASSWORD | toJSON }}
 {{ end }}
 ENV
