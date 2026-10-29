@@ -5,21 +5,21 @@
  저장소가 연결된 프로젝트의 GitHub 알림 채널에 `summary`를 SYSTEM 메시지로 게시한다.
  */
 export type GithubRepoEvent = {
-    /**
+	/**
     GitHub 리포지터리 소유자 (유저명 또는 조직명)
     */
-    owner: string;
-    repo: string;
-    /**
+	owner: string;
+	repo: string;
+	/**
     GitHub 이벤트 종류 (예: `push`, `issues`, `pull_request`)
     */
-    eventType: string;
-    /**
+	eventType: string;
+	/**
     이벤트 세부 액션 (예: `opened`, `closed`)
     */
-    action: string;
-    /**
+	action: string;
+	/**
     사람이 읽을 한글 요약 텍스트
     */
-    summary: string;
+	summary: string;
 };

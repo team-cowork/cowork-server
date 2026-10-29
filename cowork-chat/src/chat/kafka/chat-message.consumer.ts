@@ -1,26 +1,27 @@
 import {
-    Injectable,
-    OnModuleDestroy,
-    OnModuleInit,
-    Logger,
+	Injectable as injectable,
+	OnModuleDestroy,
+	OnModuleInit,
+	Logger,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
 import {Consumer, Kafka, KafkaMessage} from 'kafkajs';
 import {DicoshotService} from 'dicoshot-nest';
 import {Server} from 'socket.io';
-import {getOptionalConfig, getKafkaClientConfig} from '../../common/config/config.util';
-import {buildErrorFields} from '../../common/util/discord-alert.util';
-import {isSafePositiveInteger} from '../../common/util/safe-integer.util';
-import {ChatMessageQuarantineService} from '../service';
-import {connectWithRetry} from '../../common/kafka/connect-with-retry';
+import {getOptionalConfig, getKafkaClientConfig} from '../../common/config/config.util.js';
+import {buildErrorFields} from '../../common/util/discord-alert.util.js';
+import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
+import {ChatMessageQuarantineService} from '../service/index.js';
+import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
+import {type Nullable} from '../../common/type/nullable.js';
 import {
-    ChatMessageContractError,
-    validateChatMessageEvent,
-    CHAT_MESSAGE_TOPIC,
-    CHAT_MESSAGE_CONTRACT_VERSION,
-} from './event/chat-message-contract';
-import {ChatMessageScopeError} from './chat-message-scope-validator';
-import {ChatMessageProcessor} from './chat-message.processor';
+	ChatMessageContractError,
+	validateChatMessageEvent,
+	CHAT_MESSAGE_TOPIC,
+	CHAT_MESSAGE_CONTRACT_VERSION,
+} from './event/chat-message-contract.js';
+import {ChatMessageScopeError} from './chat-message-scope-validator.js';
+import {ChatMessageProcessor} from './chat-message.processor.js';
 
 /**
  파티션당 하나씩 순차 처리하는 KafkaJS 기본값(1) 대신, 서로 다른 채널(=파티션)의 메시지를
@@ -32,23 +33,19 @@ const DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY = 3;
 /**
 Kafka `chat.message.v2` record를 검증하고, poison record만 durable quarantine한다.
 */
-@Injectable()
+@injectable()
 export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
-    private readonly logger = new Logger(ChatMessageConsumer.name);
-    private consumer?: Consumer;
+	private readonly logger = new Logger(ChatMessageConsumer.name);
+	private consumer?: Consumer;
 
-    constructor(
-        private readonly configService: ConfigService,
-        private readonly dicoshot: DicoshotService,
-        private readonly processor: ChatMessageProcessor,
-        private readonly quarantineService: ChatMessageQuarantineService,
-    ) {}
+	constructor(
+		private readonly configService: ConfigService,
+		private readonly dicoshot: DicoshotService,
+		private readonly processor: ChatMessageProcessor,
+		private readonly quarantineService: ChatMessageQuarantineService,
+	) {}
 
-    setSocketServer(io: Server): void {
-        this.processor.setSocketServer(io);
-    }
-
-    /**
+	/**
      `CHAT_MESSAGE_CONSUMER_CONCURRENCY`를 안전한 양의 정수로 해석한다.
 
      정수가 아니거나 1 미만이면(예: 오타로 `abc`, `2.5`, `-1`, `0`) 그대로 KafkaJS에 넘기지 않는다.
@@ -56,98 +53,103 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
      그 외 잘못된 값은 KafkaJS 내부에서 `RangeError`를 던져 `run()`이 거부되고 프로세스가 재시작
      크래시 루프에 빠진다. 값이 유효하지 않으면 경고 로그만 남기고 기본값으로 대체한다.
      */
-    private resolveConcurrency(): number {
-        const raw = getOptionalConfig(this.configService, 'CHAT_MESSAGE_CONSUMER_CONCURRENCY');
-        if (raw === undefined) {
-            return DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY;
-        }
+	private resolveConcurrency(): number {
+		const raw = getOptionalConfig(this.configService, 'CHAT_MESSAGE_CONSUMER_CONCURRENCY');
+		if (raw === undefined) {
+			return DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY;
+		}
 
-        const parsed = Number(raw);
-        if (isSafePositiveInteger(parsed)) {
-            return parsed;
-        }
+		const parsed = Number(raw);
+		if (isSafePositiveInteger(parsed)) {
+			return parsed;
+		}
 
-        this.logger.warn(
-            `Invalid CHAT_MESSAGE_CONSUMER_CONCURRENCY value (${raw}), falling back to default (${DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY})`,
-        );
-        return DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY;
-    }
+		this.logger.warn(
+			`Invalid CHAT_MESSAGE_CONSUMER_CONCURRENCY value (${raw}), falling back to default (${DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY})`,
+		);
+		return DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY;
+	}
 
-    async onModuleInit(): Promise<void> {
-        const kafka = new Kafka({
-            clientId: 'cowork-chat-consumer',
-            ...getKafkaClientConfig(this.configService),
-        });
-        const consumer = kafka.consumer({groupId: 'cowork-chat'});
-        this.consumer = consumer;
-        await connectWithRetry(this.logger, `Kafka consumer startup: ${CHAT_MESSAGE_TOPIC}`, async () => {
-            await consumer.connect();
-            await consumer.subscribe({topic: CHAT_MESSAGE_TOPIC, fromBeginning: true});
-        });
-        const partitionsConsumedConcurrently = this.resolveConcurrency();
-        void this.consumer.run({
-            partitionsConsumedConcurrently,
-            eachMessage: async ({topic, partition, message}) => this.processKafkaMessage(topic, partition, message),
-        }).catch(async (error: unknown) => {
-            this.logger.error('chat.message Kafka consumer failed', error);
-            await this.dicoshot.sendCustom({
-                title: '🔴 Kafka Consumer 중단',
-                description: 'cowork-chat의 chat.message consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
-                color: 'danger',
-                fields: [{name: 'Topic', value: CHAT_MESSAGE_TOPIC, inline: true}, ...buildErrorFields(error)],
-            }).catch(() => {/* Alert delivery is best-effort. */});
-            process.exit(1);
-        });
-        this.logger.log(`Kafka consumer started: ${CHAT_MESSAGE_TOPIC}`);
-    }
+	setSocketServer(io: Server): void {
+		this.processor.setSocketServer(io);
+	}
 
-    async onModuleDestroy(): Promise<void> {
-        await this.consumer?.disconnect();
-    }
+	async onModuleInit(): Promise<void> {
+		const kafka = new Kafka({
+			clientId: 'cowork-chat-consumer',
+			...getKafkaClientConfig(this.configService),
+		});
+		const consumer = kafka.consumer({groupId: 'cowork-chat'});
+		this.consumer = consumer;
+		await connectWithRetry(this.logger, `Kafka consumer startup: ${CHAT_MESSAGE_TOPIC}`, async () => {
+			await consumer.connect();
+			await consumer.subscribe({topic: CHAT_MESSAGE_TOPIC, fromBeginning: true});
+		});
+		const partitionsConsumedConcurrently = this.resolveConcurrency();
+		void this.consumer.run({
+			partitionsConsumedConcurrently,
+			eachMessage: async ({topic, partition, message}) => this.processKafkaMessage(topic, partition, message),
+		}).catch(async (error: unknown) => {
+			this.logger.error('chat.message Kafka consumer failed', error);
+			await this.dicoshot.sendCustom({
+				title: '🔴 Kafka Consumer 중단',
+				description: 'cowork-chat의 chat.message consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
+				color: 'danger',
+				fields: [{name: 'Topic', value: CHAT_MESSAGE_TOPIC, inline: true}, ...buildErrorFields(error)],
+			}).catch(() => {/* Alert delivery is best-effort. */});
+			// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
+			throw error;
+		});
+		this.logger.log(`Kafka consumer started: ${CHAT_MESSAGE_TOPIC}`);
+	}
 
-    /**
+	async onModuleDestroy(): Promise<void> {
+		await this.consumer?.disconnect();
+	}
+
+	/**
      반환하면 KafkaJS가 offset을 커밋할 수 있다. JSON/계약/범위 오류는 durable quarantine
      성공 뒤에만 반환하며, 저장소·Socket.IO·quarantine 오류는 반드시 전파한다.
      */
-    async processKafkaMessage(topic: string, partition: number, message: KafkaMessage): Promise<void> {
-        const eventKey = message.key?.toString() ?? null;
-        const payload = message.value?.toString() ?? null;
-        try {
-            if (payload === null) {
-                await this.quarantineService.quarantine({
-                    topic, partition, messageOffset: message.offset, eventKey, payload: null,
-                    contractVersion: CHAT_MESSAGE_CONTRACT_VERSION, errorType: 'JSON_ERROR', reasonCode: 'MISSING_VALUE',
-                    reason: 'Kafka message value is required',
-                });
-                return;
-            }
+	async processKafkaMessage(topic: string, partition: number, message: KafkaMessage): Promise<void> {
+		const eventKey = message.key?.toString() ?? null;
+		const payload = message.value?.toString() ?? null;
+		try {
+			if (payload === null) {
+				await this.quarantineService.quarantine({
+					topic, partition, messageOffset: message.offset, eventKey, payload: null,
+					contractVersion: CHAT_MESSAGE_CONTRACT_VERSION, errorType: 'JSON_ERROR', reasonCode: 'MISSING_VALUE',
+					reason: 'Kafka message value is required',
+				});
+				return;
+			}
 
-            const event = validateChatMessageEvent(JSON.parse(payload) as unknown, eventKey);
-            await this.processor.process(event);
-        } catch (error) {
-            const classification = classifyPoisonError(error);
-            if (!classification) {
-                throw error;
-            }
+			const event = validateChatMessageEvent(JSON.parse(payload) as unknown, eventKey);
+			await this.processor.process(event);
+		} catch (error) {
+			const classification = classifyPoisonError(error);
+			if (!classification) {
+				throw error;
+			}
 
-            await this.quarantineService.quarantine({
-                topic, partition, messageOffset: message.offset, eventKey, payload,
-                contractVersion: CHAT_MESSAGE_CONTRACT_VERSION, ...classification,
-            });
-        }
-    }
+			await this.quarantineService.quarantine({
+				topic, partition, messageOffset: message.offset, eventKey, payload,
+				contractVersion: CHAT_MESSAGE_CONTRACT_VERSION, ...classification,
+			});
+		}
+	}
 }
 
-function classifyPoisonError(error: unknown): {
-    errorType: 'JSON_ERROR' | 'CONTRACT_ERROR' | 'SCOPE_ERROR'; reasonCode: string; reason: string;
-} | null {
-    if (error instanceof SyntaxError) {
-        return {errorType: 'JSON_ERROR', reasonCode: 'INVALID_JSON', reason: 'invalid JSON payload'};
-    }
+function classifyPoisonError(error: unknown): Nullable<{
+	errorType: 'JSON_ERROR' | 'CONTRACT_ERROR' | 'SCOPE_ERROR'; reasonCode: string; reason: string;
+}> {
+	if (error instanceof SyntaxError) {
+		return {errorType: 'JSON_ERROR', reasonCode: 'INVALID_JSON', reason: 'invalid JSON payload'};
+	}
 
-    if (error instanceof ChatMessageContractError) {
-        return {errorType: 'CONTRACT_ERROR', reasonCode: error.reasonCode, reason: error.message};
-    }
+	if (error instanceof ChatMessageContractError) {
+		return {errorType: 'CONTRACT_ERROR', reasonCode: error.reasonCode, reason: error.message};
+	}
 
-    return error instanceof ChatMessageScopeError ? {errorType: 'SCOPE_ERROR', reasonCode: error.reasonCode, reason: error.message} : null;
+	return error instanceof ChatMessageScopeError ? {errorType: 'SCOPE_ERROR', reasonCode: error.reasonCode, reason: error.message} : null;
 }
