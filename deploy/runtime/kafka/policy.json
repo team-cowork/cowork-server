@@ -472,6 +472,7 @@
         "preference.team-role.state.v2",
         "preference.channel-role-policy.state.v2",
         "preference.project-access.state.v1",
+        "preference.team-setting.state.v1",
         "preference.text-channel-setting.state.v1",
         "preference.webhook.state.v2",
         "project.chat-github-issue.command",
