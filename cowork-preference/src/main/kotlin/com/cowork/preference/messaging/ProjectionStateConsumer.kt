@@ -1,6 +1,6 @@
 package com.cowork.preference.messaging
 
-import com.cowork.preference.config.kafkaSecurityProperties
+import com.cowork.preference.config.kafkaClientProperties
 import com.cowork.preference.repository.ProjectionCheckpoint
 import com.cowork.preference.repository.ProjectionCheckpointRepository
 import com.cowork.preference.repository.ProjectionPartitionRange
@@ -62,7 +62,7 @@ class ProjectionStateConsumer(
     private var closed = false
     private val consumer = KafkaConsumer.create<String, String>(
         vertx,
-        kafkaSecurityProperties() + mapOf(
+        kafkaClientProperties() + mapOf(
             "bootstrap.servers" to bootstrapServers,
             "key.deserializer" to "org.apache.kafka.common.serialization.StringDeserializer",
             "value.deserializer" to "org.apache.kafka.common.serialization.StringDeserializer",

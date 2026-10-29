@@ -1,11 +1,15 @@
 package com.cowork.preference.config
 
-fun kafkaSecurityProperties(): Map<String, String> {
+fun kafkaClientProperties(): Map<String, String> {
     val protocol = (System.getenv("KAFKA_SECURITY_PROTOCOL") ?: "PLAINTEXT").uppercase()
     require(protocol in setOf("PLAINTEXT", "SSL", "SASL_SSL")) {
         "Use a supported Kafka security protocol"
     }
     return buildMap {
+        put("reconnect.backoff.ms", "1000")
+        put("reconnect.backoff.max.ms", "30000")
+        put("retry.backoff.ms", "1000")
+        put("retry.backoff.max.ms", "10000")
         put("security.protocol", protocol)
         if (protocol == "SASL_SSL") {
             val mechanism = (System.getenv("KAFKA_SASL_MECHANISM") ?: "SCRAM-SHA-512").uppercase()
