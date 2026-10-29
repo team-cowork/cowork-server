@@ -12,6 +12,8 @@ interface MeetingNoteRepository : JpaRepository<MeetingNote, Long> {
 
     fun existsByTemplateId(templateId: Long): Boolean
 
+    fun findAllByTemplateId(templateId: Long): List<MeetingNote>
+
     @Modifying
     @Query("DELETE FROM MeetingNote n WHERE n.channelId IN :channelIds")
     fun deleteAllByChannelIdIn(@Param("channelIds") channelIds: Collection<Long>)
