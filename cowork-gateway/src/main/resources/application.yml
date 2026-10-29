@@ -2,7 +2,7 @@ spring:
   reactor:
     context-propagation: auto
   profiles:
-    active: ${APP_CONFIG_PROFILE:local}
+    active: ${APP_CONFIG_PROFILE:prod}
   application:
     name: cowork-gateway
   data:

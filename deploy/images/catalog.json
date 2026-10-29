@@ -1,50 +1,14 @@
 {
-  "gateway": {
-    "local": ".",
-    "prod": "."
-  },
-  "authorization": {
-    "local": ".",
-    "prod": "."
-  },
-  "preference": {
-    "local": ".",
-    "prod": "."
-  },
-  "user": {
-    "local": ".",
-    "prod": "."
-  },
-  "team": {
-    "local": ".",
-    "prod": "."
-  },
-  "channel": {
-    "local": ".",
-    "prod": "."
-  },
-  "notification": {
-    "local": ".",
-    "prod": "."
-  },
-  "chat": {
-    "local": ".",
-    "prod": "."
-  },
-  "voice": {
-    "local": ".",
-    "prod": "."
-  },
-  "project": {
-    "local": ".",
-    "prod": "."
-  },
-  "roadmap": {
-    "local": ".",
-    "prod": "."
-  },
-  "github": {
-    "local": ".",
-    "prod": "."
-  }
+  "gateway": ".",
+  "authorization": ".",
+  "preference": ".",
+  "user": ".",
+  "team": ".",
+  "channel": ".",
+  "notification": ".",
+  "chat": ".",
+  "voice": ".",
+  "project": ".",
+  "roadmap": ".",
+  "github": "."
 }

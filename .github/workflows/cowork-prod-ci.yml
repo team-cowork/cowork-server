@@ -126,7 +126,7 @@ jobs:
         run: |
           args=()
           if git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then args+=(--base "$BASE_SHA"); fi
-          python3 deploy/images/build-matrix.py --environment prod "${args[@]}"
+          python3 deploy/images/build-matrix.py "${args[@]}"
       - name: Select Module Verification
         id: verify
         env:
@@ -134,7 +134,7 @@ jobs:
         run: |
           args=()
           if git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then args+=(--base "$BASE_SHA"); fi
-          python3 deploy/images/build-matrix.py --verify --environment prod "${args[@]}"
+          python3 deploy/images/build-matrix.py --verify "${args[@]}"
 
   # Pull requests already verify the same source in coverage(pr).
   build-and-test:
@@ -158,7 +158,6 @@ jobs:
         uses: ./.github/actions/verify-image
         with:
           module: cowork-${{ matrix.service }}
-          environment: prod
           output: ${{ runner.temp }}/verification
       - name: Upload Unit Verification Results
         if: always()
@@ -170,7 +169,7 @@ jobs:
           retention-days: 7
 
   image-build:
-    name: Image (${{ matrix.service }}, ${{ matrix.environment }})
+    name: Image (${{ matrix.service }})
     needs: detect-changes
     if: needs.detect-changes.outputs.image-matrix != '{"include":[]}'
     runs-on: ubuntu-latest
@@ -186,10 +185,9 @@ jobs:
         uses: ./.github/actions/build-image
         with:
           service: ${{ matrix.service }}
-          environment: ${{ matrix.environment }}
           context: ${{ matrix.context }}
           dockerfile: ${{ matrix.dockerfile }}
-          tags: cowork-${{ matrix.service }}:ci-${{ matrix.environment }}
+          tags: cowork-${{ matrix.service }}:ci
 
   image-validation:
     name: Image Validation
@@ -296,7 +294,7 @@ jobs:
           VERIFY_MATRIX: ${{ needs.detect-changes.outputs.matrix }}
         run: |
           matrix=$(python3 deploy/images/ci/run.py plan --base source-base --head . \
-            --matrix "$VERIFY_MATRIX" --environment prod --output "$RUNNER_TEMP/modules.json")
+            --matrix "$VERIFY_MATRIX" --output "$RUNNER_TEMP/modules.json")
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
       - name: Upload Coverage Manifest
         uses: actions/upload-artifact@v7
@@ -335,7 +333,6 @@ jobs:
         uses: ./.github/actions/verify-image
         with:
           module: ${{ matrix.module }}
-          environment: prod
           snapshot: ${{ matrix.snapshot }}
           source: source
           # Current modules must implement verify; old snapshots may predate the contract.
