@@ -1,6 +1,6 @@
 package com.cowork.preference.config
 
-fun kafkaSecurityProperties(): Map<String, String> {
+fun kafkaClientProperties(): Map<String, String> {
     val protocol = (System.getenv("KAFKA_SECURITY_PROTOCOL") ?: "PLAINTEXT").uppercase()
     require(protocol in setOf("PLAINTEXT", "SSL", "SASL_SSL")) {
         "Use a supported Kafka security protocol"
