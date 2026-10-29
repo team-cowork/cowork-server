@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration
 
 @Configuration
 @OpenAPIDefinition(
-    info = Info(title = "cowork Channel API", description = "채널 관리 서비스 API", version = "20261025.0"),
+    info = Info(title = "cowork Channel API", description = "채널 관리 서비스 API", version = "20261029.0"),
     servers = [Server(url = "/api/channel", description = "Gateway")],
     security = [SecurityRequirement(name = "BearerAuth")],
 )
