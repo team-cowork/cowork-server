@@ -2,7 +2,7 @@
 - name: Select the independent certificate maintenance runtime
   ansible.builtin.set_fact:
     platform_certificate_root: /opt/cowork-platform-certificates
-    platform_certificate_venv: "{{ platform_python_root }}/venvs/certificates-{{ (lookup('ansible.builtin.file', platform_repository ~ '/deploy/production/requirements.txt') | hash('sha256'))[:12] }}"
+    platform_certificate_venv: "{{ platform_python_root }}/venvs/certificates-{{ ((lookup('ansible.builtin.file', platform_repository ~ '/deploy/production/requirements.txt') ~ lookup('ansible.builtin.file', platform_repository ~ '/deploy/production/requirements-vault.txt')) | hash('sha256'))[:12] }}"
     platform_certificate_collections: "/opt/cowork-platform-certificates/collections-{{ (lookup('ansible.builtin.file', platform_repository ~ '/deploy/ansible/requirements.yml') | hash('sha256'))[:12] }}"
     platform_certificate_install_complete: false
 - name: Discover an existing certificate timer
