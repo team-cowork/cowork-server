@@ -1,0 +1,79 @@
+---
+- name: Switch new Gateway requests after the candidate is ready
+  hosts: gateway
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Require a reserved Gateway host port
+      ansible.builtin.assert:
+        that:
+          - gateway_target_port | string | regex_search('^[0-9]+$')
+          - gateway_target_port | int in [21000, 21001]
+    - name: Read the previous target
+      ansible.builtin.slurp:
+        src: /etc/cowork/gateway-upstream.conf
+      register: gateway_previous_target
+    - name: Record workers handling the previous target
+      ansible.builtin.shell: |
+        if systemctl is-active --quiet nginx; then
+          master=$(cat /run/nginx.pid)
+          pgrep -P "$master" || true
+        fi
+      args:
+        executable: /bin/sh
+      register: gateway_previous_workers
+      changed_when: false
+    - name: Apply the candidate and drain old proxy workers
+      block:
+        - name: Select the verified candidate
+          ansible.builtin.copy:
+            content: "set $cowork_gateway_target http://{{ private_ip }}:{{ gateway_target_port }};\n"
+            dest: /etc/cowork/gateway-upstream.conf
+            owner: root
+            group: root
+            mode: '0644'
+        - name: Check candidate proxy syntax
+          ansible.builtin.command: nginx -t
+          changed_when: false
+        - name: Keep the proxy running
+          ansible.builtin.systemd_service:
+            name: nginx
+            enabled: true
+            state: started
+        - name: Reload proxy to redirect new requests
+          ansible.builtin.systemd_service:
+            name: nginx
+            state: reloaded
+        - name: Confirm the selected Gateway is reachable through the proxy
+          ansible.builtin.uri:
+            url: http://127.0.0.1:8080/actuator/health
+            status_code: 200
+            timeout: 10
+          register: gateway_proxy_health
+          retries: 5
+          delay: 2
+          until: gateway_proxy_health.status == 200 and (gateway_proxy_health.x_cowork_gateway_proxy | default('')) == '1'
+        - name: Wait for previous proxy workers to release old connections
+          ansible.builtin.wait_for:
+            path: "/proc/{{ item }}"
+            state: absent
+            timeout: 310
+          loop: "{{ gateway_previous_workers.stdout_lines }}"
+      rescue:
+        - name: Restore the previous target
+          ansible.builtin.copy:
+            content: "{{ gateway_previous_target.content | b64decode }}"
+            dest: /etc/cowork/gateway-upstream.conf
+            owner: root
+            group: root
+            mode: '0644'
+        - name: Check restored proxy syntax
+          ansible.builtin.command: nginx -t
+          changed_when: false
+        - name: Restore the previous active proxy
+          ansible.builtin.systemd_service:
+            name: nginx
+            state: reloaded
+        - name: Report the failed Gateway switch
+          ansible.builtin.fail:
+            msg: Gateway target switch failed; the previous proxy target was restored.
