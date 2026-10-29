@@ -753,9 +753,6 @@ def main():
         else:
             platform.ansible('gateway-offline.yml')
         platform.tofu('foundation', variables)
-        extra = directory / 'cutover.json'
-        extra.write_text(json.dumps({'cowork_cutover': True, 'cowork_release_sha': manifest['source_sha']}))
-        platform.ansible('cutover.yml', extra)
         platform.wait_jobs(platform.tofu('data', variables), specs)
         migration = specs['cowork-user-migrations']
         previous = platform.api('job/cowork-user-migrations', missing=True)
