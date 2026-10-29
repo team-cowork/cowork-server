@@ -530,13 +530,19 @@ class Platform:
         except Exception as error:
             if not flagged:
                 raise
-            for job_id in sorted(flagged):
-                try:
+            try:
+                for job_id in sorted(flagged):
                     value = self.state_set(job_id, run_id, 'recovering')
                     if gateway_available:
                         self.wait_gateway_state(job_id, value)
-                except Exception:
-                    pass
+                if gateway_available:
+                    self.wait_gateway_drain(flagged)
+            except Exception as barrier_error:
+                if not gateway_available:
+                    raise RuntimeError('Business deployment failed while preserving recovery flags; '
+                                       'current allocations were not replaced') from barrier_error
+                raise RuntimeError('Business rollback blocked: Gateway recovery state or request drain '
+                                   'was not confirmed; current allocations were not replaced') from barrier_error
             if not gateway_available:
                 raise RuntimeError('Gateway is unavailable; business jobs and recovery flags remain '
                                    'for the next CD run') from error
