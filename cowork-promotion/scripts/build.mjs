@@ -10,7 +10,12 @@ import {
 } from './lib/content.mjs';
 import {generateFeatureStates} from './lib/feature-render.mjs';
 import {replaceOutputDirectory} from './lib/output.mjs';
-import {concatenateStyles, renderAchievementsPage, renderHomePage} from './lib/page-render.mjs';
+import {
+	concatenateStyles,
+	renderAchievementsPage,
+	renderHomePage,
+	renderLegalPage,
+} from './lib/page-render.mjs';
 import {generatePositionStates} from './lib/render.mjs';
 
 function addStylesheet(assets, name, paths, sources) {
@@ -78,10 +83,39 @@ export async function build(options = {}) {
 		socialImageUrl,
 		siteUrl: config.siteUrl,
 	});
+	const legalPageOptions = {
+		styles: [
+			sharedStyleUrl,
+			addStylesheet(assets, 'legal', stylesheetPaths.legal, input.stylesheetSources.legal),
+		],
+		logoUrl,
+		socialImageUrl,
+		siteUrl: config.siteUrl,
+	};
+	const privacyHtml = renderLegalPage({
+		...legalPageOptions,
+		template: input.privacyTemplate,
+		metadata: {
+			title: '개인정보처리방침 | cowork',
+			description: 'team.cowork의 개인정보 처리 목적과 항목, 이용자의 권리 및 문의 방법을 안내합니다.',
+			route: '/privacy/',
+		},
+	});
+	const termsHtml = renderLegalPage({
+		...legalPageOptions,
+		template: input.termsTemplate,
+		metadata: {
+			title: '서비스 이용약관 | cowork',
+			description: 'cowork 서비스 이용에 관한 이용자와 team.cowork의 권리, 의무 및 이용 조건을 안내합니다.',
+			route: '/terms/',
+		},
+	});
 	const outputFiles = new Map([
 		...assets.files,
 		['index.html', homeHtml],
 		['achievements/index.html', achievementsHtml],
+		['privacy/index.html', privacyHtml],
+		['terms/index.html', termsHtml],
 	]);
 
 	await replaceOutputDirectory(config.outputDirectory, outputFiles);

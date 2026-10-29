@@ -1,8 +1,9 @@
-import {type WebhookMessageAuthor} from '../schema/message.schema';
-import {type MessageIndexDoc} from '../../search/message-index.contract';
+import {type WebhookMessageAuthor} from '../schema/message.schema.js';
+import {type MessageIndexDoc} from '../../search/message-index.contract.js';
+import {type Nullable} from '../../common/type/nullable.js';
 
 export const SEARCH_INDEX_STATUSES = [
-    'PENDING', 'PROCESSING', 'SYNCED', 'FAILED', 'DELETING', 'SKIPPED',
+	'PENDING', 'PROCESSING', 'SYNCED', 'FAILED', 'DELETING', 'SKIPPED',
 ] as const;
 export type SearchIndexStatus = typeof SEARCH_INDEX_STATUSES[number];
 
@@ -19,36 +20,36 @@ export type SearchIndexStatus = typeof SEARCH_INDEX_STATUSES[number];
  `rebuild`를 한 번 돌려야 검색 결과에서 사라진다.
  */
 export const SEARCH_INDEX_SCOPE_FILTER = {
-    webhookDeleted: {$ne: true},
-    teamId: {$ne: null},
-    projectId: {$ne: null},
-    type: {$ne: 'SYSTEM'},
+	webhookDeleted: {$ne: true},
+	teamId: {$ne: null},
+	projectId: {$ne: null},
+	type: {$ne: 'SYSTEM'},
 };
 
 /**
 색인 대상 메시지의 최소 필드. 스캔 projection과 write 경로가 공유한다.
 */
 export type IndexableMessage = {
-    teamId: number | null;
-    projectId: number | null;
-    type: string;
+	teamId: Nullable<number>;
+	projectId: Nullable<number>;
+	type: string;
 };
 
 export function isSearchIndexed(message: IndexableMessage): boolean {
-    return message.teamId !== null && message.teamId !== undefined
-        && message.projectId !== null && message.projectId !== undefined
-        && message.type !== 'SYSTEM';
+	return message.teamId !== null && message.teamId !== undefined
+		&& message.projectId !== null && message.projectId !== undefined
+		&& message.type !== 'SYSTEM';
 }
 
 export type MessageIndexSource = {
-    _id: {toString(): string};
-    channelId: number;
-    authorId: number | null;
-    webhook?: WebhookMessageAuthor;
-    content: string;
-    attachments?: unknown[];
-    isPinned?: boolean;
-    createdAt: Date;
+	_id: {toString(): string};
+	channelId: number;
+	authorId: Nullable<number>;
+	webhook?: WebhookMessageAuthor;
+	content: string;
+	attachments?: unknown[];
+	isPinned?: boolean;
+	createdAt: Date;
 } & IndexableMessage;
 
 /**
@@ -58,17 +59,17 @@ export type MessageIndexSource = {
  이후 어떤 변경으로든 복원된다. 호출 전에 {@link isSearchIndexed}로 대상을 확인해야 한다.
  */
 export function buildMessageIndexDoc(message: MessageIndexSource): MessageIndexDoc {
-    return {
-        messageId: message._id.toString(),
-        teamId: message.teamId!,
-        projectId: message.projectId!,
-        channelId: message.channelId,
-        authorId: message.authorId,
-        ...(message.webhook && {webhook: message.webhook}),
-        content: message.content,
-        type: message.type,
-        hasAttachments: (message.attachments?.length ?? 0) > 0,
-        isPinned: message.isPinned ?? false,
-        createdAt: message.createdAt.toISOString(),
-    };
+	return {
+		messageId: message._id.toString(),
+		teamId: message.teamId!,
+		projectId: message.projectId!,
+		channelId: message.channelId,
+		authorId: message.authorId,
+		...(message.webhook && {webhook: message.webhook}),
+		content: message.content,
+		type: message.type,
+		hasAttachments: (message.attachments?.length ?? 0) > 0,
+		isPinned: message.isPinned ?? false,
+		createdAt: message.createdAt.toISOString(),
+	};
 }

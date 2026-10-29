@@ -9,6 +9,7 @@ import com.cowork.roadmap.domain.assignment.presentation.data.request.UpdateAssi
 import com.cowork.roadmap.domain.assignment.presentation.data.response.AssignmentResDto;
 import com.cowork.roadmap.domain.assignment.repository.RoadmapAssignmentRepository;
 import com.cowork.roadmap.domain.assignment.service.ModifyRoadmapAssignmentStatusService;
+import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 
 import lombok.RequiredArgsConstructor;
 import team.themoment.sdk.exception.ExpectedException;
@@ -20,6 +21,7 @@ public class ModifyRoadmapAssignmentStatusServiceImpl implements ModifyRoadmapAs
     private static final String ROLE_ADMIN = "ADMIN";
 
     private final RoadmapAssignmentRepository assignmentRepository;
+    private final RoadmapAccessGuard accessGuard;
 
     @Override
     @Transactional
@@ -28,10 +30,13 @@ public class ModifyRoadmapAssignmentStatusServiceImpl implements ModifyRoadmapAs
             Long assignmentId,
             UpdateAssignmentStatusReqDto request) {
         RoadmapAssignment assignment = findAssignmentOrThrow(assignmentId);
-        boolean allowed = userId.equals(assignment.getAssigneeUserId()) || userId.equals(assignment.getAssignedBy())
-                || ROLE_ADMIN.equals(userRole);
-        if (!allowed) {
-            throw new ExpectedException("과제 상태를 변경할 권한이 없습니다.", HttpStatus.FORBIDDEN);
+        if (!ROLE_ADMIN.equals(userRole)) {
+            boolean related = userId.equals(assignment.getAssigneeUserId())
+                    || userId.equals(assignment.getAssignedBy());
+            if (!related) {
+                throw new ExpectedException("과제 상태를 변경할 권한이 없습니다.", HttpStatus.FORBIDDEN);
+            }
+            accessGuard.requireTeamMember(assignment.getTeamId(), userId);
         }
         RoadmapAssignment updated = assignment.toBuilder().status(request.status().name()).build();
         updated.prepareUpdateFrom(assignment);

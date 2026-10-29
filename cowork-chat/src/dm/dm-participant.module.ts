@@ -1,15 +1,15 @@
-import {Module} from '@nestjs/common';
+import {Module as nestModule} from '@nestjs/common';
 import {ConfigModule} from '@nestjs/config';
 import {MongooseModule} from '@nestjs/mongoose';
-import {DmParticipant, DmParticipantSchema} from '../chat/schema/dm-participant.schema';
-import {DmParticipantConsumer} from './dm-participant.consumer';
+import {DmParticipant, dmParticipantSchema} from '../chat/schema/dm-participant.schema.js';
+import {DmParticipantConsumer} from './dm-participant.consumer.js';
 
-@Module({
-    imports: [
-        ConfigModule,
-        MongooseModule.forFeature([{name: DmParticipant.name, schema: DmParticipantSchema}]),
-    ],
-    providers: [DmParticipantConsumer],
-    exports: [DmParticipantConsumer],
+@nestModule({
+	imports: [
+		ConfigModule,
+		MongooseModule.forFeature([{name: DmParticipant.name, schema: dmParticipantSchema}]),
+	],
+	providers: [DmParticipantConsumer],
+	exports: [DmParticipantConsumer],
 })
 export class DmParticipantModule {}
