@@ -49,7 +49,7 @@ import {
     RoomSocket,
     resolveMessageScope,
 } from './service';
-import {ChatGateway} from './chat.gateway';
+import {CHAT_SOCKET_SERVER, type ChatSocketServerProvider} from './chat-socket-server.token';
 import {
     MessageRepository,
     MessageRow,
@@ -70,8 +70,8 @@ const DM_CHANNEL_TYPE = 'DM';
 
  채널 멤버십 검증, 메시지 CRUD, 파일 업로드/삭제, 이모지 반응,
  메시지 고정, Elasticsearch 검색, GitHub 이슈 발행을 담당한다.
- Socket.IO 브로드캐스트는 `ChatGateway.server`를 통해 수행하며,
- `ChatGateway`와 순환 의존 관계이므로 `forwardRef`로 주입한다.
+ Socket.IO 브로드캐스트는 `ChatGateway.server`를 통해 수행하며, `chat.gateway.ts`를 import하면
+ 순환 참조가 생기므로 `CHAT_SOCKET_SERVER` 토큰으로 주입한다.
  */
 @Injectable()
 export class ChatService {
@@ -91,8 +91,8 @@ export class ChatService {
         private readonly channelClient: ChannelClient,
         private readonly userClient: UserClient,
         private readonly blockService: BlockService,
-        @Inject(forwardRef(() => ChatGateway))
-        private readonly chatGateway: ChatGateway,
+        @Inject(forwardRef(() => CHAT_SOCKET_SERVER))
+        private readonly chatGateway: ChatSocketServerProvider,
         private readonly unreadCounterService: UnreadCounterService,
         private readonly messageSearchDeletion: MessageSearchDeletionService,
         private readonly channelProjectionRepository: ChannelProjectionRepository,

@@ -61,6 +61,12 @@ const config = [
                 tsconfigRootDir: import.meta.dirname,
             },
         },
+        settings: {
+            // `eslint-config-xo` populates `import-x/extensions` without a leading dot, but
+            // `path.extname()` always returns one, so `hasValidExtension()` never matches and
+            // every `ExportMap`-based rule (e.g. `import-x/no-cycle`) silently sees no module.
+            'import-x/extensions': ['.ts', '.tsx', '.mts', '.cts'],
+        },
     },
     {
         files: ['src/**/*.controller.ts', 'src/common/adapter/redis-io.adapter.ts'],
