@@ -14,6 +14,7 @@ import {TeamRoleAssignmentProjection} from '../../chat/schema/team-role-assignme
 import {TeamRoleMemberTombstone} from '../../chat/schema/team-role-member-tombstone.schema.js';
 import {TeamRoleProjection} from '../../chat/schema/team-role-projection.schema.js';
 import {TextChannelSettingProjection} from '../../chat/schema/text-channel-setting-projection.schema.js';
+import {TeamSettingProjection} from '../../chat/schema/team-setting-projection.schema.js';
 import {UserProfileProjection} from '../../chat/schema/user-profile-projection.schema.js';
 import {type Nullable} from '../type/nullable.js';
 import {
@@ -33,6 +34,7 @@ export type ProjectionStreamName =
 	| 'teamRole'
 	| 'channelRolePolicy'
 	| 'textChannelSetting'
+	| 'teamSetting'
 	| 'webhook'
 	| 'userProfile';
 
@@ -101,6 +103,9 @@ export class ProjectionDatasetRepository {
 	@injectModel(TextChannelSettingProjection.name)
 	private readonly textChannelSetting!: Model<TextChannelSettingProjection>;
 
+	@injectModel(TeamSettingProjection.name)
+	private readonly teamSetting!: Model<TeamSettingProjection>;
+
 	@injectModel(WebhookProjection.name)
 	private readonly webhook!: Model<WebhookProjection>;
 
@@ -117,6 +122,7 @@ export class ProjectionDatasetRepository {
 			teamRole: [this.teamRole, this.teamRoleAssignment, this.teamRoleMemberTombstone],
 			channelRolePolicy: [this.channelRolePolicy],
 			textChannelSetting: [this.textChannelSetting],
+			teamSetting: [this.teamSetting],
 			webhook: [this.webhook],
 		};
 		return models as Record<ProjectionStreamName, Array<Model<unknown>>>;
