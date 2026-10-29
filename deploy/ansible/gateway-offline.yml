@@ -1,0 +1,21 @@
+---
+- name: Keep Gateway ingress closed while no verified allocation exists
+  hosts: gateway
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Disconnect the proxy from unverified Gateway allocations
+      ansible.builtin.copy:
+        content: "set $cowork_gateway_target http://{{ private_ip }}:9;\n"
+        dest: /etc/cowork/gateway-upstream.conf
+        owner: root
+        group: root
+        mode: '0644'
+    - name: Check offline proxy syntax
+      ansible.builtin.command: nginx -t
+      changed_when: false
+    - name: Close existing proxy workers before recovering Gateway
+      ansible.builtin.systemd_service:
+        name: nginx
+        enabled: true
+        state: restarted

@@ -30,14 +30,6 @@ variable "vault_mount" {
   type    = string
   default = "secret"
 }
-variable "gateway_canary_count" {
-  type    = number
-  default = 1
-  validation {
-    condition     = var.gateway_canary_count == 0 || var.gateway_canary_count == 1
-    error_message = "Use zero only for the explicit first stop/start cutover."
-  }
-}
 variable "gateway_host_port" {
   type = number
   validation {
@@ -78,7 +70,7 @@ job "cowork-gateway" {
 
     update {
       max_parallel      = 1
-      canary            = var.gateway_canary_count
+      canary            = 1
       auto_promote      = false
       min_healthy_time  = "15s"
       healthy_deadline  = "10m"

@@ -48,7 +48,6 @@ table inet cowork {
     iifname "cowork0" accept
     ip saddr @agents meta l4proto tcp ct status dnat ct original proto-dst 22000-22999 accept
 {% if inventory_hostname == 'gateway' %}
-    ip saddr 10.0.0.117 meta l4proto tcp ct status dnat ct original proto-dst 8080 accept
     ip saddr {{ private_ip }} meta l4proto tcp ct status dnat ct original proto-dst { 21000, 21001 } accept
 {% elif inventory_hostname == 'kafka' %}
     ip saddr @agents meta l4proto tcp ct status dnat ct original proto-dst 9094 accept

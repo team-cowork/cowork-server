@@ -236,7 +236,7 @@ groups:
           service: authorization
         annotations:
           summary: "Authorization 웹훅 대기열 소비 중단"
-          description: "Authorization이 Redis Stream을 읽지 못하고 있습니다. Redis 연결과 소비자 로그를 확인하고 대기열이 256 MiB 한도에 도달하기 전에 복구해 주세요."
+          description: "Authorization이 Redis Stream을 읽지 못하고 있습니다. Redis 연결과 소비자 로그, 대기열 적체량을 확인해 주세요."
 
       - alert: coworkDatagsmIngressUnavailable
         expr: sum(increase(gateway_datagsm_ingress_total{outcome=~"temporarily_unavailable|webhook_not_configured"}[5m])) > 0
@@ -283,7 +283,7 @@ groups:
           service: redis
         annotations:
           summary: "Redis 웹훅 대기열 여유 부족"
-          description: "공유 Redis 사용량이 고정 256 MiB 한도의 75%를 넘었습니다. DataGSM 대기열과 기존 캐시를 확인하고 진행 중인 Authorization 배포를 복구해 주세요."
+          description: "공유 Redis 사용량이 설정된 maxmemory의 75%를 넘었습니다. DataGSM 대기열과 기존 캐시를 확인해 주세요."
 
   - name: cowork-go
     rules:

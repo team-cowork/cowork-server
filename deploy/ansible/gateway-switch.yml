@@ -2,15 +2,9 @@
 - name: Switch new Gateway requests after the candidate is ready
   hosts: gateway
   become: true
-  gather_facts: true
+  gather_facts: false
   tasks:
-    - name: Require capacity before two Gateway allocations coexist
-      ansible.builtin.assert:
-        that:
-          - ansible_facts.memtotal_mb >= 7600
-        fail_msg: Gateway needs at least 8 GB RAM for canary rollout.
-      when: gateway_require_8gb | default(true) | bool
-    - name: Require a Nomad private dynamic host port
+    - name: Require a reserved Gateway host port
       ansible.builtin.assert:
         that:
           - gateway_target_port | string | regex_search('^[0-9]+$')
@@ -19,10 +13,6 @@
       ansible.builtin.slurp:
         src: /etc/cowork/gateway-upstream.conf
       register: gateway_previous_target
-    - name: Check whether the proxy is already active
-      ansible.builtin.stat:
-        path: /var/lib/cowork/gateway-proxy-active
-      register: gateway_proxy_marker
     - name: Record workers handling the previous target
       ansible.builtin.shell: |
         if systemctl is-active --quiet nginx; then
@@ -45,27 +35,15 @@
         - name: Check candidate proxy syntax
           ansible.builtin.command: nginx -t
           changed_when: false
-        # Mark before systemd can accept the first external request. An uncertain
-        # start result must keep the queue-capable Gateway for operator recovery.
-        - name: Record the first external traffic boundary
-          ansible.builtin.file:
-            path: /var/lib/cowork/gateway-proxy-active
-            state: touch
-            owner: root
-            group: root
-            mode: '0644'
-          when: not gateway_proxy_marker.stat.exists
-        - name: Start proxy on the first cutover
+        - name: Keep the proxy running
           ansible.builtin.systemd_service:
             name: nginx
             enabled: true
             state: started
-          when: not gateway_proxy_marker.stat.exists
         - name: Reload proxy to redirect new requests
           ansible.builtin.systemd_service:
             name: nginx
             state: reloaded
-          when: gateway_proxy_marker.stat.exists
         - name: Confirm the selected Gateway is reachable through the proxy
           ansible.builtin.uri:
             url: http://127.0.0.1:8080/actuator/health
@@ -82,10 +60,6 @@
             timeout: 310
           loop: "{{ gateway_previous_workers.stdout_lines }}"
       rescue:
-        - name: Check whether the first proxy began serving requests
-          ansible.builtin.stat:
-            path: /var/lib/cowork/gateway-proxy-active
-          register: gateway_proxy_after_failure
         - name: Restore the previous target
           ansible.builtin.copy:
             content: "{{ gateway_previous_target.content | b64decode }}"
@@ -93,27 +67,13 @@
             owner: root
             group: root
             mode: '0644'
-          when: gateway_proxy_marker.stat.exists or not gateway_proxy_after_failure.stat.exists
         - name: Check restored proxy syntax
           ansible.builtin.command: nginx -t
           changed_when: false
-          when: gateway_proxy_marker.stat.exists or not gateway_proxy_after_failure.stat.exists
         - name: Restore the previous active proxy
           ansible.builtin.systemd_service:
             name: nginx
             state: reloaded
-          when: gateway_proxy_marker.stat.exists
-        - name: Stop the proxy if the first cutover failed
-          ansible.builtin.systemd_service:
-            name: nginx
-            enabled: false
-            state: stopped
-          when: not gateway_proxy_marker.stat.exists and not gateway_proxy_after_failure.stat.exists
-        - name: Remove an unsuccessful first-cutover marker
-          ansible.builtin.file:
-            path: /var/lib/cowork/gateway-proxy-active
-            state: absent
-          when: not gateway_proxy_marker.stat.exists and not gateway_proxy_after_failure.stat.exists
         - name: Report the failed Gateway switch
           ansible.builtin.fail:
-            msg: Gateway target switch failed; inspect the proxy marker before deciding whether to restore the old Gateway.
+            msg: Gateway target switch failed; the previous proxy target was restored.
