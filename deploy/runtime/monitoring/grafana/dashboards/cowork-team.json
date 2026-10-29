@@ -11,10 +11,10 @@
       "id": 1,
       "title": "메트릭 수집 상태",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "min(up{job=~\"cowork-.*\",service=\"team\"})",
+          "expr": "min(up{job=\"cowork-services\",service=\"team\"})",
           "legendFormat": "team",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
@@ -39,7 +39,7 @@
       "id": 100,
       "title": "서비스 준비 상태",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 0 },
       "targets": [
         {
           "expr": "min(probe_success{job=\"blackbox\",service=\"team\"})",
@@ -62,6 +62,34 @@
       },
       "description": "준비 상태 점검 결과입니다. 점검 대상이 없거나 결과가 누락되면 N/A입니다.",
       "options": { "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "background", "graphMode": "none", "textMode": "auto", "orientation": "auto" }
+    },
+    {
+      "id": 200,
+      "title": "Envoy 실행 상태",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 0 },
+      "targets": [
+        {
+          "expr": "cowork_envoy_task_running{service=\"team\"}",
+          "legendFormat": "Envoy",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": true,
+          "range": false
+        }
+      ],
+      "options": { "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "background", "graphMode": "none", "textMode": "auto", "orientation": "auto" },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0,
+          "max": 1,
+          "noValue": "N/A",
+          "mappings": [{"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}, "1": {"text": "UP", "color": "green"}}}],
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] }
+        }
+      },
+      "description": "Nomad가 보고한 Envoy 사이드카 작업의 실행 상태입니다. Nomad 지표를 수집하지 못하면 N/A입니다."
     },
     {
       "id": 101,
