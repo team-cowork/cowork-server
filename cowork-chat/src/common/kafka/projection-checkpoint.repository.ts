@@ -389,7 +389,7 @@ export class ProjectionCheckpointRepository {
 			},
 			$currentDate: {assignmentLeaseRenewedAt: true},
 		};
-		const available = await this.model.findOneAndUpdate(filter, leaseUpdate, {new: true}).lean<Nullable<{
+		const available = await this.model.findOneAndUpdate(filter, leaseUpdate, {returnDocument: 'after'}).lean<Nullable<{
 			nextOffset: bigint;
 			snapshotCompletedOffset?: Nullable<bigint>;
 			snapshotId?: Nullable<string>;
@@ -419,7 +419,7 @@ export class ProjectionCheckpointRepository {
 						nextOffset: BigInt(earliestOffset),
 					},
 				},
-				{upsert: true, new: true},
+				{upsert: true, returnDocument: 'after'},
 			).lean<Nullable<{nextOffset: bigint}>>();
 			if (!inserted) {
 				return undefined;

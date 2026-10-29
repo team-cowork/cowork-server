@@ -2,7 +2,7 @@ import {type ExecutionContext, HttpException, HttpStatus} from '@nestjs/common';
 import {type Reflector} from '@nestjs/core';
 import {type ConfigService} from '@nestjs/config';
 import {type RedisRateLimiter} from '../util/redis-rate-limiter.js';
-import {type ThrottleOptions} from '../decorator/throttle.decorator.js';
+import {type ThrottleOptions} from '../decorator/throttle.options.js';
 import {ThrottleGuard} from './throttle.guard.js';
 
 const mockRateLimiter = {
