@@ -178,7 +178,7 @@ jobs:
         with:
           python-version: ${{ steps.python-version.outputs.version }}
       - name: Install Pinned Deployment Dependencies
-        run: python3 -m pip install -r deploy/production/requirements.txt
+        run: python3 -m pip install -r deploy/production/requirements-vault.txt
       - name: Publish Declared Settings To Vault
         env:
           SERVICE: ${{ matrix.service }}
