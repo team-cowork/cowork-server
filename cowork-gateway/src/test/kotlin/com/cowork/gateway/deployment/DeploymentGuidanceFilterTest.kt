@@ -41,7 +41,7 @@ class DeploymentGuidanceFilterTest :
         }
 
         describe("배포 안내 응답") {
-            it("Redis 최초 동기화 전 모든 라우트 요청을 503으로 차단하고 로컬 요청은 통과시킨다") {
+            it("Redis 최초 동기화 전 배포 대상 요청만 503으로 차단한다") {
                 every { states.snapshot() } returns null
                 val target = exchange("http://127.0.0.1:18085")
                 filter.filter(target, chain).block()
@@ -54,9 +54,8 @@ class DeploymentGuidanceFilterTest :
 
                 val unclassified = exchange("http://127.0.0.1:19999")
                 filter.filter(unclassified, chain).block()
-                val otherBody = mapper.readTree(unclassified.response.bodyAsString.block())
-                unclassified.response.statusCode shouldBe HttpStatus.SERVICE_UNAVAILABLE
-                otherBody.get("data").get("reason").asString() shouldBe "SERVICE_STATE_UNAVAILABLE"
+                unclassified.response.statusCode shouldBe null
+                verify(exactly = 1) { chain.filter(unclassified) }
 
                 val local = MockServerWebExchange.from(MockServerHttpRequest.get("/actuator/health"))
                 filter.filter(local, chain).block()

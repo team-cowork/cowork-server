@@ -562,3 +562,5 @@ resilience4j:
       # 로그인은 cowork-authorization이 사용자 신원 결과를 최대 5초(KAFKA_IDENTITY_COMMAND_TIMEOUT) 기다린다.
       authorizationCB:
         timeoutDuration: 6s
+      authorizationWebhookCB:
+        timeoutDuration: 8s
