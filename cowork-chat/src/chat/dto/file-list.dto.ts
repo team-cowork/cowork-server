@@ -1,45 +1,46 @@
-import {ApiProperty, ApiPropertyOptional} from '@nestjs/swagger';
-import {Type} from 'class-transformer';
+import {ApiProperty as apiProperty, ApiPropertyOptional as apiPropertyOptional} from '@nestjs/swagger';
+import {Type as transformType} from 'class-transformer';
 import {
-    IsInt,
-    IsOptional,
-    IsString,
-    Max,
-    Min,
+	IsInt as isInt,
+	IsOptional as isOptional,
+	IsString as isString,
+	Max as max,
+	Min as min,
 } from 'class-validator';
+import {type Nullable} from '../../common/type/nullable.js';
 
 export class FileListQueryDto {
-    @ApiPropertyOptional({description: '커서: 이전 응답의 nextCursor 값'})
-    @IsString()
-    @IsOptional()
-    before?: string;
+	@apiPropertyOptional({description: '커서: 이전 응답의 nextCursor 값'})
+	@isString()
+	@isOptional()
+	before?: string;
 
-    @ApiPropertyOptional({description: '페이지 크기 (기본 20, 최대 100)', default: 20})
-    @IsInt()
-    @Min(1)
-    @Max(100)
-    @IsOptional()
-    @Type(() => Number)
-    limit?: number;
+	@apiPropertyOptional({description: '페이지 크기 (기본 20, 최대 100)', default: 20})
+	@isInt()
+	@min(1)
+	@max(100)
+	@isOptional()
+	@transformType(() => Number)
+	limit?: number;
 }
 
 export class FileListItemDto {
-    @ApiProperty({description: 'DELETE /files/{fileId}에 사용할 파일 식별자'}) fileId!: string;
-    @ApiProperty() messageId!: string;
-    @ApiProperty() fileName!: string;
-    @ApiProperty() fileSize!: number;
-    @ApiProperty() attachmentIndex!: number;
-    @ApiPropertyOptional() objectKey?: string;
-    @ApiProperty() mimeType!: string;
-    @ApiProperty() uploaderId!: number;
-    @ApiProperty() uploaderName!: string;
-    @ApiProperty() uploadedAt!: string;
+	@apiProperty({description: 'DELETE /files/{fileId}에 사용할 파일 식별자'}) fileId!: string;
+	@apiProperty() messageId!: string;
+	@apiProperty() fileName!: string;
+	@apiProperty() fileSize!: number;
+	@apiProperty() attachmentIndex!: number;
+	@apiPropertyOptional() objectKey?: string;
+	@apiProperty() mimeType!: string;
+	@apiProperty() uploaderId!: number;
+	@apiProperty() uploaderName!: string;
+	@apiProperty() uploadedAt!: string;
 }
 
 export class FileListResponseDto {
-    @ApiProperty({type: [FileListItemDto]})
-    files!: FileListItemDto[];
+	@apiProperty({type: [FileListItemDto]})
+	files!: FileListItemDto[];
 
-    @ApiPropertyOptional({nullable: true})
-    nextCursor!: string | null;
+	@apiPropertyOptional({nullable: true})
+	nextCursor!: Nullable<string>;
 }
