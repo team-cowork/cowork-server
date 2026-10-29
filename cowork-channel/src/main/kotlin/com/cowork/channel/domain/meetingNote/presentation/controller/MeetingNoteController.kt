@@ -55,9 +55,9 @@ class MeetingNoteController(
     @Operation(summary = "회의록 작성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "201", description = "작성 성공"),
-        ApiResponse(responseCode = "400", description = "content가 JSON 객체 형식이 아님"),
+        ApiResponse(responseCode = "400", description = "제목이 공백이거나 200자 초과, 또는 content가 JSON 객체 형식이 아님"),
         ApiResponse(responseCode = "403", description = "채널 멤버가 아님"),
-        ApiResponse(responseCode = "404", description = "템플릿 없음"),
+        ApiResponse(responseCode = "404", description = "템플릿 없음 (작성 중 삭제된 경우 포함)"),
     )
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
