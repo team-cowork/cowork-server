@@ -38,6 +38,15 @@ export type CreateCommentParameters = {
     issueNumber: number;
     body: string;
     requesterGithubUsername: string;
+    operationId?: string;
+};
+
+export type FindCommentByOperationParameters = {
+    owner: string;
+    repo: string;
+    issueNumber: number;
+    operationId: string;
+    since: string;
 };
 
 @Injectable()
@@ -78,8 +87,9 @@ export class IssueHttpService {
         issueNumber,
         body,
         requesterGithubUsername,
+        operationId,
     }: CreateCommentParameters): Promise<CommentResponse> {
-        const markedBody = appendAuthorMarker(body, requesterGithubUsername);
+        const markedBody = appendAuthorMarker(body, requesterGithubUsername, operationId);
         const created = await this.apiClient.createComment(
             owner,
             repo,
@@ -89,6 +99,23 @@ export class IssueHttpService {
         return this.toCommentResponse(created);
     }
 
+    // GitHub since 이후 수정된 댓글 한 페이지만 본다. 한 페이지가 가득 찼는데 없으면 없다고 단정할 수 없어 'unknown'이다.
+    async findCommentByOperation({
+        owner,
+        repo,
+        issueNumber,
+        operationId,
+        since,
+    }: FindCommentByOperationParameters): Promise<CommentResponse | 'absent' | 'unknown'> {
+        const comments = await this.apiClient.listComments(owner, repo, issueNumber, since);
+        const found = comments.find(comment => extractCommentAuthor(comment.body, '').operationId === operationId);
+        if (found !== undefined) {
+            return this.toCommentResponse(found);
+        }
+
+        return comments.length < 100 ? 'absent' : 'unknown';
+    }
+
     async updateComment(
         owner: string,
         repo: string,
@@ -96,8 +123,8 @@ export class IssueHttpService {
         body: string,
     ): Promise<CommentResponse> {
         const existing = await this.apiClient.getComment(owner, repo, commentId);
-        const {author} = extractCommentAuthor(existing.body, existing.user?.login ?? 'ghost');
-        const markedBody = appendAuthorMarker(body, author);
+        const {author, operationId} = extractCommentAuthor(existing.body, existing.user?.login ?? 'ghost');
+        const markedBody = appendAuthorMarker(body, author, operationId);
         const updated = await this.apiClient.updateComment(
             owner,
             repo,
