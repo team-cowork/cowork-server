@@ -11,6 +11,7 @@ import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteTemplate
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
@@ -37,7 +38,7 @@ class AddTemplateSectionServiceImplTest {
 
     @Test
     fun `addSection은 섹션 타입을 파싱해서 저장`() {
-        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
+        every { meetingNoteAccessGuard.requireChannelAccessForUpdate(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(template())
         val saved = slot<TemplateSection>()
         every { sectionRepository.save(capture(saved)) } answers { saved.captured }
@@ -50,12 +51,25 @@ class AddTemplateSectionServiceImplTest {
 
     @Test
     fun `addSection은 유효하지 않은 타입이면 BAD_REQUEST`() {
-        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
+        every { meetingNoteAccessGuard.requireChannelAccessForUpdate(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(template())
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.addSection(7L, 1L, 10L, CreateTemplateSectionRequest("x", "INVALID"))
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+    }
+
+    @Test
+    fun `addSection은 같은 템플릿에 같은 제목의 섹션이 있으면 CONFLICT`() {
+        every { meetingNoteAccessGuard.requireChannelAccessForUpdate(1L, 7L) } returns Unit
+        every { templateRepository.findById(10L) } returns Optional.of(template())
+        every { sectionRepository.existsByTemplateIdAndTitle(10L, "비고") } returns true
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.addSection(7L, 1L, 10L, CreateTemplateSectionRequest("비고", "MARKDOWN"))
+        }
+        assertEquals(HttpStatus.CONFLICT, ex.statusCode)
+        verify(exactly = 0) { sectionRepository.save(any()) }
     }
 }
