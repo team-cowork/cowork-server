@@ -95,7 +95,8 @@ locals {
       "cowork-redis"
     ],
     "cowork-authorization" : [
-      "cowork-authorization-db"
+      "cowork-authorization-db",
+      "cowork-redis"
     ],
     "cowork-preference" : [
       "cowork-preference-db",

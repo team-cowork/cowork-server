@@ -219,6 +219,72 @@ groups:
           summary: "웹훅 URL 서명 키 설정 오류"
           description: "Gateway의 웹훅 URL 서명 키가 없거나 유효하지 않아 웹훅 수신 요청을 503으로 거부하고 있습니다. webhook.url-signing-key 설정을 확인해 주세요."
 
+      - alert: coworkAuthorizationWebhookStreamInvalid
+        expr: increase(cowork_authorization_webhook_stream_failures_total{reason="invalid"}[5m]) > 0
+        labels:
+          severity: critical
+          service: authorization
+        annotations:
+          summary: "DataGSM 웹훅 재처리 불가 항목 발생"
+          description: "서명된 웹훅이 Authorization 검증에서 거부되어 Redis 대기열에 남았습니다. 원본을 로그에 남기지 말고 실패 원인과 이벤트 ID를 확인해 주세요."
+
+      - alert: coworkAuthorizationWebhookStreamDisconnected
+        expr: cowork_authorization_webhook_stream_connected == 0 or absent(cowork_authorization_webhook_stream_connected)
+        for: 2m
+        labels:
+          severity: critical
+          service: authorization
+        annotations:
+          summary: "Authorization 웹훅 대기열 소비 중단"
+          description: "Authorization이 Redis Stream을 읽지 못하고 있습니다. Redis 연결과 소비자 로그를 확인하고 대기열이 256 MiB 한도에 도달하기 전에 복구해 주세요."
+
+      - alert: coworkDatagsmIngressUnavailable
+        expr: sum(increase(gateway_datagsm_ingress_total{outcome=~"temporarily_unavailable|webhook_not_configured"}[5m])) > 0
+        labels:
+          severity: critical
+          service: gateway
+        annotations:
+          summary: "DataGSM 웹훅 영속 접수 실패"
+          description: "Gateway가 DataGSM 웹훅에 503을 반환했습니다. Redis AOF, Authorization 직접 접수와 대기열 여유를 확인해 주세요. 발신자의 재시도는 유한합니다."
+
+      - alert: coworkDatagsmIngressDirectFallback
+        expr: sum(increase(gateway_datagsm_ingress_total{outcome="direct_fallback"}[5m])) > 0
+        labels:
+          severity: warning
+          service: gateway
+        annotations:
+          summary: "DataGSM 웹훅이 Authorization 직접 접수로 전환됨"
+          description: "Redis Stream 접수에 실패해 Authorization의 기존 MySQL 영속 접수를 사용했습니다. Redis와 AOF 상태를 확인해 주세요."
+
+      - alert: coworkGatewayDeploymentStateRefreshFailed
+        expr: sum(increase(gateway_deployment_state_refresh_failures_total[5m])) > 0
+        labels:
+          severity: warning
+          service: gateway
+        annotations:
+          summary: "Gateway의 배포 상태 Redis 동기화 실패"
+          description: "Gateway가 마지막으로 확인된 배포 상태를 유지하고 있습니다. Redis 연결을 복구하고 서비스별 상태가 다시 갱신되는지 확인해 주세요."
+
+      - alert: coworkAuthorizationWebhookStreamBacklogOld
+        expr: cowork_authorization_webhook_stream_oldest_seconds > 120
+        for: 2m
+        labels:
+          severity: warning
+          service: authorization
+        annotations:
+          summary: "DataGSM 웹훅 대기열 처리 지연"
+          description: "가장 오래된 미처리 웹훅이 2분 넘게 남았습니다. Authorization 소비자, Redis 연결과 배포 상태를 확인해 주세요."
+
+      - alert: coworkRedisMemoryForWebhookQueueLow
+        expr: redis_memory_used_bytes / redis_memory_max_bytes > 0.75
+        for: 1m
+        labels:
+          severity: critical
+          service: redis
+        annotations:
+          summary: "Redis 웹훅 대기열 여유 부족"
+          description: "공유 Redis 사용량이 고정 256 MiB 한도의 75%를 넘었습니다. DataGSM 대기열과 기존 캐시를 확인하고 진행 중인 Authorization 배포를 복구해 주세요."
+
   - name: cowork-go
     rules:
       - alert: coworkGoHighMemory
