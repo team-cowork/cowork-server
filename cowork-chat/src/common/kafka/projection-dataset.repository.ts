@@ -223,7 +223,7 @@ export class ProjectionDatasetRepository {
 			reason: string;
 			baseOffsets: ProjectionDatasetPartitionOffset[];
 			targetOffsets: ProjectionDatasetPartitionOffset[];
-			// 호환 정리(#596): 2026-11-01 05:00 KST 이후 구형 stamp 보정·rollback 종료 확인 후 호환 재구축 전용 CAS 인자·분기 제거.
+			// @todo #596: 2026-11-01 05:00 KST 이후 구형 stamp 보정·rollback 종료 확인 후 호환 재구축 전용 CAS 인자·분기 제거.
 			// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
 			expectedDatasetGeneration?: string;
 		},
@@ -269,7 +269,7 @@ export class ProjectionDatasetRepository {
 		return this.toState(dataset);
 	}
 
-	// 호환 정리(#596): 2026-11-01 05:00 KST 이후 구형 Kafka·Mongo stamp 보정·rollback 종료 확인 후 이 누락 조회 제거.
+	// @todo #596: 2026-11-01 05:00 KST 이후 구형 Kafka·Mongo stamp 보정·rollback 종료 확인 후 이 누락 조회 제거.
 	// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
 	async hasLegacyProjectPermission(): Promise<boolean> {
 		return (await this.projectionModels.projectPermission[0].exists({
