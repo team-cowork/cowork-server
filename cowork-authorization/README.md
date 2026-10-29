@@ -32,7 +32,7 @@ DataGSM 로그인과 인증 토큰·로그인 세션을 관리합니다.
 | `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD` | MySQL 접속 정보. 전부 지정하거나 DB_DSN 사용 |
 | `DB_DSN` | 개별 DB 입력이 없을 때 사용하는 MySQL DSN |
 | `DATAGSM_CLIENT_ID`, `JWT_SECRET` | 필수 OAuth client ID와 JWT 서명 키 |
-| `DATAGSM_WEBHOOK_SECRET` | Gateway와 공유하는 DataGSM webhook 검증 값 |
+| `DATAGSM_WEBHOOK_SECRET` | Gateway와 공유하는 DataGSM webhook 검증 값. 새 키를 적용한 Authorization은 이전 키로 서명된 대기 항목을 `invalid`로 분류해 로그·지표 기록 후 삭제 |
 | `REDIS_HOST`, `REDIS_PORT` | DataGSM webhook 대기열 접속 주소. 운영에서는 Consul Envoy loopback 사용 |
 | `JWT_ACCESS_EXPIRE`, `JWT_REFRESH_EXPIRE` | JWT 유효기간 |
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker 목록 |
