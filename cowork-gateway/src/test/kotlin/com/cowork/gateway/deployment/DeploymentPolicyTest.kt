@@ -37,7 +37,12 @@ class DeploymentPolicyTest :
             val redis = mockk<ReactiveStringRedisTemplate>()
             val hash = mockk<ReactiveHashOperations<String, String, String>>()
             every { redis.opsForHash<String, String>() } returns hash
-            val cache = DeploymentStateCache(redis, JsonMapper.builder().build(), SimpleMeterRegistry())
+            val cache = DeploymentStateCache(
+                redis,
+                JsonMapper.builder().build(),
+                SimpleMeterRegistry(),
+                DeploymentProperties(),
+            )
 
             it("Redis 조회 실패 시 기존 확인 상태를 유지한다") {
                 every { hash.entries(DeploymentStateCache.REDIS_KEY) } returns Flux.just(
