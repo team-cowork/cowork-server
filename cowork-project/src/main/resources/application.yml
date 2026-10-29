@@ -19,7 +19,7 @@ spring:
       ssl.truststore.type: PEM
       ssl.truststore.location: ${KAFKA_SSL_CA_LOCATION:}
   profiles:
-    active: ${APP_CONFIG_PROFILE:local}
+    active: ${APP_CONFIG_PROFILE:prod}
   cloud:
     openfeign:
       client:

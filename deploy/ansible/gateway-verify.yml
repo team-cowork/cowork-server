@@ -1,0 +1,25 @@
+---
+- name: Verify the fixed external port reaches the host Gateway proxy
+  hosts: gateway
+  become: false
+  gather_facts: false
+  tasks:
+    - name: Read the active Gateway proxy target
+      ansible.builtin.slurp:
+        src: /etc/cowork/gateway-upstream.conf
+      register: gateway_upstream_file
+    - name: Require the proxy target to match the active Nomad allocation
+      vars:
+        gateway_expected_target: "set $cowork_gateway_target http://{{ private_ip }}:{{ gateway_target_port }};"
+      ansible.builtin.assert:
+        that:
+          - gateway_upstream_file.content | b64decode | trim == gateway_expected_target
+    - name: Verify the private ingress port after Nomad promotion
+      ansible.builtin.uri:
+        url: "http://{{ private_ip }}:8080/actuator/health"
+        status_code: 200
+        timeout: 10
+      register: gateway_fixed_port
+      retries: 5
+      delay: 2
+      until: gateway_fixed_port.status == 200 and (gateway_fixed_port.x_cowork_gateway_proxy | default('')) == '1'
