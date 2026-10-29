@@ -35,14 +35,29 @@ class DeleteRoadmapAssignmentServiceTest {
             accessGuard);
 
     @Test
-    void deleteAssignment_byAssigner_deletesWithoutTeamCheck() {
+    void deleteAssignment_byActiveAssigner_deletesAfterMembershipCheck() {
         RoadmapAssignment assignment = assignment(5L, 200L);
         when(assignmentRepository.findById(5L)).thenReturn(Optional.of(assignment));
 
         deleteRoadmapAssignmentService.execute(200L, "MEMBER", 5L);
 
+        verify(accessGuard).requireTeamMember(assignment.getTeamId(), 200L);
         verify(assignmentRepository).delete(assignment);
         verify(accessGuard, never()).requireTeamManagerOrAdmin(anyLong(), anyString(), anyLong());
+    }
+
+    @Test
+    void deleteAssignment_byLeftAssigner_isForbidden() {
+        RoadmapAssignment assignment = assignment(5L, 200L);
+        when(assignmentRepository.findById(5L)).thenReturn(Optional.of(assignment));
+        doThrow(new ExpectedException("권한 없음", HttpStatus.FORBIDDEN)).when(accessGuard)
+                .requireTeamMember(anyLong(), anyLong());
+
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> deleteRoadmapAssignmentService.execute(200L, "MEMBER", 5L));
+        assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
+
+        verify(assignmentRepository, never()).delete(any());
     }
 
     @Test
@@ -54,6 +69,7 @@ class DeleteRoadmapAssignmentServiceTest {
 
         verify(assignmentRepository).delete(assignment);
         verify(accessGuard, never()).requireTeamManagerOrAdmin(anyLong(), anyString(), anyLong());
+        verify(accessGuard, never()).requireTeamMember(anyLong(), anyLong());
     }
 
     @Test

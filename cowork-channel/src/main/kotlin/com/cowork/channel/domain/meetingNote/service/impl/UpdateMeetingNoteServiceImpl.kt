@@ -4,6 +4,7 @@ import com.cowork.channel.domain.meetingNote.presentation.data.request.UpdateMee
 import com.cowork.channel.domain.meetingNote.presentation.data.response.MeetingNoteResponse
 import com.cowork.channel.domain.meetingNote.service.MeetingNoteAccessGuard
 import com.cowork.channel.domain.meetingNote.service.UpdateMeetingNoteService
+import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteContentSupport
 import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteLookupSupport
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -15,6 +16,7 @@ import team.themoment.sdk.exception.ExpectedException
 class UpdateMeetingNoteServiceImpl(
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
     private val meetingNoteLookupSupport: MeetingNoteLookupSupport,
+    private val meetingNoteContentSupport: MeetingNoteContentSupport,
 ) : UpdateMeetingNoteService {
 
     override fun updateNote(
@@ -28,6 +30,7 @@ class UpdateMeetingNoteServiceImpl(
             if (it.isBlank()) throw ExpectedException("회의록 제목은 공백일 수 없습니다.", HttpStatus.BAD_REQUEST)
             if (it.length > 200) throw ExpectedException("회의록 제목은 200자를 초과할 수 없습니다.", HttpStatus.BAD_REQUEST)
         }
+        request.content?.let { meetingNoteContentSupport.requireJsonObject(it) }
         val note = meetingNoteLookupSupport.findNoteOrThrow(noteId, channelId)
         meetingNoteLookupSupport.requireNoteOwner(note, userId)
         val updatedTitle = request.title ?: note.title
