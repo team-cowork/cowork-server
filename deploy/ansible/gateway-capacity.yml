@@ -8,4 +8,4 @@
       ansible.builtin.assert:
         that:
           - ansible_facts.memtotal_mb >= 7600
-        fail_msg: Gateway canary rollout requires an 8 GB VM; use the explicit first stop/start cutover or resize first.
+        fail_msg: Gateway canary rollout requires an 8 GB VM.
