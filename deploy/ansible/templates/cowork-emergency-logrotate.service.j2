@@ -1,0 +1,8 @@
+[Unit]
+Description=Rotate oversized duplicate Cowork app logs during Kafka incident
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cowork-emergency-logrotate
+TimeoutStartSec=30

@@ -1,0 +1,24 @@
+#!/bin/sh
+set -eu
+
+containers=$(docker ps -q --filter name=app- --filter label=com.hashicorp.nomad.job_name=cowork-{{ inventory_hostname }})
+[ -n "$containers" ] || exit 0
+
+config=$(mktemp /run/cowork-emergency-logrotate.XXXXXX)
+trap 'rm -f "$config"' EXIT
+for container in $containers; do
+    pid=$(docker inspect --format '{% raw %}{{.State.Pid}}{% endraw %}' "$container") || continue
+    [ "$pid" -gt 0 ] || continue
+    cat >> "$config" <<EOF
+/proc/$pid/root{{ platform_emergency_app_log_paths[inventory_hostname] }} {
+    size 50M
+    rotate 2
+    copytruncate
+    missingok
+    notifempty
+}
+EOF
+done
+
+[ -s "$config" ] || exit 0
+/usr/sbin/logrotate --state /var/lib/logrotate/cowork-emergency-app.status "$config"
