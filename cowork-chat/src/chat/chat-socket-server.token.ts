@@ -8,5 +8,5 @@ import {type Server} from 'socket.io';
 export const CHAT_SOCKET_SERVER = Symbol('CHAT_SOCKET_SERVER');
 
 export type ChatSocketServerProvider = {
-    readonly server: Server;
+	readonly server: Server;
 };

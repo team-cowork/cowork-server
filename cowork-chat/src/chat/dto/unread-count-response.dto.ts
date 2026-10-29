@@ -1,6 +1,6 @@
-import {ApiProperty} from '@nestjs/swagger';
+import {ApiProperty as apiProperty} from '@nestjs/swagger';
 
 export class UnreadCountItemDto {
-    @ApiProperty() channelId!: number;
-    @ApiProperty() unreadCount!: number;
+	@apiProperty() channelId!: number;
+	@apiProperty() unreadCount!: number;
 }
