@@ -1,0 +1,12 @@
+---
+- name: Wait for the old fixed Gateway ingress to release port 8080
+  hosts: gateway
+  become: false
+  gather_facts: false
+  tasks:
+    - name: Require the private fixed port to stop accepting old Gateway traffic
+      ansible.builtin.wait_for:
+        host: "{{ private_ip }}"
+        port: 8080
+        state: stopped
+        timeout: 120

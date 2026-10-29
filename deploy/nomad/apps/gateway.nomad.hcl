@@ -30,6 +30,21 @@ variable "vault_mount" {
   type    = string
   default = "secret"
 }
+variable "gateway_canary_count" {
+  type    = number
+  default = 1
+  validation {
+    condition     = var.gateway_canary_count == 0 || var.gateway_canary_count == 1
+    error_message = "Use zero only for the explicit first stop/start cutover."
+  }
+}
+variable "gateway_host_port" {
+  type = number
+  validation {
+    condition     = var.gateway_host_port == 21000 || var.gateway_host_port == 21001
+    error_message = "Gateway host ingress uses only the two reserved alternating ports."
+  }
+}
 
 job "cowork-gateway" {
   datacenters = ["gsm"]
@@ -47,7 +62,7 @@ job "cowork-gateway" {
     network {
       mode = "cni/cowork"
       port "http" {
-        static       = 8080
+        static       = var.gateway_host_port
         to           = 8080
         host_network = "private"
       }
@@ -63,7 +78,8 @@ job "cowork-gateway" {
 
     update {
       max_parallel      = 1
-      canary            = 0
+      canary            = var.gateway_canary_count
+      auto_promote      = false
       min_healthy_time  = "15s"
       healthy_deadline  = "10m"
       progress_deadline = "15m"
