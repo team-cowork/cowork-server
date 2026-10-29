@@ -22,7 +22,7 @@ class MeetingNote(
     @Column(nullable = false, length = 200)
     var title: String,
 
-    @Column(columnDefinition = "JSON", nullable = false)
+    @Column(columnDefinition = "LONGTEXT", nullable = false)
     var content: String,
 
     @Column(name = "created_by", nullable = false)
