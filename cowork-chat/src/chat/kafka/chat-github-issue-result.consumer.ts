@@ -1,22 +1,23 @@
 import {
-    forwardRef,
-    Inject,
-    Injectable,
-    OnModuleDestroy,
-    OnModuleInit,
-    Logger,
+	forwardRef,
+	Inject as inject,
+	Injectable as injectable,
+	OnModuleDestroy,
+	OnModuleInit,
+	Logger,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
 import {Kafka, Consumer} from 'kafkajs';
 import {Server} from 'socket.io';
 import {DicoshotService} from 'dicoshot-nest';
-import {ChatService} from '../chat.service';
-import {getKafkaClientConfig} from '../../common/config/config.util';
-import {buildErrorFields} from '../../common/util/discord-alert.util';
-import {ChannelMessageReadAccessService} from '../service';
-import {toMessageBroadcastPayload} from '../repository';
-import {connectWithRetry} from '../../common/kafka/connect-with-retry';
-import {ChatGithubIssueCreateResult} from './event/chat-github-issue.event';
+import {ChatService} from '../chat.service.js';
+import {getKafkaClientConfig} from '../../common/config/config.util.js';
+import {buildErrorFields} from '../../common/util/discord-alert.util.js';
+import {ChannelMessageReadAccessService} from '../service/index.js';
+import {toMessageBroadcastPayload} from '../repository/index.js';
+import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
+import {type ForwardReference} from '../../common/type/forward-reference.js';
+import {ChatGithubIssueCreateResult} from './event/chat-github-issue.event.js';
 
 /**
  Kafka `project.chat-github-issue.result` 토픽을 구독하여
@@ -27,91 +28,21 @@ import {ChatGithubIssueCreateResult} from './event/chat-github-issue.event';
  기존 `github.issue.result` 토픽/`GithubIssueResultConsumer`가 그대로 처리한다).
  Socket.IO 서버 인스턴스는 `ChatGateway`의 `afterInit`에서 {@link setSocketServer}로 주입된다.
  */
-@Injectable()
+@injectable()
 export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy {
-    private readonly logger = new Logger(ChatGithubIssueResultConsumer.name);
-    private consumer!: Consumer;
-    private io?: Server;
+	private readonly logger = new Logger(ChatGithubIssueResultConsumer.name);
+	private consumer!: Consumer;
+	private io?: Server;
 
-    constructor(
-        @Inject(forwardRef(() => ChatService))
-        private readonly chatService: ChatService,
-        private readonly configService: ConfigService,
-        private readonly dicoshot: DicoshotService,
-        private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
-    ) {}
+	constructor(
+		@inject(forwardRef(() => ChatService))
+		private readonly chatService: ForwardReference<ChatService>,
+		private readonly configService: ConfigService,
+		private readonly dicoshot: DicoshotService,
+		private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
+	) {}
 
-    /**
-     Socket.IO 서버 인스턴스를 주입한다.
-
-     `ChatGateway`의 `afterInit` 훅에서 호출되어야 하며,
-     이 메서드가 호출되기 전에 수신된 결과는 Socket.IO 브로드캐스트 없이 저장만 된다.
-
-     @param io - Socket.IO 서버 인스턴스
-     */
-    setSocketServer(io: Server) {
-        this.io = io;
-    }
-
-    /**
-     모듈 초기화 시 Kafka 컨슈머를 시작하고 `project.chat-github-issue.result` 토픽 구독을 설정한다.
-
-     JSON 파싱 오류(`SyntaxError`)는 재처리 불가 메시지로 판단하여 무시한다.
-     그 외 오류는 예외로 전파하여 Kafka offset을 커밋하지 않고 재전달을 유도한다.
-     */
-    async onModuleInit() {
-        const kafka = new Kafka({
-            clientId: 'cowork-chat-chat-github-issue-result',
-            ...getKafkaClientConfig(this.configService),
-        });
-        this.consumer = kafka.consumer({groupId: 'cowork-chat-chat-github-issue-result'});
-        await connectWithRetry(this.logger, 'Kafka consumer startup: project.chat-github-issue.result', async () => {
-            await this.consumer.connect();
-            await this.consumer.subscribe({topic: 'project.chat-github-issue.result', fromBeginning: false});
-        });
-
-        void this.consumer
-            .run({
-                eachMessage: async ({message}) => {
-                    if (!message.value) {
-                        return;
-                    }
-
-                    try {
-                        const event = JSON.parse(message.value.toString()) as ChatGithubIssueCreateResult;
-                        await this.handleResultEvent(event);
-                    } catch (error) {
-                        this.logger.error('Failed to process chat GitHub issue command result event', error);
-                        if (!(error instanceof SyntaxError)) {
-                            throw error;
-                        }
-                    }
-                },
-            })
-            .catch(async (error: unknown) => {
-                this.logger.error('project.chat-github-issue.result Kafka consumer failed', error);
-                await this.dicoshot.sendCustom({
-                    title: '🔴 Kafka Consumer 중단',
-                    description: 'cowork-chat의 project.chat-github-issue.result consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
-                    color: 'danger',
-                    fields: [
-                        {name: 'Topic', value: 'project.chat-github-issue.result', inline: true},
-                        ...buildErrorFields(error),
-                    ],
-                }).catch(() => {/* Alert delivery is best-effort. */});
-                process.exit(1);
-            });
-        this.logger.log('Kafka consumer started: project.chat-github-issue.result');
-    }
-
-    /**
-     모듈 종료 시 Kafka 컨슈머 연결을 해제한다.
-     */
-    async onModuleDestroy() {
-        await this.consumer.disconnect();
-    }
-
-    /**
+	/**
      채팅발 GitHub 이슈 생성 커맨드의 권한 검증 결과 이벤트를 처리한다.
 
      `REJECTED`일 때만 거부 SYSTEM 메시지를 MongoDB에 저장하고,
@@ -120,27 +51,27 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
 
      @param event - Kafka에서 수신한 권한 검증 결과 이벤트
      */
-    private async handleResultEvent(event: ChatGithubIssueCreateResult): Promise<void> {
-        if (event.status !== 'REJECTED') {
-            this.logger.debug(`Chat GitHub issue command accepted [operationId=${event.operationId}]`);
-            return;
-        }
+	private async handleResultEvent(event: ChatGithubIssueCreateResult): Promise<void> {
+		if (event.status !== 'REJECTED') {
+			this.logger.debug(`Chat GitHub issue command accepted [operationId=${event.operationId}]`);
+			return;
+		}
 
-        const content = this.formatRejectionMessage(event);
+		const content = this.formatRejectionMessage(event);
 
-        const saved = await this.chatService.saveSystemMessage(
-            event.teamId,
-            event.channelId,
-            content,
-        );
-        if (!saved) {
-            return;
-        }
+		const saved = await this.chatService.saveSystemMessage(
+			event.teamId,
+			event.channelId,
+			content,
+		);
+		if (!saved) {
+			return;
+		}
 
-        await this.notifyClient(event.channelId, toMessageBroadcastPayload(saved));
-    }
+		await this.notifyClient(event.channelId, toMessageBroadcastPayload(saved));
+	}
 
-    /**
+	/**
      거부 결과를 사용자에게 표시할 메시지 문자열로 포맷한다.
 
      `❌ 이슈 생성 실패: {error.message}` 형식으로 반환한다.
@@ -148,11 +79,11 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
      @param event - 포맷할 결과 이벤트
      @returns 포맷된 시스템 메시지 문자열
      */
-    private formatRejectionMessage(event: ChatGithubIssueCreateResult): string {
-        return `❌ 이슈 생성 실패: ${event.error?.message ?? '알 수 없는 오류'}`;
-    }
+	private formatRejectionMessage(event: ChatGithubIssueCreateResult): string {
+		return `❌ 이슈 생성 실패: ${event.error?.message ?? '알 수 없는 오류'}`;
+	}
 
-    /**
+	/**
      Socket.IO를 통해 특정 채널의 클라이언트에게 메시지를 브로드캐스트한다.
 
      Socket.IO 서버가 주입되지 않은 경우 (`io`가 `undefined`) 경고 로그를 남기고 무시된다.
@@ -160,12 +91,83 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
      @param channelId - 브로드캐스트 대상 채널 ID
      @param message - 전송할 메시지 객체
      */
-    private async notifyClient(channelId: number, message: unknown): Promise<void> {
-        if (!this.io) {
-            this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${channelId})`);
-            return;
-        }
+	private async notifyClient(channelId: number, message: unknown): Promise<void> {
+		if (!this.io) {
+			this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${channelId})`);
+			return;
+		}
 
-        await this.channelMessageReadAccess.emitToReadableChannelUsers(this.io, channelId, 'message', message);
-    }
+		await this.channelMessageReadAccess.emitToReadableChannelUsers(this.io, channelId, {event: 'message', payload: message});
+	}
+
+	/**
+     Socket.IO 서버 인스턴스를 주입한다.
+
+     `ChatGateway`의 `afterInit` 훅에서 호출되어야 하며,
+     이 메서드가 호출되기 전에 수신된 결과는 Socket.IO 브로드캐스트 없이 저장만 된다.
+
+     @param io - Socket.IO 서버 인스턴스
+     */
+	setSocketServer(io: Server) {
+		this.io = io;
+	}
+
+	/**
+     모듈 초기화 시 Kafka 컨슈머를 시작하고 `project.chat-github-issue.result` 토픽 구독을 설정한다.
+
+     JSON 파싱 오류(`SyntaxError`)는 재처리 불가 메시지로 판단하여 무시한다.
+     그 외 오류는 예외로 전파하여 Kafka offset을 커밋하지 않고 재전달을 유도한다.
+     */
+	async onModuleInit() {
+		const kafka = new Kafka({
+			clientId: 'cowork-chat-chat-github-issue-result',
+			...getKafkaClientConfig(this.configService),
+		});
+		this.consumer = kafka.consumer({groupId: 'cowork-chat-chat-github-issue-result'});
+		await connectWithRetry(this.logger, 'Kafka consumer startup: project.chat-github-issue.result', async () => {
+			await this.consumer.connect();
+			await this.consumer.subscribe({topic: 'project.chat-github-issue.result', fromBeginning: false});
+		});
+
+		void this.consumer
+			.run({
+				eachMessage: async ({message}) => {
+					if (!message.value) {
+						return;
+					}
+
+					try {
+						const event = JSON.parse(message.value.toString()) as ChatGithubIssueCreateResult;
+						await this.handleResultEvent(event);
+					} catch (error) {
+						this.logger.error('Failed to process chat GitHub issue command result event', error);
+						if (!(error instanceof SyntaxError)) {
+							throw error;
+						}
+					}
+				},
+			})
+			.catch(async (error: unknown) => {
+				this.logger.error('project.chat-github-issue.result Kafka consumer failed', error);
+				await this.dicoshot.sendCustom({
+					title: '🔴 Kafka Consumer 중단',
+					description: 'cowork-chat의 project.chat-github-issue.result consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
+					color: 'danger',
+					fields: [
+						{name: 'Topic', value: 'project.chat-github-issue.result', inline: true},
+						...buildErrorFields(error),
+					],
+				}).catch(() => {/* Alert delivery is best-effort. */});
+				// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
+				throw error;
+			});
+		this.logger.log('Kafka consumer started: project.chat-github-issue.result');
+	}
+
+	/**
+     모듈 종료 시 Kafka 컨슈머 연결을 해제한다.
+     */
+	async onModuleDestroy() {
+		await this.consumer.disconnect();
+	}
 }

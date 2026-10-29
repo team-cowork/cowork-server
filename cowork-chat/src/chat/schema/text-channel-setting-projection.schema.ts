@@ -1,16 +1,16 @@
-import {Prop, Schema, SchemaFactory} from '@nestjs/mongoose';
+import {Prop as prop, Schema as schema, SchemaFactory} from '@nestjs/mongoose';
 
 /**
 `preference.text-channel-setting.state.v1`의 텍스트 채널 설정 projection. `slowmodeSeconds`가 0이면 슬로우 모드가 꺼져 있다.
 */
-@Schema({timestamps: true, versionKey: false})
+@schema({timestamps: true, versionKey: false})
 export class TextChannelSettingProjection {
-    @Prop({required: true}) channelId!: number;
-    @Prop({required: true, default: 0}) slowmodeSeconds!: number;
-    @Prop({required: true, default: false}) deleted!: boolean;
-    @Prop({required: true, type: Date}) sourceOccurredAt!: Date;
-    @Prop({required: true}) sourceVersion!: bigint;
+	@prop({required: true}) channelId!: number;
+	@prop({required: true, default: 0}) slowmodeSeconds!: number;
+	@prop({required: true, default: false}) deleted!: boolean;
+	@prop({required: true, type: Date}) sourceOccurredAt!: Date;
+	@prop({required: true}) sourceVersion!: bigint;
 }
 
-export const TextChannelSettingProjectionSchema = SchemaFactory.createForClass(TextChannelSettingProjection);
-TextChannelSettingProjectionSchema.index({channelId: 1}, {unique: true});
+export const textChannelSettingProjectionSchema = SchemaFactory.createForClass(TextChannelSettingProjection)
+	.index({channelId: 1}, {unique: true});

@@ -1,18 +1,18 @@
-import {Prop, Schema, SchemaFactory} from '@nestjs/mongoose';
+import {Prop as prop, Schema as schema, SchemaFactory} from '@nestjs/mongoose';
 
 /**
 `preference.team-role.state.v2`의 account↔role assignment projection.
 */
-@Schema({timestamps: true, versionKey: false})
+@schema({timestamps: true, versionKey: false})
 export class TeamRoleAssignmentProjection {
-    @Prop({required: true}) teamId!: number;
-    @Prop({required: true}) accountId!: number;
-    @Prop({required: true}) roleId!: number;
-    @Prop({required: true, default: false}) deleted!: boolean;
-    @Prop({required: true, type: Date}) sourceOccurredAt!: Date;
-    @Prop({required: true}) sourceVersion!: bigint;
+	@prop({required: true}) teamId!: number;
+	@prop({required: true}) accountId!: number;
+	@prop({required: true}) roleId!: number;
+	@prop({required: true, default: false}) deleted!: boolean;
+	@prop({required: true, type: Date}) sourceOccurredAt!: Date;
+	@prop({required: true}) sourceVersion!: bigint;
 }
 
-export const TeamRoleAssignmentProjectionSchema = SchemaFactory.createForClass(TeamRoleAssignmentProjection);
-TeamRoleAssignmentProjectionSchema.index({teamId: 1, accountId: 1, roleId: 1}, {unique: true});
-TeamRoleAssignmentProjectionSchema.index({roleId: 1, deleted: 1});
+export const teamRoleAssignmentProjectionSchema = SchemaFactory.createForClass(TeamRoleAssignmentProjection)
+	.index({teamId: 1, accountId: 1, roleId: 1}, {unique: true})
+	.index({roleId: 1, deleted: 1});
