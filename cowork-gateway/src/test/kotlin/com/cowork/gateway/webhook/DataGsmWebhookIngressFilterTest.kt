@@ -8,6 +8,8 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreaker
+import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreakerFactory
 import org.springframework.cloud.gateway.filter.GatewayFilterChain
 import org.springframework.cloud.gateway.route.Route
 import org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_ROUTE_ATTR
@@ -26,8 +28,19 @@ class DataGsmWebhookIngressFilterTest :
         val queue = mockk<DataGsmWebhookQueue>()
         val states = mockk<DeploymentStateCache>()
         val registry = SimpleMeterRegistry()
+        val circuitBreaker = mockk<ReactiveCircuitBreaker>()
+        val circuitBreakerFactory = mockk<ReactiveCircuitBreakerFactory<*, *>>()
+        every { circuitBreakerFactory.create("authorizationWebhookCB") } returns circuitBreaker
+        every { circuitBreaker.run(any<Mono<Void>>()) } answers { firstArg<Mono<Void>>() }
         val filter =
-            DataGsmWebhookIngressFilter(verifier, queue, states, JsonMapper.builder().build(), registry)
+            DataGsmWebhookIngressFilter(
+                verifier,
+                queue,
+                states,
+                JsonMapper.builder().build(),
+                registry,
+                circuitBreakerFactory,
+            )
         val body = "{\"id\":\"test\"}"
         val signature = "sha256=signature"
 
