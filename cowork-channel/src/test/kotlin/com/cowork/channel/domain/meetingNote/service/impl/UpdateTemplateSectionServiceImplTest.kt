@@ -126,14 +126,14 @@ class UpdateTemplateSectionServiceImplTest {
         service.updateSection(7L, 1L, 10L, 20L, UpdateTemplateSectionRequest(title = "안건", isRequired = true))
 
         verify(exactly = 0) { meetingNoteRepository.findAllByTemplateId(any()) }
-        verify(exactly = 0) { sectionRepository.existsByTemplateIdAndTitle(any(), any()) }
+        verify(exactly = 0) { sectionRepository.existsByTemplateIdAndTitleAndIdNot(any(), any(), any()) }
     }
 
     @Test
     fun `updateSection은 같은 템플릿에 같은 제목의 섹션이 있으면 CONFLICT`() {
         val sec = section(title = "안건")
         givenSection(sec)
-        every { sectionRepository.existsByTemplateIdAndTitle(10L, "결정") } returns true
+        every { sectionRepository.existsByTemplateIdAndTitleAndIdNot(10L, "결정", 20L) } returns true
 
         val ex = assertThrows(ExpectedException::class.java) {
             service.updateSection(7L, 1L, 10L, 20L, UpdateTemplateSectionRequest(title = "결정"))
@@ -141,5 +141,20 @@ class UpdateTemplateSectionServiceImplTest {
         assertEquals(HttpStatus.CONFLICT, ex.statusCode)
         assertEquals("안건", sec.title)
         verify(exactly = 0) { meetingNoteRepository.findAllByTemplateId(any()) }
+    }
+
+    @Test
+    fun `updateSection은 대소문자만 바꿀 때 자기 자신을 중복으로 보지 않는다`() {
+        givenSection(section(title = "memo"))
+        // DB collation은 대소문자를 무시하므로 자기 자신까지 포함하면 중복으로 잡힌다.
+        every { sectionRepository.existsByTemplateIdAndTitle(10L, "Memo") } returns true
+        every { sectionRepository.existsByTemplateIdAndTitleAndIdNot(10L, "Memo", 20L) } returns false
+        val target = note(1L, """{"memo":"점심 메뉴"}""")
+        every { meetingNoteRepository.findAllByTemplateId(10L) } returns listOf(target)
+
+        val result = service.updateSection(7L, 1L, 10L, 20L, UpdateTemplateSectionRequest(title = "Memo"))
+
+        assertEquals("Memo", result.title)
+        assertEquals("""{"Memo":"점심 메뉴"}""", target.content)
     }
 }
