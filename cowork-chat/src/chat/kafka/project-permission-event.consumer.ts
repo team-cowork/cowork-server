@@ -25,10 +25,10 @@ type ProjectPermissionEvent = {
 	read: boolean;
 	write: boolean;
 	occurredAt: string;
-	// 호환 정리(#596): 2026-11-01 05:00 KST 이후 구형 outbox·Kafka stamp 보정과 rollback 종료 확인 후 누락 허용·ZERO 대체 제거.
+	// @todo #596: 2026-11-01 05:00 KST 이후 구형 outbox·Kafka stamp 보정과 rollback 종료 확인 후 누락 허용·ZERO 대체 제거.
 	// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
 	sourceMembershipVersion?: string;
-	// 호환 정리(#596): 2026-11-01 05:00 KST 이후 구형 이벤트·Mongo auth stamp 보정과 rollback 종료 확인 후 nullable fallback 제거.
+	// @todo #596: 2026-11-01 05:00 KST 이후 구형 이벤트·Mongo auth stamp 보정과 rollback 종료 확인 후 nullable fallback 제거.
 	// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
 	sourceAuthorizationVersion?: Nullable<string>;
 	snapshot?: boolean;
