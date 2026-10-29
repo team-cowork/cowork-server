@@ -46,13 +46,13 @@ var (
 		Name: "cowork_authorization_webhook_stream_entries", Help: "Webhook entries retained in the Redis stream.",
 	})
 	webhookStreamPending = prometheus.NewGauge(prometheus.GaugeOpts{
-		Name: "cowork_authorization_webhook_stream_pending", Help: "Webhook stream entries delivered but not committed to the database.",
+		Name: "cowork_authorization_webhook_stream_pending", Help: "Webhook stream entries delivered but not yet acknowledged.",
 	})
 	webhookStreamOldest = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "cowork_authorization_webhook_stream_oldest_seconds", Help: "Age of the oldest retained webhook stream entry.",
 	})
 	webhookStreamProcessed = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "cowork_authorization_webhook_stream_processed_total", Help: "Webhook stream entries committed to MySQL before acknowledgement.",
+		Name: "cowork_authorization_webhook_stream_processed_total", Help: "Webhook stream entries successfully processed, acknowledged, and deleted by result.",
 	}, []string{"result"})
 	webhookStreamFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "cowork_authorization_webhook_stream_failures_total", Help: "Webhook stream processing failures by safe category.",
