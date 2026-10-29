@@ -1,12 +1,12 @@
-import {ApiProperty} from '@nestjs/swagger';
-import {IsString, Matches} from 'class-validator';
-import {EMOJI_REGEX} from '../util';
+import {ApiProperty as apiProperty} from '@nestjs/swagger';
+import {IsString as isString, Matches as matches} from 'class-validator';
+import {EMOJI_REGEX} from '../util/index.js';
 
 export class AddReactionDto {
-    @ApiProperty({example: '👍'})
-    @IsString()
-    @Matches(EMOJI_REGEX, {
-        message: 'Invalid emoji format',
-    })
-    emoji!: string;
+	@apiProperty({example: '👍'})
+	@isString()
+	@matches(EMOJI_REGEX, {
+		message: 'Invalid emoji format',
+	})
+	emoji!: string;
 }

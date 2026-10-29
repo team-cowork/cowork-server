@@ -1,13 +1,13 @@
-import {Module} from '@nestjs/common';
+import {Module as nestModule} from '@nestjs/common';
 import {ConfigModule} from '@nestjs/config';
-import {BlockRedis} from './block.redis';
-import {BlockService} from './block.service';
-import {BlockController} from './block.controller';
+import {BlockRedis} from './block.redis.js';
+import {BlockService} from './block.service.js';
+import {BlockController} from './block.controller.js';
 
-@Module({
-    imports: [ConfigModule],
-    controllers: [BlockController],
-    providers: [BlockRedis, BlockService],
-    exports: [BlockService],
+@nestModule({
+	imports: [ConfigModule],
+	controllers: [BlockController],
+	providers: [BlockRedis, BlockService],
+	exports: [BlockService],
 })
 export class BlockModule {}
