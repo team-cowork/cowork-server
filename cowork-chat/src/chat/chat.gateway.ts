@@ -16,7 +16,6 @@ import {
 	OnGatewayInit,
 } from '@nestjs/websockets';
 import {ConfigService} from '@nestjs/config';
-import {JwtService} from '@nestjs/jwt';
 import {Server, Socket, DefaultEventsMap} from 'socket.io';
 import {DmParticipantConsumer} from '../dm/dm-participant.consumer.js';
 import {UserRole} from '../common/enum/user-role.enum.js';
@@ -56,8 +55,8 @@ export type ChatSocket = Socket<DefaultEventsMap, DefaultEventsMap, DefaultEvent
 /**
  `/chat` 네임스페이스의 WebSocket 게이트웨이.
 
- 연결 시 Gateway가 주입한 `X-User-Id`/`X-User-Role` 헤더를 우선 신뢰하고,
- 헤더가 없으면 `auth.token`(JWT)을 직접 검증해 `client.data`에 `userId`와 `userRole`을 저장한다.
+ 연결 시 Gateway가 주입한 `X-User-Id`/`X-User-Role` 헤더를 사용하고,
+ 헤더가 없으면 연결을 거절한다. 인증된 연결의 사용자 정보를 `client.data`에 저장한다.
  인증은 handshake 미들웨어에서 하므로 실패하면 `connect` 없이 `connect_error`만 전달된다.
  `afterInit`에서 Socket.IO `Server` 인스턴스를 Kafka 컨슈머에 주입해
  Kafka 메시지를 Socket.IO 룸으로 브로드캐스트할 수 있게 한다.
@@ -122,9 +121,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 	private readonly teamMemberEventConsumer!: TeamMemberEventConsumer;
 
 	@inject()
-	private readonly jwtService!: JwtService;
-
-	@inject()
 	private readonly rateLimiter!: RedisRateLimiter;
 
 	@inject()
@@ -187,9 +183,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      @param client - handshake 중인 Socket.IO 소켓
      @returns 인증 실패 시 `connect_error`로 전달할 오류
      */
-	private async authenticate(client: ChatSocket): Promise<Error | undefined> {
+	private authenticate(client: ChatSocket): Error | undefined {
 		try {
-			const {userId, userRole} = await this.resolveIdentity(client);
+			const {userId, userRole} = this.resolveIdentity(client);
 			client.data.userId = userId;
 			client.data.userRole = userRole;
 		} catch (error) {
@@ -202,10 +198,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 	}
 
 	/**
-     Gateway가 주입한 `X-User-Id`/`X-User-Role` 헤더를 우선 신뢰하고,
-     없으면 `auth.token`의 JWT를 직접 검증해 사용자 정보를 확인한다.
+     Gateway가 주입한 `X-User-Id`/`X-User-Role` 헤더로 사용자 정보를 확인한다.
      */
-	private async resolveIdentity(client: ChatSocket): Promise<{userId: number; userRole: string}> {
+	private resolveIdentity(client: ChatSocket): {userId: number; userRole: string} {
 		const rawUserId = client.handshake.headers['x-user-id'];
 		const headerUserId = Array.isArray(rawUserId) ? rawUserId[0] : rawUserId;
 		if (typeof headerUserId === 'string') {
@@ -220,18 +215,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 			return {userId, userRole};
 		}
 
-		const token = client.handshake.auth?.token as string | undefined;
-		if (token === undefined || token === '') {
-			throw new Error('인증 정보가 전달되지 않았습니다');
-		}
-
-		const payload = await this.jwtService.verifyAsync<{sub: string; role?: string}>(token);
-		const userId = Number(payload.sub);
-		if (!isSafePositiveInteger(userId)) {
-			throw new Error('토큰의 sub 클레임이 유효하지 않습니다');
-		}
-
-		return {userId, userRole: payload.role ?? UserRole.USER};
+		throw new Error('인증 정보가 전달되지 않았습니다');
 	}
 
 	private async relayTyping(client: ChatSocket, payload: JoinChannelDto, isTyping: boolean) {
@@ -306,7 +290,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
 				packetNext();
 			});
-			void this.authenticate(socket).then(next);
+			next(this.authenticate(socket));
 		});
 		this.consumer.setSocketServer(server);
 		this.githubIssueResultConsumer.setSocketServer(server);
