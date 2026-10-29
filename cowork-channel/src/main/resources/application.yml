@@ -5,7 +5,15 @@ spring:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
     consumer:
       auto-offset-reset: earliest
+    admin:
+      properties:
+        # The broker has a fixed address; keep reconnecting without rebootstrap loops.
+        metadata.recovery.strategy: none
     properties:
+      reconnect.backoff.ms: 1000
+      reconnect.backoff.max.ms: 30000
+      retry.backoff.ms: 1000
+      retry.backoff.max.ms: 10000
       security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
       sasl.mechanism: ${KAFKA_SASL_MECHANISM:SCRAM-SHA-512}
       ssl.truststore.type: PEM
