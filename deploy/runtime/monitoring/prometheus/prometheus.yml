@@ -120,6 +120,21 @@ scrape_configs:
     - 127.0.0.1:9115
     labels:
       service: blackbox
+- job_name: monitoring-health
+  metrics_path: /probe
+  params:
+    module: [http_2xx]
+  static_configs:
+  - targets: [http://127.0.0.1:8080/api/health]
+    labels:
+      service: monitoring
+  relabel_configs:
+  - source_labels: [__address__]
+    target_label: __param_target
+  - source_labels: [__param_target]
+    target_label: instance
+  - target_label: __address__
+    replacement: 127.0.0.1:9115
 - job_name: blackbox
   metrics_path: /probe
   params:
