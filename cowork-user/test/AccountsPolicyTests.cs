@@ -36,8 +36,24 @@ public class AccountsPolicyTests
         Assert.Equal(JsonValueKind.Null, patch.Profile["nickname"].ValueKind);
         Assert.Equal(["name"], patch.Account.Keys);
         Assert.Null(patch.Roles);
+    }
 
-        Assert.Equal(["github"], Accounts.ParseProfilePatch(Json("""{"github_id": "octo"}""")).Account.Keys);
+    [Fact]
+    public void Profile_patch_accepts_only_the_stored_github_id()
+    {
+        Assert.Null(Accounts.ParseProfilePatch(Json("""{"name": "김코워크"}""")).Github);
+        var patch = Accounts.ParseProfilePatch(Json("""{"name": "김코워크", "github_id": "octo"}"""));
+        Assert.Equal(["name"], patch.Account.Keys);
+        Assert.Equal("octo", patch.Github!.Value.GetString());
+
+        Accounts.EnsureGithubUnchanged(null, "octo");
+        Accounts.EnsureGithubUnchanged(Json("\"octo\""), "octo");
+        Accounts.EnsureGithubUnchanged(Json("null"), null);
+        Accounts.EnsureGithubUnchanged(Json("\"  \""), null);
+        Assert.Equal("github_id는 수정할 수 없습니다.", Assert.Throws<ApiError>(() => Accounts.EnsureGithubUnchanged(Json("\"other\""), "octo")).Message);
+        Assert.Equal(400, Assert.Throws<ApiError>(() => Accounts.EnsureGithubUnchanged(Json("null"), "octo")).Status);
+        Assert.Equal(400, Assert.Throws<ApiError>(() => Accounts.EnsureGithubUnchanged(Json("\"octo\""), null)).Status);
+        Assert.Equal(400, Assert.Throws<ApiError>(() => Accounts.EnsureGithubUnchanged(Json("1"), null)).Status);
     }
 
     [Fact]

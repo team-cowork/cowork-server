@@ -15,11 +15,13 @@ class GithubIssueReader(
 ) {
     fun listIssues(owner: String, repo: String, state: String): List<GithubIssueResDto> {
         syncMarkers.requireSynced(GithubSyncStream.ISSUE, owner, repo)
-        // GitHub API 응답(생성일 내림차순, per_page=100)과 같은 순서·건수를 유지한다.
-        return repository.findByOwnerAndRepoOrderByNumberDesc(owner, repo)
-            .filter { !it.deleted && (state == "all" || it.state == state) }
-            .take(LIST_LIMIT)
-            .map { it.toResDto() }
+        // GitHub API 응답(생성일 내림차순, per_page=100)과 같은 순서·건수를 DB 조회에서 유지한다.
+        val issues = if (state == "all") {
+            repository.findTop100ByOwnerAndRepoAndDeletedFalseOrderByNumberDesc(owner, repo)
+        } else {
+            repository.findTop100ByOwnerAndRepoAndStateAndDeletedFalseOrderByNumberDesc(owner, repo, state)
+        }
+        return issues.map { it.toResDto() }
     }
 
     /** 댓글 부모 작성자 알림을 위한 작성자 조회. 찾지 못하면 예외를 던지고, 호출자는 알림을 생략한다. */
@@ -40,8 +42,4 @@ class GithubIssueReader(
         createdAt = githubCreatedAt,
         updatedAt = githubUpdatedAt,
     )
-
-    private companion object {
-        const val LIST_LIMIT = 100
-    }
 }

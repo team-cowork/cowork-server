@@ -26,10 +26,8 @@ variable "image" {
 variable "runtime_env" {
   type = map(string)
   default = {
-    DB_HOST     = "127.0.0.1"
-    DB_PORT     = "13306"
-    DB_NAME     = "cowork_user"
-    DB_USERNAME = "cowork_user"
+    DB_HOST = "127.0.0.1"
+    DB_PORT = "13306"
   }
 }
 
@@ -110,6 +108,8 @@ job "cowork-user-migrations" {
       template {
         data                 = <<-ENV
 {{ with secret "${var.vault_mount}/data/nomad/data/user?version=${var.secret_version}" }}
+DB_NAME={{ .Data.data.DB_NAME | toJSON }}
+DB_USERNAME={{ .Data.data.DB_USERNAME | toJSON }}
 DB_PASSWORD={{ .Data.data.DB_PASSWORD | toJSON }}
 {{ end }}
 ENV
