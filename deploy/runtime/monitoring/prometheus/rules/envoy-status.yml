@@ -1,15 +1,10 @@
 groups:
 - name: cowork-envoy
   rules:
-  - record: cowork_envoy_task_running
-    # Nomad reports the Envoy task; a missing task is DOWN only while its client metrics are reachable.
+  - record: cowork_envoy_proxy_reachable
+    # Probe the proxy listener; a missing Consul registration is DOWN only while its Nomad client is reachable.
     expr: |
-      clamp_max(max by (service) (
-        label_replace(
-          nomad_client_allocs_running{job="nomad",role="client",exported_job=~"cowork-(authorization|channel|chat|gateway|github|monitoring|notification|preference|project|roadmap|team|user|voice)",task=~"connect-proxy-cowork-.+"},
-          "service", "$1", "exported_job", "cowork-(.+)"
-        )
-      ), 1)
+      min by (service) (probe_success{job="envoy-proxy"})
       or on (service)
       (0 * max by (service) (
         label_replace(
