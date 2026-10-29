@@ -1,0 +1,14 @@
+groups:
+- name: cowork-envoy
+  rules:
+  - record: cowork_envoy_proxy_reachable
+    # Probe the proxy listener; a missing Consul registration is DOWN only while its Nomad client is reachable.
+    expr: |
+      min by (service) (probe_success{job="envoy-proxy"})
+      or on (service)
+      (0 * max by (service) (
+        label_replace(
+          up{job="nomad",role="client",host=~"authorization|channel|chat|gateway|github|monitoring|notification|preference|project|roadmap|team|user|voice"} == 1,
+          "service", "$1", "host", "(.+)"
+        )
+      ))
