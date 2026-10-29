@@ -1,0 +1,19 @@
+groups:
+- name: cowork-envoy
+  rules:
+  - record: cowork_envoy_task_running
+    # Nomad reports the Envoy task; a missing task is DOWN only while its client metrics are reachable.
+    expr: |
+      clamp_max(max by (service) (
+        label_replace(
+          nomad_client_allocs_running{job="nomad",role="client",exported_job=~"cowork-(authorization|channel|chat|gateway|github|monitoring|notification|preference|project|roadmap|team|user|voice)",task=~"connect-proxy-cowork-.+"},
+          "service", "$1", "exported_job", "cowork-(.+)"
+        )
+      ), 1)
+      or on (service)
+      (0 * max by (service) (
+        label_replace(
+          up{job="nomad",role="client",host=~"authorization|channel|chat|gateway|github|monitoring|notification|preference|project|roadmap|team|user|voice"} == 1,
+          "service", "$1", "host", "(.+)"
+        )
+      ))
