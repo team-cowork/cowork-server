@@ -42,12 +42,12 @@
     },
     {
       "id": 200,
-      "title": "Envoy 사이드카 실행 상태",
+      "title": "Envoy 프록시 연결 상태",
       "type": "stat",
       "gridPos": { "h": 4, "w": 24, "x": 0, "y": 4 },
       "targets": [
         {
-          "expr": "cowork_envoy_task_running",
+          "expr": "cowork_envoy_proxy_reachable",
           "instant": true,
           "range": false,
           "legendFormat": "{{service}}",
@@ -66,7 +66,7 @@
           "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] }
         }
       },
-      "description": "Nomad 작업 지표로 확인한 Envoy 사이드카 실행 상태입니다. Nomad 지표를 수집하지 못하면 N/A입니다."
+      "description": "Envoy 프록시 포트의 TCP 연결 결과입니다. 프록시 등록이 없고 Nomad 지표를 수집할 수 있으면 DOWN입니다."
     },
     {
       "id": 2,
