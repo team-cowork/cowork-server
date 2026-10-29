@@ -38,7 +38,7 @@ class AddTemplateSectionServiceImplTest {
 
     @Test
     fun `addSection은 섹션 타입을 파싱해서 저장`() {
-        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
+        every { meetingNoteAccessGuard.requireChannelAccessForUpdate(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(template())
         val saved = slot<TemplateSection>()
         every { sectionRepository.save(capture(saved)) } answers { saved.captured }
@@ -51,7 +51,7 @@ class AddTemplateSectionServiceImplTest {
 
     @Test
     fun `addSection은 유효하지 않은 타입이면 BAD_REQUEST`() {
-        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
+        every { meetingNoteAccessGuard.requireChannelAccessForUpdate(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(template())
 
         val ex = assertThrows(ExpectedException::class.java) {
@@ -62,7 +62,7 @@ class AddTemplateSectionServiceImplTest {
 
     @Test
     fun `addSection은 같은 템플릿에 같은 제목의 섹션이 있으면 CONFLICT`() {
-        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
+        every { meetingNoteAccessGuard.requireChannelAccessForUpdate(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(template())
         every { sectionRepository.existsByTemplateIdAndTitle(10L, "비고") } returns true
 
