@@ -365,9 +365,9 @@ jobs:
 
   publish:
     name: Publish Committed Release
-    needs: [prepare, manifest]
+    needs: [prepare, manifest, apply]
     if: >-
-      !cancelled() && needs.prepare.result == 'success' &&
+      !cancelled() && needs.prepare.result == 'success' && needs.apply.result == 'success' &&
       needs.prepare.outputs.mode != 'plan' && needs.prepare.outputs.version != '' &&
       (needs.manifest.result == 'success' || needs.prepare.outputs.mode == 'apply')
     runs-on: ubuntu-latest

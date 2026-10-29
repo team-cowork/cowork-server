@@ -49,6 +49,7 @@ def job_inputs(path, manifest=None, vault_mount="secret"):
     name = path.name.removesuffix(".nomad.hcl")
     declared = set(re.findall(r'^variable "([^"]+)"', path.read_text(), re.MULTILINE))
     values = {"image": FAKE_IMAGE, "init_image": FAKE_IMAGE, "envoy_image": FAKE_IMAGE,
+              "gateway_host_port": 21000,
               "secret_version": 1, "vault_mount": vault_mount, "runtime_env": {}, "config_files": {}}
     if path.parent.name == "apps":
         values["runtime_env"] = environment(name)
