@@ -29,21 +29,11 @@ def check_syntax():
 
 
 def check_compose():
-    # Override interpolation values; neither the user's .env nor secret values are needed.
     env = {key: value for key, value in os.environ.items() if not key.startswith("COMPOSE_")}
-    sources = [ROOT / "docker-compose.yml", *sorted((ROOT / "deploy/compose").glob("*.yaml")),
-               ROOT / "deploy/runtime/vault/compose.yaml"]
-    text = "\n".join(path.read_text() for path in sources)
-    for name in set(re.findall(r"(?<!\$)\$\{([A-Za-z_][A-Za-z0-9_]*)", text)):
-        env[name] = "validation-only"
-    env.update(MYSQL_HOST_PORT="3306", KAFKA_EXTERNAL_HOST_PORT="9094", KAFKA_UI_HOST_PORT="8091", COWORK_PROJECT_HOST_PORT="8084",
-               LIVEKIT_CONFIG_FILE="livekit.yaml", APP_CONFIG_PROFILE="local", VAULT_PORT="8200",
-               MYSQL_PORT="3306", REDIS_PORT="6379", DOCKER_CONTAINER_LOG_DIR="/var/lib/docker/containers")
-    for name, file in {"local": "docker-compose.yml", "vault": "deploy/runtime/vault/compose.yaml"}.items():
-        command = ["docker", "compose", "--project-directory", str(ROOT), "--env-file", "/dev/null",
-                   "-p", "cowork-validation", "--profile", "*", "-f", str(ROOT / file), "config", "--quiet"]
-        subprocess.run(command, env=env, check=True)
-        print(f"{name}: Compose configuration valid")
+    command = ["docker", "compose", "--project-directory", str(ROOT), "--env-file", "/dev/null",
+               "-p", "cowork-validation", "-f", str(ROOT / "deploy/runtime/vault/compose.yaml"), "config", "--quiet"]
+    subprocess.run(command, env=env, check=True)
+    print("Vault: Compose configuration valid")
 
 
 def file_map(directory):
@@ -124,17 +114,19 @@ def check_nomad(manifest=None, render_json=None, vault_mount="secret"):
     rendered_jobs = {}
     with tempfile.TemporaryDirectory(prefix="cowork-nomad-validate-") as directory:
         for path in paths:
-            formatted = subprocess.run([nomad, "fmt", "-check", str(path)], capture_output=True, text=True)
-            if formatted.returncode:
-                raise ValueError(f"Run nomad fmt on {path.relative_to(ROOT)}: {formatted.stderr or formatted.stdout}")
+            if render_json is None:
+                formatted = subprocess.run([nomad, "fmt", "-check", str(path)], capture_output=True, text=True)
+                if formatted.returncode:
+                    raise ValueError(f"Run nomad fmt on {path.relative_to(ROOT)}: {formatted.stderr or formatted.stdout}")
             variables = Path(directory) / "inputs.hcl"
             variables.write_text("\n".join(f"{key} = {json.dumps(hcl_value(value))}"
                                          for key, value in job_inputs(path, manifest, vault_mount).items()))
-            command = [nomad, "job", "validate", "-address=http://127.0.0.1:1", f"-var-file={variables}", str(path)]
-            result = subprocess.run(command, capture_output=True, text=True)
-            if result.returncode:
-                raise ValueError(f"{path.relative_to(ROOT)}: {result.stderr or result.stdout}")
-            if render_json is not None:
+            if render_json is None:
+                command = [nomad, "job", "validate", "-address=http://127.0.0.1:1", f"-var-file={variables}", str(path)]
+                result = subprocess.run(command, capture_output=True, text=True)
+                if result.returncode:
+                    raise ValueError(f"{path.relative_to(ROOT)}: {result.stderr or result.stdout}")
+            else:
                 command = [nomad, "job", "run", "-output", f"-var-file={variables}", str(path)]
                 result = subprocess.run(command, capture_output=True, text=True)
                 if result.returncode:
@@ -149,7 +141,8 @@ def check_nomad(manifest=None, render_json=None, vault_mount="secret"):
         render_json.write_text(json.dumps(rendered_jobs, indent=2, sort_keys=True) + "\n")
         print(f"Native parsed jobs written to {render_json}")
     references = "release manifest references" if manifest is not None else "placeholder immutable references"
-    print(f"{len(paths)} native Nomad jobs validated offline with real runtime files and {references}")
+    operation = "rendered" if render_json is not None else "validated offline"
+    print(f"{len(paths)} native Nomad jobs {operation} with real runtime files and {references}")
     print("Docker driver/runtime availability requires the deployment environment; no containers or jobs were started")
 
 
@@ -173,7 +166,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=lambda value: Path(value).resolve(), help="Validate committed image/secret references")
     parser.add_argument("--render-json", type=lambda value: Path(value).resolve(), help="Write {jobID: native parsed job} without submitting jobs")
-    parser.add_argument("--render-only", action="store_true", help="Validate and render release jobs without local Compose or repository-wide checks")
+    parser.add_argument("--render-only", action="store_true", help="Render release jobs without repeating CI validation")
     parser.add_argument("--vault-mount", default=os.environ.get("VAULT_KV_MOUNT", "secret"))
     args = parser.parse_args()
     if args.render_json is not None and args.manifest is None:

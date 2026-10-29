@@ -1,7 +1,7 @@
 ---
 paths:
   - "cowork-*/**/*.{kt,java,go,ts,cs}"
-  - "deploy/{compose/**,ansible/**,nomad/**,production/**,runtime/**,tofu/**}"
+  - "deploy/{ansible/**,nomad/**,production/**,runtime/**,tofu/**}"
 ---
 
 # Security
