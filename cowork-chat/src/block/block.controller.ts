@@ -1,56 +1,56 @@
 import {
-    Controller,
-    Delete,
-    Get,
-    HttpCode,
-    HttpStatus,
-    Param,
-    Post,
+	Controller as controller,
+	Delete as httpDelete,
+	Get as httpGet,
+	HttpCode as httpCode,
+	HttpStatus,
+	Param as requestParameter,
+	Post as httpPost,
 } from '@nestjs/common';
 import {
-    ApiNoContentResponse,
-    ApiOkResponse,
-    ApiOperation,
-    ApiParam,
-    ApiTags,
+	ApiNoContentResponse as apiNoContentResponse,
+	ApiOkResponse as apiOkResponse,
+	ApiOperation as apiOperation,
+	ApiParam as apiParameter,
+	ApiTags as apiTags,
 } from '@nestjs/swagger';
-import {UserId} from '../common/decorator/user.decorator';
-import {SafePositiveIntPipe} from '../common/pipe/safe-positive-int.pipe';
-import {BlockService} from './block.service';
+import {currentUserId} from '../common/decorator/user.decorator.js';
+import {SafePositiveIntPipe} from '../common/pipe/safe-positive-int.pipe.js';
+import {BlockService} from './block.service.js';
 
-@ApiTags('block')
-@Controller('block')
+@apiTags('block')
+@controller('block')
 export class BlockController {
-    constructor(private readonly blockService: BlockService) {}
+	constructor(private readonly blockService: BlockService) {}
 
-    @Post(':targetUserId')
-    @HttpCode(HttpStatus.NO_CONTENT)
-    @ApiOperation({summary: '사용자 차단 — DM 메시지 수신 거부'})
-    @ApiParam({name: 'targetUserId', description: '차단할 사용자 ID', type: Number})
-    @ApiNoContentResponse({description: '차단 성공'})
-    blockUser(
-        @UserId() userId: number,
-        @Param('targetUserId', SafePositiveIntPipe) targetUserId: number,
-    ) {
-        return this.blockService.blockUser(userId, targetUserId);
-    }
+	@httpPost(':targetUserId')
+	@httpCode(HttpStatus.NO_CONTENT)
+	@apiOperation({summary: '사용자 차단 — DM 메시지 수신 거부'})
+	@apiParameter({name: 'targetUserId', description: '차단할 사용자 ID', type: Number})
+	@apiNoContentResponse({description: '차단 성공'})
+	async blockUser(
+		@currentUserId() userId: number,
+		@requestParameter('targetUserId', SafePositiveIntPipe) targetUserId: number,
+	) {
+		return this.blockService.blockUser(userId, targetUserId);
+	}
 
-    @Delete(':targetUserId')
-    @HttpCode(HttpStatus.NO_CONTENT)
-    @ApiOperation({summary: '차단 해제'})
-    @ApiParam({name: 'targetUserId', description: '차단 해제할 사용자 ID', type: Number})
-    @ApiNoContentResponse({description: '차단 해제 성공'})
-    unblockUser(
-        @UserId() userId: number,
-        @Param('targetUserId', SafePositiveIntPipe) targetUserId: number,
-    ) {
-        return this.blockService.unblockUser(userId, targetUserId);
-    }
+	@httpDelete(':targetUserId')
+	@httpCode(HttpStatus.NO_CONTENT)
+	@apiOperation({summary: '차단 해제'})
+	@apiParameter({name: 'targetUserId', description: '차단 해제할 사용자 ID', type: Number})
+	@apiNoContentResponse({description: '차단 해제 성공'})
+	async unblockUser(
+		@currentUserId() userId: number,
+		@requestParameter('targetUserId', SafePositiveIntPipe) targetUserId: number,
+	) {
+		return this.blockService.unblockUser(userId, targetUserId);
+	}
 
-    @Get()
-    @ApiOperation({summary: '차단 목록 조회'})
-    @ApiOkResponse({schema: {type: 'array', items: {type: 'number'}, example: [2, 5, 13]}})
-    getBlockedUsers(@UserId() userId: number) {
-        return this.blockService.getBlockedUsers(userId);
-    }
+	@httpGet()
+	@apiOperation({summary: '차단 목록 조회'})
+	@apiOkResponse({schema: {type: 'array', items: {type: 'number'}, example: [2, 5, 13]}})
+	async getBlockedUsers(@currentUserId() userId: number) {
+		return this.blockService.getBlockedUsers(userId);
+	}
 }

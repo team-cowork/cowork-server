@@ -1,11 +1,13 @@
+import {Buffer} from 'node:buffer';
 import {randomUUID} from 'node:crypto';
-import {Injectable} from '@nestjs/common';
-import {InjectModel} from '@nestjs/mongoose';
+import {Injectable as injectable} from '@nestjs/common';
+import {InjectModel as injectModel} from '@nestjs/mongoose';
 import {Model, PipelineStage, Types} from 'mongoose';
-import {ConfirmedAttachment} from '../../storage/attachment-upload.schema';
-import {Message, MessageDocument, type WebhookMessageAuthor} from '../schema';
+import {ConfirmedAttachment} from '../../storage/attachment-upload.schema.js';
+import {Message, MessageDocument, type WebhookMessageAuthor} from '../schema/index.js';
 // 검색 배럴은 이 저장소를 사용하는 서비스를 다시 불러오므로 직접 import한다.
-import {isSearchIndexed} from '../search/message-index-scope';
+import {isSearchIndexed} from '../search/message-index-scope.js';
+import {type Nullable} from '../../common/type/nullable.js';
 
 /**
 한 번에 조회하는 최대 메시지 수
@@ -28,12 +30,12 @@ const MAX_EDIT_HISTORY_ENTRIES = 20;
 {@link MessageRow}에 필요한 필드만 남기는 프로젝션. `editHistory` 등 클라이언트 미사용 필드 전송을 막는다.
 */
 const MESSAGE_ROW_PROJECTION: PipelineStage.Project = {
-    $project: {
-        _id: 1, teamId: 1, projectId: 1, channelId: 1, authorId: 1, webhook: 1,
-        content: 1, type: 1, attachments: 1, parentMessageId: 1,
-        isEdited: 1, isPinned: 1, clientMessageId: 1, mentions: 1,
-        reactions: 1, createdAt: 1, updatedAt: 1, mentionedMessage: 1,
-    },
+	$project: {
+		_id: 1, teamId: 1, projectId: 1, channelId: 1, authorId: 1, webhook: 1,
+		content: 1, type: 1, attachments: 1, parentMessageId: 1,
+		isEdited: 1, isPinned: 1, clientMessageId: 1, mentions: 1,
+		reactions: 1, createdAt: 1, updatedAt: 1, mentionedMessage: 1,
+	},
 };
 
 /**
@@ -48,41 +50,41 @@ const FILE_ATTACHMENT_LIMIT = 100;
  `fileId`는 커서 기반 페이지네이션에 사용되는 base64 인코딩 커서 문자열입니다.
  */
 export type FileAttachmentRow = {
-    /**
+	/**
     커서 기반 페이지네이션에 사용되는 base64 인코딩 커서 값
     */
-    fileId: string;
-    /**
+	fileId: string;
+	/**
     첨부 파일이 속한 메시지의 ObjectId 문자열
     */
-    messageId: string;
-    fileName: string;
-    fileSize: number;
-    objectKey?: string;
-    mimeType: string;
-    /**
+	messageId: string;
+	fileName: string;
+	fileSize: number;
+	objectKey?: string;
+	mimeType: string;
+	/**
     파일을 업로드한 메시지 작성자의 사용자 ID
     */
-    uploaderId: number;
-    /**
+	uploaderId: number;
+	/**
     메시지 생성 시각 (ISO 8601 문자열)
     */
-    uploadedAt: string;
-    /**
+	uploadedAt: string;
+	/**
     메시지 내 첨부 파일 배열에서의 0-based 인덱스
     */
-    attachmentIndex: number;
+	attachmentIndex: number;
 };
 
 /**
 {@link findFileAttachments}의 집계 파이프라인 `$project` 결과 행 타입.
 */
 type FileAttachmentAggregateRow = {
-    _id: Types.ObjectId;
-    authorId: number;
-    createdAt: Date;
-    attachmentIndex?: number;
-    attachment: {name: string; objectKey?: string; url?: string; size: number; mimeType: string};
+	_id: Types.ObjectId;
+	authorId: number;
+	createdAt: Date;
+	attachmentIndex?: number;
+	attachment: {name: string; objectKey?: string; url?: string; size: number; mimeType: string};
 };
 
 /**
@@ -90,20 +92,20 @@ type FileAttachmentAggregateRow = {
  `notificationStatus`는 생성 시점에 외부에서 명시적으로 지정합니다.
  */
 export type CreateMessageInput = {
-    /**
+	/**
     DM 채널 메시지는 팀에 속하지 않으므로 null
     */
-    teamId: number | null;
-    projectId: number | null;
-    channelId: number;
-    authorId: number;
-    content: string;
-    type: string;
-    attachments: ConfirmedAttachment[];
-    parentMessageId: Types.ObjectId | null;
-    clientMessageId?: string;
-    mentions: number[];
-    notificationStatus: string;
+	teamId: Nullable<number>;
+	projectId: Nullable<number>;
+	channelId: number;
+	authorId: number;
+	content: string;
+	type: string;
+	attachments: ConfirmedAttachment[];
+	parentMessageId: Nullable<Types.ObjectId>;
+	clientMessageId?: string;
+	mentions: number[];
+	notificationStatus: string;
 };
 
 /**
@@ -117,12 +119,12 @@ export type NotificationMessage = Message & {_id: Types.ObjectId; createdAt: Dat
  메시지 목록 응답에서 `mentionedMessage` 필드로 포함됩니다.
  */
 export type MentionedMessageRow = {
-    _id: Types.ObjectId;
-    authorId: number | null;
-    webhook?: WebhookMessageAuthor;
-    content: string;
-    type: string;
-    createdAt: Date;
+	_id: Types.ObjectId;
+	authorId: Nullable<number>;
+	webhook?: WebhookMessageAuthor;
+	content: string;
+	type: string;
+	createdAt: Date;
 };
 
 /**
@@ -130,27 +132,27 @@ export type MentionedMessageRow = {
  `mentionedMessage`는 `parentMessageId`가 있을 때만 채워지며, 없으면 `null`입니다.
  */
 export type MessageRow = {
-    _id: Types.ObjectId;
-    teamId: number | null;
-    projectId: number | null;
-    channelId: number;
-    authorId: number | null;
-    webhook?: WebhookMessageAuthor;
-    content: string;
-    type: string;
-    attachments: Array<{name: string; objectKey?: string; url?: string; size: number; mimeType: string}>;
-    parentMessageId: Types.ObjectId | null;
-    isEdited: boolean;
-    isPinned: boolean;
-    clientMessageId?: string | null;
-    mentions: number[];
-    reactions?: Array<{emoji: string; userIds: number[]}>;
-    createdAt: Date;
-    updatedAt: Date;
-    /**
+	_id: Types.ObjectId;
+	teamId: Nullable<number>;
+	projectId: Nullable<number>;
+	channelId: number;
+	authorId: Nullable<number>;
+	webhook?: WebhookMessageAuthor;
+	content: string;
+	type: string;
+	attachments: Array<{name: string; objectKey?: string; url?: string; size: number; mimeType: string}>;
+	parentMessageId: Nullable<Types.ObjectId>;
+	isEdited: boolean;
+	isPinned: boolean;
+	clientMessageId?: Nullable<string>;
+	mentions: number[];
+	reactions?: Array<{emoji: string; userIds: number[]}>;
+	createdAt: Date;
+	updatedAt: Date;
+	/**
     스레드 부모 메시지 요약. 부모가 없거나 삭제된 경우 `null`
     */
-    mentionedMessage: MentionedMessageRow | null;
+	mentionedMessage: Nullable<MentionedMessageRow>;
 };
 
 /**
@@ -169,25 +171,25 @@ export type MessageBroadcastPayload = Omit<MessageRow, 'mentionedMessage'>;
  이는 기존 `saved.toObject()` 방식에서도 마찬가지였던 동작이라 회귀가 아닙니다.
  */
 export function toMessageBroadcastPayload(doc: MessageDocument): MessageBroadcastPayload {
-    const {
-        _id, teamId, projectId, channelId, authorId, webhook, content, type,
-        attachments, parentMessageId, isEdited, isPinned, clientMessageId,
-        mentions, reactions, createdAt, updatedAt,
-    } = doc.toObject();
-    return {
-        _id, teamId, projectId, channelId, authorId, webhook, content, type,
-        attachments: publicAttachments(attachments), parentMessageId, isEdited, isPinned, clientMessageId,
-        mentions, reactions, createdAt, updatedAt,
-    };
+	const {
+		_id, teamId, projectId, channelId, authorId, webhook, content, type,
+		attachments, parentMessageId, isEdited, isPinned, clientMessageId,
+		mentions, reactions, createdAt, updatedAt,
+	} = doc.toObject();
+	return {
+		_id, teamId, projectId, channelId, authorId, webhook, content, type,
+		attachments: publicAttachments(attachments), parentMessageId, isEdited, isPinned, clientMessageId,
+		mentions, reactions, createdAt, updatedAt,
+	};
 }
 
 /**
 Never return persisted legacy object URLs to API or WebSocket clients.
 */
 export function publicAttachments(attachments: MessageRow['attachments']): MessageRow['attachments'] {
-    return attachments.map(({name, size, mimeType, objectKey}) => ({
-        name, size, mimeType, objectKey,
-    }));
+	return attachments.map(({name, size, mimeType, objectKey}) => ({
+		name, size, mimeType, objectKey,
+	}));
 }
 
 /**
@@ -201,13 +203,102 @@ type ReactionDoc = {reactions: Array<{emoji: string; userIds: number[]}>};
  단순 CRUD 외에 커서 기반 페이지네이션, 이모지 반응 동시성 처리,
  아웃박스(outbox) 패턴 알림 상태 관리 등의 비자명한 로직을 캡슐화합니다.
  */
-@Injectable()
+@injectable()
 export class MessageRepository {
-    constructor(
-        @InjectModel(Message.name) private readonly messageModel: Model<Message>,
-    ) {}
+	constructor(
+		@injectModel(Message.name) private readonly messageModel: Model<Message>,
+	) {}
 
-    /**
+	/**
+     파일 커서 문자열을 디코딩하여 MongoDB 집계에서 사용할 `$match` 조건을 생성합니다.
+
+     `(createdAt, _id, attachmentIndex)` 복합 커서를 사용하여
+     커서 이전의 항목만 반환하는 `$or` 조건을 구성합니다.
+
+     @param before - base64 인코딩된 커서 문자열
+     @returns MongoDB `$match` 조건 객체. 커서가 유효하지 않으면 `null`
+     */
+	private buildFileCursorMatch(before: string): Nullable<Record<string, unknown>> {
+		const cursor = this.decodeFileCursor(before);
+		if (!cursor) {
+			return null;
+		}
+
+		return {
+			$or: [
+				{createdAt: {$lt: new Date(cursor.uploadedAt)}},
+				{
+					createdAt: new Date(cursor.uploadedAt),
+					_id: {$lt: new Types.ObjectId(cursor.messageId)},
+				},
+				{
+					createdAt: new Date(cursor.uploadedAt),
+					_id: new Types.ObjectId(cursor.messageId),
+					attachmentIndex: {$lt: cursor.attachmentIndex},
+				},
+			],
+		};
+	}
+
+	/**
+     집계 결과 행을 base64 인코딩된 커서 문자열로 변환합니다.
+
+     커서 구성 요소: `{ uploadedAt: ISO8601, messageId: ObjectId 문자열, attachmentIndex: number }`
+     이를 JSON 직렬화 후 base64 인코딩하여 클라이언트에 불투명(opaque) 커서로 전달합니다.
+
+     @param row - 집계 결과의 단일 행 (`_id`, `createdAt`, `attachmentIndex` 필드 필요)
+     @returns base64 인코딩된 커서 문자열. `row`가 falsy이면 `null`
+     */
+	private encodeFileCursor(row: FileAttachmentAggregateRow | undefined): Nullable<string> {
+		if (!row) {
+			return null;
+		}
+
+		return Buffer.from(JSON.stringify({
+			uploadedAt: row.createdAt.toISOString(),
+			messageId: row._id.toString(),
+			attachmentIndex: row.attachmentIndex ?? 0,
+		})).toString('base64url');
+	}
+
+	/**
+     Base64 인코딩된 커서 문자열을 파싱하여 커서 객체로 반환합니다.
+
+     파싱 실패, 타입 불일치, 잘못된 날짜 형식, 유효하지 않은 ObjectId 등
+     모든 유효하지 않은 입력에 대해 예외를 던지지 않고 `null`을 반환합니다.
+
+     @param before - base64 인코딩된 커서 문자열
+     @returns 파싱된 커서 객체 `{ uploadedAt, messageId, attachmentIndex }`. 유효하지 않으면 `null`
+     */
+	private decodeFileCursor(before: string): Nullable<{uploadedAt: string; messageId: string; attachmentIndex: number}> {
+		try {
+			const parsed = JSON.parse(Buffer.from(before, 'base64url').toString('utf8')) as {
+				uploadedAt?: unknown;
+				messageId?: unknown;
+				attachmentIndex?: unknown;
+			};
+
+			if (
+				typeof parsed.uploadedAt !== 'string'
+				|| typeof parsed.messageId !== 'string'
+				|| typeof parsed.attachmentIndex !== 'number'
+				|| Number.isNaN(Date.parse(parsed.uploadedAt))
+				|| !Types.ObjectId.isValid(parsed.messageId)
+			) {
+				return null;
+			}
+
+			return {
+				uploadedAt: parsed.uploadedAt,
+				messageId: parsed.messageId,
+				attachmentIndex: parsed.attachmentIndex,
+			};
+		} catch {
+			return null;
+		}
+	}
+
+	/**
      채널의 메시지 목록을 최신순으로 최대 100개 조회합니다.
 
      `before`가 주어지면 해당 ObjectId보다 작은(이전) 메시지만 조회하여
@@ -221,65 +312,65 @@ export class MessageRepository {
      @param parentMessageId - 이 메시지에 달린 답글만 조회할 부모 메시지 식별자. 생략 시 채널 전체 조회
      @returns 배열 (최신순 정렬, 최대 100개)
      */
-    async findMessages(channelId: number, before?: string, parentMessageId?: string): Promise<MessageRow[]> {
-        const query: Record<string, unknown> = {
-            webhookDeleted: {$ne: true},
-            channelId,
-            ...(before !== undefined && before !== '' && {_id: {$lt: new Types.ObjectId(before)}}),
-            ...(parentMessageId !== undefined && parentMessageId !== '' && {parentMessageId: new Types.ObjectId(parentMessageId)}),
-        };
+	async findMessages(channelId: number, before?: string, parentMessageId?: string): Promise<MessageRow[]> {
+		const query: Record<string, unknown> = {
+			webhookDeleted: {$ne: true},
+			channelId,
+			...(before !== undefined && before !== '' && {_id: {$lt: new Types.ObjectId(before)}}),
+			...(parentMessageId !== undefined && parentMessageId !== '' && {parentMessageId: new Types.ObjectId(parentMessageId)}),
+		};
 
-        const lookupStages = parentMessageId !== undefined && parentMessageId !== ''
-            ? [{$addFields: {mentionedMessage: null}}]
-            : [
-                {
-                    $lookup: {
-                        from: this.messageModel.collection.name,
-                        localField: 'parentMessageId',
-                        foreignField: '_id',
-                        as: 'mentionedMessage',
-                        pipeline: [
-                            {$match: {webhookDeleted: {$ne: true}, channelId}},
-                            {
-                                $project: {
-                                    _id: 1,
-                                    authorId: 1,
-                                    webhook: 1,
-                                    content: 1,
-                                    type: 1,
-                                    createdAt: 1,
-                                },
-                            },
-                        ],
-                    },
-                },
-                {
-                    $addFields: {
-                        mentionedMessage: {$arrayElemAt: ['$mentionedMessage', 0]},
-                    },
-                },
-            ];
+		const lookupStages = parentMessageId !== undefined && parentMessageId !== ''
+			? [{$addFields: {mentionedMessage: null}}]
+			: [
+				{
+					$lookup: {
+						from: this.messageModel.collection.name,
+						localField: 'parentMessageId',
+						foreignField: '_id',
+						as: 'mentionedMessage',
+						pipeline: [
+							{$match: {webhookDeleted: {$ne: true}, channelId}},
+							{
+								$project: {
+									_id: 1,
+									authorId: 1,
+									webhook: 1,
+									content: 1,
+									type: 1,
+									createdAt: 1,
+								},
+							},
+						],
+					},
+				},
+				{
+					$addFields: {
+						mentionedMessage: {$arrayElemAt: ['$mentionedMessage', 0]},
+					},
+				},
+			];
 
-        return this.messageModel.aggregate([
-            {$match: query},
-            {$sort: {_id: -1}},
-            {$limit: MESSAGE_FETCH_LIMIT},
-            ...lookupStages,
-            MESSAGE_ROW_PROJECTION,
-        ]);
-    }
+		return this.messageModel.aggregate([
+			{$match: query},
+			{$sort: {_id: -1}},
+			{$limit: MESSAGE_FETCH_LIMIT},
+			...lookupStages,
+			MESSAGE_ROW_PROJECTION,
+		]);
+	}
 
-    /**
+	/**
      ObjectId로 메시지 도큐먼트를 조회합니다.
 
      @param messageId - 조회할 메시지의 ObjectId 문자열
      @returns Mongoose 도큐먼트. 존재하지 않으면 `null`
      */
-    async findById(messageId: string): Promise<MessageDocument | null> {
-        return this.messageModel.findOne({_id: messageId, webhookDeleted: {$ne: true}});
-    }
+	async findById(messageId: string): Promise<Nullable<MessageDocument>> {
+		return this.messageModel.findOne({_id: messageId, webhookDeleted: {$ne: true}});
+	}
 
-    /**
+	/**
      MessageId와 channelId를 함께 사용하여 메시지를 조회합니다.
 
      채널 귀속 검증이 필요한 경우(예: 권한 확인)에 사용하며,
@@ -289,35 +380,35 @@ export class MessageRepository {
      @param channelId - 메시지가 속해야 하는 채널의 식별자
      @returns Mongoose 도큐먼트. 존재하지 않거나 채널이 불일치하면 `null`
      */
-    async findByIdAndChannelId(messageId: string, channelId: number): Promise<MessageDocument | null> {
-        return this.messageModel.findOne({_id: messageId, channelId, webhookDeleted: {$ne: true}});
-    }
+	async findByIdAndChannelId(messageId: string, channelId: number): Promise<Nullable<MessageDocument>> {
+		return this.messageModel.findOne({_id: messageId, channelId, webhookDeleted: {$ne: true}});
+	}
 
-    /**
+	/**
      특정 메시지를 삭제합니다.
 
      @param messageId - 삭제할 메시지의 ObjectId 문자열
      @returns Mongoose `deleteOne` 결과 객체
      */
-    async deleteById(messageId: string) {
-        // Keep the unique delivery key atomically with deletion; a retry must never recreate a deleted message.
-        const retained = await this.messageModel.updateOne(
-            {_id: messageId, webhookDeliveryKey: {$type: 'string'}},
-            [{
-                $replaceWith: {
-                    _id: '$_id',
-                    webhook: {id: '$webhook.id'},
-                    webhookDeliveryKey: '$webhookDeliveryKey',
-                    webhookRequestHash: '$webhookRequestHash',
-                    webhookDeleted: true,
-                },
-            }],
-            {timestamps: false, updatePipeline: true},
-        );
-        return retained.matchedCount > 0 ? {acknowledged: retained.acknowledged, deletedCount: 1} : this.messageModel.deleteOne({_id: messageId, webhookDeliveryKey: {$exists: false}});
-    }
+	async deleteById(messageId: string) {
+		// Keep the unique delivery key atomically with deletion; a retry must never recreate a deleted message.
+		const retained = await this.messageModel.updateOne(
+			{_id: messageId, webhookDeliveryKey: {$type: 'string'}},
+			[{
+				$replaceWith: {
+					_id: '$_id',
+					webhook: {id: '$webhook.id'},
+					webhookDeliveryKey: '$webhookDeliveryKey',
+					webhookRequestHash: '$webhookRequestHash',
+					webhookDeleted: true,
+				},
+			}],
+			{timestamps: false, updatePipeline: true},
+		);
+		return retained.matchedCount > 0 ? {acknowledged: retained.acknowledged, deletedCount: 1} : this.messageModel.deleteOne({_id: messageId, webhookDeliveryKey: {$exists: false}});
+	}
 
-    /**
+	/**
      새 메시지 도큐먼트를 생성합니다.
 
      색인 대상 메시지는 같은 쓰기에서 검색 색인 아웃박스를 `PENDING`으로 열어두므로,
@@ -326,17 +417,17 @@ export class MessageRepository {
      @param input - 생성할 메시지의 필드 값 ({@link CreateMessageInput})
      @returns 생성된 Mongoose 도큐먼트
      */
-    async createMessage(input: CreateMessageInput) {
-        const isIndexed = isSearchIndexed(input);
-        return this.messageModel.create({
-            ...input,
-            searchIndexStatus: isIndexed ? 'PENDING' : 'SKIPPED',
-            searchIndexVersion: isIndexed ? 1 : 0,
-            searchIndexNextAttemptAt: isIndexed ? new Date() : null,
-        });
-    }
+	async createMessage(input: CreateMessageInput) {
+		const isIndexed = isSearchIndexed(input);
+		return this.messageModel.create({
+			...input,
+			searchIndexStatus: isIndexed ? 'PENDING' : 'SKIPPED',
+			searchIndexVersion: isIndexed ? 1 : 0,
+			searchIndexNextAttemptAt: isIndexed ? new Date() : null,
+		});
+	}
 
-    /**
+	/**
      메시지 본문을 원자적으로 수정하고 색인 아웃박스 의도를 같은 쓰기에 남깁니다.
 
      도큐먼트를 읽어와 `save()`하는 대신 단일 갱신을 사용하므로 동시 수정이 서로의
@@ -348,34 +439,34 @@ export class MessageRepository {
      @param isIndexed - 검색 색인 대상 메시지인지 여부
      @returns 수정된 도큐먼트. 메시지가 없거나 삭제 중이면 `null`
      */
-    async applyEdit(messageId: string, content: string, isIndexed: boolean): Promise<MessageDocument | null> {
-        const now = new Date();
-        return this.messageModel.findOneAndUpdate(
-            {_id: messageId, webhookDeleted: {$ne: true}, searchIndexStatus: {$ne: 'DELETING'}},
-            [{
-                $set: {
-                    content,
-                    isEdited: true,
-                    editHistory: {
-                        $slice: [
-                            {
-                                $concatArrays: [
-                                    {$ifNull: ['$editHistory', []]},
-                                    [{content: '$content', editedAt: now}],
-                                ],
-                            },
-                            -MAX_EDIT_HISTORY_ENTRIES,
-                        ],
-                    },
-                    updatedAt: now,
-                    ...searchIndexIntent(isIndexed, now),
-                },
-            }],
-            {new: true, timestamps: false, updatePipeline: true},
-        );
-    }
+	async applyEdit(messageId: string, content: string, isIndexed: boolean): Promise<Nullable<MessageDocument>> {
+		const now = new Date();
+		return this.messageModel.findOneAndUpdate(
+			{_id: messageId, webhookDeleted: {$ne: true}, searchIndexStatus: {$ne: 'DELETING'}},
+			[{
+				$set: {
+					content,
+					isEdited: true,
+					editHistory: {
+						$slice: [
+							{
+								$concatArrays: [
+									{$ifNull: ['$editHistory', []]},
+									[{content: '$content', editedAt: now}],
+								],
+							},
+							-MAX_EDIT_HISTORY_ENTRIES,
+						],
+					},
+					updatedAt: now,
+					...searchIndexIntent(isIndexed, now),
+				},
+			}],
+			{new: true, timestamps: false, updatePipeline: true},
+		);
+	}
 
-    /**
+	/**
      메시지 고정 상태를 원자적으로 바꾸고 색인 아웃박스 의도를 같은 쓰기에 남깁니다.
 
      @param messageId - 수정할 메시지 ID
@@ -383,16 +474,16 @@ export class MessageRepository {
      @param isIndexed - 검색 색인 대상 메시지인지 여부
      @returns 갱신된 도큐먼트. 메시지가 없거나 삭제 중이면 `null`
      */
-    async setPinned(messageId: string, isPinned: boolean, isIndexed: boolean): Promise<MessageDocument | null> {
-        const now = new Date();
-        return this.messageModel.findOneAndUpdate(
-            {_id: messageId, webhookDeleted: {$ne: true}, searchIndexStatus: {$ne: 'DELETING'}},
-            [{$set: {isPinned, updatedAt: now, ...searchIndexIntent(isIndexed, now)}}],
-            {new: true, timestamps: false, updatePipeline: true},
-        );
-    }
+	async setPinned(messageId: string, isPinned: boolean, isIndexed: boolean): Promise<Nullable<MessageDocument>> {
+		const now = new Date();
+		return this.messageModel.findOneAndUpdate(
+			{_id: messageId, webhookDeleted: {$ne: true}, searchIndexStatus: {$ne: 'DELETING'}},
+			[{$set: {isPinned, updatedAt: now, ...searchIndexIntent(isIndexed, now)}}],
+			{new: true, timestamps: false, updatePipeline: true},
+		);
+	}
 
-    /**
+	/**
      삭제 직전에 색인 버전을 예약하고 메시지를 `DELETING`으로 고정합니다.
 
      예약 이후에는 본문·고정 변경이 더 이상 버전을 올리지 못하므로, tombstone이 사용할
@@ -401,65 +492,70 @@ export class MessageRepository {
 
      @returns 예약된 도큐먼트. 메시지가 없거나 이미 삭제 예약된 경우 `null`
      */
-    async reserveDeletion(messageId: string): Promise<MessageDocument | null> {
-        const now = new Date();
-        return this.messageModel.findOneAndUpdate(
-            {_id: messageId, webhookDeleted: {$ne: true}, searchIndexStatus: {$ne: 'DELETING'}},
-            [{
-                $set: {
-                    searchIndexStatus: 'DELETING',
-                    searchIndexVersion: {$add: [{$max: [{$ifNull: ['$searchIndexVersion', 0]}, 1]}, 1]},
-                    searchIndexProcessingStartedAt: now,
-                    updatedAt: now,
-                },
-            }],
-            {new: true, timestamps: false, updatePipeline: true},
-        );
-    }
+	async reserveDeletion(messageId: string): Promise<Nullable<MessageDocument>> {
+		const now = new Date();
+		return this.messageModel.findOneAndUpdate(
+			{_id: messageId, webhookDeleted: {$ne: true}, searchIndexStatus: {$ne: 'DELETING'}},
+			[{
+				$set: {
+					searchIndexStatus: 'DELETING',
+					searchIndexVersion: {$add: [{$max: [{$ifNull: ['$searchIndexVersion', 0]}, 1]}, 1]},
+					searchIndexProcessingStartedAt: now,
+					updatedAt: now,
+				},
+			}],
+			{new: true, timestamps: false, updatePipeline: true},
+		);
+	}
 
-    /**
+	/**
     메시지가 여전히 존재하는지 확인합니다. {@link reserveDeletion} 실패 원인을 구분하는 데 사용합니다.
     */
-    async existsById(messageId: string): Promise<boolean> {
-        return (await this.messageModel.exists({_id: messageId, webhookDeleted: {$ne: true}})) !== null;
-    }
+	async existsById(messageId: string): Promise<boolean> {
+		return (await this.messageModel.exists({_id: messageId, webhookDeleted: {$ne: true}})) !== null;
+	}
 
-    /**
+	/**
      시스템 메시지를 생성합니다.
 
      시스템 메시지는 `type: 'SYSTEM'`으로 고정되며, 알림 발송 대상에서 제외하기 위해
      `notificationStatus`를 초기값인 `'PENDING'` 대신 `'SENT'`로 설정합니다.
      `clientMessageId`는 `undefined`로 설정하여 멱등성 키 중복 검사를 우회합니다.
 
-     @param teamId - 시스템 메시지를 게시할 팀의 식별자
-     @param channelId - 시스템 메시지를 게시할 채널의 식별자
-     @param content - 시스템 메시지 본문
-     @param projectId - 채널이 속한 프로젝트 ID. 없으면 `null`
-     @param authorId - 시스템 행위자로 기록할 사용자 ID (예: 채널 생성자)
+     @param message - 게시할 시스템 메시지
+     @param message.teamId - 시스템 메시지를 게시할 팀의 식별자
+     @param message.channelId - 시스템 메시지를 게시할 채널의 식별자
+     @param message.content - 시스템 메시지 본문
+     @param message.projectId - 채널이 속한 프로젝트 ID. 없으면 `null`
+     @param message.authorId - 시스템 행위자로 기록할 사용자 ID (예: 채널 생성자)
      @returns 생성된 Mongoose 도큐먼트
      */
-    async createSystemMessage(
-        teamId: number,
-        channelId: number,
-        content: string,
-        projectId: number | null,
-        authorId: number,
-    ) {
-        return this.messageModel.create({
-            teamId,
-            projectId,
-            channelId,
-            authorId,
-            content,
-            type: 'SYSTEM',
-            attachments: [],
-            mentions: [],
-            clientMessageId: undefined,
-            notificationStatus: 'SENT',
-        });
-    }
+	async createSystemMessage(
+		message: {
+			teamId: number;
+			channelId: number;
+			content: string;
+			projectId: Nullable<number>;
+			authorId: number;
+		},
 
-    /**
+	) {
+		const {teamId, channelId, content, projectId, authorId} = message;
+		return this.messageModel.create({
+			teamId,
+			projectId,
+			channelId,
+			authorId,
+			content,
+			type: 'SYSTEM',
+			attachments: [],
+			mentions: [],
+			clientMessageId: undefined,
+			notificationStatus: 'SENT',
+		});
+	}
+
+	/**
      채널의 파일 첨부 목록을 커서 기반 페이지네이션으로 조회합니다.
 
      내부적으로 `$unwind`로 `attachments` 배열을 펼쳐 각 첨부 파일을 개별 행으로 만들고,
@@ -477,76 +573,76 @@ export class MessageRepository {
      @param limit - 한 페이지에 반환할 최대 항목 수
      @returns `items`: {@link FileAttachmentRow} 배열, `nextCursor`: 다음 페이지 커서 (마지막 페이지이면 `null`)
      */
-    async findFileAttachments(
-        channelId: number,
-        before: string | undefined,
-        limit: number,
-    ): Promise<{items: FileAttachmentRow[]; nextCursor: string | null}> {
-        const safeLimit = Math.min(Math.max(limit, 1), FILE_ATTACHMENT_LIMIT);
-        const cursorMatch = before !== undefined && before !== '' ? this.buildFileCursorMatch(before) : null;
+	async findFileAttachments(
+		channelId: number,
+		before: string | undefined,
+		limit: number,
+	): Promise<{items: FileAttachmentRow[]; nextCursor: Nullable<string>}> {
+		const safeLimit = Math.min(Math.max(limit, 1), FILE_ATTACHMENT_LIMIT);
+		const cursorMatch = before !== undefined && before !== '' ? this.buildFileCursorMatch(before) : null;
 
-        const pipeline: PipelineStage[] = [
-            {
-                $match: {
-                    webhookDeleted: {$ne: true},
-                    channelId,
-                    type: 'FILE',
-                    'attachments.0': {$exists: true},
-                },
-            },
-            {
-                $unwind: {
-                    path: '$attachments',
-                    includeArrayIndex: 'attachmentIndex',
-                },
-            },
-            ...(cursorMatch ? [{$match: cursorMatch}] : []),
-            {
-                $sort: {
-                    createdAt: -1,
-                    _id: -1,
-                    attachmentIndex: -1,
-                },
-            },
-            {$limit: safeLimit + 1},
-            {
-                $project: {
-                    _id: 1,
-                    authorId: 1,
-                    createdAt: 1,
-                    attachmentIndex: 1,
-                    attachment: '$attachments',
-                },
-            },
-        ];
+		const pipeline: PipelineStage[] = [
+			{
+				$match: {
+					webhookDeleted: {$ne: true},
+					channelId,
+					type: 'FILE',
+					'attachments.0': {$exists: true},
+				},
+			},
+			{
+				$unwind: {
+					path: '$attachments',
+					includeArrayIndex: 'attachmentIndex',
+				},
+			},
+			...(cursorMatch ? [{$match: cursorMatch}] : []),
+			{
+				$sort: {
+					createdAt: -1,
+					_id: -1,
+					attachmentIndex: -1,
+				},
+			},
+			{$limit: safeLimit + 1},
+			{
+				$project: {
+					_id: 1,
+					authorId: 1,
+					createdAt: 1,
+					attachmentIndex: 1,
+					attachment: '$attachments',
+				},
+			},
+		];
 
-        const rows = await this.messageModel.aggregate<FileAttachmentAggregateRow>(pipeline);
-        const hasNext = rows.length > safeLimit;
-        const pageRows = rows.slice(0, safeLimit);
-        const items: FileAttachmentRow[] = pageRows.map(row => {
-            const attachmentIndex = row.attachmentIndex ?? 0;
-            return {
-                fileId: this.encodeFileCursor(row)!,
-                messageId: row._id.toString(),
-                fileName: row.attachment.name,
-                fileSize: row.attachment.size,
-                objectKey: row.attachment.objectKey,
-                mimeType: row.attachment.mimeType,
-                uploaderId: row.authorId,
-                uploadedAt: row.createdAt.toISOString(),
-                attachmentIndex,
-            };
-        });
+		const rows = await this.messageModel.aggregate<FileAttachmentAggregateRow>(pipeline);
+		const hasNext = rows.length > safeLimit;
+		const pageRows = rows.slice(0, safeLimit);
+		const items: FileAttachmentRow[] = pageRows.map(row => {
+			const attachmentIndex = row.attachmentIndex ?? 0;
+			return {
+				fileId: this.encodeFileCursor(row)!,
+				messageId: row._id.toString(),
+				fileName: row.attachment.name,
+				fileSize: row.attachment.size,
+				objectKey: row.attachment.objectKey,
+				mimeType: row.attachment.mimeType,
+				uploaderId: row.authorId,
+				uploadedAt: row.createdAt.toISOString(),
+				attachmentIndex,
+			};
+		});
 
-        return {
-            items,
-            nextCursor: hasNext && pageRows.length > 0
-                ? this.encodeFileCursor(pageRows.at(-1))
-                : null,
-        };
-    }
+		return {
+			items,
+			nextCursor: hasNext && pageRows.length > 0
+				? this.encodeFileCursor(pageRows.at(-1))
+				: null,
+		};
+	}
 
-    /**
+	/**
      `PENDING` 상태인 메시지를 최대 `batchSize`개까지 원자적으로 `PROCESSING`으로 전환하고 반환합니다.
 
      아웃박스(outbox) 패턴에서 알림 워커가 배치 전체를 한 번에 점유하기 위한 3단계 연산입니다:
@@ -570,39 +666,39 @@ export class MessageRepository {
      @param batchSize - 이번 사이클에서 점유할 최대 메시지 수
      @returns 이번 호출에서 `PROCESSING`으로 전환된 {@link NotificationMessage} 배열 (`createdAt` 오름차순)
      */
-    async findPendingAndMarkProcessing(batchSize: number): Promise<NotificationMessage[]> {
-        const candidates = await this.messageModel
-            .find({webhookDeleted: {$ne: true}, notificationStatus: 'PENDING'})
-            .sort({createdAt: 1})
-            .limit(batchSize)
-            .select('_id')
-            .lean();
-        if (candidates.length === 0) {
-            return [];
-        }
+	async findPendingAndMarkProcessing(batchSize: number): Promise<NotificationMessage[]> {
+		const candidates = await this.messageModel
+			.find({webhookDeleted: {$ne: true}, notificationStatus: 'PENDING'})
+			.sort({createdAt: 1})
+			.limit(batchSize)
+			.select('_id')
+			.lean();
+		if (candidates.length === 0) {
+			return [];
+		}
 
-        const ids = candidates.map(c => c._id);
-        const notificationClaimId = randomUUID();
-        await this.messageModel.updateMany(
-            {webhookDeleted: {$ne: true}, _id: {$in: ids}, notificationStatus: 'PENDING'},
-            {
-                $set: {
-                    notificationStatus: 'PROCESSING',
-                    notificationProcessingStartedAt: new Date(),
-                    notificationClaimId,
-                },
-            },
-        );
+		const ids = candidates.map(c => c._id);
+		const notificationClaimId = randomUUID();
+		await this.messageModel.updateMany(
+			{webhookDeleted: {$ne: true}, _id: {$in: ids}, notificationStatus: 'PENDING'},
+			{
+				$set: {
+					notificationStatus: 'PROCESSING',
+					notificationProcessingStartedAt: new Date(),
+					notificationClaimId,
+				},
+			},
+		);
 
-        return this.messageModel
-            .find({
-                webhookDeleted: {$ne: true}, _id: {$in: ids}, notificationStatus: 'PROCESSING', notificationClaimId,
-            })
-            .sort({createdAt: 1})
-            .lean();
-    }
+		return this.messageModel
+			.find({
+				webhookDeleted: {$ne: true}, _id: {$in: ids}, notificationStatus: 'PROCESSING', notificationClaimId,
+			})
+			.sort({createdAt: 1})
+			.lean();
+	}
 
-    /**
+	/**
      PROCESSING 상태로 전환된 지 `staleThresholdMs` 이상 경과한 메시지를 PENDING으로 되돌립니다.
 
      폴러 프로세스가 크래시하면 메시지가 PROCESSING에 영구 stuck될 수 있습니다.
@@ -611,20 +707,20 @@ export class MessageRepository {
      @param staleThresholdMs - PROCESSING을 stale로 판단하는 경과 시간 (밀리초)
      @returns 회수된 메시지 수
      */
-    async reclaimStaleProcessing(staleThresholdMs: number): Promise<number> {
-        const staleBeforeDate = new Date(Date.now() - staleThresholdMs);
-        const result = await this.messageModel.updateMany(
-            {
-                webhookDeleted: {$ne: true},
-                notificationStatus: 'PROCESSING',
-                notificationProcessingStartedAt: {$lt: staleBeforeDate},
-            },
-            {$set: {notificationStatus: 'PENDING', notificationProcessingStartedAt: null, notificationClaimId: null}},
-        );
-        return result.modifiedCount;
-    }
+	async reclaimStaleProcessing(staleThresholdMs: number): Promise<number> {
+		const staleBeforeDate = new Date(Date.now() - staleThresholdMs);
+		const result = await this.messageModel.updateMany(
+			{
+				webhookDeleted: {$ne: true},
+				notificationStatus: 'PROCESSING',
+				notificationProcessingStartedAt: {$lt: staleBeforeDate},
+			},
+			{$set: {notificationStatus: 'PENDING', notificationProcessingStartedAt: null, notificationClaimId: null}},
+		);
+		return result.modifiedCount;
+	}
 
-    /**
+	/**
      채널의 고정 메시지 목록을 최신순으로 최대 100개 조회합니다.
 
      `findMessages`와 동일한 `$lookup` 집계로 부모 메시지를 `mentionedMessage`에 조인합니다.
@@ -632,42 +728,42 @@ export class MessageRepository {
      @param channelId - 고정 메시지를 조회할 채널의 식별자
      @returns 고정된 {@link MessageRow} 배열 (최신순 정렬, 최대 100개)
      */
-    async findPinnedMessages(channelId: number): Promise<MessageRow[]> {
-        return this.messageModel.aggregate([
-            {$match: {webhookDeleted: {$ne: true}, channelId, isPinned: true}},
-            {$sort: {_id: -1}},
-            {$limit: MESSAGE_FETCH_LIMIT},
-            {
-                $lookup: {
-                    from: this.messageModel.collection.name,
-                    localField: 'parentMessageId',
-                    foreignField: '_id',
-                    as: 'mentionedMessage',
-                    pipeline: [
-                        {$match: {webhookDeleted: {$ne: true}, channelId}},
-                        {
-                            $project: {
-                                _id: 1,
-                                authorId: 1,
-                                webhook: 1,
-                                content: 1,
-                                type: 1,
-                                createdAt: 1,
-                            },
-                        },
-                    ],
-                },
-            },
-            {
-                $addFields: {
-                    mentionedMessage: {$arrayElemAt: ['$mentionedMessage', 0]},
-                },
-            },
-            MESSAGE_ROW_PROJECTION,
-        ]);
-    }
+	async findPinnedMessages(channelId: number): Promise<MessageRow[]> {
+		return this.messageModel.aggregate([
+			{$match: {webhookDeleted: {$ne: true}, channelId, isPinned: true}},
+			{$sort: {_id: -1}},
+			{$limit: MESSAGE_FETCH_LIMIT},
+			{
+				$lookup: {
+					from: this.messageModel.collection.name,
+					localField: 'parentMessageId',
+					foreignField: '_id',
+					as: 'mentionedMessage',
+					pipeline: [
+						{$match: {webhookDeleted: {$ne: true}, channelId}},
+						{
+							$project: {
+								_id: 1,
+								authorId: 1,
+								webhook: 1,
+								content: 1,
+								type: 1,
+								createdAt: 1,
+							},
+						},
+					],
+				},
+			},
+			{
+				$addFields: {
+					mentionedMessage: {$arrayElemAt: ['$mentionedMessage', 0]},
+				},
+			},
+			MESSAGE_ROW_PROJECTION,
+		]);
+	}
 
-    /**
+	/**
      채널과 부모 메시지 ID 쌍으로 작성자 정보를 일괄 조회하여 Map으로 반환합니다.
 
      스레드 알림 발송 시 부모 메시지 작성자를 효율적으로 조회하기 위해 사용합니다.
@@ -675,24 +771,24 @@ export class MessageRepository {
      @param parents - 조회할 채널과 부모 메시지 ID 쌍
      @returns `channelId:parentMessageId`를 키, `{ authorId }` 객체를 값으로 하는 Map
      */
-    async findParentAuthorsByChannel(
-        parents: Array<{channelId: number; parentMessageId: Types.ObjectId}>,
-    ): Promise<Map<string, {authorId: number | null}>> {
-        if (parents.length === 0) {
-            return new Map();
-        }
+	async findParentAuthorsByChannel(
+		parents: Array<{channelId: number; parentMessageId: Types.ObjectId}>,
+	): Promise<Map<string, {authorId: Nullable<number>}>> {
+		if (parents.length === 0) {
+			return new Map();
+		}
 
-        const foundParents = await this.messageModel
-            .find({webhookDeleted: {$ne: true}, $or: parents.map(({channelId, parentMessageId}) => ({_id: parentMessageId, channelId}))})
-            .select('channelId authorId')
-            .lean() as Array<{_id: Types.ObjectId; channelId: number; authorId: number | null}>;
+		const foundParents = await this.messageModel
+			.find({webhookDeleted: {$ne: true}, $or: parents.map(({channelId, parentMessageId}) => ({_id: parentMessageId, channelId}))})
+			.select('channelId authorId')
+			.lean() as Array<{_id: Types.ObjectId; channelId: number; authorId: Nullable<number>}>;
 
-        return new Map(foundParents.map(parent => [
-            `${parent.channelId}:${parent._id.toString()}`, {authorId: parent.authorId},
-        ]));
-    }
+		return new Map(foundParents.map(parent => [
+			`${parent.channelId}:${parent._id.toString()}`, {authorId: parent.authorId},
+		]));
+	}
 
-    /**
+	/**
      메시지에 이모지 반응을 추가합니다.
 
      "이모지 항목 생성"과 "userId 추가"를 집계 파이프라인 업데이트 하나로 원자적으로 처리합니다.
@@ -709,57 +805,57 @@ export class MessageRepository {
      - `-1`: 이미 동일 이모지로 반응한 경우
      - `null`: 메시지가 존재하지 않는 경우
      */
-    async addReaction(channelId: number, messageId: string, emoji: string, userId: number): Promise<number | null> {
-        const before = await this.messageModel.findOneAndUpdate(
-            {webhookDeleted: {$ne: true}, _id: messageId, channelId},
-            [
-                {
-                    $set: {
-                        reactions: {
-                            $cond: [
-                                {$in: [emoji, {$ifNull: ['$reactions.emoji', []]}]},
-                                {
-                                    $map: {
-                                        input: '$reactions',
-                                        as: 'r',
-                                        in: {
-                                            $cond: [
-                                                {$eq: ['$$r.emoji', emoji]},
-                                                {
-                                                    emoji: '$$r.emoji',
-                                                    userIds: {
-                                                        $cond: [
-                                                            {$in: [userId, '$$r.userIds']},
-                                                            '$$r.userIds',
-                                                            {$concatArrays: ['$$r.userIds', [userId]]},
-                                                        ],
-                                                    },
-                                                },
-                                                '$$r',
-                                            ],
-                                        },
-                                    },
-                                },
-                                {$concatArrays: [{$ifNull: ['$reactions', []]}, [{emoji, userIds: [userId]}]]},
-                            ],
-                        },
-                    },
-                },
-            ],
-            {new: false, updatePipeline: true},
-        ).lean() as ReactionDoc | null;
+	async addReaction(channelId: number, messageId: string, emoji: string, userId: number): Promise<Nullable<number>> {
+		const before = await this.messageModel.findOneAndUpdate(
+			{webhookDeleted: {$ne: true}, _id: messageId, channelId},
+			[
+				{
+					$set: {
+						reactions: {
+							$cond: [
+								{$in: [emoji, {$ifNull: ['$reactions.emoji', []]}]},
+								{
+									$map: {
+										input: '$reactions',
+										as: 'r',
+										in: {
+											$cond: [
+												{$eq: ['$$r.emoji', emoji]},
+												{
+													emoji: '$$r.emoji',
+													userIds: {
+														$cond: [
+															{$in: [userId, '$$r.userIds']},
+															'$$r.userIds',
+															{$concatArrays: ['$$r.userIds', [userId]]},
+														],
+													},
+												},
+												'$$r',
+											],
+										},
+									},
+								},
+								{$concatArrays: [{$ifNull: ['$reactions', []]}, [{emoji, userIds: [userId]}]]},
+							],
+						},
+					},
+				},
+			],
+			{new: false, updatePipeline: true},
+		).lean() as Nullable<ReactionDoc>;
 
-        if (!before) {
-            return null;
-        }
+		if (!before) {
+			return null;
+		}
 
-        const reactions = before.reactions ?? [];
-        const existing = reactions.find(r => r.emoji === emoji);
-        const userIds = existing?.userIds ?? [];
-        return userIds.includes(userId) ? -1 : userIds.length + 1;
-    }
+		const reactions = before.reactions ?? [];
+		const existing = reactions.find(r => r.emoji === emoji);
+		const userIds = existing?.userIds ?? [];
+		return userIds.includes(userId) ? -1 : userIds.length + 1;
+	}
 
-    /**
+	/**
      메시지에서 이모지 반응을 제거합니다.
 
      `$pull`로 `userIds`에서 해당 사용자를 제거한 후, `userIds`가 빈 배열이 되면
@@ -774,102 +870,102 @@ export class MessageRepository {
      - `-1`: 해당 이모지로 반응한 기록이 없는 경우
      - `null`: 메시지가 존재하지 않는 경우
      */
-    async removeReaction(channelId: number, messageId: string, emoji: string, userId: number): Promise<number | null> {
-        const updated = await this.messageModel.findOneAndUpdate(
-            {
-                webhookDeleted: {$ne: true},
-                _id: messageId,
-                channelId,
-                reactions: {$elemMatch: {emoji, userIds: userId}},
-            },
-            {$pull: {'reactions.$[elem].userIds': userId}},
-            {arrayFilters: [{'elem.emoji': emoji}], new: true},
-        ).lean() as ReactionDoc | null;
+	async removeReaction(channelId: number, messageId: string, emoji: string, userId: number): Promise<Nullable<number>> {
+		const updated = await this.messageModel.findOneAndUpdate(
+			{
+				webhookDeleted: {$ne: true},
+				_id: messageId,
+				channelId,
+				reactions: {$elemMatch: {emoji, userIds: userId}},
+			},
+			{$pull: {'reactions.$[elem].userIds': userId}},
+			{arrayFilters: [{'elem.emoji': emoji}], new: true},
+		).lean() as Nullable<ReactionDoc>;
 
-        if (!updated) {
-            const messageExists = await this.messageModel.exists({_id: messageId, channelId, webhookDeleted: {$ne: true}});
-            return messageExists ? -1 : null;
-        }
+		if (!updated) {
+			const messageExists = await this.messageModel.exists({_id: messageId, channelId, webhookDeleted: {$ne: true}});
+			return messageExists ? -1 : null;
+		}
 
-        const count = updated.reactions.find(r => r.emoji === emoji)?.userIds.length ?? 0;
+		const count = updated.reactions.find(r => r.emoji === emoji)?.userIds.length ?? 0;
 
-        if (count === 0) {
-            await this.messageModel.updateOne(
-                {webhookDeleted: {$ne: true}, _id: messageId, channelId},
-                {$pull: {reactions: {emoji, userIds: {$size: 0}}}},
-            );
-        }
+		if (count === 0) {
+			await this.messageModel.updateOne(
+				{webhookDeleted: {$ne: true}, _id: messageId, channelId},
+				{$pull: {reactions: {emoji, userIds: {$size: 0}}}},
+			);
+		}
 
-        return count;
-    }
+		return count;
+	}
 
-    async countUnread(channelId: number, afterId: Types.ObjectId | null): Promise<number> {
-        const filter: Record<string, unknown> = {
-            webhookDeleted: {$ne: true},
-            channelId,
-            ...(afterId && {_id: {$gt: afterId}}),
-        };
+	async countUnread(channelId: number, afterId: Nullable<Types.ObjectId>): Promise<number> {
+		const filter: Record<string, unknown> = {
+			webhookDeleted: {$ne: true},
+			channelId,
+			...(afterId && {_id: {$gt: afterId}}),
+		};
 
-        return this.messageModel.countDocuments(filter);
-    }
+		return this.messageModel.countDocuments(filter);
+	}
 
-    /**
+	/**
      여러 채널의 최신 메시지를 한 번의 집계로 조회합니다.
      DM 대화 목록의 미리보기·정렬에 사용합니다.
 
      @returns channelId → 최신 메시지 요약 매핑
      */
-    async findLastMessages(channelIds: number[]): Promise<Map<number, {
-        messageId: string;
-        authorId: number | null;
-        webhook?: WebhookMessageAuthor;
-        content: string;
-        type: string;
-        createdAt: Date;
-    }>> {
-        if (channelIds.length === 0) {
-            return new Map();
-        }
+	async findLastMessages(channelIds: number[]): Promise<Map<number, {
+		messageId: string;
+		authorId: Nullable<number>;
+		webhook?: WebhookMessageAuthor;
+		content: string;
+		type: string;
+		createdAt: Date;
+	}>> {
+		if (channelIds.length === 0) {
+			return new Map();
+		}
 
-        const rows = await this.messageModel.aggregate<{_id: number; doc: Message & {_id: Types.ObjectId; createdAt: Date}}>([
-            {$match: {webhookDeleted: {$ne: true}, channelId: {$in: channelIds}}},
-            {$sort: {channelId: 1, _id: -1}},
-            {$group: {_id: '$channelId', doc: {$first: '$$ROOT'}}},
-        ]);
-        return new Map(rows.map(row => [row._id, {
-            messageId: row.doc._id.toString(),
-            authorId: row.doc.authorId,
-            ...(row.doc.webhook && {webhook: row.doc.webhook}),
-            content: row.doc.content,
-            type: row.doc.type,
-            createdAt: row.doc.createdAt,
-        }]));
-    }
+		const rows = await this.messageModel.aggregate<{_id: number; doc: Message & {_id: Types.ObjectId; createdAt: Date}}>([
+			{$match: {webhookDeleted: {$ne: true}, channelId: {$in: channelIds}}},
+			{$sort: {channelId: 1, _id: -1}},
+			{$group: {_id: '$channelId', doc: {$first: '$$ROOT'}}},
+		]);
+		return new Map(rows.map(row => [row._id, {
+			messageId: row.doc._id.toString(),
+			authorId: row.doc.authorId,
+			...(row.doc.webhook && {webhook: row.doc.webhook}),
+			content: row.doc.content,
+			type: row.doc.type,
+			createdAt: row.doc.createdAt,
+		}]));
+	}
 
-    async countUnreadForChannels(
-        memberships: Array<{channelId: number; lastReadMessageId: Types.ObjectId | null}>,
-    ): Promise<Map<number, number>> {
-        if (memberships.length === 0) {
-            return new Map();
-        }
+	async countUnreadForChannels(
+		memberships: Array<{channelId: number; lastReadMessageId: Nullable<Types.ObjectId>}>,
+	): Promise<Map<number, number>> {
+		if (memberships.length === 0) {
+			return new Map();
+		}
 
-        const orConditions = memberships.map(({channelId, lastReadMessageId}) => ({
-            channelId,
-            ...(lastReadMessageId && {_id: {$gt: lastReadMessageId}}),
-        }));
-        const results = await this.messageModel.aggregate<{_id: number; count: number}>([
-            {$match: {webhookDeleted: {$ne: true}, $or: orConditions}},
-            {$group: {_id: '$channelId', count: {$sum: 1}}},
-        ]);
-        const countMap = new Map<number, number>();
-        for (const row of results) {
-            countMap.set(row._id, row.count);
-        }
+		const orConditions = memberships.map(({channelId, lastReadMessageId}) => ({
+			channelId,
+			...(lastReadMessageId && {_id: {$gt: lastReadMessageId}}),
+		}));
+		const results = await this.messageModel.aggregate<{_id: number; count: number}>([
+			{$match: {webhookDeleted: {$ne: true}, $or: orConditions}},
+			{$group: {_id: '$channelId', count: {$sum: 1}}},
+		]);
+		const countMap = new Map<number, number>();
+		for (const row of results) {
+			countMap.set(row._id, row.count);
+		}
 
-        return countMap;
-    }
+		return countMap;
+	}
 
-    /**
+	/**
      메시지의 알림 상태를 업데이트합니다.
 
      `notificationClaimId`가 여전히 이 호출을 발급한 점유분과 일치하는 문서만 갱신합니다.
@@ -886,114 +982,25 @@ export class MessageRepository {
      @param notificationRetryCount - 업데이트할 재시도 횟수. 생략 시 현재 값을 유지
      @returns Mongoose `updateOne` 결과 객체
      */
-    updateNotificationStatus(
-        messageId: Types.ObjectId,
-        notificationClaimId: string,
-        notificationStatus: string,
-        notificationRetryCount?: number,
-    ) {
-        const $set: Record<string, unknown> = {
-            notificationStatus,
-            notificationClaimId: null,
-            ...(notificationRetryCount !== undefined && {notificationRetryCount}),
-        };
+	updateNotificationStatus(
+		messageId: Types.ObjectId,
+		notificationClaimId: string,
+		notificationStatus: string,
+		notificationRetryCount?: number,
+	) {
+		const $set: Record<string, unknown> = {
+			notificationStatus,
+			notificationClaimId: null,
+			...(notificationRetryCount !== undefined && {notificationRetryCount}),
+		};
 
-        return this.messageModel.updateOne(
-            {
-                webhookDeleted: {$ne: true}, _id: messageId, notificationStatus: 'PROCESSING', notificationClaimId,
-            },
-            {$set},
-        );
-    }
-
-    /**
-     파일 커서 문자열을 디코딩하여 MongoDB 집계에서 사용할 `$match` 조건을 생성합니다.
-
-     `(createdAt, _id, attachmentIndex)` 복합 커서를 사용하여
-     커서 이전의 항목만 반환하는 `$or` 조건을 구성합니다.
-
-     @param before - base64 인코딩된 커서 문자열
-     @returns MongoDB `$match` 조건 객체. 커서가 유효하지 않으면 `null`
-     */
-    private buildFileCursorMatch(before: string): Record<string, unknown> | null {
-        const cursor = this.decodeFileCursor(before);
-        if (!cursor) {
-            return null;
-        }
-
-        return {
-            $or: [
-                {createdAt: {$lt: new Date(cursor.uploadedAt)}},
-                {
-                    createdAt: new Date(cursor.uploadedAt),
-                    _id: {$lt: new Types.ObjectId(cursor.messageId)},
-                },
-                {
-                    createdAt: new Date(cursor.uploadedAt),
-                    _id: new Types.ObjectId(cursor.messageId),
-                    attachmentIndex: {$lt: cursor.attachmentIndex},
-                },
-            ],
-        };
-    }
-
-    /**
-     집계 결과 행을 base64 인코딩된 커서 문자열로 변환합니다.
-
-     커서 구성 요소: `{ uploadedAt: ISO8601, messageId: ObjectId 문자열, attachmentIndex: number }`
-     이를 JSON 직렬화 후 base64 인코딩하여 클라이언트에 불투명(opaque) 커서로 전달합니다.
-
-     @param row - 집계 결과의 단일 행 (`_id`, `createdAt`, `attachmentIndex` 필드 필요)
-     @returns base64 인코딩된 커서 문자열. `row`가 falsy이면 `null`
-     */
-    private encodeFileCursor(row: FileAttachmentAggregateRow | undefined): string | null {
-        if (!row) {
-            return null;
-        }
-
-        return Buffer.from(JSON.stringify({
-            uploadedAt: row.createdAt.toISOString(),
-            messageId: row._id.toString(),
-            attachmentIndex: row.attachmentIndex ?? 0,
-        })).toString('base64url');
-    }
-
-    /**
-     Base64 인코딩된 커서 문자열을 파싱하여 커서 객체로 반환합니다.
-
-     파싱 실패, 타입 불일치, 잘못된 날짜 형식, 유효하지 않은 ObjectId 등
-     모든 유효하지 않은 입력에 대해 예외를 던지지 않고 `null`을 반환합니다.
-
-     @param before - base64 인코딩된 커서 문자열
-     @returns 파싱된 커서 객체 `{ uploadedAt, messageId, attachmentIndex }`. 유효하지 않으면 `null`
-     */
-    private decodeFileCursor(before: string): {uploadedAt: string; messageId: string; attachmentIndex: number} | null {
-        try {
-            const parsed = JSON.parse(Buffer.from(before, 'base64url').toString('utf8')) as {
-                uploadedAt?: unknown;
-                messageId?: unknown;
-                attachmentIndex?: unknown;
-            };
-
-            if (
-                typeof parsed.uploadedAt !== 'string'
-                || typeof parsed.messageId !== 'string'
-                || typeof parsed.attachmentIndex !== 'number'
-                || Number.isNaN(Date.parse(parsed.uploadedAt))
-                || !Types.ObjectId.isValid(parsed.messageId)
-            ) {
-                return null;
-            }
-
-            return {
-                uploadedAt: parsed.uploadedAt,
-                messageId: parsed.messageId,
-                attachmentIndex: parsed.attachmentIndex,
-            };
-        } catch {
-            return null;
-        }
-    }
+		return this.messageModel.updateOne(
+			{
+				webhookDeleted: {$ne: true}, _id: messageId, notificationStatus: 'PROCESSING', notificationClaimId,
+			},
+			{$set},
+		);
+	}
 }
 
 /**
@@ -1003,17 +1010,17 @@ export class MessageRepository {
  버전 `1`로 써 둔 문서를 이후 수정이 버전 충돌로 잃지 않습니다.
  */
 function searchIndexIntent(isIndexed: boolean, now: Date): Record<string, unknown> {
-    if (!isIndexed) {
-        return {searchIndexStatus: 'SKIPPED', searchIndexVersion: 0};
-    }
+	if (!isIndexed) {
+		return {searchIndexStatus: 'SKIPPED', searchIndexVersion: 0};
+	}
 
-    return {
-        searchIndexStatus: 'PENDING',
-        searchIndexVersion: {$add: [{$max: [{$ifNull: ['$searchIndexVersion', 0]}, 1]}, 1]},
-        searchIndexRetryCount: 0,
-        searchIndexNextAttemptAt: now,
-        searchIndexProcessingStartedAt: null,
-        searchIndexClaimId: null,
-        searchIndexLastError: null,
-    };
+	return {
+		searchIndexStatus: 'PENDING',
+		searchIndexVersion: {$add: [{$max: [{$ifNull: ['$searchIndexVersion', 0]}, 1]}, 1]},
+		searchIndexRetryCount: 0,
+		searchIndexNextAttemptAt: now,
+		searchIndexProcessingStartedAt: null,
+		searchIndexClaimId: null,
+		searchIndexLastError: null,
+	};
 }

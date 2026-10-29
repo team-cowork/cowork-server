@@ -1,3 +1,4 @@
+import {type Nullable} from '../../../common/type/nullable.js';
 /**
  채팅 슬래시 커맨드로 시작한 GitHub 이슈 생성 요청을 project에 위임하는 Kafka 커맨드 페이로드.
 
@@ -7,40 +8,40 @@
  결과(수락/거부)는 {@link ChatGithubIssueCreateResult}로 역방향 토픽에 응답한다.
  */
 export type ChatGithubIssueCreateCommand = {
-    /**
+	/**
     커맨드 고유 식별자(UUID). 결과 상관관계 및 중복 처리 방지에 사용
     */
-    operationId: string;
-    /**
+	operationId: string;
+	/**
     중복 발행 방지를 위한 멱등성 키(UUID)
     */
-    idempotencyKey: string;
-    projectId: number;
-    /**
+	idempotencyKey: string;
+	projectId: number;
+	/**
     요청이 발생한 채널 ID
     */
-    channelId: number;
-    /**
+	channelId: number;
+	/**
     채널이 속한 팀 ID(채널-프로젝트 팀 경계 검증에 사용)
     */
-    teamId: number;
-    /**
+	teamId: number;
+	/**
     이슈 생성을 요청한 사용자 ID
     */
-    requesterId: number;
-    title: string;
-    /**
+	requesterId: number;
+	title: string;
+	/**
     이슈 본문(Markdown). 없으면 null
     */
-    body: string | null;
-    occurredAt: string;
+	body: Nullable<string>;
+	occurredAt: string;
 };
 
 export type ChatGithubIssueCreateResultStatus = 'ACCEPTED' | 'REJECTED';
 
 export type ChatGithubIssueCreateResultError = {
-    code: string;
-    message: string;
+	code: string;
+	message: string;
 };
 
 /**
@@ -51,13 +52,13 @@ export type ChatGithubIssueCreateResultError = {
  기존 `github.issue.result` 토픽으로 별도 전달된다.
  */
 export type ChatGithubIssueCreateResult = {
-    operationId: string;
-    idempotencyKey: string;
-    channelId: number;
-    teamId: number;
-    projectId: number;
-    requesterId: number;
-    status: ChatGithubIssueCreateResultStatus;
-    error: ChatGithubIssueCreateResultError | null;
-    occurredAt: string;
+	operationId: string;
+	idempotencyKey: string;
+	channelId: number;
+	teamId: number;
+	projectId: number;
+	requesterId: number;
+	status: ChatGithubIssueCreateResultStatus;
+	error: Nullable<ChatGithubIssueCreateResultError>;
+	occurredAt: string;
 };
