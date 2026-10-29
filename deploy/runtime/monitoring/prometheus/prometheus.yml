@@ -24,6 +24,10 @@ scrape_configs:
       ca_file: /etc/cowork/ca/ca.crt
     filter: '"application" in ServiceTags'
   relabel_configs:
+  # Sidecar registrations inherit application tags and metadata, including the app metrics endpoint.
+  - source_labels: [__meta_consul_service]
+    regex: .+-sidecar-proxy
+    action: drop
   - source_labels:
     - __meta_consul_service_metadata_metrics_port
     regex: .+
@@ -54,6 +58,9 @@ scrape_configs:
       ca_file: /etc/cowork/ca/ca.crt
     filter: '"application" not in ServiceTags'
   relabel_configs:
+  - source_labels: [__meta_consul_service]
+    regex: .+-sidecar-proxy
+    action: drop
   - source_labels:
     - __meta_consul_service_metadata_metrics_port
     regex: .+
@@ -128,6 +135,9 @@ scrape_configs:
       ca_file: /etc/cowork/ca/ca.crt
     filter: '"application" in ServiceTags'
   relabel_configs:
+  - source_labels: [__meta_consul_service]
+    regex: .+-sidecar-proxy
+    action: drop
   - source_labels:
     - __meta_consul_service_metadata_health_port
     regex: .+
