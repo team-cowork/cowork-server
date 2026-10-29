@@ -5,9 +5,9 @@ const DEFAULT_INITIAL_DELAY_MS = 1000;
 const DEFAULT_MAX_DELAY_MS = 30_000;
 
 async function sleep(ms: number): Promise<void> {
-    return new Promise(resolve => {
-        setTimeout(resolve, ms);
-    });
+	return new Promise(resolve => {
+		setTimeout(resolve, ms);
+	});
 }
 
 /**
@@ -19,28 +19,39 @@ async function sleep(ms: number): Promise<void> {
  backing-off retry kafkajs already applies to the steady-state consumer loop.
  */
 export async function connectWithRetry<T>(
-    logger: Logger,
-    label: string,
-    attempt: () => Promise<T>,
-    retries = DEFAULT_RETRIES,
+	logger: Logger,
+	label: string,
+	attempt: () => Promise<T>,
+	retries = DEFAULT_RETRIES,
 ): Promise<T> {
-    let delayMs = DEFAULT_INITIAL_DELAY_MS;
-    for (let tryIndex = 0; ; tryIndex++) {
-        try {
-            // eslint-disable-next-line no-await-in-loop -- bounded startup retry; each attempt must wait for the previous one to settle.
-            return await attempt();
-        } catch (error) {
-            if (tryIndex >= retries) {
-                throw error;
-            }
+	return retryAttempt({
+		logger, label, attempt, retries,
+	}, 0, DEFAULT_INITIAL_DELAY_MS);
+}
 
-            logger.warn(
-                `${label} failed during startup, retrying in ${delayMs}ms `
-                + `(${tryIndex + 1}/${retries}): ${error instanceof Error ? error.message : String(error)}`,
-            );
-            // eslint-disable-next-line no-await-in-loop -- bounded startup retry; each attempt must wait for the previous one to settle.
-            await sleep(delayMs);
-            delayMs = Math.min(delayMs * 2, DEFAULT_MAX_DELAY_MS);
-        }
-    }
+type RetryRequest<T> = {
+	logger: Logger;
+	label: string;
+	attempt: () => Promise<T>;
+	retries: number;
+};
+
+/**
+ 이전 시도가 끝난 뒤에만 다음 시도를 시작하도록 재귀로 순서를 보장한다.
+ */
+async function retryAttempt<T>(request: RetryRequest<T>, tryIndex: number, delayMs: number): Promise<T> {
+	try {
+		return await request.attempt();
+	} catch (error) {
+		if (tryIndex >= request.retries) {
+			throw error;
+		}
+
+		request.logger.warn(
+			`${request.label} failed during startup, retrying in ${delayMs}ms `
+			+ `(${tryIndex + 1}/${request.retries}): ${error instanceof Error ? error.message : String(error)}`,
+		);
+		await sleep(delayMs);
+		return retryAttempt(request, tryIndex + 1, Math.min(delayMs * 2, DEFAULT_MAX_DELAY_MS));
+	}
 }
