@@ -1,18 +1,18 @@
-import {BadRequestException, Injectable, PipeTransform} from '@nestjs/common';
-import {isSafePositiveInteger} from '../util/safe-integer.util';
+import {BadRequestException, Injectable as injectable, PipeTransform} from '@nestjs/common';
+import {isSafePositiveInteger} from '../util/safe-integer.util.js';
 
-@Injectable()
+@injectable()
 export class SafePositiveIntPipe implements PipeTransform<string, number> {
-    transform(value: string): number {
-        if (!/^[1-9]\d*$/u.test(value)) {
-            throw new BadRequestException('ID must be a positive integer');
-        }
+	transform(value: string): number {
+		if (!/^[1-9]\d*$/v.test(value)) {
+			throw new BadRequestException('ID must be a positive integer');
+		}
 
-        const parsed = Number(value);
-        if (!isSafePositiveInteger(parsed)) {
-            throw new BadRequestException('ID exceeds the JavaScript safe integer range');
-        }
+		const parsed = Number(value);
+		if (!isSafePositiveInteger(parsed)) {
+			throw new BadRequestException('ID exceeds the JavaScript safe integer range');
+		}
 
-        return parsed;
-    }
+		return parsed;
+	}
 }

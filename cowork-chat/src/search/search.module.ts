@@ -1,9 +1,9 @@
-import {Module} from '@nestjs/common';
+import {Module as nestModule} from '@nestjs/common';
 import {ConfigModule} from '@nestjs/config';
-import {ElasticsearchModule} from './elasticsearch.module';
+import {ElasticsearchModule} from './elasticsearch.module.js';
 
-@Module({
-    imports: [ConfigModule, ElasticsearchModule],
-    exports: [ElasticsearchModule],
+@nestModule({
+	imports: [ConfigModule, ElasticsearchModule],
+	exports: [ElasticsearchModule],
 })
 export class SearchModule {}

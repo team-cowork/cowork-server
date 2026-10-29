@@ -1,5 +1,6 @@
+import process from 'node:process';
 import {createWriteStream, mkdirSync} from 'node:fs';
-import {Module} from '@nestjs/common';
+import {Module as nestModule} from '@nestjs/common';
 import {APP_GUARD, APP_INTERCEPTOR} from '@nestjs/core';
 import {ConfigModule, ConfigService} from '@nestjs/config';
 import {MongooseModule} from '@nestjs/mongoose';
@@ -9,105 +10,113 @@ import {Request} from 'express';
 import {PrometheusModule} from '@willsoto/nestjs-prometheus';
 import {LoggerModule} from 'nestjs-pino';
 import {multistream} from 'pino';
-import {ChatModule} from './chat/chat.module';
-import {HealthController} from './health.controller';
-import {AuthGuard} from './common/guard/auth.guard';
-import {HttpLoggingInterceptor} from './common/interceptor/http-logging.interceptor';
-import {getMongoDbUri, getOptionalConfig} from './common/config/config.util';
-import {ProjectionReadinessModule} from './common/kafka/projection-readiness.module';
-import {SearchModule} from './search/search.module';
+import {ChatModule} from './chat/chat.module.js';
+import {HealthController} from './health.controller.js';
+import {AuthGuard} from './common/guard/auth.guard.js';
+import {HttpLoggingInterceptor} from './common/interceptor/http-logging.interceptor.js';
+import {getMongoDbUri, getOptionalConfig} from './common/config/config.util.js';
+import {ProjectionReadinessModule} from './common/kafka/projection-readiness.module.js';
+import {SearchModule} from './search/search.module.js';
+
+/**
+MongoDB driver 연결 옵션 이름이다.
+*/
+const mongoOption = {
+	serverSelectionTimeoutMs: 'serverSelectionTimeoutMS',
+	connectTimeoutMs: 'connectTimeoutMS',
+} as const;
 
 const METRICS_PATH = '/metrics';
 const HEALTH_PATH = '/health';
 const HEALTH_READY_PATH = '/health/ready';
 const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_READY_PATH]);
 
-@Module({
-    imports: [
-        ConfigModule.forRoot({isGlobal: true, ignoreEnvFile: true}),
-        MongooseModule.forRootAsync({
-            inject: [ConfigService],
-            useFactory: (configService: ConfigService) => ({
-                uri: getMongoDbUri(configService),
-                serverSelectionTimeoutMS: Number(getOptionalConfig(configService, 'MONGODB_SERVER_SELECTION_TIMEOUT_MS') ?? 5000),
-                connectTimeoutMS: Number(getOptionalConfig(configService, 'MONGODB_CONNECT_TIMEOUT_MS') ?? 5000),
-                directConnection: (getOptionalConfig(configService, 'MONGODB_DIRECT_CONNECTION') ?? 'false') !== 'false',
-            }),
-        }),
-        ProjectionReadinessModule,
-        LoggerModule.forRootAsync({
-            inject: [ConfigService],
-            useFactory(configService: ConfigService) {
-                const isLoggerEnabled = (configService.get<string>('CHAT_LOGGER_ENABLED') ?? process.env.CHAT_LOGGER_ENABLED) !== 'false';
-                if (!isLoggerEnabled) {
-                    return {pinoHttp: {level: 'silent'}, renameContext: 'module'};
-                }
-                const logDir = configService.get<string>('COWORK_CHAT_LOG_DIR') ?? process.env.COWORK_CHAT_LOG_DIR;
-                const nodeEnv = configService.get<string>('NODE_ENV') ?? process.env.NODE_ENV;
-                const level = nodeEnv === 'production' ? 'info' : 'debug';
-                // 운영 수집기는 Docker stdout을 읽으므로 stdout은 항상 쓴다. 파일은 로그 디렉터리를 지정한 로컬 이미지에서만 함께 쓴다.
-                const createLogStream = () => {
-                    if (logDir === undefined || logDir === '') {
-                        return process.stdout;
-                    }
-                    try {
-                        mkdirSync(logDir, {recursive: true});
-                    } catch {
-                        return process.stdout;
-                    }
-                    const file = createWriteStream(`${logDir}/app.log`, {flags: 'a'});
-                    // 파일 쓰기 실패가 프로세스를 종료해 stdout 로그까지 끊기지 않게 한다.
-                    file.on('error', error => {
-                        process.stderr.write(`cowork-chat file log disabled: ${error.message}\n`);
-                    });
-                    return multistream([
-                        {level, stream: process.stdout},
-                        {level, stream: file},
-                    ]);
-                };
-                return {
-                    pinoHttp: {
-                        level,
-                        redact: {
-                            paths: ['req.headers["x-webhook-secret"]', 'req.headers.authorization', 'req.headers.cookie'],
-                            censor: '[REDACTED]',
-                        },
-                        stream: createLogStream(),
-                        autoLogging: {
-                            ignore(request) {
-                                const path = request.url?.split('?', 1)[0]?.replace(/\/$/u, '');
-                                return path !== undefined && EXCLUDED_AUTO_LOGGING_PATHS.has(path);
-                            },
-                        },
-                        timestamp: () => `,"@timestamp":"${new Date().toISOString()}"`,
-                        formatters: {
-                            level: (label: string) => ({level: label.toUpperCase()}),
-                        },
-                        base: {service: 'cowork-chat'},
-                        messageKey: 'message',
-                    },
-                    renameContext: 'module',
-                };
-            },
-        }),
-        PrometheusModule.register({
-            defaultMetrics: {enabled: true},
-            path: '/metrics',
-        }),
-        GraphQLModule.forRoot<ApolloDriverConfig>({
-            driver: ApolloDriver,
-            autoSchemaFile: true,
-            playground: false,
-            graphiql: process.env.NODE_ENV !== 'production',
-            context: ({req}: {req: Request}) => ({req}),
-        }),
-        ChatModule,
-        SearchModule,
-    ],
-    controllers: [HealthController],
-    providers: [
-        {provide: APP_GUARD, useClass: AuthGuard},
-        {provide: APP_INTERCEPTOR, useClass: HttpLoggingInterceptor},
-    ],
+@nestModule({
+	imports: [
+		ConfigModule.forRoot({isGlobal: true, ignoreEnvFile: true}),
+		MongooseModule.forRootAsync({
+			inject: [ConfigService],
+			useFactory: (configService: ConfigService) => ({
+				uri: getMongoDbUri(configService),
+				[mongoOption.serverSelectionTimeoutMs]: Number(getOptionalConfig(configService, 'MONGODB_SERVER_SELECTION_TIMEOUT_MS') ?? 5000),
+				[mongoOption.connectTimeoutMs]: Number(getOptionalConfig(configService, 'MONGODB_CONNECT_TIMEOUT_MS') ?? 5000),
+				directConnection: (getOptionalConfig(configService, 'MONGODB_DIRECT_CONNECTION') ?? 'false') !== 'false',
+			}),
+		}),
+		ProjectionReadinessModule,
+		LoggerModule.forRootAsync({
+			inject: [ConfigService],
+			useFactory(configService: ConfigService) {
+				const isLoggerEnabled = (configService.get<string>('CHAT_LOGGER_ENABLED') ?? process.env.CHAT_LOGGER_ENABLED) !== 'false';
+				if (!isLoggerEnabled) {
+					return {pinoHttp: {level: 'silent'}, renameContext: 'module'};
+				}
+				const logDir = configService.get<string>('COWORK_CHAT_LOG_DIR') ?? process.env.COWORK_CHAT_LOG_DIR;
+				const nodeEnv = configService.get<string>('NODE_ENV') ?? process.env.NODE_ENV;
+				const level = nodeEnv === 'production' ? 'info' : 'debug';
+				// 운영 수집기는 Docker stdout을 읽으므로 stdout은 항상 쓴다. 파일은 로그 디렉터리를 지정한 로컬 이미지에서만 함께 쓴다.
+				const createLogStream = () => {
+					if (logDir === undefined || logDir === '') {
+						return process.stdout;
+					}
+					try {
+						mkdirSync(logDir, {recursive: true});
+					} catch {
+						return process.stdout;
+					}
+					const file = createWriteStream(`${logDir}/app.log`, {flags: 'a'});
+					// 파일 쓰기 실패가 프로세스를 종료해 stdout 로그까지 끊기지 않게 한다.
+					file.on('error', error => {
+						process.stderr.write(`cowork-chat file log disabled: ${error.message}\n`);
+					});
+					return multistream([
+						{level, stream: process.stdout},
+						{level, stream: file},
+					]);
+				};
+				return {
+					pinoHttp: {
+						level,
+						redact: {
+							paths: ['req.headers["x-webhook-secret"]', 'req.headers.authorization', 'req.headers.cookie'],
+							censor: '[REDACTED]',
+						},
+						stream: createLogStream(),
+						autoLogging: {
+							ignore(request) {
+								const path = request.url?.split('?', 1)[0]?.replace(/\/$/v, '');
+								return path !== undefined && EXCLUDED_AUTO_LOGGING_PATHS.has(path);
+							},
+						},
+						timestamp: () => `,"@timestamp":"${new Date().toISOString()}"`,
+						formatters: {
+							level: (label: string) => ({level: label.toUpperCase()}),
+						},
+						base: {service: 'cowork-chat'},
+						messageKey: 'message',
+					},
+					renameContext: 'module',
+				};
+			},
+		}),
+		PrometheusModule.register({
+			defaultMetrics: {enabled: true},
+			path: '/metrics',
+		}),
+		GraphQLModule.forRoot<ApolloDriverConfig>({
+			driver: ApolloDriver,
+			autoSchemaFile: true,
+			playground: false,
+			graphiql: process.env.NODE_ENV !== 'production',
+			context: ({req}: {req: Request}) => ({req}),
+		}),
+		ChatModule,
+		SearchModule,
+	],
+	controllers: [HealthController],
+	providers: [
+		{provide: APP_GUARD, useClass: AuthGuard},
+		{provide: APP_INTERCEPTOR, useClass: HttpLoggingInterceptor},
+	],
 })
 export class AppModule {}
