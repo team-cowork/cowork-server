@@ -53,7 +53,7 @@
         owner: root
         group: root
         mode: '0644'
-      loop: [versions.json, requirements.txt]
+      loop: [versions.json, requirements.txt, requirements-vault.txt]
     - name: Stage the pinned collection requirements
       ansible.builtin.copy:
         src: "{{ platform_repository }}/deploy/ansible/requirements.yml"
