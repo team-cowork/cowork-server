@@ -57,6 +57,7 @@ class Platform:
         self.vault = None
         self.leases = []
         self.owns_vault_token = os.environ.get('GITHUB_ACTIONS') == 'true'
+        self.authorization_secret_present = True
 
     def close(self):
         if self.vault is None:
@@ -177,7 +178,7 @@ class Platform:
         output = json.loads(command(prefix + ['output', '-json'], env=self.env, capture=True).stdout)
         return {job_id: int(index) for job_id, index in output['job_modify_indices']['value'].items()}
 
-    def verify_webhook_secrets(self, manifest, mount):
+    def warn_webhook_secrets(self, manifest, mount):
         self.credentials()
         secrets = {}
         for name in ('gateway', 'authorization'):
@@ -188,8 +189,13 @@ class Platform:
             secrets[name] = result['data']['data']
         signature_keys = [secrets[name].get('DATAGSM_WEBHOOK_SECRET', '')
                           for name in ('gateway', 'authorization')]
-        if not signature_keys[0] or not hmac.compare_digest(*signature_keys):
-            raise RuntimeError('Pinned Gateway and Authorization DataGSM webhook secrets differ or are missing')
+        self.authorization_secret_present = isinstance(signature_keys[1], str) and bool(signature_keys[1])
+        if not all(isinstance(key, str) and key for key in signature_keys):
+            print('CRITICAL: Pinned Gateway or Authorization DataGSM webhook secret is missing; '
+                  'webhook delivery may be unavailable', file=sys.stderr, flush=True)
+        elif not hmac.compare_digest(*(key.encode('utf-8') for key in signature_keys)):
+            print('CRITICAL: Pinned Gateway and Authorization DataGSM webhook secrets differ; '
+                  'queued webhooks may be rejected', file=sys.stderr, flush=True)
 
     def active_allocation(self, job_id):
         allocations = self.api('job/' + job_id + '/allocations') or []
@@ -328,6 +334,8 @@ class Platform:
         raise RuntimeError('Gateway cannot reach every changed service upstream: ' + ', '.join(sorted(services)))
 
     def wait_authorization_consumer(self):
+        if not self.authorization_secret_present:
+            return
         deadline = time.monotonic() + 300
         while time.monotonic() < deadline:
             if self.authorization_stream_connected() == 1:
@@ -709,6 +717,8 @@ def main():
         if args.recover_state:
             if args.recover_state not in business_services:
                 raise ValueError('Recover only a declared business application service')
+            if args.recover_state == 'cowork-authorization':
+                platform.warn_webhook_secrets(manifest, mount)
             platform.recover_state(args.recover_state)
             return
         variables = directory / 'release.tfvars.json'
@@ -725,7 +735,7 @@ def main():
             for stage in STAGES:
                 platform.tofu(stage, edge_variables if stage == 'edge' else variables, check=True)
             return
-        platform.verify_webhook_secrets(manifest, mount)
+        platform.warn_webhook_secrets(manifest, mount)
         if previous_gateway:
             platform.gateway_snapshot(previous_gateway)
         prior_states = platform.deployment_states()
