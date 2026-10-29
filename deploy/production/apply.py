@@ -449,12 +449,11 @@ class Platform:
                           'JobModifyIndex': current['JobModifyIndex']})
         return result['JobModifyIndex']
 
-    def rollback_gateway(self, previous_job, previous_allocation, business_services, directory):
+    def rollback_gateway(self, previous_job, previous_allocation, directory):
         previous_port = self.gateway_host_port(previous_allocation)
         old = self.api('allocation/' + previous_allocation['ID'], missing=True)
         if old and old['DesiredStatus'] == 'run' and old['ClientStatus'] == 'running':
             self.gateway_snapshot(old)
-            self.wait_gateway_upstreams(business_services, old)
             # Keep the old allocation alive until the proxy has drained its new workers.
             self.gateway_switch(previous_port, directory)
             index = self.register_previous_job('cowork-gateway', previous_job)
@@ -466,14 +465,13 @@ class Platform:
         current = self.active_allocation('cowork-gateway')
         index = self.register_previous_job('cowork-gateway', previous_job, canary=1)
         candidate, port = self.gateway_candidate(current['ID'], index, previous_port)
-        self.wait_gateway_upstreams(business_services, candidate)
         self.wait_gateway_promotable(index)
         self.gateway_switch(port, directory)
         self.gateway_promote()
         self.wait_gateway_promotion(current['ID'], index, {'cowork-gateway': previous_job})
         self.gateway_snapshot(candidate)
 
-    def apply_gateway_cold(self, variables, plan_file, specs, business_services, directory):
+    def apply_gateway_cold(self, variables, plan_file, specs, directory):
         target_port = json.loads(variables.read_text())['gateway_host_port']
         if target_port != 21000:
             raise RuntimeError('Gateway cold start must use host port 21000')
@@ -482,25 +480,22 @@ class Platform:
         if job.get('Stop'):
             raise RuntimeError('Gateway job remains stopped after edge apply; it cannot serve traffic')
         candidate, port = self.gateway_candidate(None, indices['cowork-gateway'], target_port)
-        self.wait_gateway_upstreams(business_services, candidate)
         self.wait_jobs({'cowork-gateway': indices['cowork-gateway']}, specs)
         self.gateway_switch(port, directory)
         self.gateway_verify(port, directory)
         self.gateway_snapshot(candidate)
         print('Gateway traffic switched to verified allocation ' + candidate['ID'], flush=True)
 
-    def apply_gateway(self, variables, plan_file, specs, business_services, directory):
+    def apply_gateway(self, variables, plan_file, specs, directory):
         previous_job = self.api('job/cowork-gateway')
         previous_allocation = self.active_allocation('cowork-gateway')
         previous_port = self.gateway_host_port(previous_allocation)
         target_port = json.loads(variables.read_text())['gateway_host_port']
         if target_port not in (21000, 21001) or target_port == previous_port:
             raise RuntimeError('Gateway planned host port does not alternate from the active allocation')
-        self.ansible('gateway-capacity.yml')
         try:
             indices = self.tofu_apply_plan('edge', variables, plan_file)
             candidate, port = self.gateway_candidate(previous_allocation['ID'], indices['cowork-gateway'], target_port)
-            self.wait_gateway_upstreams(business_services, candidate)
             self.wait_gateway_promotable(indices['cowork-gateway'])
             self.gateway_switch(port, directory)
             self.gateway_promote()
@@ -515,7 +510,7 @@ class Platform:
                 current_job = None
             if current_job is None or current_job['JobModifyIndex'] != previous_job['JobModifyIndex']:
                 try:
-                    self.rollback_gateway(previous_job, previous_allocation, business_services, directory)
+                    self.rollback_gateway(previous_job, previous_allocation, directory)
                 except Exception as rollback_error:
                     raise RuntimeError('Gateway switch and automatic rollback both failed (' +
                                        type(rollback_error).__name__ + ')') from None
@@ -743,7 +738,6 @@ def main():
                 job = platform.api('job/cowork-gateway')
                 platform.wait_jobs({'cowork-gateway': job['JobModifyIndex']}, {'cowork-gateway': job})
                 platform.gateway_snapshot(previous_gateway)
-                platform.wait_gateway_upstreams(business_services, previous_gateway)
                 platform.gateway_switch(previous_port, directory)
                 platform.gateway_verify(previous_port, directory)
         else:
@@ -774,19 +768,16 @@ def main():
             changed_edge = platform.tofu_plan_jobs('edge', edge_variables, edge_plan)
             if changed_edge != {'cowork-gateway'}:
                 raise RuntimeError('Gateway alternate-port plan did not change exactly one job')
-            # Do not start business replacement if the last Gateway step cannot fit two allocations.
-            platform.ansible('gateway-capacity.yml')
         run_id = (os.environ.get('GITHUB_RUN_ID') or manifest['source_sha']) + ':' + uuid.uuid4().hex
         platform.apply_business_apps(variables, apps_plan, changed_apps, specs, run_id,
                                      gateway_available=bool(previous_gateway),
                                      flag_services=changed_apps if previous_gateway else business_services)
         if previous_gateway is None:
-            platform.apply_gateway_cold(edge_variables, edge_plan, specs, business_services, directory)
+            platform.apply_gateway_cold(edge_variables, edge_plan, specs, directory)
         elif changed_edge:
-            platform.apply_gateway(edge_variables, edge_plan, specs, business_services, directory)
+            platform.apply_gateway(edge_variables, edge_plan, specs, directory)
         else:
             platform.tofu_apply_plan('edge', edge_variables, edge_plan)
-        platform.wait_authorization_consumer()
         platform.recover_existing_states(manifest)
         print('The entire declared production release is ready', flush=True)
 
