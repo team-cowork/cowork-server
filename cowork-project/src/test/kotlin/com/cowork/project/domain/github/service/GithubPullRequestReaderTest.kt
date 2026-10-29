@@ -10,6 +10,7 @@ import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 import java.time.Instant
@@ -32,11 +33,12 @@ class GithubPullRequestReaderTest :
 
         fun projection(
             files: MutableList<GithubPullRequestProjectionFile> = mutableListOf(),
+            number: Int = 7,
         ) = GithubPullRequestProjection(
-            id = "my-org/my-repo#7",
+            id = "my-org/my-repo#$number",
             owner = "my-org",
             repo = "my-repo",
-            number = 7,
+            number = number,
             title = "Add feature",
             author = "octocat",
             state = "open",
@@ -52,6 +54,46 @@ class GithubPullRequestReaderTest :
         )
 
         describe("GithubPullRequestReader 클래스의") {
+            describe("listPullRequests 메서드는") {
+                context("repo의 PR 동기화 마커가 없는 경우") {
+                    it("목록을 조회하지 않고 503을 던진다") {
+                        every { markerRepository.existsById("PULL_REQUEST:my-org/my-repo") } returns false
+
+                        val ex = shouldThrow<ExpectedException> { reader.listPullRequests("my-org", "my-repo", "open") }
+
+                        ex.statusCode shouldBe HttpStatus.SERVICE_UNAVAILABLE
+                        verify(exactly = 0) {
+                            repository.findTop100ByOwnerAndRepoAndStateOrderByNumberDesc(any(), any(), any())
+                        }
+                    }
+                }
+
+                context("특정 상태를 요청한 경우") {
+                    it("상태 조건으로 제한 조회한 결과를 그 순서대로 반환한다") {
+                        every { markerRepository.existsById("PULL_REQUEST:my-org/my-repo") } returns true
+                        every {
+                            repository.findTop100ByOwnerAndRepoAndStateOrderByNumberDesc("my-org", "my-repo", "open")
+                        } returns listOf(projection(number = 9), projection(number = 7))
+
+                        val result = reader.listPullRequests("my-org", "my-repo", "open")
+
+                        result.map { it.number } shouldBe listOf(9, 7)
+                    }
+                }
+
+                context("all 상태를 요청한 경우") {
+                    it("상태 조건 없이 제한 조회한다") {
+                        every { markerRepository.existsById("PULL_REQUEST:my-org/my-repo") } returns true
+                        every { repository.findTop100ByOwnerAndRepoOrderByNumberDesc("my-org", "my-repo") } returns
+                            listOf(projection(number = 7))
+
+                        val result = reader.listPullRequests("my-org", "my-repo", "all")
+
+                        result.map { it.number } shouldBe listOf(7)
+                    }
+                }
+            }
+
             describe("listFiles 메서드는") {
                 context("repo의 PR 동기화 마커가 없는 경우") {
                     it("503을 던진다") {

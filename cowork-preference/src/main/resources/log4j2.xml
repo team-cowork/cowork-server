@@ -10,18 +10,29 @@
     </Console>
     <RollingFile name="FILE"
                  fileName="${env:PREFERENCE_LOG_DIR:-build/logs/cowork/preference}/app.log"
-                 filePattern="${env:PREFERENCE_LOG_DIR:-build/logs/cowork/preference}/app.%d{yyyy-MM-dd}.log">
+                 filePattern="${env:PREFERENCE_LOG_DIR:-build/logs/cowork/preference}/app.%d{yyyy-MM-dd}.%i.log">
       <JsonTemplateLayout eventTemplateUri="classpath:EcsLayout.json">
         <EventTemplateAdditionalField key="service" value="cowork-preference" format="STRING"/>
         <EventTemplateAdditionalField key="level" value='{"$resolver": "level", "field": "name"}' format="JSON"/>
       </JsonTemplateLayout>
       <Policies>
         <TimeBasedTriggeringPolicy/>
+        <SizeBasedTriggeringPolicy size="10MB"/>
       </Policies>
-      <DefaultRolloverStrategy max="10"/>
+      <DefaultRolloverStrategy max="10">
+        <Delete basePath="${env:PREFERENCE_LOG_DIR:-build/logs/cowork/preference}" maxDepth="1">
+          <IfFileName glob="app.*.log">
+            <IfAny>
+              <IfLastModified age="10d"/>
+              <IfAccumulatedFileSize exceeds="100MB"/>
+            </IfAny>
+          </IfFileName>
+        </Delete>
+      </DefaultRolloverStrategy>
     </RollingFile>
   </Appenders>
   <Loggers>
+    <Logger name="org.apache.kafka.clients.admin.internals.AdminMetadataManager" level="warn"/>
     <Root level="info">
       <AppenderRef ref="CONSOLE"/>
       <AppenderRef ref="FILE"/>
