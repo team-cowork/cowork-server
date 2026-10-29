@@ -1,64 +1,66 @@
+import {Buffer} from 'node:buffer';
 import {randomUUID} from 'node:crypto';
 import {
-    BadRequestException,
-    ForbiddenException,
-    forwardRef,
-    Inject,
-    Injectable,
-    Logger,
-    NotFoundException,
-    ServiceUnavailableException,
+	BadRequestException,
+	ForbiddenException,
+	forwardRef,
+	Inject as inject,
+	Injectable as injectable,
+	Logger,
+	NotFoundException,
+	ServiceUnavailableException,
 } from '@nestjs/common';
 import {Types} from 'mongoose';
-import {ConfirmedAttachment} from '../storage/attachment-upload.schema';
-import {ElasticsearchService} from '../search/elasticsearch.service';
-import {ObjectStorageService} from '../storage/object-storage.service';
-import {BlockService} from '../block/block.service';
-import {publicAttachments, toMessageBroadcastPayload} from './repository/message.repository';
-import {MessageDocument} from './schema';
+import {ConfirmedAttachment} from '../storage/attachment-upload.schema.js';
+import {ElasticsearchService} from '../search/elasticsearch.service.js';
+import {ObjectStorageService} from '../storage/object-storage.service.js';
+import {BlockService} from '../block/block.service.js';
+import {type Nullable} from '../common/type/nullable.js';
+import {publicAttachments, toMessageBroadcastPayload} from './repository/message.repository.js';
+import {MessageDocument} from './schema/index.js';
 import {
-    EditMessageDto,
-    SendMessageDto,
-    ConfirmFileUploadRequestDto,
-    CreateFileUploadUrlRequestDto,
-    CreateFileUploadUrlResponseDto,
-    CreateGithubIssueDto,
-    SlashCommand,
-    SlashCommandDto,
-    SearchMessagesDto,
-    SearchTeamMessagesDto,
-    SearchMessagesResponseDto,
-    FileListQueryDto,
-    FileListResponseDto,
-    ChannelUserContext,
-    ChannelUserRoleContext,
-    MessageUserRoleContext,
-    UserContext,
-} from './dto';
-import {ChatMessageProducer} from './kafka/chat-message.producer';
-import {ChatGithubIssueCommandProducer} from './kafka/chat-github-issue.producer';
+	EditMessageDto,
+	SendMessageDto,
+	ConfirmFileUploadRequestDto,
+	CreateFileUploadUrlRequestDto,
+	CreateFileUploadUrlResponseDto,
+	CreateGithubIssueDto,
+	SlashCommand,
+	SlashCommandDto,
+	SearchMessagesDto,
+	SearchTeamMessagesDto,
+	SearchMessagesResponseDto,
+	FileListQueryDto,
+	FileListResponseDto,
+	ChannelUserContext,
+	ChannelUserRoleContext,
+	MessageUserRoleContext,
+	UserContext,
+} from './dto/index.js';
+import {ChatMessageProducer} from './kafka/chat-message.producer.js';
+import {ChatGithubIssueCommandProducer} from './kafka/chat-github-issue.producer.js';
 import {
-    ProjectClient,
-    ChannelClient,
-    UserClient,
-    UnreadCounterService,
-    type ChannelActionPermission,
-    ChannelMessageReadAccessService,
-    ChannelReadService,
-    SlowmodeService,
-    RoomSocket,
-    resolveMessageScope,
-} from './service';
-import {CHAT_SOCKET_SERVER, type ChatSocketServerProvider} from './chat-socket-server.token';
+	ProjectClient,
+	ChannelClient,
+	UserClient,
+	UnreadCounterService,
+	type ChannelActionPermission,
+	ChannelMessageReadAccessService,
+	ChannelReadService,
+	SlowmodeService,
+	RoomSocket,
+	resolveMessageScope,
+} from './service/index.js';
+import {CHAT_SOCKET_SERVER, type ChatSocketServerProvider} from './chat-socket-server.token.js';
 import {
-    MessageRepository,
-    MessageRow,
-    DmParticipantRepository,
-    ChannelReadStateRepository,
-    TeamMemberProjectionRepository,
-    ChannelProjectionRepository,
-} from './repository';
-import {MessageSearchDeletionService, isSearchIndexed} from './search';
+	MessageRepository,
+	MessageRow,
+	DmParticipantRepository,
+	ChannelReadStateRepository,
+	TeamMemberProjectionRepository,
+	ChannelProjectionRepository,
+} from './repository/index.js';
+import {MessageSearchDeletionService, isSearchIndexed} from './search/index.js';
 
 const SYSTEM_AUTHOR_ID = 0;
 const SYSTEM_AUTHOR_NAME = 'System';
@@ -73,79 +75,287 @@ const DM_CHANNEL_TYPE = 'DM';
  Socket.IO 브로드캐스트는 `ChatGateway.server`를 통해 수행하며, `chat.gateway.ts`를 import하면
  순환 참조가 생기므로 `CHAT_SOCKET_SERVER` 토큰으로 주입한다.
  */
-@Injectable()
+@injectable()
 export class ChatService {
-    private readonly logger = new Logger(ChatService.name);
+	private readonly logger = new Logger(ChatService.name);
 
-    constructor(
-        private readonly messageRepository: MessageRepository,
-        private readonly dmParticipantRepository: DmParticipantRepository,
-        private readonly readStateRepository: ChannelReadStateRepository,
-        private readonly teamMemberRepository: TeamMemberProjectionRepository,
-        private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
-        private readonly elasticsearchService: ElasticsearchService,
-        private readonly objectStorageService: ObjectStorageService,
-        private readonly chatMessageProducer: ChatMessageProducer,
-        private readonly chatGithubIssueCommandProducer: ChatGithubIssueCommandProducer,
-        private readonly projectClient: ProjectClient,
-        private readonly channelClient: ChannelClient,
-        private readonly userClient: UserClient,
-        private readonly blockService: BlockService,
-        @Inject(forwardRef(() => CHAT_SOCKET_SERVER))
-        private readonly chatGateway: ChatSocketServerProvider,
-        private readonly unreadCounterService: UnreadCounterService,
-        private readonly messageSearchDeletion: MessageSearchDeletionService,
-        private readonly channelProjectionRepository: ChannelProjectionRepository,
-        private readonly slowmodeService: SlowmodeService,
-        private readonly channelReadService: ChannelReadService,
-    ) {}
+	@inject()
+	private readonly messageRepository!: MessageRepository;
 
-    /**
+	@inject()
+	private readonly dmParticipantRepository!: DmParticipantRepository;
+
+	@inject()
+	private readonly readStateRepository!: ChannelReadStateRepository;
+
+	@inject()
+	private readonly teamMemberRepository!: TeamMemberProjectionRepository;
+
+	@inject()
+	private readonly channelMessageReadAccess!: ChannelMessageReadAccessService;
+
+	@inject()
+	private readonly elasticsearchService!: ElasticsearchService;
+
+	@inject()
+	private readonly objectStorageService!: ObjectStorageService;
+
+	@inject()
+	private readonly chatMessageProducer!: ChatMessageProducer;
+
+	@inject()
+	private readonly chatGithubIssueCommandProducer!: ChatGithubIssueCommandProducer;
+
+	@inject()
+	private readonly projectClient!: ProjectClient;
+
+	@inject()
+	private readonly channelClient!: ChannelClient;
+
+	@inject()
+	private readonly userClient!: UserClient;
+
+	@inject()
+	private readonly blockService!: BlockService;
+
+	@inject(forwardRef(() => CHAT_SOCKET_SERVER))
+	private readonly chatGateway!: ChatSocketServerProvider;
+
+	@inject()
+	private readonly unreadCounterService!: UnreadCounterService;
+
+	@inject()
+	private readonly messageSearchDeletion!: MessageSearchDeletionService;
+
+	@inject()
+	private readonly channelProjectionRepository!: ChannelProjectionRepository;
+
+	@inject()
+	private readonly slowmodeService!: SlowmodeService;
+
+	@inject()
+	private readonly channelReadService!: ChannelReadService;
+
+	/**
+     DM 메시지 전송 가능 여부를 검사한다.
+     수신자가 발신자를 차단했으면 `ForbiddenException`을 던지고,
+     전송 가능하면 양쪽 멤버의 숨김(isHidden) 상태를 해제해 대화 목록에 다시 노출시킨다.
+
+     @param channelId - DM 채널 ID
+     @param senderId - 발신자 사용자 ID
+     @throws ForbiddenException 수신자가 발신자를 차단한 경우
+     */
+	private async verifyDmSendable(channelId: number, senderId: number): Promise<void> {
+		const members = await this.dmParticipantRepository.findByChannelId(channelId);
+		const receiver = members.find(member => member.userId !== senderId);
+		if (!receiver) {
+			return;
+		}
+
+		if (await this.blockService.isBlocked(receiver.userId, senderId)) {
+			throw new ForbiddenException('상대방이 회원님을 차단하여 메시지를 보낼 수 없습니다');
+		}
+
+		await Promise.all([
+			this.dmParticipantRepository.setHidden(channelId, senderId, false),
+			this.dmParticipantRepository.setHidden(channelId, receiver.userId, false),
+		]);
+	}
+
+	/**
+     여러 채널의 안읽음 수를 조회한다. Redis 캐시(`UnreadCounterService`)를 우선 조회하고,
+     캐시 미스가 발생한 채널만 MongoDB 집계(`countUnreadForChannels`)로 재계산해 캐시를 채운다.
+     Redis 오류 시에는 전체를 MongoDB로 폴백하므로 캐시 유무와 무관하게 항상 정확한 값을 반환한다.
+
+     @param userId - 조회할 사용자 ID
+     @param channelIds - 읽기 권한이 있는 채널 ID 목록 (팀 unread, DM 목록에서 공유)
+     @returns channelId → 안읽음 수 매핑
+     */
+	private async getUnreadCounts(
+		userId: number,
+		channelIds: number[],
+	): Promise<Map<number, number>> {
+		if (channelIds.length === 0) {
+			return new Map();
+		}
+
+		const cached = await this.unreadCounterService.getMany(userId, channelIds);
+		const missedIds = cached ? cached.misses : channelIds;
+		if (missedIds.length === 0) {
+			return cached!.hits;
+		}
+
+		const readStates = await this.readStateRepository.findForChannels(missedIds, userId);
+		const recomputed = await this.messageRepository.countUnreadForChannels(readStates);
+		// 집계 중 읽음 처리가 끝났다면 이 값은 오래된 위치 기준이므로, 기준 위치를 함께 넘겨 최신 값을 덮지 않게 한다.
+		const filled = new Map(readStates.map(({channelId, lastReadMessageId}) => [channelId, {
+			count: recomputed.get(channelId) ?? 0,
+			readCursor: lastReadMessageId?.toHexString() ?? null,
+		}]));
+		void this.unreadCounterService.setMany(userId, filled);
+
+		const result = new Map(cached?.hits);
+		for (const [channelId, {count}] of filled) {
+			result.set(channelId, count);
+		}
+
+		return result;
+	}
+
+	/**
+     `MessageRow`를 응답 DTO 형태로 변환한다.
+     `reactions`의 `myReaction` 필드는 요청자가 해당 이모지로 반응했는지 여부다.
+
+     @param row - DB에서 조회한 메시지 row
+     @param userId - 응답을 받을 요청자 ID
+     @returns 응답 형태의 메시지 객체
+     */
+	private toMessageResponse(row: MessageRow, userId: number) {
+		return {
+			...row,
+			attachments: publicAttachments(row.attachments),
+			reactions: (row.reactions ?? []).map(r => ({
+				emoji: r.emoji,
+				count: r.userIds.length,
+				myReaction: r.userIds.includes(userId),
+			})),
+		};
+	}
+
+	/**
+     Base64 인코딩된 fileId에서 messageId를 추출한다.
+     fileId는 `{ messageId: string }` 형태의 JSON을 base64로 인코딩한 값이다.
+
+     @param fileId - base64 인코딩된 파일 식별자
+     @returns 추출된 messageId (MongoDB ObjectId 문자열)
+     @throws BadRequestException fileId 형식이 유효하지 않은 경우
+     */
+	private decodeFileId(fileId: string): string {
+		try {
+			const parsed = JSON.parse(Buffer.from(fileId, 'base64url').toString('utf8')) as {
+				messageId?: unknown;
+			};
+			if (typeof parsed.messageId !== 'string' || !Types.ObjectId.isValid(parsed.messageId)) {
+				throw new BadRequestException('유효하지 않은 fileId입니다');
+			}
+
+			return parsed.messageId;
+		} catch {
+			throw new BadRequestException('유효하지 않은 fileId입니다');
+		}
+	}
+
+	/**
+     채널 접근, 메시지 소속과 작업별 소유권·역할 권한을 검증한다.
+
+     @param ctx - 메시지·사용자·역할 컨텍스트
+     @param action - 검증할 메시지 작업
+     @returns 검증을 통과한 메시지 도큐먼트
+     @throws ForbiddenException 멤버가 아니거나, 다른 채널의 메시지이거나, 소유권 없는 경우
+     @throws NotFoundException 메시지가 존재하지 않는 경우
+     */
+	private async findAndVerifyMessage(
+		ctx: MessageUserRoleContext,
+		action: 'edit' | 'delete' | 'pin',
+	): Promise<MessageDocument> {
+		await this.requireChannelRead(ctx.channelId, ctx.userId);
+		const message = await this.messageRepository.findById(ctx.messageId);
+		if (!message) {
+			throw new NotFoundException('메시지를 찾을 수 없습니다');
+		}
+
+		if (message.channelId !== ctx.channelId) {
+			throw new ForbiddenException('해당 채널의 메시지가 아닙니다');
+		}
+
+		if (action === 'pin') {
+			await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_pin');
+		} else if (message.authorId !== ctx.userId) {
+			if (action === 'edit') {
+				throw new ForbiddenException('본인 메시지만 수정할 수 있습니다');
+			}
+
+			await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_manage');
+		}
+
+		return message;
+	}
+
+	/**
+     업로더 ID 목록에 대한 표시 이름을 로컬 사용자 프로필과 팀 멤버 projection에서 조회한다.
+     `SYSTEM_AUTHOR_ID(0)` 이하이면 projection 조회 없이 'System'으로 처리한다.
+
+     @param items - uploaderId 필드를 포함하는 아이템 배열
+     @param teamId - 팀 닉네임을 적용할 팀 ID. 팀에 속하지 않은 채널이면 null
+     @returns uploaderId → 표시 이름 매핑
+     */
+	private async loadUploaderNames(
+		items: Array<{uploaderId: number}>,
+		teamId: Nullable<number>,
+	): Promise<Map<number, string>> {
+		const uniqueUploaderIds = [...new Set(items.map(item => item.uploaderId))];
+		const systemIds = uniqueUploaderIds.filter(id => id <= SYSTEM_AUTHOR_ID);
+		const realIds = uniqueUploaderIds.filter(id => id > SYSTEM_AUTHOR_ID);
+
+		const names = await this.userClient.getDisplayNames(realIds, teamId);
+		for (const systemId of systemIds) {
+			names.set(systemId, SYSTEM_AUTHOR_NAME);
+		}
+
+		return names;
+	}
+
+	private async requireReplyParent(parentMessageId: string | undefined, channelId: number): Promise<void> {
+		if (parentMessageId === undefined || parentMessageId === '') {
+			return;
+		}
+
+		const parent = await this.messageRepository.findByIdAndChannelId(parentMessageId, channelId);
+		if (!parent) {
+			throw new NotFoundException('답장 대상 메시지를 찾을 수 없습니다');
+		}
+	}
+
+	/**
      사용자의 채널 읽기 권한을 확인한다.
 
      @param channelId - 확인할 채널 ID
      @param userId - 확인할 사용자 ID
      @returns 권한이 있으면 `true`, 없으면 `false`
      */
-    async canReadChannel(channelId: number, userId: number): Promise<boolean> {
-        return this.channelMessageReadAccess.canReadChannel(channelId, userId);
-    }
+	async canReadChannel(channelId: number, userId: number): Promise<boolean> {
+		return this.channelMessageReadAccess.canReadChannel(channelId, userId);
+	}
 
-    async emitToReadableChannelUsers(
-        channelId: number,
-        event: string,
-        payload: unknown,
-        excludedSocketId?: string,
-    ): Promise<void> {
-        await this.channelMessageReadAccess.emitToReadableChannelUsers(
-            this.chatGateway.server,
-            channelId,
-            event,
-            payload,
-            excludedSocketId,
-        );
-    }
+	async emitToReadableChannelUsers(
+		channelId: number,
+		event: string,
+		payload: unknown,
+		excludedSocketId?: string,
+	): Promise<void> {
+		await this.channelMessageReadAccess.emitToReadableChannelUsers(this.chatGateway.server, channelId, {event, payload, excludedSocketId});
+	}
 
-    async isTeamMember(teamId: number, userId: number): Promise<boolean> {
-        return this.teamMemberRepository.exists(teamId, userId);
-    }
+	async isTeamMember(teamId: number, userId: number): Promise<boolean> {
+		return this.teamMemberRepository.exists(teamId, userId);
+	}
 
-    async evictUnauthorizedRooms(sockets: RoomSocket[]): Promise<number> {
-        return this.channelMessageReadAccess.evictUnauthorizedRooms(sockets);
-    }
+	async evictUnauthorizedRooms(sockets: RoomSocket[]): Promise<number> {
+		return this.channelMessageReadAccess.evictUnauthorizedRooms(sockets);
+	}
 
-    /**
+	/**
      채널 읽기 권한을 검증한다. 권한이 없으면 `ForbiddenException`을 던진다.
 
      @param channelId - 채널 ID
      @param userId - 사용자 ID
      @throws ForbiddenException 권한이 없는 경우
      */
-    async requireChannelRead(channelId: number, userId: number): Promise<void> {
-        await this.channelMessageReadAccess.requireCanRead(channelId, userId);
-    }
+	async requireChannelRead(channelId: number, userId: number): Promise<void> {
+		await this.channelMessageReadAccess.requireCanRead(channelId, userId);
+	}
 
-    /**
+	/**
      채널 읽기 권한을 검증하고 해당 채널의 팀 ID를 반환한다.
      GitHub 이슈 생성 시 채널-팀 소속 검증에 사용한다.
 
@@ -154,18 +364,18 @@ export class ChatService {
      @returns 채널이 속한 팀 ID
      @throws ForbiddenException 권한이 없는 경우
      */
-    async requireReadAndGetTeamId(channelId: number, userId: number): Promise<number> {
-        await this.channelMessageReadAccess.requireCanRead(channelId, userId);
-        const channel = await this.channelProjectionRepository.findById(channelId);
-        const teamId = channel?.teamId;
-        if (teamId == null) {
-            throw new ForbiddenException('채널 접근 권한이 없습니다');
-        }
+	async requireReadAndGetTeamId(channelId: number, userId: number): Promise<number> {
+		await this.channelMessageReadAccess.requireCanRead(channelId, userId);
+		const channel = await this.channelProjectionRepository.findById(channelId);
+		const teamId = channel?.teamId;
+		if (teamId === null || teamId === undefined) {
+			throw new ForbiddenException('채널 접근 권한이 없습니다');
+		}
 
-        return teamId;
-    }
+		return teamId;
+	}
 
-    /**
+	/**
      오브젝트 스토리지 presigned 업로드 URL을 생성한다.
      반환된 `uploadUrl`에 PUT 요청 시 `headers`를 함께 전송해야 한다.
 
@@ -173,40 +383,40 @@ export class ChatService {
      @param dto - 파일명, MIME 타입, 크기
      @returns presigned URL, 임시 objectKey, 만료 시간, 필수 헤더
      */
-    async createFileUploadUrl(
-        ctx: ChannelUserContext,
-        dto: CreateFileUploadUrlRequestDto,
-    ): Promise<CreateFileUploadUrlResponseDto> {
-        await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'file_attach');
-        const upload = await this.objectStorageService.createPresignedUpload({
-            channelId: ctx.channelId,
-            userId: ctx.userId,
-            filename: dto.filename,
-            contentType: dto.contentType,
-            size: dto.size,
-        });
+	async createFileUploadUrl(
+		ctx: ChannelUserContext,
+		dto: CreateFileUploadUrlRequestDto,
+	): Promise<CreateFileUploadUrlResponseDto> {
+		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'file_attach');
+		const upload = await this.objectStorageService.createPresignedUpload({
+			channelId: ctx.channelId,
+			userId: ctx.userId,
+			filename: dto.filename,
+			contentType: dto.contentType,
+			size: dto.size,
+		});
 
-        return {
-            ...upload,
-            headers: {
-                'Content-Type': dto.contentType,
-            },
-        };
-    }
+		return {
+			...upload,
+			headers: {
+				'Content-Type': dto.contentType,
+			},
+		};
+	}
 
-    /**
+	/**
      클라이언트가 업로드한 파일을 오브젝트 스토리지에서 검증하고 변경 불가능한 최종 object key를 반환한다.
 
      @param ctx - 채널·사용자 컨텍스트
      @param dto - 검증할 objectKey
      @returns 최종 objectKey와 서버가 확인한 파일 메타데이터
      */
-    async confirmFileUpload(ctx: ChannelUserContext, dto: ConfirmFileUploadRequestDto): Promise<ConfirmedAttachment> {
-        await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'file_attach');
-        return this.objectStorageService.confirmUpload(ctx.channelId, ctx.userId, dto.objectKey);
-    }
+	async confirmFileUpload(ctx: ChannelUserContext, dto: ConfirmFileUploadRequestDto): Promise<ConfirmedAttachment> {
+		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'file_attach');
+		return this.objectStorageService.confirmUpload(ctx.channelId, ctx.userId, dto.objectKey);
+	}
 
-    /**
+	/**
      FILE_SHARE 채널의 첨부파일 목록을 커서 기반 페이지네이션으로 조회한다.
      FILE_SHARE 채널이 아니면 `BadRequestException`을 던진다.
      업로더 이름은 Kafka로 동기화된 팀 멤버와 사용자 프로필 projection에서 일괄 조회한다.
@@ -216,36 +426,36 @@ export class ChatService {
      @returns 파일 목록과 다음 페이지 커서
      @throws BadRequestException FILE_SHARE 채널이 아닌 경우
      */
-    async getFileList(ctx: ChannelUserContext, query: FileListQueryDto): Promise<FileListResponseDto> {
-        await this.requireChannelRead(ctx.channelId, ctx.userId);
+	async getFileList(ctx: ChannelUserContext, query: FileListQueryDto): Promise<FileListResponseDto> {
+		await this.requireChannelRead(ctx.channelId, ctx.userId);
 
-        const channel = await this.channelClient.getChannel(ctx.channelId);
-        if (channel.viewType !== FILE_SHARE_VIEW_TYPE) {
-            throw new BadRequestException('FILE_SHARE 채널에서만 파일 목록을 조회할 수 있습니다');
-        }
+		const channel = await this.channelClient.getChannel(ctx.channelId);
+		if (channel.viewType !== FILE_SHARE_VIEW_TYPE) {
+			throw new BadRequestException('FILE_SHARE 채널에서만 파일 목록을 조회할 수 있습니다');
+		}
 
-        const limit = query.limit ?? 20;
-        const {items, nextCursor} = await this.messageRepository.findFileAttachments(ctx.channelId, query.before, limit);
-        const uploaderNames = await this.loadUploaderNames(items, channel.teamId);
+		const limit = query.limit ?? 20;
+		const {items, nextCursor} = await this.messageRepository.findFileAttachments(ctx.channelId, query.before, limit);
+		const uploaderNames = await this.loadUploaderNames(items, channel.teamId);
 
-        return {
-            files: items.map(item => ({
-                fileId: item.fileId,
-                messageId: item.messageId,
-                fileName: item.fileName,
-                fileSize: item.fileSize,
-                attachmentIndex: item.attachmentIndex,
-                objectKey: item.objectKey,
-                mimeType: item.mimeType,
-                uploaderId: item.uploaderId,
-                uploaderName: uploaderNames.get(item.uploaderId) ?? String(item.uploaderId),
-                uploadedAt: item.uploadedAt,
-            })),
-            nextCursor,
-        };
-    }
+		return {
+			files: items.map(item => ({
+				fileId: item.fileId,
+				messageId: item.messageId,
+				fileName: item.fileName,
+				fileSize: item.fileSize,
+				attachmentIndex: item.attachmentIndex,
+				objectKey: item.objectKey,
+				mimeType: item.mimeType,
+				uploaderId: item.uploaderId,
+				uploaderName: uploaderNames.get(item.uploaderId) ?? String(item.uploaderId),
+				uploadedAt: item.uploadedAt,
+			})),
+			nextCursor,
+		};
+	}
 
-    /**
+	/**
      파일이 포함된 메시지와 오브젝트 스토리지 오브젝트를 삭제한다.
      오브젝트 스토리지 삭제 실패는 경고 로그만 남기고 계속 진행한다(파일 삭제 부분 실패가 메시지 삭제를 막지 않음).
      색인 대상 메시지는 삭제 tombstone을 먼저 기록한 뒤 삭제하므로 검색 색인에서도 반드시 제거된다.
@@ -258,176 +468,139 @@ export class ChatService {
      @throws NotFoundException 메시지가 존재하지 않는 경우
      @throws ForbiddenException 본인 파일이 아니고 message_manage 권한도 없는 경우
      */
-    async deleteFile(ctx: ChannelUserRoleContext, fileId: string): Promise<{channelId: number; messageId: string}> {
-        const messageId = this.decodeFileId(fileId);
-        await this.requireChannelRead(ctx.channelId, ctx.userId);
+	async deleteFile(ctx: ChannelUserRoleContext, fileId: string): Promise<{channelId: number; messageId: string}> {
+		const messageId = this.decodeFileId(fileId);
+		await this.requireChannelRead(ctx.channelId, ctx.userId);
 
-        const message = await this.messageRepository.findByIdAndChannelId(messageId, ctx.channelId);
-        if (!message) {
-            throw new NotFoundException('파일(메시지)을 찾을 수 없습니다');
-        }
+		const message = await this.messageRepository.findByIdAndChannelId(messageId, ctx.channelId);
+		if (!message) {
+			throw new NotFoundException('파일(메시지)을 찾을 수 없습니다');
+		}
 
-        if (message.authorId !== ctx.userId) {
-            await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_manage');
-        }
+		if (message.authorId !== ctx.userId) {
+			await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_manage');
+		}
 
-        await Promise.all(
-            message.attachments.map(async attachment => {
-                try {
-                    const objectKey = attachment.objectKey ?? this.objectStorageService.extractObjectKey(attachment.url ?? '');
-                    if (!objectKey.startsWith(`chat-files/${ctx.channelId}/${message.authorId}/`)) {
-                        this.logger.warn(`Skipping deletion of out-of-scope objectKey [key=${objectKey}]`);
-                        return;
-                    }
+		await Promise.all(
+			message.attachments.map(async attachment => {
+				try {
+					const objectKey = attachment.objectKey ?? this.objectStorageService.extractObjectKey(attachment.url ?? '');
+					if (!objectKey.startsWith(`chat-files/${ctx.channelId}/${message.authorId}/`)) {
+						this.logger.warn(`Skipping deletion of out-of-scope objectKey [key=${objectKey}]`);
+						return;
+					}
 
-                    await this.objectStorageService.removeObject(objectKey);
-                } catch (error) {
-                    this.logger.warn('Failed to delete object storage file', error);
-                }
-            }),
-        );
+					await this.objectStorageService.removeObject(objectKey);
+				} catch (error) {
+					this.logger.warn('Failed to delete object storage file', error);
+				}
+			}),
+		);
 
-        const result = await this.messageSearchDeletion.deleteMessage(messageId);
-        if (result === 'DELETED') {
-            await this.channelMessageReadAccess.emitToReadableChannelUsers(
-                this.chatGateway.server,
-                ctx.channelId,
-                'message:deleted',
-                {messageId},
-            );
-        }
+		const result = await this.messageSearchDeletion.deleteMessage(messageId);
+		if (result === 'DELETED') {
+			await this.channelMessageReadAccess.emitToReadableChannelUsers(this.chatGateway.server, ctx.channelId, {event: 'message:deleted', payload: {messageId}});
+		}
 
-        return {channelId: ctx.channelId, messageId};
-    }
+		return {channelId: ctx.channelId, messageId};
+	}
 
-    /**
+	/**
      메시지를 Kafka `chat.message.v2` 토픽으로 발행한다.
      실제 저장과 Socket.IO 브로드캐스트는 `ChatMessageConsumer`가 처리한다.
 
      @param ctx - 채널·사용자·역할 컨텍스트
      @param dto - 메시지 내용, 타입, 첨부파일 등
      */
-    async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
-        const permissions: ChannelActionPermission[] = [
-            dto.parentMessageId !== undefined && dto.parentMessageId !== '' ? 'thread_reply' : 'message_send',
-            ...((dto.attachments?.length ?? 0) > 0 ? ['file_attach' as const] : []),
-        ];
-        await this.channelMessageReadAccess.requirePermissions(ctx.channelId, ctx.userId, permissions);
-        const channel = await this.channelProjectionRepository.findById(ctx.channelId);
-        if (!channel) {
-            throw new NotFoundException('채널을 찾을 수 없습니다');
-        }
+	async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
+		const permissions: ChannelActionPermission[] = [
+			dto.parentMessageId !== undefined && dto.parentMessageId !== '' ? 'thread_reply' : 'message_send',
+			...((dto.attachments?.length ?? 0) > 0 ? ['file_attach' as const] : []),
+		];
+		await this.channelMessageReadAccess.requirePermissions(ctx.channelId, ctx.userId, permissions);
+		const channel = await this.channelProjectionRepository.findById(ctx.channelId);
+		if (!channel) {
+			throw new NotFoundException('채널을 찾을 수 없습니다');
+		}
 
-        const scope = resolveMessageScope(channel);
-        if (!scope) {
-            throw new ServiceUnavailableException('채널 정보가 일치하지 않습니다');
-        }
+		const scope = resolveMessageScope(channel);
+		if (!scope) {
+			throw new ServiceUnavailableException('채널 정보가 일치하지 않습니다');
+		}
 
-        if (dto.parentMessageId !== undefined && dto.parentMessageId !== '') {
-            const parent = await this.messageRepository.findByIdAndChannelId(dto.parentMessageId, ctx.channelId);
-            if (!parent) {
-                throw new NotFoundException('답장 대상 메시지를 찾을 수 없습니다');
-            }
-        }
+		await this.requireReplyParent(dto.parentMessageId, ctx.channelId);
+		if (channel.type === DM_CHANNEL_TYPE) {
+			await this.verifyDmSendable(ctx.channelId, ctx.userId);
+		}
 
-        if (channel.type === DM_CHANNEL_TYPE) {
-            await this.verifyDmSendable(ctx.channelId, ctx.userId);
-        }
+		if ((dto.attachments?.length ?? 0) > 0 && (dto.clientMessageId === undefined || dto.clientMessageId === '')) {
+			throw new BadRequestException('첨부 메시지에는 재시도에 사용할 clientMessageId가 필요합니다');
+		}
 
-        if ((dto.attachments?.length ?? 0) > 0 && (dto.clientMessageId === undefined || dto.clientMessageId === '')) {
-            throw new BadRequestException('첨부 메시지에는 재시도에 사용할 clientMessageId가 필요합니다');
-        }
+		const clientMessageId = dto.clientMessageId ?? randomUUID();
+		const slowmodeReservation = await this.slowmodeService.reserve(
+			ctx.channelId, scope?.teamId, ctx.userId, clientMessageId,
+		);
+		try {
+			const attachments = await this.objectStorageService.claimAttachments(
+				dto.attachments ?? [], ctx.channelId, ctx.userId, clientMessageId,
+			);
 
-        const clientMessageId = dto.clientMessageId ?? randomUUID();
-        const slowmodeReservation = await this.slowmodeService.reserve(
-            ctx.channelId, scope?.teamId, ctx.userId, clientMessageId,
-        );
-        try {
-            const attachments = await this.objectStorageService.claimAttachments(
-                dto.attachments ?? [], ctx.channelId, ctx.userId, clientMessageId,
-            );
+			await this.chatMessageProducer.sendMessage(ctx.channelId, {
+				...scope,
+				content: dto.content,
+				type: dto.type,
+				attachments,
+				parentMessageId: dto.parentMessageId,
+				clientMessageId,
+			}, ctx.userId, ctx.userRole);
+		} catch (error) {
+			await this.slowmodeService.release(slowmodeReservation);
+			throw error;
+		}
+	}
 
-            await this.chatMessageProducer.sendMessage(ctx.channelId, {
-                ...scope,
-                content: dto.content,
-                type: dto.type,
-                attachments,
-                parentMessageId: dto.parentMessageId,
-                clientMessageId,
-            }, ctx.userId, ctx.userRole);
-        } catch (error) {
-            await this.slowmodeService.release(slowmodeReservation);
-            throw error;
-        }
-    }
-
-    /**
-     DM 메시지 전송 가능 여부를 검사한다.
-     수신자가 발신자를 차단했으면 `ForbiddenException`을 던지고,
-     전송 가능하면 양쪽 멤버의 숨김(isHidden) 상태를 해제해 대화 목록에 다시 노출시킨다.
-
-     @param channelId - DM 채널 ID
-     @param senderId - 발신자 사용자 ID
-     @throws ForbiddenException 수신자가 발신자를 차단한 경우
-     */
-    private async verifyDmSendable(channelId: number, senderId: number): Promise<void> {
-        const members = await this.dmParticipantRepository.findByChannelId(channelId);
-        const receiver = members.find(member => member.userId !== senderId);
-        if (!receiver) {
-            return;
-        }
-
-        if (await this.blockService.isBlocked(receiver.userId, senderId)) {
-            throw new ForbiddenException('상대방이 회원님을 차단하여 메시지를 보낼 수 없습니다');
-        }
-
-        await Promise.all([
-            this.dmParticipantRepository.setHidden(channelId, senderId, false),
-            this.dmParticipantRepository.setHidden(channelId, receiver.userId, false),
-        ]);
-    }
-
-    /**
+	/**
      내 DM 대화 목록을 조회한다. 숨긴(isHidden) 대화는 제외되며,
      마지막 메시지 시각 내림차순으로 정렬된다.
 
      @param userId - 조회할 사용자 ID
      @returns 채널 ID, 상대 사용자 ID, 안읽음 수, 마지막 메시지 요약 목록
      */
-    async getMyDms(userId: number) {
-        const memberships = await this.dmParticipantRepository.findDmMemberships(userId);
-        if (memberships.length === 0) {
-            return [];
-        }
+	async getMyDms(userId: number) {
+		const memberships = await this.dmParticipantRepository.findDmMemberships(userId);
+		if (memberships.length === 0) {
+			return [];
+		}
 
-        const readableChannelIds = new Set(await this.channelMessageReadAccess.filterReadableChannelIds(
-            0,
-            userId,
-            memberships.map(({channelId}) => channelId),
-        ));
-        const readableMemberships = memberships.filter(({channelId}) => readableChannelIds.has(channelId));
-        if (readableMemberships.length === 0) {
-            return [];
-        }
+		const readableChannelIds = new Set(await this.channelMessageReadAccess.filterReadableChannelIds(
+			0,
+			userId,
+			memberships.map(({channelId}) => channelId),
+		));
+		const readableMemberships = memberships.filter(({channelId}) => readableChannelIds.has(channelId));
+		if (readableMemberships.length === 0) {
+			return [];
+		}
 
-        const channelIds = readableMemberships.map(m => m.channelId);
-        const [others, lastMessages, unreadCounts] = await Promise.all([
-            this.dmParticipantRepository.findOtherDmMembers(channelIds, userId),
-            this.messageRepository.findLastMessages(channelIds),
-            this.getUnreadCounts(userId, channelIds),
-        ]);
+		const channelIds = readableMemberships.map(m => m.channelId);
+		const [others, lastMessages, unreadCounts] = await Promise.all([
+			this.dmParticipantRepository.findOtherDmMembers(channelIds, userId),
+			this.messageRepository.findLastMessages(channelIds),
+			this.getUnreadCounts(userId, channelIds),
+		]);
 
-        return readableMemberships
-            .map(({channelId}) => ({
-                channelId,
-                otherUserId: others.get(channelId) ?? null,
-                unreadCount: unreadCounts.get(channelId) ?? 0,
-                lastMessage: lastMessages.get(channelId) ?? null,
-            }))
-            .toSorted((a, b) => (b.lastMessage?.createdAt?.getTime() ?? 0) - (a.lastMessage?.createdAt?.getTime() ?? 0));
-    }
+		return readableMemberships
+			.map(({channelId}) => ({
+				channelId,
+				otherUserId: others.get(channelId) ?? null,
+				unreadCount: unreadCounts.get(channelId) ?? 0,
+				lastMessage: lastMessages.get(channelId) ?? null,
+			}))
+			.toSorted((a, b) => (b.lastMessage?.createdAt?.getTime() ?? 0) - (a.lastMessage?.createdAt?.getTime() ?? 0));
+	}
 
-    /**
+	/**
      DM 대화를 목록에서 숨긴다 (Discord의 "닫기").
      상대방이 메시지를 보내면 자동으로 다시 노출된다.
 
@@ -435,16 +608,16 @@ export class ChatService {
      @param userId - 요청 사용자 ID
      @throws ForbiddenException DM 채널 권한이 없는 경우
      */
-    async hideDm(channelId: number, userId: number): Promise<void> {
-        const membership = await this.dmParticipantRepository.findMembership(channelId, userId);
-        if (membership?.channelType !== DM_CHANNEL_TYPE) {
-            throw new ForbiddenException('DM 채널 접근 권한이 없습니다');
-        }
+	async hideDm(channelId: number, userId: number): Promise<void> {
+		const membership = await this.dmParticipantRepository.findMembership(channelId, userId);
+		if (membership?.channelType !== DM_CHANNEL_TYPE) {
+			throw new ForbiddenException('DM 채널 접근 권한이 없습니다');
+		}
 
-        await this.dmParticipantRepository.setHidden(channelId, userId, true);
-    }
+		await this.dmParticipantRepository.setHidden(channelId, userId, true);
+	}
 
-    /**
+	/**
      슬래시 커맨드를 처리한다. 현재 `github.issue.create`만 지원한다.
      지원하지 않는 커맨드는 `BadRequestException`을 던진다.
 
@@ -452,16 +625,16 @@ export class ChatService {
      @param dto - 커맨드 종류와 payload
      @throws BadRequestException 지원하지 않는 커맨드인 경우
      */
-    async handleSlashCommand(ctx: ChannelUserContext, dto: SlashCommandDto): Promise<void> {
-        if (dto.command !== SlashCommand.GITHUB_ISSUE_CREATE) {
-            throw new BadRequestException('지원하지 않는 슬래시 커맨드입니다');
-        }
+	async handleSlashCommand(ctx: ChannelUserContext, dto: SlashCommandDto): Promise<void> {
+		if (dto.command !== SlashCommand.GITHUB_ISSUE_CREATE) {
+			throw new BadRequestException('지원하지 않는 슬래시 커맨드입니다');
+		}
 
-        await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'slash_command_use');
-        await this.publishGithubIssueCreateCommand(ctx, dto.payload);
-    }
+		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'slash_command_use');
+		await this.publishGithubIssueCreateCommand(ctx, dto.payload);
+	}
 
-    /**
+	/**
      GitHub 이슈 생성 커맨드를 Kafka `project.chat-github-issue.command` 토픽으로 발행한다.
 
      chat은 채널 멤버십과 채널의 팀 소속만 확인하고, 프로젝트 수정 권한(프로젝트 OWNER·EDITOR
@@ -474,38 +647,39 @@ export class ChatService {
      @param dto - GitHub 이슈 생성 정보 (projectId, title, body)
      @throws ForbiddenException 채널 권한이 없는 경우
      */
-    async publishGithubIssueCreateCommand(ctx: ChannelUserContext, dto: CreateGithubIssueDto): Promise<void> {
-        await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'github_issue_create');
-        const channelTeamId = await this.requireReadAndGetTeamId(ctx.channelId, ctx.userId);
+	async publishGithubIssueCreateCommand(ctx: ChannelUserContext, dto: CreateGithubIssueDto): Promise<void> {
+		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'github_issue_create');
+		const channelTeamId = await this.requireReadAndGetTeamId(ctx.channelId, ctx.userId);
 
-        await this.chatGithubIssueCommandProducer.send({
-            operationId: randomUUID(),
-            idempotencyKey: randomUUID(),
-            projectId: dto.projectId,
-            channelId: ctx.channelId,
-            teamId: channelTeamId,
-            requesterId: ctx.userId,
-            title: dto.title,
-            body: dto.body ?? null,
-            occurredAt: new Date().toISOString(),
-        });
-    }
+		await this.chatGithubIssueCommandProducer.send({
+			operationId: randomUUID(),
+			idempotencyKey: randomUUID(),
+			projectId: dto.projectId,
+			channelId: ctx.channelId,
+			teamId: channelTeamId,
+			requesterId: ctx.userId,
+			title: dto.title,
+			body: dto.body ?? null,
+			occurredAt: new Date().toISOString(),
+		});
+	}
 
-    /**
+	/**
      채널 메시지를 최신순으로 커서 기반 페이지네이션 조회한다.
      응답의 `reactions`에는 요청자의 반응 여부(`myReaction`)가 포함된다.
 
      @param ctx - 채널·사용자 컨텍스트
      @param before - 이 MongoDB ObjectId 이전의 메시지 조회 (없으면 최신부터)
+     @param parentMessageId - 이 메시지의 스레드 답글만 조회 (없으면 최상위 메시지)
      @returns 최대 100개의 메시지 배열
      */
-    async getMessages(ctx: ChannelUserContext, before?: string, parentMessageId?: string) {
-        await this.requireChannelRead(ctx.channelId, ctx.userId);
-        const rows = await this.messageRepository.findMessages(ctx.channelId, before, parentMessageId);
-        return rows.map(row => this.toMessageResponse(row, ctx.userId));
-    }
+	async getMessages(ctx: ChannelUserContext, before?: string, parentMessageId?: string) {
+		await this.requireChannelRead(ctx.channelId, ctx.userId);
+		const rows = await this.messageRepository.findMessages(ctx.channelId, before, parentMessageId);
+		return rows.map(row => this.toMessageResponse(row, ctx.userId));
+	}
 
-    /**
+	/**
      프로젝트 내 채널 메시지를 Elasticsearch로 전문 검색한다.
      요청자가 접근 가능한 채널로 검색 범위를 자동으로 제한한다.
      `dto.channelId`가 있으면 해당 채널 접근 권한도 검증한다.
@@ -516,87 +690,87 @@ export class ChatService {
      @returns 검색 결과와 다음 페이지 커서
      @throws ForbiddenException 프로젝트 멤버가 아니거나 채널 접근 권한이 없는 경우
      */
-    async searchProjectMessages(
-        projectId: number,
-        dto: SearchMessagesDto,
-        ctx: UserContext,
-    ): Promise<SearchMessagesResponseDto> {
-        const isMember = await this.projectClient.canRead(projectId, ctx.userId);
-        if (!isMember) {
-            throw new ForbiddenException('프로젝트 접근 권한이 없습니다');
-        }
+	async searchProjectMessages(
+		projectId: number,
+		dto: SearchMessagesDto,
+		ctx: UserContext,
+	): Promise<SearchMessagesResponseDto> {
+		const isMember = await this.projectClient.canRead(projectId, ctx.userId);
+		if (!isMember) {
+			throw new ForbiddenException('프로젝트 접근 권한이 없습니다');
+		}
 
-        const accessibleChannelIds = await this.channelMessageReadAccess.findReadableProjectChannelIds(
-            projectId,
-            ctx.userId,
-        );
+		const accessibleChannelIds = await this.channelMessageReadAccess.findReadableProjectChannelIds(
+			projectId,
+			ctx.userId,
+		);
 
-        let filteredChannelIds = accessibleChannelIds;
-        if (dto.channelId !== undefined) {
-            if (!accessibleChannelIds.includes(dto.channelId)) {
-                throw new ForbiddenException('채널 접근 권한이 없습니다');
-            }
+		let filteredChannelIds = accessibleChannelIds;
+		if (dto.channelId !== undefined) {
+			if (!accessibleChannelIds.includes(dto.channelId)) {
+				throw new ForbiddenException('채널 접근 권한이 없습니다');
+			}
 
-            filteredChannelIds = [dto.channelId];
-        }
+			filteredChannelIds = [dto.channelId];
+		}
 
-        if (filteredChannelIds.length === 0) {
-            return {messages: [], nextCursor: null};
-        }
+		if (filteredChannelIds.length === 0) {
+			return {messages: [], nextCursor: null};
+		}
 
-        const {hits, nextCursor} = await this.elasticsearchService.searchMessages({
-            projectId,
-            accessibleChannelIds: filteredChannelIds,
-            q: dto.q,
-            authorId: dto.authorId,
-            type: dto.type,
-            hasFile: dto.hasFile,
-            before: dto.before,
-            limit: dto.limit ?? 50,
-        });
+		const {hits, nextCursor} = await this.elasticsearchService.searchMessages({
+			projectId,
+			accessibleChannelIds: filteredChannelIds,
+			q: dto.q,
+			authorId: dto.authorId,
+			type: dto.type,
+			hasFile: dto.hasFile,
+			before: dto.before,
+			limit: dto.limit ?? 50,
+		});
 
-        return {messages: hits, nextCursor};
-    }
+		return {messages: hits, nextCursor};
+	}
 
-    async searchTeamMessages(
-        teamId: number,
-        dto: SearchTeamMessagesDto,
-        ctx: UserContext,
-    ): Promise<SearchMessagesResponseDto> {
-        const isMember = await this.teamMemberRepository.exists(teamId, ctx.userId);
-        if (!isMember) {
-            throw new ForbiddenException('팀 접근 권한이 없습니다');
-        }
+	async searchTeamMessages(
+		teamId: number,
+		dto: SearchTeamMessagesDto,
+		ctx: UserContext,
+	): Promise<SearchMessagesResponseDto> {
+		const isMember = await this.teamMemberRepository.exists(teamId, ctx.userId);
+		if (!isMember) {
+			throw new ForbiddenException('팀 접근 권한이 없습니다');
+		}
 
-        let accessibleChannelIds = await this.channelMessageReadAccess.findReadableTeamChannelIds(teamId, ctx.userId);
+		let accessibleChannelIds = await this.channelMessageReadAccess.findReadableTeamChannelIds(teamId, ctx.userId);
 
-        if (dto.channelId !== undefined) {
-            if (!accessibleChannelIds.includes(dto.channelId)) {
-                throw new ForbiddenException('채널 접근 권한이 없습니다');
-            }
+		if (dto.channelId !== undefined) {
+			if (!accessibleChannelIds.includes(dto.channelId)) {
+				throw new ForbiddenException('채널 접근 권한이 없습니다');
+			}
 
-            accessibleChannelIds = [dto.channelId];
-        }
+			accessibleChannelIds = [dto.channelId];
+		}
 
-        if (accessibleChannelIds.length === 0) {
-            return {messages: [], nextCursor: null};
-        }
+		if (accessibleChannelIds.length === 0) {
+			return {messages: [], nextCursor: null};
+		}
 
-        const {hits, nextCursor} = await this.elasticsearchService.searchTeamMessages({
-            teamId,
-            accessibleChannelIds,
-            q: dto.q,
-            authorId: dto.authorId,
-            type: dto.type,
-            hasFile: dto.hasFile,
-            before: dto.before,
-            limit: dto.limit ?? 50,
-        });
+		const {hits, nextCursor} = await this.elasticsearchService.searchTeamMessages({
+			teamId,
+			accessibleChannelIds,
+			q: dto.q,
+			authorId: dto.authorId,
+			type: dto.type,
+			hasFile: dto.hasFile,
+			before: dto.before,
+			limit: dto.limit ?? 50,
+		});
 
-        return {messages: hits, nextCursor};
-    }
+		return {messages: hits, nextCursor};
+	}
 
-    /**
+	/**
      메시지 내용을 수정한다. 내용이 동일하면 저장 없이 현재 도큐먼트를 반환한다.
      수정 이력은 `editHistory`에 누적된다.
      본문 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
@@ -607,33 +781,31 @@ export class ChatService {
      @param dto - 새 메시지 내용
      @returns 수정된 메시지 도큐먼트
      */
-    async editMessage(ctx: MessageUserRoleContext, dto: EditMessageDto) {
-        const message = await this.findAndVerifyMessage(ctx, 'edit');
+	async editMessage(ctx: MessageUserRoleContext, dto: EditMessageDto) {
+		const message = await this.findAndVerifyMessage(ctx, 'edit');
 
-        if (message.content === dto.content) {
-            return this.toMessageResponse({...toMessageBroadcastPayload(message), mentionedMessage: null}, ctx.userId);
-        }
+		if (message.content === dto.content) {
+			return this.toMessageResponse({...toMessageBroadcastPayload(message), mentionedMessage: null}, ctx.userId);
+		}
 
-        const updated = await this.messageRepository.applyEdit(ctx.messageId, dto.content, isSearchIndexed(message));
-        if (!updated) {
-            throw new NotFoundException('메시지를 찾을 수 없습니다');
-        }
+		const updated = await this.messageRepository.applyEdit(ctx.messageId, dto.content, isSearchIndexed(message));
+		if (!updated) {
+			throw new NotFoundException('메시지를 찾을 수 없습니다');
+		}
 
-        await this.channelMessageReadAccess.emitToReadableChannelUsers(
-            this.chatGateway.server,
-            ctx.channelId,
-            'message:edited',
-            {
-                messageId: ctx.messageId,
-                content: updated.content,
-                editedAt: (updated).updatedAt?.toISOString(),
-            },
-        );
+		await this.channelMessageReadAccess.emitToReadableChannelUsers(this.chatGateway.server, ctx.channelId, {
+			event: 'message:edited', payload: {
+				messageId: ctx.messageId,
+				content: updated.content,
+				editedAt: (updated).updatedAt?.toISOString(),
+			},
+		},
+		);
 
-        return this.toMessageResponse({...toMessageBroadcastPayload(updated), mentionedMessage: null}, ctx.userId);
-    }
+		return this.toMessageResponse({...toMessageBroadcastPayload(updated), mentionedMessage: null}, ctx.userId);
+	}
 
-    /**
+	/**
      메시지를 삭제한다.
      색인 대상 메시지는 삭제 tombstone을 먼저 기록한 뒤 삭제하므로 검색 색인에서도 반드시 제거된다.
      성공 시 `chat:{channelId}` 룸에 `message:deleted` 이벤트를 emit한다.
@@ -642,23 +814,18 @@ export class ChatService {
      @param ctx - 메시지·사용자·역할 컨텍스트
      @returns 삭제된 채널 ID와 메시지 ID
      */
-    async deleteMessage(ctx: MessageUserRoleContext) {
-        const message = await this.findAndVerifyMessage(ctx, 'delete');
+	async deleteMessage(ctx: MessageUserRoleContext) {
+		const message = await this.findAndVerifyMessage(ctx, 'delete');
 
-        const result = await this.messageSearchDeletion.deleteMessage(ctx.messageId);
-        if (result === 'DELETED') {
-            await this.channelMessageReadAccess.emitToReadableChannelUsers(
-                this.chatGateway.server,
-                ctx.channelId,
-                'message:deleted',
-                {messageId: ctx.messageId},
-            );
-        }
+		const result = await this.messageSearchDeletion.deleteMessage(ctx.messageId);
+		if (result === 'DELETED') {
+			await this.channelMessageReadAccess.emitToReadableChannelUsers(this.chatGateway.server, ctx.channelId, {event: 'message:deleted', payload: {messageId: ctx.messageId}});
+		}
 
-        return {channelId: message.channelId, messageId: ctx.messageId};
-    }
+		return {channelId: message.channelId, messageId: ctx.messageId};
+	}
 
-    /**
+	/**
      메시지를 고정한다. 이미 고정된 메시지이면 `BadRequestException`을 던진다.
      고정 상태 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
      성공 시 `chat:{channelId}` 룸에 `message:pinned` 이벤트를 emit한다.
@@ -668,28 +835,26 @@ export class ChatService {
      @returns 업데이트된 메시지 도큐먼트
      @throws BadRequestException 이미 고정된 메시지인 경우
      */
-    async pinMessage(ctx: MessageUserRoleContext) {
-        const message = await this.findAndVerifyMessage(ctx, 'pin');
-        if (message.isPinned) {
-            throw new BadRequestException('이미 고정된 메시지입니다');
-        }
+	async pinMessage(ctx: MessageUserRoleContext) {
+		const message = await this.findAndVerifyMessage(ctx, 'pin');
+		if (message.isPinned) {
+			throw new BadRequestException('이미 고정된 메시지입니다');
+		}
 
-        const updated = await this.messageRepository.setPinned(ctx.messageId, true, isSearchIndexed(message));
-        if (!updated) {
-            throw new NotFoundException('메시지를 찾을 수 없습니다');
-        }
+		const updated = await this.messageRepository.setPinned(ctx.messageId, true, isSearchIndexed(message));
+		if (!updated) {
+			throw new NotFoundException('메시지를 찾을 수 없습니다');
+		}
 
-        await this.channelMessageReadAccess.emitToReadableChannelUsers(
-            this.chatGateway.server,
-            ctx.channelId,
-            'message:pinned',
-            {messageId: ctx.messageId, channelId: ctx.channelId},
-        );
+		await this.channelMessageReadAccess.emitToReadableChannelUsers(this.chatGateway.server, ctx.channelId, {
+			event: 'message:pinned',
+			payload: {messageId: ctx.messageId, channelId: ctx.channelId},
+		});
 
-        return this.toMessageResponse({...toMessageBroadcastPayload(updated), mentionedMessage: null}, ctx.userId);
-    }
+		return this.toMessageResponse({...toMessageBroadcastPayload(updated), mentionedMessage: null}, ctx.userId);
+	}
 
-    /**
+	/**
      메시지 고정을 해제한다. 고정되지 않은 메시지이면 `BadRequestException`을 던진다.
      고정 상태 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
      성공 시 `chat:{channelId}` 룸에 `message:unpinned` 이벤트를 emit한다.
@@ -698,26 +863,24 @@ export class ChatService {
      @param ctx - 메시지·사용자·역할 컨텍스트
      @throws BadRequestException 고정되지 않은 메시지인 경우
      */
-    async unpinMessage(ctx: MessageUserRoleContext) {
-        const message = await this.findAndVerifyMessage(ctx, 'pin');
-        if (!message.isPinned) {
-            throw new BadRequestException('고정되지 않은 메시지입니다');
-        }
+	async unpinMessage(ctx: MessageUserRoleContext) {
+		const message = await this.findAndVerifyMessage(ctx, 'pin');
+		if (!message.isPinned) {
+			throw new BadRequestException('고정되지 않은 메시지입니다');
+		}
 
-        const updated = await this.messageRepository.setPinned(ctx.messageId, false, isSearchIndexed(message));
-        if (!updated) {
-            throw new NotFoundException('메시지를 찾을 수 없습니다');
-        }
+		const updated = await this.messageRepository.setPinned(ctx.messageId, false, isSearchIndexed(message));
+		if (!updated) {
+			throw new NotFoundException('메시지를 찾을 수 없습니다');
+		}
 
-        await this.channelMessageReadAccess.emitToReadableChannelUsers(
-            this.chatGateway.server,
-            ctx.channelId,
-            'message:unpinned',
-            {messageId: ctx.messageId, channelId: ctx.channelId},
-        );
-    }
+		await this.channelMessageReadAccess.emitToReadableChannelUsers(this.chatGateway.server, ctx.channelId, {
+			event: 'message:unpinned',
+			payload: {messageId: ctx.messageId, channelId: ctx.channelId},
+		});
+	}
 
-    /**
+	/**
      메시지에 이모지 반응을 추가한다.
      이미 같은 이모지로 반응한 경우 무시한다(이벤트 emit 안 함).
      성공 시 `chat:{channelId}` 룸에 `message:reaction:added` 이벤트를 emit한다.
@@ -727,32 +890,30 @@ export class ChatService {
      @param emoji - 추가할 이모지
      @throws NotFoundException 메시지가 존재하지 않는 경우
      */
-    async addReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
-        await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'reaction_add');
-        const count = await this.messageRepository.addReaction(ctx.channelId, messageId, emoji, ctx.userId);
-        if (count === null) {
-            throw new NotFoundException('메시지를 찾을 수 없습니다');
-        }
+	async addReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
+		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'reaction_add');
+		const count = await this.messageRepository.addReaction(ctx.channelId, messageId, emoji, ctx.userId);
+		if (count === null) {
+			throw new NotFoundException('메시지를 찾을 수 없습니다');
+		}
 
-        if (count === -1) {
-            return;
-        } // 이미 반응한 경우 무시
+		if (count === -1) {
+			return;
+		} // 이미 반응한 경우 무시
 
-        await this.channelMessageReadAccess.emitToReadableChannelUsers(
-            this.chatGateway.server,
-            ctx.channelId,
-            'message:reaction:added',
-            {
-                messageId,
-                channelId: ctx.channelId,
-                emoji,
-                userId: ctx.userId,
-                count,
-            },
-        );
-    }
+		await this.channelMessageReadAccess.emitToReadableChannelUsers(this.chatGateway.server, ctx.channelId, {
+			event: 'message:reaction:added', payload: {
+				messageId,
+				channelId: ctx.channelId,
+				emoji,
+				userId: ctx.userId,
+				count,
+			},
+		},
+		);
+	}
 
-    /**
+	/**
      메시지에서 이모지 반응을 제거한다.
      반응이 없었던 경우 무시한다(이벤트 emit 안 함).
      성공 시 `chat:{channelId}` 룸에 `message:reaction:removed` 이벤트를 emit한다.
@@ -762,111 +923,70 @@ export class ChatService {
      @param emoji - 제거할 이모지
      @throws NotFoundException 메시지가 존재하지 않는 경우
      */
-    async removeReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
-        await this.requireChannelRead(ctx.channelId, ctx.userId);
-        const count = await this.messageRepository.removeReaction(ctx.channelId, messageId, emoji, ctx.userId);
-        if (count === null) {
-            throw new NotFoundException('메시지를 찾을 수 없습니다');
-        }
+	async removeReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
+		await this.requireChannelRead(ctx.channelId, ctx.userId);
+		const count = await this.messageRepository.removeReaction(ctx.channelId, messageId, emoji, ctx.userId);
+		if (count === null) {
+			throw new NotFoundException('메시지를 찾을 수 없습니다');
+		}
 
-        if (count === -1) {
-            return;
-        } // 반응이 없었던 경우 무시
+		if (count === -1) {
+			return;
+		} // 반응이 없었던 경우 무시
 
-        await this.channelMessageReadAccess.emitToReadableChannelUsers(
-            this.chatGateway.server,
-            ctx.channelId,
-            'message:reaction:removed',
-            {
-                messageId,
-                channelId: ctx.channelId,
-                emoji,
-                userId: ctx.userId,
-                count,
-            },
-        );
-    }
+		await this.channelMessageReadAccess.emitToReadableChannelUsers(this.chatGateway.server, ctx.channelId, {
+			event: 'message:reaction:removed', payload: {
+				messageId,
+				channelId: ctx.channelId,
+				emoji,
+				userId: ctx.userId,
+				count,
+			},
+		},
+		);
+	}
 
-    /**
+	/**
      채널에 고정된 메시지를 최신순으로 최대 100개 조회한다.
 
      @param ctx - 채널·사용자 컨텍스트
+     @param lastReadMessageId - 마지막으로 읽은 메시지의 MongoDB ObjectId
      @returns 고정 메시지 배열 (reactions는 나의 반응 여부 포함)
      */
-    async readChannel(ctx: ChannelUserContext, lastReadMessageId: string): Promise<void> {
-        await this.requireChannelRead(ctx.channelId, ctx.userId);
-        // `$max`로 저장되어 되돌릴 수 없으므로, 다른 채널이나 존재하지 않는 ID가 읽음 위치를 고정하지 못하게 한다.
-        if (!(await this.messageRepository.existsInChannel(lastReadMessageId, ctx.channelId))) {
-            throw new BadRequestException('채널에 존재하지 않는 메시지입니다');
-        }
+	async readChannel(ctx: ChannelUserContext, lastReadMessageId: string): Promise<void> {
+		await this.requireChannelRead(ctx.channelId, ctx.userId);
+		// `$max`로 저장되어 되돌릴 수 없으므로, 다른 채널이나 존재하지 않는 ID가 읽음 위치를 고정하지 못하게 한다.
+		if (!(await this.messageRepository.existsInChannel(lastReadMessageId, ctx.channelId))) {
+			throw new BadRequestException('채널에 존재하지 않는 메시지입니다');
+		}
 
-        const unreadCount = await this.channelReadService.advance(ctx.channelId, ctx.userId, new Types.ObjectId(lastReadMessageId));
-        if (unreadCount === null) {
-            return;
-        }
+		const unreadCount = await this.channelReadService.advance(ctx.channelId, ctx.userId, new Types.ObjectId(lastReadMessageId));
+		if (unreadCount === null) {
+			return;
+		}
 
-        this.chatGateway.server
-            ?.to(`user:${ctx.userId}`)
-            .emit('channel:unread:updated', {channelId: ctx.channelId, unreadCount});
-    }
+		this.chatGateway.server
+			?.to(`user:${ctx.userId}`)
+			.emit('channel:unread:updated', {channelId: ctx.channelId, unreadCount});
+	}
 
-    async getTeamUnread(teamId: number, userId: number): Promise<Array<{channelId: number; unreadCount: number}>> {
-        if (!(await this.teamMemberRepository.exists(teamId, userId))) {
-            throw new ForbiddenException('팀 접근 권한이 없습니다');
-        }
+	async getTeamUnread(teamId: number, userId: number): Promise<Array<{channelId: number; unreadCount: number}>> {
+		if (!(await this.teamMemberRepository.exists(teamId, userId))) {
+			throw new ForbiddenException('팀 접근 권한이 없습니다');
+		}
 
-        const channelIds = await this.channelMessageReadAccess.findReadableTeamChannelIds(teamId, userId);
-        const unreadCounts = await this.getUnreadCounts(userId, channelIds);
-        return channelIds.map(channelId => ({channelId, unreadCount: unreadCounts.get(channelId) ?? 0}));
-    }
+		const channelIds = await this.channelMessageReadAccess.findReadableTeamChannelIds(teamId, userId);
+		const unreadCounts = await this.getUnreadCounts(userId, channelIds);
+		return channelIds.map(channelId => ({channelId, unreadCount: unreadCounts.get(channelId) ?? 0}));
+	}
 
-    /**
-     여러 채널의 안읽음 수를 조회한다. Redis 캐시(`UnreadCounterService`)를 우선 조회하고,
-     캐시 미스가 발생한 채널만 MongoDB 집계(`countUnreadForChannels`)로 재계산해 캐시를 채운다.
-     Redis 오류 시에는 전체를 MongoDB로 폴백하므로 캐시 유무와 무관하게 항상 정확한 값을 반환한다.
+	async getPinnedMessages(ctx: ChannelUserContext) {
+		await this.requireChannelRead(ctx.channelId, ctx.userId);
+		const rows = await this.messageRepository.findPinnedMessages(ctx.channelId);
+		return rows.map(row => this.toMessageResponse(row, ctx.userId));
+	}
 
-     @param userId - 조회할 사용자 ID
-     @param channelIds - 읽기 권한이 있는 채널 ID 목록 (팀 unread, DM 목록에서 공유)
-     @returns channelId → 안읽음 수 매핑
-     */
-    private async getUnreadCounts(
-        userId: number,
-        channelIds: number[],
-    ): Promise<Map<number, number>> {
-        if (channelIds.length === 0) {
-            return new Map();
-        }
-
-        const cached = await this.unreadCounterService.getMany(userId, channelIds);
-        const missedIds = cached ? cached.misses : channelIds;
-        if (missedIds.length === 0) {
-            return cached!.hits;
-        }
-
-        const readStates = await this.readStateRepository.findForChannels(missedIds, userId);
-        const recomputed = await this.messageRepository.countUnreadForChannels(readStates);
-        // 집계 중 읽음 처리가 끝났다면 이 값은 오래된 위치 기준이므로, 기준 위치를 함께 넘겨 최신 값을 덮지 않게 한다.
-        const filled = new Map(readStates.map(({channelId, lastReadMessageId}) => [channelId, {
-            count: recomputed.get(channelId) ?? 0,
-            readCursor: lastReadMessageId?.toHexString() ?? null,
-        }]));
-        void this.unreadCounterService.setMany(userId, filled);
-
-        const result = new Map(cached?.hits);
-        for (const [channelId, {count}] of filled) {
-            result.set(channelId, count);
-        }
-
-        return result;
-    }
-
-    async getPinnedMessages(ctx: ChannelUserContext) {
-        await this.requireChannelRead(ctx.channelId, ctx.userId);
-        const rows = await this.messageRepository.findPinnedMessages(ctx.channelId);
-        return rows.map(row => this.toMessageResponse(row, ctx.userId));
-    }
-
-    /**
+	/**
      시스템 메시지를 직접 저장한다. GitHub 이슈 결과 등 서비스 내부에서 생성하는 알림에 사용한다.
      `authorId`는 0(`SYSTEM_AUTHOR_ID`)으로 고정된다.
 
@@ -875,136 +995,35 @@ export class ChatService {
      @param content - 메시지 내용
      @returns 저장된 메시지 도큐먼트. 삭제되었거나 범위가 맞지 않는 채널이면 `null`
      */
-    async saveSystemMessage(
-        teamId: number,
-        channelId: number,
-        content: string,
-    ): Promise<MessageDocument | null> {
-        const channel = await this.channelProjectionRepository.findByIdIncludingDeleted(channelId);
-        if (!channel) {
-            throw new ServiceUnavailableException('채널 정보가 아직 동기화되지 않았습니다');
-        }
+	async saveSystemMessage(
+		teamId: number,
+		channelId: number,
+		content: string,
+	): Promise<Nullable<MessageDocument>> {
+		const channel = await this.channelProjectionRepository.findByIdIncludingDeleted(channelId);
+		if (!channel) {
+			throw new ServiceUnavailableException('채널 정보가 아직 동기화되지 않았습니다');
+		}
 
-        if (channel.deleted) {
-            this.logger.warn(`Skipping system message for deleted channel [channelId=${channelId}, teamId=${teamId}]`);
-            return null;
-        }
+		if (channel.deleted) {
+			this.logger.warn(`Skipping system message for deleted channel [channelId=${channelId}, teamId=${teamId}]`);
+			return null;
+		}
 
-        const scope = resolveMessageScope(channel);
-        if (scope?.teamId == null || scope.teamId !== teamId) {
-            this.logger.warn(
-                `Skipping system message for mismatched channel scope [channelId=${channelId}, teamId=${teamId}]`,
-            );
-            return null;
-        }
+		const scope = resolveMessageScope(channel);
+		if ((scope?.teamId === null || scope?.teamId === undefined) || scope.teamId !== teamId) {
+			this.logger.warn(
+				`Skipping system message for mismatched channel scope [channelId=${channelId}, teamId=${teamId}]`,
+			);
+			return null;
+		}
 
-        const saved = await this.messageRepository.createSystemMessage(scope.teamId, channelId, content, scope.projectId, SYSTEM_AUTHOR_ID);
-        const readableUsers = await this.channelMessageReadAccess.findReadableUsersByChannel([channelId]);
-        const targetUserIds = readableUsers.get(channelId) ?? [];
-        await this.unreadCounterService.incrementIfPresent(channelId, targetUserIds);
-        return saved;
-    }
-
-    /**
-     `MessageRow`를 응답 DTO 형태로 변환한다.
-     `reactions`의 `myReaction` 필드는 요청자가 해당 이모지로 반응했는지 여부다.
-
-     @param row - DB에서 조회한 메시지 row
-     @param userId - 응답을 받을 요청자 ID
-     @returns 응답 형태의 메시지 객체
-     */
-    private toMessageResponse(row: MessageRow, userId: number) {
-        return {
-            ...row,
-            attachments: publicAttachments(row.attachments),
-            reactions: (row.reactions ?? []).map(r => ({
-                emoji: r.emoji,
-                count: r.userIds.length,
-                myReaction: r.userIds.includes(userId),
-            })),
-        };
-    }
-
-    /**
-     Base64 인코딩된 fileId에서 messageId를 추출한다.
-     fileId는 `{ messageId: string }` 형태의 JSON을 base64로 인코딩한 값이다.
-
-     @param fileId - base64 인코딩된 파일 식별자
-     @returns 추출된 messageId (MongoDB ObjectId 문자열)
-     @throws BadRequestException fileId 형식이 유효하지 않은 경우
-     */
-    private decodeFileId(fileId: string): string {
-        try {
-            const parsed = JSON.parse(Buffer.from(fileId, 'base64url').toString('utf8')) as {
-                messageId?: unknown;
-            };
-            if (typeof parsed.messageId !== 'string' || !Types.ObjectId.isValid(parsed.messageId)) {
-                throw new BadRequestException('유효하지 않은 fileId입니다');
-            }
-
-            return parsed.messageId;
-        } catch {
-            throw new BadRequestException('유효하지 않은 fileId입니다');
-        }
-    }
-
-    /**
-     채널 접근, 메시지 소속과 작업별 소유권·역할 권한을 검증한다.
-
-     @param ctx - 메시지·사용자·역할 컨텍스트
-     @param action - 검증할 메시지 작업
-     @returns 검증을 통과한 메시지 도큐먼트
-     @throws ForbiddenException 멤버가 아니거나, 다른 채널의 메시지이거나, 소유권 없는 경우
-     @throws NotFoundException 메시지가 존재하지 않는 경우
-     */
-    private async findAndVerifyMessage(
-        ctx: MessageUserRoleContext,
-        action: 'edit' | 'delete' | 'pin',
-    ): Promise<MessageDocument> {
-        await this.requireChannelRead(ctx.channelId, ctx.userId);
-        const message = await this.messageRepository.findById(ctx.messageId);
-        if (!message) {
-            throw new NotFoundException('메시지를 찾을 수 없습니다');
-        }
-
-        if (message.channelId !== ctx.channelId) {
-            throw new ForbiddenException('해당 채널의 메시지가 아닙니다');
-        }
-
-        if (action === 'pin') {
-            await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_pin');
-        } else if (message.authorId !== ctx.userId) {
-            if (action === 'edit') {
-                throw new ForbiddenException('본인 메시지만 수정할 수 있습니다');
-            }
-
-            await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_manage');
-        }
-
-        return message;
-    }
-
-    /**
-     업로더 ID 목록에 대한 표시 이름을 로컬 사용자 프로필과 팀 멤버 projection에서 조회한다.
-     `SYSTEM_AUTHOR_ID(0)` 이하이면 projection 조회 없이 'System'으로 처리한다.
-
-     @param items - uploaderId 필드를 포함하는 아이템 배열
-     @param teamId - 팀 닉네임을 적용할 팀 ID. 팀에 속하지 않은 채널이면 null
-     @returns uploaderId → 표시 이름 매핑
-     */
-    private async loadUploaderNames(
-        items: Array<{uploaderId: number}>,
-        teamId: number | null,
-    ): Promise<Map<number, string>> {
-        const uniqueUploaderIds = [...new Set(items.map(item => item.uploaderId))];
-        const systemIds = uniqueUploaderIds.filter(id => id <= SYSTEM_AUTHOR_ID);
-        const realIds = uniqueUploaderIds.filter(id => id > SYSTEM_AUTHOR_ID);
-
-        const names = await this.userClient.getDisplayNames(realIds, teamId);
-        for (const systemId of systemIds) {
-            names.set(systemId, SYSTEM_AUTHOR_NAME);
-        }
-
-        return names;
-    }
+		const saved = await this.messageRepository.createSystemMessage({
+			teamId: scope.teamId, channelId, content, projectId: scope.projectId, authorId: SYSTEM_AUTHOR_ID,
+		});
+		const readableUsers = await this.channelMessageReadAccess.findReadableUsersByChannel([channelId]);
+		const targetUserIds = readableUsers.get(channelId) ?? [];
+		await this.unreadCounterService.incrementIfPresent(channelId, targetUserIds);
+		return saved;
+	}
 }

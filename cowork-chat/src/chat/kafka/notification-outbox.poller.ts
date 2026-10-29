@@ -1,18 +1,20 @@
 import {
-    Injectable,
-    OnModuleDestroy,
-    OnModuleInit,
-    Logger,
+	Injectable as injectable,
+	OnModuleDestroy,
+	OnModuleInit,
+	Logger,
+	Inject as inject,
 } from '@nestjs/common';
 import {Types} from 'mongoose';
 import {DicoshotService} from 'dicoshot-nest';
-import {Message} from '../schema';
-import {MessageRepository, NotificationMessage} from '../repository';
-import {UnreadCounterService, ChannelMessageReadAccessService} from '../service';
-import {AlertThrottleUtil} from '../../common/util/alert-throttle.util';
-import {buildErrorFields} from '../../common/util/discord-alert.util';
-import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service';
-import {NotificationTriggerProducer} from './notification-trigger.producer';
+import {Message} from '../schema/index.js';
+import {MessageRepository, NotificationMessage} from '../repository/index.js';
+import {UnreadCounterService, ChannelMessageReadAccessService} from '../service/index.js';
+import {shouldAlert} from '../../common/util/alert-throttle.util.js';
+import {buildErrorFields} from '../../common/util/discord-alert.util.js';
+import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
+import {type Nullable} from '../../common/type/nullable.js';
+import {NotificationTriggerProducer} from './notification-trigger.producer.js';
 
 const POLL_INTERVAL_MS = 5000;
 const BATCH_SIZE = 10;
@@ -42,65 +44,55 @@ const MESSAGE_FAILURE_ALERT_COOLDOWN_MS = 60_000;
 
  배치 내 중복 DB 조회를 줄이기 위해 `recipientCache`와 `parentCache`를 활용한다.
  */
-@Injectable()
+@injectable()
 export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
-    private readonly logger = new Logger(NotificationOutboxPoller.name);
-    private timer?: ReturnType<typeof setInterval>;
-    private isPolling = false;
-    private lastReclaimTime = 0;
+	private readonly logger = new Logger(NotificationOutboxPoller.name);
+	private timer?: ReturnType<typeof setInterval>;
+	private isPolling = false;
+	private lastReclaimTime = 0;
 
-    constructor(
-        private readonly messageRepository: MessageRepository,
-        private readonly triggerProducer: NotificationTriggerProducer,
-        private readonly unreadCounterService: UnreadCounterService,
-        private readonly dicoshot: DicoshotService,
-        private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
-        private readonly projectionReadiness: ProjectionReadinessService,
-    ) {}
+	@inject()
+	private readonly messageRepository!: MessageRepository;
 
-    /**
-     모듈 초기화 시 {@link POLL_INTERVAL_MS}(5000ms) 간격으로 폴링 타이머를 시작한다.
+	@inject()
+	private readonly triggerProducer!: NotificationTriggerProducer;
 
-     이전 폴링이 완료되지 않은 경우 (`isPolling === true`) 해당 인터벌은 건너뛴다.
-     */
-    onModuleInit() {
-        this.timer = setInterval(() => {
-            void this.runPollCycle();
-        }, POLL_INTERVAL_MS);
-        this.logger.log('Notification outbox poller started');
-    }
+	@inject()
+	private readonly unreadCounterService!: UnreadCounterService;
 
-    private async runPollCycle(): Promise<void> {
-        if (!this.projectionReadiness.isReady() || this.isPolling) {
-            return;
-        }
+	@inject()
+	private readonly dicoshot!: DicoshotService;
 
-        this.isPolling = true;
-        try {
-            await this.poll();
-        } catch (error) {
-            this.logger.error('Notification outbox polling failed', error);
-            if (AlertThrottleUtil.shouldAlert('notification-outbox-poll-failed', POLL_FAILURE_ALERT_COOLDOWN_MS)) {
-                void this.dicoshot.sendCustom({
-                    title: '🔴 Notification Outbox 폴링 실패',
-                    description: 'cowork-chat의 outbox 폴링 사이클이 실패했습니다. 알림 발송이 지연될 수 있습니다.',
-                    color: 'danger',
-                    fields: buildErrorFields(error),
-                }).catch(() => {/* Alert delivery is best-effort. */});
-            }
-        } finally {
-            this.isPolling = false;
-        }
-    }
+	@inject()
+	private readonly channelMessageReadAccess!: ChannelMessageReadAccessService;
 
-    /**
-     모듈 종료 시 폴링 타이머를 해제한다.
-     */
-    onModuleDestroy() {
-        clearInterval(this.timer);
-    }
+	@inject()
+	private readonly projectionReadiness!: ProjectionReadinessService;
 
-    /**
+	private async runPollCycle(): Promise<void> {
+		if (!this.projectionReadiness.isReady() || this.isPolling) {
+			return;
+		}
+
+		this.isPolling = true;
+		try {
+			await this.poll();
+		} catch (error) {
+			this.logger.error('Notification outbox polling failed', error);
+			if (shouldAlert('notification-outbox-poll-failed', POLL_FAILURE_ALERT_COOLDOWN_MS)) {
+				void this.dicoshot.sendCustom({
+					title: '🔴 Notification Outbox 폴링 실패',
+					description: 'cowork-chat의 outbox 폴링 사이클이 실패했습니다. 알림 발송이 지연될 수 있습니다.',
+					color: 'danger',
+					fields: buildErrorFields(error),
+				}).catch(() => {/* Alert delivery is best-effort. */});
+			}
+		} finally {
+			this.isPolling = false;
+		}
+	}
+
+	/**
      한 번의 폴링 사이클을 실행한다.
 
      실행 순서:
@@ -109,82 +101,82 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
      3. 각 메시지를 {@link processMessage}로 처리하고 성공 시 SENT로 전환한다.
      4. 처리 실패 시 재시도 횟수에 따라 PENDING 또는 FAILED로 전환한다.
      */
-    private async poll(): Promise<void> {
-        // 0단계: 크래시 등으로 stuck된 stale PROCESSING 메시지를 PENDING으로 회수 (1분 간격 스로틀)
-        const now = Date.now();
-        if (now - this.lastReclaimTime > RECLAIM_INTERVAL_MS) {
-            this.lastReclaimTime = now;
-            const reclaimed = await this.messageRepository.reclaimStaleProcessing(PROCESSING_STALE_THRESHOLD_MS);
-            if (reclaimed > 0) {
-                this.logger.warn(`Reclaimed ${reclaimed} stale PROCESSING message(s) back to PENDING`);
-            }
-        }
+	private async poll(): Promise<void> {
+		// 0단계: 크래시 등으로 stuck된 stale PROCESSING 메시지를 PENDING으로 회수 (1분 간격 스로틀)
+		const now = Date.now();
+		if (now - this.lastReclaimTime > RECLAIM_INTERVAL_MS) {
+			this.lastReclaimTime = now;
+			const reclaimed = await this.messageRepository.reclaimStaleProcessing(PROCESSING_STALE_THRESHOLD_MS);
+			if (reclaimed > 0) {
+				this.logger.warn(`Reclaimed ${reclaimed} stale PROCESSING message(s) back to PENDING`);
+			}
+		}
 
-        // 1단계: 배치 내 메시지 수집 (PENDING → PROCESSING 원자적 전환)
-        const msgs = await this.messageRepository.findPendingAndMarkProcessing(BATCH_SIZE);
-        if (msgs.length === 0) {
-            return;
-        }
+		// 1단계: 배치 내 메시지 수집 (PENDING → PROCESSING 원자적 전환)
+		const msgs = await this.messageRepository.findPendingAndMarkProcessing(BATCH_SIZE);
+		if (msgs.length === 0) {
+			return;
+		}
 
-        // 2단계: 배치 내 고유 channelId/parentMessageId를 한 번에 조회해 캐시 사전 채움
-        const recipientCache = new Map<string, number[]>();
-        const parentCache = new Map<string, {authorId: number | null} | null>();
-        const parentRefs = new Map<string, {channelId: number; parentMessageId: Types.ObjectId}>();
-        for (const message of msgs) {
-            if (!message.parentMessageId) {
-                continue;
-            }
+		// 2단계: 배치 내 고유 channelId/parentMessageId를 한 번에 조회해 캐시 사전 채움
+		const recipientCache = new Map<string, number[]>();
+		const parentCache = new Map<string, Nullable<{authorId: Nullable<number>}>>();
+		const parentRefs = new Map<string, {channelId: number; parentMessageId: Types.ObjectId}>();
+		for (const message of msgs) {
+			if (!message.parentMessageId) {
+				continue;
+			}
 
-            const key = `${message.channelId}:${message.parentMessageId.toString()}`;
-            parentRefs.set(key, {channelId: message.channelId, parentMessageId: message.parentMessageId});
-        }
+			const key = `${message.channelId}:${message.parentMessageId.toString()}`;
+			parentRefs.set(key, {channelId: message.channelId, parentMessageId: message.parentMessageId});
+		}
 
-        if (parentRefs.size > 0) {
-            const parentMap = await this.messageRepository.findParentAuthorsByChannel([...parentRefs.values()]);
-            for (const key of parentRefs.keys()) {
-                parentCache.set(key, parentMap.get(key) ?? null);
-            }
-        }
+		if (parentRefs.size > 0) {
+			const parentMap = await this.messageRepository.findParentAuthorsByChannel(parentRefs.values().toArray());
+			for (const key of parentRefs.keys()) {
+				parentCache.set(key, parentMap.get(key) ?? null);
+			}
+		}
 
-        const channelIds = [...new Set(msgs.map(m => m.channelId))];
-        const readableUsersByChannel = await this.channelMessageReadAccess.findReadableUsersByChannel(channelIds);
-        for (const channelId of channelIds) {
-            recipientCache.set(String(channelId), readableUsersByChannel.get(channelId) ?? []);
-        }
+		const channelIds = [...new Set(msgs.map(m => m.channelId))];
+		const readableUsersByChannel = await this.channelMessageReadAccess.findReadableUsersByChannel(channelIds);
+		for (const channelId of channelIds) {
+			recipientCache.set(String(channelId), readableUsersByChannel.get(channelId) ?? []);
+		}
 
-        // 3단계: 각 메시지 처리 (메시지 간 의존관계 없어 병렬 처리)
-        await Promise.all(msgs.map(async message => this.processMessageAndUpdateStatus(message, recipientCache, parentCache)));
-    }
+		// 3단계: 각 메시지 처리 (메시지 간 의존관계 없어 병렬 처리)
+		await Promise.all(msgs.map(async message => this.processMessageAndUpdateStatus(message, recipientCache, parentCache)));
+	}
 
-    private async processMessageAndUpdateStatus(
-        message: NotificationMessage,
-        recipientCache: Map<string, number[]>,
-        parentCache: Map<string, {authorId: number | null} | null>,
-    ): Promise<void> {
-        try {
-            await this.processMessage(message, recipientCache, parentCache);
-            await this.messageRepository.updateNotificationStatus(message._id, message.notificationClaimId!, 'SENT');
-        } catch (error) {
-            const retryCount = (message.notificationRetryCount ?? 0) + 1;
-            const nextStatus = retryCount >= MAX_RETRY ? 'FAILED' : 'PENDING';
-            this.logger.error(`Outbox processing failed (messageId: ${message._id.toString()}, retry: ${retryCount}/${MAX_RETRY}), transitioning to ${nextStatus}`, error);
-            await this.messageRepository.updateNotificationStatus(message._id, message.notificationClaimId!, nextStatus, retryCount);
-            if (nextStatus === 'FAILED' && AlertThrottleUtil.shouldAlert('notification-outbox-message-failed', MESSAGE_FAILURE_ALERT_COOLDOWN_MS)) {
-                void this.dicoshot.sendCustom({
-                    title: '⚠️ 알림 발송 영구 실패',
-                    description: `메시지 알림이 최대 재시도(${MAX_RETRY}회)를 초과해 발송되지 않았습니다.`,
-                    color: 'warning',
-                    fields: [
-                        {name: 'messageId', value: message._id.toString(), inline: true},
-                        {name: 'channelId', value: String(message.channelId), inline: true},
-                        ...buildErrorFields(error),
-                    ],
-                }).catch(() => {/* Alert delivery is best-effort. */});
-            }
-        }
-    }
+	private async processMessageAndUpdateStatus(
+		message: NotificationMessage,
+		recipientCache: Map<string, number[]>,
+		parentCache: Map<string, Nullable<{authorId: Nullable<number>}>>,
+	): Promise<void> {
+		try {
+			await this.processMessage(message, recipientCache, parentCache);
+			await this.messageRepository.updateNotificationStatus(message._id, message.notificationClaimId!, 'SENT');
+		} catch (error) {
+			const retryCount = (message.notificationRetryCount ?? 0) + 1;
+			const nextStatus = retryCount >= MAX_RETRY ? 'FAILED' : 'PENDING';
+			this.logger.error(`Outbox processing failed (messageId: ${message._id.toString()}, retry: ${retryCount}/${MAX_RETRY}), transitioning to ${nextStatus}`, error);
+			await this.messageRepository.updateNotificationStatus(message._id, message.notificationClaimId!, nextStatus, retryCount);
+			if (nextStatus === 'FAILED' && shouldAlert('notification-outbox-message-failed', MESSAGE_FAILURE_ALERT_COOLDOWN_MS)) {
+				void this.dicoshot.sendCustom({
+					title: '⚠️ 알림 발송 영구 실패',
+					description: `메시지 알림이 최대 재시도(${MAX_RETRY}회)를 초과해 발송되지 않았습니다.`,
+					color: 'warning',
+					fields: [
+						{name: 'messageId', value: message._id.toString(), inline: true},
+						{name: 'channelId', value: String(message.channelId), inline: true},
+						...buildErrorFields(error),
+					],
+				}).catch(() => {/* Alert delivery is best-effort. */});
+			}
+		}
+	}
 
-    /**
+	/**
      단일 메시지에 대한 알림 트리거를 생성하고 발행한다.
 
      수신자 분류 전략**:
@@ -201,54 +193,73 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
      @param parentCache - 부모 메시지 ID를 키로 하는 작성자 정보 캐시 (배치 범위 내 공유)
      @throws {Error} 읽기 권한이 있는 사용자 조회 또는 알림 트리거 발행 실패 시
      */
-    private async processMessage(
-        message: Message & {_id: Types.ObjectId; createdAt: Date},
-        recipientCache: Map<string, number[]>,
-        parentCache: Map<string, {authorId: number | null} | null>,
-    ): Promise<void> {
-        if (message.authorId === null) {
-            return;
-        }
+	private async processMessage(
+		message: Message & {_id: Types.ObjectId; createdAt: Date},
+		recipientCache: Map<string, number[]>,
+		parentCache: Map<string, Nullable<{authorId: Nullable<number>}>>,
+	): Promise<void> {
+		if (message.authorId === null) {
+			return;
+		}
 
-        const recipientIds = recipientCache.get(String(message.channelId)) ?? [];
-        const recipientIdSet = new Set(recipientIds);
+		const recipientIds = recipientCache.get(String(message.channelId)) ?? [];
+		const recipientIdSet = new Set(recipientIds);
 
-        const targetUserIds = [...recipientIdSet].filter(id => id !== message.authorId);
+		const targetUserIds = [...recipientIdSet].filter(id => id !== message.authorId);
 
-        if (message.notificationRetryCount === 0) {
-            // Stale PROCESSING 회수는 재시도 횟수를 올리지 않으므로 메시지 ID로 (메시지, 수신자)당 한 번만 반영한다.
-            await this.unreadCounterService.incrementIfPresent(message.channelId, targetUserIds, message._id.toString());
-        }
+		if (message.notificationRetryCount === 0) {
+			// Stale PROCESSING 회수는 재시도 횟수를 올리지 않으므로 메시지 ID로 (메시지, 수신자)당 한 번만 반영한다.
+			await this.unreadCounterService.incrementIfPresent(message.channelId, targetUserIds, message._id.toString());
+		}
 
-        const forcedSet = new Set<number>();
-        for (const mentionedId of message.mentions ?? []) {
-            if (mentionedId !== message.authorId && recipientIdSet.has(mentionedId)) {
-                forcedSet.add(mentionedId);
-            }
-        }
+		const forcedSet = new Set<number>();
+		for (const mentionedId of message.mentions ?? []) {
+			if (mentionedId !== message.authorId && recipientIdSet.has(mentionedId)) {
+				forcedSet.add(mentionedId);
+			}
+		}
 
-        if (message.parentMessageId) {
-            const parent = parentCache.get(`${message.channelId}:${message.parentMessageId.toString()}`) ?? null;
-            if (parent && parent.authorId !== null && parent.authorId !== message.authorId && recipientIdSet.has(parent.authorId)) {
-                forcedSet.add(parent.authorId);
-            }
-        }
+		if (message.parentMessageId) {
+			const parent = parentCache.get(`${message.channelId}:${message.parentMessageId.toString()}`) ?? null;
+			if (parent && parent.authorId !== null && parent.authorId !== message.authorId && recipientIdSet.has(parent.authorId)) {
+				forcedSet.add(parent.authorId);
+			}
+		}
 
-        await this.triggerProducer.send({
-            // 메시지 자체의 안정적 식별자를 재사용한다. 이 폴러의 processMessageAndUpdateStatus가
-            // 실패 시 같은 메시지를 다시 발행할 수 있으므로, 매번 새 id를 만들면 FCM 선택적 재시도가
-            // 같은 논리적 알림을 서로 다른 이벤트로 취급해 중복 발송을 막지 못한다.
-            eventId: message._id.toString(),
-            type: 'CHAT_MESSAGE',
-            targetUserIds,
-            forcedUserIds: [...forcedSet],
-            data: {
-                channelId: message.channelId,
-                teamId: message.teamId,
-                authorId: message.authorId,
-                content: message.content,
-                occurredAt: message.createdAt.toISOString(),
-            },
-        });
-    }
+		await this.triggerProducer.send({
+			// 메시지 자체의 안정적 식별자를 재사용한다. 이 폴러의 processMessageAndUpdateStatus가
+			// 실패 시 같은 메시지를 다시 발행할 수 있으므로, 매번 새 id를 만들면 FCM 선택적 재시도가
+			// 같은 논리적 알림을 서로 다른 이벤트로 취급해 중복 발송을 막지 못한다.
+			eventId: message._id.toString(),
+			type: 'CHAT_MESSAGE',
+			targetUserIds,
+			forcedUserIds: [...forcedSet],
+			data: {
+				channelId: message.channelId,
+				teamId: message.teamId,
+				authorId: message.authorId,
+				content: message.content,
+				occurredAt: message.createdAt.toISOString(),
+			},
+		});
+	}
+
+	/**
+     모듈 초기화 시 {@link POLL_INTERVAL_MS}(5000ms) 간격으로 폴링 타이머를 시작한다.
+
+     이전 폴링이 완료되지 않은 경우 (`isPolling === true`) 해당 인터벌은 건너뛴다.
+     */
+	onModuleInit() {
+		this.timer = setInterval(() => {
+			void this.runPollCycle();
+		}, POLL_INTERVAL_MS);
+		this.logger.log('Notification outbox poller started');
+	}
+
+	/**
+     모듈 종료 시 폴링 타이머를 해제한다.
+     */
+	onModuleDestroy() {
+		clearInterval(this.timer);
+	}
 }
