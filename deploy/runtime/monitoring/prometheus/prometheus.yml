@@ -173,6 +173,31 @@ scrape_configs:
     target_label: service
   - target_label: __address__
     replacement: 127.0.0.1:9115
+- job_name: envoy-proxy
+  metrics_path: /probe
+  params:
+    module: [tcp_connect]
+  consul_sd_configs:
+  - server: COWORK_CONSUL_SERVER
+    scheme: https
+    authorization:
+      credentials_file: /secrets/consul-token
+    follow_redirects: false
+    tls_config:
+      ca_file: /etc/cowork/ca/ca.crt
+  relabel_configs:
+  - source_labels: [__meta_consul_service]
+    regex: cowork-(authorization|channel|chat|gateway|github|monitoring|notification|preference|project|roadmap|team|user|voice)-sidecar-proxy
+    action: keep
+  - source_labels: [__meta_consul_service]
+    regex: cowork-(.+)-sidecar-proxy
+    target_label: service
+  - source_labels: [__address__]
+    target_label: __param_target
+  - source_labels: [__param_target]
+    target_label: instance
+  - target_label: __address__
+    replacement: 127.0.0.1:9115
 - job_name: public-gateway
   metrics_path: /probe
   params:

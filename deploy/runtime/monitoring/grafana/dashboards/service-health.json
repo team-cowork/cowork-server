@@ -200,7 +200,7 @@
     {
       "id": 7,
       "type": "state-timeline",
-      "title": "Envoy 사이드카 실행 상태",
+      "title": "Envoy 프록시 연결 상태",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
@@ -213,7 +213,7 @@
       },
       "targets": [
         {
-          "expr": "cowork_envoy_task_running{service=~\"$service\"}",
+          "expr": "cowork_envoy_proxy_reachable{service=~\"$service\"}",
           "refId": "A",
           "legendFormat": "{{service}}",
           "instant": false,
@@ -275,7 +275,7 @@
           "sort": "none"
         }
       },
-      "description": "Nomad가 보고한 Envoy 사이드카 작업의 실행 상태입니다. Nomad 지표 수집 실패 구간은 비워 둡니다."
+      "description": "Envoy 프록시 포트의 TCP 연결 결과입니다. 프록시 등록이 없고 Nomad 지표를 수집할 수 있으면 DOWN입니다."
     },
     {
       "id": 3,
