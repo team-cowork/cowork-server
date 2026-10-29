@@ -61,14 +61,24 @@ class DeploymentStateCache(
             val rows = redis.opsForHash<String, String>().entries(REDIS_KEY)
                 .collectMap({ it.key }, { it.value })
                 .block(Duration.ofSeconds(3)) ?: return
-            val states = rows.mapValues { (service, raw) ->
-                require(service.matches(Regex("cowork-[a-z-]+")))
-                objectMapper.readValue(raw, DeploymentState::class.java)
-            }
+            val previous = confirmed.get()
+            var failure: Exception? = null
+            val states = rows.mapNotNull { (service, raw) ->
+                try {
+                    require(service.matches(SERVICE_NAME_PATTERN))
+                    service to objectMapper.readValue(raw, DeploymentState::class.java)
+                } catch (error: Exception) {
+                    // Initial synchronization requires a fully validated snapshot.
+                    if (previous == null) throw error
+                    if (failure == null) failure = error
+                    previous[service]?.let { service to it }
+                }
+            }.toMap()
             confirmed.set(states)
+            failure?.let { throw it }
             if (failing.getAndSet(false)) logger.info("Recovered deployment state refresh")
         } catch (error: Exception) {
-            // Keep the last confirmed state if Redis or the payload is unavailable.
+            // Keep the last confirmed state for entries that could not be refreshed.
             meterRegistry.counter("gateway.deployment.state.refresh.failures").increment()
             if (!failing.getAndSet(true)) {
                 logger.warn("Failed to refresh deployment state: {}", error.javaClass.simpleName)
@@ -78,6 +88,7 @@ class DeploymentStateCache(
 
     companion object {
         const val REDIS_KEY = "cowork:deployment:services"
+        private val SERVICE_NAME_PATTERN = Regex("cowork-[a-z-]+")
     }
 }
 
