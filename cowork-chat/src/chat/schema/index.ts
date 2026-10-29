@@ -13,6 +13,7 @@ export * from './team-role-assignment-projection.schema.js';
 export * from './team-role-member-tombstone.schema.js';
 export * from './team-role-projection.schema.js';
 export * from './text-channel-setting-projection.schema.js';
+export * from './team-setting-projection.schema.js';
 export * from './user-profile-projection.schema.js';
 export * from './channel-read-state.schema.js';
 export * from './webhook-projection.schema.js';
