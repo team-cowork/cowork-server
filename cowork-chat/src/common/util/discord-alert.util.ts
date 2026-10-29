@@ -12,16 +12,16 @@ const MAX_FIELD_LENGTH = 1000;
  Error 메시지, 호스트명(같은 서비스의 어느 인스턴스/pod인지 식별), Stack Trace(있는 경우)를 포함한다.
  */
 export function buildErrorFields(error: unknown): DiscordField[] {
-    const message = error instanceof Error ? error.message : String(error);
-    const stack = error instanceof Error ? error.stack : undefined;
+	const message = error instanceof Error ? error.message : String(error);
+	const stack = error instanceof Error ? error.stack : undefined;
 
-    return [
-        {name: 'Error', value: truncate(message === '' ? '(no message)' : message, MAX_FIELD_LENGTH)},
-        {name: 'Host', value: hostname(), inline: true},
-        ...(stack === undefined ? [] : [{name: 'Stack Trace', value: `\`\`\`\n${truncate(stack, MAX_FIELD_LENGTH)}\n\`\`\``}]),
-    ];
+	return [
+		{name: 'Error', value: truncate(message === '' ? '(no message)' : message, MAX_FIELD_LENGTH)},
+		{name: 'Host', value: hostname(), inline: true},
+		...(stack === undefined ? [] : [{name: 'Stack Trace', value: `\`\`\`\n${truncate(stack, MAX_FIELD_LENGTH)}\n\`\`\``}]),
+	];
 }
 
 function truncate(value: string, max: number): string {
-    return value.length > max ? `${value.slice(0, max)}…` : value;
+	return value.length > max ? `${value.slice(0, max)}…` : value;
 }
