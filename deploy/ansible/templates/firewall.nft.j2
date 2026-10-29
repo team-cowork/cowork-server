@@ -25,6 +25,7 @@ table inet cowork {
     ip saddr {{ hostvars['monitoring'].private_ip }} tcp dport { 9100, 12345 } accept
 {% if inventory_hostname == 'gateway' %}
     ip saddr 10.0.0.117 tcp dport 8080 accept
+    ip saddr {{ private_ip }} tcp dport { 21000, 21001 } accept
 {% elif inventory_hostname == 'kafka' %}
     ip saddr @agents tcp dport 9094 accept
 {% elif inventory_hostname == 'livekit' %}
@@ -32,7 +33,7 @@ table inet cowork {
     tcp dport 7881 accept
     udp dport 7882 accept
 {% elif inventory_hostname == 'monitoring' %}
-    iifname "cowork0" ip saddr 172.30.0.0/16 tcp dport { 4646, 9100 } accept
+    iifname "cowork0" ip saddr 172.30.0.0/16 tcp dport { 4646, 9100, 12345 } accept
     ip saddr 10.0.0.117 tcp dport 8080 accept
     ip saddr { {{ platform_agent_ips | join(', ') }}, {{ platform_vault_ip }} } tcp dport 3100 accept
 {% elif inventory_hostname in groups['vault_hosts'] %}
@@ -47,7 +48,7 @@ table inet cowork {
     iifname "cowork0" accept
     ip saddr @agents meta l4proto tcp ct status dnat ct original proto-dst 22000-22999 accept
 {% if inventory_hostname == 'gateway' %}
-    ip saddr 10.0.0.117 meta l4proto tcp ct status dnat ct original proto-dst 8080 accept
+    ip saddr {{ private_ip }} meta l4proto tcp ct status dnat ct original proto-dst { 21000, 21001 } accept
 {% elif inventory_hostname == 'kafka' %}
     ip saddr @agents meta l4proto tcp ct status dnat ct original proto-dst 9094 accept
 {% elif inventory_hostname == 'monitoring' %}

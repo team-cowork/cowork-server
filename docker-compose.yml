@@ -1,7 +1,0 @@
-# Local development entry point.
-# Explicit paths keep build contexts and bind mounts relative to the repository.
-include:
-  - path:
-      - deploy/compose/stack.yaml
-      - deploy/compose/local.yaml
-    project_directory: .

@@ -12,6 +12,7 @@ import (
 	"context"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -22,6 +23,7 @@ import (
 	"github.com/cowork/authorization/internal/handler"
 	kafkainfra "github.com/cowork/authorization/internal/infra/kafka"
 	mysqlinfra "github.com/cowork/authorization/internal/infra/mysql"
+	redisinfra "github.com/cowork/authorization/internal/infra/redis"
 	"github.com/cowork/authorization/internal/monitoring"
 	"github.com/cowork/authorization/internal/repository"
 	"github.com/cowork/authorization/internal/service"
@@ -136,6 +138,12 @@ func main() {
 	}()
 
 	eventSvc := service.NewEventService(cfg, webhookInbox)
+	webhookStreamConsumer := redisinfra.NewWebhookStreamConsumer(net.JoinHostPort(cfg.RedisHost, cfg.RedisPort), eventSvc)
+	webhookStreamDone := make(chan struct{})
+	go func() {
+		defer close(webhookStreamDone)
+		webhookStreamConsumer.Run(outboxCtx)
+	}()
 
 	authHandler := handler.NewAuthHandler(authSvc)
 	eventHandler := handler.NewEventHandler(eventSvc)
@@ -208,6 +216,11 @@ func main() {
 		log.Fatalf("server forced to shutdown: %v", err)
 	}
 	stopOutboxRelay()
+	select {
+	case <-webhookStreamDone:
+	case <-time.After(5 * time.Second):
+		log.Println("Webhook stream consumer did not stop within 5 seconds")
+	}
 	select {
 	case <-webhookMaintenanceDone:
 	case <-time.After(5 * time.Second):
