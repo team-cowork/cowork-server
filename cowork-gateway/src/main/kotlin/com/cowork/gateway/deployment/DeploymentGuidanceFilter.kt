@@ -1,5 +1,6 @@
 package com.cowork.gateway.deployment
 
+import com.cowork.gateway.response.body.writeNoStoreJson
 import com.cowork.gateway.response.model.CommonApiResponse
 import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.cloud.gateway.filter.GatewayFilterChain
@@ -9,7 +10,6 @@ import org.springframework.cloud.gateway.support.ServerWebExchangeUtils.GATEWAY_
 import org.springframework.core.Ordered
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
-import org.springframework.http.MediaType
 import org.springframework.stereotype.Component
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
@@ -32,7 +32,7 @@ class DeploymentGuidanceFilter(
         val route = exchange.getAttribute<Route>(GATEWAY_ROUTE_ATTR)
         val service = route?.let { routes.serviceFor(it.uri) }
         val snapshot = states.snapshot()
-        if (route != null && snapshot == null) {
+        if (service != null && snapshot == null) {
             return respond(
                 exchange,
                 service,
@@ -82,10 +82,6 @@ class DeploymentGuidanceFilter(
                 data,
             ),
         )
-        exchange.response.statusCode = status
-        exchange.response.headers.contentType = MediaType.APPLICATION_JSON
-        exchange.response.headers.cacheControl = "no-store"
-        exchange.response.headers.contentLength = body.size.toLong()
-        return exchange.response.writeWith(Mono.just(exchange.response.bufferFactory().wrap(body)))
+        return exchange.response.writeNoStoreJson(status, body)
     }
 }
