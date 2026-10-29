@@ -10,7 +10,8 @@
     "data_secret_bindings": {},
     "optional_secrets": [],
     "immutable_secrets": [
-      "WEBHOOK_URL_SIGNING_KEY"
+      "WEBHOOK_URL_SIGNING_KEY",
+      "DATAGSM_WEBHOOK_SECRET"
     ],
     "variable_bindings": {
       "PUBLIC_API_BASE_URL": "PUBLIC_API_BASE_URL",
@@ -32,7 +33,8 @@
     },
     "optional_secrets": [],
     "immutable_secrets": [
-      "DB_ADMIN_PASSWORD"
+      "DB_ADMIN_PASSWORD",
+      "DATAGSM_WEBHOOK_SECRET"
     ],
     "kafka_principal": "cowork-authorization",
     "variable_bindings": {
