@@ -1,18 +1,24 @@
 import {
-    Injectable,
-    Logger,
-    OnModuleDestroy,
-    OnModuleInit,
+	Injectable as injectable,
+	Logger,
+	OnModuleDestroy,
+	OnModuleInit,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
-import Redis, {ChainableCommander, ClientContext, Result} from 'ioredis';
-import {getOptionalConfig, getRequiredConfig} from '../../common/config/config.util';
+import {
+	Redis,
+	ChainableCommander,
+	ClientContext,
+	Result,
+} from 'ioredis';
+import {getOptionalConfig, getRequiredConfig} from '../../common/config/config.util.js';
+import {type Nullable} from '../../common/type/nullable.js';
 
 // This.client와 그 pipeline()에만 캐스팅해서 붙이는 타입 — ioredis의 공유 RedisCommander를 전역으로
 // 확장하면 defineCommand를 호출하지 않은 다른 Redis 클라이언트에도 이 메서드가 타입상 노출되어 버린다.
 type WithUnreadCounterScripts<Context extends ClientContext = {type: 'default'}> = {
-    incrementIfPresentScript(field: string, appliedKey: string, appliedTtlSeconds: number, chunkIndex: number, ...keys: string[]): Result<number, Context>;
-    setIfNotStaleScript(key: string, field: string, cursorField: string, cursor: string, count: string, ttlSeconds: number, replaceSameCursorFlag: string): Result<number, Context>;
+	incrementIfPresentScript(field: string, appliedKey: string, appliedTtlSeconds: number, chunkIndex: number, ...keys: string[]): Result<number, Context>;
+	setIfNotStaleScript(key: string, field: string, cursorField: string, cursor: string, count: string, ttlSeconds: number, replaceSameCursorFlag: string): Result<number, Context>;
 };
 type UnreadCounterRedis = Redis & WithUnreadCounterScripts;
 type UnreadCounterPipeline = ChainableCommander & WithUnreadCounterScripts<{type: 'pipeline'}>;
@@ -76,14 +82,14 @@ const TTL_SECONDS = 86_400;
 const INCREMENT_CHUNK_SIZE = 100;
 
 export type UnreadCacheEntry = {
-    count: number;
-    // 이 값을 계산한 기준 읽음 위치(ObjectId hex). 읽음 기록이 없으면 null.
-    readCursor: string | null;
+	count: number;
+	// 이 값을 계산한 기준 읽음 위치(ObjectId hex). 읽음 기록이 없으면 null.
+	readCursor: Nullable<string>;
 };
 
 export type UnreadCacheResult = {
-    hits: Map<number, number>;
-    misses: number[];
+	hits: Map<number, number>;
+	misses: number[];
 };
 
 /**
@@ -104,136 +110,140 @@ export type UnreadCacheResult = {
  계산 결과가 덮거나, 계산에 이미 포함된 메시지를 증가가 다시 더하는 경우)는 구분하지 않는다. 그 어긋남은 다음 읽음
  처리나, 마지막 정확한 기록부터 걸리는 필드 TTL이 끝날 때까지 남는다.
  */
-@Injectable()
+@injectable()
 export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
-    private readonly logger = new Logger(UnreadCounterService.name);
-    private client!: UnreadCounterRedis;
+	private readonly logger = new Logger(UnreadCounterService.name);
+	private client!: UnreadCounterRedis;
 
-    constructor(private readonly configService: ConfigService) {}
+	constructor(private readonly configService: ConfigService) {}
 
-    onModuleInit(): void {
-        const host = getRequiredConfig(this.configService, ['REDIS_HOST', 'redis.host']);
-        const port = Number(getOptionalConfig(this.configService, ['REDIS_PORT', 'redis.port']) ?? 6379);
+	private key(userId: number): string {
+		return `${KEY_PREFIX}${userId}`;
+	}
 
-        this.client = new Redis({
-            host,
-            port,
-            lazyConnect: true,
-            enableOfflineQueue: false,
-            maxRetriesPerRequest: 0,
-        }) as UnreadCounterRedis;
-        this.client.defineCommand('incrementIfPresentScript', {numberOfKeys: 0, lua: INCREMENT_IF_PRESENT_SCRIPT});
-        this.client.defineCommand('setIfNotStaleScript', {numberOfKeys: 1, lua: SET_IF_NOT_STALE_SCRIPT});
-        this.client.on('error', (error: unknown) => {
-            this.logger.error(`Redis client error: ${error instanceof Error ? error.message : String(error)}`);
-        });
-        void this.client.connect().catch((error: unknown) => {
-            this.logger.warn(`Redis initial connection failed: ${error instanceof Error ? error.message : String(error)}`);
-        });
-    }
+	private queueSetIfNotStale(
+		pipeline: UnreadCounterPipeline,
+		key: string,
+		channelId: number,
+		update: {
+			entry: UnreadCacheEntry;
+			shouldReplaceSameCursor: boolean;
+		},
 
-    onModuleDestroy(): void {
-        this.client?.disconnect();
-    }
+	): void {
+		const {entry, shouldReplaceSameCursor} = update;
+		const field = String(channelId);
+		pipeline.setIfNotStaleScript(
+			key,
+			field,
+			`${field}${CURSOR_FIELD_SUFFIX}`,
+			entry.readCursor ?? '',
+			String(entry.count),
+			TTL_SECONDS,
+			shouldReplaceSameCursor ? '1' : '0',
+		);
+	}
 
-    private key(userId: number): string {
-        return `${KEY_PREFIX}${userId}`;
-    }
+	onModuleInit(): void {
+		const host = getRequiredConfig(this.configService, ['REDIS_HOST', 'redis.host']);
+		const port = Number(getOptionalConfig(this.configService, ['REDIS_PORT', 'redis.port']) ?? 6379);
 
-    /**
+		this.client = new Redis({
+			host,
+			port,
+			lazyConnect: true,
+			enableOfflineQueue: false,
+			maxRetriesPerRequest: 0,
+		}) as UnreadCounterRedis;
+		this.client.defineCommand('incrementIfPresentScript', {numberOfKeys: 0, lua: INCREMENT_IF_PRESENT_SCRIPT});
+		this.client.defineCommand('setIfNotStaleScript', {numberOfKeys: 1, lua: SET_IF_NOT_STALE_SCRIPT});
+		this.client.on('error', (error: unknown) => {
+			this.logger.error(`Redis client error: ${error instanceof Error ? error.message : String(error)}`);
+		});
+		void this.client.connect().catch((error: unknown) => {
+			this.logger.warn(`Redis initial connection failed: ${error instanceof Error ? error.message : String(error)}`);
+		});
+	}
+
+	onModuleDestroy(): void {
+		this.client?.disconnect();
+	}
+
+	/**
      여러 채널의 캐시된 안읽음 수를 조회한다.
 
      @returns 캐시에 값이 있는 채널은 `hits`, 없는(또는 Redis 오류로 판단 불가한) 채널은 `misses`.
      Redis 자체가 오류를 던지면 `null`을 반환해 호출부가 전체를 미스로 간주하고 폴백하게 한다.
      */
-    async getMany(userId: number, channelIds: number[]): Promise<UnreadCacheResult | null> {
-        if (channelIds.length === 0) {
-            return {hits: new Map(), misses: []};
-        }
+	async getMany(userId: number, channelIds: number[]): Promise<Nullable<UnreadCacheResult>> {
+		if (channelIds.length === 0) {
+			return {hits: new Map(), misses: []};
+		}
 
-        try {
-            const values = await this.client.hmget(this.key(userId), ...channelIds.map(String));
-            const hits = new Map<number, number>();
-            const misses: number[] = [];
-            for (const [i, channelId] of channelIds.entries()) {
-                const raw = values[i];
-                if (raw === null || raw === undefined) {
-                    misses.push(channelId);
-                } else {
-                    hits.set(channelId, Number(raw));
-                }
-            }
+		try {
+			const values = await this.client.hmget(this.key(userId), ...channelIds.map(String));
+			const hits = new Map<number, number>();
+			const misses: number[] = [];
+			for (const [i, channelId] of channelIds.entries()) {
+				const raw = values[i];
+				if (raw === null || raw === undefined) {
+					misses.push(channelId);
+				} else {
+					hits.set(channelId, Number(raw));
+				}
+			}
 
-            return {hits, misses};
-        } catch (error) {
-            this.logger.warn(`Redis getMany failed, treating as full cache miss [userId=${userId}]`, error);
-            return null;
-        }
-    }
+			return {hits, misses};
+		} catch (error) {
+			this.logger.warn(`Redis getMany failed, treating as full cache miss [userId=${userId}]`, error);
+			return null;
+		}
+	}
 
-    /**
+	/**
      캐시미스 폴백으로 계산한 여러 채널의 안읽음 수를 채운다.
      그 사이 같거나 더 최신 읽음 위치로 값이 기록된 채널은 건너뛴다.
      */
-    async setMany(userId: number, values: Map<number, UnreadCacheEntry>): Promise<void> {
-        if (values.size === 0) {
-            return;
-        }
+	async setMany(userId: number, values: Map<number, UnreadCacheEntry>): Promise<void> {
+		if (values.size === 0) {
+			return;
+		}
 
-        try {
-            const key = this.key(userId);
-            const pipeline = this.client.pipeline() as UnreadCounterPipeline;
-            for (const [channelId, entry] of values) {
-                this.queueSetIfNotStale(pipeline, key, channelId, entry, false);
-            }
+		try {
+			const key = this.key(userId);
+			const pipeline = this.client.pipeline() as UnreadCounterPipeline;
+			for (const [channelId, entry] of values) {
+				this.queueSetIfNotStale(pipeline, key, channelId, {entry, shouldReplaceSameCursor: false});
+			}
 
-            await pipeline.exec();
-        } catch (error) {
-            this.logger.warn(`Redis setMany failed [userId=${userId}]`, error);
-        }
-    }
+			await pipeline.exec();
+		} catch (error) {
+			this.logger.warn(`Redis setMany failed [userId=${userId}]`, error);
+		}
+	}
 
-    /**
+	/**
      읽음 처리로 계산한 단일 채널의 안읽음 수를 기록한다. 같은 읽음 위치의 값은 덮어쓴다.
 
      @returns 기록했으면 `true`, 이미 더 최신 읽음 위치의 값이 있어 버렸으면 `false`, Redis 오류면 `null`
      */
-    async set(channelId: number, userId: number, entry: UnreadCacheEntry): Promise<boolean | null> {
-        try {
-            const pipeline = this.client.pipeline() as UnreadCounterPipeline;
-            this.queueSetIfNotStale(pipeline, this.key(userId), channelId, entry, true);
-            const [[error, applied]] = (await pipeline.exec())!;
-            if (error) {
-                throw error;
-            }
+	async set(channelId: number, userId: number, entry: UnreadCacheEntry): Promise<Nullable<boolean>> {
+		try {
+			const pipeline = this.client.pipeline() as UnreadCounterPipeline;
+			this.queueSetIfNotStale(pipeline, this.key(userId), channelId, {entry, shouldReplaceSameCursor: true});
+			const [[error, applied]] = (await pipeline.exec())!;
+			if (error) {
+				throw error;
+			}
 
-            return applied === 1;
-        } catch (error) {
-            this.logger.warn(`Redis set failed [channelId=${channelId}, userId=${userId}]`, error);
-            return null;
-        }
-    }
+			return applied === 1;
+		} catch (error) {
+			this.logger.warn(`Redis set failed [channelId=${channelId}, userId=${userId}]`, error);
+			return null;
+		}
+	}
 
-    private queueSetIfNotStale(
-        pipeline: UnreadCounterPipeline,
-        key: string,
-        channelId: number,
-        entry: UnreadCacheEntry,
-        shouldReplaceSameCursor: boolean,
-    ): void {
-        const field = String(channelId);
-        pipeline.setIfNotStaleScript(
-            key,
-            field,
-            `${field}${CURSOR_FIELD_SUFFIX}`,
-            entry.readCursor ?? '',
-            String(entry.count),
-            TTL_SECONDS,
-            shouldReplaceSameCursor ? '1' : '0',
-        );
-    }
-
-    /**
+	/**
      새 메시지 발생 시 해당 채널 필드가 이미 캐시에 존재하는 유저에 대해서만 안읽음 수를 1 증가시킨다.
      `eventId`(메시지 ID)를 주면 `unread:applied-chunks:{eventId}` 비트맵으로 (eventId, 수신자)당 한 번만 반영해,
      outbox 재처리가 같은 메시지로 안읽음 수를 다시 올리지 않는다. 비트맵 TTL은 처리할 때마다 캐시와 같은 TTL로
@@ -244,25 +254,25 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
      한 번의 실행 시간이 짧게 유지되어 그 사이 Redis 인스턴스가 길게 블로킹되지 않는다.
      재처리 때 같은 청크 번호가 같은 수신자를 가리키도록 유저 ID를 정렬해 자른다.
      */
-    async incrementIfPresent(channelId: number, userIds: number[], eventId?: string): Promise<void> {
-        if (userIds.length === 0) {
-            return;
-        }
+	async incrementIfPresent(channelId: number, userIds: number[], eventId?: string): Promise<void> {
+		if (userIds.length === 0) {
+			return;
+		}
 
-        try {
-            const field = String(channelId);
-            const appliedKey = eventId === undefined ? '' : `${APPLIED_KEY_PREFIX}${eventId}`;
-            // Ponytail: 재처리 사이 멤버가 바뀌면 청크 경계가 밀려 일부 수신자가 한 번 덜/더 반영될 수 있다.
-            // 어긋난 값은 그 채널을 읽어 다시 설정하거나, 마지막 set/setMany가 건 필드 TTL이 끝날 때까지 남는다.
-            const keys = userIds.toSorted((a, b) => a - b).map(userId => this.key(userId));
-            const pipeline = this.client.pipeline() as UnreadCounterPipeline;
-            for (let i = 0; i < keys.length; i += INCREMENT_CHUNK_SIZE) {
-                pipeline.incrementIfPresentScript(field, appliedKey, TTL_SECONDS, i / INCREMENT_CHUNK_SIZE, ...keys.slice(i, i + INCREMENT_CHUNK_SIZE));
-            }
+		try {
+			const field = String(channelId);
+			const appliedKey = eventId === undefined ? '' : `${APPLIED_KEY_PREFIX}${eventId}`;
+			// Ponytail: 재처리 사이 멤버가 바뀌면 청크 경계가 밀려 일부 수신자가 한 번 덜/더 반영될 수 있다.
+			// 어긋난 값은 그 채널을 읽어 다시 설정하거나, 마지막 set/setMany가 건 필드 TTL이 끝날 때까지 남는다.
+			const keys = userIds.toSorted((a, b) => a - b).map(userId => this.key(userId));
+			const pipeline = this.client.pipeline() as UnreadCounterPipeline;
+			for (let i = 0; i < keys.length; i += INCREMENT_CHUNK_SIZE) {
+				pipeline.incrementIfPresentScript(field, appliedKey, TTL_SECONDS, i / INCREMENT_CHUNK_SIZE, ...keys.slice(i, i + INCREMENT_CHUNK_SIZE));
+			}
 
-            await pipeline.exec();
-        } catch (error) {
-            this.logger.warn(`Redis incrementIfPresent failed [channelId=${channelId}]`, error);
-        }
-    }
+			await pipeline.exec();
+		} catch (error) {
+			this.logger.warn(`Redis incrementIfPresent failed [channelId=${channelId}]`, error);
+		}
+	}
 }

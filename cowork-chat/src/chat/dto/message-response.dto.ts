@@ -1,59 +1,60 @@
-import {ApiProperty, ApiPropertyOptional} from '@nestjs/swagger';
+import {ApiProperty as apiProperty, ApiPropertyOptional as apiPropertyOptional} from '@nestjs/swagger';
+import {type Nullable} from '../../common/type/nullable.js';
 
 export class WebhookAuthorResponseDto {
-    @ApiProperty() id!: number;
-    @ApiProperty() name!: string;
-    @ApiProperty({type: String, nullable: true}) avatarUrl!: string | null;
+	@apiProperty() id!: number;
+	@apiProperty() name!: string;
+	@apiProperty({type: String, nullable: true}) avatarUrl!: Nullable<string>;
 }
 
 class ReactionResponseDto {
-    @ApiProperty() emoji!: string;
-    @ApiProperty() count!: number;
-    @ApiProperty() myReaction!: boolean;
+	@apiProperty() emoji!: string;
+	@apiProperty() count!: number;
+	@apiProperty() myReaction!: boolean;
 }
 
 class AttachmentResponseDto {
-    @ApiProperty() name!: string;
-    @ApiPropertyOptional() objectKey?: string;
-    @ApiProperty() size!: number;
-    @ApiProperty() mimeType!: string;
+	@apiProperty() name!: string;
+	@apiPropertyOptional() objectKey?: string;
+	@apiProperty() size!: number;
+	@apiProperty() mimeType!: string;
 }
 
 export class MentionedMessageDto {
-    @ApiProperty({description: '부모 메시지 MongoDB ObjectId'}) _id!: string;
-    @ApiProperty({type: Number, description: '부모 메시지 작성자 ID', nullable: true}) authorId!: number | null;
-    @ApiPropertyOptional({type: WebhookAuthorResponseDto}) webhook?: WebhookAuthorResponseDto;
-    @ApiProperty({description: '부모 메시지 내용'}) content!: string;
-    @ApiProperty({enum: ['TEXT', 'FILE', 'SYSTEM'], description: '부모 메시지 타입'}) type!: string;
-    @ApiProperty({description: '부모 메시지 생성 시각 (ISO 8601)'}) createdAt!: string;
+	@apiProperty({description: '부모 메시지 MongoDB ObjectId'}) _id!: string;
+	@apiProperty({type: Number, description: '부모 메시지 작성자 ID', nullable: true}) authorId!: Nullable<number>;
+	@apiPropertyOptional({type: WebhookAuthorResponseDto}) webhook?: WebhookAuthorResponseDto;
+	@apiProperty({description: '부모 메시지 내용'}) content!: string;
+	@apiProperty({enum: ['TEXT', 'FILE', 'SYSTEM'], description: '부모 메시지 타입'}) type!: string;
+	@apiProperty({description: '부모 메시지 생성 시각 (ISO 8601)'}) createdAt!: string;
 }
 
 export class MessageResponseDto {
-    @ApiProperty() _id!: string;
-    @ApiProperty() teamId!: number;
-    @ApiPropertyOptional({nullable: true}) projectId!: number | null;
-    @ApiProperty() channelId!: number;
-    @ApiProperty({type: Number, nullable: true}) authorId!: number | null;
-    @ApiPropertyOptional({type: WebhookAuthorResponseDto}) webhook?: WebhookAuthorResponseDto;
-    @ApiProperty() content!: string;
-    @ApiProperty({enum: ['TEXT', 'FILE', 'SYSTEM']}) type!: string;
-    @ApiProperty({type: [AttachmentResponseDto]}) attachments!: AttachmentResponseDto[];
-    @ApiProperty({nullable: true, description: '스레드 답글의 부모 메시지 ObjectId (최상위 메시지이면 null)'}) parentMessageId!: string | null;
-    @ApiProperty() isEdited!: boolean;
-    @ApiProperty() isPinned!: boolean;
-    @ApiPropertyOptional({nullable: true}) clientMessageId!: string | null;
-    @ApiProperty({type: [Number], description: '메시지 내용에서 파싱된 멘션 사용자 ID 목록 (`<@userId>` 형식으로 작성된 멘션)'}) mentions!: number[];
-    @ApiProperty() createdAt!: string;
-    @ApiProperty() updatedAt!: string;
-    @ApiProperty({type: [ReactionResponseDto]}) reactions!: ReactionResponseDto[];
-    @ApiPropertyOptional({type: MentionedMessageDto, nullable: true, description: '스레드 답글의 부모 메시지 정보 (최상위 메시지이거나 스레드가 아니면 null)'}) mentionedMessage?: MentionedMessageDto | null;
+	@apiProperty() _id!: string;
+	@apiProperty() teamId!: number;
+	@apiPropertyOptional({nullable: true}) projectId!: Nullable<number>;
+	@apiProperty() channelId!: number;
+	@apiProperty({type: Number, nullable: true}) authorId!: Nullable<number>;
+	@apiPropertyOptional({type: WebhookAuthorResponseDto}) webhook?: WebhookAuthorResponseDto;
+	@apiProperty() content!: string;
+	@apiProperty({enum: ['TEXT', 'FILE', 'SYSTEM']}) type!: string;
+	@apiProperty({type: [AttachmentResponseDto]}) attachments!: AttachmentResponseDto[];
+	@apiProperty({nullable: true, description: '스레드 답글의 부모 메시지 ObjectId (최상위 메시지이면 null)'}) parentMessageId!: Nullable<string>;
+	@apiProperty() isEdited!: boolean;
+	@apiProperty() isPinned!: boolean;
+	@apiPropertyOptional({nullable: true}) clientMessageId!: Nullable<string>;
+	@apiProperty({type: [Number], description: '메시지 내용에서 파싱된 멘션 사용자 ID 목록 (`<@userId>` 형식으로 작성된 멘션)'}) mentions!: number[];
+	@apiProperty() createdAt!: string;
+	@apiProperty() updatedAt!: string;
+	@apiProperty({type: [ReactionResponseDto]}) reactions!: ReactionResponseDto[];
+	@apiPropertyOptional({type: MentionedMessageDto, nullable: true, description: '스레드 답글의 부모 메시지 정보 (최상위 메시지이거나 스레드가 아니면 null)'}) mentionedMessage?: Nullable<MentionedMessageDto>;
 }
 
 export class DeleteMessageResponseDto {
-    @ApiProperty() channelId!: number;
-    @ApiProperty() messageId!: string;
+	@apiProperty() channelId!: number;
+	@apiProperty() messageId!: string;
 }
 
 export class SendMessageResponseDto {
-    @ApiProperty() queued!: boolean;
+	@apiProperty() queued!: boolean;
 }

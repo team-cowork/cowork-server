@@ -89,10 +89,13 @@ class MeetingNoteTemplateController(
     ): MeetingNoteTemplateResponse =
         updateMeetingNoteTemplateService.updateTemplate(userId, channelId, templateId, request)
 
-    @Operation(summary = "템플릿 삭제 (활성 템플릿 삭제 불가)", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(
+        summary = "템플릿 삭제 (활성 템플릿, 회의록이 작성된 템플릿 삭제 불가)",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
     @ApiResponses(
         ApiResponse(responseCode = "204", description = "삭제 성공"),
-        ApiResponse(responseCode = "400", description = "활성 템플릿 삭제 시도"),
+        ApiResponse(responseCode = "400", description = "활성 템플릿 또는 회의록이 작성된 템플릿 삭제 시도"),
         ApiResponse(responseCode = "403", description = "채널 멤버가 아님"),
     )
     @DeleteMapping("/{templateId}")

@@ -1,23 +1,24 @@
-import {Prop, Schema, SchemaFactory} from '@nestjs/mongoose';
+import {Prop as prop, Schema as schema, SchemaFactory} from '@nestjs/mongoose';
 import {Types} from 'mongoose';
+import {type Nullable} from '../../common/type/nullable.js';
 
 /**
 DM participants only. Team-channel permissions never create documents here.
 */
-@Schema({timestamps: true, versionKey: false})
+@schema({timestamps: true, versionKey: false})
 export class DmParticipant {
-    @Prop({required: true}) channelId!: number;
-    @Prop({required: true}) userId!: number;
-    @Prop({type: Number, default: null}) teamId!: number | null;
-    @Prop({default: 'DM'}) channelType!: string;
-    @Prop({default: false}) isHidden!: boolean;
-    @Prop({type: Types.ObjectId, default: null}) lastReadMessageId!: Types.ObjectId | null;
-    @Prop({default: 'MEMBER'}) role!: string;
-    @Prop({required: true, default: false}) deleted!: boolean;
-    @Prop({required: true, type: Date}) sourceOccurredAt!: Date;
-    @Prop({required: true}) sourceVersion!: bigint;
+	@prop({required: true}) channelId!: number;
+	@prop({required: true}) userId!: number;
+	@prop({type: Number, default: null}) teamId!: Nullable<number>;
+	@prop({default: 'DM'}) channelType!: string;
+	@prop({default: false}) isHidden!: boolean;
+	@prop({type: Types.ObjectId, default: null}) lastReadMessageId!: Nullable<Types.ObjectId>;
+	@prop({default: 'MEMBER'}) role!: string;
+	@prop({required: true, default: false}) deleted!: boolean;
+	@prop({required: true, type: Date}) sourceOccurredAt!: Date;
+	@prop({required: true}) sourceVersion!: bigint;
 }
 
-export const DmParticipantSchema = SchemaFactory.createForClass(DmParticipant);
-DmParticipantSchema.index({channelId: 1, userId: 1}, {unique: true});
-DmParticipantSchema.index({userId: 1, channelType: 1});
+export const dmParticipantSchema = SchemaFactory.createForClass(DmParticipant)
+	.index({channelId: 1, userId: 1}, {unique: true})
+	.index({userId: 1, channelType: 1});
