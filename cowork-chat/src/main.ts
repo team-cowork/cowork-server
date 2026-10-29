@@ -121,7 +121,7 @@ async function bootstrap() {
 			+ 'WebSocket: Gateway가 `/ws/chat`에서 JWT를 검증하고 같은 사용자 헤더를 주입합니다.\n'
 			+ '인증 실패 시 `connect_error`가 전달됩니다.',
 		)
-		.setVersion('20261029.0')
+		.setVersion('20261030.0')
 		.addServer('/api/chat', 'Gateway')
 		.addBearerAuth(
 			{
