@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "cowork User API",
-    "version": "20261029.0",
+    "version": "20261030.0",
     "description": "cowork-user 사용자 관리 서비스 API"
   },
   "servers": [
