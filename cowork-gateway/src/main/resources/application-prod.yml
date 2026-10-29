@@ -1,12 +1,31 @@
 server:
   port: ${PORT:8080}
 
+management:
+  health:
+    redis:
+      enabled: false
+
 gateway:
   response-wrapper:
     max-wrappable-size: 1MB
+  deployment:
+    destinations:
+      cowork-authorization: ${COWORK_AUTHORIZATION_URL:http://cowork-authorization:8081}
+      cowork-user: ${COWORK_USER_URL:http://cowork-user:8082}
+      cowork-channel: ${COWORK_CHANNEL_URL:http://cowork-channel:8083}
+      cowork-project: ${COWORK_PROJECT_URL:http://cowork-project:8084}
+      cowork-team: ${COWORK_TEAM_URL:http://cowork-team:8085}
+      cowork-notification: ${COWORK_NOTIFICATION_URL:http://cowork-notification:8086}
+      cowork-chat: ${COWORK_CHAT_URL:http://cowork-chat:8087}
+      cowork-roadmap: ${COWORK_ROADMAP_URL:http://cowork-roadmap:8088}
+      cowork-voice: ${COWORK_VOICE_URL:http://cowork-voice:8089}
+      cowork-github: ${COWORK_GITHUB_URL:http://cowork-github:8090}
+      cowork-preference: ${COWORK_PREFERENCE_URL:http://cowork-preference:9001}
 
 webhook:
   url-signing-key: ${WEBHOOK_URL_SIGNING_KEY:}
+  datagsm-secret: ${DATAGSM_WEBHOOK_SECRET:}
 
 cowork:
   swagger-ui:
@@ -64,7 +83,8 @@ spring:
       # - project, roadmap, preference, notification, 팀·프로젝트별 channel, DM, 검색: JWT 인증 요청이며 downstream이 권한을
       #   검사한다. 일괄 제한은 도입하지 않았으므로 필요해지면 해당 라우트에 명시적으로 추가한다.
       # - 스토리지 relay: StorageRelay가 허용 경로와 서명 여부를 검사하고 오브젝트 스토리지가 서명을 검증한다.
-      # - 외부 발신 웹훅(authorization, github, voice): 발신 서비스가 재전송하므로 Gateway에서 차단하지 않고 downstream 검증에 맡긴다.
+      # - DataGSM 웹훅은 Gateway가 서명 검증 후 Redis에 영속 접수한다. Redis 실패 시 Authorization의 DB 접수 경로로 전달한다.
+      # - GitHub와 Voice 웹훅은 downstream 검증에 맡긴다.
       # - API 문서 라우트: 정적 문서 조회다.
       routes:
         - id: webhook-management
@@ -159,12 +179,9 @@ spring:
           uri: ${COWORK_AUTHORIZATION_URL:http://cowork-authorization:8081}
           predicates:
             - Path=/api/authorization/events/datagsm
+            - Method=POST
           filters:
             - StripPrefix=2
-            - name: CircuitBreaker
-              args:
-                name: authorizationWebhookCB
-                fallbackUri: forward:/fallback
 
         - id: user-service
           uri: ${COWORK_USER_URL:http://cowork-user:8082}
@@ -525,8 +542,7 @@ app:
 resilience4j:
   circuitbreaker:
     # 차단기는 이름별로 상태를 가지므로 대상 서비스마다 이름을 두고, 같은 서비스의 라우트는 상태를 공유한다.
-    # instances에 없는 이름은 아래 default 설정을 쓴다. 로그인(authorizationCB)은 시간 제한이 달라
-    # 같은 서비스의 datagsm 웹훅(authorizationWebhookCB)과 이름을 나눈다.
+    # instances에 없는 이름은 아래 default 설정을 쓴다. 로그인(authorizationCB)은 시간 제한이 달라 별도 인스턴스를 쓴다.
     configs:
       default:
         slidingWindowSize: 10

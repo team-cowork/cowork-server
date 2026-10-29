@@ -93,6 +93,8 @@ class SecurityConfig(
                     .pathMatchers(HttpMethod.HEAD, "/api/storage/**").permitAll()
                     .pathMatchers(HttpMethod.PUT, "/api/storage/**").permitAll()
                     .pathMatchers("/actuator/**").permitAll()
+                    // The handler itself accepts only a direct loopback connection inside the allocation.
+                    .pathMatchers(HttpMethod.GET, "/internal/deployment-state").permitAll()
                     .pathMatchers("/api/health").permitAll()
                     .pathMatchers(HttpMethod.GET, "/api/chat/health", "/api/chat/chat/health/ready").permitAll()
                     .pathMatchers("/fallback").permitAll()
