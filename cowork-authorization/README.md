@@ -6,7 +6,7 @@ DataGSM 로그인과 인증 토큰·로그인 세션을 관리합니다.
 
 - OAuth2 PKCE 로그인과 JWT 발급·갱신·로그아웃
 - 사용자 계정·프로필 소유 서비스인 cowork-user에 로그인 정보 동기화 요청
-- DataGSM 사용자 변경 웹훅의 원자 접수·outbox 전달과 온라인·오프라인 상태 발행
+- DataGSM 사용자 변경 웹훅의 원자 접수·outbox 전달, Redis 대기열 소비와 온라인·오프라인 상태 발행
 
 ## 스택
 
@@ -14,6 +14,7 @@ DataGSM 로그인과 인증 토큰·로그인 세션을 관리합니다.
 - Go modules + Makefile
 - GORM / MySQL
 - Kafka
+- Redis Streams
 
 ## 포트
 
@@ -32,6 +33,7 @@ DataGSM 로그인과 인증 토큰·로그인 세션을 관리합니다.
 | `DB_DSN` | 개별 DB 입력이 없을 때 사용하는 MySQL DSN |
 | `DATAGSM_CLIENT_ID`, `JWT_SECRET` | 필수 OAuth client ID와 JWT 서명 키 |
 | `DATAGSM_WEBHOOK_SECRET` | DataGSM webhook 검증 값 |
+| `REDIS_HOST`, `REDIS_PORT` | DataGSM webhook 대기열 접속 주소. 운영에서는 Consul Envoy loopback 사용 |
 | `JWT_ACCESS_EXPIRE`, `JWT_REFRESH_EXPIRE` | JWT 유효기간 |
 | `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker 목록 |
 | `KAFKA_SECURITY_PROTOCOL` | 운영에서는 SASL_SSL |

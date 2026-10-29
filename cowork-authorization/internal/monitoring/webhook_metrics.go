@@ -36,11 +36,31 @@ var (
 	webhookMaintenanceFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "cowork_authorization_webhook_maintenance_failures_total", Help: "Webhook maintenance failures by operation.",
 	}, []string{"operation"})
+	webhookStreamConnected = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "cowork_authorization_webhook_stream_connected", Help: "Whether the Redis webhook stream consumer can read the stream.",
+	})
+	webhookStreamLength = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "cowork_authorization_webhook_stream_entries", Help: "Webhook entries retained in the Redis stream.",
+	})
+	webhookStreamPending = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "cowork_authorization_webhook_stream_pending", Help: "Webhook stream entries delivered but not committed to the database.",
+	})
+	webhookStreamOldest = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "cowork_authorization_webhook_stream_oldest_seconds", Help: "Age of the oldest retained webhook stream entry.",
+	})
+	webhookStreamProcessed = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "cowork_authorization_webhook_stream_processed_total", Help: "Webhook stream entries committed to MySQL before acknowledgement.",
+	}, []string{"result"})
+	webhookStreamFailures = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "cowork_authorization_webhook_stream_failures_total", Help: "Webhook stream processing failures by safe category.",
+	}, []string{"reason"})
 )
 
 func init() {
 	prometheus.MustRegister(webhookResults, webhookPublished, webhookPublishFailures, webhookPending, webhookOldest,
-		webhookExpired, webhookRetained, webhookObserved, webhookObservationTime, webhookCleaned, webhookMaintenanceFailures)
+		webhookExpired, webhookRetained, webhookObserved, webhookObservationTime, webhookCleaned, webhookMaintenanceFailures,
+		webhookStreamConnected, webhookStreamLength, webhookStreamPending, webhookStreamOldest,
+		webhookStreamProcessed, webhookStreamFailures)
 }
 
 func RecordWebhookResult(result string) { webhookResults.WithLabelValues(result).Inc() }
@@ -60,3 +80,22 @@ func ObserveWebhookBacklog(pending int64, oldest float64, expired, retained int6
 	webhookObserved.Set(1)
 	webhookObservationTime.SetToCurrentTime()
 }
+
+func WebhookStreamConnected(connected bool) {
+	if connected {
+		webhookStreamConnected.Set(1)
+	} else {
+		webhookStreamConnected.Set(0)
+	}
+}
+
+func ObserveWebhookStream(length, pending int64, oldestSeconds float64) {
+	webhookStreamLength.Set(float64(length))
+	webhookStreamPending.Set(float64(pending))
+	webhookStreamOldest.Set(oldestSeconds)
+}
+
+func RecordWebhookStreamProcessed(result string) {
+	webhookStreamProcessed.WithLabelValues(result).Inc()
+}
+func RecordWebhookStreamFailure(reason string) { webhookStreamFailures.WithLabelValues(reason).Inc() }
