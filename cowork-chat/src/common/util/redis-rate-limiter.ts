@@ -24,6 +24,8 @@ type WithTryAcquireScript<Context extends ClientContext = {type: 'default'}> = {
 	tryReserveScript(key: string, holder: string, ttlMs: number): Result<number, Context>;
 	releaseScript(key: string, holder: string): Result<number, Context>;
 	webhookAcquireScript(key: string, windowMs: number, limit: number, member: string): Result<number, Context>;
+	weightedReserveScript(key: string, windowMs: number, limit: number, holder: string, weight: number): Result<number, Context>;
+	weightedReleaseScript(key: string, holder: string, weight: number): Result<number, Context>;
 };
 type RateLimiterRedis = Redis & WithTryAcquireScript;
 
@@ -76,6 +78,35 @@ redis.call('PEXPIRE', KEYS[1], window)
 return 0
 `;
 
+// KEYS[1]=key ARGV[1]=windowMs ARGV[2]=limit ARGV[3]=holder ARGV[4]=weight
+// A holder that already reserved within the window is a retry and is not charged again.
+const WEIGHTED_RESERVE_SCRIPT = `
+local clock = redis.call('TIME')
+local now = tonumber(clock[1]) * 1000 + math.floor(tonumber(clock[2]) / 1000)
+local window = tonumber(ARGV[1])
+local weight = tonumber(ARGV[4])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, now - window)
+if redis.call('ZSCORE', KEYS[1], ARGV[3] .. ':1') then
+    return 2
+end
+if redis.call('ZCARD', KEYS[1]) + weight > tonumber(ARGV[2]) then
+    return 0
+end
+for i = 1, weight do
+    redis.call('ZADD', KEYS[1], now, ARGV[3] .. ':' .. i)
+end
+redis.call('PEXPIRE', KEYS[1], window)
+return 1
+`;
+
+// KEYS[1]=key ARGV[1]=holder ARGV[2]=weight
+const WEIGHTED_RELEASE_SCRIPT = `
+for i = 1, tonumber(ARGV[2]) do
+    redis.call('ZREM', KEYS[1], ARGV[1] .. ':' .. i)
+end
+return 1
+`;
+
 /**
  Redis Sorted Set 기반 슬라이딩 윈도우 rate limiter.
  키를 인스턴스 간에 공유하므로, 분산 멀티 인스턴스 환경에서도 사용자별 한도가 일관되게 적용된다
@@ -102,6 +133,8 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
 		this.client.defineCommand('tryReserveScript', {numberOfKeys: 1, lua: TRY_RESERVE_SCRIPT});
 		this.client.defineCommand('releaseScript', {numberOfKeys: 1, lua: RELEASE_SCRIPT});
 		this.client.defineCommand('webhookAcquireScript', {numberOfKeys: 1, lua: WEBHOOK_ACQUIRE_SCRIPT});
+		this.client.defineCommand('weightedReserveScript', {numberOfKeys: 1, lua: WEIGHTED_RESERVE_SCRIPT});
+		this.client.defineCommand('weightedReleaseScript', {numberOfKeys: 1, lua: WEIGHTED_RELEASE_SCRIPT});
 		// Ioredis는 'error' 리스너가 없으면 unhandled error event로 프로세스가 죽는다
 		this.client.on('error', (error: unknown) => {
 			this.logger.error(`Redis client error: ${error instanceof Error ? error.message : String(error)}`);
@@ -187,6 +220,40 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
 		} catch (error) {
 			this.logger.warn(`Reservation failed, failing open [key=${key}]`, error);
 			return 'RESERVED';
+		}
+	}
+
+	/**
+     `key`의 `windowMs` 시간창 안에서 `weight`만큼 쓴 합계가 `limit`를 넘지 않으면 `holder`로 소비한다.
+     같은 `holder`가 시간창 안에서 이미 소비했으면 재시도로 보고 다시 차감하지 않는다.
+
+     @returns Redis 오류 시에는 `RESERVED`(fail-open)를 반환한다.
+     */
+	async tryReserveWeighted(
+		key: string,
+		holder: string,
+		weight: number,
+		windowMs: number,
+		limit: number,
+	): Promise<ReservationResult> {
+		try {
+			const result = await this.client.weightedReserveScript(key, windowMs, limit, holder, weight);
+			if (result === 1) {
+				return 'RESERVED';
+			}
+
+			return result === 2 ? 'HELD_BY_SAME_HOLDER' : 'BUSY';
+		} catch (error) {
+			this.logger.warn(`Weighted reservation failed, failing open [key=${key}]`, error);
+			return 'RESERVED';
+		}
+	}
+
+	async releaseWeighted(key: string, holder: string, weight: number): Promise<void> {
+		try {
+			await this.client.weightedReleaseScript(key, holder, weight);
+		} catch (error) {
+			this.logger.warn(`Weighted reservation release failed [key=${key}]`, error);
 		}
 	}
 
