@@ -77,4 +77,10 @@ class SettingSchemaTest {
         assertNull(SettingSchema.validate(ResourceType.TEAM, JsonObject().put("default_notification_level", "ALL")))
         assertNotNull(SettingSchema.validate(ResourceType.TEAM, JsonObject().put("default_notification_level", "LOUD")))
     }
+
+    @Test
+    fun `태그 스팸 차단은 boolean만 허용한다`() {
+        assertNull(SettingSchema.validate(ResourceType.TEAM, JsonObject().put("tag_spam_block", true)))
+        assertNotNull(SettingSchema.validate(ResourceType.TEAM, JsonObject().put("tag_spam_block", "true")))
+    }
 }
