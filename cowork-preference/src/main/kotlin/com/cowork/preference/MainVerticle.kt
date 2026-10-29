@@ -1,6 +1,6 @@
 package com.cowork.preference
 
-import com.cowork.preference.config.kafkaSecurityProperties
+import com.cowork.preference.config.kafkaClientProperties
 import com.cowork.preference.cache.PreferenceCache
 import com.cowork.preference.config.AppConfig
 import com.cowork.preference.handler.WebhookHandler
@@ -460,7 +460,7 @@ class MainVerticle : AbstractVerticle() {
     }
 
     private fun buildKafkaProducer(config: AppConfig): KafkaProducer<String, String> {
-        val kafkaConfig = kafkaSecurityProperties() + mapOf(
+        val kafkaConfig = kafkaClientProperties() + mapOf(
             "bootstrap.servers" to config.kafka.bootstrapServers,
             "key.serializer" to "org.apache.kafka.common.serialization.StringSerializer",
             "value.serializer" to "org.apache.kafka.common.serialization.StringSerializer",
