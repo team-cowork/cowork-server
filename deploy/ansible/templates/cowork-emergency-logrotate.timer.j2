@@ -1,0 +1,10 @@
+[Unit]
+Description=Check Cowork emergency app log size every 15 seconds
+
+[Timer]
+OnBootSec=15s
+OnUnitActiveSec=15s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target
