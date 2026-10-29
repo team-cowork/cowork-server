@@ -7,9 +7,10 @@ variable "jobs" {
   type = map(object({ jobspec = string, variables = map(string) }))
 }
 resource "nomad_job" "this" {
-  for_each = var.jobs
-  jobspec  = each.value.jobspec
-  detach   = true
+  for_each      = var.jobs
+  jobspec       = each.value.jobspec
+  detach        = true
+  rerun_if_dead = true
   hcl2 {
     allow_fs = false
     vars     = each.value.variables
