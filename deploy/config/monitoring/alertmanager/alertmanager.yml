@@ -28,7 +28,7 @@ inhibit_rules:
 receivers:
   - name: discord
     discord_configs:
-      - webhook_url_file: /etc/alertmanager/generated/discord-webhook-url
+      - webhook_url_file: /etc/alertmanager/generated/discord-monitoring-alert-webhook-url
         title: '[{{ if eq .Status "firing" }}조치 필요{{ else }}해결{{ end }}] {{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}모니터링 알림{{ end }}'
         message: |-
           {{ range .Alerts }}

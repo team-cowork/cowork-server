@@ -33,7 +33,7 @@
           "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] }
         }
       },
-      "description": "애플리케이션 메트릭 수집 결과입니다. 서비스가 요청을 처리할 준비가 됐는지는 준비 상태 카드에서 확인합니다. 인스턴스 하나라도 수집에 실패하면 DOWN입니다."
+      "description": "애플리케이션 메트릭 수집 성공 여부입니다. 인스턴스 하나라도 수집에 실패하면 DOWN입니다."
     },
     {
       "id": 100,
@@ -289,7 +289,7 @@
       "id": 11,
       "title": "OAuth 외부 호출 응답 시간 P99 (ms)",
       "type": "timeseries",
-      "description": "트랜잭션 밖에서 실행하는 외부 OAuth 제공자 호출의 응답 시간입니다.",
+      "description": "외부 OAuth 제공자 호출의 P99 응답 시간입니다.",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
       "fieldConfig": {
         "defaults": { "unit": "ms", "noValue": "N/A", "min": 0, "color": {"mode": "palette-classic"}, "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"} },

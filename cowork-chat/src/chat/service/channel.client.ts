@@ -1,28 +1,29 @@
-import {Injectable, ServiceUnavailableException} from '@nestjs/common';
-import {ChannelProjectionRepository} from '../repository';
+import {Injectable as injectable, ServiceUnavailableException} from '@nestjs/common';
+import {ChannelProjectionRepository} from '../repository/index.js';
+import {type Nullable} from '../../common/type/nullable.js';
 
 export type ChannelInfo = {
-    id: number;
-    teamId: number | null;
-    viewType: string;
+	id: number;
+	teamId: Nullable<number>;
+	viewType: string;
 };
 
 /**
 Kafka로 동기화된 로컬 채널 projection 조회기.
 */
-@Injectable()
+@injectable()
 export class ChannelClient {
-    constructor(private readonly projectionRepository: ChannelProjectionRepository) {}
+	constructor(private readonly projectionRepository: ChannelProjectionRepository) {}
 
-    /**
+	/**
     채널 메타데이터는 로컬 projection에서 조회한다.
     */
-    async getChannel(channelId: number): Promise<ChannelInfo> {
-        const channel = await this.projectionRepository.findById(channelId);
-        if (!channel) {
-            throw new ServiceUnavailableException('채널 정보가 아직 동기화되지 않았습니다');
-        }
+	async getChannel(channelId: number): Promise<ChannelInfo> {
+		const channel = await this.projectionRepository.findById(channelId);
+		if (!channel) {
+			throw new ServiceUnavailableException('채널 정보가 아직 동기화되지 않았습니다');
+		}
 
-        return {id: channel.channelId, teamId: channel.teamId ?? null, viewType: channel.viewType};
-    }
+		return {id: channel.channelId, teamId: channel.teamId ?? null, viewType: channel.viewType};
+	}
 }

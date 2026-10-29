@@ -1,16 +1,17 @@
 import {
-    Injectable,
-    Logger,
-    OnModuleDestroy,
-    OnModuleInit,
+	Injectable as injectable,
+	Logger,
+	OnModuleDestroy,
+	OnModuleInit,
+	Inject as inject,
 } from '@nestjs/common';
-import {ElasticsearchService} from '../../search/elasticsearch.service';
+import {ElasticsearchService} from '../../search/elasticsearch.service.js';
 import {
-    MessageSearchIndexRepository,
-    MessageSearchTombstoneRepository,
-    MessageSearchIndexStateRepository,
-} from '../repository';
-import {MessageSearchIndexService} from './message-search-index.service';
+	MessageSearchIndexRepository,
+	MessageSearchTombstoneRepository,
+	MessageSearchIndexStateRepository,
+} from '../repository/index.js';
+import {MessageSearchIndexService} from './message-search-index.service.js';
 
 const POLL_INTERVAL_MS = 3000;
 const MESSAGE_BATCH_SIZE = 50;
@@ -35,103 +36,99 @@ const METRICS_INTERVAL_MS = 30_000;
  남긴 점유는 시간이 지나면 회수된다. 색인 쓰기 순서는 메시지별 단조 증가 버전이 정하므로
  배치 내부는 병렬로 처리해도 안전하다.
  */
-@Injectable()
+@injectable()
 export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy {
-    private readonly logger = new Logger(MessageSearchOutboxPoller.name);
-    private timer?: ReturnType<typeof setInterval>;
-    private running = false;
-    private lastReclaimAt = 0;
-    private lastMetricsAt = 0;
-    private legacyBackfillDone = false;
-    private legacyBackfillStateChecked = false;
+	private readonly logger = new Logger(MessageSearchOutboxPoller.name);
+	private timer?: ReturnType<typeof setInterval>;
+	private running = false;
+	private lastReclaimAt = 0;
+	private lastMetricsAt = 0;
+	private legacyBackfillDone = false;
+	private legacyBackfillStateChecked = false;
 
-    constructor(
-        private readonly elasticsearchService: ElasticsearchService,
-        private readonly indexService: MessageSearchIndexService,
-        private readonly indexRepository: MessageSearchIndexRepository,
-        private readonly tombstoneRepository: MessageSearchTombstoneRepository,
-        private readonly stateRepository: MessageSearchIndexStateRepository,
-    ) {}
+	@inject()
+	private readonly elasticsearchService!: ElasticsearchService;
 
-    onModuleInit(): void {
-        this.timer = setInterval(() => {
-            void this.runCycle();
-        }, POLL_INTERVAL_MS);
-        this.logger.log('Message search index outbox poller started');
-    }
+	@inject()
+	private readonly indexService!: MessageSearchIndexService;
 
-    onModuleDestroy(): void {
-        clearInterval(this.timer);
-    }
+	@inject()
+	private readonly indexRepository!: MessageSearchIndexRepository;
 
-    private async runCycle(): Promise<void> {
-        if (this.running) {
-            return;
-        }
+	@inject()
+	private readonly tombstoneRepository!: MessageSearchTombstoneRepository;
 
-        this.running = true;
-        try {
-            await this.reclaimIfDue();
-            await this.refreshMetricsIfDue();
-            if (!await this.elasticsearchService.ensureIndexReady()) {
-                return;
-            }
+	@inject()
+	private readonly stateRepository!: MessageSearchIndexStateRepository;
 
-            await this.backfillLegacyState();
-            await this.drainTombstones();
-            await this.drainMessages();
-        } catch (error) {
-            this.logger.error('Message search index outbox cycle failed', error);
-        } finally {
-            this.running = false;
-        }
-    }
+	private async runCycle(): Promise<void> {
+		if (this.running) {
+			return;
+		}
 
-    /**
+		this.running = true;
+		try {
+			await this.reclaimIfDue();
+			await this.refreshMetricsIfDue();
+			if (!await this.elasticsearchService.ensureIndexReady()) {
+				return;
+			}
+
+			await this.backfillLegacyState();
+			await this.drainTombstones();
+			await this.drainMessages();
+		} catch (error) {
+			this.logger.error('Message search index outbox cycle failed', error);
+		} finally {
+			this.running = false;
+		}
+	}
+
+	/**
     중단된 replica가 남긴 점유와 커밋되지 않은 삭제 예약을 회수한다.
     */
-    private async reclaimIfDue(): Promise<void> {
-        if (Date.now() - this.lastReclaimAt < RECLAIM_INTERVAL_MS) {
-            return;
-        }
+	private async reclaimIfDue(): Promise<void> {
+		if (Date.now() - this.lastReclaimAt < RECLAIM_INTERVAL_MS) {
+			return;
+		}
 
-        this.lastReclaimAt = Date.now();
+		this.lastReclaimAt = Date.now();
 
-        const [messages, tombstones] = await Promise.all([
-            this.indexRepository.reclaimStaleProcessing(CLAIM_STALE_THRESHOLD_MS),
-            this.tombstoneRepository.reclaimStaleProcessing(CLAIM_STALE_THRESHOLD_MS),
-        ]);
-        if (messages > 0 || tombstones > 0) {
-            this.logger.warn(`Reclaimed stale search index claims messages=${messages} tombstones=${tombstones}`);
-        }
+		const [messages, tombstones] = await Promise.all([
+			this.indexRepository.reclaimStaleProcessing(CLAIM_STALE_THRESHOLD_MS),
+			this.tombstoneRepository.reclaimStaleProcessing(CLAIM_STALE_THRESHOLD_MS),
+		]);
+		if (messages > 0 || tombstones > 0) {
+			this.logger.warn(`Reclaimed stale search index claims messages=${messages} tombstones=${tombstones}`);
+		}
 
-        await this.releaseUncommittedDeletions();
-    }
+		await this.releaseUncommittedDeletions();
+	}
 
-    /**
+	/**
      `DELETING`으로 예약됐지만 tombstone이 없는 메시지를 다시 색인 대상으로 되돌린다.
 
      tombstone이 없다는 것은 삭제가 durable하게 기록되기 전에 중단됐다는 뜻이므로,
      MongoDB에 남아 있는 메시지가 최종 상태다.
      */
-    private async releaseUncommittedDeletions(): Promise<void> {
-        const staleDeleting = await this.indexRepository.findStaleDeleting(DELETING_STALE_THRESHOLD_MS, MESSAGE_BATCH_SIZE);
-        if (staleDeleting.length === 0) {
-            return;
-        }
+	private async releaseUncommittedDeletions(): Promise<void> {
+		const staleDeleting = await this.indexRepository.findStaleDeleting(DELETING_STALE_THRESHOLD_MS, MESSAGE_BATCH_SIZE);
+		if (staleDeleting.length === 0) {
+			return;
+		}
 
-        const withTombstone = await this.tombstoneRepository.findExistingMessageIds(
-            staleDeleting.map(message => message._id.toString()),
-        );
-        const released = await this.indexRepository.releaseDeleting(
-            staleDeleting.filter(message => !withTombstone.has(message._id.toString())),
-        );
-        if (released > 0) {
-            this.logger.warn(`Released ${released} uncommitted message deletion(s) back to search indexing`);
-        }
-    }
+		const withTombstone = await this.tombstoneRepository.findExistingMessageIds(
+			staleDeleting.map(message => message._id.toString()),
+		);
+		const released = await this.indexRepository.releaseDeleting(
+			staleDeleting.filter(message => !withTombstone.has(message._id.toString())),
+		);
+		if (released > 0) {
+			this.logger.warn(`Released ${released} uncommitted message deletion(s) back to search indexing`);
+		}
+	}
 
-    /**
+	/**
      아웃박스 필드가 없는 레거시 메시지를 배치로 백필한다.
 
      백필된 메시지는 일반 대기 항목이 되어 워커가 색인을 복원하므로, 이 서비스 도입 이전에
@@ -141,55 +138,66 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
      `MessageSearchIndexStateRepository`에 남긴 완료 기록을 한 번 읽어, 이미 끝난 백필이라면
      `find({ searchIndexStatus: null })` 스캔을 다시 돌리지 않고 건너뛴다.
      */
-    private async backfillLegacyState(): Promise<void> {
-        if (this.legacyBackfillDone) {
-            return;
-        }
+	private async backfillLegacyState(): Promise<void> {
+		if (this.legacyBackfillDone) {
+			return;
+		}
 
-        if (!this.legacyBackfillStateChecked) {
-            this.legacyBackfillStateChecked = true;
-            const state = await this.stateRepository.get();
-            if (state?.legacyBackfillCompletedAt) {
-                this.legacyBackfillDone = true;
-                return;
-            }
-        }
+		if (!this.legacyBackfillStateChecked) {
+			this.legacyBackfillStateChecked = true;
+			const state = await this.stateRepository.get();
+			if (state?.legacyBackfillCompletedAt) {
+				this.legacyBackfillDone = true;
+				return;
+			}
+		}
 
-        const filled = await this.indexRepository.backfillLegacyState(LEGACY_BACKFILL_BATCH_SIZE);
-        if (filled > 0) {
-            this.logger.log(`Backfilled search index state for ${filled} legacy message(s)`);
-            return;
-        }
+		const filled = await this.indexRepository.backfillLegacyState(LEGACY_BACKFILL_BATCH_SIZE);
+		if (filled > 0) {
+			this.logger.log(`Backfilled search index state for ${filled} legacy message(s)`);
+			return;
+		}
 
-        this.legacyBackfillDone = true;
-        await this.stateRepository.markLegacyBackfillCompleted();
-        this.logger.log('Legacy search index state backfill completed');
-    }
+		this.legacyBackfillDone = true;
+		await this.stateRepository.markLegacyBackfillCompleted();
+		this.logger.log('Legacy search index state backfill completed');
+	}
 
-    private async drainTombstones(): Promise<void> {
-        const tombstones = await this.tombstoneRepository.claimPending(TOMBSTONE_BATCH_SIZE);
-        if (tombstones.length === 0) {
-            return;
-        }
+	private async drainTombstones(): Promise<void> {
+		const tombstones = await this.tombstoneRepository.claimPending(TOMBSTONE_BATCH_SIZE);
+		if (tombstones.length === 0) {
+			return;
+		}
 
-        await this.indexService.applyTombstones(tombstones);
-    }
+		await this.indexService.applyTombstones(tombstones);
+	}
 
-    private async drainMessages(): Promise<void> {
-        const messages = await this.indexRepository.claimPending(MESSAGE_BATCH_SIZE);
-        if (messages.length === 0) {
-            return;
-        }
+	private async drainMessages(): Promise<void> {
+		const messages = await this.indexRepository.claimPending(MESSAGE_BATCH_SIZE);
+		if (messages.length === 0) {
+			return;
+		}
 
-        await this.indexService.applyMessages(messages);
-    }
+		await this.indexService.applyMessages(messages);
+	}
 
-    private async refreshMetricsIfDue(): Promise<void> {
-        if (Date.now() - this.lastMetricsAt < METRICS_INTERVAL_MS) {
-            return;
-        }
+	private async refreshMetricsIfDue(): Promise<void> {
+		if (Date.now() - this.lastMetricsAt < METRICS_INTERVAL_MS) {
+			return;
+		}
 
-        this.lastMetricsAt = Date.now();
-        await this.indexService.refreshMetrics();
-    }
+		this.lastMetricsAt = Date.now();
+		await this.indexService.refreshMetrics();
+	}
+
+	onModuleInit(): void {
+		this.timer = setInterval(() => {
+			void this.runCycle();
+		}, POLL_INTERVAL_MS);
+		this.logger.log('Message search index outbox poller started');
+	}
+
+	onModuleDestroy(): void {
+		clearInterval(this.timer);
+	}
 }

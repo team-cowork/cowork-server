@@ -6,6 +6,7 @@ import com.cowork.channel.domain.meetingNote.presentation.data.request.CreateMee
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteRepository
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteTemplateRepository
 import com.cowork.channel.domain.meetingNote.service.MeetingNoteAccessGuard
+import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteContentSupport
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -13,8 +14,10 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
+import tools.jackson.databind.json.JsonMapper
 import java.util.Optional
 
 class CreateMeetingNoteServiceImplTest :
@@ -30,10 +33,51 @@ class CreateMeetingNoteServiceImplTest :
             noteRepository = mockk(relaxed = true)
             templateRepository = mockk()
             accessGuard = mockk(relaxed = true)
-            service = CreateMeetingNoteServiceImpl(noteRepository, templateRepository, accessGuard)
+            service = CreateMeetingNoteServiceImpl(
+                noteRepository,
+                templateRepository,
+                accessGuard,
+                MeetingNoteContentSupport(JsonMapper.builder().build()),
+            )
         }
 
         describe("CreateMeetingNoteServiceImpl 클래스의 createNote 메서드는") {
+            context("content가 JSON 객체가 아니면") {
+                it("BAD_REQUEST로 거부한다") {
+                    val invalid = CreateMeetingNoteRequest(7L, "주간 회의", "[\"agenda\"]")
+
+                    val error = shouldThrow<ExpectedException> { service.createNote(20L, 1L, invalid) }
+
+                    error.statusCode shouldBe HttpStatus.BAD_REQUEST
+                    verify(exactly = 0) { noteRepository.saveAndFlush(any()) }
+                }
+            }
+
+            context("제목이 200자를 넘으면") {
+                it("저장 전에 BAD_REQUEST로 거부한다") {
+                    val invalid = CreateMeetingNoteRequest(7L, "a".repeat(201), "{}")
+
+                    val error = shouldThrow<ExpectedException> { service.createNote(20L, 1L, invalid) }
+
+                    error.statusCode shouldBe HttpStatus.BAD_REQUEST
+                    verify(exactly = 0) { noteRepository.saveAndFlush(any()) }
+                }
+            }
+
+            context("템플릿 조회 직후 다른 요청이 템플릿을 삭제해 FK가 저장을 막으면") {
+                it("NOT_FOUND로 응답한다") {
+                    every { templateRepository.findById(7L) } returns Optional.of(
+                        MeetingNoteTemplate(id = 7L, channelId = 1L, name = "기본", createdBy = 20L),
+                    )
+                    every { noteRepository.saveAndFlush(any()) } throws
+                        DataIntegrityViolationException("fk_tb_meeting_notes_template")
+
+                    val error = shouldThrow<ExpectedException> { service.createNote(20L, 1L, request) }
+
+                    error.statusCode shouldBe HttpStatus.NOT_FOUND
+                }
+            }
+
             context("요청한 템플릿이 없으면") {
                 it("NOT_FOUND로 거부한다") {
                     every { templateRepository.findById(7L) } returns Optional.empty()
@@ -41,7 +85,7 @@ class CreateMeetingNoteServiceImplTest :
                     val error = shouldThrow<ExpectedException> { service.createNote(20L, 1L, request) }
 
                     error.statusCode shouldBe HttpStatus.NOT_FOUND
-                    verify(exactly = 0) { noteRepository.save(any()) }
+                    verify(exactly = 0) { noteRepository.saveAndFlush(any()) }
                 }
             }
 
@@ -54,7 +98,7 @@ class CreateMeetingNoteServiceImplTest :
                     val error = shouldThrow<ExpectedException> { service.createNote(20L, 1L, request) }
 
                     error.statusCode shouldBe HttpStatus.NOT_FOUND
-                    verify(exactly = 0) { noteRepository.save(any()) }
+                    verify(exactly = 0) { noteRepository.saveAndFlush(any()) }
                 }
             }
 
@@ -64,7 +108,7 @@ class CreateMeetingNoteServiceImplTest :
                         MeetingNoteTemplate(id = 7L, channelId = 1L, name = "기본", createdBy = 20L),
                     )
                     val saved = slot<MeetingNote>()
-                    every { noteRepository.save(capture(saved)) } answers { saved.captured }
+                    every { noteRepository.saveAndFlush(capture(saved)) } answers { saved.captured }
 
                     val result = service.createNote(20L, 1L, request)
 

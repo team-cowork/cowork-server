@@ -68,7 +68,7 @@
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "monitoring이 플랫폼 CA로 https://10.0.0.91:8210 인증서를 검증한 결과입니다. 공개 UI 경로는 프록시를 거치므로 여기에 포함되지 않습니다.",
+      "description": "Vault 사설 TLS 리스너의 인증서를 플랫폼 CA로 검증한 결과입니다.",
       "gridPos": {
         "h": 6,
         "w": 12,
@@ -148,7 +148,7 @@
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "서빙 중인 체인에서 가장 먼저 만료되는 인증서 기준입니다. 관리 VM cowork-control의 cowork-platform-certificates.timer가 매일 한국 시간 04:15에 만료까지 30일 이하인 내부 인증서를 갱신·배포합니다. 21일 미만이면 갱신 실패를 의심합니다.",
+      "description": "Vault가 제공하는 인증서 체인에서 가장 먼저 만료되는 인증서의 남은 기간입니다.",
       "gridPos": {
         "h": 6,
         "w": 6,
@@ -256,7 +256,7 @@
         "type": "prometheus",
         "uid": "cowork-prometheus"
       },
-      "description": "Prometheus가 평가하는 TLS 연결·봉인·인증서 갱신·만료 알림 중 현재 발생 중인 것을 표시합니다. 로그인 실패 급증 알림(coworkVaultLoginFailureBurst)은 Loki가 평가해 Discord로 바로 보내므로 여기에 나오지 않고, 아래 로그인 실패 패널에서 같은 기준의 건수를 볼 수 있습니다. 활성 알림이 없으면 결과가 비어 있습니다.",
+      "description": "Prometheus에서 현재 발생 중인 Vault의 TLS 연결·봉인·인증서 갱신·만료 알림입니다. Loki의 로그인 실패 알림은 포함하지 않습니다.",
       "gridPos": {
         "h": 6,
         "w": 24,
@@ -492,7 +492,7 @@
         "type": "loki",
         "uid": "cowork-loki"
       },
-      "description": "요청마다 응답 기록 한 줄을 표시합니다. 공개 도메인을 거친 요청의 출발지는 모두 프록시(10.0.0.117)로 표시되며, 실제 클라이언트 IP는 GSM SV 입구 라우터가 출발지를 바꾸면서 남지 않습니다. token과 요청 값은 HMAC 처리되어 원문이 남지 않습니다.",
+      "description": "Vault 요청별 응답 감사 로그입니다. 공개 도메인을 거친 요청의 출발지는 프록시 IP로 표시됩니다.",
       "gridPos": {
         "h": 12,
         "w": 24,

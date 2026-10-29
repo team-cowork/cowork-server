@@ -66,13 +66,11 @@ def job_inputs(path, manifest=None, vault_mount="secret"):
         values["runtime_env"] = environment("user")
     elif name.endswith("-db"):
         owner = name.removesuffix("-db")
-        values["runtime_env"] = {key: value for key, value in environment(owner).items() if key in {"DB_NAME", "DB_USERNAME"}}
         scripts = ["mongodb-init.sh", "mongodb-init.js"] if owner in {"chat", "voice"} else [
             "postgres-init.sh" if owner == "preference" else "mysql-init.sh"]
         values["config_files"] = {name: (RUNTIME / "databases" / name).read_text() for name in scripts}
     elif name.endswith("-storage"):
-        values["runtime_env"] = {"PUBLIC_WEB_ORIGINS": environment("gateway")["PUBLIC_WEB_ORIGINS"],
-                                 **environment(name.removesuffix("-storage"))}
+        values["runtime_env"] = environment(name.removesuffix("-storage"))
         values["config_files"] = file_map(RUNTIME / "storage")
     elif name == "chat-search":
         values["config_files"] = file_map(RUNTIME / "search")

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish explicitly bound GitHub secrets; output only immutable KV versions."""
+"""Publish explicitly bound GitHub settings; output only immutable KV versions."""
 import argparse
 import json
 import os
@@ -17,20 +17,22 @@ def publish(service):
     if not re.fullmatch(r"[a-zA-Z0-9_-]+", mount):
         raise ValueError("Invalid Vault KV mount")
     vault = client("prod-settings-" + service)
-    optional = set(spec["optional_secrets"])
 
-    def values(bindings):
+    def values(bindings, kind="secret"):
+        optional = set(spec.get("optional_" + kind + "s", []))
         result = {}
         for destination, source in bindings.items():
-            value = os.environ.get("GH_SECRET_" + source, "")
+            value = os.environ.get("GH_" + kind.upper() + "_" + source, "")
             if not value and source not in optional:
-                raise ValueError("Missing GitHub secret: " + source)
+                raise ValueError("Missing GitHub " + kind + ": " + source)
             if value:
                 result[destination] = value
         return result
 
     app = values(spec["secret_bindings"])
     data = values(spec["data_secret_bindings"])
+    app.update(values(spec.get("variable_bindings", {}), "variable"))
+    data.update(values(spec.get("data_variable_bindings", {}), "variable"))
     if principal := spec.get("kafka_principal"):
         credentials = json.loads(os.environ["GH_SECRET_KAFKA_CREDENTIALS_JSON"])
         principals = ({entry["kafka_principal"] for entry in catalog.values() if entry.get("kafka_principal")}

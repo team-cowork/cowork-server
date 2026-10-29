@@ -22,11 +22,13 @@ class GithubPullRequestReader(
 ) {
     fun listPullRequests(owner: String, repo: String, state: String): List<GithubPullRequestSummaryResDto> {
         syncMarkers.requireSynced(GithubSyncStream.PULL_REQUEST, owner, repo)
-        // GitHub API 응답(생성일 내림차순, per_page=100)과 같은 순서·건수를 유지한다.
-        return repository.findByOwnerAndRepoOrderByNumberDesc(owner, repo)
-            .filter { state == "all" || it.state == state }
-            .take(LIST_LIMIT)
-            .map { it.toSummaryResDto() }
+        // GitHub API 응답(생성일 내림차순, per_page=100)과 같은 순서·건수를 DB 조회에서 유지한다.
+        val pullRequests = if (state == "all") {
+            repository.findTop100ByOwnerAndRepoOrderByNumberDesc(owner, repo)
+        } else {
+            repository.findTop100ByOwnerAndRepoAndStateOrderByNumberDesc(owner, repo, state)
+        }
+        return pullRequests.map { it.toSummaryResDto() }
     }
 
     fun listFiles(owner: String, repo: String, prNumber: Int): List<GithubPullRequestFileResDto> =
@@ -62,8 +64,4 @@ class GithubPullRequestReader(
         createdAt = githubCreatedAt,
         updatedAt = githubUpdatedAt,
     )
-
-    private companion object {
-        const val LIST_LIMIT = 100
-    }
 }

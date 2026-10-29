@@ -5,23 +5,23 @@
  `success`가 false인 경우 `error` 필드에 실패 사유가 담긴다.
  */
 export type GithubIssueResultEvent = {
-    channelId: number;
-    teamId: number;
-    projectId?: number;
-    /**
+	channelId: number;
+	teamId: number;
+	projectId?: number;
+	/**
     이슈 생성 성공 여부
     */
-    success: boolean;
-    /**
+	success: boolean;
+	/**
     생성된 이슈의 GitHub URL; `success`가 true일 때만 존재
     */
-    issueUrl?: string;
-    /**
+	issueUrl?: string;
+	/**
     생성된 이슈 번호; `success`가 true일 때만 존재
     */
-    issueNumber?: number;
-    /**
+	issueNumber?: number;
+	/**
     실패 사유; `success`가 false일 때만 존재
     */
-    error?: string;
+	error?: string;
 };

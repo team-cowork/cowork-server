@@ -18,10 +18,11 @@
 
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>${LOG_ROOT}/${SERVICE_NAME}/app.log</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
-            <fileNamePattern>${LOG_ROOT}/${SERVICE_NAME}/app.%d{yyyy-MM-dd}.log</fileNamePattern>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_ROOT}/${SERVICE_NAME}/app.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>10MB</maxFileSize>
             <maxHistory>10</maxHistory>
-            <totalSizeCap>1GB</totalSizeCap>
+            <totalSizeCap>100MB</totalSizeCap>
         </rollingPolicy>
         <encoder class="net.logstash.logback.encoder.LogstashEncoder">
             <customFields>{"service":"${SERVICE_NAME}"}</customFields>
@@ -32,6 +33,8 @@
             </provider>
         </encoder>
     </appender>
+
+    <logger name="org.apache.kafka.clients.admin.internals.AdminMetadataManager" level="WARN"/>
 
     <root level="INFO">
         <appender-ref ref="CONSOLE"/>
