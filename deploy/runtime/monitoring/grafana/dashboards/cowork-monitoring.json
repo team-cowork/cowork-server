@@ -168,7 +168,7 @@
     },
     {
       "id": 200,
-      "title": "Envoy 실행 상태",
+      "title": "Envoy 연결 상태",
       "type": "stat",
       "gridPos": {
         "h": 4,
@@ -178,7 +178,7 @@
       },
       "targets": [
         {
-          "expr": "cowork_envoy_task_running{service=\"monitoring\"}",
+          "expr": "cowork_envoy_proxy_reachable{service=\"monitoring\"}",
           "legendFormat": "Envoy",
           "datasource": {
             "type": "prometheus",
@@ -240,7 +240,7 @@
           }
         }
       },
-      "description": "Nomad가 보고한 모니터링 작업의 Envoy 사이드카 실행 상태입니다. Nomad 지표를 수집하지 못하면 N/A입니다."
+      "description": "모니터링 Envoy 프록시 포트의 TCP 연결 결과입니다. 프록시 등록이 없고 Nomad 지표를 수집할 수 있으면 DOWN입니다."
     }
   ],
   "templating": {
