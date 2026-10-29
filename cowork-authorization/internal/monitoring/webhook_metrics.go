@@ -39,6 +39,9 @@ var (
 	webhookStreamConnected = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "cowork_authorization_webhook_stream_connected", Help: "Whether the Redis webhook stream consumer can read the stream.",
 	})
+	webhookStreamObserved = prometheus.NewGauge(prometheus.GaugeOpts{
+		Name: "cowork_authorization_webhook_stream_observation_success", Help: "Whether webhook stream backlog metrics have been observed since the last connection failure.",
+	})
 	webhookStreamLength = prometheus.NewGauge(prometheus.GaugeOpts{
 		Name: "cowork_authorization_webhook_stream_entries", Help: "Webhook entries retained in the Redis stream.",
 	})
@@ -59,7 +62,7 @@ var (
 func init() {
 	prometheus.MustRegister(webhookResults, webhookPublished, webhookPublishFailures, webhookPending, webhookOldest,
 		webhookExpired, webhookRetained, webhookObserved, webhookObservationTime, webhookCleaned, webhookMaintenanceFailures,
-		webhookStreamConnected, webhookStreamLength, webhookStreamPending, webhookStreamOldest,
+		webhookStreamConnected, webhookStreamObserved, webhookStreamLength, webhookStreamPending, webhookStreamOldest,
 		webhookStreamProcessed, webhookStreamFailures)
 }
 
@@ -86,6 +89,7 @@ func WebhookStreamConnected(connected bool) {
 		webhookStreamConnected.Set(1)
 	} else {
 		webhookStreamConnected.Set(0)
+		webhookStreamObserved.Set(0)
 	}
 }
 
@@ -93,6 +97,7 @@ func ObserveWebhookStream(length, pending int64, oldestSeconds float64) {
 	webhookStreamLength.Set(float64(length))
 	webhookStreamPending.Set(float64(pending))
 	webhookStreamOldest.Set(oldestSeconds)
+	webhookStreamObserved.Set(1)
 }
 
 func RecordWebhookStreamProcessed(result string) {
