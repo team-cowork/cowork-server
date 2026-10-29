@@ -144,7 +144,7 @@
     {
       "id": 4,
       "title": "JVM 힙 메모리 사용량",
-      "description": "서비스별 JVM 힙 메모리 사용량을 인스턴스별로 합산한 값입니다.",
+      "description": "서비스별로 모든 인스턴스의 JVM 힙 메모리 사용량을 합산한 값입니다.",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
       "targets": [
