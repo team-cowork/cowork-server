@@ -1,9 +1,11 @@
 package com.cowork.gateway.webhook
 
 import com.cowork.gateway.deployment.DeploymentStateCache
+import com.cowork.gateway.response.body.writeNoStoreJson
 import com.cowork.gateway.response.model.CommonApiResponse
 import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
+import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreakerFactory
 import org.springframework.cloud.gateway.filter.GatewayFilterChain
 import org.springframework.cloud.gateway.filter.GlobalFilter
 import org.springframework.cloud.gateway.route.Route
@@ -13,7 +15,6 @@ import org.springframework.core.io.buffer.DataBufferLimitException
 import org.springframework.core.io.buffer.DataBufferUtils
 import org.springframework.http.HttpStatus
 import org.springframework.http.HttpStatusCode
-import org.springframework.http.MediaType
 import org.springframework.http.server.reactive.ServerHttpRequestDecorator
 import org.springframework.http.server.reactive.ServerHttpResponseDecorator
 import org.springframework.stereotype.Component
@@ -21,7 +22,6 @@ import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import tools.jackson.databind.ObjectMapper
-import java.time.Duration
 
 @Component
 class DataGsmWebhookIngressFilter(
@@ -30,9 +30,11 @@ class DataGsmWebhookIngressFilter(
     private val states: DeploymentStateCache,
     private val objectMapper: ObjectMapper,
     private val meterRegistry: MeterRegistry,
+    circuitBreakerFactory: ReactiveCircuitBreakerFactory<*, *>,
 ) : GlobalFilter,
     Ordered {
     private val logger = LoggerFactory.getLogger(javaClass)
+    private val circuitBreaker = circuitBreakerFactory.create("authorizationWebhookCB")
 
     override fun getOrder(): Int = -1100
 
@@ -88,10 +90,11 @@ class DataGsmWebhookIngressFilter(
             override fun setStatusCode(status: HttpStatusCode?): Boolean =
                 super.setStatusCode(if (status?.is5xxServerError == true) HttpStatus.SERVICE_UNAVAILABLE else status)
         }
-        return chain.filter(exchange.mutate().request(replay).response(response).build())
-            .timeout(Duration.ofSeconds(8))
+        return circuitBreaker.run(
+            Mono.defer { chain.filter(exchange.mutate().request(replay).response(response).build()) },
+        )
             .doOnSuccess {
-                val accepted = exchange.response.statusCode?.is2xxSuccessful ?: true
+                val accepted = exchange.response.statusCode?.is2xxSuccessful == true
                 val outcome = if (accepted) "direct_fallback" else "temporarily_unavailable"
                 meterRegistry.counter("gateway.datagsm.ingress", "outcome", outcome).increment()
             }
@@ -125,11 +128,7 @@ class DataGsmWebhookIngressFilter(
             CommonApiResponse.success(mapOf("status" to value))
         }
         val bytes = objectMapper.writeValueAsBytes(result)
-        exchange.response.statusCode = status
-        exchange.response.headers.contentType = MediaType.APPLICATION_JSON
-        exchange.response.headers.cacheControl = "no-store"
-        exchange.response.headers.contentLength = bytes.size.toLong()
-        return exchange.response.writeWith(Mono.just(exchange.response.bufferFactory().wrap(bytes)))
+        return exchange.response.writeNoStoreJson(status, bytes)
     }
 
     private companion object {
