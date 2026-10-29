@@ -47,7 +47,11 @@ func NewWebhookStreamConsumer(address string, processor WebhookProcessor) *Webho
 // Run keeps the HTTP service available when Redis is down; Gateway can then
 // fall back to Authorization's existing direct durable webhook endpoint.
 func (c *WebhookStreamConsumer) Run(ctx context.Context) {
-	defer c.client.Close()
+	defer func() {
+		if err := c.client.Close(); err != nil {
+			log.Printf("failed to close webhook stream client: %v", err)
+		}
+	}()
 	if !c.processor.SecretConfigured() {
 		log.Println("DataGSM webhook stream consumer disabled: secret not configured")
 		return
