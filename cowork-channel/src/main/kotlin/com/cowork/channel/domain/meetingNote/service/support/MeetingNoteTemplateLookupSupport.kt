@@ -37,8 +37,14 @@ class MeetingNoteTemplateLookupSupport(
     }
 
     // 회의록 content가 섹션 제목을 키로 쓰므로, 같은 템플릿 안에서 제목이 겹치면 어느 섹션의 내용인지 구분할 수 없다.
-    fun requireUniqueSectionTitle(templateId: Long, title: String) {
-        if (sectionRepository.existsByTemplateIdAndTitle(templateId, title)) {
+    // DB collation(utf8mb4_unicode_ci)이 대소문자와 끝 공백을 무시하므로, 수정 시에는 자기 자신을 빼고 비교한다.
+    fun requireUniqueSectionTitle(templateId: Long, title: String, excludeSectionId: Long? = null) {
+        val exists = if (excludeSectionId == null) {
+            sectionRepository.existsByTemplateIdAndTitle(templateId, title)
+        } else {
+            sectionRepository.existsByTemplateIdAndTitleAndIdNot(templateId, title, excludeSectionId)
+        }
+        if (exists) {
             throw ExpectedException("같은 제목의 섹션이 이미 있습니다.", HttpStatus.CONFLICT)
         }
     }

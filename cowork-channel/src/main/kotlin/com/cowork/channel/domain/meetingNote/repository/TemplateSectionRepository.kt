@@ -10,4 +10,6 @@ interface TemplateSectionRepository : JpaRepository<TemplateSection, Long> {
     fun findAllByTemplateIdInOrderByIdAsc(templateIds: List<Long>): List<TemplateSection>
 
     fun existsByTemplateIdAndTitle(templateId: Long, title: String): Boolean
+
+    fun existsByTemplateIdAndTitleAndIdNot(templateId: Long, title: String, id: Long): Boolean
 }

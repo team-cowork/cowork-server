@@ -32,7 +32,9 @@ class UpdateTemplateSectionServiceImpl(
         val section = lookupSupport.findSectionOrThrow(sectionId)
         lookupSupport.requireSectionOwnership(section, templateId)
         val previousTitle = section.title
-        request.title?.takeIf { it != previousTitle }?.let { lookupSupport.requireUniqueSectionTitle(templateId, it) }
+        request.title?.takeIf { it != previousTitle }?.let {
+            lookupSupport.requireUniqueSectionTitle(templateId, it, excludeSectionId = sectionId)
+        }
         section.update(
             title = request.title,
             type = request.type?.let { lookupSupport.parseSectionType(it) },
