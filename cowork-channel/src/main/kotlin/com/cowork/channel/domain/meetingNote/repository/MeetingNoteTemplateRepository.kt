@@ -7,5 +7,5 @@ interface MeetingNoteTemplateRepository : JpaRepository<MeetingNoteTemplate, Lon
 
     fun findAllByChannelIdOrderByIdAsc(channelId: Long): List<MeetingNoteTemplate>
 
-    fun findByChannelIdAndIsActiveTrue(channelId: Long): MeetingNoteTemplate?
+    fun findAllByChannelIdAndIsActiveTrue(channelId: Long): List<MeetingNoteTemplate>
 }
