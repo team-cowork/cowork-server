@@ -6,6 +6,10 @@ fun kafkaSecurityProperties(): Map<String, String> {
         "Use a supported Kafka security protocol"
     }
     return buildMap {
+        put("reconnect.backoff.ms", "1000")
+        put("reconnect.backoff.max.ms", "30000")
+        put("retry.backoff.ms", "1000")
+        put("retry.backoff.max.ms", "10000")
         put("security.protocol", protocol)
         if (protocol == "SASL_SSL") {
             val mechanism = (System.getenv("KAFKA_SASL_MECHANISM") ?: "SCRAM-SHA-512").uppercase()
