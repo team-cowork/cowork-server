@@ -17,4 +17,4 @@ paths:
 - Declare application inputs in `deploy/production/services.json` and bind the corresponding GitHub inputs in `.github/workflows/cowork-prod-cd.yml`. Keep shared credentials in one source and module-only credentials in their module environment.
 - Use the same canonical environment names across runtimes. Keep driver-specific conversion, such as Kafka JAAS or MongoDB connection strings, in the application's existing configuration code rather than CD wrappers.
 - Use explicit Envoy loopback endpoints for application connections. Consul manages discovery and service-mesh authentication; applications do not receive Consul management credentials.
-- Normal configuration updates preserve persistent data. The explicit one-time cutover may replace datasets when authorized; do not repeat destructive initialization on ordinary releases.
+- Normal configuration updates preserve persistent data; do not perform destructive initialization on releases.
