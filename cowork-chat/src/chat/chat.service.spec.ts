@@ -149,6 +149,11 @@ const mockSlowmodeService = {
 	release: jest.fn(),
 };
 
+const mockTagSpamService = {
+	reserve: jest.fn(),
+	release: jest.fn(),
+};
+
 const mockChannelReadService = {
 	advance: jest.fn(),
 };
@@ -176,6 +181,7 @@ describe('ChatService', () => {
 			messageSearchDeletion: mockMessageSearchDeletion,
 			channelProjectionRepository: mockChannelProjectionRepository,
 			slowmodeService: mockSlowmodeService,
+			tagSpamService: mockTagSpamService,
 			channelReadService: mockChannelReadService,
 		});
 		jest.clearAllMocks();
@@ -185,6 +191,8 @@ describe('ChatService', () => {
 		mockChannelMessageReadAccess.findReadableUsersByChannel.mockResolvedValue(new Map());
 		mockSlowmodeService.reserve.mockResolvedValue(undefined);
 		mockSlowmodeService.release.mockResolvedValue(undefined);
+		mockTagSpamService.reserve.mockResolvedValue(undefined);
+		mockTagSpamService.release.mockResolvedValue(undefined);
 		mockObjectStorageService.claimAttachments.mockResolvedValue([]);
 		mockChannelProjectionRepository.findById.mockResolvedValue({
 			channelId: 1, teamId: 100, projectId: null, type: 'TEXT',
