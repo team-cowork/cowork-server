@@ -34,7 +34,7 @@
 | `COWORK_CHAT_WS_URL` | Chat WebSocket upstream |
 | `JWT_SECRET` | 사용자 JWT 검증 키 |
 | `WEBHOOK_URL_SIGNING_KEY` | Preference와 공유하는 웹훅 URL 서명 키 |
-| `DATAGSM_WEBHOOK_SECRET` | Authorization과 공유하는 DataGSM 웹훅 HMAC 검증 키. 기존 대기열 검증을 위해 일반 CD에서 변경 차단 |
+| `DATAGSM_WEBHOOK_SECRET` | Authorization과 공유하는 DataGSM 웹훅 HMAC 검증 키 |
 | `DEV_ORIGIN_CREDENTIAL` | 허용된 개발 origin의 접근 자격증명 |
 | `REDIS_HOST`, `REDIS_PORT` | 요청 제한, 배포 상태, DataGSM 웹훅 접수 저장소 |
 | `PUBLIC_WEB_ORIGINS` | HTTP와 WebSocket에서 허용할 origin |
