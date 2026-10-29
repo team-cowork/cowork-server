@@ -43,6 +43,13 @@
   tasks:
     - ansible.builtin.include_tasks: tasks/agents.yml
 
+- name: Prepare the Gateway host proxy
+  hosts: gateway
+  become: true
+  gather_facts: true
+  tasks:
+    - ansible.builtin.include_tasks: tasks/gateway-proxy.yml
+
 - name: Prepare the main-branch deployment runner
   hosts: deployment_runner
   become: true

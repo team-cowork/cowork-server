@@ -12,7 +12,6 @@ paths:
   - "cowork-user/src/{Kafka/**,Users/Accounts.cs}"
   - "**/db/migration/**/*{kafka,projection,outbox,checkpoint,quarantine,event_state,tombstone}*.sql"
   - "cowork-*/src/main/resources/application*.yml"
-  - "deploy/compose/*.yaml"
   - "deploy/{production/**,nomad/**,runtime/**}"
   - "deploy/**/*.sh"
 ---

@@ -1,14 +1,13 @@
 import process from 'node:process';
 import {Module as nestModule} from '@nestjs/common';
 import {ConfigModule, ConfigService} from '@nestjs/config';
-import {JwtModule} from '@nestjs/jwt';
 import {MongooseModule} from '@nestjs/mongoose';
 import {DicoshotModule} from 'dicoshot-nest';
 import {DmParticipantModule} from '../dm/dm-participant.module.js';
 import {BlockModule} from '../block/block.module.js';
 import {ObjectStorageModule} from '../storage/object-storage.module.js';
 import {SearchModule} from '../search/search.module.js';
-import {getOptionalConfig, getRequiredConfig} from '../common/config/config.util.js';
+import {getOptionalConfig} from '../common/config/config.util.js';
 import {RedisRateLimiter} from '../common/util/redis-rate-limiter.js';
 import {SocketIoRedisConnection} from '../common/adapter/redis-io.adapter.js';
 import {ThrottleGuard} from '../common/guard/throttle.guard.js';
@@ -131,14 +130,6 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 @nestModule({
 	imports: [
-		JwtModule.registerAsync({
-			imports: [ConfigModule],
-			inject: [ConfigService],
-			useFactory: (configService: ConfigService) => ({
-				secret: getRequiredConfig(configService, 'JWT_SECRET'),
-				signOptions: {algorithm: 'HS256'},
-			}),
-		}),
 		MongooseModule.forFeature([
 			{name: Message.name, schema: messageSchema},
 			{name: ChannelReadState.name, schema: channelReadStateSchema},

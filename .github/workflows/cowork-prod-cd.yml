@@ -113,7 +113,6 @@ jobs:
         uses: ./.github/actions/build-image
         with:
           service: ${{ matrix.service }}
-          environment: prod
           context: ${{ matrix.context }}
           dockerfile: ${{ matrix.dockerfile }}
           push: 'true'
@@ -179,7 +178,7 @@ jobs:
         with:
           python-version: ${{ steps.python-version.outputs.version }}
       - name: Install Pinned Deployment Dependencies
-        run: python3 -m pip install -r deploy/production/requirements.txt
+        run: python3 -m pip install -r deploy/production/requirements-vault.txt
       - name: Publish Declared Settings To Vault
         env:
           SERVICE: ${{ matrix.service }}
@@ -366,9 +365,9 @@ jobs:
 
   publish:
     name: Publish Committed Release
-    needs: [prepare, manifest]
+    needs: [prepare, manifest, apply]
     if: >-
-      !cancelled() && needs.prepare.result == 'success' &&
+      !cancelled() && needs.prepare.result == 'success' && needs.apply.result == 'success' &&
       needs.prepare.outputs.mode != 'plan' && needs.prepare.outputs.version != '' &&
       (needs.manifest.result == 'success' || needs.prepare.outputs.mode == 'apply')
     runs-on: ubuntu-latest
