@@ -23,12 +23,12 @@ STATE_KEY = 'cowork:deployment:services'
 SET_STATE = """local current=redis.call('HGET',KEYS[1],ARGV[1]);
 if current then local ok,value=pcall(cjson.decode,current);
   if not ok or (value.runId~=ARGV[2] and value.phase~='recovering') then
-    return redis.error_reply('deployment state owned by another run') end end;
+    return redis.error_reply('ERR deployment state owned by another run') end end;
 return redis.call('HSET',KEYS[1],ARGV[1],ARGV[3])""".replace('\n', ' ')
 CLEAR_STATE = """local current=redis.call('HGET',KEYS[1],ARGV[1]);
 if not current then return 0 end;
 local ok,value=pcall(cjson.decode,current);
-if not ok or value.runId~=ARGV[2] then return redis.error_reply('deployment state owned by another run') end;
+if not ok or value.runId~=ARGV[2] then return redis.error_reply('ERR deployment state owned by another run') end;
 return redis.call('HDEL',KEYS[1],ARGV[1])""".replace('\n', ' ')
 
 
