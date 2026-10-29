@@ -154,7 +154,7 @@
           "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
         }
       },
-      "description": "canary를 포함한 모든 Gateway가 Redis 배포 상태를 한 번 이상 확인했는지 표시합니다. 초기 동기화 이후 갱신 실패에도 마지막 상태를 유지하므로 이 값은 현재 Redis 연결 성공 여부가 아닙니다. 수집 실패나 지표 누락은 N/A이며 동기화 실패 패널도 함께 확인합니다."
+      "description": "수집 대상 Gateway가 Redis의 배포 상태를 한 번 이상 확인했는지 표시합니다. 모두 확인하면 완료, 하나라도 확인 전이면 미완료이며 수집 실패나 지표 누락은 N/A입니다."
     },
     {
       "id": 2,
@@ -437,7 +437,7 @@
           "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "blue", "value": 1}, {"color": "orange", "value": 2}]}
         }
       },
-      "description": "요청 유무와 관계없이 Gateway가 마지막으로 확인한 서비스별 상태입니다. canary와 기존 Gateway 중 가장 제한적인 상태를 표시합니다. 어느 Gateway든 초기 동기화가 끝나지 않았거나 메트릭 수집에 실패하면 상태를 N/A로 남깁니다. Redis 갱신 실패 시에는 마지막 확인 상태가 유지됩니다."
+      "description": "Gateway가 마지막으로 확인한 서비스별 상태입니다. 인스턴스 간 상태가 다르면 복구 중, 배포 중, 정상 순으로 우선 표시합니다. 초기 동기화가 끝나지 않았거나 수집 실패·지표 누락이 있으면 N/A입니다."
     },
     {
       "id": 10,
@@ -464,7 +464,7 @@
         }
       },
       "options": {"legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
-      "description": "배포·복구 또는 초기 상태 확인 때문에 반환한 503 응답입니다. canary를 포함한 Gateway 인스턴스별 요청 수를 합산합니다. 대상 서비스는 수집 대상의 service 라벨과 구분되는 exported_service입니다. 아직 발생하지 않은 사유는 시계열이 없으며 0으로 대체하지 않습니다."
+      "description": "배포·복구 중이거나 초기 상태 확인 전인 요청에 반환한 초당 503 응답 수입니다. Gateway 인스턴스의 값을 대상 서비스와 응답 사유별로 합산합니다."
     },
     {
       "id": 11,
@@ -491,7 +491,7 @@
         }
       },
       "options": {"legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
-      "description": "accepted는 Redis AOF 확인 후 접수, direct_fallback은 Authorization 직접 접수 성공입니다. temporarily_unavailable과 나머지 거부 사유도 함께 표시합니다. 인스턴스별 실제 요청 수를 합산하며, 해당 결과가 아직 발생하지 않아 시계열이 없으면 0으로 대체하지 않습니다."
+      "description": "Gateway 인스턴스의 웹훅 접수 결과를 결과별 초당 요청 수로 합산합니다. accepted는 Redis 영속화 확인 후 접수, direct_fallback은 Authorization 직접 접수 성공입니다."
     },
     {
       "id": 12,
@@ -500,8 +500,8 @@
       "gridPos": {"h": 6, "w": 24, "x": 0, "y": 49},
       "targets": [
         {
-          "expr": "rate(gateway_deployment_state_refresh_failures_total{job=\"cowork-services\",service=\"gateway\"}[$__rate_interval])",
-          "legendFormat": "{{instance}}",
+          "expr": "sum(rate(gateway_deployment_state_refresh_failures_total{job=\"cowork-services\",service=\"gateway\"}[$__rate_interval]))",
+          "legendFormat": "Gateway",
           "datasource": {"type": "prometheus", "uid": "${datasource}"},
           "refId": "A",
           "instant": false,
@@ -518,7 +518,7 @@
         }
       },
       "options": {"legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
-      "description": "Redis 배포 상태 갱신 실패를 인스턴스별로 표시해 canary와 기존 Gateway를 구분합니다. 실패 중에는 마지막 확인 상태를 유지합니다. 실패 이력이 없어 시계열이 없거나 수집되지 않으면 N/A이며 정상 동기화의 직접 증거는 아닙니다."
+      "description": "Gateway 인스턴스의 배포 상태 갱신 실패를 초당 횟수로 합산한 값입니다. 실패 이력이 없거나 지표가 없으면 N/A입니다."
     }
   ],
   "templating": {
