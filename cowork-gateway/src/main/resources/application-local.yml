@@ -456,13 +456,12 @@ app:
   dev-origin:
     credential: ${DEV_ORIGIN_CREDENTIAL:local-dev-credential}
   ws:
-    allowed-origins:
-      - "http://localhost:3000"
+    allowed-origins: "${PUBLIC_WEB_ORIGINS:http://localhost:3000}"
 
 resilience4j:
   circuitbreaker:
-    instances:
-      defaultCB:
+    configs:
+      default:
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
