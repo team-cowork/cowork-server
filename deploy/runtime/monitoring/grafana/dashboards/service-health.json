@@ -24,7 +24,7 @@
           "type": "prometheus",
           "uid": "cowork-prometheus"
         },
-        "query": "label_values(up{job=\"cowork-services\"}, service)",
+        "query": "label_values(up{job=\"cowork-services\",service!~\".*-sidecar-proxy\"}, service)",
         "refresh": 2,
         "multi": true,
         "includeAll": true,
@@ -40,7 +40,7 @@
     {
       "id": 1,
       "type": "state-timeline",
-      "title": "서비스 준비 상태",
+      "title": "원본 애플리케이션 준비 상태",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
@@ -53,7 +53,7 @@
       },
       "targets": [
         {
-          "expr": "min by (service) (probe_success{job=\"blackbox\",service=~\"$service\"})",
+          "expr": "min by (service) (probe_success{job=\"blackbox\",service!~\".*-sidecar-proxy\",service=~\"$service\"})",
           "refId": "A",
           "legendFormat": "{{service}}",
           "instant": false,
@@ -115,7 +115,7 @@
           "sort": "none"
         }
       },
-      "description": "UP/DOWN 전환을 시간대별로 표시합니다. 관측 데이터가 없는 구간은 비워 둡니다."
+      "description": "각 VM의 Alloy가 Envoy를 거치지 않고 앱의 readiness 엔드포인트를 직접 확인합니다. 앱이 반환하는 준비 상태이며, 관측 데이터가 없는 구간은 비워 둡니다."
     },
     {
       "id": 2,
@@ -133,7 +133,7 @@
       },
       "targets": [
         {
-          "expr": "min by (service) (up{job=\"cowork-services\",service=~\"$service\"})",
+          "expr": "min by (service) (up{job=\"cowork-services\",service!~\".*-sidecar-proxy\",service=~\"$service\"})",
           "refId": "A",
           "legendFormat": "{{service}}",
           "instant": false,
@@ -195,7 +195,7 @@
           "sort": "none"
         }
       },
-      "description": "애플리케이션 메트릭 수집 성공 여부를 시간대별로 표시합니다."
+      "description": "Envoy의 메트릭 노출 경로를 통한 수집 성공 여부입니다. Envoy 장애로 수집이 실패해도 원본 애플리케이션 준비 상태는 별도로 확인합니다."
     },
     {
       "id": 7,
@@ -281,6 +281,7 @@
       "id": 3,
       "type": "timeseries",
       "title": "서비스 준비 상태 확인 응답 시간",
+      "description": "각 VM의 Alloy가 원본 앱의 readiness 엔드포인트를 직접 확인하는 데 걸린 시간입니다.",
       "datasource": {
         "type": "prometheus",
         "uid": "cowork-prometheus"
@@ -293,7 +294,7 @@
       },
       "targets": [
         {
-          "expr": "max by (service) (probe_duration_seconds{job=\"blackbox\",service=~\"$service\"})",
+          "expr": "max by (service) (probe_duration_seconds{job=\"blackbox\",service!~\".*-sidecar-proxy\",service=~\"$service\"})",
           "refId": "A",
           "legendFormat": "{{service}}",
           "instant": false,
