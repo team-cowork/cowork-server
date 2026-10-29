@@ -44,7 +44,6 @@
 | `REDIS_HOST`, `REDIS_PORT` | Redis와 Socket.IO adapter 연결 |
 | `ELASTICSEARCH_URL` | 필수. 검색 서버 주소 |
 | `ELASTICSEARCH_ENDPOINT` | 선택. URL의 자격증명을 유지하면서 접속 origin을 Envoy upstream으로 변경 |
-| `JWT_SECRET` | WebSocket access JWT 검증 키 |
 | `PUBLIC_API_BASE_URL` | 외부에서 접근하는 Gateway 주소 |
 | `S3_INTERNAL_ENDPOINT`, `S3_BUCKET` | 필수. 내부 S3 주소와 bucket |
 | `S3_ACCESS_KEY`, `S3_SECRET_KEY` | Chat prefix 권한을 가진 S3 자격증명 |
