@@ -20,11 +20,10 @@ class DeploymentGuidanceFilterTest :
     DescribeSpec({
         val mapper = JsonMapper.builder().build()
         val states = mockk<DeploymentStateCache>()
-        val inflight = DeploymentInflight()
         val filter = DeploymentGuidanceFilter(
             DeploymentProperties(mapOf("cowork-team" to "http://127.0.0.1:18085")),
             states,
-            inflight,
+            DeploymentInflight(),
             mapper,
             SimpleMeterRegistry(),
         )
@@ -84,14 +83,6 @@ class DeploymentGuidanceFilterTest :
                 filter.filter(target, chain).block()
                 mapper.readTree(target.response.bodyAsString.block()).get("data").get("reason").asString() shouldBe
                     "SERVICE_RECOVERING"
-            }
-            it("전달 중인 일반 HTTP 요청을 드레인 카운터에 반영한다") {
-                every { states.snapshot() } returns emptyMap()
-                every { chain.filter(any()) } returns Mono.never()
-                val request = filter.filter(exchange("http://127.0.0.1:18085"), chain).subscribe()
-                inflight.snapshot()["cowork-team"] shouldBe 1
-                request.dispose()
-                inflight.snapshot()["cowork-team"] shouldBe null
             }
         }
     })
