@@ -34,7 +34,7 @@
         }
       },
       "options": { "mergeValues": true, "rowHeight": 0.8, "showValue": "auto", "alignValue": "left", "legend": {"showLegend": false}, "tooltip": {"mode": "single", "sort": "none"} },
-      "description": "DB별 UP/DOWN 상태와 중단 시점을 표시합니다. 데이터가 없는 구간은 비워 둡니다."
+      "description": "DB별 메트릭 수집 성공 여부입니다. 데이터가 없는 구간은 비워 둡니다."
     },
     {
       "id": 10,
@@ -63,7 +63,7 @@
         }
       },
       "options": { "mergeValues": true, "rowHeight": 0.8, "showValue": "auto", "alignValue": "left", "legend": {"showLegend": false}, "tooltip": {"mode": "single", "sort": "none"} },
-      "description": "DB별 UP/DOWN 상태와 중단 시점을 표시합니다. 데이터가 없는 구간은 비워 둡니다."
+      "description": "DB별 연결 성공 여부입니다. 데이터가 없는 구간은 비워 둡니다."
     },
     {
       "id": 1,
@@ -144,7 +144,7 @@
           "max": 100
         }
       },
-      "description": "조회가 없는 구간에는 적중률이 정의되지 않아 N/A로 표시합니다.",
+      "description": "Redis 조회 중 캐시에 적중한 비율입니다. 조회가 없는 구간은 N/A입니다.",
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
@@ -179,7 +179,7 @@
           "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
         }
       },
-      "description": "최대 메모리 제한이 설정된 경우에만 최대 용량 선을 표시합니다.",
+      "description": "Redis의 현재 메모리 사용량과 설정된 최대 메모리 용량입니다. 최대 용량은 제한이 설정된 경우에만 표시합니다.",
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
@@ -206,7 +206,7 @@
           "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
         }
       },
-      "description": "조회 종료 시점에 수집된 그룹의 오프셋 차이입니다. 압축된 토픽은 실제 메시지 수와 다를 수 있습니다.",
+      "description": "조회 종료 시점에 수집된 소비자 그룹의 토픽별 오프셋 지연 합계입니다. 압축된 토픽에서는 실제 메시지 수와 다를 수 있습니다.",
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
@@ -224,7 +224,7 @@
           "range": true
         }
       ],
-      "description": "파티션 현재 오프셋은 gauge이므로 기울기로 증가 속도를 추정합니다. 정확한 처리 완료 메시지 수가 아닌 오프셋 증가 추세입니다.",
+      "description": "Kafka 파티션별 현재 오프셋의 초당 증가량을 추정해 토픽별로 합산한 값입니다.",
       "fieldConfig": {
         "defaults": { "noValue": "N/A", "min": 0, "unit": "ops", "color": {"mode": "palette-classic"}, "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"} }
       },
@@ -341,7 +341,7 @@
         }
       },
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
-      "description": "애플리케이션이 DB에 연결할 때 쓰는 커넥션 풀입니다. 사용 중인 커넥션 수가 최대치에 가까워지면 커넥션 풀이 고갈될 수 있습니다. SQLite는 쓰기를 한 번에 하나만 처리하므로 최대 커넥션 수가 1입니다."
+      "description": "애플리케이션 DB 연결 풀의 사용 중인 커넥션 수와 최대 커넥션 수입니다."
     },
     {
       "id": 15,
@@ -376,7 +376,7 @@
         }
       },
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
-      "description": "0보다 크면 커넥션을 기다리는 요청이 있다는 뜻입니다. 커넥션 풀 고갈의 초기 징후입니다. HikariCP는 지금 대기 중인 스레드 수를, Go 서비스는 초당 대기 횟수를 표시합니다."
+      "description": "HikariCP의 현재 대기 스레드 수와 Go 서비스의 초당 커넥션 대기 횟수입니다."
     },
     {
       "id": 16,
@@ -405,7 +405,7 @@
         "defaults": { "unit": "ms", "noValue": "N/A", "min": 0, "color": {"mode": "palette-classic"}, "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"} }
       },
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
-      "description": "커넥션 풀이 고갈되기 시작하면 커넥션을 얻는 데 걸리는 시간이 늘어납니다. Go 서비스는 히스토그램이 없어 커넥션을 기다린 요청의 평균 대기 시간을 표시하고, 대기가 없던 구간은 비워 둡니다."
+      "description": "HikariCP의 커넥션 획득 시간 P99와 Go 서비스에서 커넥션을 기다린 요청의 평균 대기 시간입니다. Go 서비스에 대기가 없으면 해당 구간은 비워 둡니다."
     },
     {
       "id": 17,
@@ -440,7 +440,7 @@
         }
       },
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
-      "description": "WAL 파일이 줄지 않고 계속 커지면 체크포인트가 밀리고 있다는 뜻입니다. 볼륨이 있는 호스트의 디스크 사용률은 아래 파일시스템 사용률에서 확인합니다."
+      "description": "SQLite DB 파일과 WAL 파일의 현재 크기입니다."
     },
     {
       "id": 11,
@@ -524,7 +524,7 @@
           "thresholds": { "mode": "absolute", "steps": [{"value": null, "color": "green"}, {"value": 85, "color": "orange"}, {"value": 93, "color": "red"}] }
         }
       },
-      "description": "기존 디스크 알림과 동일하게 사용률 85%부터 주의, 93%부터 위험으로 표시합니다.",
+      "description": "임시·컨테이너 파일시스템을 제외한 호스트별 마운트 지점의 현재 사용률입니다.",
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
         "orientation": "horizontal",

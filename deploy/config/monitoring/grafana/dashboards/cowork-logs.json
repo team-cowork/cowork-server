@@ -61,7 +61,7 @@
       ],
       "title": "선택 기간의 로그 수준별 건수",
       "type": "bargauge",
-      "description": "선택한 전체 시간 범위를 한 번 집계하며 로그 수준은 대소문자를 구분하지 않습니다. 로그 수준 필터는 아래 원문 로그에 적용됩니다."
+      "description": "선택 기간의 로그를 수준별로 집계한 건수입니다. 로그 수준은 대소문자를 구분하지 않으며 수준 필터는 적용하지 않습니다."
     },
     { "collapsed": false, "gridPos": {"h": 1, "w": 24, "x": 0, "y": 9}, "id": 12, "title": "수집 상태", "type": "row" },
     {
@@ -83,7 +83,7 @@
       ],
       "title": "서비스별 로그 형식 위반 건수",
       "type": "timeseries",
-      "description": "애플리케이션 로그 중 @timestamp 또는 level을 읽지 못한 줄(plain text, 잘못된 JSON, 필드 누락)입니다. @timestamp가 없으면 수집 시각으로 저장됩니다."
+      "description": "애플리케이션 로그에서 @timestamp 또는 level을 읽지 못한 줄의 수입니다."
     },
     {
       "datasource": { "type": "loki", "uid": "${datasource}" },
@@ -104,7 +104,7 @@
       ],
       "title": "호스트별 수집 생존 신호",
       "type": "timeseries",
-      "description": "log-agent heartbeat가 VM마다 1분에 한 줄씩 남깁니다. 선이 끊긴 호스트는 수집 경로가 멈춘 것이고, 선이 이어지는데 서비스 로그가 없으면 서비스가 조용한 것입니다."
+      "description": "각 VM의 log-agent가 1분마다 남기는 heartbeat 로그의 수입니다."
     },
     {
       "datasource": { "type": "loki", "uid": "${datasource}" },
