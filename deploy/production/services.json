@@ -247,7 +247,6 @@
   "chat": {
     "environment": "Prod-CD(chat)",
     "secret_bindings": {
-      "JWT_SECRET": "JWT_SECRET",
       "DB_PASSWORD": "DB_PASSWORD",
       "DISCORD_CHAT_ERROR_WEBHOOK_URL": "DISCORD_CHAT_ERROR_WEBHOOK_URL",
       "ELASTICSEARCH_URL": "ELASTICSEARCH_URL",
