@@ -1,6 +1,6 @@
 package com.cowork.preference.messaging
 
-import com.cowork.preference.config.kafkaSecurityProperties
+import com.cowork.preference.config.kafkaClientProperties
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.apache.kafka.clients.admin.Admin
@@ -17,7 +17,7 @@ data class ProjectionTopicState(val topicId: String, val ranges: Map<Int, Projec
 
 class ProjectionTopicIdentityProvider(bootstrapServers: String) : AutoCloseable {
     private val admin = Admin.create(
-        kafkaSecurityProperties() + mapOf(
+        kafkaClientProperties() + mapOf(
             AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG to bootstrapServers,
             // The broker has a fixed address; keep reconnecting without rebootstrap loops.
             AdminClientConfig.METADATA_RECOVERY_STRATEGY_CONFIG to "none",
