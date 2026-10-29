@@ -1,142 +1,148 @@
-import {Injectable} from '@nestjs/common';
-import {InjectModel} from '@nestjs/mongoose';
+import {Buffer} from 'node:buffer';
+import {Injectable as injectable} from '@nestjs/common';
+import {InjectModel as injectModel} from '@nestjs/mongoose';
 import {Model} from 'mongoose';
-import {ChatMessageQuarantineErrorType, ChatMessageQuarantineRecord, ChatMessageQuarantineStatus} from '../schema';
+import {ChatMessageQuarantineErrorType, ChatMessageQuarantineRecord, ChatMessageQuarantineStatus} from '../schema/index.js';
+import {type Nullable} from '../../common/type/nullable.js';
 
 export const CHAT_MESSAGE_QUARANTINE_MAX_PAYLOAD_BYTES = 65_536;
 
 export type QuarantineInput = {
-    groupId: string;
-    topic: string;
-    partition: number;
-    messageOffset: string;
-    eventKey: string | null;
-    payload: string | null;
-    contractVersion: number;
-    errorType: ChatMessageQuarantineErrorType;
-    reasonCode: string;
-    reason: string;
-    retentionDays: number;
+	groupId: string;
+	topic: string;
+	partition: number;
+	messageOffset: string;
+	eventKey: Nullable<string>;
+	payload: Nullable<string>;
+	contractVersion: number;
+	errorType: ChatMessageQuarantineErrorType;
+	reasonCode: string;
+	reason: string;
+	retentionDays: number;
 };
 
-@Injectable()
+@injectable()
 export class ChatMessageQuarantineRepository {
-    constructor(@InjectModel(ChatMessageQuarantineRecord.name) private readonly model: Model<ChatMessageQuarantineRecord>) {}
+	constructor(@injectModel(ChatMessageQuarantineRecord.name) private readonly model: Model<ChatMessageQuarantineRecord>) {}
 
-    /**
+	/**
     위치 unique key로 멱등 upsert하며 최초 raw payload는 재전달로 덮어쓰지 않는다.
     */
-    async quarantine(input: QuarantineInput): Promise<void> {
-        const now = new Date();
-        const raw = truncateUtf8(input.payload, CHAT_MESSAGE_QUARANTINE_MAX_PAYLOAD_BYTES);
-        await this.model.updateOne(
-            {
-                groupId: input.groupId, topic: input.topic, partition: input.partition, messageOffset: input.messageOffset,
-            },
-            {
-                $setOnInsert: {
-                    eventKey: input.eventKey, payload: raw.value, payloadTruncated: raw.truncated, payloadBytes: raw.bytes,
-                    contractVersion: input.contractVersion, errorType: input.errorType, reasonCode: input.reasonCode,
-                    reason: input.reason, status: 'QUARANTINED', firstObservedAt: now,
-                    expiresAt: new Date(now.getTime() + (input.retentionDays * 24 * 60 * 60 * 1000)),
-                },
-                $set: {lastObservedAt: now},
-            },
-            {upsert: true},
-        );
-    }
+	async quarantine(input: QuarantineInput): Promise<void> {
+		const now = new Date();
+		const raw = truncateUtf8(input.payload, CHAT_MESSAGE_QUARANTINE_MAX_PAYLOAD_BYTES);
+		await this.model.updateOne(
+			{
+				groupId: input.groupId, topic: input.topic, partition: input.partition, messageOffset: input.messageOffset,
+			},
+			{
+				$setOnInsert: {
+					eventKey: input.eventKey, payload: raw.value, payloadTruncated: raw.truncated, payloadBytes: raw.bytes,
+					contractVersion: input.contractVersion, errorType: input.errorType, reasonCode: input.reasonCode,
+					reason: input.reason, status: 'QUARANTINED', firstObservedAt: now,
+					expiresAt: new Date(now.getTime() + (input.retentionDays * 24 * 60 * 60 * 1000)),
+				},
+				$set: {lastObservedAt: now},
+			},
+			{upsert: true},
+		);
+	}
 
-    async findById(id: string): Promise<ChatMessageQuarantineRecord | null> {
-        return this.model.findById(id).lean<ChatMessageQuarantineRecord>();
-    }
+	async findById(id: string): Promise<Nullable<ChatMessageQuarantineRecord>> {
+		return this.model.findById(id).lean<ChatMessageQuarantineRecord>();
+	}
 
-    /**
+	/**
     원문에는 메시지 본문과 첨부 URL이 들어 있어 목록에서 제외한다.
     */
-    async findRecent(status: ChatMessageQuarantineStatus | undefined, limit: number): Promise<ChatMessageQuarantineRecord[]> {
-        return this.model
-            .find(status === undefined ? {} : {status})
-            .sort({lastObservedAt: -1})
-            .limit(limit)
-            .select({payload: 0, eventKey: 0})
-            .lean<ChatMessageQuarantineRecord[]>();
-    }
+	async findRecent(status: ChatMessageQuarantineStatus | undefined, limit: number): Promise<ChatMessageQuarantineRecord[]> {
+		return this.model
+			.find(status === undefined ? {} : {status})
+			.sort({lastObservedAt: -1})
+			.limit(limit)
+			.select({payload: 0, eventKey: 0})
+			.lean<ChatMessageQuarantineRecord[]>();
+	}
 
-    async requestReprocess(id: string): Promise<boolean> {
-        const result = await this.model.updateOne(
-            {
-                _id: id, status: 'QUARANTINED', payloadTruncated: false, payload: {$type: 'string'},
-            },
-            {$set: {status: 'REPROCESS_REQUESTED', reprocessRequestedAt: new Date(), lastReprocessError: null}},
-        );
-        return result.modifiedCount === 1;
-    }
+	async requestReprocess(id: string): Promise<boolean> {
+		const result = await this.model.updateOne(
+			{
+				_id: id, status: 'QUARANTINED', payloadTruncated: false, payload: {$type: 'string'},
+			},
+			{$set: {status: 'REPROCESS_REQUESTED', reprocessRequestedAt: new Date(), lastReprocessError: null}},
+		);
+		return result.modifiedCount === 1;
+	}
 
-    async discard(id: string): Promise<boolean> {
-        const result = await this.model.updateOne(
-            {_id: id, status: {$in: ['QUARANTINED', 'REPROCESS_REQUESTED']}},
-            {$set: {status: 'DISCARDED', discardedAt: new Date()}, $unset: {payload: 1, eventKey: 1}},
-        );
-        return result.modifiedCount === 1;
-    }
+	async discard(id: string): Promise<boolean> {
+		const result = await this.model.updateOne(
+			{_id: id, status: {$in: ['QUARANTINED', 'REPROCESS_REQUESTED']}},
+			{$set: {status: 'DISCARDED', discardedAt: new Date()}, $unset: {payload: 1, eventKey: 1}},
+		);
+		return result.modifiedCount === 1;
+	}
 
-    async claimReprocess(): Promise<ChatMessageQuarantineRecord | null> {
-        return this.model.findOneAndUpdate(
-            {status: 'REPROCESS_REQUESTED', payloadTruncated: false, payload: {$type: 'string'}},
-            {$set: {status: 'PROCESSING', processingStartedAt: new Date()}},
-            {sort: {reprocessRequestedAt: 1}, new: true},
-        ).lean<ChatMessageQuarantineRecord>();
-    }
+	async claimReprocess(): Promise<Nullable<ChatMessageQuarantineRecord>> {
+		return this.model.findOneAndUpdate(
+			{status: 'REPROCESS_REQUESTED', payloadTruncated: false, payload: {$type: 'string'}},
+			{$set: {status: 'PROCESSING', processingStartedAt: new Date()}},
+			{sort: {reprocessRequestedAt: 1}, new: true},
+		).lean<ChatMessageQuarantineRecord>();
+	}
 
-    async markReprocessed(id: string): Promise<void> {
-        await this.model.updateOne(
-            {_id: id, status: 'PROCESSING'},
-            {$set: {status: 'REPROCESSED', processedAt: new Date()}, $unset: {payload: 1, eventKey: 1}},
-        );
-    }
+	async markReprocessed(id: string): Promise<void> {
+		await this.model.updateOne(
+			{_id: id, status: 'PROCESSING'},
+			{$set: {status: 'REPROCESSED', processedAt: new Date()}, $unset: {payload: 1, eventKey: 1}},
+		);
+	}
 
-    async releaseReprocess(id: string, error: string): Promise<void> {
-        await this.model.updateOne(
-            {_id: id, status: 'PROCESSING'},
-            {$set: {status: 'QUARANTINED', lastReprocessError: error, processingStartedAt: null}},
-        );
-    }
+	async releaseReprocess(id: string, error: string): Promise<void> {
+		await this.model.updateOne(
+			{_id: id, status: 'PROCESSING'},
+			{$set: {status: 'QUARANTINED', lastReprocessError: error, processingStartedAt: null}},
+		);
+	}
 
-    async reclaimStaleProcessing(thresholdMs: number): Promise<number> {
-        const result = await this.model.updateMany(
-            {status: 'PROCESSING', processingStartedAt: {$lt: new Date(Date.now() - thresholdMs)}},
-            {$set: {status: 'QUARANTINED', processingStartedAt: null, lastReprocessError: 'processing claim timed out'}},
-        );
-        return result.modifiedCount;
-    }
+	async reclaimStaleProcessing(thresholdMs: number): Promise<number> {
+		const result = await this.model.updateMany(
+			{status: 'PROCESSING', processingStartedAt: {$lt: new Date(Date.now() - thresholdMs)}},
+			{$set: {status: 'QUARANTINED', processingStartedAt: null, lastReprocessError: 'processing claim timed out'}},
+		);
+		return result.modifiedCount;
+	}
 
-    async summary(): Promise<Array<{status: ChatMessageQuarantineStatus; errorType: ChatMessageQuarantineErrorType; reasonCode: string; count: number}>> {
-        return this.model.aggregate([
-            {$group: {_id: {status: '$status', errorType: '$errorType', reasonCode: '$reasonCode'}, count: {$sum: 1}}},
-            {
-                $project: {
-                    _id: 0, status: '$_id.status', errorType: '$_id.errorType', reasonCode: '$_id.reasonCode', count: 1,
-                },
-            },
-        ]);
-    }
+	async summary(): Promise<Array<{status: ChatMessageQuarantineStatus; errorType: ChatMessageQuarantineErrorType; reasonCode: string; count: number}>> {
+		return this.model.aggregate([
+			{$group: {_id: {status: '$status', errorType: '$errorType', reasonCode: '$reasonCode'}, count: {$sum: 1}}},
+			{
+				$project: {
+					_id: 0, status: '$_id.status', errorType: '$_id.errorType', reasonCode: '$_id.reasonCode', count: 1,
+				},
+			},
+		]);
+	}
 }
 
-export function truncateUtf8(payload: string | null, maximumBytes: number): {value: string | null; bytes: number; truncated: boolean} {
-    if (payload === null) {
-        return {value: null, bytes: 0, truncated: false};
-    }
+export function truncateUtf8(payload: Nullable<string>, maximumBytes: number): {value: Nullable<string>; bytes: number; truncated: boolean} {
+	if (payload === null) {
+		return {value: null, bytes: 0, truncated: false};
+	}
 
-    const bytes = Buffer.byteLength(payload, 'utf8');
-    if (bytes <= maximumBytes) {
-        return {value: payload, bytes, truncated: false};
-    }
+	const bytes = Buffer.byteLength(payload, 'utf8');
+	if (bytes <= maximumBytes) {
+		return {value: payload, bytes, truncated: false};
+	}
 
-    let end = maximumBytes;
-    // eslint-disable-next-line no-bitwise -- UTF-8 continuation bytes are identified by their leading two bits.
-    while (end > 0 && (Buffer.from(payload, 'utf8')[end] & 0b1100_0000) === 0b1000_0000) {
-        end -= 1;
-    }
+	let end = maximumBytes;
+	// UTF-8 continuation byte는 0x80-0xBF(상위 두 비트 10)이므로 그 앞에서 자른다.
+	while (end > 0 && isUtf8ContinuationByte(Buffer.from(payload, 'utf8')[end])) {
+		end -= 1;
+	}
 
-    return {value: Buffer.from(payload, 'utf8').subarray(0, end).toString('utf8'), bytes, truncated: true};
+	return {value: Buffer.from(payload, 'utf8').subarray(0, end).toString('utf8'), bytes, truncated: true};
+}
+
+function isUtf8ContinuationByte(byte: number | undefined): boolean {
+	return byte !== undefined && byte >= 0x80 && byte <= 0xBF;
 }

@@ -1,12 +1,12 @@
-import {ApiProperty} from '@nestjs/swagger';
+import {ApiProperty as apiProperty} from '@nestjs/swagger';
 
 export class AttachmentDownloadResponseDto {
-    @ApiProperty({description: '권한 확인 후 발급한 60초 GET URL. 영구 저장하지 않습니다.'})
-    downloadUrl!: string;
+	@apiProperty({description: '권한 확인 후 발급한 60초 GET URL. 영구 저장하지 않습니다.'})
+	downloadUrl!: string;
 
-    @ApiProperty({description: 'URL 만료 시각 (ISO 8601)'})
-    expiresAt!: string;
+	@apiProperty({description: 'URL 만료 시각 (ISO 8601)'})
+	expiresAt!: string;
 
-    @ApiProperty({example: 60})
-    expiresInSeconds!: number;
+	@apiProperty({example: 60})
+	expiresInSeconds!: number;
 }

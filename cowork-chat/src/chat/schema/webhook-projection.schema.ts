@@ -1,21 +1,21 @@
-import {Prop, Schema, SchemaFactory} from '@nestjs/mongoose';
+import {Prop as prop, Schema as schema, SchemaFactory} from '@nestjs/mongoose';
+import {type Nullable} from '../../common/type/nullable.js';
 
-@Schema({timestamps: true, versionKey: false})
+@schema({timestamps: true, versionKey: false})
 export class WebhookProjection {
-    @Prop({required: true}) webhookId!: number;
-    @Prop({required: true}) executionId!: string;
-    @Prop({required: true}) channelId!: number;
-    @Prop({required: true}) name!: string;
-    @Prop({type: String, default: null}) avatarUrl!: string | null;
-    @Prop({required: true}) isSecure!: boolean;
-    @Prop({type: String, default: null}) secretHash!: string | null;
-    @Prop({required: true}) isActive!: boolean;
-    @Prop({required: true}) deleted!: boolean;
-    @Prop({required: true, type: Date}) sourceOccurredAt!: Date;
-    @Prop({required: true}) sourceVersion!: bigint;
+	@prop({required: true}) webhookId!: number;
+	@prop({required: true}) executionId!: string;
+	@prop({required: true}) channelId!: number;
+	@prop({required: true}) name!: string;
+	@prop({type: String, default: null}) avatarUrl!: Nullable<string>;
+	@prop({required: true}) isSecure!: boolean;
+	@prop({type: String, default: null}) secretHash!: Nullable<string>;
+	@prop({required: true}) isActive!: boolean;
+	@prop({required: true}) deleted!: boolean;
+	@prop({required: true, type: Date}) sourceOccurredAt!: Date;
+	@prop({required: true}) sourceVersion!: bigint;
 }
 
-export const WebhookProjectionSchema = SchemaFactory.createForClass(WebhookProjection);
-WebhookProjectionSchema.index({webhookId: 1}, {unique: true});
-
-WebhookProjectionSchema.index({executionId: 1}, {unique: true, partialFilterExpression: {executionId: {$type: 'string'}}});
+export const webhookProjectionSchema = SchemaFactory.createForClass(WebhookProjection)
+	.index({webhookId: 1}, {unique: true})
+	.index({executionId: 1}, {unique: true, partialFilterExpression: {executionId: {$type: 'string'}}});

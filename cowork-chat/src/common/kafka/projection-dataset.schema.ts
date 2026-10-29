@@ -1,46 +1,47 @@
-import {Prop, Schema, SchemaFactory} from '@nestjs/mongoose';
+import {Prop as prop, Schema as schema, SchemaFactory} from '@nestjs/mongoose';
+import {type Nullable} from '../type/nullable.js';
 
 export type ProjectionRunMode = 'BOOTSTRAP' | 'INCREMENTAL' | 'REBUILD';
 export type ProjectionDatasetStatus =
-    | 'INITIALIZING'
-    | 'ACTIVE'
-    | 'REBUILD_REQUESTED'
-    | 'RESETTING'
-    | 'REBUILDING'
-    | 'REBUILD_REQUIRED';
+	| 'INITIALIZING'
+	| 'ACTIVE'
+	| 'REBUILD_REQUESTED'
+	| 'RESETTING'
+	| 'REBUILDING'
+	| 'REBUILD_REQUIRED';
 
 export type ProjectionDatasetPartitionOffset = {
-    partition: number;
-    offset: string;
+	partition: number;
+	offset: string;
 };
 
 /**
 Kafka checkpoint와 실제 Mongo projection collection을 묶는 durable dataset identity.
 */
-@Schema({timestamps: true, versionKey: false, collection: 'projection_datasets'})
+@schema({timestamps: true, versionKey: false, collection: 'projection_datasets'})
 export class ProjectionDataset {
-    @Prop({required: true}) stream!: string;
-    @Prop({required: true}) groupId!: string;
-    @Prop({required: true}) topic!: string;
-    @Prop({required: true}) sourceGeneration!: string;
-    @Prop({required: true}) datasetGeneration!: string;
-    @Prop({required: true}) mode!: ProjectionRunMode;
-    @Prop({required: true}) status!: ProjectionDatasetStatus;
-    @Prop({type: String, default: null}) reason!: string | null;
-    @Prop({type: Date, default: null}) rebuildRequestedAt!: Date | null;
-    @Prop({type: Date, default: null}) activatedAt!: Date | null;
-    @Prop({type: Number, default: 0}) activationDocumentCount!: number;
-    /**
+	@prop({required: true}) stream!: string;
+	@prop({required: true}) groupId!: string;
+	@prop({required: true}) topic!: string;
+	@prop({required: true}) sourceGeneration!: string;
+	@prop({required: true}) datasetGeneration!: string;
+	@prop({required: true}) mode!: ProjectionRunMode;
+	@prop({required: true}) status!: ProjectionDatasetStatus;
+	@prop({type: String, default: null}) reason!: Nullable<string>;
+	@prop({type: Date, default: null}) rebuildRequestedAt!: Nullable<Date>;
+	@prop({type: Date, default: null}) activatedAt!: Nullable<Date>;
+	@prop({type: Number, default: 0}) activationDocumentCount!: number;
+	/**
     주기적으로 갱신되는 마지막 관측 document count. 전체 소실(0)뿐 아니라 일부 유실도
     이 값 대비 급격한 감소로 탐지한다.
     */
-    @Prop({type: Number, default: null}) lastObservedDocumentCount!: number | null;
-    @Prop({type: [{partition: Number, offset: String}], default: []})
-    baseOffsets!: ProjectionDatasetPartitionOffset[];
+	@prop({type: Number, default: null}) lastObservedDocumentCount!: Nullable<number>;
+	@prop({type: [{partition: Number, offset: String}], default: []})
+	baseOffsets!: ProjectionDatasetPartitionOffset[];
 
-    @Prop({type: [{partition: Number, offset: String}], default: []})
-    targetOffsets!: ProjectionDatasetPartitionOffset[];
+	@prop({type: [{partition: Number, offset: String}], default: []})
+	targetOffsets!: ProjectionDatasetPartitionOffset[];
 }
 
-export const ProjectionDatasetSchema = SchemaFactory.createForClass(ProjectionDataset);
-ProjectionDatasetSchema.index({stream: 1}, {unique: true});
+export const projectionDatasetSchema = SchemaFactory.createForClass(ProjectionDataset)
+	.index({stream: 1}, {unique: true});

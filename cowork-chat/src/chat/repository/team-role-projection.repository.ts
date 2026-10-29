@@ -1,330 +1,332 @@
-import {Injectable} from '@nestjs/common';
-import {InjectModel} from '@nestjs/mongoose';
+import {Injectable as injectable} from '@nestjs/common';
+import {InjectModel as injectModel} from '@nestjs/mongoose';
 import {Model, mongo} from 'mongoose';
-import {TeamRoleProjection, TeamRoleAssignmentProjection, TeamRoleMemberTombstone} from '../schema';
+import {TeamRoleProjection, TeamRoleAssignmentProjection, TeamRoleMemberTombstone} from '../schema/index.js';
 import {
-    activeProjectionCondition,
-    deletedProjectionCondition,
-    projectionSourceVersion,
-    projectionTimestampFields,
-    isProjectionUpdateApplied,
-    PROJECTION_EPOCH,
-} from './versioned-projection.util';
+	activeProjectionCondition,
+	deletedProjectionCondition,
+	projectionSourceVersion,
+	projectionTimestampFields,
+	isProjectionUpdateApplied,
+	PROJECTION_EPOCH,
+} from './versioned-projection.util.js';
 
 export type TeamRoleProjectionView = {
-    teamId: number;
-    roleId: number;
-    priority: number;
-    // eslint-disable-next-line no-warning-comments -- Tracked compatibility cleanup with a deployment-dependent deadline.
-    // TODO(#596): 2026-11-01 05:00 KST 이후 구형 Kafka·Mongo 역할의 isDefault 보정과 rollback 종료 확인 후 조회 필드 필수화.
-    // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-    isDefault?: boolean;
-    permissions?: Record<string, boolean>;
+	teamId: number;
+	roleId: number;
+	priority: number;
+	// 호환 정리(#596): 2026-11-01 05:00 KST 이후 구형 Kafka·Mongo 역할의 isDefault 보정과 rollback 종료 확인 후 조회 필드 필수화.
+	// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+	isDefault?: boolean;
+	permissions?: Record<string, boolean>;
 };
 
 export type TeamRoleAssignmentProjectionView = {
-    teamId: number;
-    accountId: number;
-    roleId: number;
+	teamId: number;
+	accountId: number;
+	roleId: number;
 };
 
 type VersionedAssignmentProjectionView = {
-    sourceVersion: bigint | mongo.Long;
+	sourceVersion: bigint | mongo.Long;
 } & TeamRoleAssignmentProjectionView;
 
 type MemberTombstoneProjectionView = {
-    teamId: number;
-    accountId: number;
-    sourceVersion: bigint | mongo.Long;
+	teamId: number;
+	accountId: number;
+	sourceVersion: bigint | mongo.Long;
 };
 
 type ProjectionVersion = {
-    occurredAt: Date;
-    sourceVersion: mongo.Long;
+	occurredAt: Date;
+	sourceVersion: mongo.Long;
 };
 
-@Injectable()
+@injectable()
 export class TeamRoleProjectionRepository {
-    constructor(
-        @InjectModel(TeamRoleProjection.name) private readonly roleModel: Model<TeamRoleProjection>,
-        @InjectModel(TeamRoleAssignmentProjection.name)
-        private readonly assignmentModel: Model<TeamRoleAssignmentProjection>,
-        @InjectModel(TeamRoleMemberTombstone.name)
-        private readonly memberTombstoneModel: Model<TeamRoleMemberTombstone>,
-    ) {}
+	constructor(
+		@injectModel(TeamRoleProjection.name) private readonly roleModel: Model<TeamRoleProjection>,
+		@injectModel(TeamRoleAssignmentProjection.name)
+		private readonly assignmentModel: Model<TeamRoleAssignmentProjection>,
+		@injectModel(TeamRoleMemberTombstone.name)
+		private readonly memberTombstoneModel: Model<TeamRoleMemberTombstone>,
+	) {}
 
-    async upsertRole(input: ProjectionVersion & {
-        teamId: number;
-        roleId: number;
-        name: string;
-        priority: number;
-        // eslint-disable-next-line no-warning-comments -- Tracked compatibility cleanup with a deployment-dependent deadline.
-        // TODO(#596): 2026-11-01 05:00 KST 이후 구형 outbox·Kafka 레코드 보정과 rollback 종료 확인 후 입력 누락·false 대체 제거.
-        // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-        isDefault?: boolean;
-        permissions: Record<string, boolean>;
-    }): Promise<boolean> {
-        const applyCondition = activeProjectionCondition(input.sourceVersion);
-        const result = await this.roleModel.updateOne(
-            {teamId: input.teamId, roleId: input.roleId},
-            [{
-                $set: {
-                    teamId: input.teamId,
-                    roleId: input.roleId,
-                    name: {$cond: [applyCondition, {$literal: input.name}, {$ifNull: ['$name', '']}]},
-                    priority: {$cond: [applyCondition, input.priority, {$ifNull: ['$priority', 0]}]},
-                    isDefault: {$cond: [applyCondition, input.isDefault ?? false, {$ifNull: ['$isDefault', false]}]},
-                    permissions: {
-                        $cond: [applyCondition, {$literal: input.permissions}, {$ifNull: ['$permissions', {}]}],
-                    },
-                    deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
-                    sourceOccurredAt: {
-                        $cond: [applyCondition, input.occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
-                    },
-                    sourceVersion: {$cond: [applyCondition, input.sourceVersion, projectionSourceVersion]},
-                    ...projectionTimestampFields(applyCondition, input.occurredAt),
-                },
-            }],
-            {upsert: true, timestamps: false, updatePipeline: true},
-        );
-        return isProjectionUpdateApplied(result);
-    }
+	private toBigInt(value: bigint | mongo.Long): bigint {
+		return typeof value === 'bigint' ? value : value.toBigInt();
+	}
 
-    async deleteRole(
-        teamId: number,
-        roleId: number,
-        occurredAt: Date,
-        sourceVersion: mongo.Long,
-    ): Promise<boolean> {
-        const applyCondition = deletedProjectionCondition(sourceVersion);
-        const result = await this.roleModel.updateOne(
-            {teamId, roleId},
-            [{
-                $set: {
-                    teamId,
-                    roleId,
-                    name: {$ifNull: ['$name', '']},
-                    priority: {$ifNull: ['$priority', 0]},
-                    isDefault: {$ifNull: ['$isDefault', false]},
-                    permissions: {$ifNull: ['$permissions', {}]},
-                    deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
-                    sourceOccurredAt: {
-                        $cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
-                    },
-                    sourceVersion: {$cond: [applyCondition, sourceVersion, projectionSourceVersion]},
-                    ...projectionTimestampFields(applyCondition, occurredAt),
-                },
-            }],
-            {upsert: true, timestamps: false, updatePipeline: true},
-        );
-        return isProjectionUpdateApplied(result);
-    }
+	async upsertRole(input: ProjectionVersion & {
+		teamId: number;
+		roleId: number;
+		name: string;
+		priority: number;
+		// 호환 정리(#596): 2026-11-01 05:00 KST 이후 구형 outbox·Kafka 레코드 보정과 rollback 종료 확인 후 입력 누락·false 대체 제거.
+		// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
+		isDefault?: boolean;
+		permissions: Record<string, boolean>;
+	}): Promise<boolean> {
+		const applyCondition = activeProjectionCondition(input.sourceVersion);
+		const result = await this.roleModel.updateOne(
+			{teamId: input.teamId, roleId: input.roleId},
+			[{
+				$set: {
+					teamId: input.teamId,
+					roleId: input.roleId,
+					name: {$cond: [applyCondition, {$literal: input.name}, {$ifNull: ['$name', '']}]},
+					priority: {$cond: [applyCondition, input.priority, {$ifNull: ['$priority', 0]}]},
+					isDefault: {$cond: [applyCondition, input.isDefault ?? false, {$ifNull: ['$isDefault', false]}]},
+					permissions: {
+						$cond: [applyCondition, {$literal: input.permissions}, {$ifNull: ['$permissions', {}]}],
+					},
+					deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
+					sourceOccurredAt: {
+						$cond: [applyCondition, input.occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
+					},
+					sourceVersion: {$cond: [applyCondition, input.sourceVersion, projectionSourceVersion]},
+					...projectionTimestampFields(applyCondition, input.occurredAt),
+				},
+			}],
+			{upsert: true, timestamps: false, updatePipeline: true},
+		);
+		return isProjectionUpdateApplied(result);
+	}
 
-    async upsertAssignment(input: ProjectionVersion & {
-        teamId: number;
-        accountId: number;
-        roleId: number;
-    }): Promise<boolean> {
-        const tombstone = await this.memberTombstoneModel.exists({
-            teamId: input.teamId,
-            accountId: input.accountId,
-            sourceVersion: {$gte: input.sourceVersion.toBigInt()},
-        });
-        if (tombstone) {
-            return false;
-        }
+	async deleteRole(
+		teamId: number,
+		roleId: number,
+		occurredAt: Date,
+		sourceVersion: mongo.Long,
+	): Promise<boolean> {
+		const applyCondition = deletedProjectionCondition(sourceVersion);
+		const result = await this.roleModel.updateOne(
+			{teamId, roleId},
+			[{
+				$set: {
+					teamId,
+					roleId,
+					name: {$ifNull: ['$name', '']},
+					priority: {$ifNull: ['$priority', 0]},
+					isDefault: {$ifNull: ['$isDefault', false]},
+					permissions: {$ifNull: ['$permissions', {}]},
+					deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
+					sourceOccurredAt: {
+						$cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
+					},
+					sourceVersion: {$cond: [applyCondition, sourceVersion, projectionSourceVersion]},
+					...projectionTimestampFields(applyCondition, occurredAt),
+				},
+			}],
+			{upsert: true, timestamps: false, updatePipeline: true},
+		);
+		return isProjectionUpdateApplied(result);
+	}
 
-        const applyCondition = activeProjectionCondition(input.sourceVersion);
-        const result = await this.assignmentModel.updateOne(
-            {teamId: input.teamId, accountId: input.accountId, roleId: input.roleId},
-            [{
-                $set: {
-                    teamId: input.teamId,
-                    accountId: input.accountId,
-                    roleId: input.roleId,
-                    deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
-                    sourceOccurredAt: {
-                        $cond: [applyCondition, input.occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
-                    },
-                    sourceVersion: {$cond: [applyCondition, input.sourceVersion, projectionSourceVersion]},
-                    ...projectionTimestampFields(applyCondition, input.occurredAt),
-                },
-            }],
-            {upsert: true, timestamps: false, updatePipeline: true},
-        );
-        return isProjectionUpdateApplied(result);
-    }
+	async upsertAssignment(input: ProjectionVersion & {
+		teamId: number;
+		accountId: number;
+		roleId: number;
+	}): Promise<boolean> {
+		const tombstone = await this.memberTombstoneModel.exists({
+			teamId: input.teamId,
+			accountId: input.accountId,
+			sourceVersion: {$gte: input.sourceVersion.toBigInt()},
+		});
+		if (tombstone) {
+			return false;
+		}
 
-    async deleteAssignment(
-        teamId: number,
-        accountId: number,
-        roleId: number,
-        occurredAt: Date,
-        sourceVersion: mongo.Long,
-    ): Promise<boolean> {
-        const applyCondition = deletedProjectionCondition(sourceVersion);
-        const result = await this.assignmentModel.updateOne(
-            {teamId, accountId, roleId},
-            [{
-                $set: {
-                    teamId,
-                    accountId,
-                    roleId,
-                    deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
-                    sourceOccurredAt: {
-                        $cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
-                    },
-                    sourceVersion: {$cond: [applyCondition, sourceVersion, projectionSourceVersion]},
-                    ...projectionTimestampFields(applyCondition, occurredAt),
-                },
-            }],
-            {upsert: true, timestamps: false, updatePipeline: true},
-        );
-        return isProjectionUpdateApplied(result);
-    }
+		const applyCondition = activeProjectionCondition(input.sourceVersion);
+		const result = await this.assignmentModel.updateOne(
+			{teamId: input.teamId, accountId: input.accountId, roleId: input.roleId},
+			[{
+				$set: {
+					teamId: input.teamId,
+					accountId: input.accountId,
+					roleId: input.roleId,
+					deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
+					sourceOccurredAt: {
+						$cond: [applyCondition, input.occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
+					},
+					sourceVersion: {$cond: [applyCondition, input.sourceVersion, projectionSourceVersion]},
+					...projectionTimestampFields(applyCondition, input.occurredAt),
+				},
+			}],
+			{upsert: true, timestamps: false, updatePipeline: true},
+		);
+		return isProjectionUpdateApplied(result);
+	}
 
-    async deleteMemberAssignments(
-        teamId: number,
-        accountId: number,
-        occurredAt: Date,
-        sourceVersion: mongo.Long,
-    ): Promise<boolean> {
-        const newerTombstone = await this.memberTombstoneModel.exists({
-            teamId,
-            accountId,
-            sourceVersion: {$gt: sourceVersion.toBigInt()},
-        });
-        if (newerTombstone) {
-            return false;
-        }
+	async deleteAssignment(
+		assignment: {
+			teamId: number;
+			accountId: number;
+			roleId: number;
+			occurredAt: Date;
+			sourceVersion: mongo.Long;
+		},
 
-        const result = await this.memberTombstoneModel.updateOne(
-            {teamId, accountId},
-            [{
-                $set: {
-                    teamId,
-                    accountId,
-                    sourceOccurredAt: {
-                        $cond: [
-                            {$lte: [{$ifNull: ['$sourceVersion', mongo.Long.ZERO]}, sourceVersion]},
-                            occurredAt,
-                            {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]},
-                        ],
-                    },
-                    sourceVersion: {
-                        $cond: [
-                            {$lte: [{$ifNull: ['$sourceVersion', mongo.Long.ZERO]}, sourceVersion]},
-                            sourceVersion,
-                            {$ifNull: ['$sourceVersion', mongo.Long.ZERO]},
-                        ],
-                    },
-                    createdAt: {$ifNull: ['$createdAt', occurredAt]},
-                    updatedAt: {
-                        $cond: [
-                            {$lte: [{$ifNull: ['$sourceVersion', mongo.Long.ZERO]}, sourceVersion]},
-                            occurredAt,
-                            {$ifNull: ['$updatedAt', occurredAt]},
-                        ],
-                    },
-                },
-            }],
-            {upsert: true, timestamps: false, updatePipeline: true},
-        );
+	): Promise<boolean> {
+		const {teamId, accountId, roleId, occurredAt, sourceVersion} = assignment;
+		const applyCondition = deletedProjectionCondition(sourceVersion);
+		const result = await this.assignmentModel.updateOne(
+			{teamId, accountId, roleId},
+			[{
+				$set: {
+					teamId,
+					accountId,
+					roleId,
+					deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
+					sourceOccurredAt: {
+						$cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
+					},
+					sourceVersion: {$cond: [applyCondition, sourceVersion, projectionSourceVersion]},
+					...projectionTimestampFields(applyCondition, occurredAt),
+				},
+			}],
+			{upsert: true, timestamps: false, updatePipeline: true},
+		);
+		return isProjectionUpdateApplied(result);
+	}
 
-        const applyCondition = deletedProjectionCondition(sourceVersion);
-        const assignmentResult = await this.assignmentModel.updateMany(
-            {teamId, accountId},
-            [{
-                $set: {
-                    deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
-                    sourceOccurredAt: {
-                        $cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
-                    },
-                    sourceVersion: {$cond: [applyCondition, sourceVersion, projectionSourceVersion]},
-                    ...projectionTimestampFields(applyCondition, occurredAt),
-                },
-            }],
-            {timestamps: false, updatePipeline: true},
-        );
-        return isProjectionUpdateApplied(result) || assignmentResult.modifiedCount > 0;
-    }
+	async deleteMemberAssignments(
+		teamId: number,
+		accountId: number,
+		occurredAt: Date,
+		sourceVersion: mongo.Long,
+	): Promise<boolean> {
+		const newerTombstone = await this.memberTombstoneModel.exists({
+			teamId,
+			accountId,
+			sourceVersion: {$gt: sourceVersion.toBigInt()},
+		});
+		if (newerTombstone) {
+			return false;
+		}
 
-    async findAssignmentsByTeamIdsAndAccountIds(
-        teamIds: number[],
-        accountIds: number[],
-    ): Promise<TeamRoleAssignmentProjectionView[]> {
-        if (teamIds.length === 0 || accountIds.length === 0) {
-            return [];
-        }
+		const result = await this.memberTombstoneModel.updateOne(
+			{teamId, accountId},
+			[{
+				$set: {
+					teamId,
+					accountId,
+					sourceOccurredAt: {
+						$cond: [
+							{$lte: [{$ifNull: ['$sourceVersion', mongo.Long.ZERO]}, sourceVersion]},
+							occurredAt,
+							{$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]},
+						],
+					},
+					sourceVersion: {
+						$cond: [
+							{$lte: [{$ifNull: ['$sourceVersion', mongo.Long.ZERO]}, sourceVersion]},
+							sourceVersion,
+							{$ifNull: ['$sourceVersion', mongo.Long.ZERO]},
+						],
+					},
+					createdAt: {$ifNull: ['$createdAt', occurredAt]},
+					updatedAt: {
+						$cond: [
+							{$lte: [{$ifNull: ['$sourceVersion', mongo.Long.ZERO]}, sourceVersion]},
+							occurredAt,
+							{$ifNull: ['$updatedAt', occurredAt]},
+						],
+					},
+				},
+			}],
+			{upsert: true, timestamps: false, updatePipeline: true},
+		);
 
-        const [assignments, tombstones] = await Promise.all([
-            this.assignmentModel.find(
-                {teamId: {$in: teamIds}, accountId: {$in: accountIds}, deleted: {$ne: true}},
-                {
-                    _id: 0, teamId: 1, accountId: 1, roleId: 1, sourceVersion: 1,
-                },
-            ).lean<VersionedAssignmentProjectionView[]>(),
-            this.memberTombstoneModel.find(
-                {teamId: {$in: teamIds}, accountId: {$in: accountIds}},
-                {
-                    _id: 0, teamId: 1, accountId: 1, sourceVersion: 1,
-                },
-            ).lean<MemberTombstoneProjectionView[]>(),
-        ]);
-        const tombstoneVersionByMember = new Map(tombstones.map(tombstone => [
-            `${tombstone.teamId}:${tombstone.accountId}`,
-            this.toBigInt(tombstone.sourceVersion),
-        ]));
-        return assignments
-            .filter(assignment => {
-                const tombstoneVersion = tombstoneVersionByMember.get(`${assignment.teamId}:${assignment.accountId}`);
-                return tombstoneVersion === undefined || this.toBigInt(assignment.sourceVersion) > tombstoneVersion;
-            })
-            .map(({teamId, accountId, roleId}) => ({teamId, accountId, roleId}));
-    }
+		const applyCondition = deletedProjectionCondition(sourceVersion);
+		const assignmentResult = await this.assignmentModel.updateMany(
+			{teamId, accountId},
+			[{
+				$set: {
+					deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
+					sourceOccurredAt: {
+						$cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
+					},
+					sourceVersion: {$cond: [applyCondition, sourceVersion, projectionSourceVersion]},
+					...projectionTimestampFields(applyCondition, occurredAt),
+				},
+			}],
+			{timestamps: false, updatePipeline: true},
+		);
+		return isProjectionUpdateApplied(result) || assignmentResult.modifiedCount > 0;
+	}
 
-    async findDefaultRolesByTeamIds(teamIds: number[]): Promise<TeamRoleProjectionView[]> {
-        if (teamIds.length === 0) {
-            return [];
-        }
+	async findAssignmentsByTeamIdsAndAccountIds(
+		teamIds: number[],
+		accountIds: number[],
+	): Promise<TeamRoleAssignmentProjectionView[]> {
+		if (teamIds.length === 0 || accountIds.length === 0) {
+			return [];
+		}
 
-        return this.roleModel.find(
-            {teamId: {$in: teamIds}, isDefault: true, deleted: {$ne: true}},
-            {
-                _id: 0, teamId: 1, roleId: 1, priority: 1, isDefault: 1, permissions: 1,
-            },
-        ).lean<TeamRoleProjectionView[]>();
-    }
+		const [assignments, tombstones] = await Promise.all([
+			this.assignmentModel.find(
+				{teamId: {$in: teamIds}, accountId: {$in: accountIds}, deleted: {$ne: true}},
+				{
+					_id: 0, teamId: 1, accountId: 1, roleId: 1, sourceVersion: 1,
+				},
+			).lean<VersionedAssignmentProjectionView[]>(),
+			this.memberTombstoneModel.find(
+				{teamId: {$in: teamIds}, accountId: {$in: accountIds}},
+				{
+					_id: 0, teamId: 1, accountId: 1, sourceVersion: 1,
+				},
+			).lean<MemberTombstoneProjectionView[]>(),
+		]);
+		const tombstoneVersionByMember = new Map(tombstones.map(tombstone => [
+			`${tombstone.teamId}:${tombstone.accountId}`,
+			this.toBigInt(tombstone.sourceVersion),
+		]));
+		return assignments
+			.filter(assignment => {
+				const tombstoneVersion = tombstoneVersionByMember.get(`${assignment.teamId}:${assignment.accountId}`);
+				return tombstoneVersion === undefined || this.toBigInt(assignment.sourceVersion) > tombstoneVersion;
+			})
+			.map(({teamId, accountId, roleId}) => ({teamId, accountId, roleId}));
+	}
 
-    async findRolesByIds(roleIds: number[]): Promise<TeamRoleProjectionView[]> {
-        if (roleIds.length === 0) {
-            return [];
-        }
+	async findDefaultRolesByTeamIds(teamIds: number[]): Promise<TeamRoleProjectionView[]> {
+		if (teamIds.length === 0) {
+			return [];
+		}
 
-        return this.roleModel.find(
-            {roleId: {$in: roleIds}, deleted: {$ne: true}},
-            {
-                _id: 0, teamId: 1, roleId: 1, priority: 1, isDefault: 1, permissions: 1,
-            },
-        ).lean<TeamRoleProjectionView[]>();
-    }
+		return this.roleModel.find(
+			{teamId: {$in: teamIds}, isDefault: true, deleted: {$ne: true}},
+			{
+				_id: 0, teamId: 1, roleId: 1, priority: 1, isDefault: 1, permissions: 1,
+			},
+		).lean<TeamRoleProjectionView[]>();
+	}
 
-    async findRolePermissionsByIds(roleIds: number[]): Promise<Array<TeamRoleProjectionView & {
-        permissions: Record<string, boolean>;
-    }>> {
-        if (roleIds.length === 0) {
-            return [];
-        }
+	async findRolesByIds(roleIds: number[]): Promise<TeamRoleProjectionView[]> {
+		if (roleIds.length === 0) {
+			return [];
+		}
 
-        return this.roleModel.find(
-            {roleId: {$in: roleIds}, deleted: {$ne: true}},
-            {
-                _id: 0, teamId: 1, roleId: 1, priority: 1, isDefault: 1, permissions: 1,
-            },
-        ).lean<Array<TeamRoleProjectionView & {permissions: Record<string, boolean>}>>();
-    }
+		return this.roleModel.find(
+			{roleId: {$in: roleIds}, deleted: {$ne: true}},
+			{
+				_id: 0, teamId: 1, roleId: 1, priority: 1, isDefault: 1, permissions: 1,
+			},
+		).lean<TeamRoleProjectionView[]>();
+	}
 
-    private toBigInt(value: bigint | mongo.Long): bigint {
-        return typeof value === 'bigint' ? value : value.toBigInt();
-    }
+	async findRolePermissionsByIds(roleIds: number[]): Promise<Array<TeamRoleProjectionView & {
+		permissions: Record<string, boolean>;
+	}>> {
+		if (roleIds.length === 0) {
+			return [];
+		}
+
+		return this.roleModel.find(
+			{roleId: {$in: roleIds}, deleted: {$ne: true}},
+			{
+				_id: 0, teamId: 1, roleId: 1, priority: 1, isDefault: 1, permissions: 1,
+			},
+		).lean<Array<TeamRoleProjectionView & {permissions: Record<string, boolean>}>>();
+	}
 }
