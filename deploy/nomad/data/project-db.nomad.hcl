@@ -19,13 +19,6 @@ variable "vault_mount" {
 variable "config_files" {
   type = map(string)
 }
-variable "runtime_env" {
-  type = map(string)
-  default = {
-    DB_NAME     = "cowork_project"
-    DB_USERNAME = "cowork_project"
-  }
-}
 
 job "cowork-project-db" {
   datacenters = ["gsm"]
@@ -40,7 +33,7 @@ job "cowork-project-db" {
     shutdown_delay = "5s"
     # A changed credential or initializer needs a fresh allocation to rerun poststart.
     meta {
-      initialization = sha256(jsonencode({ version = var.secret_version, scripts = var.config_files, identity = var.runtime_env }))
+      initialization = sha256(jsonencode({ version = var.secret_version, scripts = var.config_files }))
     }
     network {
       mode = "cni/cowork"
@@ -133,7 +126,6 @@ job "cowork-project-db" {
         args  = ["--bind-address=127.0.0.1", "--socket=/alloc/tmp/mysql.sock", "--mysqlx=0", "--innodb-buffer-pool-size=134217728", "--max-connections=100", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
       }
       env {
-        MYSQL_DATABASE  = var.runtime_env["DB_NAME"]
         MYSQL_ROOT_HOST = "localhost"
       }
       resources {
@@ -159,6 +151,7 @@ job "cowork-project-db" {
       template {
         data                 = <<-ENV
 {{ with secret "${var.vault_mount}/data/nomad/data/project?version=${var.secret_version}" }}
+MYSQL_DATABASE={{ .Data.data.DB_NAME | toJSON }}
 MYSQL_ROOT_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
 {{ end }}
 ENV
@@ -175,7 +168,6 @@ ENV
     }
     task "initialize" {
       driver = "docker"
-      env    = var.runtime_env
       lifecycle {
         hook    = "poststart"
         sidecar = false
@@ -207,6 +199,8 @@ ENV
       template {
         data                 = <<-ENV
 {{ with secret "${var.vault_mount}/data/nomad/data/project?version=${var.secret_version}" }}
+DB_NAME={{ .Data.data.DB_NAME | toJSON }}
+DB_USERNAME={{ .Data.data.DB_USERNAME | toJSON }}
 DB_ADMIN_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
 DB_PASSWORD={{ .Data.data.DB_PASSWORD | toJSON }}
 DB_MONITORING_PASSWORD={{ .Data.data.DB_MONITORING_PASSWORD | toJSON }}
@@ -231,9 +225,6 @@ ENV
     }
     task "exporter" {
       driver = "docker"
-      env = merge(var.runtime_env, {
-
-      })
       config {
         image = "prom/mysqld-exporter:v0.20.0@sha256:abed8dac117b4ae5b70757f988e44795935b9a72c3b58d720c67ba688f8cb79e"
         args  = ["--mysqld.address=127.0.0.1:3306", "--mysqld.username=cowork_monitoring"]

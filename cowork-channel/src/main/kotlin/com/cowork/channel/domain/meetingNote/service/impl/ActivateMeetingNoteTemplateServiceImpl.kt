@@ -11,7 +11,6 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-@Transactional
 class ActivateMeetingNoteTemplateServiceImpl(
     private val templateRepository: MeetingNoteTemplateRepository,
     private val sectionRepository: TemplateSectionRepository,
@@ -19,13 +18,14 @@ class ActivateMeetingNoteTemplateServiceImpl(
     private val lookupSupport: MeetingNoteTemplateLookupSupport,
 ) : ActivateMeetingNoteTemplateService {
 
+    @Transactional
     override fun activateTemplate(userId: Long, channelId: Long, templateId: Long): MeetingNoteTemplateResponse {
-        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
+        meetingNoteAccessGuard.requireChannelAccessForUpdate(channelId, userId)
         val template = lookupSupport.findTemplateOrThrow(templateId)
         lookupSupport.requireTemplateOwnership(template, channelId)
-        templateRepository.findByChannelIdAndIsActiveTrue(channelId)
-            ?.takeIf { it.id != templateId }
-            ?.deactivate()
+        templateRepository.findAllByChannelIdAndIsActiveTrue(channelId)
+            .filter { it.id != templateId }
+            .forEach { it.deactivate() }
         template.activate()
         val sections = sectionRepository.findAllByTemplateIdOrderByIdAsc(templateId)
             .map { TemplateSectionResponse.of(it) }

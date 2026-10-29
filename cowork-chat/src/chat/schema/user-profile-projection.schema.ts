@@ -1,18 +1,19 @@
-import {Prop, Schema, SchemaFactory} from '@nestjs/mongoose';
+import {Prop as prop, Schema as schema, SchemaFactory} from '@nestjs/mongoose';
+import {type Nullable} from '../../common/type/nullable.js';
 
 /**
 `user.profile.event.v2`로 동기화되는 사용자 표시 정보 읽기 모델.
 */
-@Schema({timestamps: true, versionKey: false})
+@schema({timestamps: true, versionKey: false})
 export class UserProfileProjection {
-    @Prop({required: true}) userId!: number;
-    @Prop({required: true, default: ''}) name!: string;
-    @Prop({type: String, default: null}) nickname!: string | null;
-    @Prop({type: String, default: null}) githubId!: string | null;
-    @Prop({required: true, default: false}) deleted!: boolean;
-    @Prop({required: true, type: Date}) sourceOccurredAt!: Date;
-    @Prop({required: true}) sourceVersion!: bigint;
+	@prop({required: true}) userId!: number;
+	@prop({required: true, default: ''}) name!: string;
+	@prop({type: String, default: null}) nickname!: Nullable<string>;
+	@prop({type: String, default: null}) githubId!: Nullable<string>;
+	@prop({required: true, default: false}) deleted!: boolean;
+	@prop({required: true, type: Date}) sourceOccurredAt!: Date;
+	@prop({required: true}) sourceVersion!: bigint;
 }
 
-export const UserProfileProjectionSchema = SchemaFactory.createForClass(UserProfileProjection);
-UserProfileProjectionSchema.index({userId: 1}, {unique: true});
+export const userProfileProjectionSchema = SchemaFactory.createForClass(UserProfileProjection)
+	.index({userId: 1}, {unique: true});
