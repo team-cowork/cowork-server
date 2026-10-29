@@ -2,7 +2,7 @@
   "asyncapi": "2.6.0",
   "info": {
     "title": "cowork Chat WebSocket API",
-    "version": "20261025.0",
+    "version": "20261029.0",
     "description": "Socket.IO /chat 네임스페이스의 실시간 이벤트 명세. 메시지 작성은 WebSocket 이벤트가 아니라 REST API와 chat.message.v2 Kafka 흐름을 사용합니다."
   },
   "servers": {
