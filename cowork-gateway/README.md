@@ -7,6 +7,7 @@
 - JWT 검증과 사용자 식별 헤더 전달
 - 설정된 upstream으로 서비스 라우팅과 전역 CORS 처리
 - 요청 속도 제한, circuit breaker·retry와 공통 응답 처리
+- 배포 중인 서비스의 HTTP 요청 안내와 DataGSM 웹훅 영속 접수
 - 서비스별 OpenAPI를 모은 Swagger UI 제공
 
 ## 스택
@@ -33,8 +34,9 @@
 | `COWORK_CHAT_WS_URL` | Chat WebSocket upstream |
 | `JWT_SECRET` | 사용자 JWT 검증 키 |
 | `WEBHOOK_URL_SIGNING_KEY` | Preference와 공유하는 웹훅 URL 서명 키 |
+| `DATAGSM_WEBHOOK_SECRET` | Authorization과 공유하는 DataGSM 웹훅 HMAC 검증 키. 새 키를 적용한 Authorization은 이전 키로 서명된 대기 항목을 `invalid`로 분류해 로그·지표 기록 후 삭제 |
 | `DEV_ORIGIN_CREDENTIAL` | 허용된 개발 origin의 접근 자격증명 |
-| `REDIS_HOST`, `REDIS_PORT` | 요청 제한 저장소 |
+| `REDIS_HOST`, `REDIS_PORT` | 요청 제한, 배포 상태, DataGSM 웹훅 접수 저장소 |
 | `PUBLIC_WEB_ORIGINS` | HTTP와 WebSocket에서 허용할 origin |
 | `S3_TEAM_INTERNAL_ENDPOINT`, `S3_USER_INTERNAL_ENDPOINT`, `S3_CHAT_INTERNAL_ENDPOINT` | 서비스별 파일 relay upstream |
 
