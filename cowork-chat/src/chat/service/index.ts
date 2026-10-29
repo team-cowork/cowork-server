@@ -6,5 +6,6 @@ export * from './chat-message-quarantine.service.js';
 export * from './message-scope.js';
 export * from './project.client.js';
 export * from './slowmode.service.js';
+export * from './tag-spam.service.js';
 export * from './unread-counter.service.js';
 export * from './user.client.js';
