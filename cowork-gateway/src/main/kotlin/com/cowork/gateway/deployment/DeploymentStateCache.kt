@@ -1,5 +1,6 @@
 package com.cowork.gateway.deployment
 
+import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -26,10 +27,31 @@ class DeploymentStateCache(
     private val redis: ReactiveStringRedisTemplate,
     private val objectMapper: ObjectMapper,
     private val meterRegistry: MeterRegistry,
+    properties: DeploymentProperties,
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
     private val confirmed = AtomicReference<Map<String, DeploymentState>?>(null)
     private val failing = AtomicBoolean(false)
+
+    init {
+        Gauge.builder("gateway.deployment.state.initialized", confirmed) {
+            if (it.get() == null) 0.0 else 1.0
+        }.description("Whether this Gateway has synchronized deployment state at least once")
+            .register(meterRegistry)
+        properties.destinations.keys.forEach { service ->
+            Gauge.builder("gateway.deployment.state", confirmed) {
+                val snapshot = it.get()
+                when {
+                    snapshot == null -> Double.NaN
+                    snapshot[service]?.phase == "deploying" -> 1.0
+                    snapshot[service]?.phase == "recovering" -> 2.0
+                    else -> 0.0
+                }
+            }.tag("target_service", service)
+                .description("Last confirmed deployment state: 0 normal, 1 deploying, 2 recovering")
+                .register(meterRegistry)
+        }
+    }
 
     fun snapshot(): Map<String, DeploymentState>? = confirmed.get()
 
