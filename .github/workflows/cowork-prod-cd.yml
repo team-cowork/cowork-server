@@ -113,7 +113,6 @@ jobs:
         uses: ./.github/actions/build-image
         with:
           service: ${{ matrix.service }}
-          environment: prod
           context: ${{ matrix.context }}
           dockerfile: ${{ matrix.dockerfile }}
           push: 'true'

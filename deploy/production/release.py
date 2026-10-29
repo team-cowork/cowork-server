@@ -181,11 +181,11 @@ def prepare(args):
     affected = runpy.run_path(str(ROOT / "deploy/images/build-matrix.py"))["affected"]
     catalog = application_catalog()
     selected = []
-    for name, spec in sorted(catalog.items()):
+    for name, context in sorted(catalog.items()):
         prior = previous.get("applications", {}).get(name)
         if not prior or affected(name, changed_paths(prior["image_source_sha"], sha)):
-            selected.append({"service": name, "context": spec["prod"],
-                             "dockerfile": f"cowork-{name}/Dockerfile.prod", "application": True})
+            selected.append({"service": name, "context": context,
+                             "dockerfile": f"cowork-{name}/Dockerfile", "application": True})
     version = reserve(sha, [item["service"] for item in selected]) or manifest_version(previous)
     changed = changed_paths(previous["source_sha"], sha) if previous.get("source_sha") else None
     for name, dockerfile in INFRASTRUCTURE.items():

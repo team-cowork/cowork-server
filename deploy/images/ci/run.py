@@ -9,28 +9,28 @@ from pathlib import Path
 import report
 
 
-def has_contract(source, module, environment):
-    dockerfile = source / module / f"Dockerfile.{environment}"
+def has_contract(source, module):
+    dockerfile = source / module / "Dockerfile"
     return dockerfile.is_file() and re.search(r"^FROM\s+(?:--[^\s]+\s+)*[^\s]+\s+AS\s+verify\s*$", dockerfile.read_text(), re.I | re.M) is not None
 
 
-def plan(base, head, selection, output, environment):
+def plan(base, head, selection, output):
     modules = sorted({"cowork-" + entry["service"] for entry in selection["include"]})
     manifest = {"modules": [{"module": name, "metric": "line"} for name in modules], "excluded": []}
     output.write_text(json.dumps(manifest, indent=2) + "\n")
-    matrix = {"include": [{"module": name, "snapshot": snapshot, "contract": has_contract(source, name, environment),
+    matrix = {"include": [{"module": name, "snapshot": snapshot, "contract": has_contract(source, name),
                             "present": (source / name).is_dir()}
                            for name in modules for snapshot, source in (("base", base), ("pr", head))]}
     print(json.dumps(matrix, separators=(",", ":")))
 
 
-def collect(module, snapshot, source, artifact, output, environment):
+def collect(module, snapshot, source, artifact, output):
     result = dict(module=module, snapshot=snapshot, metric="line", status="missing", covered=None, total=None)
     if not (source / module).is_dir():
         result.update(status="absent", reason="Module does not exist at this revision")
-    elif not has_contract(source, module, environment):
+    elif not has_contract(source, module):
         revision = "기준 커밋" if snapshot == "base" else "현재 커밋"
-        result.update(reason=f"{revision}의 Dockerfile.{environment}에 verify 단계가 없어 커버리지를 측정하지 않았습니다.")
+        result.update(reason=f"{revision}의 Dockerfile에 verify 단계가 없어 커버리지를 측정하지 않았습니다.")
     else:
         try:
             raw = json.loads((artifact / "coverage.json").read_text())
@@ -83,25 +83,23 @@ def main():
     planner.add_argument("--head", type=Path, required=True)
     planner.add_argument("--matrix", type=json.loads, required=True)
     planner.add_argument("--output", type=Path, required=True)
-    planner.add_argument("--environment", choices=("local", "prod"), required=True)
     collector = commands.add_parser("collect")
     collector.add_argument("--module", required=True)
     collector.add_argument("--snapshot", choices=("base", "pr"), default="pr")
     collector.add_argument("--source", type=Path, default=Path("."))
     collector.add_argument("--artifact", type=Path, required=True)
     collector.add_argument("--output", type=Path, required=True)
-    collector.add_argument("--environment", choices=("local", "prod"), required=True)
     renderer = commands.add_parser("render")
     renderer.add_argument("--artifacts", type=Path, required=True)
     renderer.add_argument("--manifest", type=Path, required=True)
     renderer.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "plan":
-        plan(args.base, args.head, args.matrix, args.output, args.environment)
+        plan(args.base, args.head, args.matrix, args.output)
     elif args.command == "collect":
         if re.fullmatch(r"cowork-[a-z][a-z0-9-]*", args.module) is None:
             parser.error("invalid module name")
-        sys.exit(collect(args.module, args.snapshot, args.source, args.artifact, args.output, args.environment))
+        sys.exit(collect(args.module, args.snapshot, args.source, args.artifact, args.output))
     else:
         render(args.artifacts, args.manifest, args.output)
 
