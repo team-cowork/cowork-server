@@ -236,7 +236,7 @@ export class ProjectionCheckpointRepository {
             },
             $currentDate: {assignmentLeaseRenewedAt: true},
         };
-        const available = await this.model.findOneAndUpdate(filter, leaseUpdate, {new: true}).lean<{
+        const available = await this.model.findOneAndUpdate(filter, leaseUpdate, {returnDocument: 'after'}).lean<{
             nextOffset: bigint;
             snapshotCompletedOffset?: bigint | null;
             snapshotId?: string | null;
@@ -269,7 +269,7 @@ export class ProjectionCheckpointRepository {
                         nextOffset: BigInt(earliestOffset),
                     },
                 },
-                {upsert: true, new: true},
+                {upsert: true, returnDocument: 'after'},
             ).lean<{nextOffset: bigint} | null>();
             if (!inserted) {
                 return undefined;
