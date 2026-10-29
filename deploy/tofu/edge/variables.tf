@@ -36,6 +36,21 @@ variable "vault_mount" {
     error_message = "Use one KV mount name."
   }
 }
+variable "gateway_canary_count" {
+  type    = number
+  default = 1
+  validation {
+    condition     = var.gateway_canary_count == 0 || var.gateway_canary_count == 1
+    error_message = "Use zero only for the explicit first stop/start cutover."
+  }
+}
+variable "gateway_host_port" {
+  type = number
+  validation {
+    condition     = var.gateway_host_port == 21000 || var.gateway_host_port == 21001
+    error_message = "Gateway host ingress uses only 21000 or 21001."
+  }
+}
 variable "state_passphrase" {
   type        = string
   sensitive   = true
