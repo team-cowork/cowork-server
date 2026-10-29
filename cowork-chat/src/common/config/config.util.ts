@@ -1,7 +1,8 @@
 import process from 'node:process';
 import {readFileSync} from 'node:fs';
+import {Logger} from '@nestjs/common';
 import {type ConfigService} from '@nestjs/config';
-import {type KafkaConfig, type SASLOptions} from 'kafkajs';
+import {type KafkaConfig, logLevel, type SASLOptions} from 'kafkajs';
 
 type ConfigKey = string | string[];
 
@@ -57,6 +58,35 @@ export function getKafkaClientConfig(configService: ConfigService): KafkaConfig 
 
 	const config: KafkaConfig = {
 		brokers: getRequiredCsvConfig(configService, 'KAFKA_BOOTSTRAP_SERVERS'),
+		// KafkaJS 기본 로그에는 @timestamp가 없어 공통 Pino 로거로 전달한다.
+		logCreator: () => ({namespace, level, log}) => {
+			const logger = new Logger(['KafkaJS', namespace].filter(Boolean).join(':'));
+			switch (level) {
+				case logLevel.ERROR: {
+					logger.error(log);
+					break;
+				}
+
+				case logLevel.WARN: {
+					logger.warn(log);
+					break;
+				}
+
+				case logLevel.INFO: {
+					logger.log(log);
+					break;
+				}
+
+				case logLevel.DEBUG: {
+					logger.debug(log);
+					break;
+				}
+
+				case logLevel.NOTHING: {
+					break;
+				}
+			}
+		},
 	};
 	if (protocol !== 'PLAINTEXT') {
 		const caFile = getOptionalConfig(configService, 'KAFKA_SSL_CA_LOCATION');
