@@ -11,6 +11,11 @@ platform_agent_hosts: "{{ groups['control_plane'] + groups['nomad_clients'] }}"
 platform_active_hosts: "{{ platform_agent_hosts + groups['vault_hosts'] }}"
 platform_agent_ips: "{{ platform_agent_hosts | map('extract', hostvars, 'private_ip') | list }}"
 ansible_ssh_common_args: "-o UserKnownHostsFile={{ inventory_dir }}/known_hosts -o StrictHostKeyChecking=yes"
+platform_emergency_app_log_paths:
+  channel: /var/log/cowork/cowork-channel/app.log
+  project: /var/log/cowork/cowork-project/app.log
+  roadmap: /var/log/cowork/cowork-roadmap/app.log
+  preference: /var/log/cowork/preference/app.log
 platform_data_volumes:
   authorization: [{name: authorization-db, uid: 999}]
   user: [{name: user-db, uid: 999}, {name: user-storage, uid: 10001}]
