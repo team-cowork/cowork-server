@@ -151,7 +151,7 @@ jobs:
           retention-days: 7
 
   sync-secrets:
-    name: Pin Secrets For ${{ matrix.service }}
+    name: Pin Runtime Settings For ${{ matrix.service }}
     needs: [prepare, build-images]
     if: >-
       !cancelled() && needs.prepare.result == 'success' && needs.prepare.outputs.mode == 'release' &&
@@ -180,11 +180,30 @@ jobs:
           python-version: ${{ steps.python-version.outputs.version }}
       - name: Install Pinned Deployment Dependencies
         run: python3 -m pip install -r deploy/production/requirements.txt
-      - name: Publish Declared Secrets To Vault
+      - name: Publish Declared Settings To Vault
         env:
           SERVICE: ${{ matrix.service }}
           VAULT_ADDR: ${{ vars.VAULT_ADDR }}
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          GH_VARIABLE_COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID: ${{ contains(matrix.variable_names, 'COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID') && vars.COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID || '' }}
+          GH_VARIABLE_COWORK_GITHUB_APP_ID: ${{ contains(matrix.variable_names, 'COWORK_GITHUB_APP_ID') && vars.COWORK_GITHUB_APP_ID || '' }}
+          GH_VARIABLE_COWORK_GITHUB_APP_SLUG: ${{ contains(matrix.variable_names, 'COWORK_GITHUB_APP_SLUG') && vars.COWORK_GITHUB_APP_SLUG || '' }}
+          GH_VARIABLE_DATAGSM_CLIENT_ID: ${{ contains(matrix.variable_names, 'DATAGSM_CLIENT_ID') && vars.DATAGSM_CLIENT_ID || '' }}
+          GH_VARIABLE_DB_NAME: ${{ contains(matrix.variable_names, 'DB_NAME') && vars.DB_NAME || '' }}
+          GH_VARIABLE_DB_USERNAME: ${{ contains(matrix.variable_names, 'DB_USERNAME') && vars.DB_USERNAME || '' }}
+          GH_VARIABLE_FACEBOOK_ACCOUNT_SHARE_CLIENT_ID: ${{ contains(matrix.variable_names, 'FACEBOOK_ACCOUNT_SHARE_CLIENT_ID') && vars.FACEBOOK_ACCOUNT_SHARE_CLIENT_ID || '' }}
+          GH_VARIABLE_FCM_DATA_ONLY: ${{ contains(matrix.variable_names, 'FCM_DATA_ONLY') && vars.FCM_DATA_ONLY || '' }}
+          GH_VARIABLE_GOOGLE_ACCOUNT_SHARE_CLIENT_ID: ${{ contains(matrix.variable_names, 'GOOGLE_ACCOUNT_SHARE_CLIENT_ID') && vars.GOOGLE_ACCOUNT_SHARE_CLIENT_ID || '' }}
+          GH_VARIABLE_GRAFANA_ROOT_URL: ${{ contains(matrix.variable_names, 'GRAFANA_ROOT_URL') && vars.GRAFANA_ROOT_URL || '' }}
+          GH_VARIABLE_JIRA_ACCOUNT_SHARE_CLIENT_ID: ${{ contains(matrix.variable_names, 'JIRA_ACCOUNT_SHARE_CLIENT_ID') && vars.JIRA_ACCOUNT_SHARE_CLIENT_ID || '' }}
+          GH_VARIABLE_JWT_ACCESS_EXPIRE: ${{ contains(matrix.variable_names, 'JWT_ACCESS_EXPIRE') && vars.JWT_ACCESS_EXPIRE || '' }}
+          GH_VARIABLE_JWT_REFRESH_EXPIRE: ${{ contains(matrix.variable_names, 'JWT_REFRESH_EXPIRE') && vars.JWT_REFRESH_EXPIRE || '' }}
+          GH_VARIABLE_LIVEKIT_WS_URL: ${{ contains(matrix.variable_names, 'LIVEKIT_WS_URL') && vars.LIVEKIT_WS_URL || '' }}
+          GH_VARIABLE_NOTION_ACCOUNT_SHARE_CLIENT_ID: ${{ contains(matrix.variable_names, 'NOTION_ACCOUNT_SHARE_CLIENT_ID') && vars.NOTION_ACCOUNT_SHARE_CLIENT_ID || '' }}
+          GH_VARIABLE_PUBLIC_API_BASE_URL: ${{ contains(matrix.variable_names, 'PUBLIC_API_BASE_URL') && vars.PUBLIC_API_BASE_URL || '' }}
+          GH_VARIABLE_PUBLIC_WEB_ORIGINS: ${{ contains(matrix.variable_names, 'PUBLIC_WEB_ORIGINS') && vars.PUBLIC_WEB_ORIGINS || '' }}
+          GH_VARIABLE_S3_BUCKET: ${{ contains(matrix.variable_names, 'S3_BUCKET') && vars.S3_BUCKET || '' }}
+          GH_VARIABLE_S3_REGION: ${{ contains(matrix.variable_names, 'S3_REGION') && vars.S3_REGION || '' }}
           GH_SECRET_ACCOUNT_CREDENTIAL_ENCRYPTION_KEY: ${{ contains(matrix.secret_names, 'ACCOUNT_CREDENTIAL_ENCRYPTION_KEY') && secrets.ACCOUNT_CREDENTIAL_ENCRYPTION_KEY || '' }}
           GH_SECRET_ACCOUNT_SHARE_OAUTH_STATE_SECRET: ${{ contains(matrix.secret_names, 'ACCOUNT_SHARE_OAUTH_STATE_SECRET') && secrets.ACCOUNT_SHARE_OAUTH_STATE_SECRET || '' }}
           GH_SECRET_COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET') && secrets.COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET || '' }}
@@ -196,8 +215,8 @@ jobs:
           GH_SECRET_DB_MONITORING_PASSWORD: ${{ contains(matrix.secret_names, 'DB_MONITORING_PASSWORD') && secrets.DB_MONITORING_PASSWORD || '' }}
           GH_SECRET_DB_PASSWORD: ${{ contains(matrix.secret_names, 'DB_PASSWORD') && secrets.DB_PASSWORD || '' }}
           GH_SECRET_DEV_ORIGIN_CREDENTIAL: ${{ contains(matrix.secret_names, 'DEV_ORIGIN_CREDENTIAL') && secrets.DEV_ORIGIN_CREDENTIAL || '' }}
-          GH_SECRET_DISCORD_MONITORING_ALERT_WEBHOOK: ${{ contains(matrix.secret_names, 'DISCORD_MONITORING_ALERT_WEBHOOK') && secrets.DISCORD_MONITORING_ALERT_WEBHOOK || '' }}
-          GH_SECRET_DISCORD_WEBHOOK_URL: ${{ contains(matrix.secret_names, 'DISCORD_WEBHOOK_URL') && secrets.DISCORD_WEBHOOK_URL || '' }}
+          GH_SECRET_DISCORD_MONITORING_ALERT_WEBHOOK_URL: ${{ contains(matrix.secret_names, 'DISCORD_MONITORING_ALERT_WEBHOOK_URL') && secrets.DISCORD_MONITORING_ALERT_WEBHOOK_URL || '' }}
+          GH_SECRET_DISCORD_CHAT_ERROR_WEBHOOK_URL: ${{ contains(matrix.secret_names, 'DISCORD_CHAT_ERROR_WEBHOOK_URL') && secrets.DISCORD_CHAT_ERROR_WEBHOOK_URL || '' }}
           GH_SECRET_ELASTICSEARCH_ADMIN_PASSWORD: ${{ contains(matrix.secret_names, 'ELASTICSEARCH_ADMIN_PASSWORD') && secrets.ELASTICSEARCH_ADMIN_PASSWORD || '' }}
           GH_SECRET_ELASTICSEARCH_URL: ${{ contains(matrix.secret_names, 'ELASTICSEARCH_URL') && secrets.ELASTICSEARCH_URL || '' }}
           GH_SECRET_FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET') && secrets.FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET || '' }}
@@ -261,7 +280,7 @@ jobs:
           client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           permission-contents: write
-      - name: Commit Immutable References Before Applying
+      - name: Commit Versions And Immutable References Before Applying
         id: commit
         env:
           GH_TOKEN: ${{ github.token }}
@@ -346,11 +365,11 @@ jobs:
           PYTHON
 
   publish:
-    name: Stamp Successful Versions And Publish Release
-    needs: [prepare, manifest, apply]
+    name: Publish Committed Release
+    needs: [prepare, manifest]
     if: >-
-      !cancelled() && needs.prepare.outputs.mode != 'plan' && needs.prepare.outputs.version != '' &&
-      needs.apply.result == 'success' &&
+      !cancelled() && needs.prepare.result == 'success' &&
+      needs.prepare.outputs.mode != 'plan' && needs.prepare.outputs.version != '' &&
       (needs.manifest.result == 'success' || needs.prepare.outputs.mode == 'apply')
     runs-on: ubuntu-latest
     permissions:
@@ -361,16 +380,86 @@ jobs:
           persist-credentials: false
           ref: ${{ needs.manifest.outputs.sha || github.sha }}
           fetch-depth: 0
-      - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
-        id: app
-        with:
-          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
-          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-          permission-contents: write
-      - name: Finalize Successful Source Release
+      - name: Publish Committed Source Release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ needs.prepare.outputs.source_sha }}
-          RELEASE_PUSH_TOKEN: ${{ steps.app.outputs.token }}
-          RELEASE_APP_SLUG: ${{ steps.app.outputs.app-slug }}
-        run: python3 deploy/production/release.py finalize
+        run: python3 deploy/production/release.py publish
+
+  notify:
+    name: Send Deployment Notification
+    runs-on: ubuntu-latest
+    needs: [prepare, build-images, sync-secrets, manifest, apply, publish]
+    env:
+      RESULT_LABELS: '{"success":"성공","failure":"실패","cancelled":"취소됨","skipped":"건너뜀","neutral":"중립","timed_out":"시간 초과","action_required":"조치 필요","stale":"만료됨"}'
+    if: >-
+      always() && github.repository == 'team-cowork/cowork-server' && (
+        (github.event_name == 'workflow_run' &&
+         github.event.workflow_run.event == 'push' &&
+         github.event.workflow_run.actor.login != 'cowork-server-versioning-bot[bot]' &&
+         github.event.workflow_run.head_branch == 'main' &&
+         github.event.workflow_run.head_repository.full_name == github.repository) ||
+        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+      )
+    steps:
+      - name: Get Short SHA
+        id: sha
+        env:
+          RELEASE_SHA: ${{ needs.prepare.outputs.source_sha || github.event.workflow_run.head_sha || github.sha }}
+        run: echo "short=${RELEASE_SHA:0:7}" >> "$GITHUB_OUTPUT"
+      - name: Determine Status
+        id: status
+        env:
+          RESULTS: "${{ needs.prepare.result }} ${{ needs.build-images.result }} ${{ needs.sync-secrets.result }} ${{ needs.manifest.result }} ${{ needs.apply.result }} ${{ needs.publish.result }}"
+          APPLY_RESULT: ${{ needs.apply.result }}
+          MODE: ${{ needs.prepare.outputs.mode || inputs.operation || 'release' }}
+        run: |
+          status="success"
+          color="0x4CAF50"
+          for res in ${RESULTS}; do
+            if [ "$res" = "failure" ]; then
+              status="failure"
+              color="0xFF4C4C"
+              break
+            elif [ "$res" = "cancelled" ] && [ "$status" != "failure" ]; then
+              status="cancelled"
+              color="0xFFA500"
+            fi
+          done
+          # 선행 CI 실패 등으로 클러스터 작업이 실행되지 않으면 성공으로 알리지 않는다.
+          if [ "$status" = "success" ] && [ "$APPLY_RESULT" != "success" ]; then
+            status="cancelled"
+            color="0xFFA500"
+          fi
+          case "$MODE" in
+            plan) operation="배포 계획 확인"; apply_label="계획 확인" ;;
+            apply) operation="현재 선언 적용"; apply_label="클러스터 배포" ;;
+            *) operation="릴리스 배포"; apply_label="클러스터 배포" ;;
+          esac
+          echo "status=${status}" >> "$GITHUB_OUTPUT"
+          echo "color=${color}" >> "$GITHUB_OUTPUT"
+          echo "operation=${operation}" >> "$GITHUB_OUTPUT"
+          echo "apply_label=${apply_label}" >> "$GITHUB_OUTPUT"
+      - name: Send Discord Notification
+        uses: sarisia/actions-status-discord@eb045afee445dc055c18d3d90bd0f244fd062708 # v1
+        with:
+          webhook: ${{ secrets.DISCORD_CICD_STATUS_WEBHOOK_URL }}
+          status: ${{ steps.status.outputs.status }}
+          color: ${{ steps.status.outputs.color }}
+          nodetail: true
+          url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          title: "[${{ fromJSON(env.RESULT_LABELS)[steps.status.outputs.status] || '확인 불가' }}] cowork Prod CD · ${{ steps.status.outputs.operation }}"
+          description: |
+            **저장소:** ${{ github.repository }}
+            `${{ github.event.workflow_run.head_branch || github.ref_name }}` · `${{ steps.sha.outputs.short }}` · 실행자 **${{ github.actor }}**
+            **버전:** ${{ needs.prepare.outputs.version || '해당 없음' }}
+            **작업:** ${{ steps.status.outputs.operation }}
+            **선행 CI:** ${{ github.event_name == 'workflow_dispatch' && '해당 없음 (수동 실행)' || fromJSON(env.RESULT_LABELS)[github.event.workflow_run.conclusion] || '확인 불가' }}
+            **대상:** 전체 운영 VM
+            ─────────────────────────────
+            **배포 준비:** ${{ fromJSON(env.RESULT_LABELS)[needs.prepare.result] || '확인 불가' }}
+            **이미지 빌드:** ${{ fromJSON(env.RESULT_LABELS)[needs.build-images.result] || '확인 불가' }}
+            **설정 동기화:** ${{ fromJSON(env.RESULT_LABELS)[needs.sync-secrets.result] || '확인 불가' }}
+            **매니페스트 반영:** ${{ fromJSON(env.RESULT_LABELS)[needs.manifest.result] || '확인 불가' }}
+            **${{ steps.status.outputs.apply_label }}:** ${{ fromJSON(env.RESULT_LABELS)[needs.apply.result] || '확인 불가' }}
+            **릴리스 게시:** ${{ fromJSON(env.RESULT_LABELS)[needs.publish.result] || '확인 불가' }}

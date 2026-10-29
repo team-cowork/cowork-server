@@ -162,7 +162,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 			imports: [ConfigModule],
 			inject: [ConfigService],
 			useFactory: (...[configService]: unknown[]) => ({
-				webhookUrl: getOptionalConfig(configService as ConfigService, 'DISCORD_WEBHOOK_URL'),
+				webhookUrl: getOptionalConfig(configService as ConfigService, 'DISCORD_CHAT_ERROR_WEBHOOK_URL'),
 				applicationName: 'cowork-chat',
 				locale: 'ko',
 			}),
