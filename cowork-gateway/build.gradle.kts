@@ -2,7 +2,7 @@ plugins {
     id("cowork.kotlin-conventions")
 }
 
-version = "20261028.4"
+version = "20261029.0"
 
 dependencies {
     implementation(libs.spring.cloud.starter.gateway)

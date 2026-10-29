@@ -126,7 +126,7 @@ async function bootstrap() {
 			+ '```\n'
 			+ '인증 실패 시 `connect_error`가 전달됩니다.',
 		)
-		.setVersion('20261025.0')
+		.setVersion('20261029.0')
 		.addServer('/api/chat', 'Gateway')
 		.addBearerAuth(
 			{

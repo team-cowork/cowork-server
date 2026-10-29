@@ -3,7 +3,7 @@
   "info": {
     "title": "cowork Preference API",
     "description": "구성 가능한 설정 서비스 — 계정/팀/프로젝트/채널 설정과 프로젝트 역할 관리",
-    "version": "20261025.0"
+    "version": "20261029.0"
   },
   "servers": [
     { "url": "/api/preference", "description": "Gateway" }
