@@ -60,8 +60,13 @@ class DeleteChannelServiceImplTest {
     @Test
     fun `deleteChannel은 채널을 지우기 전에 회의록을 먼저 삭제`() {
         val channel = Channel(
-            id = 2L, teamId = 10L, name = "notes", type = ChannelType.TEXT,
-            viewType = ChannelViewType.MEETING_NOTE, description = null, createdBy = 1L,
+            id = 2L,
+            teamId = 10L,
+            name = "notes",
+            type = ChannelType.TEXT,
+            viewType = ChannelViewType.MEETING_NOTE,
+            description = null,
+            createdBy = 1L,
         )
         every { channelRepository.findById(2L) } returns Optional.of(channel)
 
