@@ -3,6 +3,7 @@
     "environment": "Prod-CD(gateway)",
     "secret_bindings": {
       "JWT_SECRET": "JWT_SECRET",
+      "DATAGSM_WEBHOOK_SECRET": "DATAGSM_WEBHOOK_SECRET",
       "WEBHOOK_URL_SIGNING_KEY": "WEBHOOK_URL_SIGNING_KEY",
       "DEV_ORIGIN_CREDENTIAL": "DEV_ORIGIN_CREDENTIAL"
     },
@@ -29,9 +30,7 @@
       "DB_MONITORING_PASSWORD": "DB_MONITORING_PASSWORD",
       "DB_PASSWORD": "DB_PASSWORD"
     },
-    "optional_secrets": [
-      "DATAGSM_WEBHOOK_SECRET"
-    ],
+    "optional_secrets": [],
     "immutable_secrets": [
       "DB_ADMIN_PASSWORD"
     ],
