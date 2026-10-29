@@ -8,7 +8,7 @@
       "DEV_ORIGIN_CREDENTIAL": "DEV_ORIGIN_CREDENTIAL"
     },
     "data_secret_bindings": {},
-    "optional_secrets": [],
+    "optional_secrets": ["DATAGSM_WEBHOOK_SECRET"],
     "immutable_secrets": [
       "WEBHOOK_URL_SIGNING_KEY"
     ],
@@ -30,7 +30,7 @@
       "DB_MONITORING_PASSWORD": "DB_MONITORING_PASSWORD",
       "DB_PASSWORD": "DB_PASSWORD"
     },
-    "optional_secrets": [],
+    "optional_secrets": ["DATAGSM_WEBHOOK_SECRET"],
     "immutable_secrets": [
       "DB_ADMIN_PASSWORD"
     ],
