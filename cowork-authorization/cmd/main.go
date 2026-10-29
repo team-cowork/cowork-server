@@ -11,6 +11,7 @@ package main
 import (
 	"context"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -44,6 +45,8 @@ const (
 
 func main() {
 	logger.Init("cowork-authorization")
+	gin.DefaultWriter = slog.NewLogLogger(logger.Default.Handler(), slog.LevelInfo).Writer()
+	gin.DefaultErrorWriter = slog.NewLogLogger(logger.Default.Handler(), slog.LevelError).Writer()
 
 	cfg, err := config.Load()
 	if err != nil {

@@ -84,7 +84,7 @@ export class ChatMessageQuarantineRepository {
         return this.model.findOneAndUpdate(
             {status: 'REPROCESS_REQUESTED', payloadTruncated: false, payload: {$type: 'string'}},
             {$set: {status: 'PROCESSING', processingStartedAt: new Date()}},
-            {sort: {reprocessRequestedAt: 1}, new: true},
+            {sort: {reprocessRequestedAt: 1}, returnDocument: 'after'},
         ).lean<ChatMessageQuarantineRecord>();
     }
 
