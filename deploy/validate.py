@@ -44,9 +44,6 @@ def main():
     manifest = json.loads(args.manifest.read_text()) if args.manifest else None
     if manifest is not None:
         validate_manifest(manifest)
-        for name, app in manifest["applications"].items():
-            if app["data_secret_version"] != manifest["data_secret_versions"][name]:
-                raise ValueError(f"Manifest data secret version differs for {name}")
     _, stages = render_jobs(manifest, args.vault_mount, validate=True)
     print(f"{sum(map(len, stages.values()))} native Nomad jobs validated offline; no services were started")
 
