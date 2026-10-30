@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Nomad client host memory every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=5s
+Unit=cowork-nomad-memory.service
+
+[Install]
+WantedBy=timers.target
