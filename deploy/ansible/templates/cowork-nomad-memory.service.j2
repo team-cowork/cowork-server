@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh Nomad client memory after host capacity changes
+After=nomad.service
+
+[Service]
+Type=oneshot
+RuntimeDirectory=cowork-nomad-memory
+RuntimeDirectoryPreserve=yes
+ExecStart={{ platform_python_binary }} /usr/local/bin/cowork-reconcile-nomad-memory.py
+TimeoutStartSec=30s

@@ -109,3 +109,26 @@
     daemon_reload: true
     enabled: true
     state: "{{ 'restarted' if platform_nomad_config.changed or platform_ca_installed.changed or platform_certificate_installed.changed or platform_private_key_installed.changed or platform_agent_units.changed or platform_versions_installed.changed else 'started' }}"
+- name: Reconcile automatic Nomad client memory detection
+  when: inventory_hostname in groups['nomad_clients']
+  block:
+    - name: Install the host memory reconciler
+      ansible.builtin.copy:
+        src: reconcile-nomad-memory.py
+        dest: /usr/local/bin/cowork-reconcile-nomad-memory.py
+        owner: root
+        group: root
+        mode: '0644'
+    - name: Install the host memory reconciliation service and timer
+      ansible.builtin.template:
+        src: "cowork-nomad-memory.{{ item }}.j2"
+        dest: "/etc/systemd/system/cowork-nomad-memory.{{ item }}"
+        mode: '0644'
+      loop: [service, timer]
+      register: platform_nomad_memory_units
+    - name: Enable periodic host memory reconciliation
+      ansible.builtin.systemd_service:
+        name: cowork-nomad-memory.timer
+        daemon_reload: true
+        enabled: true
+        state: "{{ 'restarted' if platform_nomad_memory_units.changed else 'started' }}"
