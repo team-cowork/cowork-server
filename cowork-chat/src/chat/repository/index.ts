@@ -12,6 +12,7 @@ export * from './project-projection.repository.js';
 export * from './team-member-projection.repository.js';
 export * from './team-role-projection.repository.js';
 export * from './text-channel-setting-projection.repository.js';
+export * from './team-setting-projection.repository.js';
 export * from './user-profile-projection.repository.js';
 export * from './versioned-projection.util.js';
 export * from './channel-read-state.repository.js';
