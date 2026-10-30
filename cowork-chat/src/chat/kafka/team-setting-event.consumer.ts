@@ -23,6 +23,7 @@ type TeamSettingEvent = {
 	schemaVersion: 1;
 	eventType: 'UPSERT';
 	teamId: number;
+	// @todo(#624) 임시 호환 코드. preference가 `tagSpamBlock`을 실은 전체 snapshot을 다시 발행하고 compaction으로 이전 레코드가 지워지면 필수 필드로 바꾸고 `?? false` 처리를 지운다.
 	tagSpamBlock?: boolean;
 	occurredAt: string;
 	snapshot?: boolean;
