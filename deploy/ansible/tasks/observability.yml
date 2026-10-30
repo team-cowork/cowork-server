@@ -14,6 +14,7 @@
     - {path: /etc/alloy, group: root, mode: '0755'}
     - {path: /etc/alloy/tls, group: alloy, mode: '0750'}
     - {path: /var/lib/cowork/alloy, group: root, mode: '0700'}
+    - {path: /var/lib/cowork/node-exporter, group: root, mode: '0755'}
 - name: Stage the Docker stdout log pipeline
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../runtime/agents/config.alloy"
@@ -51,6 +52,7 @@
         command:
           - "--web.listen-address={{ private_ip }}:9100"
           - --path.rootfs=/host
+          - --collector.textfile.directory=/host/var/lib/cowork/node-exporter
           - '--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|run|var/lib/docker/.+)($|/)'
           - '--collector.filesystem.fs-types-exclude=^(autofs|overlay|squashfs|tmpfs|devtmpfs|nsfs|fuse\..*)$'
         volumes: ['/:/host:ro,rslave']
