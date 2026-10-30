@@ -83,11 +83,7 @@
   when: inventory_hostname in ['team', 'user', 'chat']
 - name: Install each VM certificate
   ansible.builtin.include_tasks: certificates.yml
-- name: Check whether the native deployment has already cut over
-  ansible.builtin.stat:
-    path: /var/lib/cowork/cutover-complete
-  register: platform_cutover_marker
-- name: Stage the ingress policy
+- name: Reconcile the ingress policy
   ansible.builtin.include_tasks: firewall.yml
 
 - name: Record installed desired binary versions
@@ -97,5 +93,5 @@
     mode: '0644'
   register: platform_versions_installed
 
-- name: Stage or reconcile host observability
+- name: Reconcile host observability
   ansible.builtin.include_tasks: observability.yml

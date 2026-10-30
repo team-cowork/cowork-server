@@ -33,8 +33,7 @@
     - {source: "{{ inventory_hostname }}.key", destination: client.key, mode: '0640'}
   register: platform_alloy_tls
   no_log: true
-- name: Start observability after the legacy agents have stopped
-  when: platform_cutover_marker.stat.exists | default(false) or cowork_cutover | default(false) | bool
+- name: Reconcile host observability containers
   block:
     - name: Reconcile the host metric exporter
       community.docker.docker_container:
