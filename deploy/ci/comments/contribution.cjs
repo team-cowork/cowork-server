@@ -27,7 +27,7 @@ module.exports = async ({ github, context, core }) => {
   const classify = (p) => {
     const top = p.split('/')[0];
     if (modules.includes(top)) return top;
-    if (top === 'deploy') return 'ci/cd';
+    if (top === 'deploy' || top === '.github') return 'ci/cd';
     if (AI.has(top)) return 'ai-harness';
     return 'etc';
   };
