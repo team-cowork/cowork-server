@@ -1,6 +1,6 @@
 ---
 - name: Install the pinned infrastructure CLI
-  ansible.builtin.include_tasks: install-binary.yml
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/host/install-binary.yml"
   vars:
     platform_binary: tofu
 - name: Install runner host dependencies

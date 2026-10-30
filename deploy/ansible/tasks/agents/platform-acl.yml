@@ -13,7 +13,7 @@
   no_log: true
 
 - name: Configure each Consul agent identity
-  ansible.builtin.include_tasks: platform-token.yml
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/agents/platform-token.yml"
   loop: "{{ groups['control_plane'] + groups['nomad_clients'] }}"
   loop_control:
     loop_var: token_host
@@ -26,7 +26,7 @@
       agent "cowork-{{ token_host }}" { policy = "write" }
 
 - name: Configure each Nomad integration identity
-  ansible.builtin.include_tasks: platform-token.yml
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/agents/platform-token.yml"
   loop: "{{ groups['control_plane'] + groups['nomad_clients'] }}"
   loop_control:
     loop_var: token_host
@@ -47,7 +47,7 @@
       {% endif %}
 
 - name: Configure the read only monitoring catalog identity
-  ansible.builtin.include_tasks: platform-token.yml
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/agents/platform-token.yml"
   vars:
     token_name: monitoring-read.consul
     token_policy: |
