@@ -5,7 +5,7 @@ import {
 	Injectable as injectable,
 	Inject as inject,
 } from '@nestjs/common';
-import {RedisRateLimiter} from '../../common/util/redis-rate-limiter.js';
+import {RedisRateLimiter, type WeightedReservation} from '../../common/util/redis-rate-limiter.js';
 import {TeamMemberProjectionRepository, TeamSettingProjectionRepository} from '../repository/index.js';
 import {type Nullable} from '../../common/type/nullable.js';
 import {parseMentions} from '../util/index.js';
@@ -15,11 +15,7 @@ export const MAX_MENTIONS_PER_WINDOW = 20;
 export const MENTION_WINDOW_MS = 60_000;
 const BYPASS_TEAM_ROLES = new Set(['OWNER', 'ADMIN']);
 
-export type TagSpamReservation = {
-	key: string;
-	holder: string;
-	weight: number;
-};
+export type TagSpamReservation = WeightedReservation;
 
 export type TagSpamDecision = 'SKIP' | 'MESSAGE_LIMIT_EXCEEDED' | 'CHECK_WINDOW';
 
@@ -82,10 +78,8 @@ export class TagSpamService {
 			throw new BadRequestException('메시지 하나에 멘션할 수 있는 인원을 넘었습니다.');
 		}
 
-		const key = `chat:mentionrate:${teamId}:${userId}`;
-		const result = await this.rateLimiter.tryReserveWeighted(
-			key, clientMessageId, mentionCount, MENTION_WINDOW_MS, MAX_MENTIONS_PER_WINDOW,
-		);
+		const reservation = {key: `chat:mentionrate:${teamId}:${userId}`, holder: clientMessageId, weight: mentionCount};
+		const result = await this.rateLimiter.tryReserveWeighted(reservation, MENTION_WINDOW_MS, MAX_MENTIONS_PER_WINDOW);
 		if (result === 'BUSY') {
 			throw new HttpException(
 				'짧은 시간에 너무 많은 멘션을 보냈습니다. 잠시 후 다시 시도하십시오.',
@@ -93,12 +87,12 @@ export class TagSpamService {
 			);
 		}
 
-		return result === 'RESERVED' ? {key, holder: clientMessageId, weight: mentionCount} : undefined;
+		return result === 'RESERVED' ? reservation : undefined;
 	}
 
 	async release(reservation: TagSpamReservation | undefined): Promise<void> {
 		if (reservation !== undefined) {
-			await this.rateLimiter.releaseWeighted(reservation.key, reservation.holder, reservation.weight);
+			await this.rateLimiter.releaseWeighted(reservation);
 		}
 	}
 }
