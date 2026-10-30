@@ -25,7 +25,7 @@
 
 ## 환경변수
 
-운영 설정 입력은 [서비스 선언](../deploy/production/services.json)에 정의되어 있습니다.
+운영 설정 입력은 [서비스 선언](../deploy/production/config/services.json)에 정의되어 있습니다.
 
 | 변수 | 설명 |
 |------|------|
