@@ -107,7 +107,9 @@ def render_jobs(manifest=None, vault_mount="secret", gateway_host_port=21000, *,
             variables.write_text("\n".join(f"{key} = {json.dumps(hcl_value(value))}"
                                              for key, value in values.items()))
             if validate:
-                subprocess.run([nomad, "fmt", "-check", str(path)], check=True, capture_output=True, text=True)
+                formatted = subprocess.run([nomad, "fmt", "-check", str(path)], capture_output=True, text=True)
+                if formatted.returncode:
+                    raise ValueError(f"Run nomad fmt on {path.relative_to(ROOT)}: {formatted.stderr or formatted.stdout}")
                 command = [nomad, "job", "validate", "-address=http://127.0.0.1:1"]
             else:
                 command = [nomad, "job", "run", "-output"]
