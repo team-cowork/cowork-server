@@ -132,8 +132,6 @@ def validate_manifest(data):
             raise ValueError(f"Invalid image source/version for {name}")
         if not isinstance(app.get("secret_version"), int) or app["secret_version"] < 1:
             raise ValueError(f"Missing pinned secret version for {name}")
-        if not isinstance(app.get("data_secret_version"), int) or app["data_secret_version"] < 1:
-            raise ValueError(f"Missing pinned data secret version for {name}")
     images = [app["image"] for app in data["applications"].values()] + list(data["infrastructure_images"].values())
     for image in images:
         if not re.fullmatch(r"ghcr\.io/[a-z0-9_.-]+/cowork-[a-z0-9-]+@sha256:[0-9a-f]{64}", image):
@@ -305,7 +303,7 @@ def assemble(args):
         if name == "monitoring":
             platform_versions[name] = int(record["secret_version"])
         if name in apps:
-            apps[name].update(secret_version=int(record["secret_version"]), data_secret_version=versions[name])
+            apps[name]["secret_version"] = int(record["secret_version"])
     manifest["data_secret_versions"] = versions
     manifest["platform_secret_versions"] = platform_versions
     validate_manifest(manifest)
