@@ -365,9 +365,11 @@ jobs:
 
   publish:
     name: Publish Committed Release
-    needs: [prepare, manifest, apply]
+    # Intentionally publish independently of the deployment result.
+    # Do not add apply to needs or require deployment success here.
+    needs: [prepare, manifest]
     if: >-
-      !cancelled() && needs.prepare.result == 'success' && needs.apply.result == 'success' &&
+      !cancelled() && needs.prepare.result == 'success' &&
       needs.prepare.outputs.mode != 'plan' && needs.prepare.outputs.version != '' &&
       (needs.manifest.result == 'success' || needs.prepare.outputs.mode == 'apply')
     runs-on: ubuntu-latest
@@ -447,7 +449,7 @@ jobs:
           color: ${{ steps.status.outputs.color }}
           nodetail: true
           url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          title: "[${{ fromJSON(env.RESULT_LABELS)[steps.status.outputs.status] || '확인 불가' }}] cowork Prod CD · ${{ steps.status.outputs.operation }}"
+          title: "[${{ fromJSON(env.RESULT_LABELS)[steps.status.outputs.status] || '확인 불가' }}] cowork Prod CD"
           description: |
             **저장소:** ${{ github.repository }}
             `${{ github.event.workflow_run.head_branch || github.ref_name }}` · `${{ steps.sha.outputs.short }}` · 실행자 **${{ github.actor }}**
