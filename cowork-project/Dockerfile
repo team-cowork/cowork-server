@@ -18,7 +18,7 @@ RUN java -Djarmode=tools -jar /workspace/app.jar extract \
 FROM builder AS verification
 RUN apk --no-cache add bash python3 curl
 COPY .editorconfig /workspace/.editorconfig
-COPY deploy/images/ci /ci
+COPY deploy/ci/verification /ci
 RUN --mount=type=cache,id=cowork-project-maven,target=/root/.m2,sharing=locked \
     bash /ci/run-jvm.sh maven cowork-project /workspace /coverage \
     && python3 /ci/report.py collect --module cowork-project --snapshot pr --format jacoco --metric line --input /coverage/report.xml --output /coverage/coverage.json --exit-code 0

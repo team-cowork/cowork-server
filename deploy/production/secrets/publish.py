@@ -7,11 +7,11 @@ from pathlib import Path
 import re
 from urllib.parse import unquote, urlsplit
 
-from vault_client import client, read, write
+from deploy.production.secrets.vault_client import client, read, write
 
 
 def publish(service):
-    catalog = json.loads(Path(__file__).with_name("services.json").read_text())
+    catalog = json.loads((Path(__file__).resolve().parents[1] / "config/services.json").read_text())
     spec = catalog[service]
     mount = os.environ.get("VAULT_KV_MOUNT", "secret")
     if not re.fullmatch(r"[a-zA-Z0-9_-]+", mount):

@@ -19,7 +19,7 @@ FROM builder AS verification
 RUN apt-get update && apt-get install -y --no-install-recommends python3 \
     && rm -rf /var/lib/apt/lists/*
 COPY .editorconfig /workspace/.editorconfig
-COPY deploy/images/ci /ci
+COPY deploy/ci/verification /ci
 RUN --mount=type=cache,id=cowork-preference-toolchain,target=/root/.cache,sharing=locked \
     bash /ci/run-jvm.sh kotlin-toolchain cowork-preference /workspace /coverage \
     && python3 /ci/report.py collect --module cowork-preference --snapshot pr --format jacoco --metric line --input /coverage/report.xml --output /coverage/coverage.json --exit-code 0

@@ -6,7 +6,7 @@ import re
 import sys
 from pathlib import Path
 
-import report
+from deploy.ci.verification import report
 
 
 def has_contract(source, module):

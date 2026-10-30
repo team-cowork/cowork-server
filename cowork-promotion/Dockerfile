@@ -8,7 +8,7 @@ RUN npm run lint -- --max-warnings=0 \
 
 FROM builder AS verification
 RUN apk --no-cache add bash python3
-COPY deploy/images/ci /ci
+COPY deploy/ci/verification /ci
 RUN --mount=type=cache,id=npm-promotion,target=/root/.npm \
     bash /ci/run-native.sh node cowork-promotion /workspace /coverage \
     && python3 /ci/report.py collect --module cowork-promotion --snapshot pr --format istanbul --metric line --input /coverage/report.json --output /coverage/coverage.json --exit-code 0

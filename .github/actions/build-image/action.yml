@@ -79,7 +79,7 @@ runs:
         SERVICE: ${{ inputs.service }}
       run: |
         image="${IMAGE_TAGS%%$'\n'*}"
-        python3 deploy/images/inspect-image.py "$SERVICE" "$image"
+        python3 -m deploy.images.inspect_image "$SERVICE" "$image"
     - name: Publish Verified Image With Provenance And SBOM
       if: ${{ inputs.push == 'true' }}
       uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
