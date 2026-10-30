@@ -31,6 +31,12 @@ type RateLimiterRedis = Redis & WithTryAcquireScript;
 
 export type ReservationResult = 'RESERVED' | 'HELD_BY_SAME_HOLDER' | 'BUSY';
 
+export type WeightedReservation = {
+	key: string;
+	holder: string;
+	weight: number;
+};
+
 // KEYS[1]=key ARGV[1]=holder ARGV[2]=ttlMs
 const TRY_RESERVE_SCRIPT = `
 if redis.call('SET', KEYS[1], ARGV[1], 'PX', ARGV[2], 'NX') then
@@ -230,9 +236,7 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
      @returns Redis 오류 시에는 `RESERVED`(fail-open)를 반환한다.
      */
 	async tryReserveWeighted(
-		key: string,
-		holder: string,
-		weight: number,
+		{key, holder, weight}: WeightedReservation,
 		windowMs: number,
 		limit: number,
 	): Promise<ReservationResult> {
@@ -249,7 +253,7 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
 		}
 	}
 
-	async releaseWeighted(key: string, holder: string, weight: number): Promise<void> {
+	async releaseWeighted({key, holder, weight}: WeightedReservation): Promise<void> {
 		try {
 			await this.client.weightedReleaseScript(key, holder, weight);
 		} catch (error) {
