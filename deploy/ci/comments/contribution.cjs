@@ -27,6 +27,7 @@ module.exports = async ({ github, context, core }) => {
   const classify = (p) => {
     const top = p.split('/')[0];
     if (modules.includes(top)) return top;
+    if (top === 'deploy') return 'ci/cd';
     if (AI.has(top)) return 'ai-harness';
     return 'etc';
   };
@@ -129,7 +130,7 @@ module.exports = async ({ github, context, core }) => {
   }
   const emailLogin = new Map([...emailAccountIds].map(([email, id]) => [email, accountLogins.get(id)]));
 
-  const fullCats = modules.concat(['ai-harness', 'etc']);
+  const fullCats = modules.concat(['ci/cd', 'ai-harness', 'etc']);
   const aggregate = (commits, metric) => {
     const contrib = {}, totals = {}, seen = {};
     for (const c of commits) {
