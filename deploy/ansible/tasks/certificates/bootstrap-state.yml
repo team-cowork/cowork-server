@@ -78,7 +78,7 @@
     selfsigned_not_after: '+3650d'
     mode: '0644'
 - name: Issue certificates for the active VMs
-  ansible.builtin.include_tasks: certificate-host.yml
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/certificates/certificate-host.yml"
   loop: "{{ platform_active_hosts }}"
   loop_control:
     loop_var: certificate_host
