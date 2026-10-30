@@ -15,3 +15,6 @@
     group: root
     mode: '0755'
   register: platform_binary_install
+- name: Record the changed binary for its owning service
+  ansible.builtin.set_fact:
+    platform_binary_changes: "{{ platform_binary_changes | default({}) | combine({platform_binary: platform_binary_install.changed}) }}"
