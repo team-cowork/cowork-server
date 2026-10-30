@@ -1,7 +1,7 @@
 ---
 - name: Install the native ingress policy
   ansible.builtin.template:
-    src: firewall.nft.j2
+    src: host/firewall.nft.j2
     dest: /etc/cowork/firewall.nft
     mode: '0644'
   register: platform_firewall_config

@@ -13,7 +13,7 @@ parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--directory', type=Path, required=True)
 parser.add_argument('--tools', nargs='+', choices=['nomad', 'tofu'], default=['nomad', 'tofu'])
 args = parser.parse_args()
-versions = json.loads(Path(__file__).with_name('versions.json').read_text())
+versions = json.loads((Path(__file__).resolve().parents[1] / 'config/versions.json').read_text())
 if platform.system() != 'Linux' or platform.machine() not in ('x86_64', 'AMD64'):
     raise SystemExit('The automated installer supports the pinned Linux amd64 deployment platform')
 args.directory.mkdir(parents=True, exist_ok=True)
