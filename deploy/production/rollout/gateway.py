@@ -13,12 +13,14 @@ class Gateway:
 
     def active_or_absent(self):
         deadline = time.monotonic() + 120
+        last_error = None
         while time.monotonic() < deadline:
             try:
                 job = self.platform.api('job/cowork-gateway', missing=True)
                 if job is None:
                     return None
                 allocations = self.platform.api('job/cowork-gateway/allocations') or []
+                last_error = None
                 active = [allocation for allocation in allocations if allocation['DesiredStatus'] == 'run'
                           and allocation['ClientStatus'] == 'running']
                 if len(active) == 1 and not job.get('Stop'):
@@ -30,9 +32,11 @@ class Gateway:
                            and allocation['ClientStatus'] in ('pending', 'running')]
                 if job.get('Stop') and not pending:
                     return None
-            except TransientPlatformError:
-                pass
+            except TransientPlatformError as error:
+                last_error = error
             time.sleep(3)
+        if last_error is not None:
+            raise last_error
         raise RuntimeError('Gateway job exists but has no healthy allocation; inspect Nomad scheduling '
                            'before changing business services')
 
