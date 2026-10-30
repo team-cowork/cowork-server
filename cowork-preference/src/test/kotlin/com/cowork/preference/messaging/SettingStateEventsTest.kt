@@ -72,6 +72,7 @@ class SettingStateEventsTest {
         assertEquals("3", event.key)
         assertEquals("NONE", event.payload.getString("defaultNotificationLevel"))
         assertEquals(true, event.payload.getBoolean("snapshot"))
+        assertEquals(true, event.payload.getBoolean("tagSpamBlock"))
         assertNull(event.payload.getValue("tag_spam_block"))
     }
 
