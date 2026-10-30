@@ -48,6 +48,8 @@ import {
 	ChannelMessageReadAccessService,
 	ChannelReadService,
 	SlowmodeService,
+	TagSpamService,
+	type TagSpamReservation,
 	RoomSocket,
 	resolveMessageScope,
 } from './service/index.js';
@@ -132,6 +134,9 @@ export class ChatService {
 
 	@inject()
 	private readonly slowmodeService!: SlowmodeService;
+
+	@inject()
+	private readonly tagSpamService!: TagSpamService;
 
 	@inject()
 	private readonly channelReadService!: ChannelReadService;
@@ -541,7 +546,11 @@ export class ChatService {
 		const slowmodeReservation = await this.slowmodeService.reserve(
 			ctx.channelId, scope?.teamId, ctx.userId, clientMessageId,
 		);
+		let tagSpamReservation: TagSpamReservation | undefined;
 		try {
+			tagSpamReservation = await this.tagSpamService.reserve(
+				scope.teamId, ctx.userId, dto.content, clientMessageId,
+			);
 			const attachments = await this.objectStorageService.claimAttachments(
 				dto.attachments ?? [], ctx.channelId, ctx.userId, clientMessageId,
 			);
@@ -555,7 +564,10 @@ export class ChatService {
 				clientMessageId,
 			}, ctx.userId, ctx.userRole);
 		} catch (error) {
-			await this.slowmodeService.release(slowmodeReservation);
+			await Promise.all([
+				this.slowmodeService.release(slowmodeReservation),
+				this.tagSpamService.release(tagSpamReservation),
+			]);
 			throw error;
 		}
 	}
