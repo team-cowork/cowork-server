@@ -102,13 +102,13 @@
     name: consul
     daemon_reload: true
     enabled: true
-    state: "{{ 'restarted' if platform_consul_config.changed or platform_ca_installed.changed or platform_certificate_installed.changed or platform_private_key_installed.changed or platform_agent_units.changed or platform_versions_installed.changed else 'started' }}"
+    state: "{{ 'restarted' if platform_consul_config.changed or platform_ca_installed.changed or platform_certificate_installed.changed or platform_private_key_installed.changed or (platform_agent_units.results | selectattr('item', 'equalto', 'consul') | selectattr('changed') | list | length > 0) or platform_binary_changes.consul else 'started' }}"
 - name: Start or reconcile Nomad
   ansible.builtin.systemd_service:
     name: nomad
     daemon_reload: true
     enabled: true
-    state: "{{ 'restarted' if platform_nomad_config.changed or platform_ca_installed.changed or platform_certificate_installed.changed or platform_private_key_installed.changed or platform_agent_units.changed or platform_versions_installed.changed else 'started' }}"
+    state: "{{ 'restarted' if platform_nomad_config.changed or platform_ca_installed.changed or platform_certificate_installed.changed or platform_private_key_installed.changed or (platform_agent_units.results | selectattr('item', 'equalto', 'nomad') | selectattr('changed') | list | length > 0) or platform_binary_changes.nomad else 'started' }}"
 - name: Reconcile automatic Nomad client memory detection
   when: inventory_hostname in groups['nomad_clients']
   block:
