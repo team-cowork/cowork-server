@@ -87,23 +87,6 @@ def module_files(module):
     return paths
 
 
-def current_version(module):
-    for path in module_files(module):
-        content = (ROOT / path).read_text()
-        if path.endswith("/package.json"):
-            version = json.loads(content)["version"].removesuffix(".0")
-        elif field(path):
-            match = re.search(field(path), content)
-            if match is None:
-                raise ValueError(f"Missing version field: {path}")
-            version = match[0][len(match[1]):len(match[0]) - len(match[2]) or None]
-        else:
-            continue
-        if VERSION.fullmatch(version):
-            return version
-    raise ValueError(f"No valid release version for {module}")
-
-
 def changed_paths(base, head):
     paths = subprocess.check_output(
         ["git", "diff", "--name-only", "--no-renames", "-z", base, head], text=True,
