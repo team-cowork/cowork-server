@@ -282,6 +282,7 @@ object PreferenceEvents {
                     nicknameFormatExample != null && settings.getValue("nickname_format_enforced") == true,
                 )
                 .put("nicknameFormatExample", nicknameFormatExample)
+                .put("tagSpamBlock", validSetting(ResourceType.TEAM, settings, "tag_spam_block") == true)
                 .put("snapshot", snapshot),
             occurredAt = occurredAt,
         )
