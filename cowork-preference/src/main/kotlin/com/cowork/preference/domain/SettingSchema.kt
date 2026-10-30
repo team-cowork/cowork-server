@@ -182,6 +182,9 @@ object SettingSchema {
     }
 
     private fun validateTeam(settings: JsonObject): String? {
+        if (settings.containsKey("tag_spam_block") && settings.getValue("tag_spam_block") !is Boolean) {
+            return "tag_spam_block must be a boolean"
+        }
         if (settings.containsKey("nickname_format_enforced") &&
             settings.getValue("nickname_format_enforced") !is Boolean
         ) {
