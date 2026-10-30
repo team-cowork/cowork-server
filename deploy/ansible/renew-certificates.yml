@@ -20,7 +20,7 @@
         that: platform_renewal_ca.results | map(attribute='stat.exists') | list == [true, true]
         fail_msg: Restore the existing private platform CA before renewing certificates.
     - name: Renew certificates approaching expiry
-      ansible.builtin.include_tasks: tasks/certificate-host.yml
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/certificates/certificate-host.yml"
       loop: "{{ platform_active_hosts }}"
       loop_control:
         loop_var: certificate_host
@@ -31,5 +31,5 @@
   gather_facts: false
   serial: 4
   tasks:
-    - ansible.builtin.include_tasks: tasks/certificates.yml
-    - ansible.builtin.include_tasks: tasks/renew-certificate-consumers.yml
+    - ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/certificates/certificates.yml"
+    - ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/certificates/renew-certificate-consumers.yml"

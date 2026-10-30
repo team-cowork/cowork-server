@@ -6,16 +6,15 @@ import json
 import os
 from pathlib import Path
 import re
-import runpy
 import subprocess
-import sys
 from zoneinfo import ZoneInfo
 
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "deploy/images"))
-from release_fields import VERSION, changed_paths, module_files, normalized, rewrite  # noqa: E402
+from deploy.ci.build_matrix import affected
+from deploy.production.version_fields import VERSION, changed_paths, module_files, normalized, rewrite
 
-MANIFEST = Path("deploy/production/releases.json")
+ROOT = Path(__file__).resolve().parents[2]
+
+MANIFEST = Path("deploy/production/config/releases.json")
 MARKER = "Cowork CD release reservation\n"
 SHA = re.compile(r"[0-9a-f]{40}")
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
@@ -66,7 +65,7 @@ def save(path, data):
 
 
 def services():
-    return json.loads((ROOT / "deploy/production/services.json").read_text())
+    return json.loads((ROOT / "deploy/production/config/services.json").read_text())
 
 
 def application_catalog():
@@ -133,8 +132,6 @@ def validate_manifest(data):
             raise ValueError(f"Invalid image source/version for {name}")
         if not isinstance(app.get("secret_version"), int) or app["secret_version"] < 1:
             raise ValueError(f"Missing pinned secret version for {name}")
-        if not isinstance(app.get("data_secret_version"), int) or app["data_secret_version"] < 1:
-            raise ValueError(f"Missing pinned data secret version for {name}")
     images = [app["image"] for app in data["applications"].values()] + list(data["infrastructure_images"].values())
     for image in images:
         if not re.fullmatch(r"ghcr\.io/[a-z0-9_.-]+/cowork-[a-z0-9-]+@sha256:[0-9a-f]{64}", image):
@@ -178,7 +175,6 @@ def prepare(args):
                    for run in runs["workflow_runs"]):
             raise ValueError("Manual release requires successful main CI for this exact source")
     previous = json.loads((ROOT / MANIFEST).read_text()) if (ROOT / MANIFEST).exists() else {}
-    affected = runpy.run_path(str(ROOT / "deploy/images/build-matrix.py"))["affected"]
     catalog = application_catalog()
     selected = []
     for name, context in sorted(catalog.items()):
@@ -307,7 +303,7 @@ def assemble(args):
         if name == "monitoring":
             platform_versions[name] = int(record["secret_version"])
         if name in apps:
-            apps[name].update(secret_version=int(record["secret_version"]), data_secret_version=versions[name])
+            apps[name]["secret_version"] = int(record["secret_version"])
     manifest["data_secret_versions"] = versions
     manifest["platform_secret_versions"] = platform_versions
     validate_manifest(manifest)

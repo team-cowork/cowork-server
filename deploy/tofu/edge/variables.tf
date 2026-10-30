@@ -1,28 +1,6 @@
-variable "manifest" {
-  description = "The committed release manifest, containing only image digests and KV versions."
-  type = object({
-    schema_version  = number
-    source_sha      = string
-    release_version = string
-    applications = map(object({
-      image               = string
-      image_source_sha    = string
-      version             = string
-      secret_version      = number
-      data_secret_version = number
-    }))
-    infrastructure_images    = map(string)
-    data_secret_versions     = map(number)
-    platform_secret_versions = map(number)
-  })
-  validation {
-    condition     = var.manifest.schema_version == 1 && can(regex("^[0-9a-f]{40}$", var.manifest.source_sha))
-    error_message = "Use a schema 1 manifest with a full source commit SHA."
-  }
-  validation {
-    condition     = alltrue([for app in values(var.manifest.applications) : can(regex("@sha256:[0-9a-f]{64}$", app.image)) && app.secret_version >= 1 && floor(app.secret_version) == app.secret_version]) && alltrue([for image in values(var.manifest.infrastructure_images) : can(regex("@sha256:[0-9a-f]{64}$", image))])
-    error_message = "Images must use immutable digests and secret versions must be positive integers."
-  }
+variable "jobs" {
+  description = "Native jobspecs and HCL2 inputs assembled by deploy.nomad.render."
+  type        = map(object({ jobspec = string, variables = map(string) }))
 }
 variable "platform_ca_file" {
   type        = string
@@ -34,13 +12,6 @@ variable "vault_mount" {
   validation {
     condition     = can(regex("^[a-zA-Z0-9_-]+$", var.vault_mount))
     error_message = "Use one KV mount name."
-  }
-}
-variable "gateway_host_port" {
-  type = number
-  validation {
-    condition     = var.gateway_host_port == 21000 || var.gateway_host_port == 21001
-    error_message = "Gateway host ingress uses only 21000 or 21001."
   }
 }
 variable "state_passphrase" {

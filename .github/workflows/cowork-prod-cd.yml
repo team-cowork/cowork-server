@@ -61,7 +61,7 @@ jobs:
           DEPLOY_MODE: ${{ github.event_name == 'workflow_run' && 'release' || inputs.operation }}
           RELEASE_APP_CLIENT_ID: ${{ vars.RELEASE_APP_CLIENT_ID }}
           RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-        run: python3 deploy/production/release.py prepare --output "$RUNNER_TEMP/release-plan.json"
+        run: python3 -m deploy.production.release prepare --output "$RUNNER_TEMP/release-plan.json"
       - name: Save Release Plan
         if: steps.release.outputs.mode == 'release'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -96,7 +96,7 @@ jobs:
         if: matrix.application
         env:
           SERVICE: ${{ matrix.service }}
-        run: python3 deploy/production/release.py stamp --service "$SERVICE"
+        run: python3 -m deploy.production.release stamp --service "$SERVICE"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
@@ -107,7 +107,7 @@ jobs:
         id: image
         env:
           SERVICE: ${{ matrix.service }}
-        run: python3 deploy/production/release.py reuse-image --service "$SERVICE"
+        run: python3 -m deploy.production.release reuse-image --service "$SERVICE"
       - name: Build And Verify Application Image
         if: matrix.application && steps.image.outputs.reuse != 'true'
         uses: ./.github/actions/build-image
@@ -140,7 +140,7 @@ jobs:
       - name: Record Registry Digest
         env:
           SERVICE: ${{ matrix.service }}
-        run: python3 deploy/production/release.py record-image --service "$SERVICE" --output "$RUNNER_TEMP/image-$SERVICE.json"
+        run: python3 -m deploy.production.release record-image --service "$SERVICE" --output "$RUNNER_TEMP/image-$SERVICE.json"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: release-input-image-${{ matrix.service }}
@@ -172,13 +172,13 @@ jobs:
       - name: Read The Declared Python Version
         id: python-version
         run: |
-          version=$(jq -er '.python.version' deploy/production/versions.json)
+          version=$(jq -er '.python.version' deploy/production/config/versions.json)
           printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ steps.python-version.outputs.version }}
       - name: Install Pinned Deployment Dependencies
-        run: python3 -m pip install -r deploy/production/requirements-vault.txt
+        run: python3 -m pip install -r deploy/production/requirements/vault.txt
       - name: Publish Declared Settings To Vault
         env:
           SERVICE: ${{ matrix.service }}
@@ -236,7 +236,7 @@ jobs:
           GH_SECRET_TEAM_GITHUB_STATE_SECRET: ${{ contains(matrix.secret_names, 'TEAM_GITHUB_STATE_SECRET') && secrets.TEAM_GITHUB_STATE_SECRET || '' }}
           GH_SECRET_WEBHOOK_SECRET_ENCRYPTION_KEY: ${{ contains(matrix.secret_names, 'WEBHOOK_SECRET_ENCRYPTION_KEY') && secrets.WEBHOOK_SECRET_ENCRYPTION_KEY || '' }}
           GH_SECRET_WEBHOOK_URL_SIGNING_KEY: ${{ contains(matrix.secret_names, 'WEBHOOK_URL_SIGNING_KEY') && secrets.WEBHOOK_URL_SIGNING_KEY || '' }}
-        run: python3 deploy/production/secrets.py --service "$SERVICE" --output "$RUNNER_TEMP/secrets-$SERVICE.json"
+        run: python3 -m deploy.production.secrets.publish --service "$SERVICE" --output "$RUNNER_TEMP/secrets-$SERVICE.json"
       - name: Save Version References
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
@@ -272,7 +272,7 @@ jobs:
       - name: Assemble Complete Manifest
         env:
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
-        run: python3 deploy/production/release.py assemble --plan "$RUNNER_TEMP/release-inputs/release-plan.json" --artifacts "$RUNNER_TEMP/release-inputs"
+        run: python3 -m deploy.production.release assemble --plan "$RUNNER_TEMP/release-inputs/release-plan.json" --artifacts "$RUNNER_TEMP/release-inputs"
       - uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3
         id: app
         with:
@@ -286,7 +286,7 @@ jobs:
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
           RELEASE_PUSH_TOKEN: ${{ steps.app.outputs.token }}
           RELEASE_APP_SLUG: ${{ steps.app.outputs.app-slug }}
-        run: python3 deploy/production/release.py commit-manifest
+        run: python3 -m deploy.production.release commit-manifest
 
   apply:
     name: Apply All Production VMs
@@ -309,14 +309,14 @@ jobs:
       - name: Read The Declared Python Version
         id: python-version
         run: |
-          version=$(jq -er '.python.version' deploy/production/versions.json)
+          version=$(jq -er '.python.version' deploy/production/config/versions.json)
           printf 'version=%s\n' "$version" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: ${{ steps.python-version.outputs.version }}
       - name: Install Pinned Deployment Dependencies
         run: |
-          python3 -m pip install -r deploy/production/requirements.txt
+          python3 -m pip install -r deploy/production/requirements/deploy.txt
           ansible-galaxy collection install -r deploy/ansible/requirements.yml
       - name: Create Cluster Deployment Record
         if: needs.prepare.outputs.mode != 'plan'
@@ -344,9 +344,9 @@ jobs:
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
         run: |
           if [ "$DEPLOY_MODE" = plan ]; then
-            flock "$COWORK_PLATFORM_STATE_DIR/deploy.lock" bash deploy/production/apply.sh deploy/production/releases.json --check
+            flock "$COWORK_PLATFORM_STATE_DIR/deploy.lock" python3 -m deploy.production.apply deploy/production/config/releases.json --check
           else
-            flock "$COWORK_PLATFORM_STATE_DIR/deploy.lock" bash deploy/production/apply.sh deploy/production/releases.json
+            flock "$COWORK_PLATFORM_STATE_DIR/deploy.lock" python3 -m deploy.production.apply deploy/production/config/releases.json
           fi
       - name: Record Whole Cluster Result
         if: ${{ always() && steps.deployment.outputs.id != '' }}
@@ -385,7 +385,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_SHA: ${{ needs.prepare.outputs.source_sha }}
-        run: python3 deploy/production/release.py publish
+        run: python3 -m deploy.production.release publish
 
   notify:
     name: Send Deployment Notification

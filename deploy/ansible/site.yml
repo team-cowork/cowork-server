@@ -4,7 +4,7 @@
   connection: local
   gather_facts: false
   tasks:
-    - ansible.builtin.include_tasks: tasks/bootstrap-state.yml
+    - ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/certificates/bootstrap-state.yml"
 
 - name: Reconcile pinned runtimes and active VM hosts
   hosts: control_plane:nomad_clients:vault_hosts
@@ -13,17 +13,17 @@
   serial: 4
   any_errors_fatal: true
   tasks:
-    - ansible.builtin.include_tasks: tasks/base.yml
+    - ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/host/base.yml"
 
 - name: Bootstrap the single management VM
   hosts: control_plane
   become: true
   gather_facts: true
   tasks:
-    - ansible.builtin.include_tasks: tasks/agents.yml
-    - ansible.builtin.include_tasks: tasks/platform-acl.yml
+    - ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/agents/agents.yml"
+    - ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/agents/platform-acl.yml"
     - name: Reload server agents with their scoped integration identities
-      ansible.builtin.include_tasks: tasks/agents.yml
+      ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/agents/agents.yml"
 
 - name: Reconcile the existing Vault host with platform TLS
   hosts: vault_hosts
@@ -32,7 +32,7 @@
   handlers:
     - ansible.builtin.import_tasks: ../runtime/vault/handlers.yml
   tasks:
-    - ansible.builtin.include_tasks: tasks/vault.yml
+    - ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/services/vault.yml"
 
 - name: Join the existing workload VMs
   hosts: nomad_clients
@@ -40,19 +40,19 @@
   gather_facts: true
   serial: 4
   tasks:
-    - ansible.builtin.include_tasks: tasks/agents.yml
+    - ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/agents/agents.yml"
 
 - name: Prepare the Gateway host proxy
   hosts: gateway
   become: true
   gather_facts: true
   tasks:
-    - ansible.builtin.include_tasks: tasks/gateway-proxy.yml
+    - ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/services/gateway-proxy.yml"
 
 - name: Prepare the main-branch deployment runner
   hosts: deployment_runner
   become: true
   gather_facts: true
   tasks:
-    - ansible.builtin.include_tasks: tasks/runner.yml
-    - ansible.builtin.include_tasks: tasks/certificate-renewal.yml
+    - ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/services/runner.yml"
+    - ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/certificates/certificate-renewal.yml"

@@ -12,7 +12,7 @@ FROM builder AS verification
 RUN apk --no-cache add bash python3
 COPY cowork-github/eslint.config.mjs cowork-github/xo.config.mjs ./
 COPY cowork-github/test test
-COPY deploy/images/ci /ci
+COPY deploy/ci/verification /ci
 RUN --mount=type=cache,id=npm-github-builder,target=/root/.npm \
     npm run lint -- --max-warnings=0 \
     && bash /ci/run-native.sh jest cowork-github /workspace /coverage \
