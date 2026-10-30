@@ -226,7 +226,7 @@ groups:
           service: authorization
         annotations:
           summary: "DataGSM 웹훅 재처리 불가 항목 발생"
-          description: "서명된 웹훅이 Authorization 검증에서 거부되어 Redis 대기열에 남았습니다. 원본을 로그에 남기지 말고 실패 원인과 이벤트 ID를 확인해 주세요."
+          description: "Authorization 검증에서 거부된 웹훅은 Redis 대기열에서 삭제합니다. 원본을 로그에 남기지 말고 이벤트 ID와 삭제 실패 여부를 소비자 로그에서 확인해 주세요."
 
       - alert: coworkAuthorizationWebhookStreamDisconnected
         expr: cowork_authorization_webhook_stream_connected == 0 or absent(cowork_authorization_webhook_stream_connected)
@@ -245,7 +245,7 @@ groups:
           service: gateway
         annotations:
           summary: "DataGSM 웹훅 영속 접수 실패"
-          description: "Gateway가 DataGSM 웹훅에 503을 반환했습니다. Redis AOF, Authorization 직접 접수와 대기열 여유를 확인해 주세요. 발신자의 재시도는 유한합니다."
+          description: "Gateway가 DataGSM 웹훅의 접수 성공을 확인하지 못했습니다. Redis AOF, Authorization 직접 접수의 비2xx 응답과 대기열 여유를 확인해 주세요. 발신자의 재시도는 유한합니다."
 
       - alert: coworkDatagsmIngressDirectFallback
         expr: sum(increase(gateway_datagsm_ingress_total{outcome="direct_fallback"}[5m])) > 0
