@@ -32,7 +32,6 @@
   handlers:
     - ansible.builtin.import_tasks: ../runtime/vault/handlers.yml
   tasks:
-    - ansible.builtin.include_tasks: tasks/vault-bootstrap-ingress.yml
     - ansible.builtin.include_tasks: tasks/vault.yml
 
 - name: Join the existing workload VMs
