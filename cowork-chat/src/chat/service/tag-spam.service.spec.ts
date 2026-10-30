@@ -51,7 +51,7 @@ describe('TagSpamService.reserve', () => {
 			weight: 2,
 		});
 		expect(rateLimiter.tryReserveWeighted).toHaveBeenCalledWith(
-			'chat:mentionrate:10:42', 'client-1', 2, MENTION_WINDOW_MS, MAX_MENTIONS_PER_WINDOW,
+			{key: 'chat:mentionrate:10:42', holder: 'client-1', weight: 2}, MENTION_WINDOW_MS, MAX_MENTIONS_PER_WINDOW,
 		);
 	});
 
