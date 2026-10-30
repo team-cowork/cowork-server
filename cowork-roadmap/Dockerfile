@@ -25,7 +25,7 @@ RUN java -Djarmode=tools -jar /workspace/app.jar extract \
 FROM builder AS verification
 RUN apk --no-cache add bash python3 curl
 COPY .editorconfig /workspace/.editorconfig
-COPY deploy/images/ci /ci
+COPY deploy/ci/verification /ci
 RUN --mount=type=cache,id=cowork-gradle,target=/root/.gradle,sharing=locked \
     ./gradlew :cowork-roadmap:check -x test --no-daemon --build-cache \
     && bash /ci/run-jvm.sh gradle cowork-roadmap /workspace /coverage \
