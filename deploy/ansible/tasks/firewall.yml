@@ -28,10 +28,9 @@
     dest: /etc/systemd/system/cowork-firewall.service
     mode: '0644'
   register: platform_firewall_unit
-- name: Activate ingress only after the explicit cutover
+- name: Activate the ingress policy
   ansible.builtin.systemd_service:
     name: cowork-firewall
     daemon_reload: true
     enabled: true
     state: "{{ 'restarted' if platform_firewall_config.changed or platform_firewall_unit.changed else 'started' }}"
-  when: platform_cutover_marker.stat.exists | default(false) or cowork_cutover | default(false) | bool

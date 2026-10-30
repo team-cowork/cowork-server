@@ -136,7 +136,8 @@ scrape_configs:
   - target_label: __address__
     replacement: 127.0.0.1:9115
 - job_name: blackbox
-  metrics_path: /probe
+  # The host Alloy probes its local allocation directly, independently of Envoy.
+  metrics_path: /api/v0/component/prometheus.exporter.blackbox.app_readiness/probe
   params:
     module:
     - http_2xx
@@ -154,15 +155,14 @@ scrape_configs:
     regex: .+-sidecar-proxy
     action: drop
   - source_labels:
-    - __meta_consul_service_metadata_health_port
+    - __meta_consul_service_metadata_health_path
     regex: .+
     action: keep
   - source_labels:
-    - __meta_consul_service_metadata_health_address
-    - __meta_consul_service_metadata_health_port
+    - __address__
     - __meta_consul_service_metadata_health_path
-    regex: (.+);(.+);(.+)
-    replacement: http://${1}:${2}${3}
+    regex: (.+);(.+)
+    replacement: http://${1}${2}
     target_label: __param_target
   - source_labels:
     - __param_target
@@ -171,8 +171,12 @@ scrape_configs:
     - __meta_consul_service
     regex: cowork-(.+)
     target_label: service
-  - target_label: __address__
-    replacement: 127.0.0.1:9115
+  - source_labels: [__meta_consul_node]
+    target_label: host
+  - source_labels: [__meta_consul_service_metadata_health_address]
+    regex: (.+)
+    target_label: __address__
+    replacement: $1:12345
 - job_name: envoy-proxy
   metrics_path: /probe
   params:

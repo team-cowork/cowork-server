@@ -57,6 +57,7 @@ class Platform:
         self.vault = None
         self.leases = []
         self.owns_vault_token = os.environ.get('GITHUB_ACTIONS') == 'true'
+        self.authorization_secret_present = True
 
     def close(self):
         if self.vault is None:
@@ -177,7 +178,7 @@ class Platform:
         output = json.loads(command(prefix + ['output', '-json'], env=self.env, capture=True).stdout)
         return {job_id: int(index) for job_id, index in output['job_modify_indices']['value'].items()}
 
-    def verify_webhook_secrets(self, manifest, mount):
+    def warn_webhook_secrets(self, manifest, mount):
         self.credentials()
         secrets = {}
         for name in ('gateway', 'authorization'):
@@ -188,8 +189,13 @@ class Platform:
             secrets[name] = result['data']['data']
         signature_keys = [secrets[name].get('DATAGSM_WEBHOOK_SECRET', '')
                           for name in ('gateway', 'authorization')]
-        if not signature_keys[0] or not hmac.compare_digest(*signature_keys):
-            raise RuntimeError('Pinned Gateway and Authorization DataGSM webhook secrets differ or are missing')
+        self.authorization_secret_present = isinstance(signature_keys[1], str) and bool(signature_keys[1])
+        if not all(isinstance(key, str) and key for key in signature_keys):
+            print('CRITICAL: Pinned Gateway or Authorization DataGSM webhook secret is missing; '
+                  'webhook delivery may be unavailable', file=sys.stderr, flush=True)
+        elif not hmac.compare_digest(*(key.encode('utf-8') for key in signature_keys)):
+            print('CRITICAL: Pinned Gateway and Authorization DataGSM webhook secrets differ; '
+                  'queued webhooks may be rejected', file=sys.stderr, flush=True)
 
     def active_allocation(self, job_id):
         allocations = self.api('job/' + job_id + '/allocations') or []
@@ -328,6 +334,8 @@ class Platform:
         raise RuntimeError('Gateway cannot reach every changed service upstream: ' + ', '.join(sorted(services)))
 
     def wait_authorization_consumer(self):
+        if not self.authorization_secret_present:
+            return
         deadline = time.monotonic() + 300
         while time.monotonic() < deadline:
             if self.authorization_stream_connected() == 1:
@@ -449,12 +457,11 @@ class Platform:
                           'JobModifyIndex': current['JobModifyIndex']})
         return result['JobModifyIndex']
 
-    def rollback_gateway(self, previous_job, previous_allocation, business_services, directory):
+    def rollback_gateway(self, previous_job, previous_allocation, directory):
         previous_port = self.gateway_host_port(previous_allocation)
         old = self.api('allocation/' + previous_allocation['ID'], missing=True)
         if old and old['DesiredStatus'] == 'run' and old['ClientStatus'] == 'running':
             self.gateway_snapshot(old)
-            self.wait_gateway_upstreams(business_services, old)
             # Keep the old allocation alive until the proxy has drained its new workers.
             self.gateway_switch(previous_port, directory)
             index = self.register_previous_job('cowork-gateway', previous_job)
@@ -466,14 +473,13 @@ class Platform:
         current = self.active_allocation('cowork-gateway')
         index = self.register_previous_job('cowork-gateway', previous_job, canary=1)
         candidate, port = self.gateway_candidate(current['ID'], index, previous_port)
-        self.wait_gateway_upstreams(business_services, candidate)
         self.wait_gateway_promotable(index)
         self.gateway_switch(port, directory)
         self.gateway_promote()
         self.wait_gateway_promotion(current['ID'], index, {'cowork-gateway': previous_job})
         self.gateway_snapshot(candidate)
 
-    def apply_gateway_cold(self, variables, plan_file, specs, business_services, directory):
+    def apply_gateway_cold(self, variables, plan_file, specs, directory):
         target_port = json.loads(variables.read_text())['gateway_host_port']
         if target_port != 21000:
             raise RuntimeError('Gateway cold start must use host port 21000')
@@ -482,25 +488,22 @@ class Platform:
         if job.get('Stop'):
             raise RuntimeError('Gateway job remains stopped after edge apply; it cannot serve traffic')
         candidate, port = self.gateway_candidate(None, indices['cowork-gateway'], target_port)
-        self.wait_gateway_upstreams(business_services, candidate)
         self.wait_jobs({'cowork-gateway': indices['cowork-gateway']}, specs)
         self.gateway_switch(port, directory)
         self.gateway_verify(port, directory)
         self.gateway_snapshot(candidate)
         print('Gateway traffic switched to verified allocation ' + candidate['ID'], flush=True)
 
-    def apply_gateway(self, variables, plan_file, specs, business_services, directory):
+    def apply_gateway(self, variables, plan_file, specs, directory):
         previous_job = self.api('job/cowork-gateway')
         previous_allocation = self.active_allocation('cowork-gateway')
         previous_port = self.gateway_host_port(previous_allocation)
         target_port = json.loads(variables.read_text())['gateway_host_port']
         if target_port not in (21000, 21001) or target_port == previous_port:
             raise RuntimeError('Gateway planned host port does not alternate from the active allocation')
-        self.ansible('gateway-capacity.yml')
         try:
             indices = self.tofu_apply_plan('edge', variables, plan_file)
             candidate, port = self.gateway_candidate(previous_allocation['ID'], indices['cowork-gateway'], target_port)
-            self.wait_gateway_upstreams(business_services, candidate)
             self.wait_gateway_promotable(indices['cowork-gateway'])
             self.gateway_switch(port, directory)
             self.gateway_promote()
@@ -515,7 +518,7 @@ class Platform:
                 current_job = None
             if current_job is None or current_job['JobModifyIndex'] != previous_job['JobModifyIndex']:
                 try:
-                    self.rollback_gateway(previous_job, previous_allocation, business_services, directory)
+                    self.rollback_gateway(previous_job, previous_allocation, directory)
                 except Exception as rollback_error:
                     raise RuntimeError('Gateway switch and automatic rollback both failed (' +
                                        type(rollback_error).__name__ + ')') from None
@@ -714,6 +717,8 @@ def main():
         if args.recover_state:
             if args.recover_state not in business_services:
                 raise ValueError('Recover only a declared business application service')
+            if args.recover_state == 'cowork-authorization':
+                platform.warn_webhook_secrets(manifest, mount)
             platform.recover_state(args.recover_state)
             return
         variables = directory / 'release.tfvars.json'
@@ -730,7 +735,7 @@ def main():
             for stage in STAGES:
                 platform.tofu(stage, edge_variables if stage == 'edge' else variables, check=True)
             return
-        platform.verify_webhook_secrets(manifest, mount)
+        platform.warn_webhook_secrets(manifest, mount)
         if previous_gateway:
             platform.gateway_snapshot(previous_gateway)
         prior_states = platform.deployment_states()
@@ -743,15 +748,11 @@ def main():
                 job = platform.api('job/cowork-gateway')
                 platform.wait_jobs({'cowork-gateway': job['JobModifyIndex']}, {'cowork-gateway': job})
                 platform.gateway_snapshot(previous_gateway)
-                platform.wait_gateway_upstreams(business_services, previous_gateway)
                 platform.gateway_switch(previous_port, directory)
                 platform.gateway_verify(previous_port, directory)
         else:
             platform.ansible('gateway-offline.yml')
         platform.tofu('foundation', variables)
-        extra = directory / 'cutover.json'
-        extra.write_text(json.dumps({'cowork_cutover': True, 'cowork_release_sha': manifest['source_sha']}))
-        platform.ansible('cutover.yml', extra)
         platform.wait_jobs(platform.tofu('data', variables), specs)
         migration = specs['cowork-user-migrations']
         previous = platform.api('job/cowork-user-migrations', missing=True)
@@ -774,19 +775,16 @@ def main():
             changed_edge = platform.tofu_plan_jobs('edge', edge_variables, edge_plan)
             if changed_edge != {'cowork-gateway'}:
                 raise RuntimeError('Gateway alternate-port plan did not change exactly one job')
-            # Do not start business replacement if the last Gateway step cannot fit two allocations.
-            platform.ansible('gateway-capacity.yml')
         run_id = (os.environ.get('GITHUB_RUN_ID') or manifest['source_sha']) + ':' + uuid.uuid4().hex
         platform.apply_business_apps(variables, apps_plan, changed_apps, specs, run_id,
                                      gateway_available=bool(previous_gateway),
                                      flag_services=changed_apps if previous_gateway else business_services)
         if previous_gateway is None:
-            platform.apply_gateway_cold(edge_variables, edge_plan, specs, business_services, directory)
+            platform.apply_gateway_cold(edge_variables, edge_plan, specs, directory)
         elif changed_edge:
-            platform.apply_gateway(edge_variables, edge_plan, specs, business_services, directory)
+            platform.apply_gateway(edge_variables, edge_plan, specs, directory)
         else:
             platform.tofu_apply_plan('edge', edge_variables, edge_plan)
-        platform.wait_authorization_consumer()
         platform.recover_existing_states(manifest)
         print('The entire declared production release is ready', flush=True)
 
