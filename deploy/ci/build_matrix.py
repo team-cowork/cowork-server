@@ -60,14 +60,19 @@ def documentation_path(path):
             or Path(path).name in {"README.md", "AGENTS.md", "CONTRIBUTING.md", "PR_BODY.md"})
 
 
-def affected(service, paths):
+def affected(service, paths, *, verify=False):
     for path in paths:
         if documentation_path(path):
             continue
-        # CD-only edits reuse existing images until a source or build input changes.
-        if path == ".dockerignore" or fnmatchcase(path, ".github/workflows/*-ci.yml") or path.startswith(
-            ("deploy/images/", "deploy/ci/", "deploy/production/version_fields.py", ".github/actions/build-image/", ".github/actions/verify-image/")
-        ):
+        # Verification and reporting code is not packaged in runtime images.
+        if (path.startswith(("deploy/ci/", ".github/actions/verify-image/"))
+                or fnmatchcase(path, ".github/workflows/*-ci.yml")):
+            if verify:
+                return True
+            continue
+        if (path in {".dockerignore", "deploy/images/catalog.json", "deploy/images/inspect_image.py",
+                     "deploy/production/version_fields.py"}
+                or path.startswith(".github/actions/build-image/")):
             return True
         if path.startswith(f"cowork-{service}/"):
             return True
@@ -89,7 +94,7 @@ def verification_matrix(paths=None):
         {"service": dockerfile.parent.name.removeprefix("cowork-"),
          "dockerfile": str(dockerfile.relative_to(ROOT))}
         for dockerfile in sorted(ROOT.glob("cowork-*/Dockerfile"))
-        if paths is None or affected(dockerfile.parent.name.removeprefix("cowork-"), paths)
+        if paths is None or affected(dockerfile.parent.name.removeprefix("cowork-"), paths, verify=True)
     ]}
 
 
