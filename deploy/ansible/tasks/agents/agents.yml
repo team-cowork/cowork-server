@@ -1,6 +1,6 @@
 ---
 - name: Install the pinned agent binaries
-  ansible.builtin.include_tasks: install-binary.yml
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/host/install-binary.yml"
   loop: [consul, nomad]
   loop_control:
     loop_var: platform_binary
@@ -48,7 +48,7 @@
         - {name: vm.max_map_count, value: '262144'}
     - name: Install the platform CNI network
       ansible.builtin.template:
-        src: cowork.conflist.j2
+        src: agents/cowork.conflist.j2
         dest: /etc/cni/net.d/cowork.conflist
         mode: '0644'
     - name: Install optional GHCR read credentials for the Docker driver
@@ -72,7 +72,7 @@
   when: inventory_hostname in groups['nomad_clients']
 - name: Render the Consul configuration
   ansible.builtin.template:
-    src: consul.hcl.j2
+    src: agents/consul.hcl.j2
     dest: /etc/consul.d/consul.hcl
     owner: consul
     group: consul
@@ -82,7 +82,7 @@
   no_log: true
 - name: Render the Nomad configuration
   ansible.builtin.template:
-    src: nomad.hcl.j2
+    src: agents/nomad.hcl.j2
     dest: /etc/nomad.d/nomad.hcl
     owner: root
     group: root
@@ -92,7 +92,7 @@
   no_log: true
 - name: Install native agent services
   ansible.builtin.template:
-    src: "{{ item }}.service.j2"
+    src: "agents/{{ item }}.service.j2"
     dest: "/etc/systemd/system/{{ item }}.service"
     mode: '0644'
   register: platform_agent_units
@@ -121,7 +121,7 @@
         mode: '0644'
     - name: Install the host memory reconciliation service and timer
       ansible.builtin.template:
-        src: "cowork-nomad-memory.{{ item }}.j2"
+        src: "agents/cowork-nomad-memory.{{ item }}.j2"
         dest: "/etc/systemd/system/cowork-nomad-memory.{{ item }}"
         mode: '0644'
       loop: [service, timer]

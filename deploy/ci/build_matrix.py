@@ -6,15 +6,14 @@ from functools import cache
 import json
 import os
 import re
-import runpy
 import shlex
 import subprocess
 from pathlib import Path, PurePosixPath
 
+from deploy.production.version_fields import changed_paths
+
 ROOT = Path(__file__).resolve().parents[2]
-CATALOG = json.loads(Path(__file__).with_name("catalog.json").read_text())
-RELEASE_FIELDS = runpy.run_path(str(ROOT / "deploy/images/release_fields.py"))
-changed_paths = RELEASE_FIELDS["changed_paths"]
+CATALOG = json.loads((ROOT / "deploy/images/catalog.json").read_text())
 
 
 @cache
@@ -67,7 +66,7 @@ def affected(service, paths):
             continue
         # CD-only edits reuse existing images until a source or build input changes.
         if path == ".dockerignore" or fnmatchcase(path, ".github/workflows/*-ci.yml") or path.startswith(
-            ("deploy/images/", ".github/actions/build-image/", ".github/actions/verify-image/")
+            ("deploy/images/", "deploy/ci/", "deploy/production/version_fields.py", ".github/actions/build-image/", ".github/actions/verify-image/")
         ):
             return True
         if path.startswith(f"cowork-{service}/"):

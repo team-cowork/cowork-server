@@ -9,9 +9,9 @@ from urllib.parse import urlsplit
 import hvac
 import requests
 
-from vault_client import read, write
+from deploy.production.secrets.vault_client import read, write
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 REPOSITORY = "team-cowork/cowork-server"
 REPOSITORY_ID = "1208653612"
 WORKFLOW = REPOSITORY + "/.github/workflows/cowork-prod-cd.yml@refs/heads/main"
@@ -79,7 +79,7 @@ def main():
     mount = os.environ.get("VAULT_KV_MOUNT", "secret")
     if not re.fullmatch(r"[a-zA-Z0-9_-]+", mount):
         raise ValueError("Invalid Vault KV mount")
-    catalog = json.loads((ROOT / "deploy/production/services.json").read_text())
+    catalog = json.loads((ROOT / "deploy/production/config/services.json").read_text())
     mounts = vault.sys.list_mounted_secrets_engines()["data"]
     existing = mounts.get(mount + "/")
     if not existing:
