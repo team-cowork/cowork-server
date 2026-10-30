@@ -4,6 +4,9 @@ Wants=network-online.target consul.service
 After=network-online.target consul.service{% if inventory_hostname in groups['nomad_clients'] %} docker.service{% endif %}
 
 [Service]
+Type=notify
+# Restoring allocations may exceed systemd's default startup timeout.
+TimeoutStartSec=infinity
 ExecStart=/usr/local/bin/nomad agent -config=/etc/nomad.d/nomad.hcl
 ExecReload=/bin/kill -HUP $MAINPID
 Restart=on-failure
