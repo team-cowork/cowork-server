@@ -208,21 +208,24 @@ class Platform:
     def release_gateway_allocation(self):
         deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
-            job = self.api('job/cowork-gateway', missing=True)
-            if job is None:
-                return None
-            allocations = self.api('job/cowork-gateway/allocations') or []
-            active = [allocation for allocation in allocations if allocation['DesiredStatus'] == 'run'
-                      and allocation['ClientStatus'] == 'running']
-            if len(active) == 1 and not job.get('Stop'):
-                return active[0]
-            if len(active) > 1:
-                raise RuntimeError('Gateway has multiple running allocations; inspect the interrupted canary '
-                                   'and NGINX target before retrying CD')
-            pending = [allocation for allocation in allocations if allocation['DesiredStatus'] == 'run'
-                       and allocation['ClientStatus'] in ('pending', 'running')]
-            if job.get('Stop') and not pending:
-                return None
+            try:
+                job = self.api('job/cowork-gateway', missing=True)
+                if job is None:
+                    return None
+                allocations = self.api('job/cowork-gateway/allocations') or []
+                active = [allocation for allocation in allocations if allocation['DesiredStatus'] == 'run'
+                          and allocation['ClientStatus'] == 'running']
+                if len(active) == 1 and not job.get('Stop'):
+                    return active[0]
+                if len(active) > 1:
+                    raise RuntimeError('Gateway has multiple running allocations; inspect the interrupted canary '
+                                       'and NGINX target before retrying CD')
+                pending = [allocation for allocation in allocations if allocation['DesiredStatus'] == 'run'
+                           and allocation['ClientStatus'] in ('pending', 'running')]
+                if job.get('Stop') and not pending:
+                    return None
+            except TransientPlatformError:
+                pass
             time.sleep(3)
         raise RuntimeError('Gateway job exists but has no healthy allocation; inspect Nomad scheduling '
                            'before changing business services')
@@ -311,10 +314,13 @@ class Platform:
     def wait_gateway_drain(self, services):
         deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
-            snapshot = self.gateway_snapshot()
-            inflight = snapshot.get('inflight')
-            if isinstance(inflight, dict) and all(inflight.get(service, 0) == 0 for service in services):
-                return
+            try:
+                snapshot = self.gateway_snapshot()
+                inflight = snapshot.get('inflight')
+                if isinstance(inflight, dict) and all(inflight.get(service, 0) == 0 for service in services):
+                    return
+            except TransientPlatformError:
+                pass
             time.sleep(2)
         raise RuntimeError('Gateway still has in-flight HTTP requests for planned services')
 
@@ -412,14 +418,17 @@ class Platform:
     def wait_gateway_promotable(self, expected_index):
         deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
-            job = self.api('job/cowork-gateway')
-            if job['JobModifyIndex'] != expected_index:
-                raise RuntimeError('Gateway job changed while waiting for a healthy canary')
-            deployment = self.api('job/cowork-gateway/deployment')
-            if deployment and deployment['Status'] == 'running':
-                group = deployment['TaskGroups']['app']
-                if group['DesiredCanaries'] == 1 and group['HealthyAllocs'] >= 1 and not group['Promoted']:
-                    return
+            try:
+                job = self.api('job/cowork-gateway')
+                if job['JobModifyIndex'] != expected_index:
+                    raise RuntimeError('Gateway job changed while waiting for a healthy canary')
+                deployment = self.api('job/cowork-gateway/deployment')
+                if deployment and deployment['Status'] == 'running':
+                    group = deployment['TaskGroups']['app']
+                    if group['DesiredCanaries'] == 1 and group['HealthyAllocs'] >= 1 and not group['Promoted']:
+                        return
+            except TransientPlatformError:
+                pass
             time.sleep(5)
         raise RuntimeError('Gateway canary did not become promotable')
 
@@ -437,11 +446,14 @@ class Platform:
         self.wait_jobs({'cowork-gateway': index}, specs)
         deadline = time.monotonic() + 120
         while time.monotonic() < deadline:
-            deployment = self.api('job/cowork-gateway/deployment')
-            allocations = self.api('job/cowork-gateway/allocations') or []
-            old = next((allocation for allocation in allocations if allocation['ID'] == previous_id), None)
-            if deployment and deployment['Status'] == 'successful' and (not old or old['DesiredStatus'] == 'stop'):
-                return
+            try:
+                deployment = self.api('job/cowork-gateway/deployment')
+                allocations = self.api('job/cowork-gateway/allocations') or []
+                old = next((allocation for allocation in allocations if allocation['ID'] == previous_id), None)
+                if deployment and deployment['Status'] == 'successful' and (not old or old['DesiredStatus'] == 'stop'):
+                    return
+            except TransientPlatformError:
+                pass
             time.sleep(5)
         raise RuntimeError('Gateway promotion did not retire the previous allocation')
 
@@ -628,60 +640,63 @@ class Platform:
             if time.monotonic() > deadline:
                 raise RuntimeError('Nomad readiness deadline exceeded: ' + ', '.join(remaining))
             for job_id, expected_index in list(remaining.items()):
-                job = self.api('job/' + job_id)
-                if job['JobModifyIndex'] != expected_index:
-                    raise RuntimeError(job_id + ': job changed while waiting; deployment was not accepted')
-                version = job['Version']
-                allocations = self.api('job/' + job_id + '/allocations') or []
-                candidates = [a for a in allocations if a['JobVersion'] == int(version)
-                              and a['DesiredStatus'] == 'run' and a['ClientStatus'] in ('running', 'complete')]
-                groups = specs[job_id]['TaskGroups']
-                ready = True
-                ready_allocations = {}
-                for group in groups:
-                    matching = [a for a in candidates if a['TaskGroup'] == group['Name']]
-                    good = []
-                    for allocation in matching:
-                        details = self.api('allocation/' + allocation['ID'])
-                        states = details.get('TaskStates') or {}
-                        actual_group = next(g for g in details['Job']['TaskGroups'] if g['Name'] == group['Name'])
-                        required = [t for t in actual_group['Tasks']
-                                    if (t.get('Lifecycle') or {}).get('Hook') != 'poststop'
-                                    and not (batch and (t.get('Lifecycle') or {}).get('Sidecar'))]
-                        ok = True
-                        for task in required:
-                            task_state = states.get(task['Name'], {})
-                            lifecycle = task.get('Lifecycle') or {}
-                            needs_exit = batch or (lifecycle.get('Hook') in ('prestart', 'poststart')
-                                                   and not lifecycle.get('Sidecar'))
-                            if needs_exit:
-                                events = task_state.get('Events') or []
-                                termination = next((e for e in reversed(events) if e['Type'] == 'Terminated'), {})
-                                exit_code = (termination.get('Details') or {}).get('exit_code', termination.get('ExitCode', -1))
-                                ok &= (task_state.get('State') == 'dead' and not task_state.get('Failed')
-                                       and str(exit_code) == '0')
-                            else:
-                                ok &= task_state.get('State') == 'running' and not task_state.get('Failed')
-                        if ok:
-                            good.append(allocation)
-                    ready_allocations[group['Name']] = {a['ID'] for a in good}
-                    if len(good) < group.get('Count', 1):
-                        ready = False
-                if ready and not batch:
+                try:
+                    job = self.api('job/' + job_id)
+                    if job['JobModifyIndex'] != expected_index:
+                        raise RuntimeError(job_id + ': job changed while waiting; deployment was not accepted')
+                    version = job['Version']
+                    allocations = self.api('job/' + job_id + '/allocations') or []
+                    candidates = [a for a in allocations if a['JobVersion'] == int(version)
+                                  and a['DesiredStatus'] == 'run' and a['ClientStatus'] in ('running', 'complete')]
+                    groups = specs[job_id]['TaskGroups']
+                    ready = True
+                    ready_allocations = {}
                     for group in groups:
-                        passing = set(ready_allocations[group['Name']])
-                        services = list(group.get('Services') or [])
-                        services += [service for task in group['Tasks'] for service in task.get('Services') or []]
-                        for service in services:
-                            entries = self.api('health/service/' + service['Name'] + '?passing=true', consul=True)
-                            passing &= {aid for aid in passing if any(
-                                re.search(r'(?:^|-)' + re.escape(aid) + r'(?:-|$)', entry['Service']['ID'])
-                                for entry in entries)}
-                        if len(passing) < group.get('Count', 1):
+                        matching = [a for a in candidates if a['TaskGroup'] == group['Name']]
+                        good = []
+                        for allocation in matching:
+                            details = self.api('allocation/' + allocation['ID'])
+                            states = details.get('TaskStates') or {}
+                            actual_group = next(g for g in details['Job']['TaskGroups'] if g['Name'] == group['Name'])
+                            required = [t for t in actual_group['Tasks']
+                                        if (t.get('Lifecycle') or {}).get('Hook') != 'poststop'
+                                        and not (batch and (t.get('Lifecycle') or {}).get('Sidecar'))]
+                            ok = True
+                            for task in required:
+                                task_state = states.get(task['Name'], {})
+                                lifecycle = task.get('Lifecycle') or {}
+                                needs_exit = batch or (lifecycle.get('Hook') in ('prestart', 'poststart')
+                                                       and not lifecycle.get('Sidecar'))
+                                if needs_exit:
+                                    events = task_state.get('Events') or []
+                                    termination = next((e for e in reversed(events) if e['Type'] == 'Terminated'), {})
+                                    exit_code = (termination.get('Details') or {}).get('exit_code', termination.get('ExitCode', -1))
+                                    ok &= (task_state.get('State') == 'dead' and not task_state.get('Failed')
+                                           and str(exit_code) == '0')
+                                else:
+                                    ok &= task_state.get('State') == 'running' and not task_state.get('Failed')
+                            if ok:
+                                good.append(allocation)
+                        ready_allocations[group['Name']] = {a['ID'] for a in good}
+                        if len(good) < group.get('Count', 1):
                             ready = False
-                if ready:
-                    del remaining[job_id]
-                    print(f'{job_id}: submitted job index {expected_index} is ready', flush=True)
+                    if ready and not batch:
+                        for group in groups:
+                            passing = set(ready_allocations[group['Name']])
+                            services = list(group.get('Services') or [])
+                            services += [service for task in group['Tasks'] for service in task.get('Services') or []]
+                            for service in services:
+                                entries = self.api('health/service/' + service['Name'] + '?passing=true', consul=True)
+                                passing &= {aid for aid in passing if any(
+                                    re.search(r'(?:^|-)' + re.escape(aid) + r'(?:-|$)', entry['Service']['ID'])
+                                    for entry in entries)}
+                            if len(passing) < group.get('Count', 1):
+                                ready = False
+                    if ready:
+                        del remaining[job_id]
+                        print(f'{job_id}: submitted job index {expected_index} is ready', flush=True)
+                except TransientPlatformError:
+                    continue
             if remaining:
                 if time.monotonic() - last_report >= 30:
                     print('Waiting for Nomad: ' + ', '.join(remaining), flush=True)
