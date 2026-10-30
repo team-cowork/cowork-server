@@ -91,7 +91,6 @@
     content: "{{ platform_versions | to_nice_json }}\n"
     dest: /etc/cowork/versions.json
     mode: '0644'
-  register: platform_versions_installed
 
 - name: Reconcile host observability
   ansible.builtin.include_tasks: observability.yml
