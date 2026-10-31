@@ -48,7 +48,8 @@ class RateLimitConfig {
      * 입구 프록시(GSM SV)는 실제 발신 IP를 전달할 수 없어 미인증 요청은 모두 같은 키로 한도를 공유한다.
      * 클라이언트가 바꿀 수 있는 X-Forwarded-For는 신뢰하지 않는다.
      *
-     * 자동 구성에 주입할 기본 KeyResolver를 @Primary로 지정하며, 웹훅 라우트는 webhookKeyResolver를 명시해 사용한다.
+     * 자동 구성에 주입할 기본 KeyResolver를 @Primary로 지정하며, 웹훅 라우트는 webhookKeyResolver를,
+     * 토큰 발급/갱신과 GitHub 설치 콜백 라우트는 anonymousKeyResolver를 명시해 사용한다.
      */
     @Bean
     @Primary
