@@ -432,7 +432,7 @@ spring:
                 redis-rate-limiter.replenishRate: 1
                 redis-rate-limiter.burstCapacity: 10
                 redis-rate-limiter.requestedTokens: 1
-                key-resolver: "#{@userKeyResolver}"
+                key-resolver: "#{@anonymousKeyResolver}"
 
         - id: voice-service-webhook
           order: -1
