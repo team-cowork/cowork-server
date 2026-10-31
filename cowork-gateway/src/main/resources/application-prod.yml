@@ -73,6 +73,8 @@ spring:
 
       # 요청 제한(RequestRateLimiter)은 라우트별로 명시한 곳에만 적용한다. 공통 기본 제한은 두지 않는다.
       # - 키: userKeyResolver(인증 사용자 ID, 미인증은 연결 주소), webhookKeyResolver(웹훅 실행 ID)
+      # - 입구 프록시가 실제 발신 IP를 넘기지 않아 미인증 요청의 연결 주소는 항상 프록시 주소다. 미인증 라우트의 한도는
+      #   사용자별이 아니라 전체 상한이므로 downstream이 감당할 수 있는 전체 트래픽 기준으로 정한다.
       # - Redis 오류 시 RedisRateLimiter는 요청을 허용한다(fail-open). 이때 gateway_ratelimit_events_total{outcome="redis_error"}로 집계한다.
       # - 차단 시 429, CommonApiResponse 본문과 Retry-After를 반환한다.
       # 제한이 없는 라우트와 이유:
@@ -404,7 +406,7 @@ spring:
             - Method=GET
           filters:
             - StripPrefix=2
-            # 인증 없이 GitHub App API를 호출하는 콜백이므로 반복 호출로 App 한도가 소진되지 않게 제한한다
+            # 인증 없이 GitHub App API를 호출하는 콜백이므로 반복 호출로 App 한도가 소진되지 않게 전체 상한을 둔다
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 1
