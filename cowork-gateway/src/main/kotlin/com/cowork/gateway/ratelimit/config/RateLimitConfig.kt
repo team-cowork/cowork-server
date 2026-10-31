@@ -36,6 +36,10 @@ class RateLimitConfig {
             .map { "webhook:$it" }
     }
 
+    // 요청자를 구분할 수 없는 미인증 라우트에 전체 상한을 두는 용도
+    @Bean
+    fun anonymousKeyResolver(): KeyResolver = KeyResolver { Mono.just("anonymous") }
+
     /**
      * Rate Limiting 키 전략:
      * 인증된 요청 → X-User-Id 기준 (AuthHeaderMutatingFilter가 JWT 검증 결과로 덮어쓰고, 미인증 요청에서는 제거한다)
