@@ -72,7 +72,7 @@ spring:
             maxAge: 3600
 
       # 요청 제한(RequestRateLimiter)은 라우트별로 명시한 곳에만 적용한다. 공통 기본 제한은 두지 않는다.
-      # - 키: userKeyResolver(인증 사용자 ID, 미인증은 연결 주소), webhookKeyResolver(웹훅 실행 ID)
+      # - 키: userKeyResolver(인증 사용자 ID, 미인증은 연결 주소), webhookKeyResolver(웹훅 실행 ID), anonymousKeyResolver(고정 키)
       # - 입구 프록시가 실제 발신 IP를 넘기지 않아 미인증 요청의 연결 주소는 항상 프록시 주소다. 미인증 라우트의 한도는
       #   사용자별이 아니라 전체 상한이므로 downstream이 감당할 수 있는 전체 트래픽 기준으로 정한다.
       # - Redis 오류 시 RedisRateLimiter는 요청을 허용한다(fail-open). 이때 gateway_ratelimit_events_total{outcome="redis_error"}로 집계한다.
@@ -156,6 +156,26 @@ spring:
           filters:
             - StorageRelay
             - StripPrefix=2
+
+        # 토큰 발급·갱신은 추측할 수 없는 PKCE 코드와 리프레시 토큰으로 인증하므로 무차별 대입 방지가 아닌
+        # authorization과 DataGSM의 과부하 방지용 전체 상한만 둔다
+        - id: authorization-token
+          uri: ${COWORK_AUTHORIZATION_URL:http://cowork-authorization:8081}
+          predicates:
+            - Path=/api/authorization/auth/token, /api/authorization/auth/refresh
+            - Method=POST
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: authorizationCB
+                fallbackUri: forward:/fallback
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 50
+                redis-rate-limiter.burstCapacity: 200
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@anonymousKeyResolver}"
 
         - id: authorization-service
           uri: ${COWORK_AUTHORIZATION_URL:http://cowork-authorization:8081}
