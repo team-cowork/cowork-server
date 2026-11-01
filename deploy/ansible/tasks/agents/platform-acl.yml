@@ -1,0 +1,150 @@
+---
+- name: Wait for the Consul leader
+  ansible.builtin.uri:
+    url: https://127.0.0.1:8501/v1/status/leader
+    ca_path: /etc/cowork/ca/ca.crt
+    headers:
+      X-Consul-Token: "{{ consul_bootstrap_token }}"
+    return_content: true
+  register: consul_leader
+  until: consul_leader.status == 200 and consul_leader.json | length > 0
+  retries: 30
+  delay: 2
+  no_log: true
+
+- name: Configure each Consul agent identity
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/agents/platform-token.yml"
+  loop: "{{ groups['control_plane'] + groups['nomad_clients'] }}"
+  loop_control:
+    loop_var: token_host
+  vars:
+    token_name: "{{ token_host }}.consul"
+    token_policy: |
+      node_prefix "" { policy = "read" }
+      service_prefix "" { policy = "read" }
+      node "cowork-{{ token_host }}" { policy = "write" }
+      agent "cowork-{{ token_host }}" { policy = "write" }
+
+- name: Configure each Nomad integration identity
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/agents/platform-token.yml"
+  loop: "{{ groups['control_plane'] + groups['nomad_clients'] }}"
+  loop_control:
+    loop_var: token_host
+  vars:
+    token_name: "{{ token_host }}.nomad-consul"
+    token_policy: |
+      agent_prefix "" { policy = "read" }
+      node "cowork-{{ token_host }}" { policy = "write" }
+      {% if token_host in groups['control_plane'] %}
+      node_prefix "" { policy = "write" }
+      service_prefix "" { policy = "write" }
+      acl = "write"
+      mesh = "write"
+      {% else %}
+      node_prefix "" { policy = "read" }
+      service_prefix "" { policy = "read" }
+      service_prefix "cowork-{{ token_host }}" { policy = "write" }
+      {% endif %}
+
+- name: Configure the read only monitoring catalog identity
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/agents/platform-token.yml"
+  vars:
+    token_name: monitoring-read.consul
+    token_policy: |
+      node_prefix "" { policy = "read" }
+      service_prefix "" { policy = "read" }
+      agent_prefix "" { policy = "read" }
+
+- name: Check the saved Nomad bootstrap receipt
+  ansible.builtin.stat:
+    path: /var/lib/cowork/nomad-bootstrap.json
+  register: nomad_bootstrap_receipt
+
+- name: Bootstrap Nomad ACL exactly once
+  ansible.builtin.command:
+    argv: [/usr/local/bin/nomad, acl, bootstrap, -json]
+  environment:
+    NOMAD_ADDR: https://127.0.0.1:4646
+    NOMAD_CACERT: /etc/cowork/ca/ca.crt
+  register: nomad_initial_acl
+  when: not nomad_bootstrap_receipt.stat.exists
+  changed_when: true
+  no_log: true
+
+- name: Persist the Nomad bootstrap receipt
+  ansible.builtin.copy:
+    content: "{{ nomad_initial_acl.stdout }}"
+    dest: /var/lib/cowork/nomad-bootstrap.json
+    mode: '0600'
+  when: not nomad_bootstrap_receipt.stat.exists
+  no_log: true
+
+- name: Read the saved Nomad bootstrap receipt
+  ansible.builtin.slurp:
+    src: /var/lib/cowork/nomad-bootstrap.json
+  register: nomad_saved_acl
+  no_log: true
+
+- name: Preserve the management token in controller recovery state
+  ansible.builtin.copy:
+    content: "{{ (nomad_saved_acl.content | b64decode | from_json).SecretID }}"
+    dest: "{{ platform_state_dir }}/nomad-bootstrap.token"
+    mode: '0600'
+  delegate_to: localhost
+  become: false
+  no_log: true
+
+- name: Read the current Nomad scheduler configuration
+  ansible.builtin.uri:
+    url: https://127.0.0.1:4646/v1/operator/scheduler/configuration
+    ca_path: /etc/cowork/ca/ca.crt
+    headers:
+      X-Nomad-Token: "{{ (nomad_saved_acl.content | b64decode | from_json).SecretID }}"
+  register: nomad_scheduler_config
+  no_log: true
+
+- name: Enable the declared task memory limits
+  ansible.builtin.command:
+    argv:
+      - /usr/local/bin/nomad
+      - operator
+      - scheduler
+      - set-config
+      - "-check-index={{ nomad_scheduler_config.json.SchedulerConfig.ModifyIndex }}"
+      - -memory-oversubscription=true
+  environment:
+    NOMAD_ADDR: https://127.0.0.1:4646
+    NOMAD_CACERT: /etc/cowork/ca/ca.crt
+    NOMAD_TOKEN: "{{ (nomad_saved_acl.content | b64decode | from_json).SecretID }}"
+  when: not nomad_scheduler_config.json.SchedulerConfig.MemoryOversubscriptionEnabled
+  changed_when: true
+  no_log: true
+
+- name: Reconcile the scoped Nomad deployment policy
+  vars:
+    nomad_deploy_rules: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/files/nomad-deploy-policy.hcl') }}"
+  no_log: true
+  block:
+    - name: Read the current Nomad deployment policy
+      ansible.builtin.uri:
+        url: https://127.0.0.1:4646/v1/acl/policy/cowork-deploy
+        ca_path: /etc/cowork/ca/ca.crt
+        headers:
+          X-Nomad-Token: "{{ (nomad_saved_acl.content | b64decode | from_json).SecretID }}"
+        status_code: [200, 404]
+      register: nomad_deploy_policy
+
+    - name: Apply the declared Nomad deployment policy
+      ansible.builtin.uri:
+        url: https://127.0.0.1:4646/v1/acl/policy/cowork-deploy
+        method: POST
+        ca_path: /etc/cowork/ca/ca.crt
+        headers:
+          X-Nomad-Token: "{{ (nomad_saved_acl.content | b64decode | from_json).SecretID }}"
+        body_format: json
+        body:
+          Name: cowork-deploy
+          Description: Cowork production deployments
+          Rules: "{{ nomad_deploy_rules }}"
+      when: nomad_deploy_policy.status == 404 or nomad_deploy_policy.json.Rules | trim != nomad_deploy_rules | trim
+      changed_when: true

@@ -1,9 +1,4 @@
 locals {
-  repository        = abspath("${path.module}/../../../..")
-  application_names = toset(["gateway", "authorization", "preference", "user", "team", "channel", "notification", "chat", "voice", "project", "roadmap", "github"])
-  database_owners   = toset(["authorization", "user", "team", "project", "channel", "roadmap", "preference", "chat", "voice"])
-  storage_owners    = toset(["user", "team", "chat"])
-  runtime_env       = { for name in local.application_names : name => jsondecode(file("${local.repository}/deploy/runtime/${name}/environment.json")) }
   job_secrets = {
     "cowork-gateway" : "nomad/apps/gateway",
     "cowork-authorization" : "nomad/apps/authorization",
@@ -155,11 +150,6 @@ locals {
     ]
   }
 }
-output "repository" { value = local.repository }
-output "application_names" { value = local.application_names }
-output "database_owners" { value = local.database_owners }
-output "storage_owners" { value = local.storage_owners }
-output "runtime_env" { value = local.runtime_env }
 output "job_secrets" { value = local.job_secrets }
 output "service_jobs" { value = local.service_jobs }
 output "upstreams" { value = local.upstreams }

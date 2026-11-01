@@ -1,0 +1,36 @@
+---
+- name: Install the native ingress policy
+  ansible.builtin.template:
+    src: host/firewall.nft.j2
+    dest: /etc/cowork/firewall.nft
+    mode: '0644'
+  register: platform_firewall_config
+- name: Install the firewall service
+  ansible.builtin.copy:
+    content: |
+      [Unit]
+      Description=Cowork platform ingress policy
+      Before=nomad.service consul.service
+      After=network-pre.target
+      Wants=network-pre.target
+      [Service]
+      Type=oneshot
+      RemainAfterExit=yes
+      ExecStartPre=-/usr/sbin/nft add table inet cowork
+      {% if inventory_hostname in groups['nomad_clients'] %}
+      ExecStartPre=-/usr/sbin/iptables -w -N CNI-ADMIN
+      ExecStartPre=/bin/sh -ec '/usr/sbin/iptables -w -C CNI-ADMIN -o cowork0 -m conntrack --ctstate DNAT -j ACCEPT || /usr/sbin/iptables -w -A CNI-ADMIN -o cowork0 -m conntrack --ctstate DNAT -j ACCEPT'
+      {% endif %}
+      ExecStart=/usr/sbin/nft -f /etc/cowork/firewall.nft
+      ExecReload=/usr/sbin/nft -f /etc/cowork/firewall.nft
+      [Install]
+      WantedBy=multi-user.target
+    dest: /etc/systemd/system/cowork-firewall.service
+    mode: '0644'
+  register: platform_firewall_unit
+- name: Activate the ingress policy
+  ansible.builtin.systemd_service:
+    name: cowork-firewall
+    daemon_reload: true
+    enabled: true
+    state: "{{ 'restarted' if platform_firewall_config.changed or platform_firewall_unit.changed else 'started' }}"

@@ -14,7 +14,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 FROM builder AS verification
 RUN apk --no-cache add bash python3 git build-base
 COPY --from=golangci/golangci-lint:v2.13.2-alpine@sha256:da1f79b184ff1d98781648407d05a99b9cba7b282aa3416b0a0eac102a3b0557 /usr/bin/golangci-lint /usr/local/bin/golangci-lint
-COPY deploy/images/ci /ci
+COPY deploy/ci/verification /ci
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     golangci-lint run \
