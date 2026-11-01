@@ -1,0 +1,96 @@
+---
+- name: Require the supported VM architecture
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.architecture == 'x86_64'
+      - ansible_facts.os_family == 'Debian'
+      - private_ip in ansible_facts.all_ipv4_addresses
+- name: Install host prerequisites
+  ansible.builtin.apt:
+    name: [ca-certificates, curl, unzip, iptables, nftables, conntrack, openssl, python3-requests, python3-cryptography]
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+- name: Create the certificate reader group
+  ansible.builtin.group:
+    name: cowork-tls
+    system: true
+- name: Create the Consul service account
+  ansible.builtin.user:
+    name: consul
+    system: true
+    home: /var/lib/consul
+    shell: /usr/sbin/nologin
+    groups: cowork-tls
+    append: true
+    create_home: false
+  when: inventory_hostname in platform_agent_hosts
+- name: Create root-owned platform directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop: [/etc/cowork, /etc/cowork/ca, /var/lib/cowork, /var/lib/cowork/data, /var/cache/cowork]
+- name: Create the private certificate directory
+  ansible.builtin.file:
+    path: /etc/cowork/tls
+    state: directory
+    owner: root
+    group: cowork-tls
+    mode: '0750'
+- name: Create native agent directories
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner }}"
+    group: "{{ item.owner }}"
+    mode: '0750'
+  loop:
+    - {path: /etc/consul.d, owner: consul}
+    - {path: /var/lib/consul, owner: consul}
+    - {path: /etc/nomad.d, owner: root}
+    - {path: /var/lib/nomad, owner: root}
+  when: inventory_hostname in platform_agent_hosts
+- name: Authorize the deployment runner on each VM
+  ansible.posix.authorized_key:
+    user: "{{ ansible_user }}"
+    key: "{{ lookup('ansible.builtin.file', platform_state_dir ~ '/deploy_ed25519.pub') }}"
+    state: present
+- name: Reconcile the declared Docker runtime
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/host/docker.yml"
+- name: Reconcile the declared Compose plugin
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/host/compose.yml"
+- name: Install the declared operational Python runtime
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/host/python.yml"
+- name: Create the declared persistent volumes
+  ansible.builtin.file:
+    path: "/var/lib/cowork/data/{{ item.name }}"
+    state: directory
+    owner: "{{ item.uid }}"
+    group: "{{ item.uid }}"
+    mode: '0750'
+  loop: "{{ platform_data_volumes.get(inventory_hostname, []) }}"
+- name: Create the storage task directories
+  ansible.builtin.file:
+    path: "/var/lib/cowork/data/{{ inventory_hostname }}-storage/{{ item }}"
+    state: directory
+    owner: '10001'
+    group: '10001'
+    mode: '0750'
+  loop: [data, admin, lifecycle]
+  when: inventory_hostname in ['team', 'user', 'chat']
+- name: Install each VM certificate
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/certificates/certificates.yml"
+- name: Reconcile the ingress policy
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/host/firewall.yml"
+
+- name: Record installed desired binary versions
+  ansible.builtin.copy:
+    content: "{{ platform_versions | to_nice_json }}\n"
+    dest: /etc/cowork/versions.json
+    mode: '0644'
+
+- name: Reconcile host observability
+  ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/agents/observability.yml"
