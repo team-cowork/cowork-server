@@ -12,7 +12,7 @@ RUN npm run build
 FROM builder AS verification
 RUN apk --no-cache add bash python3
 COPY cowork-chat/jest.config.js cowork-chat/xo.config.mjs ./
-COPY deploy/images/ci /ci
+COPY deploy/ci/verification /ci
 RUN --mount=type=cache,id=npm-chat-builder,target=/root/.npm \
     npm run lint -- --max-warnings=0 \
     && bash /ci/run-native.sh jest cowork-chat /workspace /coverage \
