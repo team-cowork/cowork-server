@@ -35,6 +35,12 @@ func CreateLiveIndexes(ctx context.Context, db *mongo.Database) error {
 			Keys: bson.D{{Key: "channel_id", Value: 1}, {Key: "status", Value: 1}},
 		},
 		{Keys: bson.D{{Key: outboxField + ".created_at", Value: 1}}},
+		// 시작 복구 후보 조회(FindCreatingSessionsBefore)용. 부분 필터에는 $exists:false를 쓸 수 없어 status만 건다.
+		{
+			Keys: bson.D{{Key: "started_at", Value: 1}},
+			Options: options.Index().
+				SetPartialFilterExpression(bson.D{{Key: "status", Value: bson.D{{Key: "$eq", Value: "active"}}}}),
+		},
 	}
 	if _, err := sessions.Indexes().CreateMany(ctx, sessionIndexes); err != nil {
 		return fmt.Errorf("live_sessions index creation failed: %w", err)
