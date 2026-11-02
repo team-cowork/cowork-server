@@ -53,16 +53,21 @@ function normalizeTechStacks(rawData) {
 			items: expectArray(
 				category?.items,
 				`categories[${categoryIndex}].items`,
-			).map((item, itemIndex) => ({
-				name: expectString(
-					item?.name,
-					`categories[${categoryIndex}].items[${itemIndex}].name`,
-				),
-				color: expectColor(
-					item?.color,
-					`categories[${categoryIndex}].items[${itemIndex}].color`,
-				),
-			})),
+			).map((item, itemIndex) => {
+				const label = `categories[${categoryIndex}].items[${itemIndex}]`;
+				const documentation = new URL(expectString(item?.documentation, `${label}.documentation`));
+				if (documentation.protocol !== 'https:' || documentation.username || documentation.password) {
+					throw new Error(`${label}.documentation must be an HTTPS URL without credentials.`);
+				}
+
+				return {
+					name: expectString(item?.name, `${label}.name`),
+					color: expectColor(item?.color, `${label}.color`),
+					released: expectString(item?.released, `${label}.released`),
+					description: expectString(item?.description, `${label}.description`),
+					documentation: documentation.href,
+				};
+			}),
 		}),
 	);
 	const technologyNames = new Set(
