@@ -315,6 +315,8 @@ export class ChatService {
 		});
 		if (objectKeys.length > 0) {
 			await this.attachmentDeletions.record({messageId, channelId, objectKeys});
+			// 같은 clientMessageId 재전송이 지워질 객체를 다시 연결하지 못하게 업로드 기록을 먼저 지운다.
+			await this.objectStorageService.releaseUploads(objectKeys);
 		}
 
 		const result = await this.messageSearchDeletion.deleteMessage(messageId);
