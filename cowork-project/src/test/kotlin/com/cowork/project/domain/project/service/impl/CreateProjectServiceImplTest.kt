@@ -72,7 +72,7 @@ class CreateProjectServiceImplTest {
         fun `createProject은 이름이 비었거나 공백뿐이거나 100자를 넘으면 쓰기 작업 없이 BAD_REQUEST`() {
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L, "OWNER")
 
-            listOf("", "   ", "\t\n", "가".repeat(101)).forEach { name ->
+            listOf("", "   ", "\t\n", "가".repeat(101), "😀".repeat(101)).forEach { name ->
                 val ex = assertThrows(ExpectedException::class.java) {
                     service.execute(7L, CreateProjectReqDto(teamId = 100L, name = name, description = null))
                 }
@@ -91,7 +91,7 @@ class CreateProjectServiceImplTest {
             every { projectRepository.findAllByTeamIdForUpdate(100L) } returns emptyList()
             every { projectRepository.save(any()) } answers { firstArg() }
 
-            listOf("가", "가".repeat(100), "개발 팀", " 개발 팀 ").forEach { name ->
+            listOf("가", "가".repeat(100), "😀".repeat(100), "개발 팀", " 개발 팀 ").forEach { name ->
                 val response = service.execute(7L, CreateProjectReqDto(teamId = 100L, name = name, description = null))
 
                 assertEquals(name, response.name)
