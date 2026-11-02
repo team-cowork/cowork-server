@@ -24,6 +24,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 
@@ -77,7 +78,7 @@ class TeamController(
     @ResponseStatus(HttpStatus.CREATED)
     fun createTeam(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-        @RequestBody request: CreateTeamRequest,
+        @Valid @RequestBody request: CreateTeamRequest,
     ): TeamResponse = createTeamService.execute(userId, request)
 
     @Operation(summary = "내 팀 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
@@ -109,7 +110,7 @@ class TeamController(
     fun updateTeam(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
-        @RequestBody request: UpdateTeamRequest,
+        @Valid @RequestBody request: UpdateTeamRequest,
     ): TeamResponse = updateTeamService.execute(userId, teamId, request)
 
     @Operation(summary = "팀 아이콘 교체", security = [SecurityRequirement(name = "BearerAuth")])
