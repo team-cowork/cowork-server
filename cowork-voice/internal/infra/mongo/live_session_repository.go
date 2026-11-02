@@ -142,6 +142,42 @@ func (r *mongoLiveSessionRepository) EndSession(ctx context.Context, sessionID s
 	return result.ModifiedCount == 1, nil
 }
 
+func (r *mongoLiveSessionRepository) FindCreatingSessionsBefore(ctx context.Context, before time.Time) ([]live.LiveSession, error) {
+	col := r.db.Collection(live.CollectionSessions)
+	filter := bson.D{
+		{Key: "status", Value: live.StatusActive},
+		{Key: "started_event_sent_at", Value: bson.D{{Key: "$exists", Value: false}}},
+		{Key: "started_at", Value: bson.D{{Key: "$lt", Value: before}}},
+	}
+	cursor, err := col.Find(ctx, filter)
+	if err != nil {
+		return nil, apperr.Internal(err.Error())
+	}
+	var sessions []live.LiveSession
+	if err := cursor.All(ctx, &sessions); err != nil {
+		return nil, apperr.Internal(err.Error())
+	}
+	return sessions, nil
+}
+
+func (r *mongoLiveSessionRepository) EndCreatingSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error) {
+	col := r.db.Collection(live.CollectionSessions)
+	filter := bson.D{
+		{Key: "session_id", Value: sessionID},
+		{Key: "status", Value: live.StatusActive},
+		{Key: "started_event_sent_at", Value: bson.D{{Key: "$exists", Value: false}}},
+	}
+	update := bson.D{{Key: "$set", Value: bson.D{
+		{Key: "status", Value: live.StatusEnded},
+		{Key: "ended_at", Value: endedAt},
+	}}}
+	result, err := col.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return false, apperr.Internal(err.Error())
+	}
+	return result.ModifiedCount == 1, nil
+}
+
 func (r *mongoLiveSessionRepository) MarkSessionStartedAndEnqueue(
 	ctx context.Context,
 	sessionID string,
@@ -343,3 +379,4 @@ func (r *mongoLiveSessionRepository) EndSessionAndEnqueue(
 
 // ensure interface compliance
 var _ live.Repository = (*mongoLiveSessionRepository)(nil)
+var _ live.StartRecoveryRepository = (*mongoLiveSessionRepository)(nil)
