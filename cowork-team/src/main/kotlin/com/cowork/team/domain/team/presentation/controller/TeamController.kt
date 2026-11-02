@@ -24,6 +24,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 
@@ -71,13 +72,13 @@ class TeamController(
     @Operation(summary = "팀 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "201", description = "팀 생성 성공"),
-        ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        ApiResponse(responseCode = "400", description = "팀 이름이 공백이거나 100자를 초과하는 등 잘못된 요청"),
     )
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createTeam(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-        @RequestBody request: CreateTeamRequest,
+        @Valid @RequestBody request: CreateTeamRequest,
     ): TeamResponse = createTeamService.execute(userId, request)
 
     @Operation(summary = "내 팀 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
@@ -101,6 +102,7 @@ class TeamController(
     @Operation(summary = "팀 정보 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "수정 성공"),
+        ApiResponse(responseCode = "400", description = "팀 이름이 공백이거나 100자를 초과하는 등 잘못된 요청"),
         ApiResponse(responseCode = "403", description = "권한 없음"),
         ApiResponse(responseCode = "404", description = "팀 없음"),
     )
@@ -108,7 +110,7 @@ class TeamController(
     fun updateTeam(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
-        @RequestBody request: UpdateTeamRequest,
+        @Valid @RequestBody request: UpdateTeamRequest,
     ): TeamResponse = updateTeamService.execute(userId, teamId, request)
 
     @Operation(summary = "팀 아이콘 교체", security = [SecurityRequirement(name = "BearerAuth")])

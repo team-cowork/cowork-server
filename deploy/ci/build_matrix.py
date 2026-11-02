@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""Select image and verification builds without inferring a service runtime."""
+import argparse
+from fnmatch import fnmatchcase
+from functools import cache
+import json
+import os
+import re
+import shlex
+import subprocess
+from pathlib import Path, PurePosixPath
+
+from deploy.production.version_fields import changed_paths
+
+ROOT = Path(__file__).resolve().parents[2]
+CATALOG = json.loads((ROOT / "deploy/images/catalog.json").read_text())
+
+
+@cache
+def build_inputs(service):
+    inputs = set()
+    # CD may load these tools from a different checkout than the selected source.
+    dockerfile = Path.cwd() / f"cowork-{service}" / "Dockerfile"
+    if not dockerfile.is_file():
+        return {"."}
+    content = dockerfile.read_text()
+    # Unsupported context expressions select broadly rather than miss a build.
+    if re.search(r"(?im)^\s*#\s*escape\s*=\s*`", content) or any(
+        "type=cache" not in mount for mount in re.findall(r"--mount=(\S+)", content)
+    ):
+        return {"."}
+    content = "\n".join(line for line in content.splitlines() if not line.lstrip().startswith("#"))
+    content = re.sub(r"\\\n", " ", content)
+    for arguments in re.findall(r"(?im)^\s*(?:COPY|ADD)\s+(.+)$", content):
+        try:
+            flags = []
+            while arguments.startswith("--"):
+                flag, arguments = arguments.split(None, 1)
+                flags.append(flag)
+            if any(flag.startswith("--from=") for flag in flags):
+                continue
+            sources = json.loads(arguments) if arguments.startswith("[") else shlex.split(arguments)
+            if not isinstance(sources, list) or len(sources) < 2 or not all(isinstance(source, str) for source in sources):
+                return {"."}
+            for source in sources[:-1]:
+                if "$" in source or source.startswith("<<") or ".." in PurePosixPath(source).parts:
+                    return {"."}
+                if "://" not in source:
+                    inputs.add(str(PurePosixPath(source.lstrip("/"))))
+        except ValueError:
+            return {"."}
+    return inputs
+
+
+def documentation_path(path):
+    """Exclude prose, not Markdown assets packaged inside application sources."""
+    parts = Path(path).parts
+    return (path.startswith(("docs/", ".agents/", ".claude/", ".codex/"))
+            or "docs" in parts[:-1]
+            or Path(path).name in {"README.md", "AGENTS.md", "CONTRIBUTING.md", "PR_BODY.md"})
+
+
+def affected(service, paths, *, verify=False):
+    for path in paths:
+        if documentation_path(path):
+            continue
+        # Verification and reporting code is not packaged in runtime images.
+        if (path.startswith(("deploy/ci/", ".github/actions/verify-image/"))
+                or fnmatchcase(path, ".github/workflows/*-ci.yml")):
+            if verify:
+                return True
+            continue
+        if (path in {".dockerignore", "deploy/images/catalog.json", "deploy/images/inspect_image.py",
+                     "deploy/production/version_fields.py"}
+                or path.startswith(".github/actions/build-image/")):
+            return True
+        if path.startswith(f"cowork-{service}/"):
+            return True
+        if any(source == "." or fnmatchcase(str(candidate), source)
+               for source in build_inputs(service) for candidate in (PurePosixPath(path), *PurePosixPath(path).parents)):
+            return True
+    return False
+
+
+def matrix(paths=None):
+    return {"include": [
+        {"service": service, "context": context, "dockerfile": f"cowork-{service}/Dockerfile"}
+        for service, context in CATALOG.items() if paths is None or affected(service, paths)
+    ]}
+
+
+def verification_matrix(paths=None):
+    return {"include": [
+        {"service": dockerfile.parent.name.removeprefix("cowork-"),
+         "dockerfile": str(dockerfile.relative_to(ROOT))}
+        for dockerfile in sorted(ROOT.glob("cowork-*/Dockerfile"))
+        if paths is None or affected(dockerfile.parent.name.removeprefix("cowork-"), paths, verify=True)
+    ]}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base")
+    parser.add_argument("--head", default="HEAD")
+    parser.add_argument("--verify", action="store_true")
+    args = parser.parse_args()
+    paths = None
+    if args.base:
+        base = subprocess.check_output(["git", "merge-base", args.base, args.head], text=True).strip()
+        paths = changed_paths(base, args.head)
+    selected = verification_matrix(paths) if args.verify else matrix(paths)
+    result = json.dumps(selected, separators=(",", ":"))
+    print(result)
+    if "GITHUB_OUTPUT" in os.environ:
+        with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+            output.write(f"matrix={result}\n")
+            output.write("services-list=" + (", ".join(dict.fromkeys(entry["service"] for entry in selected["include"])) or "none") + "\n")
+
+
+if __name__ == "__main__":
+    main()

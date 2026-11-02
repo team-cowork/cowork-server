@@ -1,29 +1,3 @@
-variable "manifest" {
-  description = "The committed release manifest, containing only image digests and KV versions."
-  type = object({
-    schema_version  = number
-    source_sha      = string
-    release_version = string
-    applications = map(object({
-      image               = string
-      image_source_sha    = string
-      version             = string
-      secret_version      = number
-      data_secret_version = number
-    }))
-    infrastructure_images    = map(string)
-    data_secret_versions     = map(number)
-    platform_secret_versions = map(number)
-  })
-  validation {
-    condition     = var.manifest.schema_version == 1 && can(regex("^[0-9a-f]{40}$", var.manifest.source_sha))
-    error_message = "Use a schema 1 manifest with a full source commit SHA."
-  }
-  validation {
-    condition     = alltrue([for app in values(var.manifest.applications) : can(regex("@sha256:[0-9a-f]{64}$", app.image)) && app.secret_version >= 1 && floor(app.secret_version) == app.secret_version]) && alltrue([for image in values(var.manifest.infrastructure_images) : can(regex("@sha256:[0-9a-f]{64}$", image))])
-    error_message = "Images must use immutable digests and secret versions must be positive integers."
-  }
-}
 variable "platform_ca_file" {
   type        = string
   description = "Absolute path to the public platform CA certificate."
