@@ -145,6 +145,22 @@ describe('ObjectStorageService', () => {
 		});
 	});
 
+	describe('removeObject', () => {
+		it('이미 없는 객체는 삭제 성공으로 본다', async () => {
+			const service = new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never);
+			s3Client.send.mockRejectedValueOnce({name: 'NoSuchKey', $metadata: {httpStatusCode: 404}});
+
+			await expect(service.removeObject('chat-files/1/42/file.png')).resolves.toBeUndefined();
+		});
+
+		it('그 밖의 저장소 오류는 재시도할 수 있게 그대로 던진다', async () => {
+			const service = new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never);
+			s3Client.send.mockRejectedValueOnce(Object.assign(new Error('unavailable'), {$metadata: {httpStatusCode: 503}}));
+
+			await expect(service.removeObject('chat-files/1/42/file.png')).rejects.toThrow('unavailable');
+		});
+	});
+
 	describe('createPresignedDownload', () => {
 		it('원래 파일명으로 내려받도록 Content-Disposition을 서명에 포함한다', async () => {
 			const service = new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never);
