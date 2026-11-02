@@ -7,6 +7,7 @@ import com.cowork.project.domain.project.presentation.data.response.ProjectResDt
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.CreateProjectService
 import com.cowork.project.domain.project.service.ProjectAccessGuard
+import com.cowork.project.domain.project.service.support.requireValidProjectName
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -28,6 +29,7 @@ class CreateProjectServiceImpl(
     @Transactional(isolation = Isolation.READ_COMMITTED)
     override fun execute(userId: Long, request: CreateProjectReqDto): ProjectResDto {
         val initialReadAuthorization = projectAccessGuard.requireProjectCreation(request.teamId, userId, request.isPrivate)
+        requireValidProjectName(request.name)
         val lockedProjects = projectRepository.findAllByTeamIdForUpdate(request.teamId)
 
         val project = try {

@@ -67,6 +67,65 @@ class UpdateProjectServiceImplTest {
         }
 
         @Test
+        fun `updateProject은 잘못된 이름이어도 권한 확인을 먼저 수행해 FORBIDDEN`() {
+            every { projectRepository.findByIdForUpdate(1L) } returns project()
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns null
+
+            val ex = assertThrows(ExpectedException::class.java) {
+                service.execute(99L, 1L, UpdateProjectReqDto(name = ""))
+            }
+
+            assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+        }
+
+        @Test
+        fun `updateProject은 이름이 비었거나 공백뿐이거나 100자를 넘으면 변경 없이 BAD_REQUEST`() {
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
+                membership(100L, 99L, "OWNER")
+
+            listOf("", "   ", "\t\n", "가".repeat(101)).forEach { name ->
+                val proj = project()
+                every { projectRepository.findByIdForUpdate(1L) } returns proj
+
+                val ex = assertThrows(ExpectedException::class.java) {
+                    service.execute(99L, 1L, UpdateProjectReqDto(name = name, description = "changed"))
+                }
+
+                assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+                assertEquals("p", proj.name)
+                assertEquals(null, proj.description)
+            }
+
+            verify(exactly = 0) { projectEventPublisher.publishUpdated(any(), any()) }
+        }
+
+        @Test
+        fun `updateProject은 유효한 이름을 입력값 그대로 변경한다`() {
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
+                membership(100L, 99L, "OWNER")
+
+            listOf("가", "가".repeat(100), "개발 팀", " 개발 팀 ").forEach { name ->
+                every { projectRepository.findByIdForUpdate(1L) } returns project()
+
+                val response = service.execute(99L, 1L, UpdateProjectReqDto(name = name))
+
+                assertEquals(name, response.name)
+            }
+        }
+
+        @Test
+        fun `updateProject은 name이 null이면 기존 이름을 유지하고 다른 필드만 변경한다`() {
+            every { projectRepository.findByIdForUpdate(1L) } returns project()
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
+                membership(100L, 99L, "OWNER")
+
+            val response = service.execute(99L, 1L, UpdateProjectReqDto(name = null, description = "changed"))
+
+            assertEquals("p", response.name)
+            assertEquals("changed", response.description)
+        }
+
+        @Test
         fun `일반 관리자가 비공개 전환 후 접근을 잃으면 변경 전에 거절한다`() {
             val proj = project()
             every { projectRepository.findByIdForUpdate(1L) } returns proj

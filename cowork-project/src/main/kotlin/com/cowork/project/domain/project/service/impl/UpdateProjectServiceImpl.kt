@@ -5,6 +5,7 @@ import com.cowork.project.domain.project.presentation.data.request.UpdateProject
 import com.cowork.project.domain.project.presentation.data.response.ProjectResDto
 import com.cowork.project.domain.project.service.ProjectAccessGuard
 import com.cowork.project.domain.project.service.UpdateProjectService
+import com.cowork.project.domain.project.service.support.requireValidProjectName
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -21,6 +22,7 @@ class UpdateProjectServiceImpl(
         if (!project.isPrivate && request.isPrivate == true) {
             projectAccessGuard.requirePrivateTransitionAccess(project, userId)
         }
+        request.name?.let(::requireValidProjectName)
 
         request.name?.let { project.updateName(it) }
         request.description?.let { project.updateDescription(it) }
