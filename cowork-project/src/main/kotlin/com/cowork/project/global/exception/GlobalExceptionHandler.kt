@@ -3,6 +3,7 @@ package com.cowork.project.global.exception
 import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingRequestHeaderException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
@@ -18,6 +19,12 @@ class GlobalExceptionHandler {
     @ExceptionHandler(ExpectedException::class)
     fun handleExpectedException(e: ExpectedException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(e.statusCode).body(ErrorResponse(e.message ?: e.statusCode.reasonPhrase))
+
+    @ExceptionHandler(MethodArgumentNotValidException::class)
+    fun handleMethodArgumentNotValid(e: MethodArgumentNotValidException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.badRequest().body(
+            ErrorResponse(e.bindingResult.fieldErrors.firstOrNull()?.defaultMessage ?: "요청 값이 올바르지 않습니다."),
+        )
 
     @ExceptionHandler(HttpMessageNotReadableException::class)
     fun handleMessageNotReadable(e: HttpMessageNotReadableException): ResponseEntity<ErrorResponse> =
