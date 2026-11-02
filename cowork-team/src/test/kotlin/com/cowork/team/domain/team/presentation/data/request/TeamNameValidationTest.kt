@@ -20,6 +20,14 @@ class TeamNameValidationTest :
                 "공백 문자" to "\t\n",
                 "전각 공백" to "　",
                 "줄바꿈 없는 공백" to " ",
+                "한글 초성 채움 문자" to "\u115F",
+                "한글 중성 채움 문자" to "\u1160",
+                "한글 채움 문자" to "\u3164",
+                "반각 한글 채움 문자" to "\uFFA0",
+                "폭 없는 공백" to "\u200B",
+                "BOM" to "\uFEFF",
+                "점자 공백" to "\u2800",
+                "공백과 보이지 않는 문자 혼합" to " \u200B\u3164\u2800\uFEFF ",
             ).forEach { (label, name) ->
                 it("$label 이름을 거부한다") {
                     createErrors(name) shouldBe listOf("팀 이름은 공백일 수 없습니다.")
@@ -43,6 +51,9 @@ class TeamNameValidationTest :
                 "이모지 100자" to "😀".repeat(100),
                 "중간 공백" to "개발 팀",
                 "앞뒤 공백" to " 개발 팀 ",
+                "채움 문자와 일반 문자" to "\u3164팀",
+                "형식 문자와 일반 문자" to "\u200B팀",
+                "ZWJ 이모지" to "👩‍💻",
             ).forEach { (label, name) ->
                 it("$label 이름을 허용한다") {
                     createErrors(name).shouldBeEmpty()
