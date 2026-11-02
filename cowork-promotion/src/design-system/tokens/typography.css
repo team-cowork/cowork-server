@@ -1,5 +1,5 @@
 :root {
-    --font-sans: Inter, ui-sans-serif, system-ui, sans-serif;
+    --font-sans: 'SUIT Variable', ui-sans-serif, system-ui, sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     --font-size-xs: 0.75rem;
     --font-size-sm: 0.875rem;
