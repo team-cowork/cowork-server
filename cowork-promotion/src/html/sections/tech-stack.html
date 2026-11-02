@@ -1,4 +1,4 @@
-<section class="ui-section">
+<section class="ui-section" data-technology-stack>
 	<div class="ui-container ui-container--content">
 		<div class="ui-section-heading">
 			<h2>기술 스택</h2>
@@ -10,4 +10,46 @@
 			<!-- data:tech-stacks:end -->
 		</div>
 	</div>
+	<dialog
+		id="technology-dialog"
+		class="technology-dialog"
+		aria-describedby="technology-released technology-description"
+		aria-labelledby="technology-name"
+	>
+		<div class="technology-dialog__content">
+			<header class="technology-dialog__header">
+				<p class="technology-dialog__label">기술 소개</p>
+				<form method="dialog">
+					<button
+						type="submit"
+						class="technology-dialog__close"
+						aria-label="기술 소개 닫기"
+						autofocus
+					>
+						<svg
+							class="ui-icon"
+							aria-hidden="true"
+							fill="none"
+							stroke="currentColor"
+							stroke-linecap="round"
+							stroke-width="1.8"
+							viewBox="0 0 24 24"
+						>
+							<path d="m6 6 12 12M18 6 6 18"/>
+						</svg>
+					</button>
+				</form>
+			</header>
+			<h3 id="technology-name" class="technology-dialog__title">기술 소개</h3>
+			<p id="technology-released" class="technology-dialog__released">공개·출시 시점</p>
+			<p id="technology-description" class="technology-dialog__description">뱃지를 선택하면 기술의 설명을 확인할 수 있습니다.</p>
+			<a
+				class="technology-dialog__documentation"
+				data-technology-documentation
+				href="#technology-name"
+				rel="noopener noreferrer"
+				target="_blank"
+			>공식 문서 보기 ↗</a>
+		</div>
+	</dialog>
 </section>
