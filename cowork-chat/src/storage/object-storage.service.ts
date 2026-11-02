@@ -327,8 +327,8 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
 		try {
 			await this.s3Client.send(new DeleteObjectCommand({[s3Field.bucket]: this.config.bucket, [s3Field.key]: objectKey}));
 		} catch (error) {
-			// 이미 없는 객체는 삭제가 끝난 것이다. 재시도한 삭제가 실패로 남지 않게 한다.
-			if (!isNotFoundError(error) && (error as {name?: string}).name !== 'NoSuchKey') {
+			// 이미 없는 객체는 삭제가 끝난 것이다. 버킷이 없는 404(NoSuchBucket)는 재시도하도록 오류로 남긴다.
+			if (!['NoSuchKey', 'NotFound'].includes((error as {name?: string}).name ?? '')) {
 				throw error;
 			}
 		}
