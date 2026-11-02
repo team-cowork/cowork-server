@@ -17,5 +17,6 @@ export * from './project-permission-event.consumer.js';
 export * from './team-member-event.consumer.js';
 export * from './team-role-event.consumer.js';
 export * from './text-channel-setting-event.consumer.js';
+export * from './team-setting-event.consumer.js';
 export * from './user-profile-event.consumer.js';
 export * from './webhook-event.consumer.js';

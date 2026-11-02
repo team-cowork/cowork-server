@@ -7,7 +7,7 @@
     - name: Require a reserved Gateway host port
       ansible.builtin.assert:
         that:
-          - gateway_target_port | string | regex_search('^[0-9]+$')
+          - gateway_target_port | string is match('^[0-9]+$')
           - gateway_target_port | int in [21000, 21001]
     - name: Read the previous target
       ansible.builtin.slurp:

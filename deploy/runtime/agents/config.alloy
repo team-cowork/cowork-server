@@ -1,3 +1,16 @@
+// Prometheus supplies the local allocation URL; host networking bypasses Envoy.
+prometheus.exporter.blackbox "app_readiness" {
+  config = `
+modules:
+  http_2xx:
+    prober: http
+    timeout: 5s
+    http:
+      method: GET
+      preferred_ip_protocol: ip4
+`
+}
+
 discovery.docker "containers" {
   host = "unix:///var/run/docker.sock"
 }
