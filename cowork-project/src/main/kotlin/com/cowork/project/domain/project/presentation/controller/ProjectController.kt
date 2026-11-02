@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.web.PageableDefault
@@ -46,7 +47,7 @@ class ProjectController(
     @PostMapping
     fun createProject(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-        @RequestBody request: CreateProjectReqDto,
+        @Valid @RequestBody request: CreateProjectReqDto,
     ): ResponseEntity<ProjectResDto> = ResponseEntity.status(201).body(createProjectService.execute(userId, request))
 
     @Operation(summary = "프로젝트 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
@@ -71,7 +72,7 @@ class ProjectController(
     fun updateProject(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-        @RequestBody request: UpdateProjectReqDto,
+        @Valid @RequestBody request: UpdateProjectReqDto,
     ): ResponseEntity<ProjectResDto> = ResponseEntity.ok(updateProjectService.execute(userId, projectId, request))
 
     @Operation(summary = "프로젝트 삭제", security = [SecurityRequirement(name = "BearerAuth")])

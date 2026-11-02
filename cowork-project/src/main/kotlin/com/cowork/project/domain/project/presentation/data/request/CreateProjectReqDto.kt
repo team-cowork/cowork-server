@@ -12,6 +12,7 @@ data class CreateProjectReqDto(
         example = "코워크 앱 개발",
         required = true,
     )
+    @field:ValidProjectName
     val name: String,
     @param:Schema(description = "프로젝트 설명", example = "모바일 앱 개발 프로젝트")
     val description: String? = null,
