@@ -38,6 +38,7 @@ class TeamNameValidationTest :
             mapOf(
                 "101자" to "가".repeat(101),
                 "이모지 101자" to "😀".repeat(101),
+                "앞뒤 공백을 제외한 101자" to " ${"가".repeat(101)} ",
             ).forEach { (label, name) ->
                 it("$label 이름을 거부한다") {
                     createErrors(name) shouldBe listOf("팀 이름은 100자를 초과할 수 없습니다.")
@@ -54,6 +55,8 @@ class TeamNameValidationTest :
                 "채움 문자와 일반 문자" to "\u3164팀",
                 "형식 문자와 일반 문자" to "\u200B팀",
                 "ZWJ 이모지" to "👩‍💻",
+                "앞뒤 공백을 제외한 100자" to " ${"가".repeat(100)} ",
+                "앞뒤 공백을 제외한 이모지 100자" to " ${"😀".repeat(100)} ",
             ).forEach { (label, name) ->
                 it("$label 이름을 허용한다") {
                     createErrors(name).shouldBeEmpty()
@@ -61,7 +64,15 @@ class TeamNameValidationTest :
                 }
             }
 
+            it("앞뒤 공백을 제거하고 가운데 공백은 유지한다") {
+                listOf(" 개발  팀 ", "\t개발  팀\n", "\u00A0\u3000개발  팀\u3000\u00A0").forEach { name ->
+                    CreateTeamRequest(name, null, null).name shouldBe "개발  팀"
+                    UpdateTeamRequest(name, null, null).name shouldBe "개발  팀"
+                }
+            }
+
             it("수정 요청의 null 이름을 허용한다") {
+                UpdateTeamRequest(null, null, null).name shouldBe null
                 updateErrors(null).shouldBeEmpty()
             }
         }
