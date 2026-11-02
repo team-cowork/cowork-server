@@ -10,6 +10,7 @@ import com.cowork.channel.domain.channel.presentation.data.response.ChannelRespo
 import com.cowork.channel.domain.channel.repository.ChannelRepository
 import com.cowork.channel.domain.channel.service.CreateChannelService
 import com.cowork.channel.domain.channel.service.TeamPermissionService
+import com.cowork.channel.domain.channel.service.support.requireValidChannelName
 import com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyPermissionSchema
 import com.cowork.channel.domain.meetingNote.service.CreateDefaultMeetingNoteTemplateService
 import org.springframework.dao.DataIntegrityViolationException
@@ -53,6 +54,7 @@ class CreateChannelServiceImpl(
     @Transactional(isolation = Isolation.READ_COMMITTED)
     override fun execute(userId: Long, request: CreateChannelRequest): ChannelResponse {
         teamPermissionService.requirePermission(request.teamId, userId, "manage_channels")
+        requireValidChannelName(request.name)
         val lockedChannels = channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(request.teamId)
 
         val proposedChannel = Channel(
