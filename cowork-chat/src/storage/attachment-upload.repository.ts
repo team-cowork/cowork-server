@@ -9,6 +9,13 @@ import {
 	ATTACHMENT_UPLOAD_TTL_SECONDS,
 } from './attachment-upload.schema.js';
 
+const NAMESPACE_NOT_FOUND = 26;
+const INDEX_NOT_FOUND = 27;
+
+function mongoErrorCode(error: unknown): number | undefined {
+	return (error as {code?: number}).code;
+}
+
 @injectable()
 export class AttachmentUploadRepository implements OnModuleInit {
 	private readonly logger = new Logger(AttachmentUploadRepository.name);
@@ -21,17 +28,44 @@ export class AttachmentUploadRepository implements OnModuleInit {
 	}
 
 	/**
-     기존 TTL 인덱스의 만료 시간을 갱신한다. 같은 키의 인덱스는 옵션만 바꿔 다시 만들 수 없어 autoIndex로는 반영되지 않는다.
+     기존 TTL 인덱스의 만료 시간을 맞춘다. 같은 키의 인덱스는 옵션만 바꿔 다시 만들 수 없어 autoIndex로는 반영되지 않고,
+     앱 계정은 readWrite 권한만 있어 collMod를 쓸 수 없으므로 다른 만료 시간의 인덱스를 지우고 다시 만든다.
+     여러 인스턴스가 동시에 실행해도 같은 결과로 수렴한다.
      */
 	async onModuleInit(): Promise<void> {
+		const database = this.uploads.db.db;
+		if (!database) {
+			this.logger.error('Attachment upload TTL index was not checked: database handle is unavailable');
+			return;
+		}
+
+		const collection = database.collection(this.uploads.collection.collectionName);
 		try {
-			await this.uploads.db.db?.command({
-				collMod: this.uploads.collection.collectionName,
-				index: {keyPattern: {createdAt: 1}, expireAfterSeconds: ATTACHMENT_UPLOAD_TTL_SECONDS},
+			const indexes = await collection.indexes().catch((error: unknown) => {
+				if (mongoErrorCode(error) === NAMESPACE_NOT_FOUND) {
+					return [];
+				}
+
+				throw error;
 			});
+			const ttlIndex = indexes.find(index => index.expireAfterSeconds !== undefined && JSON.stringify(index.key) === '{"createdAt":1}');
+			if (ttlIndex?.expireAfterSeconds === ATTACHMENT_UPLOAD_TTL_SECONDS) {
+				return;
+			}
+
+			if (ttlIndex?.name !== undefined) {
+				await collection.dropIndex(ttlIndex.name).catch((error: unknown) => {
+					// 다른 인스턴스가 먼저 지웠다.
+					if (mongoErrorCode(error) !== INDEX_NOT_FOUND) {
+						throw error;
+					}
+				});
+			}
+
+			await collection.createIndex({createdAt: 1}, {expireAfterSeconds: ATTACHMENT_UPLOAD_TTL_SECONDS});
+			this.logger.log(`Attachment upload TTL index set to ${ATTACHMENT_UPLOAD_TTL_SECONDS}s`);
 		} catch (error) {
-			// 새 DB에는 collection·인덱스가 아직 없고, autoIndex가 새 값으로 만든다.
-			this.logger.warn(`Attachment upload TTL index was not updated: ${String(error)}`);
+			this.logger.error('Attachment upload TTL index was not updated; unsent attachments may expire before reclaim', error);
 		}
 	}
 
