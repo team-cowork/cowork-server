@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.web.PageableDefault
@@ -40,12 +41,13 @@ class ProjectController(
     @Operation(summary = "프로젝트 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "201", description = "생성 성공"),
+        ApiResponse(responseCode = "400", description = "프로젝트 이름이 공백이거나 100자를 초과하는 등 잘못된 요청"),
         ApiResponse(responseCode = "403", description = "권한 없음"),
     )
     @PostMapping
     fun createProject(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-        @RequestBody request: CreateProjectReqDto,
+        @Valid @RequestBody request: CreateProjectReqDto,
     ): ResponseEntity<ProjectResDto> = ResponseEntity.status(201).body(createProjectService.execute(userId, request))
 
     @Operation(summary = "프로젝트 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
@@ -62,6 +64,7 @@ class ProjectController(
     @Operation(summary = "프로젝트 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "수정 성공"),
+        ApiResponse(responseCode = "400", description = "프로젝트 이름이 공백이거나 100자를 초과하는 등 잘못된 요청"),
         ApiResponse(responseCode = "403", description = "권한 없음"),
         ApiResponse(responseCode = "404", description = "프로젝트 없음"),
     )
@@ -69,7 +72,7 @@ class ProjectController(
     fun updateProject(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
-        @RequestBody request: UpdateProjectReqDto,
+        @Valid @RequestBody request: UpdateProjectReqDto,
     ): ResponseEntity<ProjectResDto> = ResponseEntity.ok(updateProjectService.execute(userId, projectId, request))
 
     @Operation(summary = "프로젝트 삭제", security = [SecurityRequirement(name = "BearerAuth")])
