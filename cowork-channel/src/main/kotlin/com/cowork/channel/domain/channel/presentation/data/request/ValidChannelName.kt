@@ -10,7 +10,10 @@ import kotlin.reflect.KClass
 @Target(AnnotationTarget.FIELD)
 @Retention(AnnotationRetention.RUNTIME)
 @Constraint(validatedBy = [])
-@Pattern(regexp = "(?sU).*\\S.*", message = "채널 이름은 공백일 수 없습니다.")
+@Pattern(
+    regexp = "(?sU).*[^\\s\\p{Cf}\\u115F\\u1160\\u3164\\uFFA0\\u2800].*",
+    message = "채널 이름은 공백일 수 없습니다.",
+)
 @CodePointLength(max = 100, message = "채널 이름은 100자를 초과할 수 없습니다.")
 annotation class ValidChannelName(
     val message: String = "채널 이름이 올바르지 않습니다.",
