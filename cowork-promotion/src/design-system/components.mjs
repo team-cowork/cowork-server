@@ -66,7 +66,7 @@ export function renderRepositoryCard(repository) {
       <h3 class="repo-card__title">${name}</h3>
       <p class="repo-card__description">${escapeHtml(repository.description)}</p>
       <div class="repo-language-stats-frame mt-4 rounded-xl overflow-hidden border border-gray-50">
-        <img class="repo-language-stats w-full block" alt="${name} language stats" src="https://github-repository-language-graph-wi.vercel.app/api?username=team-cowork&amp;repo=${name}&amp;theme=white&amp;langs_count=100" width="495" height="${repository.graphHeight}" loading="lazy" decoding="async" />
+        <img class="repo-language-stats w-full block" alt="${name} language stats" src="https://github-repository-language-graph-wi.vercel.app/api?username=team-cowork&amp;repo=${name}&amp;theme=auto&amp;langs_count=100&amp;precision=2" width="495" height="${repository.graphHeight}" loading="lazy" decoding="async" />
       </div>
       <div class="repo-card__footer">${renderExternalLinkIcon()}<span class="truncate">github.com/team-cowork/${name}</span></div>
     </a>`;
