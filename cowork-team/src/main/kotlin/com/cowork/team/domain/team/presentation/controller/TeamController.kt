@@ -71,7 +71,7 @@ class TeamController(
     @Operation(summary = "팀 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "201", description = "팀 생성 성공"),
-        ApiResponse(responseCode = "400", description = "잘못된 요청"),
+        ApiResponse(responseCode = "400", description = "팀 이름이 공백이거나 100자를 초과하는 등 잘못된 요청"),
     )
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -101,6 +101,7 @@ class TeamController(
     @Operation(summary = "팀 정보 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "수정 성공"),
+        ApiResponse(responseCode = "400", description = "팀 이름이 공백이거나 100자를 초과하는 등 잘못된 요청"),
         ApiResponse(responseCode = "403", description = "권한 없음"),
         ApiResponse(responseCode = "404", description = "팀 없음"),
     )
