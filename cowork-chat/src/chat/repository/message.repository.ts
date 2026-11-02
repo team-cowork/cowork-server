@@ -906,6 +906,13 @@ export class MessageRepository {
 		return (await this.messageModel.exists({_id: messageId, channelId, webhookDeleted: {$ne: true}})) !== null;
 	}
 
+	/**
+    업로드를 연결한 메시지가 이 객체를 첨부로 갖는지 확인합니다. `clientMessageId` 유니크 인덱스를 사용합니다.
+    */
+	async referencesAttachment(clientMessageId: string, objectKey: string): Promise<boolean> {
+		return (await this.messageModel.exists({clientMessageId, 'attachments.objectKey': objectKey})) !== null;
+	}
+
 	async countUnread(channelId: number, afterId: Nullable<Types.ObjectId>): Promise<number> {
 		const filter: Record<string, unknown> = {
 			webhookDeleted: {$ne: true},

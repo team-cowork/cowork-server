@@ -17,3 +17,4 @@ export * from './team-setting-projection.schema.js';
 export * from './user-profile-projection.schema.js';
 export * from './channel-read-state.schema.js';
 export * from './webhook-projection.schema.js';
+export * from './attachment-deletion.schema.js';
