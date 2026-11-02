@@ -2,15 +2,18 @@ import {createApp} from './core/app.js';
 import {createFeatureShowcase} from './components/feature-showcase.js';
 import {createPositionShowcase} from './components/position-showcase.js';
 import {createTeamMarquee} from './components/team-marquee.js';
+import {createTechnologyDialog} from './components/technology-dialog.js';
 import {document, window} from './core/browser.js';
 
 const featureRoot = document.querySelector('#features');
 const positionRoot = document.querySelector('#positions');
 const teamRoot = document.querySelector('[data-team-marquee]');
+const technologyRoot = document.querySelector('[data-technology-stack]');
 const components = [
 	featureRoot && createFeatureShowcase(featureRoot),
 	positionRoot && createPositionShowcase(positionRoot),
 	teamRoot && createTeamMarquee(teamRoot),
+	technologyRoot && createTechnologyDialog(technologyRoot),
 ].filter(Boolean);
 const app = createApp(components);
 
