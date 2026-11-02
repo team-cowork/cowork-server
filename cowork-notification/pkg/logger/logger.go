@@ -1,7 +1,6 @@
 package logger
 
 import (
-	"io"
 	"log/slog"
 	"os"
 	"strings"
@@ -24,19 +23,7 @@ func moduleFromFunction(function string) string {
 }
 
 func Init(serviceName string) {
-	logDir := "/var/log/cowork/" + serviceName
-	_ = os.MkdirAll(logDir, 0755)
-
-	logFile, err := os.OpenFile(logDir+"/app.log", os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-
-	var w io.Writer
-	if err != nil {
-		w = os.Stdout
-	} else {
-		w = io.MultiWriter(os.Stdout, logFile)
-	}
-
-	Default = slog.New(slog.NewJSONHandler(w, &slog.HandlerOptions{
+	Default = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level:     slog.LevelInfo,
 		AddSource: true,
 		ReplaceAttr: func(_ []string, a slog.Attr) slog.Attr {
