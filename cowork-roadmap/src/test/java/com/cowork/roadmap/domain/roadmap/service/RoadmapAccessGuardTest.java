@@ -1,11 +1,8 @@
 package com.cowork.roadmap.domain.roadmap.service;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -13,11 +10,7 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.TransactionStatus;
 
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
@@ -30,10 +23,7 @@ class RoadmapAccessGuardTest {
 
     private final TeamMemberProjectionRepository teamMemberships = mock(TeamMemberProjectionRepository.class);
     private final TeamMemberProjectionReadiness projectionReadiness = mock(TeamMemberProjectionReadiness.class);
-    private final PlatformTransactionManager transactionManager = mock(PlatformTransactionManager.class);
-    private final RoadmapAccessGuard accessGuard = new RoadmapAccessGuard(teamMemberships,
-            projectionReadiness,
-            transactionManager);
+    private final RoadmapAccessGuard accessGuard = new RoadmapAccessGuard(teamMemberships, projectionReadiness);
 
     RoadmapAccessGuardTest() {
         when(projectionReadiness.isReady()).thenReturn(true);
@@ -105,27 +95,6 @@ class RoadmapAccessGuardTest {
             ExpectedException error = assertThrows(ExpectedException.class,
                     () -> accessGuard.requireMutable(roadmap, 8L, "MEMBER"));
             assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
-        }
-    }
-
-    @Nested
-    class ProjectionReads {
-
-        @Test
-        void readsLatestCommitInSeparateTransaction() {
-            TransactionStatus status = mock(TransactionStatus.class);
-            ArgumentCaptor<TransactionDefinition> definition = ArgumentCaptor.forClass(TransactionDefinition.class);
-            when(transactionManager.getTransaction(definition.capture())).thenReturn(status);
-            when(teamMemberships.findActiveRole(99L, 7L)).thenReturn(Optional.empty());
-
-            assertThrows(ExpectedException.class, () -> accessGuard.requireTeamMember(99L, 7L));
-
-            assertThat(definition.getValue().getPropagationBehavior())
-                    .isEqualTo(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-            assertThat(definition.getValue().getIsolationLevel())
-                    .isEqualTo(TransactionDefinition.ISOLATION_READ_COMMITTED);
-            assertThat(definition.getValue().isReadOnly()).isTrue();
-            verify(transactionManager).rollback(any());
         }
     }
 
