@@ -16,6 +16,7 @@
 
 html:has(.technology-dialog[open]) {
     overflow: hidden;
+    scrollbar-gutter: stable;
 }
 
 .technology-dialog {
