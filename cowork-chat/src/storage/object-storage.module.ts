@@ -36,6 +36,6 @@ function createClient(configService: ConfigService, isSigning = false): S3Client
 		ObjectStorageService,
 		AttachmentUploadRepository,
 	],
-	exports: [ObjectStorageService],
+	exports: [ObjectStorageService, AttachmentUploadRepository],
 })
 export class ObjectStorageModule {}
