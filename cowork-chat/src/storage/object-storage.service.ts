@@ -279,6 +279,10 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
 		}
 	}
 
+	async releaseUploads(objectKeys: string[]): Promise<void> {
+		await this.uploads.removeByObjectKeys(objectKeys);
+	}
+
 	async claimAttachments(
 		attachments: Array<{objectKey: string}>, channelId: number, userId: number, clientMessageId: string,
 	): Promise<ConfirmedAttachment[]> {
