@@ -48,6 +48,8 @@ import {
 	ChannelMessageReadAccessService,
 	ChannelReadService,
 	SlowmodeService,
+	TagSpamService,
+	type TagSpamReservation,
 	RoomSocket,
 	resolveMessageScope,
 } from './service/index.js';
@@ -59,6 +61,7 @@ import {
 	ChannelReadStateRepository,
 	TeamMemberProjectionRepository,
 	ChannelProjectionRepository,
+	AttachmentDeletionRepository,
 } from './repository/index.js';
 import {MessageSearchDeletionService, isSearchIndexed} from './search/index.js';
 
@@ -128,10 +131,16 @@ export class ChatService {
 	private readonly messageSearchDeletion!: MessageSearchDeletionService;
 
 	@inject()
+	private readonly attachmentDeletions!: AttachmentDeletionRepository;
+
+	@inject()
 	private readonly channelProjectionRepository!: ChannelProjectionRepository;
 
 	@inject()
 	private readonly slowmodeService!: SlowmodeService;
+
+	@inject()
+	private readonly tagSpamService!: TagSpamService;
 
 	@inject()
 	private readonly channelReadService!: ChannelReadService;
@@ -279,6 +288,41 @@ export class ChatService {
 		}
 
 		return message;
+	}
+
+	/**
+     첨부 삭제 의도를 먼저 기록한 뒤 메시지를 삭제한다.
+     의도 기록이 실패하면 메시지는 그대로 남으므로, 메시지가 사라졌다면 지울 객체 키가 항상 남아 있다.
+     객체는 메시지가 사라진 것을 확인한 워커가 지운다. 색인 대상 메시지는 삭제 tombstone을 먼저 기록한 뒤 삭제하므로
+     검색 색인에서도 반드시 제거된다. 이 요청이 삭제를 완결했을 때만 `message:deleted` 이벤트를 emit한다.
+     */
+	private async deleteMessageAndAttachments(
+		message: Pick<MessageDocument, 'authorId' | 'attachments'>, messageId: string, channelId: number,
+	): Promise<void> {
+		const objectKeys = message.attachments.flatMap(attachment => {
+			try {
+				const objectKey = attachment.objectKey ?? this.objectStorageService.extractObjectKey(attachment.url ?? '');
+				if (objectKey.startsWith(`chat-files/${channelId}/${message.authorId}/`)) {
+					return [objectKey];
+				}
+
+				this.logger.warn(`Skipping deletion of out-of-scope objectKey [key=${objectKey}]`);
+			} catch (error) {
+				this.logger.warn('Skipping deletion of attachment without a valid object key', error);
+			}
+
+			return [];
+		});
+		if (objectKeys.length > 0) {
+			await this.attachmentDeletions.record({messageId, channelId, objectKeys});
+			// 같은 clientMessageId 재전송이 지워질 객체를 다시 연결하지 못하게 업로드 기록을 먼저 지운다.
+			await this.objectStorageService.releaseUploads(objectKeys);
+		}
+
+		const result = await this.messageSearchDeletion.deleteMessage(messageId);
+		if (result === 'DELETED') {
+			await this.channelMessageReadAccess.emitToReadableChannelUsers(this.chatGateway.server, channelId, {event: 'message:deleted', payload: {messageId}});
+		}
 	}
 
 	/**
@@ -456,10 +500,7 @@ export class ChatService {
 	}
 
 	/**
-     파일이 포함된 메시지와 오브젝트 스토리지 오브젝트를 삭제한다.
-     오브젝트 스토리지 삭제 실패는 경고 로그만 남기고 계속 진행한다(파일 삭제 부분 실패가 메시지 삭제를 막지 않음).
-     색인 대상 메시지는 삭제 tombstone을 먼저 기록한 뒤 삭제하므로 검색 색인에서도 반드시 제거된다.
-     성공 시 `chat:{channelId}` 룸에 `message:deleted` 이벤트를 emit한다.
+     파일이 포함된 메시지를 삭제한다. 오브젝트는 {@link deleteMessageAndAttachments}가 남긴 삭제 의도로 워커가 지운다.
 
      @param ctx - 채널·사용자·역할 컨텍스트
      @param fileId - base64 인코딩된 파일 식별자
@@ -481,27 +522,7 @@ export class ChatService {
 			await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_manage');
 		}
 
-		await Promise.all(
-			message.attachments.map(async attachment => {
-				try {
-					const objectKey = attachment.objectKey ?? this.objectStorageService.extractObjectKey(attachment.url ?? '');
-					if (!objectKey.startsWith(`chat-files/${ctx.channelId}/${message.authorId}/`)) {
-						this.logger.warn(`Skipping deletion of out-of-scope objectKey [key=${objectKey}]`);
-						return;
-					}
-
-					await this.objectStorageService.removeObject(objectKey);
-				} catch (error) {
-					this.logger.warn('Failed to delete object storage file', error);
-				}
-			}),
-		);
-
-		const result = await this.messageSearchDeletion.deleteMessage(messageId);
-		if (result === 'DELETED') {
-			await this.channelMessageReadAccess.emitToReadableChannelUsers(this.chatGateway.server, ctx.channelId, {event: 'message:deleted', payload: {messageId}});
-		}
-
+		await this.deleteMessageAndAttachments(message, messageId, ctx.channelId);
 		return {channelId: ctx.channelId, messageId};
 	}
 
@@ -541,7 +562,11 @@ export class ChatService {
 		const slowmodeReservation = await this.slowmodeService.reserve(
 			ctx.channelId, scope?.teamId, ctx.userId, clientMessageId,
 		);
+		let tagSpamReservation: TagSpamReservation | undefined;
 		try {
+			tagSpamReservation = await this.tagSpamService.reserve(
+				scope.teamId, ctx.userId, dto.content, clientMessageId,
+			);
 			const attachments = await this.objectStorageService.claimAttachments(
 				dto.attachments ?? [], ctx.channelId, ctx.userId, clientMessageId,
 			);
@@ -555,7 +580,10 @@ export class ChatService {
 				clientMessageId,
 			}, ctx.userId, ctx.userRole);
 		} catch (error) {
-			await this.slowmodeService.release(slowmodeReservation);
+			await Promise.all([
+				this.slowmodeService.release(slowmodeReservation),
+				this.tagSpamService.release(tagSpamReservation),
+			]);
 			throw error;
 		}
 	}
@@ -817,11 +845,7 @@ export class ChatService {
 	async deleteMessage(ctx: MessageUserRoleContext) {
 		const message = await this.findAndVerifyMessage(ctx, 'delete');
 
-		const result = await this.messageSearchDeletion.deleteMessage(ctx.messageId);
-		if (result === 'DELETED') {
-			await this.channelMessageReadAccess.emitToReadableChannelUsers(this.chatGateway.server, ctx.channelId, {event: 'message:deleted', payload: {messageId: ctx.messageId}});
-		}
-
+		await this.deleteMessageAndAttachments(message, ctx.messageId, ctx.channelId);
 		return {channelId: message.channelId, messageId: ctx.messageId};
 	}
 

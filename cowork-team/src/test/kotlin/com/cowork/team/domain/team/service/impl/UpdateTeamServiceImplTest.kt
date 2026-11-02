@@ -92,5 +92,20 @@ class UpdateTeamServiceImplTest :
                     result.iconUrl shouldBe "new-icon"
                 }
             }
+
+            context("이름을 null로 요청하면") {
+                it("기존 이름을 유지하고 함께 요청한 필드만 변경한다") {
+                    val team = team()
+                    val admin = TeamMember(team = team, userId = 20L, role = TeamRole.ADMIN)
+                    every { teamRepository.findByIdForUpdate(1L) } returns team
+                    every { memberRepository.findByTeamIdAndUserId(1L, 20L) } returns admin
+                    every { memberRepository.findAllByTeamIdForUpdate(1L) } returns listOf(admin)
+
+                    val result = service.execute(20L, 1L, UpdateTeamRequest(null, "changed", null))
+
+                    result.name shouldBe "before"
+                    result.description shouldBe "changed"
+                }
+            }
         }
     })

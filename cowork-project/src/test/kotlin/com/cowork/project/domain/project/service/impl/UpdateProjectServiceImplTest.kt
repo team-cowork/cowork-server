@@ -67,6 +67,18 @@ class UpdateProjectServiceImplTest {
         }
 
         @Test
+        fun `updateProject은 name이 null이면 기존 이름을 유지하고 다른 필드만 변경한다`() {
+            every { projectRepository.findByIdForUpdate(1L) } returns project()
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
+                membership(100L, 99L, "OWNER")
+
+            val response = service.execute(99L, 1L, UpdateProjectReqDto(name = null, description = "changed"))
+
+            assertEquals("p", response.name)
+            assertEquals("changed", response.description)
+        }
+
+        @Test
         fun `일반 관리자가 비공개 전환 후 접근을 잃으면 변경 전에 거절한다`() {
             val proj = project()
             every { projectRepository.findByIdForUpdate(1L) } returns proj

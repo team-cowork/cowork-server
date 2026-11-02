@@ -3,6 +3,7 @@ import {Types} from 'mongoose';
 import {Server} from 'socket.io';
 import {MessageRepository, toMessageBroadcastPayload} from '../repository/index.js';
 import {ChannelMessageReadAccessService, ChannelReadService} from '../service/index.js';
+import {parseMentions} from '../util/index.js';
 import {ChatMessageEvent} from './event/chat-message.event.js';
 import {ChatMessageScopeValidator} from './chat-message-scope-validator.js';
 
@@ -24,17 +25,13 @@ export class ChatMessageProcessor {
 		private readonly scopeValidator: ChatMessageScopeValidator,
 	) {}
 
-	private parseMentions(content: string): number[] {
-		return [...new Set(content.matchAll(/<@(?<userId>\d+)>/gv).map(match => Number(match.groups?.userId)))];
-	}
-
 	setSocketServer(io: Server): void {
 		this.io = io;
 	}
 
 	async process(event: ChatMessageEvent): Promise<void> {
 		await this.scopeValidator.validate(event);
-		const mentions = this.parseMentions(event.content);
+		const mentions = parseMentions(event.content);
 		this.logger.log(`message received channelId=${event.channelId} authorId=${event.authorId} type=${event.type} contentLength=${event.content.length}`);
 		try {
 			const saved = await this.messageRepository.createMessage({
