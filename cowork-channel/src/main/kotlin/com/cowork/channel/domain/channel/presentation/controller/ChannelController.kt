@@ -17,8 +17,11 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
+import jakarta.validation.Validator
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
+import team.themoment.sdk.exception.ExpectedException
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import io.swagger.v3.oas.annotations.parameters.RequestBody as SwaggerRequestBody
@@ -33,18 +36,20 @@ class ChannelController(
     private val deleteChannelService: DeleteChannelService,
     private val queryChannelMembersService: QueryChannelMembersService,
     private val objectMapper: ObjectMapper,
+    private val validator: Validator,
 ) {
 
     @Operation(summary = "채널 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "201", description = "생성 성공"),
+        ApiResponse(responseCode = "400", description = "채널 이름이 공백이거나 100자를 초과하는 등 잘못된 요청"),
         ApiResponse(responseCode = "403", description = "팀 멤버가 아님"),
     )
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     fun createChannel(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-        @RequestBody request: CreateChannelRequest,
+        @Valid @RequestBody request: CreateChannelRequest,
     ): ChannelResponse = createChannelService.execute(userId, request)
 
     @Operation(summary = "채널 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
@@ -62,6 +67,7 @@ class ChannelController(
     @Operation(summary = "채널 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "수정 성공"),
+        ApiResponse(responseCode = "400", description = "채널 이름이 공백이거나 100자를 초과하는 등 잘못된 요청"),
         ApiResponse(responseCode = "403", description = "권한 없음"),
     )
     @PatchMapping("/{channelId}")
@@ -72,6 +78,8 @@ class ChannelController(
         @RequestBody body: JsonNode,
     ): ChannelResponse {
         val request = objectMapper.convertValue(body, UpdateChannelRequest::class.java)
+        // JsonNode로 받아 projectId 생략을 구분하므로 @Valid가 적용되지 않아 직접 검증한다.
+        validator.validate(request).firstOrNull()?.let { throw ExpectedException(it.message, HttpStatus.BAD_REQUEST) }
         val updateProjectId = body.has("projectId")
         return updateChannelService.execute(userId, channelId, request, updateProjectId)
     }
