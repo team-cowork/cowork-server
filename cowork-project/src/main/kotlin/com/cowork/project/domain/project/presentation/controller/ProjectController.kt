@@ -40,6 +40,7 @@ class ProjectController(
     @Operation(summary = "프로젝트 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "201", description = "생성 성공"),
+        ApiResponse(responseCode = "400", description = "프로젝트 이름이 공백이거나 100자를 초과하는 등 잘못된 요청"),
         ApiResponse(responseCode = "403", description = "권한 없음"),
     )
     @PostMapping
@@ -62,6 +63,7 @@ class ProjectController(
     @Operation(summary = "프로젝트 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "수정 성공"),
+        ApiResponse(responseCode = "400", description = "프로젝트 이름이 공백이거나 100자를 초과하는 등 잘못된 요청"),
         ApiResponse(responseCode = "403", description = "권한 없음"),
         ApiResponse(responseCode = "404", description = "프로젝트 없음"),
     )
