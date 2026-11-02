@@ -4,6 +4,8 @@ import io.swagger.v3.oas.annotations.media.Schema
 
 data class CreateChannelRequest(
     val teamId: Long,
+
+    @param:Schema(description = "채널 이름. 공백만으로 구성할 수 없고 최대 100자이며, 앞뒤 공백을 포함해 입력값 그대로 저장합니다.", required = true)
     val name: String,
     val type: String,
     val viewType: String,

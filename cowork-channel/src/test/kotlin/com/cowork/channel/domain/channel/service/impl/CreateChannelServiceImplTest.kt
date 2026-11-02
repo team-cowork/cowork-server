@@ -50,6 +50,57 @@ class CreateChannelServiceImplTest {
     }
 
     @Test
+    fun `createChannel은 잘못된 이름이어도 권한 확인을 먼저 수행해 FORBIDDEN`() {
+        every { teamPermission.requirePermission(100L, 7L, "manage_channels") } throws
+            ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.execute(7L, CreateChannelRequest(teamId = 100L, name = "", type = "TEXT", viewType = "TEXT"))
+        }
+
+        assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+    }
+
+    @Test
+    fun `createChannel은 이름이 비었거나 공백뿐이거나 100자를 넘으면 쓰기 작업 없이 BAD_REQUEST`() {
+        every { teamPermission.requirePermission(any(), any(), "manage_channels") } returns Unit
+
+        listOf("", "   ", "\t\n", "가".repeat(101)).forEach { name ->
+            val ex = assertThrows(ExpectedException::class.java) {
+                service.execute(
+                    1L,
+                    CreateChannelRequest(teamId = 100L, name = name, type = "TEXT", viewType = "MEETING_NOTE"),
+                )
+            }
+
+            assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        }
+
+        verify(exactly = 0) { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(any()) }
+        verify(exactly = 0) { channelRepository.save(any()) }
+        verify(exactly = 0) { createDefaultMeetingNoteTemplateService.createDefaultTemplate(any()) }
+        verify(exactly = 0) { channelEventPublisher.publishCreated(any(), any(), any()) }
+    }
+
+    @Test
+    fun `createChannel은 유효한 이름을 입력값 그대로 저장`() {
+        every { teamPermission.requirePermission(any(), any(), "manage_channels") } returns Unit
+        every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns emptyList()
+        val saved = slot<Channel>()
+        every { channelRepository.save(capture(saved)) } answers { saved.captured }
+
+        listOf("가", "가".repeat(100), "개발 팀", " 개발 팀 ").forEach { name ->
+            val res = service.execute(
+                1L,
+                CreateChannelRequest(teamId = 100L, name = name, type = "TEXT", viewType = "TEXT"),
+            )
+
+            assertEquals(name, saved.captured.name)
+            assertEquals(name, res.name)
+        }
+    }
+
+    @Test
     fun `createChannel은 type+viewType 모두 저장`() {
         every { teamPermission.requirePermission(any(), any(), "manage_channels") } returns Unit
         every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns
