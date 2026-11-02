@@ -1,11 +1,21 @@
 import {accentStyle, renderBadge, renderMemberCard} from '../../src/design-system/index.mjs';
 import {escapeHtml} from './validation.mjs';
 
+function renderTechnologyBadge(item) {
+	return [
+		'<button type="button" class="technology-trigger" aria-haspopup="dialog" aria-controls="technology-dialog" data-technology',
+		` data-name="${escapeHtml(item.name)}" data-released="${escapeHtml(item.released)}"`,
+		` data-description="${escapeHtml(item.description)}" data-documentation="${escapeHtml(item.documentation)}">`,
+		renderBadge(item.name, {variant: 'technology', color: item.color}),
+		'</button>',
+	].join('');
+}
+
 export function renderTechStacks(categories) {
 	return categories.map(category => `
       <div class="flex flex-col sm:flex-row items-start gap-6">
         <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider w-24 shrink-0 pt-2">${escapeHtml(category.name)}</span>
-        <div class="flex flex-wrap gap-2">${category.items.map(item => renderBadge(item.name, {variant: 'technology', color: item.color})).join('\n')}</div>
+        <div class="flex flex-wrap gap-2">${category.items.map(item => renderTechnologyBadge(item)).join('\n')}</div>
       </div>`).join('\n');
 }
 

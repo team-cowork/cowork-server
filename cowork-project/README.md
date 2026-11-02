@@ -23,16 +23,16 @@
 
 ## 환경변수
 
-운영 설정 입력은 [서비스 선언](../deploy/production/services.json)에 정의되어 있습니다.
+운영 설정 입력은 [서비스 선언](../deploy/production/config/services.json)에 정의되어 있습니다.
 
-| 변수 | 설명 |
-|------|------|
-| `APP_CONFIG_PROFILE` | 설정 프로파일 |
-| `DB_HOST`, `DB_PORT`, `DB_NAME` | 데이터베이스 접속 대상 |
-| `DB_USERNAME`, `DB_PASSWORD` | 데이터베이스 자격증명 |
-| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker 주소 |
-| `KAFKA_SECURITY_PROTOCOL` | 운영에서는 `SASL_SSL` |
-| `KAFKA_SASL_MECHANISM` | SCRAM 인증 방식 |
-| `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` | SASL 사용 시 필수 |
-| `KAFKA_SSL_CA_LOCATION` | Kafka CA PEM 파일 경로 |
-| `COWORK_GITHUB_URL` | 요청 시점 GitHub 상태 조회 upstream |
+| 변수                                         | 설명                                |
+|----------------------------------------------|-------------------------------------|
+| `APP_CONFIG_PROFILE`                         | 설정 프로파일                       |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`              | 데이터베이스 접속 대상              |
+| `DB_USERNAME`, `DB_PASSWORD`                 | 데이터베이스 자격증명               |
+| `KAFKA_BOOTSTRAP_SERVERS`                    | Kafka broker 주소                   |
+| `KAFKA_SECURITY_PROTOCOL`                    | 운영에서는 `SASL_SSL`               |
+| `KAFKA_SASL_MECHANISM`                       | SCRAM 인증 방식                     |
+| `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` | SASL 사용 시 필수                   |
+| `KAFKA_SSL_CA_LOCATION`                      | Kafka CA PEM 파일 경로              |
+| `COWORK_GITHUB_URL`                          | 요청 시점 GitHub 상태 조회 upstream |

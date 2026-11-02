@@ -29,6 +29,8 @@ spring:
     password: ${MYSQL_PASSWORD:}
     hikari:
       connection-timeout: 10000
+      # 투영 준비 상태와 역할 조회가 서비스 트랜잭션 안에서도 요청 시점의 최신 커밋을 읽게 한다.
+      transaction-isolation: TRANSACTION_READ_COMMITTED
       data-source-properties:
         preserveInstants: false
   jpa:
