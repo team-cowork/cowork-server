@@ -79,6 +79,23 @@ class UpdateChannelServiceImplTest {
     }
 
     @Test
+    fun `updateChannel은 name이 null이면 기존 이름을 유지하고 다른 필드만 변경`() {
+        val ch = channel(createdBy = 1L)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
+
+        val res = service.execute(
+            1L,
+            1L,
+            UpdateChannelRequest(name = null, description = "changed", projectId = 5L),
+            true,
+        )
+
+        assertEquals("ch", res.name)
+        assertEquals("changed", ch.description)
+        assertEquals(5L, res.projectId)
+    }
+
+    @Test
     fun `updateChannel은 updateProjectId=true이면 projectId를 할당함`() {
         val ch = channel(createdBy = 1L)
         every { channelRepository.findByIdForUpdate(1L) } returns ch
