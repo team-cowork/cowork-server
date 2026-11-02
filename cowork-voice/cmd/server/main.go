@@ -162,6 +162,13 @@ func main() {
 		defer close(permissionSyncDone)
 		permissionSync.Run(runtimeCtx)
 	}()
+	// 세션 저장과 방 생성 사이에서 중단된 라이브 시작이 남긴 활성 세션을 정리한다.
+	startRecovery := livedomain.NewStartRecovery(liveMongoRepo, livekitClient)
+	startRecoveryDone := make(chan struct{})
+	go func() {
+		defer close(startRecoveryDone)
+		startRecovery.Run(runtimeCtx)
+	}()
 
 	// outbox relay: 도메인 서비스가 Mongo에 적재한 이벤트를 Kafka로 전송(재시도 포함)
 	outboxRelay := relay.New(outboxRepo, kafkaProducer, 1*time.Second, 200)
@@ -226,6 +233,7 @@ func main() {
 
 	runtimeCancel()
 	<-permissionSyncDone
+	<-startRecoveryDone
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
