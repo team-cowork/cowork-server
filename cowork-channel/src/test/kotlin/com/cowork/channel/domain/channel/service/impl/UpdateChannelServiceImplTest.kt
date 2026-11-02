@@ -94,7 +94,7 @@ class UpdateChannelServiceImplTest {
 
     @Test
     fun `updateChannel은 이름이 비었거나 공백뿐이거나 100자를 넘으면 변경 없이 BAD_REQUEST`() {
-        listOf("", "   ", "\t\n", "가".repeat(101)).forEach { name ->
+        listOf("", "   ", "\t\n", "가".repeat(101), "😀".repeat(101)).forEach { name ->
             val ch = channel(createdBy = 1L, projectId = 99L)
             every { channelRepository.findByIdForUpdate(1L) } returns ch
 
@@ -118,7 +118,7 @@ class UpdateChannelServiceImplTest {
 
     @Test
     fun `updateChannel은 유효한 이름을 입력값 그대로 변경`() {
-        listOf("가", "가".repeat(100), "개발 팀", " 개발 팀 ").forEach { name ->
+        listOf("가", "가".repeat(100), "😀".repeat(100), "개발 팀", " 개발 팀 ").forEach { name ->
             every { channelRepository.findByIdForUpdate(1L) } returns channel(createdBy = 1L)
 
             val res = service.execute(1L, 1L, UpdateChannelRequest(name = name), false)
