@@ -30,6 +30,7 @@ import {
 	TextChannelSettingProjection,
 	textChannelSettingProjectionSchema,
 } from '../../chat/schema/text-channel-setting-projection.schema.js';
+import {TeamSettingProjection, teamSettingProjectionSchema} from '../../chat/schema/team-setting-projection.schema.js';
 import {UserProfileProjection, userProfileProjectionSchema} from '../../chat/schema/user-profile-projection.schema.js';
 import {ProjectionAdminController} from './projection-admin.controller.js';
 import {ProjectionMetricsService} from './projection-metrics.service.js';
@@ -61,6 +62,7 @@ import {ProjectionCheckpoint, projectionCheckpointSchema} from './projection-che
 			{name: TeamRoleMemberTombstone.name, schema: teamRoleMemberTombstoneSchema},
 			{name: ChannelRolePolicyProjection.name, schema: channelRolePolicyProjectionSchema},
 			{name: TextChannelSettingProjection.name, schema: textChannelSettingProjectionSchema},
+			{name: TeamSettingProjection.name, schema: teamSettingProjectionSchema},
 			{name: WebhookProjection.name, schema: webhookProjectionSchema},
 			{name: UserProfileProjection.name, schema: userProfileProjectionSchema},
 		]),

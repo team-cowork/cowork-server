@@ -4,7 +4,13 @@ import io.swagger.v3.oas.annotations.media.Schema
 
 data class CreateChannelRequest(
     val teamId: Long,
-    val name: String,
+
+    @param:Schema(
+        description = "채널 이름. 앞뒤 공백을 제거한 뒤 최대 100자이며, 공백이나 보이지 않는 문자만으로 구성할 수 없습니다.",
+        required = true,
+    )
+    @field:ValidChannelName
+    var name: String,
     val type: String,
     val viewType: String,
     val description: String? = null,
@@ -12,7 +18,11 @@ data class CreateChannelRequest(
 
     @param:Schema(description = "생성 시 적용할 역할별 초기 권한입니다. 일반 멤버의 비공개 채널은 생성자에게 접근을 허용하는 역할 정책이 필요합니다.")
     val initialRoleOverwrites: List<InitialChannelRoleOverwriteRequest> = emptyList(),
-)
+) {
+    init {
+        name = name.trim()
+    }
+}
 
 data class InitialChannelRoleOverwriteRequest(
     @param:Schema(description = "같은 팀에 속한 활성 역할 ID입니다. 같은 역할을 중복 지정할 수 없습니다.")

@@ -47,6 +47,8 @@ const (
 
 func main() {
 	logger.Init("cowork-authorization")
+	// Route Gin request and error logs through the slog JSON handler so they match the stdout log format.
+	// Added 2026-11-02 by Jongyun Jeong (jyx-07, 9th cohort).
 	gin.DefaultWriter = slog.NewLogLogger(logger.Default.Handler(), slog.LevelInfo).Writer()
 	gin.DefaultErrorWriter = slog.NewLogLogger(logger.Default.Handler(), slog.LevelError).Writer()
 

@@ -19,6 +19,7 @@ import {ChatGateway} from './chat.gateway.js';
 import {ChatService} from './chat.service.js';
 import {CHAT_SOCKET_SERVER} from './chat-socket-server.token.js';
 import {AttachmentDownloadService} from './service/attachment-download.service.js';
+import {AttachmentCleanupPoller} from './service/attachment-cleanup.poller.js';
 import {ChatController} from './chat.controller.js';
 import {DmController} from './dm.controller.js';
 import {ProjectMessageController} from './project-message.controller.js';
@@ -44,6 +45,7 @@ import {
 	TeamRoleEventConsumer,
 	ChannelRolePolicyEventConsumer,
 	TextChannelSettingEventConsumer,
+	TeamSettingEventConsumer,
 	WebhookEventConsumer,
 	ChatMessageScopeValidator,
 	ChatMessageProcessor,
@@ -58,6 +60,7 @@ import {
 	ChannelMessageReadAccessService,
 	ChannelReadService,
 	SlowmodeService,
+	TagSpamService,
 	ChatMessageQuarantineService,
 } from './service/index.js';
 import {UnifiedSearchResolver} from './unified-search.resolver.js';
@@ -90,6 +93,8 @@ import {
 	channelRolePolicyProjectionSchema,
 	TextChannelSettingProjection,
 	textChannelSettingProjectionSchema,
+	TeamSettingProjection,
+	teamSettingProjectionSchema,
 	WebhookProjection,
 	webhookProjectionSchema,
 	ChatMessageQuarantineRecord,
@@ -98,6 +103,8 @@ import {
 	messageSearchTombstoneSchema,
 	MessageSearchIndexState,
 	messageSearchIndexStateSchema,
+	AttachmentDeletion,
+	attachmentDeletionSchema,
 } from './schema/index.js';
 import {
 	ChannelReadStateRepository,
@@ -112,11 +119,13 @@ import {
 	TeamRoleProjectionRepository,
 	ChannelRolePolicyProjectionRepository,
 	TextChannelSettingProjectionRepository,
+	TeamSettingProjectionRepository,
 	WebhookProjectionRepository,
 	ChatMessageQuarantineRepository,
 	MessageSearchIndexRepository,
 	MessageSearchTombstoneRepository,
 	MessageSearchIndexStateRepository,
+	AttachmentDeletionRepository,
 } from './repository/index.js';
 import {
 	MessageSearchIndexService,
@@ -145,10 +154,12 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 			{name: TeamRoleMemberTombstone.name, schema: teamRoleMemberTombstoneSchema},
 			{name: ChannelRolePolicyProjection.name, schema: channelRolePolicyProjectionSchema},
 			{name: TextChannelSettingProjection.name, schema: textChannelSettingProjectionSchema},
+			{name: TeamSettingProjection.name, schema: teamSettingProjectionSchema},
 			{name: WebhookProjection.name, schema: webhookProjectionSchema},
 			{name: ChatMessageQuarantineRecord.name, schema: chatMessageQuarantineRecordSchema},
 			{name: MessageSearchTombstone.name, schema: messageSearchTombstoneSchema},
 			{name: MessageSearchIndexState.name, schema: messageSearchIndexStateSchema},
+			{name: AttachmentDeletion.name, schema: attachmentDeletionSchema},
 		]),
 		DicoshotModule.registerAsync({
 			imports: [ConfigModule],
@@ -184,6 +195,8 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 		{provide: CHAT_SOCKET_SERVER, useExisting: ChatGateway},
 		ChatService,
 		AttachmentDownloadService,
+		AttachmentDeletionRepository,
+		AttachmentCleanupPoller,
 		ChannelReadStateRepository,
 		MessageRepository,
 		DmParticipantRepository,
@@ -217,6 +230,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 		TeamRoleEventConsumer,
 		ChannelRolePolicyEventConsumer,
 		TextChannelSettingEventConsumer,
+		TeamSettingEventConsumer,
 		WebhookEventConsumer,
 		ProjectClient,
 		UnreadCounterService,
@@ -232,10 +246,12 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 		TeamRoleProjectionRepository,
 		ChannelRolePolicyProjectionRepository,
 		TextChannelSettingProjectionRepository,
+		TeamSettingProjectionRepository,
 		WebhookProjectionRepository,
 		ChannelMessageReadAccessService,
 		ChannelReadService,
 		SlowmodeService,
+		TagSpamService,
 		UnifiedSearchResolver,
 		RedisRateLimiter,
 		SocketIoRedisConnection,

@@ -7,7 +7,7 @@ paths:
   - "cowork-chat/src/app.module.ts"
   - "cowork-github/src/app.module.ts"
   - "deploy/runtime/agents/**"
-  - "deploy/ansible/tasks/observability.yml"
+  - "deploy/ansible/tasks/agents/observability.yml"
 ---
 
 # Logging
