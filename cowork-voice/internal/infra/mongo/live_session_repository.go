@@ -35,6 +35,12 @@ func CreateLiveIndexes(ctx context.Context, db *mongo.Database) error {
 			Keys: bson.D{{Key: "channel_id", Value: 1}, {Key: "status", Value: 1}},
 		},
 		{Keys: bson.D{{Key: outboxField + ".created_at", Value: 1}}},
+		// 시작 복구 후보 조회(FindCreatingSessionsBefore)용. 부분 필터에는 $exists:false를 쓸 수 없어 status만 건다.
+		{
+			Keys: bson.D{{Key: "started_at", Value: 1}},
+			Options: options.Index().
+				SetPartialFilterExpression(bson.D{{Key: "status", Value: bson.D{{Key: "$eq", Value: "active"}}}}),
+		},
 	}
 	if _, err := sessions.Indexes().CreateMany(ctx, sessionIndexes); err != nil {
 		return fmt.Errorf("live_sessions index creation failed: %w", err)
@@ -131,6 +137,42 @@ func (r *mongoLiveSessionRepository) CreateSession(ctx context.Context, channelI
 func (r *mongoLiveSessionRepository) EndSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error) {
 	col := r.db.Collection(live.CollectionSessions)
 	filter := bson.D{{Key: "session_id", Value: sessionID}, {Key: "status", Value: live.StatusActive}}
+	update := bson.D{{Key: "$set", Value: bson.D{
+		{Key: "status", Value: live.StatusEnded},
+		{Key: "ended_at", Value: endedAt},
+	}}}
+	result, err := col.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return false, apperr.Internal(err.Error())
+	}
+	return result.ModifiedCount == 1, nil
+}
+
+func (r *mongoLiveSessionRepository) FindCreatingSessionsBefore(ctx context.Context, before time.Time) ([]live.LiveSession, error) {
+	col := r.db.Collection(live.CollectionSessions)
+	filter := bson.D{
+		{Key: "status", Value: live.StatusActive},
+		{Key: "started_event_sent_at", Value: bson.D{{Key: "$exists", Value: false}}},
+		{Key: "started_at", Value: bson.D{{Key: "$lt", Value: before}}},
+	}
+	cursor, err := col.Find(ctx, filter)
+	if err != nil {
+		return nil, apperr.Internal(err.Error())
+	}
+	var sessions []live.LiveSession
+	if err := cursor.All(ctx, &sessions); err != nil {
+		return nil, apperr.Internal(err.Error())
+	}
+	return sessions, nil
+}
+
+func (r *mongoLiveSessionRepository) EndCreatingSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error) {
+	col := r.db.Collection(live.CollectionSessions)
+	filter := bson.D{
+		{Key: "session_id", Value: sessionID},
+		{Key: "status", Value: live.StatusActive},
+		{Key: "started_event_sent_at", Value: bson.D{{Key: "$exists", Value: false}}},
+	}
 	update := bson.D{{Key: "$set", Value: bson.D{
 		{Key: "status", Value: live.StatusEnded},
 		{Key: "ended_at", Value: endedAt},
@@ -343,3 +385,4 @@ func (r *mongoLiveSessionRepository) EndSessionAndEnqueue(
 
 // ensure interface compliance
 var _ live.Repository = (*mongoLiveSessionRepository)(nil)
+var _ live.StartRecoveryRepository = (*mongoLiveSessionRepository)(nil)
