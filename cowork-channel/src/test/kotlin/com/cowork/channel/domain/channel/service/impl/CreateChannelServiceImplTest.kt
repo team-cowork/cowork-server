@@ -65,7 +65,7 @@ class CreateChannelServiceImplTest {
     fun `createChannel은 이름이 비었거나 공백뿐이거나 100자를 넘으면 쓰기 작업 없이 BAD_REQUEST`() {
         every { teamPermission.requirePermission(any(), any(), "manage_channels") } returns Unit
 
-        listOf("", "   ", "\t\n", "가".repeat(101)).forEach { name ->
+        listOf("", "   ", "\t\n", "가".repeat(101), "😀".repeat(101)).forEach { name ->
             val ex = assertThrows(ExpectedException::class.java) {
                 service.execute(
                     1L,
@@ -89,7 +89,7 @@ class CreateChannelServiceImplTest {
         val saved = slot<Channel>()
         every { channelRepository.save(capture(saved)) } answers { saved.captured }
 
-        listOf("가", "가".repeat(100), "개발 팀", " 개발 팀 ").forEach { name ->
+        listOf("가", "가".repeat(100), "😀".repeat(100), "개발 팀", " 개발 팀 ").forEach { name ->
             val res = service.execute(
                 1L,
                 CreateChannelRequest(teamId = 100L, name = name, type = "TEXT", viewType = "TEXT"),

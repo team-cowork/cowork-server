@@ -83,7 +83,7 @@ class UpdateProjectServiceImplTest {
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
                 membership(100L, 99L, "OWNER")
 
-            listOf("", "   ", "\t\n", "가".repeat(101)).forEach { name ->
+            listOf("", "   ", "\t\n", "가".repeat(101), "😀".repeat(101)).forEach { name ->
                 val proj = project()
                 every { projectRepository.findByIdForUpdate(1L) } returns proj
 
@@ -104,7 +104,7 @@ class UpdateProjectServiceImplTest {
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
                 membership(100L, 99L, "OWNER")
 
-            listOf("가", "가".repeat(100), "개발 팀", " 개발 팀 ").forEach { name ->
+            listOf("가", "가".repeat(100), "😀".repeat(100), "개발 팀", " 개발 팀 ").forEach { name ->
                 every { projectRepository.findByIdForUpdate(1L) } returns project()
 
                 val response = service.execute(99L, 1L, UpdateProjectReqDto(name = name))

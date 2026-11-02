@@ -119,6 +119,7 @@ class UpdateTeamServiceImplTest :
                     "공백" to "   ",
                     "공백 문자" to "\t\n",
                     "101자" to "가".repeat(101),
+                    "이모지 101자" to "😀".repeat(101),
                 ).forEach { (label, name) ->
                     it("$label 이름을 BAD_REQUEST로 거부하고 쓰기 작업을 하지 않는다") {
                         val team = team()
@@ -145,6 +146,7 @@ class UpdateTeamServiceImplTest :
                 mapOf(
                     "1자" to "가",
                     "100자" to "가".repeat(100),
+                    "이모지 100자" to "😀".repeat(100),
                     "중간 공백" to "개발 팀",
                     "앞뒤 공백" to " 개발 팀 ",
                 ).forEach { (label, name) ->
