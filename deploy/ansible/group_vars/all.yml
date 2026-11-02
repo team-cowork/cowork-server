@@ -1,7 +1,7 @@
 ---
 platform_state_dir: "{{ lookup('ansible.builtin.env', 'COWORK_PLATFORM_STATE_DIR') }}"
-platform_repository: "{{ playbook_dir }}/../.."
-platform_versions: "{{ lookup('ansible.builtin.file', playbook_dir ~ '/../production/versions.json') | from_json }}"
+platform_repository: "{{ (playbook_dir ~ '/../..') | realpath }}"
+platform_versions: "{{ lookup('ansible.builtin.file', platform_repository ~ '/deploy/production/config/versions.json') | from_json }}"
 platform_python_root: "/opt/cowork/python-{{ platform_versions.python.version }}-{{ platform_versions.python.build }}"
 platform_python_binary: "{{ platform_python_root }}/python/bin/python3"
 consul_bootstrap_token: "{{ lookup('ansible.builtin.file', platform_state_dir ~ '/consul-bootstrap.token') | trim }}"
@@ -29,12 +29,6 @@ platform_data_volumes:
     - {name: monitoring-prometheus, uid: 10001}
     - {name: monitoring-grafana, uid: 10001}
     - {name: monitoring-alertmanager, uid: 10001}
-platform_legacy_units:
-  - cowork-config-firewall.service
-  - cowork-backend-firewall.service
-  - cowork-storage-firewall.service
-  - cowork-module-database-firewall.service
-  - cowork-shared-firewall.service
 platform_runner_repository: https://github.com/team-cowork/cowork-server
 platform_runner_token: "{{ lookup('ansible.builtin.env', 'GITHUB_RUNNER_REGISTRATION_TOKEN') }}"
 platform_ghcr_username: "{{ lookup('ansible.builtin.env', 'GHCR_USERNAME') }}"
