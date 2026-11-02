@@ -113,6 +113,7 @@ const mockObjectStorageService = {
 	claimAttachments: jest.fn(),
 	extractObjectKey: jest.fn(),
 	removeObject: jest.fn(),
+	releaseUploads: jest.fn(),
 };
 
 const mockChatMessageProducer = {
@@ -711,6 +712,9 @@ describe('ChatService', () => {
 			mockAttachmentDeletions.record.mockImplementation(async () => {
 				order.push('record');
 			});
+			mockObjectStorageService.releaseUploads.mockImplementation(async () => {
+				order.push('releaseUploads');
+			});
 			mockMessageSearchDeletion.deleteMessage.mockImplementation(async () => {
 				order.push('deleteMessage');
 				return 'DELETED';
@@ -719,7 +723,8 @@ describe('ChatService', () => {
 			await service.deleteFile(ctx, fileId);
 
 			expect(mockAttachmentDeletions.record).toHaveBeenCalledWith({messageId: mockMessageId, channelId: 1, objectKeys: [objectKey]});
-			expect(order).toEqual(['record', 'deleteMessage']);
+			expect(mockObjectStorageService.releaseUploads).toHaveBeenCalledWith([objectKey]);
+			expect(order).toEqual(['record', 'releaseUploads', 'deleteMessage']);
 			expect(mockObjectStorageService.removeObject).not.toHaveBeenCalled();
 		});
 
