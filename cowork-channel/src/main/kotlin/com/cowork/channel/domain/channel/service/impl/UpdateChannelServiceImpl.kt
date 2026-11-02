@@ -6,6 +6,7 @@ import com.cowork.channel.domain.channel.presentation.data.response.ChannelRespo
 import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channel.service.UpdateChannelService
 import com.cowork.channel.domain.channel.service.support.ChannelPermissionSupport
+import com.cowork.channel.domain.channel.service.support.requireValidChannelName
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -29,6 +30,7 @@ class UpdateChannelServiceImpl(
         if (!channel.isPrivate && request.isPrivate == true) {
             channelPermissionSupport.requirePrivateTransitionAccess(channel, userId)
         }
+        request.name?.let(::requireValidChannelName)
         channel.update(request.name, request.description, request.isPrivate)
         if (updateProjectId) channel.assignProject(request.projectId)
         channelEventPublisher.publishUpdated(channel)
