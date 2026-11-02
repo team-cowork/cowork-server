@@ -19,6 +19,7 @@ import {ChatGateway} from './chat.gateway.js';
 import {ChatService} from './chat.service.js';
 import {CHAT_SOCKET_SERVER} from './chat-socket-server.token.js';
 import {AttachmentDownloadService} from './service/attachment-download.service.js';
+import {AttachmentCleanupPoller} from './service/attachment-cleanup.poller.js';
 import {ChatController} from './chat.controller.js';
 import {DmController} from './dm.controller.js';
 import {ProjectMessageController} from './project-message.controller.js';
@@ -102,6 +103,8 @@ import {
 	messageSearchTombstoneSchema,
 	MessageSearchIndexState,
 	messageSearchIndexStateSchema,
+	AttachmentDeletion,
+	attachmentDeletionSchema,
 } from './schema/index.js';
 import {
 	ChannelReadStateRepository,
@@ -122,6 +125,7 @@ import {
 	MessageSearchIndexRepository,
 	MessageSearchTombstoneRepository,
 	MessageSearchIndexStateRepository,
+	AttachmentDeletionRepository,
 } from './repository/index.js';
 import {
 	MessageSearchIndexService,
@@ -155,6 +159,7 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 			{name: ChatMessageQuarantineRecord.name, schema: chatMessageQuarantineRecordSchema},
 			{name: MessageSearchTombstone.name, schema: messageSearchTombstoneSchema},
 			{name: MessageSearchIndexState.name, schema: messageSearchIndexStateSchema},
+			{name: AttachmentDeletion.name, schema: attachmentDeletionSchema},
 		]),
 		DicoshotModule.registerAsync({
 			imports: [ConfigModule],
@@ -190,6 +195,8 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 		{provide: CHAT_SOCKET_SERVER, useExisting: ChatGateway},
 		ChatService,
 		AttachmentDownloadService,
+		AttachmentDeletionRepository,
+		AttachmentCleanupPoller,
 		ChannelReadStateRepository,
 		MessageRepository,
 		DmParticipantRepository,
