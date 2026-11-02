@@ -121,4 +121,8 @@ export class AttachmentUploadRepository implements OnModuleInit {
 	async remove(uploadKey: string): Promise<void> {
 		await this.uploads.deleteOne({uploadKey});
 	}
+
+	async removeByObjectKeys(objectKeys: string[]): Promise<void> {
+		await this.uploads.deleteMany({objectKey: {$in: objectKeys}});
+	}
 }
