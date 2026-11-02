@@ -159,6 +159,13 @@ describe('ObjectStorageService', () => {
 
 			await expect(service.removeObject('chat-files/1/42/file.png')).rejects.toThrow('unavailable');
 		});
+
+		it('버킷이 없는 404는 객체 삭제 성공으로 보지 않는다', async () => {
+			const service = new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never);
+			s3Client.send.mockRejectedValueOnce({name: 'NoSuchBucket', $metadata: {httpStatusCode: 404}});
+
+			await expect(service.removeObject('chat-files/1/42/file.png')).rejects.toMatchObject({name: 'NoSuchBucket'});
+		});
 	});
 
 	describe('createPresignedDownload', () => {
