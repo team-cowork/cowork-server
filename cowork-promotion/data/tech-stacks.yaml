@@ -317,9 +317,9 @@ categories:
         documentation: "https://docs.gradle.org/current/userguide/userguide.html"
       - name: "Kotlin Toolchain"
         color: "#7f52ff"
-        released: "2021년"
-        description: "Kotlin 빌드에 사용할 Java 개발 도구의 버전을 지정하는 기능입니다. 개발자의 컴퓨터와 배포 환경이 같은 도구로 코드를 빌드하도록 맞춥니다."
-        documentation: "https://kotlinlang.org/docs/gradle-configure-project.html#gradle-java-toolchains-support"
+        released: "2023년"
+        description: "Kotlin 프로젝트의 빌드 설정을 간단한 파일로 작성하는 JetBrains의 도구입니다. Amper에서 이어졌으며, 필요한 도구와 JDK를 자동으로 준비합니다."
+        documentation: "https://kotlin-toolchain.org/latest/"
 
 positions:
   Server:
