@@ -6,26 +6,21 @@ import java.util.function.Predicate;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.support.TransactionTemplate;
 
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
 import com.cowork.roadmap.global.team.TeamMemberProjectionReadiness;
 import com.cowork.roadmap.global.team.TeamMemberProjectionRepository;
 
+import lombok.RequiredArgsConstructor;
 import team.themoment.sdk.exception.ExpectedException;
 
 /**
  * 로드맵 읽기/변경/생성 권한 판정. 커스텀(TEAM/PROJECT) 로드맵은 항상 owner_team_id를 기준으로 Kafka로 동기화한
  * 로컬 팀 멤버 투영의 역할을 조회해 판정한다.
- * <p>
- * 투영 준비 상태와 역할은 호출한 서비스 트랜잭션의 스냅샷이 아니라 요청 시점의 최신 커밋을 읽도록 별도 READ COMMITTED 읽기
- * 트랜잭션에서 조회한다. 그래야 현재 broker high-watermark와 비교한 준비 판단이 맞고, 역할 재조회도 새로 커밋된 행을
- * 본다.
  */
 @Component
+@RequiredArgsConstructor
 public class RoadmapAccessGuard {
 
     private static final String ROLE_ADMIN = "ADMIN";
@@ -33,18 +28,6 @@ public class RoadmapAccessGuard {
 
     private final TeamMemberProjectionRepository teamMemberships;
     private final TeamMemberProjectionReadiness projectionReadiness;
-    private final TransactionTemplate latestCommitReads;
-
-    public RoadmapAccessGuard(TeamMemberProjectionRepository teamMemberships,
-            TeamMemberProjectionReadiness projectionReadiness,
-            PlatformTransactionManager transactionManager) {
-        this.teamMemberships = teamMemberships;
-        this.projectionReadiness = projectionReadiness;
-        this.latestCommitReads = new TransactionTemplate(transactionManager);
-        latestCommitReads.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
-        latestCommitReads.setIsolationLevel(TransactionDefinition.ISOLATION_READ_COMMITTED);
-        latestCommitReads.setReadOnly(true);
-    }
 
     /** 로드맵 생성 권한. GLOBAL은 ADMIN, 커스텀은 소유 팀의 OWNER/ADMIN만 허용. */
     public void requireCreatable(Long userId, String userRole, RoadmapScope scope, Long ownerTeamId) {
@@ -93,10 +76,8 @@ public class RoadmapAccessGuard {
         if (teamId == null) {
             return false;
         }
-        return latestCommitReads.execute(status -> {
-            requireProjectionReady();
-            return teamMemberships.findActiveRole(teamId, userId).isPresent();
-        });
+        requireProjectionReady();
+        return teamMemberships.findActiveRole(teamId, userId).isPresent();
     }
 
     /** 과제 출제/삭제 권한. 글로벌 ADMIN 또는 해당 팀의 OWNER/ADMIN. */
@@ -122,16 +103,14 @@ public class RoadmapAccessGuard {
     }
 
     private void requireTeamRole(Long teamId, Long userId, Predicate<String> accepted, String message) {
-        latestCommitReads.executeWithoutResult(status -> {
-            requireProjectionReady();
-            if (findAcceptedRole(teamId, userId, accepted).isPresent()) {
-                return;
-            }
-            requireProjectionReady();
-            if (findAcceptedRole(teamId, userId, accepted).isEmpty()) {
-                throw new ExpectedException(message, HttpStatus.FORBIDDEN);
-            }
-        });
+        requireProjectionReady();
+        if (findAcceptedRole(teamId, userId, accepted).isPresent()) {
+            return;
+        }
+        requireProjectionReady();
+        if (findAcceptedRole(teamId, userId, accepted).isEmpty()) {
+            throw new ExpectedException(message, HttpStatus.FORBIDDEN);
+        }
     }
 
     private Optional<String> findAcceptedRole(Long teamId, Long userId, Predicate<String> accepted) {
