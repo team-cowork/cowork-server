@@ -17,3 +17,4 @@ export * from './user-profile-projection.repository.js';
 export * from './versioned-projection.util.js';
 export * from './channel-read-state.repository.js';
 export * from './webhook-projection.repository.js';
+export * from './attachment-deletion.repository.js';

@@ -324,7 +324,14 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
 			throw new BadRequestException('삭제할 첨부파일 경로가 유효하지 않습니다');
 		}
 
-		await this.s3Client.send(new DeleteObjectCommand({[s3Field.bucket]: this.config.bucket, [s3Field.key]: objectKey}));
+		try {
+			await this.s3Client.send(new DeleteObjectCommand({[s3Field.bucket]: this.config.bucket, [s3Field.key]: objectKey}));
+		} catch (error) {
+			// 이미 없는 객체는 삭제가 끝난 것이다. 재시도한 삭제가 실패로 남지 않게 한다.
+			if (!isNotFoundError(error) && (error as {name?: string}).name !== 'NoSuchKey') {
+				throw error;
+			}
+		}
 	}
 
 	extractObjectKey(fileUrl: string): string {
