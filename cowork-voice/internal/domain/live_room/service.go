@@ -31,6 +31,10 @@ func (s *LiveService) Start(ctx context.Context, channelID, userID int64) (*Star
 		return nil, apperr.PermissionDenied()
 	}
 
+	// 서버·LiveKit 클라이언트에 자체 제한이 없으므로 복구 유예보다 짧게 묶는다(startTimeout 참고).
+	ctx, cancel := context.WithTimeout(ctx, startTimeout)
+	defer cancel()
+
 	// CreateSession의 duplicate-key 경쟁 재조회가 (nil, false, nil)을 반환할 수 있다:
 	// 경쟁 상대의 세션이 우리가 재조회하기 전에 이미 종료된 극히 드문 경우다. 이때는
 	// 채널이 실제로 비어 있으므로 오탐 409 대신 즉시 한 번 재시도한다.
