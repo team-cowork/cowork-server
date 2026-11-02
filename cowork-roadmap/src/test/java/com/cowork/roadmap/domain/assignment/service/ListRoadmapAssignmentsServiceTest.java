@@ -11,6 +11,7 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.transaction.PlatformTransactionManager;
 
 import com.cowork.roadmap.domain.assignment.entity.RoadmapAssignment;
 import com.cowork.roadmap.domain.assignment.repository.RoadmapAssignmentRepository;
@@ -30,7 +31,7 @@ class ListRoadmapAssignmentsServiceTest {
     private final TeamMemberProjectionRepository memberships = mock(TeamMemberProjectionRepository.class);
     private final TeamMemberProjectionReadiness readiness = mock(TeamMemberProjectionReadiness.class);
     private final ListRoadmapAssignmentsServiceImpl service = new ListRoadmapAssignmentsServiceImpl(assignments,
-            new RoadmapAccessGuard(memberships, readiness),
+            new RoadmapAccessGuard(memberships, readiness, mock(PlatformTransactionManager.class)),
             new RoadmapLookupSupport(roadmaps));
 
     ListRoadmapAssignmentsServiceTest() {
