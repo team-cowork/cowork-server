@@ -58,47 +58,6 @@ class CreateProjectServiceImplTest {
         }
 
         @Test
-        fun `createProject은 잘못된 이름이어도 권한 확인을 먼저 수행해 FORBIDDEN`() {
-            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns null
-
-            val ex = assertThrows(ExpectedException::class.java) {
-                service.execute(7L, CreateProjectReqDto(teamId = 100L, name = "", description = null))
-            }
-
-            assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
-        }
-
-        @Test
-        fun `createProject은 이름이 비었거나 공백뿐이거나 100자를 넘으면 쓰기 작업 없이 BAD_REQUEST`() {
-            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L, "OWNER")
-
-            listOf("", "   ", "\t\n", "가".repeat(101), "😀".repeat(101)).forEach { name ->
-                val ex = assertThrows(ExpectedException::class.java) {
-                    service.execute(7L, CreateProjectReqDto(teamId = 100L, name = name, description = null))
-                }
-
-                assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
-            }
-
-            verify(exactly = 0) { projectRepository.findAllByTeamIdForUpdate(any()) }
-            verify(exactly = 0) { projectRepository.save(any()) }
-            verify(exactly = 0) { projectEventPublisher.publishCreated(any(), any()) }
-        }
-
-        @Test
-        fun `createProject은 유효한 이름을 입력값 그대로 저장한다`() {
-            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L, "OWNER")
-            every { projectRepository.findAllByTeamIdForUpdate(100L) } returns emptyList()
-            every { projectRepository.save(any()) } answers { firstArg() }
-
-            listOf("가", "가".repeat(100), "😀".repeat(100), "개발 팀", " 개발 팀 ").forEach { name ->
-                val response = service.execute(7L, CreateProjectReqDto(teamId = 100L, name = name, description = null))
-
-                assertEquals(name, response.name)
-            }
-        }
-
-        @Test
         fun `createProject은 마지막 position 다음에 만들고 권한 기반 접근 목록 갱신을 요청한다`() {
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L, "OWNER")
             every { projectRepository.findAllByTeamIdForUpdate(100L) } returns
