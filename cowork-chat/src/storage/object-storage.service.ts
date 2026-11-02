@@ -279,6 +279,10 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
 		}
 	}
 
+	async releaseUploads(objectKeys: string[]): Promise<void> {
+		await this.uploads.removeByObjectKeys(objectKeys);
+	}
+
 	async claimAttachments(
 		attachments: Array<{objectKey: string}>, channelId: number, userId: number, clientMessageId: string,
 	): Promise<ConfirmedAttachment[]> {
@@ -324,7 +328,14 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
 			throw new BadRequestException('삭제할 첨부파일 경로가 유효하지 않습니다');
 		}
 
-		await this.s3Client.send(new DeleteObjectCommand({[s3Field.bucket]: this.config.bucket, [s3Field.key]: objectKey}));
+		try {
+			await this.s3Client.send(new DeleteObjectCommand({[s3Field.bucket]: this.config.bucket, [s3Field.key]: objectKey}));
+		} catch (error) {
+			// 이미 없는 객체는 삭제가 끝난 것이다. 버킷이 없는 404(NoSuchBucket)는 재시도하도록 오류로 남긴다.
+			if (!['NoSuchKey', 'NotFound'].includes((error as {name?: string}).name ?? '')) {
+				throw error;
+			}
+		}
 	}
 
 	extractObjectKey(fileUrl: string): string {
