@@ -8,7 +8,6 @@ import com.cowork.team.domain.team.presentation.data.response.TeamResponse
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.CreateTeamService
 import com.cowork.team.domain.team.service.TeamIconOwnershipService
-import com.cowork.team.domain.team.service.support.requireValidTeamName
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
@@ -26,7 +25,6 @@ class CreateTeamServiceImpl(
 
     @Transactional
     override fun execute(ownerId: Long, request: CreateTeamRequest): TeamResponse {
-        requireValidTeamName(request.name)
         val team = teamRepository.save(
             Team(
                 name = request.name,

@@ -8,6 +8,7 @@ data class CreateTeamRequest(
         example = "코워크팀",
         required = true,
     )
+    @field:ValidTeamName
     val name: String,
     @param:Schema(description = "팀 설명", example = "협업 서비스 개발팀")
     val description: String?,
