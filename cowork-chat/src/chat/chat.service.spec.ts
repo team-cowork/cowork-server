@@ -58,6 +58,10 @@ const mockMessageSearchDeletion = {
 	deleteMessage: jest.fn().mockResolvedValue('DELETED'),
 };
 
+const mockAttachmentDeletions = {
+	record: jest.fn(),
+};
+
 const mockDmParticipantRepository = {
 	exists: jest.fn(),
 	findMembership: jest.fn(),
@@ -109,6 +113,7 @@ const mockObjectStorageService = {
 	claimAttachments: jest.fn(),
 	extractObjectKey: jest.fn(),
 	removeObject: jest.fn(),
+	releaseUploads: jest.fn(),
 };
 
 const mockChatMessageProducer = {
@@ -179,6 +184,7 @@ describe('ChatService', () => {
 			chatGateway: mockChatGateway,
 			unreadCounterService: mockUnreadCounterService,
 			messageSearchDeletion: mockMessageSearchDeletion,
+			attachmentDeletions: mockAttachmentDeletions,
 			channelProjectionRepository: mockChannelProjectionRepository,
 			slowmodeService: mockSlowmodeService,
 			tagSpamService: mockTagSpamService,
@@ -695,8 +701,39 @@ describe('ChatService', () => {
 
 			await service.deleteFile(ctx, fileId);
 
-			expect(mockObjectStorageService.removeObject).not.toHaveBeenCalled();
+			expect(mockAttachmentDeletions.record).not.toHaveBeenCalled();
 			expect(mockMessageSearchDeletion.deleteMessage).toHaveBeenCalledWith(mockMessageId);
+		});
+
+		it('객체는 지우지 않고 메시지 삭제 전에 삭제 의도를 기록한다', async () => {
+			const objectKey = 'chat-files/1/42/file.png';
+			mockMessageRepository.findByIdAndChannelId.mockResolvedValue({authorId: 42, attachments: [{objectKey}]});
+			const order: string[] = [];
+			mockAttachmentDeletions.record.mockImplementation(async () => {
+				order.push('record');
+			});
+			mockObjectStorageService.releaseUploads.mockImplementation(async () => {
+				order.push('releaseUploads');
+			});
+			mockMessageSearchDeletion.deleteMessage.mockImplementation(async () => {
+				order.push('deleteMessage');
+				return 'DELETED';
+			});
+
+			await service.deleteFile(ctx, fileId);
+
+			expect(mockAttachmentDeletions.record).toHaveBeenCalledWith({messageId: mockMessageId, channelId: 1, objectKeys: [objectKey]});
+			expect(mockObjectStorageService.releaseUploads).toHaveBeenCalledWith([objectKey]);
+			expect(order).toEqual(['record', 'releaseUploads', 'deleteMessage']);
+			expect(mockObjectStorageService.removeObject).not.toHaveBeenCalled();
+		});
+
+		it('삭제 의도 기록이 실패하면 메시지를 지우지 않는다', async () => {
+			mockMessageRepository.findByIdAndChannelId.mockResolvedValue({authorId: 42, attachments: [{objectKey: 'chat-files/1/42/file.png'}]});
+			mockAttachmentDeletions.record.mockRejectedValueOnce(new Error('mongo down'));
+
+			await expect(service.deleteFile(ctx, fileId)).rejects.toThrow('mongo down');
+			expect(mockMessageSearchDeletion.deleteMessage).not.toHaveBeenCalled();
 		});
 
 		it('다른 요청이 이미 삭제를 진행 중이면 완료 이벤트를 내보내지 않는다', async () => {
@@ -826,7 +863,18 @@ describe('ChatService', () => {
 			const result = await service.deleteMessage(ctx());
 
 			expect(mockMessageSearchDeletion.deleteMessage).toHaveBeenCalledWith(mockMessageId);
+			expect(mockAttachmentDeletions.record).not.toHaveBeenCalled();
 			expect(result.messageId).toBe(mockMessageId);
+		});
+
+		it('첨부가 있는 메시지는 삭제 의도를 기록한다', async () => {
+			mockDmParticipantRepository.exists.mockResolvedValue(true);
+			mockMessageRepository.findById.mockResolvedValue(makeMockMessage({attachments: [{objectKey: 'chat-files/1/42/a.png'}, {objectKey: 'chat-files/1/7/b.png'}]}));
+
+			await service.deleteMessage(ctx());
+
+			expect(mockAttachmentDeletions.record).toHaveBeenCalledWith({messageId: mockMessageId, channelId: 1, objectKeys: ['chat-files/1/42/a.png']});
+			expect(mockObjectStorageService.removeObject).not.toHaveBeenCalled();
 		});
 
 		it('메시지가 없으면 NotFoundException을 던진다', async () => {
