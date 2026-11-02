@@ -1,0 +1,56 @@
+export function createTechnologyDialog(root) {
+	const dialog = root.querySelector('#technology-dialog');
+	const name = dialog.querySelector('#technology-name');
+	const released = dialog.querySelector('#technology-released');
+	const description = dialog.querySelector('#technology-description');
+	const documentation = dialog.querySelector('[data-technology-documentation]');
+	let didStartOnBackdrop = false;
+
+	function handleClick(event) {
+		const trigger = event.target.closest('[data-technology]');
+		if (!trigger) {
+			return;
+		}
+
+		name.textContent = trigger.dataset.name;
+		released.textContent = trigger.dataset.released;
+		description.textContent = trigger.dataset.description;
+		documentation.href = trigger.dataset.documentation;
+		dialog.showModal();
+	}
+
+	function isBackdrop(event) {
+		if (event.target !== dialog) {
+			return false;
+		}
+
+		const {left, right, top, bottom} = dialog.getBoundingClientRect();
+		return event.clientX < left || event.clientX > right || event.clientY < top || event.clientY > bottom;
+	}
+
+	function handlePointerDown(event) {
+		didStartOnBackdrop = isBackdrop(event);
+	}
+
+	function handleBackdropClick(event) {
+		if (didStartOnBackdrop && isBackdrop(event)) {
+			dialog.close();
+		}
+
+		didStartOnBackdrop = false;
+	}
+
+	return {
+		mount() {
+			root.addEventListener('click', handleClick);
+			dialog.addEventListener('pointerdown', handlePointerDown);
+			dialog.addEventListener('click', handleBackdropClick);
+		},
+		unmount() {
+			root.removeEventListener('click', handleClick);
+			dialog.removeEventListener('pointerdown', handlePointerDown);
+			dialog.removeEventListener('click', handleBackdropClick);
+			dialog.close();
+		},
+	};
+}

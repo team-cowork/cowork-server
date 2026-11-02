@@ -37,3 +37,17 @@ groups:
         annotations:
           summary: "{{ $labels.host }}의 {{ $labels.service }} 인증서 갱신 지연"
           description: "내부 인증서가 {{ $value | humanizeDuration }} 뒤 만료됩니다. 관리 VM의 cowork-platform-certificates.timer와 갱신 로그, 해당 에이전트의 인증서 재적용 상태를 확인해 주세요."
+
+      - alert: coworkNomadMemoryReconciliationStale
+        expr: |
+          (time() - cowork_nomad_memory_reconciliation_last_success_timestamp_seconds{job="hosts"} > 180)
+          or
+          (up{job="nomad",role="client"} unless on (host)
+            cowork_nomad_memory_reconciliation_last_success_timestamp_seconds{job="hosts"})
+        for: 2m
+        labels:
+          severity: warning
+          service: nomad
+        annotations:
+          summary: "{{ $labels.host }} Nomad 메모리 재감지 점검 중단"
+          description: "메모리 재감지 점검의 마지막 성공 시각이 갱신되지 않거나 수집되지 않습니다. cowork-nomad-memory.timer와 서비스 로그, Nomad 준비 상태, Node Exporter의 textfile 수집을 확인해 주세요."

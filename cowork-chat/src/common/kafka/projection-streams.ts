@@ -84,6 +84,13 @@ export const PROJECTION_STREAMS = {
 		expectedSource: 'cowork-preference',
 		sourceGeneration: sourceGeneration('TEXT_CHANNEL_SETTING'),
 	},
+	teamSetting: {
+		name: 'teamSetting',
+		topic: 'preference.team-setting.state.v1',
+		groupId: 'cowork-chat-team-setting-state-v1-projection',
+		expectedSource: 'cowork-preference',
+		sourceGeneration: sourceGeneration('TEAM_SETTING'),
+	},
 	webhook: {
 		name: 'webhook',
 		topic: 'preference.webhook.state.v2',
