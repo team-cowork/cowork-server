@@ -3,7 +3,7 @@ import {renderAchievementRegions} from '../scripts/lib/achievement-render.mjs';
 import {collectAchievements} from '../scripts/lib/github-achievements.mjs';
 import {resolveGitHubToken} from '../scripts/lib/github-auth.mjs';
 
-const token = await resolveGitHubToken();
+const token = resolveGitHubToken();
 
 let cached;
 let pending;
