@@ -156,7 +156,7 @@ job "cowork-notification" {
 
       resources {
         cpu        = 500
-        memory     = 512
+        memory     = 128
         memory_max = 1024
       }
 
