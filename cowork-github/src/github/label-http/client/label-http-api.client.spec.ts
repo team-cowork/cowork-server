@@ -55,12 +55,10 @@ describe('LabelHttpApiClient', () => {
         } as unknown as AxiosResponse;
         httpService.get.mockReturnValue(throwError(() => axiosError));
 
-        const error = await client
-            .listLabels('my-org', 'my-repo')
-            .catch((error_: unknown) => error_ as GithubClientError);
+        const promise = client.listLabels('my-org', 'my-repo');
 
-        expect(error).toBeInstanceOf(GithubClientError);
-        expect(error.statusCode).toBe(404);
+        await expect(promise).rejects.toBeInstanceOf(GithubClientError);
+        await expect(promise).rejects.toMatchObject({statusCode: 404});
     });
 
     it('5xx 응답은 그대로 전파한다', async () => {
@@ -106,12 +104,10 @@ describe('LabelHttpApiClient', () => {
             } as unknown as AxiosResponse;
             httpService.put.mockReturnValue(throwError(() => axiosError));
 
-            const error = await client
-                .replaceLabels('my-org', 'my-repo', 1, ['bug'])
-                .catch((error_: unknown) => error_ as GithubClientError);
+            const promise = client.replaceLabels('my-org', 'my-repo', 1, ['bug']);
 
-            expect(error).toBeInstanceOf(GithubClientError);
-            expect(error.statusCode).toBe(404);
+            await expect(promise).rejects.toBeInstanceOf(GithubClientError);
+            await expect(promise).rejects.toMatchObject({statusCode: 404});
         });
     });
 });

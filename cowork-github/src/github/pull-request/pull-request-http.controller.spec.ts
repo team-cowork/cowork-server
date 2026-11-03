@@ -17,6 +17,7 @@ describe('PullRequestHttpController', () => {
     beforeEach(async () => {
         pullRequestService = {
             getPullRequestLiveStatus: jest.fn(),
+            listPullRequestFiles: jest.fn(),
             mergePullRequest: jest.fn(),
             approvePullRequest: jest.fn(),
         };

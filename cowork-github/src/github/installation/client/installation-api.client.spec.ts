@@ -96,12 +96,10 @@ describe('InstallationApiClient', () => {
         } as unknown as AxiosResponse;
         httpService.get.mockReturnValue(throwError(() => axiosError));
 
-        const error = await client
-            .listRepositories('my-org')
-            .catch((error_: unknown) => error_ as GithubClientError);
+        const promise = client.listRepositories('my-org');
 
-        expect(error).toBeInstanceOf(GithubClientError);
-        expect(error.statusCode).toBe(404);
+        await expect(promise).rejects.toBeInstanceOf(GithubClientError);
+        await expect(promise).rejects.toMatchObject({statusCode: 404});
     });
 
     it('5xx 응답은 GithubClientError로 변환하지 않는다', async () => {
