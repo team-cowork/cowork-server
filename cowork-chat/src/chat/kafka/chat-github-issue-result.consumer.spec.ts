@@ -9,10 +9,6 @@ const mockChatService = {
 
 const mockConfigService = {};
 
-const mockDicoshot = {
-	sendCustom: jest.fn().mockResolvedValue(undefined),
-};
-
 const mockChannelMessageReadAccess = {
 	emitToReadableChannelUsers: jest.fn().mockResolvedValue(undefined),
 };
@@ -25,7 +21,6 @@ describe('ChatGithubIssueResultConsumer', () => {
 		consumer = new ChatGithubIssueResultConsumer(
 			mockChatService as never,
 			mockConfigService as never,
-			mockDicoshot as never,
 			mockChannelMessageReadAccess as never,
 		);
 		consumer.setSocketServer({} as never);

@@ -6,10 +6,8 @@ import {
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
 import {Kafka, Producer} from 'kafkajs';
-import {DicoshotService} from 'dicoshot-nest';
 import {SendMessageDto} from '../dto/index.js';
 import {getKafkaClientConfig} from '../../common/config/config.util.js';
-import {buildErrorFields} from '../../common/util/discord-alert.util.js';
 import {MessageScope} from '../service/index.js';
 import {ConfirmedAttachment} from '../../storage/attachment-upload.schema.js';
 import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
@@ -35,7 +33,6 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
 
 	constructor(
 		private readonly configService: ConfigService,
-		private readonly dicoshot: DicoshotService,
 	) {}
 
 	/**
@@ -88,15 +85,6 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
 		void connectWithRetry(this.logger, 'Kafka producer startup: chat.message.v2', async () => this.ensureConnected())
 			.catch((error: unknown) => {
 				this.logger.error(`Kafka producer bootstrap connect failed: ${this.formatError(error)}`);
-				void this.dicoshot.sendCustom({
-					title: '🔴 Kafka Producer 연결 실패',
-					description: 'cowork-chat의 chat.message.v2 producer가 부트스트랩 연결에 실패했습니다.',
-					color: 'danger',
-					fields: [
-						{name: 'Topic', value: 'chat.message.v2', inline: true},
-						...buildErrorFields(error),
-					],
-				}).catch(() => {/* Alert delivery is best-effort. */});
 			});
 	}
 
