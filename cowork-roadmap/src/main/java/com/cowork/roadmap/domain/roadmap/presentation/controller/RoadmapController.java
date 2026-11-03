@@ -29,6 +29,8 @@ import com.cowork.roadmap.domain.roadmap.service.QueryRoadmapTreeService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -80,7 +82,12 @@ public class RoadmapController {
         return queryRoadmapTreeService.execute(userId, userRole, roadmapId);
     }
 
-    @Operation(summary = "로드맵 수정", description = "null인 필드는 변경하지 않는다. title 또는 category가 빈 문자열이거나 공백만 있으면 400을 반환")
+    @Operation(summary = "로드맵 수정", description = "null인 필드는 변경하지 않는다.")
+    @ApiResponses({@ApiResponse(responseCode = "200", description = "수정 성공"),
+            @ApiResponse(responseCode = "400", description = "제목 또는 종류가 빈 문자열이거나 공백만 있음, 길이 초과"),
+            @ApiResponse(responseCode = "403", description = "로드맵 수정 권한 없음"),
+            @ApiResponse(responseCode = "404", description = "로드맵 없음"),
+            @ApiResponse(responseCode = "503", description = "팀 멤버 투영 동기화 중")})
     @PatchMapping("/{roadmapId}")
     public RoadmapResDto updateRoadmap(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
