@@ -1,4 +1,4 @@
-import * as Joi from 'joi';
+import Joi from 'joi';
 import {envName} from './env-name.js';
 
 export const envValidationSchema = Joi.object({
