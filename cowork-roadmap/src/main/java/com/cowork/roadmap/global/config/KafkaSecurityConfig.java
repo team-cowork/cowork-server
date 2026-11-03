@@ -23,6 +23,12 @@ public class KafkaSecurityConfig {
                         throw new IllegalArgumentException("Use a supported Kafka security protocol");
                     }
                     properties.getProperties().put("security.protocol", protocol);
+                    if (!protocol.equals("PLAINTEXT")) {
+                        properties.getProperties().put("ssl.truststore.type", "PEM");
+                        properties.getProperties()
+                                .put("ssl.truststore.location",
+                                        environment.getRequiredProperty("KAFKA_SSL_CA_LOCATION"));
+                    }
                     if (protocol.equals("SASL_SSL")) {
                         String mechanism = environment.getRequiredProperty("KAFKA_SASL_MECHANISM")
                                 .toUpperCase(Locale.ROOT);
