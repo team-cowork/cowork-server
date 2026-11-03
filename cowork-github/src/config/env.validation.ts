@@ -3,7 +3,7 @@ import * as Joi from 'joi';
 export const envValidationSchema = Joi.object({
     PORT: Joi.number().port().default(8090),
     KAFKA_BOOTSTRAP_SERVERS: Joi.string().trim().required(),
-    KAFKA_SECURITY_PROTOCOL: Joi.string().valid('PLAINTEXT', 'SSL', 'SASL_SSL').required(),
+    KAFKA_SECURITY_PROTOCOL: Joi.string().uppercase().valid('PLAINTEXT', 'SSL', 'SASL_SSL').required(),
     KAFKA_GROUP_ID: Joi.string().trim().default('cowork-github-group'),
     GITHUB_APP_ID: Joi.string().trim().required(),
     GITHUB_PRIVATE_KEY: Joi.string().trim().required(),
