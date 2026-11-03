@@ -32,13 +32,9 @@ func NewEventHandler(eventSvc *service.EventService) *EventHandler {
 // @Failure      401  {object}  map[string]string  "invalid_signature"
 // @Failure      409  {object}  map[string]string  "event_id_conflict"
 // @Failure      413  {object}  map[string]string  "payload_too_large"
-// @Failure      503  {object}  map[string]string  "temporarily_unavailable | webhook_not_configured"
+// @Failure      503  {object}  map[string]string  "temporarily_unavailable"
 // @Router       /events/datagsm [post]
 func (h *EventHandler) DataGSMWebhook(c *gin.Context) {
-	if !h.eventSvc.SecretConfigured() {
-		webhookError(c, http.StatusServiceUnavailable, "webhook_not_configured", "unavailable")
-		return
-	}
 	body, err := io.ReadAll(io.LimitReader(c.Request.Body, maxWebhookBodyBytes+1))
 	if err != nil {
 		webhookError(c, http.StatusBadRequest, "invalid_payload", "invalid")
