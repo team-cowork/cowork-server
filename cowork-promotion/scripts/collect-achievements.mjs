@@ -10,7 +10,7 @@ if (arguments_.length > 0 && (arguments_.length !== 2 || arguments_[0] !== '--en
 }
 
 const period = sixMonthPeriod(arguments_[1]);
-const token = await resolveGitHubToken();
+const token = resolveGitHubToken();
 const result = await collectAchievements({token, period, signal: AbortSignal.timeout(300_000)});
 const output = new URL('../data/achievements.json', import.meta.url);
 const temporary = new URL(`../data/.achievements-${process.pid}.json`, import.meta.url);

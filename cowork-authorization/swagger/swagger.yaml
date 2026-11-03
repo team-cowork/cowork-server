@@ -199,7 +199,7 @@ paths:
               type: string
             type: object
         "503":
-          description: temporarily_unavailable | webhook_not_configured
+          description: temporarily_unavailable
           schema:
             additionalProperties:
               type: string

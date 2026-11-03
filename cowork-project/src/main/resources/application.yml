@@ -2,7 +2,7 @@ spring:
   reactor:
     context-propagation: auto
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     consumer:
       auto-offset-reset: earliest
     admin:
@@ -14,12 +14,9 @@ spring:
       reconnect.backoff.max.ms: 30000
       retry.backoff.ms: 1000
       retry.backoff.max.ms: 10000
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
-      sasl.mechanism: ${KAFKA_SASL_MECHANISM:SCRAM-SHA-512}
-      ssl.truststore.type: PEM
-      ssl.truststore.location: ${KAFKA_SSL_CA_LOCATION:}
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL}
   profiles:
-    active: ${APP_CONFIG_PROFILE:prod}
+    active: ${APP_CONFIG_PROFILE}
   cloud:
     openfeign:
       client:
@@ -33,10 +30,10 @@ spring:
     mapper:
       accept-case-insensitive-enums: true
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/cowork_project?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul}
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: ${MYSQL_USER:cowork}
-    password: ${MYSQL_PASSWORD:}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: none
@@ -88,7 +85,7 @@ sdk:
 server:
   port: 8084
 github:
-  internal-api-key: ${COWORK_GITHUB_INTERNAL_API_KEY:}
+  internal-api-key: ${COWORK_GITHUB_INTERNAL_API_KEY}
 springdoc:
   api-docs:
     path: /v3/api-docs
