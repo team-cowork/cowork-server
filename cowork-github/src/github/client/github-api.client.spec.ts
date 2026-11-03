@@ -2,10 +2,11 @@ import {Test, type TestingModule} from '@nestjs/testing';
 import {HttpService} from '@nestjs/axios';
 import {AxiosError, type AxiosResponse} from 'axios';
 import {of, throwError} from 'rxjs';
-import {GithubAuthService} from '../auth/github-auth.service';
-import {GithubClientError} from '../github.errors';
-import {type CreateIssueDto} from '../dto/create-issue.dto';
-import {GithubApiClient} from './github-api.client';
+import {githubField} from '../github-field.js';
+import {GithubAuthService} from '../auth/github-auth.service.js';
+import {GithubClientError} from '../github.errors.js';
+import {type CreateIssueDto} from '../dto/create-issue.dto.js';
+import {GithubApiClient} from './github-api.client.js';
 
 describe('GithubApiClient', () => {
 	let client: GithubApiClient;
@@ -41,7 +42,7 @@ describe('GithubApiClient', () => {
 			of({
 				data: {
 					number: 42,
-					html_url: 'https://github.com/my-org/my-repo/issues/42',
+					[githubField.htmlUrl]: 'https://github.com/my-org/my-repo/issues/42',
 				},
 			}),
 		);
@@ -50,14 +51,14 @@ describe('GithubApiClient', () => {
 
 		expect(result).toEqual({
 			number: 42,
-			html_url: 'https://github.com/my-org/my-repo/issues/42',
+			[githubField.htmlUrl]: 'https://github.com/my-org/my-repo/issues/42',
 		});
 		expect(httpService.post).toHaveBeenCalledWith(
 			'https://api.github.com/repos/my-org/my-repo/issues',
 			expect.objectContaining({title: dto.title, body: dto.body}),
 			expect.objectContaining({
 				headers: expect.objectContaining({
-					Authorization: 'Bearer my-token',
+					[githubField.authorization]: 'Bearer my-token',
 				}) as unknown,
 			}),
 		);
@@ -123,7 +124,7 @@ describe('GithubApiClient', () => {
 					items: [
 						{
 							number: 7,
-							html_url: 'https://github.com/my-org/my-repo/issues/7',
+							[githubField.htmlUrl]: 'https://github.com/my-org/my-repo/issues/7',
 							title: 'Bug fix',
 							labels: [{name: 'bug'}],
 						},
@@ -137,7 +138,7 @@ describe('GithubApiClient', () => {
 		expect(result).toEqual([
 			{
 				number: 7,
-				html_url: 'https://github.com/my-org/my-repo/issues/7',
+				[githubField.htmlUrl]: 'https://github.com/my-org/my-repo/issues/7',
 				title: 'Bug fix',
 				labels: [{name: 'bug'}],
 			},
@@ -149,7 +150,7 @@ describe('GithubApiClient', () => {
 					q: 'repo:my-org/my-repo is:issue is:open in:title "Bug fix"',
 				},
 				headers: expect.objectContaining({
-					Authorization: 'Bearer my-token',
+					[githubField.authorization]: 'Bearer my-token',
 				}) as unknown,
 			}),
 		);
@@ -165,7 +166,7 @@ describe('GithubApiClient', () => {
 			{labels: ['bug']},
 			expect.objectContaining({
 				headers: expect.objectContaining({
-					Authorization: 'Bearer my-token',
+					[githubField.authorization]: 'Bearer my-token',
 				}) as unknown,
 			}),
 		);
@@ -185,7 +186,7 @@ describe('GithubApiClient', () => {
 			'https://api.github.com/repos/my-org/my-repo/labels',
 			expect.objectContaining({
 				headers: expect.objectContaining({
-					Authorization: 'Bearer my-token',
+					[githubField.authorization]: 'Bearer my-token',
 				}) as unknown,
 			}),
 		);
@@ -209,7 +210,7 @@ describe('GithubApiClient', () => {
 			},
 			expect.objectContaining({
 				headers: expect.objectContaining({
-					Authorization: 'Bearer my-token',
+					[githubField.authorization]: 'Bearer my-token',
 				}) as unknown,
 			}),
 		);

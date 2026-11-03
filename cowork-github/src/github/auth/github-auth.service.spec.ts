@@ -2,11 +2,12 @@ import {Test, type TestingModule} from '@nestjs/testing';
 import {HttpService} from '@nestjs/axios';
 import {AxiosError, AxiosHeaders} from 'axios';
 import {of, throwError} from 'rxjs';
-import {AppConfigService} from '../../config/app-config.service';
-import {REDIS_CLIENT} from '../constants';
-import {githubCacheKeys} from '../github.cache';
-import {GithubClientError} from '../github.errors';
-import {GithubAuthService} from './github-auth.service';
+import {githubField} from '../github-field.js';
+import {AppConfigService} from '../../config/app-config.service.js';
+import {REDIS_CLIENT} from '../constants.js';
+import {githubCacheKeys} from '../github.cache.js';
+import {GithubClientError} from '../github.errors.js';
+import {GithubAuthService} from './github-auth.service.js';
 
 jest.mock('jsonwebtoken', () => ({
 	sign: jest.fn().mockReturnValue('mock-jwt'),
@@ -210,7 +211,7 @@ describe('GithubAuthService', () => {
 			'https://api.github.com/app/installations/42',
 			expect.objectContaining({
 				headers: expect.objectContaining({
-					Authorization: 'Bearer mock-jwt',
+					[githubField.authorization]: 'Bearer mock-jwt',
 				}) as unknown,
 			}),
 		);

@@ -1,4 +1,4 @@
-import {type IssueWriteCommandType} from '../issue-write-command-type';
+import {type IssueWriteCommandType} from '../issue-write-command-type.js';
 
 export type IssueWriteResultError = {
 	code: string;

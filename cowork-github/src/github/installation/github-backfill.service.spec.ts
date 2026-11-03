@@ -1,10 +1,10 @@
-import type Redis from 'ioredis';
-import type {IssueHttpService} from '../issue-http/issue-http.service';
-import type {LabelHttpService} from '../label-http/label-http.service';
-import type {PullRequestService} from '../pull-request/pull-request.service';
-import type {InstallationApiClient} from './client/installation-api.client';
-import {GithubBackfillService} from './github-backfill.service';
-import type {GithubReadModelEventProducers} from './kafka/github-read-model-event-producers';
+import type {Redis} from 'ioredis';
+import type {IssueHttpService} from '../issue-http/issue-http.service.js';
+import type {LabelHttpService} from '../label-http/label-http.service.js';
+import type {PullRequestService} from '../pull-request/pull-request.service.js';
+import type {InstallationApiClient} from './client/installation-api.client.js';
+import {GithubBackfillService} from './github-backfill.service.js';
+import type {GithubReadModelEventProducers} from './kafka/github-read-model-event-producers.js';
 
 const producer = () => ({send: jest.fn(), sendSyncCompleted: jest.fn()});
 

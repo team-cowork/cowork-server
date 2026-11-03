@@ -2,9 +2,10 @@ import {Test, type TestingModule} from '@nestjs/testing';
 import {HttpService} from '@nestjs/axios';
 import {AxiosError, type AxiosResponse} from 'axios';
 import {of, throwError} from 'rxjs';
-import {GithubAuthService} from '../../auth/github-auth.service';
-import {GithubClientError} from '../../github.errors';
-import {InstallationApiClient} from './installation-api.client';
+import {githubField} from '../../github-field.js';
+import {GithubAuthService} from '../../auth/github-auth.service.js';
+import {GithubClientError} from '../../github.errors.js';
+import {InstallationApiClient} from './installation-api.client.js';
 
 describe('InstallationApiClient', () => {
 	let client: InstallationApiClient;
@@ -32,19 +33,19 @@ describe('InstallationApiClient', () => {
 		httpService.get.mockReturnValue(
 			of({
 				data: {
-					total_count: 2,
+					[githubField.totalCount]: 2,
 					repositories: [
 						{
 							name: 'repo-a',
-							full_name: 'my-org/repo-a',
+							[githubField.fullName]: 'my-org/repo-a',
 							private: true,
-							html_url: 'https://github.com/my-org/repo-a',
+							[githubField.htmlUrl]: 'https://github.com/my-org/repo-a',
 						},
 						{
 							name: 'repo-b',
-							full_name: 'my-org/repo-b',
+							[githubField.fullName]: 'my-org/repo-b',
 							private: false,
-							html_url: 'https://github.com/my-org/repo-b',
+							[githubField.htmlUrl]: 'https://github.com/my-org/repo-b',
 						},
 					],
 				},
@@ -71,7 +72,7 @@ describe('InstallationApiClient', () => {
 
 	it('installation 토큰을 사용해 per_page=100으로 요청한다', async () => {
 		httpService.get.mockReturnValue(
-			of({data: {total_count: 0, repositories: []}}),
+			of({data: {[githubField.totalCount]: 0, repositories: []}}),
 		);
 
 		await client.listRepositories('my-org');
@@ -80,9 +81,9 @@ describe('InstallationApiClient', () => {
 		expect(httpService.get).toHaveBeenCalledWith(
 			'https://api.github.com/installation/repositories',
 			expect.objectContaining({
-				params: {per_page: 100},
+				params: {[githubField.perPage]: 100},
 				headers: expect.objectContaining({
-					Authorization: 'Bearer my-token',
+					[githubField.authorization]: 'Bearer my-token',
 				}) as unknown,
 			}),
 		);

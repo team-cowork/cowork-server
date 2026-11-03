@@ -1,34 +1,34 @@
 import {
-	Body,
-	Controller,
-	Headers,
-	HttpCode,
-	Inject,
+	Body as requestBody,
+	Controller as controller,
+	Headers as requestHeaders,
+	HttpCode as httpCode,
+	Inject as inject,
 	Logger,
-	Post,
-	UseGuards,
+	Post as httpPost,
+	UseGuards as useGuards,
 } from '@nestjs/common';
-import type Redis from 'ioredis';
-import {GithubAuthService} from '../../auth/github-auth.service';
+import type {Redis} from 'ioredis';
+import {GithubAuthService} from '../../auth/github-auth.service.js';
 import {
 	extractCommentAuthor,
-} from '../../common/comment-author-marker';
-import {REDIS_CLIENT} from '../../constants';
-import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../../github.cache';
-import {PullRequestService} from '../../pull-request/pull-request.service';
-import type {PullRequestFileState, PullRequestStateEvent} from '../kafka/event/pull-request-state';
-import {toRepoIdentity} from '../kafka/event/repo-identity';
-import {GithubReadModelEventProducers} from '../kafka/github-read-model-event-producers';
-import {toPullRequestFileStates} from '../kafka/pull-request-file-state.mapper';
-import {RepoEventProducer} from '../kafka/repo-event.producer';
-import {TeamGithubProducer} from '../kafka/team-github.producer';
-import type {GithubWebhookPayload} from './github-webhook-payload';
-import {GithubWebhookSignatureGuard} from './github-webhook-signature.guard';
+} from '../../common/comment-author-marker.js';
+import {REDIS_CLIENT} from '../../constants.js';
+import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../../github.cache.js';
+import {PullRequestService} from '../../pull-request/pull-request.service.js';
+import type {PullRequestFileState, PullRequestStateEvent} from '../kafka/event/pull-request-state.js';
+import {toRepoIdentity} from '../kafka/event/repo-identity.js';
+import {GithubReadModelEventProducers} from '../kafka/github-read-model-event-producers.js';
+import {toPullRequestFileStates} from '../kafka/pull-request-file-state.mapper.js';
+import {RepoEventProducer} from '../kafka/repo-event.producer.js';
+import {TeamGithubProducer} from '../kafka/team-github.producer.js';
+import type {GithubWebhookPayload} from './github-webhook-payload.js';
+import {GithubWebhookSignatureGuard} from './github-webhook-signature.guard.js';
 
 const PR_FILE_REFRESH_ACTIONS = new Set(['opened', 'synchronize', 'reopened']);
 
-@Controller('github/webhooks')
-@UseGuards(GithubWebhookSignatureGuard)
+@controller('github/webhooks')
+@useGuards(GithubWebhookSignatureGuard)
 export class GithubWebhookController {
 	private static readonly DISCONNECT_ACTIONS = new Set(['deleted']);
 
@@ -41,14 +41,14 @@ export class GithubWebhookController {
 		private readonly readModelProducers: GithubReadModelEventProducers,
 		private readonly pullRequestService: PullRequestService,
 		private readonly authService: GithubAuthService,
-		@Inject(REDIS_CLIENT) private readonly redis: Redis,
+		@inject(REDIS_CLIENT) private readonly redis: Redis,
 	) {}
 
-	@Post()
-	@HttpCode(200)
+	@httpPost()
+	@httpCode(200)
 	async handle(
-		@Headers('x-github-event') eventName: string,
-		@Body() payload: GithubWebhookPayload,
+		@requestHeaders('x-github-event') eventName: string,
+		@requestBody() payload: GithubWebhookPayload,
 	): Promise<{ok: true}> {
 		switch (eventName) {
 			case 'installation': {
