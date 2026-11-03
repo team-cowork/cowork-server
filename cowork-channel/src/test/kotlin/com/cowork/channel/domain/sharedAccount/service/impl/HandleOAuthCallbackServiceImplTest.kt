@@ -36,6 +36,13 @@ private const val STATE_SECRET = "test-state-secret-key"
 
 class HandleOAuthCallbackServiceImplTest :
     DescribeSpec({
+        val providerConfig = OAuthProviderConfig(
+            "test-client-id",
+            "test-client-secret",
+            "https://provider.example.com/token",
+            "https://provider.example.com/user",
+            scope = "",
+        )
 
         val objectMapper = jacksonObjectMapper()
 
@@ -57,18 +64,25 @@ class HandleOAuthCallbackServiceImplTest :
             callbackBaseUrl = "https://example.com",
             allowedReturnOrigins = listOf("https://client.example.com"),
             stateSecret = STATE_SECRET,
+            connectTimeoutMs = 3_000,
+            readTimeoutMs = 5_000,
             github = OAuthProviderConfig(
                 clientId = "gh-id",
                 clientSecret = "gh-secret",
                 tokenUrl = "https://github.test/token",
                 userinfoUrl = "https://github.test/user",
+                scope = "",
             ),
             notion = OAuthProviderConfig(
                 clientId = "no-id",
                 clientSecret = "no-secret",
                 tokenUrl = "https://notion.test/token",
                 userinfoUrl = "https://notion.test/user",
+                scope = "",
             ),
+            jira = providerConfig,
+            google = providerConfig,
+            facebook = providerConfig,
         )
 
         fun accountShareChannel() = Channel(

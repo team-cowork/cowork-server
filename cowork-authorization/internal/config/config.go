@@ -65,9 +65,9 @@ func Load() (*AppConfig, error) {
 		DataGSMTokenURL:                     getEnvOrDefault("DATAGSM_TOKEN_URL", "https://oauth.authorization.datagsm.kr/v1/oauth/token"),
 		DataGSMUserInfoURL:                  getEnvOrDefault("DATAGSM_USERINFO_URL", "https://oauth.resource.datagsm.kr/userinfo"),
 		DataGSMWebhookSecret:                os.Getenv("DATAGSM_WEBHOOK_SECRET"),
-		RedisHost:                           getEnvOrDefault("REDIS_HOST", "127.0.0.1"),
-		RedisPort:                           getEnvOrDefault("REDIS_PORT", "6379"),
-		KafkaBootstrapServers:               getEnvOrDefault("KAFKA_BOOTSTRAP_SERVERS", "localhost:9094"),
+		RedisHost:                           os.Getenv("REDIS_HOST"),
+		RedisPort:                           os.Getenv("REDIS_PORT"),
+		KafkaBootstrapServers:               os.Getenv("KAFKA_BOOTSTRAP_SERVERS"),
 		KafkaTopicUserSync:                  getEnvOrDefault("KAFKA_TOPIC_USER_SYNC", "user.data.sync"),
 		KafkaTopicUserIdentityCommand:       getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND", "user.identity.command"),
 		KafkaTopicUserIdentityCommandResult: getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT", "user.identity.command-result"),
@@ -87,8 +87,18 @@ func Load() (*AppConfig, error) {
 			return nil, err
 		}
 	}
-	if cfg.DBDSN == "" || cfg.JWTSecret == "" || cfg.DataGSMClientID == "" {
-		return nil, fmt.Errorf("required configuration (DB_DSN, JWT_SECRET, DATAGSM_CLIENT_ID) is missing")
+	for name, value := range map[string]string{
+		"DB_DSN":                  cfg.DBDSN,
+		"JWT_SECRET":              cfg.JWTSecret,
+		"DATAGSM_CLIENT_ID":       cfg.DataGSMClientID,
+		"DATAGSM_WEBHOOK_SECRET":  cfg.DataGSMWebhookSecret,
+		"REDIS_HOST":              cfg.RedisHost,
+		"REDIS_PORT":              cfg.RedisPort,
+		"KAFKA_BOOTSTRAP_SERVERS": cfg.KafkaBootstrapServers,
+	} {
+		if value == "" {
+			return nil, fmt.Errorf("required configuration %q is not set", name)
+		}
 	}
 	return cfg, nil
 }
