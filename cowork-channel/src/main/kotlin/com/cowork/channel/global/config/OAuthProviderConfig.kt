@@ -5,7 +5,7 @@ data class OAuthProviderConfig(
     val clientSecret: String,
     val tokenUrl: String,
     val userinfoUrl: String,
-    val scope: String = "",
+    val scope: String,
 ) {
     init {
         require(clientId.isNotBlank() && clientSecret.isNotBlank()) { "OAuth client credentials must not be empty" }
