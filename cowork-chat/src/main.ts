@@ -77,6 +77,17 @@ async function bootstrap() {
 			name: 'cowork_nodejs_heap_size_limit_bytes',
 			help: 'V8 heap size limit in bytes.',
 		}).set(getHeapStatistics().heap_size_limit);
+	} else {
+		// Nodejs_heap_size_total_bytes는 bun에서 의미 없는 값을 반환한다. bun:jsc의 heapStats()가
+		// 돌려주는 JavaScriptCore 힙 크기를 대신 내보낸다.
+		const {heapStats} = await import('bun:jsc');
+		const bunHeapSizeGauge = new Gauge({
+			name: 'cowork_bun_heap_size_bytes',
+			help: 'JavaScriptCore heap size in bytes.',
+			collect() {
+				this.set(heapStats().heapSize);
+			},
+		});
 	}
 
 	// Consul metrics metadata, AuthGuard, projection 미들웨어가 접두사 없는 /metrics를 사용한다.
