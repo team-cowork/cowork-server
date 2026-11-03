@@ -13,7 +13,7 @@ describe('GithubWebhookSignatureGuard', () => {
 
 	const createContext = (
 		headers: Record<string, string>,
-		rawBody?: Buffer,
+		rawBody?: Uint8Array,
 	): ExecutionContext =>
 		({
 			switchToHttp: () => ({

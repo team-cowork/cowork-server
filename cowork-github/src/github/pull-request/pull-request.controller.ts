@@ -7,6 +7,7 @@ import {
 } from '@nestjs/microservices';
 import {plainToInstance} from 'class-transformer';
 import {validate} from 'class-validator';
+import {isPresent} from '../common/nullable.js';
 import {GithubClientError} from '../github.errors.js';
 import {PullRequestActionDto} from './dto/pull-request-action.dto.js';
 import {PullRequestResultProducer} from './kafka/pull-request-result.producer.js';
@@ -64,7 +65,7 @@ export class PullRequestController {
 			this.logger.error('Invalid payload, skipping message', {
 				errors: errors.map(error => error.toString()),
 			});
-			if (dto.channelId != null && dto.teamId != null) {
+			if (isPresent(dto.channelId) && isPresent(dto.teamId)) {
 				await this.resultProducer.send(resultTopic, {
 					channelId: dto.channelId,
 					teamId: dto.teamId,
@@ -83,7 +84,7 @@ export class PullRequestController {
 					? await this.pullRequestService.mergePullRequest(dto)
 					: await this.pullRequestService.approvePullRequest(dto);
 
-			if (dto.channelId != null && dto.teamId != null) {
+			if (isPresent(dto.channelId) && isPresent(dto.teamId)) {
 				await this.resultProducer.send(resultTopic, {
 					channelId: dto.channelId,
 					teamId: dto.teamId,
@@ -103,7 +104,7 @@ export class PullRequestController {
 					statusCode: error.statusCode,
 					message: error.message,
 				});
-				if (dto.channelId != null && dto.teamId != null) {
+				if (isPresent(dto.channelId) && isPresent(dto.teamId)) {
 					await this.resultProducer.send(resultTopic, {
 						channelId: dto.channelId,
 						teamId: dto.teamId,

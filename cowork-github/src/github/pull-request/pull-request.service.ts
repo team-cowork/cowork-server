@@ -1,4 +1,5 @@
 import {Injectable as injectable, Logger} from '@nestjs/common';
+import {type Nullable, isPresent} from '../common/nullable.js';
 import {GITHUB_PR_WRITE_PERMISSIONS} from '../constants.js';
 import {GithubClientError} from '../github.errors.js';
 import {
@@ -32,12 +33,12 @@ export type PullRequestActionParameters = {
 export type PullRequestDetailResponse = {
 	number: number;
 	title: string;
-	body: string | null;
+	body: Nullable<string>;
 	author: string;
 	state: string;
-	mergeable: boolean | null;
+	mergeable: Nullable<boolean>;
 	mergeableState: string;
-	reviewDecision: 'APPROVED' | 'CHANGES_REQUESTED' | null;
+	reviewDecision: Nullable<'APPROVED' | 'CHANGES_REQUESTED'>;
 	headRef: string;
 	baseRef: string;
 	htmlUrl: string;
@@ -118,7 +119,7 @@ export class PullRequestService {
 			author: item.user?.login ?? 'ghost',
 			state: item.state,
 			draft: item.draft,
-			merged: item.merged_at != null,
+			merged: isPresent(item.merged_at),
 			htmlUrl: item.html_url,
 			labels: item.labels?.map(label => label.name) ?? [],
 			createdAt: item.created_at,
@@ -242,7 +243,7 @@ export class PullRequestService {
 		pr: PullRequestDetail,
 	): Promise<void> {
 		const isSameRepo =
-			pr.head.repo != null
+			isPresent(pr.head.repo)
 			&& pr.head.repo.full_name === pr.base.repo?.full_name;
 		if (!isSameRepo) {
 			return;
@@ -262,7 +263,7 @@ export class PullRequestService {
 
 	private deriveReviewDecision(
 		reviews: Array<{user: {login: string}; state: string; submitted_at: string}>,
-	): 'APPROVED' | 'CHANGES_REQUESTED' | null {
+	): Nullable<'APPROVED' | 'CHANGES_REQUESTED'> {
 		const latestByUser = new Map<string, string>();
 		const sorted = reviews.toSorted(
 			(a, b) =>
