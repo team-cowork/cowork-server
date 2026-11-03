@@ -1,4 +1,4 @@
-import {Injectable as injectable} from '@nestjs/common';
+import {Inject as inject, Injectable as injectable} from '@nestjs/common';
 import {IssueCommentStateProducer} from './issue-comment-state.producer.js';
 import {IssueStateProducer} from './issue-state.producer.js';
 import {LabelStateProducer} from './label-state.producer.js';
@@ -11,12 +11,18 @@ import {RepoStateProducer} from './repo-state.producer.js';
  */
 @injectable()
 export class GithubReadModelEventProducers {
-	// eslint-disable-next-line max-params -- NestJS 생성자 주입이라 의존성 수만큼 파라미터가 필요하다.
-	constructor(
-		readonly repo: RepoStateProducer,
-		readonly issue: IssueStateProducer,
-		readonly pullRequest: PullRequestStateProducer,
-		readonly label: LabelStateProducer,
-		readonly issueComment: IssueCommentStateProducer,
-	) {}
+	@inject(RepoStateProducer)
+	readonly repo!: RepoStateProducer;
+
+	@inject(IssueStateProducer)
+	readonly issue!: IssueStateProducer;
+
+	@inject(PullRequestStateProducer)
+	readonly pullRequest!: PullRequestStateProducer;
+
+	@inject(LabelStateProducer)
+	readonly label!: LabelStateProducer;
+
+	@inject(IssueCommentStateProducer)
+	readonly issueComment!: IssueCommentStateProducer;
 }

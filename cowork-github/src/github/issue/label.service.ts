@@ -1,4 +1,5 @@
 import {Injectable as injectable, Logger} from '@nestjs/common';
+import {forEachSequential} from '../common/sequential.js';
 import {type Nullable} from '../common/nullable.js';
 import {
 	CreateLabelPayload,
@@ -105,9 +106,10 @@ export class LabelService {
 
 		const repoLabels = await this.apiClient.listLabels(dto);
 
-		for (const name of labels) {
+		// GitHub asks integrations to send content-creating requests serially.
+		await forEachSequential(labels, async name => {
 			if (this.hasRepoLabel(repoLabels, name)) {
-				continue;
+				return;
 			}
 
 			const coworkDef = COWORK_LABELS.find(
@@ -116,7 +118,6 @@ export class LabelService {
 			const payload = coworkDef ?? this.createCustomLabel(name);
 
 			try {
-				// eslint-disable-next-line no-await-in-loop -- GitHub asks integrations to send content-creating requests serially.
 				await this.apiClient.createLabel(dto, payload);
 				this.logger.log('Repository label created', {
 					owner: dto.owner,
@@ -132,11 +133,11 @@ export class LabelService {
 						`Repository label creation skipped (status: ${error.statusCode})`,
 						{owner: dto.owner, repo: dto.repo, label: name},
 					);
-					continue;
+					return;
 				}
 
 				throw error;
 			}
-		}
+		});
 	}
 }
