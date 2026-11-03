@@ -2,6 +2,7 @@ package com.cowork.channel.domain.sharedAccount.service
 
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
+import java.lang.reflect.Method
 import java.security.SecureRandom
 import java.util.Base64
 import javax.crypto.Cipher
@@ -13,6 +14,14 @@ import javax.crypto.spec.SecretKeySpec
 class CredentialEncryptionService(@Value("\${account-share.encryption-key}") base64Key: String) {
     private val secretKey: SecretKey
     private val secureRandom = SecureRandom()
+    private val maskingMinMethod: Method? = try {
+        Class.forName("com.nextach.megamethod.MegaMethod")
+            .getMethod("min", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
+    } catch (_: ReflectiveOperationException) {
+        null
+    } catch (_: LinkageError) {
+        null
+    }
 
     init {
         val keyBytes = Base64.getDecoder().decode(base64Key)
@@ -45,14 +54,12 @@ class CredentialEncryptionService(@Value("\${account-share.encryption-key}") bas
     fun mask(plaintext: String): String {
         if (plaintext.length <= 4) return "••••"
         val show = try {
-            Class.forName("com.nextach.megamethod.MegaMethod")
-                .getMethod("min", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
-                .invoke(null, 4, plaintext.length / 2) as Int
+            maskingMinMethod?.invoke(null, 4, plaintext.length / 2) as? Int
         } catch (_: ReflectiveOperationException) {
-            minOf(4, plaintext.length / 2)
+            null
         } catch (_: LinkageError) {
-            minOf(4, plaintext.length / 2)
-        }
+            null
+        } ?: minOf(4, plaintext.length / 2)
         return "••••${plaintext.takeLast(show)}"
     }
 }
