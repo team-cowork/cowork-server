@@ -1,5 +1,6 @@
 package com.cowork.channel.domain.sharedAccount.service
 
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.lang.reflect.Method
@@ -12,6 +13,7 @@ import javax.crypto.spec.SecretKeySpec
 
 @Service
 class CredentialEncryptionService(@Value("\${account-share.encryption-key}") base64Key: String) {
+    private val log = LoggerFactory.getLogger(javaClass)
     private val secretKey: SecretKey
     private val secureRandom = SecureRandom()
     private val maskingMinMethod: Method? = try {
@@ -27,6 +29,9 @@ class CredentialEncryptionService(@Value("\${account-share.encryption-key}") bas
         val keyBytes = Base64.getDecoder().decode(base64Key)
         require(keyBytes.size == 32) { "account-share.encryption-key must be 256-bit (32 bytes base64)" }
         secretKey = SecretKeySpec(keyBytes, "AES")
+        if (maskingMinMethod == null) {
+            log.warn("Use built-in credential masking because Mega-Method is unavailable.")
+        }
     }
 
     // 저장 형식: base64(12-byte IV):base64(ciphertext + 16-byte GCM auth tag)
