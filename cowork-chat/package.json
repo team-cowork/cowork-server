@@ -55,6 +55,7 @@
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
+    "@types/bun": "^1.4.4",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/mime-types": "^3.0.1",
