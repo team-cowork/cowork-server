@@ -2,9 +2,10 @@ import {Test, type TestingModule} from '@nestjs/testing';
 import {HttpService} from '@nestjs/axios';
 import {AxiosError, type AxiosResponse} from 'axios';
 import {of, throwError} from 'rxjs';
-import {GithubAuthService} from '../../auth/github-auth.service';
-import {GithubClientError} from '../../github.errors';
-import {LabelHttpApiClient} from './label-http-api.client';
+import {githubField} from '../../github-field.js';
+import {GithubAuthService} from '../../auth/github-auth.service.js';
+import {GithubClientError} from '../../github.errors.js';
+import {LabelHttpApiClient} from './label-http-api.client.js';
 
 describe('LabelHttpApiClient', () => {
 	let client: LabelHttpApiClient;
@@ -39,9 +40,9 @@ describe('LabelHttpApiClient', () => {
 		expect(httpService.get).toHaveBeenCalledWith(
 			'https://api.github.com/repos/my-org/my-repo/labels',
 			expect.objectContaining({
-				params: {per_page: 100},
+				params: {[githubField.perPage]: 100},
 				headers: expect.objectContaining({
-					Authorization: 'Bearer my-token',
+					[githubField.authorization]: 'Bearer my-token',
 				}) as unknown,
 			}),
 		);
@@ -90,7 +91,7 @@ describe('LabelHttpApiClient', () => {
 				{labels: ['bug']},
 				expect.objectContaining({
 					headers: expect.objectContaining({
-						Authorization: 'Bearer my-token',
+						[githubField.authorization]: 'Bearer my-token',
 					}) as unknown,
 				}),
 			);

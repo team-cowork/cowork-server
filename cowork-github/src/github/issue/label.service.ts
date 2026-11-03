@@ -1,10 +1,10 @@
-import {Injectable, Logger} from '@nestjs/common';
+import {Injectable as injectable, Logger} from '@nestjs/common';
 import {
 	CreateLabelPayload,
 	GithubApiClient,
-} from '../client/github-api.client';
-import {CreateIssueDto} from '../dto/create-issue.dto';
-import {GithubClientError} from '../github.errors';
+} from '../client/github-api.client.js';
+import {CreateIssueDto} from '../dto/create-issue.dto.js';
+import {GithubClientError} from '../github.errors.js';
 import {
 	BUG_KEYWORDS,
 	BUG_LABEL,
@@ -14,13 +14,13 @@ import {
 	ENHANCEMENT_LABEL,
 	QUESTION_KEYWORDS,
 	QUESTION_LABEL,
-} from './label.constants';
+} from './label.constants.js';
 
 const COWORK_LABEL_NAMES = new Set(
 	COWORK_LABELS.map(l => l.name.toLowerCase()),
 );
 
-@Injectable()
+@injectable()
 export class LabelService {
 	private readonly logger = new Logger(LabelService.name);
 

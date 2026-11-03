@@ -1,14 +1,14 @@
 import {
-	Injectable,
+	Injectable as injectable,
 	Logger,
 	OnModuleDestroy,
 	OnModuleInit,
 } from '@nestjs/common';
 import {Kafka, Producer} from 'kafkajs';
-import {AppConfigService} from '../../config/app-config.service';
-import {IssueResultEvent} from './event/issue-result.event';
+import {AppConfigService} from '../../config/app-config.service.js';
+import {IssueResultEvent} from './event/issue-result.event.js';
 
-@Injectable()
+@injectable()
 export class IssueResultProducer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(IssueResultProducer.name);
 	private producer!: Producer;

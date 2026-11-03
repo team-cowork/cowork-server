@@ -1,14 +1,15 @@
+import {Buffer} from 'node:buffer';
 import {readFileSync} from 'node:fs';
-import {Injectable} from '@nestjs/common';
+import {Injectable as injectable} from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
 import {type KafkaConfig, type SASLOptions} from 'kafkajs';
 import {
 	DEFAULT_GITHUB_INSTALLATION_CACHE_TTL_SECONDS,
 	DEFAULT_GITHUB_ISSUE_MAX_RETRIES,
 	DEFAULT_GITHUB_TOKEN_CACHE_TTL_SECONDS,
-} from '../github/constants';
+} from '../github/constants.js';
 
-@Injectable()
+@injectable()
 export class AppConfigService {
 	constructor(private readonly configService: ConfigService) {}
 
