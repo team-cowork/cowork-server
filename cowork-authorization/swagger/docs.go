@@ -293,7 +293,7 @@ const docTemplate = `{
                         }
                     },
                     "503": {
-                        "description": "temporarily_unavailable | webhook_not_configured",
+                        "description": "temporarily_unavailable",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
