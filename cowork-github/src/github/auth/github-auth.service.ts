@@ -27,6 +27,71 @@ export class GithubAuthService {
 		@inject(REDIS_CLIENT) private readonly redis: Redis,
 	) {}
 
+	private async resolveInstallationId(owner: string): Promise<number> {
+		const installationCacheKey = githubCacheKeys.installation(owner);
+		const cachedInRedis = await this.redis.get(installationCacheKey);
+		if (cachedInRedis !== null && cachedInRedis !== '') {
+			return Number(cachedInRedis);
+		}
+
+		const jwt = this.generateJwt();
+		const {data} = await this.requestGithub<{id: number}>(async () =>
+			firstValueFrom(
+				this.httpService.get<{id: number}>(
+					`${GITHUB_API}/orgs/${owner}/installation`,
+					{
+						headers: {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${jwt}`},
+					},
+				),
+			),
+		);
+		const installationId = data.id;
+
+		// NX: 조회 중에 설치 이벤트가 기록한 새 매핑을 이전 조회 결과로 덮지 않는다.
+		await this.redis.set(
+			installationCacheKey,
+			installationId.toString(),
+			'EX',
+			this.config.githubInstallationCacheTtlSeconds,
+			'NX',
+		);
+
+		return installationId;
+	}
+
+	private generateJwt(): string {
+		const now = Math.floor(Date.now() / 1000);
+
+		return sign(
+			{iat: now - 60, exp: now + 540, iss: this.config.githubAppId},
+			this.config.githubPrivateKey,
+			{algorithm: 'RS256'},
+		);
+	}
+
+	private async requestGithub<T>(
+		request: () => Promise<{data: T}>,
+	): Promise<{data: T}> {
+		try {
+			return await request();
+		} catch (error) {
+			if (
+				error instanceof AxiosError
+				&& error.response
+				&& error.response.status < 500
+				&& error.response.status !== 429
+			) {
+				throw new GithubClientError(
+					(error.response.data as {message?: string})?.message
+					?? error.message,
+					error.response.status,
+				);
+			}
+
+			throw error;
+		}
+	}
+
 	async getInstallationToken(owner: string): Promise<string> {
 		const installationId = await this.resolveInstallationId(owner);
 		const cacheKey = githubCacheKeys.token(installationId);
@@ -92,70 +157,5 @@ export class GithubAuthService {
 			installationId.toString(),
 		);
 		await this.redis.del(githubCacheKeys.token(installationId));
-	}
-
-	private async resolveInstallationId(owner: string): Promise<number> {
-		const installationCacheKey = githubCacheKeys.installation(owner);
-		const cachedInRedis = await this.redis.get(installationCacheKey);
-		if (cachedInRedis !== null && cachedInRedis !== '') {
-			return Number(cachedInRedis);
-		}
-
-		const jwt = this.generateJwt();
-		const {data} = await this.requestGithub<{id: number}>(async () =>
-			firstValueFrom(
-				this.httpService.get<{id: number}>(
-					`${GITHUB_API}/orgs/${owner}/installation`,
-					{
-						headers: {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${jwt}`},
-					},
-				),
-			),
-		);
-		const installationId = data.id;
-
-		// NX: 조회 중에 설치 이벤트가 기록한 새 매핑을 이전 조회 결과로 덮지 않는다.
-		await this.redis.set(
-			installationCacheKey,
-			installationId.toString(),
-			'EX',
-			this.config.githubInstallationCacheTtlSeconds,
-			'NX',
-		);
-
-		return installationId;
-	}
-
-	private generateJwt(): string {
-		const now = Math.floor(Date.now() / 1000);
-
-		return sign(
-			{iat: now - 60, exp: now + 540, iss: this.config.githubAppId},
-			this.config.githubPrivateKey,
-			{algorithm: 'RS256'},
-		);
-	}
-
-	private async requestGithub<T>(
-		request: () => Promise<{data: T}>,
-	): Promise<{data: T}> {
-		try {
-			return await request();
-		} catch (error) {
-			if (
-				error instanceof AxiosError
-				&& error.response
-				&& error.response.status < 500
-				&& error.response.status !== 429
-			) {
-				throw new GithubClientError(
-					(error.response.data as {message?: string})?.message
-					?? error.message,
-					error.response.status,
-				);
-			}
-
-			throw error;
-		}
 	}
 }

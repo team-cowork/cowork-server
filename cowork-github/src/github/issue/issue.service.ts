@@ -15,40 +15,6 @@ export class IssueService {
 		private readonly labelService: LabelService,
 	) {}
 
-	async createIssue(
-		dto: CreateIssueDto,
-	): Promise<{issueUrl: string; issueNumber: number}> {
-		const maxRetries = this.config.githubIssueMaxRetries;
-
-		for (let attempt = 1; attempt <= maxRetries; attempt++) {
-			try {
-				// eslint-disable-next-line no-await-in-loop -- retry-with-backoff: each attempt must wait for the previous one to fail.
-				return await this.createIssueOnce(dto);
-			} catch (error) {
-				if (error instanceof GithubClientError) {
-					throw error;
-				}
-
-				this.logger.error('GitHub API error', {
-					owner: dto.owner,
-					repo: dto.repo,
-					title: dto.title,
-					attempt,
-					message: (error as Error).message,
-				});
-
-				if (attempt === maxRetries) {
-					throw error;
-				}
-
-				// eslint-disable-next-line no-await-in-loop -- retry-with-backoff: each attempt must wait for the previous one to fail.
-				await this.sleep((2 ** (attempt - 1)) * 1000);
-			}
-		}
-
-		throw new Error('createIssue: max retries exceeded without result');
-	}
-
 	private async createIssueOnce(
 		dto: CreateIssueDto,
 	): Promise<{issueUrl: string; issueNumber: number}> {
@@ -114,5 +80,39 @@ export class IssueService {
 		return new Promise(resolve => {
 			setTimeout(resolve, ms);
 		});
+	}
+
+	async createIssue(
+		dto: CreateIssueDto,
+	): Promise<{issueUrl: string; issueNumber: number}> {
+		const maxRetries = this.config.githubIssueMaxRetries;
+
+		for (let attempt = 1; attempt <= maxRetries; attempt++) {
+			try {
+				// eslint-disable-next-line no-await-in-loop -- retry-with-backoff: each attempt must wait for the previous one to fail.
+				return await this.createIssueOnce(dto);
+			} catch (error) {
+				if (error instanceof GithubClientError) {
+					throw error;
+				}
+
+				this.logger.error('GitHub API error', {
+					owner: dto.owner,
+					repo: dto.repo,
+					title: dto.title,
+					attempt,
+					message: (error as Error).message,
+				});
+
+				if (attempt === maxRetries) {
+					throw error;
+				}
+
+				// eslint-disable-next-line no-await-in-loop -- retry-with-backoff: each attempt must wait for the previous one to fail.
+				await this.sleep((2 ** (attempt - 1)) * 1000);
+			}
+		}
+
+		throw new Error('createIssue: max retries exceeded without result');
 	}
 }

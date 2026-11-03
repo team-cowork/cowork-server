@@ -54,6 +54,44 @@ export type FindCommentByOperationParameters = {
 export class IssueHttpService {
 	constructor(private readonly apiClient: IssueHttpApiClient) {}
 
+	private toIssueDetailResponse(issue: IssueDetail): IssueDetailResponse {
+		return {
+			number: issue.number,
+			title: issue.title,
+			author: issue.user?.login ?? 'ghost',
+			state: issue.state,
+			htmlUrl: issue.html_url,
+			labels: issue.labels?.map(label => label.name) ?? [],
+			createdAt: issue.created_at,
+			updatedAt: issue.updated_at,
+		};
+	}
+
+	private assertValidState(state: string): void {
+		if (
+			!ALLOWED_ISSUE_STATES.includes(
+				state as (typeof ALLOWED_ISSUE_STATES)[number],
+			)
+		) {
+			throw new GithubClientError(
+				'state 쿼리 파라미터는 open, closed, all 중 하나여야 합니다.',
+				400,
+			);
+		}
+	}
+
+	private toCommentResponse(comment: GithubComment): CommentResponse {
+		const {author, body} = extractCommentAuthor(comment.body, comment.user?.login ?? 'ghost');
+		return {
+			id: comment.id,
+			author,
+			body,
+			htmlUrl: comment.html_url,
+			createdAt: comment.created_at,
+			updatedAt: comment.updated_at,
+		};
+	}
+
 	async listIssues(
 		owner: string,
 		repo: string,
@@ -141,43 +179,5 @@ export class IssueHttpService {
 		commentId: number,
 	): Promise<void> {
 		await this.apiClient.deleteComment(owner, repo, commentId);
-	}
-
-	private toIssueDetailResponse(issue: IssueDetail): IssueDetailResponse {
-		return {
-			number: issue.number,
-			title: issue.title,
-			author: issue.user?.login ?? 'ghost',
-			state: issue.state,
-			htmlUrl: issue.html_url,
-			labels: issue.labels?.map(label => label.name) ?? [],
-			createdAt: issue.created_at,
-			updatedAt: issue.updated_at,
-		};
-	}
-
-	private assertValidState(state: string): void {
-		if (
-			!ALLOWED_ISSUE_STATES.includes(
-				state as (typeof ALLOWED_ISSUE_STATES)[number],
-			)
-		) {
-			throw new GithubClientError(
-				'state 쿼리 파라미터는 open, closed, all 중 하나여야 합니다.',
-				400,
-			);
-		}
-	}
-
-	private toCommentResponse(comment: GithubComment): CommentResponse {
-		const {author, body} = extractCommentAuthor(comment.body, comment.user?.login ?? 'ghost');
-		return {
-			id: comment.id,
-			author,
-			body,
-			htmlUrl: comment.html_url,
-			createdAt: comment.created_at,
-			updatedAt: comment.updated_at,
-		};
 	}
 }
