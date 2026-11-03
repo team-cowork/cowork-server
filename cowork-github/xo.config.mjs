@@ -21,7 +21,7 @@ const config = [
         languageOptions: {globals: globals.node},
     },
     {
-        files: ['src/**/*.ts', 'test/**/*.ts'],
+        files: ['src/**/*.ts'],
         rules: {
             // TypeScript is compiled to CommonJS; runtime imports stay extensionless.
             'n/file-extension-in-import': 'off',
@@ -45,7 +45,7 @@ const config = [
         rules: {'unicorn/no-process-exit': 'off'},
     },
     {
-        files: ['src/**/*.spec.ts', 'test/**/*.ts'],
+        files: ['src/**/*.spec.ts'],
         languageOptions: {globals: globals.jest},
     },
 ];

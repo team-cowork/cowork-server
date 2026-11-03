@@ -71,13 +71,10 @@ describe('GithubApiClient', () => {
         } as unknown as AxiosResponse;
         httpService.post.mockReturnValue(throwError(() => axiosError));
 
-        const error = await client
-            .createIssue(dto)
-            .catch((error_: unknown) => error_ as GithubClientError);
+        const promise = client.createIssue(dto);
 
-        expect(error).toBeInstanceOf(GithubClientError);
-        expect(error.statusCode).toBe(404);
-        expect(error.message).toBe('Not Found');
+        await expect(promise).rejects.toBeInstanceOf(GithubClientError);
+        await expect(promise).rejects.toMatchObject({statusCode: 404, message: 'Not Found'});
     });
 
     it('422 응답도 GithubClientError로 변환한다', async () => {
@@ -88,12 +85,10 @@ describe('GithubApiClient', () => {
         } as unknown as AxiosResponse;
         httpService.post.mockReturnValue(throwError(() => axiosError));
 
-        const error = await client
-            .createIssue(dto)
-            .catch((error_: unknown) => error_ as GithubClientError);
+        const promise = client.createIssue(dto);
 
-        expect(error).toBeInstanceOf(GithubClientError);
-        expect(error.statusCode).toBe(422);
+        await expect(promise).rejects.toBeInstanceOf(GithubClientError);
+        await expect(promise).rejects.toMatchObject({statusCode: 422});
     });
 
     it('5xx 응답은 GithubClientError로 변환하지 않고 원본 에러를 던진다', async () => {
@@ -228,12 +223,10 @@ describe('GithubApiClient', () => {
         } as unknown as AxiosResponse;
         httpService.get.mockReturnValue(throwError(() => axiosError));
 
-        const error = await client
-            .searchOpenIssuesByTitle(dto)
-            .catch((error_: unknown) => error_ as GithubClientError);
+        const promise = client.searchOpenIssuesByTitle(dto);
 
-        expect(error).toBeInstanceOf(GithubClientError);
-        expect(error.statusCode).toBe(422);
+        await expect(promise).rejects.toBeInstanceOf(GithubClientError);
+        await expect(promise).rejects.toMatchObject({statusCode: 422});
     });
 
     it('라벨 추가 API의 5xx 응답은 원본 에러를 던진다', async () => {
