@@ -41,6 +41,7 @@ class HandleOAuthCallbackServiceImplTest :
             "test-client-secret",
             "https://provider.example.com/token",
             "https://provider.example.com/user",
+            scope = "",
         )
 
         val objectMapper = jacksonObjectMapper()
@@ -70,12 +71,14 @@ class HandleOAuthCallbackServiceImplTest :
                 clientSecret = "gh-secret",
                 tokenUrl = "https://github.test/token",
                 userinfoUrl = "https://github.test/user",
+                scope = "",
             ),
             notion = OAuthProviderConfig(
                 clientId = "no-id",
                 clientSecret = "no-secret",
                 tokenUrl = "https://notion.test/token",
                 userinfoUrl = "https://notion.test/user",
+                scope = "",
             ),
             jira = providerConfig,
             google = providerConfig,
