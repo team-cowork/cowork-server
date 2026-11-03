@@ -40,17 +40,6 @@ export class IssueWriteCommandController {
 		private readonly commentHistory: CreateCommentHistory,
 	) {}
 
-	@eventPattern(ISSUE_WRITE_COMMAND_TOPIC)
-	async handleCommand(
-		@messagePayload() data: unknown,
-		@messageContext() context: KafkaContext,
-	): Promise<void> {
-		const shouldCommit = await this.processMessage(data);
-		if (shouldCommit) {
-			await this.commitOffset(context);
-		}
-	}
-
 	private async processMessage(data: unknown): Promise<boolean> {
 		if (data === null || typeof data !== 'object') {
 			this.logger.error('Invalid payload type, skipping message');
@@ -344,5 +333,16 @@ export class IssueWriteCommandController {
 				offset: (Number(message.offset) + 1).toString(),
 			},
 		]);
+	}
+
+	@eventPattern(ISSUE_WRITE_COMMAND_TOPIC)
+	async handleCommand(
+		@messagePayload() data: unknown,
+		@messageContext() context: KafkaContext,
+	): Promise<void> {
+		const shouldCommit = await this.processMessage(data);
+		if (shouldCommit) {
+			await this.commitOffset(context);
+		}
 	}
 }
