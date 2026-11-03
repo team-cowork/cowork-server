@@ -19,6 +19,26 @@ export class LabelHttpApiClient {
 		private readonly authService: GithubAuthService,
 	) {}
 
+	private authHeaders(token: string) {
+		return {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${token}`};
+	}
+
+	private handleGithubError(error: unknown): never {
+		if (
+			error instanceof AxiosError
+			&& error.response
+			&& error.response.status < 500
+			&& error.response.status !== 429
+		) {
+			throw new GithubClientError(
+				(error.response.data as {message?: string})?.message ?? error.message,
+				error.response.status,
+			);
+		}
+
+		throw error;
+	}
+
 	// MVP: per_page=100 단일 페이지만 조회. 100개 초과 라벨 페이지네이션은 후속 과제.
 	async listLabels(owner: string, repo: string): Promise<GithubRepoLabel[]> {
 		const token = await this.authService.getInstallationToken(owner);
@@ -56,25 +76,5 @@ export class LabelHttpApiClient {
 		} catch (error) {
 			this.handleGithubError(error);
 		}
-	}
-
-	private authHeaders(token: string) {
-		return {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${token}`};
-	}
-
-	private handleGithubError(error: unknown): never {
-		if (
-			error instanceof AxiosError
-			&& error.response
-			&& error.response.status < 500
-			&& error.response.status !== 429
-		) {
-			throw new GithubClientError(
-				(error.response.data as {message?: string})?.message ?? error.message,
-				error.response.status,
-			);
-		}
-
-		throw error;
 	}
 }

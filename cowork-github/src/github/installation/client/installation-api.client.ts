@@ -33,6 +33,26 @@ export class InstallationApiClient {
 		private readonly authService: GithubAuthService,
 	) {}
 
+	private authHeaders(token: string) {
+		return {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${token}`};
+	}
+
+	private handleGithubError(error: unknown): never {
+		if (
+			error instanceof AxiosError
+			&& error.response
+			&& error.response.status < 500
+			&& error.response.status !== 429
+		) {
+			throw new GithubClientError(
+				(error.response.data as {message?: string})?.message ?? error.message,
+				error.response.status,
+			);
+		}
+
+		throw error;
+	}
+
 	async listRepositories(owner: string): Promise<GithubRepoSummary[]> {
 		const token = await this.authService.getInstallationToken(owner);
 		try {
@@ -54,25 +74,5 @@ export class InstallationApiClient {
 		} catch (error) {
 			this.handleGithubError(error);
 		}
-	}
-
-	private authHeaders(token: string) {
-		return {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${token}`};
-	}
-
-	private handleGithubError(error: unknown): never {
-		if (
-			error instanceof AxiosError
-			&& error.response
-			&& error.response.status < 500
-			&& error.response.status !== 429
-		) {
-			throw new GithubClientError(
-				(error.response.data as {message?: string})?.message ?? error.message,
-				error.response.status,
-			);
-		}
-
-		throw error;
 	}
 }
