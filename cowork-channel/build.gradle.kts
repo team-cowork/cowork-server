@@ -8,7 +8,17 @@ repositories {
     maven { url = uri("https://jitpack.io") }
 }
 
+val megaMethod = configurations.create("megaMethod") {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+    isTransitive = false
+}
+
 dependencies {
+    add(megaMethod.name, libs.mega.method)
+    // Keep JitPack failures optional without hiding failures in required dependencies.
+    runtimeOnly(megaMethod.incoming.artifactView { isLenient = true }.files)
+
     implementation(libs.spring.boot.starter.web)
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.boot.starter.restclient)
