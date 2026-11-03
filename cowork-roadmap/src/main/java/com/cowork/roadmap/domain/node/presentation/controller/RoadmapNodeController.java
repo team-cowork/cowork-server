@@ -81,7 +81,7 @@ public class RoadmapNodeController {
         return queryRoadmapNodeService.execute(userId, userRole, nodeId);
     }
 
-    @Operation(summary = "노드 수정")
+    @Operation(summary = "노드 수정", description = "null인 필드는 변경하지 않는다. title이 빈 문자열이거나 공백만 있으면 400을 반환")
     @PatchMapping("/nodes/{nodeId}")
     public NodeResDto updateNode(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
