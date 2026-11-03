@@ -155,7 +155,7 @@ job "cowork-roadmap" {
 
       resources {
         cpu        = 500
-        memory     = 512
+        memory     = 1280
         memory_max = 2048
       }
 
