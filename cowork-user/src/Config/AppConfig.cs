@@ -104,9 +104,6 @@ public sealed record AppConfig
                 && (uri.Scheme != "https" || uri.Host is "localhost" or "127.0.0.1" or "[::1]"))
                 throw new InvalidOperationException("Production API endpoint requires HTTPS and a non-local host");
         }
-
-        if (config.S3AccessKey == "" || config.S3SecretKey == "" || config.S3Bucket == "")
-            throw new InvalidOperationException("S3 bucket and service credentials are required");
     }
 
     static string DatabaseConnectionString(Func<string, string[], string> lookup)
