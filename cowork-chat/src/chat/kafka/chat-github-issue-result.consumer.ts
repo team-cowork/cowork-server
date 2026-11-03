@@ -9,10 +9,8 @@ import {
 import {ConfigService} from '@nestjs/config';
 import {Kafka, Consumer} from 'kafkajs';
 import {Server} from 'socket.io';
-import {DicoshotService} from 'dicoshot-nest';
 import {ChatService} from '../chat.service.js';
 import {getKafkaClientConfig} from '../../common/config/config.util.js';
-import {buildErrorFields} from '../../common/util/discord-alert.util.js';
 import {ChannelMessageReadAccessService} from '../service/index.js';
 import {toMessageBroadcastPayload} from '../repository/index.js';
 import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
@@ -38,7 +36,6 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
 		@inject(forwardRef(() => ChatService))
 		private readonly chatService: ForwardReference<ChatService>,
 		private readonly configService: ConfigService,
-		private readonly dicoshot: DicoshotService,
 		private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
 	) {}
 
@@ -149,15 +146,6 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
 			})
 			.catch(async (error: unknown) => {
 				this.logger.error('project.chat-github-issue.result Kafka consumer failed', error);
-				await this.dicoshot.sendCustom({
-					title: '🔴 Kafka Consumer 중단',
-					description: 'cowork-chat의 project.chat-github-issue.result consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.',
-					color: 'danger',
-					fields: [
-						{name: 'Topic', value: 'project.chat-github-issue.result', inline: true},
-						...buildErrorFields(error),
-					],
-				}).catch(() => {/* Alert delivery is best-effort. */});
 				// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
 				throw error;
 			});

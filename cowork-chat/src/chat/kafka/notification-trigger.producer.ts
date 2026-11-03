@@ -6,9 +6,7 @@ import {
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
 import {Kafka, Producer} from 'kafkajs';
-import {DicoshotService} from 'dicoshot-nest';
 import {getKafkaClientConfig} from '../../common/config/config.util.js';
-import {buildErrorFields} from '../../common/util/discord-alert.util.js';
 import {type Nullable} from '../../common/type/nullable.js';
 
 /**
@@ -73,7 +71,6 @@ export class NotificationTriggerProducer implements OnModuleInit, OnModuleDestro
 
 	constructor(
 		private readonly configService: ConfigService,
-		private readonly dicoshot: DicoshotService,
 	) {}
 
 	/**
@@ -116,15 +113,6 @@ export class NotificationTriggerProducer implements OnModuleInit, OnModuleDestro
 		this.producer = kafka.producer({idempotent: true});
 		void this.ensureConnected().catch((error: unknown) => {
 			this.logger.error(`Notification trigger producer bootstrap connect failed: ${this.formatError(error)}`);
-			void this.dicoshot.sendCustom({
-				title: '🔴 Kafka Producer 연결 실패',
-				description: 'cowork-chat의 notification.trigger producer가 부트스트랩 연결에 실패했습니다.',
-				color: 'danger',
-				fields: [
-					{name: 'Topic', value: 'notification.trigger', inline: true},
-					...buildErrorFields(error),
-				],
-			}).catch(() => {/* Alert delivery is best-effort. */});
 		});
 	}
 
