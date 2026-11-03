@@ -2,7 +2,7 @@
 @font-face {
     font-family: 'Archivo Black';
     font-style: normal;
-    font-weight: 400;
+    font-weight: 900;
     font-display: swap;
     src: url('https://cdn.jsdelivr.net/npm/@fontsource/archivo-black@5.3.0/files/archivo-black-latin-400-normal.woff2') format('woff2');
 }
@@ -810,7 +810,7 @@
     margin-bottom: var(--space-5);
     font-family: 'Archivo Black', var(--font-sans);
     font-size: var(--font-size-5xl);
-    font-weight: 400;
+    font-weight: var(--font-weight-black);
     letter-spacing: var(--tracking-tight);
     line-height: var(--leading-tight);
     color: rgb(var(--ui-accent-rgb));
