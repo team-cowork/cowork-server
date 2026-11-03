@@ -44,71 +44,6 @@ export class GithubWebhookController {
 		@inject(REDIS_CLIENT) private readonly redis: Redis,
 	) {}
 
-	@httpPost()
-	@httpCode(200)
-	async handle(
-		@requestHeaders('x-github-event') eventName: string,
-		@requestBody() payload: GithubWebhookPayload,
-	): Promise<{ok: true}> {
-		switch (eventName) {
-			case 'installation': {
-				await this.handleInstallation(payload);
-				break;
-			}
-
-			case 'push': {
-				await this.handleRepoEvent(eventName, payload);
-				break;
-			}
-
-			case 'issues': {
-				await Promise.all([
-					this.handleIssueState(payload),
-					this.handleRepoEvent(eventName, payload).catch((error: unknown) => {
-						this.logNotificationFailure(eventName, error);
-					}),
-				]);
-				break;
-			}
-
-			case 'pull_request': {
-				await Promise.all([
-					this.handlePullRequestState(payload),
-					this.handleRepoEvent(eventName, payload).catch((error: unknown) => {
-						this.logNotificationFailure(eventName, error);
-					}),
-				]);
-				break;
-			}
-
-			case 'installation_repositories': {
-				await this.handleInstallationRepositoriesState(payload);
-				break;
-			}
-
-			case 'repository': {
-				await this.handleRepositoryState(payload);
-				break;
-			}
-
-			case 'label': {
-				await this.handleLabelState(payload);
-				break;
-			}
-
-			case 'issue_comment': {
-				await this.handleIssueCommentState(payload);
-				break;
-			}
-
-			default: {
-				this.logger.log(`Ignoring unhandled GitHub event: ${eventName}`);
-			}
-		}
-
-		return {ok: true};
-	}
-
 	// 알림(github.repo.event)은 사용자에게 보여주는 부가 정보라 실패해도 webhook 응답은 유지한다.
 	// read-model state 발행은 반대로 실패 시 그대로 throw해 500을 반환한다 — GitHub가 전송 실패를
 	// 재시도/재전송 대상으로 인지해야, 조용히 삼켜서 projection이 영구히 stale해지는 것을 막을 수 있다.
@@ -451,5 +386,70 @@ export class GithubWebhookController {
 			deleted: payload.action === 'deleted',
 			sourceOccurredAt: comment.updated_at ?? new Date().toISOString(),
 		});
+	}
+
+	@httpPost()
+	@httpCode(200)
+	async handle(
+		@requestHeaders('x-github-event') eventName: string,
+		@requestBody() payload: GithubWebhookPayload,
+	): Promise<{ok: true}> {
+		switch (eventName) {
+			case 'installation': {
+				await this.handleInstallation(payload);
+				break;
+			}
+
+			case 'push': {
+				await this.handleRepoEvent(eventName, payload);
+				break;
+			}
+
+			case 'issues': {
+				await Promise.all([
+					this.handleIssueState(payload),
+					this.handleRepoEvent(eventName, payload).catch((error: unknown) => {
+						this.logNotificationFailure(eventName, error);
+					}),
+				]);
+				break;
+			}
+
+			case 'pull_request': {
+				await Promise.all([
+					this.handlePullRequestState(payload),
+					this.handleRepoEvent(eventName, payload).catch((error: unknown) => {
+						this.logNotificationFailure(eventName, error);
+					}),
+				]);
+				break;
+			}
+
+			case 'installation_repositories': {
+				await this.handleInstallationRepositoriesState(payload);
+				break;
+			}
+
+			case 'repository': {
+				await this.handleRepositoryState(payload);
+				break;
+			}
+
+			case 'label': {
+				await this.handleLabelState(payload);
+				break;
+			}
+
+			case 'issue_comment': {
+				await this.handleIssueCommentState(payload);
+				break;
+			}
+
+			default: {
+				this.logger.log(`Ignoring unhandled GitHub event: ${eventName}`);
+			}
+		}
+
+		return {ok: true};
 	}
 }

@@ -66,6 +66,101 @@ export class PullRequestService {
 
 	constructor(private readonly apiClient: PullRequestApiClient) {}
 
+	private assertValidState(state: string): void {
+		if (
+			!ALLOWED_PR_STATES.includes(state as (typeof ALLOWED_PR_STATES)[number])
+		) {
+			throw new GithubClientError(
+				'state 쿼리 파라미터는 open, closed, all 중 하나여야 합니다.',
+				400,
+			);
+		}
+	}
+
+	private async assertWritePermission(
+		owner: string,
+		repo: string,
+		username: string,
+	): Promise<void> {
+		const {permission} = await this.apiClient.getCollaboratorPermission(
+			owner,
+			repo,
+			username,
+		);
+
+		if (
+			!GITHUB_PR_WRITE_PERMISSIONS.includes(
+				permission as (typeof GITHUB_PR_WRITE_PERMISSIONS)[number],
+			)
+		) {
+			throw new GithubClientError(
+				'이 저장소에 대한 쓰기 권한이 없습니다.',
+				403,
+			);
+		}
+	}
+
+	private assertNotSelfReview(
+		authorLogin: string,
+		requesterGithubUsername: string,
+	): void {
+		if (authorLogin.toLowerCase() === requesterGithubUsername.toLowerCase()) {
+			throw new GithubClientError(
+				'본인이 작성한 PR은 승인할 수 없습니다.',
+				403,
+			);
+		}
+	}
+
+	private async deleteHeadBranchIfSameRepo(
+		owner: string,
+		repo: string,
+		pr: PullRequestDetail,
+	): Promise<void> {
+		const isSameRepo =
+			isPresent(pr.head.repo)
+			&& pr.head.repo.full_name === pr.base.repo?.full_name;
+		if (!isSameRepo) {
+			return;
+		}
+
+		try {
+			await this.apiClient.deleteBranch(owner, repo, pr.head.ref);
+		} catch (error) {
+			this.logger.warn('Failed to delete head branch after merge', {
+				owner,
+				repo,
+				branch: pr.head.ref,
+				message: (error as Error).message,
+			});
+		}
+	}
+
+	private deriveReviewDecision(
+		reviews: Array<{user: {login: string}; state: string; submitted_at: string}>,
+	): Nullable<'APPROVED' | 'CHANGES_REQUESTED'> {
+		const latestByUser = new Map<string, string>();
+		const sorted = reviews.toSorted(
+			(a, b) =>
+				new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
+		);
+
+		for (const review of sorted) {
+			if (review.state === 'APPROVED' || review.state === 'CHANGES_REQUESTED') {
+				latestByUser.set(review.user.login, review.state);
+			} else if (review.state === 'DISMISSED') {
+				latestByUser.delete(review.user.login);
+			}
+		}
+
+		const states = new Set(latestByUser.values());
+		if (states.has('CHANGES_REQUESTED')) {
+			return 'CHANGES_REQUESTED';
+		}
+
+		return states.has('APPROVED') ? 'APPROVED' : null;
+	}
+
 	async getPullRequestDetail(
 		owner: string,
 		repo: string,
@@ -189,100 +284,5 @@ export class PullRequestService {
 			requesterGithubUsername,
 		});
 		return {prUrl: pr.html_url, prNumber};
-	}
-
-	private assertValidState(state: string): void {
-		if (
-			!ALLOWED_PR_STATES.includes(state as (typeof ALLOWED_PR_STATES)[number])
-		) {
-			throw new GithubClientError(
-				'state 쿼리 파라미터는 open, closed, all 중 하나여야 합니다.',
-				400,
-			);
-		}
-	}
-
-	private async assertWritePermission(
-		owner: string,
-		repo: string,
-		username: string,
-	): Promise<void> {
-		const {permission} = await this.apiClient.getCollaboratorPermission(
-			owner,
-			repo,
-			username,
-		);
-
-		if (
-			!GITHUB_PR_WRITE_PERMISSIONS.includes(
-				permission as (typeof GITHUB_PR_WRITE_PERMISSIONS)[number],
-			)
-		) {
-			throw new GithubClientError(
-				'이 저장소에 대한 쓰기 권한이 없습니다.',
-				403,
-			);
-		}
-	}
-
-	private assertNotSelfReview(
-		authorLogin: string,
-		requesterGithubUsername: string,
-	): void {
-		if (authorLogin.toLowerCase() === requesterGithubUsername.toLowerCase()) {
-			throw new GithubClientError(
-				'본인이 작성한 PR은 승인할 수 없습니다.',
-				403,
-			);
-		}
-	}
-
-	private async deleteHeadBranchIfSameRepo(
-		owner: string,
-		repo: string,
-		pr: PullRequestDetail,
-	): Promise<void> {
-		const isSameRepo =
-			isPresent(pr.head.repo)
-			&& pr.head.repo.full_name === pr.base.repo?.full_name;
-		if (!isSameRepo) {
-			return;
-		}
-
-		try {
-			await this.apiClient.deleteBranch(owner, repo, pr.head.ref);
-		} catch (error) {
-			this.logger.warn('Failed to delete head branch after merge', {
-				owner,
-				repo,
-				branch: pr.head.ref,
-				message: (error as Error).message,
-			});
-		}
-	}
-
-	private deriveReviewDecision(
-		reviews: Array<{user: {login: string}; state: string; submitted_at: string}>,
-	): Nullable<'APPROVED' | 'CHANGES_REQUESTED'> {
-		const latestByUser = new Map<string, string>();
-		const sorted = reviews.toSorted(
-			(a, b) =>
-				new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
-		);
-
-		for (const review of sorted) {
-			if (review.state === 'APPROVED' || review.state === 'CHANGES_REQUESTED') {
-				latestByUser.set(review.user.login, review.state);
-			} else if (review.state === 'DISMISSED') {
-				latestByUser.delete(review.user.login);
-			}
-		}
-
-		const states = new Set(latestByUser.values());
-		if (states.has('CHANGES_REQUESTED')) {
-			return 'CHANGES_REQUESTED';
-		}
-
-		return states.has('APPROVED') ? 'APPROVED' : null;
 	}
 }
