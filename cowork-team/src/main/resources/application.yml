@@ -2,7 +2,7 @@ spring:
   reactor:
     context-propagation: auto
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9094}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     producer:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
@@ -19,19 +19,16 @@ spring:
       reconnect.backoff.max.ms: 30000
       retry.backoff.ms: 1000
       retry.backoff.max.ms: 10000
-      security.protocol: ${KAFKA_SECURITY_PROTOCOL:PLAINTEXT}
-      sasl.mechanism: ${KAFKA_SASL_MECHANISM:SCRAM-SHA-512}
-      ssl.truststore.type: PEM
-      ssl.truststore.location: ${KAFKA_SSL_CA_LOCATION:}
+      security.protocol: ${KAFKA_SECURITY_PROTOCOL}
   profiles:
-    active: ${APP_CONFIG_PROFILE:prod}
+    active: ${APP_CONFIG_PROFILE}
   application:
     name: cowork-team
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: ${MYSQL_USER:cowork}
-    password: ${MYSQL_PASSWORD:}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
   jpa:
     hibernate:
       ddl-auto: none
@@ -102,15 +99,15 @@ springdoc:
     path: /swagger-ui.html
 spring.cloud.aws:
   region:
-    static: ${S3_REGION:ap-northeast-2}
+    static: ${S3_REGION}
   credentials:
-    access-key: ${S3_ACCESS_KEY:}
-    secret-key: ${S3_SECRET_KEY:}
+    access-key: ${S3_ACCESS_KEY}
+    secret-key: ${S3_SECRET_KEY}
   s3:
-    endpoint: ${S3_INTERNAL_ENDPOINT:http://localhost:9000}
+    endpoint: ${S3_INTERNAL_ENDPOINT}
     path-style-access-enabled: ${S3_PATH_STYLE_ACCESS_ENABLED:true}
 object-storage:
-  bucket: ${S3_BUCKET:cowork-bucket}
+  bucket: ${S3_BUCKET}
   public-api-base-url: ${PUBLIC_API_BASE_URL}
   presigned-put-expiry-minutes: 10
   max-file-size-bytes: 1048576
