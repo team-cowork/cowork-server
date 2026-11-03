@@ -18,6 +18,21 @@ import {PullRequestService} from './pull-request.service.js';
 export class PullRequestHttpController {
 	constructor(private readonly pullRequestService: PullRequestService) {}
 
+	private async handle<T>(fn: () => Promise<T>): Promise<T> {
+		try {
+			return await fn();
+		} catch (error) {
+			if (error instanceof GithubClientError) {
+				throw new HttpException(error.message, error.statusCode);
+			}
+
+			throw new HttpException(
+				'GitHub 서버와 통신 중 오류가 발생했습니다.',
+				502,
+			);
+		}
+	}
+
 	@httpGet('live-status')
 	async getLiveStatus(
 		@requestParameter('owner') owner: string,
@@ -61,20 +76,5 @@ export class PullRequestHttpController {
 				requesterGithubUsername: body.requesterGithubUsername,
 			}),
 		);
-	}
-
-	private async handle<T>(fn: () => Promise<T>): Promise<T> {
-		try {
-			return await fn();
-		} catch (error) {
-			if (error instanceof GithubClientError) {
-				throw new HttpException(error.message, error.statusCode);
-			}
-
-			throw new HttpException(
-				'GitHub 서버와 통신 중 오류가 발생했습니다.',
-				502,
-			);
-		}
 	}
 }
