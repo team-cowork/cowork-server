@@ -5,6 +5,7 @@ import com.cowork.channel.domain.channel.service.TeamPermissionService
 import com.cowork.channel.domain.thread.presentation.data.response.ThreadResponse
 import com.cowork.channel.domain.thread.repository.ThreadRepository
 import com.cowork.channel.domain.thread.service.GetThreadsService
+import com.cowork.channel.domain.thread.service.ThreadListSortPolicy
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
@@ -26,6 +27,7 @@ class GetThreadsServiceImpl(
     ): Page<ThreadResponse> {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         teamPermissionService.requireChannelAccess(channel, userId)
+        ThreadListSortPolicy.requireAllowed(pageable.sort)
 
         val page = if (includeArchived) {
             threadRepository.findByChannelId(channelId, pageable)
