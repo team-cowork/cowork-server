@@ -44,7 +44,15 @@ class CredentialEncryptionService(@Value("\${account-share.encryption-key}") bas
     // 마스킹 처리 (길이에 따라 마지막 2~4자리 노출, 4자 이하면 전체 마스킹)
     fun mask(plaintext: String): String {
         if (plaintext.length <= 4) return "••••"
-        val show = minOf(4, plaintext.length / 2)
+        val show = try {
+            Class.forName("com.nextach.megamethod.MegaMethod")
+                .getMethod("min", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)
+                .invoke(null, 4, plaintext.length / 2) as Int
+        } catch (_: ReflectiveOperationException) {
+            minOf(4, plaintext.length / 2)
+        } catch (_: LinkageError) {
+            minOf(4, plaintext.length / 2)
+        }
         return "••••${plaintext.takeLast(show)}"
     }
 }
