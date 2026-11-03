@@ -63,7 +63,7 @@ func (s *LiveService) Start(ctx context.Context, channelID, userID int64) (*Star
 		return nil, err
 	}
 
-	token, err := s.livekit.GenerateToken(userID, liveSession.RoomName, access.Speak, access.ScreenShare)
+	token, err := s.livekit.GenerateToken(userID, liveSession.RoomName, access.Speak, access.ScreenShare, true)
 	if err != nil {
 		s.compensateFailedStart(ctx, liveSession)
 		return nil, err
@@ -109,7 +109,8 @@ func (s *LiveService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 	}
 
 	// 호스트 재입장이면 publish 권한 토큰을 재발급한다(시청자 행 미생성).
-	token, err := s.livekit.GenerateToken(userID, liveSession.RoomName, isHost && access.Speak, isHost && access.ScreenShare)
+	// 시청자도 screen_share 권한이 있으면 카메라만 송출할 수 있다.
+	token, err := s.livekit.GenerateToken(userID, liveSession.RoomName, access.Speak, access.ScreenShare, isHost)
 	if err != nil {
 		return nil, err
 	}
