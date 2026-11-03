@@ -54,6 +54,7 @@ export async function loadBuildInput() {
 		achievementScriptBundle,
 		privacyTemplate,
 		termsTemplate,
+		licenseTemplate,
 		legalStylesheetSources,
 	] = await Promise.all([
 		composeTemplate(new URL('index.html', htmlDirectory), htmlDirectory),
@@ -72,6 +73,7 @@ export async function loadBuildInput() {
 		bundleJavaScript(sourceUrl('js/achievements.js'), sourceDirectory),
 		composeTemplate(new URL('privacy.html', htmlDirectory), htmlDirectory),
 		composeTemplate(new URL('terms.html', htmlDirectory), htmlDirectory),
+		composeTemplate(new URL('license.html', htmlDirectory), htmlDirectory),
 		loadStylesheets(stylesheetPaths.legal),
 	]);
 
@@ -89,6 +91,7 @@ export async function loadBuildInput() {
 		achievementScriptBundle,
 		privacyTemplate,
 		termsTemplate,
+		licenseTemplate,
 		stylesheetSources: {
 			shared: sharedStylesheetSources,
 			home: homeStylesheetSources,
