@@ -23,7 +23,6 @@ const (
 )
 
 type WebhookProcessor interface {
-	SecretConfigured() bool
 	VerifySignature([]byte, string) bool
 	ProcessEvent(context.Context, []byte) (domain.WebhookResult, error)
 }
@@ -53,10 +52,6 @@ func (c *WebhookStreamConsumer) Run(ctx context.Context) {
 			log.Printf("failed to close webhook stream client: %v", err)
 		}
 	}()
-	if !c.processor.SecretConfigured() {
-		log.Println("DataGSM webhook stream consumer disabled: secret not configured")
-		return
-	}
 	delay := 2 * time.Second
 	for ctx.Err() == nil {
 		if err := c.initGroup(ctx); err == nil {
