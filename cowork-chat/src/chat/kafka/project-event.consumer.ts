@@ -8,9 +8,7 @@ import {
 import {ConfigService} from '@nestjs/config';
 import {Kafka, Consumer} from 'kafkajs';
 import {Server} from 'socket.io';
-import {DicoshotService} from 'dicoshot-nest';
 import {getKafkaClientConfig} from '../../common/config/config.util.js';
-import {buildErrorFields} from '../../common/util/discord-alert.util.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {parseEventTime} from '../../common/util/event-time.util.js';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
@@ -45,9 +43,6 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
 
 	@inject()
 	private readonly configService!: ConfigService;
-
-	@inject()
-	private readonly dicoshot!: DicoshotService;
 
 	@inject()
 	private readonly projectRepository!: ProjectProjectionRepository;
@@ -178,15 +173,6 @@ export class ProjectEventConsumer implements OnModuleInit, OnModuleDestroy {
 			})
 			.catch(async (error: unknown) => {
 				this.logger.error(`${stream.topic} Kafka consumer failed`, error);
-				await this.dicoshot.sendCustom({
-					title: '🔴 Kafka Consumer 중단',
-					description: `cowork-chat의 ${stream.topic} consumer가 복구 불가능한 오류로 종료되어 프로세스를 재시작합니다.`,
-					color: 'danger',
-					fields: [
-						{name: 'Topic', value: stream.topic, inline: true},
-						...buildErrorFields(error),
-					],
-				}).catch(() => {/* Alert delivery is best-effort. */});
 				// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
 				throw error;
 			});
