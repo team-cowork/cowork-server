@@ -93,6 +93,7 @@ class ProjectController(
     @Operation(summary = "팀 프로젝트 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(responseCode = "400", description = "지원하지 않는 정렬 기준 (허용: position, id, name, createdAt, updatedAt)"),
     )
     @GetMapping
     fun getProjectsByTeamId(
@@ -105,6 +106,7 @@ class ProjectController(
     @Operation(summary = "내 프로젝트 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(responseCode = "400", description = "지원하지 않는 정렬 기준 (허용: position, id, name, createdAt, updatedAt)"),
     )
     @GetMapping("/me")
     fun getMyProjects(
