@@ -1,8 +1,6 @@
 import process from 'node:process';
 import {Injectable as injectable, Logger} from '@nestjs/common';
-import {DicoshotService} from 'dicoshot-nest';
 import {Counter, register} from 'prom-client';
-import {shouldAlert} from '../../common/util/alert-throttle.util.js';
 import {ChatMessageQuarantineErrorType, ChatMessageQuarantineRecord, ChatMessageQuarantineStatus} from '../schema/index.js';
 import {ChatMessageQuarantineRepository} from '../repository/index.js';
 import {type Nullable} from '../../common/type/nullable.js';
@@ -15,7 +13,6 @@ const metricLabel = {
 	reasonCode: 'reason_code',
 } as const;
 
-const ALERT_COOLDOWN_MS = 5 * 60 * 1000;
 const RECENT_RECORD_LIMIT = 100;
 
 export type ChatMessageQuarantineRequest = {
@@ -38,7 +35,6 @@ export class ChatMessageQuarantineService {
 
 	constructor(
 		private readonly repository: ChatMessageQuarantineRepository,
-		private readonly dicoshot: DicoshotService,
 	) {
 		this.quarantined = counter('cowork_chat_message_quarantine_total', 'Durably quarantined chat.message records.', ['error_type', 'reason_code']);
 		this.reprocesses = counter('cowork_chat_message_quarantine_reprocess_total', 'Chat message quarantine reprocess attempts.', ['result']);
@@ -56,20 +52,6 @@ export class ChatMessageQuarantineService {
 			`chat.message quarantined topic=${request.topic} partition=${request.partition} `
 			+ `offset=${request.messageOffset} errorType=${request.errorType} reasonCode=${request.reasonCode}`,
 		);
-		const alertKey = `chat-message-quarantine:${request.errorType}:${request.reasonCode}`;
-		if (shouldAlert(alertKey, ALERT_COOLDOWN_MS)) {
-			void this.dicoshot.sendCustom({
-				title: request.errorType === 'SCOPE_ERROR' ? '⚠️ chat.message 범위 오류 격리' : '⚠️ chat.message poison record 격리',
-				description: 'chat.message 레코드를 저장·격리했습니다. 원문은 운영 절차에 따라 조회할 수 있습니다.',
-				color: 'warning',
-				fields: [
-					{name: 'Topic', value: request.topic, inline: true},
-					{name: 'Partition', value: String(request.partition), inline: true},
-					{name: 'Offset', value: request.messageOffset, inline: true},
-					{name: 'Reason code', value: request.reasonCode, inline: true},
-				],
-			}).catch(() => {/* Alert delivery is best-effort. */});
-		}
 	}
 
 	async requestReprocess(id: string): Promise<boolean> {
