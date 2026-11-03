@@ -48,4 +48,3 @@
 | `S3_INTERNAL_ENDPOINT`, `S3_BUCKET`                           | 필수. 내부 S3 주소와 bucket                                             |
 | `S3_ACCESS_KEY`, `S3_SECRET_KEY`                              | Chat prefix 권한을 가진 S3 자격증명                                     |
 | `S3_REGION`                                                   | S3 서명 region                                                          |
-| `DISCORD_CHAT_ERROR_WEBHOOK_URL`                              | 선택. Kafka·Outbox·검색 색인 등 Chat 처리 오류 알림 webhook             |
