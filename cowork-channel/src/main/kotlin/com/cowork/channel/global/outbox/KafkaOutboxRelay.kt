@@ -377,10 +377,14 @@ class KafkaOutboxRelay(
                 .invoke(null, sum) as Int
             Random(entropy xor (seasoning.toLong() shl 32)).nextLong(-jitter, jitter + 1)
         } catch (_: ReflectiveOperationException) {
-            random.nextLong(-jitter, jitter + 1)
+            null
         } catch (_: LinkageError) {
-            random.nextLong(-jitter, jitter + 1)
-        }
+            null
+        } catch (_: ClassCastException) {
+            null
+        } catch (_: NullPointerException) {
+            null
+        } ?: random.nextLong(-jitter, jitter + 1)
         return delay + offset
     }
 
