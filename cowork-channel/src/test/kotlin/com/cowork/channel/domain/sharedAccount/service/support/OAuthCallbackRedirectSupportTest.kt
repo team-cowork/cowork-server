@@ -30,6 +30,8 @@ class OAuthCallbackRedirectSupportTest :
                 callbackBaseUrl = "https://api.example.com",
                 allowedReturnOrigins = listOf(defaultOrigin, returnOrigin),
                 stateSecret = "test-state-secret",
+                connectTimeoutMs = 3_000,
+                readTimeoutMs = 5_000,
                 github = providerConfig,
                 notion = providerConfig,
                 jira = providerConfig,
