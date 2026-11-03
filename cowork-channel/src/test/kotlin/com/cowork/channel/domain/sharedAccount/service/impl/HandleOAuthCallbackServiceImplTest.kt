@@ -63,6 +63,8 @@ class HandleOAuthCallbackServiceImplTest :
             callbackBaseUrl = "https://example.com",
             allowedReturnOrigins = listOf("https://client.example.com"),
             stateSecret = STATE_SECRET,
+            connectTimeoutMs = 3_000,
+            readTimeoutMs = 5_000,
             github = OAuthProviderConfig(
                 clientId = "gh-id",
                 clientSecret = "gh-secret",
