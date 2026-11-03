@@ -20,9 +20,6 @@ spring:
       retry.backoff.ms: 1000
       retry.backoff.max.ms: 10000
       security.protocol: ${KAFKA_SECURITY_PROTOCOL}
-      sasl.mechanism: ${KAFKA_SASL_MECHANISM}
-      ssl.truststore.type: PEM
-      ssl.truststore.location: ${KAFKA_SSL_CA_LOCATION}
   profiles:
     active: ${APP_CONFIG_PROFILE}
   application:
