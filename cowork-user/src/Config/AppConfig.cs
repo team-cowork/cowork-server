@@ -57,8 +57,8 @@ public sealed record AppConfig
             Port = port,
             KafkaSecurity = CoworkUser.Config.KafkaSecurity.Load(),
             ConnectionString = DatabaseConnectionString(Lookup),
-            ConfigProfile = Profile,
-            KafkaBootstrapServers = Lookup("localhost:9094", "KAFKA_BOOTSTRAP_SERVERS", "kafka_bootstrap_servers"),
+            ConfigProfile = Required("APP_CONFIG_PROFILE"),
+            KafkaBootstrapServers = Required("KAFKA_BOOTSTRAP_SERVERS"),
             KafkaTopic = Lookup("user.data.sync", "KAFKA_TOPIC_USER_SYNC", "kafka_topic"),
             KafkaGroupId = Lookup("cowork-user", "KAFKA_GROUP_ID", "kafka_group_id"),
             KafkaIdentityCommandTopic = Lookup("user.identity.command", "KAFKA_TOPIC_USER_IDENTITY_COMMAND", "kafka_identity_command_topic"),
@@ -70,23 +70,24 @@ public sealed record AppConfig
             KafkaPresenceGroupId = Lookup("cowork-user.user-presence", "KAFKA_GROUP_ID_USER_PRESENCE", "kafka_presence_group_id"),
             KafkaProfileTopic = Lookup("user.profile.event.v2", "KAFKA_TOPIC_USER_PROFILE", "kafka_profile_topic"),
             KafkaProfileSnapshotIntervalMs = int.Parse(Lookup("300000", "KAFKA_PROFILE_SNAPSHOT_INTERVAL_MS", "kafka_profile_snapshot_interval_ms")),
-            S3Region = Lookup("ap-northeast-2", "S3_REGION", "s3_region"),
-            S3InternalEndpoint = Lookup("http://localhost:9000", "S3_INTERNAL_ENDPOINT", "s3_internal_endpoint"),
-            PublicApiBaseUrl = Lookup("http://localhost:8080", "PUBLIC_API_BASE_URL", "public_api_base_url"),
-            S3AccessKey = Lookup("", "S3_ACCESS_KEY", "s3_access_key"),
-            S3SecretKey = Lookup("", "S3_SECRET_KEY", "s3_secret_key"),
-            S3Bucket = Lookup("cowork-bucket", "S3_BUCKET", "s3_bucket"),
+            S3Region = Required("S3_REGION"),
+            S3InternalEndpoint = Required("S3_INTERNAL_ENDPOINT"),
+            PublicApiBaseUrl = Required("PUBLIC_API_BASE_URL"),
+            S3AccessKey = Required("S3_ACCESS_KEY"),
+            S3SecretKey = Required("S3_SECRET_KEY"),
+            S3Bucket = Required("S3_BUCKET"),
             S3PathStyle = Lookup("true", "S3_PATH_STYLE_ACCESS_ENABLED", "s3_path_style_access_enabled") == "true",
             PresignedPutExpiryMinutes = int.Parse(Lookup("5", "S3_PRESIGNED_PUT_EXPIRY_MINUTES", "s3_presigned_put_expiry_minutes")),
             PresignedGetExpiryMinutes = int.Parse(Lookup("15", "S3_PRESIGNED_GET_EXPIRY_MINUTES", "s3_presigned_get_expiry_minutes")),
             MaxFileSizeBytes = long.Parse(Lookup("5242880", "S3_MAX_FILE_SIZE_BYTES", "s3_max_file_size_bytes")),
             AllowedContentTypes = ParseCsvOrList(Lookup("image/jpeg,image/png,image/webp", "S3_ALLOWED_CONTENT_TYPES")),
-            RedisHost = Lookup("localhost", "REDIS_HOST", "redis_host"),
-            RedisPort = int.Parse(Lookup("6379", "REDIS_PORT", "redis_port")),
+            RedisHost = Required("REDIS_HOST"),
+            RedisPort = int.Parse(Required("REDIS_PORT")),
         };
     }
 
-    static string Profile => NonEmpty(Environment.GetEnvironmentVariable("APP_CONFIG_PROFILE")) ?? "local";
+    static string Required(string key) =>
+        NonEmpty(Environment.GetEnvironmentVariable(key)) ?? throw new InvalidOperationException($"{key} is required for cowork-user configuration");
 
     static string? NonEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
 
@@ -103,16 +104,10 @@ public sealed record AppConfig
                 && (uri.Scheme != "https" || uri.Host is "localhost" or "127.0.0.1" or "[::1]"))
                 throw new InvalidOperationException("Production API endpoint requires HTTPS and a non-local host");
         }
-
-        if (config.S3AccessKey == "" || config.S3SecretKey == "" || config.S3Bucket == "")
-            throw new InvalidOperationException("S3 bucket and service credentials are required");
     }
 
     static string DatabaseConnectionString(Func<string, string[], string> lookup)
     {
-        string Required(string key) =>
-            NonEmpty(lookup("", [key, key.ToLowerInvariant()])) ?? throw new InvalidOperationException($"{key} is required for cowork-user database configuration");
-
         return new MySqlConnectionStringBuilder
         {
             Server = Required("DB_HOST"),

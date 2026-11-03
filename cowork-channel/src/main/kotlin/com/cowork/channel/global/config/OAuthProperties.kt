@@ -1,19 +1,16 @@
 package com.cowork.channel.global.config
 
-import org.springframework.boot.context.properties.ConfigurationProperties
-
-@ConfigurationProperties(prefix = "account-share.oauth")
 data class OAuthProperties(
-    val callbackBaseUrl: String = "http://localhost:8080",
-    val allowedReturnOrigins: List<String> = listOf("http://localhost:3000"),
-    val stateSecret: String = "",
-    val connectTimeoutMs: Long = 3_000,
-    val readTimeoutMs: Long = 5_000,
-    val github: OAuthProviderConfig = OAuthProviderConfig(),
-    val notion: OAuthProviderConfig = OAuthProviderConfig(),
-    val jira: OAuthProviderConfig = OAuthProviderConfig(),
-    val google: OAuthProviderConfig = OAuthProviderConfig(),
-    val facebook: OAuthProviderConfig = OAuthProviderConfig(),
+    val callbackBaseUrl: String,
+    val allowedReturnOrigins: List<String>,
+    val stateSecret: String,
+    val connectTimeoutMs: Long,
+    val readTimeoutMs: Long,
+    val github: OAuthProviderConfig,
+    val notion: OAuthProviderConfig,
+    val jira: OAuthProviderConfig,
+    val google: OAuthProviderConfig,
+    val facebook: OAuthProviderConfig,
 ) {
     fun callbackUrl(providerName: String): String =
         "${callbackBaseUrl.trimEnd('/')}/api/channel/channels/oauth/callback/${providerName.lowercase()}"
