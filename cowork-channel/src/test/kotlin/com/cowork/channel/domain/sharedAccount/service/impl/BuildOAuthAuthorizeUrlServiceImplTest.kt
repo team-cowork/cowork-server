@@ -25,12 +25,21 @@ import java.util.Optional
 
 class BuildOAuthAuthorizeUrlServiceImplTest :
     DescribeSpec({
+        val providerConfig = OAuthProviderConfig(
+            "test-client-id",
+            "test-client-secret",
+            "https://provider.example.com/token",
+            "https://provider.example.com/user",
+            scope = "",
+        )
         val defaultOrigin = "https://client.example.com"
         val otherOrigin = "https://admin.example.com"
         val properties = OAuthProperties(
             callbackBaseUrl = "https://example.com",
             allowedReturnOrigins = listOf(defaultOrigin, otherOrigin),
             stateSecret = "test-state-secret-key",
+            connectTimeoutMs = 3_000,
+            readTimeoutMs = 5_000,
             github = OAuthProviderConfig(
                 "gh-id",
                 "gh-secret",
@@ -38,6 +47,10 @@ class BuildOAuthAuthorizeUrlServiceImplTest :
                 "https://api.github.com/user",
                 "read:user",
             ),
+            notion = providerConfig,
+            jira = providerConfig,
+            google = providerConfig,
+            facebook = providerConfig,
         )
         val stateSupport = OAuthStateSupport(properties, jacksonObjectMapper())
         val channel = Channel(
