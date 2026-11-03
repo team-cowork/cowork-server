@@ -7,6 +7,7 @@ import {
 } from '@nestjs/microservices';
 import {plainToInstance} from 'class-transformer';
 import {validate} from 'class-validator';
+import {isPresent} from './common/nullable.js';
 import {CreateIssueDto} from './dto/create-issue.dto.js';
 import {IssueService} from './issue/issue.service.js';
 import {GithubClientError} from './github.errors.js';
@@ -45,7 +46,7 @@ export class GithubController {
 			this.logger.error('Invalid payload, skipping message', {
 				errors: errors.map(error => error.toString()),
 			});
-			if (dto.channelId != null && dto.teamId != null) {
+			if (isPresent(dto.channelId) && isPresent(dto.teamId)) {
 				await this.issueResultProducer.send({
 					channelId: dto.channelId,
 					teamId: dto.teamId,
@@ -59,7 +60,7 @@ export class GithubController {
 
 		try {
 			const result = await this.issueService.createIssue(dto);
-			if (dto.channelId != null && dto.teamId != null) {
+			if (isPresent(dto.channelId) && isPresent(dto.teamId)) {
 				await this.issueResultProducer.send({
 					channelId: dto.channelId,
 					teamId: dto.teamId,
@@ -79,7 +80,7 @@ export class GithubController {
 					statusCode: error.statusCode,
 					message: error.message,
 				});
-				if (dto.channelId != null && dto.teamId != null) {
+				if (isPresent(dto.channelId) && isPresent(dto.teamId)) {
 					await this.issueResultProducer.send({
 						channelId: dto.channelId,
 						teamId: dto.teamId,

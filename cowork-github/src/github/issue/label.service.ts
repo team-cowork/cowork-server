@@ -1,4 +1,5 @@
 import {Injectable as injectable, Logger} from '@nestjs/common';
+import {type Nullable} from '../common/nullable.js';
 import {
 	CreateLabelPayload,
 	GithubApiClient,
@@ -94,7 +95,7 @@ export class LabelService {
 		}
 	}
 
-	private detectCoworkLabelName(text: string): string | null {
+	private detectCoworkLabelName(text: string): Nullable<string> {
 		if (this.includesAny(text, BUG_KEYWORDS)) {
 			return BUG_LABEL;
 		}
