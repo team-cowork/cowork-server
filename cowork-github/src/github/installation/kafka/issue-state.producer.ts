@@ -1,18 +1,18 @@
 import {
-	Injectable,
+	Injectable as injectable,
 	Logger,
 	OnModuleDestroy,
 	OnModuleInit,
 } from '@nestjs/common';
 import {Kafka, Producer} from 'kafkajs';
-import {AppConfigService} from '../../../config/app-config.service';
-import {IssueStateEvent} from './event/issue-state';
-import {toRepoIdentity} from './event/repo-identity';
-import {type SyncCompletedMarker, syncCompletedKey} from './event/sync-completed';
+import {AppConfigService} from '../../../config/app-config.service.js';
+import {IssueStateEvent} from './event/issue-state.js';
+import {toRepoIdentity} from './event/repo-identity.js';
+import {type SyncCompletedMarker, syncCompletedKey} from './event/sync-completed.js';
 
 export const ISSUE_STATE_TOPIC = 'github.issue.state.v1';
 
-@Injectable()
+@injectable()
 export class IssueStateProducer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(IssueStateProducer.name);
 	private producer!: Producer;

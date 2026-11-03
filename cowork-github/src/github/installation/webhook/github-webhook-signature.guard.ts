@@ -1,15 +1,16 @@
+import {Buffer} from 'node:buffer';
 import {createHmac, timingSafeEqual} from 'node:crypto';
 import {
 	CanActivate,
 	ExecutionContext,
-	Injectable,
+	Injectable as injectable,
 	RawBodyRequest,
 	UnauthorizedException,
 } from '@nestjs/common';
 import {Request} from 'express';
-import {AppConfigService} from '../../../config/app-config.service';
+import {AppConfigService} from '../../../config/app-config.service.js';
 
-@Injectable()
+@injectable()
 export class GithubWebhookSignatureGuard implements CanActivate {
 	constructor(private readonly config: AppConfigService) {}
 

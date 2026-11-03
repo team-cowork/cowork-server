@@ -1,11 +1,11 @@
-import {Injectable, Logger} from '@nestjs/common';
-import {GITHUB_PR_WRITE_PERMISSIONS} from '../constants';
-import {GithubClientError} from '../github.errors';
+import {Injectable as injectable, Logger} from '@nestjs/common';
+import {GITHUB_PR_WRITE_PERMISSIONS} from '../constants.js';
+import {GithubClientError} from '../github.errors.js';
 import {
 	PullRequestApiClient,
 	PullRequestDetail,
 	PullRequestFile,
-} from './client/pull-request-api.client';
+} from './client/pull-request-api.client.js';
 
 export const ALLOWED_PR_STATES = ['open', 'closed', 'all'] as const;
 
@@ -59,7 +59,7 @@ export type ApprovePullRequestResult = {
 	prNumber: number;
 };
 
-@Injectable()
+@injectable()
 export class PullRequestService {
 	private readonly logger = new Logger(PullRequestService.name);
 

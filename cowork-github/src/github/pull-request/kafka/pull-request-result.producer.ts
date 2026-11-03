@@ -1,18 +1,18 @@
 import {
-	Injectable,
+	Injectable as injectable,
 	Logger,
 	OnModuleDestroy,
 	OnModuleInit,
 } from '@nestjs/common';
 import {Kafka, Producer} from 'kafkajs';
-import {AppConfigService} from '../../../config/app-config.service';
-import {PullRequestResultEvent} from './event/pull-request-result.event';
+import {AppConfigService} from '../../../config/app-config.service.js';
+import {PullRequestResultEvent} from './event/pull-request-result.event.js';
 
 export type PullRequestResultTopic =
 	| 'github.pr.merge.result'
 	| 'github.pr.approve.result';
 
-@Injectable()
+@injectable()
 export class PullRequestResultProducer
 implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(PullRequestResultProducer.name);

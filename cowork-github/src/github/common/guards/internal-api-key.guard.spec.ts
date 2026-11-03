@@ -1,6 +1,6 @@
 import {type ExecutionContext, UnauthorizedException} from '@nestjs/common';
-import {type AppConfigService} from '../../../config/app-config.service';
-import {InternalApiKeyGuard} from './internal-api-key.guard';
+import {type AppConfigService} from '../../../config/app-config.service.js';
+import {InternalApiKeyGuard} from './internal-api-key.guard.js';
 
 describe('InternalApiKeyGuard', () => {
 	let guard: InternalApiKeyGuard;

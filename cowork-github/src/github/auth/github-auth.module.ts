@@ -1,11 +1,11 @@
 import {HttpModule} from '@nestjs/axios';
-import {Module} from '@nestjs/common';
-import Redis from 'ioredis';
-import {AppConfigService} from '../../config/app-config.service';
-import {REDIS_CLIENT} from '../constants';
-import {GithubAuthService} from './github-auth.service';
+import {Module as nestModule} from '@nestjs/common';
+import {Redis} from 'ioredis';
+import {AppConfigService} from '../../config/app-config.service.js';
+import {REDIS_CLIENT} from '../constants.js';
+import {GithubAuthService} from './github-auth.service.js';
 
-@Module({
+@nestModule({
 	imports: [HttpModule],
 	providers: [
 		AppConfigService,

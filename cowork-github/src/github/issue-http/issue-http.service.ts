@@ -1,14 +1,14 @@
-import {Injectable} from '@nestjs/common';
+import {Injectable as injectable} from '@nestjs/common';
 import {
 	appendAuthorMarker,
 	extractCommentAuthor,
-} from '../common/comment-author-marker';
-import {GithubClientError} from '../github.errors';
+} from '../common/comment-author-marker.js';
+import {GithubClientError} from '../github.errors.js';
 import {
 	GithubComment,
 	IssueDetail,
 	IssueHttpApiClient,
-} from './client/issue-http-api.client';
+} from './client/issue-http-api.client.js';
 
 export const ALLOWED_ISSUE_STATES = ['open', 'closed', 'all'] as const;
 
@@ -49,7 +49,7 @@ export type FindCommentByOperationParameters = {
 	since: string;
 };
 
-@Injectable()
+@injectable()
 export class IssueHttpService {
 	constructor(private readonly apiClient: IssueHttpApiClient) {}
 
