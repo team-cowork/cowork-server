@@ -11,8 +11,12 @@ import static org.mockito.Mockito.when;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.http.HttpStatus;
 
@@ -90,6 +94,61 @@ class ModifyRoadmapServiceTest {
         ExpectedException error = assertThrows(ExpectedException.class,
                 () -> modifyRoadmapService.execute(1L, "ADMIN", 99L, request));
         assertTrue(error.getStatusCode() == HttpStatus.NOT_FOUND);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   ", "\t\n"})
+    void modifyRoadmap_blankTitle_failsWithBadRequestBeforeSave(String title) {
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L, "원제목", "원설명", "원카테고리")));
+
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> modifyRoadmapService.execute(7L, "ADMIN", 10L, new UpdateRoadmapReqDto(title, null, null)));
+
+        assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        verify(roadmapRepository, never()).saveAndFlush(any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"", "   ", "\t\n"})
+    void modifyRoadmap_blankCategory_failsWithBadRequestBeforeSave(String category) {
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L, "원제목", "원설명", "원카테고리")));
+
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> modifyRoadmapService.execute(7L, "ADMIN", 10L, new UpdateRoadmapReqDto("새제목", null, category)));
+
+        assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        verify(roadmapRepository, never()).saveAndFlush(any());
+    }
+
+    @ParameterizedTest
+    @MethodSource("validTitles")
+    void modifyRoadmap_validTitle_savesInputAsIs(String title) {
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L, "원제목", "원설명", "원카테고리")));
+        when(roadmapRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = modifyRoadmapService.execute(7L, "ADMIN", 10L, new UpdateRoadmapReqDto(title, null, null));
+
+        assertThat(response.title()).isEqualTo(title);
+    }
+
+    @ParameterizedTest
+    @MethodSource("validCategories")
+    void modifyRoadmap_validCategoryWithoutTitle_keepsTitleAndSavesCategoryAsIs(String category) {
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L, "원제목", "원설명", "원카테고리")));
+        when(roadmapRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = modifyRoadmapService.execute(7L, "ADMIN", 10L, new UpdateRoadmapReqDto(null, null, category));
+
+        assertThat(response.title()).isEqualTo("원제목");
+        assertThat(response.category()).isEqualTo(category);
+    }
+
+    private static Stream<String> validTitles() {
+        return Stream.of("가", "가".repeat(150), " Flutter 기초 ");
+    }
+
+    private static Stream<String> validCategories() {
+        return Stream.of("가", "가".repeat(50), " Flutter ");
     }
 
     private static Roadmap roadmap(Long id, String title, String description, String category) {
