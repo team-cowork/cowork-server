@@ -1,10 +1,10 @@
-import {IsArray, IsNumber, IsString} from 'class-validator';
+import {IsArray as isArray, IsNumber as isNumber, IsString as isString} from 'class-validator';
 
 export class ReplaceLabelsPayloadDto {
-	@IsNumber()
+	@isNumber()
 	issueNumber: number;
 
-	@IsArray()
-	@IsString({each: true})
+	@isArray()
+	@isString({each: true})
 	labels: string[];
 }

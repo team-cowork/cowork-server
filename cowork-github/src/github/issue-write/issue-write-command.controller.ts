@@ -1,26 +1,26 @@
 import {createHash} from 'node:crypto';
-import {Controller, Logger} from '@nestjs/common';
+import {Controller as controller, Logger} from '@nestjs/common';
 import {
-	Ctx,
-	EventPattern,
+	Ctx as messageContext,
+	EventPattern as eventPattern,
 	KafkaContext,
-	Payload,
+	Payload as messagePayload,
 } from '@nestjs/microservices';
 import {plainToInstance} from 'class-transformer';
 import {validate} from 'class-validator';
-import {GithubClientError} from '../github.errors';
-import {IssueHttpService} from '../issue-http/issue-http.service';
-import {LabelHttpService} from '../label-http/label-http.service';
-import {CreateCommentPayloadDto} from './dto/create-comment-payload.dto';
-import {DeleteCommentPayloadDto} from './dto/delete-comment-payload.dto';
-import {IssueWriteCommandEnvelopeDto} from './dto/issue-write-command-envelope.dto';
-import {ReplaceLabelsPayloadDto} from './dto/replace-labels-payload.dto';
-import {UpdateCommentPayloadDto} from './dto/update-comment-payload.dto';
-import {IssueWriteResultEvent} from './event/issue-write-result.event';
-import {CreateCommentHistory} from './create-comment-history';
-import {IssueWriteResultProducer} from './issue-write-result.producer';
-import {IssueWriteCommandType} from './issue-write-command-type';
-import {ISSUE_WRITE_COMMAND_TOPIC} from './issue-write-topics';
+import {GithubClientError} from '../github.errors.js';
+import {IssueHttpService} from '../issue-http/issue-http.service.js';
+import {LabelHttpService} from '../label-http/label-http.service.js';
+import {CreateCommentPayloadDto} from './dto/create-comment-payload.dto.js';
+import {DeleteCommentPayloadDto} from './dto/delete-comment-payload.dto.js';
+import {IssueWriteCommandEnvelopeDto} from './dto/issue-write-command-envelope.dto.js';
+import {ReplaceLabelsPayloadDto} from './dto/replace-labels-payload.dto.js';
+import {UpdateCommentPayloadDto} from './dto/update-comment-payload.dto.js';
+import {IssueWriteResultEvent} from './event/issue-write-result.event.js';
+import {CreateCommentHistory} from './create-comment-history.js';
+import {IssueWriteResultProducer} from './issue-write-result.producer.js';
+import {IssueWriteCommandType} from './issue-write-command-type.js';
+import {ISSUE_WRITE_COMMAND_TOPIC} from './issue-write-topics.js';
 
 type PayloadValidationResult =
 	| {ok: true; payload: unknown}
@@ -29,10 +29,9 @@ type PayloadValidationResult =
 // 접수 시각은 이 서버 시계, 댓글 updated_at은 GitHub 시계라 그 차이만큼 마커 조회 범위를 앞당긴다.
 const CREATE_COMMENT_CLOCK_SKEW_MS = 5 * 60 * 1000;
 
-@Controller()
+@controller()
 export class IssueWriteCommandController {
 	private readonly logger = new Logger(IssueWriteCommandController.name);
-	private readonly exitProcess = (code: number): never => process.exit(code);
 
 	constructor(
 		private readonly issueHttpService: IssueHttpService,
@@ -41,10 +40,10 @@ export class IssueWriteCommandController {
 		private readonly commentHistory: CreateCommentHistory,
 	) {}
 
-	@EventPattern(ISSUE_WRITE_COMMAND_TOPIC)
+	@eventPattern(ISSUE_WRITE_COMMAND_TOPIC)
 	async handleCommand(
-		@Payload() data: unknown,
-		@Ctx() context: KafkaContext,
+		@messagePayload() data: unknown,
+		@messageContext() context: KafkaContext,
 	): Promise<void> {
 		const shouldCommit = await this.processMessage(data);
 		if (shouldCommit) {
@@ -102,7 +101,7 @@ export class IssueWriteCommandController {
 				return true;
 			}
 
-			this.logger.error('GitHub server error, consumer will stop for retry', {
+			this.logger.error('GitHub server error, message will be redelivered', {
 				owner: envelope.owner,
 				repo: envelope.repo,
 				commandType: envelope.commandType,
@@ -110,7 +109,6 @@ export class IssueWriteCommandController {
 				message: (error as Error).message,
 			});
 
-			this.exitProcess(1);
 			throw error;
 		}
 	}

@@ -1,21 +1,21 @@
 import {
-	Injectable,
+	Injectable as injectable,
 	Logger,
 	OnModuleDestroy,
 	OnModuleInit,
 } from '@nestjs/common';
 import {Kafka, Producer} from 'kafkajs';
-import {AppConfigService} from '../../../config/app-config.service';
+import {AppConfigService} from '../../../config/app-config.service.js';
 import {
 	TeamGithubConnectedEvent,
 	TeamGithubDisconnectedEvent,
-} from './event/team-github.event';
+} from './event/team-github.event.js';
 
 export type TeamGithubTopic =
 	| 'team.github.connected'
 	| 'team.github.disconnected';
 
-@Injectable()
+@injectable()
 export class TeamGithubProducer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(TeamGithubProducer.name);
 	private producer!: Producer;

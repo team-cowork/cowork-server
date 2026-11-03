@@ -1,4 +1,4 @@
-import {toRepoIdentity} from './repo-identity';
+import {toRepoIdentity} from './repo-identity.js';
 
 /**
  동기화 완료 마커. 대상(repo 하나, 또는 org의 repo 목록)의 state 레코드를 모두 보낸 뒤 같은 state 토픽에

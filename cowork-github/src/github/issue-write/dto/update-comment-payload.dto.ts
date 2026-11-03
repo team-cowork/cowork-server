@@ -1,10 +1,10 @@
-import {IsNotEmpty, IsNumber, IsString} from 'class-validator';
+import {IsNotEmpty as isNotEmpty, IsNumber as isNumber, IsString as isString} from 'class-validator';
 
 export class UpdateCommentPayloadDto {
-	@IsNumber()
+	@isNumber()
 	commentId: number;
 
-	@IsString()
-	@IsNotEmpty()
+	@isString()
+	@isNotEmpty()
 	body: string;
 }

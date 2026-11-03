@@ -1,18 +1,18 @@
-import {Controller, Logger} from '@nestjs/common';
+import {Controller as controller, Logger} from '@nestjs/common';
 import {
-	Ctx,
-	EventPattern,
+	Ctx as messageContext,
+	EventPattern as eventPattern,
 	KafkaContext,
-	Payload,
+	Payload as messagePayload,
 } from '@nestjs/microservices';
 import {plainToInstance} from 'class-transformer';
 import {validate} from 'class-validator';
-import {GithubBackfillService, type GithubSyncTarget} from './github-backfill.service';
-import {GithubSyncCommandDto} from './github-sync-command.dto';
+import {GithubBackfillService, type GithubSyncTarget} from './github-backfill.service.js';
+import {GithubSyncCommandDto} from './github-sync-command.dto.js';
 
 export const GITHUB_SYNC_COMMAND_TOPIC = 'github.sync.command.v1';
 
-@Controller()
+@controller()
 export class GithubSyncCommandController {
 	private readonly logger = new Logger(GithubSyncCommandController.name);
 
@@ -20,10 +20,10 @@ export class GithubSyncCommandController {
 
 	// 동기화는 수 분이 걸릴 수 있어 대기열에 넣기만 하고 바로 커밋한다. 핸들러에서 기다리면 같은
 	// consumer group의 다른 커맨드(머지·승인·이슈 쓰기)가 그동안 막힌다.
-	@EventPattern(GITHUB_SYNC_COMMAND_TOPIC)
+	@eventPattern(GITHUB_SYNC_COMMAND_TOPIC)
 	async handleCommand(
-		@Payload() data: unknown,
-		@Ctx() context: KafkaContext,
+		@messagePayload() data: unknown,
+		@messageContext() context: KafkaContext,
 	): Promise<void> {
 		const target = await this.toTarget(data);
 		if (target === undefined) {
