@@ -22,6 +22,7 @@ class OAuthCallbackRedirectSupportTest :
             "test-client-secret",
             "https://provider.example.com/token",
             "https://provider.example.com/user",
+            scope = "",
         )
         val defaultOrigin = "https://web.example.com"
         val returnOrigin = "https://admin.example.com"

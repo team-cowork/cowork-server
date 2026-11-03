@@ -21,6 +21,7 @@ class OAuthStateSupportTest :
             "test-client-secret",
             "https://provider.example.com/token",
             "https://provider.example.com/user",
+            scope = "",
         )
         val defaultOrigin = "https://web.example.com"
         val otherOrigin = "https://admin.example.com"
