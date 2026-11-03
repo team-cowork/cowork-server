@@ -91,6 +91,7 @@ func Load() (*AppConfig, error) {
 		"DB_DSN":                  cfg.DBDSN,
 		"JWT_SECRET":              cfg.JWTSecret,
 		"DATAGSM_CLIENT_ID":       cfg.DataGSMClientID,
+		"DATAGSM_WEBHOOK_SECRET":  cfg.DataGSMWebhookSecret,
 		"REDIS_HOST":              cfg.RedisHost,
 		"REDIS_PORT":              cfg.RedisPort,
 		"KAFKA_BOOTSTRAP_SERVERS": cfg.KafkaBootstrapServers,
