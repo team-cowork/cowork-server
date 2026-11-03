@@ -1,16 +1,16 @@
 import {
-	Injectable,
+	Injectable as injectable,
 	Logger,
 	OnModuleDestroy,
 	OnModuleInit,
 } from '@nestjs/common';
 import {Kafka, Producer} from 'kafkajs';
-import {AppConfigService} from '../../../config/app-config.service';
-import {RepoEvent} from './event/repo-event';
+import {AppConfigService} from '../../../config/app-config.service.js';
+import {RepoEvent} from './event/repo-event.js';
 
 const REPO_EVENT_TOPIC = 'github.repo.event';
 
-@Injectable()
+@injectable()
 export class RepoEventProducer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(RepoEventProducer.name);
 	private producer!: Producer;

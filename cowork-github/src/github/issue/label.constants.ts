@@ -1,4 +1,4 @@
-import type {CreateLabelPayload} from '../client/github-api.client';
+import type {CreateLabelPayload} from '../client/github-api.client.js';
 
 export const COWORK_LABELS: CreateLabelPayload[] = [
 	{

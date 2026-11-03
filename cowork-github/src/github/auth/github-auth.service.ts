@@ -1,13 +1,14 @@
 import {HttpService} from '@nestjs/axios';
-import {Inject, Injectable, Logger} from '@nestjs/common';
+import {Inject as inject, Injectable as injectable, Logger} from '@nestjs/common';
 import {AxiosError} from 'axios';
 import {sign} from 'jsonwebtoken';
-import type Redis from 'ioredis';
+import type {Redis} from 'ioredis';
 import {firstValueFrom} from 'rxjs';
-import {AppConfigService} from '../../config/app-config.service';
-import {GITHUB_API, GITHUB_HEADERS, REDIS_CLIENT} from '../constants';
-import {githubCacheKeys} from '../github.cache';
-import {GithubClientError} from '../github.errors';
+import {githubField} from '../github-field.js';
+import {AppConfigService} from '../../config/app-config.service.js';
+import {GITHUB_API, GITHUB_HEADERS, REDIS_CLIENT} from '../constants.js';
+import {githubCacheKeys} from '../github.cache.js';
+import {GithubClientError} from '../github.errors.js';
 
 const EVICT_INSTALLATION_SCRIPT = `
 if redis.call('GET', KEYS[1]) == ARGV[1] then
@@ -16,14 +17,14 @@ end
 return 0
 `;
 
-@Injectable()
+@injectable()
 export class GithubAuthService {
 	private readonly logger = new Logger(GithubAuthService.name);
 
 	constructor(
 		private readonly httpService: HttpService,
 		private readonly config: AppConfigService,
-		@Inject(REDIS_CLIENT) private readonly redis: Redis,
+		@inject(REDIS_CLIENT) private readonly redis: Redis,
 	) {}
 
 	async getInstallationToken(owner: string): Promise<string> {
@@ -41,7 +42,7 @@ export class GithubAuthService {
 				this.httpService.post<{token: string}>(
 					`${GITHUB_API}/app/installations/${installationId}/access_tokens`,
 					{},
-					{headers: {...GITHUB_HEADERS, Authorization: `Bearer ${jwt}`}},
+					{headers: {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${jwt}`}},
 				),
 			),
 		);
@@ -65,7 +66,7 @@ export class GithubAuthService {
 				firstValueFrom(
 					this.httpService.get<{account: {login: string}}>(
 						`${GITHUB_API}/app/installations/${installationId}`,
-						{headers: {...GITHUB_HEADERS, Authorization: `Bearer ${jwt}`}},
+						{headers: {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${jwt}`}},
 					),
 				),
 		);
@@ -106,7 +107,7 @@ export class GithubAuthService {
 				this.httpService.get<{id: number}>(
 					`${GITHUB_API}/orgs/${owner}/installation`,
 					{
-						headers: {...GITHUB_HEADERS, Authorization: `Bearer ${jwt}`},
+						headers: {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${jwt}`},
 					},
 				),
 			),

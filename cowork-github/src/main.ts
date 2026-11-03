@@ -1,11 +1,12 @@
+import process from 'node:process';
 import {Logger, ValidationPipe} from '@nestjs/common';
 import {NestFactory} from '@nestjs/core';
 import {type MicroserviceOptions, Transport} from '@nestjs/microservices';
 import {Logger as PinoLogger} from 'nestjs-pino';
-import {AppConfigService} from './config/app-config.service';
+import {AppConfigService} from './config/app-config.service.js';
 
 async function bootstrap() {
-	const {AppModule} = await import('./app.module');
+	const {AppModule} = await import('./app.module.js');
 	const app = await NestFactory.create(AppModule, {rawBody: true, bufferLogs: true});
 	app.useLogger(app.get(PinoLogger));
 	const config = app.get(AppConfigService);

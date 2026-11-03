@@ -1,14 +1,14 @@
-import {IsNotEmpty, IsNumber, IsString} from 'class-validator';
+import {IsNotEmpty as isNotEmpty, IsNumber as isNumber, IsString as isString} from 'class-validator';
 
 export class CreateCommentPayloadDto {
-	@IsNumber()
+	@isNumber()
 	issueNumber: number;
 
-	@IsString()
-	@IsNotEmpty()
+	@isString()
+	@isNotEmpty()
 	body: string;
 
-	@IsString()
-	@IsNotEmpty()
+	@isString()
+	@isNotEmpty()
 	requesterGithubUsername: string;
 }
