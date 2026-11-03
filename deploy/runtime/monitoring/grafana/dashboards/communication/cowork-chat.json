@@ -98,7 +98,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
       "targets": [
         {
-          "expr": "max(process_resident_memory_bytes{service=\"chat\",job=~\"cowork-.*\"}) / (1024 * 1024 * 1024) * 100",
+          "expr": "max(nomad_client_allocs_memory_rss{exported_job=\"cowork-chat\",task=\"app\"} / nomad_client_allocs_memory_max_allocated{exported_job=\"cowork-chat\",task=\"app\"}) * 100",
           "legendFormat": "RSS 사용률",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
