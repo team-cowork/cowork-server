@@ -1,9 +1,7 @@
 """Business application rollout and persistent request barriers."""
-import hmac
 import json
 import re
 import subprocess
-import sys
 import time
 
 STATE_KEY = 'cowork:deployment:services'
@@ -23,26 +21,6 @@ class Services:
     def __init__(self, platform, gateway):
         self.platform = platform
         self.gateway = gateway
-        self.authorization_secret_present = True
-
-    def warn_webhook_secrets(self, manifest, mount):
-        self.platform.credentials()
-        secrets = {}
-        for name in ('gateway', 'authorization'):
-            version = manifest['applications'][name]['secret_version']
-            result = self.platform.vault.secrets.kv.v2.read_secret_version(
-                path='nomad/apps/' + name, mount_point=mount, version=version,
-                raise_on_deleted_version=True)
-            secrets[name] = result['data']['data']
-        signature_keys = [secrets[name].get('DATAGSM_WEBHOOK_SECRET', '')
-                          for name in ('gateway', 'authorization')]
-        self.authorization_secret_present = isinstance(signature_keys[1], str) and bool(signature_keys[1])
-        if not all(isinstance(key, str) and key for key in signature_keys):
-            print('CRITICAL: Pinned Gateway or Authorization DataGSM webhook secret is missing; '
-                  'webhook delivery may be unavailable', file=sys.stderr, flush=True)
-        elif not hmac.compare_digest(*(key.encode('utf-8') for key in signature_keys)):
-            print('CRITICAL: Pinned Gateway and Authorization DataGSM webhook secrets differ; '
-                  'queued webhooks may be rejected', file=sys.stderr, flush=True)
 
     def redis(self, *args):
         allocation = self.platform.active_allocation('cowork-redis')
@@ -99,8 +77,6 @@ class Services:
         self.redis_state_change(CLEAR_STATE, service, run_id)
 
     def wait_authorization_consumer(self):
-        if not self.authorization_secret_present:
-            return
         deadline = time.monotonic() + 300
         while time.monotonic() < deadline:
             if self.authorization_stream_connected() == 1:
