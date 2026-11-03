@@ -17,7 +17,7 @@ public sealed class KafkaSecurity
 
         var security = new KafkaSecurity
         {
-            protocol = Env("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT").ToUpperInvariant() switch
+            protocol = Env("KAFKA_SECURITY_PROTOCOL").ToUpperInvariant() switch
             {
                 "PLAINTEXT" => SecurityProtocol.Plaintext,
                 "SSL" => SecurityProtocol.Ssl,
@@ -46,7 +46,7 @@ public sealed class KafkaSecurity
             throw new InvalidOperationException("KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD are required");
         security.username = username;
         security.password = password;
-        security.mechanism = Env("KAFKA_SASL_MECHANISM", "SCRAM-SHA-512").ToUpperInvariant() switch
+        security.mechanism = Env("KAFKA_SASL_MECHANISM").ToUpperInvariant() switch
         {
             "SCRAM-SHA-256" => SaslMechanism.ScramSha256,
             "SCRAM-SHA-512" => SaslMechanism.ScramSha512,
