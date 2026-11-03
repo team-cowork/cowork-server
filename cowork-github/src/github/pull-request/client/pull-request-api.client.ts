@@ -2,6 +2,7 @@ import {HttpService} from '@nestjs/axios';
 import {Injectable as injectable} from '@nestjs/common';
 import {AxiosError} from 'axios';
 import {firstValueFrom} from 'rxjs';
+import {type Nullable} from '../../common/nullable.js';
 import {githubField} from '../../github-field.js';
 import {GithubAuthService} from '../../auth/github-auth.service.js';
 import {
@@ -13,16 +14,16 @@ import {GithubClientError} from '../../github.errors.js';
 
 export type PullRequestRef = {
 	ref: string;
-	repo: {full_name: string} | null;
+	repo: Nullable<{full_name: string}>;
 };
 
 export type PullRequestDetail = {
 	number: number;
 	title: string;
-	body: string | null;
+	body: Nullable<string>;
 	state: string;
 	merged: boolean;
-	mergeable: boolean | null;
+	mergeable: Nullable<boolean>;
 	mergeable_state: string;
 	html_url: string;
 	user: {login: string};
@@ -35,9 +36,9 @@ export type GithubPullRequestListItem = {
 	title: string;
 	state: string;
 	draft: boolean;
-	merged_at: string | null;
+	merged_at: Nullable<string>;
 	html_url: string;
-	user: {login: string} | null;
+	user: Nullable<{login: string}>;
 	labels: Array<{name: string}>;
 	created_at: string;
 	updated_at: string;

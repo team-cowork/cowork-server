@@ -1,4 +1,5 @@
 import {Injectable as injectable} from '@nestjs/common';
+import {isPresent} from '../common/nullable.js';
 import {
 	appendAuthorMarker,
 	extractCommentAuthor,
@@ -64,7 +65,7 @@ export class IssueHttpService {
 
 		// GitHub의 이슈 목록 API는 PR도 함께 반환하므로, pull_request 필드가 있는 항목은 제외한다.
 		return issues
-			.filter(issue => issue.pull_request == null)
+			.filter(issue => !isPresent(issue.pull_request))
 			.map(issue => this.toIssueDetailResponse(issue));
 	}
 
