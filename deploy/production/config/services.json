@@ -8,7 +8,7 @@
       "DEV_ORIGIN_CREDENTIAL": "DEV_ORIGIN_CREDENTIAL"
     },
     "data_secret_bindings": {},
-    "optional_secrets": ["DATAGSM_WEBHOOK_SECRET"],
+    "optional_secrets": [],
     "immutable_secrets": [
       "WEBHOOK_URL_SIGNING_KEY"
     ],
@@ -30,7 +30,7 @@
       "DB_MONITORING_PASSWORD": "DB_MONITORING_PASSWORD",
       "DB_PASSWORD": "DB_PASSWORD"
     },
-    "optional_secrets": ["DATAGSM_WEBHOOK_SECRET"],
+    "optional_secrets": [],
     "immutable_secrets": [
       "DB_ADMIN_PASSWORD"
     ],
@@ -192,13 +192,7 @@
       "DB_MONITORING_PASSWORD": "DB_MONITORING_PASSWORD",
       "DB_PASSWORD": "DB_PASSWORD"
     },
-    "optional_secrets": [
-      "FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET",
-      "COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET",
-      "GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET",
-      "JIRA_ACCOUNT_SHARE_CLIENT_SECRET",
-      "NOTION_ACCOUNT_SHARE_CLIENT_SECRET"
-    ],
+    "optional_secrets": [],
     "immutable_secrets": [
       "ACCOUNT_CREDENTIAL_ENCRYPTION_KEY",
       "DB_ADMIN_PASSWORD"
@@ -215,13 +209,7 @@
       "DB_NAME": "DB_NAME",
       "DB_USERNAME": "DB_USERNAME"
     },
-    "optional_variables": [
-      "COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID",
-      "NOTION_ACCOUNT_SHARE_CLIENT_ID",
-      "JIRA_ACCOUNT_SHARE_CLIENT_ID",
-      "GOOGLE_ACCOUNT_SHARE_CLIENT_ID",
-      "FACEBOOK_ACCOUNT_SHARE_CLIENT_ID"
-    ],
+    "optional_variables": [],
     "data_variable_bindings": {
       "DB_NAME": "DB_NAME",
       "DB_USERNAME": "DB_USERNAME"

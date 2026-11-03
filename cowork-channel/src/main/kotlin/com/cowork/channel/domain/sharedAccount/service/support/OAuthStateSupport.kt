@@ -25,19 +25,13 @@ class OAuthStateSupport(private val oAuthProperties: OAuthProperties, private va
         }
     }
 
-    fun providerConfigOf(provider: AccountProvider): OAuthProviderConfig {
-        val config = when (provider) {
-            AccountProvider.GITHUB -> oAuthProperties.github
-            AccountProvider.NOTION -> oAuthProperties.notion
-            AccountProvider.JIRA -> oAuthProperties.jira
-            AccountProvider.GOOGLE -> oAuthProperties.google
-            AccountProvider.FACEBOOK -> oAuthProperties.facebook
-            else -> throw ExpectedException("OAuth를 지원하지 않는 서비스입니다.", HttpStatus.BAD_REQUEST)
-        }
-        if (config.clientId.isBlank() || config.clientSecret.isBlank()) {
-            throw ExpectedException("OAuth 연동이 설정되지 않았습니다.", HttpStatus.SERVICE_UNAVAILABLE)
-        }
-        return config
+    fun providerConfigOf(provider: AccountProvider): OAuthProviderConfig = when (provider) {
+        AccountProvider.GITHUB -> oAuthProperties.github
+        AccountProvider.NOTION -> oAuthProperties.notion
+        AccountProvider.JIRA -> oAuthProperties.jira
+        AccountProvider.GOOGLE -> oAuthProperties.google
+        AccountProvider.FACEBOOK -> oAuthProperties.facebook
+        else -> throw ExpectedException("OAuth를 지원하지 않는 서비스입니다.", HttpStatus.BAD_REQUEST)
     }
 
     // state = base64url(json_payload).base64url(hmac-sha256)

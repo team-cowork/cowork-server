@@ -14,18 +14,18 @@ import javax.crypto.spec.SecretKeySpec
 
 @Component
 class DataGsmWebhookVerifier(
-    @param:Value("\${webhook.datagsm-secret:}") private val secret: String,
+    @param:Value("\${webhook.datagsm-secret}") secret: String,
     private val objectMapper: ObjectMapper,
 ) {
-    fun configured(): Boolean = secret.isNotEmpty()
+    private val signingKey = SecretKeySpec(secret.toByteArray(StandardCharsets.UTF_8), "HmacSHA256")
 
     fun validSignature(body: ByteArray, header: String?): Boolean {
-        if (!configured() || header?.startsWith(PREFIX) != true) return false
+        if (header?.startsWith(PREFIX) != true) return false
         val provided = runCatching { HexFormat.of().parseHex(header.removePrefix(PREFIX)) }.getOrNull()
             ?: return false
         if (provided.size != 32) return false
         val mac = Mac.getInstance("HmacSHA256")
-        mac.init(SecretKeySpec(secret.toByteArray(StandardCharsets.UTF_8), "HmacSHA256"))
+        mac.init(signingKey)
         return MessageDigest.isEqual(mac.doFinal(body), provided)
     }
 
