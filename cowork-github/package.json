@@ -12,7 +12,7 @@
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "start:dev": "npm run build && npm start",
-    "lint": "xo \"src/**/*.ts\" \"*.config.mjs\"",
+    "lint": "tsc --noEmit -p tsconfig.json && xo \"src/**/*.ts\" \"*.config.mjs\"",
     "lint:fix": "npm run lint -- --fix",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "npm run test -- --watch",
