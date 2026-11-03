@@ -11,12 +11,12 @@ import {RepoStateProducer} from './repo-state.producer';
  */
 @Injectable()
 export class GithubReadModelEventProducers {
-    // eslint-disable-next-line max-params -- NestJS 생성자 주입이라 의존성 수만큼 파라미터가 필요하다.
-    constructor(
-        readonly repo: RepoStateProducer,
-        readonly issue: IssueStateProducer,
-        readonly pullRequest: PullRequestStateProducer,
-        readonly label: LabelStateProducer,
-        readonly issueComment: IssueCommentStateProducer,
-    ) {}
+	// eslint-disable-next-line max-params -- NestJS 생성자 주입이라 의존성 수만큼 파라미터가 필요하다.
+	constructor(
+		readonly repo: RepoStateProducer,
+		readonly issue: IssueStateProducer,
+		readonly pullRequest: PullRequestStateProducer,
+		readonly label: LabelStateProducer,
+		readonly issueComment: IssueCommentStateProducer,
+	) {}
 }

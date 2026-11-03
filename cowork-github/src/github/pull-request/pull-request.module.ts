@@ -10,18 +10,18 @@ import {PullRequestHttpController} from './pull-request-http.controller';
 import {PullRequestService} from './pull-request.service';
 
 @Module({
-    imports: [HttpModule, GithubAuthModule],
-    providers: [
-        AppConfigService,
-        PullRequestApiClient,
-        PullRequestService,
-        PullRequestResultProducer,
-        InternalApiKeyGuard,
-    ],
-    controllers: [
-        PullRequestController,
-        PullRequestHttpController,
-    ],
-    exports: [PullRequestService],
+	imports: [HttpModule, GithubAuthModule],
+	providers: [
+		AppConfigService,
+		PullRequestApiClient,
+		PullRequestService,
+		PullRequestResultProducer,
+		InternalApiKeyGuard,
+	],
+	controllers: [
+		PullRequestController,
+		PullRequestHttpController,
+	],
+	exports: [PullRequestService],
 })
 export class PullRequestModule {}
