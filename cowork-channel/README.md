@@ -27,13 +27,21 @@
 
 운영 설정 입력은 [서비스 선언](../deploy/production/config/services.json)에 정의되어 있습니다.
 
-| 변수                                         | 설명                   |
-|----------------------------------------------|------------------------|
-| `APP_CONFIG_PROFILE`                         | 설정 프로파일          |
-| `DB_HOST`, `DB_PORT`, `DB_NAME`              | 데이터베이스 접속 대상 |
-| `DB_USERNAME`, `DB_PASSWORD`                 | 데이터베이스 자격증명  |
-| `KAFKA_BOOTSTRAP_SERVERS`                    | Kafka broker 주소      |
-| `KAFKA_SECURITY_PROTOCOL`                    | 운영에서는 `SASL_SSL`  |
-| `KAFKA_SASL_MECHANISM`                       | SCRAM 인증 방식        |
-| `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` | SASL 사용 시 필수      |
-| `KAFKA_SSL_CA_LOCATION`                      | Kafka CA PEM 파일 경로 |
+| 변수                                                                                 | 설명                          |
+|--------------------------------------------------------------------------------------|-------------------------------|
+| `APP_CONFIG_PROFILE`                                                                 | 설정 프로파일                 |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`                                                      | 데이터베이스 접속 대상        |
+| `DB_USERNAME`, `DB_PASSWORD`                                                         | 데이터베이스 자격증명         |
+| `KAFKA_BOOTSTRAP_SERVERS`                                                            | Kafka broker 주소             |
+| `KAFKA_SECURITY_PROTOCOL`                                                            | 운영에서는 `SASL_SSL`         |
+| `KAFKA_SASL_MECHANISM`                                                               | SCRAM 인증 방식               |
+| `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD`                                         | SASL 사용 시 필수             |
+| `KAFKA_SSL_CA_LOCATION`                                                              | Kafka CA PEM 파일 경로        |
+| `ACCOUNT_CREDENTIAL_ENCRYPTION_KEY`                                                  | credential 암호화 키          |
+| `ACCOUNT_SHARE_OAUTH_STATE_SECRET`                                                   | OAuth state 서명 키           |
+| `PUBLIC_API_BASE_URL`, `PUBLIC_WEB_ORIGINS`                                          | OAuth 콜백 주소와 복귀 Origin |
+| `COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID`, `COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET` | GitHub OAuth 자격증명         |
+| `NOTION_ACCOUNT_SHARE_CLIENT_ID`, `NOTION_ACCOUNT_SHARE_CLIENT_SECRET`               | Notion OAuth 자격증명         |
+| `JIRA_ACCOUNT_SHARE_CLIENT_ID`, `JIRA_ACCOUNT_SHARE_CLIENT_SECRET`                   | Jira OAuth 자격증명           |
+| `GOOGLE_ACCOUNT_SHARE_CLIENT_ID`, `GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET`               | Google OAuth 자격증명         |
+| `FACEBOOK_ACCOUNT_SHARE_CLIENT_ID`, `FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET`           | Facebook OAuth 자격증명       |
