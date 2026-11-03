@@ -227,7 +227,7 @@ export class IssueWriteCommandController {
 
 	private payloadClassFor(
 		commandType: IssueWriteCommandType,
-	): new () => object {
+	): new () => ReplaceLabelsPayloadDto | CreateCommentPayloadDto | UpdateCommentPayloadDto | DeleteCommentPayloadDto {
 		switch (commandType) {
 			case IssueWriteCommandType.REPLACE_LABELS: {
 				return ReplaceLabelsPayloadDto;
