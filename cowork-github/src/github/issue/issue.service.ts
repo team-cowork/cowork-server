@@ -1,11 +1,11 @@
-import {Injectable, Logger} from '@nestjs/common';
-import {AppConfigService} from '../../config/app-config.service';
-import {GithubApiClient} from '../client/github-api.client';
-import {CreateIssueDto} from '../dto/create-issue.dto';
-import {GithubClientError} from '../github.errors';
-import {LabelService} from './label.service';
+import {Injectable as injectable, Logger} from '@nestjs/common';
+import {AppConfigService} from '../../config/app-config.service.js';
+import {GithubApiClient} from '../client/github-api.client.js';
+import {CreateIssueDto} from '../dto/create-issue.dto.js';
+import {GithubClientError} from '../github.errors.js';
+import {LabelService} from './label.service.js';
 
-@Injectable()
+@injectable()
 export class IssueService {
 	private readonly logger = new Logger(IssueService.name);
 

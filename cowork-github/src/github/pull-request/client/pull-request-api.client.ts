@@ -1,14 +1,15 @@
 import {HttpService} from '@nestjs/axios';
-import {Injectable} from '@nestjs/common';
+import {Injectable as injectable} from '@nestjs/common';
 import {AxiosError} from 'axios';
 import {firstValueFrom} from 'rxjs';
-import {GithubAuthService} from '../../auth/github-auth.service';
+import {githubField} from '../../github-field.js';
+import {GithubAuthService} from '../../auth/github-auth.service.js';
 import {
 	GITHUB_API,
 	GITHUB_HEADERS,
 	GITHUB_PR_MERGE_METHOD,
-} from '../../constants';
-import {GithubClientError} from '../../github.errors';
+} from '../../constants.js';
+import {GithubClientError} from '../../github.errors.js';
 
 export type PullRequestRef = {
 	ref: string;
@@ -60,7 +61,7 @@ export type CollaboratorPermission = {
 	permission: string;
 };
 
-@Injectable()
+@injectable()
 export class PullRequestApiClient {
 	constructor(
 		private readonly httpService: HttpService,
@@ -101,7 +102,7 @@ export class PullRequestApiClient {
 						headers: this.authHeaders(token),
 						params: {
 							state,
-							per_page: 100,
+							[githubField.perPage]: 100,
 							sort: 'created',
 							direction: 'desc',
 						},
@@ -124,7 +125,7 @@ export class PullRequestApiClient {
 			const {data} = await firstValueFrom(
 				this.httpService.get<PullRequestFile[]>(
 					`${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}/files`,
-					{params: {per_page: 100}, headers: this.authHeaders(token)},
+					{params: {[githubField.perPage]: 100}, headers: this.authHeaders(token)},
 				),
 			);
 			return data;
@@ -143,7 +144,7 @@ export class PullRequestApiClient {
 			const {data} = await firstValueFrom(
 				this.httpService.get<PullRequestReview[]>(
 					`${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}/reviews`,
-					{params: {per_page: 100}, headers: this.authHeaders(token)},
+					{params: {[githubField.perPage]: 100}, headers: this.authHeaders(token)},
 				),
 			);
 			return data;
@@ -181,7 +182,7 @@ export class PullRequestApiClient {
 			await firstValueFrom(
 				this.httpService.put(
 					`${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}/merge`,
-					{merge_method: GITHUB_PR_MERGE_METHOD},
+					{[githubField.mergeMethod]: GITHUB_PR_MERGE_METHOD},
 					{headers: this.authHeaders(token)},
 				),
 			);
@@ -228,7 +229,7 @@ export class PullRequestApiClient {
 	}
 
 	private authHeaders(token: string) {
-		return {...GITHUB_HEADERS, Authorization: `Bearer ${token}`};
+		return {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${token}`};
 	}
 
 	private handleGithubError(error: unknown): never {

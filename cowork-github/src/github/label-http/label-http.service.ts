@@ -1,12 +1,12 @@
-import {Injectable} from '@nestjs/common';
-import {LabelHttpApiClient} from './client/label-http-api.client';
+import {Injectable as injectable} from '@nestjs/common';
+import {LabelHttpApiClient} from './client/label-http-api.client.js';
 
 export type LabelResponse = {
 	name: string;
 	color: string;
 };
 
-@Injectable()
+@injectable()
 export class LabelHttpService {
 	constructor(private readonly apiClient: LabelHttpApiClient) {}
 

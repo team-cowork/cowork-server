@@ -1,17 +1,18 @@
 import {HttpService} from '@nestjs/axios';
-import {Injectable} from '@nestjs/common';
+import {Injectable as injectable} from '@nestjs/common';
 import {AxiosError} from 'axios';
 import {firstValueFrom} from 'rxjs';
-import {GithubAuthService} from '../../auth/github-auth.service';
-import {GITHUB_API, GITHUB_HEADERS} from '../../constants';
-import {GithubClientError} from '../../github.errors';
+import {githubField} from '../../github-field.js';
+import {GithubAuthService} from '../../auth/github-auth.service.js';
+import {GITHUB_API, GITHUB_HEADERS} from '../../constants.js';
+import {GithubClientError} from '../../github.errors.js';
 
 export type GithubRepoLabel = {
 	name: string;
 	color: string;
 };
 
-@Injectable()
+@injectable()
 export class LabelHttpApiClient {
 	constructor(
 		private readonly httpService: HttpService,
@@ -25,7 +26,7 @@ export class LabelHttpApiClient {
 			const {data} = await firstValueFrom(
 				this.httpService.get<GithubRepoLabel[]>(
 					`${GITHUB_API}/repos/${owner}/${repo}/labels`,
-					{params: {per_page: 100}, headers: this.authHeaders(token)},
+					{params: {[githubField.perPage]: 100}, headers: this.authHeaders(token)},
 				),
 			);
 			return data;
@@ -58,7 +59,7 @@ export class LabelHttpApiClient {
 	}
 
 	private authHeaders(token: string) {
-		return {...GITHUB_HEADERS, Authorization: `Bearer ${token}`};
+		return {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${token}`};
 	}
 
 	private handleGithubError(error: unknown): never {

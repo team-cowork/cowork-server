@@ -1,9 +1,9 @@
 import {Test, type TestingModule} from '@nestjs/testing';
 import {type KafkaContext} from '@nestjs/microservices';
-import {GithubClientError} from '../github.errors';
-import {PullRequestController} from './pull-request.controller';
-import {PullRequestService} from './pull-request.service';
-import {PullRequestResultProducer} from './kafka/pull-request-result.producer';
+import {GithubClientError} from '../github.errors.js';
+import {PullRequestController} from './pull-request.controller.js';
+import {PullRequestService} from './pull-request.service.js';
+import {PullRequestResultProducer} from './kafka/pull-request-result.producer.js';
 
 describe('PullRequestController', () => {
 	let controller: PullRequestController;
@@ -38,8 +38,6 @@ describe('PullRequestController', () => {
 		}).compile();
 
 		controller = module.get<PullRequestController>(PullRequestController);
-		(controller as unknown as {exitProcess: jest.Mock}).exitProcess =
-			jest.fn();
 	});
 
 	const validPayload = {
@@ -108,7 +106,7 @@ describe('PullRequestController', () => {
 			expect(commitOffsets).toHaveBeenCalledTimes(1);
 		});
 
-		it('5xx 에러 발생 시 프로세스를 종료하고 오프셋을 커밋하지 않는다', async () => {
+		it('5xx 에러 발생 시 오프셋을 커밋하지 않고 에러를 전파한다', async () => {
 			pullRequestService.mergePullRequest.mockRejectedValue(
 				new Error('GitHub 503'),
 			);
@@ -118,9 +116,6 @@ describe('PullRequestController', () => {
 			);
 
 			expect(commitOffsets).not.toHaveBeenCalled();
-			expect(
-				(controller as unknown as {exitProcess: jest.Mock}).exitProcess,
-			).toHaveBeenCalledWith(1);
 		});
 	});
 
