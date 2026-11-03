@@ -1,7 +1,7 @@
 import {HttpService} from '@nestjs/axios';
 import {Inject as inject, Injectable as injectable, Logger} from '@nestjs/common';
 import {AxiosError} from 'axios';
-import {sign} from 'jsonwebtoken';
+import jsonwebtoken from 'jsonwebtoken';
 import type {Redis} from 'ioredis';
 import {firstValueFrom} from 'rxjs';
 import {githubField} from '../github-field.js';
@@ -62,7 +62,7 @@ export class GithubAuthService {
 	private generateJwt(): string {
 		const now = Math.floor(Date.now() / 1000);
 
-		return sign(
+		return jsonwebtoken.sign(
 			{iat: now - 60, exp: now + 540, iss: this.config.githubAppId},
 			this.config.githubPrivateKey,
 			{algorithm: 'RS256'},
