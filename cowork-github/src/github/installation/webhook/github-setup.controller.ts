@@ -24,6 +24,10 @@ export class GithubSetupController {
 		@inject(REDIS_CLIENT) private readonly redis: Redis,
 	) {}
 
+	private page(message: string): string {
+		return `<html><body style="font-family:sans-serif;text-align:center;padding-top:4rem;"><p>${message}</p></body></html>`;
+	}
+
 	@httpGet()
 	@responseHeader('Content-Type', 'text/html; charset=utf-8')
 	async handle(
@@ -79,9 +83,5 @@ export class GithubSetupController {
 				'GitHub 연동 처리 중 오류가 발생했습니다. cowork에서 다시 시도해주세요.',
 			);
 		}
-	}
-
-	private page(message: string): string {
-		return `<html><body style="font-family:sans-serif;text-align:center;padding-top:4rem;"><p>${message}</p></body></html>`;
 	}
 }

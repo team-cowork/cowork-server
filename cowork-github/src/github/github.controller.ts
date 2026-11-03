@@ -22,17 +22,6 @@ export class GithubController {
 		private readonly issueResultProducer: IssueResultProducer,
 	) {}
 
-	@eventPattern('github.issue.create')
-	async handleIssueCreate(
-		@messagePayload() data: unknown,
-		@messageContext() context: KafkaContext,
-	): Promise<void> {
-		const shouldCommit = await this.processMessage(data);
-		if (shouldCommit) {
-			await this.commitOffset(context);
-		}
-	}
-
 	private async processMessage(data: unknown): Promise<boolean> {
 		if (data === null || typeof data !== 'object') {
 			this.logger.error('Invalid payload type, skipping message');
@@ -112,5 +101,16 @@ export class GithubController {
 				offset: (Number(message.offset) + 1).toString(),
 			},
 		]);
+	}
+
+	@eventPattern('github.issue.create')
+	async handleIssueCreate(
+		@messagePayload() data: unknown,
+		@messageContext() context: KafkaContext,
+	): Promise<void> {
+		const shouldCommit = await this.processMessage(data);
+		if (shouldCommit) {
+			await this.commitOffset(context);
+		}
 	}
 }

@@ -13,6 +13,10 @@ import {
 export class AppConfigService {
 	constructor(private readonly configService: ConfigService) {}
 
+	private getNumber(key: string, fallback: number): number {
+		return Number(this.configService.get(key) ?? fallback);
+	}
+
 	get port(): number {
 		return this.configService.getOrThrow<number>('PORT');
 	}
@@ -114,9 +118,5 @@ export class AppConfigService {
 
 	get githubWebhookSecret(): string {
 		return this.configService.getOrThrow<string>('GITHUB_WEBHOOK_SECRET');
-	}
-
-	private getNumber(key: string, fallback: number): number {
-		return Number(this.configService.get(key) ?? fallback);
 	}
 }

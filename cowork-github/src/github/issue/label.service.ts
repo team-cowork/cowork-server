@@ -27,6 +27,51 @@ export class LabelService {
 
 	constructor(private readonly apiClient: GithubApiClient) {}
 
+	private detectCoworkLabelName(text: string): Nullable<string> {
+		if (this.includesAny(text, BUG_KEYWORDS)) {
+			return BUG_LABEL;
+		}
+
+		if (this.includesAny(text, ENHANCEMENT_KEYWORDS)) {
+			return ENHANCEMENT_LABEL;
+		}
+
+		return this.includesAny(text, QUESTION_KEYWORDS) ? QUESTION_LABEL : null;
+	}
+
+	private includesAny(text: string, keywords: readonly string[]): boolean {
+		return keywords.some(keyword => text.includes(keyword));
+	}
+
+	private hasRepoLabel(repoLabels: string[], label: string): boolean {
+		const lower = label.toLowerCase();
+		return repoLabels.some(l => l.toLowerCase() === lower);
+	}
+
+	private uniqueLabels(labels: string[]): string[] {
+		const seen = new Set<string>();
+		const result: string[] = [];
+		for (const label of labels) {
+			const lower = label.toLowerCase();
+			if (seen.has(lower)) {
+				continue;
+			}
+
+			seen.add(lower);
+			result.push(label);
+		}
+
+		return result;
+	}
+
+	private createCustomLabel(name: string): CreateLabelPayload {
+		return {
+			name,
+			color: 'ededed',
+			description: '사용자 요청으로 생성된 라벨',
+		};
+	}
+
 	resolveLabels(dto: CreateIssueDto): string[] {
 		const explicit = dto.labels
 			? this.uniqueLabels(dto.labels.filter(l => l.trim().length > 0))
@@ -93,50 +138,5 @@ export class LabelService {
 				throw error;
 			}
 		}
-	}
-
-	private detectCoworkLabelName(text: string): Nullable<string> {
-		if (this.includesAny(text, BUG_KEYWORDS)) {
-			return BUG_LABEL;
-		}
-
-		if (this.includesAny(text, ENHANCEMENT_KEYWORDS)) {
-			return ENHANCEMENT_LABEL;
-		}
-
-		return this.includesAny(text, QUESTION_KEYWORDS) ? QUESTION_LABEL : null;
-	}
-
-	private includesAny(text: string, keywords: readonly string[]): boolean {
-		return keywords.some(keyword => text.includes(keyword));
-	}
-
-	private hasRepoLabel(repoLabels: string[], label: string): boolean {
-		const lower = label.toLowerCase();
-		return repoLabels.some(l => l.toLowerCase() === lower);
-	}
-
-	private uniqueLabels(labels: string[]): string[] {
-		const seen = new Set<string>();
-		const result: string[] = [];
-		for (const label of labels) {
-			const lower = label.toLowerCase();
-			if (seen.has(lower)) {
-				continue;
-			}
-
-			seen.add(lower);
-			result.push(label);
-		}
-
-		return result;
-	}
-
-	private createCustomLabel(name: string): CreateLabelPayload {
-		return {
-			name,
-			color: 'ededed',
-			description: '사용자 요청으로 생성된 라벨',
-		};
 	}
 }

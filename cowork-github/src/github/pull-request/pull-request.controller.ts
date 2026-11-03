@@ -22,28 +22,6 @@ export class PullRequestController {
 		private readonly resultProducer: PullRequestResultProducer,
 	) {}
 
-	@eventPattern('github.pr.merge')
-	async handleMerge(
-		@messagePayload() data: unknown,
-		@messageContext() context: KafkaContext,
-	): Promise<void> {
-		const shouldCommit = await this.processMessage(data, 'merge');
-		if (shouldCommit) {
-			await this.commitOffset(context);
-		}
-	}
-
-	@eventPattern('github.pr.approve')
-	async handleApprove(
-		@messagePayload() data: unknown,
-		@messageContext() context: KafkaContext,
-	): Promise<void> {
-		const shouldCommit = await this.processMessage(data, 'approve');
-		if (shouldCommit) {
-			await this.commitOffset(context);
-		}
-	}
-
 	private async processMessage(
 		data: unknown,
 		action: 'merge' | 'approve',
@@ -137,5 +115,27 @@ export class PullRequestController {
 				offset: (Number(message.offset) + 1).toString(),
 			},
 		]);
+	}
+
+	@eventPattern('github.pr.merge')
+	async handleMerge(
+		@messagePayload() data: unknown,
+		@messageContext() context: KafkaContext,
+	): Promise<void> {
+		const shouldCommit = await this.processMessage(data, 'merge');
+		if (shouldCommit) {
+			await this.commitOffset(context);
+		}
+	}
+
+	@eventPattern('github.pr.approve')
+	async handleApprove(
+		@messagePayload() data: unknown,
+		@messageContext() context: KafkaContext,
+	): Promise<void> {
+		const shouldCommit = await this.processMessage(data, 'approve');
+		if (shouldCommit) {
+			await this.commitOffset(context);
+		}
 	}
 }
