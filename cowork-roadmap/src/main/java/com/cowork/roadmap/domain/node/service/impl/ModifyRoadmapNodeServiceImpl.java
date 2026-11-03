@@ -1,5 +1,6 @@
 package com.cowork.roadmap.domain.node.service.impl;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +15,7 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import lombok.RequiredArgsConstructor;
+import team.themoment.sdk.exception.ExpectedException;
 
 @Service
 @RequiredArgsConstructor
@@ -34,6 +36,9 @@ public class ModifyRoadmapNodeServiceImpl implements ModifyRoadmapNodeService {
         Long roadmapId = nodeLookupSupport.findRoadmapIdByNodeOrThrow(nodeId);
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
         accessGuard.requireMutable(roadmap, userId, userRole);
+        if (request.title() != null && request.title().isBlank()) {
+            throw new ExpectedException("노드 제목은 공백일 수 없습니다.", HttpStatus.BAD_REQUEST);
+        }
         RoadmapNode node = nodeLookupSupport.findNodeOrThrow(nodeId);
         RoadmapNode updated = node.toBuilder()
                 .title(request.title() != null ? request.title() : node.getTitle())
