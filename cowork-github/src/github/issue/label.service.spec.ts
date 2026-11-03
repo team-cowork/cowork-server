@@ -1,9 +1,9 @@
 import {Test, type TestingModule} from '@nestjs/testing';
-import {GithubApiClient} from '../client/github-api.client';
-import {type CreateIssueDto} from '../dto/create-issue.dto';
-import {GithubClientError} from '../github.errors';
-import {COWORK_LABELS} from './label.constants';
-import {LabelService} from './label.service';
+import {GithubApiClient} from '../client/github-api.client.js';
+import {type CreateIssueDto} from '../dto/create-issue.dto.js';
+import {GithubClientError} from '../github.errors.js';
+import {COWORK_LABELS} from './label.constants.js';
+import {LabelService} from './label.service.js';
 
 describe('LabelService', () => {
 	let service: LabelService;

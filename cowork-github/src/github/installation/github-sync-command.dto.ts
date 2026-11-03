@@ -1,28 +1,28 @@
 import {
-	IsIn,
-	IsInt,
-	IsNotEmpty,
-	IsString,
-	ValidateIf,
+	IsIn as isIn,
+	IsInt as isInt,
+	IsNotEmpty as isNotEmpty,
+	IsString as isString,
+	ValidateIf as validateIf,
 } from 'class-validator';
 
 export class GithubSyncCommandDto {
-	@IsIn([1])
+	@isIn([1])
 	schemaVersion: number;
 
-	@IsIn(['ORG_REPOSITORIES', 'REPOSITORY'])
+	@isIn(['ORG_REPOSITORIES', 'REPOSITORY'])
 	target: 'ORG_REPOSITORIES' | 'REPOSITORY';
 
-	@IsString()
-	@IsNotEmpty()
+	@isString()
+	@isNotEmpty()
 	owner: string;
 
-	@ValidateIf((command: GithubSyncCommandDto) => command.target === 'REPOSITORY')
-	@IsString()
-	@IsNotEmpty()
+	@validateIf((command: GithubSyncCommandDto) => command.target === 'REPOSITORY')
+	@isString()
+	@isNotEmpty()
 	repo?: string;
 
-	@ValidateIf((command: GithubSyncCommandDto) => command.target === 'ORG_REPOSITORIES')
-	@IsInt()
+	@validateIf((command: GithubSyncCommandDto) => command.target === 'ORG_REPOSITORIES')
+	@isInt()
 	installationId?: number;
 }

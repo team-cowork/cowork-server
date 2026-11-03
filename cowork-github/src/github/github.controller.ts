@@ -1,31 +1,30 @@
-import {Controller, Logger} from '@nestjs/common';
+import {Controller as controller, Logger} from '@nestjs/common';
 import {
-	Ctx,
-	EventPattern,
+	Ctx as messageContext,
+	EventPattern as eventPattern,
 	KafkaContext,
-	Payload,
+	Payload as messagePayload,
 } from '@nestjs/microservices';
 import {plainToInstance} from 'class-transformer';
 import {validate} from 'class-validator';
-import {CreateIssueDto} from './dto/create-issue.dto';
-import {IssueService} from './issue/issue.service';
-import {GithubClientError} from './github.errors';
-import {IssueResultProducer} from './kafka/issue-result.producer';
+import {CreateIssueDto} from './dto/create-issue.dto.js';
+import {IssueService} from './issue/issue.service.js';
+import {GithubClientError} from './github.errors.js';
+import {IssueResultProducer} from './kafka/issue-result.producer.js';
 
-@Controller()
+@controller()
 export class GithubController {
 	private readonly logger = new Logger(GithubController.name);
-	private readonly exitProcess = (code: number): never => process.exit(code);
 
 	constructor(
 		private readonly issueService: IssueService,
 		private readonly issueResultProducer: IssueResultProducer,
 	) {}
 
-	@EventPattern('github.issue.create')
+	@eventPattern('github.issue.create')
 	async handleIssueCreate(
-		@Payload() data: unknown,
-		@Ctx() context: KafkaContext,
+		@messagePayload() data: unknown,
+		@messageContext() context: KafkaContext,
 	): Promise<void> {
 		const shouldCommit = await this.processMessage(data);
 		if (shouldCommit) {
@@ -92,14 +91,13 @@ export class GithubController {
 				return true;
 			}
 
-			this.logger.error('GitHub server error, consumer will stop for retry', {
+			this.logger.error('GitHub server error, message will be redelivered', {
 				owner: dto.owner,
 				repo: dto.repo,
 				title: dto.title,
 				message: (error as Error).message,
 			});
 
-			this.exitProcess(1);
 			throw error;
 		}
 	}

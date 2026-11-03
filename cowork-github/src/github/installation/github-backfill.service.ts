@@ -1,16 +1,16 @@
 import {randomUUID} from 'node:crypto';
-import {Inject, Injectable, Logger} from '@nestjs/common';
-import type Redis from 'ioredis';
-import {REDIS_CLIENT} from '../constants';
-import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../github.cache';
-import {IssueHttpService} from '../issue-http/issue-http.service';
-import {LabelHttpService} from '../label-http/label-http.service';
-import {PullRequestService} from '../pull-request/pull-request.service';
-import {InstallationApiClient} from './client/installation-api.client';
-import {IssueCommentStateEvent} from './kafka/event/issue-comment-state';
-import {syncCompletedMarker} from './kafka/event/sync-completed';
-import {GithubReadModelEventProducers} from './kafka/github-read-model-event-producers';
-import {toPullRequestFileStates} from './kafka/pull-request-file-state.mapper';
+import {Inject as inject, Injectable as injectable, Logger} from '@nestjs/common';
+import type {Redis} from 'ioredis';
+import {REDIS_CLIENT} from '../constants.js';
+import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../github.cache.js';
+import {IssueHttpService} from '../issue-http/issue-http.service.js';
+import {LabelHttpService} from '../label-http/label-http.service.js';
+import {PullRequestService} from '../pull-request/pull-request.service.js';
+import {InstallationApiClient} from './client/installation-api.client.js';
+import {IssueCommentStateEvent} from './kafka/event/issue-comment-state.js';
+import {syncCompletedMarker} from './kafka/event/sync-completed.js';
+import {GithubReadModelEventProducers} from './kafka/github-read-model-event-producers.js';
+import {toPullRequestFileStates} from './kafka/pull-request-file-state.mapper.js';
 
 export type GithubSyncTarget =
 	| {type: 'ORG_REPOSITORIES'; installationId: number; owner: string}
@@ -46,7 +46,7 @@ const mergeByNumber = <T extends {number: number}>(...lists: T[][]): T[] => {
  100개를 초과하는 repo/PR/이슈는 초과분이 동기화되지 않으며, 페이지네이션 지원과 함께 후속 과제로 남긴다.
  이슈/PR은 `all` 최신 100건에서 빠지는 오래된 열린 항목이 보드에서 사라지지 않게 `open` 100건을 따로 받아 합친다.
  */
-@Injectable()
+@injectable()
 export class GithubBackfillService {
 	private readonly logger = new Logger(GithubBackfillService.name);
 	private readonly queued = new Set<string>();
@@ -59,7 +59,7 @@ export class GithubBackfillService {
 		private readonly pullRequestService: PullRequestService,
 		private readonly labelHttpService: LabelHttpService,
 		private readonly producers: GithubReadModelEventProducers,
-		@Inject(REDIS_CLIENT) private readonly redis: Redis,
+		@inject(REDIS_CLIENT) private readonly redis: Redis,
 	) {}
 
 	/**

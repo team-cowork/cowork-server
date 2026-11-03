@@ -1,9 +1,9 @@
 import {Test, type TestingModule} from '@nestjs/testing';
-import {GithubAuthService} from '../../auth/github-auth.service';
-import {REDIS_CLIENT} from '../../constants';
-import {GithubBackfillService} from '../github-backfill.service';
-import {TeamGithubProducer} from '../kafka/team-github.producer';
-import {GithubSetupController} from './github-setup.controller';
+import {GithubAuthService} from '../../auth/github-auth.service.js';
+import {REDIS_CLIENT} from '../../constants.js';
+import {GithubBackfillService} from '../github-backfill.service.js';
+import {TeamGithubProducer} from '../kafka/team-github.producer.js';
+import {GithubSetupController} from './github-setup.controller.js';
 
 describe('GithubSetupController', () => {
 	let controller: GithubSetupController;
