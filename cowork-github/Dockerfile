@@ -4,14 +4,13 @@ WORKDIR /workspace/cowork-github
 COPY cowork-github/package.json cowork-github/package-lock.json ./
 RUN --mount=type=cache,id=npm-github-builder,target=/root/.npm \
     npm ci
-COPY cowork-github/tsconfig.json cowork-github/tsconfig.build.json cowork-github/nest-cli.json ./
+COPY cowork-github/tsconfig.json cowork-github/tsconfig.build.json ./
 COPY cowork-github/src src
 RUN npm run build
 
 FROM builder AS verification
 RUN apk --no-cache add bash python3
 COPY cowork-github/eslint.config.mjs cowork-github/xo.config.mjs ./
-COPY cowork-github/test test
 COPY deploy/ci/verification /ci
 RUN --mount=type=cache,id=npm-github-builder,target=/root/.npm \
     npm run lint -- --max-warnings=0 \
