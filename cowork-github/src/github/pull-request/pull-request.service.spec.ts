@@ -311,12 +311,10 @@ describe('PullRequestService', () => {
                 new GithubClientError('Not mergeable', 405),
             );
 
-            const error = await service
-                .mergePullRequest(parameters)
-                .catch((error_: unknown) => error_ as GithubClientError);
+            const promise = service.mergePullRequest(parameters);
 
-            expect(error.statusCode).toBe(409);
-            expect(error.message).toContain('clean');
+            await expect(promise).rejects.toMatchObject({statusCode: 409});
+            await expect(promise).rejects.toThrow('clean');
         });
     });
 

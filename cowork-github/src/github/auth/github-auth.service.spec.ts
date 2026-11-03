@@ -1,6 +1,6 @@
 import {Test, type TestingModule} from '@nestjs/testing';
 import {HttpService} from '@nestjs/axios';
-import {AxiosError} from 'axios';
+import {AxiosError, AxiosHeaders} from 'axios';
 import {of, throwError} from 'rxjs';
 import {AppConfigService} from '../../config/app-config.service';
 import {REDIS_CLIENT} from '../constants';
@@ -45,11 +45,11 @@ describe('GithubAuthService', () => {
     afterEach(() => jest.clearAllMocks());
 
     const createAxiosError = (status: number, message: string): AxiosError =>
-        new AxiosError(message, undefined, {headers: {}}, undefined, {
+        new AxiosError(message, undefined, {headers: new AxiosHeaders()}, undefined, {
             status,
             statusText: 'error',
             headers: {},
-            config: {headers: {}},
+            config: {headers: new AxiosHeaders()},
             data: {message},
         });
 
