@@ -30,6 +30,7 @@ class BuildOAuthAuthorizeUrlServiceImplTest :
             "test-client-secret",
             "https://provider.example.com/token",
             "https://provider.example.com/user",
+            scope = "",
         )
         val defaultOrigin = "https://client.example.com"
         val otherOrigin = "https://admin.example.com"
