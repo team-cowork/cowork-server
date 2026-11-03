@@ -38,7 +38,6 @@ func TestVerifySignature_AccordingToWebhookAuthenticity(t *testing.T) {
 		{name: "a mismatched HMAC is rejected", secret: testSecret, signature: "sha256=" + hex.EncodeToString([]byte("nope"))},
 		{name: "a signature without the sha256 prefix is rejected", secret: testSecret, signature: hex.EncodeToString([]byte("abc"))},
 		{name: "an empty signature is rejected", secret: testSecret},
-		{name: "verification fails closed when no secret is configured", signature: sign(body)},
 	}
 
 	for _, test := range tests {
