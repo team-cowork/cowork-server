@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
+import org.springframework.data.domain.Sort
 import org.springframework.data.web.PageableDefault
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
@@ -51,7 +52,7 @@ class ThreadController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @RequestParam(defaultValue = "false") includeArchived: Boolean,
-        @PageableDefault(size = 20) pageable: Pageable,
+        @PageableDefault(size = 20, sort = ["createdAt", "id"], direction = Sort.Direction.DESC) pageable: Pageable,
     ): Page<ThreadResponse> = getThreadsService.getThreads(userId, channelId, includeArchived, pageable)
 
     @Operation(summary = "스레드 수정", security = [SecurityRequirement(name = "BearerAuth")])
