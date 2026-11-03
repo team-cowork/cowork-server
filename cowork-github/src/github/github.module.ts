@@ -14,22 +14,22 @@ import {LabelHttpModule} from './label-http/label-http.module';
 import {PullRequestModule} from './pull-request/pull-request.module';
 
 @Module({
-    imports: [
-        HttpModule,
-        GithubAuthModule,
-        PullRequestModule,
-        IssueHttpModule,
-        LabelHttpModule,
-        IssueWriteModule,
-        InstallationModule,
-    ],
-    providers: [
-        AppConfigService,
-        GithubApiClient,
-        LabelService,
-        IssueService,
-        IssueResultProducer,
-    ],
-    controllers: [GithubController],
+	imports: [
+		HttpModule,
+		GithubAuthModule,
+		PullRequestModule,
+		IssueHttpModule,
+		LabelHttpModule,
+		IssueWriteModule,
+		InstallationModule,
+	],
+	providers: [
+		AppConfigService,
+		GithubApiClient,
+		LabelService,
+		IssueService,
+		IssueResultProducer,
+	],
+	controllers: [GithubController],
 })
 export class GithubModule {}
