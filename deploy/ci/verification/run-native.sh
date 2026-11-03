@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if [[ $# -ne 4 ]]; then
-  echo "Usage: $0 <go|jest|node|dotnet> <module> <absolute-source-root> <absolute-output-dir>" >&2
+  echo "Usage: $0 <go|jest|bun|node|dotnet> <module> <absolute-source-root> <absolute-output-dir>" >&2
   exit 2
 fi
 
@@ -18,7 +18,7 @@ case "$source_root:$output_dir" in
   *) echo "Source and output directories must be absolute paths." >&2; exit 2 ;;
 esac
 case "$runner" in
-  go|jest|node|dotnet) ;;
+  go|jest|bun|node|dotnet) ;;
   *) echo "Unsupported coverage runner: $runner" >&2; exit 2 ;;
 esac
 
@@ -136,6 +136,39 @@ PY
       coverage_args+=("--collectCoverageFrom=$pattern")
     done < "$output_dir/jest-coverage-globs.txt"
     "${jest_command[@]}" --coverage --runInBand \
+      --coverageDirectory="$output_dir" \
+      --coverageReporters=json-summary --coverageReporters=text-summary \
+      --coverageThreshold='{}' "${coverage_args[@]}"
+    cp "$output_dir/coverage-summary.json" "$output_dir/report.json"
+    ;;
+  bun)
+    bun install --frozen-lockfile
+    # The module's `test` script invokes Jest directly (no further `bun run`/`npm run`
+    # forwarding), so `bun run test --` can append flags without the chain-resolution
+    # the npm-based `jest` runner above needs.
+    bun run test -- --showConfig > "$output_dir/jest-config.json"
+    python3 - "$output_dir/jest-config.json" "$output_dir/jest-coverage-globs.txt" <<'PY'
+import json
+import sys
+from pathlib import Path
+configs = json.loads(Path(sys.argv[1]).read_text())['configs']
+scopes = [config.get('collectCoverageFrom') or ['**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}'] for config in configs]
+if not scopes or any(scope != scopes[0] for scope in scopes):
+    raise SystemExit('Jest projects with different coverage scopes require a project-aware adapter')
+patterns = scopes[0] + [
+    '!**/*.{spec,test}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}',
+    '!**/*.d.{ts,mts,cts}',
+    '!**/{test,tests,__tests__,node_modules,generated,build,dist,coverage}/**',
+]
+if any(not isinstance(pattern, str) or '\n' in pattern or '\r' in pattern for pattern in patterns):
+    raise SystemExit('Invalid Jest coverage glob')
+Path(sys.argv[2]).write_text(''.join(f'{pattern}\n' for pattern in patterns))
+PY
+    coverage_args=()
+    while IFS= read -r pattern; do
+      coverage_args+=("--collectCoverageFrom=$pattern")
+    done < "$output_dir/jest-coverage-globs.txt"
+    bun run test -- --coverage --runInBand \
       --coverageDirectory="$output_dir" \
       --coverageReporters=json-summary --coverageReporters=text-summary \
       --coverageThreshold='{}' "${coverage_args[@]}"
