@@ -34,6 +34,10 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+  data:
+    web:
+      pageable:
+        max-page-size: 100
   jpa:
     hibernate:
       ddl-auto: none
