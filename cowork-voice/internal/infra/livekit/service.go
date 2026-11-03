@@ -18,18 +18,18 @@ import (
 )
 
 func GenerateToken(apiKey, apiSecret string, userID int64, roomName string, speak, screenShare bool, ttlSecs int64) (string, error) {
-	return generateToken(apiKey, apiSecret, userID, roomName, speak, screenShare, false, ttlSecs)
+	return generateToken(apiKey, apiSecret, userID, roomName, speak, screenShare, false, false, ttlSecs)
 }
 
-func GenerateLiveToken(apiKey, apiSecret string, userID int64, roomName string, speak, screenShare bool, ttlSecs int64) (string, error) {
-	return generateToken(apiKey, apiSecret, userID, roomName, speak, screenShare, true, ttlSecs)
+func GenerateLiveToken(apiKey, apiSecret string, userID int64, roomName string, speak, screenShare, host bool, ttlSecs int64) (string, error) {
+	return generateToken(apiKey, apiSecret, userID, roomName, speak, screenShare, true, host, ttlSecs)
 }
 
-func generateToken(apiKey, apiSecret string, userID int64, roomName string, speak, screenShare, liveRoom bool, ttlSecs int64) (string, error) {
+func generateToken(apiKey, apiSecret string, userID int64, roomName string, speak, screenShare, liveRoom, liveHost bool, ttlSecs int64) (string, error) {
 	identity := strconv.FormatInt(userID, 10)
 	at := auth.NewAccessToken(apiKey, apiSecret)
 	grant := &auth.VideoGrant{RoomJoin: true, Room: roomName}
-	media := permission.MediaAccessFor(true, speak, screenShare, liveRoom)
+	media := permission.MediaAccessFor(true, speak, screenShare, liveRoom, liveHost)
 	grant.SetCanSubscribe(media.Subscribe)
 	grant.SetCanPublishData(media.PublishData)
 	sources := []livekit.TrackSource{}

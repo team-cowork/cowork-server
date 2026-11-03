@@ -74,7 +74,7 @@ func TestLiveService(t *testing.T) {
 		}
 	})
 
-	t.Run("Join - 시청자는 구독 전용 토큰을 받는다", func(t *testing.T) {
+	t.Run("Join - 시청자는 호스트가 아닌 토큰을 받는다", func(t *testing.T) {
 		t.Parallel()
 
 		repo := &stubRepository{findActiveSessionResult: activeSession()}
@@ -247,12 +247,12 @@ func (s *stubLiveKitRoom) CreateRoomIfNotExists(_ context.Context, roomName stri
 	return s.createErr
 }
 
-func (s *stubLiveKitRoom) GenerateToken(userID int64, roomName string, speak, screenShare bool) (string, error) {
+func (s *stubLiveKitRoom) GenerateToken(userID int64, roomName string, speak, screenShare, host bool) (string, error) {
 	s.tokenUserID = userID
 	s.tokenRoomName = roomName
 	s.tokenSpeak = speak
 	s.tokenScreenShare = screenShare
-	s.tokenIsHost = speak || screenShare
+	s.tokenIsHost = host
 	if s.tokenErr != nil {
 		return "", s.tokenErr
 	}
@@ -390,13 +390,26 @@ func TestBroadcastHostRespectsMediaPermissions(t *testing.T) {
 	if _, err := svc.Join(context.Background(), 123, 42); err != nil {
 		t.Fatal(err)
 	}
-	if lk.tokenSpeak || !lk.tokenScreenShare {
+	if lk.tokenSpeak || !lk.tokenScreenShare || !lk.tokenIsHost {
 		t.Fatal("host received unauthorized microphone permission")
 	}
 	if _, err := svc.Join(context.Background(), 123, 99); err != nil {
 		t.Fatal(err)
 	}
-	if lk.tokenSpeak || lk.tokenScreenShare {
-		t.Fatal("viewer received publishing permission")
+	// 시청자는 screen_share 권한으로 카메라만 받고, 마이크·화면 공유는 host=false로 막힌다.
+	if lk.tokenSpeak || !lk.tokenScreenShare || lk.tokenIsHost {
+		t.Fatal("viewer video permission must reach the token as a non-host camera grant")
+	}
+}
+
+func TestLiveViewerWithoutVideoPermissionCannotPublishCamera(t *testing.T) {
+	repo := &stubRepository{findActiveSessionResult: activeSession()}
+	lk := &stubLiveKitRoom{token: "token"}
+	svc := NewLiveService(repo, &stubConnectPermissionChecker{access: &permission.Access{TeamID: 456, Speak: true}}, lk, "")
+	if _, err := svc.Join(context.Background(), 123, 99); err != nil {
+		t.Fatal(err)
+	}
+	if lk.tokenScreenShare || lk.tokenIsHost {
+		t.Fatal("viewer without video permission received a camera grant")
 	}
 }
