@@ -84,12 +84,10 @@ describe('PullRequestApiClient', () => {
         } as unknown as AxiosResponse;
         httpService.get.mockReturnValue(throwError(() => axiosError));
 
-        const error = await client
-            .listPullRequests('my-org', 'my-repo', 'open')
-            .catch((error_: unknown) => error_ as GithubClientError);
+        const promise = client.listPullRequests('my-org', 'my-repo', 'open');
 
-        expect(error).toBeInstanceOf(GithubClientError);
-        expect(error.statusCode).toBe(404);
+        await expect(promise).rejects.toBeInstanceOf(GithubClientError);
+        await expect(promise).rejects.toMatchObject({statusCode: 404});
     });
 
     it('머지 시 merge_method를 squash로 호출한다', async () => {
@@ -159,12 +157,10 @@ describe('PullRequestApiClient', () => {
         } as unknown as AxiosResponse;
         httpService.put.mockReturnValue(throwError(() => axiosError));
 
-        const error = await client
-            .mergePullRequest('my-org', 'my-repo', 1)
-            .catch((error_: unknown) => error_ as GithubClientError);
+        const promise = client.mergePullRequest('my-org', 'my-repo', 1);
 
-        expect(error).toBeInstanceOf(GithubClientError);
-        expect(error.statusCode).toBe(405);
+        await expect(promise).rejects.toBeInstanceOf(GithubClientError);
+        await expect(promise).rejects.toMatchObject({statusCode: 405});
     });
 
     it('5xx 응답은 GithubClientError로 변환하지 않는다', async () => {
