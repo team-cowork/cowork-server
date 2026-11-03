@@ -29,7 +29,7 @@ export class AppConfigService {
     }
 
     get kafkaClientConfig(): KafkaConfig {
-        const protocol = (this.configService.get<string>('KAFKA_SECURITY_PROTOCOL') ?? 'PLAINTEXT').toUpperCase();
+        const protocol = this.configService.getOrThrow<string>('KAFKA_SECURITY_PROTOCOL').toUpperCase();
         if (!['PLAINTEXT', 'SSL', 'SASL_SSL'].includes(protocol)) {
             throw new Error('KAFKA_SECURITY_PROTOCOL must be PLAINTEXT, SSL or SASL_SSL');
         }
@@ -50,7 +50,7 @@ export class AppConfigService {
         }
 
         if (protocol === 'SASL_SSL') {
-            const mechanism = (this.configService.get<string>('KAFKA_SASL_MECHANISM') ?? 'SCRAM-SHA-512').toLowerCase();
+            const mechanism = this.configService.getOrThrow<string>('KAFKA_SASL_MECHANISM').toLowerCase();
             if (mechanism !== 'scram-sha-256' && mechanism !== 'scram-sha-512') {
                 throw new Error('KAFKA_SASL_MECHANISM must be SCRAM-SHA-256 or SCRAM-SHA-512');
             }

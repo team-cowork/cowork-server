@@ -18,9 +18,9 @@ class S3PresignerConfig(private val env: Environment) {
     @Primary
     fun s3Presigner(): S3Presigner {
         val apiEndpoint = env.getRequired("object-storage.public-api-base-url")
-        val region = env.getProperty("spring.cloud.aws.region.static") ?: "ap-northeast-2"
-        val accessKey = env.getProperty("spring.cloud.aws.credentials.access-key").orEmpty()
-        val secretKey = env.getProperty("spring.cloud.aws.credentials.secret-key").orEmpty()
+        val region = env.getRequiredProperty("spring.cloud.aws.region.static")
+        val accessKey = env.getRequiredProperty("spring.cloud.aws.credentials.access-key")
+        val secretKey = env.getRequiredProperty("spring.cloud.aws.credentials.secret-key")
         val endpoint = URI.create(apiEndpoint)
         require(
             endpoint.scheme in setOf("http", "https") && !endpoint.host.isNullOrBlank() &&
