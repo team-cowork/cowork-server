@@ -111,7 +111,7 @@ class ProjectController(
     @GetMapping("/me")
     fun getMyProjects(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-        @PageableDefault(size = 20, sort = ["createdAt"]) pageable: Pageable,
+        @PageableDefault(size = 20, sort = ["createdAt", "id"]) pageable: Pageable,
     ): ResponseEntity<Page<ProjectResDto>> = ResponseEntity.ok(queryMyProjectsService.execute(userId, pageable))
 
     @Operation(summary = "프로젝트 접근 가능한 사용자 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
