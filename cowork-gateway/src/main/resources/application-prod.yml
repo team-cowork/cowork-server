@@ -25,7 +25,7 @@ gateway:
 
 webhook:
   url-signing-key: ${WEBHOOK_URL_SIGNING_KEY:}
-  datagsm-secret: ${DATAGSM_WEBHOOK_SECRET:}
+  datagsm-secret: ${DATAGSM_WEBHOOK_SECRET}
 
 cowork:
   swagger-ui:
