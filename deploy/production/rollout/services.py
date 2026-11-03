@@ -1,5 +1,4 @@
 """Business application rollout and persistent request barriers."""
-import hmac
 import json
 import re
 import subprocess
@@ -22,20 +21,6 @@ class Services:
     def __init__(self, platform, gateway):
         self.platform = platform
         self.gateway = gateway
-
-    def verify_webhook_secrets(self, manifest, mount):
-        self.platform.credentials()
-        secrets = {}
-        for name in ('gateway', 'authorization'):
-            version = manifest['applications'][name]['secret_version']
-            result = self.platform.vault.secrets.kv.v2.read_secret_version(
-                path='nomad/apps/' + name, mount_point=mount, version=version,
-                raise_on_deleted_version=True)
-            secrets[name] = result['data']['data']
-        signature_keys = [secrets[name]['DATAGSM_WEBHOOK_SECRET']
-                          for name in ('gateway', 'authorization')]
-        if not hmac.compare_digest(*(key.encode('utf-8') for key in signature_keys)):
-            raise RuntimeError('Pinned Gateway and Authorization DataGSM webhook secrets differ')
 
     def redis(self, *args):
         allocation = self.platform.active_allocation('cowork-redis')
