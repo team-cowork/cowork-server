@@ -8,10 +8,8 @@ import {
 import {ConfigService} from '@nestjs/config';
 import {Consumer, Kafka} from 'kafkajs';
 import {Server} from 'socket.io';
-import {DicoshotService} from 'dicoshot-nest';
 import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {parseEventTime} from '../../common/util/event-time.util.js';
-import {buildErrorFields} from '../../common/util/discord-alert.util.js';
 import {isBooleanRecord} from '../../common/util/boolean-record.util.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
@@ -40,9 +38,6 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
 
 	@inject()
 	private readonly configService!: ConfigService;
-
-	@inject()
-	private readonly dicoshot!: DicoshotService;
 
 	@inject()
 	private readonly repository!: ChannelRolePolicyProjectionRepository;
@@ -137,12 +132,6 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
 			},
 		}).catch(async (error: unknown) => {
 			this.logger.error(`${stream.topic} Kafka consumer failed`, error);
-			await this.dicoshot.sendCustom({
-				title: '🔴 Kafka Consumer 중단',
-				description: `cowork-chat의 ${stream.topic} consumer가 종료되어 프로세스를 재시작합니다.`,
-				color: 'danger',
-				fields: [{name: 'Topic', value: stream.topic, inline: true}, ...buildErrorFields(error)],
-			}).catch(() => {/* Alert delivery is best-effort. */});
 			// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
 			throw error;
 		});
