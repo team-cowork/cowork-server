@@ -318,7 +318,7 @@ groups:
       # RSS로 감시한다.
       - alert: coworkChatHighMemory
         expr: |
-          process_resident_memory_bytes{service="cowork-chat"} / (1024 * 1024 * 1024) > 0.85
+          process_resident_memory_bytes{service="chat"} / (1024 * 1024 * 1024) > 0.85
         for: 5m
         labels:
           severity: warning
