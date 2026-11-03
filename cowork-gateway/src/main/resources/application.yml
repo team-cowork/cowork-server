@@ -2,13 +2,13 @@ spring:
   reactor:
     context-propagation: auto
   profiles:
-    active: ${APP_CONFIG_PROFILE:prod}
+    active: ${APP_CONFIG_PROFILE}
   application:
     name: cowork-gateway
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
 management:
   endpoints:
     web:
