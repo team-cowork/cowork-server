@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {Inject as inject, Injectable as injectable, Logger} from '@nestjs/common';
 import type {Redis} from 'ioredis';
+import {forEachSequential} from '../common/sequential.js';
 import {REDIS_CLIENT} from '../constants.js';
 import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../github.cache.js';
 import {IssueHttpService} from '../issue-http/issue-http.service.js';
@@ -52,15 +53,23 @@ export class GithubBackfillService {
 	private readonly queued = new Set<string>();
 	private queue: Promise<void> = Promise.resolve();
 
-	// eslint-disable-next-line max-params -- NestJS 생성자 주입이라 의존성 수만큼 파라미터가 필요하다.
-	constructor(
-		private readonly installationApiClient: InstallationApiClient,
-		private readonly issueHttpService: IssueHttpService,
-		private readonly pullRequestService: PullRequestService,
-		private readonly labelHttpService: LabelHttpService,
-		private readonly producers: GithubReadModelEventProducers,
-		@inject(REDIS_CLIENT) private readonly redis: Redis,
-	) {}
+	@inject(InstallationApiClient)
+	private readonly installationApiClient!: InstallationApiClient;
+
+	@inject(IssueHttpService)
+	private readonly issueHttpService!: IssueHttpService;
+
+	@inject(PullRequestService)
+	private readonly pullRequestService!: PullRequestService;
+
+	@inject(LabelHttpService)
+	private readonly labelHttpService!: LabelHttpService;
+
+	@inject(GithubReadModelEventProducers)
+	private readonly producers!: GithubReadModelEventProducers;
+
+	@inject(REDIS_CLIENT)
+	private readonly redis!: Redis;
 
 	// 레플리카마다 대기열이 따로 있으므로, 같은 대상을 동시에 두 번 돌지 않게 대상 단위로 락을 잡는다.
 	private async runWithLock(key: string, target: GithubSyncTarget): Promise<void> {
@@ -132,8 +141,8 @@ export class GithubBackfillService {
 			await this.issueHttpService.listIssues(owner, repo, 'open'),
 			await this.issueHttpService.listIssues(owner, repo, 'all'),
 		);
-		/* eslint-disable no-await-in-loop -- 이슈마다 댓글 조회가 나가므로 secondary rate limit을 피하려 순차 처리한다. */
-		for (const issue of issues) {
+		// 이슈마다 댓글 조회가 나가므로 secondary rate limit을 피하려 순차 처리한다.
+		await forEachSequential(issues, async issue => {
 			await this.producers.issue.send({
 				owner,
 				repo,
@@ -151,8 +160,7 @@ export class GithubBackfillService {
 			await this.syncComments({
 				owner, repo, parentNumber: issue.number, parentType: 'ISSUE',
 			});
-		}
-		/* eslint-enable no-await-in-loop */
+		});
 	}
 
 	private async syncPullRequests(owner: string, repo: string): Promise<void> {
@@ -160,8 +168,8 @@ export class GithubBackfillService {
 			await this.pullRequestService.listPullRequests(owner, repo, 'open'),
 			await this.pullRequestService.listPullRequests(owner, repo, 'all'),
 		);
-		/* eslint-disable no-await-in-loop -- PR마다 상세/파일/댓글 조회가 나가므로 secondary rate limit을 피하려 순차 처리한다. */
-		for (const summary of summaries) {
+		// PR마다 상세/파일/댓글 조회가 나가므로 secondary rate limit을 피하려 순차 처리한다.
+		await forEachSequential(summaries, async summary => {
 			const detail = await this.pullRequestService.getPullRequestDetail(owner, repo, summary.number);
 			const files = await this.pullRequestService.listPullRequestFiles(owner, repo, summary.number);
 			const fileStates = toPullRequestFileStates(files);
@@ -196,8 +204,7 @@ export class GithubBackfillService {
 			await this.syncComments({
 				owner, repo, parentNumber: summary.number, parentType: 'PULL_REQUEST',
 			});
-		}
-		/* eslint-enable no-await-in-loop */
+		});
 	}
 
 	private async syncComments(parameters: {

@@ -34,15 +34,23 @@ export class GithubWebhookController {
 
 	private readonly logger = new Logger(GithubWebhookController.name);
 
-	// eslint-disable-next-line max-params -- NestJS 생성자 주입이라 의존성 수만큼 파라미터가 필요하다.
-	constructor(
-		private readonly producer: TeamGithubProducer,
-		private readonly repoEventProducer: RepoEventProducer,
-		private readonly readModelProducers: GithubReadModelEventProducers,
-		private readonly pullRequestService: PullRequestService,
-		private readonly authService: GithubAuthService,
-		@inject(REDIS_CLIENT) private readonly redis: Redis,
-	) {}
+	@inject(TeamGithubProducer)
+	private readonly producer!: TeamGithubProducer;
+
+	@inject(RepoEventProducer)
+	private readonly repoEventProducer!: RepoEventProducer;
+
+	@inject(GithubReadModelEventProducers)
+	private readonly readModelProducers!: GithubReadModelEventProducers;
+
+	@inject(PullRequestService)
+	private readonly pullRequestService!: PullRequestService;
+
+	@inject(GithubAuthService)
+	private readonly authService!: GithubAuthService;
+
+	@inject(REDIS_CLIENT)
+	private readonly redis!: Redis;
 
 	// 알림(github.repo.event)은 사용자에게 보여주는 부가 정보라 실패해도 webhook 응답은 유지한다.
 	// read-model state 발행은 반대로 실패 시 그대로 throw해 500을 반환한다 — GitHub가 전송 실패를

@@ -30,14 +30,14 @@ describe('GithubBackfillService', () => {
 			getPullRequestDetail: jest.fn().mockResolvedValue({}),
 			listPullRequestFiles: jest.fn().mockResolvedValue([]),
 		};
-		service = new GithubBackfillService(
-			{listRepositories: jest.fn().mockResolvedValue([])} as unknown as InstallationApiClient,
-			issueHttpService as unknown as IssueHttpService,
-			pullRequestService as unknown as PullRequestService,
-			labelHttpService as unknown as LabelHttpService,
-			producers as unknown as GithubReadModelEventProducers,
-			redis as unknown as Redis,
-		);
+		service = Object.assign(new GithubBackfillService(), {
+			installationApiClient: {listRepositories: jest.fn().mockResolvedValue([])} as unknown as InstallationApiClient,
+			issueHttpService: issueHttpService as unknown as IssueHttpService,
+			pullRequestService: pullRequestService as unknown as PullRequestService,
+			labelHttpService: labelHttpService as unknown as LabelHttpService,
+			producers: producers as unknown as GithubReadModelEventProducers,
+			redis: redis as unknown as Redis,
+		});
 	});
 
 	it('repo 동기화는 토픽마다 데이터를 모두 보낸 뒤 완료 마커를 보낸다', async () => {
