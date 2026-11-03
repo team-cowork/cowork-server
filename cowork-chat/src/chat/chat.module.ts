@@ -1,13 +1,9 @@
-import process from 'node:process';
 import {Module as nestModule} from '@nestjs/common';
-import {ConfigModule, ConfigService} from '@nestjs/config';
 import {MongooseModule} from '@nestjs/mongoose';
-import {DicoshotModule} from 'dicoshot-nest';
 import {DmParticipantModule} from '../dm/dm-participant.module.js';
 import {BlockModule} from '../block/block.module.js';
 import {ObjectStorageModule} from '../storage/object-storage.module.js';
 import {SearchModule} from '../search/search.module.js';
-import {getOptionalConfig} from '../common/config/config.util.js';
 import {RedisRateLimiter} from '../common/util/redis-rate-limiter.js';
 import {SocketIoRedisConnection} from '../common/adapter/redis-io.adapter.js';
 import {ThrottleGuard} from '../common/guard/throttle.guard.js';
@@ -135,8 +131,6 @@ import {
 	MessageSearchAdminService,
 } from './search/index.js';
 
-const IS_PRODUCTION = process.env.NODE_ENV === 'production';
-
 @nestModule({
 	imports: [
 		MongooseModule.forFeature([
@@ -161,17 +155,6 @@ const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 			{name: MessageSearchIndexState.name, schema: messageSearchIndexStateSchema},
 			{name: AttachmentDeletion.name, schema: attachmentDeletionSchema},
 		]),
-		DicoshotModule.registerAsync({
-			imports: [ConfigModule],
-			inject: [ConfigService],
-			useFactory: (...[configService]: unknown[]) => ({
-				webhookUrl: getOptionalConfig(configService as ConfigService, 'DISCORD_CHAT_ERROR_WEBHOOK_URL'),
-				applicationName: 'cowork-chat',
-				locale: 'ko',
-			}),
-			filter: IS_PRODUCTION ? {environment: 'production'} : false,
-			interceptor: IS_PRODUCTION,
-		}),
 		DmParticipantModule,
 		BlockModule,
 		ObjectStorageModule,
