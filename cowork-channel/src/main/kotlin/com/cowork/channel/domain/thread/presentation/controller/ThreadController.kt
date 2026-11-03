@@ -43,6 +43,7 @@ class ThreadController(
     @Operation(summary = "스레드 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(responseCode = "400", description = "지원하지 않는 정렬 기준 (허용: id, createdAt, updatedAt)"),
         ApiResponse(responseCode = "403", description = "팀 멤버가 아님"),
     )
     @GetMapping
