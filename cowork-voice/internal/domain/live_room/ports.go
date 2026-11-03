@@ -47,7 +47,8 @@ type LiveKitParticipant struct {
 type LiveKitRoom interface {
 	CreateRoomIfNotExists(ctx context.Context, roomName string) error
 	// GenerateToken restricts publishing to the currently allowed media sources.
-	GenerateToken(userID int64, roomName string, speak, screenShare bool) (string, error)
+	// Only the host publishes microphone and screen; screenShare also grants camera to any participant.
+	GenerateToken(userID int64, roomName string, speak, screenShare, host bool) (string, error)
 	RemoveParticipant(ctx context.Context, roomName, identity string) error
 	ListParticipants(ctx context.Context, roomName string) ([]LiveKitParticipant, error)
 	// DeleteRoom은 방을 삭제해 전원을 퇴장시킨다(호스트 종료 시 사용). 없는 방이면 무시한다.
