@@ -3,6 +3,7 @@ package com.cowork.channel.global.config
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.env.Environment
+import java.net.URL
 
 @Configuration
 class PropertiesConfig {
@@ -26,8 +27,8 @@ class PropertiesConfig {
     private fun Environment.oAuthProvider(name: String): OAuthProviderConfig = OAuthProviderConfig(
         clientId = getRequiredProperty("account-share.oauth.$name.client-id"),
         clientSecret = getRequiredProperty("account-share.oauth.$name.client-secret"),
-        tokenUrl = getRequiredProperty("account-share.oauth.$name.token-url"),
-        userinfoUrl = getRequiredProperty("account-share.oauth.$name.userinfo-url"),
+        tokenUrl = getRequiredProperty("account-share.oauth.$name.token-url", URL::class.java).toExternalForm(),
+        userinfoUrl = getRequiredProperty("account-share.oauth.$name.userinfo-url", URL::class.java).toExternalForm(),
         scope = getRequiredProperty("account-share.oauth.$name.scope"),
     )
 }
