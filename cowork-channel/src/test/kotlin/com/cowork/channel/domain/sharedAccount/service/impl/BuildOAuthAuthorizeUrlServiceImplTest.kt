@@ -37,6 +37,8 @@ class BuildOAuthAuthorizeUrlServiceImplTest :
             callbackBaseUrl = "https://example.com",
             allowedReturnOrigins = listOf(defaultOrigin, otherOrigin),
             stateSecret = "test-state-secret-key",
+            connectTimeoutMs = 3_000,
+            readTimeoutMs = 5_000,
             github = OAuthProviderConfig(
                 "gh-id",
                 "gh-secret",
