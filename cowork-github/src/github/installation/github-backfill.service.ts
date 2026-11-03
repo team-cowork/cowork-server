@@ -62,33 +62,6 @@ export class GithubBackfillService {
 		@inject(REDIS_CLIENT) private readonly redis: Redis,
 	) {}
 
-	/**
-     대상을 프로세스 안의 직렬 대기열에 넣고, 그 대상의 동기화가 끝나면 resolve되는 Promise를 돌려준다
-     (실패해도 로그만 남기고 reject하지 않는다). 한 번에 하나씩 돌려 GitHub secondary rate limit을 피하고,
-     이미 대기 중인 대상은 다시 넣지 않는다. 처리 전에 프로세스가 내려가면 cowork-project가 다시 요청한다.
-     */
-	async enqueue(target: GithubSyncTarget): Promise<void> {
-		const key = syncTargetKey(target);
-		if (this.queued.has(key)) {
-			return this.queue;
-		}
-
-		this.queued.add(key);
-		this.queue = this.queue.then(async () => {
-			try {
-				await this.runWithLock(key, target);
-			} catch (error) {
-				this.logger.error(
-					`GitHub sync failed [target=${key}]`,
-					error instanceof Error ? error.stack : String(error),
-				);
-			} finally {
-				this.queued.delete(key);
-			}
-		});
-		return this.queue;
-	}
-
 	// 레플리카마다 대기열이 따로 있으므로, 같은 대상을 동시에 두 번 돌지 않게 대상 단위로 락을 잡는다.
 	private async runWithLock(key: string, target: GithubSyncTarget): Promise<void> {
 		const lockKey = githubCacheKeys.syncLock(key);
@@ -249,5 +222,32 @@ export class GithubBackfillService {
 			deleted: false,
 			sourceOccurredAt: comment.updatedAt,
 		})));
+	}
+
+	/**
+     대상을 프로세스 안의 직렬 대기열에 넣고, 그 대상의 동기화가 끝나면 resolve되는 Promise를 돌려준다
+     (실패해도 로그만 남기고 reject하지 않는다). 한 번에 하나씩 돌려 GitHub secondary rate limit을 피하고,
+     이미 대기 중인 대상은 다시 넣지 않는다. 처리 전에 프로세스가 내려가면 cowork-project가 다시 요청한다.
+     */
+	async enqueue(target: GithubSyncTarget): Promise<void> {
+		const key = syncTargetKey(target);
+		if (this.queued.has(key)) {
+			return this.queue;
+		}
+
+		this.queued.add(key);
+		this.queue = this.queue.then(async () => {
+			try {
+				await this.runWithLock(key, target);
+			} catch (error) {
+				this.logger.error(
+					`GitHub sync failed [target=${key}]`,
+					error instanceof Error ? error.stack : String(error),
+				);
+			} finally {
+				this.queued.delete(key);
+			}
+		});
+		return this.queue;
 	}
 }
