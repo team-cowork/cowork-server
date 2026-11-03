@@ -1,3 +1,4 @@
+import {type Nullable} from '../../../common/nullable.js';
 import {toRepoIdentity} from './repo-identity.js';
 
 /**
@@ -8,11 +9,11 @@ import {toRepoIdentity} from './repo-identity.js';
 export type SyncCompletedMarker = {
 	recordType: 'SYNC_COMPLETED';
 	owner: string;
-	repo: string | null;
+	repo: Nullable<string>;
 	completedAt: string;
 };
 
-export const syncCompletedMarker = (owner: string, repo: string | null): SyncCompletedMarker => ({
+export const syncCompletedMarker = (owner: string, repo: Nullable<string>): SyncCompletedMarker => ({
 	recordType: 'SYNC_COMPLETED',
 	owner: toRepoIdentity(owner),
 	repo: repo === null ? null : toRepoIdentity(repo),
