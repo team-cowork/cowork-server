@@ -235,7 +235,6 @@
     "environment": "Prod-CD(chat)",
     "secret_bindings": {
       "DB_PASSWORD": "DB_PASSWORD",
-      "DISCORD_CHAT_ERROR_WEBHOOK_URL": "DISCORD_CHAT_ERROR_WEBHOOK_URL",
       "ELASTICSEARCH_URL": "ELASTICSEARCH_URL",
       "S3_ACCESS_KEY": "S3_ACCESS_KEY",
       "S3_SECRET_KEY": "S3_SECRET_KEY"
@@ -250,9 +249,7 @@
       "S3_ADMIN_SECRET_KEY": "S3_ADMIN_SECRET_KEY",
       "S3_SECRET_KEY": "S3_SECRET_KEY"
     },
-    "optional_secrets": [
-      "DISCORD_CHAT_ERROR_WEBHOOK_URL"
-    ],
+    "optional_secrets": [],
     "immutable_secrets": [
       "DB_ADMIN_PASSWORD",
       "ELASTICSEARCH_ADMIN_PASSWORD"
