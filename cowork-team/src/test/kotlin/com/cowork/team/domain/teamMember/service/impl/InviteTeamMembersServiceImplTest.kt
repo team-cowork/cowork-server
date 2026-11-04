@@ -61,6 +61,28 @@ class InviteTeamMembersServiceImplTest :
                 }
             }
 
+            context("양수가 아닌 사용자 ID가 포함되면") {
+                it("BAD_REQUEST로 거부하고 저장하지 않는다") {
+                    val error = shouldThrow<ExpectedException> {
+                        service.execute(10L, 1L, InviteMembersRequest(listOf(30L, 0L)))
+                    }
+
+                    error.statusCode shouldBe HttpStatus.BAD_REQUEST
+                    verify(exactly = 0) { memberRepository.saveAll<TeamMember>(any()) }
+                }
+            }
+
+            context("사용자 ID가 100개를 넘으면") {
+                it("BAD_REQUEST로 거부하고 저장하지 않는다") {
+                    val error = shouldThrow<ExpectedException> {
+                        service.execute(10L, 1L, InviteMembersRequest((1L..101L).toList()))
+                    }
+
+                    error.statusCode shouldBe HttpStatus.BAD_REQUEST
+                    verify(exactly = 0) { memberRepository.saveAll<TeamMember>(any()) }
+                }
+            }
+
             context("OWNER가 기존 멤버와 중복된 사용자 ID를 함께 초대하면") {
                 it("새 사용자만 한 번씩 MEMBER로 추가한다") {
                     val owner = TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
