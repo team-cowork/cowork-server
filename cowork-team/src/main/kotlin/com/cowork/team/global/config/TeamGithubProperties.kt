@@ -1,12 +1,16 @@
 package com.cowork.team.global.config
 
-import org.springframework.boot.context.properties.ConfigurationProperties
-import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.env.Environment
 
 @Configuration
-@EnableConfigurationProperties(TeamGithubProperties::class)
-class TeamGithubPropertiesConfig
+class TeamGithubPropertiesConfig {
+    @Bean
+    fun teamGithubProperties(environment: Environment): TeamGithubProperties = TeamGithubProperties(
+        stateSecret = environment.getRequiredProperty("team-github.state-secret"),
+        appSlug = environment.getRequiredProperty("team-github.app-slug"),
+    )
+}
 
-@ConfigurationProperties(prefix = "team-github")
-data class TeamGithubProperties(val stateSecret: String = "", val appSlug: String = "")
+data class TeamGithubProperties(val stateSecret: String, val appSlug: String)

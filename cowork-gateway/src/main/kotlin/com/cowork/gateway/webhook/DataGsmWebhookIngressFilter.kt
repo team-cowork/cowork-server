@@ -42,7 +42,6 @@ class DataGsmWebhookIngressFilter(
         if (exchange.getAttribute<Route>(GATEWAY_ROUTE_ATTR)?.id != "authorization-webhook") {
             return chain.filter(exchange)
         }
-        if (!verifier.configured()) return respond(exchange, HttpStatus.SERVICE_UNAVAILABLE, "webhook_not_configured")
         if (exchange.request.headers.contentLength > MAX_BODY_BYTES) {
             return respond(exchange, HttpStatus.CONTENT_TOO_LARGE, "payload_too_large")
         }
@@ -117,7 +116,6 @@ class DataGsmWebhookIngressFilter(
         meterRegistry.counter("gateway.datagsm.ingress", "outcome", value).increment()
         val result = if (error) {
             val message = when (value) {
-                "webhook_not_configured" -> "웹훅을 처리할 수 없습니다."
                 "payload_too_large" -> "요청 본문이 너무 큽니다."
                 "invalid_signature" -> "유효하지 않은 서명입니다."
                 "invalid_payload" -> "유효하지 않은 요청 본문입니다."
