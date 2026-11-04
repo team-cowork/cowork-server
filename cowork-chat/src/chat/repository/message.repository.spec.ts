@@ -93,3 +93,37 @@ describe('MessageRepository unread 집계', () => {
 		]);
 	});
 });
+
+describe('MessageRepository 메시지 위치 조회', () => {
+	type Stage = {$match?: {_id?: unknown}; $sort?: {_id: number}; $limit?: number};
+	const ids = [1, 2, 3, 4, 5].map(n => new Types.ObjectId(n.toString(16).padStart(24, '0')));
+	const aggregate = jest.fn<Promise<Array<{_id: Types.ObjectId}>>, [Stage[]]>();
+	const repository = new MessageRepository({aggregate, collection: {name: 'messages'}} as unknown as Model<Message>);
+	const calledStages = (index: number) => aggregate.mock.calls.map(([pipeline]) => pipeline[index]);
+
+	beforeEach(() => {
+		aggregate.mockReset();
+	});
+
+	it('around는 기준 메시지를 포함해 앞뒤 메시지를 최신순으로 합친다', async () => {
+		aggregate.mockImplementation(async pipeline => (
+			pipeline[1].$sort?._id === 1 ? [{_id: ids[3]}, {_id: ids[4]}] : [{_id: ids[2]}, {_id: ids[1]}]
+		));
+
+		const rows = await repository.findMessagesAround(1, ids[2].toHexString());
+
+		expect(rows.map(row => row._id)).toEqual([ids[4], ids[3], ids[2], ids[1]]);
+		expect(calledStages(0).map(stage => stage.$match?._id)).toEqual([{$gt: ids[2]}, {$lte: ids[2]}]);
+		expect(calledStages(2).map(stage => stage.$limit)).toEqual([50, 50]);
+	});
+
+	it('after는 이후 메시지를 오름차순으로 조회한 뒤 최신순으로 반환한다', async () => {
+		aggregate.mockResolvedValue([{_id: ids[3]}, {_id: ids[4]}]);
+
+		const rows = await repository.findMessages(1, undefined, undefined, ids[2].toHexString());
+
+		expect(rows.map(row => row._id)).toEqual([ids[4], ids[3]]);
+		expect(calledStages(0)[0].$match?._id).toEqual({$gt: ids[2]});
+		expect(calledStages(1)[0]).toEqual({$sort: {_id: 1}});
+	});
+});
