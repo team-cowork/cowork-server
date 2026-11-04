@@ -6,21 +6,21 @@ import {REDIS_CLIENT} from '../constants';
 import {GithubAuthService} from './github-auth.service';
 
 @Module({
-    imports: [HttpModule],
-    providers: [
-        AppConfigService,
-        {
-            provide: REDIS_CLIENT,
-            useFactory: (config: AppConfigService) =>
-                new Redis({
-                    host: config.redisHost,
-                    port: config.redisPort,
-                    lazyConnect: true,
-                }),
-            inject: [AppConfigService],
-        },
-        GithubAuthService,
-    ],
-    exports: [GithubAuthService, REDIS_CLIENT],
+	imports: [HttpModule],
+	providers: [
+		AppConfigService,
+		{
+			provide: REDIS_CLIENT,
+			useFactory: (config: AppConfigService) =>
+				new Redis({
+					host: config.redisHost,
+					port: config.redisPort,
+					lazyConnect: true,
+				}),
+			inject: [AppConfigService],
+		},
+		GithubAuthService,
+	],
+	exports: [GithubAuthService, REDIS_CLIENT],
 })
 export class GithubAuthModule {}
