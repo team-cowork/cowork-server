@@ -2,9 +2,10 @@ import {Test, type TestingModule} from '@nestjs/testing';
 import {HttpService} from '@nestjs/axios';
 import {AxiosError, type AxiosResponse} from 'axios';
 import {of, throwError} from 'rxjs';
-import {GithubAuthService} from '../../auth/github-auth.service';
-import {GithubClientError} from '../../github.errors';
-import {PullRequestApiClient} from './pull-request-api.client';
+import {githubField} from '../../github-field.js';
+import {GithubAuthService} from '../../auth/github-auth.service.js';
+import {GithubClientError} from '../../github.errors.js';
+import {PullRequestApiClient} from './pull-request-api.client.js';
 
 describe('PullRequestApiClient', () => {
 	let client: PullRequestApiClient;
@@ -48,7 +49,7 @@ describe('PullRequestApiClient', () => {
 			'https://api.github.com/repos/my-org/my-repo/pulls/1',
 			expect.objectContaining({
 				headers: expect.objectContaining({
-					Authorization: 'Bearer my-token',
+					[githubField.authorization]: 'Bearer my-token',
 				}) as unknown,
 			}),
 		);
@@ -64,11 +65,11 @@ describe('PullRequestApiClient', () => {
 			'https://api.github.com/repos/my-org/my-repo/pulls',
 			expect.objectContaining({
 				headers: expect.objectContaining({
-					Authorization: 'Bearer my-token',
+					[githubField.authorization]: 'Bearer my-token',
 				}) as unknown,
 				params: {
 					state: 'open',
-					per_page: 100,
+					[githubField.perPage]: 100,
 					sort: 'created',
 					direction: 'desc',
 				},
@@ -97,10 +98,10 @@ describe('PullRequestApiClient', () => {
 
 		expect(httpService.put).toHaveBeenCalledWith(
 			'https://api.github.com/repos/my-org/my-repo/pulls/1/merge',
-			{merge_method: 'squash'},
+			{[githubField.mergeMethod]: 'squash'},
 			expect.objectContaining({
 				headers: expect.objectContaining({
-					Authorization: 'Bearer my-token',
+					[githubField.authorization]: 'Bearer my-token',
 				}) as unknown,
 			}),
 		);
@@ -116,7 +117,7 @@ describe('PullRequestApiClient', () => {
 			{event: 'APPROVE'},
 			expect.objectContaining({
 				headers: expect.objectContaining({
-					Authorization: 'Bearer my-token',
+					[githubField.authorization]: 'Bearer my-token',
 				}) as unknown,
 			}),
 		);

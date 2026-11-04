@@ -1,27 +1,29 @@
 import {HttpService} from '@nestjs/axios';
-import {Injectable} from '@nestjs/common';
+import {Injectable as injectable} from '@nestjs/common';
 import {AxiosError} from 'axios';
 import {firstValueFrom} from 'rxjs';
-import {GithubAuthService} from '../../auth/github-auth.service';
+import {type Nullable} from '../../common/nullable.js';
+import {githubField} from '../../github-field.js';
+import {GithubAuthService} from '../../auth/github-auth.service.js';
 import {
 	GITHUB_API,
 	GITHUB_HEADERS,
 	GITHUB_PR_MERGE_METHOD,
-} from '../../constants';
-import {GithubClientError} from '../../github.errors';
+} from '../../constants.js';
+import {GithubClientError} from '../../github.errors.js';
 
 export type PullRequestRef = {
 	ref: string;
-	repo: {full_name: string} | null;
+	repo: Nullable<{full_name: string}>;
 };
 
 export type PullRequestDetail = {
 	number: number;
 	title: string;
-	body: string | null;
+	body: Nullable<string>;
 	state: string;
 	merged: boolean;
-	mergeable: boolean | null;
+	mergeable: Nullable<boolean>;
 	mergeable_state: string;
 	html_url: string;
 	user: {login: string};
@@ -34,9 +36,9 @@ export type GithubPullRequestListItem = {
 	title: string;
 	state: string;
 	draft: boolean;
-	merged_at: string | null;
+	merged_at: Nullable<string>;
 	html_url: string;
-	user: {login: string} | null;
+	user: Nullable<{login: string}>;
 	labels: Array<{name: string}>;
 	created_at: string;
 	updated_at: string;
@@ -60,12 +62,32 @@ export type CollaboratorPermission = {
 	permission: string;
 };
 
-@Injectable()
+@injectable()
 export class PullRequestApiClient {
 	constructor(
 		private readonly httpService: HttpService,
 		private readonly authService: GithubAuthService,
 	) {}
+
+	private authHeaders(token: string) {
+		return {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${token}`};
+	}
+
+	private handleGithubError(error: unknown): never {
+		if (
+			error instanceof AxiosError
+			&& error.response
+			&& error.response.status < 500
+			&& error.response.status !== 429
+		) {
+			throw new GithubClientError(
+				(error.response.data as {message?: string})?.message ?? error.message,
+				error.response.status,
+			);
+		}
+
+		throw error;
+	}
 
 	async getPullRequest(
 		owner: string,
@@ -101,7 +123,7 @@ export class PullRequestApiClient {
 						headers: this.authHeaders(token),
 						params: {
 							state,
-							per_page: 100,
+							[githubField.perPage]: 100,
 							sort: 'created',
 							direction: 'desc',
 						},
@@ -124,7 +146,7 @@ export class PullRequestApiClient {
 			const {data} = await firstValueFrom(
 				this.httpService.get<PullRequestFile[]>(
 					`${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}/files`,
-					{params: {per_page: 100}, headers: this.authHeaders(token)},
+					{params: {[githubField.perPage]: 100}, headers: this.authHeaders(token)},
 				),
 			);
 			return data;
@@ -143,7 +165,7 @@ export class PullRequestApiClient {
 			const {data} = await firstValueFrom(
 				this.httpService.get<PullRequestReview[]>(
 					`${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}/reviews`,
-					{params: {per_page: 100}, headers: this.authHeaders(token)},
+					{params: {[githubField.perPage]: 100}, headers: this.authHeaders(token)},
 				),
 			);
 			return data;
@@ -181,7 +203,7 @@ export class PullRequestApiClient {
 			await firstValueFrom(
 				this.httpService.put(
 					`${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}/merge`,
-					{merge_method: GITHUB_PR_MERGE_METHOD},
+					{[githubField.mergeMethod]: GITHUB_PR_MERGE_METHOD},
 					{headers: this.authHeaders(token)},
 				),
 			);
@@ -225,25 +247,5 @@ export class PullRequestApiClient {
 		} catch (error) {
 			this.handleGithubError(error);
 		}
-	}
-
-	private authHeaders(token: string) {
-		return {...GITHUB_HEADERS, Authorization: `Bearer ${token}`};
-	}
-
-	private handleGithubError(error: unknown): never {
-		if (
-			error instanceof AxiosError
-			&& error.response
-			&& error.response.status < 500
-			&& error.response.status !== 429
-		) {
-			throw new GithubClientError(
-				(error.response.data as {message?: string})?.message ?? error.message,
-				error.response.status,
-			);
-		}
-
-		throw error;
 	}
 }

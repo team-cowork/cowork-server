@@ -1,9 +1,9 @@
 import {Test, type TestingModule} from '@nestjs/testing';
 import {HttpException} from '@nestjs/common';
-import {InternalApiKeyGuard} from '../common/guards/internal-api-key.guard';
-import {GithubClientError} from '../github.errors';
-import {PullRequestHttpController} from './pull-request-http.controller';
-import {PullRequestService} from './pull-request.service';
+import {InternalApiKeyGuard} from '../common/guards/internal-api-key.guard.js';
+import {GithubClientError} from '../github.errors.js';
+import {PullRequestHttpController} from './pull-request-http.controller.js';
+import {PullRequestService} from './pull-request.service.js';
 
 describe('PullRequestHttpController', () => {
 	let controller: PullRequestHttpController;

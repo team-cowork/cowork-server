@@ -1,10 +1,11 @@
 import {HttpService} from '@nestjs/axios';
-import {Injectable} from '@nestjs/common';
+import {Injectable as injectable} from '@nestjs/common';
 import {AxiosError} from 'axios';
 import {firstValueFrom} from 'rxjs';
-import {GithubAuthService} from '../../auth/github-auth.service';
-import {GITHUB_API, GITHUB_HEADERS} from '../../constants';
-import {GithubClientError} from '../../github.errors';
+import {githubField} from '../../github-field.js';
+import {GithubAuthService} from '../../auth/github-auth.service.js';
+import {GITHUB_API, GITHUB_HEADERS} from '../../constants.js';
+import {GithubClientError} from '../../github.errors.js';
 
 export type GithubRepoSummary = {
 	name: string;
@@ -25,38 +26,15 @@ type ListInstallationRepositoriesResponse = {
 	repositories: GithubRepo[];
 };
 
-@Injectable()
+@injectable()
 export class InstallationApiClient {
 	constructor(
 		private readonly httpService: HttpService,
 		private readonly authService: GithubAuthService,
 	) {}
 
-	async listRepositories(owner: string): Promise<GithubRepoSummary[]> {
-		const token = await this.authService.getInstallationToken(owner);
-		try {
-			const {data} = await firstValueFrom(
-				this.httpService.get<ListInstallationRepositoriesResponse>(
-					`${GITHUB_API}/installation/repositories`,
-					{
-						params: {per_page: 100},
-						headers: this.authHeaders(token),
-					},
-				),
-			);
-			return data.repositories.map(repo => ({
-				name: repo.name,
-				fullName: repo.full_name,
-				private: repo.private,
-				htmlUrl: repo.html_url,
-			}));
-		} catch (error) {
-			this.handleGithubError(error);
-		}
-	}
-
 	private authHeaders(token: string) {
-		return {...GITHUB_HEADERS, Authorization: `Bearer ${token}`};
+		return {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${token}`};
 	}
 
 	private handleGithubError(error: unknown): never {
@@ -73,5 +51,28 @@ export class InstallationApiClient {
 		}
 
 		throw error;
+	}
+
+	async listRepositories(owner: string): Promise<GithubRepoSummary[]> {
+		const token = await this.authService.getInstallationToken(owner);
+		try {
+			const {data} = await firstValueFrom(
+				this.httpService.get<ListInstallationRepositoriesResponse>(
+					`${GITHUB_API}/installation/repositories`,
+					{
+						params: {[githubField.perPage]: 100},
+						headers: this.authHeaders(token),
+					},
+				),
+			);
+			return data.repositories.map(repo => ({
+				name: repo.name,
+				fullName: repo.full_name,
+				private: repo.private,
+				htmlUrl: repo.html_url,
+			}));
+		} catch (error) {
+			this.handleGithubError(error);
+		}
 	}
 }

@@ -10,7 +10,7 @@ RUN npm run build
 
 FROM builder AS verification
 RUN apk --no-cache add bash python3
-COPY cowork-github/eslint.config.mjs cowork-github/xo.config.mjs ./
+COPY cowork-github/eslint.config.mjs cowork-github/xo.config.mjs cowork-github/jest.config.js ./
 COPY deploy/ci/verification /ci
 RUN --mount=type=cache,id=npm-github-builder,target=/root/.npm \
     npm run lint -- --max-warnings=0 \

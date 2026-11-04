@@ -1,37 +1,26 @@
-import {Controller, Logger} from '@nestjs/common';
+import {Controller as controller, Logger} from '@nestjs/common';
 import {
-	Ctx,
-	EventPattern,
+	Ctx as messageContext,
+	EventPattern as eventPattern,
 	KafkaContext,
-	Payload,
+	Payload as messagePayload,
 } from '@nestjs/microservices';
 import {plainToInstance} from 'class-transformer';
 import {validate} from 'class-validator';
-import {CreateIssueDto} from './dto/create-issue.dto';
-import {IssueService} from './issue/issue.service';
-import {GithubClientError} from './github.errors';
-import {IssueResultProducer} from './kafka/issue-result.producer';
+import {isPresent} from './common/nullable.js';
+import {CreateIssueDto} from './dto/create-issue.dto.js';
+import {IssueService} from './issue/issue.service.js';
+import {GithubClientError} from './github.errors.js';
+import {IssueResultProducer} from './kafka/issue-result.producer.js';
 
-@Controller()
+@controller()
 export class GithubController {
 	private readonly logger = new Logger(GithubController.name);
-	private readonly exitProcess = (code: number): never => process.exit(code);
 
 	constructor(
 		private readonly issueService: IssueService,
 		private readonly issueResultProducer: IssueResultProducer,
 	) {}
-
-	@EventPattern('github.issue.create')
-	async handleIssueCreate(
-		@Payload() data: unknown,
-		@Ctx() context: KafkaContext,
-	): Promise<void> {
-		const shouldCommit = await this.processMessage(data);
-		if (shouldCommit) {
-			await this.commitOffset(context);
-		}
-	}
 
 	private async processMessage(data: unknown): Promise<boolean> {
 		if (data === null || typeof data !== 'object') {
@@ -46,7 +35,7 @@ export class GithubController {
 			this.logger.error('Invalid payload, skipping message', {
 				errors: errors.map(error => error.toString()),
 			});
-			if (dto.channelId != null && dto.teamId != null) {
+			if (isPresent(dto.channelId) && isPresent(dto.teamId)) {
 				await this.issueResultProducer.send({
 					channelId: dto.channelId,
 					teamId: dto.teamId,
@@ -60,7 +49,7 @@ export class GithubController {
 
 		try {
 			const result = await this.issueService.createIssue(dto);
-			if (dto.channelId != null && dto.teamId != null) {
+			if (isPresent(dto.channelId) && isPresent(dto.teamId)) {
 				await this.issueResultProducer.send({
 					channelId: dto.channelId,
 					teamId: dto.teamId,
@@ -80,7 +69,7 @@ export class GithubController {
 					statusCode: error.statusCode,
 					message: error.message,
 				});
-				if (dto.channelId != null && dto.teamId != null) {
+				if (isPresent(dto.channelId) && isPresent(dto.teamId)) {
 					await this.issueResultProducer.send({
 						channelId: dto.channelId,
 						teamId: dto.teamId,
@@ -92,14 +81,13 @@ export class GithubController {
 				return true;
 			}
 
-			this.logger.error('GitHub server error, consumer will stop for retry', {
+			this.logger.error('GitHub server error, message will be redelivered', {
 				owner: dto.owner,
 				repo: dto.repo,
 				title: dto.title,
 				message: (error as Error).message,
 			});
 
-			this.exitProcess(1);
 			throw error;
 		}
 	}
@@ -113,5 +101,16 @@ export class GithubController {
 				offset: (Number(message.offset) + 1).toString(),
 			},
 		]);
+	}
+
+	@eventPattern('github.issue.create')
+	async handleIssueCreate(
+		@messagePayload() data: unknown,
+		@messageContext() context: KafkaContext,
+	): Promise<void> {
+		const shouldCommit = await this.processMessage(data);
+		if (shouldCommit) {
+			await this.commitOffset(context);
+		}
 	}
 }
