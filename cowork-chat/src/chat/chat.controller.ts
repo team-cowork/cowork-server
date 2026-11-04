@@ -274,13 +274,15 @@ export class ChatController {
 	@httpGet('messages')
 	@apiOperation({summary: '채널 메시지 목록 조회 (커서 기반 페이지네이션)'})
 	@apiResponse({status: 200, type: [MessageResponseDto]})
+	@apiResponse({status: 400, description: 'before, after, around 중 2개 이상 지정'})
 	@apiResponse({status: 403, description: '채널 멤버 아님'})
+	@apiResponse({status: 404, description: 'around 메시지가 채널에 없음'})
 	async getMessages(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestQuery() query: GetMessagesDto,
 		@currentUserId() userId: number,
 	) {
-		return this.chatService.getMessages({channelId, userId}, query.before, query.parentMessageId);
+		return this.chatService.getMessages({channelId, userId}, query);
 	}
 
 	/**
