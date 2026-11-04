@@ -310,6 +310,24 @@ groups:
           summary: "Node.js 힙 메모리 사용률 높음"
           description: "Node.js 서비스 {{ $labels.service }}의 힙 메모리 사용률이 5분 동안 85%를 초과했습니다."
 
+  - name: cowork-chat
+    rules:
+      # bun(JavaScriptCore) 런타임은 V8 힙 한도 개념이 없어 cowork-nodejs 그룹의 힙 비율 알림이
+      # chat에는 적용되지 않는다(분모 metric을 더는 내보내지 않는다). 대신 Nomad 에이전트 자체 텔레메트리가
+      # 내보내는 할당별 cgroup 지표로 감시한다. nomad_client_allocs_memory_max_allocated는 Nomad job의
+      # memory_max(deploy/nomad/apps/communication/chat.nomad.hcl)를 그대로 반영해 하드코딩이 필요 없고,
+      # 앱 프로세스가 멎어도(cowork-services 스크레이프 실패) Nomad 쪽에서 계속 들어온다.
+      - alert: coworkChatHighMemory
+        expr: |
+          nomad_client_allocs_memory_rss{exported_job="cowork-chat",task="app"}
+            / nomad_client_allocs_memory_max_allocated{exported_job="cowork-chat",task="app"} > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "chat 메모리 사용률 높음"
+          description: "chat의 RSS 메모리 사용률이 5분 동안 Nomad 메모리 상한의 85%를 초과했습니다."
+
   - name: cowork-chat-socketio
     rules:
       # 준비 상태가 실패해도 Consul 등록과 메트릭 수집은 유지된다.
