@@ -110,12 +110,22 @@ export async function build(options = {}) {
 			route: '/terms/',
 		},
 	});
+	const licenseHtml = renderLegalPage({
+		...legalPageOptions,
+		template: input.licenseTemplate,
+		metadata: {
+			title: '라이선스 | cowork',
+			description: 'cowork-server의 MIT 라이선스 원문과 저작권 고지를 안내합니다.',
+			route: '/license/',
+		},
+	});
 	const outputFiles = new Map([
 		...assets.files,
 		['index.html', homeHtml],
 		['achievements/index.html', achievementsHtml],
 		['privacy/index.html', privacyHtml],
 		['terms/index.html', termsHtml],
+		['license/index.html', licenseHtml],
 	]);
 
 	await replaceOutputDirectory(config.outputDirectory, outputFiles);

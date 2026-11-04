@@ -1,8 +1,9 @@
-import process from 'node:process';
 import {waitUntil} from '@vercel/functions';
 import {renderAchievementRegions} from '../scripts/lib/achievement-render.mjs';
 import {collectAchievements} from '../scripts/lib/github-achievements.mjs';
 import {resolveGitHubToken} from '../scripts/lib/github-auth.mjs';
+
+const token = resolveGitHubToken();
 
 let cached;
 let pending;
@@ -10,7 +11,6 @@ let nextRefreshAt = 0;
 
 async function refresh() {
 	try {
-		const token = await resolveGitHubToken({allowCli: !process.env.VERCEL, timeout: 3000});
 		const snapshot = await collectAchievements({token});
 		cached = {regions: renderAchievementRegions(snapshot), expiresAt: Date.now() + 3_600_000};
 		nextRefreshAt = cached.expiresAt;
