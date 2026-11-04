@@ -3,9 +3,9 @@ minSeverity: minor
 maxInlineComments: 25
 
 exclude:
-  - 'gradlew'
-  - 'gradlew.bat'
-  - 'gradle/wrapper/**'
+  - '**/gradlew'
+  - '**/gradlew.bat'
+  - '**/gradle/wrapper/**'
   - 'cowork-project/mvnw'
   - 'cowork-project/mvnw.cmd'
   - 'cowork-project/.mvn/**'
