@@ -4,6 +4,7 @@ import com.cowork.channel.domain.sharedAccount.entity.AccountProvider
 import com.cowork.channel.domain.sharedAccount.entity.SharedAccount
 import com.cowork.channel.domain.sharedAccount.service.HandleOAuthCallbackService
 import com.cowork.channel.global.config.OAuthProperties
+import com.cowork.channel.global.config.OAuthProviderConfig
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -16,12 +17,27 @@ import tools.jackson.module.kotlin.jacksonObjectMapper
 
 class OAuthCallbackRedirectSupportTest :
     DescribeSpec({
+        val providerConfig = OAuthProviderConfig(
+            "test-client-id",
+            "test-client-secret",
+            "https://provider.example.com/token",
+            "https://provider.example.com/user",
+            scope = "",
+        )
         val defaultOrigin = "https://web.example.com"
         val returnOrigin = "https://admin.example.com"
         val stateSupport = OAuthStateSupport(
             OAuthProperties(
+                callbackBaseUrl = "https://api.example.com",
                 allowedReturnOrigins = listOf(defaultOrigin, returnOrigin),
                 stateSecret = "test-state-secret",
+                connectTimeoutMs = 3_000,
+                readTimeoutMs = 5_000,
+                github = providerConfig,
+                notion = providerConfig,
+                jira = providerConfig,
+                google = providerConfig,
+                facebook = providerConfig,
             ),
             jacksonObjectMapper(),
         )

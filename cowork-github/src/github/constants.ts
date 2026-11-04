@@ -1,9 +1,11 @@
+import {githubField} from './github-field.js';
+
 export const REDIS_CLIENT = 'REDIS_CLIENT';
 
 export const GITHUB_API = 'https://api.github.com';
 export const GITHUB_HEADERS = {
-    Accept: 'application/vnd.github+json',
-    'X-GitHub-Api-Version': '2022-11-28',
+	[githubField.accept]: 'application/vnd.github+json',
+	'X-GitHub-Api-Version': '2022-11-28',
 } as const;
 
 // Installation access tokens expire after one hour; refresh them five minutes early.
@@ -13,7 +15,7 @@ export const DEFAULT_GITHUB_ISSUE_MAX_RETRIES = 3;
 
 export const GITHUB_PR_MERGE_METHOD = 'squash' as const;
 export const GITHUB_PR_WRITE_PERMISSIONS = [
-    'write',
-    'maintain',
-    'admin',
+	'write',
+	'maintain',
+	'admin',
 ] as const;
