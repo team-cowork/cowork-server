@@ -37,6 +37,7 @@ const makeMockMessage = (overrides = {}) => ({
 
 const mockMessageRepository = {
 	findMessages: jest.fn(),
+	findMessagesAround: jest.fn(),
 	findFileAttachments: jest.fn(),
 	findById: jest.fn(),
 	findByIdAndChannelId: jest.fn(),
@@ -605,6 +606,40 @@ describe('ChatService', () => {
 			mockChannelMessageReadAccess.requireCanRead.mockRejectedValueOnce(new ForbiddenException());
 
 			await expect(service.getMessages({channelId: 1, userId: 99})).rejects.toThrow(ForbiddenException);
+		});
+
+		it('커서를 2개 이상 지정하면 BadRequestException을 던진다', async () => {
+			const id = new Types.ObjectId().toHexString();
+
+			await expect(service.getMessages({channelId: 1, userId: 42}, {before: id, around: id})).rejects.toThrow(BadRequestException);
+			expect(mockMessageRepository.findMessages).not.toHaveBeenCalled();
+			expect(mockMessageRepository.findMessagesAround).not.toHaveBeenCalled();
+		});
+
+		it('around 메시지가 채널에 없으면 NotFoundException을 던진다', async () => {
+			const around = new Types.ObjectId().toHexString();
+			mockMessageRepository.findByIdAndChannelId.mockResolvedValue(null);
+
+			await expect(service.getMessages({channelId: 1, userId: 42}, {around})).rejects.toThrow(NotFoundException);
+			expect(mockMessageRepository.findByIdAndChannelId).toHaveBeenCalledWith(around, 1);
+			expect(mockMessageRepository.findMessagesAround).not.toHaveBeenCalled();
+		});
+
+		it('around 메시지가 채널에 있으면 앞뒤 메시지를 조회한다', async () => {
+			const around = new Types.ObjectId().toHexString();
+			mockMessageRepository.findByIdAndChannelId.mockResolvedValue(makeMockMessage());
+			mockMessageRepository.findMessagesAround.mockResolvedValue([]);
+
+			await expect(service.getMessages({channelId: 1, userId: 42}, {around})).resolves.toEqual([]);
+			expect(mockMessageRepository.findMessagesAround).toHaveBeenCalledWith(1, around, undefined);
+		});
+
+		it('after 커서를 저장소로 전달한다', async () => {
+			const after = new Types.ObjectId().toHexString();
+			mockMessageRepository.findMessages.mockResolvedValue([]);
+
+			await service.getMessages({channelId: 1, userId: 42}, {after});
+			expect(mockMessageRepository.findMessages).toHaveBeenCalledWith(1, undefined, undefined, after);
 		});
 	});
 
