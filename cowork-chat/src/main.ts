@@ -70,10 +70,26 @@ async function bootstrap() {
 	debugStartup('Nest application created');
 	app.useLogger(app.get(PinoLogger));
 	// 힙 알림은 V8 최대치와 비교한다. nodejs_heap_size_total_bytes는 현재 확보된 힙일 뿐이다.
-	new Gauge({
-		name: 'cowork_nodejs_heap_size_limit_bytes',
-		help: 'V8 heap size limit in bytes.',
-	}).set(getHeapStatistics().heap_size_limit);
+	// bun(JavaScriptCore)에서는 이 값이 고정 한도가 아니라 힙이 커지면 같이 늘어나므로, 알림 분모로
+	// 쓰면 오탐·미탐이 생긴다. bun에서는 coworkChatHighMemory(RSS 기준) 알림이 대신한다.
+	if (process.versions.bun === undefined) {
+		new Gauge({
+			name: 'cowork_nodejs_heap_size_limit_bytes',
+			help: 'V8 heap size limit in bytes.',
+		}).set(getHeapStatistics().heap_size_limit);
+	} else {
+		// Nodejs_heap_size_total_bytes는 bun에서 의미 없는 값을 반환한다. bun:jsc의 heapStats()가
+		// 돌려주는 JavaScriptCore 힙 크기를 대신 내보낸다.
+		const {heapStats} = await import('bun:jsc');
+		const bunHeapSizeGauge = new Gauge({
+			name: 'cowork_bun_heap_size_bytes',
+			help: 'JavaScriptCore heap size in bytes.',
+			collect() {
+				this.set(heapStats().heapSize);
+			},
+		});
+	}
+
 	// Consul metrics metadata, AuthGuard, projection 미들웨어가 접두사 없는 /metrics를 사용한다.
 	app.setGlobalPrefix('chat', {exclude: ['health', 'health/ready', 'metrics']});
 	app.useGlobalPipes(new ValidationPipe({whitelist: true, transform: true}));

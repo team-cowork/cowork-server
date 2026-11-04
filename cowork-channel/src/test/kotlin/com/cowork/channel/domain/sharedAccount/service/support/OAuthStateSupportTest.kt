@@ -2,6 +2,7 @@ package com.cowork.channel.domain.sharedAccount.service.support
 
 import com.cowork.channel.domain.sharedAccount.entity.AccountProvider
 import com.cowork.channel.global.config.OAuthProperties
+import com.cowork.channel.global.config.OAuthProviderConfig
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -15,11 +16,26 @@ import javax.crypto.spec.SecretKeySpec
 
 class OAuthStateSupportTest :
     DescribeSpec({
+        val providerConfig = OAuthProviderConfig(
+            "test-client-id",
+            "test-client-secret",
+            "https://provider.example.com/token",
+            "https://provider.example.com/user",
+            scope = "",
+        )
         val defaultOrigin = "https://web.example.com"
         val otherOrigin = "https://admin.example.com"
         val properties = OAuthProperties(
+            callbackBaseUrl = "https://api.example.com",
             allowedReturnOrigins = listOf(defaultOrigin, otherOrigin),
             stateSecret = "test-state-secret",
+            connectTimeoutMs = 3_000,
+            readTimeoutMs = 5_000,
+            github = providerConfig,
+            notion = providerConfig,
+            jira = providerConfig,
+            google = providerConfig,
+            facebook = providerConfig,
         )
         val support = OAuthStateSupport(properties, jacksonObjectMapper())
 
@@ -150,10 +166,15 @@ class OAuthStateSupportTest :
         }
 
         describe("providerConfigOf 메서드는") {
-            it("설정하지 않은 선택형 provider에 SERVICE_UNAVAILABLE을 반환한다") {
+            it("요청한 provider의 설정을 반환한다") {
+                support.providerConfigOf(AccountProvider.GITHUB) shouldBe providerConfig
+                support.providerConfigOf(AccountProvider.NOTION) shouldBe providerConfig
+            }
+
+            it("OAuth를 지원하지 않는 provider를 거절한다") {
                 shouldThrow<ExpectedException> {
-                    support.providerConfigOf(AccountProvider.GITHUB)
-                }.statusCode shouldBe HttpStatus.SERVICE_UNAVAILABLE
+                    support.providerConfigOf(AccountProvider.CUSTOM)
+                }.statusCode shouldBe HttpStatus.BAD_REQUEST
             }
         }
     })

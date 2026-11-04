@@ -1,46 +1,46 @@
 import {
-    IsEnum,
-    IsIn,
-    IsISO8601,
-    IsNotEmpty,
-    IsNumber,
-    IsObject,
-    IsString,
-    IsUUID,
+	IsEnum as isEnum,
+	IsIn as isIn,
+	IsISO8601 as isIso8601,
+	IsNotEmpty as isNotEmpty,
+	IsNumber as isNumber,
+	IsObject as isObject,
+	IsString as isString,
+	IsUUID as isUuid,
 } from 'class-validator';
-import {IssueWriteCommandType} from '../issue-write-command-type';
+import {IssueWriteCommandType} from '../issue-write-command-type.js';
 
 // Cowork-project(Kotlin)가 github.issue-write.command.v1 토픽으로 발행하는 커맨드 봉투.
 // payload의 상세 스키마는 commandType별로 다르므로 여기서는 object임만 검증하고,
 // 커맨드별 세부 검증은 IssueWriteCommandController가 별도 payload DTO로 수행한다.
 export class IssueWriteCommandEnvelopeDto {
-    @IsIn([1])
-    schemaVersion: number;
+	@isIn([1])
+	schemaVersion: number;
 
-    @IsUUID()
-    operationId: string;
+	@isUuid()
+	operationId: string;
 
-    @IsString()
-    @IsNotEmpty()
-    idempotencyKey: string;
+	@isString()
+	@isNotEmpty()
+	idempotencyKey: string;
 
-    @IsEnum(IssueWriteCommandType)
-    commandType: IssueWriteCommandType;
+	@isEnum(IssueWriteCommandType)
+	commandType: IssueWriteCommandType;
 
-    @IsString()
-    @IsNotEmpty()
-    owner: string;
+	@isString()
+	@isNotEmpty()
+	owner: string;
 
-    @IsString()
-    @IsNotEmpty()
-    repo: string;
+	@isString()
+	@isNotEmpty()
+	repo: string;
 
-    @IsNumber()
-    requestedBy: number;
+	@isNumber()
+	requestedBy: number;
 
-    @IsISO8601()
-    occurredAt: string;
+	@isIso8601()
+	occurredAt: string;
 
-    @IsObject()
-    payload: Record<string, unknown>;
+	@isObject()
+	payload: Record<string, unknown>;
 }

@@ -4,14 +4,14 @@ export const PULL_REQUEST_FILES_TTL_SECONDS = 7 * 24 * 60 * 60;
 export const CREATE_COMMENT_HISTORY_TTL_SECONDS = 14 * 24 * 60 * 60;
 
 export const githubCacheKeys = {
-    // GitHub login은 대소문자를 구분하지 않아, 설치 이벤트와 API 호출의 owner 표기가 달라도 같은 키를 쓴다.
-    installation: (owner: string): string => `github:installation:${owner.toLowerCase()}`,
-    token: (installationId: number): string => `github:token:${installationId}`,
-    installationRevision: (installationId: number): string =>
-        `github:installation:revision:${installationId}`,
-    syncLock: (target: string): string => `github:sync:lock:${target}`,
-    // 백필은 소문자로 정규화된 owner/repo로, webhook은 GitHub 원래 대소문자로 같은 키를 쓴다.
-    pullRequestFiles: (owner: string, repo: string, number: number): string =>
-        `github:pr-files:${owner.toLowerCase()}/${repo.toLowerCase()}#${number}`,
-    createCommentHistory: (operationId: string): string => `github:issue-write:create-comment:${operationId}`,
+	// GitHub login은 대소문자를 구분하지 않아, 설치 이벤트와 API 호출의 owner 표기가 달라도 같은 키를 쓴다.
+	installation: (owner: string): string => `github:installation:${owner.toLowerCase()}`,
+	token: (installationId: number): string => `github:token:${installationId}`,
+	installationRevision: (installationId: number): string =>
+		`github:installation:revision:${installationId}`,
+	syncLock: (target: string): string => `github:sync:lock:${target}`,
+	// 백필은 소문자로 정규화된 owner/repo로, webhook은 GitHub 원래 대소문자로 같은 키를 쓴다.
+	pullRequestFiles: (owner: string, repo: string, number: number): string =>
+		`github:pr-files:${owner.toLowerCase()}/${repo.toLowerCase()}#${number}`,
+	createCommentHistory: (operationId: string): string => `github:issue-write:create-comment:${operationId}`,
 };

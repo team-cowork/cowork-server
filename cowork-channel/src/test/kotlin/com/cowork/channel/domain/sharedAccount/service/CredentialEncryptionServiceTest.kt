@@ -2,7 +2,6 @@ package com.cowork.channel.domain.sharedAccount.service
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotEquals
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -41,16 +40,27 @@ class CredentialEncryptionServiceTest {
 
         @Test
         fun `mask는 4자 이하 문자열을 전체 마스킹함`() {
+            assertEquals("••••", service.mask(""))
+            assertEquals("••••", service.mask("a"))
             assertEquals("••••", service.mask("abc"))
             assertEquals("••••", service.mask("1234"))
         }
 
         @Test
-        fun `mask는 5자 이상이면 ••••로 시작하고 마지막 자리를 노출함`() {
-            val result = service.mask("password123")
-            assertTrue(result.startsWith("••••"))
-            assertTrue(result.length > 4)
-            assertTrue("password123".endsWith(result.removePrefix("••••")))
+        fun `mask는 5자 비밀번호의 마지막 2자만 노출함`() {
+            assertEquals("••••45", service.mask("12345"))
+        }
+
+        @Test
+        fun `mask는 6자와 7자 비밀번호의 마지막 3자만 노출함`() {
+            assertEquals("••••456", service.mask("123456"))
+            assertEquals("••••567", service.mask("1234567"))
+        }
+
+        @Test
+        fun `mask는 8자 이상 비밀번호의 마지막 4자만 노출함`() {
+            assertEquals("••••5678", service.mask("12345678"))
+            assertEquals("••••d123", service.mask("password123"))
         }
     }
 }

@@ -1,121 +1,122 @@
+import {Buffer} from 'node:buffer';
 import {readFileSync} from 'node:fs';
-import {Injectable} from '@nestjs/common';
+import {Injectable as injectable} from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
 import {type KafkaConfig, type SASLOptions} from 'kafkajs';
 import {
-    DEFAULT_GITHUB_INSTALLATION_CACHE_TTL_SECONDS,
-    DEFAULT_GITHUB_ISSUE_MAX_RETRIES,
-    DEFAULT_GITHUB_TOKEN_CACHE_TTL_SECONDS,
-} from '../github/constants';
+	DEFAULT_GITHUB_INSTALLATION_CACHE_TTL_SECONDS,
+	DEFAULT_GITHUB_ISSUE_MAX_RETRIES,
+	DEFAULT_GITHUB_TOKEN_CACHE_TTL_SECONDS,
+} from '../github/constants.js';
 
-@Injectable()
+@injectable()
 export class AppConfigService {
-    constructor(private readonly configService: ConfigService) {}
+	constructor(private readonly configService: ConfigService) {}
 
-    get port(): number {
-        return this.configService.getOrThrow<number>('PORT');
-    }
+	private getNumber(key: string, fallback: number): number {
+		return Number(this.configService.get(key) ?? fallback);
+	}
 
-    get kafkaBrokers(): string[] {
-        return this.configService
-            .getOrThrow<string>('KAFKA_BOOTSTRAP_SERVERS')
-            .split(',')
-            .map(broker => broker.trim())
-            .filter(Boolean);
-    }
+	get port(): number {
+		return this.configService.getOrThrow<number>('PORT');
+	}
 
-    get kafkaGroupId(): string {
-        return this.configService.getOrThrow<string>('KAFKA_GROUP_ID');
-    }
+	get kafkaBrokers(): string[] {
+		return this.configService
+			.getOrThrow<string>('KAFKA_BOOTSTRAP_SERVERS')
+			.split(',')
+			.map(broker => broker.trim())
+			.filter(Boolean);
+	}
 
-    get kafkaClientConfig(): KafkaConfig {
-        const protocol = (this.configService.get<string>('KAFKA_SECURITY_PROTOCOL') ?? 'PLAINTEXT').toUpperCase();
-        if (!['PLAINTEXT', 'SSL', 'SASL_SSL'].includes(protocol)) {
-            throw new Error('KAFKA_SECURITY_PROTOCOL must be PLAINTEXT, SSL or SASL_SSL');
-        }
+	get kafkaGroupId(): string {
+		return this.configService.getOrThrow<string>('KAFKA_GROUP_ID');
+	}
 
-        const config: KafkaConfig = {brokers: this.kafkaBrokers};
-        if (config.brokers.length === 0) {
-            throw new Error('KAFKA_BOOTSTRAP_SERVERS must contain at least one broker');
-        }
+	get kafkaClientConfig(): KafkaConfig {
+		const protocol = this.configService.getOrThrow<string>('KAFKA_SECURITY_PROTOCOL').toUpperCase();
+		if (!['PLAINTEXT', 'SSL', 'SASL_SSL'].includes(protocol)) {
+			throw new Error('KAFKA_SECURITY_PROTOCOL must be PLAINTEXT, SSL or SASL_SSL');
+		}
 
-        if (protocol !== 'PLAINTEXT') {
-            const caFile = this.configService.get<string>('KAFKA_SSL_CA_LOCATION');
-            config.ssl = caFile === undefined || caFile === ''
-                ? true
-                : {
-                    rejectUnauthorized: true,
-                    ca: [readFileSync(caFile, 'utf8')],
-                };
-        }
+		const config: KafkaConfig = {brokers: this.kafkaBrokers};
+		if (config.brokers.length === 0) {
+			throw new Error('KAFKA_BOOTSTRAP_SERVERS must contain at least one broker');
+		}
 
-        if (protocol === 'SASL_SSL') {
-            const mechanism = (this.configService.get<string>('KAFKA_SASL_MECHANISM') ?? 'SCRAM-SHA-512').toLowerCase();
-            if (mechanism !== 'scram-sha-256' && mechanism !== 'scram-sha-512') {
-                throw new Error('KAFKA_SASL_MECHANISM must be SCRAM-SHA-256 or SCRAM-SHA-512');
-            }
+		if (protocol !== 'PLAINTEXT') {
+			const caFile = this.configService.get<string>('KAFKA_SSL_CA_LOCATION');
+			config.ssl = caFile === undefined || caFile === ''
+				? true
+				: {
+					rejectUnauthorized: true,
+					ca: [readFileSync(caFile, 'utf8')],
+				};
+		}
 
-            const username = this.configService.getOrThrow<string>('KAFKA_SASL_USERNAME');
-            const password = this.configService.getOrThrow<string>('KAFKA_SASL_PASSWORD');
-            if (username === '' || password === '') {
-                throw new Error('KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD must not be empty');
-            }
+		if (protocol === 'SASL_SSL') {
+			const mechanism = this.configService.getOrThrow<string>('KAFKA_SASL_MECHANISM').toLowerCase();
+			if (mechanism !== 'scram-sha-256' && mechanism !== 'scram-sha-512') {
+				throw new Error('KAFKA_SASL_MECHANISM must be SCRAM-SHA-256 or SCRAM-SHA-512');
+			}
 
-            const sasl = {mechanism, username, password};
-            config.sasl = sasl as SASLOptions;
-        }
+			const username = this.configService.getOrThrow<string>('KAFKA_SASL_USERNAME');
+			const password = this.configService.getOrThrow<string>('KAFKA_SASL_PASSWORD');
+			if (username === '' || password === '') {
+				throw new Error('KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD must not be empty');
+			}
 
-        return config;
-    }
+			const sasl = {mechanism, username, password};
+			config.sasl = sasl as SASLOptions;
+		}
 
-    get githubAppId(): string {
-        return this.configService.getOrThrow<string>('GITHUB_APP_ID');
-    }
+		return config;
+	}
 
-    get githubPrivateKey(): string {
-        const base64Key =
-            this.configService.getOrThrow<string>('GITHUB_PRIVATE_KEY');
-        return Buffer.from(base64Key, 'base64').toString('utf8');
-    }
+	get githubAppId(): string {
+		return this.configService.getOrThrow<string>('GITHUB_APP_ID');
+	}
 
-    get redisHost(): string {
-        return this.configService.getOrThrow<string>('REDIS_HOST');
-    }
+	get githubPrivateKey(): string {
+		const base64Key =
+			this.configService.getOrThrow<string>('GITHUB_PRIVATE_KEY');
+		return Buffer.from(base64Key, 'base64').toString('utf8');
+	}
 
-    get redisPort(): number {
-        return this.configService.getOrThrow<number>('REDIS_PORT');
-    }
+	get redisHost(): string {
+		return this.configService.getOrThrow<string>('REDIS_HOST');
+	}
 
-    get githubTokenCacheTtlSeconds(): number {
-        return this.getNumber(
-            'GITHUB_TOKEN_CACHE_TTL_SECONDS',
-            DEFAULT_GITHUB_TOKEN_CACHE_TTL_SECONDS,
-        );
-    }
+	get redisPort(): number {
+		return this.configService.getOrThrow<number>('REDIS_PORT');
+	}
 
-    get githubInstallationCacheTtlSeconds(): number {
-        return this.getNumber(
-            'GITHUB_INSTALLATION_CACHE_TTL_SECONDS',
-            DEFAULT_GITHUB_INSTALLATION_CACHE_TTL_SECONDS,
-        );
-    }
+	get githubTokenCacheTtlSeconds(): number {
+		return this.getNumber(
+			'GITHUB_TOKEN_CACHE_TTL_SECONDS',
+			DEFAULT_GITHUB_TOKEN_CACHE_TTL_SECONDS,
+		);
+	}
 
-    get githubIssueMaxRetries(): number {
-        return this.getNumber(
-            'GITHUB_ISSUE_MAX_RETRIES',
-            DEFAULT_GITHUB_ISSUE_MAX_RETRIES,
-        );
-    }
+	get githubInstallationCacheTtlSeconds(): number {
+		return this.getNumber(
+			'GITHUB_INSTALLATION_CACHE_TTL_SECONDS',
+			DEFAULT_GITHUB_INSTALLATION_CACHE_TTL_SECONDS,
+		);
+	}
 
-    get internalApiKey(): string {
-        return this.configService.getOrThrow<string>('INTERNAL_API_KEY');
-    }
+	get githubIssueMaxRetries(): number {
+		return this.getNumber(
+			'GITHUB_ISSUE_MAX_RETRIES',
+			DEFAULT_GITHUB_ISSUE_MAX_RETRIES,
+		);
+	}
 
-    get githubWebhookSecret(): string {
-        return this.configService.getOrThrow<string>('GITHUB_WEBHOOK_SECRET');
-    }
+	get internalApiKey(): string {
+		return this.configService.getOrThrow<string>('INTERNAL_API_KEY');
+	}
 
-    private getNumber(key: string, fallback: number): number {
-        return Number(this.configService.get(key) ?? fallback);
-    }
+	get githubWebhookSecret(): string {
+		return this.configService.getOrThrow<string>('GITHUB_WEBHOOK_SECRET');
+	}
 }

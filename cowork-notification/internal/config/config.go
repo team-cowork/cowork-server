@@ -33,7 +33,7 @@ func Load() (*AppConfig, error) {
 		KafkaSecurity:                 security,
 		Port:                          getEnv("PORT", "8086"),
 		DBPath:                        os.Getenv("DB_PATH"),
-		KafkaBrokers:                  getEnv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9094"),
+		KafkaBrokers:                  os.Getenv("KAFKA_BOOTSTRAP_SERVERS"),
 		KafkaTopicNotify:              getEnv("KAFKA_TOPIC_NOTIFICATION", "notification.trigger"),
 		KafkaGroupID:                  getEnv("KAFKA_GROUP_ID", "cowork-notification"),
 		KafkaProjectionGroupID:        getEnv("KAFKA_PROJECTION_GROUP_ID", "cowork-notification-projections"),

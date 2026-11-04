@@ -11,21 +11,21 @@ gateway:
     max-wrappable-size: 1MB
   deployment:
     destinations:
-      cowork-authorization: ${COWORK_AUTHORIZATION_URL:http://cowork-authorization:8081}
-      cowork-user: ${COWORK_USER_URL:http://cowork-user:8082}
-      cowork-channel: ${COWORK_CHANNEL_URL:http://cowork-channel:8083}
-      cowork-project: ${COWORK_PROJECT_URL:http://cowork-project:8084}
-      cowork-team: ${COWORK_TEAM_URL:http://cowork-team:8085}
-      cowork-notification: ${COWORK_NOTIFICATION_URL:http://cowork-notification:8086}
-      cowork-chat: ${COWORK_CHAT_URL:http://cowork-chat:8087}
-      cowork-roadmap: ${COWORK_ROADMAP_URL:http://cowork-roadmap:8088}
-      cowork-voice: ${COWORK_VOICE_URL:http://cowork-voice:8089}
-      cowork-github: ${COWORK_GITHUB_URL:http://cowork-github:8090}
-      cowork-preference: ${COWORK_PREFERENCE_URL:http://cowork-preference:9001}
+      cowork-authorization: ${COWORK_AUTHORIZATION_URL}
+      cowork-user: ${COWORK_USER_URL}
+      cowork-channel: ${COWORK_CHANNEL_URL}
+      cowork-project: ${COWORK_PROJECT_URL}
+      cowork-team: ${COWORK_TEAM_URL}
+      cowork-notification: ${COWORK_NOTIFICATION_URL}
+      cowork-chat: ${COWORK_CHAT_URL}
+      cowork-roadmap: ${COWORK_ROADMAP_URL}
+      cowork-voice: ${COWORK_VOICE_URL}
+      cowork-github: ${COWORK_GITHUB_URL}
+      cowork-preference: ${COWORK_PREFERENCE_URL}
 
 webhook:
   url-signing-key: ${WEBHOOK_URL_SIGNING_KEY:}
-  datagsm-secret: ${DATAGSM_WEBHOOK_SECRET:}
+  datagsm-secret: ${DATAGSM_WEBHOOK_SECRET}
 
 cowork:
   swagger-ui:
@@ -55,8 +55,8 @@ cowork:
 spring:
   data:
     redis:
-      host: ${REDIS_HOST:redis}
-      port: ${REDIS_PORT:6379}
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
 
   cloud:
     gateway.server.webflux:
@@ -91,7 +91,7 @@ spring:
       routes:
         - id: webhook-management
           order: -2
-          uri: ${COWORK_PREFERENCE_URL:http://cowork-preference:9001}
+          uri: ${COWORK_PREFERENCE_URL}
           metadata:
             cowork-service: cowork-preference
             health-path: /health/ready
@@ -110,7 +110,7 @@ spring:
 
         - id: webhook-ingress
           order: -2
-          uri: ${COWORK_CHAT_URL:http://cowork-chat:8087}
+          uri: ${COWORK_CHAT_URL}
           metadata:
             cowork-service: cowork-chat
             health-path: /health/ready
@@ -160,7 +160,7 @@ spring:
         # 토큰 발급·갱신은 추측할 수 없는 PKCE 코드와 리프레시 토큰으로 인증하므로 무차별 대입 방지가 아닌
         # authorization과 DataGSM의 과부하 방지용 전체 상한만 둔다
         - id: authorization-token
-          uri: ${COWORK_AUTHORIZATION_URL:http://cowork-authorization:8081}
+          uri: ${COWORK_AUTHORIZATION_URL}
           predicates:
             - Path=/api/authorization/auth/token, /api/authorization/auth/refresh
             - Method=POST
@@ -178,7 +178,7 @@ spring:
                 key-resolver: "#{@anonymousKeyResolver}"
 
         - id: authorization-service
-          uri: ${COWORK_AUTHORIZATION_URL:http://cowork-authorization:8081}
+          uri: ${COWORK_AUTHORIZATION_URL}
           metadata:
             cowork-service: cowork-authorization
             health-path: /health
@@ -198,7 +198,7 @@ spring:
                 key-resolver: "#{@userKeyResolver}"
 
         - id: authorization-webhook
-          uri: ${COWORK_AUTHORIZATION_URL:http://cowork-authorization:8081}
+          uri: ${COWORK_AUTHORIZATION_URL}
           predicates:
             - Path=/api/authorization/events/datagsm
             - Method=POST
@@ -206,7 +206,7 @@ spring:
             - StripPrefix=2
 
         - id: user-service
-          uri: ${COWORK_USER_URL:http://cowork-user:8082}
+          uri: ${COWORK_USER_URL}
           metadata:
             cowork-service: cowork-user
             health-path: /actuator/health/readiness
@@ -237,7 +237,7 @@ spring:
                   factor: 2
 
         - id: project-team-service
-          uri: ${COWORK_PROJECT_URL:http://cowork-project:8084}
+          uri: ${COWORK_PROJECT_URL}
           metadata:
             cowork-service: cowork-project
             health-path: /actuator/health/readiness
@@ -251,7 +251,7 @@ spring:
                 fallbackUri: forward:/fallback
 
         - id: team-channel-service
-          uri: ${COWORK_CHANNEL_URL:http://cowork-channel:8083}
+          uri: ${COWORK_CHANNEL_URL}
           metadata:
             cowork-service: cowork-channel
             health-path: /actuator/health/readiness
@@ -265,7 +265,7 @@ spring:
                 fallbackUri: forward:/fallback
 
         - id: team-service
-          uri: ${COWORK_TEAM_URL:http://cowork-team:8085}
+          uri: ${COWORK_TEAM_URL}
           metadata:
             cowork-service: cowork-team
             health-path: /actuator/health/readiness
@@ -285,7 +285,7 @@ spring:
                 key-resolver: "#{@userKeyResolver}"
 
         - id: channel-service-search
-          uri: ${COWORK_CHANNEL_URL:http://cowork-channel:8083}
+          uri: ${COWORK_CHANNEL_URL}
           predicates:
             - Path=/api/channel/search/channels
             - Method=GET
@@ -297,7 +297,7 @@ spring:
                 fallbackUri: forward:/fallback
 
         - id: project-channel-service
-          uri: ${COWORK_CHANNEL_URL:http://cowork-channel:8083}
+          uri: ${COWORK_CHANNEL_URL}
           predicates:
             - Path=/api/channel/projects/*/channels, /api/channel/projects/*/channels/**
           filters:
@@ -308,7 +308,7 @@ spring:
                 fallbackUri: forward:/fallback
 
         - id: project-service
-          uri: ${COWORK_PROJECT_URL:http://cowork-project:8084}
+          uri: ${COWORK_PROJECT_URL}
           predicates:
             - Path=/api/project/projects/**
           filters:
@@ -319,7 +319,7 @@ spring:
                 fallbackUri: forward:/fallback
 
         - id: roadmap-service
-          uri: ${COWORK_ROADMAP_URL:http://cowork-roadmap:8088}
+          uri: ${COWORK_ROADMAP_URL}
           metadata:
             cowork-service: cowork-roadmap
             health-path: /actuator/health/readiness
@@ -333,7 +333,7 @@ spring:
                 fallbackUri: forward:/fallback
 
         - id: chat-service
-          uri: ${COWORK_CHAT_URL:http://cowork-chat:8087}
+          uri: ${COWORK_CHAT_URL}
           predicates:
             - Path=/api/chat/chat/**, /api/chat/health, /api/chat/graphql, /api/chat/asyncapi.json
           filters:
@@ -344,7 +344,7 @@ spring:
                 fallbackUri: forward:/fallback
 
         - id: channel-service
-          uri: ${COWORK_CHANNEL_URL:http://cowork-channel:8083}
+          uri: ${COWORK_CHANNEL_URL}
           predicates:
             - Path=/api/channel/channels/**
           filters:
@@ -361,7 +361,7 @@ spring:
                 key-resolver: "#{@userKeyResolver}"
 
         - id: chat-service-ws
-          uri: ${COWORK_CHAT_WS_URL:ws://cowork-chat:8087}
+          uri: ${COWORK_CHAT_WS_URL}
           predicates:
             - Path=/ws/chat/**
           filters:
@@ -374,7 +374,7 @@ spring:
 
         # DM 채널 열기(멱등 생성)는 channel 서비스가 담당
         - id: dm-open
-          uri: ${COWORK_CHANNEL_URL:http://cowork-channel:8083}
+          uri: ${COWORK_CHANNEL_URL}
           predicates:
             - Path=/api/channel/dms
             - Method=POST
@@ -382,7 +382,7 @@ spring:
             - StripPrefix=2
 
         - id: preference-service
-          uri: ${COWORK_PREFERENCE_URL:http://cowork-preference:9001}
+          uri: ${COWORK_PREFERENCE_URL}
           predicates:
             - Path=/api/preference/preferences/**
           filters:
@@ -393,7 +393,7 @@ spring:
                 fallbackUri: forward:/fallback
 
         - id: live-service
-          uri: ${COWORK_VOICE_URL:http://cowork-voice:8089}
+          uri: ${COWORK_VOICE_URL}
           metadata:
             cowork-service: cowork-voice
             health-path: /health/ready
@@ -408,7 +408,7 @@ spring:
 
         - id: github-service-webhook
           order: -1
-          uri: ${COWORK_GITHUB_URL:http://cowork-github:8090}
+          uri: ${COWORK_GITHUB_URL}
           metadata:
             cowork-service: cowork-github
             health-path: /health
@@ -420,7 +420,7 @@ spring:
 
         - id: github-service-setup
           order: -1
-          uri: ${COWORK_GITHUB_URL:http://cowork-github:8090}
+          uri: ${COWORK_GITHUB_URL}
           predicates:
             - Path=/api/github/github/setup
             - Method=GET
@@ -436,7 +436,7 @@ spring:
 
         - id: voice-service-webhook
           order: -1
-          uri: ${COWORK_VOICE_URL:http://cowork-voice:8089}
+          uri: ${COWORK_VOICE_URL}
           predicates:
             - Path=/api/voice/voice/webhook
             - Method=POST
@@ -444,7 +444,7 @@ spring:
             - StripPrefix=2
 
         - id: voice-service
-          uri: ${COWORK_VOICE_URL:http://cowork-voice:8089}
+          uri: ${COWORK_VOICE_URL}
           predicates:
             - Path=/api/voice/voice/**
           filters:
@@ -461,35 +461,35 @@ spring:
                 key-resolver: "#{@userKeyResolver}"
 
         - id: authorization-service-docs
-          uri: ${COWORK_AUTHORIZATION_URL:http://cowork-authorization:8081}
+          uri: ${COWORK_AUTHORIZATION_URL}
           predicates:
             - Path=/v3/api-docs/authorization
           filters:
             - RewritePath=/v3/api-docs/authorization, /swagger/doc.json
 
         - id: user-service-docs
-          uri: ${COWORK_USER_URL:http://cowork-user:8082}
+          uri: ${COWORK_USER_URL}
           predicates:
             - Path=/v3/api-docs/user
           filters:
             - RewritePath=/v3/api-docs/user, /v3/api-docs
 
         - id: voice-service-docs
-          uri: ${COWORK_VOICE_URL:http://cowork-voice:8089}
+          uri: ${COWORK_VOICE_URL}
           predicates:
             - Path=/v3/api-docs/voice
           filters:
             - RewritePath=/v3/api-docs/voice, /swagger/doc.json
 
         - id: chat-service-docs
-          uri: ${COWORK_CHAT_URL:http://cowork-chat:8087}
+          uri: ${COWORK_CHAT_URL}
           predicates:
             - Path=/v3/api-docs/chat
           filters:
             - RewritePath=/v3/api-docs/chat, /api-json
 
         - id: preference-service-docs
-          uri: ${COWORK_PREFERENCE_URL:http://cowork-preference:9001}
+          uri: ${COWORK_PREFERENCE_URL}
           predicates:
             - Path=/v3/api-docs/preference
           filters:
@@ -497,7 +497,7 @@ spring:
 
         - id: notification-service-sse
           order: -1
-          uri: ${COWORK_NOTIFICATION_URL:http://cowork-notification:8086}
+          uri: ${COWORK_NOTIFICATION_URL}
           predicates:
             - Path=/api/notification/notifications/stream
           filters:
@@ -508,7 +508,7 @@ spring:
             response-timeout: -1  # SSE는 타임아웃 없음
 
         - id: notification-service
-          uri: ${COWORK_NOTIFICATION_URL:http://cowork-notification:8086}
+          uri: ${COWORK_NOTIFICATION_URL}
           predicates:
             - Path=/api/notification/notifications/**
           filters:
@@ -519,35 +519,35 @@ spring:
                 fallbackUri: forward:/fallback
 
         - id: notification-service-docs
-          uri: ${COWORK_NOTIFICATION_URL:http://cowork-notification:8086}
+          uri: ${COWORK_NOTIFICATION_URL}
           predicates:
             - Path=/v3/api-docs/notification
           filters:
             - RewritePath=/v3/api-docs/notification, /swagger/doc.json
 
         - id: team-service-docs
-          uri: ${COWORK_TEAM_URL:http://cowork-team:8085}
+          uri: ${COWORK_TEAM_URL}
           predicates:
             - Path=/v3/api-docs/team
           filters:
             - RewritePath=/v3/api-docs/team, /v3/api-docs
 
         - id: channel-service-docs
-          uri: ${COWORK_CHANNEL_URL:http://cowork-channel:8083}
+          uri: ${COWORK_CHANNEL_URL}
           predicates:
             - Path=/v3/api-docs/channel
           filters:
             - RewritePath=/v3/api-docs/channel, /v3/api-docs
 
         - id: project-service-docs
-          uri: ${COWORK_PROJECT_URL:http://cowork-project:8084}
+          uri: ${COWORK_PROJECT_URL}
           predicates:
             - Path=/v3/api-docs/project
           filters:
             - RewritePath=/v3/api-docs/project, /v3/api-docs
 
         - id: roadmap-service-docs
-          uri: ${COWORK_ROADMAP_URL:http://cowork-roadmap:8088}
+          uri: ${COWORK_ROADMAP_URL}
           predicates:
             - Path=/v3/api-docs/roadmap
           filters:
@@ -557,7 +557,7 @@ spring:
 
 app:
   dev-origin:
-    credential: ${DEV_ORIGIN_CREDENTIAL:}
+    credential: ${DEV_ORIGIN_CREDENTIAL}
   ws:
     allowed-origins: "${PUBLIC_WEB_ORIGINS}"
 

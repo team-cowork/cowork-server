@@ -1,117 +1,116 @@
-import {Controller, Logger} from '@nestjs/common';
+import {Controller as controller, Logger} from '@nestjs/common';
 import {
-    Ctx,
-    EventPattern,
-    KafkaContext,
-    Payload,
+	Ctx as messageContext,
+	EventPattern as eventPattern,
+	KafkaContext,
+	Payload as messagePayload,
 } from '@nestjs/microservices';
 import {plainToInstance} from 'class-transformer';
 import {validate} from 'class-validator';
-import {CreateIssueDto} from './dto/create-issue.dto';
-import {IssueService} from './issue/issue.service';
-import {GithubClientError} from './github.errors';
-import {IssueResultProducer} from './kafka/issue-result.producer';
+import {isPresent} from './common/nullable.js';
+import {CreateIssueDto} from './dto/create-issue.dto.js';
+import {IssueService} from './issue/issue.service.js';
+import {GithubClientError} from './github.errors.js';
+import {IssueResultProducer} from './kafka/issue-result.producer.js';
 
-@Controller()
+@controller()
 export class GithubController {
-    private readonly logger = new Logger(GithubController.name);
-    private readonly exitProcess = (code: number): never => process.exit(code);
+	private readonly logger = new Logger(GithubController.name);
 
-    constructor(
-        private readonly issueService: IssueService,
-        private readonly issueResultProducer: IssueResultProducer,
-    ) {}
+	constructor(
+		private readonly issueService: IssueService,
+		private readonly issueResultProducer: IssueResultProducer,
+	) {}
 
-    @EventPattern('github.issue.create')
-    async handleIssueCreate(
-        @Payload() data: unknown,
-        @Ctx() context: KafkaContext,
-    ): Promise<void> {
-        const shouldCommit = await this.processMessage(data);
-        if (shouldCommit) {
-            await this.commitOffset(context);
-        }
-    }
+	private async processMessage(data: unknown): Promise<boolean> {
+		if (data === null || typeof data !== 'object') {
+			this.logger.error('Invalid payload type, skipping message');
+			return true;
+		}
 
-    private async processMessage(data: unknown): Promise<boolean> {
-        if (data === null || typeof data !== 'object') {
-            this.logger.error('Invalid payload type, skipping message');
-            return true;
-        }
+		const dto = plainToInstance(CreateIssueDto, data);
+		const errors = await validate(dto, {whitelist: true});
 
-        const dto = plainToInstance(CreateIssueDto, data);
-        const errors = await validate(dto, {whitelist: true});
+		if (errors.length > 0) {
+			this.logger.error('Invalid payload, skipping message', {
+				errors: errors.map(error => error.toString()),
+			});
+			if (isPresent(dto.channelId) && isPresent(dto.teamId)) {
+				await this.issueResultProducer.send({
+					channelId: dto.channelId,
+					teamId: dto.teamId,
+					success: false,
+					error: '잘못된 이슈 생성 요청입니다.',
+				});
+			}
 
-        if (errors.length > 0) {
-            this.logger.error('Invalid payload, skipping message', {
-                errors: errors.map(error => error.toString()),
-            });
-            if (dto.channelId != null && dto.teamId != null) {
-                await this.issueResultProducer.send({
-                    channelId: dto.channelId,
-                    teamId: dto.teamId,
-                    success: false,
-                    error: '잘못된 이슈 생성 요청입니다.',
-                });
-            }
+			return true;
+		}
 
-            return true;
-        }
+		try {
+			const result = await this.issueService.createIssue(dto);
+			if (isPresent(dto.channelId) && isPresent(dto.teamId)) {
+				await this.issueResultProducer.send({
+					channelId: dto.channelId,
+					teamId: dto.teamId,
+					success: true,
+					issueUrl: result.issueUrl,
+					issueNumber: result.issueNumber,
+				});
+			}
 
-        try {
-            const result = await this.issueService.createIssue(dto);
-            if (dto.channelId != null && dto.teamId != null) {
-                await this.issueResultProducer.send({
-                    channelId: dto.channelId,
-                    teamId: dto.teamId,
-                    success: true,
-                    issueUrl: result.issueUrl,
-                    issueNumber: result.issueNumber,
-                });
-            }
+			return true;
+		} catch (error) {
+			if (error instanceof GithubClientError) {
+				this.logger.error('GitHub client error, skipping message', {
+					owner: dto.owner,
+					repo: dto.repo,
+					title: dto.title,
+					statusCode: error.statusCode,
+					message: error.message,
+				});
+				if (isPresent(dto.channelId) && isPresent(dto.teamId)) {
+					await this.issueResultProducer.send({
+						channelId: dto.channelId,
+						teamId: dto.teamId,
+						success: false,
+						error: error.message,
+					});
+				}
 
-            return true;
-        } catch (error) {
-            if (error instanceof GithubClientError) {
-                this.logger.error('GitHub client error, skipping message', {
-                    owner: dto.owner,
-                    repo: dto.repo,
-                    title: dto.title,
-                    statusCode: error.statusCode,
-                    message: error.message,
-                });
-                if (dto.channelId != null && dto.teamId != null) {
-                    await this.issueResultProducer.send({
-                        channelId: dto.channelId,
-                        teamId: dto.teamId,
-                        success: false,
-                        error: error.message,
-                    });
-                }
+				return true;
+			}
 
-                return true;
-            }
+			this.logger.error('GitHub server error, message will be redelivered', {
+				owner: dto.owner,
+				repo: dto.repo,
+				title: dto.title,
+				message: (error as Error).message,
+			});
 
-            this.logger.error('GitHub server error, consumer will stop for retry', {
-                owner: dto.owner,
-                repo: dto.repo,
-                title: dto.title,
-                message: (error as Error).message,
-            });
+			throw error;
+		}
+	}
 
-            this.exitProcess(1);
-            throw error;
-        }
-    }
+	private async commitOffset(context: KafkaContext): Promise<void> {
+		const message = context.getMessage();
+		await context.getConsumer().commitOffsets([
+			{
+				topic: context.getTopic(),
+				partition: context.getPartition(),
+				offset: (Number(message.offset) + 1).toString(),
+			},
+		]);
+	}
 
-    private async commitOffset(context: KafkaContext): Promise<void> {
-        const message = context.getMessage();
-        await context.getConsumer().commitOffsets([
-            {
-                topic: context.getTopic(),
-                partition: context.getPartition(),
-                offset: (Number(message.offset) + 1).toString(),
-            },
-        ]);
-    }
+	@eventPattern('github.issue.create')
+	async handleIssueCreate(
+		@messagePayload() data: unknown,
+		@messageContext() context: KafkaContext,
+	): Promise<void> {
+		const shouldCommit = await this.processMessage(data);
+		if (shouldCommit) {
+			await this.commitOffset(context);
+		}
+	}
 }

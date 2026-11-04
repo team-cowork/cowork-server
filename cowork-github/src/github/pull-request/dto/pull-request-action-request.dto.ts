@@ -1,7 +1,7 @@
-import {IsNotEmpty, IsString} from 'class-validator';
+import {IsNotEmpty as isNotEmpty, IsString as isString} from 'class-validator';
 
 export class PullRequestActionRequestDto {
-    @IsString()
-    @IsNotEmpty()
-    requesterGithubUsername: string;
+	@isString()
+	@isNotEmpty()
+	requesterGithubUsername: string;
 }

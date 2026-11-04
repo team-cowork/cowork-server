@@ -1,43 +1,43 @@
 import {
-    IsArray,
-    IsNotEmpty,
-    IsNumber,
-    IsOptional,
-    IsString,
+	IsArray as isArray,
+	IsNotEmpty as isNotEmpty,
+	IsNumber as isNumber,
+	IsOptional as isOptional,
+	IsString as isString,
 } from 'class-validator';
 
 export class CreateIssueDto {
-    @IsString()
-    @IsNotEmpty()
-    owner: string;
+	@isString()
+	@isNotEmpty()
+	owner: string;
 
-    @IsString()
-    @IsNotEmpty()
-    repo: string;
+	@isString()
+	@isNotEmpty()
+	repo: string;
 
-    @IsString()
-    @IsNotEmpty()
-    title: string;
+	@isString()
+	@isNotEmpty()
+	title: string;
 
-    @IsString()
-    @IsOptional()
-    body?: string;
+	@isString()
+	@isOptional()
+	body?: string;
 
-    @IsArray()
-    @IsString({each: true})
-    @IsOptional()
-    labels?: string[];
+	@isArray()
+	@isString({each: true})
+	@isOptional()
+	labels?: string[];
 
-    @IsArray()
-    @IsString({each: true})
-    @IsOptional()
-    assignees?: string[];
+	@isArray()
+	@isString({each: true})
+	@isOptional()
+	assignees?: string[];
 
-    @IsNumber()
-    @IsOptional()
-    channelId?: number;
+	@isNumber()
+	@isOptional()
+	channelId?: number;
 
-    @IsNumber()
-    @IsOptional()
-    teamId?: number;
+	@isNumber()
+	@isOptional()
+	teamId?: number;
 }
