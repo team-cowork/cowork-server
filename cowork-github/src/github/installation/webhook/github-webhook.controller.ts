@@ -1,113 +1,56 @@
 import {
-	Body,
-	Controller,
-	Headers,
-	HttpCode,
-	Inject,
+	Body as requestBody,
+	Controller as controller,
+	Headers as requestHeaders,
+	HttpCode as httpCode,
+	Inject as inject,
 	Logger,
-	Post,
-	UseGuards,
+	Post as httpPost,
+	UseGuards as useGuards,
 } from '@nestjs/common';
-import type Redis from 'ioredis';
-import {GithubAuthService} from '../../auth/github-auth.service';
+import type {Redis} from 'ioredis';
+import {GithubAuthService} from '../../auth/github-auth.service.js';
 import {
 	extractCommentAuthor,
-} from '../../common/comment-author-marker';
-import {REDIS_CLIENT} from '../../constants';
-import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../../github.cache';
-import {PullRequestService} from '../../pull-request/pull-request.service';
-import type {PullRequestFileState, PullRequestStateEvent} from '../kafka/event/pull-request-state';
-import {toRepoIdentity} from '../kafka/event/repo-identity';
-import {GithubReadModelEventProducers} from '../kafka/github-read-model-event-producers';
-import {toPullRequestFileStates} from '../kafka/pull-request-file-state.mapper';
-import {RepoEventProducer} from '../kafka/repo-event.producer';
-import {TeamGithubProducer} from '../kafka/team-github.producer';
-import type {GithubWebhookPayload} from './github-webhook-payload';
-import {GithubWebhookSignatureGuard} from './github-webhook-signature.guard';
+} from '../../common/comment-author-marker.js';
+import {REDIS_CLIENT} from '../../constants.js';
+import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../../github.cache.js';
+import {PullRequestService} from '../../pull-request/pull-request.service.js';
+import type {PullRequestFileState, PullRequestStateEvent} from '../kafka/event/pull-request-state.js';
+import {toRepoIdentity} from '../kafka/event/repo-identity.js';
+import {GithubReadModelEventProducers} from '../kafka/github-read-model-event-producers.js';
+import {toPullRequestFileStates} from '../kafka/pull-request-file-state.mapper.js';
+import {RepoEventProducer} from '../kafka/repo-event.producer.js';
+import {TeamGithubProducer} from '../kafka/team-github.producer.js';
+import type {GithubWebhookPayload} from './github-webhook-payload.js';
+import {GithubWebhookSignatureGuard} from './github-webhook-signature.guard.js';
 
 const PR_FILE_REFRESH_ACTIONS = new Set(['opened', 'synchronize', 'reopened']);
 
-@Controller('github/webhooks')
-@UseGuards(GithubWebhookSignatureGuard)
+@controller('github/webhooks')
+@useGuards(GithubWebhookSignatureGuard)
 export class GithubWebhookController {
 	private static readonly DISCONNECT_ACTIONS = new Set(['deleted']);
 
 	private readonly logger = new Logger(GithubWebhookController.name);
 
-	// eslint-disable-next-line max-params -- NestJS 생성자 주입이라 의존성 수만큼 파라미터가 필요하다.
-	constructor(
-		private readonly producer: TeamGithubProducer,
-		private readonly repoEventProducer: RepoEventProducer,
-		private readonly readModelProducers: GithubReadModelEventProducers,
-		private readonly pullRequestService: PullRequestService,
-		private readonly authService: GithubAuthService,
-		@Inject(REDIS_CLIENT) private readonly redis: Redis,
-	) {}
+	@inject(TeamGithubProducer)
+	private readonly producer!: TeamGithubProducer;
 
-	@Post()
-	@HttpCode(200)
-	async handle(
-		@Headers('x-github-event') eventName: string,
-		@Body() payload: GithubWebhookPayload,
-	): Promise<{ok: true}> {
-		switch (eventName) {
-			case 'installation': {
-				await this.handleInstallation(payload);
-				break;
-			}
+	@inject(RepoEventProducer)
+	private readonly repoEventProducer!: RepoEventProducer;
 
-			case 'push': {
-				await this.handleRepoEvent(eventName, payload);
-				break;
-			}
+	@inject(GithubReadModelEventProducers)
+	private readonly readModelProducers!: GithubReadModelEventProducers;
 
-			case 'issues': {
-				await Promise.all([
-					this.handleIssueState(payload),
-					this.handleRepoEvent(eventName, payload).catch((error: unknown) => {
-						this.logNotificationFailure(eventName, error);
-					}),
-				]);
-				break;
-			}
+	@inject(PullRequestService)
+	private readonly pullRequestService!: PullRequestService;
 
-			case 'pull_request': {
-				await Promise.all([
-					this.handlePullRequestState(payload),
-					this.handleRepoEvent(eventName, payload).catch((error: unknown) => {
-						this.logNotificationFailure(eventName, error);
-					}),
-				]);
-				break;
-			}
+	@inject(GithubAuthService)
+	private readonly authService!: GithubAuthService;
 
-			case 'installation_repositories': {
-				await this.handleInstallationRepositoriesState(payload);
-				break;
-			}
-
-			case 'repository': {
-				await this.handleRepositoryState(payload);
-				break;
-			}
-
-			case 'label': {
-				await this.handleLabelState(payload);
-				break;
-			}
-
-			case 'issue_comment': {
-				await this.handleIssueCommentState(payload);
-				break;
-			}
-
-			default: {
-				this.logger.log(`Ignoring unhandled GitHub event: ${eventName}`);
-			}
-		}
-
-		return {ok: true};
-	}
+	@inject(REDIS_CLIENT)
+	private readonly redis!: Redis;
 
 	// 알림(github.repo.event)은 사용자에게 보여주는 부가 정보라 실패해도 webhook 응답은 유지한다.
 	// read-model state 발행은 반대로 실패 시 그대로 throw해 500을 반환한다 — GitHub가 전송 실패를
@@ -451,5 +394,70 @@ export class GithubWebhookController {
 			deleted: payload.action === 'deleted',
 			sourceOccurredAt: comment.updated_at ?? new Date().toISOString(),
 		});
+	}
+
+	@httpPost()
+	@httpCode(200)
+	async handle(
+		@requestHeaders('x-github-event') eventName: string,
+		@requestBody() payload: GithubWebhookPayload,
+	): Promise<{ok: true}> {
+		switch (eventName) {
+			case 'installation': {
+				await this.handleInstallation(payload);
+				break;
+			}
+
+			case 'push': {
+				await this.handleRepoEvent(eventName, payload);
+				break;
+			}
+
+			case 'issues': {
+				await Promise.all([
+					this.handleIssueState(payload),
+					this.handleRepoEvent(eventName, payload).catch((error: unknown) => {
+						this.logNotificationFailure(eventName, error);
+					}),
+				]);
+				break;
+			}
+
+			case 'pull_request': {
+				await Promise.all([
+					this.handlePullRequestState(payload),
+					this.handleRepoEvent(eventName, payload).catch((error: unknown) => {
+						this.logNotificationFailure(eventName, error);
+					}),
+				]);
+				break;
+			}
+
+			case 'installation_repositories': {
+				await this.handleInstallationRepositoriesState(payload);
+				break;
+			}
+
+			case 'repository': {
+				await this.handleRepositoryState(payload);
+				break;
+			}
+
+			case 'label': {
+				await this.handleLabelState(payload);
+				break;
+			}
+
+			case 'issue_comment': {
+				await this.handleIssueCommentState(payload);
+				break;
+			}
+
+			default: {
+				this.logger.log(`Ignoring unhandled GitHub event: ${eventName}`);
+			}
+		}
+
+		return {ok: true};
 	}
 }
