@@ -3,11 +3,11 @@ server:
 
 spring:
   datasource:
-    url: jdbc:mysql://${DB_HOST:mysql}:${DB_PORT:3306}/${DB_NAME:cowork_roadmap}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
-    username: ${DB_USERNAME:${MYSQL_USER:cowork}}
-    password: ${DB_PASSWORD:${MYSQL_PASSWORD:}}
+    url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:9092}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
 KAFKA_TOPIC_TEAM_MEMBER: team.member.event
 KAFKA_GROUP_ID_TEAM_MEMBER: cowork-roadmap.team-member

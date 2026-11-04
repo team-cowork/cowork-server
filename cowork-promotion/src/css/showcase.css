@@ -1,4 +1,12 @@
 /* Scroll showcase transitions and scene animations. */
+@font-face {
+    font-family: 'Archivo Black';
+    font-style: normal;
+    font-weight: 900;
+    font-display: swap;
+    src: url('https://cdn.jsdelivr.net/npm/@fontsource/archivo-black@5.3.0/files/archivo-black-latin-400-normal.woff2') format('woff2');
+}
+
 .showcase {
     position: relative;
     height: calc(var(--showcase-count) * 70svh + 100svh);
@@ -800,6 +808,7 @@
 
 .position-scene__title {
     margin-bottom: var(--space-5);
+    font-family: 'Archivo Black', var(--font-sans);
     font-size: var(--font-size-5xl);
     font-weight: var(--font-weight-black);
     letter-spacing: var(--tracking-tight);

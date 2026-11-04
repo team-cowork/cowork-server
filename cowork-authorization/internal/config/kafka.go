@@ -21,9 +21,6 @@ type KafkaSecurity struct {
 func loadKafkaSecurity() (KafkaSecurity, error) {
 	var security KafkaSecurity
 	protocol := strings.ToUpper(os.Getenv("KAFKA_SECURITY_PROTOCOL"))
-	if protocol == "" {
-		protocol = "PLAINTEXT"
-	}
 	switch protocol {
 	case "PLAINTEXT":
 		if os.Getenv("KAFKA_SASL_USERNAME") != "" || os.Getenv("KAFKA_SASL_PASSWORD") != "" || os.Getenv("KAFKA_SSL_CA_LOCATION") != "" {
@@ -60,9 +57,6 @@ func loadKafkaSecurity() (KafkaSecurity, error) {
 		return security, fmt.Errorf("KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD are required")
 	}
 	mechanism := strings.ToUpper(os.Getenv("KAFKA_SASL_MECHANISM"))
-	if mechanism == "" {
-		mechanism = "SCRAM-SHA-512"
-	}
 	algorithm := scram.SHA512
 	switch mechanism {
 	case "SCRAM-SHA-256":
