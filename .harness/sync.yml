@@ -5,8 +5,6 @@ groups:
 overrides:
   claude/hooks/dispatcher: true
   claude/settings: true
-  claude/hooks/ktlint: true
-  claude/hooks/spotless: true
   claude/hooks/command-guard: true
   claude/hooks/logging: true
   claude/hooks/secret-guard: true
@@ -14,9 +12,21 @@ overrides:
   codex/hooks-json: true
   codex/hooks/command-guard: true
   codex/hooks/logging: true
-  codex/hooks/ktlint: true
-  codex/hooks/spotless: true
   codex/hooks/secret-guard: true
+
+  # Keep module-owned build commands and formatters under this repository's control.
+  # false excludes these items from sync without removing their local files.
+  claude/agents/kotlin-convention-validator: false
+  claude/agents/kotlin-test-fixer: false
+  claude/skills/test: false
+  claude/hooks/ktlint: false
+  claude/hooks/spotless: false
+  codex/agents/kotlin-convention-validator: false
+  codex/agents/kotlin-test-fixer: false
+  codex/skills/test: false
+  codex/hooks/ktlint: false
+  codex/hooks/spotless: false
+
   claude/skills/nextjs-fsd-architecture: false
   claude/skills/nextjs-package-boundaries: false
   claude/skills/nextjs-turborepo-fsd: false
@@ -31,6 +41,7 @@ overrides:
   codex/agents/frontend-convention-validator: false
 
 branch_prefix: harness-sync/
+# The sync service reads this file from the default branch (main), even with develop as the PR base.
 base_branch: develop
 language: ko
 pr_label: true
