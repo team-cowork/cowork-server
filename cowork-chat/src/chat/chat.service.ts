@@ -32,6 +32,7 @@ import {
 	SearchMessagesResponseDto,
 	FileListQueryDto,
 	FileListResponseDto,
+	GetMessagesDto,
 	ChannelUserContext,
 	ChannelUserRoleContext,
 	MessageUserRoleContext,
@@ -696,14 +697,32 @@ export class ChatService {
      채널 메시지를 최신순으로 커서 기반 페이지네이션 조회한다.
      응답의 `reactions`에는 요청자의 반응 여부(`myReaction`)가 포함된다.
 
+     `before`, `after`, `around` 커서는 하나만 지정할 수 있다.
+
      @param ctx - 채널·사용자 컨텍스트
-     @param before - 이 MongoDB ObjectId 이전의 메시지 조회 (없으면 최신부터)
-     @param parentMessageId - 이 메시지의 스레드 답글만 조회 (없으면 최상위 메시지)
-     @returns 최대 100개의 메시지 배열
+     @param query - `before`(이전), `after`(이후), `around`(기준 메시지 포함 앞뒤), `parentMessageId`(스레드 답글만)
+     @returns 최대 100개의 메시지 배열 (최신순)
+     @throws BadRequestException 커서를 2개 이상 지정한 경우
+     @throws NotFoundException `around` 메시지가 채널에 없는 경우
      */
-	async getMessages(ctx: ChannelUserContext, before?: string, parentMessageId?: string) {
+	async getMessages(ctx: ChannelUserContext, query: GetMessagesDto = {}) {
 		await this.requireChannelRead(ctx.channelId, ctx.userId);
-		const rows = await this.messageRepository.findMessages(ctx.channelId, before, parentMessageId);
+		const {before, after, around, parentMessageId} = query;
+		if ([before, after, around].filter(cursor => cursor !== undefined).length > 1) {
+			throw new BadRequestException('before, after, around는 하나만 지정할 수 있습니다');
+		}
+
+		if (around !== undefined) {
+			const target = await this.messageRepository.findByIdAndChannelId(around, ctx.channelId);
+			if (!target) {
+				throw new NotFoundException('메시지를 찾을 수 없습니다');
+			}
+
+			const rows = await this.messageRepository.findMessagesAround(ctx.channelId, around, parentMessageId);
+			return rows.map(row => this.toMessageResponse(row, ctx.userId));
+		}
+
+		const rows = await this.messageRepository.findMessages(ctx.channelId, before, parentMessageId, after);
 		return rows.map(row => this.toMessageResponse(row, ctx.userId));
 	}
 
