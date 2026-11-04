@@ -3,7 +3,7 @@ module github.com/cowork/cowork-voice
 go 1.27.1
 
 require (
-	github.com/go-chi/chi/v5 v5.3.2
+	github.com/go-chi/chi/v5 v5.4.0
 	github.com/google/uuid v1.6.0
 	github.com/livekit/protocol v1.50.4 // v1.51 changes the SIP response type required by server-sdk-go v2.18.1.
 	github.com/livekit/server-sdk-go/v2 v2.18.1
