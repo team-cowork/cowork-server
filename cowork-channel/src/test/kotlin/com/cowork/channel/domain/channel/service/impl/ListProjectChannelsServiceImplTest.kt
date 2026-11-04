@@ -94,4 +94,19 @@ class ListProjectChannelsServiceImplTest {
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.statusCode)
         verify(exactly = 0) { teamPermission.requireTeamMember(any(), any()) }
     }
+
+    @Test
+    fun `listProjectChannels는 프로젝트 팀과 다른 팀의 채널을 제외함`() {
+        val own = channel(id = 1L, teamId = 100L)
+        val foreign = channel(id = 2L, teamId = 200L)
+        every { projectProjectionRepository.findById(5L) } returns
+            Optional.of(ProjectProjection(5L, 100L, sourceOccurredAt = Instant.EPOCH))
+        every { teamPermission.requireTeamMember(100L, 1L) } returns Unit
+        every { channelRepository.findByProjectIdOrderByIdAsc(5L) } returns listOf(own, foreign)
+        every { evaluator.filterReadable(100L, 1L, listOf(own)) } returns listOf(own)
+
+        val result = service.execute(1L, 5L)
+
+        assertEquals(listOf(1L), result.map { it.id })
+    }
 }
