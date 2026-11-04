@@ -8,20 +8,20 @@ allowed-tools: Bash, Glob, Grep
 
 Based on the user's request or changed files, choose the appropriate scope:
 
-| Scope               | Command                                              |
-|---------------------|------------------------------------------------------|
-| Specific test class | `./gradlew test --tests "fully.qualified.ClassName"` |
-| Specific module     | `./gradlew :<module>:test`                           |
-| All modules         | `./gradlew test`                                     |
+| Scope               | Command                                                               |
+|---------------------|-----------------------------------------------------------------------|
+| Specific test class | `(cd <module> && ./gradlew test --tests "fully.qualified.ClassName")` |
+| Specific module     | `(cd <module> && ./gradlew test)`                                     |
+| Multiple modules    | Run each selected module's native test command separately             |
 
-Discover available modules at runtime from the project structure (e.g., `settings.gradle.kts`, `package.json` workspaces, `pom.xml` modules).
+Discover the owning modules from their local `gradlew` and `settings.gradle.kts`, `pom.xml`, `module.yaml`, or `package.json`. There is no root Gradle build. Use the native runner for Maven, Kotlin Toolchain, and non-JVM modules.
 
 ## Run Tests
 
 Execute the chosen command. Add `--info` if failures need detailed output:
 
 ```bash
-./gradlew <scope> --info
+(cd <module> && ./gradlew test --info)
 ```
 
 ## Analyze Results
