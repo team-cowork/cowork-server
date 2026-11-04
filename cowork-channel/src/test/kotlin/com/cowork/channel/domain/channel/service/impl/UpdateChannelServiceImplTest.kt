@@ -11,6 +11,9 @@ import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channel.service.TeamPermissionService
 import com.cowork.channel.domain.channel.service.support.ChannelPermissionSupport
 import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
+import com.cowork.channel.domain.project.entity.ProjectProjection
+import com.cowork.channel.domain.project.repository.ProjectProjectionRepository
+import com.cowork.channel.global.projection.ProjectionReadinessGate
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -19,6 +22,8 @@ import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
+import java.time.Instant
+import java.util.Optional
 
 class UpdateChannelServiceImplTest {
 
@@ -34,7 +39,19 @@ class UpdateChannelServiceImplTest {
         permissionEvaluator,
     )
 
-    private val service = UpdateChannelServiceImpl(channelEventPublisher, channelAccessGuard, channelPermissionSupport)
+    private val projectProjectionRepository = mockk<ProjectProjectionRepository>()
+    private val projectionReadinessGate = mockk<ProjectionReadinessGate>(relaxed = true)
+
+    private val service = UpdateChannelServiceImpl(
+        channelEventPublisher,
+        channelAccessGuard,
+        channelPermissionSupport,
+        projectProjectionRepository,
+        projectionReadinessGate,
+    )
+
+    private fun project(projectId: Long = 5L, teamId: Long = 100L, deleted: Boolean = false) =
+        Optional.of(ProjectProjection(projectId, teamId, deleted, Instant.EPOCH))
 
     private fun channel(
         id: Long = 1L,
@@ -82,6 +99,7 @@ class UpdateChannelServiceImplTest {
     fun `updateChannel은 name이 null이면 기존 이름을 유지하고 다른 필드만 변경`() {
         val ch = channel(createdBy = 1L)
         every { channelRepository.findByIdForUpdate(1L) } returns ch
+        every { projectProjectionRepository.findById(5L) } returns project()
 
         val res = service.execute(
             1L,
@@ -99,6 +117,7 @@ class UpdateChannelServiceImplTest {
     fun `updateChannel은 updateProjectId=true이면 projectId를 할당함`() {
         val ch = channel(createdBy = 1L)
         every { channelRepository.findByIdForUpdate(1L) } returns ch
+        every { projectProjectionRepository.findById(5L) } returns project()
 
         val res = service.execute(1L, 1L, UpdateChannelRequest(projectId = 5L), true)
         assertEquals(5L, res.projectId)
@@ -161,5 +180,43 @@ class UpdateChannelServiceImplTest {
             service.execute(1L, 1L, UpdateChannelRequest(name = "x"), false)
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+    }
+
+    @Test
+    fun `updateChannel은 다른 팀 프로젝트를 연결하면 NOT_FOUND이고 변경하지 않음`() {
+        val ch = channel(createdBy = 1L, projectId = 99L)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
+        every { projectProjectionRepository.findById(5L) } returns project(teamId = 200L)
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.execute(1L, 1L, UpdateChannelRequest(name = "new", projectId = 5L), true)
+        }
+
+        assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
+        assertEquals("ch", ch.name)
+        assertEquals(99L, ch.projectId)
+        verify(exactly = 0) { channelEventPublisher.publishUpdated(any(), any()) }
+    }
+
+    @Test
+    fun `updateChannel은 삭제된 프로젝트를 연결하면 NOT_FOUND`() {
+        every { channelRepository.findByIdForUpdate(1L) } returns channel(createdBy = 1L)
+        every { projectProjectionRepository.findById(5L) } returns project(deleted = true)
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.execute(1L, 1L, UpdateChannelRequest(projectId = 5L), true)
+        }
+        assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
+    }
+
+    @Test
+    fun `updateChannel은 프로젝트 projection이 없으면 SERVICE_UNAVAILABLE`() {
+        every { channelRepository.findByIdForUpdate(1L) } returns channel(createdBy = 1L)
+        every { projectProjectionRepository.findById(5L) } returns Optional.empty()
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.execute(1L, 1L, UpdateChannelRequest(projectId = 5L), true)
+        }
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.statusCode)
     }
 }
