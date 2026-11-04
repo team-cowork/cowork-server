@@ -1,0 +1,168 @@
+# Dependabot security updates only.
+# - Version updates are off: open-pull-requests-limit is 0. The schedule is required by the
+#   schema but does not open PRs.
+# - Security update PRs open only for Dependabot alerts. They always target the default branch
+#   (main). target-branch is omitted so labels and commit-message apply to them.
+# - Requires "Dependabot security updates" in Settings > Code security.
+# - Prod CI validates PR titles as "[scope] title" without a colon. The prefix ends with a
+#   space so Dependabot does not append a colon.
+# - Docker, Compose, and OpenTofu are omitted: the GitHub Advisory Database has no advisories
+#   for them, so they never receive security updates.
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directories:
+      - "/"
+      - "/.github/actions/build-image"
+      - "/.github/actions/verify-image"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "[ci/cd] "
+    labels:
+      - "bug:버그"
+    groups:
+      github-actions-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+
+  - package-ecosystem: "gradle"
+    # Covers gradle/libs.versions.toml, which build-logic also reads.
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "[global] "
+    labels:
+      - "bug:버그"
+    groups:
+      gradle-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+
+  - package-ecosystem: "maven"
+    directory: "/cowork-project"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "[project] "
+    labels:
+      - "bug:버그"
+    groups:
+      maven-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/cowork-chat"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "[chat] "
+    labels:
+      - "bug:버그"
+    groups:
+      npm-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/cowork-github"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "[github] "
+    labels:
+      - "bug:버그"
+    groups:
+      npm-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+
+  - package-ecosystem: "npm"
+    directory: "/cowork-promotion"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "[promotion] "
+    labels:
+      - "bug:버그"
+    groups:
+      npm-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+
+  - package-ecosystem: "gomod"
+    directory: "/cowork-authorization"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "[authorization] "
+    labels:
+      - "bug:버그"
+    groups:
+      gomod-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+
+  - package-ecosystem: "gomod"
+    directory: "/cowork-notification"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "[notification] "
+    labels:
+      - "bug:버그"
+    groups:
+      gomod-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+
+  - package-ecosystem: "gomod"
+    directory: "/cowork-voice"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "[voice] "
+    labels:
+      - "bug:버그"
+    groups:
+      gomod-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+
+  - package-ecosystem: "nuget"
+    directories:
+      - "/cowork-user/src"
+      - "/cowork-user/test"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    commit-message:
+      prefix: "[user] "
+    labels:
+      - "bug:버그"
+    groups:
+      nuget-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
