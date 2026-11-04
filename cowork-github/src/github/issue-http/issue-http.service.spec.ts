@@ -1,4 +1,5 @@
 import {Test, type TestingModule} from '@nestjs/testing';
+import {AppConfigService} from '../../config/app-config.service.js';
 import {githubField} from '../github-field.js';
 import {IssueHttpApiClient} from './client/issue-http-api.client.js';
 import {IssueHttpService} from './issue-http.service.js';
@@ -31,6 +32,7 @@ describe('IssueHttpService', () => {
 		body: 'hello',
 		[githubField.htmlUrl]: 'https://github.com/my-org/my-repo/issues/1#issuecomment-100',
 		user: {login: 'cowork-bot[bot]'},
+		[githubField.performedViaGithubApp]: {id: 123},
 		[githubField.createdAt]: '2024-01-01T00:00:00Z',
 		[githubField.updatedAt]: '2024-01-01T00:00:00Z',
 	};
@@ -50,6 +52,7 @@ describe('IssueHttpService', () => {
 			providers: [
 				IssueHttpService,
 				{provide: IssueHttpApiClient, useValue: apiClient},
+				{provide: AppConfigService, useValue: {githubAppId: '123'}},
 			],
 		}).compile();
 
@@ -162,6 +165,18 @@ describe('IssueHttpService', () => {
 			await expect(service.findCommentByOperation(parameters)).resolves.toBe('unknown');
 		});
 
+		it('다른 앱이나 사용자가 남긴 operation 마커는 찾지 않는다', async () => {
+			apiClient.listComments.mockResolvedValue([
+				{
+					...baseComment,
+					body: '확인했습니다\n\n<!-- cowork:author=octocat operation=op-1 -->',
+					[githubField.performedViaGithubApp]: null,
+				},
+			]);
+
+			await expect(service.findCommentByOperation(parameters)).resolves.toBe('absent');
+		});
+
 		it('페이지가 덜 찼는데 없으면 absent다', async () => {
 			apiClient.listComments.mockResolvedValue([baseComment]);
 
@@ -191,6 +206,23 @@ describe('IssueHttpService', () => {
 
 			expect(result[0].author).toBe('cowork-bot[bot]');
 			expect(result[0].body).toBe('hello');
+		});
+
+		it('우리 앱이 작성하지 않은 댓글은 마커를 무시하고 GitHub user.login을 author로 사용한다', async () => {
+			const body = '확인했습니다\n\n<!-- cowork:author=alice -->';
+			apiClient.listComments.mockResolvedValue([
+				{
+					...baseComment,
+					body,
+					user: {login: 'outsider'},
+					[githubField.performedViaGithubApp]: {id: 999},
+				},
+			]);
+
+			const result = await service.listComments('my-org', 'my-repo', 1);
+
+			expect(result[0].author).toBe('outsider');
+			expect(result[0].body).toBe(body);
 		});
 	});
 

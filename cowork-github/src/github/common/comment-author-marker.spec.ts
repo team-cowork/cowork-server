@@ -1,4 +1,4 @@
-import {appendAuthorMarker, extractCommentAuthor} from './comment-author-marker.js';
+import {appendAuthorMarker, extractCommentAuthor, isAppComment} from './comment-author-marker.js';
 
 describe('comment-author-marker', () => {
 	describe('extractCommentAuthor', () => {
@@ -6,15 +6,32 @@ describe('comment-author-marker', () => {
 			const result = extractCommentAuthor(
 				'확인했습니다\n\n<!-- cowork:author=real-author -->',
 				'cowork-bot',
+				true,
 			);
 
 			expect(result).toEqual({author: 'real-author', body: '확인했습니다'});
 		});
 
 		it('마커가 없으면 fallback 사용자를 작성자로, 본문을 그대로 반환한다', () => {
-			const result = extractCommentAuthor('그냥 GitHub에서 단 댓글', 'octocat');
+			const result = extractCommentAuthor('그냥 GitHub에서 단 댓글', 'octocat', true);
 
 			expect(result).toEqual({author: 'octocat', body: '그냥 GitHub에서 단 댓글'});
+		});
+
+		it('앱이 작성하지 않은 댓글이면 마커를 무시하고 fallback 사용자와 본문을 그대로 반환한다', () => {
+			const body = '확인했습니다\n\n<!-- cowork:author=alice operation=op-1 -->';
+
+			expect(extractCommentAuthor(body, 'outsider', false)).toEqual({author: 'outsider', body});
+		});
+	});
+
+	describe('isAppComment', () => {
+		it('performed_via_github_app.id가 앱 ID와 같을 때만 true를 반환한다', () => {
+			expect(isAppComment({id: 123}, '123')).toBe(true);
+			expect(isAppComment({id: 999}, '123')).toBe(false);
+			expect(isAppComment(null, '123')).toBe(false);
+			expect(isAppComment(undefined, '123')).toBe(false);
+			expect(isAppComment({}, '123')).toBe(false);
 		});
 	});
 
@@ -38,7 +55,7 @@ describe('comment-author-marker', () => {
 			const marked = appendAuthorMarker('새 댓글', 'real-author', 'op-1');
 
 			expect(marked).toBe('새 댓글\n\n<!-- cowork:author=real-author operation=op-1 -->');
-			expect(extractCommentAuthor(marked, 'cowork-bot')).toEqual({
+			expect(extractCommentAuthor(marked, 'cowork-bot', true)).toEqual({
 				author: 'real-author',
 				body: '새 댓글',
 				operationId: 'op-1',
