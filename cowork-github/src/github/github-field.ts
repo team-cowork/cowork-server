@@ -11,6 +11,7 @@ export const githubField = {
 	mergedAt: 'merged_at',
 	mergeMethod: 'merge_method',
 	perPage: 'per_page',
+	performedViaGithubApp: 'performed_via_github_app',
 	pullRequest: 'pull_request',
 	repositoriesAdded: 'repositories_added',
 	repositoriesRemoved: 'repositories_removed',
