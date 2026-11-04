@@ -1,287 +1,288 @@
-import {Injectable, Logger} from '@nestjs/common';
-import {GITHUB_PR_WRITE_PERMISSIONS} from '../constants';
-import {GithubClientError} from '../github.errors';
+import {Injectable as injectable, Logger} from '@nestjs/common';
+import {type Nullable, isPresent} from '../common/nullable.js';
+import {GITHUB_PR_WRITE_PERMISSIONS} from '../constants.js';
+import {GithubClientError} from '../github.errors.js';
 import {
-    PullRequestApiClient,
-    PullRequestDetail,
-    PullRequestFile,
-} from './client/pull-request-api.client';
+	PullRequestApiClient,
+	PullRequestDetail,
+	PullRequestFile,
+} from './client/pull-request-api.client.js';
 
 export const ALLOWED_PR_STATES = ['open', 'closed', 'all'] as const;
 
 export type PullRequestSummaryResponse = {
-    number: number;
-    title: string;
-    author: string;
-    state: string;
-    draft: boolean;
-    merged: boolean;
-    htmlUrl: string;
-    labels: string[];
-    createdAt: string;
-    updatedAt: string;
+	number: number;
+	title: string;
+	author: string;
+	state: string;
+	draft: boolean;
+	merged: boolean;
+	htmlUrl: string;
+	labels: string[];
+	createdAt: string;
+	updatedAt: string;
 };
 
 export type PullRequestActionParameters = {
-    owner: string;
-    repo: string;
-    prNumber: number;
-    requesterGithubUsername: string;
+	owner: string;
+	repo: string;
+	prNumber: number;
+	requesterGithubUsername: string;
 };
 
 export type PullRequestDetailResponse = {
-    number: number;
-    title: string;
-    body: string | null;
-    author: string;
-    state: string;
-    mergeable: boolean | null;
-    mergeableState: string;
-    reviewDecision: 'APPROVED' | 'CHANGES_REQUESTED' | null;
-    headRef: string;
-    baseRef: string;
-    htmlUrl: string;
+	number: number;
+	title: string;
+	body: Nullable<string>;
+	author: string;
+	state: string;
+	mergeable: Nullable<boolean>;
+	mergeableState: string;
+	reviewDecision: Nullable<'APPROVED' | 'CHANGES_REQUESTED'>;
+	headRef: string;
+	baseRef: string;
+	htmlUrl: string;
 };
 
 export type PullRequestLiveStatusResponse = Pick<
-    PullRequestDetailResponse,
+	PullRequestDetailResponse,
     'mergeable' | 'mergeableState' | 'reviewDecision'
 >;
 
 export type MergePullRequestResult = {
-    alreadyMerged: boolean;
-    prUrl: string;
-    prNumber: number;
+	alreadyMerged: boolean;
+	prUrl: string;
+	prNumber: number;
 };
 
 export type ApprovePullRequestResult = {
-    prUrl: string;
-    prNumber: number;
+	prUrl: string;
+	prNumber: number;
 };
 
-@Injectable()
+@injectable()
 export class PullRequestService {
-    private readonly logger = new Logger(PullRequestService.name);
+	private readonly logger = new Logger(PullRequestService.name);
 
-    constructor(private readonly apiClient: PullRequestApiClient) {}
+	constructor(private readonly apiClient: PullRequestApiClient) {}
 
-    async getPullRequestDetail(
-        owner: string,
-        repo: string,
-        prNumber: number,
-    ): Promise<PullRequestDetailResponse> {
-        const pr = await this.apiClient.getPullRequest(owner, repo, prNumber);
-        const reviews = await this.apiClient.listPullRequestReviews(
-            owner,
-            repo,
-            prNumber,
-        );
+	private assertValidState(state: string): void {
+		if (
+			!ALLOWED_PR_STATES.includes(state as (typeof ALLOWED_PR_STATES)[number])
+		) {
+			throw new GithubClientError(
+				'state 쿼리 파라미터는 open, closed, all 중 하나여야 합니다.',
+				400,
+			);
+		}
+	}
 
-        return {
-            number: pr.number,
-            title: pr.title,
-            body: pr.body,
-            author: pr.user.login,
-            state: pr.state,
-            mergeable: pr.mergeable,
-            mergeableState: pr.mergeable_state,
-            reviewDecision: this.deriveReviewDecision(reviews),
-            headRef: pr.head.ref,
-            baseRef: pr.base.ref,
-            htmlUrl: pr.html_url,
-        };
-    }
+	private async assertWritePermission(
+		owner: string,
+		repo: string,
+		username: string,
+	): Promise<void> {
+		const {permission} = await this.apiClient.getCollaboratorPermission(
+			owner,
+			repo,
+			username,
+		);
 
-    // GitHub이 요청 시점마다 재계산해 projection으로 재구성할 수 없는 값만 돌려준다.
-    // 나머지 PR 상세 필드는 cowork-project가 read-model projection에서 채운다.
-    async getPullRequestLiveStatus(
-        owner: string,
-        repo: string,
-        prNumber: number,
-    ): Promise<PullRequestLiveStatusResponse> {
-        const {mergeable, mergeableState, reviewDecision} = await this.getPullRequestDetail(owner, repo, prNumber);
-        return {mergeable, mergeableState, reviewDecision};
-    }
+		if (
+			!GITHUB_PR_WRITE_PERMISSIONS.includes(
+				permission as (typeof GITHUB_PR_WRITE_PERMISSIONS)[number],
+			)
+		) {
+			throw new GithubClientError(
+				'이 저장소에 대한 쓰기 권한이 없습니다.',
+				403,
+			);
+		}
+	}
 
-    async listPullRequests(
-        owner: string,
-        repo: string,
-        state: string,
-    ): Promise<PullRequestSummaryResponse[]> {
-        this.assertValidState(state);
+	private assertNotSelfReview(
+		authorLogin: string,
+		requesterGithubUsername: string,
+	): void {
+		if (authorLogin.toLowerCase() === requesterGithubUsername.toLowerCase()) {
+			throw new GithubClientError(
+				'본인이 작성한 PR은 승인할 수 없습니다.',
+				403,
+			);
+		}
+	}
 
-        const items = await this.apiClient.listPullRequests(owner, repo, state);
+	private async deleteHeadBranchIfSameRepo(
+		owner: string,
+		repo: string,
+		pr: PullRequestDetail,
+	): Promise<void> {
+		const isSameRepo =
+			isPresent(pr.head.repo)
+			&& pr.head.repo.full_name === pr.base.repo?.full_name;
+		if (!isSameRepo) {
+			return;
+		}
 
-        return items.map(item => ({
-            number: item.number,
-            title: item.title,
-            author: item.user?.login ?? 'ghost',
-            state: item.state,
-            draft: item.draft,
-            merged: item.merged_at != null,
-            htmlUrl: item.html_url,
-            labels: item.labels?.map(label => label.name) ?? [],
-            createdAt: item.created_at,
-            updatedAt: item.updated_at,
-        }));
-    }
+		try {
+			await this.apiClient.deleteBranch(owner, repo, pr.head.ref);
+		} catch (error) {
+			this.logger.warn('Failed to delete head branch after merge', {
+				owner,
+				repo,
+				branch: pr.head.ref,
+				message: (error as Error).message,
+			});
+		}
+	}
 
-    async listPullRequestFiles(
-        owner: string,
-        repo: string,
-        prNumber: number,
-    ): Promise<PullRequestFile[]> {
-        return this.apiClient.listPullRequestFiles(owner, repo, prNumber);
-    }
+	private deriveReviewDecision(
+		reviews: Array<{user: {login: string}; state: string; submitted_at: string}>,
+	): Nullable<'APPROVED' | 'CHANGES_REQUESTED'> {
+		const latestByUser = new Map<string, string>();
+		const sorted = reviews.toSorted(
+			(a, b) =>
+				new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
+		);
 
-    async mergePullRequest(
-        parameters: PullRequestActionParameters,
-    ): Promise<MergePullRequestResult> {
-        const {owner, repo, prNumber, requesterGithubUsername} = parameters;
-        const pr = await this.apiClient.getPullRequest(owner, repo, prNumber);
+		for (const review of sorted) {
+			if (review.state === 'APPROVED' || review.state === 'CHANGES_REQUESTED') {
+				latestByUser.set(review.user.login, review.state);
+			} else if (review.state === 'DISMISSED') {
+				latestByUser.delete(review.user.login);
+			}
+		}
 
-        if (pr.merged) {
-            this.logger.log('PR already merged, returning idempotent result', {
-                owner,
-                repo,
-                prNumber,
-            });
-            return {alreadyMerged: true, prUrl: pr.html_url, prNumber};
-        }
+		const states = new Set(latestByUser.values());
+		if (states.has('CHANGES_REQUESTED')) {
+			return 'CHANGES_REQUESTED';
+		}
 
-        await this.assertWritePermission(owner, repo, requesterGithubUsername);
+		return states.has('APPROVED') ? 'APPROVED' : null;
+	}
 
-        try {
-            await this.apiClient.mergePullRequest(owner, repo, prNumber);
-        } catch (error) {
-            if (error instanceof GithubClientError && error.statusCode === 405) {
-                throw new GithubClientError(
-                    `머지할 수 없는 상태입니다 (mergeable_state: ${pr.mergeable_state})`,
-                    409,
-                );
-            }
+	async getPullRequestDetail(
+		owner: string,
+		repo: string,
+		prNumber: number,
+	): Promise<PullRequestDetailResponse> {
+		const pr = await this.apiClient.getPullRequest(owner, repo, prNumber);
+		const reviews = await this.apiClient.listPullRequestReviews(
+			owner,
+			repo,
+			prNumber,
+		);
 
-            throw error;
-        }
+		return {
+			number: pr.number,
+			title: pr.title,
+			body: pr.body,
+			author: pr.user.login,
+			state: pr.state,
+			mergeable: pr.mergeable,
+			mergeableState: pr.mergeable_state,
+			reviewDecision: this.deriveReviewDecision(reviews),
+			headRef: pr.head.ref,
+			baseRef: pr.base.ref,
+			htmlUrl: pr.html_url,
+		};
+	}
 
-        await this.deleteHeadBranchIfSameRepo(owner, repo, pr);
+	// GitHub이 요청 시점마다 재계산해 projection으로 재구성할 수 없는 값만 돌려준다.
+	// 나머지 PR 상세 필드는 cowork-project가 read-model projection에서 채운다.
+	async getPullRequestLiveStatus(
+		owner: string,
+		repo: string,
+		prNumber: number,
+	): Promise<PullRequestLiveStatusResponse> {
+		const {mergeable, mergeableState, reviewDecision} = await this.getPullRequestDetail(owner, repo, prNumber);
+		return {mergeable, mergeableState, reviewDecision};
+	}
 
-        this.logger.log('PR merged', {owner, repo, prNumber});
-        return {alreadyMerged: false, prUrl: pr.html_url, prNumber};
-    }
+	async listPullRequests(
+		owner: string,
+		repo: string,
+		state: string,
+	): Promise<PullRequestSummaryResponse[]> {
+		this.assertValidState(state);
 
-    async approvePullRequest(
-        parameters: PullRequestActionParameters,
-    ): Promise<ApprovePullRequestResult> {
-        const {owner, repo, prNumber, requesterGithubUsername} = parameters;
-        const pr = await this.apiClient.getPullRequest(owner, repo, prNumber);
+		const items = await this.apiClient.listPullRequests(owner, repo, state);
 
-        this.assertNotSelfReview(pr.user.login, requesterGithubUsername);
-        await this.assertWritePermission(owner, repo, requesterGithubUsername);
+		return items.map(item => ({
+			number: item.number,
+			title: item.title,
+			author: item.user?.login ?? 'ghost',
+			state: item.state,
+			draft: item.draft,
+			merged: isPresent(item.merged_at),
+			htmlUrl: item.html_url,
+			labels: item.labels?.map(label => label.name) ?? [],
+			createdAt: item.created_at,
+			updatedAt: item.updated_at,
+		}));
+	}
 
-        await this.apiClient.approvePullRequest(owner, repo, prNumber);
+	async listPullRequestFiles(
+		owner: string,
+		repo: string,
+		prNumber: number,
+	): Promise<PullRequestFile[]> {
+		return this.apiClient.listPullRequestFiles(owner, repo, prNumber);
+	}
 
-        this.logger.log('PR approved', {
-            owner,
-            repo,
-            prNumber,
-            requesterGithubUsername,
-        });
-        return {prUrl: pr.html_url, prNumber};
-    }
+	async mergePullRequest(
+		parameters: PullRequestActionParameters,
+	): Promise<MergePullRequestResult> {
+		const {owner, repo, prNumber, requesterGithubUsername} = parameters;
+		const pr = await this.apiClient.getPullRequest(owner, repo, prNumber);
 
-    private assertValidState(state: string): void {
-        if (
-            !ALLOWED_PR_STATES.includes(state as (typeof ALLOWED_PR_STATES)[number])
-        ) {
-            throw new GithubClientError(
-                'state 쿼리 파라미터는 open, closed, all 중 하나여야 합니다.',
-                400,
-            );
-        }
-    }
+		if (pr.merged) {
+			this.logger.log('PR already merged, returning idempotent result', {
+				owner,
+				repo,
+				prNumber,
+			});
+			return {alreadyMerged: true, prUrl: pr.html_url, prNumber};
+		}
 
-    private async assertWritePermission(
-        owner: string,
-        repo: string,
-        username: string,
-    ): Promise<void> {
-        const {permission} = await this.apiClient.getCollaboratorPermission(
-            owner,
-            repo,
-            username,
-        );
+		await this.assertWritePermission(owner, repo, requesterGithubUsername);
 
-        if (
-            !GITHUB_PR_WRITE_PERMISSIONS.includes(
-                permission as (typeof GITHUB_PR_WRITE_PERMISSIONS)[number],
-            )
-        ) {
-            throw new GithubClientError(
-                '이 저장소에 대한 쓰기 권한이 없습니다.',
-                403,
-            );
-        }
-    }
+		try {
+			await this.apiClient.mergePullRequest(owner, repo, prNumber);
+		} catch (error) {
+			if (error instanceof GithubClientError && error.statusCode === 405) {
+				throw new GithubClientError(
+					`머지할 수 없는 상태입니다 (mergeable_state: ${pr.mergeable_state})`,
+					409,
+				);
+			}
 
-    private assertNotSelfReview(
-        authorLogin: string,
-        requesterGithubUsername: string,
-    ): void {
-        if (authorLogin.toLowerCase() === requesterGithubUsername.toLowerCase()) {
-            throw new GithubClientError(
-                '본인이 작성한 PR은 승인할 수 없습니다.',
-                403,
-            );
-        }
-    }
+			throw error;
+		}
 
-    private async deleteHeadBranchIfSameRepo(
-        owner: string,
-        repo: string,
-        pr: PullRequestDetail,
-    ): Promise<void> {
-        const isSameRepo =
-            pr.head.repo != null
-            && pr.head.repo.full_name === pr.base.repo?.full_name;
-        if (!isSameRepo) {
-            return;
-        }
+		await this.deleteHeadBranchIfSameRepo(owner, repo, pr);
 
-        try {
-            await this.apiClient.deleteBranch(owner, repo, pr.head.ref);
-        } catch (error) {
-            this.logger.warn('Failed to delete head branch after merge', {
-                owner,
-                repo,
-                branch: pr.head.ref,
-                message: (error as Error).message,
-            });
-        }
-    }
+		this.logger.log('PR merged', {owner, repo, prNumber});
+		return {alreadyMerged: false, prUrl: pr.html_url, prNumber};
+	}
 
-    private deriveReviewDecision(
-        reviews: Array<{user: {login: string}; state: string; submitted_at: string}>,
-    ): 'APPROVED' | 'CHANGES_REQUESTED' | null {
-        const latestByUser = new Map<string, string>();
-        const sorted = reviews.toSorted(
-            (a, b) =>
-                new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime(),
-        );
+	async approvePullRequest(
+		parameters: PullRequestActionParameters,
+	): Promise<ApprovePullRequestResult> {
+		const {owner, repo, prNumber, requesterGithubUsername} = parameters;
+		const pr = await this.apiClient.getPullRequest(owner, repo, prNumber);
 
-        for (const review of sorted) {
-            if (review.state === 'APPROVED' || review.state === 'CHANGES_REQUESTED') {
-                latestByUser.set(review.user.login, review.state);
-            } else if (review.state === 'DISMISSED') {
-                latestByUser.delete(review.user.login);
-            }
-        }
+		this.assertNotSelfReview(pr.user.login, requesterGithubUsername);
+		await this.assertWritePermission(owner, repo, requesterGithubUsername);
 
-        const states = new Set(latestByUser.values());
-        if (states.has('CHANGES_REQUESTED')) {
-            return 'CHANGES_REQUESTED';
-        }
+		await this.apiClient.approvePullRequest(owner, repo, prNumber);
 
-        return states.has('APPROVED') ? 'APPROVED' : null;
-    }
+		this.logger.log('PR approved', {
+			owner,
+			repo,
+			prNumber,
+			requesterGithubUsername,
+		});
+		return {prUrl: pr.html_url, prNumber};
+	}
 }

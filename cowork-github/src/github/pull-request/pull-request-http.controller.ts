@@ -1,80 +1,80 @@
 import {
-    Body,
-    Controller,
-    Get,
-    HttpException,
-    Param,
-    ParseIntPipe,
-    Post,
-    UseGuards,
+	Body as requestBody,
+	Controller as controller,
+	Get as httpGet,
+	HttpException,
+	Param as requestParameter,
+	ParseIntPipe,
+	Post as httpPost,
+	UseGuards as useGuards,
 } from '@nestjs/common';
-import {GithubClientError} from '../github.errors';
-import {InternalApiKeyGuard} from '../common/guards/internal-api-key.guard';
-import {PullRequestActionRequestDto} from './dto/pull-request-action-request.dto';
-import {PullRequestService} from './pull-request.service';
+import {GithubClientError} from '../github.errors.js';
+import {InternalApiKeyGuard} from '../common/guards/internal-api-key.guard.js';
+import {PullRequestActionRequestDto} from './dto/pull-request-action-request.dto.js';
+import {PullRequestService} from './pull-request.service.js';
 
-@Controller('api/repos/:owner/:repo/pulls/:number')
-@UseGuards(InternalApiKeyGuard)
+@controller('api/repos/:owner/:repo/pulls/:number')
+@useGuards(InternalApiKeyGuard)
 export class PullRequestHttpController {
-    constructor(private readonly pullRequestService: PullRequestService) {}
+	constructor(private readonly pullRequestService: PullRequestService) {}
 
-    @Get('live-status')
-    async getLiveStatus(
-        @Param('owner') owner: string,
-        @Param('repo') repo: string,
-        @Param('number', ParseIntPipe) prNumber: number,
-    ) {
-        return this.handle(async () =>
-            this.pullRequestService.getPullRequestLiveStatus(owner, repo, prNumber),
-        );
-    }
+	private async handle<T>(fn: () => Promise<T>): Promise<T> {
+		try {
+			return await fn();
+		} catch (error) {
+			if (error instanceof GithubClientError) {
+				throw new HttpException(error.message, error.statusCode);
+			}
 
-    @Post('merge')
-    async merge(
-        @Param('owner') owner: string,
-        @Param('repo') repo: string,
-        @Param('number', ParseIntPipe) prNumber: number,
-        @Body() body: PullRequestActionRequestDto,
-    ) {
-        return this.handle(async () =>
-            this.pullRequestService.mergePullRequest({
-                owner,
-                repo,
-                prNumber,
-                requesterGithubUsername: body.requesterGithubUsername,
-            }),
-        );
-    }
+			throw new HttpException(
+				'GitHub 서버와 통신 중 오류가 발생했습니다.',
+				502,
+			);
+		}
+	}
 
-    @Post('approve')
-    async approve(
-        @Param('owner') owner: string,
-        @Param('repo') repo: string,
-        @Param('number', ParseIntPipe) prNumber: number,
-        @Body() body: PullRequestActionRequestDto,
-    ) {
-        return this.handle(async () =>
-            this.pullRequestService.approvePullRequest({
-                owner,
-                repo,
-                prNumber,
-                requesterGithubUsername: body.requesterGithubUsername,
-            }),
-        );
-    }
+	@httpGet('live-status')
+	async getLiveStatus(
+		@requestParameter('owner') owner: string,
+		@requestParameter('repo') repo: string,
+		@requestParameter('number', ParseIntPipe) prNumber: number,
+	) {
+		return this.handle(async () =>
+			this.pullRequestService.getPullRequestLiveStatus(owner, repo, prNumber),
+		);
+	}
 
-    private async handle<T>(fn: () => Promise<T>): Promise<T> {
-        try {
-            return await fn();
-        } catch (error) {
-            if (error instanceof GithubClientError) {
-                throw new HttpException(error.message, error.statusCode);
-            }
+	@httpPost('merge')
+	async merge(
+		@requestParameter('owner') owner: string,
+		@requestParameter('repo') repo: string,
+		@requestParameter('number', ParseIntPipe) prNumber: number,
+		@requestBody() body: PullRequestActionRequestDto,
+	) {
+		return this.handle(async () =>
+			this.pullRequestService.mergePullRequest({
+				owner,
+				repo,
+				prNumber,
+				requesterGithubUsername: body.requesterGithubUsername,
+			}),
+		);
+	}
 
-            throw new HttpException(
-                'GitHub 서버와 통신 중 오류가 발생했습니다.',
-                502,
-            );
-        }
-    }
+	@httpPost('approve')
+	async approve(
+		@requestParameter('owner') owner: string,
+		@requestParameter('repo') repo: string,
+		@requestParameter('number', ParseIntPipe) prNumber: number,
+		@requestBody() body: PullRequestActionRequestDto,
+	) {
+		return this.handle(async () =>
+			this.pullRequestService.approvePullRequest({
+				owner,
+				repo,
+				prNumber,
+				requesterGithubUsername: body.requesterGithubUsername,
+			}),
+		);
+	}
 }

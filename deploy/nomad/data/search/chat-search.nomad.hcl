@@ -103,8 +103,9 @@ job "cowork-chat-search" {
         ES_JAVA_OPTS = "-Xms512m -Xmx512m"
       }
       resources {
-        cpu    = 500
-        memory = 1024
+        cpu        = 500
+        memory     = 1024
+        memory_max = 1536
       }
       volume_mount {
         volume      = "data"

@@ -1,31 +1,31 @@
 import {
-    IsNotEmpty,
-    IsNumber,
-    IsOptional,
-    IsString,
+	IsNotEmpty as isNotEmpty,
+	IsNumber as isNumber,
+	IsOptional as isOptional,
+	IsString as isString,
 } from 'class-validator';
 
 export class PullRequestActionDto {
-    @IsString()
-    @IsNotEmpty()
-    owner: string;
+	@isString()
+	@isNotEmpty()
+	owner: string;
 
-    @IsString()
-    @IsNotEmpty()
-    repo: string;
+	@isString()
+	@isNotEmpty()
+	repo: string;
 
-    @IsNumber()
-    prNumber: number;
+	@isNumber()
+	prNumber: number;
 
-    @IsString()
-    @IsNotEmpty()
-    requesterGithubUsername: string;
+	@isString()
+	@isNotEmpty()
+	requesterGithubUsername: string;
 
-    @IsNumber()
-    @IsOptional()
-    channelId?: number;
+	@isNumber()
+	@isOptional()
+	channelId?: number;
 
-    @IsNumber()
-    @IsOptional()
-    teamId?: number;
+	@isNumber()
+	@isOptional()
+	teamId?: number;
 }

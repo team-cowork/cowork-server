@@ -1,19 +1,14 @@
 FROM eclipse-temurin:26.0.2_10-jdk-alpine-3.24@sha256:e5b0a876436e5d1c8ff84dfd091cb530b83a9ed4273317d24acb673695bb7e0c AS builder
-WORKDIR /workspace
+WORKDIR /workspace/cowork-team
 
-COPY gradlew gradlew
-COPY gradle gradle
-COPY build-logic build-logic
-COPY settings.gradle.kts build.gradle.kts ./
-COPY cowork-team/build.gradle.kts cowork-team/build.gradle.kts
-COPY cowork-team/src cowork-team/src
-# This image evaluates only its own module; other slots may use another toolchain.
-RUN sed -i '/^include(/d' settings.gradle.kts \
-    && printf 'include("cowork-team")\n' >> settings.gradle.kts
+COPY cowork-team/gradlew gradlew
+COPY cowork-team/gradle gradle
+COPY cowork-team/settings.gradle.kts cowork-team/build.gradle.kts ./
+COPY cowork-team/src src
 RUN --mount=type=cache,id=cowork-gradle,target=/root/.gradle,sharing=locked \
     chmod +x gradlew \
-    && ./gradlew :cowork-team:bootJar -x test --no-daemon --build-cache \
-    && artifact="$(find cowork-team/build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-plain.jar' -print -quit)" \
+    && ./gradlew bootJar -x test --no-daemon --build-cache \
+    && artifact="$(find build/libs -maxdepth 1 -type f -name '*.jar' ! -name '*-plain.jar' -print -quit)" \
     && test -n "${artifact}" \
     && cp "${artifact}" /workspace/app.jar
 
@@ -26,7 +21,7 @@ RUN apk --no-cache add bash python3 curl
 COPY .editorconfig /workspace/.editorconfig
 COPY deploy/ci/verification /ci
 RUN --mount=type=cache,id=cowork-gradle,target=/root/.gradle,sharing=locked \
-    ./gradlew :cowork-team:check -x test --no-daemon --build-cache \
+    ./gradlew check -x test --no-daemon --build-cache \
     && bash /ci/run-jvm.sh gradle cowork-team /workspace /coverage \
     && python3 /ci/report.py collect --module cowork-team --snapshot pr --format jacoco --metric line --input /coverage/report.xml --output /coverage/coverage.json --exit-code 0
 
