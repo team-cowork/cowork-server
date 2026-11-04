@@ -1,11 +1,52 @@
 plugins {
-    id("cowork.kotlin-jpa-conventions")
+    java
+    alias(libs.plugins.spring.boot)
+    alias(libs.plugins.spring.dependency.management)
+    alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.spring)
+    alias(libs.plugins.kotlin.jpa)
+    alias(libs.plugins.ktlint)
 }
 
+group = "com.cowork"
 version = "20261103.0"
 
 repositories {
+    mavenCentral()
     maven { url = uri("https://jitpack.io") }
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(libs.versions.java.get().toInt())
+    }
+}
+
+dependencyManagement {
+    imports {
+        mavenBom(libs.spring.cloud.dependencies.get().toString())
+    }
+}
+
+kotlin {
+    compilerOptions {
+        freeCompilerArgs.add("-Xjsr305=strict")
+    }
+}
+
+ktlint {
+    version.set(libs.versions.ktlint.asProvider())
+}
+
+// Keep ktlint's compiler dependencies independent of the Spring BOM.
+configurations.matching { it.name.startsWith("ktlint") }.configureEach {
+    resolutionStrategy.eachDependency {
+        val requestedVersion = requested.version
+        if (requested.group == "org.jetbrains.kotlin" && !requestedVersion.isNullOrBlank()) {
+            useVersion(requestedVersion)
+            because("Keep ktlint's compiler dependencies independent of the Spring BOM")
+        }
+    }
 }
 
 val megaMethod = configurations.create("megaMethod") {
@@ -15,6 +56,9 @@ val megaMethod = configurations.create("megaMethod") {
 }
 
 dependencies {
+    // Spring APIs require UnknownNullability from the pinned annotations version.
+    compileOnly(libs.jetbrains.annotations)
+
     add(megaMethod.name, libs.mega.method)
     // Keep JitPack failures optional without hiding failures in required dependencies.
     runtimeOnly(megaMethod.incoming.artifactView { isLenient = true }.files)
@@ -50,4 +94,8 @@ dependencies {
 
 tasks.named("jar") {
     enabled = false
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
 }
