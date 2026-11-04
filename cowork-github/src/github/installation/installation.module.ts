@@ -21,31 +21,31 @@ import {GithubWebhookSignatureGuard} from './webhook/github-webhook-signature.gu
 import {GithubWebhookController} from './webhook/github-webhook.controller';
 
 @Module({
-    imports: [
-        HttpModule,
-        GithubAuthModule,
-        IssueHttpModule,
-        PullRequestModule,
-        LabelHttpModule,
-    ],
-    providers: [
-        AppConfigService,
-        InstallationApiClient,
-        TeamGithubProducer,
-        RepoEventProducer,
-        RepoStateProducer,
-        IssueStateProducer,
-        PullRequestStateProducer,
-        LabelStateProducer,
-        IssueCommentStateProducer,
-        GithubReadModelEventProducers,
-        GithubBackfillService,
-        GithubWebhookSignatureGuard,
-    ],
-    controllers: [
-        GithubWebhookController,
-        GithubSetupController,
-        GithubSyncCommandController,
-    ],
+	imports: [
+		HttpModule,
+		GithubAuthModule,
+		IssueHttpModule,
+		PullRequestModule,
+		LabelHttpModule,
+	],
+	providers: [
+		AppConfigService,
+		InstallationApiClient,
+		TeamGithubProducer,
+		RepoEventProducer,
+		RepoStateProducer,
+		IssueStateProducer,
+		PullRequestStateProducer,
+		LabelStateProducer,
+		IssueCommentStateProducer,
+		GithubReadModelEventProducers,
+		GithubBackfillService,
+		GithubWebhookSignatureGuard,
+	],
+	controllers: [
+		GithubWebhookController,
+		GithubSetupController,
+		GithubSyncCommandController,
+	],
 })
 export class InstallationModule {}

@@ -239,7 +239,7 @@ groups:
           description: "Authorization이 Redis Stream을 읽지 못하고 있습니다. Redis 연결과 소비자 로그, 대기열 적체량을 확인해 주세요."
 
       - alert: coworkDatagsmIngressUnavailable
-        expr: sum(increase(gateway_datagsm_ingress_total{outcome=~"temporarily_unavailable|webhook_not_configured"}[5m])) > 0
+        expr: sum(increase(gateway_datagsm_ingress_total{outcome="temporarily_unavailable"}[5m])) > 0
         labels:
           severity: critical
           service: gateway
