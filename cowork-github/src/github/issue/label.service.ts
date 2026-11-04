@@ -1,141 +1,143 @@
-import {Injectable, Logger} from '@nestjs/common';
+import {Injectable as injectable, Logger} from '@nestjs/common';
+import {forEachSequential} from '../common/sequential.js';
+import {type Nullable} from '../common/nullable.js';
 import {
-    CreateLabelPayload,
-    GithubApiClient,
-} from '../client/github-api.client';
-import {CreateIssueDto} from '../dto/create-issue.dto';
-import {GithubClientError} from '../github.errors';
+	CreateLabelPayload,
+	GithubApiClient,
+} from '../client/github-api.client.js';
+import {CreateIssueDto} from '../dto/create-issue.dto.js';
+import {GithubClientError} from '../github.errors.js';
 import {
-    BUG_KEYWORDS,
-    BUG_LABEL,
-    COWORK_FALLBACK_LABEL,
-    COWORK_LABELS,
-    ENHANCEMENT_KEYWORDS,
-    ENHANCEMENT_LABEL,
-    QUESTION_KEYWORDS,
-    QUESTION_LABEL,
-} from './label.constants';
+	BUG_KEYWORDS,
+	BUG_LABEL,
+	COWORK_FALLBACK_LABEL,
+	COWORK_LABELS,
+	ENHANCEMENT_KEYWORDS,
+	ENHANCEMENT_LABEL,
+	QUESTION_KEYWORDS,
+	QUESTION_LABEL,
+} from './label.constants.js';
 
 const COWORK_LABEL_NAMES = new Set(
-    COWORK_LABELS.map(l => l.name.toLowerCase()),
+	COWORK_LABELS.map(l => l.name.toLowerCase()),
 );
 
-@Injectable()
+@injectable()
 export class LabelService {
-    private readonly logger = new Logger(LabelService.name);
+	private readonly logger = new Logger(LabelService.name);
 
-    constructor(private readonly apiClient: GithubApiClient) {}
+	constructor(private readonly apiClient: GithubApiClient) {}
 
-    resolveLabels(dto: CreateIssueDto): string[] {
-        const explicit = dto.labels
-            ? this.uniqueLabels(dto.labels.filter(l => l.trim().length > 0))
-            : [];
+	private detectCoworkLabelName(text: string): Nullable<string> {
+		if (this.includesAny(text, BUG_KEYWORDS)) {
+			return BUG_LABEL;
+		}
 
-        const text = `${dto.title} ${dto.body ?? ''}`.toLowerCase();
-        const keywordLabel = this.detectCoworkLabelName(text);
+		if (this.includesAny(text, ENHANCEMENT_KEYWORDS)) {
+			return ENHANCEMENT_LABEL;
+		}
 
-        const merged = this.uniqueLabels([
-            ...explicit,
-            ...(keywordLabel === null ? [] : [keywordLabel]),
-        ]);
+		return this.includesAny(text, QUESTION_KEYWORDS) ? QUESTION_LABEL : null;
+	}
 
-        const hasCowork = merged.some(l =>
-            COWORK_LABEL_NAMES.has(l.toLowerCase()),
-        );
-        if (!hasCowork) {
-            merged.push(COWORK_FALLBACK_LABEL);
-        }
+	private includesAny(text: string, keywords: readonly string[]): boolean {
+		return keywords.some(keyword => text.includes(keyword));
+	}
 
-        return merged;
-    }
+	private hasRepoLabel(repoLabels: string[], label: string): boolean {
+		const lower = label.toLowerCase();
+		return repoLabels.some(l => l.toLowerCase() === lower);
+	}
 
-    async ensureLabelsExist(
-        dto: CreateIssueDto,
-        labels: string[],
-    ): Promise<void> {
-        if (labels.length === 0) {
-            return;
-        }
+	private uniqueLabels(labels: string[]): string[] {
+		const seen = new Set<string>();
+		const result: string[] = [];
+		for (const label of labels) {
+			const lower = label.toLowerCase();
+			if (seen.has(lower)) {
+				continue;
+			}
 
-        const repoLabels = await this.apiClient.listLabels(dto);
+			seen.add(lower);
+			result.push(label);
+		}
 
-        for (const name of labels) {
-            if (this.hasRepoLabel(repoLabels, name)) {
-                continue;
-            }
+		return result;
+	}
 
-            const coworkDef = COWORK_LABELS.find(
-                l => l.name.toLowerCase() === name.toLowerCase(),
-            );
-            const payload = coworkDef ?? this.createCustomLabel(name);
+	private createCustomLabel(name: string): CreateLabelPayload {
+		return {
+			name,
+			color: 'ededed',
+			description: '사용자 요청으로 생성된 라벨',
+		};
+	}
 
-            try {
-                // eslint-disable-next-line no-await-in-loop -- GitHub asks integrations to send content-creating requests serially.
-                await this.apiClient.createLabel(dto, payload);
-                this.logger.log('Repository label created', {
-                    owner: dto.owner,
-                    repo: dto.repo,
-                    label: name,
-                });
-            } catch (error) {
-                if (
-                    error instanceof GithubClientError
-                    && (error.statusCode === 422 || error.statusCode === 403)
-                ) {
-                    this.logger.log(
-                        `Repository label creation skipped (status: ${error.statusCode})`,
-                        {owner: dto.owner, repo: dto.repo, label: name},
-                    );
-                    continue;
-                }
+	resolveLabels(dto: CreateIssueDto): string[] {
+		const explicit = dto.labels
+			? this.uniqueLabels(dto.labels.filter(l => l.trim().length > 0))
+			: [];
 
-                throw error;
-            }
-        }
-    }
+		const text = `${dto.title} ${dto.body ?? ''}`.toLowerCase();
+		const keywordLabel = this.detectCoworkLabelName(text);
 
-    private detectCoworkLabelName(text: string): string | null {
-        if (this.includesAny(text, BUG_KEYWORDS)) {
-            return BUG_LABEL;
-        }
+		const merged = this.uniqueLabels([
+			...explicit,
+			...(keywordLabel === null ? [] : [keywordLabel]),
+		]);
 
-        if (this.includesAny(text, ENHANCEMENT_KEYWORDS)) {
-            return ENHANCEMENT_LABEL;
-        }
+		const hasCowork = merged.some(l =>
+			COWORK_LABEL_NAMES.has(l.toLowerCase()),
+		);
+		if (!hasCowork) {
+			merged.push(COWORK_FALLBACK_LABEL);
+		}
 
-        return this.includesAny(text, QUESTION_KEYWORDS) ? QUESTION_LABEL : null;
-    }
+		return merged;
+	}
 
-    private includesAny(text: string, keywords: readonly string[]): boolean {
-        return keywords.some(keyword => text.includes(keyword));
-    }
+	async ensureLabelsExist(
+		dto: CreateIssueDto,
+		labels: string[],
+	): Promise<void> {
+		if (labels.length === 0) {
+			return;
+		}
 
-    private hasRepoLabel(repoLabels: string[], label: string): boolean {
-        const lower = label.toLowerCase();
-        return repoLabels.some(l => l.toLowerCase() === lower);
-    }
+		const repoLabels = await this.apiClient.listLabels(dto);
 
-    private uniqueLabels(labels: string[]): string[] {
-        const seen = new Set<string>();
-        const result: string[] = [];
-        for (const label of labels) {
-            const lower = label.toLowerCase();
-            if (seen.has(lower)) {
-                continue;
-            }
+		// GitHub asks integrations to send content-creating requests serially.
+		await forEachSequential(labels, async name => {
+			if (this.hasRepoLabel(repoLabels, name)) {
+				return;
+			}
 
-            seen.add(lower);
-            result.push(label);
-        }
+			const coworkDef = COWORK_LABELS.find(
+				l => l.name.toLowerCase() === name.toLowerCase(),
+			);
+			const payload = coworkDef ?? this.createCustomLabel(name);
 
-        return result;
-    }
+			try {
+				await this.apiClient.createLabel(dto, payload);
+				this.logger.log('Repository label created', {
+					owner: dto.owner,
+					repo: dto.repo,
+					label: name,
+				});
+			} catch (error) {
+				if (
+					error instanceof GithubClientError
+					&& (error.statusCode === 422 || error.statusCode === 403)
+				) {
+					this.logger.log(
+						`Repository label creation skipped (status: ${error.statusCode})`,
+						{owner: dto.owner, repo: dto.repo, label: name},
+					);
+					return;
+				}
 
-    private createCustomLabel(name: string): CreateLabelPayload {
-        return {
-            name,
-            color: 'ededed',
-            description: '사용자 요청으로 생성된 라벨',
-        };
-    }
+				throw error;
+			}
+		});
+	}
 }

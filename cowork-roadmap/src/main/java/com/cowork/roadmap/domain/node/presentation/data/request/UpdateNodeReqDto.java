@@ -6,7 +6,7 @@ import jakarta.validation.constraints.Size;
 /** PATCH 의미: null인 필드는 변경하지 않는다. */
 public record UpdateNodeReqDto(
 
-        @Schema(description = "노드/문서 제목") @Size(max = 200) String title,
+        @Schema(description = "노드/문서 제목. 빈 문자열과 공백만 있는 값은 거부") @Size(max = 200) String title,
 
         @Schema(description = "번역된 본문 (마크다운)") String content,
 

@@ -30,14 +30,7 @@ func NewEventService(cfg *config.AppConfig, inbox WebhookInbox) *EventService {
 	return &EventService{cfg: cfg, inbox: inbox}
 }
 
-func (s *EventService) SecretConfigured() bool {
-	return s.cfg.DataGSMWebhookSecret != ""
-}
-
 func (s *EventService) VerifySignature(body []byte, signatureHeader string) bool {
-	if !s.SecretConfigured() {
-		return false
-	}
 	provided, ok := strings.CutPrefix(signatureHeader, signaturePrefix)
 	if !ok {
 		return false

@@ -1,5 +1,6 @@
 package com.cowork.roadmap.domain.roadmap.service.impl;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -12,6 +13,7 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import lombok.RequiredArgsConstructor;
+import team.themoment.sdk.exception.ExpectedException;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +29,12 @@ public class ModifyRoadmapServiceImpl implements ModifyRoadmapService {
     public RoadmapResDto execute(Long userId, String userRole, Long roadmapId, UpdateRoadmapReqDto request) {
         Roadmap roadmap = lookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
         accessGuard.requireMutable(roadmap, userId, userRole);
+        if (request.title() != null && request.title().isBlank()) {
+            throw new ExpectedException("로드맵 제목은 공백일 수 없습니다.", HttpStatus.BAD_REQUEST);
+        }
+        if (request.category() != null && request.category().isBlank()) {
+            throw new ExpectedException("로드맵 종류는 공백일 수 없습니다.", HttpStatus.BAD_REQUEST);
+        }
         Roadmap updated = roadmap.toBuilder()
                 .title(request.title() != null ? request.title() : roadmap.getTitle())
                 .description(request.description() != null ? request.description() : roadmap.getDescription())
