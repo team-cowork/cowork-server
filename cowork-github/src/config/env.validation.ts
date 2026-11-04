@@ -1,22 +1,23 @@
 import * as Joi from 'joi';
 
 export const envValidationSchema = Joi.object({
-    PORT: Joi.number().port().default(8090),
-    KAFKA_BOOTSTRAP_SERVERS: Joi.string().trim().required(),
-    KAFKA_GROUP_ID: Joi.string().trim().default('cowork-github-group'),
-    GITHUB_APP_ID: Joi.string().trim().required(),
-    GITHUB_PRIVATE_KEY: Joi.string().trim().required(),
-    REDIS_HOST: Joi.string().trim().default('localhost'),
-    REDIS_PORT: Joi.number().port().default(6379),
-    GITHUB_TOKEN_CACHE_TTL_SECONDS: Joi.number()
-        .integer()
-        .positive()
-        .default(3300),
-    GITHUB_INSTALLATION_CACHE_TTL_SECONDS: Joi.number()
-        .integer()
-        .positive()
-        .default(86_400),
-    GITHUB_ISSUE_MAX_RETRIES: Joi.number().integer().min(1).default(3),
-    INTERNAL_API_KEY: Joi.string().trim().required(),
-    GITHUB_WEBHOOK_SECRET: Joi.string().trim().required(),
+	PORT: Joi.number().port().default(8090),
+	KAFKA_BOOTSTRAP_SERVERS: Joi.string().trim().required(),
+	KAFKA_SECURITY_PROTOCOL: Joi.string().uppercase().valid('PLAINTEXT', 'SSL', 'SASL_SSL').required(),
+	KAFKA_GROUP_ID: Joi.string().trim().default('cowork-github-group'),
+	GITHUB_APP_ID: Joi.string().trim().required(),
+	GITHUB_PRIVATE_KEY: Joi.string().trim().required(),
+	REDIS_HOST: Joi.string().trim().required(),
+	REDIS_PORT: Joi.number().port().required(),
+	GITHUB_TOKEN_CACHE_TTL_SECONDS: Joi.number()
+		.integer()
+		.positive()
+		.default(3300),
+	GITHUB_INSTALLATION_CACHE_TTL_SECONDS: Joi.number()
+		.integer()
+		.positive()
+		.default(86_400),
+	GITHUB_ISSUE_MAX_RETRIES: Joi.number().integer().min(1).default(3),
+	INTERNAL_API_KEY: Joi.string().trim().required(),
+	GITHUB_WEBHOOK_SECRET: Joi.string().trim().required(),
 });

@@ -51,7 +51,6 @@ class DataGsmWebhookIngressFilterTest :
         }
 
         beforeTest {
-            every { verifier.configured() } returns true
             every { verifier.validSignature(any(), signature) } returns true
             every { verifier.validEnvelope(any()) } returns true
             every { queue.accept(any(), signature) } returns Mono.error(IllegalStateException("redis unavailable"))
