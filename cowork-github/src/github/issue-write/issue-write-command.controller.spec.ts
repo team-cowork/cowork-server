@@ -1,12 +1,12 @@
 import {Test, type TestingModule} from '@nestjs/testing';
 import {type KafkaContext} from '@nestjs/microservices';
-import {GithubClientError} from '../github.errors';
-import {IssueHttpService} from '../issue-http/issue-http.service';
-import {LabelHttpService} from '../label-http/label-http.service';
-import {REDIS_CLIENT} from '../constants';
-import {CreateCommentHistory} from './create-comment-history';
-import {IssueWriteCommandController} from './issue-write-command.controller';
-import {IssueWriteResultProducer} from './issue-write-result.producer';
+import {GithubClientError} from '../github.errors.js';
+import {IssueHttpService} from '../issue-http/issue-http.service.js';
+import {LabelHttpService} from '../label-http/label-http.service.js';
+import {REDIS_CLIENT} from '../constants.js';
+import {CreateCommentHistory} from './create-comment-history.js';
+import {IssueWriteCommandController} from './issue-write-command.controller.js';
+import {IssueWriteResultProducer} from './issue-write-result.producer.js';
 
 describe('IssueWriteCommandController', () => {
 	let controller: IssueWriteCommandController;
@@ -77,8 +77,6 @@ describe('IssueWriteCommandController', () => {
 		controller = module.get<IssueWriteCommandController>(
 			IssueWriteCommandController,
 		);
-		(controller as unknown as {exitProcess: jest.Mock}).exitProcess =
-			jest.fn();
 	});
 
 	describe('REPLACE_LABELS', () => {
@@ -176,7 +174,7 @@ describe('IssueWriteCommandController', () => {
 			expect(commitOffsets).toHaveBeenCalledTimes(1);
 		});
 
-		it('5xx 에러 발생 시 프로세스를 종료하고 오프셋을 커밋하지 않는다', async () => {
+		it('5xx 에러 발생 시 오프셋을 커밋하지 않고 에러를 전파한다', async () => {
 			issueHttpService.createComment.mockRejectedValue(new Error('GitHub 503'));
 
 			await expect(controller.handleCommand(message, ctx)).rejects.toThrow(
@@ -184,9 +182,6 @@ describe('IssueWriteCommandController', () => {
 			);
 
 			expect(commitOffsets).not.toHaveBeenCalled();
-			expect(
-				(controller as unknown as {exitProcess: jest.Mock}).exitProcess,
-			).toHaveBeenCalledWith(1);
 		});
 
 		describe('재처리', () => {

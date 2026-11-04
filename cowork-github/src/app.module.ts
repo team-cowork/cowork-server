@@ -1,17 +1,18 @@
+import process from 'node:process';
 import {mkdirSync, createWriteStream} from 'node:fs';
-import {Module} from '@nestjs/common';
+import {Module as nestModule} from '@nestjs/common';
 import {ConfigModule, ConfigService} from '@nestjs/config';
 import {LoggerModule} from 'nestjs-pino';
 import {multistream} from 'pino';
-import {AppController} from './app.controller';
-import {AppConfigService} from './config/app-config.service';
-import {envValidationSchema} from './config/env.validation';
-import {GithubModule} from './github/github.module';
-import {MetricsController} from './metrics/metrics.controller';
+import {AppController} from './app.controller.js';
+import {AppConfigService} from './config/app-config.service.js';
+import {envValidationSchema} from './config/env.validation.js';
+import {GithubModule} from './github/github.module.js';
+import {MetricsController} from './metrics/metrics.controller.js';
 
 const EXCLUDED_AUTO_LOGGING_PATHS = new Set(['/health', '/metrics']);
 
-@Module({
+@nestModule({
 	imports: [
 		ConfigModule.forRoot({
 			isGlobal: true,

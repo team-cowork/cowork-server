@@ -1,6 +1,7 @@
 import {Test, type TestingModule} from '@nestjs/testing';
-import {IssueHttpApiClient} from './client/issue-http-api.client';
-import {IssueHttpService} from './issue-http.service';
+import {githubField} from '../github-field.js';
+import {IssueHttpApiClient} from './client/issue-http-api.client.js';
+import {IssueHttpService} from './issue-http.service.js';
 
 describe('IssueHttpService', () => {
 	let service: IssueHttpService;
@@ -18,20 +19,20 @@ describe('IssueHttpService', () => {
 		number: 1,
 		title: 'Bug report',
 		state: 'open',
-		html_url: 'https://github.com/my-org/my-repo/issues/1',
+		[githubField.htmlUrl]: 'https://github.com/my-org/my-repo/issues/1',
 		user: {login: 'author'},
 		labels: [{name: 'bug'}],
-		created_at: '2024-01-01T00:00:00Z',
-		updated_at: '2024-01-02T00:00:00Z',
+		[githubField.createdAt]: '2024-01-01T00:00:00Z',
+		[githubField.updatedAt]: '2024-01-02T00:00:00Z',
 	};
 
 	const baseComment = {
 		id: 100,
 		body: 'hello',
-		html_url: 'https://github.com/my-org/my-repo/issues/1#issuecomment-100',
+		[githubField.htmlUrl]: 'https://github.com/my-org/my-repo/issues/1#issuecomment-100',
 		user: {login: 'cowork-bot[bot]'},
-		created_at: '2024-01-01T00:00:00Z',
-		updated_at: '2024-01-01T00:00:00Z',
+		[githubField.createdAt]: '2024-01-01T00:00:00Z',
+		[githubField.updatedAt]: '2024-01-01T00:00:00Z',
 	};
 
 	beforeEach(async () => {
@@ -83,7 +84,7 @@ describe('IssueHttpService', () => {
 		it('pull_request 필드가 있는 항목은 목록에서 제외한다', async () => {
 			apiClient.listIssues.mockResolvedValue([
 				baseIssue,
-				{...baseIssue, number: 2, pull_request: {url: 'https://...'}},
+				{...baseIssue, number: 2, [githubField.pullRequest]: {url: 'https://...'}},
 			]);
 
 			const result = await service.listIssues('my-org', 'my-repo', 'open');

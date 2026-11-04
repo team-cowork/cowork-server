@@ -1,11 +1,11 @@
-import {Injectable, Logger} from '@nestjs/common';
-import {AppConfigService} from '../../config/app-config.service';
-import {GithubApiClient} from '../client/github-api.client';
-import {CreateIssueDto} from '../dto/create-issue.dto';
-import {GithubClientError} from '../github.errors';
-import {LabelService} from './label.service';
+import {Injectable as injectable, Logger} from '@nestjs/common';
+import {AppConfigService} from '../../config/app-config.service.js';
+import {GithubApiClient} from '../client/github-api.client.js';
+import {CreateIssueDto} from '../dto/create-issue.dto.js';
+import {GithubClientError} from '../github.errors.js';
+import {LabelService} from './label.service.js';
 
-@Injectable()
+@injectable()
 export class IssueService {
 	private readonly logger = new Logger(IssueService.name);
 
@@ -14,40 +14,6 @@ export class IssueService {
 		private readonly apiClient: GithubApiClient,
 		private readonly labelService: LabelService,
 	) {}
-
-	async createIssue(
-		dto: CreateIssueDto,
-	): Promise<{issueUrl: string; issueNumber: number}> {
-		const maxRetries = this.config.githubIssueMaxRetries;
-
-		for (let attempt = 1; attempt <= maxRetries; attempt++) {
-			try {
-				// eslint-disable-next-line no-await-in-loop -- retry-with-backoff: each attempt must wait for the previous one to fail.
-				return await this.createIssueOnce(dto);
-			} catch (error) {
-				if (error instanceof GithubClientError) {
-					throw error;
-				}
-
-				this.logger.error('GitHub API error', {
-					owner: dto.owner,
-					repo: dto.repo,
-					title: dto.title,
-					attempt,
-					message: (error as Error).message,
-				});
-
-				if (attempt === maxRetries) {
-					throw error;
-				}
-
-				// eslint-disable-next-line no-await-in-loop -- retry-with-backoff: each attempt must wait for the previous one to fail.
-				await this.sleep((2 ** (attempt - 1)) * 1000);
-			}
-		}
-
-		throw new Error('createIssue: max retries exceeded without result');
-	}
 
 	private async createIssueOnce(
 		dto: CreateIssueDto,
@@ -114,5 +80,41 @@ export class IssueService {
 		return new Promise(resolve => {
 			setTimeout(resolve, ms);
 		});
+	}
+
+	// Retry-with-backoff: each attempt waits for the previous one to fail.
+	private async createIssueWithRetry(
+		dto: CreateIssueDto,
+		attempt: number,
+		maxRetries: number,
+	): Promise<{issueUrl: string; issueNumber: number}> {
+		try {
+			return await this.createIssueOnce(dto);
+		} catch (error) {
+			if (error instanceof GithubClientError) {
+				throw error;
+			}
+
+			this.logger.error('GitHub API error', {
+				owner: dto.owner,
+				repo: dto.repo,
+				title: dto.title,
+				attempt,
+				message: (error as Error).message,
+			});
+
+			if (attempt >= maxRetries) {
+				throw error;
+			}
+
+			await this.sleep((2 ** (attempt - 1)) * 1000);
+			return this.createIssueWithRetry(dto, attempt + 1, maxRetries);
+		}
+	}
+
+	async createIssue(
+		dto: CreateIssueDto,
+	): Promise<{issueUrl: string; issueNumber: number}> {
+		return this.createIssueWithRetry(dto, 1, this.config.githubIssueMaxRetries);
 	}
 }

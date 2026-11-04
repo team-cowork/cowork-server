@@ -1,18 +1,18 @@
 import {
-	Injectable,
+	Injectable as injectable,
 	Logger,
 	OnModuleDestroy,
 	OnModuleInit,
 } from '@nestjs/common';
 import {Kafka, Producer} from 'kafkajs';
-import {AppConfigService} from '../../../config/app-config.service';
-import {PullRequestStateEvent} from './event/pull-request-state';
-import {toRepoIdentity} from './event/repo-identity';
-import {type SyncCompletedMarker, syncCompletedKey} from './event/sync-completed';
+import {AppConfigService} from '../../../config/app-config.service.js';
+import {PullRequestStateEvent} from './event/pull-request-state.js';
+import {toRepoIdentity} from './event/repo-identity.js';
+import {type SyncCompletedMarker, syncCompletedKey} from './event/sync-completed.js';
 
 export const PULL_REQUEST_STATE_TOPIC = 'github.pull-request.state.v1';
 
-@Injectable()
+@injectable()
 export class PullRequestStateProducer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(PullRequestStateProducer.name);
 	private producer!: Producer;

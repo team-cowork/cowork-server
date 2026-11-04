@@ -1,4 +1,4 @@
-import {appendAuthorMarker, extractCommentAuthor} from './comment-author-marker';
+import {appendAuthorMarker, extractCommentAuthor} from './comment-author-marker.js';
 
 describe('comment-author-marker', () => {
 	describe('extractCommentAuthor', () => {
