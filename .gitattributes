@@ -1,6 +1,6 @@
 * text=auto eol=lf
 
-/gradlew text eol=lf
+**/gradlew text eol=lf
 cowork-project/mvnw text eol=lf
 *.sh text eol=lf
 *.bat text eol=crlf
