@@ -17,4 +17,10 @@ public interface RoadmapAssignmentRepository extends JpaRepository<RoadmapAssign
     /** 잠금 읽기로 transaction snapshot 이후 커밋된 과제까지 센다. */
     @Query(value = "SELECT COUNT(*) FROM tb_roadmap_assignments WHERE roadmap_id = :roadmapId AND node_id IN (:nodeIds) FOR SHARE", nativeQuery = true)
     Long countByRoadmapIdAndNodeIdInForShare(Long roadmapId, Collection<Long> nodeIds);
+
+    /**
+     * 유니크 키 (roadmap_id, node_key, assignee_user_id)와 같은 기준으로 최신 커밋된 과제를 잠금 읽기로 센다.
+     */
+    @Query(value = "SELECT COUNT(*) FROM tb_roadmap_assignments WHERE roadmap_id = :roadmapId AND node_key = :nodeKey AND assignee_user_id = :assigneeUserId FOR SHARE", nativeQuery = true)
+    Long countByRoadmapIdAndNodeKeyAndAssigneeUserIdForShare(Long roadmapId, Long nodeKey, Long assigneeUserId);
 }
