@@ -33,6 +33,8 @@ import com.cowork.roadmap.domain.node.service.ReorderRoadmapNodesService;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -81,7 +83,12 @@ public class RoadmapNodeController {
         return queryRoadmapNodeService.execute(userId, userRole, nodeId);
     }
 
-    @Operation(summary = "노드 수정")
+    @Operation(summary = "노드 수정", description = "null인 필드는 변경하지 않는다.")
+    @ApiResponses({@ApiResponse(responseCode = "200", description = "수정 성공"),
+            @ApiResponse(responseCode = "400", description = "제목이 빈 문자열이거나 공백만 있음, 길이 초과"),
+            @ApiResponse(responseCode = "403", description = "로드맵 수정 권한 없음"),
+            @ApiResponse(responseCode = "404", description = "노드 또는 로드맵 없음"),
+            @ApiResponse(responseCode = "503", description = "팀 멤버 투영 동기화 중")})
     @PatchMapping("/nodes/{nodeId}")
     public NodeResDto updateNode(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
             @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
