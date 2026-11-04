@@ -42,6 +42,9 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
         accessGuard.requireReadable(roadmap, userId, userRole);
         accessGuard.requireTeamManagerOrAdmin(userId, userRole, request.teamId());
         validateNodeBelongsToRoadmap(request.nodeId(), request.roadmapId());
+        validateAssignmentTeam(roadmap, request.teamId());
+        accessGuard.requireAssignableMember(request.teamId(), request.assigneeUserId());
+        validateNotAssigned(request);
         RoadmapAssignment assignment = RoadmapAssignment.builder()
                 .roadmapId(request.roadmapId())
                 .nodeId(request.nodeId())
@@ -59,6 +62,26 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
     private void validateAssignmentRoadmap(Roadmap roadmap) {
         if (RoadmapScope.GLOBAL.name().equals(roadmap.getScope())) {
             throw new ExpectedException("글로벌 로드맵에는 과제를 연결할 수 없습니다.", HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    /** 담당자가 과제 팀 멤버이면 로드맵도 읽을 수 있도록 과제 팀을 로드맵 소유 팀으로 제한한다. */
+    private void validateAssignmentTeam(Roadmap roadmap, Long teamId) {
+        if (!teamId.equals(roadmap.getOwnerTeamId())) {
+            throw new ExpectedException("과제 팀은 로드맵 소유 팀과 같아야 합니다.", HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    /**
+     * 과제 생성은 모두 로드맵 행 잠금 아래에서 실행되므로 잠금 이후 조회로 중복을 판정한다. node_key는 node_id가 NULL이면
+     * 0인 생성 컬럼이다.
+     */
+    private void validateNotAssigned(CreateAssignmentReqDto request) {
+        long nodeKey = request.nodeId() == null ? 0L : request.nodeId();
+        if (assignmentRepository.countByRoadmapIdAndNodeKeyAndAssigneeUserIdForShare(request.roadmapId(),
+                nodeKey,
+                request.assigneeUserId()) > 0) {
+            throw new ExpectedException("이미 같은 담당자에게 할당된 과제입니다.", HttpStatus.CONFLICT);
         }
     }
 

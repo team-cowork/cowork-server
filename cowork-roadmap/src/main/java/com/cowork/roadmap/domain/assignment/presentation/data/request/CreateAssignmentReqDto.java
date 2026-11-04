@@ -16,11 +16,11 @@ public record CreateAssignmentReqDto(
         @Schema(description = "할당 맥락", example = "TEAM", allowableValues = {
                 "TEAM", "PROJECT"}) @NotNull RoadmapScope scope,
 
-        @Schema(description = "팀 ID (권한 검증 기준). cowork-team의 tb_teams.id") @NotNull Long teamId,
+        @Schema(description = "팀 ID (권한 검증 기준, 로드맵 소유 팀과 같아야 함). cowork-team의 tb_teams.id") @NotNull Long teamId,
 
         @Schema(description = "프로젝트 ID (PROJECT 스코프에서 필수)") Long projectId,
 
-        @Schema(description = "온보딩 대상 사용자 ID") @NotNull Long assigneeUserId,
+        @Schema(description = "온보딩 대상 사용자 ID (teamId 팀의 활성 멤버)") @NotNull Long assigneeUserId,
 
         @Schema(description = "마감 일시 (선택)") LocalDateTime dueDate) {
 }
