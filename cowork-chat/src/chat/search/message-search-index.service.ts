@@ -1,5 +1,4 @@
 import {Injectable as injectable, Logger, Inject as inject} from '@nestjs/common';
-import {DicoshotService} from 'dicoshot-nest';
 import {Counter, Gauge, register} from 'prom-client';
 import {ElasticsearchService} from '../../search/elasticsearch.service.js';
 import {errorMessageOf, IndexWriteResult} from '../../search/message-index.contract.js';
@@ -11,7 +10,6 @@ import {
 	TombstoneRecord,
 	MessageSearchIndexStateRepository,
 } from '../repository/index.js';
-import {shouldAlert} from '../../common/util/alert-throttle.util.js';
 import {buildMessageIndexDoc, isSearchIndexed} from './message-index-scope.js';
 
 /**
@@ -22,7 +20,6 @@ const RETRY_BASE_DELAY_MS = 5000;
 재시도 백오프 상한. Elasticsearch가 장기간 중단돼도 이 간격으로 계속 재시도한다.
 */
 const RETRY_MAX_DELAY_MS = 5 * 60 * 1000;
-const PERMANENT_FAILURE_ALERT_COOLDOWN_MS = 5 * 60 * 1000;
 
 export type SearchIndexOperation = 'upsert' | 'delete';
 
@@ -58,9 +55,6 @@ export class MessageSearchIndexService {
 	@inject()
 	private readonly stateRepository!: MessageSearchIndexStateRepository;
 
-	@inject()
-	private readonly dicoshot!: DicoshotService;
-
 	constructor() {
 		this.writes = counter('cowork_chat_search_index_write_total', 'Search index write attempts by outcome.', ['operation', 'outcome']);
 		this.backlog = gauge('cowork_chat_search_index_backlog', 'Messages per search index outbox status.', ['status']);
@@ -79,7 +73,7 @@ export class MessageSearchIndexService {
 
 		if (result.outcome === 'PERMANENT') {
 			await this.indexRepository.markFailed(message._id, version, result.error ?? 'permanent index error');
-			this.alertPermanentFailure('upsert', message._id.toString(), result.error);
+			this.logPermanentFailure('upsert', message._id.toString(), result.error);
 			return;
 		}
 
@@ -97,7 +91,7 @@ export class MessageSearchIndexService {
 
 		if (result.outcome === 'PERMANENT') {
 			await this.tombstoneRepository.markFailed(tombstone._id, result.error ?? 'permanent delete error');
-			this.alertPermanentFailure('delete', tombstone.messageId, result.error);
+			this.logPermanentFailure('delete', tombstone.messageId, result.error);
 			return;
 		}
 
@@ -118,22 +112,8 @@ export class MessageSearchIndexService {
 		return new Date(Date.now() + delay);
 	}
 
-	private alertPermanentFailure(operation: SearchIndexOperation, messageId: string, error?: string): void {
+	private logPermanentFailure(operation: SearchIndexOperation, messageId: string, error?: string): void {
 		this.logger.error(`Search index ${operation} permanently failed messageId=${messageId}: ${error}`);
-		if (!shouldAlert('search-index-permanent-failure', PERMANENT_FAILURE_ALERT_COOLDOWN_MS)) {
-			return;
-		}
-
-		void this.dicoshot.sendCustom({
-			title: '🔴 검색 색인 영구 실패',
-			description: '메시지 색인 명령이 재시도로 해결되지 않는 오류로 실패했습니다. 원인 해소 후 재시도 또는 전체 재구축이 필요합니다.',
-			color: 'danger',
-			fields: [
-				{name: 'Operation', value: operation, inline: true},
-				{name: 'messageId', value: messageId, inline: true},
-				{name: 'Error', value: (error ?? 'unknown').slice(0, 256)},
-			],
-		}).catch(() => {/* Alert delivery is best-effort. */});
 	}
 
 	/**

@@ -22,7 +22,7 @@ func NewHandler(svc Service) *Handler {
 
 // Start godoc
 // @Summary      라이브 방송 시작
-// @Description  채널에서 라이브 방송을 시작합니다. 호출자가 호스트가 되며 publish 권한(마이크·화면공유) 토큰을 받습니다. 채널당 동시 라이브는 1개입니다.
+// @Description  채널에서 라이브 방송을 시작합니다. 호출자가 호스트가 되며 publish 권한(마이크·화면공유·카메라) 토큰을 받습니다. 카메라와 화면공유는 screen_share 권한이 있을 때만 허용됩니다. 채널당 동시 라이브는 1개입니다.
 // @Tags         live
 // @Security     BearerAuth
 // @Produce      json
@@ -58,7 +58,7 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 
 // Join godoc
 // @Summary      라이브 시청 참여
-// @Description  진행 중인 라이브에 시청자로 참여합니다. subscribe 전용 토큰을 받습니다. 호스트가 재입장하면 publish 권한 토큰이 재발급됩니다.
+// @Description  진행 중인 라이브에 시청자로 참여합니다. subscribe 토큰을 받으며, screen_share 권한이 있으면 카메라만 송출할 수 있습니다(마이크·화면공유는 불가). 호스트가 재입장하면 publish 권한 토큰이 재발급됩니다.
 // @Tags         live
 // @Security     BearerAuth
 // @Produce      json

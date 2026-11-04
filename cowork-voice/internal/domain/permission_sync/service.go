@@ -137,8 +137,7 @@ func (s *Service) reconcileRoom(ctx context.Context, name string, check permissi
 		} else {
 			// Unknown authorization disables media without disconnecting; a later ready pass restores it.
 			known := accessErr == nil
-			publisher := hostID == 0 || userID == hostID
-			desired := mediaPermission(known, publisher && access.Speak, publisher && access.ScreenShare, hostID != 0)
+			desired := mediaPermission(known, access.Speak, access.ScreenShare, hostID != 0, userID == hostID)
 			if sameMedia(participant.GetPermission(), desired) {
 				continue
 			}
@@ -160,7 +159,7 @@ func (s *Service) pauseRoom(ctx context.Context, name string) error {
 	}
 	var failures []error
 	for _, participant := range participants.GetParticipants() {
-		desired := mediaPermission(false, false, false, true)
+		desired := mediaPermission(false, false, false, true, false)
 		if sameMedia(participant.GetPermission(), desired) {
 			continue
 		}
@@ -178,8 +177,8 @@ func denied(err error) bool {
 	return errors.As(err, &apiErr) && apiErr.HTTPStatus == http.StatusForbidden
 }
 
-func mediaPermission(known, speak, screenShare, liveRoom bool) *livekit.ParticipantPermission {
-	media := permission.MediaAccessFor(known, speak, screenShare, liveRoom)
+func mediaPermission(known, speak, screenShare, liveRoom, liveHost bool) *livekit.ParticipantPermission {
+	media := permission.MediaAccessFor(known, speak, screenShare, liveRoom, liveHost)
 	p := &livekit.ParticipantPermission{CanSubscribe: media.Subscribe, CanPublishData: media.PublishData}
 	if media.Microphone {
 		p.CanPublishSources = append(p.CanPublishSources, livekit.TrackSource_MICROPHONE)

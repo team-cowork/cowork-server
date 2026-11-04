@@ -14,13 +14,18 @@ class KafkaSecurityConfig {
         fun kafkaSaslProperties(environment: Environment): BeanPostProcessor = object : BeanPostProcessor {
             override fun postProcessBeforeInitialization(bean: Any, beanName: String): Any {
                 if (bean is KafkaProperties) {
-                    val protocol = environment.getProperty("KAFKA_SECURITY_PROTOCOL", "PLAINTEXT").uppercase()
+                    val protocol = environment.getRequiredProperty("KAFKA_SECURITY_PROTOCOL").uppercase()
                     require(protocol in setOf("PLAINTEXT", "SSL", "SASL_SSL")) {
                         "Use a supported Kafka security protocol"
                     }
                     bean.properties["security.protocol"] = protocol
+                    if (protocol != "PLAINTEXT") {
+                        bean.properties["ssl.truststore.type"] = "PEM"
+                        bean.properties["ssl.truststore.location"] =
+                            environment.getRequiredProperty("KAFKA_SSL_CA_LOCATION")
+                    }
                     if (protocol == "SASL_SSL") {
-                        val mechanism = environment.getProperty("KAFKA_SASL_MECHANISM", "SCRAM-SHA-512").uppercase()
+                        val mechanism = environment.getRequiredProperty("KAFKA_SASL_MECHANISM").uppercase()
                         require(mechanism in setOf("SCRAM-SHA-256", "SCRAM-SHA-512")) {
                             "Use a SCRAM SASL mechanism"
                         }

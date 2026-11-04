@@ -29,8 +29,6 @@ out/
 .gradle/
 .gradle-local/
 build/
-!gradle/wrapper/gradle-wrapper.jar
-!gradle/wrapper/gradle-wrapper.properties
 
 ### Spring Boot ###
 **/application-local.yml
@@ -171,6 +169,9 @@ target/
 /cowork-voice/**/.idea/
 /cowork-voice/**/.vscode/
 /cowork-voice/**/.codex
+
+# Keep each module's checked-in Gradle wrapper outside the application JAR exclusions.
+!/cowork-*/gradle/wrapper/gradle-wrapper.jar
 
 ### Deployment ###
 /deploy/architecture/**/out/

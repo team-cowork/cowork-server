@@ -1,53 +1,53 @@
 import {
-    Injectable,
-    Logger,
-    OnModuleDestroy,
-    OnModuleInit,
+	Injectable as injectable,
+	Logger,
+	OnModuleDestroy,
+	OnModuleInit,
 } from '@nestjs/common';
 import {Kafka, Producer} from 'kafkajs';
-import {AppConfigService} from '../../../config/app-config.service';
+import {AppConfigService} from '../../../config/app-config.service.js';
 import {
-    TeamGithubConnectedEvent,
-    TeamGithubDisconnectedEvent,
-} from './event/team-github.event';
+	TeamGithubConnectedEvent,
+	TeamGithubDisconnectedEvent,
+} from './event/team-github.event.js';
 
 export type TeamGithubTopic =
-    | 'team.github.connected'
-    | 'team.github.disconnected';
+	| 'team.github.connected'
+	| 'team.github.disconnected';
 
-@Injectable()
+@injectable()
 export class TeamGithubProducer implements OnModuleInit, OnModuleDestroy {
-    private readonly logger = new Logger(TeamGithubProducer.name);
-    private producer!: Producer;
+	private readonly logger = new Logger(TeamGithubProducer.name);
+	private producer!: Producer;
 
-    constructor(private readonly config: AppConfigService) {}
+	constructor(private readonly config: AppConfigService) {}
 
-    async onModuleInit() {
-        const kafka = new Kafka({
-            clientId: 'cowork-github',
-            ...this.config.kafkaClientConfig,
-        });
-        this.producer = kafka.producer();
-        await this.producer.connect();
-        this.logger.log('Kafka team-github producer connected');
-    }
+	async onModuleInit() {
+		const kafka = new Kafka({
+			clientId: 'cowork-github',
+			...this.config.kafkaClientConfig,
+		});
+		this.producer = kafka.producer();
+		await this.producer.connect();
+		this.logger.log('Kafka team-github producer connected');
+	}
 
-    async onModuleDestroy() {
-        await this.producer.disconnect();
-    }
+	async onModuleDestroy() {
+		await this.producer.disconnect();
+	}
 
-    async send(
-        topic: TeamGithubTopic,
-        event: TeamGithubConnectedEvent | TeamGithubDisconnectedEvent,
-    ): Promise<void> {
-        await this.producer.send({
-            topic,
-            messages: [
-                {
-                    key: event.installationId.toString(),
-                    value: JSON.stringify(event),
-                },
-            ],
-        });
-    }
+	async send(
+		topic: TeamGithubTopic,
+		event: TeamGithubConnectedEvent | TeamGithubDisconnectedEvent,
+	): Promise<void> {
+		await this.producer.send({
+			topic,
+			messages: [
+				{
+					key: event.installationId.toString(),
+					value: JSON.stringify(event),
+				},
+			],
+		});
+	}
 }
