@@ -52,9 +52,9 @@ For each violation supported by the applicable rules in Step 2, with no unresolv
 4. **Kotlin style**: Convert `var` to `val` where safe; refactor field injection to constructor injection
 5. **Transactional**: Move class-level `@Transactional` to method level; add `readOnly = true` to read methods
 
-After edits, if the project provides the Gradle wrapper and a `ktlintFormat` task, run:
+After edits, for each owning module that provides its own Gradle wrapper and a `ktlintFormat` task, run from the repository root:
 ```bash
-./gradlew ktlintFormat
+(cd <module> && ./gradlew ktlintFormat)
 ```
 to apply final formatting cleanup. If the task is unavailable, report the skipped formatting check.
 
