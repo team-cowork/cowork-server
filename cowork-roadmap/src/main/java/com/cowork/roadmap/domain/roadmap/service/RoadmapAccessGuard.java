@@ -92,6 +92,13 @@ public class RoadmapAccessGuard {
         requireTeamRole(teamId, userId, ignored -> true, "팀 멤버만 수행할 수 있습니다.");
     }
 
+    /** 과제 담당자는 요청자의 역할과 관계없이 과제 팀의 활성 멤버여야 한다. */
+    public void requireAssignableMember(Long teamId, Long assigneeUserId) {
+        if (!hasTeamRole(teamId, assigneeUserId, ignored -> true)) {
+            throw new ExpectedException("과제 담당자는 팀의 활성 멤버여야 합니다.", HttpStatus.BAD_REQUEST);
+        }
+    }
+
     private void requireGlobalAdmin(String userRole) {
         if (!ROLE_ADMIN.equals(userRole)) {
             throw new ExpectedException("글로벌 로드맵은 ADMIN만 변경할 수 있습니다.", HttpStatus.FORBIDDEN);
@@ -103,14 +110,18 @@ public class RoadmapAccessGuard {
     }
 
     private void requireTeamRole(Long teamId, Long userId, Predicate<String> accepted, String message) {
-        requireProjectionReady();
-        if (findAcceptedRole(teamId, userId, accepted).isPresent()) {
-            return;
-        }
-        requireProjectionReady();
-        if (findAcceptedRole(teamId, userId, accepted).isEmpty()) {
+        if (!hasTeamRole(teamId, userId, accepted)) {
             throw new ExpectedException(message, HttpStatus.FORBIDDEN);
         }
+    }
+
+    private boolean hasTeamRole(Long teamId, Long userId, Predicate<String> accepted) {
+        requireProjectionReady();
+        if (findAcceptedRole(teamId, userId, accepted).isPresent()) {
+            return true;
+        }
+        requireProjectionReady();
+        return findAcceptedRole(teamId, userId, accepted).isPresent();
     }
 
     private Optional<String> findAcceptedRole(Long teamId, Long userId, Predicate<String> accepted) {
