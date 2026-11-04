@@ -1,11 +1,11 @@
 import {HttpModule} from '@nestjs/axios';
-import {Module} from '@nestjs/common';
-import {AppConfigService} from '../../config/app-config.service';
-import {GithubAuthModule} from '../auth/github-auth.module';
-import {IssueHttpApiClient} from './client/issue-http-api.client';
-import {IssueHttpService} from './issue-http.service';
+import {Module as nestModule} from '@nestjs/common';
+import {AppConfigService} from '../../config/app-config.service.js';
+import {GithubAuthModule} from '../auth/github-auth.module.js';
+import {IssueHttpApiClient} from './client/issue-http-api.client.js';
+import {IssueHttpService} from './issue-http.service.js';
 
-@Module({
+@nestModule({
 	imports: [HttpModule, GithubAuthModule],
 	providers: [
 		AppConfigService,
