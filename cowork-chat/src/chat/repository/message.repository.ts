@@ -298,25 +298,17 @@ export class MessageRepository {
 		}
 	}
 
-	/**
-     채널의 메시지 목록을 최신순으로 최대 100개 조회합니다.
-
-     `before`가 주어지면 해당 ObjectId보다 작은(이전) 메시지만 조회하여
-     커서 기반 무한 스크롤을 구현합니다.
-
-     `$lookup`으로 `parentMessageId`에 해당하는 부모 메시지를 `mentionedMessage` 필드에
-     조인합니다. 부모 메시지가 없거나 삭제된 경우 `mentionedMessage`는 `null`입니다.
-
-     @param channelId - 조회할 채널의 식별자
-     @param before - 이 ObjectId 문자열보다 이전 메시지를 조회하는 커서. 생략 시 최신부터 조회
-     @param parentMessageId - 이 메시지에 달린 답글만 조회할 부모 메시지 식별자. 생략 시 채널 전체 조회
-     @returns 배열 (최신순 정렬, 최대 100개)
-     */
-	async findMessages(channelId: number, before?: string, parentMessageId?: string): Promise<MessageRow[]> {
+	private async aggregateMessages(
+		channelId: number,
+		parentMessageId: string | undefined,
+		idFilter: Record<string, Types.ObjectId> | undefined,
+		sortDirection: 1 | -1,
+		limit: number,
+	): Promise<MessageRow[]> {
 		const query: Record<string, unknown> = {
 			webhookDeleted: {$ne: true},
 			channelId,
-			...(before !== undefined && before !== '' && {_id: {$lt: new Types.ObjectId(before)}}),
+			...(idFilter && {_id: idFilter}),
 			...(parentMessageId !== undefined && parentMessageId !== '' && {parentMessageId: new Types.ObjectId(parentMessageId)}),
 		};
 
@@ -353,11 +345,58 @@ export class MessageRepository {
 
 		return this.messageModel.aggregate([
 			{$match: query},
-			{$sort: {_id: -1}},
-			{$limit: MESSAGE_FETCH_LIMIT},
+			{$sort: {_id: sortDirection}},
+			{$limit: limit},
 			...lookupStages,
 			MESSAGE_ROW_PROJECTION,
 		]);
+	}
+
+	/**
+     채널의 메시지 목록을 최신순으로 최대 100개 조회합니다.
+
+     `before`가 주어지면 해당 ObjectId보다 작은(이전) 메시지만 조회하여
+     커서 기반 무한 스크롤을 구현합니다.
+
+     `$lookup`으로 `parentMessageId`에 해당하는 부모 메시지를 `mentionedMessage` 필드에
+     조인합니다. 부모 메시지가 없거나 삭제된 경우 `mentionedMessage`는 `null`입니다.
+
+     `after`가 주어지면 해당 ObjectId보다 큰(이후) 메시지 중 가장 가까운 100개를 조회합니다.
+     반환 순서는 `before`와 같은 최신순입니다.
+
+     @param channelId - 조회할 채널의 식별자
+     @param before - 이 ObjectId 문자열보다 이전 메시지를 조회하는 커서. 생략 시 최신부터 조회
+     @param parentMessageId - 이 메시지에 달린 답글만 조회할 부모 메시지 식별자. 생략 시 채널 전체 조회
+     @param after - 이 ObjectId 문자열보다 이후 메시지를 조회하는 커서. `before`와 함께 쓰지 않습니다
+     @returns 배열 (최신순 정렬, 최대 100개)
+     */
+	async findMessages(channelId: number, before?: string, parentMessageId?: string, after?: string): Promise<MessageRow[]> {
+		if (after !== undefined && after !== '') {
+			const rows = await this.aggregateMessages(channelId, parentMessageId, {$gt: new Types.ObjectId(after)}, 1, MESSAGE_FETCH_LIMIT);
+			return rows.toReversed();
+		}
+
+		const idFilter = before !== undefined && before !== '' ? {$lt: new Types.ObjectId(before)} : undefined;
+		return this.aggregateMessages(channelId, parentMessageId, idFilter, -1, MESSAGE_FETCH_LIMIT);
+	}
+
+	/**
+     기준 메시지를 포함해 그 앞뒤 메시지를 최신순으로 조회합니다.
+     기준 메시지와 이전 메시지 최대 50개, 이후 메시지 최대 50개를 반환합니다.
+
+     @param channelId - 조회할 채널의 식별자
+     @param messageId - 기준 메시지의 ObjectId 문자열
+     @param parentMessageId - 이 메시지에 달린 답글만 조회할 부모 메시지 식별자. 생략 시 채널 전체 조회
+     @returns 배열 (최신순 정렬, 최대 100개)
+     */
+	async findMessagesAround(channelId: number, messageId: string, parentMessageId?: string): Promise<MessageRow[]> {
+		const id = new Types.ObjectId(messageId);
+		const half = MESSAGE_FETCH_LIMIT / 2;
+		const [newer, older] = await Promise.all([
+			this.aggregateMessages(channelId, parentMessageId, {$gt: id}, 1, half),
+			this.aggregateMessages(channelId, parentMessageId, {$lte: id}, -1, half),
+		]);
+		return [...newer.toReversed(), ...older];
 	}
 
 	/**
