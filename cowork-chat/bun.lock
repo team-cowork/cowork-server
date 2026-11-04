@@ -24,7 +24,6 @@
         "@willsoto/nestjs-prometheus": "^6.1.1",
         "class-transformer": "^0.5.1",
         "class-validator": "^0.15.1",
-        "dicoshot-nest": "^0.6.0",
         "express": "^5.2.1",
         "graphql": "^16.14.2",
         "ioredis": "^5.11.1",
@@ -835,10 +834,6 @@
     "detect-newline": ["detect-newline@3.1.0", "", {}, "sha512-TLz+x/vEXm/Y7P7wn1EJFNLxYpUD4TgMosxY6fAVJUnJMbupHBOncxyWUG9OpTaH9EBD7uFI5LfEgmMOc54DsA=="],
 
     "devlop": ["devlop@1.1.0", "", { "dependencies": { "dequal": "^2.0.0" } }, "sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA=="],
-
-    "dicoshot-core": ["dicoshot-core@0.4.0", "", {}, "sha512-+ig4JR1lL1duk6TJ3sSdHO4UpjIQbIlVOsZ/XbL57GAzkIyvvEvtDV/eQU6+Iv+0YkXsGbkVS1v5sXaCGZa8yA=="],
-
-    "dicoshot-nest": ["dicoshot-nest@0.6.0", "", { "dependencies": { "dicoshot-core": "0.4.0", "reflect-metadata": "^0.2.2", "rxjs": "^7.8.1" }, "peerDependencies": { "@nestjs/common": "^10.0.0 || ^11.0.0 || ^12.0.0", "@nestjs/core": "^10.0.0 || ^11.0.0 || ^12.0.0" } }, "sha512-XSwDmuLgBkZhR5P3sq5LLzswIvbb3WjqAM8jfejG+EC7FViJaPXxdjCqty2+FBAAzCqCkASbzHLTdYUTz/6LmQ=="],
 
     "dotenv": ["dotenv@18.0.3", "", { "bin": "dist/index.cjs" }, "sha512-/8CJTyL817qPnfbQrJgOEcrU3fDrJkRIoXBE566wHuvIXKOCHUZhPqGPbCPi9SogjdGnreF0TlvnTgK6J/8zpA=="],
 
