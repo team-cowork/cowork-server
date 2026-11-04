@@ -397,7 +397,6 @@ positions:
       - Vault
       - NGINX
       - Vercel
-      - SeaweedFS
       - Grafana
       - Prometheus
       - Loki

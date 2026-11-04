@@ -8,8 +8,8 @@ import {IssueWriteCommandController} from './issue-write-command.controller';
 import {IssueWriteResultProducer} from './issue-write-result.producer';
 
 @Module({
-    imports: [GithubAuthModule, IssueHttpModule, LabelHttpModule],
-    providers: [AppConfigService, CreateCommentHistory, IssueWriteResultProducer],
-    controllers: [IssueWriteCommandController],
+	imports: [GithubAuthModule, IssueHttpModule, LabelHttpModule],
+	providers: [AppConfigService, CreateCommentHistory, IssueWriteResultProducer],
+	controllers: [IssueWriteCommandController],
 })
 export class IssueWriteModule {}
