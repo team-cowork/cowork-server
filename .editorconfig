@@ -8,6 +8,10 @@ trim_trailing_whitespace = true
 indent_style = space
 indent_size = 4
 
+# XO 기본 서식은 탭 들여쓰기를 요구한다.
+[cowork-{chat,github}/**.{ts,mjs,js}]
+indent_style = tab
+
 [*.{kt,kts}]
 ktlint_code_style = intellij_idea
 max_line_length = 120

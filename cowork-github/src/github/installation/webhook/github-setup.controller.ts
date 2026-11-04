@@ -1,87 +1,87 @@
 import {
-    Controller,
-    Get,
-    Header,
-    Inject,
-    Logger,
-    Query,
+	Controller as controller,
+	Get as httpGet,
+	Header as responseHeader,
+	Inject as inject,
+	Logger,
+	Query as requestQuery,
 } from '@nestjs/common';
-import type Redis from 'ioredis';
-import {GithubAuthService} from '../../auth/github-auth.service';
-import {REDIS_CLIENT} from '../../constants';
-import {githubCacheKeys} from '../../github.cache';
-import {GithubBackfillService} from '../github-backfill.service';
-import {TeamGithubProducer} from '../kafka/team-github.producer';
+import type {Redis} from 'ioredis';
+import {GithubAuthService} from '../../auth/github-auth.service.js';
+import {REDIS_CLIENT} from '../../constants.js';
+import {githubCacheKeys} from '../../github.cache.js';
+import {GithubBackfillService} from '../github-backfill.service.js';
+import {TeamGithubProducer} from '../kafka/team-github.producer.js';
 
-@Controller('github/setup')
+@controller('github/setup')
 export class GithubSetupController {
-    private readonly logger = new Logger(GithubSetupController.name);
+	private readonly logger = new Logger(GithubSetupController.name);
 
-    constructor(
-        private readonly authService: GithubAuthService,
-        private readonly producer: TeamGithubProducer,
-        private readonly backfillService: GithubBackfillService,
-        @Inject(REDIS_CLIENT) private readonly redis: Redis,
-    ) {}
+	constructor(
+		private readonly authService: GithubAuthService,
+		private readonly producer: TeamGithubProducer,
+		private readonly backfillService: GithubBackfillService,
+		@inject(REDIS_CLIENT) private readonly redis: Redis,
+	) {}
 
-    @Get()
-    @Header('Content-Type', 'text/html; charset=utf-8')
-    async handle(
-        @Query('installation_id') installationIdRaw: string,
-        @Query('setup_action') setupAction: string,
-        @Query('state') state?: string,
-    ): Promise<string> {
-        const installationId = Number(installationIdRaw);
-        if (installationIdRaw === '' || !Number.isSafeInteger(installationId)) {
-            return this.page('설치 정보를 확인할 수 없습니다. 다시 시도해주세요.');
-        }
+	private page(message: string): string {
+		return `<html><body style="font-family:sans-serif;text-align:center;padding-top:4rem;"><p>${message}</p></body></html>`;
+	}
 
-        if (setupAction === 'delete') {
-            return this.page('GitHub 앱 연동이 해제되었습니다. 이 창을 닫아주세요.');
-        }
+	@httpGet()
+	@responseHeader('Content-Type', 'text/html; charset=utf-8')
+	async handle(
+		@requestQuery('installation_id') installationIdRaw: string,
+		@requestQuery('setup_action') setupAction: string,
+		@requestQuery('state') state?: string,
+	): Promise<string> {
+		const installationId = Number(installationIdRaw);
+		if (installationIdRaw === '' || !Number.isSafeInteger(installationId)) {
+			return this.page('설치 정보를 확인할 수 없습니다. 다시 시도해주세요.');
+		}
 
-        try {
-            const orgLogin =
-                await this.authService.getInstallationAccountLogin(installationId);
-            // 팀 연결 여부와 무관하게, 백필이 이전 설치로 토큰을 받지 않도록 먼저 반영한다.
-            await this.authService.cacheInstallation(orgLogin, installationId);
-            if (state === undefined || state === '') {
-                this.logger.warn(
-                    `Setup callback missing state, cannot correlate to a team [installationId=${installationId}]`,
-                );
-                return this.page(
-                    'GitHub App 설치는 완료되었지만 cowork 팀과 연결하지 못했습니다. cowork에서 다시 연동을 시도해주세요.',
-                );
-            }
+		if (setupAction === 'delete') {
+			return this.page('GitHub 앱 연동이 해제되었습니다. 이 창을 닫아주세요.');
+		}
 
-            const revision = await this.redis.incr(
-                githubCacheKeys.installationRevision(installationId),
-            );
+		try {
+			const orgLogin =
+				await this.authService.getInstallationAccountLogin(installationId);
+			// 팀 연결 여부와 무관하게, 백필이 이전 설치로 토큰을 받지 않도록 먼저 반영한다.
+			await this.authService.cacheInstallation(orgLogin, installationId);
+			if (state === undefined || state === '') {
+				this.logger.warn(
+					`Setup callback missing state, cannot correlate to a team [installationId=${installationId}]`,
+				);
+				return this.page(
+					'GitHub App 설치는 완료되었지만 cowork 팀과 연결하지 못했습니다. cowork에서 다시 연동을 시도해주세요.',
+				);
+			}
 
-            await this.producer.send('team.github.connected', {
-                state,
-                installationId,
-                orgLogin,
-                revision,
-            });
-            // Repo 목록 projection을 바로 채운다. 이슈·PR 등은 cowork-project가 프로젝트에 연결된 repo만
-            // github.sync.command.v1로 요청한다. 대기열에 넣기만 하므로 콜백 응답이 늦어지지 않는다.
-            void this.backfillService.enqueue({type: 'ORG_REPOSITORIES', installationId, owner: orgLogin});
-            return this.page(
-                'GitHub 연동이 완료되었습니다. 이 창을 닫고 cowork로 돌아가세요.',
-            );
-        } catch (error) {
-            this.logger.error(
-                `Failed to process setup callback [installationId=${installationId}]`,
-                error instanceof Error ? error.stack : String(error),
-            );
-            return this.page(
-                'GitHub 연동 처리 중 오류가 발생했습니다. cowork에서 다시 시도해주세요.',
-            );
-        }
-    }
+			const revision = await this.redis.incr(
+				githubCacheKeys.installationRevision(installationId),
+			);
 
-    private page(message: string): string {
-        return `<html><body style="font-family:sans-serif;text-align:center;padding-top:4rem;"><p>${message}</p></body></html>`;
-    }
+			await this.producer.send('team.github.connected', {
+				state,
+				installationId,
+				orgLogin,
+				revision,
+			});
+			// Repo 목록 projection을 바로 채운다. 이슈·PR 등은 cowork-project가 프로젝트에 연결된 repo만
+			// github.sync.command.v1로 요청한다. 대기열에 넣기만 하므로 콜백 응답이 늦어지지 않는다.
+			void this.backfillService.enqueue({type: 'ORG_REPOSITORIES', installationId, owner: orgLogin});
+			return this.page(
+				'GitHub 연동이 완료되었습니다. 이 창을 닫고 cowork로 돌아가세요.',
+			);
+		} catch (error) {
+			this.logger.error(
+				`Failed to process setup callback [installationId=${installationId}]`,
+				error instanceof Error ? error.stack : String(error),
+			);
+			return this.page(
+				'GitHub 연동 처리 중 오류가 발생했습니다. cowork에서 다시 시도해주세요.',
+			);
+		}
+	}
 }

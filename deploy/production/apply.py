@@ -43,8 +43,6 @@ def main():
         if args.recover_state:
             if args.recover_state not in business_services:
                 raise ValueError('Recover only a declared business application service')
-            if args.recover_state == 'cowork-authorization':
-                services.warn_webhook_secrets(manifest, mount)
             services.recover_state(args.recover_state)
             return
         previous_gateway = gateway.active_or_absent()
@@ -64,7 +62,6 @@ def main():
             for stage in STAGES:
                 platform.tofu(stage, variables[stage], check=True)
             return
-        services.warn_webhook_secrets(manifest, mount)
         if previous_gateway:
             gateway.snapshot(previous_gateway)
         prior_states = services.deployment_states()

@@ -93,6 +93,7 @@ class ProjectController(
     @Operation(summary = "팀 프로젝트 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(responseCode = "400", description = "지원하지 않는 정렬 기준 (허용: position, id, name, createdAt, updatedAt)"),
     )
     @GetMapping
     fun getProjectsByTeamId(
@@ -105,11 +106,12 @@ class ProjectController(
     @Operation(summary = "내 프로젝트 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(responseCode = "400", description = "지원하지 않는 정렬 기준 (허용: position, id, name, createdAt, updatedAt)"),
     )
     @GetMapping("/me")
     fun getMyProjects(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-        @PageableDefault(size = 20, sort = ["createdAt"]) pageable: Pageable,
+        @PageableDefault(size = 20, sort = ["createdAt", "id"]) pageable: Pageable,
     ): ResponseEntity<Page<ProjectResDto>> = ResponseEntity.ok(queryMyProjectsService.execute(userId, pageable))
 
     @Operation(summary = "프로젝트 접근 가능한 사용자 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
