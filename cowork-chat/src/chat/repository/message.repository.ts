@@ -301,9 +301,7 @@ export class MessageRepository {
 	private async aggregateMessages(
 		channelId: number,
 		parentMessageId: string | undefined,
-		idFilter: Record<string, Types.ObjectId> | undefined,
-		sortDirection: 1 | -1,
-		limit: number,
+		{idFilter, sortDirection, limit}: {idFilter?: Record<string, Types.ObjectId>; sortDirection: 1 | -1; limit: number},
 	): Promise<MessageRow[]> {
 		const query: Record<string, unknown> = {
 			webhookDeleted: {$ne: true},
@@ -372,12 +370,12 @@ export class MessageRepository {
      */
 	async findMessages(channelId: number, before?: string, parentMessageId?: string, after?: string): Promise<MessageRow[]> {
 		if (after !== undefined && after !== '') {
-			const rows = await this.aggregateMessages(channelId, parentMessageId, {$gt: new Types.ObjectId(after)}, 1, MESSAGE_FETCH_LIMIT);
+			const rows = await this.aggregateMessages(channelId, parentMessageId, {idFilter: {$gt: new Types.ObjectId(after)}, sortDirection: 1, limit: MESSAGE_FETCH_LIMIT});
 			return rows.toReversed();
 		}
 
 		const idFilter = before !== undefined && before !== '' ? {$lt: new Types.ObjectId(before)} : undefined;
-		return this.aggregateMessages(channelId, parentMessageId, idFilter, -1, MESSAGE_FETCH_LIMIT);
+		return this.aggregateMessages(channelId, parentMessageId, {idFilter, sortDirection: -1, limit: MESSAGE_FETCH_LIMIT});
 	}
 
 	/**
@@ -393,8 +391,8 @@ export class MessageRepository {
 		const id = new Types.ObjectId(messageId);
 		const half = MESSAGE_FETCH_LIMIT / 2;
 		const [newer, older] = await Promise.all([
-			this.aggregateMessages(channelId, parentMessageId, {$gt: id}, 1, half),
-			this.aggregateMessages(channelId, parentMessageId, {$lte: id}, -1, half),
+			this.aggregateMessages(channelId, parentMessageId, {idFilter: {$gt: id}, sortDirection: 1, limit: half}),
+			this.aggregateMessages(channelId, parentMessageId, {idFilter: {$lte: id}, sortDirection: -1, limit: half}),
 		]);
 		return [...newer.toReversed(), ...older];
 	}
