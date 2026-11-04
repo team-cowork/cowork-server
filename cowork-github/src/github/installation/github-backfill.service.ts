@@ -1,16 +1,17 @@
 import {randomUUID} from 'node:crypto';
-import {Inject, Injectable, Logger} from '@nestjs/common';
-import type Redis from 'ioredis';
-import {REDIS_CLIENT} from '../constants';
-import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../github.cache';
-import {IssueHttpService} from '../issue-http/issue-http.service';
-import {LabelHttpService} from '../label-http/label-http.service';
-import {PullRequestService} from '../pull-request/pull-request.service';
-import {InstallationApiClient} from './client/installation-api.client';
-import {IssueCommentStateEvent} from './kafka/event/issue-comment-state';
-import {syncCompletedMarker} from './kafka/event/sync-completed';
-import {GithubReadModelEventProducers} from './kafka/github-read-model-event-producers';
-import {toPullRequestFileStates} from './kafka/pull-request-file-state.mapper';
+import {Inject as inject, Injectable as injectable, Logger} from '@nestjs/common';
+import type {Redis} from 'ioredis';
+import {forEachSequential} from '../common/sequential.js';
+import {REDIS_CLIENT} from '../constants.js';
+import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../github.cache.js';
+import {IssueHttpService} from '../issue-http/issue-http.service.js';
+import {LabelHttpService} from '../label-http/label-http.service.js';
+import {PullRequestService} from '../pull-request/pull-request.service.js';
+import {InstallationApiClient} from './client/installation-api.client.js';
+import {IssueCommentStateEvent} from './kafka/event/issue-comment-state.js';
+import {syncCompletedMarker} from './kafka/event/sync-completed.js';
+import {GithubReadModelEventProducers} from './kafka/github-read-model-event-producers.js';
+import {toPullRequestFileStates} from './kafka/pull-request-file-state.mapper.js';
 
 export type GithubSyncTarget =
 	| {type: 'ORG_REPOSITORIES'; installationId: number; owner: string}
@@ -46,48 +47,29 @@ const mergeByNumber = <T extends {number: number}>(...lists: T[][]): T[] => {
  100개를 초과하는 repo/PR/이슈는 초과분이 동기화되지 않으며, 페이지네이션 지원과 함께 후속 과제로 남긴다.
  이슈/PR은 `all` 최신 100건에서 빠지는 오래된 열린 항목이 보드에서 사라지지 않게 `open` 100건을 따로 받아 합친다.
  */
-@Injectable()
+@injectable()
 export class GithubBackfillService {
 	private readonly logger = new Logger(GithubBackfillService.name);
 	private readonly queued = new Set<string>();
 	private queue: Promise<void> = Promise.resolve();
 
-	// eslint-disable-next-line max-params -- NestJS 생성자 주입이라 의존성 수만큼 파라미터가 필요하다.
-	constructor(
-		private readonly installationApiClient: InstallationApiClient,
-		private readonly issueHttpService: IssueHttpService,
-		private readonly pullRequestService: PullRequestService,
-		private readonly labelHttpService: LabelHttpService,
-		private readonly producers: GithubReadModelEventProducers,
-		@Inject(REDIS_CLIENT) private readonly redis: Redis,
-	) {}
+	@inject(InstallationApiClient)
+	private readonly installationApiClient!: InstallationApiClient;
 
-	/**
-     대상을 프로세스 안의 직렬 대기열에 넣고, 그 대상의 동기화가 끝나면 resolve되는 Promise를 돌려준다
-     (실패해도 로그만 남기고 reject하지 않는다). 한 번에 하나씩 돌려 GitHub secondary rate limit을 피하고,
-     이미 대기 중인 대상은 다시 넣지 않는다. 처리 전에 프로세스가 내려가면 cowork-project가 다시 요청한다.
-     */
-	async enqueue(target: GithubSyncTarget): Promise<void> {
-		const key = syncTargetKey(target);
-		if (this.queued.has(key)) {
-			return this.queue;
-		}
+	@inject(IssueHttpService)
+	private readonly issueHttpService!: IssueHttpService;
 
-		this.queued.add(key);
-		this.queue = this.queue.then(async () => {
-			try {
-				await this.runWithLock(key, target);
-			} catch (error) {
-				this.logger.error(
-					`GitHub sync failed [target=${key}]`,
-					error instanceof Error ? error.stack : String(error),
-				);
-			} finally {
-				this.queued.delete(key);
-			}
-		});
-		return this.queue;
-	}
+	@inject(PullRequestService)
+	private readonly pullRequestService!: PullRequestService;
+
+	@inject(LabelHttpService)
+	private readonly labelHttpService!: LabelHttpService;
+
+	@inject(GithubReadModelEventProducers)
+	private readonly producers!: GithubReadModelEventProducers;
+
+	@inject(REDIS_CLIENT)
+	private readonly redis!: Redis;
 
 	// 레플리카마다 대기열이 따로 있으므로, 같은 대상을 동시에 두 번 돌지 않게 대상 단위로 락을 잡는다.
 	private async runWithLock(key: string, target: GithubSyncTarget): Promise<void> {
@@ -159,8 +141,8 @@ export class GithubBackfillService {
 			await this.issueHttpService.listIssues(owner, repo, 'open'),
 			await this.issueHttpService.listIssues(owner, repo, 'all'),
 		);
-		/* eslint-disable no-await-in-loop -- 이슈마다 댓글 조회가 나가므로 secondary rate limit을 피하려 순차 처리한다. */
-		for (const issue of issues) {
+		// 이슈마다 댓글 조회가 나가므로 secondary rate limit을 피하려 순차 처리한다.
+		await forEachSequential(issues, async issue => {
 			await this.producers.issue.send({
 				owner,
 				repo,
@@ -178,8 +160,7 @@ export class GithubBackfillService {
 			await this.syncComments({
 				owner, repo, parentNumber: issue.number, parentType: 'ISSUE',
 			});
-		}
-		/* eslint-enable no-await-in-loop */
+		});
 	}
 
 	private async syncPullRequests(owner: string, repo: string): Promise<void> {
@@ -187,8 +168,8 @@ export class GithubBackfillService {
 			await this.pullRequestService.listPullRequests(owner, repo, 'open'),
 			await this.pullRequestService.listPullRequests(owner, repo, 'all'),
 		);
-		/* eslint-disable no-await-in-loop -- PR마다 상세/파일/댓글 조회가 나가므로 secondary rate limit을 피하려 순차 처리한다. */
-		for (const summary of summaries) {
+		// PR마다 상세/파일/댓글 조회가 나가므로 secondary rate limit을 피하려 순차 처리한다.
+		await forEachSequential(summaries, async summary => {
 			const detail = await this.pullRequestService.getPullRequestDetail(owner, repo, summary.number);
 			const files = await this.pullRequestService.listPullRequestFiles(owner, repo, summary.number);
 			const fileStates = toPullRequestFileStates(files);
@@ -223,8 +204,7 @@ export class GithubBackfillService {
 			await this.syncComments({
 				owner, repo, parentNumber: summary.number, parentType: 'PULL_REQUEST',
 			});
-		}
-		/* eslint-enable no-await-in-loop */
+		});
 	}
 
 	private async syncComments(parameters: {
@@ -249,5 +229,32 @@ export class GithubBackfillService {
 			deleted: false,
 			sourceOccurredAt: comment.updatedAt,
 		})));
+	}
+
+	/**
+     대상을 프로세스 안의 직렬 대기열에 넣고, 그 대상의 동기화가 끝나면 resolve되는 Promise를 돌려준다
+     (실패해도 로그만 남기고 reject하지 않는다). 한 번에 하나씩 돌려 GitHub secondary rate limit을 피하고,
+     이미 대기 중인 대상은 다시 넣지 않는다. 처리 전에 프로세스가 내려가면 cowork-project가 다시 요청한다.
+     */
+	async enqueue(target: GithubSyncTarget): Promise<void> {
+		const key = syncTargetKey(target);
+		if (this.queued.has(key)) {
+			return this.queue;
+		}
+
+		this.queued.add(key);
+		this.queue = this.queue.then(async () => {
+			try {
+				await this.runWithLock(key, target);
+			} catch (error) {
+				this.logger.error(
+					`GitHub sync failed [target=${key}]`,
+					error instanceof Error ? error.stack : String(error),
+				);
+			} finally {
+				this.queued.delete(key);
+			}
+		});
+		return this.queue;
 	}
 }

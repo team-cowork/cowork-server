@@ -1,7 +1,8 @@
+import {Buffer} from 'node:buffer';
 import {createHmac} from 'node:crypto';
 import {type ExecutionContext, UnauthorizedException} from '@nestjs/common';
-import {type AppConfigService} from '../../../config/app-config.service';
-import {GithubWebhookSignatureGuard} from './github-webhook-signature.guard';
+import {type AppConfigService} from '../../../config/app-config.service.js';
+import {GithubWebhookSignatureGuard} from './github-webhook-signature.guard.js';
 
 describe('GithubWebhookSignatureGuard', () => {
 	let guard: GithubWebhookSignatureGuard;
@@ -12,7 +13,7 @@ describe('GithubWebhookSignatureGuard', () => {
 
 	const createContext = (
 		headers: Record<string, string>,
-		rawBody?: Buffer,
+		rawBody?: Uint8Array,
 	): ExecutionContext =>
 		({
 			switchToHttp: () => ({

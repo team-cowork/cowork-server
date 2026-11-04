@@ -1,9 +1,9 @@
 import {Test, type TestingModule} from '@nestjs/testing';
 import {type KafkaContext} from '@nestjs/microservices';
-import {GithubController} from './github.controller';
-import {IssueService} from './issue/issue.service';
-import {IssueResultProducer} from './kafka/issue-result.producer';
-import {GithubClientError} from './github.errors';
+import {GithubController} from './github.controller.js';
+import {IssueService} from './issue/issue.service.js';
+import {IssueResultProducer} from './kafka/issue-result.producer.js';
+import {GithubClientError} from './github.errors.js';
 
 describe('GithubController', () => {
 	let controller: GithubController;
@@ -32,8 +32,6 @@ describe('GithubController', () => {
 		}).compile();
 
 		controller = module.get<GithubController>(GithubController);
-		(controller as unknown as {exitProcess: jest.Mock}).exitProcess =
-			jest.fn();
 	});
 
 	const validPayload = {owner: 'my-org', repo: 'my-repo', title: 'Bug fix'};
@@ -142,7 +140,7 @@ describe('GithubController', () => {
 	});
 
 	describe('GitHub 서버 에러 (5xx)', () => {
-		it('서버 에러 발생 시 프로세스를 종료한다', async () => {
+		it('서버 에러 발생 시 오프셋을 커밋하지 않고 에러를 전파한다', async () => {
 			issueService.createIssue.mockRejectedValue(new Error('GitHub 503'));
 
 			await expect(
@@ -150,9 +148,6 @@ describe('GithubController', () => {
 			).rejects.toThrow('GitHub 503');
 
 			expect(commitOffsets).not.toHaveBeenCalled();
-			expect(
-				(controller as unknown as {exitProcess: jest.Mock}).exitProcess,
-			).toHaveBeenCalledWith(1);
 		});
 	});
 });

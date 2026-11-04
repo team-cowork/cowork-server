@@ -1,10 +1,11 @@
 import {Test, type TestingModule} from '@nestjs/testing';
-import {AppConfigService} from '../../config/app-config.service';
-import {GithubApiClient} from '../client/github-api.client';
-import {type CreateIssueDto} from '../dto/create-issue.dto';
-import {GithubClientError} from '../github.errors';
-import {IssueService} from './issue.service';
-import {LabelService} from './label.service';
+import {githubField} from '../github-field.js';
+import {AppConfigService} from '../../config/app-config.service.js';
+import {GithubApiClient} from '../client/github-api.client.js';
+import {type CreateIssueDto} from '../dto/create-issue.dto.js';
+import {GithubClientError} from '../github.errors.js';
+import {IssueService} from './issue.service.js';
+import {LabelService} from './label.service.js';
 
 describe('IssueService', () => {
 	let service: IssueService;
@@ -23,17 +24,17 @@ describe('IssueService', () => {
 
 	const createdIssue = {
 		number: 1,
-		html_url: 'https://github.com/team-cowork/cowork-github/issues/1',
+		[githubField.htmlUrl]: 'https://github.com/team-cowork/cowork-github/issues/1',
 	};
 
 	const existingIssue = {
 		number: 7,
-		html_url: 'https://github.com/team-cowork/cowork-github/issues/7',
+		[githubField.htmlUrl]: 'https://github.com/team-cowork/cowork-github/issues/7',
 		title: 'Issue title',
 		labels: [],
 	};
 
-	const RESOLVED_LABELS = ['help wanted:도움 필요'];
+	const resolvedLabels = ['help wanted:도움 필요'];
 
 	beforeEach(async () => {
 		apiClient = {
@@ -42,7 +43,7 @@ describe('IssueService', () => {
 			addLabelsToIssue: jest.fn().mockResolvedValue(undefined),
 		};
 		labelService = {
-			resolveLabels: jest.fn().mockReturnValue(RESOLVED_LABELS),
+			resolveLabels: jest.fn().mockReturnValue(resolvedLabels),
 			ensureLabelsExist: jest.fn().mockResolvedValue(undefined),
 		};
 
@@ -65,12 +66,12 @@ describe('IssueService', () => {
 		expect(labelService.resolveLabels).toHaveBeenCalledWith(dto);
 		expect(labelService.ensureLabelsExist).toHaveBeenCalledWith(
 			dto,
-			RESOLVED_LABELS,
+			resolvedLabels,
 		);
 		expect(apiClient.searchOpenIssuesByTitle).toHaveBeenCalledWith(dto);
 		expect(apiClient.createIssue).toHaveBeenCalledWith({
 			...dto,
-			labels: RESOLVED_LABELS,
+			labels: resolvedLabels,
 		});
 		expect(result).toEqual({
 			issueUrl: 'https://github.com/team-cowork/cowork-github/issues/1',
@@ -97,7 +98,7 @@ describe('IssueService', () => {
 		expect(apiClient.addLabelsToIssue).toHaveBeenCalledWith(
 			dto,
 			7,
-			RESOLVED_LABELS,
+			resolvedLabels,
 		);
 		expect(apiClient.createIssue).not.toHaveBeenCalled();
 		expect(result).toEqual({

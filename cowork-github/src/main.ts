@@ -1,12 +1,13 @@
+import process from 'node:process';
 import {Logger, ValidationPipe} from '@nestjs/common';
 import {NestFactory} from '@nestjs/core';
 import {type MicroserviceOptions, Transport} from '@nestjs/microservices';
 import {Logger as PinoLogger} from 'nestjs-pino';
-import {AppConfigService} from './config/app-config.service';
+import {AppConfigService} from './config/app-config.service.js';
 
 async function bootstrap() {
-	const {AppModule} = await import('./app.module');
-	const app = await NestFactory.create(AppModule, {rawBody: true, bufferLogs: true});
+	const {AppModule: appModule} = await import('./app.module.js');
+	const app = await NestFactory.create(appModule, {rawBody: true, bufferLogs: true});
 	app.useLogger(app.get(PinoLogger));
 	const config = app.get(AppConfigService);
 
@@ -52,8 +53,10 @@ async function bootstrap() {
 	}
 }
 
-bootstrap().catch((error: unknown) => {
+try {
+	await bootstrap();
+} catch (error) {
 	new Logger('Bootstrap').error('Application failed to start', error instanceof Error ? error.stack : String(error));
-	// eslint-disable-next-line unicorn/no-process-exit -- Failed startup must terminate even when Redis clients have open sockets.
-	process.exit(1);
-});
+	// A rejected top-level await terminates with exit code 1 even when Redis clients keep sockets open.
+	throw error;
+}

@@ -1,3 +1,5 @@
+import {type Nullable} from '../../common/nullable.js';
+
 type WebhookRepository = {full_name: string; private?: boolean};
 
 export type GithubWebhookPayload = {
@@ -14,7 +16,7 @@ export type GithubWebhookPayload = {
 		title?: string;
 		html_url?: string;
 		state?: string;
-		user?: {login?: string} | null;
+		user?: Nullable<{login?: string}>;
 		labels?: Array<{name: string}>;
 		created_at?: string;
 		updated_at?: string;
@@ -25,10 +27,10 @@ export type GithubWebhookPayload = {
 		title?: string;
 		html_url?: string;
 		state?: string;
-		body?: string | null;
+		body?: Nullable<string>;
 		draft?: boolean;
 		merged?: boolean;
-		user?: {login?: string} | null;
+		user?: Nullable<{login?: string}>;
 		labels?: Array<{name: string}>;
 		head?: {ref?: string};
 		base?: {ref?: string};
@@ -46,7 +48,7 @@ export type GithubWebhookPayload = {
 		id?: number;
 		body?: string;
 		html_url?: string;
-		user?: {login?: string} | null;
+		user?: Nullable<{login?: string}>;
 		created_at?: string;
 		updated_at?: string;
 	};

@@ -1,13 +1,14 @@
 import {Test, type TestingModule} from '@nestjs/testing';
-import {GithubAuthService} from '../../auth/github-auth.service';
-import {REDIS_CLIENT} from '../../constants';
-import {PULL_REQUEST_FILES_TTL_SECONDS} from '../../github.cache';
-import {PullRequestService} from '../../pull-request/pull-request.service';
-import {GithubReadModelEventProducers} from '../kafka/github-read-model-event-producers';
-import {TeamGithubProducer} from '../kafka/team-github.producer';
-import {RepoEventProducer} from '../kafka/repo-event.producer';
-import {GithubWebhookController} from './github-webhook.controller';
-import {GithubWebhookSignatureGuard} from './github-webhook-signature.guard';
+import {githubField} from '../../github-field.js';
+import {GithubAuthService} from '../../auth/github-auth.service.js';
+import {REDIS_CLIENT} from '../../constants.js';
+import {PULL_REQUEST_FILES_TTL_SECONDS} from '../../github.cache.js';
+import {PullRequestService} from '../../pull-request/pull-request.service.js';
+import {GithubReadModelEventProducers} from '../kafka/github-read-model-event-producers.js';
+import {TeamGithubProducer} from '../kafka/team-github.producer.js';
+import {RepoEventProducer} from '../kafka/repo-event.producer.js';
+import {GithubWebhookController} from './github-webhook.controller.js';
+import {GithubWebhookSignatureGuard} from './github-webhook-signature.guard.js';
 
 describe('GithubWebhookController', () => {
 	let controller: GithubWebhookController;
@@ -100,7 +101,7 @@ describe('GithubWebhookController', () => {
 			ref: 'refs/heads/main',
 			pusher: {name: 'octocat'},
 			commits: [{}, {}],
-			repository: {full_name: 'my-org/my-repo'},
+			repository: {[githubField.fullName]: 'my-org/my-repo'},
 		});
 
 		expect(repoEventProducer.send).toHaveBeenCalledWith({
@@ -115,11 +116,11 @@ describe('GithubWebhookController', () => {
 	it('pull_request 이벤트는 github.repo.event와 PR state를 둘 다 발행한다', async () => {
 		await controller.handle('pull_request', {
 			action: 'opened',
-			repository: {full_name: 'my-org/my-repo'},
-			pull_request: {
+			repository: {[githubField.fullName]: 'my-org/my-repo'},
+			[githubField.pullRequest]: {
 				number: 7,
 				title: 'Add feature',
-				html_url: 'https://github.com/my-org/my-repo/pull/7',
+				[githubField.htmlUrl]: 'https://github.com/my-org/my-repo/pull/7',
 				state: 'open',
 				draft: false,
 				merged: false,
@@ -127,8 +128,8 @@ describe('GithubWebhookController', () => {
 				labels: [{name: 'bug'}],
 				head: {ref: 'feature'},
 				base: {ref: 'main'},
-				created_at: '2026-01-01T00:00:00Z',
-				updated_at: '2026-01-02T00:00:00Z',
+				[githubField.createdAt]: '2026-01-01T00:00:00Z',
+				[githubField.updatedAt]: '2026-01-02T00:00:00Z',
 			},
 		});
 
@@ -159,8 +160,8 @@ describe('GithubWebhookController', () => {
 
 		await expect(controller.handle('pull_request', {
 			action: 'synchronize',
-			repository: {full_name: 'my-org/my-repo'},
-			pull_request: {number: 7, user: {login: 'octocat'}},
+			repository: {[githubField.fullName]: 'my-org/my-repo'},
+			[githubField.pullRequest]: {number: 7, user: {login: 'octocat'}},
 		})).rejects.toThrow('rate limited');
 	});
 
@@ -169,8 +170,8 @@ describe('GithubWebhookController', () => {
 
 		const result = await controller.handle('pull_request', {
 			action: 'synchronize',
-			repository: {full_name: 'my-org/my-repo'},
-			pull_request: {number: 7, user: {login: 'octocat'}},
+			repository: {[githubField.fullName]: 'my-org/my-repo'},
+			[githubField.pullRequest]: {number: 7, user: {login: 'octocat'}},
 		});
 
 		expect(result).toEqual({ok: true});
@@ -185,8 +186,8 @@ describe('GithubWebhookController', () => {
 
 		await controller.handle('pull_request', {
 			action: 'labeled',
-			repository: {full_name: 'my-org/my-repo'},
-			pull_request: {number: 7, user: {login: 'octocat'}},
+			repository: {[githubField.fullName]: 'my-org/my-repo'},
+			[githubField.pullRequest]: {number: 7, user: {login: 'octocat'}},
 		});
 
 		expect(pullRequestService.listPullRequestFiles).toHaveBeenCalledWith('my-org', 'my-repo', 7);
@@ -205,8 +206,8 @@ describe('GithubWebhookController', () => {
 
 		const result = await controller.handle('pull_request', {
 			action: 'closed',
-			repository: {full_name: 'my-org/my-repo'},
-			pull_request: {
+			repository: {[githubField.fullName]: 'my-org/my-repo'},
+			[githubField.pullRequest]: {
 				number: 7, user: {login: 'octocat'}, state: 'closed', merged: true,
 			},
 		});
@@ -226,8 +227,8 @@ describe('GithubWebhookController', () => {
 
 		await controller.handle('pull_request', {
 			action: 'labeled',
-			repository: {full_name: 'my-org/my-repo'},
-			pull_request: {number: 7, user: {login: 'octocat'}},
+			repository: {[githubField.fullName]: 'my-org/my-repo'},
+			[githubField.pullRequest]: {number: 7, user: {login: 'octocat'}},
 		});
 
 		expect(redis.get).toHaveBeenCalledWith('github:pr-files:my-org/my-repo#7');
@@ -245,8 +246,8 @@ describe('GithubWebhookController', () => {
 
 		await controller.handle('pull_request', {
 			action: 'edited',
-			repository: {full_name: 'my-org/my-repo'},
-			pull_request: {number: 7, user: {login: 'octocat'}},
+			repository: {[githubField.fullName]: 'my-org/my-repo'},
+			[githubField.pullRequest]: {number: 7, user: {login: 'octocat'}},
 			changes: {base: {ref: {from: 'develop'}}},
 		});
 
@@ -264,16 +265,16 @@ describe('GithubWebhookController', () => {
 	it('issues 이벤트는 이슈 state를 발행한다', async () => {
 		await controller.handle('issues', {
 			action: 'edited',
-			repository: {full_name: 'my-org/my-repo'},
+			repository: {[githubField.fullName]: 'my-org/my-repo'},
 			issue: {
 				number: 3,
 				title: '버그 리포트',
-				html_url: 'https://github.com/my-org/my-repo/issues/3',
+				[githubField.htmlUrl]: 'https://github.com/my-org/my-repo/issues/3',
 				state: 'open',
 				user: {login: 'octocat'},
 				labels: [{name: 'bug'}],
-				created_at: '2026-01-01T00:00:00Z',
-				updated_at: '2026-01-02T00:00:00Z',
+				[githubField.createdAt]: '2026-01-01T00:00:00Z',
+				[githubField.updatedAt]: '2026-01-02T00:00:00Z',
 			},
 		});
 
@@ -297,8 +298,8 @@ describe('GithubWebhookController', () => {
 		await controller.handle('installation_repositories', {
 			action: 'added',
 			installation: {id: 42},
-			repositories_added: [{full_name: 'my-org/new-repo', private: true}],
-			repositories_removed: [{full_name: 'my-org/old-repo', private: false}],
+			[githubField.repositoriesAdded]: [{[githubField.fullName]: 'my-org/new-repo', private: true}],
+			[githubField.repositoriesRemoved]: [{[githubField.fullName]: 'my-org/old-repo', private: false}],
 		});
 
 		expect(readModelProducers.repo.send).toHaveBeenCalledWith(expect.objectContaining({
@@ -319,7 +320,7 @@ describe('GithubWebhookController', () => {
 		await controller.handle('repository', {
 			action: 'renamed',
 			installation: {id: 42},
-			repository: {full_name: 'my-org/new-name', private: false},
+			repository: {[githubField.fullName]: 'my-org/new-name', private: false},
 			changes: {repository: {name: {from: 'old-name'}}},
 		});
 
@@ -337,7 +338,7 @@ describe('GithubWebhookController', () => {
 		await controller.handle('repository', {
 			action: 'renamed',
 			installation: {id: 42},
-			repository: {full_name: 'my-org/my-repo', private: false},
+			repository: {[githubField.fullName]: 'my-org/my-repo', private: false},
 			changes: {repository: {name: {from: 'My-Repo'}}},
 		});
 
@@ -349,7 +350,7 @@ describe('GithubWebhookController', () => {
 		await controller.handle('repository', {
 			action: 'deleted',
 			installation: {id: 42},
-			repository: {full_name: 'my-org/my-repo', private: false},
+			repository: {[githubField.fullName]: 'my-org/my-repo', private: false},
 		});
 
 		expect(readModelProducers.repo.send).toHaveBeenCalledTimes(1);
@@ -362,7 +363,7 @@ describe('GithubWebhookController', () => {
 	it('label 이벤트는 라벨 state를 발행한다', async () => {
 		await controller.handle('label', {
 			action: 'created',
-			repository: {full_name: 'my-org/my-repo'},
+			repository: {[githubField.fullName]: 'my-org/my-repo'},
 			label: {name: 'bug', color: 'd73a4a'},
 		});
 
@@ -378,7 +379,7 @@ describe('GithubWebhookController', () => {
 	it('label 이름이 바뀌면 이전 이름을 삭제 처리하고 새 이름을 발행한다', async () => {
 		await controller.handle('label', {
 			action: 'edited',
-			repository: {full_name: 'my-org/my-repo'},
+			repository: {[githubField.fullName]: 'my-org/my-repo'},
 			label: {name: 'defect', color: 'd73a4a'},
 			changes: {name: {from: 'bug'}},
 		});
@@ -396,7 +397,7 @@ describe('GithubWebhookController', () => {
 	it('label 이름의 대소문자만 바뀌면 이전 이름을 삭제 처리하지 않는다', async () => {
 		await controller.handle('label', {
 			action: 'edited',
-			repository: {full_name: 'my-org/my-repo'},
+			repository: {[githubField.fullName]: 'my-org/my-repo'},
 			label: {name: 'bug', color: 'd73a4a'},
 			changes: {name: {from: 'Bug'}},
 		});
@@ -408,15 +409,15 @@ describe('GithubWebhookController', () => {
 	it('issue_comment 이벤트는 숨은 마커에서 실제 작성자를 복원해 댓글 state를 발행한다', async () => {
 		await controller.handle('issue_comment', {
 			action: 'created',
-			repository: {full_name: 'my-org/my-repo'},
+			repository: {[githubField.fullName]: 'my-org/my-repo'},
 			issue: {number: 3},
 			comment: {
 				id: 99,
 				body: '확인했습니다\n\n<!-- cowork:author=real-author -->',
-				html_url: 'https://github.com/my-org/my-repo/issues/3#issuecomment-99',
+				[githubField.htmlUrl]: 'https://github.com/my-org/my-repo/issues/3#issuecomment-99',
 				user: {login: 'cowork-bot'},
-				created_at: '2026-01-01T00:00:00Z',
-				updated_at: '2026-01-01T00:00:00Z',
+				[githubField.createdAt]: '2026-01-01T00:00:00Z',
+				[githubField.updatedAt]: '2026-01-01T00:00:00Z',
 			},
 		});
 
