@@ -1,7 +1,8 @@
 import {Test, type TestingModule} from '@nestjs/testing';
-import {GithubClientError} from '../github.errors';
-import {PullRequestApiClient} from './client/pull-request-api.client';
-import {PullRequestService} from './pull-request.service';
+import {githubField} from '../github-field.js';
+import {GithubClientError} from '../github.errors.js';
+import {PullRequestApiClient} from './client/pull-request-api.client.js';
+import {PullRequestService} from './pull-request.service.js';
 
 describe('PullRequestService', () => {
 	let service: PullRequestService;
@@ -23,11 +24,11 @@ describe('PullRequestService', () => {
 		state: 'open',
 		merged: false,
 		mergeable: true,
-		mergeable_state: 'clean',
-		html_url: 'https://github.com/my-org/my-repo/pull/1',
+		[githubField.mergeableState]: 'clean',
+		[githubField.htmlUrl]: 'https://github.com/my-org/my-repo/pull/1',
 		user: {login: 'author'},
-		head: {ref: 'feature/foo', repo: {full_name: 'my-org/my-repo'}},
-		base: {ref: 'main', repo: {full_name: 'my-org/my-repo'}},
+		head: {ref: 'feature/foo', repo: {[githubField.fullName]: 'my-org/my-repo'}},
+		base: {ref: 'main', repo: {[githubField.fullName]: 'my-org/my-repo'}},
 	};
 
 	beforeEach(async () => {
@@ -59,7 +60,7 @@ describe('PullRequestService', () => {
 				{
 					user: {login: 'reviewer'},
 					state: 'APPROVED',
-					submitted_at: '2024-01-01T00:00:00Z',
+					[githubField.submittedAt]: '2024-01-01T00:00:00Z',
 				},
 			]);
 
@@ -76,12 +77,12 @@ describe('PullRequestService', () => {
 				{
 					user: {login: 'reviewer'},
 					state: 'APPROVED',
-					submitted_at: '2024-01-01T00:00:00Z',
+					[githubField.submittedAt]: '2024-01-01T00:00:00Z',
 				},
 				{
 					user: {login: 'reviewer'},
 					state: 'CHANGES_REQUESTED',
-					submitted_at: '2024-01-02T00:00:00Z',
+					[githubField.submittedAt]: '2024-01-02T00:00:00Z',
 				},
 			]);
 
@@ -105,12 +106,12 @@ describe('PullRequestService', () => {
 				{
 					user: {login: 'reviewer'},
 					state: 'APPROVED',
-					submitted_at: '2024-01-01T00:00:00Z',
+					[githubField.submittedAt]: '2024-01-01T00:00:00Z',
 				},
 				{
 					user: {login: 'reviewer'},
 					state: 'DISMISSED',
-					submitted_at: '2024-01-02T00:00:00Z',
+					[githubField.submittedAt]: '2024-01-02T00:00:00Z',
 				},
 			]);
 
@@ -126,12 +127,12 @@ describe('PullRequestService', () => {
 			title: 'Add feature',
 			state: 'closed',
 			draft: false,
-			merged_at: '2024-01-02T00:00:00Z',
-			html_url: 'https://github.com/my-org/my-repo/pull/1',
+			[githubField.mergedAt]: '2024-01-02T00:00:00Z',
+			[githubField.htmlUrl]: 'https://github.com/my-org/my-repo/pull/1',
 			user: {login: 'author'},
 			labels: [{name: 'bug'}, {name: 'enhancement'}],
-			created_at: '2024-01-01T00:00:00Z',
-			updated_at: '2024-01-03T00:00:00Z',
+			[githubField.createdAt]: '2024-01-01T00:00:00Z',
+			[githubField.updatedAt]: '2024-01-03T00:00:00Z',
 		};
 
 		it('raw 목록 아이템을 요약 DTO로 매핑한다', async () => {
@@ -162,7 +163,7 @@ describe('PullRequestService', () => {
 
 		it('merged_at이 null이면 merged는 false다', async () => {
 			apiClient.listPullRequests.mockResolvedValue([
-				{...baseListItem, merged_at: null},
+				{...baseListItem, [githubField.mergedAt]: null},
 			]);
 
 			const result = await service.listPullRequests(
@@ -261,7 +262,7 @@ describe('PullRequestService', () => {
 		it('포크에서 온 PR은 브랜치를 삭제하지 않는다', async () => {
 			apiClient.getPullRequest.mockResolvedValue({
 				...basePr,
-				head: {ref: 'feature/foo', repo: {full_name: 'other/fork'}},
+				head: {ref: 'feature/foo', repo: {[githubField.fullName]: 'other/fork'}},
 			});
 			apiClient.getCollaboratorPermission.mockResolvedValue({
 				permission: 'write',

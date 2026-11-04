@@ -1,9 +1,9 @@
 import {Test, type TestingModule} from '@nestjs/testing';
 import {Kafka} from 'kafkajs';
-import {AppConfigService} from '../../config/app-config.service';
-import {type IssueWriteResultEvent} from './event/issue-write-result.event';
-import {IssueWriteCommandType} from './issue-write-command-type';
-import {IssueWriteResultProducer} from './issue-write-result.producer';
+import {AppConfigService} from '../../config/app-config.service.js';
+import {type IssueWriteResultEvent} from './event/issue-write-result.event.js';
+import {IssueWriteCommandType} from './issue-write-command-type.js';
+import {IssueWriteResultProducer} from './issue-write-result.producer.js';
 
 jest.mock('kafkajs');
 
