@@ -12,8 +12,8 @@
 
 ## 스택
 
-- TypeScript / Node.js / NestJS
-- npm / TypeScript Compiler
+- TypeScript / Bun / NestJS
+- Bun / TypeScript Compiler
 - Socket.IO / GraphQL (Apollo)
 - MongoDB (Mongoose) / Elasticsearch / Redis / KafkaJS
 - SeaweedFS (S3 호환) / AWS SDK
