@@ -1,12 +1,28 @@
 plugins {
-    id("cowork.spring-boot-conventions")
+    java
+    alias(libs.plugins.spring.boot)
+    alias(libs.plugins.spring.dependency.management)
     alias(libs.plugins.spotless)
 }
 
+group = "com.cowork"
 version = "20261103.0"
 
 repositories {
+    mavenCentral()
     maven { url = uri("https://jitpack.io") }
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(libs.versions.java.get().toInt())
+    }
+}
+
+dependencyManagement {
+    imports {
+        mavenBom(libs.spring.cloud.dependencies.get().toString())
+    }
 }
 
 dependencies {
@@ -53,4 +69,8 @@ spotless {
 
 tasks.named<Jar>("jar") {
     enabled = false
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
 }

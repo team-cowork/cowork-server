@@ -259,20 +259,19 @@ Run commands from the repository root:
 
 | Scope                                                            | Check                                                        | Format                                       |
 | ---------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------- |
-| Gradle Kotlin modules (`gateway`, `config`, `channel`, `team`)   | `./gradlew ktlintCheck`                                      | `./gradlew ktlintFormat`                     |
-| One Gradle Kotlin module                                         | `./gradlew :cowork-team:ktlintCheck`                         | `./gradlew :cowork-team:ktlintFormat`        |
+| Gradle Kotlin module (`gateway`, `channel`, `team`; replace `team`) | `(cd cowork-team && ./gradlew ktlintCheck)`                  | `(cd cowork-team && ./gradlew ktlintFormat)` |
 | Node chat                                                        | `npm --prefix cowork-chat run lint -- --max-warnings=0`      | `npm --prefix cowork-chat run lint:fix`      |
 | Node promotion                                                   | `npm --prefix cowork-promotion run lint -- --max-warnings=0` | `npm --prefix cowork-promotion run lint:fix` |
 | Node github                                                      | `npm --prefix cowork-github run lint -- --max-warnings=0`    | `npm --prefix cowork-github run lint:fix`    |
-| Java roadmap                                                     | `./gradlew :cowork-roadmap:spotlessCheck`                    | `./gradlew :cowork-roadmap:spotlessApply`    |
+| Java roadmap                                                     | `(cd cowork-roadmap && ./gradlew spotlessCheck)`             | `(cd cowork-roadmap && ./gradlew spotlessApply)` |
 
 `cowork-promotion` and `cowork-chat` run XO with its default rules, no inline `eslint-disable` comments, and the default file discovery. Resolve diagnostics in code rather than in configuration. `cowork-promotion` has no `xo.config.mjs`; `cowork-chat` keeps one only to set `import-x/extensions` with leading dots, because `eslint-config-xo` registers them without dots and `import-x/no-cycle` otherwise checks nothing. Do not add rules there. `cowork-github` still carries module-specific settings in `xo.config.mjs`. In every module the ESLint adapter passes the XO configuration through to editors. Review automatic fixes and run the module build; CI rejects lint warnings as well as errors.
 
 Roadmap's Spotless configuration uses `cowork-roadmap/config/eclipse-java-formatter.xml` and its own import order. `check` (and therefore `build`) runs `spotlessCheck`. Compilation does not reformat Java files; run `spotlessApply` explicitly to apply formatting.
 
-`cowork-project` (Maven) and `cowork-preference` (Kotlin Toolchain) do not apply the Gradle Kotlin plugin and have no `ktlintFormat` task. Root KtLint commands do not format them; follow `.editorconfig` and review their diffs explicitly. There is no repository-wide formatter for all languages.
+`cowork-project` (Maven) and `cowork-preference` (Kotlin Toolchain) have no Gradle build or `ktlintFormat` task; follow `.editorconfig` and review their diffs explicitly. There is no repository-wide formatter for all languages.
 
-Project hooks attempt root KtLint after recognized Kotlin edits and root Spotless after recognized Java/Kotlin/Groovy edits. The suffix that triggers a hook does not expand the formatter's configured targets. Hook failures are reported but do not replace an explicit check.
+Project hooks find the edited file's owning Gradle module and run its configured formatter. Files in modules without that formatter are skipped. The suffix that triggers a hook does not expand the formatter's configured targets. Hook failures are reported but do not replace an explicit check.
 
 ## Error Handling
 
@@ -387,14 +386,14 @@ Run the owning module's tests from the repository root:
 
 | Scope                       | Command                                                                    |
 |-----------------------------|----------------------------------------------------------------------------|
-| Gradle Kotlin module        | `./gradlew :cowork-team:test` (replace `team` with `gateway` or `channel`) |
-| Java roadmap                | `./gradlew :cowork-roadmap:test`                                           |
+| Gradle Kotlin module        | `(cd cowork-team && ./gradlew test)` (replace `team` with `gateway` or `channel`) |
+| Java roadmap                | `(cd cowork-roadmap && ./gradlew test)`                                    |
 | Maven project               | `(cd cowork-project && ./mvnw test)`                                       |
-| Kotlin Toolchain preference | `./gradlew :cowork-preference:kotlinToolchainTest`                         |
+| Kotlin Toolchain preference | `(cd cowork-preference && ./kotlin test)`                                  |
 
-The Kotlin Toolchain uses the checked-in `cowork-preference/kotlin` or `kotlin.bat` wrapper. It provisions the pinned toolchain and JDK; no global CLI installation is needed. Gradle, Docker, and CI use that project wrapper. `KOTLIN_CLI` can override the Gradle command; `~/` expands to the user home, and relative paths resolve against `cowork-preference`. Update both wrappers together with `./kotlin update --target-version=<version>` from the module directory. There is no `:cowork-preference:test` Gradle task.
+The Kotlin Toolchain uses the checked-in `cowork-preference/kotlin` or `kotlin.bat` wrapper. It provisions the pinned toolchain and JDK; no global CLI installation is needed. Local builds, Docker, and CI use that project wrapper directly. Update both wrappers together with `./kotlin update --target-version=<version>` from the module directory.
 
-`cowork-project` is a standalone Maven module and is not included in root Gradle `build`, `clean`, or `test` commands. Run its checked-in Maven wrapper directly. An unqualified root `./gradlew test` also excludes Kotlin Toolchain preference and the non-JVM services. Use each non-JVM module's documented native test command.
+Each Gradle module owns its Wrapper, settings, version catalog, and build configuration. Run its Wrapper from the module directory; there is no root Gradle build. Gradle and dependency versions can be updated per module. Use the checked-in Maven wrapper for `cowork-project`, the Kotlin Toolchain wrapper for `cowork-preference`, and each non-JVM module's documented native commands.
 
 ## Security
 

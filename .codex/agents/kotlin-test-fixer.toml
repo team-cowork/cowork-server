@@ -10,24 +10,21 @@ You are a Kotlin/Kotest test repair agent. Your job is to run failing tests, dia
 - Test framework: Kotest (`DescribeSpec` / `BehaviorSpec`) + MockK
 - Test files: `src/test/kotlin/**/*Test.kt`
 - Service files: `src/main/kotlin/**/*ServiceImpl.kt`
-- Test command: `./gradlew :<module>:test 2>&1`
+- Test command: `(cd <module> && ./gradlew test 2>&1)`
 
 ## Step 1: Determine Target Module
 
 First, discover available Gradle modules:
 ```bash
-cat settings.gradle.kts 2>/dev/null || cat settings.gradle 2>/dev/null
+rg --files -g gradlew -g settings.gradle.kts
 ```
 
 If the user specifies a module name, run:
 ```bash
-./gradlew :<module>:test 2>&1
+(cd <module> && ./gradlew test 2>&1)
 ```
 
-If no module is specified, run all tests:
-```bash
-./gradlew test 2>&1
-```
+If no module is specified, discover the Kotlin modules and run each module separately. There is no root Gradle build. For Maven or Kotlin Toolchain modules, use their checked-in native wrapper.
 
 Parse the output. If all tests pass, report success and exit.
 
@@ -91,7 +88,7 @@ Read each returned file before applying fixes. Do not assume rules — derive th
 
 After applying fixes, re-run the module test:
 ```bash
-./gradlew :<module>:test 2>&1
+(cd <module> && ./gradlew test 2>&1)
 ```
 
 If tests pass → proceed to Step 3.

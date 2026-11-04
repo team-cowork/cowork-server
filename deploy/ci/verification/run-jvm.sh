@@ -102,9 +102,6 @@ PY
 case "$runner" in
   gradle)
     gradle_wrapper="$module_dir/gradlew"
-    if [[ ! -f "$gradle_wrapper" ]]; then
-      gradle_wrapper="$source_root/gradlew"
-    fi
     [[ -f "$gradle_wrapper" ]] || { echo 'Gradle wrapper not found.' >&2; exit 1; }
     gradle_args=(--no-daemon --console=plain --no-build-cache --no-configuration-cache
       --project-dir "$module_dir"
