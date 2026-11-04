@@ -1,17 +1,19 @@
 import {HttpService} from '@nestjs/axios';
-import {Injectable} from '@nestjs/common';
+import {Injectable as injectable} from '@nestjs/common';
 import {AxiosError} from 'axios';
 import {firstValueFrom} from 'rxjs';
-import {GithubAuthService} from '../../auth/github-auth.service';
-import {GITHUB_API, GITHUB_HEADERS} from '../../constants';
-import {GithubClientError} from '../../github.errors';
+import {type Nullable} from '../../common/nullable.js';
+import {githubField} from '../../github-field.js';
+import {GithubAuthService} from '../../auth/github-auth.service.js';
+import {GITHUB_API, GITHUB_HEADERS} from '../../constants.js';
+import {GithubClientError} from '../../github.errors.js';
 
 export type IssueDetail = {
 	number: number;
 	title: string;
 	state: string;
 	html_url: string;
-	user: {login: string} | null;
+	user: Nullable<{login: string}>;
 	labels: Array<{name: string}>;
 	created_at: string;
 	updated_at: string;
@@ -23,17 +25,37 @@ export type GithubComment = {
 	id: number;
 	body: string;
 	html_url: string;
-	user: {login: string} | null;
+	user: Nullable<{login: string}>;
 	created_at: string;
 	updated_at: string;
 };
 
-@Injectable()
+@injectable()
 export class IssueHttpApiClient {
 	constructor(
 		private readonly httpService: HttpService,
 		private readonly authService: GithubAuthService,
 	) {}
+
+	private authHeaders(token: string) {
+		return {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${token}`};
+	}
+
+	private handleGithubError(error: unknown): never {
+		if (
+			error instanceof AxiosError
+			&& error.response
+			&& error.response.status < 500
+			&& error.response.status !== 429
+		) {
+			throw new GithubClientError(
+				(error.response.data as {message?: string})?.message ?? error.message,
+				error.response.status,
+			);
+		}
+
+		throw error;
+	}
 
 	// MVP: per_page=100 단일 페이지만 조회. 100개 초과 이슈 페이지네이션은 후속 과제.
 	async listIssues(
@@ -50,7 +72,7 @@ export class IssueHttpApiClient {
 						headers: this.authHeaders(token),
 						params: {
 							state,
-							per_page: 100,
+							[githubField.perPage]: 100,
 							sort: 'created',
 							direction: 'desc',
 						},
@@ -74,7 +96,7 @@ export class IssueHttpApiClient {
 			const {data} = await firstValueFrom(
 				this.httpService.get<GithubComment[]>(
 					`${GITHUB_API}/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
-					{params: {per_page: 100, ...(since !== undefined && {since})}, headers: this.authHeaders(token)},
+					{params: {[githubField.perPage]: 100, ...(since !== undefined && {since})}, headers: this.authHeaders(token)},
 				),
 			);
 			return data;
@@ -160,25 +182,5 @@ export class IssueHttpApiClient {
 		} catch (error) {
 			this.handleGithubError(error);
 		}
-	}
-
-	private authHeaders(token: string) {
-		return {...GITHUB_HEADERS, Authorization: `Bearer ${token}`};
-	}
-
-	private handleGithubError(error: unknown): never {
-		if (
-			error instanceof AxiosError
-			&& error.response
-			&& error.response.status < 500
-			&& error.response.status !== 429
-		) {
-			throw new GithubClientError(
-				(error.response.data as {message?: string})?.message ?? error.message,
-				error.response.status,
-			);
-		}
-
-		throw error;
 	}
 }

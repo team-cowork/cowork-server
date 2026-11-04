@@ -1,6 +1,6 @@
 import {Test, type TestingModule} from '@nestjs/testing';
-import {LabelHttpApiClient} from './client/label-http-api.client';
-import {LabelHttpService} from './label-http.service';
+import {LabelHttpApiClient} from './client/label-http-api.client.js';
+import {LabelHttpService} from './label-http.service.js';
 
 describe('LabelHttpService', () => {
 	let service: LabelHttpService;

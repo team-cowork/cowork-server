@@ -1,8 +1,10 @@
+import {githubField} from './github-field.js';
+
 export const REDIS_CLIENT = 'REDIS_CLIENT';
 
 export const GITHUB_API = 'https://api.github.com';
 export const GITHUB_HEADERS = {
-	Accept: 'application/vnd.github+json',
+	[githubField.accept]: 'application/vnd.github+json',
 	'X-GitHub-Api-Version': '2022-11-28',
 } as const;
 

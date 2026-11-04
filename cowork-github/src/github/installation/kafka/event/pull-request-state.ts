@@ -1,9 +1,11 @@
+import {type Nullable} from '../../../common/nullable.js';
+
 export type PullRequestFileState = {
 	filename: string;
 	status: string;
 	additions: number;
 	deletions: number;
-	patch: string | null;
+	patch: Nullable<string>;
 };
 
 export type PullRequestStateEvent = {
@@ -11,7 +13,7 @@ export type PullRequestStateEvent = {
 	repo: string;
 	number: number;
 	title: string;
-	body: string | null;
+	body: Nullable<string>;
 	author: string;
 	state: string;
 	draft: boolean;

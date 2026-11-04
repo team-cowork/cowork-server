@@ -1,4 +1,5 @@
-import {toRepoIdentity} from './repo-identity';
+import {type Nullable} from '../../../common/nullable.js';
+import {toRepoIdentity} from './repo-identity.js';
 
 /**
  동기화 완료 마커. 대상(repo 하나, 또는 org의 repo 목록)의 state 레코드를 모두 보낸 뒤 같은 state 토픽에
@@ -8,11 +9,11 @@ import {toRepoIdentity} from './repo-identity';
 export type SyncCompletedMarker = {
 	recordType: 'SYNC_COMPLETED';
 	owner: string;
-	repo: string | null;
+	repo: Nullable<string>;
 	completedAt: string;
 };
 
-export const syncCompletedMarker = (owner: string, repo: string | null): SyncCompletedMarker => ({
+export const syncCompletedMarker = (owner: string, repo: Nullable<string>): SyncCompletedMarker => ({
 	recordType: 'SYNC_COMPLETED',
 	owner: toRepoIdentity(owner),
 	repo: repo === null ? null : toRepoIdentity(repo),

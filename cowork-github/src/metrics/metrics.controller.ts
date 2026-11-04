@@ -1,8 +1,8 @@
 import {getHeapStatistics} from 'node:v8';
-import {Controller, Get, Header} from '@nestjs/common';
+import {Controller as controller, Get as httpGet, Header as responseHeader} from '@nestjs/common';
 import {collectDefaultMetrics, Gauge, register} from 'prom-client';
 
-@Controller('metrics')
+@controller('metrics')
 export class MetricsController {
 	constructor() {
 		// The global registry rejects duplicate default collectors when the module is created again.
@@ -18,8 +18,8 @@ export class MetricsController {
 		}).set(getHeapStatistics().heap_size_limit);
 	}
 
-	@Get()
-	@Header('Content-Type', register.contentType)
+	@httpGet()
+	@responseHeader('Content-Type', register.contentType)
 	async metrics(): Promise<string> {
 		return register.metrics();
 	}

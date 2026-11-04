@@ -1,16 +1,21 @@
+import {Buffer} from 'node:buffer';
 import {readFileSync} from 'node:fs';
-import {Injectable} from '@nestjs/common';
+import {Injectable as injectable} from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
 import {type KafkaConfig, type SASLOptions} from 'kafkajs';
 import {
 	DEFAULT_GITHUB_INSTALLATION_CACHE_TTL_SECONDS,
 	DEFAULT_GITHUB_ISSUE_MAX_RETRIES,
 	DEFAULT_GITHUB_TOKEN_CACHE_TTL_SECONDS,
-} from '../github/constants';
+} from '../github/constants.js';
 
-@Injectable()
+@injectable()
 export class AppConfigService {
 	constructor(private readonly configService: ConfigService) {}
+
+	private getNumber(key: string, fallback: number): number {
+		return Number(this.configService.get(key) ?? fallback);
+	}
 
 	get port(): number {
 		return this.configService.getOrThrow<number>('PORT');
@@ -113,9 +118,5 @@ export class AppConfigService {
 
 	get githubWebhookSecret(): string {
 		return this.configService.getOrThrow<string>('GITHUB_WEBHOOK_SECRET');
-	}
-
-	private getNumber(key: string, fallback: number): number {
-		return Number(this.configService.get(key) ?? fallback);
 	}
 }

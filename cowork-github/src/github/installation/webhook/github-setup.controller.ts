@@ -1,19 +1,19 @@
 import {
-	Controller,
-	Get,
-	Header,
-	Inject,
+	Controller as controller,
+	Get as httpGet,
+	Header as responseHeader,
+	Inject as inject,
 	Logger,
-	Query,
+	Query as requestQuery,
 } from '@nestjs/common';
-import type Redis from 'ioredis';
-import {GithubAuthService} from '../../auth/github-auth.service';
-import {REDIS_CLIENT} from '../../constants';
-import {githubCacheKeys} from '../../github.cache';
-import {GithubBackfillService} from '../github-backfill.service';
-import {TeamGithubProducer} from '../kafka/team-github.producer';
+import type {Redis} from 'ioredis';
+import {GithubAuthService} from '../../auth/github-auth.service.js';
+import {REDIS_CLIENT} from '../../constants.js';
+import {githubCacheKeys} from '../../github.cache.js';
+import {GithubBackfillService} from '../github-backfill.service.js';
+import {TeamGithubProducer} from '../kafka/team-github.producer.js';
 
-@Controller('github/setup')
+@controller('github/setup')
 export class GithubSetupController {
 	private readonly logger = new Logger(GithubSetupController.name);
 
@@ -21,15 +21,19 @@ export class GithubSetupController {
 		private readonly authService: GithubAuthService,
 		private readonly producer: TeamGithubProducer,
 		private readonly backfillService: GithubBackfillService,
-		@Inject(REDIS_CLIENT) private readonly redis: Redis,
+		@inject(REDIS_CLIENT) private readonly redis: Redis,
 	) {}
 
-	@Get()
-	@Header('Content-Type', 'text/html; charset=utf-8')
+	private page(message: string): string {
+		return `<html><body style="font-family:sans-serif;text-align:center;padding-top:4rem;"><p>${message}</p></body></html>`;
+	}
+
+	@httpGet()
+	@responseHeader('Content-Type', 'text/html; charset=utf-8')
 	async handle(
-		@Query('installation_id') installationIdRaw: string,
-		@Query('setup_action') setupAction: string,
-		@Query('state') state?: string,
+		@requestQuery('installation_id') installationIdRaw: string,
+		@requestQuery('setup_action') setupAction: string,
+		@requestQuery('state') state?: string,
 	): Promise<string> {
 		const installationId = Number(installationIdRaw);
 		if (installationIdRaw === '' || !Number.isSafeInteger(installationId)) {
@@ -79,9 +83,5 @@ export class GithubSetupController {
 				'GitHub 연동 처리 중 오류가 발생했습니다. cowork에서 다시 시도해주세요.',
 			);
 		}
-	}
-
-	private page(message: string): string {
-		return `<html><body style="font-family:sans-serif;text-align:center;padding-top:4rem;"><p>${message}</p></body></html>`;
 	}
 }

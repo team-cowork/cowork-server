@@ -1,14 +1,14 @@
 {
   "compilerOptions": {
-    "module": "commonjs",
-    "esModuleInterop": true,
+    "module": "nodenext",
     "isolatedModules": true,
+    "esModuleInterop": true,
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
-    "target": "ES2024",
+    "target": "ES2025",
     "sourceMap": true,
     "outDir": "./dist",
     "rootDir": "./src",
