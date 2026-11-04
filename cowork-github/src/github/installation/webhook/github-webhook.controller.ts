@@ -9,9 +9,11 @@ import {
 	UseGuards as useGuards,
 } from '@nestjs/common';
 import type {Redis} from 'ioredis';
+import {AppConfigService} from '../../../config/app-config.service.js';
 import {GithubAuthService} from '../../auth/github-auth.service.js';
 import {
 	extractCommentAuthor,
+	isAppComment,
 } from '../../common/comment-author-marker.js';
 import {REDIS_CLIENT} from '../../constants.js';
 import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../../github.cache.js';
@@ -51,6 +53,9 @@ export class GithubWebhookController {
 
 	@inject(REDIS_CLIENT)
 	private readonly redis!: Redis;
+
+	@inject(AppConfigService)
+	private readonly config!: AppConfigService;
 
 	// 알림(github.repo.event)은 사용자에게 보여주는 부가 정보라 실패해도 webhook 응답은 유지한다.
 	// read-model state 발행은 반대로 실패 시 그대로 throw해 500을 반환한다 — GitHub가 전송 실패를
@@ -379,7 +384,11 @@ export class GithubWebhookController {
 		}
 
 		const [owner, repo] = fullName.split('/', 2);
-		const {author, body} = extractCommentAuthor(comment.body ?? '', comment.user?.login ?? 'ghost');
+		const {author, body} = extractCommentAuthor(
+			comment.body ?? '',
+			comment.user?.login ?? 'ghost',
+			isAppComment(comment.performed_via_github_app, this.config.githubAppId),
+		);
 		await this.readModelProducers.issueComment.send({
 			owner,
 			repo,
