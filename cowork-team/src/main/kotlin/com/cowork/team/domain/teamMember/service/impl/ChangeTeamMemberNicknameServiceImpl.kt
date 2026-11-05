@@ -1,11 +1,11 @@
 package com.cowork.team.domain.teamMember.service.impl
 
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
+import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.presentation.data.request.ChangeNicknameRequest
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamMember.service.ChangeTeamMemberNicknameService
-import com.cowork.team.domain.teamMember.service.TeamMemberAccessGuard
 import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
 import com.cowork.team.domain.teamRole.service.ManageRoleContext
@@ -20,14 +20,14 @@ import team.themoment.sdk.exception.ExpectedException
 class ChangeTeamMemberNicknameServiceImpl(
     private val teamMemberRepository: TeamMemberRepository,
     private val teamMemberEventPublisher: TeamMemberEventPublisher,
-    private val teamMemberAccessGuard: TeamMemberAccessGuard,
+    private val teamAccessGuard: TeamAccessGuard,
     private val teamRoleAccessGuard: TeamRoleAccessGuard,
     private val teamRoleProjectionReader: TeamRoleProjectionReader,
 ) : ChangeTeamMemberNicknameService {
 
     @Transactional
     override fun execute(actorId: Long, teamId: Long, targetUserId: Long, request: ChangeNicknameRequest) {
-        teamMemberAccessGuard.findTeamForUpdateOrThrow(teamId)
+        teamAccessGuard.findTeamForUpdateOrThrow(teamId)
         val nickname = normalize(request.nickname)
 
         val targetMember = if (actorId == targetUserId) {
