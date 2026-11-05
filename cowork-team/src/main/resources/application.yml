@@ -75,11 +75,6 @@ sdk:
     enabled: true
   response:
     enabled: false
-    not-wrapping-urls:
-    - /actuator/**
-    - /v3/api-docs/**
-    - /v3/api-docs
-    - /swagger-ui/**
   swagger:
     enabled: true
     group: team
