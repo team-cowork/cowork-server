@@ -27,7 +27,7 @@ groups:
           severity: warning
         annotations:
           summary: "Nomad 작업 배치 지연"
-          description: "배치할 수 없는 평가가 10분 이상 남아 있습니다. 작업의 VM 제약 조건과 클라이언트 상태, 남은 CPU·메모리를 확인해 주세요."
+          description: "배치할 수 없는 평가가 10분 이상 남아 있습니다. 작업의 VM 제약 조건과 클라이언트 상태, 남은 CPU와 메모리를 확인해 주세요."
 
       - alert: coworkPlatformCertificateRenewalOverdue
         expr: nomad_agent_tls_cert_expiration_seconds{job="nomad"} < 21 * 86400 or consul_agent_tls_cert_expiry{job="consul"} < 21 * 86400
