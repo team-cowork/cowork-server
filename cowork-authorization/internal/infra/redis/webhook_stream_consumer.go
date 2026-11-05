@@ -247,9 +247,11 @@ func (c *WebhookStreamConsumer) observe(ctx context.Context) error {
 	return nil
 }
 
+// ErrWebhookFuture stays pending: the gateway already answered 200, so the
+// entry is retried until the timestamp falls inside the accepted skew.
 func streamErrorKind(err error) string {
 	if errors.Is(err, domain.ErrInvalidWebhookPayload) || errors.Is(err, domain.ErrWebhookConflict) ||
-		errors.Is(err, domain.ErrWebhookExpired) || errors.Is(err, domain.ErrWebhookFuture) {
+		errors.Is(err, domain.ErrWebhookExpired) {
 		return "invalid"
 	}
 	return "processing"
