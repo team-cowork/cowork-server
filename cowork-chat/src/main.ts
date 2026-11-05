@@ -9,6 +9,7 @@ import {DocumentBuilder, SwaggerModule} from '@nestjs/swagger';
 import {type NextFunction, type Request, type Response} from 'express';
 import {Logger as PinoLogger} from 'nestjs-pino';
 import {Gauge} from 'prom-client';
+import {createChatApiDocument} from './common/config/swagger.js';
 import {GlobalExceptionFilter} from './common/filter/global-exception.filter.js';
 import {RedisIoAdapter, SocketIoRedisConnection} from './common/adapter/redis-io.adapter.js';
 import {
@@ -99,65 +100,7 @@ async function bootstrap() {
 	const socketIoRedis = app.get(SocketIoRedisConnection);
 	app.useWebSocketAdapter(new RedisIoAdapter(app, socketIoRedis));
 
-	const config = new DocumentBuilder()
-		.setTitle('cowork Chat API')
-		.setDescription(
-			'채팅 서비스 — Socket.io 기반 실시간 채팅\n\n'
-			+ '## WebSocket (/chat namespace)\n'
-			+ '| 이벤트 | 방향 | 설명 |\n'
-			+ '|--------|------|------|\n'
-			+ '| `join` | C→S | 채널 room 참가 |\n'
-			+ '| `leave` | C→S | 채널 room 퇴장 |\n'
-			+ '| `join:team` / `leave:team` | C→S | 팀 room 참가/퇴장 |\n'
-			+ '| `typing:start` / `typing:stop` | C→S | 타이핑 상태 변경 |\n'
-			+ '| `message` | S→C | 새 메시지 수신 |\n'
-			+ '| `message:*` | S→C | 수정·삭제·고정·반응 변경 |\n'
-			+ '| `member:*` / `channel:*` / `project:*` | S→C | 멤버십·채널·프로젝트 변경 |\n\n'
-			+ '메시지 작성은 REST 요청 후 `chat.message.v2` Kafka 이벤트로 처리합니다. 전체 이벤트 명세: `/api/chat/asyncapi.json`\n\n'
-			+ '## 메시지 검색\n'
-			+ '`GET /api/chat/chat/projects/:projectId/messages/search` — Elasticsearch 기반 프로젝트 채팅 검색.\n'
-			+ '프로젝트 멤버이고 채널 접근 권한이 있는 메시지만 반환됩니다.\n\n'
-			+ '## 파일 목록\n'
-			+ '`GET /api/chat/chat/channels/:channelId/files` — `FILE_SHARE` 채널 전용 파일 목록 조회.\n'
-			+ '응답은 파일 단위로 평탄화되며 업로더 표시명과 업로드 시각을 포함합니다.\n\n'
-			+ '## 통합 검색 (GraphQL)\n'
-			+ '`POST /api/chat/graphql` — 메시지(Elasticsearch)와 Kafka 동기화 채널 projection을 단일 요청으로 병렬 검색.\n\n'
-			+ '```graphql\n'
-			+ 'query {\n'
-			+ '  unifiedSearch(teamId: 1, q: "배포") {\n'
-			+ '    messages { messageId channelId content highlight createdAt }\n'
-			+ '    messageNextCursor\n'
-			+ '    channels { id name type isPrivate }\n'
-			+ '  }\n'
-			+ '}\n'
-			+ '```\n\n'
-			+ '선택 인자: `channelId`, `authorId`, `type`, `hasFile`, `before`, `limit`\n\n'
-			+ '## 인증\n'
-			+ 'REST API: Gateway에서 주입된 `X-User-Id`, `X-User-Role` 헤더 사용.\n'
-			+ 'WebSocket: Gateway가 `/ws/chat`에서 JWT를 검증하고 같은 사용자 헤더를 주입합니다.\n'
-			+ '인증 실패 시 `connect_error`가 전달됩니다.',
-		)
-		.setVersion('20261103.0')
-		.addServer('/api/chat', 'Gateway')
-		.addBearerAuth(
-			{
-				type: 'http',
-				scheme: 'bearer',
-				bearerFormat: 'JWT',
-				description: 'Gateway에서 검증할 Cowork JWT',
-			},
-			'bearer',
-		)
-		.addSecurityRequirements('bearer')
-		.build();
-
-	const document = SwaggerModule.createDocument(app, config);
-	for (const path of ['/health', '/health/ready']) {
-		const operation = document.paths[path]?.get;
-		if (operation) {
-			operation.security = [];
-		}
-	}
+	const document = createChatApiDocument(app, new DocumentBuilder().setVersion('20261103.0'));
 
 	SwaggerModule.setup('api', app, document, {jsonDocumentUrl: 'api-json'});
 

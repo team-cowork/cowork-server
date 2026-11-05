@@ -32,7 +32,7 @@ class DevOriginCredentialFilter(
     private val log = LoggerFactory.getLogger(DevOriginCredentialFilter::class.java)
     private val expected = properties.credential.toByteArray(Charsets.UTF_8)
 
-    override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE
+    override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE + 1
 
     override fun filter(exchange: ServerWebExchange, chain: WebFilterChain): Mono<Void> {
         val request = exchange.request
