@@ -19,6 +19,6 @@ import org.springframework.context.annotation.Configuration
     type = SecuritySchemeType.HTTP,
     scheme = "bearer",
     bearerFormat = "JWT",
-    description = "Gateway에서 검증할 Cowork JWT",
+    description = "Cowork 액세스 토큰",
 )
 class OpenApiConfig
