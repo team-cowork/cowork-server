@@ -85,6 +85,8 @@ sdk:
     group: team
     paths-to-match:
     - /teams/**
+  exception:
+    enabled: false
 server:
   port: 8085
 team-github:
