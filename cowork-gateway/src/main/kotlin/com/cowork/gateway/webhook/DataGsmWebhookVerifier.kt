@@ -8,6 +8,9 @@ import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatterBuilder
+import java.time.format.ResolverStyle
+import java.time.temporal.ChronoField
 import java.util.HexFormat
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -44,7 +47,7 @@ class DataGsmWebhookVerifier(
         val data = node?.get("data")
         node?.isObject == true && idNode?.isString == true && id.isNotBlank() && id == id.trim() && id.length <= 255 &&
             eventNode?.isString == true && event.isNotBlank() && event.length <= 64 &&
-            timestampNode?.isString == true && OffsetDateTime.parse(timestamp).year in 1000..9999 &&
+            timestampNode?.isString == true && OffsetDateTime.parse(timestamp, RFC3339).year in 1000..9999 &&
             (
                 event != "student.updated" ||
                     (data?.isObject == true && data.get("new")?.isArray == true && data.get("new").size() > 0)
@@ -53,5 +56,15 @@ class DataGsmWebhookVerifier(
 
     private companion object {
         const val PREFIX = "sha256="
+
+        // Matches Go time.RFC3339Nano parsing in cowork-authorization: seconds are required.
+        val RFC3339 = DateTimeFormatterBuilder()
+            .appendPattern("uuuu-MM-dd'T'HH:mm:ss")
+            .optionalStart()
+            .appendFraction(ChronoField.NANO_OF_SECOND, 1, 9, true)
+            .optionalEnd()
+            .appendOffset("+HH:MM", "Z")
+            .toFormatter()
+            .withResolverStyle(ResolverStyle.STRICT)
     }
 }
