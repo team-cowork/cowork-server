@@ -26,6 +26,31 @@ def command(argv, *, env=None, capture=False, allowed=(0,), timeout=None, input=
     return result
 
 
+TASK_ERRORS = ('driver_error', 'validation_error', 'setup_error', 'download_error', 'kill_error',
+               'vault_renewal_error', 'failed_sibling')
+QUIET_EVENTS = ('Received', 'Task Setup', 'Not Restarting', 'Killing', 'Killed')
+
+
+def exit_code(task_state):
+    events = task_state.get('Events') or []
+    termination = next((e for e in reversed(events) if e['Type'] == 'Terminated'), {})
+    return (termination.get('Details') or {}).get('exit_code', termination.get('ExitCode', -1))
+
+
+def last_event(task_state):
+    # Only event messages are printed; task environments and rendered templates never are.
+    events = task_state.get('Events') or []
+    event = (next((e for e in reversed(events) if any((e.get('Details') or {}).get(k) for k in TASK_ERRORS)), None)
+             or next((e for e in reversed(events) if e.get('Type') not in QUIET_EVENTS), None)
+             or (events[-1] if events else None))
+    if event is None:
+        return 'no events'
+    details = event.get('Details') or {}
+    message = event.get('DisplayMessage') or next((details[k] for k in TASK_ERRORS if details.get(k)), '')
+    message = ' '.join(str(message).split())[:300]
+    return event.get('Type', 'unknown') + (': ' + message if message else '')
+
+
 class Platform:
     def __init__(self, state):
         self.state = state
@@ -185,12 +210,38 @@ class Platform:
                           'JobModifyIndex': current['JobModifyIndex']})
         return result['JobModifyIndex']
 
+    def report_allocation(self, job_id, details):
+        print(f'{job_id}: allocation {details["ID"]} is {details.get("ClientStatus")}', file=sys.stderr, flush=True)
+        states = details.get('TaskStates') or {}
+        if not states:
+            print(f'{job_id}:   no task has started', file=sys.stderr, flush=True)
+        for name, task_state in sorted(states.items()):
+            print(f'{job_id}:   task {name}: state={task_state.get("State")} '
+                  f'failed={bool(task_state.get("Failed"))} exit_code={exit_code(task_state)} '
+                  f'last event={last_event(task_state)}', file=sys.stderr, flush=True)
+
+    def report_pending(self, job_id):
+        # Diagnostics must not replace the deadline failure itself.
+        try:
+            allocations = self.api('job/' + job_id + '/allocations') or []
+            if not allocations:
+                print(f'{job_id}: no allocation was placed (placement may be queued or blocked)',
+                      file=sys.stderr, flush=True)
+                return
+            latest = max(allocations, key=lambda a: a.get('CreateIndex', 0))
+            self.report_allocation(job_id, self.api('allocation/' + latest['ID']))
+        except Exception as error:
+            print(f'{job_id}: allocation status could not be read ({type(error).__name__})',
+                  file=sys.stderr, flush=True)
+
     def wait_jobs(self, indices, specs, *, batch=False):
         remaining = dict(indices)
         deadline = time.monotonic() + 900
         last_report = 0
         while remaining:
             if time.monotonic() > deadline:
+                for job_id in remaining:
+                    self.report_pending(job_id)
                 raise RuntimeError('Nomad readiness deadline exceeded: ' + ', '.join(remaining))
             for job_id, expected_index in list(remaining.items()):
                 try:
@@ -199,6 +250,13 @@ class Platform:
                         raise RuntimeError(job_id + ': job changed while waiting; deployment was not accepted')
                     version = job['Version']
                     allocations = self.api('job/' + job_id + '/allocations') or []
+                    if batch:
+                        # Batch jobs register with no restarts or reschedules, so a failure cannot recover.
+                        failed = [a for a in allocations if a['JobVersion'] == int(version)
+                                  and a['ClientStatus'] == 'failed']
+                        if failed:
+                            self.report_allocation(job_id, self.api('allocation/' + failed[0]['ID']))
+                            raise RuntimeError(f'{job_id}: batch allocation {failed[0]["ID"]} failed')
                     candidates = [a for a in allocations if a['JobVersion'] == int(version)
                                   and a['DesiredStatus'] == 'run' and a['ClientStatus'] in ('running', 'complete')]
                     groups = specs[job_id]['TaskGroups']
@@ -221,11 +279,13 @@ class Platform:
                                 needs_exit = batch or (lifecycle.get('Hook') in ('prestart', 'poststart')
                                                        and not lifecycle.get('Sidecar'))
                                 if needs_exit:
-                                    events = task_state.get('Events') or []
-                                    termination = next((e for e in reversed(events) if e['Type'] == 'Terminated'), {})
-                                    exit_code = (termination.get('Details') or {}).get('exit_code', termination.get('ExitCode', -1))
+                                    code = str(exit_code(task_state))
+                                    if batch and (task_state.get('Failed')
+                                                  or (task_state.get('State') == 'dead' and code != '0')):
+                                        self.report_allocation(job_id, details)
+                                        raise RuntimeError(f'{job_id}: batch allocation {allocation["ID"]} failed')
                                     ok &= (task_state.get('State') == 'dead' and not task_state.get('Failed')
-                                           and str(exit_code) == '0')
+                                           and code == '0')
                                 else:
                                     ok &= task_state.get('State') == 'running' and not task_state.get('Failed')
                             if ok:
