@@ -23,6 +23,8 @@ describe('GithubAuthService', () => {
 		githubPrivateKey: 'private-key',
 		githubTokenCacheTtlSeconds: 3300,
 		githubInstallationCacheTtlSeconds: 86_400,
+		githubAppClientId: 'client-id',
+		githubAppClientSecret: 'client-secret',
 	};
 
 	beforeEach(async () => {
@@ -225,5 +227,59 @@ describe('GithubAuthService', () => {
 		await expect(service.getInstallationAccountLogin(42)).rejects.toEqual(
 			new GithubClientError('Installation not found', 404),
 		);
+	});
+
+	it('사용자 code를 토큰으로 교환하고 사용자 설치 목록에 installationId가 있으면 true를 반환한다', async () => {
+		httpService.post.mockReturnValue(of({data: {[githubField.accessToken]: 'user-token'}}));
+		httpService.get.mockReturnValue(of({data: {installations: [{id: 7}, {id: 42}]}}));
+
+		const hasAccess = await service.canUserAccessInstallation('user-code', 42);
+
+		expect(hasAccess).toBe(true);
+		expect(httpService.post).toHaveBeenCalledWith(
+			'https://github.com/login/oauth/access_token',
+			{[githubField.clientId]: 'client-id', [githubField.clientSecret]: 'client-secret', code: 'user-code'},
+			{headers: {[githubField.accept]: 'application/json'}},
+		);
+		expect(httpService.get).toHaveBeenCalledWith(
+			'https://api.github.com/user/installations',
+			expect.objectContaining({
+				params: {[githubField.perPage]: 100, page: 1},
+				headers: expect.objectContaining({
+					[githubField.authorization]: 'Bearer user-token',
+				}) as unknown,
+			}),
+		);
+	});
+
+	it('사용자 설치 목록의 다음 페이지까지 확인한다', async () => {
+		httpService.post.mockReturnValue(of({data: {[githubField.accessToken]: 'user-token'}}));
+		const fullPage = Array.from({length: 100}, (_, index) => ({id: index + 1000}));
+		httpService.get
+			.mockReturnValueOnce(of({data: {installations: fullPage}}))
+			.mockReturnValueOnce(of({data: {installations: [{id: 42}]}}));
+
+		const hasAccess = await service.canUserAccessInstallation('user-code', 42);
+
+		expect(hasAccess).toBe(true);
+		expect(httpService.get).toHaveBeenCalledTimes(2);
+		expect(httpService.get).toHaveBeenLastCalledWith(
+			'https://api.github.com/user/installations',
+			expect.objectContaining({params: {[githubField.perPage]: 100, page: 2}}),
+		);
+	});
+
+	it('사용자 설치 목록에 installationId가 없으면 false를 반환한다', async () => {
+		httpService.post.mockReturnValue(of({data: {[githubField.accessToken]: 'user-token'}}));
+		httpService.get.mockReturnValue(of({data: {installations: [{id: 7}]}}));
+
+		await expect(service.canUserAccessInstallation('user-code', 42)).resolves.toBe(false);
+	});
+
+	it('code 교환이 실패하면 설치 목록을 조회하지 않고 false를 반환한다', async () => {
+		httpService.post.mockReturnValue(of({data: {error: 'bad_verification_code'}}));
+
+		await expect(service.canUserAccessInstallation('bad-code', 42)).resolves.toBe(false);
+		expect(httpService.get).not.toHaveBeenCalled();
 	});
 });
