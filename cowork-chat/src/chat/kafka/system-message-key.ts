@@ -8,6 +8,11 @@ export type KafkaMessageSource = {
 };
 
 /**
+ 시스템 메시지 `clientMessageId`의 접두사. 사용자가 보내는 `clientMessageId`에는 쓸 수 없다.
+ */
+export const SYSTEM_MESSAGE_KEY_PREFIX = 'system:';
+
+/**
  Kafka 메시지 위치로 시스템 메시지의 `clientMessageId`를 만든다.
 
  같은 메시지가 다시 전달되어도 채널마다 같은 키가 나오므로, `clientMessageId` 유니크 인덱스가
@@ -21,5 +26,5 @@ export function systemMessageKey(
 	message: KafkaMessageSource,
 	channelId: number,
 ): string {
-	return `system:${message.topic}:${message.partition}:${message.offset}:${channelId}`;
+	return `${SYSTEM_MESSAGE_KEY_PREFIX}${message.topic}:${message.partition}:${message.offset}:${channelId}`;
 }
