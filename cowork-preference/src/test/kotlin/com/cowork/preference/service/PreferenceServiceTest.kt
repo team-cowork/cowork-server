@@ -93,9 +93,6 @@ class PreferenceServiceTest {
             coEvery { cache.getSettings(any(), any()) } answers { cached[secondArg()]?.settings }
             coEvery { cache.populateSettings(any(), any(), any()) } answers { keepNewest(secondArg(), thirdArg()) }
             coEvery { cache.setSettings(any(), any(), any()) } answers { keepNewest(secondArg(), thirdArg()) }
-            coEvery { cache.populateSettingsBulk(any(), any()) } answers {
-                secondArg<Map<Long, VersionedSettings>>().forEach { (id, settings) -> keepNewest(id, settings) }
-            }
             coEvery { outboxRepository.inTransaction<Any?>(any()) } coAnswers {
                 firstArg<suspend (SqlConnection) -> Any?>().invoke(connection)
             }
@@ -116,25 +113,6 @@ class PreferenceServiceTest {
             }
 
             val lateRead = async { service.getSettings(ResourceType.TEAM, 3L) }
-            readDone.await()
-            service.updateSettings(ResourceType.TEAM, 3L, newer).getOrThrow()
-            resumeRead.complete(Unit)
-            lateRead.await()
-
-            assertEquals(newer, service.getSettings(ResourceType.TEAM, 3L))
-        }
-
-        @Test
-        fun `묶음 조회가 변경 전에 읽은 값을 늦게 채워도 변경된 설정을 반환한다`() = runBlocking {
-            val readDone = CompletableDeferred<Unit>()
-            val resumeRead = CompletableDeferred<Unit>()
-            coEvery { repository.findSettingsForResources(listOf(3L), ResourceType.TEAM) } coAnswers {
-                readDone.complete(Unit)
-                resumeRead.await()
-                mapOf(3L to ResourceSettingState(3L, older, olderVersion))
-            }
-
-            val lateRead = async { service.getSettingsBulk(ResourceType.TEAM, listOf(3L)) }
             readDone.await()
             service.updateSettings(ResourceType.TEAM, 3L, newer).getOrThrow()
             resumeRead.complete(Unit)
@@ -170,13 +148,13 @@ class PreferenceServiceTest {
         fun `설정 행이 없을 때 늦게 채운 기본값은 그 뒤 변경된 설정을 덮지 않는다`() = runBlocking {
             val readDone = CompletableDeferred<Unit>()
             val resumeRead = CompletableDeferred<Unit>()
-            coEvery { repository.findSettingsForResources(listOf(3L), ResourceType.TEAM) } coAnswers {
+            coEvery { repository.findSettings(3L, ResourceType.TEAM) } coAnswers {
                 readDone.complete(Unit)
                 resumeRead.await()
-                emptyMap()
+                null
             }
 
-            val lateRead = async { service.getSettingsBulk(ResourceType.TEAM, listOf(3L)) }
+            val lateRead = async { service.getSettings(ResourceType.TEAM, 3L) }
             readDone.await()
             service.updateSettings(ResourceType.TEAM, 3L, newer).getOrThrow()
             resumeRead.complete(Unit)
