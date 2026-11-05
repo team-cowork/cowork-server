@@ -34,7 +34,10 @@ class TeamMemberProjectionReadinessTest {
     @SuppressWarnings("unchecked")
     private final Consumer<String, String> consumer = mock(Consumer.class);
     private final TeamMemberProjectionReadiness readiness = new TeamMemberProjectionReadiness(checkpoints,
-            topicIdentity, topicGeneration, GROUP, TOPIC);
+            topicIdentity,
+            topicGeneration,
+            GROUP,
+            TOPIC);
 
     @Test
     void beforeAssignment_isNotReadyWithoutQueryingBroker() {

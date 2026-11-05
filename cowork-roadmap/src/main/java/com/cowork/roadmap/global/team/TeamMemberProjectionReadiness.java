@@ -22,9 +22,10 @@ import org.springframework.stereotype.Component;
  * evaluates the same durable projection state. A source snapshot completion
  * marker is required for every partition, including initially empty topics.
  * <p>
- * Readiness is evaluated on a schedule and cached, so request-path access checks never query the broker.
- * The scheduled refresh runs outside request transactions, so its checkpoint reads see the latest commit
- * rather than a caller's snapshot.
+ * Readiness is evaluated on a schedule and cached, so request-path access
+ * checks never query the broker. The scheduled refresh runs outside request
+ * transactions, so its checkpoint reads see the latest commit rather than a
+ * caller's snapshot.
  */
 @Component
 public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceListener, HealthIndicator {
@@ -41,7 +42,8 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
 
     private volatile boolean initialized;
     private volatile boolean ready;
-    // Guarded by stateLock. Bumped on every rebalance so a refresh that started before it cannot publish a stale result.
+    // Guarded by stateLock. Bumped on every rebalance so a refresh that started
+    // before it cannot publish a stale result.
     private long generation;
 
     public TeamMemberProjectionReadiness(ProjectionCheckpointRepository checkpoints,
