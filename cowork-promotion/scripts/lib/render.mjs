@@ -5,6 +5,7 @@ function renderTechnologyBadge(item) {
 	return [
 		'<button type="button" class="technology-trigger" aria-haspopup="dialog" aria-controls="technology-dialog" data-technology',
 		` data-name="${escapeHtml(item.name)}" data-released="${escapeHtml(item.released)}"`,
+		` data-logo="${escapeHtml(item.logoUrl)}"`,
 		` data-description="${escapeHtml(item.description)}" data-documentation="${escapeHtml(item.documentation)}">`,
 		renderBadge(item.name, {variant: 'technology', color: item.color}),
 		'</button>',
