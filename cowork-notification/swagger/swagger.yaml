@@ -1,5 +1,18 @@
 basePath: /api/notification
 definitions:
+  github_com_cowork_cowork-notification_internal_apidoc.Error:
+    properties:
+      code:
+        type: integer
+      message:
+        type: string
+      status:
+        type: string
+    required:
+    - code
+    - message
+    - status
+    type: object
   internal_domain_installation.registerInstallationRequest:
     properties:
       fid:
@@ -14,7 +27,7 @@ definitions:
     type: object
 info:
   contact: {}
-  description: Firebase 설치(FID) 관리 및 푸시 알림 서비스
+  description: Firebase 설치를 계정에 연결하고 실시간 알림을 제공합니다.
   title: cowork Notification API
   version: "20261103.0"
 paths:
@@ -22,36 +35,31 @@ paths:
     post:
       consumes:
       - application/json
-      description: Firebase installation ID(FID)를 현재 계정에 등록합니다. 다른 계정이 소유한 FID면 현재
-        계정으로 원자적으로 이전합니다
+      description: Firebase 설치 ID(FID)를 현재 계정에 등록합니다. 다른 계정에 등록된 FID는 현재 계정으로 이전합니다.
       parameters:
-      - description: 사용자 ID (Gateway 주입)
-        format: int64
-        in: header
-        name: X-User-Id
-        required: true
-        type: integer
       - description: 설치 등록 요청
         in: body
         name: request
         required: true
         schema:
           $ref: '#/definitions/internal_domain_installation.registerInstallationRequest'
+      produces:
+      - application/json
       responses:
         "201":
-          description: Created
+          description: 응답 본문 없음
         "400":
           description: 잘못된 요청
           schema:
-            type: string
+            $ref: '#/definitions/github_com_cowork_cowork-notification_internal_apidoc.Error'
         "401":
           description: 인증 실패
           schema:
-            type: string
+            $ref: '#/definitions/github_com_cowork_cowork-notification_internal_apidoc.Error'
         "500":
           description: 내부 서버 오류
           schema:
-            type: string
+            $ref: '#/definitions/github_com_cowork_cowork-notification_internal_apidoc.Error'
       security:
       - BearerAuth: []
       summary: Firebase 설치 등록
@@ -59,38 +67,34 @@ paths:
       - installations
   /notifications/installations/{fid}:
     delete:
-      description: 로그아웃, 계정 전환 또는 FID 변경 시 현재 계정과 FID의 연결을 해제합니다
+      description: 로그아웃, 계정 전환 또는 FID 변경 시 현재 계정과 FID의 연결을 해제합니다.
       parameters:
-      - description: 사용자 ID (Gateway 주입)
-        format: int64
-        in: header
-        name: X-User-Id
-        required: true
-        type: integer
       - description: Firebase installation ID
         in: path
         name: fid
         required: true
         type: string
+      produces:
+      - application/json
       responses:
         "204":
-          description: No Content
+          description: 응답 본문 없음
         "400":
           description: 잘못된 요청
           schema:
-            type: string
+            $ref: '#/definitions/github_com_cowork_cowork-notification_internal_apidoc.Error'
         "401":
           description: 인증 실패
           schema:
-            type: string
+            $ref: '#/definitions/github_com_cowork_cowork-notification_internal_apidoc.Error'
         "404":
           description: 설치 없음
           schema:
-            type: string
+            $ref: '#/definitions/github_com_cowork_cowork-notification_internal_apidoc.Error'
         "500":
           description: 내부 서버 오류
           schema:
-            type: string
+            $ref: '#/definitions/github_com_cowork_cowork-notification_internal_apidoc.Error'
       security:
       - BearerAuth: []
       summary: Firebase 설치 해제
@@ -98,17 +102,11 @@ paths:
       - installations
   /notifications/stream:
     get:
-      description: 인증된 사용자의 실시간 알림 이벤트를 Server-Sent Events(SSE)로 스트리밍합니다. 30초마다 keepalive
-        ping을 전송합니다. 같은 알림이 다시 전달될 수 있으므로(at-least-once) 클라이언트는 eventId로 중복을 제거합니다.
-      parameters:
-      - description: 사용자 ID (Gateway 주입)
-        format: int64
-        in: header
-        name: X-User-Id
-        required: true
-        type: integer
+      description: 연결되면 connected 이벤트를 보내고 이후 알림을 전송합니다. 연결을 유지하기 위해 30초마다 ping 주석을
+        보냅니다. 같은 알림을 다시 받을 수 있으므로 eventId로 중복을 확인합니다.
       produces:
       - text/event-stream
+      - application/json
       responses:
         "200":
           description: 'data: {eventId, type, title, body, channelId, teamId}'
@@ -117,11 +115,11 @@ paths:
         "401":
           description: 인증 실패
           schema:
-            type: string
+            $ref: '#/definitions/github_com_cowork_cowork-notification_internal_apidoc.Error'
         "500":
-          description: SSE not supported
+          description: 서버에서 SSE를 지원하지 않음
           schema:
-            type: string
+            $ref: '#/definitions/github_com_cowork_cowork-notification_internal_apidoc.Error'
       security:
       - BearerAuth: []
       summary: SSE 알림 스트림 구독
@@ -129,7 +127,7 @@ paths:
       - notifications
 securityDefinitions:
   BearerAuth:
-    description: '"Bearer {access_token}" 형식으로 Gateway에 전달하세요.'
+    description: '"Bearer {access_token}" 형식으로 입력합니다.'
     in: header
     name: Authorization
     type: apiKey
