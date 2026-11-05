@@ -39,6 +39,13 @@ class DataGsmWebhookVerifierTest :
                 verifier.validEnvelope(numericId) shouldBe false
                 verifier.validEnvelope(byteArrayOf(0xc3.toByte(), 0x28)) shouldBe false
             }
+            it("초가 없는 timestamp는 Authorization과 같이 거부한다") {
+                fun envelope(timestamp: String) =
+                    """{"id":"event-3","event":"other","timestamp":"$timestamp"}""".toByteArray(StandardCharsets.UTF_8)
+                verifier.validEnvelope(envelope("2026-11-04T10:00Z")) shouldBe false
+                verifier.validEnvelope(envelope("2026-11-04T10:00:00Z")) shouldBe true
+                verifier.validEnvelope(envelope("2026-11-04T10:00:00.123456789+09:00")) shouldBe true
+            }
             it("알 수 없는 이벤트는 Authorization과 같이 무시할 수 있도록 허용한다") {
                 val unknown = """{"id":"event-2","event":"other","timestamp":"2026-10-29T01:00:00Z"}"""
                 verifier.validEnvelope(unknown.toByteArray(StandardCharsets.UTF_8)) shouldBe true
