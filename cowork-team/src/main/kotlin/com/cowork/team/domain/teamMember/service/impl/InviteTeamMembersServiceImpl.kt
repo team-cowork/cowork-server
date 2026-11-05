@@ -3,12 +3,12 @@ package com.cowork.team.domain.teamMember.service.impl
 import com.cowork.team.domain.team.event.NotificationTriggerEvent
 import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
+import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.teamInvite.presentation.data.request.InviteMembersRequest
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.presentation.data.response.TeamMemberResponse
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamMember.service.InviteTeamMembersService
-import com.cowork.team.domain.teamMember.service.TeamMemberAccessGuard
 import com.cowork.team.domain.teamRole.entity.TeamRole
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -20,7 +20,7 @@ class InviteTeamMembersServiceImpl(
     private val teamMemberRepository: TeamMemberRepository,
     private val teamEventPublisher: TeamEventPublisher,
     private val teamMemberEventPublisher: TeamMemberEventPublisher,
-    private val teamMemberAccessGuard: TeamMemberAccessGuard,
+    private val teamAccessGuard: TeamAccessGuard,
 ) : InviteTeamMembersService {
 
     @Transactional
@@ -33,8 +33,8 @@ class InviteTeamMembersServiceImpl(
             throw ExpectedException("사용자 ID는 양수여야 합니다.", HttpStatus.BAD_REQUEST)
         }
 
-        val team = teamMemberAccessGuard.findTeamForUpdateOrThrow(teamId)
-        teamMemberAccessGuard.requirePermission(teamId, actorId, "manage_invites")
+        val team = teamAccessGuard.findTeamForUpdateOrThrow(teamId)
+        teamAccessGuard.requirePermission(teamId, actorId, "manage_invites")
 
         val existingUserIds = teamMemberRepository.findAllByTeamIdForUpdate(teamId).map { it.userId }.toSet()
         val newMembers = request.userIds

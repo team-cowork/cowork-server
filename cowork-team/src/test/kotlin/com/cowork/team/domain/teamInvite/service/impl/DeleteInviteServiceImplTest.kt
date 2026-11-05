@@ -2,10 +2,10 @@ package com.cowork.team.domain.teamInvite.service.impl
 
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamInvite.entity.TeamInvite
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
-import com.cowork.team.domain.teamInvite.service.TeamInviteAccessGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
@@ -23,14 +23,14 @@ class DeleteInviteServiceImplTest {
     private val teamRepository = mockk<TeamRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>()
     private val teamInviteRepository = mockk<TeamInviteRepository>()
-    private val teamInviteAccessGuard =
-        TeamInviteAccessGuard(
+    private val teamAccessGuard =
+        TeamAccessGuard(
             teamRepository,
             teamMemberRepository,
             TeamPermissionGuard(teamMemberRepository, mockk(relaxed = true)),
         )
 
-    private val service = DeleteInviteServiceImpl(teamInviteRepository, teamInviteAccessGuard)
+    private val service = DeleteInviteServiceImpl(teamInviteRepository, teamAccessGuard)
 
     private val team = Team(id = 1L, name = "테스트팀", description = null, iconUrl = null, ownerId = 10L)
     private val ownerMember = TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
