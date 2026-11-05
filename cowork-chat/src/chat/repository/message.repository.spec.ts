@@ -127,3 +127,22 @@ describe('MessageRepository 메시지 위치 조회', () => {
 		expect(calledStages(1)[0]).toEqual({$sort: {_id: 1}});
 	});
 });
+
+describe('MessageRepository 알림 아웃박스 점유', () => {
+	it('다음 시도 시각이 지나지 않은 PENDING 메시지는 점유하지 않는다', async () => {
+		const lean = jest.fn().mockResolvedValue([]);
+		const chain = {
+			sort: jest.fn().mockReturnThis(), limit: jest.fn().mockReturnThis(), select: jest.fn().mockReturnThis(), lean,
+		};
+		const messageModel = {find: jest.fn().mockReturnValue(chain)};
+		const repository = new MessageRepository(messageModel as unknown as Model<Message>);
+
+		await expect(repository.findPendingAndMarkProcessing(10)).resolves.toEqual([]);
+
+		expect(messageModel.find).toHaveBeenCalledWith({
+			webhookDeleted: {$ne: true},
+			notificationStatus: 'PENDING',
+			$or: [{notificationNextAttemptAt: null}, {notificationNextAttemptAt: {$lte: expect.any(Date) as Date}}],
+		});
+	});
+});
