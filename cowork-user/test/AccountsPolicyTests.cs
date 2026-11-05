@@ -156,4 +156,28 @@ public class AccountsPolicyTests
         Assert.Equal("2105", Accounts.StudentNumber(2, 1, 5));
         Assert.Null(Accounts.StudentNumber(2, null, 5));
     }
+
+    [Fact]
+    public void CastStrings_rejects_values_over_column_length()
+    {
+        var errors = new FieldErrors();
+        var fields = new Dictionary<string, JsonElement>
+        {
+            ["nickname"] = Json($"\"{new string('a', 51)}\""),
+            ["description"] = Json($"\"{new string('a', 500)}\""),
+        };
+        var cast = Accounts.CastStrings(fields, errors);
+        Assert.True(errors.Any);
+        Assert.Contains("nickname should be at most 50 character(s)", errors.Message);
+        Assert.DoesNotContain("description", errors.Message);
+        Assert.False(cast.ContainsKey("nickname"));
+    }
+
+    [Fact]
+    public void TextLength_counts_code_points_not_graphemes()
+    {
+        var zwjEmoji = "\U0001F468\u200D\U0001F4BB";
+        Assert.Equal(3, Accounts.TextLength(zwjEmoji));
+        Assert.Equal(33, Accounts.TextLength(string.Concat(Enumerable.Repeat(zwjEmoji, 11))));
+    }
 }
