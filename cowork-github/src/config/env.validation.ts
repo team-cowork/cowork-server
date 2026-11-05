@@ -6,7 +6,7 @@ export const envValidationSchema = Joi.object({
 	[envName.kafkaBootstrapServers]: Joi.string().trim().required(),
 	[envName.kafkaSecurityProtocol]: Joi.string().uppercase().valid('PLAINTEXT', 'SSL', 'SASL_SSL').required(),
 	[envName.kafkaGroupId]: Joi.string().trim().default('cowork-github-group'),
-	[envName.githubAppId]: Joi.string().trim().required(),
+	[envName.githubAppId]: Joi.string().trim().pattern(/^\d+$/v).required(),
 	[envName.githubPrivateKey]: Joi.string().trim().required(),
 	[envName.redisHost]: Joi.string().trim().required(),
 	[envName.redisPort]: Joi.number().port().required(),
