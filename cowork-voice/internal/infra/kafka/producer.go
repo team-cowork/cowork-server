@@ -22,6 +22,7 @@ func NewProducer(security config.KafkaSecurity, brokers, topic string, messageTi
 		Addr:         kafka.TCP(addrs...),
 		Topic:        topic,
 		Balancer:     &kafka.Hash{},
+		BatchTimeout: 10 * time.Millisecond,
 		WriteTimeout: time.Duration(messageTimeoutMs) * time.Millisecond,
 		RequiredAcks: kafka.RequireOne,
 		Async:        false,
