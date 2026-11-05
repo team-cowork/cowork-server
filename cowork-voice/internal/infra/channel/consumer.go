@@ -889,11 +889,14 @@ func (c *Consumer) evaluateAndPublishCurrentHigh(
 
 	err := c.evaluateCurrentHigh(ctx, expectedRanges)
 	c.currentHighMu.Lock()
+	var published bool
 	if sequence != c.currentHighSequence {
-		c.currentHighMu.Unlock()
-		return fmt.Errorf("%w: current-high evaluation was superseded", ErrProjectionNotCurrent)
+		// A newer evaluation owns readiness, so this one must not publish it.
+		// The caller still gets its own result.
+		published = c.isActiveGeneration(generationToken)
+	} else {
+		published = c.setReadinessForGeneration(generationToken, err == nil)
 	}
-	published := c.setReadinessForGeneration(generationToken, err == nil)
 	c.currentHighMu.Unlock()
 	if !published {
 		return fmt.Errorf("%w: consumer generation changed during current-high evaluation", ErrProjectionNotCurrent)
@@ -996,6 +999,12 @@ func (c *Consumer) activeGeneration() (uint64, map[TopicPartition]OffsetRange, b
 		return c.generationToken, nil, false
 	}
 	return c.generationToken, cloneOffsetRanges(c.generationRanges), true
+}
+
+func (c *Consumer) isActiveGeneration(generationToken uint64) bool {
+	c.generationMu.RLock()
+	defer c.generationMu.RUnlock()
+	return c.generationToken == generationToken && len(c.generationRanges) > 0
 }
 
 func (c *Consumer) setReadinessForGeneration(generationToken uint64, ready bool) bool {
