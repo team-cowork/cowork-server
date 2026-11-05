@@ -223,7 +223,9 @@ class Platform:
     def report_pending(self, job_id):
         # Diagnostics must not replace the deadline failure itself.
         try:
-            allocations = self.api('job/' + job_id + '/allocations') or []
+            # Allocations from an earlier run may not be garbage-collected yet; each run has its own Version.
+            version = int(self.api('job/' + job_id)['Version'])
+            allocations = [a for a in self.api('job/' + job_id + '/allocations') or [] if a['JobVersion'] == version]
             if not allocations:
                 print(f'{job_id}: no allocation was placed (placement may be queued or blocked)',
                       file=sys.stderr, flush=True)
