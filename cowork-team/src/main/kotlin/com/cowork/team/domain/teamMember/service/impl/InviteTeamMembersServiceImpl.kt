@@ -26,7 +26,7 @@ class InviteTeamMembersServiceImpl(
     @Transactional
     override fun execute(actorId: Long, teamId: Long, request: InviteMembersRequest): List<TeamMemberResponse> {
         if (request.userIds.size > MAX_INVITE_USER_IDS) {
-            throw ExpectedException("한 번에 초대할 수 있는 사용자는 100명 이하입니다.", HttpStatus.BAD_REQUEST)
+            throw ExpectedException("한 번에 초대할 수 있는 사용자 ID는 ${MAX_INVITE_USER_IDS}개 이하입니다.", HttpStatus.BAD_REQUEST)
         }
         // userId <= 0 은 channel/project consumer 가 격리해 projection 을 not-ready 로 고정한다.
         if (request.userIds.any { it <= 0 }) {
