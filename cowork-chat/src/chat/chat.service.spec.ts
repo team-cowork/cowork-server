@@ -1178,7 +1178,7 @@ describe('ChatService', () => {
 			mockMessageRepository.createSystemMessage.mockResolvedValue({toObject: jest.fn()});
 			mockChannelMessageReadAccess.findReadableUsersByChannel.mockResolvedValue(new Map([[1, [7, 9]]]));
 
-			await service.saveSystemMessage(10, 1, '이슈가 생성됐어요');
+			await service.saveSystemMessage(10, 1, '이슈가 생성됐어요', 'system:t:0:1:1');
 
 			expect(mockUnreadCounterService.incrementIfPresent).toHaveBeenCalledWith(1, [7, 9]);
 		});
@@ -1190,11 +1190,34 @@ describe('ChatService', () => {
 			mockMessageRepository.createSystemMessage.mockResolvedValue({toObject: jest.fn()});
 			mockDmParticipantRepository.findByChannelId.mockResolvedValue([]);
 
-			await service.saveSystemMessage(10, 1, '프로젝트 이슈가 생성됐어요');
+			await service.saveSystemMessage(10, 1, '프로젝트 이슈가 생성됐어요', 'system:t:0:1:1');
 
 			expect(mockMessageRepository.createSystemMessage).toHaveBeenCalledWith({
 				teamId: 10, channelId: 1, content: '프로젝트 이슈가 생성됐어요', projectId: null, authorId: 0,
+				clientMessageId: 'system:t:0:1:1',
 			});
+		});
+
+		it('같은 멱등성 키로 이미 저장된 메시지면 안읽음 수를 올리지 않고 건너뛴다', async () => {
+			mockChannelProjectionRepository.findByIdIncludingDeleted.mockResolvedValue({
+				channelId: 1, teamId: 10, projectId: null, type: 'TEXT', deleted: false,
+			});
+			mockMessageRepository.createSystemMessage.mockRejectedValue(Object.assign(new Error('E11000 duplicate key'), {code: 11_000}));
+
+			const result = await service.saveSystemMessage(10, 1, '이슈가 생성됐어요', 'system:t:0:1:1');
+
+			expect(result).toBeNull();
+			expect(mockUnreadCounterService.incrementIfPresent).not.toHaveBeenCalled();
+		});
+
+		it('중복 키가 아닌 저장 오류는 재전달을 위해 그대로 던진다', async () => {
+			mockChannelProjectionRepository.findByIdIncludingDeleted.mockResolvedValue({
+				channelId: 1, teamId: 10, projectId: null, type: 'TEXT', deleted: false,
+			});
+			mockMessageRepository.createSystemMessage.mockRejectedValue(new Error('connection reset'));
+
+			await expect(service.saveSystemMessage(10, 1, '이슈가 생성됐어요', 'system:t:0:1:1'))
+				.rejects.toThrow('connection reset');
 		});
 
 		it('삭제된 채널이면 시스템 메시지를 저장하지 않고 건너뛴다', async () => {
@@ -1202,7 +1225,7 @@ describe('ChatService', () => {
 				channelId: 1, teamId: 10, projectId: null, type: 'TEXT', deleted: true,
 			});
 
-			const result = await service.saveSystemMessage(10, 1, '이슈가 생성됐어요');
+			const result = await service.saveSystemMessage(10, 1, '이슈가 생성됐어요', 'system:t:0:1:1');
 
 			expect(result).toBeNull();
 			expect(mockMessageRepository.createSystemMessage).not.toHaveBeenCalled();
@@ -1213,7 +1236,7 @@ describe('ChatService', () => {
 				channelId: 1, teamId: 20, projectId: null, type: 'TEXT', deleted: false,
 			});
 
-			const result = await service.saveSystemMessage(10, 1, '이슈가 생성됐어요');
+			const result = await service.saveSystemMessage(10, 1, '이슈가 생성됐어요', 'system:t:0:1:1');
 
 			expect(result).toBeNull();
 			expect(mockMessageRepository.createSystemMessage).not.toHaveBeenCalled();
@@ -1222,7 +1245,7 @@ describe('ChatService', () => {
 		it('채널 projection이 아직 없으면 재시도를 위해 실패한다', async () => {
 			mockChannelProjectionRepository.findByIdIncludingDeleted.mockResolvedValue(null);
 
-			await expect(service.saveSystemMessage(10, 1, '이슈가 생성됐어요'))
+			await expect(service.saveSystemMessage(10, 1, '이슈가 생성됐어요', 'system:t:0:1:1'))
 				.rejects.toThrow(ServiceUnavailableException);
 			expect(mockMessageRepository.createSystemMessage).not.toHaveBeenCalled();
 		});
