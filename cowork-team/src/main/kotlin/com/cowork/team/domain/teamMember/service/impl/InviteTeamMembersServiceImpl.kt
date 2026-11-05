@@ -10,8 +10,10 @@ import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamMember.service.InviteTeamMembersService
 import com.cowork.team.domain.teamMember.service.TeamMemberAccessGuard
 import com.cowork.team.domain.teamRole.entity.TeamRole
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import team.themoment.sdk.exception.ExpectedException
 
 @Service
 class InviteTeamMembersServiceImpl(
@@ -23,6 +25,14 @@ class InviteTeamMembersServiceImpl(
 
     @Transactional
     override fun execute(actorId: Long, teamId: Long, request: InviteMembersRequest): List<TeamMemberResponse> {
+        if (request.userIds.size > MAX_INVITE_USER_IDS) {
+            throw ExpectedException("한 번에 초대할 수 있는 사용자 ID는 ${MAX_INVITE_USER_IDS}개 이하입니다.", HttpStatus.BAD_REQUEST)
+        }
+        // userId <= 0 은 channel/project consumer 가 격리해 projection 을 not-ready 로 고정한다.
+        if (request.userIds.any { it <= 0 }) {
+            throw ExpectedException("사용자 ID는 양수여야 합니다.", HttpStatus.BAD_REQUEST)
+        }
+
         val team = teamMemberAccessGuard.findTeamForUpdateOrThrow(teamId)
         teamMemberAccessGuard.requirePermission(teamId, actorId, "manage_invites")
 
@@ -47,5 +57,9 @@ class InviteTeamMembersServiceImpl(
         }
 
         return savedMembers.map { TeamMemberResponse.of(it) }
+    }
+
+    companion object {
+        private const val MAX_INVITE_USER_IDS = 100
     }
 }
