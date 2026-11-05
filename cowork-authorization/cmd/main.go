@@ -85,7 +85,7 @@ func main() {
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
 	webhookInbox := repository.NewWebhookInboxRepository(sqlDB)
 	identityOperationRepo := repository.NewUserIdentityOperationRepository(db)
-	kafkaProducer := kafkainfra.NewProducer(cfg.KafkaSecurity, cfg.KafkaBootstrapServers, cfg.KafkaTopicUserSync)
+	kafkaProducer := kafkainfra.NewProducer(cfg.KafkaSecurity, cfg.KafkaBootstrapServers)
 	if err := refreshTokenRepo.DeleteExpiredSessions(
 		context.Background(),
 		time.Now().UTC().Truncate(time.Microsecond),
