@@ -1,27 +1,33 @@
-import {appendAuthorMarker, extractCommentAuthor, isAppComment} from './comment-author-marker.js';
+import {githubField} from '../github-field.js';
+import {appendAuthorMarker, isAppComment, readCommentAuthor} from './comment-author-marker.js';
 
 describe('comment-author-marker', () => {
-	describe('extractCommentAuthor', () => {
-		it('마커가 있으면 실제 작성자와 마커를 제거한 본문을 반환한다', () => {
-			const result = extractCommentAuthor(
-				'확인했습니다\n\n<!-- cowork:author=real-author -->',
-				'cowork-bot',
-				true,
+	describe('readCommentAuthor', () => {
+		const appComment = {user: {login: 'cowork-bot'}, [githubField.performedViaGithubApp]: {id: 123}};
+
+		it('앱 댓글에 마커가 있으면 실제 작성자와 마커를 제거한 본문을 반환한다', () => {
+			const result = readCommentAuthor(
+				{...appComment, body: '확인했습니다\n\n<!-- cowork:author=real-author -->'},
+				'123',
 			);
 
 			expect(result).toEqual({author: 'real-author', body: '확인했습니다'});
 		});
 
-		it('마커가 없으면 fallback 사용자를 작성자로, 본문을 그대로 반환한다', () => {
-			const result = extractCommentAuthor('그냥 GitHub에서 단 댓글', 'octocat', true);
+		it('마커가 없으면 user.login을 작성자로, 본문을 그대로 반환한다', () => {
+			const result = readCommentAuthor({...appComment, body: '그냥 GitHub에서 단 댓글'}, '123');
 
-			expect(result).toEqual({author: 'octocat', body: '그냥 GitHub에서 단 댓글'});
+			expect(result).toEqual({author: 'cowork-bot', body: '그냥 GitHub에서 단 댓글'});
 		});
 
-		it('앱이 작성하지 않은 댓글이면 마커를 무시하고 fallback 사용자와 본문을 그대로 반환한다', () => {
+		it('앱이 작성하지 않은 댓글이면 마커를 무시하고 user.login과 본문을 그대로 반환한다', () => {
 			const body = '확인했습니다\n\n<!-- cowork:author=alice operation=op-1 -->';
 
-			expect(extractCommentAuthor(body, 'outsider', false)).toEqual({author: 'outsider', body});
+			expect(readCommentAuthor({body, user: {login: 'outsider'}}, '123')).toEqual({author: 'outsider', body});
+		});
+
+		it('user가 없으면 ghost를 작성자로 쓴다', () => {
+			expect(readCommentAuthor({body: 'hi'}, '123')).toEqual({author: 'ghost', body: 'hi'});
 		});
 	});
 
@@ -55,7 +61,7 @@ describe('comment-author-marker', () => {
 			const marked = appendAuthorMarker('새 댓글', 'real-author', 'op-1');
 
 			expect(marked).toBe('새 댓글\n\n<!-- cowork:author=real-author operation=op-1 -->');
-			expect(extractCommentAuthor(marked, 'cowork-bot', true)).toEqual({
+			expect(readCommentAuthor({body: marked, [githubField.performedViaGithubApp]: {id: 123}}, '123')).toEqual({
 				author: 'real-author',
 				body: '새 댓글',
 				operationId: 'op-1',

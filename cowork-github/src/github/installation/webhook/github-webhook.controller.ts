@@ -12,8 +12,7 @@ import type {Redis} from 'ioredis';
 import {AppConfigService} from '../../../config/app-config.service.js';
 import {GithubAuthService} from '../../auth/github-auth.service.js';
 import {
-	extractCommentAuthor,
-	isAppComment,
+	readCommentAuthor,
 } from '../../common/comment-author-marker.js';
 import {REDIS_CLIENT} from '../../constants.js';
 import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../../github.cache.js';
@@ -384,11 +383,7 @@ export class GithubWebhookController {
 		}
 
 		const [owner, repo] = fullName.split('/', 2);
-		const {author, body} = extractCommentAuthor(
-			comment.body ?? '',
-			comment.user?.login ?? 'ghost',
-			isAppComment(comment.performed_via_github_app, this.config.githubAppId),
-		);
+		const {author, body} = readCommentAuthor(comment, this.config.githubAppId);
 		await this.readModelProducers.issueComment.send({
 			owner,
 			repo,
