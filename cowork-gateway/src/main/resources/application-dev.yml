@@ -1,0 +1,5 @@
+# 개발 환경 전용 설정. DEBUG 로그는 요청 URI(presigned URL query 포함)를 남길 수 있어 운영 profile에는 두지 않는다.
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    org.springframework.security: DEBUG
