@@ -42,6 +42,7 @@ func TestProcessQueuedWebhook(t *testing.T) {
 		wantResult       domain.WebhookResult
 		wantErr          error
 		wantKind         string
+		wantVerifyCalls  int
 		wantProcessCalls int
 		wantAckCalls     int
 	}{
@@ -50,6 +51,7 @@ func TestProcessQueuedWebhook(t *testing.T) {
 			values:           validValues,
 			signatureValid:   true,
 			wantResult:       domain.WebhookAccepted,
+			wantVerifyCalls:  1,
 			wantProcessCalls: 1,
 			wantAckCalls:     1,
 		},
@@ -60,6 +62,7 @@ func TestProcessQueuedWebhook(t *testing.T) {
 			processErr:       processingErr,
 			wantErr:          processingErr,
 			wantKind:         "processing",
+			wantVerifyCalls:  1,
 			wantProcessCalls: 1,
 		},
 		{
@@ -69,6 +72,7 @@ func TestProcessQueuedWebhook(t *testing.T) {
 			ackErr:           ackErr,
 			wantErr:          ackErr,
 			wantKind:         "processing",
+			wantVerifyCalls:  1,
 			wantProcessCalls: 1,
 			wantAckCalls:     1,
 		},
@@ -79,6 +83,7 @@ func TestProcessQueuedWebhook(t *testing.T) {
 			processErr:       domain.ErrWebhookConflict,
 			wantErr:          domain.ErrWebhookConflict,
 			wantKind:         "invalid",
+			wantVerifyCalls:  1,
 			wantProcessCalls: 1,
 		},
 		{
@@ -88,13 +93,15 @@ func TestProcessQueuedWebhook(t *testing.T) {
 			processErr:       domain.ErrWebhookExpired,
 			wantErr:          domain.ErrWebhookExpired,
 			wantKind:         "invalid",
+			wantVerifyCalls:  1,
 			wantProcessCalls: 1,
 		},
 		{
-			name:     "서명이 맞지 않으면 처리하지 않고 invalid로 분류한다",
-			values:   validValues,
-			wantErr:  domain.ErrInvalidWebhookPayload,
-			wantKind: "invalid",
+			name:            "서명이 맞지 않으면 처리하지 않고 invalid로 분류한다",
+			values:          validValues,
+			wantErr:         domain.ErrInvalidWebhookPayload,
+			wantVerifyCalls: 1,
+			wantKind:        "invalid",
 		},
 		{
 			name:           "body가 없으면 invalid로 분류한다",
@@ -147,6 +154,9 @@ func TestProcessQueuedWebhook(t *testing.T) {
 			}
 			if result != tt.wantResult {
 				t.Fatalf("processQueuedWebhook() result = %q, want %q", result, tt.wantResult)
+			}
+			if processor.verifyCalls != tt.wantVerifyCalls {
+				t.Fatalf("VerifySignature calls = %d, want %d", processor.verifyCalls, tt.wantVerifyCalls)
 			}
 			if processor.processCalls != tt.wantProcessCalls {
 				t.Fatalf("ProcessEvent calls = %d, want %d", processor.processCalls, tt.wantProcessCalls)
