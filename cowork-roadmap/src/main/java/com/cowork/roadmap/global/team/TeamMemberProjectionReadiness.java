@@ -144,7 +144,7 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
 
     @Override
     public Health health() {
-        return refresh() ? Health.up().build() : Health.outOfService().withDetail("initialized", initialized).build();
+        return isReady() ? Health.up().build() : Health.outOfService().withDetail("initialized", initialized).build();
     }
 
     private long requireSeekOffset(Map<Integer, Long> seekOffsets, int partition) {
