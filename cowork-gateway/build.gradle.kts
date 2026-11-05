@@ -12,6 +12,7 @@ version = "20261103.0"
 
 repositories {
     mavenCentral()
+    maven { url = uri("https://jitpack.io") }
 }
 
 java {
@@ -48,6 +49,8 @@ configurations.matching { it.name.startsWith("ktlint") }.configureEach {
 }
 
 dependencies {
+    // Reuse the response model without the SDK's MVC and Jackson 2 dependencies.
+    implementation(libs.the.sdk) { isTransitive = false }
     // Spring APIs require UnknownNullability from the pinned annotations version.
     compileOnly(libs.jetbrains.annotations)
 
