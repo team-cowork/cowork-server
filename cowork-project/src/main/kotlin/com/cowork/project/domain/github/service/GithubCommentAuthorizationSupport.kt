@@ -1,5 +1,6 @@
 package com.cowork.project.domain.github.service
 
+import com.cowork.project.domain.project.service.ProjectAccessGuard
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
@@ -12,19 +13,16 @@ import team.themoment.sdk.exception.ExpectedException
 @Component
 class GithubCommentAuthorizationSupport(
     private val repoAccessResolver: GithubRepoAccessResolver,
+    private val projectAccessGuard: ProjectAccessGuard,
     private val usernameResolver: GithubUsernameResolver,
     private val commentReader: GithubIssueCommentReader,
 ) {
 
     fun authorize(userId: Long, projectId: Long, repoId: Long, commentId: Long): GithubRepoRef {
         val repo = repoAccessResolver.resolveForRead(userId, projectId, repoId)
-        val isProjectModifier = try {
-            repoAccessResolver.resolveForModify(userId, projectId, repoId)
-            true
-        } catch (e: ExpectedException) {
-            false
-        }
-        if (isProjectModifier) return repo
+        // 예외를 던지는 resolveForModify를 쓰면 바깥 트랜잭션이 rollback-only로 표시되므로 boolean으로 판단한다.
+        val project = projectAccessGuard.findProjectOrThrow(projectId)
+        if (projectAccessGuard.canWrite(project, userId)) return repo
 
         val requesterGithubUsername = usernameResolver.resolve(userId)
         val comment = commentReader.findComment(repo.owner, repo.repo, commentId)
