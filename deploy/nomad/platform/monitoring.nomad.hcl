@@ -259,12 +259,14 @@ SECRET
       dynamic "template" {
         for_each = { for path, body in var.config_files : path => body if regex_replace(path, "^alertmanager/", "") != path }
         content {
-          data            = template.value
-          destination     = "local/config/${template.key}"
-          perms           = "0444"
-          left_delimiter  = "[[["
-          right_delimiter = "]]]"
-          change_mode     = "restart"
+          data = replace(template.value,
+          "COWORK_MONITORING_SECRET_PATH", "${var.vault_mount}/data/nomad/apps/monitoring?version=${var.secret_version}")
+          destination          = "local/config/${template.key}"
+          perms                = "0444"
+          left_delimiter       = "[[["
+          right_delimiter      = "]]]"
+          change_mode          = "restart"
+          error_on_missing_key = true
         }
       }
 
