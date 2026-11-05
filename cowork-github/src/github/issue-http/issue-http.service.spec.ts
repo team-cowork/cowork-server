@@ -253,6 +253,25 @@ describe('IssueHttpService', () => {
 			expect(result.author).toBe('octocat');
 			expect(result.body).toBe('수정된 내용');
 		});
+
+		it('우리 앱이 작성하지 않은 댓글에는 작성자 마커를 붙이지 않는다', async () => {
+			const githubComment = {
+				...baseComment,
+				user: {login: 'alice'},
+				[githubField.performedViaGithubApp]: null,
+			};
+			apiClient.getComment.mockResolvedValue(githubComment);
+			apiClient.updateComment.mockImplementation(
+				async (owner: string, repo: string, commentId: number, body: string) =>
+					({...githubComment, body}),
+			);
+
+			const result = await service.updateComment('my-org', 'my-repo', 100, '수정된 내용');
+
+			expect(apiClient.updateComment).toHaveBeenCalledWith('my-org', 'my-repo', 100, '수정된 내용');
+			expect(result.author).toBe('alice');
+			expect(result.body).toBe('수정된 내용');
+		});
 	});
 
 	describe('deleteComment', () => {
