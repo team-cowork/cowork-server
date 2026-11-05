@@ -1,6 +1,5 @@
 package com.cowork.gateway.health.controller
 
-import com.cowork.gateway.response.model.CommonApiResponse
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.media.Content
 import io.swagger.v3.oas.annotations.media.ExampleObject
@@ -15,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.reactive.function.client.WebClient
 import reactor.core.publisher.Mono
+import team.themoment.sdk.response.CommonApiResponse
 import java.net.URI
 import java.time.Duration
 
@@ -94,7 +94,7 @@ class HealthCheckController(webClientBuilder: WebClient.Builder, private val rou
             }
         }
         .collectMap<String, ServiceStatus>({ it.first }, { it.second })
-        .map { ResponseEntity.ok(CommonApiResponse.success(it)) }
+        .map { ResponseEntity.ok(CommonApiResponse.success("OK", it)) }
 
     enum class ServiceStatus {
         UP,
