@@ -148,9 +148,10 @@ Controller → Service → Repository
 
 - Handle HTTP input, validation (`@Valid` where constraints are defined), and route mapping.
 - Read authenticated identity from Gateway-forwarded headers and pass it to the service.
-- Return DTOs or lists directly. `cowork-team` configures the SDK response wrapper; `cowork-channel` and `cowork-project` disable it and rely on the Gateway's `ApiResponseWrapperFilter` for eligible JSON responses.
+- Return DTOs or lists directly. `cowork-team`, `cowork-channel`, and `cowork-project` disable the SDK response wrapper and rely on the Gateway's `ApiResponseWrapperFilter` for eligible JSON responses.
 - Keep `204 No Content` responses bodyless, as the team/channel delete endpoints do. If an endpoint returns a message with no data, it can explicitly return `CommonApiResponse<Nothing>` with a body-bearing status.
-- Do not assume every response is wrapped: the Gateway bypasses configured paths, non-JSON/streaming responses, and responses exceeding its size limit, and preserves already wrapped responses.
+- The Gateway bypasses configured paths, streaming responses, unsupported content types, and responses exceeding its size limit.
+- For eligible responses already in `CommonApiResponse` format, the Gateway preserves `message` and non-null `data`, and sets `status` and `code` from the actual HTTP status.
 
 **Service Responsibilities:**
 
