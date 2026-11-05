@@ -2,6 +2,8 @@
 배포 환경이 주입하는 환경변수 이름이다.
 */
 export const envName = {
+	githubAppClientId: 'GITHUB_APP_CLIENT_ID',
+	githubAppClientSecret: 'GITHUB_APP_CLIENT_SECRET',
 	githubAppId: 'GITHUB_APP_ID',
 	githubInstallationCacheTtlSeconds: 'GITHUB_INSTALLATION_CACHE_TTL_SECONDS',
 	githubIssueMaxRetries: 'GITHUB_ISSUE_MAX_RETRIES',
