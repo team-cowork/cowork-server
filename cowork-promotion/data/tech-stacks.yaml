@@ -2,41 +2,49 @@ categories:
   - name: Language
     items:
       - name: "Kotlin"
+        logo: kotlin-icon.svg
         color: "#7f52ff"
         released: "2011년"
         description: "간결한 문법과 오류를 줄이는 기능을 갖춘 프로그래밍 언어입니다. 서버와 모바일 앱을 만들며, Java 코드와 함께 사용할 수 있습니다."
         documentation: "https://kotlinlang.org/docs/home.html"
       - name: "Java"
+        logo: java.svg
         color: "#f8981d"
         released: "1995년"
         description: "서버와 다양한 기기에서 실행되는 프로그램을 만드는 언어입니다. 같은 코드를 여러 운영체제에서 실행할 수 있도록 설계됐습니다."
         documentation: "https://docs.oracle.com/en/java/"
       - name: "TypeScript"
+        logo: typescript-icon.svg
         color: "#3178c6"
         released: "2012년"
         description: "JavaScript에 데이터의 종류를 검사하는 기능을 더한 언어입니다. 실행하기 전에 코드의 실수를 발견하도록 돕습니다."
         documentation: "https://www.typescriptlang.org/docs/"
       - name: "JavaScript"
+        logo: javascript.svg
         color: "#f7df1e"
         released: "1995년"
         description: "웹 화면에 움직임과 동작을 더하는 프로그래밍 언어입니다. 버튼 클릭 처리부터 서버 개발까지 폭넓게 쓰입니다."
         documentation: "https://developer.mozilla.org/en-US/docs/Web/JavaScript"
       - name: "Go"
+        logo: go.svg
         color: "#00add8"
         released: "2009년"
         description: "단순한 문법과 빠른 실행을 목표로 만든 프로그래밍 언어입니다. 여러 작업을 동시에 처리하는 서버와 운영 도구를 만드는 데 쓰입니다."
         documentation: "https://go.dev/doc/"
       - name: "C#"
+        logo: c-sharp.svg
         color: "#512bd4"
         released: "2000년"
         description: "Microsoft가 만든 프로그래밍 언어로, 씨샵이라고 읽습니다. .NET과 함께 웹 서버, 데스크톱 앱, 게임 등을 개발합니다."
         documentation: "https://learn.microsoft.com/en-us/dotnet/csharp/"
       - name: "Python"
+        logo: python.svg
         color: "#3776ab"
         released: "1991년"
         description: "읽기 쉬운 문법을 갖춘 프로그래밍 언어입니다. 반복 작업 자동화, 데이터 분석, 인공지능 개발 등에 쓰입니다."
         documentation: "https://docs.python.org/3/"
       - name: "Dart"
+        logo: dart.svg
         color: "#0175c2"
         released: "2011년"
         description: "Google이 만든 프로그래밍 언어입니다. Flutter와 함께 휴대폰과 컴퓨터에서 실행되는 앱을 만드는 데 쓰입니다."
@@ -45,51 +53,61 @@ categories:
   - name: Frontend
     items:
       - name: "React"
+        logo: react.svg
         color: "#61dafb"
         released: "2013년"
         description: "웹 화면을 작은 구성 요소로 나누어 만드는 도구입니다. 데이터가 바뀌면 관련 화면을 갱신해 사용자에게 보여줍니다."
         documentation: "https://react.dev/learn"
       - name: "Next.js"
+        logo: nextjs-icon.svg
         color: "#000000"
         released: "2016년"
         description: "React로 웹사이트와 웹 앱을 만드는 데 필요한 기능을 모은 프레임워크입니다. 페이지 연결과 서버에서 화면을 만드는 작업 등을 지원합니다."
         documentation: "https://nextjs.org/docs"
       - name: "Tailwind CSS"
+        logo: tailwindcss-icon.svg
         color: "#06b6d4"
         released: "2017년"
         description: "미리 정해진 스타일 이름을 조합해 화면을 꾸미는 도구입니다. 색상과 간격, 화면 크기에 따른 배치를 코드에서 조정합니다."
         documentation: "https://tailwindcss.com/docs"
       - name: "TanStack Query"
+        logo: tanstack-query.svg
         color: "#ff4154"
         released: "2019년"
         description: "서버에서 가져온 데이터를 화면에서 관리하는 도구입니다. 데이터를 저장해 재사용하고, 필요할 때 다시 가져오며 로딩과 오류 상태를 다룹니다."
         documentation: "https://tanstack.com/query/latest/docs/framework/react/overview"
       - name: "Axios"
+        logo: axios.svg
         color: "#5a29e4"
         released: "2014년"
         description: "웹 앱과 서버가 HTTP로 데이터를 주고받도록 돕는 도구입니다. 요청을 보내고 응답과 오류를 처리하는 코드를 정리해 줍니다."
         documentation: "https://axios-http.com/docs/intro"
       - name: "Flutter"
+        logo: flutter-icon.svg
         color: "#02569b"
         released: "2015년"
         description: "하나의 코드로 여러 운영체제의 앱 화면을 만드는 Google의 도구입니다. 모바일과 웹, 데스크톱 앱을 개발할 수 있습니다."
         documentation: "https://docs.flutter.dev/"
       - name: "Bloc"
+        logo: bloc.svg
         color: "#0084c1"
         released: "2018년"
         description: "Dart와 Flutter 앱에서 데이터와 화면의 변화를 관리하는 도구입니다. 사용자의 행동을 처리하는 로직과 화면을 그리는 코드를 분리합니다."
         documentation: "https://bloclibrary.dev/getting-started/"
       - name: "Kotlin Multiplatform"
+        logo: kotlin-multiplatform.svg
         color: "#7f52ff"
         released: "2017년"
         description: "여러 운영체제에서 공통으로 쓰는 코드를 Kotlin으로 작성하는 기술입니다. 공통 기능을 공유하면서 각 기기에 필요한 코드는 따로 만들 수 있습니다."
         documentation: "https://kotlinlang.org/docs/multiplatform/get-started.html"
       - name: "Compose Multiplatform"
+        logo: compose-multiplatform.svg
         color: "#5383ec"
         released: "2021년"
         description: "Kotlin으로 앱 화면을 만드는 프레임워크입니다. 화면 구성 코드를 여러 운영체제에서 공유할 수 있습니다."
         documentation: "https://kotlinlang.org/docs/multiplatform/compose-multiplatform.html"
       - name: "Ktor"
+        logo: ktor-icon.svg
         color: "#087cfa"
         released: "2018년"
         description: "Kotlin으로 웹 서버와 통신 기능을 만드는 프레임워크입니다. 필요한 기능을 골라 붙여 서버를 만들거나 외부 서버에 요청을 보낼 수 있습니다."
@@ -98,61 +116,73 @@ categories:
   - name: Backend
     items:
       - name: "Spring Boot"
+        logo: spring-boot.svg
         color: "#6db33f"
         released: "2014년"
         description: "Java와 Kotlin으로 서버를 만드는 프레임워크입니다. 자주 쓰는 설정을 자동으로 구성해 서비스 기능 개발에 집중하도록 돕습니다."
         documentation: "https://docs.spring.io/spring-boot/"
       - name: "Spring Cloud Gateway"
+        logo: spring-cloud.svg
         color: "#6db33f"
         released: "2017년"
         description: "서비스로 들어오는 요청의 입구를 맡는 도구입니다. 요청을 알맞은 서버로 보내고, 인증 확인이나 요청량 제한 같은 처리를 적용합니다."
         documentation: "https://docs.spring.io/spring-cloud-gateway/reference/"
       - name: "OpenFeign"
+        logo: openfeign.svg
         color: "#1a86e0"
         released: "2013년"
         description: "다른 서버를 호출하는 코드를 간결하게 작성하는 Java 도구입니다. 호출할 주소와 데이터 형식을 선언하면 HTTP 요청과 응답 처리를 연결합니다."
         documentation: "https://github.com/OpenFeign/feign#readme"
       - name: "Vert.x"
+        logo: vertx.svg
         color: "#782a90"
         released: "2012년"
         description: "많은 연결과 요청을 동시에 다루는 서버용 도구 모음입니다. 작업이 끝나기를 기다리며 멈추는 시간을 줄이는 방식으로 동작합니다."
         documentation: "https://vertx.io/docs/"
       - name: "Node.js"
+        logo: nodejs-icon.svg
         color: "#5fa04e"
         released: "2009년"
         description: "JavaScript를 웹 브라우저 밖에서 실행하는 환경입니다. 웹 서버나 개발 도구를 만들 때 사용합니다."
         documentation: "https://nodejs.org/docs/latest/api/"
       - name: "NestJS"
+        logo: nestjs.svg
         color: "#e0234e"
         released: "2017년"
         description: "TypeScript와 Node.js로 서버를 만드는 프레임워크입니다. 기능별로 코드를 나누고 연결하는 구조를 제공합니다."
         documentation: "https://docs.nestjs.com/"
       - name: "Gin"
+        logo: gin.svg
         color: "#008ecf"
         released: "2014년"
         description: "Go로 웹 서버와 API를 만드는 프레임워크입니다. 주소별 요청 처리와 입력값 검사 등 서버 개발에 필요한 기능을 제공합니다."
         documentation: "https://gin-gonic.com/en/docs/"
       - name: "Chi"
+        logo: chi.svg
         color: "#00add8"
         released: "2015년"
         description: "Go로 만든 웹 서버에서 요청을 알맞은 처리 코드로 연결하는 도구입니다. 작은 기능들을 조합해 서버의 동작을 구성할 수 있습니다."
         documentation: "https://go-chi.io/#/README"
       - name: "ASP.NET Core"
+        logo: dotnet.svg
         color: "#512bd4"
         released: "2016년"
         description: "C#과 .NET으로 웹사이트와 API를 만드는 프레임워크입니다. Windows와 Linux 등 여러 운영체제에서 서버를 실행할 수 있습니다."
         documentation: "https://learn.microsoft.com/en-us/aspnet/core/"
       - name: "Socket.IO"
+        logo: socket-io.svg
         color: "#010101"
         released: "2010년"
         description: "서버와 사용자 화면이 실시간으로 데이터를 주고받게 하는 도구입니다. 채팅이나 상태 알림에 쓰이며, 연결이 끊어지면 재연결을 시도합니다."
         documentation: "https://socket.io/docs/v4/"
       - name: "GraphQL / Apollo"
+        logo: graphql-apollo.svg
         color: "#e10098"
         released: "2015년"
         description: "GraphQL은 화면에서 필요한 데이터 항목을 지정해 요청하는 API 기술입니다. Apollo는 GraphQL 서버와 클라이언트를 만들고 데이터를 관리하는 도구 모음입니다."
         documentation: "https://www.apollographql.com/docs/"
       - name: "LiveKit"
+        logo: livekit-icon.svg
         color: "#1fd5f9"
         released: "2021년"
         description: "앱에 실시간 음성과 영상 기능을 넣는 도구입니다. 참여자 사이의 연결과 미디어 전송을 관리해 통화와 회의 기능을 만들 수 있습니다."
@@ -161,36 +191,43 @@ categories:
   - name: Data & Storage
     items:
       - name: "MySQL"
+        logo: mysql-icon.svg
         color: "#4479a1"
         released: "1995년"
         description: "데이터를 표 형태로 저장하고 조회하는 관계형 데이터베이스입니다. 사용자 정보와 업무 기록처럼 서로 연결된 데이터를 관리합니다."
         documentation: "https://dev.mysql.com/doc/"
       - name: "PostgreSQL"
+        logo: postgresql.svg
         color: "#4169e1"
         released: "1996년"
         description: "복잡한 데이터 구조와 조회를 지원하는 관계형 데이터베이스입니다. 정확한 데이터 처리와 다양한 확장 기능이 특징입니다."
         documentation: "https://www.postgresql.org/docs/current/"
       - name: "MongoDB"
+        logo: mongodb-icon.svg
         color: "#47a248"
         released: "2009년"
         description: "데이터를 문서 형태로 저장하는 데이터베이스입니다. 항목 구성이 서로 다른 데이터나 중첩된 구조를 다루기 편합니다."
         documentation: "https://www.mongodb.com/docs/"
       - name: "Redis"
+        logo: redis.svg
         color: "#ff4438"
         released: "2009년"
         description: "메모리에 데이터를 보관해 빠르게 읽고 쓰는 저장소입니다. 자주 찾는 정보의 임시 저장이나 로그인 상태 관리 등에 쓰입니다."
         documentation: "https://redis.io/docs/latest/"
       - name: "Elasticsearch"
+        logo: elasticsearch.svg
         color: "#005571"
         released: "2010년"
         description: "많은 데이터에서 원하는 내용을 빠르게 찾는 검색 엔진입니다. 문장 검색과 조건별 필터링, 데이터 집계를 지원합니다."
         documentation: "https://www.elastic.co/docs/reference/elasticsearch"
       - name: "SeaweedFS"
+        logo: seaweedfs.png
         color: "#0162bf"
         released: "2011년"
         description: "파일을 여러 서버에 나누어 저장하는 분산 저장소입니다. 사진이나 첨부파일이 늘어나면 저장 공간을 확장할 수 있습니다."
         documentation: "https://github.com/seaweedfs/seaweedfs/wiki"
       - name: "Flyway"
+        logo: flyway.svg
         color: "#cc0200"
         released: "2010년"
         description: "데이터베이스 구조의 변경 이력을 관리하는 도구입니다. 변경 파일을 순서대로 적용해 개발 환경과 운영 환경의 구조를 맞춥니다."
@@ -199,11 +236,13 @@ categories:
   - name: Messaging
     items:
       - name: "Apache Kafka"
+        logo: kafka-icon.svg
         color: "#231f20"
         released: "2011년"
         description: "서비스에서 발생한 사건과 데이터를 전달하고 보관하는 플랫폼입니다. 여러 서비스가 같은 사건을 각자의 속도로 받아 처리할 수 있습니다."
         documentation: "https://kafka.apache.org/documentation/"
       - name: "Firebase Cloud Messaging"
+        logo: firebase-cloud-messaging.png
         color: "#dd2c00"
         released: "2016년"
         description: "Google이 제공하는 메시지와 알림 전송 서비스입니다. 휴대폰 앱이나 웹 브라우저에 새 소식을 보낼 수 있습니다."
@@ -212,56 +251,67 @@ categories:
   - name: Infrastructure
     items:
       - name: "Docker"
+        logo: docker-icon.svg
         color: "#2496ed"
         released: "2013년"
         description: "프로그램과 실행에 필요한 환경을 컨테이너로 묶는 도구입니다. 개발자의 컴퓨터와 서버에서 같은 환경으로 프로그램을 실행하도록 돕습니다."
         documentation: "https://docs.docker.com/"
       - name: "Docker Compose"
+        logo: docker-compose.png
         color: "#2496ed"
         released: "2015년"
         description: "여러 Docker 컨테이너를 한 설정 파일로 관리하는 도구입니다. 앱과 데이터베이스처럼 함께 필요한 프로그램들을 한 번에 실행합니다."
         documentation: "https://docs.docker.com/compose/"
       - name: "Nomad"
+        logo: nomad-icon.svg
         color: "#00ca8e"
         released: "2015년"
         description: "여러 서버에 프로그램을 배치하고 실행 상태를 관리하는 도구입니다. 필요한 자원을 고려해 작업을 배정하고, 중단된 작업을 다시 실행합니다."
         documentation: "https://developer.hashicorp.com/nomad/docs"
       - name: "Consul"
+        logo: consul.svg
         color: "#f24c53"
         released: "2014년"
         description: "서비스의 위치와 상태를 확인하고 서비스 간 연결을 관리하는 도구입니다. 서로 통신해야 하는 서비스가 안전하게 연결되도록 돕습니다."
         documentation: "https://developer.hashicorp.com/consul/docs"
       - name: "Envoy"
+        logo: envoy-icon.svg
         color: "#ac6199"
         released: "2016년"
         description: "서비스 사이에서 네트워크 요청을 전달하는 프록시입니다. 요청 분산과 암호화, 통신 상태 관찰 같은 기능을 맡습니다."
         documentation: "https://www.envoyproxy.io/docs/envoy/latest/"
       - name: "Ansible"
+        logo: ansible.svg
         color: "#ee0000"
         released: "2012년"
         description: "서버 설정과 프로그램 설치 같은 반복 작업을 자동화하는 도구입니다. 해야 할 일을 파일로 작성해 여러 서버에 같은 설정을 적용합니다."
         documentation: "https://docs.ansible.com/ansible/latest/"
       - name: "OpenTofu"
+        logo: opentofu.svg
         color: "#ffda18"
         released: "2023년"
         description: "서버와 네트워크 등 인프라를 코드로 정의하고 관리하는 도구입니다. Terraform에서 갈라져 나온 오픈소스 프로젝트입니다."
         documentation: "https://opentofu.org/docs/"
       - name: "GitHub Actions"
+        logo: github-actions.svg
         color: "#2088ff"
         released: "2018년"
         description: "GitHub 저장소의 활동에 맞춰 작업을 자동 실행하는 서비스입니다. 코드 검사와 빌드, 배포 같은 과정을 정해진 순서로 처리합니다."
         documentation: "https://docs.github.com/en/actions"
       - name: "Vault"
+        logo: vault-icon.svg
         color: "#ffec6e"
         released: "2015년"
         description: "비밀번호와 인증 키 같은 민감한 값을 보관하고 관리하는 도구입니다. 누가 어떤 값에 접근할 수 있는지 통제하고 사용 이력을 남깁니다."
         documentation: "https://developer.hashicorp.com/vault/docs"
       - name: "NGINX"
+        logo: nginx.svg
         color: "#009639"
         released: "2004년"
         description: "웹페이지를 전달하고 요청을 다른 서버로 연결하는 웹 서버입니다. 여러 서버로 요청을 나누거나 암호화된 접속을 처리할 수 있습니다."
         documentation: "https://nginx.org/en/docs/"
       - name: "Vercel"
+        logo: vercel-icon.svg
         color: "#000000"
         released: "2016년"
         description: "웹사이트를 인터넷에 배포하고 운영하는 플랫폼입니다. 코드 변경을 연결해 배포하고, 변경 내용을 확인할 미리보기 주소를 제공합니다."
@@ -270,26 +320,31 @@ categories:
   - name: Monitoring
     items:
       - name: "Grafana"
+        logo: grafana.svg
         color: "#f46800"
         released: "2014년"
         description: "서버와 서비스의 상태를 그래프로 보여주는 도구입니다. 여러 곳에서 수집한 데이터를 대시보드에 모아 살펴볼 수 있습니다."
         documentation: "https://grafana.com/docs/grafana/latest/"
       - name: "Prometheus"
+        logo: prometheus.svg
         color: "#e6522c"
         released: "2012년"
         description: "서버와 서비스의 상태를 수치로 수집하는 모니터링 도구입니다. 응답 시간이나 자원 사용량의 변화를 기록하고 이상 징후를 찾습니다."
         documentation: "https://prometheus.io/docs/introduction/overview/"
       - name: "Loki"
+        logo: loki.png
         color: "#faed1e"
         released: "2018년"
         description: "프로그램이 남기는 실행 기록을 모아 검색하는 도구입니다. 여러 서버의 로그를 한곳에서 살펴보며 문제의 원인을 추적합니다."
         documentation: "https://grafana.com/docs/loki/latest/"
       - name: "Grafana Alloy"
+        logo: grafana-alloy.svg
         color: "#fd6f00"
         released: "2024년"
         description: "서비스의 수치와 로그, 요청 추적 정보를 수집하는 도구입니다. 모은 데이터를 가공해 모니터링 시스템으로 전달합니다."
         documentation: "https://grafana.com/docs/alloy/latest/"
       - name: "Alertmanager"
+        logo: alertmanager.png
         color: "#e6522c"
         released: "2013년"
         description: "Prometheus 등에서 보낸 경고를 정리하고 전달하는 도구입니다. 중복 경고를 묶고, 정해진 담당자와 알림 채널로 보냅니다."
@@ -298,6 +353,7 @@ categories:
   - name: Design
     items:
       - name: "Figma"
+        logo: figma.svg
         color: "#f24e1e"
         released: "2015년"
         description: "여러 사람이 같은 화면을 함께 설계하는 디자인 도구입니다. 웹과 앱의 모양을 만들고, 화면 흐름을 시제품으로 확인하며 의견을 나눕니다."
@@ -306,16 +362,19 @@ categories:
   - name: Build Tools
     items:
       - name: "Maven"
+        logo: maven.svg
         color: "#c71a36"
         released: "2002년"
         description: "Java 프로젝트의 빌드와 외부 라이브러리를 관리하는 도구입니다. 코드를 컴파일하고 검사한 뒤 실행 가능한 형태로 묶습니다."
         documentation: "https://maven.apache.org/guides/"
       - name: "Gradle"
+        logo: gradle.svg
         color: "#02303a"
         released: "2008년"
         description: "프로젝트의 빌드 과정을 자동화하는 도구입니다. 필요한 라이브러리를 준비하고, 바뀐 부분을 중심으로 다시 빌드해 반복 작업을 줄입니다."
         documentation: "https://docs.gradle.org/current/userguide/userguide.html"
       - name: "Kotlin Toolchain"
+        logo: kotlin-icon.svg
         color: "#7f52ff"
         released: "2023년"
         description: "Kotlin 프로젝트의 빌드 설정을 간단한 파일로 작성하는 JetBrains의 도구입니다. Amper에서 이어졌으며, 필요한 도구와 JDK를 자동으로 준비합니다."
