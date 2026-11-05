@@ -1,6 +1,6 @@
 import process from 'node:process';
 import {pathToFileURL} from 'node:url';
-import {createAssetCollection} from './lib/assets.mjs';
+import {addTechnologyLogos, createAssetCollection} from './lib/assets.mjs';
 import {resolveBuildConfig} from './lib/build-config.mjs';
 import {loadBuildInput, stylesheetPaths} from './lib/build-input.mjs';
 import {
@@ -29,6 +29,7 @@ export async function build(options = {}) {
 	const {team, techStacks} = parseContent({
 		teamXml: input.teamSource,
 		techStackYaml: input.techStackSource,
+		technologyLogos: await addTechnologyLogos(assets),
 	});
 	const repositories = parseRepositories(input.repositorySource);
 	const positionStates = generatePositionStates(techStacks.positions, team);

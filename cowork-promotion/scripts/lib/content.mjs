@@ -46,7 +46,7 @@ export function parseRepositories(source) {
 	});
 }
 
-function normalizeTechStacks(rawData) {
+function normalizeTechStacks(rawData, technologyLogos) {
 	const categories = expectArray(rawData?.categories, 'tech-stacks.categories').map(
 		(category, categoryIndex) => ({
 			name: expectString(category?.name, `categories[${categoryIndex}].name`),
@@ -60,8 +60,15 @@ function normalizeTechStacks(rawData) {
 					throw new Error(`${label}.documentation must be an HTTPS URL without credentials.`);
 				}
 
+				const logo = expectString(item?.logo, `${label}.logo`);
+				const logoUrl = technologyLogos.get(logo);
+				if (!logoUrl) {
+					throw new Error(`${label}.logo references a missing technology logo: ${logo}`);
+				}
+
 				return {
 					name: expectString(item?.name, `${label}.name`),
+					logoUrl,
 					color: expectColor(item?.color, `${label}.color`),
 					released: expectString(item?.released, `${label}.released`),
 					description: expectString(item?.description, `${label}.description`),
@@ -156,8 +163,8 @@ function validateTeamRoles(team, positions) {
 	}
 }
 
-export function parseContent({teamXml, techStackYaml}) {
-	const techStacks = normalizeTechStacks(parseYaml(techStackYaml));
+export function parseContent({teamXml, techStackYaml, technologyLogos}) {
+	const techStacks = normalizeTechStacks(parseYaml(techStackYaml), technologyLogos);
 	const team = normalizeTeam(
 		new XMLParser({
 			attributeNamePrefix: '',
