@@ -19,6 +19,7 @@ import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
 import {type Nullable} from '../../common/type/nullable.js';
 import {type ForwardReference} from '../../common/type/forward-reference.js';
 import {GithubRepoEvent} from './event/github-repo.event.js';
+import {type KafkaMessageSource, systemMessageKey} from './system-message-key.js';
 
 /**
 `Message.content`(`schema/message.schema.ts`)의 `maxlength` 제약과 동일하다.
@@ -61,9 +62,10 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
      `summary`를 SYSTEM 메시지로 저장하고 각 채널에 Socket.IO로 브로드캐스트한다.
 
      @param event - Kafka에서 수신한 GitHub 저장소 활동 이벤트
+     @param source - 이벤트의 Kafka 메시지 위치. 채널별 시스템 메시지 멱등성 키를 만드는 데 사용한다
      @param heartbeat - 오래 걸리는 준비 대기 동안 Kafka consumer heartbeat를 보내는 함수
      */
-	private async handleRepoEvent(event: GithubRepoEvent, heartbeat: () => Promise<void> = async () => {/* Direct calls need no Kafka heartbeat. */}): Promise<void> {
+	private async handleRepoEvent(event: GithubRepoEvent, source: KafkaMessageSource, heartbeat: () => Promise<void> = async () => {/* Direct calls need no Kafka heartbeat. */}): Promise<void> {
 		const summary = this.sanitizeSummary(event.summary);
 		if (summary === null) {
 			this.logger.warn(`Skipping repo event with empty summary owner=${event.owner} repo=${event.repo}`);
@@ -78,7 +80,9 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
 		const targets = await this.projectClient.getGithubWebhookTargets(event.owner, event.repo);
 
 		await Promise.all(targets.map(async target => {
-			const saved = await this.chatService.saveSystemMessage(target.teamId, target.channelId, summary);
+			const saved = await this.chatService.saveSystemMessage(
+				target.teamId, target.channelId, summary, systemMessageKey(source, target.channelId),
+			);
 			if (!saved) {
 				return;
 			}
@@ -200,14 +204,14 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
 		void this.consumer
 			.run({
 				eachMessage: async payload => {
-					const {message} = payload;
+					const {topic, partition, message} = payload;
 					if (!message.value) {
 						return;
 					}
 
 					try {
 						const event = JSON.parse(message.value.toString()) as GithubRepoEvent;
-						await this.handleRepoEvent(event, async () => payload.heartbeat());
+						await this.handleRepoEvent(event, {topic, partition, offset: message.offset}, async () => payload.heartbeat());
 					} catch (error) {
 						this.logger.error('Failed to process repo event', error);
 						// 잘못된 JSON, Message 스키마 검증 실패(빈 값/길이 초과 등)는 재시도해도 성공할 수 없으므로 스킵한다.
