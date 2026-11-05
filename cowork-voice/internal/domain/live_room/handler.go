@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	_ "github.com/cowork/cowork-voice/internal/apidoc" // Gateway response schemas for swag.
 	"github.com/cowork/cowork-voice/internal/apperr"
 	"github.com/cowork/cowork-voice/internal/middleware"
 )
@@ -22,16 +23,18 @@ func NewHandler(svc Service) *Handler {
 
 // Start godoc
 // @Summary      라이브 방송 시작
-// @Description  채널에서 라이브 방송을 시작합니다. 호출자가 호스트가 되며 publish 권한(마이크·화면공유·카메라) 토큰을 받습니다. 카메라와 화면공유는 screen_share 권한이 있을 때만 허용됩니다. 채널당 동시 라이브는 1개입니다.
+// @Description  live_broadcast 권한이 있는 사용자가 호스트가 됩니다. 채널마다 한 번에 하나의 방송만 열 수 있습니다. 마이크에는 voice_speak 권한이 필요하고 카메라와 화면 공유에는 screen_share 권한이 필요합니다.
 // @Tags         live
 // @Security     BearerAuth
 // @Produce      json
 // @Param        channel_id  path      int  true  "채널 ID"
-// @Success      200  {object}  StartResponse
-// @Failure      401  {object}  apperr.Error
-// @Failure      403  {object}  apperr.Error  "음성 채널 연결 권한 없음"
-// @Failure      409  {object}  apperr.Error  "이미 라이브 진행 중"
-// @Failure      500  {object}  apperr.Error
+// @Success      200  {object}  apidoc.Success[StartResponse]  "호스트 접속 토큰과 세션 정보"
+// @Failure      400  {object}  apidoc.Error  "채널 ID 형식 오류"
+// @Failure      401  {object}  apidoc.Error  "인증 필요"
+// @Failure      403  {object}  apidoc.Error  "음성 채널 접근 또는 방송 권한 없음"
+// @Failure      409  {object}  apidoc.Error  "이미 라이브 진행 중"
+// @Failure      500  {object}  apidoc.Error  "서버 오류"
+// @Failure      503  {object}  apidoc.Error  "채널 권한 동기화 중"
 // @Router       /live/channels/{channel_id}/start [post]
 func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -58,15 +61,18 @@ func (h *Handler) Start(w http.ResponseWriter, r *http.Request) {
 
 // Join godoc
 // @Summary      라이브 시청 참여
-// @Description  진행 중인 라이브에 시청자로 참여합니다. subscribe 토큰을 받으며, screen_share 권한이 있으면 카메라만 송출할 수 있습니다(마이크·화면공유는 불가). 호스트가 재입장하면 publish 권한 토큰이 재발급됩니다.
+// @Description  시청자는 방송을 수신하며 screen_share 권한이 있으면 카메라도 켤 수 있습니다. 시청자는 마이크와 화면을 공유할 수 없습니다. 호스트가 다시 입장하면 호스트 권한으로 토큰을 발급합니다.
 // @Tags         live
 // @Security     BearerAuth
 // @Produce      json
 // @Param        channel_id  path      int  true  "채널 ID"
-// @Success      200  {object}  JoinResponse
-// @Failure      401  {object}  apperr.Error
-// @Failure      403  {object}  apperr.Error  "음성 채널 연결 권한 없음"
-// @Failure      404  {object}  apperr.Error  "진행 중인 라이브 없음"
+// @Success      200  {object}  apidoc.Success[JoinResponse]  "접속 토큰과 세션 정보"
+// @Failure      400  {object}  apidoc.Error  "채널 ID 형식 오류"
+// @Failure      401  {object}  apidoc.Error  "인증 필요"
+// @Failure      403  {object}  apidoc.Error  "음성 채널 접근 권한 없음"
+// @Failure      404  {object}  apidoc.Error  "진행 중인 라이브 없음"
+// @Failure      500  {object}  apidoc.Error  "서버 오류"
+// @Failure      503  {object}  apidoc.Error  "채널 권한 동기화 중"
 // @Router       /live/channels/{channel_id}/join [post]
 func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -93,13 +99,18 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 
 // Leave godoc
 // @Summary      라이브 퇴장
-// @Description  라이브에서 퇴장합니다. 호스트가 퇴장하면 방송 전체가 종료되고 시청자 전원이 퇴장 처리됩니다.
+// @Description  라이브에서 퇴장합니다. 호스트가 퇴장하면 방송 전체가 종료되고 시청자도 모두 퇴장합니다.
 // @Tags         live
 // @Security     BearerAuth
+// @Produce      json
 // @Param        channel_id  path      int  true  "채널 ID"
-// @Success      204  "퇴장 성공"
-// @Failure      401  {object}  apperr.Error
-// @Failure      404  {object}  apperr.Error  "진행 중인 라이브 없음"
+// @Success      204  "퇴장 완료. 응답 본문은 없습니다."
+// @Failure      400  {object}  apidoc.Error  "채널 ID 형식 오류"
+// @Failure      401  {object}  apidoc.Error  "인증 필요"
+// @Failure      403  {object}  apidoc.Error  "음성 채널 접근 권한 없음"
+// @Failure      404  {object}  apidoc.Error  "진행 중인 라이브 없음"
+// @Failure      500  {object}  apidoc.Error  "서버 오류"
+// @Failure      503  {object}  apidoc.Error  "채널 권한 동기화 중"
 // @Router       /live/channels/{channel_id}/leave [post]
 func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -130,9 +141,12 @@ func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 // @Security     BearerAuth
 // @Produce      json
 // @Param        channel_id  path      int  true  "채널 ID"
-// @Success      200  {object}  StatusResponse
-// @Failure      401  {object}  apperr.Error
-// @Failure      403  {object}  apperr.Error
+// @Success      200  {object}  apidoc.Success[StatusResponse]  "방송 상태와 시청자 수"
+// @Failure      400  {object}  apidoc.Error  "채널 ID 형식 오류"
+// @Failure      401  {object}  apidoc.Error  "인증 필요"
+// @Failure      403  {object}  apidoc.Error
+// @Failure      500  {object}  apidoc.Error  "서버 오류"
+// @Failure      503  {object}  apidoc.Error  "채널 권한 동기화 중"
 // @Router       /live/channels/{channel_id} [get]
 func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()

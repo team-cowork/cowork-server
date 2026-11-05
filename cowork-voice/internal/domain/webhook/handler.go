@@ -6,6 +6,7 @@ import (
 	"github.com/livekit/protocol/auth"
 	lkwebhook "github.com/livekit/protocol/webhook"
 
+	_ "github.com/cowork/cowork-voice/internal/apidoc" // Gateway response schemas for swag.
 	"github.com/cowork/cowork-voice/internal/apperr"
 	livedomain "github.com/cowork/cowork-voice/internal/domain/live_room"
 )
@@ -26,12 +27,14 @@ func NewHandler(svc *WebhookService, liveSvc *LiveWebhookService, authProvider a
 
 // Handle godoc
 // @Summary      LiveKit 웹훅 수신
-// @Description  LiveKit 서버가 전송하는 participant_joined / participant_left / room_finished 이벤트를 처리합니다. LiveKit 서버 내부 호출용이며 직접 호출하지 않습니다.
+// @Description  LiveKit 서버가 전송하는 participant_joined, participant_left, room_finished 이벤트를 처리합니다. 이 경로는 LiveKit 서버에서 호출합니다.
 // @Tags         webhook
 // @Accept       json
 // @Param        Authorization  header  string  true  "LiveKit 웹훅 서명"
-// @Success      200
-// @Failure      401
+// @Produce      json
+// @Success      200  "수신 완료. 응답 본문은 없습니다."
+// @Failure      401  {object}  apidoc.Error  "웹훅 서명 검증 실패"
+// @Failure      500  {object}  apidoc.Error  "서버 오류"
 // @Router       /voice/webhook [post]
 func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 	event, err := lkwebhook.ReceiveWebhookEvent(r, h.authProvider)
