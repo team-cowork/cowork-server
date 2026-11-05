@@ -7,13 +7,21 @@ import {GithubSetupController} from './github-setup.controller.js';
 
 describe('GithubSetupController', () => {
 	let controller: GithubSetupController;
-	let authService: {getInstallationAccountLogin: jest.Mock; cacheInstallation: jest.Mock};
+	let authService: {
+		getInstallationAccountLogin: jest.Mock;
+		cacheInstallation: jest.Mock;
+		canUserAccessInstallation: jest.Mock;
+	};
 	let producer: {send: jest.Mock};
 	let backfillService: {enqueue: jest.Mock};
 	let redis: {incr: jest.Mock};
 
 	beforeEach(async () => {
-		authService = {getInstallationAccountLogin: jest.fn(), cacheInstallation: jest.fn()};
+		authService = {
+			getInstallationAccountLogin: jest.fn(),
+			cacheInstallation: jest.fn(),
+			canUserAccessInstallation: jest.fn().mockResolvedValue(true),
+		};
 		producer = {send: jest.fn()};
 		backfillService = {enqueue: jest.fn().mockResolvedValue(undefined)};
 		redis = {incr: jest.fn().mockResolvedValue(5)};
@@ -45,12 +53,13 @@ describe('GithubSetupController', () => {
 		expect(producer.send).not.toHaveBeenCalled();
 	});
 
-	it('state가 있으면 team.github.connected 이벤트를 발행한다', async () => {
+	it('state가 있고 사용자가 설치에 접근할 수 있으면 team.github.connected 이벤트를 발행한다', async () => {
 		authService.getInstallationAccountLogin.mockResolvedValue('my-org');
 
-		const result = await controller.handle('42', 'install', 'team-state');
+		const result = await controller.handle('42', 'install', 'team-state', 'user-code');
 
 		expect(result).toContain('연동이 완료되었습니다');
+		expect(authService.canUserAccessInstallation).toHaveBeenCalledWith('user-code', 42);
 		expect(redis.incr).toHaveBeenCalledWith('github:installation:revision:42');
 		expect(producer.send).toHaveBeenCalledWith('team.github.connected', {
 			state: 'team-state',
@@ -61,6 +70,28 @@ describe('GithubSetupController', () => {
 		expect(backfillService.enqueue).toHaveBeenCalledWith({type: 'ORG_REPOSITORIES', installationId: 42, owner: 'my-org'});
 		expect(authService.cacheInstallation.mock.invocationCallOrder[0])
 			.toBeLessThan(backfillService.enqueue.mock.invocationCallOrder[0]);
+	});
+
+	it('사용자가 설치에 접근할 수 없으면 이벤트를 발행하지 않는다', async () => {
+		authService.getInstallationAccountLogin.mockResolvedValue('other-org');
+		authService.canUserAccessInstallation.mockResolvedValue(false);
+
+		const result = await controller.handle('42', 'install', 'team-state', 'user-code');
+
+		expect(result).toContain('cowork 팀과 연결하지 않았습니다');
+		expect(redis.incr).not.toHaveBeenCalled();
+		expect(producer.send).not.toHaveBeenCalled();
+		expect(backfillService.enqueue).not.toHaveBeenCalled();
+	});
+
+	it('code가 없으면 설치 접근을 확인하지 않고 이벤트를 발행하지 않는다', async () => {
+		authService.getInstallationAccountLogin.mockResolvedValue('my-org');
+
+		const result = await controller.handle('42', 'install', 'team-state');
+
+		expect(result).toContain('cowork 팀과 연결하지 않았습니다');
+		expect(authService.canUserAccessInstallation).not.toHaveBeenCalled();
+		expect(producer.send).not.toHaveBeenCalled();
 	});
 
 	it('state가 없으면 이벤트를 발행하지 않고 연결 실패 안내 페이지를 반환한다', async () => {
