@@ -1,5 +1,6 @@
 export function createTechnologyDialog(root) {
 	const dialog = root.querySelector('#technology-dialog');
+	const logo = dialog.querySelector('[data-technology-logo]');
 	const name = dialog.querySelector('#technology-name');
 	const released = dialog.querySelector('#technology-released');
 	const description = dialog.querySelector('#technology-description');
@@ -13,6 +14,7 @@ export function createTechnologyDialog(root) {
 		}
 
 		name.textContent = trigger.dataset.name;
+		logo.src = trigger.dataset.logo;
 		released.textContent = trigger.dataset.released;
 		description.textContent = trigger.dataset.description;
 		documentation.href = trigger.dataset.documentation;
