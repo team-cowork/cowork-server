@@ -253,7 +253,7 @@ class Platform:
                     if batch:
                         # Batch jobs register with no restarts or reschedules, so a failure cannot recover.
                         failed = [a for a in allocations if a['JobVersion'] == int(version)
-                                  and a['ClientStatus'] == 'failed']
+                                  and a['DesiredStatus'] == 'run' and a['ClientStatus'] == 'failed']
                         if failed:
                             self.report_allocation(job_id, self.api('allocation/' + failed[0]['ID']))
                             raise RuntimeError(f'{job_id}: batch allocation {failed[0]["ID"]} failed')
