@@ -49,6 +49,7 @@ export type GithubWebhookPayload = {
 		body?: string;
 		html_url?: string;
 		user?: Nullable<{login?: string}>;
+		performed_via_github_app?: Nullable<{id?: number}>;
 		created_at?: string;
 		updated_at?: string;
 	};
