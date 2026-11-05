@@ -1,9 +1,9 @@
 package com.cowork.team.domain.teamMember.service.impl
 
+import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.teamMember.presentation.data.response.TeamMemberResponse
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamMember.service.QueryTeamMembersService
-import com.cowork.team.domain.teamMember.service.TeamMemberAccessGuard
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -12,12 +12,12 @@ import org.springframework.transaction.annotation.Transactional
 class QueryTeamMembersServiceImpl(
     private val teamMemberRepository: TeamMemberRepository,
     private val teamRoleProjectionReader: TeamRoleProjectionReader,
-    private val teamMemberAccessGuard: TeamMemberAccessGuard,
+    private val teamAccessGuard: TeamAccessGuard,
 ) : QueryTeamMembersService {
 
     @Transactional(readOnly = true)
     override fun execute(userId: Long, teamId: Long): List<TeamMemberResponse> {
-        teamMemberAccessGuard.requireMemberExists(teamId, userId)
+        teamAccessGuard.requireMemberExists(teamId, userId)
         val members = teamMemberRepository.findAllByTeamId(teamId)
         val rolesById = teamRoleProjectionReader.getRoles(teamId).associateBy { it.id }
         val roleIdsByUserId = teamRoleProjectionReader.getMemberRoleAssignments(teamId)
