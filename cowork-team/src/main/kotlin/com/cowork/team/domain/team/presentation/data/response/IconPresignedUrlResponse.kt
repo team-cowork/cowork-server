@@ -4,6 +4,6 @@ import io.swagger.v3.oas.annotations.media.Schema
 
 @Schema(description = "팀 아이콘 Presigned URL 발급 응답")
 data class IconPresignedUrlResponse(
-    @field:Schema(description = "S3 Presigned PUT URL — 이 URL로 직접 파일을 PUT 요청") val uploadUrl: String,
-    @field:Schema(description = "업로드된 객체의 S3 키 — confirm 요청 시 사용") val objectKey: String,
+    @field:Schema(description = "파일을 PUT으로 업로드할 URL") val uploadUrl: String,
+    @field:Schema(description = "업로드 확인 요청에 사용할 객체 키") val objectKey: String,
 )
