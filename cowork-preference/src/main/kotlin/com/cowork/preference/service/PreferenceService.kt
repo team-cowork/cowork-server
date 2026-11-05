@@ -25,14 +25,6 @@ class PreferenceService(
         return stored.settings
     }
 
-    suspend fun getSettingsBulk(resourceType: ResourceType, resourceIds: List<Long>): Map<Long, JsonObject> {
-        if (resourceIds.isEmpty()) return emptyMap()
-        val found = repository.findSettingsForResources(resourceIds, resourceType)
-        val stored = resourceIds.associateWith { versioned(resourceType, found[it]) }
-        cache.populateSettingsBulk(resourceType, stored)
-        return stored.mapValues { it.value.settings }
-    }
-
     suspend fun updateSettings(resourceType: ResourceType, resourceId: Long, raw: JsonObject): Result<JsonObject> {
         if (resourceType == ResourceType.TEXT_CHANNEL && raw.containsKey("webhook")) {
             return Result.failure(IllegalArgumentException("웹훅 설정은 웹훅 관리 API에서 변경해야 합니다."))
