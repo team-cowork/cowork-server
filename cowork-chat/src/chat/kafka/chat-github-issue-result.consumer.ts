@@ -16,6 +16,7 @@ import {toMessageBroadcastPayload} from '../repository/index.js';
 import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
 import {type ForwardReference} from '../../common/type/forward-reference.js';
 import {ChatGithubIssueCreateResult} from './event/chat-github-issue.event.js';
+import {type KafkaMessageSource, systemMessageKey} from './system-message-key.js';
 
 /**
  Kafka `project.chat-github-issue.result` 토픽을 구독하여
@@ -47,8 +48,9 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
      `ACCEPTED`는 디버그 로그만 남기고 아무 동작도 하지 않는다.
 
      @param event - Kafka에서 수신한 권한 검증 결과 이벤트
+     @param source - 이벤트의 Kafka 메시지 위치. 시스템 메시지 멱등성 키를 만드는 데 사용한다
      */
-	private async handleResultEvent(event: ChatGithubIssueCreateResult): Promise<void> {
+	private async handleResultEvent(event: ChatGithubIssueCreateResult, source: KafkaMessageSource): Promise<void> {
 		if (event.status !== 'REJECTED') {
 			this.logger.debug(`Chat GitHub issue command accepted [operationId=${event.operationId}]`);
 			return;
@@ -60,6 +62,7 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
 			event.teamId,
 			event.channelId,
 			content,
+			systemMessageKey(source, event.channelId),
 		);
 		if (!saved) {
 			return;
@@ -128,14 +131,14 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
 
 		void this.consumer
 			.run({
-				eachMessage: async ({message}) => {
+				eachMessage: async ({topic, partition, message}) => {
 					if (!message.value) {
 						return;
 					}
 
 					try {
 						const event = JSON.parse(message.value.toString()) as ChatGithubIssueCreateResult;
-						await this.handleResultEvent(event);
+						await this.handleResultEvent(event, {topic, partition, offset: message.offset});
 					} catch (error) {
 						this.logger.error('Failed to process chat GitHub issue command result event', error);
 						if (!(error instanceof SyntaxError)) {
