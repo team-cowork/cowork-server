@@ -56,7 +56,6 @@ func (f *fakeRefreshTokenStore) RotateSession(
 	_ string,
 	_ string,
 	_ time.Time,
-	_ time.Time,
 ) (*domain.RefreshToken, error) {
 	f.rotateCalls++
 	return f.rotationSource, f.rotateErr

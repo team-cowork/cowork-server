@@ -54,11 +54,9 @@ func (r *RefreshTokenRepository) RotateSession(
 	ctx context.Context,
 	oldHash string,
 	newHash string,
-	newExpiresAt time.Time,
 	now time.Time,
 ) (*domain.RefreshToken, error) {
 	now = now.UTC().Truncate(time.Microsecond)
-	newExpiresAt = newExpiresAt.UTC().Truncate(time.Microsecond)
 	var source domain.RefreshToken
 	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var candidate domain.RefreshToken
@@ -94,7 +92,8 @@ func (r *RefreshTokenRepository) RotateSession(
 			Email:        source.Email,
 			GsmRole:      source.GsmRole,
 			PlatformRole: source.PlatformRole,
-			ExpiresAt:    newExpiresAt,
+			// Keep the absolute session lifetime fixed at login so roles are re-read by then.
+			ExpiresAt: source.ExpiresAt,
 		}
 		return tx.Create(replacement).Error
 	})
