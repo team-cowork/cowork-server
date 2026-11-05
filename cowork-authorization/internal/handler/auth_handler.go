@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	_ "github.com/cowork/authorization/internal/apidoc" // Gateway response schemas for swag.
 	"github.com/cowork/authorization/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -43,16 +44,18 @@ func clearWsCookie(c *gin.Context) {
 }
 
 // Token godoc
-// @Summary      토큰 발급 (PKCE code exchange)
-// @Description  프론트엔드가 DataGSM에서 직접 받은 인가 코드와 code_verifier로 액세스/리프레시 토큰을 발급합니다.
+// @Summary      인가 코드로 토큰 발급
+// @Description  DataGSM 인가 코드와 PKCE 검증 값으로 액세스 토큰과 리프레시 토큰을 발급합니다.
 // @Tags         auth
 // @Accept       json
 // @Produce      json
 // @Param        body  body      object{code=string,code_verifier=string,redirect_uri=string}  true  "코드 교환 요청"
-// @Success      200   {object}  service.TokenPair
-// @Failure      400   {object}  map[string]string  "missing required fields"
-// @Failure      401   {object}  map[string]string  "authentication failed"
-// @Failure      503   {object}  map[string]string  "authentication temporarily unavailable"
+// @Success      200   {object}  apidoc.Success[service.TokenPair]  "새 토큰 쌍"
+// @Header       200   {string}  Set-Cookie  "WebSocket 인증 쿠키(cowork_ws_token, Path=/ws)"
+// @Failure      400   {object}  apidoc.Error  "필수 요청 값이 없거나 형식이 잘못됨"
+// @Failure      401   {object}  apidoc.Error  "인가 코드 검증 실패"
+// @Failure      503   {object}  apidoc.Error  "인증 서비스를 일시적으로 사용할 수 없음"
+// @Failure      429   {object}  apidoc.Error  "요청 한도 초과"
 // @Router       /auth/token [post]
 func (h *AuthHandler) Token(c *gin.Context) {
 	var req struct {
@@ -83,15 +86,17 @@ func (h *AuthHandler) Token(c *gin.Context) {
 
 // Refresh godoc
 // @Summary      액세스 토큰 갱신
-// @Description  리프레시 토큰으로 새로운 액세스/리프레시 토큰 쌍을 발급합니다.
+// @Description  리프레시 토큰을 교환해 새 액세스 토큰과 새 리프레시 토큰을 받습니다.
 // @Tags         auth
 // @Accept       json
 // @Produce      json
 // @Param        body  body      object{refresh_token=string}  true  "리프레시 토큰"
-// @Success      200   {object}  map[string]string             "새 access_token, refresh_token"
-// @Failure      400   {object}  map[string]string             "refresh_token is required"
-// @Failure      401   {object}  map[string]string             "invalid or expired refresh token"
-// @Failure      503   {object}  map[string]string             "authentication temporarily unavailable"
+// @Success      200   {object}  apidoc.Success[service.TokenPair]  "새 토큰 쌍"
+// @Header       200   {string}  Set-Cookie  "WebSocket 인증 쿠키(cowork_ws_token, Path=/ws)"
+// @Failure      400   {object}  apidoc.Error  "필수 요청 값이 없거나 형식이 잘못됨"
+// @Failure      401   {object}  apidoc.Error  "유효하지 않거나 만료된 리프레시 토큰"
+// @Failure      503   {object}  apidoc.Error  "인증 서비스를 일시적으로 사용할 수 없음"
+// @Failure      429   {object}  apidoc.Error  "요청 한도 초과"
 // @Router       /auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req struct {
@@ -119,16 +124,17 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 // Logout godoc
 // @Summary      로그아웃
-// @Description  리프레시 토큰을 무효화합니다. Authorization 헤더(Bearer) 필요.
+// @Description  리프레시 토큰을 무효화하고 WebSocket 인증 쿠키를 삭제합니다.
 // @Tags         auth
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
 // @Param        body  body  object{refresh_token=string}  true  "리프레시 토큰"
-// @Success      204   "로그아웃 성공"
-// @Failure      400   {object}  map[string]string  "refresh_token is required"
-// @Failure      401   {object}  map[string]string  "unauthorized"
-// @Failure      503   {object}  map[string]string  "authentication temporarily unavailable"
+// @Success      204   "로그아웃 완료. 응답 본문은 없습니다."
+// @Failure      400   {object}  apidoc.Error  "필수 요청 값이 없거나 형식이 잘못됨"
+// @Failure      401   {object}  apidoc.Error  "인증 실패 또는 유효하지 않은 리프레시 토큰"
+// @Failure      503   {object}  apidoc.Error  "인증 서비스를 일시적으로 사용할 수 없음"
+// @Failure      429   {object}  apidoc.Error  "요청 한도 초과"
 // @Router       /auth/signout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var req struct {
