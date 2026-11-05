@@ -1,6 +1,9 @@
 global:
   resolve_timeout: 5m
 
+templates:
+  - discord.tmpl
+
 route:
   receiver: discord
   group_by: [alertname, service]
@@ -19,7 +22,7 @@ inhibit_rules:
     target_matchers:
       - alertname = coworkServiceMissing
     equal: [job]
-  # 외부 공개 게이트웨이 자체가 실패하면 그 뒤의 업무 API·CORS probe 알림은 하나로 묶는다.
+  # 외부 공개 게이트웨이 자체가 실패하면 그 뒤의 업무 API와 CORS probe 알림은 하나로 묶는다.
   - source_matchers:
       - alertname = coworkPublicGatewayUnavailable
     target_matchers:
@@ -27,14 +30,13 @@ inhibit_rules:
 
 receivers:
   - name: discord
-    discord_configs:
-      - webhook_url_file: /secrets/discord-monitoring-alert-webhook-url
-        title: '[{{ if eq .Status "firing" }}조치 필요{{ else }}해결{{ end }}] {{ if .CommonAnnotations.summary }}{{ .CommonAnnotations.summary }}{{ else }}모니터링 알림{{ end }}'
-        message: |-
-          {{ range .Alerts }}
-          **상태**: {{ if eq .Status "firing" }}확인이 필요합니다.{{ else }}알림 조건이 해제되었습니다.{{ end }}
-          {{ if .Labels.service }}**서비스**: {{ .Labels.service }}{{ end }}
-          **심각도**: {{ if eq .Labels.severity "critical" }}긴급{{ else if eq .Labels.severity "warning" }}주의{{ else }}정보{{ end }}
-          **감지 내용**: {{ if .Annotations.description }}{{ .Annotations.description }}{{ else }}{{ .Annotations.summary }}{{ end }}
-          **알림 코드**: {{ .Labels.alertname }}
-          {{ end }}
+    webhook_configs:
+      - url_file: /secrets/discord-monitoring-alert-webhook-url
+        send_resolved: true
+        payload:
+          allowed_mentions:
+            parse: []
+          embeds:
+            - >-
+              {{ template "cowork.discord.embed" (dict "data" . "grafana"
+              [[[ with secret "COWORK_MONITORING_SECRET_PATH" ]]][[[ .Data.data.GRAFANA_ROOT_URL | trimSuffix "/" | toJSON ]]][[[ end ]]]) }}
