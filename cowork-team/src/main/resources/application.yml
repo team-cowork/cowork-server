@@ -74,6 +74,7 @@ sdk:
     - /swagger-ui/**
     enabled: true
   response:
+    enabled: false
     not-wrapping-urls:
     - /actuator/**
     - /v3/api-docs/**

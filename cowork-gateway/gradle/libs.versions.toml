@@ -7,12 +7,14 @@ jjwt = "0.13.0"
 ktlint-plugin = "14.2.0"
 ktlint = "1.8.0"
 springdoc-webflux = "3.1.1"
+the-sdk = "1.5"
 logstash-logback = "9.0"
 mockk = "1.14.11"
 kotest = "6.2.5"
 jetbrains-annotations = "26.1.0"
 
 [libraries]
+the-sdk = { module = "com.github.themoment-team:the-sdk", version.ref = "the-sdk" }
 micrometer-registry-prometheus = { module = "io.micrometer:micrometer-registry-prometheus" }
 spring-boot-starter-webclient = { module = "org.springframework.boot:spring-boot-starter-webclient" }
 spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-starter-actuator" }

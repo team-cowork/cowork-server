@@ -4,22 +4,22 @@ import com.cowork.gateway.response.body.BoundedResponseBodyTransformer
 import com.cowork.gateway.response.config.ApiResponseWrapperProperties
 import com.cowork.gateway.response.metrics.ApiResponseWrapperMetrics
 import com.cowork.gateway.response.metrics.ApiResponseWrappingOutcome
-import com.cowork.gateway.response.model.CommonApiResponse
 import com.cowork.gateway.response.wrapping.ApiResponseWrappingDecision
 import com.cowork.gateway.response.wrapping.ApiResponseWrappingPolicy
 import org.reactivestreams.Publisher
-import org.springframework.cloud.gateway.filter.GatewayFilterChain
-import org.springframework.cloud.gateway.filter.GlobalFilter
-import org.springframework.cloud.gateway.filter.NettyWriteResponseFilter
 import org.springframework.core.Ordered
 import org.springframework.core.io.buffer.DataBuffer
 import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.server.reactive.ServerHttpResponseDecorator
 import org.springframework.stereotype.Component
 import org.springframework.web.server.ServerWebExchange
+import org.springframework.web.server.WebFilter
+import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
+import team.themoment.sdk.response.CommonApiResponse
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 
@@ -28,16 +28,16 @@ class ApiResponseWrapperFilter(
     private val objectMapper: ObjectMapper,
     properties: ApiResponseWrapperProperties,
     private val metrics: ApiResponseWrapperMetrics,
-) : GlobalFilter,
+) : WebFilter,
     Ordered {
 
     private val policy = ApiResponseWrappingPolicy(properties)
     private val transformer = BoundedResponseBodyTransformer(properties.maxWrappableBytes())
 
-    // NettyWriteResponseFilter 직전에 실행되어야 응답 바디를 가로챌 수 있음
-    override fun getOrder(): Int = NettyWriteResponseFilter.WRITE_RESPONSE_FILTER_ORDER - 1
+    // Include authentication failures that finish before Gateway route filters run.
+    override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE
 
-    override fun filter(exchange: ServerWebExchange, chain: GatewayFilterChain): Mono<Void> {
+    override fun filter(exchange: ServerWebExchange, chain: WebFilterChain): Mono<Void> {
         if (exchange.request.uri.rawPath.startsWith("/api/storage/")) return chain.filter(exchange)
 
         val decoratedResponse = object : ServerHttpResponseDecorator(exchange.response) {
@@ -91,7 +91,13 @@ class ApiResponseWrapperFilter(
                         durationNanos = System.nanoTime() - startedAt,
                     )
                     bufferFactory().wrap(response.bytes)
-                }.doOnError {
+                }.switchIfEmpty(
+                    Mono.defer {
+                        val bytes = emptyErrorBody() ?: return@defer Mono.empty()
+                        updateHeadersForTransformedBody(bytes)
+                        Mono.just(bufferFactory().wrap(bytes))
+                    },
+                ).doOnError {
                     metrics.record(
                         exchange = exchange,
                         outcome = ApiResponseWrappingOutcome.ERROR,
@@ -102,21 +108,28 @@ class ApiResponseWrapperFilter(
                 return super.writeWith(transformedBody)
             }
 
-            // RequestRateLimiter는 429를 빈 본문으로 끝내므로 다른 오류와 같은 공통 응답 본문을 채운다
             override fun setComplete(): Mono<Void> {
-                val rateLimited = statusCode?.value() == HttpStatus.TOO_MANY_REQUESTS.value()
-                if (!rateLimited || isCommitted) return super.setComplete()
-                val bytes = objectMapper.writeValueAsBytes(
-                    CommonApiResponse.error(HttpStatus.TOO_MANY_REQUESTS, RATE_LIMITED_MESSAGE),
-                )
-                headers.contentType = MediaType.APPLICATION_JSON
-                headers.contentLength = bytes.size.toLong()
+                if (isCommitted) return super.setComplete()
+                val bytes = emptyErrorBody() ?: return super.setComplete()
+                updateHeadersForTransformedBody(bytes)
                 metrics.record(
                     exchange = exchange,
                     outcome = ApiResponseWrappingOutcome.WRAPPED,
                     resultBytes = bytes.size.toLong(),
                 )
                 return super.writeWith(Mono.just(bufferFactory().wrap(bytes)))
+            }
+
+            private fun emptyErrorBody(): ByteArray? {
+                if (exchange.request.method == HttpMethod.HEAD ||
+                    policy.excludesPath(exchange.request.uri.path)
+                ) {
+                    return null
+                }
+                val status = statusCode?.value()?.let(HttpStatus::resolve) ?: return null
+                if (!status.isError) return null
+                val message = if (status == HttpStatus.TOO_MANY_REQUESTS) RATE_LIMITED_MESSAGE else status.reasonPhrase
+                return objectMapper.writeValueAsBytes(CommonApiResponse.error(message, status))
             }
 
             override fun writeAndFlushWith(body: Publisher<out Publisher<out DataBuffer>>): Mono<Void> {
@@ -128,7 +141,9 @@ class ApiResponseWrapperFilter(
             }
 
             private fun updateHeadersForTransformedBody(bytes: ByteArray) {
+                headers.contentType = MediaType.APPLICATION_JSON
                 headers.remove(HttpHeaders.TRANSFER_ENCODING)
+                headers.remove(HttpHeaders.CONTENT_ENCODING)
                 headers.remove(HttpHeaders.ETAG)
                 headers.remove("Content-MD5")
                 headers.remove("Digest")
@@ -141,25 +156,37 @@ class ApiResponseWrapperFilter(
 
     private fun prepareResponse(bytes: ByteArray, status: HttpStatus): PreparedResponse {
         val jsonNode = runCatching { objectMapper.readTree(bytes) }.getOrNull()
-        if (jsonNode.isCommonApiResponse()) {
-            return PreparedResponse(
-                bytes = bytes,
-                outcome = ApiResponseWrappingOutcome.ALREADY_WRAPPED,
-                wasTransformed = false,
-            )
-        }
-
-        val body = if (status.isError) {
-            val message = jsonNode?.get("message")?.asString() ?: status.reasonPhrase
-            CommonApiResponse.error(status, message)
+        val alreadyWrapped = jsonNode.isCommonApiResponse()
+        val message = if (alreadyWrapped || status.isError) {
+            jsonNode?.get("message")?.takeIf { it.isString }?.asString()
+                ?: jsonNode?.get("error")?.takeIf { it.isString }?.asString()
+                ?: jsonNode?.takeIf { it.isString }?.asString()
+                ?: bytes.toString(Charsets.UTF_8).trim().takeIf { jsonNode == null && it.isNotEmpty() }
+                ?: status.reasonPhrase
         } else {
-            val data = jsonNode?.let { objectMapper.treeToValue(it, Any::class.java) }
-            CommonApiResponse.success(data)
+            status.reasonPhrase
         }
+        val payload = if (alreadyWrapped) {
+            jsonNode?.get("data")
+        } else if (status.isError) {
+            null
+        } else {
+            jsonNode
+        }
+        val body = CommonApiResponse(
+            status = status,
+            code = status.value(),
+            message = message,
+            data = payload?.takeUnless { it.isNull },
+        )
 
         return PreparedResponse(
             bytes = objectMapper.writeValueAsBytes(body),
-            outcome = ApiResponseWrappingOutcome.WRAPPED,
+            outcome = if (alreadyWrapped) {
+                ApiResponseWrappingOutcome.ALREADY_WRAPPED
+            } else {
+                ApiResponseWrappingOutcome.WRAPPED
+            },
             wasTransformed = true,
         )
     }

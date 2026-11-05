@@ -61,6 +61,7 @@ class TeamMemberController(
         ApiResponse(responseCode = "404", description = "멤버 없음"),
     )
     @PatchMapping("/{targetUserId}/role")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun changeRole(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
@@ -82,6 +83,7 @@ class TeamMemberController(
         ApiResponse(responseCode = "404", description = "멤버 없음"),
     )
     @PatchMapping("/{targetUserId}/nickname")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     fun changeNickname(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
