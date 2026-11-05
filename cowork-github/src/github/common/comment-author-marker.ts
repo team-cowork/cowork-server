@@ -20,12 +20,14 @@ export function isAppComment(performedViaGithubApp: Nullable<{id?: number}> | un
 	return performedViaGithubApp?.id !== undefined && String(performedViaGithubApp.id) === appId;
 }
 
-export function extractCommentAuthor(body: string, fallbackLogin: string, isFromApp: boolean): {
+type CommentAuthor = {
 	author: string;
 	body: string;
 	operationId?: string;
-} {
-	const match = isFromApp ? AUTHOR_MARKER_PATTERN.exec(body) : null;
+};
+
+function extractCommentAuthor(body: string, fallbackLogin: string): CommentAuthor {
+	const match = AUTHOR_MARKER_PATTERN.exec(body);
 	if (match?.groups === undefined) {
 		return {author: fallbackLogin, body};
 	}
@@ -35,6 +37,21 @@ export function extractCommentAuthor(body: string, fallbackLogin: string, isFrom
 		body: stripTrailingNewlines(body.slice(0, match.index)),
 		...(match.groups.operationId !== undefined && {operationId: match.groups.operationId}),
 	};
+}
+
+export function readCommentAuthor(
+	comment: {
+		body?: string;
+		user?: Nullable<{login?: string}>;
+		performed_via_github_app?: Nullable<{id?: number}>;
+	},
+	appId: string,
+): CommentAuthor {
+	const body = comment.body ?? '';
+	const fallbackLogin = comment.user?.login ?? 'ghost';
+	return isAppComment(comment.performed_via_github_app, appId)
+		? extractCommentAuthor(body, fallbackLogin)
+		: {author: fallbackLogin, body};
 }
 
 export function appendAuthorMarker(body: string, username: string, operationId?: string): string {
