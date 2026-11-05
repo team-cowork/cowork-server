@@ -7,6 +7,10 @@ import com.cowork.channel.domain.channelRolePolicy.service.QueryChannelRolePolic
 import com.cowork.channel.domain.channelRolePolicy.service.UpsertChannelRolePolicyService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.ExampleObject
+import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.media.SchemaProperty
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
@@ -21,8 +25,31 @@ import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
+import team.themoment.sdk.response.CommonApiResponse
 
 @Tag(name = "채널 역할 정책", description = "역할별 채널 권한 덮어쓰기 정책 API")
+@ApiResponses(
+    ApiResponse(
+        responseCode = "401",
+        description = "액세스 토큰이 없거나 유효하지 않음",
+        content = [
+            Content(
+                mediaType = "application/json",
+                schema = Schema(implementation = CommonApiResponse::class),
+                examples = [
+                    ExampleObject(
+                        value = """{"status":"401 UNAUTHORIZED","code":401,"message":"Unauthorized"}""",
+                    ),
+                ],
+            ),
+        ],
+    ),
+    ApiResponse(
+        responseCode = "default",
+        description = "기타 오류",
+        content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
+    ),
+)
 @RestController
 @RequestMapping("/channels/{channelId}/role-policies/{roleId}")
 class ChannelRolePolicyController(
@@ -32,11 +59,90 @@ class ChannelRolePolicyController(
 ) {
     @Operation(summary = "채널 역할 정책 설정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "202", description = "비동기 설정 요청 접수"),
-        ApiResponse(responseCode = "400", description = "permissions 계약 위반 또는 DM 채널"),
-        ApiResponse(responseCode = "403", description = "채널 관리 권한 없음"),
-        ApiResponse(responseCode = "404", description = "채널 또는 역할 없음"),
-        ApiResponse(responseCode = "409", description = "Idempotency-Key 재사용 충돌"),
+        ApiResponse(
+            responseCode = "202",
+            description = "설정 요청 접수. operationId로 처리 결과를 조회합니다.",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(type = "object", requiredProperties = ["status", "code", "message", "data"]),
+                    schemaProperties = [
+                        SchemaProperty(
+                            name = "status",
+                            schema = Schema(implementation = HttpStatus::class, example = "202 ACCEPTED"),
+                        ), SchemaProperty(
+                            name = "code",
+                            schema = Schema(type = "integer", example = "202"),
+                        ), SchemaProperty(name = "message", schema = Schema(type = "string", example = "Accepted")),
+
+                        SchemaProperty(
+                            name = "data",
+                            schema = Schema(implementation = ChannelRolePolicyOperationResponse::class),
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "400",
+            description = "permissions 계약 위반 또는 DM 채널",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "채널 관리 권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 또는 역할 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "409",
+            description = "Idempotency-Key 재사용 충돌",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"409 CONFLICT","code":409,"message":"현재 상태에서는 요청을 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PutMapping
     @ResponseStatus(HttpStatus.ACCEPTED)
@@ -56,10 +162,75 @@ class ChannelRolePolicyController(
 
     @Operation(summary = "채널 역할 정책 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "202", description = "비동기 삭제 요청 접수"),
-        ApiResponse(responseCode = "403", description = "채널 관리 권한 없음"),
-        ApiResponse(responseCode = "404", description = "채널, 역할 또는 정책 없음"),
-        ApiResponse(responseCode = "409", description = "Idempotency-Key 재사용 충돌"),
+        ApiResponse(
+            responseCode = "202",
+            description = "삭제 요청 접수. operationId로 처리 결과를 조회합니다.",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(type = "object", requiredProperties = ["status", "code", "message", "data"]),
+                    schemaProperties = [
+                        SchemaProperty(
+                            name = "status",
+                            schema = Schema(implementation = HttpStatus::class, example = "202 ACCEPTED"),
+                        ), SchemaProperty(
+                            name = "code",
+                            schema = Schema(type = "integer", example = "202"),
+                        ), SchemaProperty(name = "message", schema = Schema(type = "string", example = "Accepted")),
+
+                        SchemaProperty(
+                            name = "data",
+                            schema = Schema(implementation = ChannelRolePolicyOperationResponse::class),
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "채널 관리 권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널, 역할 또는 정책 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "409",
+            description = "Idempotency-Key 재사용 충돌",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"409 CONFLICT","code":409,"message":"현재 상태에서는 요청을 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @DeleteMapping
     @ResponseStatus(HttpStatus.ACCEPTED)
@@ -72,12 +243,26 @@ class ChannelRolePolicyController(
 
     @Operation(
         summary = "채널 역할 정책 비동기 작업 상태 조회",
-        description = "소유 서비스 검증 실패는 FAILED 상태와 errorCode/errorMessage로 반환됩니다.",
+        description = "검증에 실패하면 상태는 FAILED입니다. errorCode와 errorMessage에서 원인을 확인할 수 있습니다.",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "작업 상태 조회 성공"),
-        ApiResponse(responseCode = "404", description = "작업 없음"),
+        ApiResponse(
+            responseCode = "404",
+            description = "작업 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @GetMapping("/operations/{operationId}")
     fun getOperation(

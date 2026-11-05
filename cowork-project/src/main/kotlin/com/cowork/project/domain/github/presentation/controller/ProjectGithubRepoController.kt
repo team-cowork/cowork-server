@@ -17,6 +17,10 @@ import com.cowork.project.domain.project.service.ClearProjectGithubWebhookChanne
 import com.cowork.project.domain.project.service.SetProjectGithubWebhookChannelService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.ExampleObject
+import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.media.SchemaProperty
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
@@ -32,8 +36,31 @@ import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
+import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "GitHub 레포 연동", description = "프로젝트에 등록된 GitHub 레포지토리 관리 API (프로젝트당 여러 개 등록 가능)")
+@Tag(name = "GitHub 레포 연동", description = "프로젝트에 등록된 GitHub 저장소 관리 API (프로젝트당 여러 개 등록 가능)")
+@ApiResponses(
+    ApiResponse(
+        responseCode = "401",
+        description = "액세스 토큰이 없거나 유효하지 않음",
+        content = [
+            Content(
+                mediaType = "application/json",
+                schema = Schema(implementation = CommonApiResponse::class),
+                examples = [
+                    ExampleObject(
+                        value = """{"status":"401 UNAUTHORIZED","code":401,"message":"Unauthorized"}""",
+                    ),
+                ],
+            ),
+        ],
+    ),
+    ApiResponse(
+        responseCode = "default",
+        description = "기타 오류",
+        content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
+    ),
+)
 @RestController
 @RequestMapping("/projects/{projectId}/github-repos")
 class ProjectGithubRepoController(
@@ -47,11 +74,39 @@ class ProjectGithubRepoController(
     private val queryGithubLabelPolicyOperationService: QueryGithubLabelPolicyOperationService,
 ) {
 
-    @Operation(summary = "등록된 GitHub 레포 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(summary = "등록된 GitHub 저장소 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
-        ApiResponse(responseCode = "403", description = "팀 멤버 아님"),
-        ApiResponse(responseCode = "404", description = "프로젝트 없음"),
+        ApiResponse(
+            responseCode = "403",
+            description = "프로젝트 읽기 권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "프로젝트 또는 등록된 저장소 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @GetMapping
     fun list(
@@ -59,13 +114,91 @@ class ProjectGithubRepoController(
         @PathVariable projectId: Long,
     ): List<ProjectGithubRepoResDto> = listProjectGithubRepoLinksService.execute(userId, projectId)
 
-    @Operation(summary = "GitHub 레포 등록", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(summary = "GitHub 저장소 등록", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "201", description = "등록 성공"),
-        ApiResponse(responseCode = "400", description = "유효하지 않은 GitHub URL"),
-        ApiResponse(responseCode = "403", description = "권한 없음"),
-        ApiResponse(responseCode = "404", description = "프로젝트 없음"),
-        ApiResponse(responseCode = "409", description = "이미 팀 내 다른 프로젝트에 연결된 레포"),
+        ApiResponse(
+            responseCode = "201",
+            description = "등록 성공",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(type = "object", requiredProperties = ["status", "code", "message", "data"]),
+                    schemaProperties = [
+                        SchemaProperty(
+                            name = "status",
+                            schema = Schema(implementation = HttpStatus::class, example = "201 CREATED"),
+                        ), SchemaProperty(
+                            name = "code",
+                            schema = Schema(type = "integer", example = "201"),
+                        ), SchemaProperty(name = "message", schema = Schema(type = "string", example = "Created")),
+                        SchemaProperty(
+                            name = "data",
+                            schema = Schema(implementation = ProjectGithubRepoResDto::class),
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "400",
+            description = "유효하지 않은 GitHub URL",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "프로젝트 또는 등록된 저장소 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "409",
+            description = "이미 팀 내 다른 프로젝트에 연결된 저장소",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"409 CONFLICT","code":409,"message":"현재 상태에서는 요청을 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -75,11 +208,39 @@ class ProjectGithubRepoController(
         @RequestBody request: AddProjectGithubRepoReqDto,
     ): ProjectGithubRepoResDto = addProjectGithubRepoService.execute(userId, projectId, request)
 
-    @Operation(summary = "GitHub 레포 등록 해제", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(summary = "GitHub 저장소 등록 해제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "204", description = "해제 성공"),
-        ApiResponse(responseCode = "403", description = "권한 없음"),
-        ApiResponse(responseCode = "404", description = "프로젝트 또는 레포 등록 없음"),
+        ApiResponse(responseCode = "204", description = "해제 성공", content = [Content()]),
+        ApiResponse(
+            responseCode = "403",
+            description = "권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "프로젝트 또는 저장소 등록 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @DeleteMapping("/{repoId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -94,10 +255,66 @@ class ProjectGithubRepoController(
     @Operation(summary = "GitHub 알림 채널 설정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "설정 성공"),
-        ApiResponse(responseCode = "400", description = "이 프로젝트 소속 채널이 아님"),
-        ApiResponse(responseCode = "403", description = "권한 없음"),
-        ApiResponse(responseCode = "404", description = "프로젝트, 레포 등록 또는 채널 없음"),
-        ApiResponse(responseCode = "503", description = "채널 projection 동기화 중"),
+        ApiResponse(
+            responseCode = "400",
+            description = "이 프로젝트 소속 채널이 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "프로젝트, 저장소 등록 또는 채널 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "503",
+            description = "채널 정보 동기화 중",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"503 SERVICE_UNAVAILABLE","code":503,"message":"일시적으로 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PutMapping("/{repoId}/webhook-channel")
     fun setWebhookChannel(
@@ -110,8 +327,36 @@ class ProjectGithubRepoController(
     @Operation(summary = "GitHub 알림 채널 해제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "해제 성공"),
-        ApiResponse(responseCode = "403", description = "권한 없음"),
-        ApiResponse(responseCode = "404", description = "프로젝트 또는 레포 등록 없음"),
+        ApiResponse(
+            responseCode = "403",
+            description = "권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "프로젝트 또는 저장소 등록 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @DeleteMapping("/{repoId}/webhook-channel")
     fun clearWebhookChannel(
@@ -123,10 +368,66 @@ class ProjectGithubRepoController(
     @Operation(summary = "라벨 자동/수동 적용 정책 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
-        ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 URL이 올바르지 않음"),
-        ApiResponse(responseCode = "403", description = "팀 멤버 아님"),
-        ApiResponse(responseCode = "404", description = "프로젝트 또는 레포 등록 없음"),
-        ApiResponse(responseCode = "503", description = "설정 projection 동기화 중"),
+        ApiResponse(
+            responseCode = "400",
+            description = "연결된 GitHub 저장소 URL이 올바르지 않음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "프로젝트 읽기 권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "프로젝트 또는 저장소 등록 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "503",
+            description = "설정 동기화 중",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"503 SERVICE_UNAVAILABLE","code":503,"message":"일시적으로 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @GetMapping("/{repoId}/label-policy")
     fun getLabelPolicy(
@@ -137,11 +438,89 @@ class ProjectGithubRepoController(
 
     @Operation(summary = "라벨 자동/수동 적용 정책 변경", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "202", description = "비동기 변경 접수"),
-        ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 URL이 올바르지 않음"),
-        ApiResponse(responseCode = "403", description = "권한 없음"),
-        ApiResponse(responseCode = "404", description = "프로젝트 또는 레포 등록 없음"),
-        ApiResponse(responseCode = "409", description = "Idempotency-Key 재사용 요청 불일치"),
+        ApiResponse(
+            responseCode = "202",
+            description = "비동기 변경 접수",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(type = "object", requiredProperties = ["status", "code", "message", "data"]),
+                    schemaProperties = [
+                        SchemaProperty(
+                            name = "status",
+                            schema = Schema(implementation = HttpStatus::class, example = "202 ACCEPTED"),
+                        ), SchemaProperty(
+                            name = "code",
+                            schema = Schema(type = "integer", example = "202"),
+                        ), SchemaProperty(name = "message", schema = Schema(type = "string", example = "Accepted")),
+                        SchemaProperty(
+                            name = "data",
+                            schema = Schema(implementation = GithubLabelPolicyOperationAcceptedResDto::class),
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "400",
+            description = "연결된 GitHub 저장소 URL이 올바르지 않음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "프로젝트 또는 저장소 등록 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "409",
+            description = "Idempotency-Key 재사용 요청 불일치",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"409 CONFLICT","code":409,"message":"현재 상태에서는 요청을 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PutMapping("/{repoId}/label-policy")
     @ResponseStatus(HttpStatus.ACCEPTED)
@@ -157,8 +536,36 @@ class ProjectGithubRepoController(
     @Operation(summary = "라벨 정책 변경 작업 상태 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
-        ApiResponse(responseCode = "403", description = "팀 멤버 아님"),
-        ApiResponse(responseCode = "404", description = "프로젝트, 레포 등록 또는 작업 없음"),
+        ApiResponse(
+            responseCode = "403",
+            description = "프로젝트 읽기 권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "프로젝트, 저장소 등록 또는 작업 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @GetMapping("/{repoId}/label-policy/operations/{operationId}")
     fun getLabelPolicyOperation(
