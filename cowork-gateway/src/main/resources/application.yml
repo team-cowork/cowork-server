@@ -1,4 +1,6 @@
 spring:
+  autoconfigure:
+    exclude: team.themoment.sdk.autoconfigure.SdkAutoConfiguration
   reactor:
     context-propagation: auto
   profiles:
