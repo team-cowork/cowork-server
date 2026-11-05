@@ -57,7 +57,6 @@ type RefreshTokenStore interface {
 		ctx context.Context,
 		oldHash string,
 		newHash string,
-		newExpiresAt time.Time,
 		now time.Time,
 	) (*domain.RefreshToken, error)
 	RevokeSession(
@@ -168,7 +167,6 @@ func (s *AuthService) RefreshTokens(ctx context.Context, rawRefreshToken string)
 		ctx,
 		HashToken(rawRefreshToken),
 		refreshHash,
-		now.Add(s.tokenSvc.RefreshExpire()),
 		now,
 	)
 	if err != nil {
