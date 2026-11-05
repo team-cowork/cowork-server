@@ -248,7 +248,8 @@ func (c *WebhookStreamConsumer) observe(ctx context.Context) error {
 }
 
 // ErrWebhookFuture stays pending: the gateway already answered 200, so the
-// entry is retried until the timestamp falls inside the accepted skew.
+// entry is retried until the timestamp falls inside the accepted skew. The
+// gateway rejects timestamps more than an hour ahead, which bounds the retries.
 func streamErrorKind(err error) string {
 	if errors.Is(err, domain.ErrInvalidWebhookPayload) || errors.Is(err, domain.ErrWebhookConflict) ||
 		errors.Is(err, domain.ErrWebhookExpired) {
