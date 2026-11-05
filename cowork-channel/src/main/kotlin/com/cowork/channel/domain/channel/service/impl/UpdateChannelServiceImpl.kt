@@ -30,20 +30,22 @@ class UpdateChannelServiceImpl(
         updateProjectId: Boolean,
     ): ChannelResponse {
         val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
-        channelAccessGuard.requireTeamChannel(channel)
+        val teamId = channelAccessGuard.requireTeamChannel(channel)
         channelPermissionSupport.requireChannelManager(channel, userId)
         if (!channel.isPrivate && request.isPrivate == true) {
             channelPermissionSupport.requirePrivateTransitionAccess(channel, userId)
         }
         val projectId = request.projectId
-        if (updateProjectId && projectId != null) requireSameTeamProject(projectId, channel.teamId)
+        if (updateProjectId && projectId != null && projectId != channel.projectId) {
+            requireSameTeamProject(projectId, teamId)
+        }
         channel.update(request.name, request.description, request.isPrivate)
         if (updateProjectId) channel.assignProject(request.projectId)
         channelEventPublisher.publishUpdated(channel)
         return ChannelResponse.of(channel)
     }
 
-    private fun requireSameTeamProject(projectId: Long, teamId: Long?) {
+    private fun requireSameTeamProject(projectId: Long, teamId: Long) {
         projectionReadinessGate.requireReady()
         val projection = projectProjectionRepository.findById(projectId).orElseThrow {
             ExpectedException("프로젝트 동기화 정보가 준비되지 않았습니다.", HttpStatus.SERVICE_UNAVAILABLE)

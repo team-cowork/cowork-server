@@ -219,4 +219,33 @@ class UpdateChannelServiceImplTest {
         }
         assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.statusCode)
     }
+
+    @Test
+    fun `updateChannel은 projection 준비 전이면 SERVICE_UNAVAILABLE이고 변경하지 않음`() {
+        val ch = channel(createdBy = 1L)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
+        every { projectionReadinessGate.requireReady() } throws
+            ExpectedException("프로젝트 동기화 정보가 준비되지 않았습니다.", HttpStatus.SERVICE_UNAVAILABLE)
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            service.execute(1L, 1L, UpdateChannelRequest(name = "new", projectId = 5L), true)
+        }
+
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.statusCode)
+        assertEquals("ch", ch.name)
+        assertEquals(null, ch.projectId)
+        verify(exactly = 0) { channelEventPublisher.publishUpdated(any(), any()) }
+    }
+
+    @Test
+    fun `updateChannel은 현재와 같은 projectId이면 프로젝트를 다시 확인하지 않음`() {
+        val ch = channel(createdBy = 1L, projectId = 5L)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
+
+        val res = service.execute(1L, 1L, UpdateChannelRequest(name = "new", projectId = 5L), true)
+
+        assertEquals("new", res.name)
+        assertEquals(5L, res.projectId)
+        verify(exactly = 0) { projectProjectionRepository.findById(any()) }
+    }
 }
