@@ -68,13 +68,6 @@ class ApiResponseWrapperFilter(
                             durationNanos = System.nanoTime() - startedAt,
                         )
                     },
-                    onEmpty = {
-                        metrics.record(
-                            exchange = exchange,
-                            outcome = ApiResponseWrappingOutcome.BYPASS_EMPTY,
-                            durationNanos = System.nanoTime() - startedAt,
-                        )
-                    },
                 ) { bytes ->
                     val httpStatus = statusCode?.let {
                         runCatching { HttpStatus.valueOf(it.value()) }.getOrNull()
@@ -93,9 +86,20 @@ class ApiResponseWrapperFilter(
                     bufferFactory().wrap(response.bytes)
                 }.switchIfEmpty(
                     Mono.defer {
-                        val bytes = emptyErrorBody() ?: return@defer Mono.empty()
-                        updateHeadersForTransformedBody(bytes)
-                        Mono.just(bufferFactory().wrap(bytes))
+                        val bytes = emptyErrorBody()
+                        if (bytes != null) updateHeadersForTransformedBody(bytes)
+                        metrics.record(
+                            exchange = exchange,
+                            outcome = if (bytes == null) {
+                                ApiResponseWrappingOutcome.BYPASS_EMPTY
+                            } else {
+                                ApiResponseWrappingOutcome.WRAPPED
+                            },
+                            sourceBytes = 0,
+                            resultBytes = bytes?.size?.toLong(),
+                            durationNanos = System.nanoTime() - startedAt,
+                        )
+                        if (bytes == null) Mono.empty() else Mono.just(bufferFactory().wrap(bytes))
                     },
                 ).doOnError {
                     metrics.record(
