@@ -372,6 +372,7 @@
   "github": {
     "environment": "Prod-CD(github)",
     "secret_bindings": {
+      "GITHUB_APP_CLIENT_SECRET": "COWORK_GITHUB_APP_CLIENT_SECRET",
       "GITHUB_PRIVATE_KEY": "COWORK_GITHUB_PRIVATE_KEY",
       "GITHUB_WEBHOOK_SECRET": "COWORK_GITHUB_WEBHOOK_SECRET",
       "INTERNAL_API_KEY": "COWORK_GITHUB_INTERNAL_API_KEY"
@@ -381,6 +382,7 @@
     "immutable_secrets": [],
     "kafka_principal": "cowork-github",
     "variable_bindings": {
+      "GITHUB_APP_CLIENT_ID": "COWORK_GITHUB_APP_CLIENT_ID",
       "GITHUB_APP_ID": "COWORK_GITHUB_APP_ID"
     }
   },
