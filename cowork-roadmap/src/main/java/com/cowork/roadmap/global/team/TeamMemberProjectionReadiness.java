@@ -8,19 +8,28 @@ import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.TopicPartition;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.kafka.listener.ConsumerAwareRebalanceListener;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
  * Uses shared relational checkpoints and a broker topic UUID so every replica
  * evaluates the same durable projection state. A source snapshot completion
  * marker is required for every partition, including initially empty topics.
+ * <p>
+ * Readiness is evaluated on a schedule and cached, so request-path access checks never query the broker.
+ * The scheduled refresh runs outside request transactions, so its checkpoint reads see the latest commit
+ * rather than a caller's snapshot.
  */
 @Component
 public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceListener, HealthIndicator {
+
+    private static final Logger log = LoggerFactory.getLogger(TeamMemberProjectionReadiness.class);
 
     private final ProjectionCheckpointRepository checkpoints;
     private final ProjectionTopicIdentityProvider topicIdentity;
@@ -28,7 +37,12 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     private final String consumerGroup;
     private final String topic;
 
+    private final Object stateLock = new Object();
+
     private volatile boolean initialized;
+    private volatile boolean ready;
+    // Guarded by stateLock. Bumped on every rebalance so a refresh that started before it cannot publish a stale result.
+    private long generation;
 
     public TeamMemberProjectionReadiness(ProjectionCheckpointRepository checkpoints,
             ProjectionTopicIdentityProvider topicIdentity,
@@ -44,7 +58,7 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
 
     @Override
     public void onPartitionsAssigned(Consumer<?, ?> consumer, Collection<TopicPartition> partitions) {
-        initialized = false;
+        invalidate();
         String topicId = topicIdentity.topicId(topic);
         List<TopicPartition> allPartitions = consumer.partitionsFor(topic)
                 .stream()
@@ -71,15 +85,36 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
                 .forEach(partition -> consumer.seek(partition, requireSeekOffset(seekOffsets, partition.partition())));
         topicGeneration.markAssigned(topicId);
         initialized = true;
+        refresh();
     }
 
     @Override
     public void onPartitionsRevokedBeforeCommit(Consumer<?, ?> consumer, Collection<TopicPartition> partitions) {
-        initialized = false;
+        invalidate();
         topicGeneration.markRevoked();
     }
 
+    /** Returns the cached readiness without touching the database or the broker. */
     public boolean isReady() {
+        return initialized && ready;
+    }
+
+    @Scheduled(fixedDelayString = "${projection.readiness.poll-interval-ms:1000}")
+    public boolean refresh() {
+        long observedGeneration;
+        synchronized (stateLock) {
+            observedGeneration = generation;
+        }
+        boolean evaluated = evaluate();
+        synchronized (stateLock) {
+            if (observedGeneration == generation) {
+                ready = evaluated;
+            }
+            return isReady();
+        }
+    }
+
+    private boolean evaluate() {
         if (!initialized) {
             return false;
         }
@@ -92,13 +127,22 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
             return ProjectionCatchUpPolicy
                     .isReady(broker.ranges().keySet(), broker.topicId(), barriers, stored, broker.ranges());
         } catch (RuntimeException exception) {
+            log.warn("Failed to evaluate team member projection readiness", exception);
             return false;
+        }
+    }
+
+    private void invalidate() {
+        synchronized (stateLock) {
+            generation++;
+            initialized = false;
+            ready = false;
         }
     }
 
     @Override
     public Health health() {
-        return isReady() ? Health.up().build() : Health.outOfService().withDetail("initialized", initialized).build();
+        return refresh() ? Health.up().build() : Health.outOfService().withDetail("initialized", initialized).build();
     }
 
     private long requireSeekOffset(Map<Integer, Long> seekOffsets, int partition) {
