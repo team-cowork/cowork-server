@@ -32,9 +32,13 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
     @Query(
         "SELECT c FROM Channel c " +
             "WHERE c.projectId = :projectId " +
+            "AND c.teamId = :teamId " +
             "ORDER BY c.id ASC",
     )
-    fun findByProjectIdOrderByIdAsc(@Param("projectId") projectId: Long): List<Channel>
+    fun findByProjectIdAndTeamIdOrderByIdAsc(
+        @Param("projectId") projectId: Long,
+        @Param("teamId") teamId: Long,
+    ): List<Channel>
 
     @Query(
         "SELECT c FROM Channel c " +
