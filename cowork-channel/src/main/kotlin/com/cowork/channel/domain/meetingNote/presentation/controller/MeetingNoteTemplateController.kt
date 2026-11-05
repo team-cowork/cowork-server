@@ -17,14 +17,41 @@ import com.cowork.channel.domain.meetingNote.service.UpdateMeetingNoteTemplateSe
 import com.cowork.channel.domain.meetingNote.service.UpdateTemplateSectionService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.ExampleObject
+import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.media.SchemaProperty
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
+import team.themoment.sdk.response.CommonApiResponse
 
 @Tag(name = "회의록 템플릿", description = "회의록 템플릿 및 섹션 CRUD API")
+@ApiResponses(
+    ApiResponse(
+        responseCode = "401",
+        description = "액세스 토큰이 없거나 유효하지 않음",
+        content = [
+            Content(
+                mediaType = "application/json",
+                schema = Schema(implementation = CommonApiResponse::class),
+                examples = [
+                    ExampleObject(
+                        value = """{"status":"401 UNAUTHORIZED","code":401,"message":"Unauthorized"}""",
+                    ),
+                ],
+            ),
+        ],
+    ),
+    ApiResponse(
+        responseCode = "default",
+        description = "기타 오류",
+        content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
+    ),
+)
 @RestController
 @RequestMapping("/channels/{channelId}/meeting-note-templates")
 class MeetingNoteTemplateController(
@@ -42,7 +69,21 @@ class MeetingNoteTemplateController(
     @Operation(summary = "템플릿 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
-        ApiResponse(responseCode = "403", description = "채널 멤버가 아님"),
+        ApiResponse(
+            responseCode = "403",
+            description = "채널 멤버가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @GetMapping
     fun listTemplates(
@@ -52,8 +93,45 @@ class MeetingNoteTemplateController(
 
     @Operation(summary = "템플릿 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "201", description = "생성 성공"),
-        ApiResponse(responseCode = "403", description = "채널 멤버가 아님"),
+        ApiResponse(
+            responseCode = "201",
+            description = "생성 성공",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(type = "object", requiredProperties = ["status", "code", "message", "data"]),
+                    schemaProperties = [
+                        SchemaProperty(
+                            name = "status",
+                            schema = Schema(implementation = HttpStatus::class, example = "201 CREATED"),
+                        ), SchemaProperty(
+                            name = "code",
+                            schema = Schema(type = "integer", example = "201"),
+                        ), SchemaProperty(name = "message", schema = Schema(type = "string", example = "Created")),
+
+                        SchemaProperty(
+                            name = "data",
+                            schema = Schema(implementation = MeetingNoteTemplateResponse::class),
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "채널 멤버가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -63,10 +141,28 @@ class MeetingNoteTemplateController(
         @RequestBody request: CreateMeetingNoteTemplateRequest,
     ): MeetingNoteTemplateResponse = createMeetingNoteTemplateService.createTemplate(userId, channelId, request)
 
-    @Operation(summary = "템플릿 상세 조회 (섹션 포함)", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(
+        summary = "템플릿 상세 조회",
+        description = "템플릿에 등록된 섹션을 함께 반환합니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
-        ApiResponse(responseCode = "404", description = "템플릿 없음"),
+        ApiResponse(
+            responseCode = "404",
+            description = "템플릿 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @GetMapping("/{templateId}")
     fun getTemplate(
@@ -78,7 +174,21 @@ class MeetingNoteTemplateController(
     @Operation(summary = "템플릿 이름 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "수정 성공"),
-        ApiResponse(responseCode = "403", description = "채널 멤버가 아님"),
+        ApiResponse(
+            responseCode = "403",
+            description = "채널 멤버가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PatchMapping("/{templateId}")
     fun updateTemplate(
@@ -90,13 +200,42 @@ class MeetingNoteTemplateController(
         updateMeetingNoteTemplateService.updateTemplate(userId, channelId, templateId, request)
 
     @Operation(
-        summary = "템플릿 삭제 (활성 템플릿, 회의록이 작성된 템플릿 삭제 불가)",
+        summary = "템플릿 삭제",
+        description = "활성 템플릿이나 회의록 작성에 사용한 템플릿은 삭제할 수 없습니다.",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
-        ApiResponse(responseCode = "204", description = "삭제 성공"),
-        ApiResponse(responseCode = "400", description = "활성 템플릿 또는 회의록이 작성된 템플릿 삭제 시도"),
-        ApiResponse(responseCode = "403", description = "채널 멤버가 아님"),
+        ApiResponse(responseCode = "204", description = "삭제 성공", content = [Content()]),
+        ApiResponse(
+            responseCode = "400",
+            description = "활성 템플릿 또는 회의록이 작성된 템플릿 삭제 시도",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "채널 멤버가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @DeleteMapping("/{templateId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -108,10 +247,28 @@ class MeetingNoteTemplateController(
         deleteMeetingNoteTemplateService.deleteTemplate(userId, channelId, templateId)
     }
 
-    @Operation(summary = "템플릿 활성화 (기존 활성 자동 해제)", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(
+        summary = "템플릿 활성화",
+        description = "기존 활성 템플릿은 자동으로 비활성화합니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "활성화 성공"),
-        ApiResponse(responseCode = "403", description = "채널 멤버가 아님"),
+        ApiResponse(
+            responseCode = "403",
+            description = "채널 멤버가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PatchMapping("/{templateId}/activate")
     fun activateTemplate(
@@ -122,8 +279,45 @@ class MeetingNoteTemplateController(
 
     @Operation(summary = "섹션 추가", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "201", description = "추가 성공"),
-        ApiResponse(responseCode = "403", description = "채널 멤버가 아님"),
+        ApiResponse(
+            responseCode = "201",
+            description = "추가 성공",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(type = "object", requiredProperties = ["status", "code", "message", "data"]),
+                    schemaProperties = [
+                        SchemaProperty(
+                            name = "status",
+                            schema = Schema(implementation = HttpStatus::class, example = "201 CREATED"),
+                        ), SchemaProperty(
+                            name = "code",
+                            schema = Schema(type = "integer", example = "201"),
+                        ), SchemaProperty(name = "message", schema = Schema(type = "string", example = "Created")),
+
+                        SchemaProperty(
+                            name = "data",
+                            schema = Schema(implementation = TemplateSectionResponse::class),
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "채널 멤버가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PostMapping("/{templateId}/sections")
     @ResponseStatus(HttpStatus.CREATED)
@@ -137,7 +331,21 @@ class MeetingNoteTemplateController(
     @Operation(summary = "섹션 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "수정 성공"),
-        ApiResponse(responseCode = "403", description = "채널 멤버가 아님"),
+        ApiResponse(
+            responseCode = "403",
+            description = "채널 멤버가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PatchMapping("/{templateId}/sections/{sectionId}")
     fun updateSection(
@@ -151,8 +359,22 @@ class MeetingNoteTemplateController(
 
     @Operation(summary = "섹션 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "204", description = "삭제 성공"),
-        ApiResponse(responseCode = "403", description = "채널 멤버가 아님"),
+        ApiResponse(responseCode = "204", description = "삭제 성공", content = [Content()]),
+        ApiResponse(
+            responseCode = "403",
+            description = "채널 멤버가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @DeleteMapping("/{templateId}/sections/{sectionId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
