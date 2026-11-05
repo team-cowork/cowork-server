@@ -7,6 +7,8 @@ import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.time.Duration
+import java.time.Instant
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatterBuilder
 import java.time.format.ResolverStyle
@@ -47,15 +49,21 @@ class DataGsmWebhookVerifier(
         val data = node?.get("data")
         node?.isObject == true && idNode?.isString == true && id.isNotBlank() && id == id.trim() && id.length <= 255 &&
             eventNode?.isString == true && event.isNotBlank() && event.length <= 64 &&
-            timestampNode?.isString == true && OffsetDateTime.parse(timestamp, RFC3339).year in 1000..9999 &&
+            timestampNode?.isString == true && validTimestamp(OffsetDateTime.parse(timestamp, RFC3339)) &&
             (
                 event != "student.updated" ||
                     (data?.isObject == true && data.get("new")?.isArray == true && data.get("new").size() > 0)
                 )
     }.getOrDefault(false)
 
+    private fun validTimestamp(timestamp: OffsetDateTime): Boolean =
+        timestamp.year in 1000..9999 && !timestamp.toInstant().isAfter(Instant.now().plus(MAX_FUTURE_SKEW))
+
     private companion object {
         const val PREFIX = "sha256="
+
+        // Authorization keeps future-dated stream entries pending, so this bounds how long they are retried.
+        val MAX_FUTURE_SKEW: Duration = Duration.ofHours(1)
 
         // Matches Go time.RFC3339Nano parsing in cowork-authorization: seconds are required.
         val RFC3339 = DateTimeFormatterBuilder()
