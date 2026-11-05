@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	_ "github.com/cowork/cowork-voice/internal/apidoc" // Gateway response schemas for swag.
 	"github.com/cowork/cowork-voice/internal/apperr"
 	"github.com/cowork/cowork-voice/internal/middleware"
 )
@@ -22,16 +23,18 @@ func NewHandler(svc Service) *Handler {
 
 // Join godoc
 // @Summary      음성 채널 입장
-// @Description  채널에 입장합니다. LiveKit 토큰과 연결 URL을 반환합니다. 기존 세션이 없으면 새로 생성됩니다.
+// @Description  채널에 입장합니다. LiveKit 토큰과 연결 URL을 반환합니다. 기존 세션이 없으면 새 세션을 만듭니다. 마이크에는 voice_speak 권한이 필요하고 카메라와 화면 공유에는 screen_share 권한이 필요합니다.
 // @Tags         voice
 // @Security     BearerAuth
 // @Produce      json
 // @Param        channel_id  path      int  true  "채널 ID"
-// @Success      200  {object}  JoinResponse
-// @Failure      401  {object}  apperr.Error
-// @Failure      403  {object}  apperr.Error  "음성 채널 연결 권한 없음"
-// @Failure      409  {object}  apperr.Error  "음성 채널 정원 초과"
-// @Failure      500  {object}  apperr.Error
+// @Success      200  {object}  apidoc.Success[JoinResponse]  "접속 토큰과 세션 정보"
+// @Failure      400  {object}  apidoc.Error  "채널 ID 형식 오류"
+// @Failure      401  {object}  apidoc.Error  "인증 필요"
+// @Failure      403  {object}  apidoc.Error  "음성 채널 접근 권한 없음"
+// @Failure      409  {object}  apidoc.Error  "음성 채널 정원 초과"
+// @Failure      500  {object}  apidoc.Error  "서버 오류"
+// @Failure      503  {object}  apidoc.Error  "채널 권한 동기화 중"
 // @Router       /voice/channels/{channel_id}/join [post]
 func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -61,10 +64,15 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 // @Description  채널에서 퇴장합니다. 마지막 참여자가 나가면 LiveKit이 빈 방을 자동 정리하고, room_finished 웹훅으로 세션이 종료됩니다.
 // @Tags         voice
 // @Security     BearerAuth
+// @Produce      json
 // @Param        channel_id  path      int  true  "채널 ID"
-// @Success      204  "퇴장 성공"
-// @Failure      401  {object}  apperr.Error
-// @Failure      404  {object}  apperr.Error  "활성 세션 없음"
+// @Success      204  "퇴장 완료. 응답 본문은 없습니다."
+// @Failure      400  {object}  apidoc.Error  "채널 ID 형식 오류"
+// @Failure      401  {object}  apidoc.Error  "인증 필요"
+// @Failure      403  {object}  apidoc.Error  "음성 채널 접근 권한 없음"
+// @Failure      404  {object}  apidoc.Error  "활성 세션 없음"
+// @Failure      500  {object}  apidoc.Error  "서버 오류"
+// @Failure      503  {object}  apidoc.Error  "채널 권한 동기화 중"
 // @Router       /voice/channels/{channel_id}/leave [post]
 func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -95,9 +103,12 @@ func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 // @Security     BearerAuth
 // @Produce      json
 // @Param        channel_id  path      int  true  "채널 ID"
-// @Success      200  {object}  ParticipantsResponse
-// @Failure      401  {object}  apperr.Error
-// @Failure      403  {object}  apperr.Error
+// @Success      200  {object}  apidoc.Success[ParticipantsResponse]  "현재 참여자 목록"
+// @Failure      400  {object}  apidoc.Error  "채널 ID 형식 오류"
+// @Failure      401  {object}  apidoc.Error  "인증 필요"
+// @Failure      403  {object}  apidoc.Error  "음성 채널 접근 권한 없음"
+// @Failure      500  {object}  apidoc.Error  "서버 오류"
+// @Failure      503  {object}  apidoc.Error  "채널 권한 동기화 중"
 // @Router       /voice/channels/{channel_id}/participants [get]
 func (h *Handler) Participants(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -129,9 +140,12 @@ func (h *Handler) Participants(w http.ResponseWriter, r *http.Request) {
 // @Security     BearerAuth
 // @Produce      json
 // @Param        session_id  path      string  true  "세션 ID"
-// @Success      200  {object}  SessionResponse
-// @Failure      401  {object}  apperr.Error
-// @Failure      404  {object}  apperr.Error
+// @Success      200  {object}  apidoc.Success[SessionResponse]  "음성 세션 정보"
+// @Failure      401  {object}  apidoc.Error  "인증 필요"
+// @Failure      403  {object}  apidoc.Error  "음성 채널 접근 권한 없음"
+// @Failure      404  {object}  apidoc.Error
+// @Failure      500  {object}  apidoc.Error  "서버 오류"
+// @Failure      503  {object}  apidoc.Error  "채널 권한 동기화 중"
 // @Router       /voice/sessions/{session_id} [get]
 func (h *Handler) GetSession(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
