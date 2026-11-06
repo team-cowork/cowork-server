@@ -1,459 +1,147 @@
 # Contributing
 
-Kotlin/Java coding conventions for this project. `AGENTS.md` and `.claude/rules/**` take precedence when they state a rule explicitly; this document is the default otherwise.
+Follow [AGENTS.md](AGENTS.md) and the matching [.claude/rules](.claude/rules); their explicit rules take precedence over this guide. Follow the owning module's patterns, keep code clear and type-safe, and comment only non-obvious logic or required contracts. Existing code does not override an explicit rule.
 
-Spring MVC/JPA examples apply to `cowork-team`, `cowork-channel`, `cowork-project`, and `cowork-roadmap`. `cowork-roadmap` uses Java; `cowork-preference` uses Kotlin with Vert.x and PostgreSQL clients. Do not apply Spring/JPA annotations to Vert.x code or copy blocking repository calls into Vert.x event loops. Go, C#, and TypeScript modules follow their own build files and module documentation.
+Spring MVC/JPA conventions apply to `cowork-team`, `cowork-channel`, `cowork-project`, and the Java-based `cowork-roadmap`. `cowork-preference` uses Kotlin, Vert.x, and PostgreSQL clients: do not add Spring/JPA annotations or blocking repository calls to its event loops. Go, C#, and TypeScript modules follow their own build files and documentation.
 
-Examples below omit imports unless the import itself is relevant. Existing code that differs from an explicit convention is not automatically an exception to it.
+## Naming
 
-## Core Principles
+| Type | Convention |
+|------|------------|
+| Service | `{Action}{Domain}Service`, with `{Action}{Domain}ServiceImpl` in `impl/`; the use-case method is usually `execute` |
+| Shared helper | Name its responsibility, such as `TeamAccessGuard` or `TeamPermissionService` |
+| Controller | `{Domain}Controller`; split by route or responsibility when needed |
+| Entity | Domain name, such as `Team` or `Roadmap`; follow the module's mapping model and [database rules](.claude/rules/database.md) |
+| Repository | `{Domain}Repository`; Spring business modules use Spring Data JPA, with native SQL for database-specific queries and locking |
 
-1. **Clarity over Cleverness**: Write code that is easy to understand and maintain.
-2. **Consistency**: Follow established patterns within the relevant module.
-3. **Type Safety**: Use Kotlin's type system and null safety features.
-4. **Separation of Concerns**: Maintain clear boundaries between layers and domain owners.
-5. **Minimal Comments**: Add comments for non-obvious logic and required contracts, such as cross-service ID provenance.
+Keep the module's DTO naming family. Action prefixes are optional for shared DTOs. Spring business DTOs live under `presentation/data/request` and `presentation/data/response`.
 
-## Naming Conventions
+| Modules | Request examples | Response examples |
+|---------|------------------|-------------------|
+| `cowork-team`, `cowork-channel` | `CreateTeamRequest`, `CreateChannelRequest` | `TeamResponse`, `ChannelResponse` |
+| `cowork-project`, `cowork-roadmap` | `CreateProjectReqDto`, `CreateRoadmapReqDto` | `ProjectResDto`, `RoadmapResDto` |
 
-### Services
+## HTTP input and DTOs
 
-**Pattern**: `{Action}{Domain}Service`, with `{Action}{Domain}ServiceImpl` in the `impl/` package.
+For Spring query parameters, use `@RequestParam` for one or two simple values. Use `@ModelAttribute` with a DTO for three or more values, or when validation is needed. Path variables and identity headers do not count as query parameters; route segments use `@PathVariable`.
 
-Examples include `CreateTeamService`, `QueryProjectService`, `DeleteChannelService`, and `ModifyRoadmapService`. The main use-case method is usually named `execute`. Shared helpers such as `TeamAccessGuard` and `TeamPermissionService` use names describing their responsibility.
+Name query DTO parameters `queryReq`, or `searchReq` for searches. Preserve query string names when refactoring. For validated DTOs, use `@Valid` with `@ModelAttribute` and ensure Bean Validation is configured.
 
-### Controllers
+| Kotlin DTO annotation | Target |
+|-----------------------|--------|
+| Jackson, including `JsonProperty` and `JsonAlias` | `@field:` |
+| Request Swagger schema | `@param:Schema` |
+| Response Swagger schema | `@field:Schema` |
+| Bean Validation constraints | `@field:`, with `@Valid` at the controller boundary |
 
-**Pattern**: `{Domain}Controller`.
+These are project conventions; they do not describe every target Jackson supports. Java records and fields use ordinary annotations. Kotlin use-site targets do not apply to Vert.x `JsonObject` payloads. See [JVM conventions](.claude/rules/jvm-conventions.md).
 
-Examples include `TeamController`, `ProjectController`, and `RoadmapController`. A domain can have multiple controllers grouped by route or responsibility, such as `TeamChannelController` and `ProjectChannelController`.
+## Architecture and transactions
 
-### Request/Response DTOs
+| Layer | Responsibility |
+|-------|----------------|
+| Controller | Map routes, validate input, pass Gateway-forwarded identity to services, and return DTOs or lists |
+| Service | Apply business rules and resource authorization, manage transactions, and convert entities through module factories such as `Response.of(entity)` or roadmap's `ResDto.from(entity)` |
+| Repository | Access data through configured JPA/JDBC APIs and parameterized queries; keep business decisions in services |
 
-Keep the naming family used by the surrounding module:
+QueryDSL is not configured in these modules. For another service's durable state, use local projections and follow the [service boundaries](.claude/rules/service-boundaries.md) and [Kafka projection rules](.claude/rules/kafka-projections.md).
 
-| Modules                            | Request examples                             | Response examples                 |
-|------------------------------------|----------------------------------------------|-----------------------------------|
-| `cowork-team`, `cowork-channel`    | `CreateTeamRequest`, `CreateChannelRequest`  | `TeamResponse`, `ChannelResponse` |
-| `cowork-project`, `cowork-roadmap` | `CreateProjectReqDto`, `CreateRoadmapReqDto` | `ProjectResDto`, `RoadmapResDto`  |
+### Responses
 
-An action prefix is optional for shared or generic DTOs. Request and response DTOs live under `presentation/data/request` and `presentation/data/response` in these Spring business modules.
+`cowork-team`, `cowork-channel`, and `cowork-project` disable the SDK response wrapper. Gateway's `ApiResponseWrapperFilter` wraps eligible JSON responses. It bypasses configured paths, streaming responses, unsupported content types, and responses over its size limit.
 
-### Entities
+Keep `204 No Content` responses bodyless. A message-only response may use `CommonApiResponse<Nothing>` with a status that permits a body. For eligible responses already in `CommonApiResponse` format, Gateway preserves `message` and non-null `data`, and sets `status` and `code` from the HTTP status.
 
-Current domain entities use the domain name, such as `Team`, `Channel`, `Project`, and `Roadmap`. The package and mapping annotations identify the storage technology; these classes are not named `TeamJpaEntity` or `RoadmapJpaEntity`.
+### Transactions
 
-`Team`, `Channel`, `Project`, and `Roadmap` are JPA entities. Follow the module's existing mapping model and the table conventions in `.claude/rules/database.md`.
+- Put Spring business transactions on service methods: `@Transactional` for writes and `@Transactional(readOnly = true)` for database reads. Do not put them on classes, controllers, or repository methods as substitutes for service boundaries.
+- Write state changes and their outbox records in one transaction. Projection processors, checkpoint stores, and outbox writers may use method-level transactions for their own persistence units.
+- Provider-only and cache-only methods do not need database transactions.
+- Roadmap uses JPA for domain and projection storage, with native queries for MySQL-specific projection SQL. Projection data and checkpoints share the processor's transaction. Flush temporary node positions before saving the final order, and load entities after acquiring the roadmap lock.
+- Preference uses explicit Vert.x SQL transactions.
 
-### Repositories
+## Injection and Kotlin style
 
-**Pattern**: `{Domain}Repository`, such as `TeamRepository`, `ChannelRepository`, `ProjectRepository`, and `RoadmapRepository`.
+- Use constructor injection for dependencies and configuration values, or a configuration properties object. Kotlin dependencies use constructor `private val` properties. Java roadmap services use final fields with `@RequiredArgsConstructor` or an explicit constructor. Avoid field-injected `@Autowired` and `@Value`.
+- Prefer `val` for references that are not reassigned. JPA entities may use `var` for mutable persisted state.
+- Use nullable types for valid absence. For a missing required resource, throw the appropriate business exception; avoid `Optional.get()` and `!!`. Use `requireNotNull` only for internal invariants, such as persisted audit timestamps.
+- Declare public API return types, infer local variable types, and omit `Unit` return types.
+- Import types instead of writing fully qualified names inline.
 
-These repositories use Spring Data JPA. Keep native SQL for database-specific locking and queries when needed.
+## Formatting
 
-## Query Parameter Binding
+[.editorconfig](.editorconfig) defines editor settings: four spaces by default, tabs for XO-linted TypeScript/JavaScript in `cowork-chat` and `cowork-github`, and Kotlin's 120-character limit with `intellij_idea` KtLint style. Follow its import layout without arbitrary blank groups. Wildcard-import and property-naming checks are disabled.
 
-For Spring controllers, choose the binding method based on query parameter count and validation needs. Path variables and identity headers are separate inputs, not query parameters.
+Run these commands from the repository root:
 
-### Use `@RequestParam` for 1-2 Simple Parameters
+| Scope | Check | Format |
+|-------|-------|--------|
+| Gradle Kotlin (`gateway`, `channel`, `team`; replace `team`) | `(cd cowork-team && ./gradlew ktlintCheck)` | `(cd cowork-team && ./gradlew ktlintFormat)` |
+| Bun chat | `(cd cowork-chat && bun run lint --max-warnings=0)` | `(cd cowork-chat && bun run lint:fix)` |
+| Node promotion | `npm --prefix cowork-promotion run lint -- --max-warnings=0` | `npm --prefix cowork-promotion run lint:fix` |
+| Bun github | `(cd cowork-github && bun run lint --max-warnings=0)` | `(cd cowork-github && bun run lint:fix)` |
+| Java roadmap | `(cd cowork-roadmap && ./gradlew spotlessCheck)` | `(cd cowork-roadmap && ./gradlew spotlessApply)` |
 
-The channel search endpoint has two query parameters:
+`cowork-promotion`, `cowork-chat`, and `cowork-github` use XO's default rules and file discovery. Fix diagnostics in code; do not add inline `eslint-disable` comments or rule overrides. Promotion has no `xo.config.mjs`. Chat and GitHub use it only to give `import-x/extensions` leading dots, which `eslint-config-xo` omits; without them, `import-x/no-cycle` checks nothing. Each module's ESLint adapter passes XO configuration to editors. Review fixes and run the module build; CI rejects warnings and errors.
 
-```kotlin
-@GetMapping("/channels")
-fun searchChannels(
-    @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-    @RequestParam teamId: Long,
-    @RequestParam q: String,
-): List<ChannelResponse> = searchChannelsService.execute(userId, teamId, q)
-```
+Roadmap uses `cowork-roadmap/config/eclipse-java-formatter.xml` and its configured import order. `check` and `build` run `spotlessCheck`; compilation does not format files. Run `spotlessApply` explicitly.
 
-Use `@PathVariable` for a route segment such as `/{teamId}`; it does not demonstrate query parameter binding.
+Maven-based `cowork-project` and Kotlin Toolchain-based `cowork-preference` have no Gradle build or `ktlintFormat` task. Follow `.editorconfig` and review their diffs. There is no repository-wide formatter.
 
-### Use `@ModelAttribute` + DTO for 3+ Parameters or Validation
+Hooks run the owning Gradle module's formatter when available. File suffix triggers do not expand formatter targets. Hooks report failures and skip modules without a formatter; they do not replace explicit checks.
 
-Use `queryReq` for general queries and `searchReq` when search intent is clear. The following is an illustrative DTO for a query needing validation, not an existing endpoint contract:
+## Errors and logging
 
-```kotlin
-data class SearchChannelsRequest(
-    @field:Positive
-    @param:Schema(description = "팀 ID", example = "1")
-    val teamId: Long,
-    @field:NotBlank
-    @param:Schema(description = "검색어", example = "개발")
-    val q: String,
-    @field:Min(0)
-    @param:Schema(description = "페이지 번호", defaultValue = "0")
-    val page: Int = 0,
-    @field:Min(1)
-    @field:Max(100)
-    @param:Schema(description = "페이지 크기", defaultValue = "20")
-    val size: Int = 20,
-)
-```
+Spring SDK business failures use `ExpectedException` directly, without subclasses or wrappers. Messages use Korean 합쇼체, end with a period, and contain no dynamic IDs or names. Preserve infrastructure exception types such as `IOException` and timeouts; do not turn programming or storage failures into business rejections. Non-Spring services use their own error handling.
 
-Bind it as `@Valid @ModelAttribute searchReq: SearchChannelsRequest`. Keep the existing query string names when refactoring parameters into a DTO, and ensure Bean Validation is configured in the module.
+Follow each service's handler and response contract: team uses `AdditionalExceptionHandler`; channel, project, and roadmap have their own `GlobalExceptionHandler`. Downstream HTTP responses can differ from Gateway-wrapped public responses.
 
-## DTO Annotations
+JVM code uses SLF4J with Logback in Spring modules and Log4j2 in Preference. Use the existing `log` or `logger` property, not `println()` or an undeclared `logger()` helper. Messages use English, start with a verb, and use SLF4J `{}` placeholders instead of interpolation. Include useful context without secrets. See [logging rules](.claude/rules/logging.md).
 
-### Jackson Serialization
-
-For Kotlin DTO properties, use `@field:` for Jackson annotations, not `@param:`. This is the project's annotation-target convention; it is not a claim that Jackson never supports constructor-parameter annotations. The same pattern appears in the project service's Kafka payload value:
-
-```kotlin
-data class GithubRepoSettingValue(
-    @field:JsonProperty("label_auto_apply")
-    val labelAutoApply: Boolean,
-)
-```
-
-Apply `@field:JsonAlias` in the same way when an input alias is needed. Kotlin use-site targets do not apply to Java records or Vert.x `JsonObject` payloads.
-
-### Swagger Documentation
-
-- **Kotlin request DTO properties**: Use `@param:Schema`.
-- **Kotlin response DTO properties**: Use `@field:Schema`.
-- **Bean Validation on Kotlin DTO properties**: Use `@field:NotBlank`, `@field:Positive`, and other field constraints, with `@Valid` at the controller boundary.
-- **Java DTOs**: Use ordinary annotations on record components or fields; Java has no `@param:`/`@field:` syntax.
-
-```kotlin
-data class CreateTeamRequest(
-    @param:Schema(description = "팀 이름", example = "코워크팀", required = true)
-    val name: String,
-    @param:Schema(description = "팀 설명")
-    val description: String?,
-    @param:Schema(description = "팀 아이콘 URL")
-    val iconUrl: String?,
-)
-
-data class IconConfirmResponse(
-    @field:Schema(description = "업로드 완료 후 사용할 CDN URL")
-    val iconUrl: String,
-)
-```
-
-Some existing DTOs have untargeted or missing `@Schema` annotations. That does not change the explicit target convention above.
-
-## Architecture Patterns
-
-### Layer Structure
-
-Spring business modules separate responsibilities as follows:
-
-```text
-Controller → Service → Repository
-```
-
-**Controller Responsibilities:**
-
-- Handle HTTP input, validation (`@Valid` where constraints are defined), and route mapping.
-- Read authenticated identity from Gateway-forwarded headers and pass it to the service.
-- Return DTOs or lists directly. `cowork-team`, `cowork-channel`, and `cowork-project` disable the SDK response wrapper and rely on the Gateway's `ApiResponseWrapperFilter` for eligible JSON responses.
-- Keep `204 No Content` responses bodyless, as the team/channel delete endpoints do. If an endpoint returns a message with no data, it can explicitly return `CommonApiResponse<Nothing>` with a body-bearing status.
-- The Gateway bypasses configured paths, streaming responses, unsupported content types, and responses exceeding its size limit.
-- For eligible responses already in `CommonApiResponse` format, the Gateway preserves `message` and non-null `data`, and sets `status` and `code` from the actual HTTP status.
-
-**Service Responsibilities:**
-
-- Business logic, resource authorization, and transaction management.
-- Entity-to-DTO conversion through the module's factories: Kotlin business modules commonly use `Response.of(entity)`; roadmap uses `ResDto.from(entity)`.
-- Coordinate repositories and the owning domain's mutation/outbox write in one transaction.
-- Use local projections for another service's durable state. Follow `.claude/rules/kafka-projections.md` for commands, ownership, ordering, and readiness.
-
-**Repository Responsibilities:**
-
-- Data access and parameterized queries, without business decisions.
-- Use the module's configured JPA or JDBC APIs. QueryDSL is not currently a configured dependency in these modules.
-
-### Example
-
-This query flow uses the existing team access guard; the guard checks membership and resolves a missing team to an `ExpectedException`.
-
-```kotlin
-@RestController
-@RequestMapping("/teams")
-class TeamQueryController(private val queryTeamService: QueryTeamService) {
-    @GetMapping("/{teamId}")
-    fun getTeam(
-        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-        @PathVariable teamId: Long,
-    ): TeamResponse = queryTeamService.execute(userId, teamId)
-}
-
-interface QueryTeamService {
-    fun execute(userId: Long, teamId: Long): TeamResponse
-}
-
-@Service
-class QueryTeamServiceImpl(private val teamAccessGuard: TeamAccessGuard) : QueryTeamService {
-    @Transactional(readOnly = true)
-    override fun execute(userId: Long, teamId: Long): TeamResponse {
-        teamAccessGuard.requireMemberExists(teamId, userId)
-        return TeamResponse.of(teamAccessGuard.findTeamOrThrow(teamId))
-    }
-}
-```
-
-The controller above shows only the query route; the actual route lives in `TeamController`. For write flows, consult `CreateTeamServiceImpl` and its event publishers rather than omitting the transactional outbox from a copied example.
-
-## Dependency Injection
-
-Use constructor injection, not field injection. In Kotlin, dependencies are normally constructor `private val` properties. Java roadmap services use final fields with Lombok `@RequiredArgsConstructor` or an explicit constructor.
-
-```kotlin
-@Service
-class TeamAccessGuard(
-    private val teamRepository: TeamRepository,
-    private val teamMemberRepository: TeamMemberRepository,
-)
-```
-
-Configuration values follow the same approach: use constructor parameters or a configuration properties object instead of `@Autowired lateinit var` or field-injected `@Value`.
-
-## Kotlin Style
-
-### Prefer `val` over `var`
-
-Use `val` for references that are not reassigned. JPA entities can use `var` for mutable persisted state, as `Team.name` and `Project.status` do; preferring `val` does not make those domain updates impossible.
-
-```kotlin
-val team = teamAccessGuard.findTeamOrThrow(teamId)
-team.update(name = request.name, description = request.description, iconUrl = null)
-```
-
-### Null Safety
-
-Use nullable types when absence is a valid result. When a required resource is missing, throw the appropriate business exception rather than dereferencing `Optional.get()` or forcing `!!`.
-
-```kotlin
-fun findTeamOrThrow(teamId: Long): Team = teamRepository.findById(teamId).orElseThrow {
-    ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
-}
-
-val description = team.description ?: "설명 없음"
-```
-
-Use `requireNotNull` only for an internal invariant that must hold, such as audited timestamps when building a response from a persisted entity.
-
-### Type Inference
-
-Use explicit return types for public APIs and inference for local variables. Omit the `Unit` return type.
-
-```kotlin
-interface QueryTeamService {
-    fun execute(userId: Long, teamId: Long): TeamResponse
-}
-
-interface DeleteTeamService {
-    fun execute(userId: Long, teamId: Long)
-}
-
-val teams = teamRepository.findAll()
-val count = teams.size
-```
-
-## Code Formatting
-
-`.editorconfig` is the source of truth for editor settings. It specifies four spaces, tabs for the XO-linted TypeScript and JavaScript files in `cowork-chat` and `cowork-github`, and, for Kotlin, a 120-character limit and the `intellij_idea` KtLint style. Kotlin import layout follows that style; do not add arbitrary blank groups. Wildcard-import and property-naming checks are disabled in the current KtLint configuration. Import types instead of writing fully qualified type names inline, as required by `.claude/rules/jvm-conventions.md`.
-
-Run commands from the repository root:
-
-| Scope                                                            | Check                                                        | Format                                       |
-| ---------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------- |
-| Gradle Kotlin module (`gateway`, `channel`, `team`; replace `team`) | `(cd cowork-team && ./gradlew ktlintCheck)`                  | `(cd cowork-team && ./gradlew ktlintFormat)` |
-| Bun chat                                                        | `(cd cowork-chat && bun run lint --max-warnings=0)`          | `(cd cowork-chat && bun run lint:fix)`       |
-| Node promotion                                                   | `npm --prefix cowork-promotion run lint -- --max-warnings=0` | `npm --prefix cowork-promotion run lint:fix` |
-| Bun github                                                       | `(cd cowork-github && bun run lint --max-warnings=0)`        | `(cd cowork-github && bun run lint:fix)`     |
-| Java roadmap                                                     | `(cd cowork-roadmap && ./gradlew spotlessCheck)`             | `(cd cowork-roadmap && ./gradlew spotlessApply)` |
-
-`cowork-promotion`, `cowork-chat`, and `cowork-github` run XO with its default rules, no inline `eslint-disable` comments, and the default file discovery. Resolve diagnostics in code rather than in configuration. `cowork-promotion` has no `xo.config.mjs`; `cowork-chat` and `cowork-github` keep one only to set `import-x/extensions` with leading dots, because `eslint-config-xo` registers them without dots and `import-x/no-cycle` otherwise checks nothing. Do not add rules there. In every module the ESLint adapter passes the XO configuration through to editors. Review automatic fixes and run the module build; CI rejects lint warnings as well as errors.
-
-Roadmap's Spotless configuration uses `cowork-roadmap/config/eclipse-java-formatter.xml` and its own import order. `check` (and therefore `build`) runs `spotlessCheck`. Compilation does not reformat Java files; run `spotlessApply` explicitly to apply formatting.
-
-`cowork-project` (Maven) and `cowork-preference` (Kotlin Toolchain) have no Gradle build or `ktlintFormat` task; follow `.editorconfig` and review their diffs explicitly. There is no repository-wide formatter for all languages.
-
-Project hooks find the edited file's owning Gradle module and run its configured formatter. Files in modules without that formatter are skipped. The suffix that triggers a hook does not expand the formatter's configured targets. Hook failures are reported but do not replace an explicit check.
-
-## Error Handling
-
-### Use ExpectedException Directly
-
-In Spring services using the SDK, instantiate `ExpectedException` directly for business failures such as missing resources, conflicts, or insufficient permissions. Do not create subclasses or wrappers.
-
-Messages must be Korean (합쇼체) ending with a period. Do not include dynamic data such as IDs or names: these messages are displayed directly to end users.
-
-```kotlin
-val team = teamRepository.findById(teamId).orElseThrow {
-    ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
-}
-
-if (!teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
-    throw ExpectedException("팀 멤버가 아닙니다.", HttpStatus.FORBIDDEN)
-}
-```
-
-Infrastructure failures retain their appropriate exception types, such as `IOException` or timeout exceptions. Do not disguise programming errors or storage failures as ordinary business rejections. Non-Spring services use their own error-handling mechanisms rather than importing the JVM SDK.
-
-### Exception Handler
-
-Exception handling is configured per service, not in a shared monorepo module: team has `AdditionalExceptionHandler`; channel, project, and roadmap have their own `GlobalExceptionHandler`. Follow the local handler and response contract when adding an error path. Downstream service HTTP responses and the Gateway's wrapped public responses can differ.
-
-## Logging
-
-### Use SLF4J with the Module's Logging Backend
-
-JVM code uses the SLF4J API. Spring modules use Logback; `cowork-preference` binds SLF4J to Log4j2 through its Kotlin Toolchain dependencies. Never use `println()` for application logging.
-
-```kotlin
-private val log = LoggerFactory.getLogger(TeamLifecycleConsumer::class.java)
-
-// Inside the consumer's error path:
-// log.error("Failed to process team lifecycle event", exception)
-```
-
-Use the existing logger property (`log` or `logger`) rather than assuming an undeclared `logger()` helper is available.
-
-### Log Message Style
-
-- **Language**: English, with verb-led sentences.
-- **Format**: SLF4J `{}` placeholders, not string interpolation.
-- Include useful context without credentials, tokens, or other secrets.
-
-```kotlin
-log.info("Deleted {} expired invitations", deletedCount)
-log.error("Failed to publish outbox event {}", eventId, exception)
-log.warn("Rejected operation for team {}", teamId)
-```
-
-### Log Levels
-
-- `ERROR`: Unrecoverable errors.
-- `WARN`: Recoverable errors or unexpected states.
-- `INFO`: Important business events.
-- `DEBUG`: Detailed diagnostic information.
-- `TRACE`: Very detailed diagnostic information.
-
-## Testing
-
-### Framework
-
-Only core business logic, authorization, and security behavior receive unit tests. Do not add integration tests, regression tests that freeze implementation details, or tests for controllers, framework wiring, configuration shape, migrations, repositories, and transport mechanics. A test belongs in the suite only when its failure identifies a broken business decision or user-visible access rule.
-
-Kotest with MockK is the convention for Kotlin Spring business tests. Roadmap uses JUnit 5, Mockito, and AssertJ. Preference uses JUnit 5/Vert.x test support and MockK. Use the dependencies and runner actually configured in the module; do not impose Kotest on Java, Vert.x, Go, C#, or TypeScript tests.
-
-This example tests the missing-team behavior in the query service shown above, using its real dependency and method names:
-
-```kotlin
-class QueryTeamServiceTest : DescribeSpec({
-    lateinit var accessGuard: TeamAccessGuard
-    lateinit var service: QueryTeamService
-
-    beforeEach {
-        accessGuard = mockk()
-        service = QueryTeamServiceImpl(accessGuard)
-    }
-
-    describe("QueryTeamService 클래스의") {
-        describe("execute 메서드는") {
-            context("멤버십 확인 후 팀을 찾을 수 없는 경우") {
-                it("ExpectedException을 던진다") {
-                    // Given
-                    every { accessGuard.requireMemberExists(10L, 1L) } just Runs
-                    every { accessGuard.findTeamOrThrow(10L) } throws
-                        ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
-
-                    // When & Then
-                    shouldThrow<ExpectedException> {
-                        service.execute(userId = 1L, teamId = 10L)
-                    }
-                }
-            }
-        }
-    }
-})
-```
-
-### Test Structure
-
-- Organize tests as Describe-Context-It and keep Given-When-Then visible inside each scenario.
-- Kotlin Spring uses `DescribeSpec` with `describe` / `context` / `it` for multi-scenario business rules. A small focused JUnit class may encode the same DCI structure in a `{method}_{context}_{expectation}` test name; use `@Nested` when several contexts share one method. Jest uses nested `describe` / `it`, ExUnit uses `describe` / `test`, and Go uses behavior-named `Test...` functions with `t.Run` for related contexts.
-- Test one behavior or scenario per test; use related assertions and interaction verification as needed.
-- Name Kotest tests in Korean and make the class and method explicit: use nested `describe("ClassName 클래스의")` / `describe("methodName 메서드는")`, or a combined `describe("ClassName 클래스의 methodName 메서드는")` for a focused one-method spec, followed by `context("상황 설명")` and `it("기대 동작")`.
-- Mock external dependencies with MockK in Kotlin; use the module's equivalent in other languages.
-- Use `beforeEach` for shared setup and `afterEach` for cleanup when needed.
-- Kafka, database, HTTP, and framework code follows the same scope rule. Transport serialization, idempotency, ordering, checkpoints, snapshot markers, retry, quarantine, and recovery mechanics are not test exceptions.
+| Level | Use |
+|-------|-----|
+| `ERROR` | Unrecoverable errors |
+| `WARN` | Recoverable errors or unexpected states |
+| `INFO` | Important business events |
+| `DEBUG` | Detailed diagnostics |
+| `TRACE` | Very detailed diagnostics |
+
+## Testing and build tools
+
+Write and run unit tests only for core business logic, including business authorization and access rules. Do not add or run regression or integration tests, or tests for controllers, framework wiring, configuration shape, migrations, repositories, or transport mechanics. Kafka serialization, idempotency, ordering, checkpoints, snapshot markers, retries, quarantine, and recovery are not exceptions.
+
+This scope does not restrict CI or coverage discovery. Keep each module's normal test command; do not add test allowlists.
+
+Use the module's configured runner and dependencies:
+
+| Modules | Frameworks |
+|---------|------------|
+| Kotlin Spring | Kotest and MockK |
+| Roadmap | JUnit 5, Mockito, and AssertJ |
+| Preference | JUnit 5/Vert.x test support and MockK |
+| Other runtimes | Their configured native tools |
+
+- Use Describe-Context-It with Given-When-Then inside each scenario. Test one behavior per test; related assertions and interaction checks may share it.
+- Kotlin Spring uses `DescribeSpec` for multiple scenarios. Name Kotest tests in Korean, identifying the class and method: nested `describe("ClassName 클래스의")` / `describe("methodName 메서드는")`, or combined `describe("ClassName 클래스의 methodName 메서드는")`, followed by `context("상황 설명")` and `it("기대 동작")`.
+- A focused JUnit class may use `{method}_{context}_{expectation}` names; use `@Nested` for multiple contexts of one method. Jest uses `describe` / `it`, ExUnit uses `describe` / `test`, and Go uses behavior-named `Test...` functions with `t.Run` for related contexts.
+- Mock external dependencies with MockK in Kotlin or the module's equivalent. Use `beforeEach` for shared setup and `afterEach` for cleanup when needed.
 
 Run the owning module's tests from the repository root:
 
-| Scope                       | Command                                                                    |
-|-----------------------------|----------------------------------------------------------------------------|
-| Gradle Kotlin module        | `(cd cowork-team && ./gradlew test)` (replace `team` with `gateway` or `channel`) |
-| Java roadmap                | `(cd cowork-roadmap && ./gradlew test)`                                    |
-| Maven project               | `(cd cowork-project && ./mvnw test)`                                       |
-| Kotlin Toolchain preference | `(cd cowork-preference && ./kotlin test)`                                  |
+| Scope | Command |
+|-------|---------|
+| Gradle Kotlin | `(cd cowork-team && ./gradlew test)` (replace `team` with `gateway` or `channel`) |
+| Java roadmap | `(cd cowork-roadmap && ./gradlew test)` |
+| Maven project | `(cd cowork-project && ./mvnw test)` |
+| Kotlin Toolchain preference | `(cd cowork-preference && ./kotlin test)` |
 
-The Kotlin Toolchain uses the checked-in `cowork-preference/kotlin` or `kotlin.bat` wrapper. It provisions the pinned toolchain and JDK; no global CLI installation is needed. Local builds, Docker, and CI use that project wrapper directly. Update both wrappers together with `./kotlin update --target-version=<version>` from the module directory.
+Each Gradle module owns its Wrapper, settings, version catalog, and build configuration; versions may differ by module. Run the module's Wrapper from its directory. There is no root Gradle build. Use the checked-in Maven wrapper for Project and native commands for other runtimes.
 
-Each Gradle module owns its Wrapper, settings, version catalog, and build configuration. Run its Wrapper from the module directory; there is no root Gradle build. Gradle and dependency versions can be updated per module. Use the checked-in Maven wrapper for `cowork-project`, the Kotlin Toolchain wrapper for `cowork-preference`, and each non-JVM module's documented native commands.
+Preference uses `cowork-preference/kotlin` or `kotlin.bat` for local builds, Docker, and CI. The wrapper provisions the pinned toolchain and JDK without a global CLI. Update both wrappers together with `./kotlin update --target-version=<version>` from the module directory.
 
 ## Security
 
-Run `bun audit` in both `cowork-chat` and `cowork-github` to check their lockfiles for known vulnerabilities. Use `bun audit --production` to check only the dependencies shipped in the runtime image.
-
-### No Hardcoded Secrets
-
-Inject secrets through environment variables, Vault, or configured secret providers. For Spring values, use constructor injection or configuration properties. JWT validation belongs to the Gateway, with the documented chat WebSocket exception in `.claude/rules/security.md`.
-
-```yaml
-# Application-owned Spring YAML; Nomad injects DB_PASSWORD from Vault.
-spring:
-  datasource:
-    password: ${DB_PASSWORD}
-```
-
-Non-Spring runtimes do not all resolve `${VAR}` placeholders; follow `.claude/rules/config.md` for their actual configuration behavior. Do not replace unresolved placeholders with committed credentials.
-
-### SQL Injection Prevention
-
-Use derived repository queries or bound parameters. Current JPA repositories can express queries without adding QueryDSL:
-
-```kotlin
-interface TeamRepository : JpaRepository<Team, Long> {
-    @Query("select t from Team t where t.name = :name")
-    fun findByName(@Param("name") name: String): List<Team>
-}
-```
-
-The query method is an illustrative addition, not an existing endpoint. Never interpolate request values into SQL/JPQL strings. Apply the same binding rule to JDBC and Vert.x SQL clients.
-
-## Common Mistakes to Avoid
-
-### DTO Annotations
-
-- Use `@field:JsonProperty`, not `@param:JsonProperty`, on Kotlin DTO properties.
-- Use `@field:Schema` on Kotlin response properties and `@param:Schema` on request properties.
-
-### Kotlin Style
-
-- Prefer `val` for references that are not reassigned.
-- Use constructor injection.
-- Comment non-obvious logic and required contracts, not self-evident operations.
-
-### Transaction Management
-
-Put Spring business transaction boundaries on service methods. Use method-level `@Transactional` for writes and `@Transactional(readOnly = true)` for database reads; do not move business boundaries to controllers or repositories, and do not use class-level transaction annotations.
-
-```kotlin
-@Service
-class QueryTeamServiceImpl(private val teamAccessGuard: TeamAccessGuard) : QueryTeamService {
-    @Transactional(readOnly = true)
-    override fun execute(userId: Long, teamId: Long): TeamResponse {
-        teamAccessGuard.requireMemberExists(teamId, userId)
-        return TeamResponse.of(teamAccessGuard.findTeamOrThrow(teamId))
-    }
-}
-```
-
-Keep state mutations and their outbox records atomic. Infrastructure components such as projection processors/checkpoint stores and outbox writers also declare method-level transactions for their own persistence units; they do not replace the service's business transaction. Do not add a database transaction to a method merely because it is named `execute` when it only calls an external provider or reads a cache.
-
-For roadmap, domain repositories and projection stores use JPA, with native queries for MySQL-specific projection SQL. Projection data and checkpoints share the processor's JPA transaction. Flush temporary node positions before saving the final order, and load entities after acquiring the roadmap lock to avoid stale persistence-context values. Preference uses explicit Vert.x SQL transactions instead of Spring annotations.
+- Inject secrets through environment variables, Vault, or configured secret providers. Follow the [configuration rules](.claude/rules/config.md); non-Spring runtimes do not all resolve `${VAR}` placeholders. Never commit credentials to work around unresolved placeholders.
+- Gateway validates access JWTs, with the Chat WebSocket exception in the [security rules](.claude/rules/security.md).
+- Use derived repository queries or bound parameters in JPA, JDBC, and Vert.x SQL. Never interpolate request values into SQL/JPQL.
+- Run `bun audit` in both `cowork-chat` and `cowork-github`; use `bun audit --production` to check only runtime dependencies.
