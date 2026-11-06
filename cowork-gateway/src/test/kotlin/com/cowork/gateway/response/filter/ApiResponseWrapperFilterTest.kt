@@ -13,6 +13,7 @@ import org.springframework.mock.http.server.reactive.MockServerHttpRequest
 import org.springframework.mock.web.server.MockServerWebExchange
 import org.springframework.web.server.ServerWebExchange
 import org.springframework.web.server.WebFilterChain
+import reactor.core.publisher.Mono
 import tools.jackson.databind.json.JsonMapper
 
 class ApiResponseWrapperFilterTest :
@@ -50,6 +51,24 @@ class ApiResponseWrapperFilterTest :
                     registry.find("gateway.response.wrapper.requests")
                         .tags("outcome", "wrapped", "status", "4xx")
                         .counter()?.count() shouldBe 1.0
+                }
+            }
+
+            context("배포 상태 내부 엔드포인트가 JSON을 응답하면") {
+                it("CD가 읽을 수 있도록 본문을 래핑하지 않는다") {
+                    val json = """{"initialized":true,"services":{},"inflight":{}}"""
+                    val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/internal/deployment-state"))
+                    val chain = mockk<WebFilterChain>()
+                    every { chain.filter(any()) } answers {
+                        val response = firstArg<ServerWebExchange>().response
+                        response.statusCode = HttpStatus.OK
+                        response.headers.contentType = MediaType.APPLICATION_JSON
+                        response.writeWith(Mono.just(response.bufferFactory().wrap(json.toByteArray())))
+                    }
+
+                    filter.filter(exchange, chain).block()
+
+                    exchange.response.bodyAsString.block() shouldBe json
                 }
             }
 
