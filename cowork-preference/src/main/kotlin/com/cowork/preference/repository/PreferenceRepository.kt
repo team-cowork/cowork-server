@@ -30,18 +30,6 @@ class PreferenceRepository(private val pool: Pool) {
         return rows.firstOrNull()?.toResourceSettingState()
     }
 
-    suspend fun findSettingsForResources(
-        resourceIds: List<Long>,
-        resourceType: ResourceType,
-    ): Map<Long, ResourceSettingState> {
-        if (resourceIds.isEmpty()) return emptyMap()
-        val rows = pool.preparedQuery(
-            "SELECT resource_id, settings, state_occurred_at FROM resource_setting " +
-                "WHERE resource_id = ANY(\$1) AND resource_type = \$2::resource_type",
-        ).execute(Tuple.of(resourceIds.toTypedArray<Long>(), resourceType.name)).coAwait()
-        return rows.map { it.toResourceSettingState() }.associateBy { it.resourceId }
-    }
-
     internal suspend fun upsertSettings(
         client: SqlClient,
         resourceId: Long,

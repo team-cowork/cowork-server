@@ -4,11 +4,11 @@ import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamInvite.presentation.data.request.InviteMembersRequest
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamMember.service.TeamMemberAccessGuard
 import com.cowork.team.domain.teamRole.entity.TeamRole
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
@@ -36,7 +36,7 @@ class InviteTeamMembersServiceImplTest :
                 memberRepository,
                 mockk<TeamEventPublisher>(relaxed = true),
                 mockk<TeamMemberEventPublisher>(relaxed = true),
-                TeamMemberAccessGuard(
+                TeamAccessGuard(
                     teamRepository,
                     memberRepository,
                     TeamPermissionGuard(memberRepository, mockk(relaxed = true)),
