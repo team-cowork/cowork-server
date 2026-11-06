@@ -50,6 +50,20 @@ class SettingSchemaTest {
     }
 
     @Test
+    fun `상태 만료 시각은 UTC 연도 1에서 9999만 허용한다`() {
+        fun validate(value: String) =
+            SettingSchema.validate(ResourceType.ACCOUNT, JsonObject().put("status_expires_at", value))
+
+        assertNull(validate("2026-04-19T12:00:00Z"))
+        assertNull(validate("0001-01-01T00:00:00Z"))
+        assertNull(validate("9999-12-31T23:59:59Z"))
+        assertNotNull(validate("+300000-01-01T00:00:00Z"))
+        assertNotNull(validate("+10000-01-01T00:00:00Z"))
+        assertNotNull(validate("0000-12-31T23:59:59Z"))
+        assertNotNull(validate("-0001-01-01T00:00:00Z"))
+    }
+
+    @Test
     fun `슬로우 모드는 0초 이상 6시간 이하만 허용한다`() {
         assertNull(SettingSchema.validate(ResourceType.TEXT_CHANNEL, JsonObject().put("slowmode_seconds", 21_600)))
         assertNotNull(SettingSchema.validate(ResourceType.TEXT_CHANNEL, JsonObject().put("slowmode_seconds", 21_601)))
