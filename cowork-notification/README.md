@@ -35,5 +35,6 @@
 | `KAFKA_BOOTSTRAP_SERVERS`                    | Kafka broker 목록                                      |
 | `KAFKA_SECURITY_PROTOCOL`                    | 운영에서는 SASL_SSL                                    |
 | `KAFKA_SASL_MECHANISM`                       | SCRAM-SHA-256 또는 SCRAM-SHA-512                       |
-| `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` | SASL_SSL에서 필수인 서비스 계정                        |
+| `KAFKA_SASL_USERNAME`                        | Kafka SASL 사용자명. SASL_SSL에서 필수               |
+| `KAFKA_SASL_PASSWORD`                        | Kafka SASL 비밀번호. SASL_SSL에서 필수               |
 | `KAFKA_SSL_CA_LOCATION`                      | Kafka CA PEM 파일 경로                                 |
