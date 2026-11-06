@@ -20,6 +20,12 @@ class ChannelNameValidationTest {
             "", "   ", "\t\n", "　", " ",
             "\u115F", "\u1160", "\u3164", "\uFFA0", "\u200B", "\uFEFF", "\u2800",
             " \u200B\u3164\u2800\uFEFF ",
+            "\u0085",
+            "\uD804\uDCBD\uD804\uDCCD",
+            "\uD80D\uDC30\uD80D\uDC3F",
+            "\uD82F\uDCA0\uD82F\uDCA3",
+            "\uD834\uDD73\uD834\uDD7A",
+            "\uDB40\uDC01\uDB40\uDC20\uDB40\uDC7F",
         ).forEach { name ->
             assertEquals(listOf("채널 이름은 공백일 수 없습니다."), createErrors(name))
             assertEquals(listOf("채널 이름은 공백일 수 없습니다."), updateErrors(name))
@@ -45,11 +51,22 @@ class ChannelNameValidationTest {
             "\u3164팀",
             "\u200B팀",
             "👩‍💻",
+            "\uDB40\uDC01팀\uD80D\uDC30",
+            "\uD80D\uDC40",
             " ${"가".repeat(100)} ",
             " ${"😀".repeat(100)} ",
         ).forEach { name ->
             assertEquals(emptyList<String>(), createErrors(name))
             assertEquals(emptyList<String>(), updateErrors(name))
+        }
+    }
+
+    @Test
+    fun `보이지 않는 문자가 길게 반복된 이름도 거부한다`() {
+        val expected = setOf("채널 이름은 공백일 수 없습니다.", "채널 이름은 100자를 초과할 수 없습니다.")
+        listOf("\u200B".repeat(10000), "\uDB40\uDC01".repeat(10000)).forEach { name ->
+            assertEquals(expected, createErrors(name).toSet())
+            assertEquals(expected, updateErrors(name).toSet())
         }
     }
 

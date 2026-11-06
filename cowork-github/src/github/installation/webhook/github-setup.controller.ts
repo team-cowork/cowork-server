@@ -34,6 +34,7 @@ export class GithubSetupController {
 		@requestQuery('installation_id') installationIdRaw: string,
 		@requestQuery('setup_action') setupAction: string,
 		@requestQuery('state') state?: string,
+		@requestQuery('code') code?: string,
 	): Promise<string> {
 		const installationId = Number(installationIdRaw);
 		if (installationIdRaw === '' || !Number.isSafeInteger(installationId)) {
@@ -55,6 +56,20 @@ export class GithubSetupController {
 				);
 				return this.page(
 					'GitHub App 설치는 완료되었지만 cowork 팀과 연결하지 못했습니다. cowork에서 다시 연동을 시도해주세요.',
+				);
+			}
+
+			// 이 콜백은 인증 없이 열려 있으므로, 설치를 진행한 GitHub 사용자가 이 설치에 접근할 수 있을 때만 팀에 연결한다.
+			if (
+				code === undefined
+				|| code === ''
+				|| !(await this.authService.canUserAccessInstallation(code, installationId))
+			) {
+				this.logger.warn(
+					`Setup callback user cannot be verified for installation, skipping team connection [installationId=${installationId}]`,
+				);
+				return this.page(
+					'GitHub 설치 권한을 확인하지 못해 cowork 팀과 연결하지 않았습니다. cowork에서 다시 연동을 시도해주세요.',
 				);
 			}
 
