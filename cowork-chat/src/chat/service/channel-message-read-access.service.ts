@@ -208,7 +208,7 @@ export class ChannelMessageReadAccessService {
 		for (const {request, channel, teamId} of policyCandidates) {
 			const assignedRoleIds = assignmentsByTeamUser.get(teamUserKey(teamId, request.userId)) ?? [];
 			const applicable = roleById.values().filter(role => role.teamId === teamId
-				&& (role.isDefault === true || assignedRoleIds.includes(role.roleId))).toArray();
+				&& (role.isDefault || assignedRoleIds.includes(role.roleId))).toArray();
 			const channelPolicies = new Map(applicable.flatMap(role => {
 				const policy = policyByKey.get(policyKey(request.channelId, role.roleId));
 				return policy?.teamId === teamId ? [[role.roleId, policy.permissions ?? {}] as const] : [];
