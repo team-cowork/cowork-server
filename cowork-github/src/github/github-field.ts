@@ -3,7 +3,10 @@ GitHub REST API와 HTTP 헤더가 정한 필드 이름이다. 외부 계약이�
 */
 export const githubField = {
 	accept: 'Accept',
+	accessToken: 'access_token',
 	authorization: 'Authorization',
+	clientId: 'client_id',
+	clientSecret: 'client_secret',
 	createdAt: 'created_at',
 	fullName: 'full_name',
 	htmlUrl: 'html_url',
@@ -11,6 +14,7 @@ export const githubField = {
 	mergedAt: 'merged_at',
 	mergeMethod: 'merge_method',
 	perPage: 'per_page',
+	performedViaGithubApp: 'performed_via_github_app',
 	pullRequest: 'pull_request',
 	repositoriesAdded: 'repositories_added',
 	repositoriesRemoved: 'repositories_removed',

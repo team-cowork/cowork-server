@@ -1,0 +1,86 @@
+{{ define "cowork.discord.embed" -}}
+{{ $grafana := .grafana }}
+{{ with .data }}
+{{ $firing := .Alerts.Firing }}
+{{ $resolved := .Alerts.Resolved }}
+{{ $badge := "정보" }}{{ $color := 0x3498DB }}
+{{ if eq .Status "resolved" }}
+  {{ $badge = "복구" }}{{ $color = 0x2ECC71 }}
+{{ else }}
+  {{ range $firing }}
+    {{ if eq .Labels.severity "critical" }}
+      {{ $badge = "긴급" }}{{ $color = 0xED4245 }}{{ break }}
+    {{ else if eq .Labels.severity "warning" }}
+      {{ $badge = "주의" }}{{ $color = 0xF0A020 }}
+    {{ end }}
+  {{ end }}
+{{ end }}
+
+{{ $code := or .GroupLabels.alertname "Alertmanager" }}
+{{ $title := printf "[%s] %.90s" $badge (or .CommonAnnotations.summary $code) }}
+{{ $overview := printf "진행 중 **%d건**  |  복구 **%d건**" (len $firing) (len $resolved) }}
+
+{{/* Discord의 필드별 글자 수와 메시지 전체 길이 제한 안에서 진행 중인 대상부터 표시한다. */}}
+{{ $shown := list }}
+{{ range $group := list $firing $resolved }}
+  {{ range $group }}
+    {{ if eq (len $shown) 3 }}{{ break }}{{ end }}
+    {{ $shown = append $shown . }}
+  {{ end }}
+{{ end }}
+{{ $fields := list }}
+{{ $block := "```\n%s\n```" }}
+{{ range $alert := $shown }}
+  {{ $name := "발생" }}{{ $time := .StartsAt }}
+  {{ $detail := or .Annotations.description .Annotations.summary .Labels.alertname "모니터링 알림" }}
+  {{ if eq .Status "resolved" }}
+    {{ $name = "복구" }}{{ $time = .EndsAt }}
+  {{ end }}
+  {{ $value := printf "%.220s" $detail }}
+  {{ if ne $value $detail }}{{ $value = printf "%s…" $value }}{{ end }}
+  {{ if eq .Status "resolved" }}{{ $value = printf "**발생 당시 상황**\n%s" $value }}{{ end }}
+  {{ $fields = append $fields (dict "name" $name "value" $value) }}
+  {{ with or .Labels.service $.data.GroupLabels.service }}
+    {{ $fields = append $fields (dict "name" "서비스" "value" (printf "`%.42s`" (reReplaceAll "[`\r\n]" " " .)) "inline" true) }}
+  {{ end }}
+  {{ with or .Labels.module .Annotations.module }}
+    {{ $fields = append $fields (dict "name" "모듈" "value" (printf "`%.40s`" (reReplaceAll "[`\r\n]" " " .)) "inline" true) }}
+  {{ end }}
+  {{ if not $time.IsZero }}
+    {{ $fields = append $fields (dict "name" (printf "%s 시각" $name) "value" (printf "<t:%d:f>" $time.Unix) "inline" true) }}
+  {{ end }}
+
+  {{ $debug := "" }}
+  {{ with .Fingerprint }}{{ $debug = printf "alert_id=%s" . }}{{ end }}
+  {{ with .Annotations.observed_value }}{{ $debug = printf "%s\n측정값=%.40s" $debug . }}{{ end }}
+  {{ range $key := stringSlice "trace_id" "request_id" "log_id" "host" "instance" "route" "consumergroup" "topic" "partition" "mountpoint" "env" "job" "task" "client" }}
+    {{ with or (index $alert.Labels $key) (index $alert.Annotations $key) }}{{ $debug = printf "%s\n%s=%.85s" $debug $key (reReplaceAll "[\r\n]+" " " .) }}{{ end }}
+  {{ end }}
+  {{ with trimSpace $debug }}
+    {{ $text := printf "%.210s" . }}{{ if ne $text . }}{{ $text = printf "%s…" $text }}{{ end }}
+    {{ $fields = append $fields (dict "name" "진단 정보" "value" (printf $block (reReplaceAll "`{3,}" "'''" $text))) }}
+  {{ end }}
+
+  {{ $log := "" }}
+  {{ with .Annotations.log_excerpt }}
+    {{ if not (match "^<error expanding template:" .) }}
+      {{ $sample := printf "%.150s" . }}{{ if ne $sample . }}{{ $sample = printf "%s…" $sample }}{{ end }}
+      {{ $log = printf $block (reReplaceAll "`{3,}" "'''" $sample) }}
+      {{/* Discord는 코드블록 밖에 있는 시각만 현지 시간으로 표시한다. */}}
+      {{ $log = reReplaceAll "^```\n(<t:[0-9]+:f>)\n" "$1\n```\n" $log }}
+    {{ end }}
+  {{ end }}
+  {{ with .Annotations.log_dashboard }}
+    {{ $anchor := now }}{{ if eq $alert.Status "resolved" }}{{ $anchor = $alert.EndsAt }}{{ end }}
+    {{ $url := printf "%s/d/%s?viewPanel=6&time=%d&time.window=3600000" $grafana (urlquery .) $anchor.UnixMilli }}
+    {{ with $alert.Labels.env }}{{ $url = printf "%s&var-env=%s" $url (urlquery .) }}{{ end }}
+    {{ if eq . "cowork-logs" }}{{ $url = printf "%s&var-service=%s" $url (urlquery $alert.Labels.service) }}{{ end }}
+    {{ if and $grafana (le (len $url) 400) }}{{ $log = printf "%s\n[Grafana에서 로그 열기](%s)" $log $url }}{{ end }}
+  {{ end }}
+  {{ with trimSpace $log }}{{ $fields = append $fields (dict "name" "관련 로그" "value" .) }}{{ end }}
+{{ end }}
+{{ $footer := printf "%.75s" $code }}
+{{ if lt (len $shown) (len .Alerts) }}{{ $footer = printf "%s (전체 %d건 중 %d건 표시)" $footer (len .Alerts) (len $shown) }}{{ end }}
+{{ dict "title" $title "color" $color "description" $overview "fields" $fields "footer" (dict "text" $footer) | toJson }}
+{{ end }}
+{{- end }}

@@ -4,11 +4,11 @@ import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamInvite.presentation.data.request.InviteMembersRequest
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamMember.service.TeamMemberAccessGuard
 import com.cowork.team.domain.teamRole.entity.TeamRole
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
@@ -36,7 +36,7 @@ class InviteTeamMembersServiceImplTest :
                 memberRepository,
                 mockk<TeamEventPublisher>(relaxed = true),
                 mockk<TeamMemberEventPublisher>(relaxed = true),
-                TeamMemberAccessGuard(
+                TeamAccessGuard(
                     teamRepository,
                     memberRepository,
                     TeamPermissionGuard(memberRepository, mockk(relaxed = true)),
@@ -57,6 +57,28 @@ class InviteTeamMembersServiceImplTest :
                     }
 
                     error.statusCode shouldBe HttpStatus.FORBIDDEN
+                    verify(exactly = 0) { memberRepository.saveAll<TeamMember>(any()) }
+                }
+            }
+
+            context("양수가 아닌 사용자 ID가 포함되면") {
+                it("BAD_REQUEST로 거부하고 저장하지 않는다") {
+                    val error = shouldThrow<ExpectedException> {
+                        service.execute(10L, 1L, InviteMembersRequest(listOf(30L, 0L)))
+                    }
+
+                    error.statusCode shouldBe HttpStatus.BAD_REQUEST
+                    verify(exactly = 0) { memberRepository.saveAll<TeamMember>(any()) }
+                }
+            }
+
+            context("사용자 ID가 100개를 넘으면") {
+                it("BAD_REQUEST로 거부하고 저장하지 않는다") {
+                    val error = shouldThrow<ExpectedException> {
+                        service.execute(10L, 1L, InviteMembersRequest((1L..101L).toList()))
+                    }
+
+                    error.statusCode shouldBe HttpStatus.BAD_REQUEST
                     verify(exactly = 0) { memberRepository.saveAll<TeamMember>(any()) }
                 }
             }

@@ -11,14 +11,41 @@ import com.cowork.channel.domain.sharedAccount.service.ListSharedAccountsService
 import com.cowork.channel.domain.sharedAccount.service.UpdateSharedAccountService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.ExampleObject
+import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.media.SchemaProperty
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
+import team.themoment.sdk.response.CommonApiResponse
 
 @Tag(name = "계정 공유", description = "ACCOUNT_SHARE 채널의 공유 계정 관리 API")
+@ApiResponses(
+    ApiResponse(
+        responseCode = "401",
+        description = "액세스 토큰이 없거나 유효하지 않음",
+        content = [
+            Content(
+                mediaType = "application/json",
+                schema = Schema(implementation = CommonApiResponse::class),
+                examples = [
+                    ExampleObject(
+                        value = """{"status":"401 UNAUTHORIZED","code":401,"message":"Unauthorized"}""",
+                    ),
+                ],
+            ),
+        ],
+    ),
+    ApiResponse(
+        responseCode = "default",
+        description = "기타 오류",
+        content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
+    ),
+)
 @RestController
 @RequestMapping("/channels/{channelId}/accounts")
 class SharedAccountController(
@@ -33,9 +60,51 @@ class SharedAccountController(
     @Operation(summary = "공유 계정 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
-        ApiResponse(responseCode = "400", description = "ACCOUNT_SHARE 채널이 아님"),
-        ApiResponse(responseCode = "403", description = "팀 멤버가 아님"),
-        ApiResponse(responseCode = "404", description = "채널 없음"),
+        ApiResponse(
+            responseCode = "400",
+            description = "ACCOUNT_SHARE 채널이 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "팀 멤버가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @GetMapping
     fun listAccounts(
@@ -46,8 +115,36 @@ class SharedAccountController(
     @Operation(summary = "공유 계정 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
-        ApiResponse(responseCode = "403", description = "팀 멤버가 아님"),
-        ApiResponse(responseCode = "404", description = "채널 또는 계정 없음"),
+        ApiResponse(
+            responseCode = "403",
+            description = "팀 멤버가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 또는 계정 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @GetMapping("/{accountId}")
     fun getAccount(
@@ -58,9 +155,60 @@ class SharedAccountController(
 
     @Operation(summary = "공유 계정 등록 (수동)", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "201", description = "등록 성공"),
-        ApiResponse(responseCode = "400", description = "ACCOUNT_SHARE 채널이 아님 또는 CUSTOM 서비스에 이름 누락"),
-        ApiResponse(responseCode = "403", description = "팀 멤버가 아님"),
+        ApiResponse(
+            responseCode = "201",
+            description = "등록 성공",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(type = "object", requiredProperties = ["status", "code", "message", "data"]),
+                    schemaProperties = [
+                        SchemaProperty(
+                            name = "status",
+                            schema = Schema(implementation = HttpStatus::class, example = "201 CREATED"),
+                        ), SchemaProperty(
+                            name = "code",
+                            schema = Schema(type = "integer", example = "201"),
+                        ), SchemaProperty(name = "message", schema = Schema(type = "string", example = "Created")),
+
+                        SchemaProperty(
+                            name = "data",
+                            schema = Schema(implementation = SharedAccountResponse::class),
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "400",
+            description = "ACCOUNT_SHARE 채널이 아님 또는 CUSTOM 서비스에 이름 누락",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "팀 멤버가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -73,8 +221,36 @@ class SharedAccountController(
     @Operation(summary = "공유 계정 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "수정 성공"),
-        ApiResponse(responseCode = "403", description = "수정 권한 없음 (등록자·채널 생성자·팀 Admin 전용)"),
-        ApiResponse(responseCode = "404", description = "채널 또는 계정 없음"),
+        ApiResponse(
+            responseCode = "403",
+            description = "수정 권한 없음 (등록자, 채널 생성자 또는 팀 관리자만 가능)",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 또는 계정 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PatchMapping("/{accountId}")
     fun updateAccount(
@@ -86,9 +262,37 @@ class SharedAccountController(
 
     @Operation(summary = "공유 계정 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "204", description = "삭제 성공"),
-        ApiResponse(responseCode = "403", description = "삭제 권한 없음 (등록자·채널 생성자·팀 Admin 전용)"),
-        ApiResponse(responseCode = "404", description = "채널 또는 계정 없음"),
+        ApiResponse(responseCode = "204", description = "삭제 성공", content = [Content()]),
+        ApiResponse(
+            responseCode = "403",
+            description = "삭제 권한 없음 (등록자, 채널 생성자 또는 팀 관리자만 가능)",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 또는 계정 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @DeleteMapping("/{accountId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -101,13 +305,42 @@ class SharedAccountController(
     }
 
     @Operation(
-        summary = "credential 복사 (복호화 반환 + 접근 로그 기록)",
+        summary = "공유 계정 인증 정보 복사",
+        description = "인증 정보를 복호화해 반환하고 접근 기록을 남깁니다.",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
-        ApiResponse(responseCode = "200", description = "복호화된 credential 반환"),
-        ApiResponse(responseCode = "403", description = "팀 멤버가 아님"),
-        ApiResponse(responseCode = "404", description = "채널, 계정 또는 credential 없음"),
+        ApiResponse(responseCode = "200", description = "복호화한 인증 정보 반환"),
+        ApiResponse(
+            responseCode = "403",
+            description = "팀 멤버가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널, 계정 또는 인증 정보 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PostMapping("/{accountId}/credential/copy")
     fun copyCredential(

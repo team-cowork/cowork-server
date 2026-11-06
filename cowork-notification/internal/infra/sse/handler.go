@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	_ "github.com/cowork/cowork-notification/internal/apidoc" // Gateway response schemas for swag.
 	"github.com/cowork/cowork-notification/internal/middleware"
 )
 
@@ -14,13 +15,12 @@ const keepaliveInterval = 30 * time.Second
 // streamHandler godoc
 //
 //	@Summary		SSE 알림 스트림 구독
-//	@Description	인증된 사용자의 실시간 알림 이벤트를 Server-Sent Events(SSE)로 스트리밍합니다. 30초마다 keepalive ping을 전송합니다. 같은 알림이 다시 전달될 수 있으므로(at-least-once) 클라이언트는 eventId로 중복을 제거합니다.
+//	@Description	연결되면 connected 이벤트를 보내고 이후 알림을 전송합니다. 연결을 유지하기 위해 30초마다 ping 주석을 보냅니다. 같은 알림을 다시 받을 수 있으므로 eventId로 중복을 확인합니다.
 //	@Tags			notifications
-//	@Produce		text/event-stream
-//	@Param			X-User-Id	header	int64	true	"사용자 ID (Gateway 주입)"
+//	@Produce		text/event-stream,json
 //	@Success		200	{string}	string	"data: {eventId, type, title, body, channelId, teamId}"
-//	@Failure		401	{string}	string	"인증 실패"
-//	@Failure		500	{string}	string	"SSE not supported"
+//	@Failure		401	{object}	apidoc.Error	"인증 실패"
+//	@Failure		500	{object}	apidoc.Error	"서버에서 SSE를 지원하지 않음"
 //	@Security		BearerAuth
 //	@Router			/notifications/stream [get]
 func streamHandler(w http.ResponseWriter, r *http.Request) {} //nolint:unused

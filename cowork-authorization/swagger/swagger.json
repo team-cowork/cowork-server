@@ -1,7 +1,7 @@
 {
     "swagger": "2.0",
     "info": {
-        "description": "인증/인가 서비스 — DataGSM OAuth2 PKCE 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신",
+        "description": "DataGSM 계정으로 로그인하고 Cowork 토큰을 발급하거나 갱신합니다.",
         "title": "cowork Authorization API",
         "contact": {},
         "version": "20261104.0"
@@ -10,7 +10,7 @@
     "paths": {
         "/auth/refresh": {
             "post": {
-                "description": "리프레시 토큰으로 새로운 액세스/리프레시 토큰 쌍을 발급합니다.",
+                "description": "리프레시 토큰을 교환해 새 액세스 토큰과 새 리프레시 토큰을 받습니다.",
                 "consumes": [
                     "application/json"
                 ],
@@ -39,39 +39,39 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "새 access_token, refresh_token",
+                        "description": "새 토큰 쌍",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_TokenPair"
+                        },
+                        "headers": {
+                            "Set-Cookie": {
+                                "type": "string",
+                                "description": "WebSocket 인증 쿠키(cowork_ws_token, Path=/ws)"
                             }
                         }
                     },
                     "400": {
-                        "description": "refresh_token is required",
+                        "description": "필수 요청 값이 없거나 형식이 잘못됨",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
                     },
                     "401": {
-                        "description": "invalid or expired refresh token",
+                        "description": "유효하지 않거나 만료된 리프레시 토큰",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
+                        }
+                    },
+                    "429": {
+                        "description": "요청 한도 초과",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
                     },
                     "503": {
-                        "description": "authentication temporarily unavailable",
+                        "description": "인증 서비스를 일시적으로 사용할 수 없음",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
                     }
                 }
@@ -84,7 +84,7 @@
                         "BearerAuth": []
                     }
                 ],
-                "description": "리프레시 토큰을 무효화합니다. Authorization 헤더(Bearer) 필요.",
+                "description": "리프레시 토큰을 무효화하고 WebSocket 인증 쿠키를 삭제합니다.",
                 "consumes": [
                     "application/json"
                 ],
@@ -113,33 +113,30 @@
                 ],
                 "responses": {
                     "204": {
-                        "description": "로그아웃 성공"
+                        "description": "로그아웃 완료. 응답 본문은 없습니다."
                     },
                     "400": {
-                        "description": "refresh_token is required",
+                        "description": "필수 요청 값이 없거나 형식이 잘못됨",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
                     },
                     "401": {
-                        "description": "unauthorized",
+                        "description": "인증 실패 또는 유효하지 않은 리프레시 토큰",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
+                        }
+                    },
+                    "429": {
+                        "description": "요청 한도 초과",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
                     },
                     "503": {
-                        "description": "authentication temporarily unavailable",
+                        "description": "인증 서비스를 일시적으로 사용할 수 없음",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
                     }
                 }
@@ -147,7 +144,7 @@
         },
         "/auth/token": {
             "post": {
-                "description": "프론트엔드가 DataGSM에서 직접 받은 인가 코드와 code_verifier로 액세스/리프레시 토큰을 발급합니다.",
+                "description": "DataGSM 인가 코드와 PKCE 검증 값으로 액세스 토큰과 리프레시 토큰을 발급합니다.",
                 "consumes": [
                     "application/json"
                 ],
@@ -157,7 +154,7 @@
                 "tags": [
                     "auth"
                 ],
-                "summary": "토큰 발급 (PKCE code exchange)",
+                "summary": "인가 코드로 토큰 발급",
                 "parameters": [
                     {
                         "description": "코드 교환 요청",
@@ -182,36 +179,39 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "새 토큰 쌍",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_authorization_internal_service.TokenPair"
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_TokenPair"
+                        },
+                        "headers": {
+                            "Set-Cookie": {
+                                "type": "string",
+                                "description": "WebSocket 인증 쿠키(cowork_ws_token, Path=/ws)"
+                            }
                         }
                     },
                     "400": {
-                        "description": "missing required fields",
+                        "description": "필수 요청 값이 없거나 형식이 잘못됨",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
                     },
                     "401": {
-                        "description": "authentication failed",
+                        "description": "인가 코드 검증 실패",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
+                        }
+                    },
+                    "429": {
+                        "description": "요청 한도 초과",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
                     },
                     "503": {
-                        "description": "authentication temporarily unavailable",
+                        "description": "인증 서비스를 일시적으로 사용할 수 없음",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
                     }
                 }
@@ -219,7 +219,7 @@
         },
         "/events/datagsm": {
             "post": {
-                "description": "서명을 검증한 student.updated 배치의 inbox와 전체 outbox를 같은 DB 트랜잭션으로 저장합니다. 200은 접수 완료이며 Kafka 발행 및 학생 정보 반영은 비동기입니다. 동일 ID·동일 내용은 duplicate, 내용 충돌은 409입니다. 발생 후 30일 이상 지난 이벤트와 5분 초과 미래 이벤트는 거부합니다. 기록은 30일 보관하며 미발행 작업이 남으면 보존합니다.",
+                "description": "서명한 이벤트 본문을 전송합니다(최대 1 MiB). 200은 접수를 뜻하며 학생 정보는 나중에 반영됩니다. 같은 ID와 내용은 중복으로 처리하고 내용이 다르면 충돌로 처리합니다. 발생한 지 30일 이상 지났거나 현재보다 5분을 초과해 앞선 이벤트는 처리하지 않습니다.",
                 "consumes": [
                     "application/json"
                 ],
@@ -229,7 +229,7 @@
                 "tags": [
                     "events"
                 ],
-                "summary": "DataGSM webhook 영속 접수",
+                "summary": "DataGSM 웹훅 접수",
                 "parameters": [
                     {
                         "type": "string",
@@ -237,61 +237,66 @@
                         "name": "X-DataGSM-Signature",
                         "in": "header",
                         "required": true
+                    },
+                    {
+                        "description": "이벤트 ID, 종류, RFC 3339 발생 시각 및 데이터. student.updated는 data.new에 변경 항목을 담습니다.",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "data": {
+                                    "type": "object"
+                                },
+                                "event": {
+                                    "type": "string"
+                                },
+                                "id": {
+                                    "type": "string"
+                                },
+                                "timestamp": {
+                                    "type": "string"
+                                }
+                            }
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "accepted | duplicate | ignored",
+                        "description": "접수 상태: accepted, duplicate 또는 ignored",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Success-internal_handler_WebhookReceipt"
                         }
                     },
                     "400": {
-                        "description": "invalid_payload | event_expired | invalid_event_timestamp",
+                        "description": "잘못된 이벤트 형식 또는 발생 시각",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
                     },
                     "401": {
-                        "description": "invalid_signature",
+                        "description": "웹훅 서명 검증 실패",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
                     },
                     "409": {
-                        "description": "event_id_conflict",
+                        "description": "같은 이벤트 ID의 내용 불일치",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
                     },
                     "413": {
-                        "description": "payload_too_large",
+                        "description": "본문 크기 제한 초과",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
                     },
                     "503": {
-                        "description": "temporarily_unavailable",
+                        "description": "웹훅 접수 서비스 사용 불가",
                         "schema": {
-                            "type": "object",
-                            "additionalProperties": {
-                                "type": "string"
-                            }
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
                     }
                 }
@@ -299,6 +304,85 @@
         }
     },
     "definitions": {
+        "github_com_cowork_authorization_internal_apidoc.Error": {
+            "type": "object",
+            "required": [
+                "code",
+                "message",
+                "status"
+            ],
+            "properties": {
+                "code": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_TokenPair": {
+            "type": "object",
+            "required": [
+                "code",
+                "data",
+                "message",
+                "status"
+            ],
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "enum": [
+                        200
+                    ]
+                },
+                "data": {
+                    "$ref": "#/definitions/github_com_cowork_authorization_internal_service.TokenPair"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "OK"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "200 OK"
+                    ]
+                }
+            }
+        },
+        "github_com_cowork_authorization_internal_apidoc.Success-internal_handler_WebhookReceipt": {
+            "type": "object",
+            "required": [
+                "code",
+                "data",
+                "message",
+                "status"
+            ],
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "enum": [
+                        200
+                    ]
+                },
+                "data": {
+                    "$ref": "#/definitions/internal_handler.WebhookReceipt"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "OK"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "200 OK"
+                    ]
+                }
+            }
+        },
         "github_com_cowork_authorization_internal_service.TokenPair": {
             "type": "object",
             "properties": {
@@ -315,11 +399,27 @@
                     "type": "string"
                 }
             }
+        },
+        "internal_handler.WebhookReceipt": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "accepted",
+                        "duplicate",
+                        "ignored"
+                    ]
+                }
+            }
         }
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "\"Bearer {access_token}\" 형식으로 입력하세요.",
+            "description": "\"Bearer {access_token}\" 형식으로 입력합니다.",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"

@@ -15,7 +15,12 @@ import {NotificationTriggerProducer} from './notification-trigger.producer.js';
 
 const POLL_INTERVAL_MS = 5000;
 const BATCH_SIZE = 10;
-const MAX_RETRY = 3;
+/**
+재시도 한도. 백오프 상한과 함께 약 20분 동안 이어지는 broker 장애까지 견딘다
+*/
+const MAX_RETRY = 10;
+const RETRY_BASE_DELAY_MS = 5000;
+const RETRY_MAX_DELAY_MS = 5 * 60 * 1000;
 /**
 이 시간(2분) 이상 PROCESSING에 머문 메시지를 PENDING으로 회수한다
 */
@@ -26,10 +31,18 @@ ReclaimStaleProcessing 실행 최소 간격 — 5초마다 updateMany를 보내�
 const RECLAIM_INTERVAL_MS = 60_000;
 
 /**
+ 실패 횟수에 따른 지수 백오프 시각 (5초, 10초, 20초 … 상한 5분)
+ */
+export function nextAttemptAt(retryCount: number, now = Date.now()): Date {
+	const delay = Math.min(RETRY_BASE_DELAY_MS * (2 ** Math.min(retryCount - 1, 10)), RETRY_MAX_DELAY_MS);
+	return new Date(now + delay);
+}
+
+/**
  알림 발송 대기 중인 메시지를 주기적으로 조회하여 알림 트리거를 발행하는 폴러.
 
  Outbox 패턴** 구현체로, 5초 간격으로 PENDING 상태의 메시지를 최대 10개씩 배치 처리한다.
- 처리 실패 시 최대 {@link MAX_RETRY}회까지 재시도하며, 초과 시 FAILED 상태로 전환한다.
+ 처리 실패 시 지수 백오프로 다음 시도 시각을 미루며 최대 {@link MAX_RETRY}회까지 재시도하고, 초과 시 FAILED 상태로 전환한다.
 
  배치 내 중복 DB 조회를 줄이기 위해 `recipientCache`와 `parentCache`를 활용한다.
  */
@@ -138,7 +151,10 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 			const retryCount = (message.notificationRetryCount ?? 0) + 1;
 			const nextStatus = retryCount >= MAX_RETRY ? 'FAILED' : 'PENDING';
 			this.logger.error(`Outbox processing failed (messageId: ${message._id.toString()}, retry: ${retryCount}/${MAX_RETRY}), transitioning to ${nextStatus}`, error);
-			await this.messageRepository.updateNotificationStatus(message._id, message.notificationClaimId!, nextStatus, retryCount);
+			await this.messageRepository.updateNotificationStatus(message._id, message.notificationClaimId!, nextStatus, {
+				retryCount,
+				...(nextStatus === 'PENDING' && {nextAttemptAt: nextAttemptAt(retryCount)}),
+			});
 		}
 	}
 

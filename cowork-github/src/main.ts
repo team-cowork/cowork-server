@@ -1,4 +1,3 @@
-import process from 'node:process';
 import {Logger, ValidationPipe} from '@nestjs/common';
 import {NestFactory} from '@nestjs/core';
 import {type MicroserviceOptions, Transport} from '@nestjs/microservices';
@@ -33,24 +32,11 @@ async function bootstrap() {
 	});
 
 	app.useGlobalPipes(new ValidationPipe({whitelist: true}));
+	// Bun runs as PID 1, so exit after shutdown hooks instead of re-sending the signal.
+	app.enableShutdownHooks(['SIGTERM', 'SIGINT'], {useProcessExit: true});
 
 	await app.startAllMicroservices();
 	await app.listen(config.port);
-
-	const handleSignal = async (signal: NodeJS.Signals) => {
-		try {
-			await app.close();
-		} finally {
-			// Re-raise after cleanup so the default handler terminates despite open Redis sockets.
-			process.kill(process.pid, signal);
-		}
-	};
-
-	for (const signal of ['SIGTERM', 'SIGINT'] as const) {
-		process.once(signal, () => {
-			void handleSignal(signal);
-		});
-	}
 }
 
 try {

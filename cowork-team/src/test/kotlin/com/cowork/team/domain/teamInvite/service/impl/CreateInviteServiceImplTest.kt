@@ -2,12 +2,12 @@ package com.cowork.team.domain.teamInvite.service.impl
 
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamInvite.entity.TeamInvite
 import com.cowork.team.domain.teamInvite.presentation.data.request.CreateInviteRequest
 import com.cowork.team.domain.teamInvite.presentation.data.request.InviteDuration
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
-import com.cowork.team.domain.teamInvite.service.TeamInviteAccessGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
@@ -26,14 +26,14 @@ class CreateInviteServiceImplTest {
     private val teamRepository = mockk<TeamRepository>()
     private val teamMemberRepository = mockk<TeamMemberRepository>()
     private val teamInviteRepository = mockk<TeamInviteRepository>()
-    private val teamInviteAccessGuard =
-        TeamInviteAccessGuard(
+    private val teamAccessGuard =
+        TeamAccessGuard(
             teamRepository,
             teamMemberRepository,
             TeamPermissionGuard(teamMemberRepository, mockk(relaxed = true)),
         )
 
-    private val service = CreateInviteServiceImpl(teamInviteRepository, teamInviteAccessGuard)
+    private val service = CreateInviteServiceImpl(teamInviteRepository, teamAccessGuard)
 
     private val team = Team(id = 1L, name = "테스트팀", description = null, iconUrl = null, ownerId = 10L)
     private val normalMember = TeamMember(team = team, userId = 42L, role = TeamRole.ADMIN)

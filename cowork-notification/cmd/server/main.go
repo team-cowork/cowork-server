@@ -1,11 +1,11 @@
 // @title          cowork Notification API
 // @version        20261104.0
-// @description    Firebase 설치(FID) 관리 및 푸시 알림 서비스
+// @description    Firebase 설치를 계정에 연결하고 실시간 알림을 제공합니다.
 // @BasePath       /api/notification
 // @securityDefinitions.apikey BearerAuth
 // @in             header
 // @name           Authorization
-// @description    "Bearer {access_token}" 형식으로 Gateway에 전달하세요.
+// @description    "Bearer {access_token}" 형식으로 입력합니다.
 package main
 
 import (

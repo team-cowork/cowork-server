@@ -148,9 +148,10 @@ Controller → Service → Repository
 
 - Handle HTTP input, validation (`@Valid` where constraints are defined), and route mapping.
 - Read authenticated identity from Gateway-forwarded headers and pass it to the service.
-- Return DTOs or lists directly. `cowork-team` configures the SDK response wrapper; `cowork-channel` and `cowork-project` disable it and rely on the Gateway's `ApiResponseWrapperFilter` for eligible JSON responses.
+- Return DTOs or lists directly. `cowork-team`, `cowork-channel`, and `cowork-project` disable the SDK response wrapper and rely on the Gateway's `ApiResponseWrapperFilter` for eligible JSON responses.
 - Keep `204 No Content` responses bodyless, as the team/channel delete endpoints do. If an endpoint returns a message with no data, it can explicitly return `CommonApiResponse<Nothing>` with a body-bearing status.
-- Do not assume every response is wrapped: the Gateway bypasses configured paths, non-JSON/streaming responses, and responses exceeding its size limit, and preserves already wrapped responses.
+- The Gateway bypasses configured paths, streaming responses, unsupported content types, and responses exceeding its size limit.
+- For eligible responses already in `CommonApiResponse` format, the Gateway preserves `message` and non-null `data`, and sets `status` and `code` from the actual HTTP status.
 
 **Service Responsibilities:**
 
@@ -260,9 +261,9 @@ Run commands from the repository root:
 | Scope                                                            | Check                                                        | Format                                       |
 | ---------------------------------------------------------------- | ------------------------------------------------------------ | -------------------------------------------- |
 | Gradle Kotlin module (`gateway`, `channel`, `team`; replace `team`) | `(cd cowork-team && ./gradlew ktlintCheck)`                  | `(cd cowork-team && ./gradlew ktlintFormat)` |
-| Node chat                                                        | `npm --prefix cowork-chat run lint -- --max-warnings=0`      | `npm --prefix cowork-chat run lint:fix`      |
+| Bun chat                                                        | `(cd cowork-chat && bun run lint --max-warnings=0)`          | `(cd cowork-chat && bun run lint:fix)`       |
 | Node promotion                                                   | `npm --prefix cowork-promotion run lint -- --max-warnings=0` | `npm --prefix cowork-promotion run lint:fix` |
-| Node github                                                      | `npm --prefix cowork-github run lint -- --max-warnings=0`    | `npm --prefix cowork-github run lint:fix`    |
+| Bun github                                                       | `(cd cowork-github && bun run lint --max-warnings=0)`        | `(cd cowork-github && bun run lint:fix)`     |
 | Java roadmap                                                     | `(cd cowork-roadmap && ./gradlew spotlessCheck)`             | `(cd cowork-roadmap && ./gradlew spotlessApply)` |
 
 `cowork-promotion`, `cowork-chat`, and `cowork-github` run XO with its default rules, no inline `eslint-disable` comments, and the default file discovery. Resolve diagnostics in code rather than in configuration. `cowork-promotion` has no `xo.config.mjs`; `cowork-chat` and `cowork-github` keep one only to set `import-x/extensions` with leading dots, because `eslint-config-xo` registers them without dots and `import-x/no-cycle` otherwise checks nothing. Do not add rules there. In every module the ESLint adapter passes the XO configuration through to editors. Review automatic fixes and run the module build; CI rejects lint warnings as well as errors.
@@ -396,6 +397,8 @@ The Kotlin Toolchain uses the checked-in `cowork-preference/kotlin` or `kotlin.b
 Each Gradle module owns its Wrapper, settings, version catalog, and build configuration. Run its Wrapper from the module directory; there is no root Gradle build. Gradle and dependency versions can be updated per module. Use the checked-in Maven wrapper for `cowork-project`, the Kotlin Toolchain wrapper for `cowork-preference`, and each non-JVM module's documented native commands.
 
 ## Security
+
+Run `bun audit` in both `cowork-chat` and `cowork-github` to check their lockfiles for known vulnerabilities. Use `bun audit --production` to check only the dependencies shipped in the runtime image.
 
 ### No Hardcoded Secrets
 

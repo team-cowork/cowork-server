@@ -1,4 +1,6 @@
 spring:
+  autoconfigure:
+    exclude: team.themoment.sdk.autoconfigure.SdkAutoConfiguration
   reactor:
     context-propagation: auto
   profiles:
@@ -22,10 +24,6 @@ management:
       application: ${spring.application.name}
 server:
   port: 8080
-logging:
-  level:
-    org.springframework.cloud.gateway: DEBUG
-    org.springframework.security: DEBUG
 springdoc:
   api-docs:
     enabled: false

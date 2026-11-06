@@ -1,7 +1,6 @@
 package com.cowork.gateway.deployment
 
 import com.cowork.gateway.response.body.writeNoStoreJson
-import com.cowork.gateway.response.model.CommonApiResponse
 import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.cloud.gateway.filter.GatewayFilterChain
 import org.springframework.cloud.gateway.filter.GlobalFilter
@@ -13,6 +12,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
+import team.themoment.sdk.response.CommonApiResponse
 import tools.jackson.databind.ObjectMapper
 
 @Component
@@ -76,7 +76,7 @@ class DeploymentGuidanceFilter(
         if (service != null) data["service"] = service.removePrefix("cowork-")
         val body = objectMapper.writeValueAsBytes(
             CommonApiResponse(
-                status.name,
+                status,
                 status.value(),
                 message,
                 data,
