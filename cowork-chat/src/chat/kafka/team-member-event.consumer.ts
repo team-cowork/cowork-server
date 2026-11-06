@@ -27,9 +27,7 @@ type TeamMemberEvent = {
 	teamName: string;
 	nickname?: Nullable<string>;
 	occurredAt: string;
-	// @todo #596: 2026-11-01 05:00 KST 이후 구형 이벤트·Mongo auth stamp 보정과 rollback 종료 확인 후 nullable fallback 제거.
-	// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-	authorizationVersion?: Nullable<string>;
+	authorizationVersion: string;
 	snapshot?: boolean;
 };
 
@@ -75,7 +73,7 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 		}
 
 		const {occurredAt, sourceVersion} = eventTime;
-		const authorizationVersion = parseEventTime(payload.authorizationVersion)?.sourceVersion ?? null;
+		const authorizationVersion = parseEventTime(payload.authorizationVersion)!.sourceVersion;
 		if (payload.eventType === 'DELETE') {
 			await this.memberRepository.remove({
 				teamId: payload.teamId, userId: payload.userId, occurredAt, sourceVersion, authorizationVersion, role: payload.role,
@@ -121,7 +119,7 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 			|| !isSafePositiveInteger(event.teamId)
 			|| !isSafePositiveInteger(event.userId)
 			|| (event.snapshot !== undefined && typeof event.snapshot !== 'boolean')
-			|| parseEventTime(event.occurredAt) === null || !hasValidAuthorizationVersion(event)) {
+			|| parseEventTime(event.occurredAt) === null || !hasValidAuthorizationVersion(event) || typeof event.role !== 'string' || !['OWNER', 'ADMIN', 'MEMBER'].includes(event.role)) {
 			return false;
 		}
 
@@ -172,13 +170,9 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 }
 
 /**
-`authorizationVersion`이 있으면 0보다 크고 이벤트 발생 시각 이하의 유효한 시각이어야 한다.
+`authorizationVersion`은 0보다 크고 이벤트 발생 시각 이하의 유효한 시각이어야 한다.
 */
 function hasValidAuthorizationVersion(event: Partial<TeamMemberEvent>): boolean {
-	if (event.authorizationVersion === undefined || event.authorizationVersion === null) {
-		return true;
-	}
-
 	const authorizationVersion = parseEventTime(event.authorizationVersion)?.sourceVersion;
 	const {sourceVersion} = parseEventTime(event.occurredAt)!;
 	return authorizationVersion !== undefined
