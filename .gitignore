@@ -66,6 +66,8 @@ SPEC.md
 .pr-tmp/
 .pr-tmp-comments.json
 /.claude/command.log
+/.codex/command.log
+/skills/system/run-workflow/SKILL.md
 
 ### Crash Dumps ###
 *.stackdump
