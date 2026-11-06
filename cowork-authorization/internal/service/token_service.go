@@ -49,7 +49,7 @@ func (s *TokenService) GenerateRefreshToken() (rawToken, tokenHash string, err e
 		return "", "", fmt.Errorf("failed to generate refresh token: %w", err)
 	}
 	rawToken = hex.EncodeToString(b)
-	tokenHash = hashToken(rawToken)
+	tokenHash = HashToken(rawToken)
 	return rawToken, tokenHash, nil
 }
 
@@ -57,11 +57,7 @@ func (s *TokenService) RefreshExpire() time.Duration {
 	return s.cfg.JWTRefreshExpire
 }
 
-func hashToken(raw string) string {
+func HashToken(raw string) string {
 	h := sha256.Sum256([]byte(raw))
 	return hex.EncodeToString(h[:])
-}
-
-func HashToken(raw string) string {
-	return hashToken(raw)
 }
