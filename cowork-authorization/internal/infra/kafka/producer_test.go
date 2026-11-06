@@ -10,7 +10,7 @@ import (
 func TestNewProducerUsesShortBatchTimeout(t *testing.T) {
 	t.Parallel()
 
-	producer := NewProducer(config.KafkaSecurity{}, "localhost:9092", "unused")
+	producer := NewProducer(config.KafkaSecurity{}, "localhost:9092")
 	t.Cleanup(func() { _ = producer.Close() })
 
 	if got, want := producer.writer.BatchTimeout, 10*time.Millisecond; got != want {
