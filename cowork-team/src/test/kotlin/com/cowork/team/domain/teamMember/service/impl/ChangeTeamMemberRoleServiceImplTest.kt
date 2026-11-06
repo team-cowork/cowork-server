@@ -3,11 +3,11 @@ package com.cowork.team.domain.teamMember.service.impl
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.presentation.data.request.ChangeRoleRequest
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamMember.service.TeamMemberAccessGuard
 import com.cowork.team.domain.teamRole.entity.TeamRole
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
@@ -32,7 +32,7 @@ class ChangeTeamMemberRoleServiceImplTest :
             service = ChangeTeamMemberRoleServiceImpl(
                 memberRepository,
                 mockk<TeamMemberEventPublisher>(relaxed = true),
-                TeamMemberAccessGuard(
+                TeamAccessGuard(
                     teamRepository,
                     memberRepository,
                     TeamPermissionGuard(memberRepository, mockk(relaxed = true)),

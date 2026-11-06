@@ -1,6 +1,5 @@
-import {getHeapStatistics} from 'node:v8';
 import {Controller as controller, Get as httpGet, Header as responseHeader} from '@nestjs/common';
-import {collectDefaultMetrics, Gauge, register} from 'prom-client';
+import {collectDefaultMetrics, register} from 'prom-client';
 
 @controller('metrics')
 export class MetricsController {
@@ -11,11 +10,6 @@ export class MetricsController {
 		}
 
 		collectDefaultMetrics();
-		// The heap alert needs the V8 limit; nodejs_heap_size_total_bytes is only the currently reserved heap.
-		new Gauge({
-			name: 'cowork_nodejs_heap_size_limit_bytes',
-			help: 'V8 heap size limit in bytes.',
-		}).set(getHeapStatistics().heap_size_limit);
 	}
 
 	@httpGet()

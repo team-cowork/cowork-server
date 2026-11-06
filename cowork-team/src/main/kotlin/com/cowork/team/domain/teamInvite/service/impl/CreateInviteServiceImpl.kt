@@ -1,11 +1,11 @@
 package com.cowork.team.domain.teamInvite.service.impl
 
+import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.teamInvite.entity.TeamInvite
 import com.cowork.team.domain.teamInvite.presentation.data.request.CreateInviteRequest
 import com.cowork.team.domain.teamInvite.presentation.data.response.InviteResponse
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
 import com.cowork.team.domain.teamInvite.service.CreateInviteService
-import com.cowork.team.domain.teamInvite.service.TeamInviteAccessGuard
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -16,7 +16,7 @@ import java.time.LocalDateTime
 @Service
 class CreateInviteServiceImpl(
     private val teamInviteRepository: TeamInviteRepository,
-    private val teamInviteAccessGuard: TeamInviteAccessGuard,
+    private val teamAccessGuard: TeamAccessGuard,
 ) : CreateInviteService {
 
     companion object {
@@ -35,8 +35,8 @@ class CreateInviteServiceImpl(
 
     @Transactional
     override fun execute(userId: Long, teamId: Long, request: CreateInviteRequest): InviteResponse {
-        teamInviteAccessGuard.requirePermission(teamId, userId, "manage_invites")
-        val team = teamInviteAccessGuard.findTeamOrThrow(teamId)
+        teamAccessGuard.requirePermission(teamId, userId, "manage_invites")
+        val team = teamAccessGuard.findTeamOrThrow(teamId)
         val expiresAt = request.duration.toExpiresAt(LocalDateTime.now())
         val invite = TeamInvite(
             team = team,

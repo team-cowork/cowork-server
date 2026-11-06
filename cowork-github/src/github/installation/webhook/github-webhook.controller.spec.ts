@@ -1,4 +1,5 @@
 import {Test, type TestingModule} from '@nestjs/testing';
+import {AppConfigService} from '../../../config/app-config.service.js';
 import {githubField} from '../../github-field.js';
 import {GithubAuthService} from '../../auth/github-auth.service.js';
 import {REDIS_CLIENT} from '../../constants.js';
@@ -52,6 +53,7 @@ describe('GithubWebhookController', () => {
 				{provide: PullRequestService, useValue: pullRequestService},
 				{provide: GithubAuthService, useValue: authService},
 				{provide: REDIS_CLIENT, useValue: redis},
+				{provide: AppConfigService, useValue: {githubAppId: '123'}},
 			],
 		})
 			.overrideGuard(GithubWebhookSignatureGuard)
@@ -416,6 +418,7 @@ describe('GithubWebhookController', () => {
 				body: '확인했습니다\n\n<!-- cowork:author=real-author -->',
 				[githubField.htmlUrl]: 'https://github.com/my-org/my-repo/issues/3#issuecomment-99',
 				user: {login: 'cowork-bot'},
+				[githubField.performedViaGithubApp]: {id: 123},
 				[githubField.createdAt]: '2026-01-01T00:00:00Z',
 				[githubField.updatedAt]: '2026-01-01T00:00:00Z',
 			},
@@ -429,6 +432,25 @@ describe('GithubWebhookController', () => {
 			parentNumber: 3,
 			author: 'real-author',
 			body: '확인했습니다',
+		}));
+	});
+
+	it('issue_comment 이벤트에서 우리 앱이 작성하지 않은 댓글은 마커를 무시하고 user.login을 작성자로 쓴다', async () => {
+		const body = '확인했습니다\n\n<!-- cowork:author=alice -->';
+		await controller.handle('issue_comment', {
+			action: 'created',
+			repository: {[githubField.fullName]: 'my-org/my-repo'},
+			issue: {number: 3},
+			comment: {
+				id: 99,
+				body,
+				user: {login: 'outsider'},
+			},
+		});
+
+		expect(readModelProducers.issueComment.send).toHaveBeenCalledWith(expect.objectContaining({
+			author: 'outsider',
+			body,
 		}));
 	});
 

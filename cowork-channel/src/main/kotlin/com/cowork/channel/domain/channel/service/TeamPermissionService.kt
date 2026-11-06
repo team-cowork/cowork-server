@@ -24,8 +24,6 @@ class TeamPermissionService(
 
     fun isTeamMember(teamId: Long, userId: Long): Boolean = teamRoleOf(teamId, userId) != null
 
-    fun isTeamOwnerOrAdmin(teamId: Long, userId: Long): Boolean = teamRoleOf(teamId, userId) in setOf("OWNER", "ADMIN")
-
     fun requireChannelAccess(channel: Channel, userId: Long) {
         val teamId = channel.teamId ?: throw ExpectedException("팀 채널에서만 지원하는 기능입니다.", HttpStatus.BAD_REQUEST)
         permissionEvaluator.requireChannelAccess(teamId, userId, channel)

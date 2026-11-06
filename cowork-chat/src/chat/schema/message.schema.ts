@@ -223,6 +223,12 @@ export class Message {
 	@prop({type: Date, default: null}) notificationProcessingStartedAt!: Nullable<Date>;
 
 	/**
+     다음 알림 발송 시도 가능 시각. 발송 실패 후 지수 백오프로 정해지며,
+     이 시각이 지나기 전에는 폴러가 PENDING 메시지를 점유하지 않는다. `null`이면 즉시 시도한다.
+     */
+	@prop({type: Date, default: null}) notificationNextAttemptAt!: Nullable<Date>;
+
+	/**
      점유 호출마다 새로 발급하는 식별자.
      점유 시각만으로는 같은 밀리초에 점유한 두 워커를 구분할 수 없어, 이 값으로 실제 점유분만 읽는다.
      */
