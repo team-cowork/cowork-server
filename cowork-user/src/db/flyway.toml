@@ -1,4 +1,4 @@
-# Official Flyway CLI settings for CD and Compose. The slot's DB_* variables are translated here, not in CD scripts.
+# Startup runs Flyway from the published db directory using the application's DB_* variables.
 [environments.default]
 url = "jdbc:mysql://${env.DB_HOST}:${env.DB_PORT}/${env.DB_NAME}?useSsl=true&trustServerCertificate=true"
 user = "${env.DB_USERNAME}"
@@ -8,4 +8,5 @@ connectRetriesInterval = 10
 
 [flyway]
 environment = "default"
-locations = ["filesystem:/flyway/sql"]
+locations = ["filesystem:migration"]
+failOnMissingLocations = true

@@ -30,8 +30,6 @@ def job_inputs(path, manifest=None, vault_mount="secret", gateway_host_port=2100
               "secret_version": 1, "vault_mount": vault_mount, "runtime_env": {}, "config_files": {}}
     if "apps" in path.relative_to(NOMAD).parts:
         values["runtime_env"] = environment(name)
-    elif name == "user-migrations":
-        values["runtime_env"] = environment("user")
     elif name.endswith("-db"):
         owner = name.removesuffix("-db")
         scripts = ["mongodb-init.sh", "mongodb-init.js"] if owner in {"chat", "voice"} else [
@@ -55,9 +53,6 @@ def job_inputs(path, manifest=None, vault_mount="secret", gateway_host_port=2100
         if "apps" in path.relative_to(NOMAD).parts:
             values.update(image=manifest["applications"][name]["image"],
                           secret_version=manifest["applications"][name]["secret_version"])
-        elif name == "user-migrations":
-            values.update(image=manifest["infrastructure_images"][name],
-                          secret_version=manifest["data_secret_versions"]["user"])
         elif name.endswith("-db"):
             values["secret_version"] = manifest["data_secret_versions"][name.rsplit("-", 1)[0]]
         elif name.endswith("-storage"):
@@ -99,7 +94,7 @@ def render_jobs(manifest=None, vault_mount="secret", gateway_host_port=21000, *,
     if not nomad:
         raise ValueError("Install the pinned Nomad CLI or set NOMAD_BIN for offline job parsing")
     specs = {}
-    stages = {stage: {} for stage in ("data", "apps", "edge", "batch")}
+    stages = {stage: {} for stage in ("data", "apps", "edge")}
     with tempfile.TemporaryDirectory(prefix="cowork-nomad-") as directory:
         for path in sorted(NOMAD.rglob("*.nomad.hcl")):
             values = job_inputs(path, manifest, vault_mount, gateway_host_port)
