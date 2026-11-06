@@ -252,6 +252,13 @@ class Platform:
                         raise RuntimeError(job_id + ': job changed while waiting; deployment was not accepted')
                     version = job['Version']
                     allocations = self.api('job/' + job_id + '/allocations') or []
+                    # Use terminal status: the last restart attempt may still succeed while running.
+                    failed = [a for a in allocations if a['JobVersion'] == int(version)
+                              and a['DesiredStatus'] == 'run' and not a.get('NextAllocation')
+                              and a['ClientStatus'] == 'failed']
+                    if failed:
+                        self.report_allocation(job_id, self.api('allocation/' + failed[0]['ID']))
+                        raise RuntimeError(f'{job_id}: allocation {failed[0]["ID"]} failed')
                     candidates = [a for a in allocations if a['JobVersion'] == int(version)
                                   and a['DesiredStatus'] == 'run' and a['ClientStatus'] in ('running', 'complete')]
                     groups = specs[job_id]['TaskGroups']
