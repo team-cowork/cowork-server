@@ -330,6 +330,21 @@ groups:
           observed_value: '{{ $value | humanizePercentage }}'
           description: "chat의 RSS 메모리 사용률이 5분 동안 Nomad 메모리 상한의 85%를 초과했습니다."
 
+  - name: cowork-github
+    rules:
+      - alert: coworkGithubHighMemory
+        expr: |
+          nomad_client_allocs_memory_rss{job="nomad",exported_job="cowork-github",task="app"}
+            / (nomad_client_allocs_memory_max_allocated{job="nomad",exported_job="cowork-github",task="app"} > 0) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "GitHub 메모리 사용률 높음"
+          module: github
+          observed_value: '{{ $value | humanizePercentage }}'
+          description: "GitHub 태스크의 RSS가 5분 동안 Nomad 메모리 상한의 85%를 초과했습니다."
+
   - name: cowork-chat-socketio
     rules:
       # 준비 상태가 실패해도 Consul 등록과 메트릭 수집은 유지된다.
