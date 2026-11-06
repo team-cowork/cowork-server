@@ -16,12 +16,8 @@ export type TeamMemberProjectionView = {
 	userId: number;
 	role: string;
 	teamName: string;
-	// @todo #596: 2026-11-01 05:00 KST 이후 구형 Kafka·Mongo 멤버 sourceVersion 보정과 rollback 종료 확인 후 조회 필드 필수화.
-	// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-	sourceVersion?: bigint | mongo.Long;
-	// @todo #596: 2026-11-01 05:00 KST 이후 구형 이벤트·Mongo auth stamp 보정과 rollback 종료 확인 후 nullable fallback 제거.
-	// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-	authorizationVersion?: Nullable<bigint | mongo.Long>;
+	sourceVersion: bigint | mongo.Long;
+	authorizationVersion: bigint | mongo.Long;
 };
 
 export type VersionedTeamMemberProjectionView = {
@@ -82,7 +78,7 @@ export class TeamMemberProjectionRepository {
 			],
 		};
 		const applyCondition = {$or: [newer, compatibleEqual]};
-		const authorizationVersion = member.authorizationVersion ?? null;
+		const {authorizationVersion} = member;
 		const result = await this.model.updateOne(
 			{teamId: member.teamId, userId: member.userId},
 			[{
@@ -128,22 +124,18 @@ export class TeamMemberProjectionRepository {
 			userId: number;
 			occurredAt: Date;
 			sourceVersion: mongo.Long;
-			authorizationVersion?: Nullable<mongo.Long>;
-			role?: string;
+			authorizationVersion: mongo.Long;
+			role: string;
 		},
 
 	): Promise<boolean> {
-		const {teamId, userId, occurredAt, sourceVersion, authorizationVersion = null, role} = member;
+		const {teamId, userId, occurredAt, sourceVersion, authorizationVersion, role} = member;
 		const applyCondition = deletedProjectionCondition(sourceVersion);
 		const equal = {$eq: [sourceVersion, projectionSourceVersion]};
 		const alreadyDeleted = {$and: [equal, {$eq: ['$deleted', true]}]};
-		const incomingRole = typeof role === 'string' && role.length > 0 ? role : null;
-		// @todo #596: 2026-11-01 05:00 KST 이후 구형 삭제 snapshot·Mongo 역할과 auth 보정 및 rollback 종료 확인 후 빈 역할 호환 제거.
-		// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-		const compatibleRole = incomingRole === null
-			? false
-			: {$or: [{$eq: [{$ifNull: ['$role', '']}, '']}, {$eq: ['$role', {$literal: incomingRole}]}]};
-		const updateRole = incomingRole === null ? false : {$and: [applyCondition, {$or: [{$not: [alreadyDeleted]}, compatibleRole]}]};
+		const incomingRole = role;
+		const compatibleRole = {$eq: ['$role', {$literal: incomingRole}]};
+		const updateRole = {$and: [applyCondition, {$or: [{$not: [alreadyDeleted]}, compatibleRole]}]};
 		const result = await this.model.updateOne(
 			{teamId, userId},
 			[{
