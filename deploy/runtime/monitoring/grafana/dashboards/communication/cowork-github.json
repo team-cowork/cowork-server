@@ -93,13 +93,13 @@
     },
     {
       "id": 101,
-      "title": "V8 힙 한도 대비 사용률",
+      "title": "메모리 상한 대비 RSS 사용률",
       "type": "gauge",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "gridPos": { "h": 4, "w": 12, "x": 12, "y": 0 },
       "targets": [
         {
-          "expr": "max(nodejs_heap_size_used_bytes{service=\"github\",job=~\"cowork-.*\"} / (cowork_nodejs_heap_size_limit_bytes{service=\"github\",job=~\"cowork-.*\"} > 0)) * 100",
-          "legendFormat": "힙 사용률",
+          "expr": "max(nomad_client_allocs_memory_rss{job=\"nomad\",exported_job=\"cowork-github\",task=\"app\"} / (nomad_client_allocs_memory_max_allocated{job=\"nomad\",exported_job=\"cowork-github\",task=\"app\"} > 0)) * 100",
+          "legendFormat": "RSS 사용률",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
           "instant": true,
@@ -117,30 +117,12 @@
           "thresholds": { "mode": "absolute", "steps": [{"value": null, "color": "green"}, {"value": 85, "color": "orange"}, {"value": 95, "color": "red"}] }
         }
       },
-      "description": "각 인스턴스의 V8 최대 힙 한도 대비 사용률 중 가장 높은 값입니다.",
+      "description": "각 GitHub 태스크의 RSS를 Nomad 메모리 상한으로 나눈 값 중 가장 높은 사용률입니다.",
       "options": { "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "showThresholdLabels": false, "showThresholdMarkers": true }
     },
     {
-      "id": 4,
-      "title": "Node.js 활성 핸들 수",
-      "type": "stat",
-      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
-      "targets": [
-        {
-          "expr": "nodejs_active_handles_total{service=\"github\"}",
-          "legendFormat": "활성 핸들 수",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "instant": true,
-          "range": false,
-          "refId": "A"
-        }
-      ],
-      "options": { "reduceOptions": {"calcs": ["lastNotNull"]} },
-      "fieldConfig": { "defaults": {"noValue": "N/A", "min": 0, "color": {"mode": "fixed", "fixedColor": "blue"}} }
-    },
-    {
       "id": 2,
-      "title": "Node.js 이벤트 루프 지연 (ms)",
+      "title": "Bun 이벤트 루프 지연 (ms)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "targets": [
@@ -160,7 +142,7 @@
     },
     {
       "id": 3,
-      "title": "Node.js 힙 메모리 사용량",
+      "title": "Bun 힙 메모리 사용량",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "targets": [
@@ -169,22 +151,6 @@
           "legendFormat": "힙 사용량",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
-          "instant": false,
-          "range": true
-        },
-        {
-          "expr": "nodejs_heap_size_total_bytes{service=\"github\"}",
-          "legendFormat": "전체 힙 용량",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "refId": "B",
-          "instant": false,
-          "range": true
-        },
-        {
-          "expr": "max(cowork_nodejs_heap_size_limit_bytes{service=\"github\",job=~\"cowork-.*\"})",
-          "legendFormat": "V8 힙 한도",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "refId": "C",
           "instant": false,
           "range": true
         }
@@ -201,36 +167,10 @@
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
-      "id": 5,
-      "title": "GC 일시정지 시간 (ms/s)",
-      "type": "timeseries",
-      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
-      "targets": [
-        {
-          "expr": "rate(nodejs_gc_duration_seconds_sum{service=\"github\"}[$__rate_interval]) * 1000",
-          "legendFormat": "GC {{kind}}",
-          "datasource": { "type": "prometheus", "uid": "${datasource}" },
-          "refId": "A",
-          "instant": false,
-          "range": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "unit": "suffix:ms/s",
-          "noValue": "N/A",
-          "min": 0,
-          "color": { "mode": "palette-classic" },
-          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
-        }
-      },
-      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
-    },
-    {
       "id": 102,
       "title": "프로세스 상주 메모리",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
       "targets": [
         {
           "expr": "max(process_resident_memory_bytes{service=\"github\",job=~\"cowork-.*\"})",
