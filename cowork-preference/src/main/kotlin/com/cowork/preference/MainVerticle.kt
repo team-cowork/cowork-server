@@ -243,7 +243,6 @@ class MainVerticle : AbstractVerticle() {
             notificationRepository = notifRepo,
             preferenceRepository = prefRepo,
             teamRoleRepository = teamRoleRepo,
-            teamRoleCommandInboxRepository = commandInboxRepository,
             channelRolePolicyRepository = channelRolePolicyRepo,
             outboxRepository = outboxRepository,
             topicIdentity = projectionTopicIdentity,

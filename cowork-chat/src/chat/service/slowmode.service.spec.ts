@@ -2,7 +2,7 @@ import {HttpException} from '@nestjs/common';
 import {canBypassSlowmode, SlowmodeService} from './slowmode.service.js';
 
 const role = (roleId: number, priority: number, permissions: Record<string, boolean> = {}) => ({
-	roleId, teamId: 10, priority, permissions,
+	roleId, teamId: 10, priority, permissions, isDefault: false,
 });
 
 // 역할 권한 이름은 Team 서비스의 Kafka 계약이 정한다.
@@ -67,6 +67,7 @@ describe('canBypassSlowmode', () => {
 				roleId: 1,
 				teamId: 99,
 				priority: 1,
+				isDefault: false,
 				permissions: allowsBypass,
 			}],
 			channelPermissionsByRoleId: new Map(),
