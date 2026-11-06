@@ -8,15 +8,16 @@
   "engines": {
     "node": ">=26.8.2 <27"
   },
+  "packageManager": "bun@1.4.4",
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/main.js",
-    "start:dev": "npm run build && npm start",
+    "start": "bun dist/main.js",
+    "start:dev": "bun run build && bun run start",
     "lint": "tsc --noEmit -p tsconfig.json && xo",
-    "lint:fix": "npm run lint -- --fix",
-    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "test:watch": "npm run test -- --watch",
-    "test:cov": "npm run test -- --coverage"
+    "lint:fix": "bun run lint --fix",
+    "test": "bun --experimental-vm-modules node_modules/jest/bin/jest.js",
+    "test:watch": "bun run test --watch",
+    "test:cov": "bun run test --coverage"
   },
   "dependencies": {
     "@nestjs/axios": "^12.0.1",
@@ -49,5 +50,11 @@
     "ts-jest": "^29.4.15",
     "typescript": "^6.0.3",
     "xo": "^5.0.1"
+  },
+  "overrides": {
+    "glob": "14.0.3",
+    "micromark-extension-math": {
+      "katex": "0.18.2"
+    }
   }
 }
