@@ -77,6 +77,14 @@ export class AppConfigService {
 		return this.configService.getOrThrow<string>('GITHUB_APP_ID');
 	}
 
+	get githubAppClientId(): string {
+		return this.configService.getOrThrow<string>('GITHUB_APP_CLIENT_ID');
+	}
+
+	get githubAppClientSecret(): string {
+		return this.configService.getOrThrow<string>('GITHUB_APP_CLIENT_SECRET');
+	}
+
 	get githubPrivateKey(): string {
 		const base64Key =
 			this.configService.getOrThrow<string>('GITHUB_PRIVATE_KEY');
