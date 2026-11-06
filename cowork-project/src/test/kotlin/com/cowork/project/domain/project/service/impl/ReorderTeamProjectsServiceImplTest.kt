@@ -21,6 +21,7 @@ import team.themoment.sdk.exception.ExpectedException
 
 class ReorderTeamProjectsServiceImplTest {
 
+    private val currentVersion = Instant.parse("2026-11-06T00:00:00Z")
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val accessRepository = mockk<ProjectAccessProjectionRepository>(relaxed = true)
@@ -34,7 +35,7 @@ class ReorderTeamProjectsServiceImplTest {
         Project(id = id, teamId = teamId, name = "p", description = null, position = position, createdBy = 1L)
 
     private fun membership(teamId: Long, userId: Long, role: String = "MEMBER") =
-        TeamMembership(teamId = teamId, userId = userId, role = role)
+        TeamMembership(teamId = teamId, userId = userId, role = role, authorizationVersion = currentVersion)
 
     @Nested
     inner class Execute {
@@ -59,14 +60,14 @@ class ReorderTeamProjectsServiceImplTest {
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
             every { projectRepository.findAllByTeamIdForUpdate(100L) } returns listOf(first, second)
             every { accessRepository.findAllByUserIdAndProjectIdIn(7L, listOf(1L, 2L)) } returns
-                listOf(1L, 2L).map { ProjectAccessProjection("$it:7", it, 7L, true, true, Instant.now()) }
+                listOf(1L, 2L).map { ProjectAccessProjection("$it:7", it, 7L, true, true, Instant.now(), sourceAuthorizationVersion = currentVersion) }
             val ex = assertThrows(ExpectedException::class.java) { service.execute(7L, 100L, listOf(2L, 1L)) }
             assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
             assertEquals(0, first.position)
             assertEquals(1, second.position)
 
             every { accessRepository.findAllByUserIdAndProjectIdIn(7L, listOf(1L, 2L)) } returns
-                listOf(1L, 2L).map { ProjectAccessProjection("$it:7", it, 7L, true, false, Instant.now(), canReorder = true) }
+                listOf(1L, 2L).map { ProjectAccessProjection("$it:7", it, 7L, true, false, Instant.now(), canReorder = true, sourceAuthorizationVersion = currentVersion) }
             assertEquals(listOf(2L, 1L), service.execute(7L, 100L, listOf(2L, 1L)).map { it.id })
         }
 
@@ -79,9 +80,9 @@ class ReorderTeamProjectsServiceImplTest {
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L)
             every { projectRepository.findAllByTeamIdForUpdate(100L) } returns listOf(first, hidden, fixed, last)
             every { accessRepository.findAllByUserIdAndProjectIdIn(7L, listOf(1L, 2L, 3L, 4L)) } returns listOf(
-                ProjectAccessProjection("1:7", 1L, 7L, true, false, Instant.now(), canReorder = true),
-                ProjectAccessProjection("3:7", 3L, 7L, true, false, Instant.now()),
-                ProjectAccessProjection("4:7", 4L, 7L, true, false, Instant.now(), canReorder = true),
+                ProjectAccessProjection("1:7", 1L, 7L, true, false, Instant.now(), canReorder = true, sourceAuthorizationVersion = currentVersion),
+                ProjectAccessProjection("3:7", 3L, 7L, true, false, Instant.now(), sourceAuthorizationVersion = currentVersion),
+                ProjectAccessProjection("4:7", 4L, 7L, true, false, Instant.now(), canReorder = true, sourceAuthorizationVersion = currentVersion),
             )
             assertEquals(listOf(4L, 3L, 1L), service.execute(7L, 100L, listOf(4L, 3L, 1L)).map { it.id })
             assertEquals(1, hidden.position)
