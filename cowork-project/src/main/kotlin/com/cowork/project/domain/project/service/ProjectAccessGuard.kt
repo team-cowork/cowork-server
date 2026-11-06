@@ -92,8 +92,7 @@ class ProjectAccessGuard(
     }
 
     private fun hasCurrentAuthorization(member: TeamMembership, access: ProjectAccessProjection): Boolean =
-        // TODO(#596): 2026-11-01 05:00 KST 이후 구형 레코드·롤백 지원 종료와 snapshot 보정 완료 확인 후 fallback 제거.
-        (access.sourceAuthorizationVersion ?: access.sourceMembershipVersion) == (member.authorizationVersion ?: member.sourceOccurredAt)
+        member.authorizationVersion != null && access.sourceAuthorizationVersion == member.authorizationVersion
 
     fun requireProjectReader(project: Project, userId: Long) {
         if (!canRead(project, userId)) throw ExpectedException("프로젝트 읽기 권한이 없습니다.", HttpStatus.FORBIDDEN)
@@ -124,7 +123,7 @@ class ProjectAccessGuard(
         requireTeamPermission(teamId, userId, "manage_projects")
     }
 
-    data class InitialReadAuthorization(val membershipVersion: Instant, val authorizationVersion: Instant?)
+    data class InitialReadAuthorization(val membershipVersion: Instant, val authorizationVersion: Instant)
 
     fun requireProjectCreation(teamId: Long, userId: Long, isPrivate: Boolean): InitialReadAuthorization? {
         val member = requireTeamPermission(teamId, userId, "manage_projects")
@@ -132,11 +131,11 @@ class ProjectAccessGuard(
         if (!teamPermissions.hasPermission(teamId, userId, "project_read")) {
             throw ExpectedException("비공개 프로젝트 생성에는 프로젝트 읽기 권한이 필요합니다.", HttpStatus.FORBIDDEN)
         }
-        if (!member.sourceOccurredAt.isAfter(Instant.EPOCH)) {
+        val authorizationVersion = member.authorizationVersion
+        if (!member.sourceOccurredAt.isAfter(Instant.EPOCH) || authorizationVersion == null) {
             throw ExpectedException("팀 멤버 권한 정보가 아직 준비되지 않았습니다.", HttpStatus.SERVICE_UNAVAILABLE)
         }
-        // TODO(#596): 2026-11-01 05:00 KST 이후 구형 producer 중단·legacy seed 원장 소비·snapshot 보정 완료 확인 후 nullable 승인 제거.
-        return InitialReadAuthorization(member.sourceOccurredAt, member.authorizationVersion)
+        return InitialReadAuthorization(member.sourceOccurredAt, authorizationVersion)
     }
 
     fun requireProjectOwner(project: Project, userId: Long) {

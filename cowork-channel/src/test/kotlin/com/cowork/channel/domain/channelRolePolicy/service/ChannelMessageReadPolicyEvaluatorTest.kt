@@ -224,7 +224,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
         assertEquals(overwrites, seed?.overwrites)
         assertEquals(7L, seed?.actorId)
         assertEquals(occurredAt, seed?.actorMembershipVersion)
-        assertNull(seed?.actorAuthorizationVersion)
+        assertEquals(occurredAt, seed?.actorAuthorizationVersion)
     }
 
     @Test
@@ -315,6 +315,23 @@ class ChannelMessageReadPolicyEvaluatorTest {
         assertThrows(ExpectedException::class.java) {
             evaluator.prepareInitialRolePolicySeed(10L, 7L, channel().apply { isPrivate = true }, emptyList())
         }
+    }
+
+    @Test
+    fun `권한 버전이 없으면 멤버십 시각으로 초기 정책을 승인하지 않는다`() {
+        every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member("ADMIN").apply {
+            authorizationVersion = null
+        }
+
+        val ex = assertThrows(ExpectedException::class.java) {
+            evaluator.prepareInitialRolePolicySeed(
+                10L,
+                7L,
+                channel(),
+                listOf(InitialChannelRoleOverwrite(1L, mapOf("message_read" to true))),
+            )
+        }
+        assertEquals(HttpStatus.SERVICE_UNAVAILABLE, ex.statusCode)
     }
 
     @Test
@@ -413,8 +430,14 @@ class ChannelMessageReadPolicyEvaluatorTest {
         } returns policies.toList()
     }
 
-    private fun member(role: String = "MEMBER", active: Boolean = true) =
-        TeamMembership(teamId = 10L, userId = 7L, role = role, active = active, sourceOccurredAt = occurredAt)
+    private fun member(role: String = "MEMBER", active: Boolean = true) = TeamMembership(
+        teamId = 10L,
+        userId = 7L,
+        role = role,
+        active = active,
+        sourceOccurredAt = occurredAt,
+        authorizationVersion = occurredAt,
+    )
 
     private fun role(roleId: Long, vararg permissions: Pair<String, Boolean>, default: Boolean = false) =
         TeamRoleProjection(
