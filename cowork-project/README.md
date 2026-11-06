@@ -28,11 +28,15 @@
 | 변수                                         | 설명                                |
 |----------------------------------------------|-------------------------------------|
 | `APP_CONFIG_PROFILE`                         | 설정 프로파일                       |
-| `DB_HOST`, `DB_PORT`, `DB_NAME`              | 데이터베이스 접속 대상              |
-| `DB_USERNAME`, `DB_PASSWORD`                 | 데이터베이스 자격증명               |
+| `DB_HOST`                                    | 데이터베이스 호스트                |
+| `DB_PORT`                                    | 데이터베이스 포트                 |
+| `DB_NAME`                                    | 데이터베이스 이름                 |
+| `DB_USERNAME`                                | 데이터베이스 사용자명               |
+| `DB_PASSWORD`                                | 데이터베이스 비밀번호               |
 | `KAFKA_BOOTSTRAP_SERVERS`                    | Kafka broker 주소                   |
 | `KAFKA_SECURITY_PROTOCOL`                    | 운영에서는 `SASL_SSL`               |
 | `KAFKA_SASL_MECHANISM`                       | SCRAM 인증 방식                     |
-| `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` | SASL 사용 시 필수                   |
+| `KAFKA_SASL_USERNAME`                        | Kafka SASL 사용자명. SASL 사용 시 필수  |
+| `KAFKA_SASL_PASSWORD`                        | Kafka SASL 비밀번호. SASL 사용 시 필수  |
 | `KAFKA_SSL_CA_LOCATION`                      | Kafka CA PEM 파일 경로              |
 | `COWORK_GITHUB_URL`                          | 요청 시점 GitHub 상태 조회 upstream |
