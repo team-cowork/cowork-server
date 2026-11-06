@@ -8,6 +8,7 @@
 #   space so Dependabot does not append a colon.
 # - Docker, Compose, and OpenTofu are omitted: the GitHub Advisory Database has no advisories
 #   for them, so they never receive security updates.
+# - cowork-chat and cowork-github use bun audit. Dependabot supports only version updates for bun.lock.
 version: 2
 
 updates:
@@ -56,36 +57,6 @@ updates:
       - "bug:버그"
     groups:
       maven-security:
-        applies-to: "security-updates"
-        patterns:
-          - "*"
-
-  - package-ecosystem: "npm"
-    directory: "/cowork-chat"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 0
-    commit-message:
-      prefix: "[chat] "
-    labels:
-      - "bug:버그"
-    groups:
-      npm-security:
-        applies-to: "security-updates"
-        patterns:
-          - "*"
-
-  - package-ecosystem: "npm"
-    directory: "/cowork-github"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 0
-    commit-message:
-      prefix: "[github] "
-    labels:
-      - "bug:버그"
-    groups:
-      npm-security:
         applies-to: "security-updates"
         patterns:
           - "*"
