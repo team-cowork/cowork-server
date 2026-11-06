@@ -8,6 +8,8 @@ export const envValidationSchema = Joi.object({
 	[envName.kafkaGroupId]: Joi.string().trim().default('cowork-github-group'),
 	[envName.githubAppId]: Joi.string().trim().pattern(/^\d+$/v).required(),
 	[envName.githubPrivateKey]: Joi.string().trim().required(),
+	[envName.githubAppClientId]: Joi.string().trim().required(),
+	[envName.githubAppClientSecret]: Joi.string().trim().required(),
 	[envName.redisHost]: Joi.string().trim().required(),
 	[envName.redisPort]: Joi.number().port().required(),
 	[envName.githubTokenCacheTtlSeconds]: Joi.number()

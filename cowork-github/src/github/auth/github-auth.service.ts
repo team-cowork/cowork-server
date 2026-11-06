@@ -6,7 +6,13 @@ import type {Redis} from 'ioredis';
 import {firstValueFrom} from 'rxjs';
 import {githubField} from '../github-field.js';
 import {AppConfigService} from '../../config/app-config.service.js';
-import {GITHUB_API, GITHUB_HEADERS, REDIS_CLIENT} from '../constants.js';
+import {
+	GITHUB_API,
+	GITHUB_HEADERS,
+	GITHUB_OAUTH_ACCESS_TOKEN_URL,
+	GITHUB_USER_INSTALLATIONS_PAGE_SIZE,
+	REDIS_CLIENT,
+} from '../constants.js';
 import {githubCacheKeys} from '../github.cache.js';
 import {GithubClientError} from '../github.errors.js';
 
@@ -92,6 +98,30 @@ export class GithubAuthService {
 		}
 	}
 
+	// GitHub는 잘못되거나 만료된 code에도 200으로 응답하고 본문에 error만 담으므로, 토큰이 없으면 undefined를 돌려준다.
+	private async exchangeUserCode(code: string): Promise<string | undefined> {
+		const {data} = await this.requestGithub<Record<string, string | undefined>>(async () =>
+			firstValueFrom(
+				this.httpService.post<Record<string, string | undefined>>(
+					GITHUB_OAUTH_ACCESS_TOKEN_URL,
+					{
+						[githubField.clientId]: this.config.githubAppClientId,
+						[githubField.clientSecret]: this.config.githubAppClientSecret,
+						code,
+					},
+					{headers: {[githubField.accept]: 'application/json'}},
+				),
+			),
+		);
+		const accessToken = data[githubField.accessToken];
+		if (accessToken === undefined || accessToken === '') {
+			this.logger.warn(`User authorization code exchange failed [error=${data.error ?? 'unknown'}]`);
+			return undefined;
+		}
+
+		return accessToken;
+	}
+
 	async getInstallationToken(owner: string): Promise<string> {
 		const installationId = await this.resolveInstallationId(owner);
 		const cacheKey = githubCacheKeys.token(installationId);
@@ -136,6 +166,34 @@ export class GithubAuthService {
 				),
 		);
 		return data.account.login;
+	}
+
+	// 설치 중 사용자 인증으로 받은 code를 사용자 토큰으로 바꾸고, 그 사용자가 접근할 수 있는 설치에 installationId가 있는지 확인한다.
+	async canUserAccessInstallation(code: string, installationId: number): Promise<boolean> {
+		const userToken = await this.exchangeUserCode(code);
+		if (userToken === undefined) {
+			return false;
+		}
+
+		const headers = {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${userToken}`};
+		for (let page = 1; ; page++) {
+			// eslint-disable-next-line no-await-in-loop -- 다음 페이지가 필요한지는 이전 응답으로만 알 수 있다.
+			const {data} = await this.requestGithub<{installations: Array<{id: number}>}>(async () =>
+				firstValueFrom(
+					this.httpService.get<{installations: Array<{id: number}>}>(
+						`${GITHUB_API}/user/installations`,
+						{params: {[githubField.perPage]: GITHUB_USER_INSTALLATIONS_PAGE_SIZE, page}, headers},
+					),
+				),
+			);
+			if (data.installations.some(installation => installation.id === installationId)) {
+				return true;
+			}
+
+			if (data.installations.length < GITHUB_USER_INSTALLATIONS_PAGE_SIZE) {
+				return false;
+			}
+		}
 	}
 
 	// 설치 이벤트가 알려준 매핑은 조회 결과보다 우선하므로 그대로 덮어쓴다.
