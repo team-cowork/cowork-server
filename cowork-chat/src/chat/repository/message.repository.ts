@@ -557,7 +557,8 @@ export class MessageRepository {
 
      시스템 메시지는 `type: 'SYSTEM'`으로 고정되며, 알림 발송 대상에서 제외하기 위해
      `notificationStatus`를 초기값인 `'PENDING'` 대신 `'SENT'`로 설정합니다.
-     `clientMessageId`는 `undefined`로 설정하여 멱등성 키 중복 검사를 우회합니다.
+     `clientMessageId`는 호출자가 넘긴 결정적인 키로 저장하여, 같은 이벤트가 다시 전달되면
+     유니크 인덱스가 중복 저장을 막습니다(중복 키 오류 11000).
 
      @param message - 게시할 시스템 메시지
      @param message.teamId - 시스템 메시지를 게시할 팀의 식별자
@@ -565,6 +566,7 @@ export class MessageRepository {
      @param message.content - 시스템 메시지 본문
      @param message.projectId - 채널이 속한 프로젝트 ID. 없으면 `null`
      @param message.authorId - 시스템 행위자로 기록할 사용자 ID (예: 채널 생성자)
+     @param message.clientMessageId - 중복 저장을 막는 멱등성 키
      @returns 생성된 Mongoose 도큐먼트
      */
 	async createSystemMessage(
@@ -574,10 +576,10 @@ export class MessageRepository {
 			content: string;
 			projectId: Nullable<number>;
 			authorId: number;
+			clientMessageId: string;
 		},
-
 	) {
-		const {teamId, channelId, content, projectId, authorId} = message;
+		const {teamId, channelId, content, projectId, authorId, clientMessageId} = message;
 		return this.messageModel.create({
 			teamId,
 			projectId,
@@ -587,7 +589,7 @@ export class MessageRepository {
 			type: 'SYSTEM',
 			attachments: [],
 			mentions: [],
-			clientMessageId: undefined,
+			clientMessageId,
 			notificationStatus: 'SENT',
 		});
 	}
