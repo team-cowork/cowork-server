@@ -4,6 +4,9 @@ import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import tools.jackson.databind.json.JsonMapper
 import java.nio.charset.StandardCharsets
+import java.time.Duration
+import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.HexFormat
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -38,6 +41,22 @@ class DataGsmWebhookVerifierTest :
                     .replace("\"event-1\"", "3").toByteArray(StandardCharsets.UTF_8)
                 verifier.validEnvelope(numericId) shouldBe false
                 verifier.validEnvelope(byteArrayOf(0xc3.toByte(), 0x28)) shouldBe false
+            }
+            it("초가 없는 timestamp는 Authorization과 같이 거부한다") {
+                fun envelope(timestamp: String) =
+                    """{"id":"event-3","event":"other","timestamp":"$timestamp"}""".toByteArray(StandardCharsets.UTF_8)
+                verifier.validEnvelope(envelope("2026-11-04T10:00Z")) shouldBe false
+                verifier.validEnvelope(envelope("2026-11-04T10:00:00Z")) shouldBe true
+                verifier.validEnvelope(envelope("2026-11-04T10:00:00.123456789+09:00")) shouldBe true
+            }
+            it("1시간을 넘는 미래 timestamp는 Redis에 넣기 전에 거부한다") {
+                // Instant.toString always includes seconds, which the RFC 3339 parser requires.
+                fun envelope(ahead: Duration) = Instant.now().plus(ahead).truncatedTo(ChronoUnit.SECONDS).let {
+                    """{"id":"event-4","event":"other","timestamp":"$it"}""".toByteArray(StandardCharsets.UTF_8)
+                }
+                verifier.validEnvelope(envelope(Duration.ofMinutes(30))) shouldBe true
+                verifier.validEnvelope(envelope(Duration.ofHours(2))) shouldBe false
+                verifier.validEnvelope(envelope(Duration.ofDays(1000))) shouldBe false
             }
             it("알 수 없는 이벤트는 Authorization과 같이 무시할 수 있도록 허용한다") {
                 val unknown = """{"id":"event-2","event":"other","timestamp":"2026-10-29T01:00:00Z"}"""
