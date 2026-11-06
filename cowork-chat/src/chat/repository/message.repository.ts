@@ -707,7 +707,11 @@ export class MessageRepository {
      */
 	async findPendingAndMarkProcessing(batchSize: number): Promise<NotificationMessage[]> {
 		const candidates = await this.messageModel
-			.find({webhookDeleted: {$ne: true}, notificationStatus: 'PENDING'})
+			.find({
+				webhookDeleted: {$ne: true},
+				notificationStatus: 'PENDING',
+				$or: [{notificationNextAttemptAt: null}, {notificationNextAttemptAt: {$lte: new Date()}}],
+			})
 			.sort({createdAt: 1})
 			.limit(batchSize)
 			.select('_id')
@@ -1026,25 +1030,29 @@ export class MessageRepository {
      달라져 있어 이 업데이트는 조건 불일치로 아무 문서도 바꾸지 않으므로, 뒤늦게 도착한
      완료 쓰기가 새 점유자의 `PROCESSING` 상태를 덮어써 중복 발행을 재현하지 않습니다.
 
-     `notificationRetryCount`가 전달된 경우 재시도 횟수도 함께 업데이트합니다.
-     재시도 횟수 없이 상태만 변경하려면 해당 인수를 생략합니다.
+     `retry`가 전달된 경우 재시도 횟수와 다음 시도 시각도 함께 업데이트합니다.
+     `nextAttemptAt`을 기록한 메시지는 그 시각 전에는 다시 점유되지 않습니다.
+     재시도 정보 없이 상태만 변경하려면 해당 인수를 생략합니다.
 
      @param messageId - 업데이트할 메시지의 ObjectId
      @param notificationClaimId - 이 처리를 시작한 {@link findPendingAndMarkProcessing} 호출이 발급한 점유 식별자
      @param notificationStatus - 새로운 알림 상태 (`'PENDING'` | `'PROCESSING'` | `'SENT'` | `'FAILED'`)
-     @param notificationRetryCount - 업데이트할 재시도 횟수. 생략 시 현재 값을 유지
+     @param retry - 재시도 정보. 생략 시 현재 값을 유지
+     @param retry.retryCount - 업데이트할 재시도 횟수
+     @param retry.nextAttemptAt - 다음 시도 가능 시각. 생략 시 현재 값을 유지
      @returns Mongoose `updateOne` 결과 객체
      */
 	updateNotificationStatus(
 		messageId: Types.ObjectId,
 		notificationClaimId: string,
 		notificationStatus: string,
-		notificationRetryCount?: number,
+		retry?: {retryCount: number; nextAttemptAt?: Date},
 	) {
 		const $set: Record<string, unknown> = {
 			notificationStatus,
 			notificationClaimId: null,
-			...(notificationRetryCount !== undefined && {notificationRetryCount}),
+			...(retry && {notificationRetryCount: retry.retryCount}),
+			...(retry?.nextAttemptAt && {notificationNextAttemptAt: retry.nextAttemptAt}),
 		};
 
 		return this.messageModel.updateOne(
