@@ -40,8 +40,10 @@ public class ListRoadmapsServiceImpl implements ListRoadmapsService {
         }
         if (projectId != null) {
             List<Roadmap> roadmaps = roadmapRepository.findByOwnerProjectIdOrderByIdDesc(projectId);
-            roadmaps.forEach(roadmap -> accessGuard.requireReadable(roadmap, userId, userRole));
-            return roadmaps.stream().map(RoadmapResDto::from).toList();
+            return roadmaps.stream()
+                    .filter(roadmap -> accessGuard.canReadTeam(roadmap.getOwnerTeamId(), userId, userRole))
+                    .map(RoadmapResDto::from)
+                    .toList();
         }
         RoadmapScope target = scope == null ? RoadmapScope.GLOBAL : scope;
         if (target != RoadmapScope.GLOBAL) {

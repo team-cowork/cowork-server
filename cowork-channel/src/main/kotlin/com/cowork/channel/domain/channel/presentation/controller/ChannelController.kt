@@ -12,7 +12,9 @@ import com.cowork.channel.domain.channel.service.UpdateChannelService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.ExampleObject
 import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.media.SchemaProperty
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
@@ -22,11 +24,34 @@ import jakarta.validation.Validator
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.exception.ExpectedException
+import team.themoment.sdk.response.CommonApiResponse
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import io.swagger.v3.oas.annotations.parameters.RequestBody as SwaggerRequestBody
 
 @Tag(name = "채널", description = "채널 생성/수정/삭제 및 접근자 조회 API")
+@ApiResponses(
+    ApiResponse(
+        responseCode = "401",
+        description = "액세스 토큰이 없거나 유효하지 않음",
+        content = [
+            Content(
+                mediaType = "application/json",
+                schema = Schema(implementation = CommonApiResponse::class),
+                examples = [
+                    ExampleObject(
+                        value = """{"status":"401 UNAUTHORIZED","code":401,"message":"Unauthorized"}""",
+                    ),
+                ],
+            ),
+        ],
+    ),
+    ApiResponse(
+        responseCode = "default",
+        description = "기타 오류",
+        content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
+    ),
+)
 @RestController
 @RequestMapping("/channels")
 class ChannelController(
@@ -41,9 +66,75 @@ class ChannelController(
 
     @Operation(summary = "채널 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "201", description = "생성 성공"),
-        ApiResponse(responseCode = "400", description = "채널 이름이 공백이거나 100자를 초과하는 등 잘못된 요청"),
-        ApiResponse(responseCode = "403", description = "팀 멤버가 아님"),
+        ApiResponse(
+            responseCode = "201",
+            description = "생성 성공",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(type = "object", requiredProperties = ["status", "code", "message", "data"]),
+                    schemaProperties = [
+                        SchemaProperty(
+                            name = "status",
+                            schema = Schema(implementation = HttpStatus::class, example = "201 CREATED"),
+                        ), SchemaProperty(
+                            name = "code",
+                            schema = Schema(type = "integer", example = "201"),
+                        ), SchemaProperty(name = "message", schema = Schema(type = "string", example = "Created")),
+
+                        SchemaProperty(
+                            name = "data",
+                            schema = Schema(implementation = ChannelResponse::class),
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "400",
+            description = "잘못된 채널 이름, 채널 유형 또는 보기 유형",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "팀 멤버가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "409",
+            description = "다른 요청과 채널 순서가 충돌함. 다시 시도할 수 있습니다.",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"409 CONFLICT","code":409,"message":"현재 상태에서는 요청을 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -55,8 +146,36 @@ class ChannelController(
     @Operation(summary = "채널 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
-        ApiResponse(responseCode = "403", description = "채널 접근 권한 없음"),
-        ApiResponse(responseCode = "404", description = "채널 없음"),
+        ApiResponse(
+            responseCode = "403",
+            description = "채널 접근 권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @GetMapping("/{channelId}")
     fun getChannel(
@@ -67,8 +186,66 @@ class ChannelController(
     @Operation(summary = "채널 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "수정 성공"),
-        ApiResponse(responseCode = "400", description = "채널 이름이 공백이거나 100자를 초과하는 등 잘못된 요청"),
-        ApiResponse(responseCode = "403", description = "권한 없음"),
+        ApiResponse(
+            responseCode = "400",
+            description = "채널 이름이 비어 있거나 100자를 초과함",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 또는 프로젝트 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "503",
+            description = "프로젝트 정보 동기화 중",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"503 SERVICE_UNAVAILABLE","code":503,"message":"일시적으로 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PatchMapping("/{channelId}")
     fun updateChannel(
@@ -86,8 +263,22 @@ class ChannelController(
 
     @Operation(summary = "채널 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "204", description = "삭제 성공"),
-        ApiResponse(responseCode = "403", description = "권한 없음"),
+        ApiResponse(responseCode = "204", description = "삭제 성공", content = [Content()]),
+        ApiResponse(
+            responseCode = "403",
+            description = "권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @DeleteMapping("/{channelId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -98,10 +289,24 @@ class ChannelController(
         deleteChannelService.execute(userId, channelId)
     }
 
-    @Operation(summary = "채널 접근 가능한 사용자 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(summary = "채널에 접근할 수 있는 사용자 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
-        ApiResponse(responseCode = "403", description = "채널 접근 권한 없음"),
+        ApiResponse(
+            responseCode = "403",
+            description = "채널 접근 권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @GetMapping("/{channelId}/members")
     fun getMembers(

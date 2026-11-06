@@ -1,10 +1,10 @@
 package com.cowork.team.domain.teamMember.service.impl
 
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
+import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.teamMember.presentation.data.request.ChangeRoleRequest
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamMember.service.ChangeTeamMemberRoleService
-import com.cowork.team.domain.teamMember.service.TeamMemberAccessGuard
 import com.cowork.team.domain.teamRole.entity.TeamRole
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -15,13 +15,13 @@ import team.themoment.sdk.exception.ExpectedException
 class ChangeTeamMemberRoleServiceImpl(
     private val teamMemberRepository: TeamMemberRepository,
     private val teamMemberEventPublisher: TeamMemberEventPublisher,
-    private val teamMemberAccessGuard: TeamMemberAccessGuard,
+    private val teamAccessGuard: TeamAccessGuard,
 ) : ChangeTeamMemberRoleService {
 
     @Transactional
     override fun execute(actorId: Long, teamId: Long, targetUserId: Long, request: ChangeRoleRequest) {
-        teamMemberAccessGuard.findTeamForUpdateOrThrow(teamId)
-        teamMemberAccessGuard.requireRole(teamId, actorId, TeamRole.OWNER)
+        teamAccessGuard.findTeamForUpdateOrThrow(teamId)
+        teamAccessGuard.requireRole(teamId, actorId, TeamRole.OWNER)
 
         if (request.role == TeamRole.OWNER) {
             throw ExpectedException("OWNER 역할은 직접 지정할 수 없습니다.", HttpStatus.BAD_REQUEST)

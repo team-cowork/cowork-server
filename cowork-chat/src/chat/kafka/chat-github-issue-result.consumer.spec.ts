@@ -38,6 +38,8 @@ describe('ChatGithubIssueResultConsumer', () => {
 		occurredAt: '2026-09-26T00:00:00.000Z',
 	};
 
+	const kafkaSource = {topic: 'project.chat-github-issue.result', partition: 2, offset: '15'};
+
 	function savedSystemMessage(content: string) {
 		const message: MessageBroadcastPayload = {
 			_id: new Types.ObjectId('507f1f77bcf86cd799439011'),
@@ -66,13 +68,14 @@ describe('ChatGithubIssueResultConsumer', () => {
 			);
 
 			await (consumer as unknown as {
-				handleResultEvent(event: ChatGithubIssueCreateResult): Promise<void>;
-			}).handleResultEvent(baseResult);
+				handleResultEvent(event: ChatGithubIssueCreateResult, source: typeof kafkaSource): Promise<void>;
+			}).handleResultEvent(baseResult, kafkaSource);
 
 			expect(mockChatService.saveSystemMessage).toHaveBeenCalledWith(
 				10,
 				3,
 				'❌ 이슈 생성 실패: 프로젝트 수정 권한이 없습니다.',
+				'system:project.chat-github-issue.result:2:15:3',
 			);
 			expect(mockChannelMessageReadAccess.emitToReadableChannelUsers).toHaveBeenCalledTimes(1);
 		});
@@ -83,22 +86,35 @@ describe('ChatGithubIssueResultConsumer', () => {
 			);
 
 			await (consumer as unknown as {
-				handleResultEvent(event: ChatGithubIssueCreateResult): Promise<void>;
-			}).handleResultEvent({...baseResult, error: null});
+				handleResultEvent(event: ChatGithubIssueCreateResult, source: typeof kafkaSource): Promise<void>;
+			}).handleResultEvent({...baseResult, error: null}, kafkaSource);
 
 			expect(mockChatService.saveSystemMessage).toHaveBeenCalledWith(
 				10,
 				3,
 				'❌ 이슈 생성 실패: 알 수 없는 오류',
+				'system:project.chat-github-issue.result:2:15:3',
 			);
+		});
+	});
+
+	describe('handleResultEvent (재전달)', () => {
+		it('이미 저장된 메시지면 다시 브로드캐스트하지 않는다', async () => {
+			mockChatService.saveSystemMessage.mockResolvedValue(null);
+
+			await (consumer as unknown as {
+				handleResultEvent(event: ChatGithubIssueCreateResult, source: typeof kafkaSource): Promise<void>;
+			}).handleResultEvent(baseResult, kafkaSource);
+
+			expect(mockChannelMessageReadAccess.emitToReadableChannelUsers).not.toHaveBeenCalled();
 		});
 	});
 
 	describe('handleResultEvent (ACCEPTED)', () => {
 		it('시스템 메시지를 저장하거나 브로드캐스트하지 않는다', async () => {
 			await (consumer as unknown as {
-				handleResultEvent(event: ChatGithubIssueCreateResult): Promise<void>;
-			}).handleResultEvent({...baseResult, status: 'ACCEPTED', error: null});
+				handleResultEvent(event: ChatGithubIssueCreateResult, source: typeof kafkaSource): Promise<void>;
+			}).handleResultEvent({...baseResult, status: 'ACCEPTED', error: null}, kafkaSource);
 
 			expect(mockChatService.saveSystemMessage).not.toHaveBeenCalled();
 			expect(mockChannelMessageReadAccess.emitToReadableChannelUsers).not.toHaveBeenCalled();
