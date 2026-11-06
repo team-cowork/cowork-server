@@ -5,6 +5,7 @@ import java.time.DateTimeException
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 
@@ -50,6 +51,7 @@ object SettingSchema {
     private const val MAX_SLOWMODE_SECONDS = 21_600
     private const val MAX_VOICE_PARTICIPANTS = 99
     private val VOICE_BITRATE_RANGE = 8_000..128_000
+    private val EXPIRES_AT_YEAR_RANGE = 1..9999
 
     fun validKeys(type: ResourceType): Set<String> = when (type) {
         ResourceType.ACCOUNT -> ACCOUNT_KEYS
@@ -104,10 +106,14 @@ object SettingSchema {
             if (fmt !in ACCOUNT_DATE_FORMAT_VALUES) return "date_format must be one of $ACCOUNT_DATE_FORMAT_VALUES"
         }
         settings.getString("status_expires_at")?.let { expiresAt ->
-            try {
+            val parsed = try {
                 Instant.parse(expiresAt)
             } catch (_: DateTimeParseException) {
                 return "status_expires_at must be a valid ISO-8601 datetime (e.g. 2026-04-19T12:00:00Z)"
+            }
+            // PostgreSQL timestamptz 변환 범위를 벗어나면 만료 쿼리 전체가 실패하므로 UTC 연도 1~9999만 허용한다.
+            if (parsed.atOffset(ZoneOffset.UTC).year !in EXPIRES_AT_YEAR_RANGE) {
+                return "status_expires_at year must be between 1 and 9999"
             }
         }
         if (settings.containsKey("timezone")) {
