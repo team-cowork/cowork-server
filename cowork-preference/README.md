@@ -27,21 +27,21 @@
 
 운영 설정 입력은 [서비스 선언](../deploy/production/config/services.json)에 정의되어 있습니다.
 
-| 변수                                                       | 설명                           |
-|------------------------------------------------------------|--------------------------------|
-| `APP_CONFIG_PROFILE`                                       | 설정 프로파일                  |
-| `DB_HOST`                                                  | 데이터베이스 호스트           |
-| `DB_PORT`                                                  | 데이터베이스 포트            |
-| `DB_NAME`                                                  | 데이터베이스 이름            |
-| `DB_USERNAME`                                              | 데이터베이스 사용자명          |
-| `DB_PASSWORD`                                              | 데이터베이스 비밀번호          |
-| `KAFKA_BOOTSTRAP_SERVERS`                                  | Kafka broker 주소              |
-| `KAFKA_SECURITY_PROTOCOL`                                  | 운영에서는 `SASL_SSL`          |
-| `KAFKA_SASL_MECHANISM`                                     | SCRAM 인증 방식                |
+| 변수                                                       | 설명                                   |
+|------------------------------------------------------------|----------------------------------------|
+| `APP_CONFIG_PROFILE`                                       | 설정 프로파일                          |
+| `DB_HOST`                                                  | 데이터베이스 호스트                    |
+| `DB_PORT`                                                  | 데이터베이스 포트                      |
+| `DB_NAME`                                                  | 데이터베이스 이름                      |
+| `DB_USERNAME`                                              | 데이터베이스 사용자명                  |
+| `DB_PASSWORD`                                              | 데이터베이스 비밀번호                  |
+| `KAFKA_BOOTSTRAP_SERVERS`                                  | Kafka broker 주소                      |
+| `KAFKA_SECURITY_PROTOCOL`                                  | 운영에서는 `SASL_SSL`                  |
+| `KAFKA_SASL_MECHANISM`                                     | SCRAM 인증 방식                        |
 | `KAFKA_SASL_USERNAME`                                      | Kafka SASL 사용자명. SASL 사용 시 필수 |
 | `KAFKA_SASL_PASSWORD`                                      | Kafka SASL 비밀번호. SASL 사용 시 필수 |
-| `KAFKA_SSL_CA_LOCATION`                                    | Kafka CA PEM 파일 경로         |
-| `REDIS_HOST`                                               | 설정 캐시 Redis 호스트            |
-| `REDIS_PORT`                                               | 설정 캐시 Redis 포트             |
-| `WEBHOOK_SECRET_ENCRYPTION_KEY`                            | 웹훅 비밀키 재생을 위한 암호화 키 |
-| `WEBHOOK_URL_SIGNING_KEY`                                  | 웹훅 URL 서명 키         |
+| `KAFKA_SSL_CA_LOCATION`                                    | Kafka CA PEM 파일 경로                 |
+| `REDIS_HOST`                                               | 설정 캐시 Redis 호스트                 |
+| `REDIS_PORT`                                               | 설정 캐시 Redis 포트                   |
+| `WEBHOOK_SECRET_ENCRYPTION_KEY`                            | 웹훅 비밀키 재생을 위한 암호화 키      |
+| `WEBHOOK_URL_SIGNING_KEY`                                  | 웹훅 URL 서명 키                       |
