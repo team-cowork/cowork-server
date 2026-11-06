@@ -31,7 +31,7 @@ export class TeamSettingProjectionRepository {
 				$set: {
 					teamId: input.teamId,
 					tagSpamBlock: {
-						$cond: [applyCondition, input.tagSpamBlock, {$ifNull: ['$tagSpamBlock', false]}],
+						$cond: [applyCondition, input.tagSpamBlock, '$tagSpamBlock'],
 					},
 					deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
 					sourceOccurredAt: {
