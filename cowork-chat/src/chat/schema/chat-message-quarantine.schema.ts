@@ -22,10 +22,14 @@ export class ChatMessageQuarantineRecord {
 	@prop({required: true, default: false}) payloadTruncated!: boolean;
 	@prop({required: true}) payloadBytes!: number;
 	@prop({required: true}) contractVersion!: number;
-	@prop({required: true, enum: CHAT_MESSAGE_QUARANTINE_ERROR_TYPES}) errorType!: ChatMessageQuarantineErrorType;
+	@prop({type: String, required: true, enum: CHAT_MESSAGE_QUARANTINE_ERROR_TYPES}) errorType!: ChatMessageQuarantineErrorType;
 	@prop({required: true}) reasonCode!: string;
 	@prop({required: true}) reason!: string;
-	@prop({required: true, enum: CHAT_MESSAGE_QUARANTINE_STATUSES, default: 'QUARANTINED'}) status!: ChatMessageQuarantineStatus;
+	@prop({
+		type: String, required: true, enum: CHAT_MESSAGE_QUARANTINE_STATUSES, default: 'QUARANTINED',
+	})
+	status!: ChatMessageQuarantineStatus;
+
 	@prop({required: true}) firstObservedAt!: Date;
 	@prop({required: true}) lastObservedAt!: Date;
 	@prop({type: Date, default: null}) reprocessRequestedAt!: Nullable<Date>;
