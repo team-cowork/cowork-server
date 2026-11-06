@@ -1,0 +1,6 @@
+# Configuration comes from the process environment, as in ConfigModule.
+env = false
+
+[run]
+# Use Bun for tsc and XO even when Node.js is installed locally.
+bun = true
