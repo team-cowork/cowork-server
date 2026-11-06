@@ -100,6 +100,7 @@ class TeamRoleAccessGuardTest :
             permissions = permissions,
             createdAt = null,
             updatedAt = null,
+            isDefault = false,
         )
     }
 }

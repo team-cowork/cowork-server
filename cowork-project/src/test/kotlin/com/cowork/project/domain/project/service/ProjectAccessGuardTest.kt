@@ -17,13 +17,14 @@ import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 
 class ProjectAccessGuardTest : DescribeSpec({
+    val currentVersion = Instant.parse("2026-10-25T00:00:00Z")
     val project = Project(id = 3L, teamId = 1L, name = "p", description = null, createdBy = 10L)
     val members = mockk<TeamMembershipRepository>()
     val access = mockk<ProjectAccessProjectionRepository>()
     val teamPermissions = mockk<TeamRolePermissionReader>(relaxed = true)
     val guard = ProjectAccessGuard(mockk(), access, members, mockk(relaxed = true), teamPermissions)
     beforeEach {
-        every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns TeamMembership(teamId = 1L, userId = 20L, role = "MEMBER")
+        every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns TeamMembership(teamId = 1L, userId = 20L, role = "MEMBER", sourceOccurredAt = currentVersion, authorizationVersion = currentVersion)
         every { teamPermissions.hasPermission(any(), any(), any()) } returns false
         every { access.findById("3:20") } returns Optional.empty()
     }
@@ -64,27 +65,27 @@ class ProjectAccessGuardTest : DescribeSpec({
             shouldThrow<ExpectedException> { guard.requireProjectManager(project, 20L) }
         }
 
-        it("재가입 또는 팀 역할 변경 뒤에는 이전 멤버십으로 계산한 권한을 사용하지 않는다") {
+        it("권한 버전이 없으면 같은 멤버십 시각의 권한도 허용하지 않는다") {
             val version = Instant.EPOCH.plusSeconds(2)
             every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns
                 TeamMembership(teamId = 1L, userId = 20L, role = "MEMBER", sourceOccurredAt = version)
-            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, true, true, Instant.now()))
+            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, true, true, Instant.now(), sourceAuthorizationVersion = null))
             guard.canRead(project, 20L) shouldBe false
-            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, true, true, Instant.now(), sourceMembershipVersion = version))
-            guard.canWrite(project, 20L) shouldBe true
+            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, true, true, Instant.now(), sourceMembershipVersion = version, sourceAuthorizationVersion = null))
+            guard.canWrite(project, 20L) shouldBe false
         }
 
         it("생성자도 명시적 권한 없이는 접근할 수 없다") {
-            every { members.findActiveByTeamIdAndUserId(1L, 10L) } returns TeamMembership(teamId = 1L, userId = 10L, role = "MEMBER")
+            every { members.findActiveByTeamIdAndUserId(1L, 10L) } returns TeamMembership(teamId = 1L, userId = 10L, role = "MEMBER", sourceOccurredAt = currentVersion, authorizationVersion = currentVersion)
             every { access.findById("3:10") } returns Optional.empty()
             guard.canRead(project, 10L) shouldBe false
             shouldThrow<ExpectedException> { guard.requireProjectManager(project, 10L) }
         }
         it("쓰기와 설정 관리 권한은 독립적이다") {
-            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, true, false, Instant.now(), canManage = true))
+            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, true, false, Instant.now(), canManage = true, sourceAuthorizationVersion = currentVersion))
             guard.requireProjectManager(project, 20L)
             shouldThrow<ExpectedException> { guard.requireProjectModifier(project, 20L) }
-            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, true, true, Instant.now()))
+            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, true, true, Instant.now(), sourceAuthorizationVersion = currentVersion))
             shouldThrow<ExpectedException> { guard.requireProjectManager(project, 20L) }
         }
         it("프로젝트 생성과 삭제에는 팀 프로젝트 관리 권한이 필요하다") {
@@ -92,11 +93,11 @@ class ProjectAccessGuardTest : DescribeSpec({
             every { teamPermissions.hasPermission(1L, 20L, "manage_projects") } returns true
             guard.requireTeamProjectManager(1L, 20L)
             shouldThrow<ExpectedException> { guard.requireProjectOwner(project, 20L) }
-            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, true, false, Instant.now()))
+            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, true, false, Instant.now(), sourceAuthorizationVersion = currentVersion))
             guard.requireProjectOwner(project, 20L)
         }
         it("GitHub 관리 권한도 프로젝트 읽기가 필요하며 쓰기로 대체하지 않는다") {
-            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, true, true, Instant.now()))
+            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, true, true, Instant.now(), sourceAuthorizationVersion = currentVersion))
             shouldThrow<ExpectedException> { guard.requireGithubManager(project, 20L) }
             every { teamPermissions.hasPermission(1L, 20L, "manage_github") } returns true
             guard.requireGithubManager(project, 20L)
@@ -109,17 +110,17 @@ class ProjectAccessGuardTest : DescribeSpec({
             shouldThrow<ExpectedException> { guard.requireProjectReader(project, 20L) }
         }
         it("read만 부여하면 조회는 허용하고 수정은 거부한다") {
-            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, true, false, Instant.now()))
+            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, true, false, Instant.now(), sourceAuthorizationVersion = currentVersion))
             guard.requireProjectReader(project, 20L)
             shouldThrow<ExpectedException> { guard.requireProjectModifier(project, 20L) }
         }
         it("read와 write를 부여하면 별도 멤버 등록 없이 수정한다") {
-            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, true, true, Instant.now()))
+            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, true, true, Instant.now(), sourceAuthorizationVersion = currentVersion))
             guard.requireProjectModifier(project, 20L)
             shouldThrow<ExpectedException> { guard.requireProjectOwner(project, 20L) }
         }
         it("회수된 read는 write가 남아도 접근을 허용하지 않는다") {
-            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, false, true, Instant.now()))
+            every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection("3:20", 3L, 20L, false, true, Instant.now(), sourceAuthorizationVersion = currentVersion))
             guard.canRead(project, 20L) shouldBe false
             guard.canWrite(project, 20L) shouldBe false
         }
@@ -129,15 +130,15 @@ class ProjectAccessGuardTest : DescribeSpec({
         }
         it("접근자 일괄 판정은 사용자마다 read와 write를 구분하고 현재 팀 멤버만 포함한다") {
             every { access.findAllByProjectId(3L) } returns listOf(
-                ProjectAccessProjection("3:20", 3L, 20L, true, false, Instant.now()),
-                ProjectAccessProjection("3:21", 3L, 21L, false, true, Instant.now()),
-                ProjectAccessProjection("3:22", 3L, 22L, true, true, Instant.now()),
+                ProjectAccessProjection("3:20", 3L, 20L, true, false, Instant.now(), sourceAuthorizationVersion = currentVersion),
+                ProjectAccessProjection("3:21", 3L, 21L, false, true, Instant.now(), sourceAuthorizationVersion = currentVersion),
+                ProjectAccessProjection("3:22", 3L, 22L, true, true, Instant.now(), sourceAuthorizationVersion = currentVersion),
             )
             val memberships = listOf(
-                TeamMembership(teamId = 1L, userId = 10L, role = "MEMBER"),
-                TeamMembership(teamId = 1L, userId = 20L, role = "MEMBER"),
-                TeamMembership(teamId = 1L, userId = 21L, role = "MEMBER"),
-                TeamMembership(teamId = 1L, userId = 22L, role = "MEMBER", active = false),
+                TeamMembership(teamId = 1L, userId = 10L, role = "MEMBER", sourceOccurredAt = currentVersion, authorizationVersion = currentVersion),
+                TeamMembership(teamId = 1L, userId = 20L, role = "MEMBER", sourceOccurredAt = currentVersion, authorizationVersion = currentVersion),
+                TeamMembership(teamId = 1L, userId = 21L, role = "MEMBER", sourceOccurredAt = currentVersion, authorizationVersion = currentVersion),
+                TeamMembership(teamId = 1L, userId = 22L, role = "MEMBER", active = false, sourceOccurredAt = currentVersion, authorizationVersion = currentVersion),
                 TeamMembership(teamId = 2L, userId = 23L, role = "OWNER"),
             )
             guard.permissionsForUsers(project, memberships) shouldBe mapOf(
@@ -149,14 +150,14 @@ class ProjectAccessGuardTest : DescribeSpec({
         it("프로젝트 일괄 판정은 권한 없는 프로젝트만 숨긴다") {
             val hidden = Project(id = 4L, teamId = 1L, name = "hidden", description = null, createdBy = 10L)
             every { access.findAllByUserIdAndProjectIdIn(20L, listOf(3L, 4L)) } returns
-                listOf(ProjectAccessProjection("3:20", 3L, 20L, true, false, Instant.now()))
+                listOf(ProjectAccessProjection("3:20", 3L, 20L, true, false, Instant.now(), sourceAuthorizationVersion = currentVersion))
             val permissions = guard.permissionsForProjects(listOf(project, hidden), 20L)
             permissions.getValue(3L).read shouldBe true
             permissions.getValue(4L).read shouldBe false
         }
         it("재정렬 권한은 프로젝트 수정 권한을 주지 않는다") {
             every { access.findAllByUserIdAndProjectIdIn(20L, listOf(3L)) } returns
-                listOf(ProjectAccessProjection("3:20", 3L, 20L, true, false, Instant.now(), canReorder = true))
+                listOf(ProjectAccessProjection("3:20", 3L, 20L, true, false, Instant.now(), canReorder = true, sourceAuthorizationVersion = currentVersion))
             val permissions = guard.permissionsForProjects(listOf(project), 20L).getValue(3L)
             permissions.read shouldBe true
             permissions.reorder shouldBe true
@@ -170,9 +171,10 @@ class ProjectAccessGuardTest : DescribeSpec({
     }
 
     describe("ProjectAccessGuard 클래스의 requirePrivateTransitionAccess 메서드는") {
-        it("구형 이벤트로 비공개 읽기 여부를 아직 모르면 전환을 거절한다") {
+        it("비공개 읽기가 허용되지 않으면 전환을 거절한다") {
             every { access.findById("3:20") } returns Optional.of(ProjectAccessProjection(
                 "3:20", 3L, 20L, true, true, Instant.now(), canManage = true,
+                sourceAuthorizationVersion = currentVersion,
             ))
 
             shouldThrow<ExpectedException> { guard.requirePrivateTransitionAccess(project, 20L) }
@@ -222,14 +224,15 @@ class ProjectAccessGuardTest : DescribeSpec({
 
     describe("ProjectAccessGuard 클래스의 requireProjectCreation 메서드는") {
         context("일반 멤버에게 생성과 읽기 권한이 있는 경우") {
-            it("비공개 프로젝트의 초기 읽기 역할에 승인한 멤버십 버전을 반환한다") {
+            it("권한 버전이 없으면 초기 읽기 역할을 승인하지 않는다") {
                 val version = Instant.parse("2026-10-25T00:00:00Z")
                 every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns
                     TeamMembership(teamId = 1L, userId = 20L, role = "MEMBER", sourceOccurredAt = version)
                 every { teamPermissions.hasPermission(1L, 20L, "manage_projects") } returns true
                 every { teamPermissions.hasPermission(1L, 20L, "project_read") } returns true
 
-                guard.requireProjectCreation(1L, 20L, true) shouldBe ProjectAccessGuard.InitialReadAuthorization(version, null)
+                shouldThrow<ExpectedException> { guard.requireProjectCreation(1L, 20L, true) }
+                    .statusCode shouldBe HttpStatus.SERVICE_UNAVAILABLE
             }
         }
         context("닉네임 변경 후 안정적인 권한 버전을 보유한 일반 멤버인 경우") {
@@ -268,6 +271,8 @@ class ProjectAccessGuardTest : DescribeSpec({
         }
         context("허용된 일반 멤버의 원본 멤버십 버전이 없는 경우") {
             it("재가입 후 사용할 수 있는 초기 권한을 만들지 않고 동기화를 기다린다") {
+                every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns
+                    TeamMembership(teamId = 1L, userId = 20L, role = "MEMBER")
                 every { teamPermissions.hasPermission(1L, 20L, "manage_projects") } returns true
                 every { teamPermissions.hasPermission(1L, 20L, "project_read") } returns true
 

@@ -66,6 +66,7 @@ class AccessEventParserTest :
                         "projectId" to 7,
                         "teamId" to 42,
                         "occurredAt" to OCCURRED_AT,
+                        "isPrivate" to true,
                     )
 
                     val event = ProjectLifecycleEventParser.parse("7", value)
@@ -78,7 +79,7 @@ class AccessEventParserTest :
 
             context("DELETED 이벤트이면") {
                 it("삭제된 프로젝트로 해석해 권한을 회수한다") {
-                    val value = json("eventType" to "DELETED", "projectId" to 7, "teamId" to 42, "occurredAt" to OCCURRED_AT)
+                    val value = json("eventType" to "DELETED", "projectId" to 7, "teamId" to 42, "occurredAt" to OCCURRED_AT, "isPrivate" to true)
 
                     ProjectLifecycleEventParser.parse("7", value)
                         .shouldBeInstanceOf<ProjectLifecycleRecordDecision.Apply>().event.deleted shouldBe true
@@ -87,7 +88,7 @@ class AccessEventParserTest :
 
             context("key가 projectId와 다르면") {
                 it("다른 프로젝트의 소속 팀을 바꾸지 못하도록 격리한다") {
-                    val value = json("eventType" to "UPDATED", "projectId" to 7, "teamId" to 42, "occurredAt" to OCCURRED_AT)
+                    val value = json("eventType" to "UPDATED", "projectId" to 7, "teamId" to 42, "occurredAt" to OCCURRED_AT, "isPrivate" to true)
 
                     ProjectLifecycleEventParser.parse("8", value)
                         .shouldBeInstanceOf<ProjectLifecycleRecordDecision.Quarantine>()
