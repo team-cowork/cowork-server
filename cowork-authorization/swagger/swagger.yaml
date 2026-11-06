@@ -81,7 +81,7 @@ info:
   contact: {}
   description: DataGSM 계정으로 로그인하고 Cowork 토큰을 발급하거나 갱신합니다.
   title: cowork Authorization API
-  version: "20261103.0"
+  version: "20261104.0"
 paths:
   /auth/refresh:
     post:
