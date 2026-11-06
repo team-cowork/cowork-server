@@ -129,6 +129,43 @@ class RoadmapAccessGuardTest {
     }
 
     @Nested
+    class RequireAssignableMember {
+
+        @Test
+        void activeMember_succeeds() {
+            when(teamMemberships.findActiveRole(99L, 42L)).thenReturn(Optional.of("MEMBER"));
+
+            accessGuard.requireAssignableMember(99L, 42L);
+        }
+
+        @Test
+        void memberCommittedBeforeSecondLookup_succeeds() {
+            when(teamMemberships.findActiveRole(99L, 42L)).thenReturn(Optional.empty(), Optional.of("MEMBER"));
+
+            accessGuard.requireAssignableMember(99L, 42L);
+        }
+
+        @Test
+        void nonMember_isBadRequest() {
+            when(teamMemberships.findActiveRole(99L, 42L)).thenReturn(Optional.empty());
+
+            ExpectedException error = assertThrows(ExpectedException.class,
+                    () -> accessGuard.requireAssignableMember(99L, 42L));
+            assertTrue(error.getStatusCode() == HttpStatus.BAD_REQUEST);
+        }
+
+        @Test
+        void projectionNotReady_isUnavailable() {
+            when(projectionReadiness.isReady()).thenReturn(false);
+
+            ExpectedException error = assertThrows(ExpectedException.class,
+                    () -> accessGuard.requireAssignableMember(99L, 42L));
+            assertTrue(error.getStatusCode() == HttpStatus.SERVICE_UNAVAILABLE);
+            verifyNoInteractions(teamMemberships);
+        }
+    }
+
+    @Nested
     class RequireCreatable {
 
         @Test

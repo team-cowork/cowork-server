@@ -2,7 +2,6 @@ package com.cowork.gateway.webhook
 
 import com.cowork.gateway.deployment.DeploymentStateCache
 import com.cowork.gateway.response.body.writeNoStoreJson
-import com.cowork.gateway.response.model.CommonApiResponse
 import io.micrometer.core.instrument.MeterRegistry
 import org.slf4j.LoggerFactory
 import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreakerFactory
@@ -21,6 +20,7 @@ import org.springframework.stereotype.Component
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
+import team.themoment.sdk.response.CommonApiResponse
 import tools.jackson.databind.ObjectMapper
 
 @Component
@@ -121,9 +121,9 @@ class DataGsmWebhookIngressFilter(
                 "invalid_payload" -> "유효하지 않은 요청 본문입니다."
                 else -> "웹훅을 일시적으로 접수할 수 없습니다."
             }
-            CommonApiResponse.error(status, message)
+            CommonApiResponse.error(message, status)
         } else {
-            CommonApiResponse.success(mapOf("status" to value))
+            CommonApiResponse(status, status.value(), status.reasonPhrase, mapOf("status" to value))
         }
         val bytes = objectMapper.writeValueAsBytes(result)
         return exchange.response.writeNoStoreJson(status, bytes)

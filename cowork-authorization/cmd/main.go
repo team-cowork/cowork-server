@@ -1,11 +1,11 @@
 // @title           cowork Authorization API
 // @version         20261104.0
-// @description     인증/인가 서비스 — DataGSM OAuth2 PKCE 로그인, JWT 액세스/리프레시 토큰 발급 및 갱신
+// @description     DataGSM 계정으로 로그인하고 Cowork 토큰을 발급하거나 갱신합니다.
 // @BasePath        /api/authorization
 // @securityDefinitions.apikey BearerAuth
 // @in              header
 // @name            Authorization
-// @description     "Bearer {access_token}" 형식으로 입력하세요.
+// @description     "Bearer {access_token}" 형식으로 입력합니다.
 package main
 
 import (
@@ -85,7 +85,7 @@ func main() {
 	refreshTokenRepo := repository.NewRefreshTokenRepository(db)
 	webhookInbox := repository.NewWebhookInboxRepository(sqlDB)
 	identityOperationRepo := repository.NewUserIdentityOperationRepository(db)
-	kafkaProducer := kafkainfra.NewProducer(cfg.KafkaSecurity, cfg.KafkaBootstrapServers, cfg.KafkaTopicUserSync)
+	kafkaProducer := kafkainfra.NewProducer(cfg.KafkaSecurity, cfg.KafkaBootstrapServers)
 	if err := refreshTokenRepo.DeleteExpiredSessions(
 		context.Background(),
 		time.Now().UTC().Truncate(time.Microsecond),

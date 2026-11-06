@@ -7,12 +7,12 @@ import io.kotest.matchers.shouldBe
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.mockk.every
 import io.mockk.mockk
-import org.springframework.cloud.gateway.filter.GatewayFilterChain
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest
 import org.springframework.mock.web.server.MockServerWebExchange
 import org.springframework.web.server.ServerWebExchange
+import org.springframework.web.server.WebFilterChain
 import tools.jackson.databind.json.JsonMapper
 
 class ApiResponseWrapperFilterTest :
@@ -27,7 +27,7 @@ class ApiResponseWrapperFilterTest :
 
         fun completeWith(status: HttpStatus): MockServerWebExchange {
             val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/user/users/me"))
-            val chain = mockk<GatewayFilterChain>()
+            val chain = mockk<WebFilterChain>()
             every { chain.filter(any()) } answers {
                 val forwarded = firstArg<ServerWebExchange>()
                 forwarded.response.statusCode = status
@@ -44,7 +44,7 @@ class ApiResponseWrapperFilterTest :
 
                     val body = objectMapper.readTree(exchange.response.bodyAsString.block())
                     exchange.response.headers.contentType shouldBe MediaType.APPLICATION_JSON
-                    body.get("status").asString() shouldBe "TOO_MANY_REQUESTS"
+                    body.get("status").asString() shouldBe "429 TOO_MANY_REQUESTS"
                     body.get("code").asInt() shouldBe 429
                     body.get("message").asString() shouldBe "요청이 너무 많습니다. 잠시 후 다시 시도하십시오."
                     registry.find("gateway.response.wrapper.requests")
@@ -53,11 +53,13 @@ class ApiResponseWrapperFilterTest :
                 }
             }
 
-            context("다른 상태 코드로 빈 응답을 끝내면") {
-                it("본문을 추가하지 않는다") {
+            context("403을 빈 본문으로 끝내면") {
+                it("SDK 오류 응답 본문을 채운다") {
                     val exchange = completeWith(HttpStatus.FORBIDDEN)
 
-                    exchange.response.bodyAsString.block().orEmpty() shouldBe ""
+                    val body = objectMapper.readTree(exchange.response.bodyAsString.block())
+                    body.get("status").asString() shouldBe "403 FORBIDDEN"
+                    body.get("code").asInt() shouldBe 403
                 }
             }
         }

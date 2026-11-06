@@ -74,16 +74,14 @@ sdk:
     - /swagger-ui/**
     enabled: true
   response:
-    not-wrapping-urls:
-    - /actuator/**
-    - /v3/api-docs/**
-    - /v3/api-docs
-    - /swagger-ui/**
+    enabled: false
   swagger:
     enabled: true
     group: team
     paths-to-match:
     - /teams/**
+  exception:
+    enabled: false
 server:
   port: 8085
 team-github:

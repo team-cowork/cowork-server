@@ -4,6 +4,9 @@ import com.cowork.channel.domain.channel.presentation.data.response.ChannelRespo
 import com.cowork.channel.domain.channel.service.SearchChannelsService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.ExampleObject
+import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
@@ -13,8 +16,31 @@ import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+import team.themoment.sdk.response.CommonApiResponse
 
 @Tag(name = "검색", description = "전체 검색 API")
+@ApiResponses(
+    ApiResponse(
+        responseCode = "401",
+        description = "액세스 토큰이 없거나 유효하지 않음",
+        content = [
+            Content(
+                mediaType = "application/json",
+                schema = Schema(implementation = CommonApiResponse::class),
+                examples = [
+                    ExampleObject(
+                        value = """{"status":"401 UNAUTHORIZED","code":401,"message":"Unauthorized"}""",
+                    ),
+                ],
+            ),
+        ],
+    ),
+    ApiResponse(
+        responseCode = "default",
+        description = "기타 오류",
+        content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
+    ),
+)
 @RestController
 @RequestMapping("/search")
 class SearchChannelController(private val searchChannelsService: SearchChannelsService) {
@@ -22,7 +48,21 @@ class SearchChannelController(private val searchChannelsService: SearchChannelsS
     @Operation(summary = "채널 검색", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "검색 성공"),
-        ApiResponse(responseCode = "403", description = "팀 멤버가 아님"),
+        ApiResponse(
+            responseCode = "403",
+            description = "팀 멤버가 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @GetMapping("/channels")
     fun searchChannels(

@@ -64,9 +64,22 @@ html:has(.technology-dialog[open]) {
     color: var(--color-text-secondary);
 }
 
+.technology-dialog__identity {
+    display: grid;
+    grid-template-columns: var(--space-12) minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.technology-dialog__logo {
+    width: var(--space-12);
+    height: var(--space-12);
+    object-fit: contain;
+}
+
 .technology-dialog__title {
     margin-bottom: var(--space-2);
-    font-size: var(--font-size-3xl);
+    font-size: clamp(var(--font-size-2xl), 7vw, var(--font-size-3xl));
     font-weight: var(--font-weight-bold);
     letter-spacing: var(--tracking-tight);
     line-height: var(--leading-tight);

@@ -79,16 +79,6 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
         attempt(CacheOperation.SET, key) { redis.send(writeIfNewer(listOf(key), settings)).coAwait() }
     }
 
-    /** DB에서 읽은 여러 값을 한 번의 pipeline으로 채운다. */
-    suspend fun populateSettingsBulk(resourceType: ResourceType, settingsById: Map<Long, VersionedSettings>) {
-        if (settingsById.isEmpty()) return
-        val requests = settingsById.map { (resourceId, settings) ->
-            writeIfNewer(listOf(settingKey(resourceType, resourceId)), settings)
-        }
-        val target = "$KEY_PREFIX${resourceType.name}:*(${requests.size})"
-        attempt(CacheOperation.SET_BULK, target) { redis.batch(requests).coAwait() }
-    }
-
     /**
      * DB commit으로 바뀐 값을 기록한다. 실패하면 이전 값이 남아 있을 수 있으므로 repair 대상으로 등록한다.
      * 더 새로운 version이 이미 있어 기록하지 않은 경우도 이전 값이 남지 않으므로 성공으로 본다.
@@ -155,7 +145,6 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
     private enum class CacheOperation(val tag: String) {
         GET("get"),
         SET("set"),
-        SET_BULK("set_bulk"),
         REPAIR("repair"),
         EXPIRY_LOCK("expiry_lock"),
     }
