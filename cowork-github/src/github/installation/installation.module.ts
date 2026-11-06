@@ -9,12 +9,7 @@ import {InstallationApiClient} from './client/installation-api.client.js';
 import {GithubBackfillService} from './github-backfill.service.js';
 import {GithubSyncCommandController} from './github-sync-command.controller.js';
 import {GithubReadModelEventProducers} from './kafka/github-read-model-event-producers.js';
-import {IssueCommentStateProducer} from './kafka/issue-comment-state.producer.js';
-import {IssueStateProducer} from './kafka/issue-state.producer.js';
-import {LabelStateProducer} from './kafka/label-state.producer.js';
-import {PullRequestStateProducer} from './kafka/pull-request-state.producer.js';
 import {RepoEventProducer} from './kafka/repo-event.producer.js';
-import {RepoStateProducer} from './kafka/repo-state.producer.js';
 import {TeamGithubProducer} from './kafka/team-github.producer.js';
 import {GithubSetupController} from './webhook/github-setup.controller.js';
 import {GithubWebhookSignatureGuard} from './webhook/github-webhook-signature.guard.js';
@@ -33,11 +28,6 @@ import {GithubWebhookController} from './webhook/github-webhook.controller.js';
 		InstallationApiClient,
 		TeamGithubProducer,
 		RepoEventProducer,
-		RepoStateProducer,
-		IssueStateProducer,
-		PullRequestStateProducer,
-		LabelStateProducer,
-		IssueCommentStateProducer,
 		GithubReadModelEventProducers,
 		GithubBackfillService,
 		GithubWebhookSignatureGuard,

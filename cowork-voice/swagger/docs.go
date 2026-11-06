@@ -41,21 +41,39 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "방송 상태와 시청자 수",
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_live_room.StatusResponse"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_live_room_StatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "채널 ID 형식 오류",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "인증 필요",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "403": {
                         "description": "Forbidden",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 오류",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "503": {
+                        "description": "채널 권한 동기화 중",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     }
                 }
@@ -68,7 +86,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "진행 중인 라이브에 시청자로 참여합니다. subscribe 토큰을 받으며, screen_share 권한이 있으면 카메라만 송출할 수 있습니다(마이크·화면공유는 불가). 호스트가 재입장하면 publish 권한 토큰이 재발급됩니다.",
+                "description": "시청자는 방송을 수신하며 screen_share 권한이 있으면 카메라도 켤 수 있습니다. 시청자는 마이크와 화면을 공유할 수 없습니다. 호스트가 다시 입장하면 호스트 권한으로 토큰을 발급합니다.",
                 "produces": [
                     "application/json"
                 ],
@@ -87,27 +105,45 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "접속 토큰과 세션 정보",
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_live_room.JoinResponse"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_live_room_JoinResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "채널 ID 형식 오류",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "인증 필요",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "403": {
-                        "description": "음성 채널 연결 권한 없음",
+                        "description": "음성 채널 접근 권한 없음",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "404": {
                         "description": "진행 중인 라이브 없음",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 오류",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "503": {
+                        "description": "채널 권한 동기화 중",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     }
                 }
@@ -120,7 +156,10 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "라이브에서 퇴장합니다. 호스트가 퇴장하면 방송 전체가 종료되고 시청자 전원이 퇴장 처리됩니다.",
+                "description": "라이브에서 퇴장합니다. 호스트가 퇴장하면 방송 전체가 종료되고 시청자도 모두 퇴장합니다.",
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "live"
                 ],
@@ -136,18 +175,42 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "퇴장 성공"
+                        "description": "퇴장 완료. 응답 본문은 없습니다."
+                    },
+                    "400": {
+                        "description": "채널 ID 형식 오류",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "인증 필요",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "음성 채널 접근 권한 없음",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "404": {
                         "description": "진행 중인 라이브 없음",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 오류",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "503": {
+                        "description": "채널 권한 동기화 중",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     }
                 }
@@ -160,7 +223,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "채널에서 라이브 방송을 시작합니다. 호출자가 호스트가 되며 publish 권한(마이크·화면공유·카메라) 토큰을 받습니다. 카메라와 화면공유는 screen_share 권한이 있을 때만 허용됩니다. 채널당 동시 라이브는 1개입니다.",
+                "description": "live_broadcast 권한이 있는 사용자가 호스트가 됩니다. 채널마다 한 번에 하나의 방송만 열 수 있습니다. 마이크에는 voice_speak 권한이 필요하고 카메라와 화면 공유에는 screen_share 권한이 필요합니다.",
                 "produces": [
                     "application/json"
                 ],
@@ -179,33 +242,45 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "호스트 접속 토큰과 세션 정보",
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_live_room.StartResponse"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_live_room_StartResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "채널 ID 형식 오류",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "인증 필요",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "403": {
-                        "description": "음성 채널 연결 권한 없음",
+                        "description": "음성 채널 접근 또는 방송 권한 없음",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "409": {
                         "description": "이미 라이브 진행 중",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "서버 오류",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "503": {
+                        "description": "채널 권한 동기화 중",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     }
                 }
@@ -218,7 +293,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "채널에 입장합니다. LiveKit 토큰과 연결 URL을 반환합니다. 기존 세션이 없으면 새로 생성됩니다.",
+                "description": "채널에 입장합니다. LiveKit 토큰과 연결 URL을 반환합니다. 기존 세션이 없으면 새 세션을 만듭니다. 마이크에는 voice_speak 권한이 필요하고 카메라와 화면 공유에는 screen_share 권한이 필요합니다.",
                 "produces": [
                     "application/json"
                 ],
@@ -237,33 +312,45 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "접속 토큰과 세션 정보",
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_voice_room.JoinResponse"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voice_room_JoinResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "채널 ID 형식 오류",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "인증 필요",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "403": {
-                        "description": "음성 채널 연결 권한 없음",
+                        "description": "음성 채널 접근 권한 없음",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "409": {
                         "description": "음성 채널 정원 초과",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "서버 오류",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "503": {
+                        "description": "채널 권한 동기화 중",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     }
                 }
@@ -277,6 +364,9 @@ const docTemplate = `{
                     }
                 ],
                 "description": "채널에서 퇴장합니다. 마지막 참여자가 나가면 LiveKit이 빈 방을 자동 정리하고, room_finished 웹훅으로 세션이 종료됩니다.",
+                "produces": [
+                    "application/json"
+                ],
                 "tags": [
                     "voice"
                 ],
@@ -292,18 +382,42 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "204": {
-                        "description": "퇴장 성공"
+                        "description": "퇴장 완료. 응답 본문은 없습니다."
+                    },
+                    "400": {
+                        "description": "채널 ID 형식 오류",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "인증 필요",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "음성 채널 접근 권한 없음",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "404": {
                         "description": "활성 세션 없음",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 오류",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "503": {
+                        "description": "채널 권한 동기화 중",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     }
                 }
@@ -335,21 +449,39 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "현재 참여자 목록",
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_voice_room.ParticipantsResponse"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voice_room_ParticipantsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "채널 ID 형식 오류",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "인증 필요",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "음성 채널 접근 권한 없음",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 오류",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "503": {
+                        "description": "채널 권한 동기화 중",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     }
                 }
@@ -381,21 +513,39 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "음성 세션 정보",
                         "schema": {
-                            "$ref": "#/definitions/internal_domain_voice_room.SessionResponse"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voice_room_SessionResponse"
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "인증 필요",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "음성 채널 접근 권한 없음",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
                     "404": {
                         "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apperr.Error"
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 오류",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "503": {
+                        "description": "채널 권한 동기화 중",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     }
                 }
@@ -403,8 +553,11 @@ const docTemplate = `{
         },
         "/voice/webhook": {
             "post": {
-                "description": "LiveKit 서버가 전송하는 participant_joined / participant_left / room_finished 이벤트를 처리합니다. LiveKit 서버 내부 호출용이며 직접 호출하지 않습니다.",
+                "description": "LiveKit 서버가 전송하는 participant_joined, participant_left, room_finished 이벤트를 처리합니다. 이 경로는 LiveKit 서버에서 호출합니다.",
                 "consumes": [
+                    "application/json"
+                ],
+                "produces": [
                     "application/json"
                 ],
                 "tags": [
@@ -422,31 +575,221 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK"
+                        "description": "수신 완료. 응답 본문은 없습니다."
                     },
                     "401": {
-                        "description": "Unauthorized"
+                        "description": "웹훅 서명 검증 실패",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "500": {
+                        "description": "서버 오류",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
                     }
                 }
             }
         }
     },
     "definitions": {
-        "github_com_cowork_cowork-voice_internal_apperr.Error": {
-            "description": "API 에러 응답",
+        "github_com_cowork_cowork-voice_internal_apidoc.Error": {
             "type": "object",
+            "required": [
+                "code",
+                "message",
+                "status"
+            ],
             "properties": {
-                "error": {
-                    "type": "string",
-                    "example": "NOT_FOUND"
+                "code": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_live_room_JoinResponse": {
+            "type": "object",
+            "required": [
+                "code",
+                "data",
+                "message",
+                "status"
+            ],
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "enum": [
+                        200
+                    ]
+                },
+                "data": {
+                    "$ref": "#/definitions/internal_domain_live_room.JoinResponse"
                 },
                 "message": {
                     "type": "string",
-                    "example": "session not found"
+                    "example": "OK"
                 },
                 "status": {
+                    "type": "string",
+                    "enum": [
+                        "200 OK"
+                    ]
+                }
+            }
+        },
+        "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_live_room_StartResponse": {
+            "type": "object",
+            "required": [
+                "code",
+                "data",
+                "message",
+                "status"
+            ],
+            "properties": {
+                "code": {
                     "type": "integer",
-                    "example": 404
+                    "enum": [
+                        200
+                    ]
+                },
+                "data": {
+                    "$ref": "#/definitions/internal_domain_live_room.StartResponse"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "OK"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "200 OK"
+                    ]
+                }
+            }
+        },
+        "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_live_room_StatusResponse": {
+            "type": "object",
+            "required": [
+                "code",
+                "data",
+                "message",
+                "status"
+            ],
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "enum": [
+                        200
+                    ]
+                },
+                "data": {
+                    "$ref": "#/definitions/internal_domain_live_room.StatusResponse"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "OK"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "200 OK"
+                    ]
+                }
+            }
+        },
+        "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voice_room_JoinResponse": {
+            "type": "object",
+            "required": [
+                "code",
+                "data",
+                "message",
+                "status"
+            ],
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "enum": [
+                        200
+                    ]
+                },
+                "data": {
+                    "$ref": "#/definitions/internal_domain_voice_room.JoinResponse"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "OK"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "200 OK"
+                    ]
+                }
+            }
+        },
+        "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voice_room_ParticipantsResponse": {
+            "type": "object",
+            "required": [
+                "code",
+                "data",
+                "message",
+                "status"
+            ],
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "enum": [
+                        200
+                    ]
+                },
+                "data": {
+                    "$ref": "#/definitions/internal_domain_voice_room.ParticipantsResponse"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "OK"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "200 OK"
+                    ]
+                }
+            }
+        },
+        "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voice_room_SessionResponse": {
+            "type": "object",
+            "required": [
+                "code",
+                "data",
+                "message",
+                "status"
+            ],
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "enum": [
+                        200
+                    ]
+                },
+                "data": {
+                    "$ref": "#/definitions/internal_domain_voice_room.SessionResponse"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "OK"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "200 OK"
+                    ]
                 }
             }
         },
@@ -611,7 +954,7 @@ const docTemplate = `{
     },
     "securityDefinitions": {
         "BearerAuth": {
-            "description": "\"Bearer {access_token}\" 형식으로 입력하세요.",
+            "description": "\"Bearer {access_token}\" 형식으로 입력합니다.",
             "type": "apiKey",
             "name": "Authorization",
             "in": "header"
@@ -626,7 +969,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/api/voice",
 	Schemes:          []string{},
 	Title:            "cowork Voice API",
-	Description:      "음성 채널 서비스 — LiveKit 기반 음성 통화 세션 관리\n\n## 미디어 연결 (LiveKit)\n이 서비스는 WebSocket을 직접 제공하지 않습니다. 아래 REST 엔드포인트가 LiveKit 접속\n토큰을 발급하고, 클라이언트는 응답의 `livekit_url`(wss)로 **LiveKit 서버에 직접 연결**합니다.\n이 연결은 Gateway를 경유하지 않습니다.\n\n| 구분 | 입장 | 발급 토큰 권한 |\n|------|------|----------------|\n| `voice` — 상시 음성 채널 | `POST /voice/channels/{channel_id}/join` | 전원 publish + subscribe |\n| `live` — 라이브 방송 | `POST /live/channels/{channel_id}/start` (호스트) | publish (마이크·화면공유) |\n| | `POST /live/channels/{channel_id}/join` (시청자) | subscribe 전용 |\n\n응답의 `room_name`이 LiveKit room 식별자이며, `session_id`로 서버 측 세션을 조회합니다.\n참가자 입퇴장은 LiveKit이 `POST /voice/webhook`으로 통보하고 서버가 세션 상태를 갱신합니다.",
+	Description:      "음성 통화와 라이브 방송에 사용할 LiveKit 토큰을 발급합니다. 클라이언트는 응답의 data.livekit_url로 LiveKit에 직접 연결합니다. room_name은 통화방 이름이고 session_id는 세션 조회에 사용하는 ID입니다.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

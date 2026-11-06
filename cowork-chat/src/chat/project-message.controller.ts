@@ -5,12 +5,14 @@ import {
 	Query as requestQuery,
 } from '@nestjs/common';
 import {
-	ApiHeader as apiHeader,
 	ApiOperation as apiOperation,
 	ApiQuery as apiQuery,
 	ApiResponse as apiResponse,
 	ApiTags as apiTags,
+	ApiExtraModels as apiExtraModels,
+	getSchemaPath,
 } from '@nestjs/swagger';
+import {ApiResponseMetadataDto} from '../common/dto/api-response-metadata.dto.js';
 import {currentUserId} from '../common/decorator/user.decorator.js';
 import {SafePositiveIntPipe} from '../common/pipe/safe-positive-int.pipe.js';
 import {ChatService} from './chat.service.js';
@@ -23,7 +25,9 @@ import {SearchMessagesDto, SearchMessagesResponseDto} from './dto/index.js';
  프로젝트·채널 멤버십은 Kafka 이벤트로 동기화한 MongoDB projection에서 확인한다.
  */
 @apiTags('Chat')
-@apiHeader({name: 'X-User-Id', description: 'Gateway 자동 주입 (서비스 직접 테스트 시만 입력)', required: false})
+@apiExtraModels(ApiResponseMetadataDto, SearchMessagesResponseDto)
+@apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
+@apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
 @controller('projects/:projectId')
 export class ProjectMessageController {
 	constructor(private readonly chatService: ChatService) {}
@@ -41,13 +45,8 @@ export class ProjectMessageController {
 	@httpGet('messages/search')
 	@apiOperation({
 		summary: '프로젝트 채팅 메시지 검색',
-		description:
-            'Elasticsearch 기반 전문 검색. 프로젝트에 속한 채널 중 요청자가 접근 가능한 채널에서 검색.\n\n'
-            + '- 한국어 nori 형태소 분석 적용\n'
-            + '- fuzzy matching으로 오타 허용\n'
-            + '- 검색 키워드는 응답의 `highlight` 필드에 `<em>` 태그로 표시\n'
-            + '- 결과는 최신순 정렬 (createdAt DESC)\n'
-            + '- 커서 기반 페이지네이션: 응답의 `nextCursor`를 다음 요청의 `before`에 전달',
+		description: '프로젝트에서 접근할 수 있는 채널의 메시지를 검색합니다. 검색어의 오타를 허용하며 결과는 최신순입니다. '
+			+ 'highlight는 일치한 부분을 <em>으로 표시합니다. 다음 페이지는 nextCursor를 before에 넣어 조회합니다.',
 	})
 	@apiQuery({name: 'q', description: '검색 키워드 (최소 1자)', required: true})
 	@apiQuery({name: 'channelId', description: '특정 채널로 범위 축소', required: false})
@@ -58,8 +57,64 @@ export class ProjectMessageController {
 	@apiQuery({name: 'hasFile', description: '첨부파일 포함 메시지만 조회 (true/false)', required: false})
 	@apiQuery({name: 'before', description: '커서: 이전 응답의 nextCursor 값', required: false})
 	@apiQuery({name: 'limit', description: '페이지 크기 (기본 50, 최대 100)', required: false})
-	@apiResponse({status: 200, type: SearchMessagesResponseDto})
-	@apiResponse({status: 403, description: '프로젝트 멤버 아님 또는 채널 접근 권한 없음'})
+	@apiResponse({
+		status: 200,
+		description: '요청 처리 완료',
+		schema: {
+			allOf: [
+				{$ref: getSchemaPath(ApiResponseMetadataDto)},
+				{
+					type: 'object',
+					required: ['data'],
+					properties: {
+						status: {type: 'string', enum: ['200 OK']},
+						code: {type: 'integer', enum: [200]},
+						message: {type: 'string', example: 'OK'},
+						data: {$ref: getSchemaPath(SearchMessagesResponseDto)},
+					},
+				},
+			],
+		},
+	})
+	@apiResponse({
+		status: 400,
+		description: '검색 조건 또는 커서 형식 오류',
+		schema: {
+			allOf: [
+				{$ref: getSchemaPath(ApiResponseMetadataDto)},
+				{
+					type: 'object',
+					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
+				},
+			],
+		},
+	})
+	@apiResponse({
+		status: 503,
+		description: '검색 색인 또는 권한 정보를 사용할 수 없음',
+		schema: {
+			allOf: [
+				{$ref: getSchemaPath(ApiResponseMetadataDto)},
+				{
+					type: 'object',
+					properties: {status: {type: 'string', enum: ['503 SERVICE_UNAVAILABLE']}, code: {type: 'integer', enum: [503]}},
+				},
+			],
+		},
+	})
+	@apiResponse({
+		status: 403,
+		description: '프로젝트 멤버 아님 또는 채널 접근 권한 없음',
+		schema: {
+			allOf: [
+				{$ref: getSchemaPath(ApiResponseMetadataDto)},
+				{
+					type: 'object',
+					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
+				},
+			],
+		},
+	})
 	async searchMessages(
 		@requestParameter('projectId', SafePositiveIntPipe) projectId: number,
 		@requestQuery() dto: SearchMessagesDto,

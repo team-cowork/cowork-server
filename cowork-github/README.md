@@ -11,8 +11,8 @@ GitHub App으로 조직 저장소의 이슈·PR·라벨을 다루고 GitHub 이�
 
 ## 스택
 
-- TypeScript / Node.js / NestJS
-- npm / TypeScript Compiler
+- TypeScript / Bun / NestJS
+- Bun / TypeScript Compiler
 - KafkaJS / Redis (ioredis)
 - GitHub App (JWT · installation access token)
 
@@ -38,6 +38,8 @@ GitHub App으로 조직 저장소의 이슈·PR·라벨을 다루고 GitHub 이�
 | `KAFKA_SSL_CA_LOCATION`                      | PEM CA 파일 경로. TLS 서버 인증서 검증 유지            |
 | `GITHUB_APP_ID`                              | 필수. GitHub App ID                                    |
 | `GITHUB_PRIVATE_KEY`                         | 필수. Base64로 인코딩한 PEM 개인 키                    |
+| `GITHUB_APP_CLIENT_ID`                       | 필수. 설치 콜백 사용자 인증용 App Client ID            |
+| `GITHUB_APP_CLIENT_SECRET`                   | 필수. 설치 콜백 사용자 인증용 App Client secret        |
 | `GITHUB_WEBHOOK_SECRET`                      | 필수. GitHub webhook 서명 검증 키                      |
 | `INTERNAL_API_KEY`                           | 필수. 내부 HTTP API 공유 키                            |
 | `REDIS_HOST`, `REDIS_PORT`                   | 토큰·설치 캐시 연결                                    |

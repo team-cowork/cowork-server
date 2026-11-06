@@ -12,6 +12,9 @@ import com.cowork.project.domain.github.service.UpdateGithubCommentService
 import com.cowork.project.domain.github.service.UpdateGithubIssueLabelsService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.ExampleObject
+import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
@@ -27,8 +30,31 @@ import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
+import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "GitHub 이슈", description = "프로젝트에 연결된 GitHub 레포지토리의 이슈 조회/생성 API")
+@Tag(name = "GitHub 이슈", description = "프로젝트에 연결된 GitHub 저장소의 이슈 조회/생성 API")
+@ApiResponses(
+    ApiResponse(
+        responseCode = "401",
+        description = "액세스 토큰이 없거나 유효하지 않음",
+        content = [
+            Content(
+                mediaType = "application/json",
+                schema = Schema(implementation = CommonApiResponse::class),
+                examples = [
+                    ExampleObject(
+                        value = """{"status":"401 UNAUTHORIZED","code":401,"message":"Unauthorized"}""",
+                    ),
+                ],
+            ),
+        ],
+    ),
+    ApiResponse(
+        responseCode = "default",
+        description = "기타 오류",
+        content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
+    ),
+)
 @RestController
 @RequestMapping("/projects/{projectId}/github-repos/{repoId}/issues/{issueNumber}")
 class GithubIssueController(
@@ -40,17 +66,57 @@ class GithubIssueController(
 ) {
 
     @Operation(
-        summary = "이슈 라벨 적용/변경 (비동기)",
-        description = "이슈의 라벨을 전체 교체한다. 라벨 자동 적용 정책이 꺼져있을 때 사람이 직접 라벨을 고르는 용도. " +
-            "cowork-github에 Kafka(`github.issue-write.command.v1`)로 REPLACE_LABELS 커맨드를 발행하고 " +
-            "결과를 기다리지 않는다 — 이 응답은 요청이 접수됐다는 것만 의미한다.",
+        summary = "이슈 라벨 교체 요청",
+        description = "이슈의 기존 라벨을 요청한 목록으로 교체합니다. 응답은 요청 접수만 확인합니다.",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
-        ApiResponse(responseCode = "202", description = "요청 접수됨 (비동기 처리)"),
-        ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 없음"),
-        ApiResponse(responseCode = "403", description = "프로젝트 수정 권한 없음"),
-        ApiResponse(responseCode = "404", description = "프로젝트 또는 이슈 없음"),
+        ApiResponse(responseCode = "202", description = "요청 접수. 응답 본문은 없습니다.", content = [Content()]),
+        ApiResponse(
+            responseCode = "400",
+            description = "등록된 GitHub 저장소 URL 형식 오류",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "프로젝트 수정 권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "프로젝트 또는 등록된 저장소 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PatchMapping("/labels")
     @ResponseStatus(HttpStatus.ACCEPTED)
@@ -65,10 +131,66 @@ class GithubIssueController(
     @Operation(summary = "이슈 댓글 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
-        ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 없음"),
-        ApiResponse(responseCode = "403", description = "팀 멤버 아님"),
-        ApiResponse(responseCode = "404", description = "프로젝트 또는 이슈 없음"),
-        ApiResponse(responseCode = "502", description = "GitHub 연동 서버 통신 오류"),
+        ApiResponse(
+            responseCode = "400",
+            description = "등록된 GitHub 저장소 URL 형식 오류",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "프로젝트 읽기 권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "프로젝트, 등록된 저장소 또는 이슈 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "502",
+            description = "GitHub 연동 서버 통신 오류",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"502 BAD_GATEWAY","code":502,"message":"요청을 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @GetMapping("/comments")
     fun listComments(
@@ -79,17 +201,57 @@ class GithubIssueController(
     ): List<GithubCommentResDto> = listGithubCommentsService.execute(userId, projectId, repoId, issueNumber)
 
     @Operation(
-        summary = "이슈 댓글 작성 (비동기)",
-        description = "cowork-github에 Kafka(`github.issue-write.command.v1`)로 CREATE_COMMENT 커맨드를 " +
-            "발행하고 결과를 기다리지 않는다 — 이 응답은 요청이 접수됐다는 것만 의미하며, 생성된 댓글 정보는 " +
-            "이 API로 확인할 수 없다.",
+        summary = "이슈 댓글 작성 요청",
+        description = "응답은 요청 접수만 확인합니다. 생성된 댓글은 댓글 목록에서 확인할 수 있습니다.",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
-        ApiResponse(responseCode = "202", description = "요청 접수됨 (비동기 처리)"),
-        ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 없음 또는 GitHub 계정 미연동"),
-        ApiResponse(responseCode = "403", description = "팀 멤버 아님"),
-        ApiResponse(responseCode = "404", description = "프로젝트 또는 이슈 없음"),
+        ApiResponse(responseCode = "202", description = "요청 접수. 응답 본문은 없습니다.", content = [Content()]),
+        ApiResponse(
+            responseCode = "400",
+            description = "잘못된 저장소 URL 또는 연결된 GitHub 계정 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "프로젝트 읽기 권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "프로젝트 또는 등록된 저장소 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PostMapping("/comments")
     @ResponseStatus(HttpStatus.ACCEPTED)
@@ -99,20 +261,82 @@ class GithubIssueController(
         @PathVariable repoId: Long,
         @PathVariable issueNumber: Int,
         @RequestBody request: CreateGithubCommentReqDto,
-    ) = createGithubCommentService.execute(userId, projectId, repoId, GithubCommentParentType.ISSUE, issueNumber, request)
+    ) = createGithubCommentService.execute(
+        userId,
+        projectId,
+        repoId,
+        GithubCommentParentType.ISSUE,
+        issueNumber,
+        request,
+    )
 
     @Operation(
-        summary = "이슈 댓글 수정 (비동기)",
-        description = "cowork-github에 Kafka(`github.issue-write.command.v1`)로 UPDATE_COMMENT 커맨드를 " +
-            "발행하고 결과를 기다리지 않는다 — 이 응답은 요청이 접수됐다는 것만 의미한다.",
+        summary = "이슈 댓글 수정 요청",
+        description = "응답은 요청 접수만 확인합니다.",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
-        ApiResponse(responseCode = "202", description = "요청 접수됨 (비동기 처리)"),
-        ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 없음 또는 GitHub 계정 미연동"),
-        ApiResponse(responseCode = "403", description = "본인이 작성한 댓글이 아니며 프로젝트 수정 권한도 없음"),
-        ApiResponse(responseCode = "404", description = "프로젝트 또는 댓글 없음"),
-        ApiResponse(responseCode = "502", description = "GitHub 연동 서버 통신 오류"),
+        ApiResponse(responseCode = "202", description = "요청 접수. 응답 본문은 없습니다.", content = [Content()]),
+        ApiResponse(
+            responseCode = "400",
+            description = "잘못된 저장소 URL 또는 연결된 GitHub 계정 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "본인이 작성한 댓글이 아니며 프로젝트 수정 권한도 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "프로젝트, 등록된 저장소 또는 댓글 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "502",
+            description = "GitHub 연동 서버 통신 오류",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"502 BAD_GATEWAY","code":502,"message":"요청을 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PatchMapping("/comments/{commentId}")
     @ResponseStatus(HttpStatus.ACCEPTED)
@@ -126,17 +350,72 @@ class GithubIssueController(
     ) = updateGithubCommentService.execute(userId, projectId, repoId, commentId, request)
 
     @Operation(
-        summary = "이슈 댓글 삭제 (비동기)",
-        description = "cowork-github에 Kafka(`github.issue-write.command.v1`)로 DELETE_COMMENT 커맨드를 " +
-            "발행하고 결과를 기다리지 않는다 — 이 응답은 요청이 접수됐다는 것만 의미한다.",
+        summary = "이슈 댓글 삭제 요청",
+        description = "응답은 요청 접수만 확인합니다.",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
-        ApiResponse(responseCode = "202", description = "요청 접수됨 (비동기 처리)"),
-        ApiResponse(responseCode = "400", description = "연결된 GitHub 레포지토리 없음"),
-        ApiResponse(responseCode = "403", description = "본인이 작성한 댓글이 아니며 프로젝트 수정 권한도 없음"),
-        ApiResponse(responseCode = "404", description = "프로젝트 또는 댓글 없음"),
-        ApiResponse(responseCode = "502", description = "GitHub 연동 서버 통신 오류"),
+        ApiResponse(responseCode = "202", description = "요청 접수. 응답 본문은 없습니다.", content = [Content()]),
+        ApiResponse(
+            responseCode = "400",
+            description = "등록된 GitHub 저장소 URL 형식 오류",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "본인이 작성한 댓글이 아니며 프로젝트 수정 권한도 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "프로젝트, 등록된 저장소 또는 댓글 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "502",
+            description = "GitHub 연동 서버 통신 오류",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"502 BAD_GATEWAY","code":502,"message":"요청을 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @DeleteMapping("/comments/{commentId}")
     @ResponseStatus(HttpStatus.ACCEPTED)
