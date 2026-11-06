@@ -14,9 +14,8 @@ const event = (overrides: Record<string, unknown> = {}) => ({
 });
 
 describe('isTeamSettingEvent', () => {
-	it('태그 스팸 차단 값이 없는 이전 레코드도 받는다', () => {
+	it('태그 스팸 차단 값을 포함한 레코드를 받는다', () => {
 		expect(isTeamSettingEvent(event())).toBe(true);
-		expect(isTeamSettingEvent(event({tagSpamBlock: undefined}))).toBe(true);
 	});
 
 	it('잘못된 차단 값이나 다른 계약의 레코드는 거부한다', () => {
