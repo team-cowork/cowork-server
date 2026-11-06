@@ -6,7 +6,6 @@ import json
 import os
 from pathlib import Path
 import tempfile
-import time
 import uuid
 
 from deploy.nomad.render import render_jobs
@@ -78,15 +77,10 @@ def main():
                 gateway.verify(previous_port, directory)
         else:
             platform.ansible('gateway-offline.yml')
+        # Retire the standalone migration job before removing its workload policies.
+        platform.api('job/cowork-user-migrations', method='DELETE', missing=True)
         platform.tofu('foundation', variables['foundation'])
         platform.wait_jobs(platform.tofu('data', variables['data']), specs)
-        migration = specs['cowork-user-migrations']
-        previous = platform.api('job/cowork-user-migrations', missing=True)
-        migration['Meta'] = migration.get('Meta') or {}
-        migration['Meta']['release_run'] = str(time.time_ns())
-        registered = platform.api('jobs', method='POST', body={'Job': migration, 'EnforceIndex': True,
-                                  'JobModifyIndex': previous['JobModifyIndex'] if previous else 0})
-        platform.wait_jobs({'cowork-user-migrations': registered['JobModifyIndex']}, specs, batch=True)
         apps_plan = directory / 'apps.tfplan'
         edge_plan = directory / 'edge.tfplan'
         changed_apps = platform.tofu_plan_jobs('apps', variables['apps'], apps_plan)

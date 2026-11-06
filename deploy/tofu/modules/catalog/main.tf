@@ -27,8 +27,7 @@ locals {
     "cowork-chat-search" : "nomad/data/chat/search",
     "cowork-kafka" : "nomad/data/kafka",
     "cowork-livekit" : "nomad/data/voice/livekit",
-    "cowork-monitoring" : "nomad/apps/monitoring",
-    "cowork-user-migrations" : "nomad/data/user"
+    "cowork-monitoring" : "nomad/apps/monitoring"
   }
   service_jobs = {
     "cowork-gateway" : "cowork-gateway",
@@ -59,7 +58,6 @@ locals {
     "cowork-kafka" : "cowork-kafka",
     "cowork-livekit" : "cowork-livekit",
     "cowork-monitoring" : "cowork-monitoring",
-    "cowork-user-migrations" : "cowork-user-migrations",
     "cowork-redis" : "cowork-redis",
     "cowork-authorization-db-metrics" : "cowork-authorization-db",
     "cowork-user-db-metrics" : "cowork-user-db",
@@ -132,9 +130,6 @@ locals {
     ],
     "cowork-livekit" : [
       "cowork-voice"
-    ],
-    "cowork-user-migrations" : [
-      "cowork-user-db"
     ],
     "cowork-monitoring" : [
       "cowork-redis",

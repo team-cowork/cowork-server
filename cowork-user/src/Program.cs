@@ -24,6 +24,7 @@ App.Logs = LoggerFactory.Create(ConfigureLogging);
 
 var config = AppConfig.Load();
 App.Config = config;
+SchemaMigration.Run(App.Logs.CreateLogger("CoworkUser.Platform.SchemaMigration"));
 App.Db = new MySqlDataSource(config.ConnectionString);
 Accounts.Redis = await ConnectionMultiplexer.ConnectAsync(new ConfigurationOptions
 {
