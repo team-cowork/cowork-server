@@ -236,7 +236,7 @@ class Platform:
             print(f'{job_id}: allocation status could not be read ({type(error).__name__})',
                   file=sys.stderr, flush=True)
 
-    def wait_jobs(self, indices, specs, *, batch=False):
+    def wait_jobs(self, indices, specs):
         remaining = dict(indices)
         deadline = time.monotonic() + 900
         last_report = 0
@@ -252,13 +252,13 @@ class Platform:
                         raise RuntimeError(job_id + ': job changed while waiting; deployment was not accepted')
                     version = job['Version']
                     allocations = self.api('job/' + job_id + '/allocations') or []
-                    if batch:
-                        # Batch jobs register with no restarts or reschedules, so a failure cannot recover.
-                        failed = [a for a in allocations if a['JobVersion'] == int(version)
-                                  and a['DesiredStatus'] == 'run' and a['ClientStatus'] == 'failed']
-                        if failed:
-                            self.report_allocation(job_id, self.api('allocation/' + failed[0]['ID']))
-                            raise RuntimeError(f'{job_id}: batch allocation {failed[0]["ID"]} failed')
+                    # Use terminal status: the last restart attempt may still succeed while running.
+                    failed = [a for a in allocations if a['JobVersion'] == int(version)
+                              and a['DesiredStatus'] == 'run' and not a.get('NextAllocation')
+                              and a['ClientStatus'] == 'failed']
+                    if failed:
+                        self.report_allocation(job_id, self.api('allocation/' + failed[0]['ID']))
+                        raise RuntimeError(f'{job_id}: allocation {failed[0]["ID"]} failed')
                     candidates = [a for a in allocations if a['JobVersion'] == int(version)
                                   and a['DesiredStatus'] == 'run' and a['ClientStatus'] in ('running', 'complete')]
                     groups = specs[job_id]['TaskGroups']
@@ -272,20 +272,15 @@ class Platform:
                             states = details.get('TaskStates') or {}
                             actual_group = next(g for g in details['Job']['TaskGroups'] if g['Name'] == group['Name'])
                             required = [t for t in actual_group['Tasks']
-                                        if (t.get('Lifecycle') or {}).get('Hook') != 'poststop'
-                                        and not (batch and (t.get('Lifecycle') or {}).get('Sidecar'))]
+                                        if (t.get('Lifecycle') or {}).get('Hook') != 'poststop']
                             ok = True
                             for task in required:
                                 task_state = states.get(task['Name'], {})
                                 lifecycle = task.get('Lifecycle') or {}
-                                needs_exit = batch or (lifecycle.get('Hook') in ('prestart', 'poststart')
-                                                       and not lifecycle.get('Sidecar'))
+                                needs_exit = (lifecycle.get('Hook') in ('prestart', 'poststart')
+                                              and not lifecycle.get('Sidecar'))
                                 if needs_exit:
                                     code = str(exit_code(task_state))
-                                    if batch and (task_state.get('Failed')
-                                                  or (task_state.get('State') == 'dead' and code != '0')):
-                                        self.report_allocation(job_id, details)
-                                        raise RuntimeError(f'{job_id}: batch allocation {allocation["ID"]} failed')
                                     ok &= (task_state.get('State') == 'dead' and not task_state.get('Failed')
                                            and code == '0')
                                 else:
@@ -295,7 +290,7 @@ class Platform:
                         ready_allocations[group['Name']] = {a['ID'] for a in good}
                         if len(good) < group.get('Count', 1):
                             ready = False
-                    if ready and not batch:
+                    if ready:
                         for group in groups:
                             passing = set(ready_allocations[group['Name']])
                             services = list(group.get('Services') or [])
