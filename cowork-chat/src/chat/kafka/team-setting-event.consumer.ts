@@ -14,15 +14,11 @@ import {applyProjectionMessage, ProjectionContractError} from '../../common/kafk
 import {TeamSettingProjectionRepository} from '../repository/index.js';
 import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
 
-/**
-`tagSpamBlock`이 없는 레코드는 필드 추가 전에 발행된 것이므로 꺼진 것으로 본다.
-*/
 type TeamSettingEvent = {
 	schemaVersion: 1;
 	eventType: 'UPSERT';
 	teamId: number;
-	// @todo(#624) 임시 호환 코드. preference가 `tagSpamBlock`을 실은 전체 snapshot을 다시 발행하고 compaction으로 이전 레코드가 지워지면 필수 필드로 바꾸고 `?? false` 처리를 지운다.
-	tagSpamBlock?: boolean;
+	tagSpamBlock: boolean;
 	occurredAt: string;
 	snapshot?: boolean;
 };
@@ -52,7 +48,7 @@ export class TeamSettingEventConsumer implements OnModuleInit, OnModuleDestroy {
 		const eventTime = parseEventTime(payload.occurredAt)!;
 		await this.repository.upsert({
 			teamId: payload.teamId,
-			tagSpamBlock: payload.tagSpamBlock ?? false,
+			tagSpamBlock: payload.tagSpamBlock,
 			...eventTime,
 		});
 	}
@@ -100,7 +96,7 @@ export function isTeamSettingEvent(payload: unknown): payload is TeamSettingEven
 	return event.schemaVersion === 1
 		&& event.eventType === 'UPSERT'
 		&& isSafePositiveInteger(event.teamId)
-		&& (event.tagSpamBlock === undefined || typeof event.tagSpamBlock === 'boolean')
+		&& typeof event.tagSpamBlock === 'boolean'
 		&& parseEventTime(event.occurredAt) !== null
 		&& (event.snapshot === undefined || typeof event.snapshot === 'boolean');
 }
