@@ -21,7 +21,6 @@ DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 INFRASTRUCTURE = {
     "chat-search": "deploy/images/elasticsearch/Dockerfile",
     "kafka-init": "deploy/images/kafka-init/Dockerfile",
-    "user-migrations": "deploy/images/user-migrations/Dockerfile",
 }
 
 
@@ -188,7 +187,6 @@ def prepare(args):
         prefixes = {
             "chat-search": ("deploy/images/elasticsearch/",),
             "kafka-init": ("deploy/images/kafka-init/", "deploy/runtime/kafka/"),
-            "user-migrations": ("deploy/images/user-migrations/", "cowork-user/src/db/"),
         }[name]
         if name not in previous.get("infrastructure_images", {}) or changed is None or any(
             path == ".dockerignore" or path.startswith(prefixes) for path in changed
