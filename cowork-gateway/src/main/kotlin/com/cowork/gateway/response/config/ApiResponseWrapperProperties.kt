@@ -11,6 +11,8 @@ class ApiResponseWrapperProperties {
 
     var skipPatterns: List<String> = listOf(
         "/actuator/**",
+        // Production CD reads the raw deployment state from inside the allocation.
+        "/internal/**",
         "/fallback",
         "/v3/api-docs/**",
         "/swagger-ui.html",
