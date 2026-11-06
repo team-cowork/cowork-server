@@ -12,7 +12,7 @@
 
 - C# / ASP.NET Core (.NET 10)
 - .NET CLI (`dotnet test cowork-user.slnx`)
-- MySqlConnector · Dapper / MySQL
+- MySqlConnector · Dapper · Flyway / MySQL
 - Confluent.Kafka / StackExchange.Redis / AWS SDK S3 / SeaweedFS
 
 ## 포트
