@@ -29,22 +29,22 @@
 |---------------------------------------------------------------|-----------------------------------------------|
 | `PORT`                                                        | HTTP 포트                                     |
 | `APP_CONFIG_PROFILE`                                          | prod에서는 공개 API origin의 HTTPS 검증 적용  |
-| `DB_HOST`                                                     | 필수 MySQL 호스트                            |
-| `DB_PORT`                                                     | 필수 MySQL 포트                             |
-| `DB_NAME`                                                     | 필수 MySQL 데이터베이스 이름                      |
+| `DB_HOST`                                                     | 필수 MySQL 호스트                             |
+| `DB_PORT`                                                     | 필수 MySQL 포트                               |
+| `DB_NAME`                                                     | 필수 MySQL 데이터베이스 이름                  |
 | `DB_USERNAME`                                                 | 필수 MySQL 사용자명                           |
 | `DB_PASSWORD`                                                 | 필수 MySQL 비밀번호                           |
-| `REDIS_HOST`                                                  | Redis 접속 호스트                              |
+| `REDIS_HOST`                                                  | Redis 접속 호스트                             |
 | `REDIS_PORT`                                                  | Redis 접속 포트                               |
 | `S3_INTERNAL_ENDPOINT`                                        | S3 API 주소                                   |
 | `S3_ACCESS_KEY`                                               | 필수 서비스별 S3 액세스 키                    |
-| `S3_SECRET_KEY`                                               | 필수 서비스별 S3 비밀키                      |
-| `S3_BUCKET`                                                   | S3 bucket 이름                               |
-| `S3_REGION`                                                   | S3 서명 region                               |
+| `S3_SECRET_KEY`                                               | 필수 서비스별 S3 비밀키                       |
+| `S3_BUCKET`                                                   | S3 bucket 이름                                |
+| `S3_REGION`                                                   | S3 서명 region                                |
 | `PUBLIC_API_BASE_URL`                                         | Gateway의 공개 origin. prod는 외부 HTTPS 주소 |
 | `KAFKA_BOOTSTRAP_SERVERS`                                     | Kafka broker 목록                             |
 | `KAFKA_SECURITY_PROTOCOL`                                     | 운영에서는 SASL_SSL                           |
 | `KAFKA_SASL_MECHANISM`                                        | SCRAM-SHA-256 또는 SCRAM-SHA-512              |
-| `KAFKA_SASL_USERNAME`                                         | Kafka SASL 사용자명. SASL_SSL에서 필수      |
-| `KAFKA_SASL_PASSWORD`                                         | Kafka SASL 비밀번호. SASL_SSL에서 필수      |
+| `KAFKA_SASL_USERNAME`                                         | Kafka SASL 사용자명. SASL_SSL에서 필수        |
+| `KAFKA_SASL_PASSWORD`                                         | Kafka SASL 비밀번호. SASL_SSL에서 필수        |
 | `KAFKA_SSL_CA_LOCATION`                                       | Kafka CA PEM 파일 경로                        |
