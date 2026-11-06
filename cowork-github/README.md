@@ -11,8 +11,8 @@ GitHub App으로 조직 저장소의 이슈·PR·라벨을 다루고 GitHub 이�
 
 ## 스택
 
-- TypeScript / Node.js / NestJS
-- npm / TypeScript Compiler
+- TypeScript / Bun / NestJS
+- Bun / TypeScript Compiler
 - KafkaJS / Redis (ioredis)
 - GitHub App (JWT · installation access token)
 

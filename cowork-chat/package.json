@@ -30,9 +30,9 @@
     "@nestjs/common": "^12.1.2",
     "@nestjs/config": "^12.0.1",
     "@nestjs/core": "^12.1.2",
-    "@nestjs/graphql": "^14.0.3",
+    "@nestjs/graphql": "^14.2.0",
     "@nestjs/mongoose": "^12.0.0",
-    "@nestjs/platform-express": "^12.1.2",
+    "@nestjs/platform-express": "^12.3.3",
     "@nestjs/platform-socket.io": "^12.1.2",
     "@nestjs/swagger": "^12.0.2",
     "@nestjs/websockets": "^12.1.2",
@@ -65,9 +65,6 @@
     "xo": "^5.0.1"
   },
   "overrides": {
-    "@nestjs/graphql": {
-      "ws": "8.21.3"
-    },
     "engine.io": {
       "ws": "8.21.3"
     },
@@ -80,15 +77,13 @@
     "@apollo/server-plugin-landing-page-graphql-playground": {
       "@apollo/server": "^5.5.1"
     },
-    "@nestjs/platform-express": {
-      "multer": "2.4.0"
-    },
     "@nestjs/platform-socket.io": {
       "socket.io": "$socket.io"
     },
     "micromark-extension-math": {
       "katex": "0.18.2"
-    }
+    },
+    "glob": "14.0.3"
   },
   "//": [
     "TODO: micromark-extension-math의 KaTeX ^0.16.0 의존성에 GHSA-238p-pmpm-9mq7 취약점이 있어 0.18.2로 고정합니다.",
