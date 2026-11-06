@@ -16,6 +16,7 @@ import {toMessageBroadcastPayload} from '../repository/index.js';
 import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
 import {type ForwardReference} from '../../common/type/forward-reference.js';
 import {GithubIssueResultEvent} from './event/github-issue.event.js';
+import {type KafkaMessageSource, systemMessageKey} from './system-message-key.js';
 
 /**
  Kafka `github.issue.result` 토픽을 구독하여 GitHub 이슈 생성 결과를 처리하는 컨슈머.
@@ -43,14 +44,16 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
      Socket.IO `chat:{channelId}` 룸에 `message` 이벤트를 브로드캐스트한다.
 
      @param event - Kafka에서 수신한 GitHub 이슈 생성 결과 이벤트
+     @param source - 이벤트의 Kafka 메시지 위치. 시스템 메시지 멱등성 키를 만드는 데 사용한다
      */
-	private async handleResultEvent(event: GithubIssueResultEvent): Promise<void> {
+	private async handleResultEvent(event: GithubIssueResultEvent, source: KafkaMessageSource): Promise<void> {
 		const content = this.formatIssueResultMessage(event);
 
 		const saved = await this.chatService.saveSystemMessage(
 			event.teamId,
 			event.channelId,
 			content,
+			systemMessageKey(source, event.channelId),
 		);
 		if (!saved) {
 			return;
@@ -120,14 +123,14 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
 
 		void this.consumer
 			.run({
-				eachMessage: async ({message}) => {
+				eachMessage: async ({topic, partition, message}) => {
 					if (!message.value) {
 						return;
 					}
 
 					try {
 						const event = JSON.parse(message.value.toString()) as GithubIssueResultEvent;
-						await this.handleResultEvent(event);
+						await this.handleResultEvent(event, {topic, partition, offset: message.offset});
 					} catch (error) {
 						this.logger.error('Failed to process issue result event', error);
 						if (!(error instanceof SyntaxError)) {

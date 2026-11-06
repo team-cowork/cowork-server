@@ -557,7 +557,8 @@ export class MessageRepository {
 
      시스템 메시지는 `type: 'SYSTEM'`으로 고정되며, 알림 발송 대상에서 제외하기 위해
      `notificationStatus`를 초기값인 `'PENDING'` 대신 `'SENT'`로 설정합니다.
-     `clientMessageId`는 `undefined`로 설정하여 멱등성 키 중복 검사를 우회합니다.
+     `clientMessageId`는 호출자가 넘긴 결정적인 키로 저장하여, 같은 이벤트가 다시 전달되면
+     유니크 인덱스가 중복 저장을 막습니다(중복 키 오류 11000).
 
      @param message - 게시할 시스템 메시지
      @param message.teamId - 시스템 메시지를 게시할 팀의 식별자
@@ -565,6 +566,7 @@ export class MessageRepository {
      @param message.content - 시스템 메시지 본문
      @param message.projectId - 채널이 속한 프로젝트 ID. 없으면 `null`
      @param message.authorId - 시스템 행위자로 기록할 사용자 ID (예: 채널 생성자)
+     @param message.clientMessageId - 중복 저장을 막는 멱등성 키
      @returns 생성된 Mongoose 도큐먼트
      */
 	async createSystemMessage(
@@ -574,10 +576,10 @@ export class MessageRepository {
 			content: string;
 			projectId: Nullable<number>;
 			authorId: number;
+			clientMessageId: string;
 		},
-
 	) {
-		const {teamId, channelId, content, projectId, authorId} = message;
+		const {teamId, channelId, content, projectId, authorId, clientMessageId} = message;
 		return this.messageModel.create({
 			teamId,
 			projectId,
@@ -587,7 +589,7 @@ export class MessageRepository {
 			type: 'SYSTEM',
 			attachments: [],
 			mentions: [],
-			clientMessageId: undefined,
+			clientMessageId,
 			notificationStatus: 'SENT',
 		});
 	}
@@ -705,7 +707,11 @@ export class MessageRepository {
      */
 	async findPendingAndMarkProcessing(batchSize: number): Promise<NotificationMessage[]> {
 		const candidates = await this.messageModel
-			.find({webhookDeleted: {$ne: true}, notificationStatus: 'PENDING'})
+			.find({
+				webhookDeleted: {$ne: true},
+				notificationStatus: 'PENDING',
+				$or: [{notificationNextAttemptAt: null}, {notificationNextAttemptAt: {$lte: new Date()}}],
+			})
 			.sort({createdAt: 1})
 			.limit(batchSize)
 			.select('_id')
@@ -1024,25 +1030,29 @@ export class MessageRepository {
      달라져 있어 이 업데이트는 조건 불일치로 아무 문서도 바꾸지 않으므로, 뒤늦게 도착한
      완료 쓰기가 새 점유자의 `PROCESSING` 상태를 덮어써 중복 발행을 재현하지 않습니다.
 
-     `notificationRetryCount`가 전달된 경우 재시도 횟수도 함께 업데이트합니다.
-     재시도 횟수 없이 상태만 변경하려면 해당 인수를 생략합니다.
+     `retry`가 전달된 경우 재시도 횟수와 다음 시도 시각도 함께 업데이트합니다.
+     `nextAttemptAt`을 기록한 메시지는 그 시각 전에는 다시 점유되지 않습니다.
+     재시도 정보 없이 상태만 변경하려면 해당 인수를 생략합니다.
 
      @param messageId - 업데이트할 메시지의 ObjectId
      @param notificationClaimId - 이 처리를 시작한 {@link findPendingAndMarkProcessing} 호출이 발급한 점유 식별자
      @param notificationStatus - 새로운 알림 상태 (`'PENDING'` | `'PROCESSING'` | `'SENT'` | `'FAILED'`)
-     @param notificationRetryCount - 업데이트할 재시도 횟수. 생략 시 현재 값을 유지
+     @param retry - 재시도 정보. 생략 시 현재 값을 유지
+     @param retry.retryCount - 업데이트할 재시도 횟수
+     @param retry.nextAttemptAt - 다음 시도 가능 시각. 생략 시 현재 값을 유지
      @returns Mongoose `updateOne` 결과 객체
      */
 	updateNotificationStatus(
 		messageId: Types.ObjectId,
 		notificationClaimId: string,
 		notificationStatus: string,
-		notificationRetryCount?: number,
+		retry?: {retryCount: number; nextAttemptAt?: Date},
 	) {
 		const $set: Record<string, unknown> = {
 			notificationStatus,
 			notificationClaimId: null,
-			...(notificationRetryCount !== undefined && {notificationRetryCount}),
+			...(retry && {notificationRetryCount: retry.retryCount}),
+			...(retry?.nextAttemptAt && {notificationNextAttemptAt: retry.nextAttemptAt}),
 		};
 
 		return this.messageModel.updateOne(

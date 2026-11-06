@@ -1,8 +1,10 @@
 import {Injectable as injectable} from '@nestjs/common';
+import {AppConfigService} from '../../config/app-config.service.js';
 import {isPresent} from '../common/nullable.js';
 import {
 	appendAuthorMarker,
-	extractCommentAuthor,
+	isAppComment,
+	readCommentAuthor,
 } from '../common/comment-author-marker.js';
 import {GithubClientError} from '../github.errors.js';
 import {
@@ -52,7 +54,10 @@ export type FindCommentByOperationParameters = {
 
 @injectable()
 export class IssueHttpService {
-	constructor(private readonly apiClient: IssueHttpApiClient) {}
+	constructor(
+		private readonly apiClient: IssueHttpApiClient,
+		private readonly config: AppConfigService,
+	) {}
 
 	private toIssueDetailResponse(issue: IssueDetail): IssueDetailResponse {
 		return {
@@ -81,7 +86,7 @@ export class IssueHttpService {
 	}
 
 	private toCommentResponse(comment: GithubComment): CommentResponse {
-		const {author, body} = extractCommentAuthor(comment.body, comment.user?.login ?? 'ghost');
+		const {author, body} = readCommentAuthor(comment, this.config.githubAppId);
 		return {
 			id: comment.id,
 			author,
@@ -147,7 +152,7 @@ export class IssueHttpService {
 		since,
 	}: FindCommentByOperationParameters): Promise<CommentResponse | 'absent' | 'unknown'> {
 		const comments = await this.apiClient.listComments(owner, repo, issueNumber, since);
-		const found = comments.find(comment => extractCommentAuthor(comment.body, '').operationId === operationId);
+		const found = comments.find(comment => readCommentAuthor(comment, this.config.githubAppId).operationId === operationId);
 		if (found !== undefined) {
 			return this.toCommentResponse(found);
 		}
@@ -162,8 +167,13 @@ export class IssueHttpService {
 		body: string,
 	): Promise<CommentResponse> {
 		const existing = await this.apiClient.getComment(owner, repo, commentId);
-		const {author, operationId} = extractCommentAuthor(existing.body, existing.user?.login ?? 'ghost');
-		const markedBody = appendAuthorMarker(body, author, operationId);
+		// 앱이 작성하지 않은 댓글에는 마커를 붙이지 않는다. 읽을 때 마커를 떼지 않으므로 본문에 그대로 보인다.
+		let markedBody = body;
+		if (isAppComment(existing.performed_via_github_app, this.config.githubAppId)) {
+			const {author, operationId} = readCommentAuthor(existing, this.config.githubAppId);
+			markedBody = appendAuthorMarker(body, author, operationId);
+		}
+
 		const updated = await this.apiClient.updateComment(
 			owner,
 			repo,

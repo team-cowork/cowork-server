@@ -13,10 +13,9 @@ import (
 )
 
 type Producer struct {
-	transport    *kafka.Transport
-	writer       *kafka.Writer
-	addr         net.Addr
-	defaultTopic string
+	transport *kafka.Transport
+	writer    *kafka.Writer
+	addr      net.Addr
 }
 
 type explicitPartition int
@@ -34,7 +33,7 @@ func (b *partitionAwareBalancer) Balance(message kafka.Message, partitions ...in
 	return b.fallback.Balance(message, partitions...)
 }
 
-func NewProducer(security config.KafkaSecurity, bootstrapServers, topic string) *Producer {
+func NewProducer(security config.KafkaSecurity, bootstrapServers string) *Producer {
 	transport := security.Transport()
 	addr := kafka.TCP(strings.Split(bootstrapServers, ",")...)
 	return &Producer{
@@ -44,15 +43,13 @@ func NewProducer(security config.KafkaSecurity, bootstrapServers, topic string) 
 			Addr:         addr,
 			Balancer:     &partitionAwareBalancer{fallback: &kafka.Hash{}},
 			RequiredAcks: kafka.RequireAll,
+			// Synchronous single-message writes never fill a batch, so the
+			// kafka-go default (1s) would delay every outbox record.
+			BatchTimeout: 10 * time.Millisecond,
 			WriteTimeout: 5 * time.Second,
 		},
-		addr:         addr,
-		defaultTopic: topic,
+		addr: addr,
 	}
-}
-
-func (p *Producer) Publish(ctx context.Context, key string, value []byte) error {
-	return p.PublishTo(ctx, p.defaultTopic, key, value)
 }
 
 func (p *Producer) PublishTo(ctx context.Context, topic, key string, value []byte) error {

@@ -1036,12 +1036,14 @@ export class ChatService {
      @param teamId - 팀 ID
      @param channelId - 채널 ID
      @param content - 메시지 내용
-     @returns 저장된 메시지 도큐먼트. 삭제되었거나 범위가 맞지 않는 채널이면 `null`
+     @param clientMessageId - 중복 저장을 막는 결정적인 멱등성 키. 이미 저장된 키면 저장을 건너뛴다
+     @returns 저장된 메시지 도큐먼트. 삭제되었거나 범위가 맞지 않는 채널, 이미 저장된 메시지면 `null`
      */
 	async saveSystemMessage(
 		teamId: number,
 		channelId: number,
 		content: string,
+		clientMessageId: string,
 	): Promise<Nullable<MessageDocument>> {
 		const channel = await this.channelProjectionRepository.findByIdIncludingDeleted(channelId);
 		if (!channel) {
@@ -1061,9 +1063,21 @@ export class ChatService {
 			return null;
 		}
 
-		const saved = await this.messageRepository.createSystemMessage({
-			teamId: scope.teamId, channelId, content, projectId: scope.projectId, authorId: SYSTEM_AUTHOR_ID,
-		});
+		let saved: MessageDocument;
+		try {
+			saved = await this.messageRepository.createSystemMessage({
+				teamId: scope.teamId, channelId, content, projectId: scope.projectId, authorId: SYSTEM_AUTHOR_ID, clientMessageId,
+			});
+		} catch (error) {
+			// 다시 전달된 이벤트로 이미 저장된 메시지다. 안읽음 수를 다시 올리지 않고 건너뛴다.
+			if (typeof error === 'object' && error !== null && 'code' in error && error.code === 11_000) {
+				this.logger.warn(`Duplicate system message detected, skipping [clientMessageId=${clientMessageId}]`);
+				return null;
+			}
+
+			throw error;
+		}
+
 		const readableUsers = await this.channelMessageReadAccess.findReadableUsersByChannel([channelId]);
 		const targetUserIds = readableUsers.get(channelId) ?? [];
 		await this.unreadCounterService.incrementIfPresent(channelId, targetUserIds);

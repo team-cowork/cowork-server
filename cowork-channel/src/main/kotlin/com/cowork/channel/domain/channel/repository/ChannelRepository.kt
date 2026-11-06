@@ -1,7 +1,6 @@
 package com.cowork.channel.domain.channel.repository
 
 import com.cowork.channel.domain.channel.entity.Channel
-import com.cowork.channel.domain.channel.entity.ChannelType
 import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
@@ -27,14 +26,16 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
 
     fun findByDmKey(dmKey: String): Channel?
 
-    fun existsByIdAndType(id: Long, type: ChannelType): Boolean
-
     @Query(
         "SELECT c FROM Channel c " +
             "WHERE c.projectId = :projectId " +
+            "AND c.teamId = :teamId " +
             "ORDER BY c.id ASC",
     )
-    fun findByProjectIdOrderByIdAsc(@Param("projectId") projectId: Long): List<Channel>
+    fun findByProjectIdAndTeamIdOrderByIdAsc(
+        @Param("projectId") projectId: Long,
+        @Param("teamId") teamId: Long,
+    ): List<Channel>
 
     @Query(
         "SELECT c FROM Channel c " +
