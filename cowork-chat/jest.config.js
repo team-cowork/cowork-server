@@ -1,5 +1,7 @@
+import {createDefaultPreset} from 'ts-jest';
+
 const config = {
-	preset: 'ts-jest',
+	...createDefaultPreset({tsconfig: {isolatedModules: true, module: 'commonjs'}}),
 	testEnvironment: 'node',
 	rootDir: 'src',
 	testRegex: String.raw`.*\.spec\.ts$`,
