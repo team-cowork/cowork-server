@@ -43,6 +43,9 @@ func NewProducer(security config.KafkaSecurity, bootstrapServers string) *Produc
 			Addr:         addr,
 			Balancer:     &partitionAwareBalancer{fallback: &kafka.Hash{}},
 			RequiredAcks: kafka.RequireAll,
+			// Synchronous single-message writes never fill a batch, so the
+			// kafka-go default (1s) would delay every outbox record.
+			BatchTimeout: 10 * time.Millisecond,
 			WriteTimeout: 5 * time.Second,
 		},
 		addr: addr,
