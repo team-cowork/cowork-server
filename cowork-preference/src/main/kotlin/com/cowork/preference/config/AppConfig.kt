@@ -27,7 +27,6 @@ data class KafkaConfig(
     val teamRoleCommandConsumerGroupId: String,
     val githubRepoSettingCommandConsumerGroupId: String,
     val channelRolePolicyCommandConsumerGroupId: String,
-    val webhookLegacyConsumerGroupId: String = "cowork-preference-webhook-legacy-projection",
 )
 
 data class AppConfig(
@@ -89,9 +88,6 @@ data class AppConfig(
                     githubRepoSettingCommandConsumerGroupId = kafka.getString(
                         "github-repo-setting-command-consumer-group-id",
                         "cowork-preference-github-repo-setting-command",
-                    ),
-                    webhookLegacyConsumerGroupId = kafka.getString(
-                        "webhook-legacy-consumer-group-id", "cowork-preference-webhook-legacy-projection",
                     ),
                     channelRolePolicyCommandConsumerGroupId = kafka.getString(
                         "channel-role-policy-command-consumer-group-id",
