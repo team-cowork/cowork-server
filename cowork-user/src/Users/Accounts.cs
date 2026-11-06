@@ -17,6 +17,9 @@ public static partial class Accounts
 {
     public const int CustomStatusMaxLength = 30;
     public const int StatusMessageMaxLength = 100;
+    public const int NameMaxLength = 50;
+    public const int NicknameMaxLength = 50;
+    public const int DescriptionMaxLength = 500;
     const int DisplayNameCacheTtlSeconds = 60;
     const int DisplayNameNotFoundTtlSeconds = 30;
     const string NotFoundMarker = "__not_found__";
@@ -219,13 +222,22 @@ public static partial class Accounts
         return true;
     }
 
-    static Dictionary<string, string?> CastStrings(IReadOnlyDictionary<string, JsonElement> fields, FieldErrors errors)
+    static readonly Dictionary<string, int> ProfileFieldMaxLengths = new()
+    {
+        ["name"] = NameMaxLength,
+        ["nickname"] = NicknameMaxLength,
+        ["description"] = DescriptionMaxLength,
+    };
+
+    internal static Dictionary<string, string?> CastStrings(IReadOnlyDictionary<string, JsonElement> fields, FieldErrors errors)
     {
         var cast = new Dictionary<string, string?>();
         foreach (var (field, value) in fields)
         {
-            if (TryCastString(value, out var text)) cast[field] = text;
-            else errors.Add(field, "is invalid");
+            if (!TryCastString(value, out var text)) errors.Add(field, "is invalid");
+            else if (text is not null && ProfileFieldMaxLengths.TryGetValue(field, out var max) && TextLength(text) > max)
+                errors.Add(field, $"should be at most {max} character(s)");
+            else cast[field] = text;
         }
         return cast;
     }
@@ -358,8 +370,8 @@ public static partial class Accounts
         return new StatusChange(customStatus!, messageGiven, message, expiresAtGiven, expiresAt);
     }
 
-    /// <summary>Length in user-perceived characters (graphemes), as Ecto's validate_length counts.</summary>
-    internal static int TextLength(string text) => new StringInfo(text).LengthInTextElements;
+    /// <summary>Length in Unicode code points, matching how MySQL VARCHAR counts length.</summary>
+    internal static int TextLength(string text) => text.EnumerateRunes().Count();
 
     static async Task<(long Id, string? ImageKey)> LoadProfileImageAsync(MySqlConnection connection, long userId) =>
         await connection.QueryAsync<(long, string?)>(
