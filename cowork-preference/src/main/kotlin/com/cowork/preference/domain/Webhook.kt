@@ -19,17 +19,14 @@ data class Webhook(
     val createdAt: Instant,
     val updatedAt: Instant,
     val modeChangedAt: Instant?,
-    /** Legacy source records have no execution identity until the owner inserts them. */
-    val executionId: UUID? = null,
+    val executionId: UUID,
 ) {
     fun response(token: String? = null): JsonObject = JsonObject()
-        .put("id", id).put("executionId", requireExecutionId().toString())
+        .put("id", id).put("executionId", executionId.toString())
         .put("channelId", channelId).put("name", name)
         .put("avatarUrl", avatarUrl).put("isSecure", isSecure).put("token", token)
         .put("isActive", isActive).put("createdBy", createdBy)
         .put("createdAt", createdAt.toString()).put("updatedAt", updatedAt.toString())
-
-    fun requireExecutionId(): UUID = checkNotNull(executionId) { "Webhook execution ID has not been assigned" }
 }
 
 object WebhookModePolicy {

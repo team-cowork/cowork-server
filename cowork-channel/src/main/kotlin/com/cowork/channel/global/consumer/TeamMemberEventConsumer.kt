@@ -36,8 +36,6 @@ class TeamMemberEventConsumer(
             }
         val expectedKey = "${payload.teamId}:${payload.userId}"
         val occurredAt = payload.occurredAt
-        // TODO(#596): 2026-11-01 05:00 KST 이후 구형 이벤트·데이터 보정과 rollback 종료 확인 후 authorizationVersion 필수화.
-        // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
         val authorizationVersion = payload.authorizationVersion
         val reason = when {
             record.key() != expectedKey -> "teamId:userId와 Kafka key가 일치하지 않습니다."
@@ -46,8 +44,9 @@ class TeamMemberEventConsumer(
 
             occurredAt == null -> "occurredAt이 필요합니다."
 
-            authorizationVersion != null &&
-                (!authorizationVersion.isAfter(Instant.EPOCH) || authorizationVersion.isAfter(occurredAt)) ->
+            authorizationVersion == null -> "authorizationVersion이 필요합니다."
+
+            (!authorizationVersion.isAfter(Instant.EPOCH) || authorizationVersion.isAfter(occurredAt)) ->
                 "authorizationVersion은 양수이며 occurredAt보다 늦을 수 없습니다."
 
             payload.role !in setOf("OWNER", "ADMIN", "MEMBER") -> "지원하지 않는 role입니다."

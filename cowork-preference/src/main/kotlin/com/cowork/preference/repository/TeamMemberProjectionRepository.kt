@@ -23,7 +23,6 @@ class TeamMemberProjectionRepository {
                 authorization_version = CASE
                     WHEN EXCLUDED.source_occurred_at = tb_team_member_projections.source_occurred_at
                         THEN GREATEST(tb_team_member_projections.authorization_version, EXCLUDED.authorization_version)
-                    -- A newer legacy event cannot reuse authority proved by an older state.
                     ELSE EXCLUDED.authorization_version
                 END
             WHERE EXCLUDED.source_occurred_at > tb_team_member_projections.source_occurred_at
@@ -31,14 +30,6 @@ class TeamMemberProjectionRepository {
                     EXCLUDED.source_occurred_at = tb_team_member_projections.source_occurred_at
                     AND EXCLUDED.deleted = TRUE
                     AND tb_team_member_projections.deleted = FALSE
-               )
-               OR (
-                    EXCLUDED.source_occurred_at = tb_team_member_projections.source_occurred_at
-                    AND EXCLUDED.deleted = tb_team_member_projections.deleted
-                    AND EXCLUDED.built_in_role = tb_team_member_projections.built_in_role
-                    AND EXCLUDED.authorization_version IS NOT NULL
-                    AND (tb_team_member_projections.authorization_version IS NULL
-                         OR EXCLUDED.authorization_version > tb_team_member_projections.authorization_version)
                )
             """.trimIndent(),
         ).execute(
@@ -48,7 +39,7 @@ class TeamMemberProjectionRepository {
                 event.role,
                 event.eventType == "DELETE",
                 event.occurredAt.atOffset(ZoneOffset.UTC),
-                event.authorizationVersion?.atOffset(ZoneOffset.UTC),
+                event.authorizationVersion.atOffset(ZoneOffset.UTC),
             ),
         ).coAwait()
         return rows.rowCount() == 1
