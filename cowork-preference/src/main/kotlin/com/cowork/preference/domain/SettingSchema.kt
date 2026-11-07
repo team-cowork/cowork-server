@@ -31,7 +31,6 @@ object SettingSchema {
         "nickname_format_example",
         "default_notification_level",
     )
-    private val PROJECT_KEYS = emptySet<String>() // TODO: 추후 확장 시 사용
     private val VOICE_CHANNEL_KEYS = setOf("bitrate", "max_participants")
     private val TEXT_CHANNEL_KEYS = setOf("slowmode_seconds")
     private val GITHUB_REPO_KEYS = setOf("label_auto_apply")
@@ -56,7 +55,7 @@ object SettingSchema {
     fun validKeys(type: ResourceType): Set<String> = when (type) {
         ResourceType.ACCOUNT -> ACCOUNT_KEYS
         ResourceType.TEAM -> TEAM_KEYS
-        ResourceType.PROJECT -> PROJECT_KEYS
+        ResourceType.PROJECT -> emptySet()
         ResourceType.VOICE_CHANNEL -> VOICE_CHANNEL_KEYS
         ResourceType.TEXT_CHANNEL -> TEXT_CHANNEL_KEYS
         ResourceType.GITHUB_REPO -> GITHUB_REPO_KEYS

@@ -25,7 +25,7 @@ export type SlowmodeReservation = {
 export type SlowmodeBypassInput = {
 	teamId: number;
 	teamRole: string | undefined;
-	roles: Array<{roleId: number; teamId: number; priority: number; isDefault?: boolean; permissions: Record<string, boolean>}>;
+	roles: Array<{roleId: number; teamId: number; priority: number; isDefault: boolean; permissions: Record<string, boolean>}>;
 	channelPermissionsByRoleId: Map<number, Record<string, boolean>>;
 };
 

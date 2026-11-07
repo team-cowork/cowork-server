@@ -15,9 +15,7 @@ export type TeamRoleProjectionView = {
 	teamId: number;
 	roleId: number;
 	priority: number;
-	// @todo #596: 2026-11-01 05:00 KST 이후 구형 Kafka·Mongo 역할의 isDefault 보정과 rollback 종료 확인 후 조회 필드 필수화.
-	// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-	isDefault?: boolean;
+	isDefault: boolean;
 	permissions?: Record<string, boolean>;
 };
 
@@ -61,9 +59,7 @@ export class TeamRoleProjectionRepository {
 		roleId: number;
 		name: string;
 		priority: number;
-		// @todo #596: 2026-11-01 05:00 KST 이후 구형 outbox·Kafka 레코드 보정과 rollback 종료 확인 후 입력 누락·false 대체 제거.
-		// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-		isDefault?: boolean;
+		isDefault: boolean;
 		permissions: Record<string, boolean>;
 	}): Promise<boolean> {
 		const applyCondition = activeProjectionCondition(input.sourceVersion);
@@ -75,7 +71,7 @@ export class TeamRoleProjectionRepository {
 					roleId: input.roleId,
 					name: {$cond: [applyCondition, {$literal: input.name}, {$ifNull: ['$name', '']}]},
 					priority: {$cond: [applyCondition, input.priority, {$ifNull: ['$priority', 0]}]},
-					isDefault: {$cond: [applyCondition, input.isDefault ?? false, {$ifNull: ['$isDefault', false]}]},
+					isDefault: {$cond: [applyCondition, input.isDefault, {$ifNull: ['$isDefault', false]}]},
 					permissions: {
 						$cond: [applyCondition, {$literal: input.permissions}, {$ifNull: ['$permissions', {}]}],
 					},

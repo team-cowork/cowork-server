@@ -56,7 +56,7 @@ class PreferenceTeamRoleProjectionHandler(
             mentionable = requireNotNull(event.mentionable),
             permissionsJson = objectMapper.writeValueAsString(event.permissions.orEmpty()),
             occurredAt = event.occurredAt,
-            isDefault = event.isDefault,
+            isDefault = requireNotNull(event.isDefault),
         )
         roleRepository.save(role)
     }

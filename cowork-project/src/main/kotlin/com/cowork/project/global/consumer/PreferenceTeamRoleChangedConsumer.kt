@@ -50,6 +50,7 @@ class PreferenceTeamRoleChangedConsumer(
                     event.colorHex.isNullOrBlank() ||
                     event.priority == null ||
                     event.mentionable == null ||
+                    event.isDefault == null ||
                     event.permissions == null ->
                     "ROLE_UPSERTED read model이 완전하지 않습니다."
 

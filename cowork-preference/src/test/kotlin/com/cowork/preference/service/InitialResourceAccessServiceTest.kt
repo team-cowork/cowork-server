@@ -183,7 +183,7 @@ class InitialResourceAccessServiceTest {
 
     @Test
     fun `탈퇴 후 재가입 등 멤버 버전이 앞서면 이전 초기 권한을 다시 부여하지 않는다`() = runBlocking {
-        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(sourceOccurredAt = VERSION.plusSeconds(1))
+        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(sourceOccurredAt = VERSION.plusSeconds(1), authorizationVersion = VERSION.plusSeconds(1))
 
         service.channel(client, channelEvent, channel)
         assertFalse(service.project(client, projectEvent, project))
@@ -227,22 +227,8 @@ class InitialResourceAccessServiceTest {
     }
 
     @Test
-    fun `구형 초기 요청은 새 권한 버전으로 바꾸지 않고 당시 멤버 버전으로 검사한다`() = runBlocking {
-        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(
-            authorizationVersion = VERSION.minusSeconds(1),
-        )
-        assertTrue(service.project(client, projectEvent, project))
-
-        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(
-            sourceOccurredAt = VERSION.plusSeconds(1), authorizationVersion = VERSION.minusSeconds(1),
-        )
-        assertFalse(service.project(client, projectEvent, project))
-        coVerify(exactly = 1) { projectRoles.assignRole(ACTOR, PROJECT, "초기 접근", client) }
-    }
-
-    @Test
     fun `새 구형 이벤트로 원본 권한 버전이 없어진 경우 이전 승인 버전을 재사용하지 않는다`() = runBlocking {
-        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(sourceOccurredAt = VERSION.plusSeconds(1))
+        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(sourceOccurredAt = VERSION.plusSeconds(1), authorizationVersion = null)
 
         assertFalse(service.project(client, projectEvent.copy(
             initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, VERSION),
@@ -252,34 +238,13 @@ class InitialResourceAccessServiceTest {
     }
 
     @Test
-    fun `같은 멤버 버전의 권한 메타데이터가 없으면 초기 접근을 재시도한다`() {
-        assertAuthorizationRepairRetry(null)
-    }
-
-    @Test
-    fun `같은 멤버 버전의 권한 메타데이터가 승인 버전보다 뒤처지면 초기 접근을 재시도한다`() {
-        assertAuthorizationRepairRetry(VERSION.minusSeconds(2))
-    }
-
-    private fun assertAuthorizationRepairRetry(currentAuthorizationVersion: Instant?) {
-        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(
-            authorizationVersion = currentAuthorizationVersion,
-        )
-        val approvedVersion = VERSION.minusSeconds(1)
-
-        assertThrows<IllegalStateException> {
-            runBlocking {
-                service.channel(client, channelEvent.copy(
-                    initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = approvedVersion),
-                ), channel)
-            }
-        }
-        assertThrows<IllegalStateException> {
-            runBlocking {
-                service.project(client, projectEvent.copy(
-                    initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, approvedVersion),
-                ), project)
-            }
+    fun `동일 멤버 버전에서도 권한 버전이 없거나 다르면 초기 접근을 부여하지 않는다`() = runBlocking {
+        listOf(null, VERSION.minusSeconds(2)).forEach { currentAuthorization ->
+            coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(
+                authorizationVersion = currentAuthorization,
+            )
+            service.channel(client, channelEvent, channel)
+            assertFalse(service.project(client, projectEvent, project))
         }
 
         coVerify(exactly = 0) { policies.upsertPolicy(any(), any(), any(), any(), any()) }
@@ -287,7 +252,7 @@ class InitialResourceAccessServiceTest {
     }
 
     @Test
-    fun `같은 멤버 버전의 권한 보정이 완료됐으면 승인한 초기 접근을 허용한다`() = runBlocking {
+    fun `승인한 권한 버전이 현재와 같으면 초기 접근을 허용한다`() = runBlocking {
         val approvedVersion = VERSION.minusSeconds(1)
         coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(authorizationVersion = approvedVersion)
 
@@ -420,7 +385,7 @@ class InitialResourceAccessServiceTest {
         private const val CHANNEL = 4L
         private const val PROJECT = 5L
         private val VERSION = Instant.parse("2026-10-25T00:00:00Z")
-        private val member = TeamMemberProjection(TEAM, ACTOR, "MEMBER", false, VERSION)
+        private val member = TeamMemberProjection(TEAM, ACTOR, "MEMBER", false, VERSION, VERSION)
         private val role = TeamRoleDefinition(
             id = ROLE, teamId = TEAM, name = "@everyone", colorHex = "#99AAB5", priority = Int.MIN_VALUE,
             mentionable = false,
@@ -431,14 +396,14 @@ class InitialResourceAccessServiceTest {
             isDefault = true,
         )
         private val channelSeed = InitialChannelRolePolicySeed(
-            ACTOR, VERSION, listOf(InitialChannelRoleOverwrite(ROLE, JsonObject().put("message_read", true))),
+            ACTOR, VERSION, listOf(InitialChannelRoleOverwrite(ROLE, JsonObject().put("message_read", true))), VERSION,
         )
         private val channelEvent = ChannelLifecycleEvent(
             CHANNEL, TEAM, false, VERSION, true, "TEXT", channelSeed,
         )
         private val channel = ChannelLifecycleProjection(CHANNEL, TEAM, false, VERSION, true, "TEXT")
         private val projectEvent = ProjectLifecycleEvent(
-            PROJECT, TEAM, false, VERSION, ACTOR, true, InitialProjectReadGrant(ACTOR, VERSION),
+            PROJECT, TEAM, false, VERSION, ACTOR, true, InitialProjectReadGrant(ACTOR, VERSION, VERSION),
         )
         private val project = ProjectLifecycleProjection(PROJECT, TEAM, false, VERSION, ACTOR, true)
     }

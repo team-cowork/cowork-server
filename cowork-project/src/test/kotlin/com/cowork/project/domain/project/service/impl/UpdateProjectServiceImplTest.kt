@@ -23,6 +23,7 @@ import team.themoment.sdk.exception.ExpectedException
 
 class UpdateProjectServiceImplTest {
 
+    private val currentVersion = Instant.parse("2026-11-06T00:00:00Z")
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
@@ -36,7 +37,7 @@ class UpdateProjectServiceImplTest {
         Project(id = id, teamId = teamId, name = "p", description = null, position = position, createdBy = 1L)
 
     private fun membership(teamId: Long, userId: Long, role: String = "MEMBER") =
-        TeamMembership(teamId = teamId, userId = userId, role = role)
+        TeamMembership(teamId = teamId, userId = userId, role = role, authorizationVersion = currentVersion)
 
     @Nested
     inner class Execute {
@@ -84,7 +85,7 @@ class UpdateProjectServiceImplTest {
             every { projectRepository.findByIdForUpdate(1L) } returns proj
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns membership(100L, 99L)
             every { accessRepository.findById("1:99") } returns Optional.of(
-                ProjectAccessProjection("1:99", 1L, 99L, true, false, Instant.now(), canManage = true, canReadPrivate = false),
+                ProjectAccessProjection("1:99", 1L, 99L, true, false, Instant.now(), canManage = true, canReadPrivate = false, sourceAuthorizationVersion = currentVersion),
             )
 
             val ex = assertThrows(ExpectedException::class.java) {
@@ -103,7 +104,7 @@ class UpdateProjectServiceImplTest {
             every { projectRepository.findByIdForUpdate(1L) } returns proj
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns membership(100L, 99L)
             every { accessRepository.findById("1:99") } returns Optional.of(
-                ProjectAccessProjection("1:99", 1L, 99L, true, false, Instant.now(), canManage = true, canReadPrivate = true),
+                ProjectAccessProjection("1:99", 1L, 99L, true, false, Instant.now(), canManage = true, canReadPrivate = true, sourceAuthorizationVersion = currentVersion),
             )
 
             val response = service.execute(99L, 1L, UpdateProjectReqDto(name = "changed", isPrivate = true))
@@ -119,7 +120,7 @@ class UpdateProjectServiceImplTest {
             every { projectRepository.findByIdForUpdate(1L) } returns proj
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns membership(100L, 99L)
             every { accessRepository.findById("1:99") } returns Optional.of(
-                ProjectAccessProjection("1:99", 1L, 99L, true, false, Instant.now(), canManage = true),
+                ProjectAccessProjection("1:99", 1L, 99L, true, false, Instant.now(), canManage = true, sourceAuthorizationVersion = currentVersion),
             )
 
             val response = service.execute(99L, 1L, UpdateProjectReqDto(name = "changed", isPrivate = true))
