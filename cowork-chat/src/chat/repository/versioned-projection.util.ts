@@ -1,18 +1,12 @@
-import {mongo} from 'mongoose';
+import type {mongo} from 'mongoose';
 
 export const PROJECTION_EPOCH = new Date(0);
 
-const legacySourceVersion = {
-	$multiply: [
-		{$convert: {input: {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}, to: 'long'}},
-		mongo.Long.fromNumber(1_000_000),
-	],
-};
-export const projectionSourceVersion = {$ifNull: ['$sourceVersion', legacySourceVersion]};
+export const projectionSourceVersion = '$sourceVersion';
 const deleted = {$ifNull: ['$deleted', false]};
 
 /**
- 새 active 상태를 적용할 조건. 더 최신인 경우에만 적용하며, 같은 시각이면 tombstone이 우선한다.
+ 새 active 상태를 적용할 조건. 더 최신인 경우에만 적용하며, 같은 버전이면 tombstone이 우선한다.
  */
 export function activeProjectionCondition(sourceVersion: mongo.Long) {
 	return {
@@ -29,7 +23,7 @@ export function activeProjectionCondition(sourceVersion: mongo.Long) {
 }
 
 /**
-같은 시각의 active 상태보다 DELETE가 항상 우선하도록 한다.
+같은 버전의 active 상태보다 DELETE가 항상 우선하도록 한다.
 */
 export function deletedProjectionCondition(sourceVersion: mongo.Long) {
 	return {$lte: [projectionSourceVersion, sourceVersion]};

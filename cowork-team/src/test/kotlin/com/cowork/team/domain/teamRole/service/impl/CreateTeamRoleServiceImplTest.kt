@@ -90,6 +90,7 @@ class CreateTeamRoleServiceImplTest :
             permissions = mapOf(TeamRolePermission.MANAGE_ROLES.key to true),
             createdAt = null,
             updatedAt = null,
+            isDefault = false,
         )
     }
 }
