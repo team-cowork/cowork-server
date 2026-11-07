@@ -56,7 +56,6 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
             val membershipVersion = member?.getOffsetDateTime("source_occurred_at") ?: Instant.EPOCH.atOffset(ZoneOffset.UTC)
             val authorizationVersion = member?.getOffsetDateTime("authorization_version")
             val previousAuthorizationVersion = previous?.getOffsetDateTime("source_authorization_version")
-            // A nullable stamp repair must publish a newer decision even when its effective version is unchanged.
             if (previous != null && previous.permissions() == permissions &&
                 previous.getBoolean("can_read_private") == canReadPrivate &&
                 previous.getOffsetDateTime("source_membership_version").toInstant() == membershipVersion.toInstant() &&

@@ -164,10 +164,9 @@ class WebhookService(
                 val webhook = repository.findForUpdate(connection, id)
                 val executionId = response.getString("executionId")
                 if (webhook == null || webhook.deleted || webhook.channelId != response.getLong("channelId") ||
-                    executionId != null && executionId != webhook.requireExecutionId().toString()) {
+                    executionId != webhook.executionId.toString()) {
                     throw WebhookRequestException(409, "웹훅 실행 ID가 변경되었거나 삭제되어 이전 요청을 재생할 수 없습니다.")
                 }
-                response.put("executionId", webhook.requireExecutionId().toString())
             }
             val token = saved.secretCiphertext?.let {
                 if (repository.now(connection) >= saved.createdAt.plusSeconds(SECRET_REPLAY_SECONDS)) {
