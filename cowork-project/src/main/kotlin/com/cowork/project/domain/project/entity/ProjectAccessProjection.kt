@@ -19,7 +19,7 @@ class ProjectAccessProjection(
     var canManage: Boolean = false,
     @Column(nullable = false) var sourceMembershipVersion: Instant = Instant.EPOCH,
     @Column(name = "source_authorization_version") var sourceAuthorizationVersion: Instant? = null,
-    @Column(name = "can_read_private") var canReadPrivate: Boolean = false,
+    @Column(name = "can_read_private", nullable = false) var canReadPrivate: Boolean = false,
 ) {
     fun privateReadForSameVersion(incoming: ProjectAccessProjection): Boolean =
         sourceMembershipVersion == incoming.sourceMembershipVersion &&
