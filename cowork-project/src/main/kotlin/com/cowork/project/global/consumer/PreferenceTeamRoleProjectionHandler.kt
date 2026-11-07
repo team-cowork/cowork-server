@@ -49,7 +49,7 @@ class PreferenceTeamRoleProjectionHandler(
             requireNotNull(event.priority),
             event.occurredAt,
             objectMapper.writeValueAsString(requireNotNull(event.permissions)),
-            event.isDefault,
+            requireNotNull(event.isDefault),
         )
         roleRepository.save(role)
     }

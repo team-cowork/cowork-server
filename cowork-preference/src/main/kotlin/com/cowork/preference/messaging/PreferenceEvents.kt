@@ -36,7 +36,6 @@ object PreferenceEvents {
     const val TEAM_SETTING_STATE_TOPIC = "preference.team-setting.state.v1"
     const val TEXT_CHANNEL_SETTING_STATE_TOPIC = "preference.text-channel-setting.state.v1"
     const val WEBHOOK_STATE_TOPIC = "preference.webhook.state.v2"
-    const val WEBHOOK_LEGACY_STATE_TOPIC = "channel.webhook-legacy.state.v1"
     const val VOICE_CHANNEL_SETTING_STATE_TOPIC = "preference.voice-channel-setting.state.v1"
     const val SETTING_STATE_SCHEMA_VERSION = 1
     val OUTBOX_TOPICS = setOf(
@@ -333,7 +332,7 @@ object PreferenceEvents {
         key = webhook.id.toString(),
         payload = basePayload("WEBHOOK_STATE", webhook.updatedAt)
             .put("schemaVersion", 2).put("webhookId", webhook.id).put("channelId", webhook.channelId)
-            .put("executionId", webhook.requireExecutionId().toString())
+            .put("executionId", webhook.executionId.toString())
             .put("name", webhook.name).put("avatarUrl", webhook.avatarUrl).put("isSecure", webhook.isSecure)
             .put("secretHash", webhook.secretHash).put("isActive", webhook.isActive)
             .put("deleted", webhook.deleted).put("snapshot", snapshot),

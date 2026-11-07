@@ -222,17 +222,17 @@ class WebhookServiceTest {
     }
 
     @Test
-    fun `이전 발급 응답 재생은 기존 실행 식별자만 보완하고 웹훅을 변경하지 않는다`() = runBlocking {
+    fun `실행 식별자가 없는 저장 응답은 재생을 거부한다`() = runBlocking {
         val hash = WebhookSecrets.hash("MODE:11:7:true")
         val oldResponse = original.copy(isSecure = true).response().also { it.remove("executionId") }
         coEvery { repository.findOperation(connection, 3, "before-uuid") } returns WebhookOperation(
             hash, oldResponse, null, now.minusSeconds(24 * 60 * 60),
         )
         coEvery { repository.findForUpdate(connection, 7) } returns original.copy(name = "current name")
-        val result = service.changeMode(11, 7, requester, JsonObject().put("isSecure", true), "before-uuid")
-        assertEquals(executionId.toString(), result.getString("executionId"))
-        assertEquals("bot", result.getString("name"))
-        assertNull(result.getString("token"))
+        val failure = runCatching {
+            service.changeMode(11, 7, requester, JsonObject().put("isSecure", true), "before-uuid")
+        }.exceptionOrNull() as WebhookRequestException
+        assertEquals(409, failure.status)
         coVerify(exactly = 0) { repository.changeMode(any(), any(), any(), any(), any()) }
         coVerify(exactly = 0) { repository.create(any(), any(), any(), any(), any()) }
         coVerify { guard.requireSettingsManager(connection, 11, requester) }
