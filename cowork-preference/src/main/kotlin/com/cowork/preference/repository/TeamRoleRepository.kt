@@ -30,16 +30,6 @@ class TeamRoleRepository(private val pool: Pool) {
         return rows.firstOrNull()?.toTeamRoleDefinition()
     }
 
-    internal suspend fun findTeamsMissingDefaultRole(client: SqlClient): List<Long> = client.query(
-        """
-        SELECT DISTINCT m.team_id FROM tb_team_member_projections m
-        WHERE NOT m.deleted
-          AND NOT EXISTS (SELECT 1 FROM tb_team_role_definitions d WHERE d.team_id = m.team_id AND d.is_default)
-          AND NOT EXISTS (SELECT 1 FROM tb_team_role_domain_tombstones t WHERE t.team_id = m.team_id)
-        ORDER BY m.team_id
-        """.trimIndent(),
-    ).execute().coAwait().map { it.getLong("team_id") }
-
     suspend fun hasPermission(teamId: Long, accountId: Long, permission: String): Boolean =
         findAccountRoles(pool, teamId, accountId).any { it.permissions[permission] == true }
 

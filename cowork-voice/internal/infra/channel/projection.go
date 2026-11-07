@@ -263,17 +263,6 @@ func (p *Projection) Apply(ctx context.Context, s State) error {
 	filter := bson.M{"_id": s.Key, "$or": bson.A{bson.M{"source_version": bson.M{"$exists": false}}, bson.M{"source_version": bson.M{op: s.Version}}}}
 	_, err := p.col.UpdateOne(ctx, filter, bson.M{"$set": s}, options.UpdateOne().SetUpsert(true))
 	if mongo.IsDuplicateKeyError(err) {
-		// TODO(#596): 2026-11-01 05:00 KST 이후 역할 문서 보정·구버전 롤백 지원 종료 확인 후 이 동일 버전 보정을 제거한다.
-		// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-		if s.Kind == "role" && !s.Deleted {
-			legacy := bson.M{"_id": s.Key, "kind": "role", "source_version": s.Version, "deleted": false, "is_default": bson.M{"$exists": false}}
-			if s.IsDefault {
-				// Default-role identity is immutable; an older producer must never clear a restored true value.
-				legacy["is_default"] = bson.M{"$ne": true}
-			}
-			_, err = p.col.UpdateOne(ctx, legacy, bson.M{"$set": bson.M{"is_default": s.IsDefault}})
-			return err
-		}
 		return nil
 	}
 	return err
@@ -296,8 +285,6 @@ func (h *EventHandler) Handle(ctx context.Context, topic, key string, payload []
 	return h.store.Apply(ctx, s)
 }
 func parseState(topic, key string, payload []byte) (State, error) {
-	// TODO(#596): 2026-11-01 05:00 KST 이후 구형 레코드 재처리·롤백 지원 종료 확인 후 ROLE_UPSERTED의 isDefault 누락 허용 제거.
-	// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
 	var e struct {
 		EventType       string           `json:"eventType"`
 		TeamID          int64            `json:"teamId"`
@@ -309,7 +296,7 @@ func parseState(topic, key string, payload []byte) (State, error) {
 		Type            string           `json:"type"`
 		IsPrivate       *bool            `json:"isPrivate"`
 		Priority        *int             `json:"priority"`
-		IsDefault       bool             `json:"isDefault"`
+		IsDefault       *bool            `json:"isDefault"`
 		Permissions     map[string]*bool `json:"permissions"`
 		SchemaVersion   int              `json:"schemaVersion"`
 		OccurredAt      string           `json:"occurredAt"`
@@ -330,7 +317,7 @@ func parseState(topic, key string, payload []byte) (State, error) {
 		}
 		permissions[name] = *value
 	}
-	s := State{TeamID: e.TeamID, ChannelID: e.ChannelID, UserID: e.UserID, RoleID: e.RoleID, Role: e.Role, ChannelType: e.Type, IsPrivate: e.IsPrivate, IsDefault: e.IsDefault, Permissions: permissions, Version: version.UnixNano()}
+	s := State{TeamID: e.TeamID, ChannelID: e.ChannelID, UserID: e.UserID, RoleID: e.RoleID, Role: e.Role, ChannelType: e.Type, IsPrivate: e.IsPrivate, Permissions: permissions, Version: version.UnixNano()}
 	expected := ""
 	switch topic {
 	case "channel.event.v2":
@@ -365,10 +352,11 @@ func parseState(topic, key string, payload []byte) (State, error) {
 			s.Kind = "role"
 			s.Deleted = e.EventType == "ROLE_DELETED"
 			if !s.Deleted {
-				if e.Priority == nil || e.Permissions == nil {
+				if e.Priority == nil || e.Permissions == nil || e.IsDefault == nil {
 					return s, errors.New("missing role permissions")
 				}
 				s.Priority = *e.Priority
+				s.IsDefault = *e.IsDefault
 			}
 		case "ASSIGNMENT_UPSERTED", "ASSIGNMENT_DELETED":
 			if e.RoleID <= 0 || e.AccountID <= 0 {
