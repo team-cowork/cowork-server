@@ -191,7 +191,7 @@ scrape_configs:
       ca_file: /etc/cowork/ca/ca.crt
   relabel_configs:
   - source_labels: [__meta_consul_service]
-    regex: cowork-(authorization|channel|chat|gateway|github|monitoring|notification|preference|project|roadmap|team|user|voice)-sidecar-proxy
+    regex: cowork-(applet|authorization|channel|chat|gateway|github|monitoring|notification|preference|project|roadmap|team|user|voice)-sidecar-proxy
     action: keep
   - source_labels: [__meta_consul_service]
     regex: cowork-(.+)-sidecar-proxy
@@ -359,6 +359,11 @@ scrape_configs:
       service: host
       host: roadmap
   - targets:
+    - 10.0.0.144:9100
+    labels:
+      service: host
+      host: applet
+  - targets:
     - 10.0.0.137:9100
     labels:
       service: host
@@ -501,6 +506,11 @@ scrape_configs:
     labels:
       service: alloy
       host: roadmap
+  - targets:
+    - 10.0.0.144:12345
+    labels:
+      service: alloy
+      host: applet
   - targets:
     - 10.0.0.137:12345
     labels:
