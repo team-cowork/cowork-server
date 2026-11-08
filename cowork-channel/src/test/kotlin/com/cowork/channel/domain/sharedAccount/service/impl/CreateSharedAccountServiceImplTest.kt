@@ -21,6 +21,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 import java.util.Optional
@@ -85,7 +86,7 @@ class CreateSharedAccountServiceImplTest {
         every { credentialEncryptionService.mask("plainPwd") } returns "••••wd"
 
         val saved = slot<SharedAccount>()
-        every { sharedAccountRepository.save(capture(saved)) } answers { saved.captured }
+        every { sharedAccountRepository.saveAndFlush(capture(saved)) } answers { saved.captured }
 
         service.createAccount(
             1L,
@@ -109,7 +110,7 @@ class CreateSharedAccountServiceImplTest {
         every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
 
         val saved = slot<SharedAccount>()
-        every { sharedAccountRepository.save(capture(saved)) } answers { saved.captured }
+        every { sharedAccountRepository.saveAndFlush(capture(saved)) } answers { saved.captured }
 
         service.createAccount(
             1L,
@@ -124,5 +125,27 @@ class CreateSharedAccountServiceImplTest {
 
         assertNull(saved.captured.credential)
         verify(exactly = 0) { credentialEncryptionService.encrypt(any()) }
+    }
+
+    @Test
+    fun `createAccount는 같은 계정이 이미 등록되어 있으면 CONFLICT`() {
+        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
+        every { sharedAccountRepository.saveAndFlush(any<SharedAccount>()) } throws
+            DataIntegrityViolationException("duplicate")
+
+        val ex = assertThrows<ExpectedException> {
+            service.createAccount(
+                1L,
+                1L,
+                CreateSharedAccountRequest(
+                    provider = AccountProvider.GITHUB,
+                    providerLabel = null,
+                    accountIdentifier = "alice",
+                    credential = null,
+                ),
+            )
+        }
+        assertEquals(HttpStatus.CONFLICT, ex.statusCode)
     }
 }
