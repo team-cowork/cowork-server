@@ -52,7 +52,7 @@ public class RoadmapAssignmentController {
     private final ModifyRoadmapAssignmentStatusService modifyRoadmapAssignmentStatusService;
     private final DeleteRoadmapAssignmentService deleteRoadmapAssignmentService;
 
-    @Operation(summary = "과제 출제", description = "TEAM 또는 PROJECT 로드맵에 과제를 출제합니다. PROJECT 할당에는 projectId가 필요합니다. 노드는 해당 로드맵에 속해야 하며 담당자는 소유 팀의 활성 멤버여야 합니다.")
+    @Operation(summary = "과제 출제", description = "TEAM 또는 PROJECT 로드맵에 TEAM 범위 과제를 출제합니다. PROJECT 범위 할당은 아직 지원하지 않습니다. 노드는 해당 로드맵에 속해야 하며 담당자는 소유 팀의 활성 멤버여야 합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "출제 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
