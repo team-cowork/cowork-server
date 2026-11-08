@@ -11,6 +11,7 @@ import com.cowork.channel.domain.sharedAccount.service.CreateSharedAccountServic
 import com.cowork.channel.domain.sharedAccount.service.CredentialEncryptionService
 import com.cowork.channel.domain.sharedAccount.service.SharedAccountAccessGuard
 import com.cowork.channel.domain.sharedAccount.service.support.SharedAccountLookupSupport
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -42,17 +43,22 @@ class CreateSharedAccountServiceImpl(
 
         val encryptedCredential = request.credential?.let { credentialEncryptionService.encrypt(it) }
 
-        val account = sharedAccountRepository.save(
-            SharedAccount(
-                channelId = channelId,
-                provider = request.provider,
-                providerLabel = request.providerLabel,
-                accountIdentifier = request.accountIdentifier,
-                credential = encryptedCredential,
-                connectedViaOAuth = false,
-                createdBy = userId,
-            ),
-        )
+        // (channel_id, provider, account_identifier) unique 위반을 500이 아니라 409로 응답하려고 즉시 flush한다.
+        val account = try {
+            sharedAccountRepository.saveAndFlush(
+                SharedAccount(
+                    channelId = channelId,
+                    provider = request.provider,
+                    providerLabel = request.providerLabel,
+                    accountIdentifier = request.accountIdentifier,
+                    credential = encryptedCredential,
+                    connectedViaOAuth = false,
+                    createdBy = userId,
+                ),
+            )
+        } catch (e: DataIntegrityViolationException) {
+            throw ExpectedException("이미 채널에 등록된 공유 계정입니다.", HttpStatus.CONFLICT)
+        }
         return lookupSupport.toResponse(account)
     }
 }
