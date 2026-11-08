@@ -13,8 +13,8 @@ export class AttachmentDownloadService {
 	) {}
 
 	async execute(channelId: number, userId: number, messageId: string, attachmentIndex: number): Promise<AttachmentDownloadResponseDto> {
-		if (!/^[\da-f]{24}$/iv.test(messageId) || !Number.isSafeInteger(attachmentIndex) || attachmentIndex < 0) {
-			throw new BadRequestException('메시지 또는 첨부파일 식별자가 유효하지 않습니다');
+		if (!Number.isSafeInteger(attachmentIndex) || attachmentIndex < 0) {
+			throw new BadRequestException('첨부파일 식별자가 유효하지 않습니다');
 		}
 
 		await this.readAccess.requireCanRead(channelId, userId);

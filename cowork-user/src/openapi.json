@@ -178,6 +178,10 @@
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error401"}}}
           },
           "404": {"description": "사용자 또는 프로필 없음", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error404"}}}},
+          "409": {
+            "description": "다른 요청이 프로필 이미지를 먼저 변경함",
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error409"}}}
+          },
           "415": {
             "description": "요청 본문이 application/json 형식이 아님",
             "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error415"}}}
