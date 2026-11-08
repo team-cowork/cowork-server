@@ -1,7 +1,9 @@
 package com.cowork.project.domain.github.service
 
 import com.cowork.project.domain.github.entity.ProjectGithubRepo
+import com.cowork.project.domain.github.entity.TeamGithubInstallation
 import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
+import com.cowork.project.domain.github.repository.TeamGithubInstallationRepository
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.service.ProjectAccessGuard
 import io.kotest.assertions.throwables.shouldThrow
@@ -11,6 +13,7 @@ import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 
@@ -19,12 +22,16 @@ class GithubRepoAccessResolverTest :
 
         lateinit var projectAccessGuard: ProjectAccessGuard
         lateinit var projectGithubRepoRepository: ProjectGithubRepoRepository
+        lateinit var teamGithubInstallationRepository: TeamGithubInstallationRepository
         lateinit var resolver: GithubRepoAccessResolver
 
         beforeEach {
             projectAccessGuard = mockk()
             projectGithubRepoRepository = mockk()
-            resolver = GithubRepoAccessResolver(projectAccessGuard, projectGithubRepoRepository)
+            teamGithubInstallationRepository = mockk()
+            resolver = GithubRepoAccessResolver(projectAccessGuard, projectGithubRepoRepository, teamGithubInstallationRepository)
+            every { teamGithubInstallationRepository.findByIdOrNull(100L) } returns
+                TeamGithubInstallation(teamId = 100L, installationId = 1L, orgLogin = "My-Org")
         }
 
         fun project() = Project(id = 1L, teamId = 100L, name = "p", description = null, createdBy = 1L)
@@ -77,6 +84,20 @@ class GithubRepoAccessResolverTest :
                     }
                 }
 
+                context("이미 등록된 레포가 다른 조직의 레포인 경우") {
+                    it("FORBIDDEN을 던진다") {
+                        val proj = project()
+                        every { projectAccessGuard.findProjectOrThrow(1L) } returns proj
+                        every { projectAccessGuard.requireProjectReader(proj, 7L) } just Runs
+                        every { projectGithubRepoRepository.findByIdAndProjectId(5L, 1L) } returns
+                            repoLink(githubRepoUrl = "https://github.com/other-org/private-repo")
+
+                        val ex = shouldThrow<ExpectedException> { resolver.resolveForRead(7L, 1L, 5L) }
+
+                        ex.statusCode shouldBe HttpStatus.FORBIDDEN
+                    }
+                }
+
                 context("등록된 레포 URL이 올바르지 않은 경우") {
                     it("BAD_REQUEST를 던진다") {
                         val proj = project()
@@ -88,6 +109,36 @@ class GithubRepoAccessResolverTest :
                         val ex = shouldThrow<ExpectedException> { resolver.resolveForRead(7L, 1L, 5L) }
 
                         ex.statusCode shouldBe HttpStatus.BAD_REQUEST
+                    }
+                }
+            }
+
+            describe("requireTeamOrgRepo 메서드는") {
+                context("owner가 팀 조직과 대소문자만 다른 경우") {
+                    it("통과한다") {
+                        resolver.requireTeamOrgRepo(100L, GithubRepoRef(owner = "my-org", repo = "my-repo"))
+                    }
+                }
+
+                context("owner가 팀 조직이 아닌 경우") {
+                    it("FORBIDDEN을 던진다") {
+                        val ex = shouldThrow<ExpectedException> {
+                            resolver.requireTeamOrgRepo(100L, GithubRepoRef(owner = "other-org", repo = "private-repo"))
+                        }
+
+                        ex.statusCode shouldBe HttpStatus.FORBIDDEN
+                    }
+                }
+
+                context("팀에 GitHub 조직이 연결되지 않은 경우") {
+                    it("FORBIDDEN을 던진다") {
+                        every { teamGithubInstallationRepository.findByIdOrNull(200L) } returns null
+
+                        val ex = shouldThrow<ExpectedException> {
+                            resolver.requireTeamOrgRepo(200L, GithubRepoRef(owner = "my-org", repo = "my-repo"))
+                        }
+
+                        ex.statusCode shouldBe HttpStatus.FORBIDDEN
                     }
                 }
             }
