@@ -8,11 +8,10 @@ import com.cowork.channel.domain.sharedAccount.service.CredentialEncryptionServi
 import com.cowork.channel.domain.sharedAccount.service.SharedAccountAccessGuard
 import com.cowork.channel.domain.sharedAccount.service.UpdateSharedAccountService
 import com.cowork.channel.domain.sharedAccount.service.support.SharedAccountLookupSupport
+import com.cowork.channel.domain.sharedAccount.service.support.toSharedAccountConflict
 import org.springframework.dao.DataIntegrityViolationException
-import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import team.themoment.sdk.exception.ExpectedException
 
 @Service
 @Transactional
@@ -41,7 +40,7 @@ class UpdateSharedAccountServiceImpl(
         try {
             sharedAccountRepository.flush()
         } catch (e: DataIntegrityViolationException) {
-            throw ExpectedException("이미 채널에 등록된 공유 계정입니다.", HttpStatus.CONFLICT)
+            throw e.toSharedAccountConflict()
         }
         return lookupSupport.toResponse(account)
     }
