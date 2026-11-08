@@ -412,7 +412,7 @@ public static partial class Accounts
         {
             await ObjectStorage.DeleteObjectAsync(finalKey);
             await ObjectStorage.DeleteObjectAsync(objectKey);
-            throw new ApiError(409, "다른 요청이 프로필 이미지를 먼저 변경했습니다. 다시 시도하세요.");
+            throw new ApiError(409, "다른 요청이 프로필 이미지를 먼저 변경했습니다. 이미지를 다시 업로드하세요.");
         }
 
         if (profile.ImageKey is not null && profile.ImageKey != finalKey) await ObjectStorage.DeleteObjectAsync(profile.ImageKey);
@@ -424,9 +424,11 @@ public static partial class Accounts
         await using var connection = await App.OpenAsync();
         var profile = await LoadProfileImageAsync(connection, userId);
         if (profile.ImageKey is null) return;
-        await connection.ExecuteAsync(
-            "UPDATE tb_profiles SET profile_image_key = NULL, last_modified_by = @userId, updated_at = UTC_TIMESTAMP(6) WHERE id = @id",
-            new { userId, id = profile.Id });
+        var updated = await connection.ExecuteAsync(
+            "UPDATE tb_profiles SET profile_image_key = NULL, last_modified_by = @userId, updated_at = UTC_TIMESTAMP(6) WHERE id = @id AND profile_image_key <=> @oldKey",
+            new { userId, id = profile.Id, oldKey = profile.ImageKey });
+        // A concurrent confirm replaced the key, so deleting now would orphan the new file or drop the one in use.
+        if (updated == 0) throw new ApiError(409, "다른 요청이 프로필 이미지를 먼저 변경했습니다. 다시 시도하세요.");
         await ObjectStorage.DeleteObjectAsync(profile.ImageKey);
     }
 
