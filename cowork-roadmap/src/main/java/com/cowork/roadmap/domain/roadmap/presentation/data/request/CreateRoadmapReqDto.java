@@ -17,7 +17,7 @@ public record CreateRoadmapReqDto(
 
         @Schema(description = "범위", example = "GLOBAL") @NotNull RoadmapScope scope,
 
-        @Schema(description = "소유 팀 ID (TEAM/PROJECT 스코프에서 필수). cowork-team의 tb_teams.id") Long ownerTeamId,
+        @Schema(description = "소유 팀 ID (TEAM 스코프에서 필수). cowork-team의 tb_teams.id") Long ownerTeamId,
 
         @Schema(description = "소유 프로젝트 ID. PROJECT 스코프는 아직 지원하지 않으므로 무시됨") Long ownerProjectId) {
 }

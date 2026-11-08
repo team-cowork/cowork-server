@@ -32,7 +32,7 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
     @Transactional
     public AssignmentResDto execute(Long userId, String userRole, CreateAssignmentReqDto request) {
         if (request.scope() == RoadmapScope.GLOBAL) {
-            throw new ExpectedException("과제 할당 범위는 TEAM 또는 PROJECT여야 합니다.", HttpStatus.BAD_REQUEST);
+            throw new ExpectedException("과제 할당 범위는 TEAM이어야 합니다.", HttpStatus.BAD_REQUEST);
         }
         // shortcut: 프로젝트 투영이 없어 projectId의 소속 팀을 확인할 수 없으므로 PROJECT 할당을 막는다. 투영을 추가하면 팀
         // 일치 검증으로 바꾼다.
