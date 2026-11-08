@@ -341,7 +341,7 @@ spring:
             cowork-service: cowork-applet
             health-path: /health/ready
           predicates:
-            - Path=/api/applet/applets/**, /api/applet/health/ready
+            - Path=/api/applet/applets/**
           filters:
             - StripPrefix=2
             - name: CircuitBreaker
