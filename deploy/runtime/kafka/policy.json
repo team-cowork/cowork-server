@@ -429,6 +429,9 @@
     }
   },
   "principals": {
+    "cowork-applet": {
+      "topics": []
+    },
     "cowork-authorization": {
       "topics": [
         "user.data.sync",

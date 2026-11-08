@@ -180,6 +180,11 @@ job "cowork-gateway" {
               local_bind_address = "127.0.0.1"
             }
             upstreams {
+              destination_name   = "cowork-applet"
+              local_bind_port    = 18091
+              local_bind_address = "127.0.0.1"
+            }
+            upstreams {
               destination_name   = "cowork-preference"
               local_bind_port    = 19001
               local_bind_address = "127.0.0.1"
