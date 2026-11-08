@@ -6,6 +6,7 @@ import com.cowork.project.domain.github.presentation.data.request.AddProjectGith
 import com.cowork.project.domain.github.presentation.data.response.ProjectGithubRepoResDto
 import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
 import com.cowork.project.domain.github.service.AddProjectGithubRepoService
+import com.cowork.project.domain.github.service.GithubRepoAccessResolver
 import com.cowork.project.domain.github.service.GithubRepoUrlParser
 import com.cowork.project.domain.github.service.GithubSyncRequestScheduler
 import com.cowork.project.domain.project.service.ProjectAccessGuard
@@ -21,6 +22,7 @@ class AddProjectGithubRepoServiceImpl(
     private val projectAccessGuard: ProjectAccessGuard,
     private val repoEventPublisher: ProjectGithubRepoEventPublisher,
     private val githubSyncRequestScheduler: GithubSyncRequestScheduler,
+    private val repoAccessResolver: GithubRepoAccessResolver,
 ) : AddProjectGithubRepoService {
 
     @Transactional
@@ -30,6 +32,7 @@ class AddProjectGithubRepoServiceImpl(
 
         val ref = GithubRepoUrlParser.parse(request.githubRepoUrl)
             ?: throw ExpectedException("유효하지 않은 GitHub 레포지토리 URL입니다.", HttpStatus.BAD_REQUEST)
+        repoAccessResolver.requireTeamOrgRepo(project.teamId, ref)
         // owner/repo로 정규화한 canonical URL로 저장해야 중복 검사와 웹훅 대상 역조회(owner/repo 조합)가
         // URL 표기 방식(트레일링 슬래시, .git suffix 등) 차이에 흔들리지 않는다.
         val canonicalUrl = "https://github.com/${ref.owner}/${ref.repo}"
