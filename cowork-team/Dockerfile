@@ -40,4 +40,4 @@ RUN mkdir -p /var/log/cowork && chown app:app /var/log/cowork
 RUN test "$(stat -c %u /var/log/cowork)" = 10001
 USER app
 EXPOSE 8085
-ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "org.springframework.boot.loader.launch.JarLauncher"]
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=60.0", "org.springframework.boot.loader.launch.JarLauncher"]
