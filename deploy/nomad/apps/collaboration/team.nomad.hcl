@@ -160,7 +160,7 @@ job "cowork-team" {
 
       resources {
         cpu        = 500
-        memory     = 512
+        memory     = 768
         memory_max = 1024
       }
 
