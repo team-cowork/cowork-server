@@ -142,7 +142,7 @@ func main() {
 	liveSvc := livedomain.NewLiveService(liveMongoRepo, channelPermissions, liveLKRoom, cfg.LiveKitWsURL)
 	liveHandler := livedomain.NewHandler(liveSvc)
 	liveWebhookSvc := webhookdomain.NewLiveWebhookService(liveMongoRepo, liveLKRoom)
-	permissionSync := permissionsync.New(livekitClient, channelPermissions, liveMongoRepo)
+	permissionSync := permissionsync.New(livekitClient, channelPermissions, liveMongoRepo, sessionRepo)
 	permissionSyncDone := make(chan struct{})
 	go func() {
 		defer close(permissionSyncDone)
