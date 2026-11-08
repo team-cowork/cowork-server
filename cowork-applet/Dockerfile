@@ -31,4 +31,4 @@ COPY --chown=app:app --from=builder /workspace/cowork-applet/target/universal/st
 COPY --chown=app:app --from=builder /workspace/cowork-applet/target/universal/stage/lib lib
 USER app
 EXPOSE 8091
-ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=75.0", "--sun-misc-unsafe-memory-access=allow", "-Dpidfile.path=/dev/null", "-cp", "conf:lib/*", "play.core.server.ProdServerStart"]
+ENTRYPOINT ["java", "-XX:+UseContainerSupport", "-XX:MaxRAMPercentage=60.0", "--sun-misc-unsafe-memory-access=allow", "-Dpidfile.path=/dev/null", "-cp", "conf:lib/*", "play.core.server.ProdServerStart"]
