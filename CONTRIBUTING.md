@@ -108,7 +108,7 @@ JVM code uses SLF4J with Logback in Spring modules and Log4j2 in Preference. Use
 
 ## Testing and build tools
 
-Write and run unit tests only for core business logic, including business authorization and access rules. Do not add or run regression or integration tests, or tests for controllers, framework wiring, configuration shape, migrations, repositories, or transport mechanics. Kafka serialization, idempotency, ordering, checkpoints, snapshot markers, retries, quarantine, and recovery are not exceptions.
+Write and run unit tests for core business logic, including business authorization and access rules. Avoid regression and integration tests; when one is necessary during development, write and run it, then delete it before committing so that it is not part of the final deliverable. Outside that exception, do not add or run tests for controllers, framework wiring, configuration shape, migrations, repositories, or transport mechanics. Kafka serialization, idempotency, ordering, checkpoints, snapshot markers, retries, quarantine, and recovery are not exceptions.
 
 This scope does not restrict CI or coverage discovery. Keep each module's normal test command; do not add test allowlists.
 
