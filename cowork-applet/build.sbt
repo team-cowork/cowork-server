@@ -10,6 +10,7 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
       guice,
       ws,
+      "io.micrometer" % "micrometer-registry-prometheus" % "1.17.2",
       "net.logstash.logback" % "logstash-logback-encoder" % "9.0",
       "org.scalameta" %% "munit" % "1.3.6" % Test
     )
