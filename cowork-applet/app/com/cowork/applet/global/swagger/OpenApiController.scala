@@ -10,11 +10,8 @@ import scala.util.Using
 class OpenApiController @Inject() (components: ControllerComponents, environment: Environment)
     extends AbstractController(components):
 
-  private val specification = ByteString.fromArray(
-    environment
-      .resourceAsStream("public/swagger.json")
-      .map(stream => Using.resource(stream)(_.readAllBytes()))
-      .getOrElse(throw IllegalStateException("Package the generated swagger.json with the application."))
-  )
+  private val specification = environment
+    .resourceAsStream("public/swagger.json")
+    .map(stream => ByteString.fromArray(Using.resource(stream)(_.readAllBytes())))
 
-  def document: Action[AnyContent] = Action(Ok(specification).as("application/json"))
+  def document: Action[AnyContent] = Action(specification.map(Ok(_).as("application/json")).getOrElse(NotFound))
