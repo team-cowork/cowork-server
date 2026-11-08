@@ -51,7 +51,14 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set(['/health', '/metrics']);
 					pinoHttp: {
 						level,
 						redact: {
-							paths: ['req.headers["x-internal-api-key"]', 'req.headers.authorization', 'req.headers.cookie'],
+							paths: [
+								'req.headers["x-internal-api-key"]',
+								'req.headers.authorization',
+								'req.headers.cookie',
+								// 기본 req 직렬화가 req.query도 복사하므로 url과 함께 지운다.
+								'req.query.code',
+								'req.query.state',
+							],
 							censor: '[REDACTED]',
 						},
 						serializers: {
