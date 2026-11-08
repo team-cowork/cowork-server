@@ -118,12 +118,17 @@ class GithubSyncRequestScheduler(
     // owner/repo는 `project.github-repo.event`와 같은 규칙으로 소문자로 맞춘다. 연결 URL의 대소문자가 서로
     // 다르거나 GitHub 정식 이름과 달라도 같은 대상·마커로 판단해야 같은 repo를 반복 요청하지 않는다.
     private fun targets(): List<GithubSyncTarget> {
-        val orgs = installationRepository.findAll()
+        val installations = installationRepository.findAll()
+        val orgByTeamId = installations.associate { it.teamId to it.orgLogin.lowercase(Locale.ROOT) }
+        val orgs = installations
             .map { GithubSyncTarget(it.orgLogin.lowercase(Locale.ROOT), null, it.installationId) }
             .distinctBy { it.owner }
         val repos = projectGithubRepoRepository.findAll()
-            .mapNotNull { GithubRepoUrlParser.parse(it.githubRepoUrl) }
-            .map(::repositoryTarget)
+            .mapNotNull { link ->
+                val ref = GithubRepoUrlParser.parse(link.githubRepoUrl) ?: return@mapNotNull null
+                if (orgByTeamId[link.teamId] != ref.owner.lowercase(Locale.ROOT)) return@mapNotNull null
+                repositoryTarget(ref)
+            }
             .distinct()
         return orgs + repos.excludingRemovedRepos()
     }

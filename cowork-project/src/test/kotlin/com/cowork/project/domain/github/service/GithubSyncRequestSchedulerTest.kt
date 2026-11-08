@@ -2,7 +2,9 @@ package com.cowork.project.domain.github.service
 
 import com.cowork.project.domain.github.entity.GithubRepoProjection
 import com.cowork.project.domain.github.entity.GithubSyncMarker
+import com.cowork.project.domain.github.entity.GithubSyncStream
 import com.cowork.project.domain.github.entity.ProjectGithubRepo
+import com.cowork.project.domain.github.entity.TeamGithubInstallation
 import com.cowork.project.domain.github.event.GITHUB_SYNC_COMMAND_TOPIC
 import com.cowork.project.domain.github.event.GithubSyncCommand
 import com.cowork.project.domain.github.event.GithubSyncCommandPublisher
@@ -80,7 +82,10 @@ class GithubSyncRequestSchedulerTest :
             describe("requestSyncs 메서드는") {
                 context("연결 URL의 대소문자만 다른 같은 repo가 둘인 경우") {
                     it("소문자로 맞춘 하나의 대상으로 한 번만 요청한다") {
-                        every { installationRepository.findAll() } returns emptyList()
+                        every { installationRepository.findAll() } returns listOf(
+                            TeamGithubInstallation(teamId = 1L, installationId = 10L, orgLogin = "My-Org"),
+                            TeamGithubInstallation(teamId = 2L, installationId = 20L, orgLogin = "my-org"),
+                        )
                         every { projectGithubRepoRepository.findAll() } returns listOf(
                             ProjectGithubRepo(
                                 projectId = 1L,
@@ -93,7 +98,9 @@ class GithubSyncRequestSchedulerTest :
                                 githubRepoUrl = "https://github.com/my-org/my-repo",
                             ),
                         )
-                        every { markerRepository.findAllById(any()) } returns emptyList()
+                        every { markerRepository.findAllById(any()) } returns listOf(
+                            GithubSyncMarker(GithubSyncMarker.id(GithubSyncStream.REPO, "my-org", null), Instant.now()),
+                        )
                         every { requestRepository.findAllById(any()) } returns emptyList()
                         val command = slot<GithubSyncCommand>()
                         every { publisher.publish(capture(command)) } returns Unit
@@ -108,7 +115,9 @@ class GithubSyncRequestSchedulerTest :
 
                 context("연결된 repo가 설치 범위에서 빠지거나 삭제된 경우") {
                     it("그 repo는 요청하지 않고 나머지 repo만 요청한다") {
-                        every { installationRepository.findAll() } returns emptyList()
+                        every { installationRepository.findAll() } returns listOf(
+                            TeamGithubInstallation(teamId = 1L, installationId = 10L, orgLogin = "my-org"),
+                        )
                         every { projectGithubRepoRepository.findAll() } returns listOf(
                             ProjectGithubRepo(
                                 projectId = 1L,
@@ -125,7 +134,9 @@ class GithubSyncRequestSchedulerTest :
                             repoProjection("removed", deleted = true),
                             repoProjection("active", deleted = false),
                         )
-                        every { markerRepository.findAllById(any()) } returns emptyList()
+                        every { markerRepository.findAllById(any()) } returns listOf(
+                            GithubSyncMarker(GithubSyncMarker.id(GithubSyncStream.REPO, "my-org", null), Instant.now()),
+                        )
                         every { requestRepository.findAllById(any()) } returns emptyList()
                         val command = slot<GithubSyncCommand>()
                         every { publisher.publish(capture(command)) } returns Unit
@@ -134,6 +145,43 @@ class GithubSyncRequestSchedulerTest :
 
                         verify(exactly = 1) { publisher.publish(any()) }
                         command.captured.repo shouldBe "active"
+                    }
+                }
+
+                context("저장된 repo 연결이 팀의 GitHub 조직과 다르거나 설치 정보가 없는 경우") {
+                    it("팀 조직과 일치하는 repo만 동기화를 요청한다") {
+                        every { installationRepository.findAll() } returns listOf(
+                            TeamGithubInstallation(teamId = 1L, installationId = 10L, orgLogin = "My-Org"),
+                        )
+                        every { projectGithubRepoRepository.findAll() } returns listOf(
+                            ProjectGithubRepo(
+                                projectId = 1L,
+                                teamId = 1L,
+                                githubRepoUrl = "https://github.com/other-org/foreign-repo",
+                            ),
+                            ProjectGithubRepo(
+                                projectId = 2L,
+                                teamId = 2L,
+                                githubRepoUrl = "https://github.com/my-org/unlinked-team-repo",
+                            ),
+                            ProjectGithubRepo(
+                                projectId = 3L,
+                                teamId = 1L,
+                                githubRepoUrl = "https://github.com/my-org/valid-repo",
+                            ),
+                        )
+                        every { markerRepository.findAllById(any()) } returns listOf(
+                            GithubSyncMarker(GithubSyncMarker.id(GithubSyncStream.REPO, "my-org", null), Instant.now()),
+                        )
+                        every { requestRepository.findAllById(any()) } returns emptyList()
+                        val command = slot<GithubSyncCommand>()
+                        every { publisher.publish(capture(command)) } returns Unit
+
+                        scheduler.requestSyncs()
+
+                        verify(exactly = 1) { publisher.publish(any()) }
+                        command.captured.owner shouldBe "my-org"
+                        command.captured.repo shouldBe "valid-repo"
                     }
                 }
             }
