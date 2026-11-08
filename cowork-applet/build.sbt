@@ -3,10 +3,12 @@ ThisBuild / organization := "com.cowork"
 ThisBuild / version := "0.1.0-SNAPSHOT"
 
 lazy val root = (project in file("."))
-  .enablePlugins(PlayService, PlayLayoutPlugin)
+  .enablePlugins(PlayService, PlayLayoutPlugin, SwaggerPlugin)
   .settings(
     name := "cowork-applet",
     PlayKeys.playDefaultPort := 8091,
+    swaggerV3 := true,
+    swaggerDomainNameSpaces := Seq("com.cowork.applet.domain"),
     libraryDependencies ++= Seq(
       guice,
       ws,
