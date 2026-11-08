@@ -170,5 +170,21 @@ class GithubRepoAccessResolverTest :
                     }
                 }
             }
+
+            describe("resolveForManageForUpdate 메서드는") {
+                context("등록된 레포가 다른 조직의 레포인 경우") {
+                    it("FORBIDDEN을 던진다") {
+                        val proj = project()
+                        every { projectAccessGuard.findProjectForUpdateOrThrow(1L) } returns proj
+                        every { projectAccessGuard.requireGithubManager(proj, 7L) } just Runs
+                        every { projectGithubRepoRepository.findByIdAndProjectIdForUpdate(5L, 1L) } returns
+                            repoLink(githubRepoUrl = "https://github.com/other-org/private-repo")
+
+                        val ex = shouldThrow<ExpectedException> { resolver.resolveForManageForUpdate(7L, 1L, 5L) }
+
+                        ex.statusCode shouldBe HttpStatus.FORBIDDEN
+                    }
+                }
+            }
         }
     })
