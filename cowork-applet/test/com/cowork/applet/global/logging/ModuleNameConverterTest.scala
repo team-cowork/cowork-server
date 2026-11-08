@@ -1,6 +1,6 @@
 package com.cowork.applet.global.logging
 
-    // TODO: 나중에 테스트 라이브러리 도입하고 해당 테스트는 삭제(왜냐면 해당 테스트는 ci커버리지 측정기가 무조건 실패하는걸 방지하기 위한 비비즈니스 로직 테스 트라서)
+// TODO: 첫 비즈니스 로직 테스트가 생기면 삭제한다. CI 커버리지 측정이 테스트 0개로 실패하지 않게 둔 비즈니스 외 테스트다.
 class ModuleNameConverterTest extends munit.FunSuite:
 
   test("moduleOf는 domain 패키지의 로거에서 기능 이름을 반환한다") {
