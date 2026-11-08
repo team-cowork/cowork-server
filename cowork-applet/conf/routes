@@ -1,0 +1,1 @@
+GET     /health/ready       com.cowork.applet.global.health.HealthController.ready
