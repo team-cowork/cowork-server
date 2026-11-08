@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -ne 4 ]]; then
-  echo 'Usage: run-jvm.sh <gradle|maven|kotlin-toolchain> <module> <absolute-source-root> <absolute-output-dir>' >&2
+  echo 'Usage: run-jvm.sh <gradle|maven|kotlin-toolchain|sbt> <module> <absolute-source-root> <absolute-output-dir>' >&2
   exit 2
 fi
 
@@ -15,7 +15,7 @@ output=$(cd "$4" && pwd -P)
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 
 case "$runner" in
-  gradle|maven|kotlin-toolchain) ;;
+  gradle|maven|kotlin-toolchain|sbt) ;;
   *) echo "Unsupported JVM coverage runner: $runner" >&2; exit 2 ;;
 esac
 
@@ -99,6 +99,19 @@ sys.exit(0 if hashlib.sha256(Path(sys.argv[1]).read_bytes()).hexdigest() == sys.
 PY
 }
 
+# Sets agent and cli for runners without a native JaCoCo integration.
+prepare_jacoco_tools() {
+  tools_dir=${COVERAGE_TOOLS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/cowork-coverage}/jacoco-0.8.15
+  mkdir -p "$tools_dir"
+  tools_dir=$(cd "$tools_dir" && pwd -P)
+  agent="$tools_dir/jacocoagent.jar"
+  cli="$tools_dir/jacococli.jar"
+  download_jacoco org.jacoco.agent runtime \
+    fb5b0036a0899ea97edfa0fc2c7985b55f3f7c5695028163e5e60d4f3cf6075d "$agent"
+  download_jacoco org.jacoco.cli nodeps \
+    d2b74b20b415163c1f53261e7c5ef4445b788327094208ff821e0c2baf9bc8f1 "$cli"
+}
+
 case "$runner" in
   gradle)
     gradle_wrapper="$module_dir/gradlew"
@@ -137,15 +150,7 @@ case "$runner" in
       echo 'Coverage requires the Kotlin Toolchain version pinned by its project wrapper.' >&2
       exit 1
     fi
-    tools_dir=${COVERAGE_TOOLS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/cowork-coverage}/jacoco-0.8.15
-    mkdir -p "$tools_dir"
-    tools_dir=$(cd "$tools_dir" && pwd -P)
-    agent="$tools_dir/jacocoagent.jar"
-    cli="$tools_dir/jacococli.jar"
-    download_jacoco org.jacoco.agent runtime \
-      fb5b0036a0899ea97edfa0fc2c7985b55f3f7c5695028163e5e60d4f3cf6075d "$agent"
-    download_jacoco org.jacoco.cli nodeps \
-      d2b74b20b415163c1f53261e7c5ef4445b788327094208ff821e0c2baf9bc8f1 "$cli"
+    prepare_jacoco_tools
     cd "$module_dir"
     "$kotlin_cli" clean
     "$kotlin_cli" test --jvm-args="\"-javaagent:$agent=destfile=$output/jacoco.exec,append=true\""
@@ -171,6 +176,35 @@ PY
     done < "$output/kotlin-toolchain-classdirs.txt"
     java -jar "$cli" report "$output/jacoco.exec" \
       "${class_args[@]}" --sourcefiles "$module_dir/src" \
+      --name "$module" --xml "$output/report.xml"
+    ;;
+  sbt)
+    prepare_jacoco_tools
+    cd "$module_dir"
+    ./sbtw clean \
+      'set Test / fork := true' \
+      "set Test / javaOptions += \"-javaagent:$agent=destfile=$output/jacoco.exec,append=true\"" \
+      test
+    validate_tests "$module_dir/target/test-reports"
+    classes=$(find "$module_dir/target" -maxdepth 2 -type d -name classes -path '*/scala-*' -print -quit)
+    [[ -n "$classes" ]] || { echo 'sbt production classes not found.' >&2; exit 1; }
+    authored_classes=$(mktemp -d)
+    # Play generates routers from conf/routes; counting them would measure the framework, not the module.
+    python3 - "$classes" "$authored_classes" <<'PY'
+import shutil
+import sys
+from pathlib import Path
+source, target = map(Path, sys.argv[1:])
+for path in source.rglob('*.class'):
+    relative = path.relative_to(source)
+    if (relative.parts[0] == 'router' or 'javascript' in relative.parts[:-1]
+            or relative.name.startswith(('Reverse', 'routes.', 'routes$'))):
+        continue
+    (target / relative).parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(path, target / relative)
+PY
+    java -jar "$cli" report "$output/jacoco.exec" \
+      --classfiles "$authored_classes" --sourcefiles "$module_dir/app" \
       --name "$module" --xml "$output/report.xml"
     ;;
 esac
