@@ -60,7 +60,7 @@ dependencies {
     compileOnly(libs.jetbrains.annotations)
 
     add(megaMethod.name, libs.mega.method)
-    // Keep JitPack failures optional without hiding failures in required dependencies.
+    // JitPack is sometimes down, so keep this team-owned library optional; callers fall back to the standard library.
     runtimeOnly(megaMethod.incoming.artifactView { isLenient = true }.files)
 
     implementation(libs.spring.boot.starter.web)
