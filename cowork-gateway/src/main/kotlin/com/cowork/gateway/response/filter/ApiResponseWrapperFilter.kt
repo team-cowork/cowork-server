@@ -201,7 +201,8 @@ class ApiResponseWrapperFilter(
         val code = get("code")?.takeIf { it.isIntegralNumber && it.canConvertToInt() }?.intValue() ?: return false
         if (get("message")?.isString != true) return false
         val httpStatus = HttpStatus.resolve(code) ?: return false
-        // Services serialize the status as either "400 BAD_REQUEST" or "BAD_REQUEST".
+        // Both forms are accepted in case a service response is inconsistent, but services should
+        // converge on the canonical "<code> <STATUS_NAME>" form, for example "400 BAD_REQUEST".
         return declaredStatus == httpStatus.toString() || declaredStatus == httpStatus.name
     }
 
