@@ -18,6 +18,7 @@ import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 import java.util.Optional
@@ -42,6 +43,7 @@ class UpdateSharedAccountServiceImplTest {
 
     private val service =
         UpdateSharedAccountServiceImpl(
+            sharedAccountRepository,
             channelAccessGuard,
             credentialEncryptionService,
             sharedAccountAccessGuard,
@@ -162,5 +164,22 @@ class UpdateSharedAccountServiceImplTest {
             )
         }
         assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
+    }
+
+    @Test
+    fun `updateAccount는 변경한 식별자가 이미 등록되어 있으면 CONFLICT`() {
+        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns account(createdBy = 1L)
+        every { sharedAccountRepository.flush() } throws DataIntegrityViolationException("duplicate")
+
+        val ex = assertThrows<ExpectedException> {
+            service.updateAccount(
+                1L,
+                1L,
+                10L,
+                UpdateSharedAccountRequest(accountIdentifier = "alice", credential = null, providerLabel = null),
+            )
+        }
+        assertEquals(HttpStatus.CONFLICT, ex.statusCode)
     }
 }
