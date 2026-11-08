@@ -147,7 +147,7 @@ export class ChatController {
 	})
 	async getAttachmentDownloadUrl(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
-		@requestParameter('messageId') messageId: string,
+		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@requestParameter('attachmentIndex', ParseIntPipe) attachmentIndex: number,
 		@currentUserId() userId: number,
 	): Promise<AttachmentDownloadResponseDto> {
