@@ -105,6 +105,7 @@ class ApiResponseWrapperFilterTest :
                     )
 
                     body.get("status").asString() shouldBe "429 TOO_MANY_REQUESTS"
+                    body.get("code").asInt() shouldBe 429
                     body.get("data").get("retryAfterSeconds").asInt() shouldBe 3
                 }
 
