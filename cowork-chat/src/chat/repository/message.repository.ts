@@ -482,7 +482,8 @@ export class MessageRepository {
 			{_id: messageId, webhookDeleted: {$ne: true}, searchIndexStatus: {$ne: 'DELETING'}},
 			[{
 				$set: {
-					content,
+					// Pipeline would read `$`-prefixed user text as a field path or variable.
+					content: {$literal: content},
 					isEdited: true,
 					editHistory: {
 						$slice: [
