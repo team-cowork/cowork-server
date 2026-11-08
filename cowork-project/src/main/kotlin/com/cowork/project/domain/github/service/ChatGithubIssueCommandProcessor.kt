@@ -35,6 +35,7 @@ class ChatGithubIssueCommandProcessor(
     private val projectAccessGuard: ProjectAccessGuard,
     private val projectGithubRepoRepository: ProjectGithubRepoRepository,
     private val outboxWriter: OutboxWriter,
+    private val repoAccessResolver: GithubRepoAccessResolver,
 ) {
     private val log = LoggerFactory.getLogger(ChatGithubIssueCommandProcessor::class.java)
 
@@ -121,6 +122,11 @@ class ChatGithubIssueCommandProcessor(
 
         val repo = GithubRepoUrlParser.parse(repos[0].githubRepoUrl)
             ?: return Decision.Rejected(GITHUB_REPO_URL_INVALID, "연결된 GitHub 레포지토리 URL이 올바르지 않습니다.")
+        try {
+            repoAccessResolver.requireTeamOrgRepo(project.teamId, repo)
+        } catch (ex: ExpectedException) {
+            return Decision.Rejected(ex.statusCode.name, ex.message ?: "팀에 연결된 GitHub 조직의 레포지토리가 아닙니다.")
+        }
 
         return Decision.Accepted(repo)
     }
