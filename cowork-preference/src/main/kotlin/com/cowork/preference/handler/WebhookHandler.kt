@@ -60,13 +60,13 @@ class WebhookHandler(private val service: WebhookService, private val scope: Cor
                 val failure = error as? WebhookRequestException
                 failure?.retryAfter?.let { ctx.response().putHeader("Retry-After", it.toString()) }
                 val statusName = when (status) {
-                    400 -> "BAD_REQUEST"
-                    403 -> "FORBIDDEN"
-                    404 -> "NOT_FOUND"
-                    409 -> "CONFLICT"
-                    429 -> "TOO_MANY_REQUESTS"
-                    503 -> "SERVICE_UNAVAILABLE"
-                    else -> "INTERNAL_SERVER_ERROR"
+                    400 -> "400 BAD_REQUEST"
+                    403 -> "403 FORBIDDEN"
+                    404 -> "404 NOT_FOUND"
+                    409 -> "409 CONFLICT"
+                    429 -> "429 TOO_MANY_REQUESTS"
+                    503 -> "503 SERVICE_UNAVAILABLE"
+                    else -> "500 INTERNAL_SERVER_ERROR"
                 }
                 val data = if (failure?.retryAfter != null) JsonObject()
                     .put("reason", "MODE_CHANGE_COOLDOWN").put("retryAfterSeconds", failure.retryAfter)
