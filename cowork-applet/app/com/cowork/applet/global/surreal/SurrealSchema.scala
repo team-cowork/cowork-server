@@ -1,5 +1,7 @@
 package com.cowork.applet.global.surreal
 
+import java.io.IOException
+import java.util.concurrent.TimeoutException
 import javax.inject.{Inject, Singleton}
 import play.api.{Environment, Logger}
 import scala.concurrent.Await
@@ -20,12 +22,18 @@ class SurrealSchema @Inject() (client: SurrealClient, environment: Environment):
 
   applyDefinitions(remainingAttempts = 12)
 
-  // The Envoy upstream can start after the application, so an early connection failure is expected.
   private def applyDefinitions(remainingAttempts: Int): Unit =
     Try(Await.result(client.query(statements), 15.seconds)) match
       case Success(_) => logger.info("Applied the SurrealDB schema definitions.")
-      case Failure(error) if remainingAttempts > 1 =>
+      case Failure(error) if remainingAttempts > 1 && SurrealSchema.isTransient(error) =>
         logger.warn("Retrying the SurrealDB schema definitions.", error)
         Thread.sleep(5000)
         applyDefinitions(remainingAttempts - 1)
       case Failure(error) => throw error
+
+object SurrealSchema:
+  // The Envoy upstream can start after the application; bad credentials or SurrealQL never recover by retrying.
+  private def isTransient(error: Throwable): Boolean = error match
+    case failure: SurrealQueryException       => failure.transient
+    case _: IOException | _: TimeoutException => true
+    case _                                    => false
