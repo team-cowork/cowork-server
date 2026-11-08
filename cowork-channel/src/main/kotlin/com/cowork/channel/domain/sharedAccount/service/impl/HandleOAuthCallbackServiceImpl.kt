@@ -41,12 +41,19 @@ class HandleOAuthCallbackServiceImpl(
     private val readTransaction = TransactionTemplate(transactionManager).apply { isReadOnly = true }
     private val writeTransaction = TransactionTemplate(transactionManager)
 
-    override fun handleCallback(providerName: String, code: String, state: String): SharedAccount {
+    override fun handleCallback(
+        providerName: String,
+        code: String,
+        state: String,
+        browserNonce: String?,
+    ): SharedAccount {
         val provider = runCatching { AccountProvider.valueOf(providerName.uppercase()) }.getOrElse {
             throw ExpectedException("지원하지 않는 OAuth provider입니다.", HttpStatus.BAD_REQUEST)
         }
 
-        val (channelId, userId) = oAuthStateSupport.verifyState(state, provider)
+        val verifiedState = oAuthStateSupport.verifyState(state, provider)
+        oAuthStateSupport.requireBrowserNonce(verifiedState, browserNonce)
+        val (channelId, userId) = verifiedState
         readTransaction.executeWithoutResult { authorize(channelId, userId) }
 
         val config = oAuthStateSupport.providerConfigOf(provider)

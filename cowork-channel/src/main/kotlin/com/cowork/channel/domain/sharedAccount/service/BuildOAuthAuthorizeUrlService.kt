@@ -1,6 +1,7 @@
 package com.cowork.channel.domain.sharedAccount.service
 
 import com.cowork.channel.domain.sharedAccount.entity.AccountProvider
+import com.cowork.channel.domain.sharedAccount.service.support.OAuthAuthorizeRequest
 
 interface BuildOAuthAuthorizeUrlService {
     fun buildAuthorizeUrl(
@@ -8,5 +9,5 @@ interface BuildOAuthAuthorizeUrlService {
         userId: Long,
         provider: AccountProvider,
         returnOrigin: String? = null,
-    ): String
+    ): OAuthAuthorizeRequest
 }

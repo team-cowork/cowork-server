@@ -106,7 +106,7 @@ class BuildOAuthAuthorizeUrlServiceImplTest :
             }
 
             it("복귀 Origin을 생략하면 기본 주소를 담은 GitHub 인증 URL을 반환한다") {
-                val url = service.buildAuthorizeUrl(1L, 1L, AccountProvider.GITHUB)
+                val url = service.buildAuthorizeUrl(1L, 1L, AccountProvider.GITHUB).redirectUrl
                 val params = UriComponentsBuilder.fromUriString(url).build().queryParams
 
                 url shouldStartWith "https://github.com/login/oauth/authorize"
@@ -121,7 +121,7 @@ class BuildOAuthAuthorizeUrlServiceImplTest :
             }
 
             it("선택한 복귀 Origin을 state에 저장하고 provider 콜백은 서버 주소를 유지한다") {
-                val url = service.buildAuthorizeUrl(1L, 1L, AccountProvider.GITHUB, otherOrigin)
+                val url = service.buildAuthorizeUrl(1L, 1L, AccountProvider.GITHUB, otherOrigin).redirectUrl
                 val params = UriComponentsBuilder.fromUriString(url).build().queryParams
 
                 params.getFirst("redirect_uri") shouldBe

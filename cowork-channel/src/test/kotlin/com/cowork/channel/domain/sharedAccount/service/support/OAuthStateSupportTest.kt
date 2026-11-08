@@ -43,7 +43,7 @@ class OAuthStateSupportTest :
             it("허용된 두 번째 Origin을 서명된 state에 보관한다") {
                 val state = support.buildState(1L, 7L, AccountProvider.GITHUB, otherOrigin)
 
-                support.verifyState(state, AccountProvider.GITHUB) shouldBe OAuthState(1L, 7L, otherOrigin)
+                support.verifyState(state, AccountProvider.GITHUB).returnOrigin shouldBe otherOrigin
             }
 
             it("Origin을 생략하면 목록의 첫 번째 웹 주소를 사용한다") {
@@ -162,6 +162,44 @@ class OAuthStateSupportTest :
                 shouldThrow<ExpectedException> {
                     support.verifyState(state, AccountProvider.NOTION)
                 }.statusCode shouldBe HttpStatus.BAD_REQUEST
+            }
+        }
+
+        describe("requireBrowserNonce 메서드는") {
+            val state = support.verifyState(
+                support.buildState(1L, 7L, AccountProvider.GITHUB, nonce = "browser-nonce"),
+                AccountProvider.GITHUB,
+            )
+
+            it("쿠키 nonce가 state nonce와 같으면 통과한다") {
+                support.requireBrowserNonce(state, "browser-nonce")
+            }
+
+            listOf(null, "", "other-nonce").forEach { cookie ->
+                it("쿠키 nonce가 '$cookie'이면 거절한다") {
+                    shouldThrow<ExpectedException> {
+                        support.requireBrowserNonce(state, cookie)
+                    }.statusCode shouldBe HttpStatus.BAD_REQUEST
+                }
+            }
+
+            it("state에 nonce가 없으면 거절한다") {
+                val noNonce = support.verifyState(
+                    signOAuthState(properties.stateSecret, mapOf("nonce" to null)),
+                    AccountProvider.GITHUB,
+                )
+
+                shouldThrow<ExpectedException> {
+                    support.requireBrowserNonce(noNonce, null)
+                }.statusCode shouldBe HttpStatus.BAD_REQUEST
+            }
+
+            it("nonce 쿠키를 콜백 경로에만 HttpOnly로 내린다") {
+                val cookie = support.nonceCookie(AccountProvider.GITHUB, "browser-nonce")
+
+                cookie.isHttpOnly shouldBe true
+                cookie.isSecure shouldBe true
+                cookie.path shouldBe "/api/channel/channels/oauth/callback/github"
             }
         }
 

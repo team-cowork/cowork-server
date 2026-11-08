@@ -28,11 +28,11 @@ import team.themoment.sdk.exception.ExpectedException
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import java.time.Instant
 import java.util.Base64
-import java.util.UUID
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
 private const val STATE_SECRET = "test-state-secret-key"
+private const val NONCE = "browser-nonce"
 
 class HandleOAuthCallbackServiceImplTest :
     DescribeSpec({
@@ -105,7 +105,7 @@ class HandleOAuthCallbackServiceImplTest :
                 "userId" to userId,
                 "provider" to provider.name,
                 "returnOrigin" to oAuthProperties.allowedReturnOrigins.first(),
-                "nonce" to UUID.randomUUID().toString(),
+                "nonce" to NONCE,
                 "exp" to (Instant.now().epochSecond + expOffset),
             )
             val encoder = Base64.getUrlEncoder().withoutPadding()
@@ -157,7 +157,7 @@ class HandleOAuthCallbackServiceImplTest :
             context("지원하지 않는 provider 이름을 받으면") {
                 it("BAD_REQUEST로 거부한다") {
                     val error = shouldThrow<ExpectedException> {
-                        service.handleCallback("UNKNOWN_PROVIDER", "code", "state")
+                        service.handleCallback("UNKNOWN_PROVIDER", "code", "state", NONCE)
                     }
 
                     error.statusCode shouldBe HttpStatus.BAD_REQUEST
@@ -169,7 +169,7 @@ class HandleOAuthCallbackServiceImplTest :
                     val payloadB64 = buildValidState().split(".")[0]
 
                     val error = shouldThrow<ExpectedException> {
-                        service.handleCallback("github", "code", "$payloadB64.invalidsignature")
+                        service.handleCallback("github", "code", "$payloadB64.invalidsignature", NONCE)
                     }
 
                     error.statusCode shouldBe HttpStatus.BAD_REQUEST
@@ -179,7 +179,7 @@ class HandleOAuthCallbackServiceImplTest :
             context("만료된 state이면") {
                 it("BAD_REQUEST로 거부한다") {
                     val error = shouldThrow<ExpectedException> {
-                        service.handleCallback("github", "code", buildValidState(expOffset = -1L))
+                        service.handleCallback("github", "code", buildValidState(expOffset = -1L), NONCE)
                     }
 
                     error.statusCode shouldBe HttpStatus.BAD_REQUEST
@@ -191,16 +191,28 @@ class HandleOAuthCallbackServiceImplTest :
                     val githubState = buildValidState(provider = AccountProvider.GITHUB)
 
                     val error = shouldThrow<ExpectedException> {
-                        service.handleCallback("notion", "code", githubState)
+                        service.handleCallback("notion", "code", githubState, NONCE)
                     }
 
                     error.statusCode shouldBe HttpStatus.BAD_REQUEST
                 }
             }
 
+            context("흐름을 시작한 브라우저의 nonce 쿠키가 없거나 다르면") {
+                it("외부 제공자를 호출하지 않고 BAD_REQUEST로 거부한다") {
+                    listOf(null, "other-nonce").forEach { browserNonce ->
+                        shouldThrow<ExpectedException> {
+                            service.handleCallback("github", "code", buildValidState(), browserNonce)
+                        }.statusCode shouldBe HttpStatus.BAD_REQUEST
+                    }
+
+                    verify(exactly = 0) { oAuthIdentityResolver.resolveIdentifier(any(), any(), any(), any()) }
+                }
+            }
+
             context("state 검증에 실패하면") {
                 it("외부 제공자를 호출하지 않는다") {
-                    runCatching { service.handleCallback("github", "code", "tampered.state") }
+                    runCatching { service.handleCallback("github", "code", "tampered.state", NONCE) }
 
                     verify(exactly = 0) { oAuthIdentityResolver.resolveIdentifier(any(), any(), any(), any()) }
                 }
@@ -224,7 +236,7 @@ class HandleOAuthCallbackServiceImplTest :
                 }
 
                 it("외부 제공자 호출을 transaction 경계 밖에서 수행한다") {
-                    service.handleCallback("github", "code", buildValidState())
+                    service.handleCallback("github", "code", buildValidState(), NONCE)
 
                     // 권한 검증 transaction이 commit된 뒤에 외부 호출이 시작되고,
                     // 저장 transaction은 그 이후에 열려야 한다.
@@ -239,7 +251,7 @@ class HandleOAuthCallbackServiceImplTest :
                 }
 
                 it("검증과 저장에 각각 별도의 transaction을 사용한다") {
-                    service.handleCallback("github", "code", buildValidState())
+                    service.handleCallback("github", "code", buildValidState(), NONCE)
 
                     timeline.count { it == "tx:begin" } shouldBe 2
                 }
@@ -248,7 +260,7 @@ class HandleOAuthCallbackServiceImplTest :
                     val saved = slot<SharedAccount>()
                     every { sharedAccountRepository.save(capture(saved)) } answers { firstArg() }
 
-                    service.handleCallback("github", "code", buildValidState())
+                    service.handleCallback("github", "code", buildValidState(), NONCE)
 
                     saved.captured.accountIdentifier shouldBe "octocat"
                     saved.captured.channelId shouldBe channelId
@@ -276,7 +288,7 @@ class HandleOAuthCallbackServiceImplTest :
                         sharedAccountRepository.findByChannelIdAndProviderAndAccountIdentifier(any(), any(), any())
                     } returns existing
 
-                    val result = service.handleCallback("github", "code", buildValidState())
+                    val result = service.handleCallback("github", "code", buildValidState(), NONCE)
 
                     result.id shouldBe 10L
                     verify(exactly = 0) { sharedAccountRepository.save(any()) }
@@ -304,7 +316,7 @@ class HandleOAuthCallbackServiceImplTest :
                         sharedAccountRepository.save(any())
                     } throws DataIntegrityViolationException("duplicate key")
 
-                    val result = service.handleCallback("github", "code", buildValidState())
+                    val result = service.handleCallback("github", "code", buildValidState(), NONCE)
 
                     result.id shouldBe 42L
                 }
@@ -319,7 +331,7 @@ class HandleOAuthCallbackServiceImplTest :
                     } throws DataIntegrityViolationException("duplicate key")
 
                     shouldThrow<DataIntegrityViolationException> {
-                        service.handleCallback("github", "code", buildValidState())
+                        service.handleCallback("github", "code", buildValidState(), NONCE)
                     }
                 }
             }
@@ -331,7 +343,7 @@ class HandleOAuthCallbackServiceImplTest :
                     } throws ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
 
                     shouldThrow<ExpectedException> {
-                        service.handleCallback("github", "code", buildValidState())
+                        service.handleCallback("github", "code", buildValidState(), NONCE)
                     }
 
                     verify(exactly = 0) { oAuthIdentityResolver.resolveIdentifier(any(), any(), any(), any()) }

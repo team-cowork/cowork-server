@@ -3,6 +3,7 @@ package com.cowork.channel.domain.sharedAccount.presentation.controller
 import com.cowork.channel.domain.sharedAccount.entity.AccountProvider
 import com.cowork.channel.domain.sharedAccount.service.BuildOAuthAuthorizeUrlService
 import com.cowork.channel.domain.sharedAccount.service.support.OAuthCallbackRedirectSupport
+import com.cowork.channel.domain.sharedAccount.service.support.OAuthStateSupport
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.Content
@@ -12,6 +13,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -44,6 +46,7 @@ import team.themoment.sdk.response.CommonApiResponse
 class OAuthAccountController(
     private val buildOAuthAuthorizeUrlService: BuildOAuthAuthorizeUrlService,
     private val oAuthCallbackRedirectSupport: OAuthCallbackRedirectSupport,
+    private val oAuthStateSupport: OAuthStateSupport,
 ) {
 
     @Operation(
@@ -110,13 +113,15 @@ class OAuthAccountController(
         val accountProvider = runCatching { AccountProvider.valueOf(provider.uppercase()) }.getOrElse {
             return ResponseEntity.badRequest().body(mapOf("error" to "지원하지 않는 provider: $provider"))
         }
-        val redirectUrl = buildOAuthAuthorizeUrlService.buildAuthorizeUrl(
+        val request = buildOAuthAuthorizeUrlService.buildAuthorizeUrl(
             channelId,
             userId,
             accountProvider,
             returnOrigin,
         )
-        return ResponseEntity.ok(mapOf("redirectUrl" to redirectUrl))
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, oAuthStateSupport.nonceCookie(accountProvider, request.nonce).toString())
+            .body(mapOf("redirectUrl" to request.redirectUrl))
     }
 
     // OAuth provider가 브라우저를 직접 리다이렉트하는 콜백 — Gateway 인증 불필요
@@ -127,7 +132,14 @@ class OAuthAccountController(
         @RequestParam(required = false) code: String?,
         @RequestParam state: String,
         @RequestParam(required = false) error: String?,
-    ): ResponseEntity<Void> = ResponseEntity.status(HttpStatus.FOUND)
-        .location(oAuthCallbackRedirectSupport.resolveRedirect(provider, code, state, error))
-        .build()
+        @CookieValue(name = OAuthStateSupport.NONCE_COOKIE_NAME, required = false) browserNonce: String?,
+    ): ResponseEntity<Void> {
+        // resolveRedirect가 provider 이름을 먼저 검증하므로 아래 valueOf는 실패하지 않는다.
+        val location = oAuthCallbackRedirectSupport.resolveRedirect(provider, code, state, error, browserNonce)
+        val expiredCookie = oAuthStateSupport.expiredNonceCookie(AccountProvider.valueOf(provider.uppercase()))
+        return ResponseEntity.status(HttpStatus.FOUND)
+            .header(HttpHeaders.SET_COOKIE, expiredCookie.toString())
+            .location(location)
+            .build()
+    }
 }

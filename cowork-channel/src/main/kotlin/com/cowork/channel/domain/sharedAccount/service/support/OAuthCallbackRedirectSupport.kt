@@ -15,7 +15,13 @@ class OAuthCallbackRedirectSupport(
 ) {
     private val log = LoggerFactory.getLogger(OAuthCallbackRedirectSupport::class.java)
 
-    fun resolveRedirect(providerName: String, code: String?, state: String, error: String?): URI {
+    fun resolveRedirect(
+        providerName: String,
+        code: String?,
+        state: String,
+        error: String?,
+        browserNonce: String?,
+    ): URI {
         val provider = runCatching { AccountProvider.valueOf(providerName.uppercase()) }.getOrElse {
             throw ExpectedException("지원하지 않는 OAuth provider입니다.", HttpStatus.BAD_REQUEST)
         }
@@ -26,7 +32,7 @@ class OAuthCallbackRedirectSupport(
 
         return try {
             // 서비스의 트랜잭션이 완료된 후 리다이렉트 주소를 결정한다.
-            val account = handleOAuthCallbackService.handleCallback(providerName, code, state)
+            val account = handleOAuthCallbackService.handleCallback(providerName, code, state, browserNonce)
             URI.create("$returnOrigin/channels/${account.channelId}?newAccountId=${account.id}")
         } catch (ex: Exception) {
             log.warn("Fail to complete account OAuth callback")

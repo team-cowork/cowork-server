@@ -5,12 +5,14 @@ import com.cowork.channel.domain.channel.service.TeamPermissionService
 import com.cowork.channel.domain.sharedAccount.entity.AccountProvider
 import com.cowork.channel.domain.sharedAccount.service.BuildOAuthAuthorizeUrlService
 import com.cowork.channel.domain.sharedAccount.service.SharedAccountAccessGuard
+import com.cowork.channel.domain.sharedAccount.service.support.OAuthAuthorizeRequest
 import com.cowork.channel.domain.sharedAccount.service.support.OAuthStateSupport
 import com.cowork.channel.global.config.OAuthProperties
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.util.UriComponentsBuilder
 import team.themoment.sdk.exception.ExpectedException
+import java.util.UUID
 
 @Service
 class BuildOAuthAuthorizeUrlServiceImpl(
@@ -26,15 +28,16 @@ class BuildOAuthAuthorizeUrlServiceImpl(
         userId: Long,
         provider: AccountProvider,
         returnOrigin: String?,
-    ): String {
+    ): OAuthAuthorizeRequest {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         sharedAccountAccessGuard.requireAccountShareChannel(channel)
         teamPermissionService.requireChannelAccess(channel, userId)
         val config = oAuthStateSupport.providerConfigOf(provider)
-        val state = oAuthStateSupport.buildState(channelId, userId, provider, returnOrigin)
+        val nonce = UUID.randomUUID().toString()
+        val state = oAuthStateSupport.buildState(channelId, userId, provider, returnOrigin, nonce)
         val callbackUrl = oAuthProperties.callbackUrl(provider.name)
 
-        return when (provider) {
+        val redirectUrl = when (provider) {
             AccountProvider.GITHUB ->
                 UriComponentsBuilder
                     .fromUriString("https://github.com/login/oauth/authorize")
@@ -87,5 +90,6 @@ class BuildOAuthAuthorizeUrlServiceImpl(
 
             else -> throw ExpectedException("OAuth를 지원하지 않는 서비스입니다.", HttpStatus.BAD_REQUEST)
         }
+        return OAuthAuthorizeRequest(redirectUrl, nonce)
     }
 }

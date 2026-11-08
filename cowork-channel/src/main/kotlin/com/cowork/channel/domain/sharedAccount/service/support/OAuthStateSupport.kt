@@ -4,11 +4,13 @@ import com.cowork.channel.domain.sharedAccount.entity.AccountProvider
 import com.cowork.channel.global.config.OAuthProperties
 import com.cowork.channel.global.config.OAuthProviderConfig
 import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseCookie
 import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
 import tools.jackson.databind.ObjectMapper
 import java.net.URI
 import java.security.MessageDigest
+import java.time.Duration
 import java.time.Instant
 import java.util.Base64
 import java.util.UUID
@@ -36,14 +38,20 @@ class OAuthStateSupport(private val oAuthProperties: OAuthProperties, private va
 
     // state = base64url(json_payload).base64url(hmac-sha256)
     // payload: { channelId, userId, provider, returnOrigin, nonce, exp }
-    fun buildState(channelId: Long, userId: Long, provider: AccountProvider, returnOrigin: String? = null): String {
+    fun buildState(
+        channelId: Long,
+        userId: Long,
+        provider: AccountProvider,
+        returnOrigin: String? = null,
+        nonce: String = UUID.randomUUID().toString(),
+    ): String {
         val payload = mapOf(
             "channelId" to channelId,
             "userId" to userId,
             "provider" to provider.name,
             "returnOrigin" to validateReturnOrigin(returnOrigin ?: oAuthProperties.allowedReturnOrigins.first()),
-            "nonce" to UUID.randomUUID().toString(),
-            "exp" to (Instant.now().epochSecond + 300),
+            "nonce" to nonce,
+            "exp" to (Instant.now().epochSecond + STATE_TTL.seconds),
         )
         val encoder = Base64.getUrlEncoder().withoutPadding()
         val payloadJson = objectMapper.writeValueAsString(payload)
@@ -91,8 +99,34 @@ class OAuthStateSupport(private val oAuthProperties: OAuthProperties, private va
         } else {
             oAuthProperties.allowedReturnOrigins.first()
         }
-        return OAuthState(channelId, userId, validateReturnOrigin(returnOrigin))
+        return OAuthState(channelId, userId, validateReturnOrigin(returnOrigin), payload["nonce"] as? String)
     }
+
+    /** 콜백 요청 쿠키의 nonce가 state의 nonce와 같아야 흐름을 시작한 브라우저로 인정한다. */
+    fun requireBrowserNonce(state: OAuthState, browserNonce: String?) {
+        val expected = state.nonce
+        if (expected.isNullOrBlank() || browserNonce.isNullOrBlank() ||
+            !MessageDigest.isEqual(expected.toByteArray(Charsets.UTF_8), browserNonce.toByteArray(Charsets.UTF_8))
+        ) {
+            throw ExpectedException("OAuth 연결을 시작한 브라우저의 요청이 아닙니다.", HttpStatus.BAD_REQUEST)
+        }
+    }
+
+    /** 인증 시작 응답에 내리는 nonce 쿠키. 해당 provider 콜백 경로에만 전송된다. */
+    fun nonceCookie(provider: AccountProvider, nonce: String): ResponseCookie =
+        nonceCookieBuilder(provider, nonce).maxAge(STATE_TTL).build()
+
+    /** 콜백 응답에서 nonce 쿠키를 지워 같은 브라우저에서도 다시 쓰지 못하게 한다. */
+    fun expiredNonceCookie(provider: AccountProvider): ResponseCookie =
+        nonceCookieBuilder(provider, "").maxAge(Duration.ZERO).build()
+
+    // 웹 Origin과 API 주소가 달라 교차 출처 요청으로 쿠키를 받으므로 SameSite=None, Secure를 쓴다.
+    private fun nonceCookieBuilder(provider: AccountProvider, value: String) =
+        ResponseCookie.from(NONCE_COOKIE_NAME, value)
+            .httpOnly(true)
+            .secure(true)
+            .sameSite("None")
+            .path(URI(oAuthProperties.callbackUrl(provider.name)).rawPath)
 
     private fun validateReturnOrigin(origin: String): String {
         val uri = runCatching { URI(origin) }.getOrNull()
@@ -112,5 +146,10 @@ class OAuthStateSupport(private val oAuthProperties: OAuthProperties, private va
         mac.init(SecretKeySpec(oAuthProperties.stateSecret.toByteArray(Charsets.UTF_8), "HmacSHA256"))
         val hash = mac.doFinal(data.toByteArray(Charsets.UTF_8))
         return Base64.getUrlEncoder().withoutPadding().encodeToString(hash)
+    }
+
+    companion object {
+        const val NONCE_COOKIE_NAME = "cowork_oauth_nonce"
+        private val STATE_TTL: Duration = Duration.ofSeconds(300)
     }
 }
