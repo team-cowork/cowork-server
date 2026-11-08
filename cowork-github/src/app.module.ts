@@ -7,6 +7,7 @@ import {multistream} from 'pino';
 import {AppController} from './app.controller.js';
 import {AppConfigService} from './config/app-config.service.js';
 import {envValidationSchema} from './config/env.validation.js';
+import {stripSensitiveQuery} from './log-url.js';
 import {GithubModule} from './github/github.module.js';
 import {MetricsController} from './metrics/metrics.controller.js';
 
@@ -49,6 +50,19 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set(['/health', '/metrics']);
 				return {
 					pinoHttp: {
 						level,
+						redact: {
+							paths: ['req.headers["x-internal-api-key"]', 'req.headers.authorization', 'req.headers.cookie'],
+							censor: '[REDACTED]',
+						},
+						serializers: {
+							req(request: {url?: string}) {
+								if (request.url !== undefined) {
+									request.url = stripSensitiveQuery(request.url);
+								}
+
+								return request;
+							},
+						},
 						stream,
 						autoLogging: {
 							ignore(request) {
