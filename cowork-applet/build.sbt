@@ -9,6 +9,8 @@ lazy val root = (project in file("."))
     PlayKeys.playDefaultPort := 8091,
     libraryDependencies ++= Seq(
       guice,
-      ws
+      ws,
+      "net.logstash.logback" % "logstash-logback-encoder" % "9.0",
+      "org.scalameta" %% "munit" % "1.3.6" % Test
     )
   )
