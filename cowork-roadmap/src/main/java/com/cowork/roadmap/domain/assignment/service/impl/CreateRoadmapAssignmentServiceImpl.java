@@ -34,8 +34,10 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
         if (request.scope() == RoadmapScope.GLOBAL) {
             throw new ExpectedException("과제 할당 범위는 TEAM 또는 PROJECT여야 합니다.", HttpStatus.BAD_REQUEST);
         }
-        if (request.scope() == RoadmapScope.PROJECT && request.projectId() == null) {
-            throw new ExpectedException("PROJECT 할당에는 projectId가 필요합니다.", HttpStatus.BAD_REQUEST);
+        // shortcut: 프로젝트 투영이 없어 projectId의 소속 팀을 확인할 수 없으므로 PROJECT 할당을 막는다. 투영을 추가하면 팀
+        // 일치 검증으로 바꾼다.
+        if (request.scope() == RoadmapScope.PROJECT) {
+            throw new ExpectedException("PROJECT 과제는 아직 할당할 수 없습니다.", HttpStatus.BAD_REQUEST);
         }
         Roadmap roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(request.roadmapId());
         validateAssignmentRoadmap(roadmap);
@@ -50,7 +52,6 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
                 .nodeId(request.nodeId())
                 .scope(request.scope().name())
                 .teamId(request.teamId())
-                .projectId(request.scope() == RoadmapScope.PROJECT ? request.projectId() : null)
                 .assigneeUserId(request.assigneeUserId())
                 .assignedBy(userId)
                 .status(AssignmentStatus.ASSIGNED.name())
