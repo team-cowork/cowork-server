@@ -132,7 +132,9 @@ class CreateSharedAccountServiceImplTest {
         every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
         every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
         every { sharedAccountRepository.saveAndFlush(any<SharedAccount>()) } throws
-            DataIntegrityViolationException("duplicate")
+            DataIntegrityViolationException(
+                "Duplicate entry for key 'uq_tb_channel_accounts_channel_provider_identifier'",
+            )
 
         val ex = assertThrows<ExpectedException> {
             service.createAccount(
@@ -147,5 +149,27 @@ class CreateSharedAccountServiceImplTest {
             )
         }
         assertEquals(HttpStatus.CONFLICT, ex.statusCode)
+    }
+
+    @Test
+    fun `createAccount는 unique 위반이 아닌 무결성 오류를 그대로 던짐`() {
+        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
+        val violation = DataIntegrityViolationException("Data too long for column 'account_identifier'")
+        every { sharedAccountRepository.saveAndFlush(any<SharedAccount>()) } throws violation
+
+        val ex = assertThrows<DataIntegrityViolationException> {
+            service.createAccount(
+                1L,
+                1L,
+                CreateSharedAccountRequest(
+                    provider = AccountProvider.GITHUB,
+                    providerLabel = null,
+                    accountIdentifier = "alice",
+                    credential = null,
+                ),
+            )
+        }
+        assertEquals(violation, ex)
     }
 }
