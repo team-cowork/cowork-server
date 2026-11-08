@@ -71,6 +71,8 @@ sdk:
     - /actuator/**
     - /v3/api-docs/**
     - /swagger-ui/**
+    - /channels/*/accounts/**
+    - /channels/oauth/callback/**
     enabled: true
   response:
     enabled: false
