@@ -8,6 +8,7 @@ lazy val root = (project in file("."))
     name := "cowork-applet",
     PlayKeys.playDefaultPort := 8091,
     libraryDependencies ++= Seq(
-      guice
+      guice,
+      ws
     )
   )
