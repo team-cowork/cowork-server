@@ -170,7 +170,9 @@ class UpdateSharedAccountServiceImplTest {
     fun `updateAccount는 변경한 식별자가 이미 등록되어 있으면 CONFLICT`() {
         every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
         every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns account(createdBy = 1L)
-        every { sharedAccountRepository.flush() } throws DataIntegrityViolationException("duplicate")
+        every { sharedAccountRepository.flush() } throws DataIntegrityViolationException(
+            "Duplicate entry for key 'uq_tb_channel_accounts_channel_provider_identifier'",
+        )
 
         val ex = assertThrows<ExpectedException> {
             service.updateAccount(
