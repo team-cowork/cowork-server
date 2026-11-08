@@ -30,6 +30,7 @@ import {
 } from '../common/decorator/user.decorator.js';
 import {throttle} from '../common/decorator/throttle.decorator.js';
 import {SafePositiveIntPipe} from '../common/pipe/safe-positive-int.pipe.js';
+import {ObjectIdPipe} from '../common/pipe/object-id.pipe.js';
 import {ChatService} from './chat.service.js';
 import {AttachmentDownloadService} from './service/attachment-download.service.js';
 import {AttachmentDownloadResponseDto} from './dto/attachment-download.dto.js';
@@ -146,7 +147,7 @@ export class ChatController {
 	})
 	async getAttachmentDownloadUrl(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
-		@requestParameter('messageId') messageId: string,
+		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@requestParameter('attachmentIndex', ParseIntPipe) attachmentIndex: number,
 		@currentUserId() userId: number,
 	): Promise<AttachmentDownloadResponseDto> {
@@ -716,6 +717,19 @@ export class ChatController {
 		},
 	})
 	@apiResponse({
+		status: 400,
+		description: '잘못된 메시지 ID',
+		schema: {
+			allOf: [
+				{$ref: getSchemaPath(ApiResponseMetadataDto)},
+				{
+					type: 'object',
+					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
+				},
+			],
+		},
+	})
+	@apiResponse({
 		status: 403,
 		description: '채널 멤버 아님 또는 본인 메시지 아님',
 		schema: {
@@ -743,7 +757,7 @@ export class ChatController {
 	})
 	async editMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
-		@requestParameter('messageId') messageId: string,
+		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@requestBody() dto: EditMessageDto,
 		@currentUser() user: CurrentUser,
 	) {
@@ -866,6 +880,19 @@ export class ChatController {
 		},
 	})
 	@apiResponse({
+		status: 400,
+		description: '잘못된 메시지 ID',
+		schema: {
+			allOf: [
+				{$ref: getSchemaPath(ApiResponseMetadataDto)},
+				{
+					type: 'object',
+					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
+				},
+			],
+		},
+	})
+	@apiResponse({
 		status: 403,
 		description: '채널 멤버 아님 또는 본인 메시지 아님',
 		schema: {
@@ -893,7 +920,7 @@ export class ChatController {
 	})
 	async deleteMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
-		@requestParameter('messageId') messageId: string,
+		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@currentUserId() userId: number,
 		@currentUserRole() userRole: string,
 	) {
@@ -937,7 +964,7 @@ export class ChatController {
 	})
 	@apiResponse({
 		status: 400,
-		description: '이미 고정된 메시지',
+		description: '잘못된 메시지 ID 또는 이미 고정된 메시지',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -976,7 +1003,7 @@ export class ChatController {
 	})
 	async pinMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
-		@requestParameter('messageId') messageId: string,
+		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@currentUserId() userId: number,
 		@currentUserRole() userRole: string,
 	) {
@@ -1001,7 +1028,7 @@ export class ChatController {
 	@apiResponse({status: 204})
 	@apiResponse({
 		status: 400,
-		description: '고정되지 않은 메시지',
+		description: '잘못된 메시지 ID 또는 고정되지 않은 메시지',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -1040,7 +1067,7 @@ export class ChatController {
 	})
 	async unpinMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
-		@requestParameter('messageId') messageId: string,
+		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@currentUserId() userId: number,
 		@currentUserRole() userRole: string,
 	) {
@@ -1066,7 +1093,7 @@ export class ChatController {
 	@apiResponse({status: 200})
 	@apiResponse({
 		status: 400,
-		description: '유효하지 않은 이모지',
+		description: '잘못된 메시지 ID 또는 유효하지 않은 이모지',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -1105,7 +1132,7 @@ export class ChatController {
 	})
 	async addReaction(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
-		@requestParameter('messageId') messageId: string,
+		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@requestBody() dto: AddReactionDto,
 		@currentUserId() userId: number,
 	): Promise<void> {
@@ -1130,7 +1157,7 @@ export class ChatController {
 	@apiResponse({status: 200})
 	@apiResponse({
 		status: 400,
-		description: '유효하지 않은 이모지',
+		description: '잘못된 메시지 ID 또는 유효하지 않은 이모지',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -1169,7 +1196,7 @@ export class ChatController {
 	})
 	async removeReaction(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
-		@requestParameter('messageId') messageId: string,
+		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@requestParameter('emoji') emoji: string,
 		@currentUserId() userId: number,
 	): Promise<void> {

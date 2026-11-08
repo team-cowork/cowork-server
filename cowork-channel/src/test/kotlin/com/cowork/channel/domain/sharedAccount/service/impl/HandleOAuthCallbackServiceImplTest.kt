@@ -281,6 +281,29 @@ class HandleOAuthCallbackServiceImplTest :
                     result.id shouldBe 10L
                     verify(exactly = 0) { sharedAccountRepository.save(any()) }
                 }
+
+                it("식별자 수정으로 해제된 OAuth 연결 표시를 되돌린다") {
+                    val existing = SharedAccount(
+                        id = 10L,
+                        channelId = channelId,
+                        provider = AccountProvider.GITHUB,
+                        providerLabel = null,
+                        accountIdentifier = "octocat",
+                        credential = null,
+                        connectedViaOAuth = false,
+                        createdBy = userId,
+                    )
+                    every {
+                        oAuthIdentityResolver.resolveIdentifier(any(), any(), any(), any())
+                    } returns "octocat"
+                    every {
+                        sharedAccountRepository.findByChannelIdAndProviderAndAccountIdentifier(any(), any(), any())
+                    } returns existing
+
+                    service.handleCallback("github", "code", buildValidState())
+
+                    existing.connectedViaOAuth shouldBe true
+                }
             }
 
             context("같은 계정 콜백이 동시에 도착해 unique 제약이 충돌하면") {
