@@ -14,7 +14,7 @@ public record CreateAssignmentReqDto(
         @Schema(description = "특정 노드(서브트리) 할당 시 노드 ID. null이면 로드맵 전체") Long nodeId,
 
         @Schema(description = "할당 맥락", example = "TEAM", allowableValues = {
-                "TEAM", "PROJECT"}) @NotNull RoadmapScope scope,
+                "TEAM"}) @NotNull RoadmapScope scope,
 
         @Schema(description = "팀 ID (권한 검증 기준, 로드맵 소유 팀과 같아야 함). cowork-team의 tb_teams.id") @NotNull Long teamId,
 
