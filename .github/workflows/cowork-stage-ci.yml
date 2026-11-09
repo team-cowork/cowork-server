@@ -93,9 +93,6 @@ jobs:
           if ! gh pr edit "$PR_NUMBER" --repo "${{ github.repository }}" --add-assignee "$PR_AUTHOR"; then
             echo "::warning::PR assignee setup failed; continuing CI."
           fi
-          if ! gh pr edit "$PR_NUMBER" --repo "${{ github.repository }}" --add-reviewer "team-cowork/cowork-server"; then
-            echo "::warning::PR reviewer setup failed; continuing CI."
-          fi
       - name: Checkout Code
         uses: actions/checkout@v7
         with:
