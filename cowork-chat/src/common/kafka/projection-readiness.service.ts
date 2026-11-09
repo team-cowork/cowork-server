@@ -37,7 +37,7 @@ import {
 	isCheckpointWithinRetainedRange,
 	isReadyWithLagGrace,
 	isSameLease,
-	nextLagSince,
+	nextLag,
 	isSuspiciousDocumentCountDrop,
 } from './projection-offsets.js';
 import {
@@ -875,7 +875,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 				return;
 			}
 
-			// Fence 검사는 살아 있는 lease만 보고, 진행 판정은 lease가 만료된 partition도 포함한다.
+			// Fence 검사는 살아 있는 lease만 보고, 보존 범위·generation 검사와 진행 판정은 lease가 만료된 partition도 포함한다.
 			// 그래야 replica가 비정상 종료해도 재할당 전까지 snapshot barrier 판정에서 partition이 빠지지 않는다.
 			const [storedCheckpoints, allCheckpoints] = await Promise.all([
 				this.checkpoints.find(state.stream.groupId, state.stream.topic),
@@ -897,7 +897,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 			const checkpointProblem = describeActiveCheckpointProblem(
 				state.stream.topic,
 				state.dataset,
-				storedCheckpoints,
+				allCheckpoints,
 				new Map(currentOffsets.map(offset => [offset.partition, offset])),
 			);
 			if (checkpointProblem !== undefined) {
@@ -1030,12 +1030,12 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 			&& isFreshRebuildSnapshot;
 		const hasReachedOffsets = hasReachedStartupOffsets(state.targets, checkpointOffsets);
 		const now = Date.now();
-		state.lagSince = nextLagSince(state.lagSince, hasReachedOffsets, now);
+		state.lag = nextLag(state.lag, {targets: state.targets, checkpoints: checkpointOffsets, now});
 		state.ready = isReadyWithLagGrace({
 			wasReady,
 			invariantsHold: isInvariantsHold && state.dataset.status === 'ACTIVE',
 			hasReachedOffsets,
-			lagSince: state.lagSince,
+			lag: state.lag,
 			now,
 		});
 		if (isInvariantsHold && hasReachedOffsets && (state.dataset.status === 'INITIALIZING' || state.dataset.status === 'REBUILDING')) {
