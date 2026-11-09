@@ -1,9 +1,16 @@
 import {Module as nestModule} from '@nestjs/common';
 import {ConfigModule, ConfigService} from '@nestjs/config';
-import {Client} from '@elastic/elasticsearch';
+import {Client, HttpConnection} from '@elastic/elasticsearch';
 import {getOptionalConfig, getRequiredConfig} from '../common/config/config.util.js';
 import {ElasticsearchService} from './elasticsearch.service.js';
 import {ELASTICSEARCH_CLIENT} from './elasticsearch.constants.js';
+
+/**
+Elasticsearch client 옵션 이름이다.
+*/
+const clientOption = {
+	connection: 'Connection',
+} as const;
 
 @nestModule({
 	imports: [ConfigModule],
@@ -26,7 +33,8 @@ import {ELASTICSEARCH_CLIENT} from './elasticsearch.constants.js';
 					url.port = origin.port;
 				}
 
-				return new Client({node: url.href});
+				// 기본 UndiciConnection은 Bun 런타임에서 응답 헤더를 읽지 못해 모든 요청이 실패한다.
+				return new Client({node: url.href, [clientOption.connection]: HttpConnection});
 			},
 		},
 		ElasticsearchService,
