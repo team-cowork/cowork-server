@@ -200,6 +200,52 @@ class ModifyRoadmapNodeServiceTest {
                 assertThat(response.content()).isEqualTo("새내용");
             }
         }
+
+        @Nested
+        @DisplayName("본문이 늘어 로드맵 본문 합계 상한을 넘으면")
+        class Context_with_total_content_over_limit {
+
+            @Test
+            @DisplayName("BAD_REQUEST 예외를 던지고 저장하지 않는다")
+            void it_fails_with_bad_request_before_save() {
+                // given
+                givenModifiableNode(node());
+                given(nodeRepository.sumContentLengthByRoadmapId(ROADMAP_ID))
+                        .willReturn(RoadmapNode.MAX_TOTAL_CONTENT_LENGTH_PER_ROADMAP);
+
+                // when
+                ExpectedException error = assertThrows(ExpectedException.class,
+                        () -> modifyRoadmapNodeService
+                                .execute(USER_ID, USER_ROLE, NODE_ID, new UpdateNodeReqDto(null, "원내용추가", null, null)));
+
+                // then
+                assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                then(nodeRepository).should(never()).saveAndFlush(any());
+            }
+        }
+
+        @Nested
+        @DisplayName("로드맵 본문 합계가 이미 상한을 넘었어도 본문이 늘지 않으면")
+        class Context_with_total_over_limit_and_content_not_growing {
+
+            @Test
+            @DisplayName("합계를 확인하지 않고 저장한다")
+            void it_saves_without_checking_total() {
+                // given
+                givenModifiableNode(node());
+                givenSaveCaptured();
+                given(nodeRepository.sumContentLengthByRoadmapId(ROADMAP_ID))
+                        .willReturn(RoadmapNode.MAX_TOTAL_CONTENT_LENGTH_PER_ROADMAP + 1);
+
+                // when
+                NodeResDto response = modifyRoadmapNodeService
+                        .execute(USER_ID, USER_ROLE, NODE_ID, new UpdateNodeReqDto(null, "새글", null, null));
+
+                // then
+                assertThat(response.content()).isEqualTo("새글");
+                then(nodeRepository).should(never()).sumContentLengthByRoadmapId(any());
+            }
+        }
     }
 
     private void givenModifiableNode(RoadmapNode node) {
