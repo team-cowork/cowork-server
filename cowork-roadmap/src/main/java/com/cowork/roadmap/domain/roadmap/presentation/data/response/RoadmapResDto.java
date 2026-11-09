@@ -1,6 +1,6 @@
 package com.cowork.roadmap.domain.roadmap.presentation.data.response;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 
@@ -24,9 +24,9 @@ public record RoadmapResDto(
 
         @Schema(description = "생성자 사용자 ID") Long createdBy,
 
-        @Schema(description = "생성 일시", type = "string", example = "2025-03-02T00:00:00") LocalDateTime createdAt,
+        @Schema(description = "생성 일시 (UTC)", type = "string", example = "2025-03-01T15:00:00Z") Instant createdAt,
 
-        @Schema(description = "수정 일시", type = "string", example = "2025-03-02T00:00:00") LocalDateTime updatedAt) {
+        @Schema(description = "수정 일시 (UTC)", type = "string", example = "2025-03-01T15:00:00Z") Instant updatedAt) {
 
     public static RoadmapResDto from(Roadmap roadmap) {
         return new RoadmapResDto(roadmap.getId(),
