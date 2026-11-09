@@ -18,6 +18,7 @@ class TeamMemberProjectionHandler(
                 applyEvent(checkpoint, decision.event)
                 null
             }
+
             is TeamMemberRecordDecision.Quarantine -> decision.reason
         }
 
@@ -34,6 +35,7 @@ class TeamMemberProjectionHandler(
                 TeamMemberCleanupScope.TEAM -> {
                     teamRoleService.deleteTeamRoles(connection, event.teamId, event.occurredAt)
                 }
+
                 TeamMemberCleanupScope.MEMBER -> {
                     teamRoleService.removeMemberRolesAtOrBefore(
                         connection,
@@ -45,9 +47,16 @@ class TeamMemberProjectionHandler(
                 }
             }
             projectAccess.removeTeamAssignments(
-                connection, event.teamId,
+                connection,
+                event.teamId,
                 if (TeamMemberCleanupPolicy.scope(event) == TeamMemberCleanupScope.TEAM) null else event.userId,
-                cutoff = if (TeamMemberCleanupPolicy.scope(event) == TeamMemberCleanupScope.MEMBER) event.occurredAt else null,
+                cutoff = if (TeamMemberCleanupPolicy.scope(event) ==
+                    TeamMemberCleanupScope.MEMBER
+                ) {
+                    event.occurredAt
+                } else {
+                    null
+                },
             )
         }
     }
