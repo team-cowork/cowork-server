@@ -49,7 +49,7 @@ groups:
           description: "{{ $labels.service }}{{ if $labels.module }} (모듈: {{ $labels.module }}){{ end }}{{ if $labels.host }} (호스트: {{ $labels.host }}){{ end }}의 메트릭을 2분 동안 수집하지 못했습니다."
 
       - alert: coworkDatastoreUnavailable
-        expr: mysql_up == 0 or pg_up == 0 or mongodb_up == 0 or redis_up == 0 or kafka_brokers < 1
+        expr: mysql_up == 0 or pg_up == 0 or mongodb_up == 0 or redis_up == 0 or kafka_brokers < 1 or up{job="infrastructure-discovery",service="surrealdb"} == 0
         for: 2m
         labels:
           severity: critical
