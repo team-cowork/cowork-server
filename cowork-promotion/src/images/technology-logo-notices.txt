@@ -3,7 +3,7 @@ Technology logo sources
 SVG Logos by Gil Barbara (CC0-1.0), via @iconify-json/logos 1.2.19
 https://github.com/gilbarbara/logos
 
-ansible.svg, c-sharp.svg, compose-multiplatform.svg, consul.svg, dart.svg, docker-icon.svg, dotnet.svg, elasticsearch.svg, envoy-icon.svg, figma.svg, flutter-icon.svg, gin.svg, github-actions.svg, go.svg, gradle.svg, grafana.svg, java.svg, javascript.svg, kafka-icon.svg, kotlin-icon.svg, ktor-icon.svg, livekit-icon.svg, mongodb-icon.svg, mysql-icon.svg, nestjs.svg, nextjs-icon.svg, nginx.svg, nodejs-icon.svg, nomad-icon.svg, postgresql.svg, prometheus.svg, python.svg, react.svg, redis.svg, socket-io.svg, tailwindcss-icon.svg, typescript-icon.svg, vault-icon.svg, vercel-icon.svg
+ansible.svg, c-sharp.svg, compose-multiplatform.svg, consul.svg, dart.svg, docker-icon.svg, dotnet.svg, elasticsearch.svg, envoy-icon.svg, figma.svg, flutter-icon.svg, gin.svg, github-actions.svg, go.svg, gradle.svg, grafana.svg, java.svg, javascript.svg, kafka-icon.svg, kotlin-icon.svg, ktor-icon.svg, livekit-icon.svg, mongodb-icon.svg, mysql-icon.svg, nestjs.svg, nextjs-icon.svg, nginx.svg, nodejs-icon.svg, nomad-icon.svg, postgresql.svg, prometheus.svg, python.svg, react.svg, redis.svg, socket-io.svg, tailwindcss-icon.svg, typescript-icon.svg, vault-icon.svg, vercel-icon.svg, play.svg, scala.svg, surrealdb.svg
 graphql-apollo.svg combines the graphql and apollostack marks from this collection.
 
 Other project and collection artwork
@@ -21,6 +21,7 @@ loki.png  https://raw.githubusercontent.com/grafana/loki/v1.6.1/docs/sources/log
 maven.svg  https://raw.githubusercontent.com/devicons/devicon/HEAD/icons/maven/maven-original.svg
 openfeign.svg  https://raw.githubusercontent.com/OpenFeign/feign/master/src/docs/feign-logo.svg
 opentofu.svg  https://raw.githubusercontent.com/cncf/artwork/main/projects/opentofu/icon/color/opentofu-icon-color.svg
+sbt.svg  https://www.scala-sbt.org/assets/sbt-logo.svg
 seaweedfs.png  https://raw.githubusercontent.com/seaweedfs/seaweedfs/master/note/seaweedfs.png
 spring-boot.svg  https://spring.io/img/projects/spring-boot.svg
 spring-cloud.svg  https://spring.io/img/projects/spring-cloud.svg

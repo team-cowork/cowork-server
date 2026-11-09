@@ -12,6 +12,15 @@ public interface RoadmapNodeRepository extends JpaRepository<RoadmapNode, Long> 
 
     List<RoadmapNode> findByRoadmapIdOrderByPositionAsc(Long roadmapId);
 
+    List<RoadmapNode> findByRoadmapIdAndParentIdIsNullOrderByPositionAsc(Long roadmapId);
+
+    List<RoadmapNode> findByRoadmapIdAndParentIdOrderByPositionAsc(Long roadmapId, Long parentId);
+
+    long countByRoadmapId(Long roadmapId);
+
+    @Query(value = "SELECT CAST(COALESCE(SUM(CHAR_LENGTH(content)), 0) AS SIGNED) FROM tb_roadmap_nodes WHERE roadmap_id = :roadmapId", nativeQuery = true)
+    long sumContentLengthByRoadmapId(Long roadmapId);
+
     // 잠금 전에 엔티티를 캐시에 올리지 않아 잠금 이후 조회가 최신 상태를 읽게 한다.
     @Query("SELECT node.roadmapId FROM RoadmapNode node WHERE node.id = :id")
     Optional<Long> findRoadmapIdById(Long id);
@@ -28,7 +37,17 @@ public interface RoadmapNodeRepository extends JpaRepository<RoadmapNode, Long> 
     @Query(value = "SELECT * FROM tb_roadmap_nodes WHERE id = :id FOR SHARE", nativeQuery = true)
     Optional<RoadmapNode> findByIdForShare(Long id);
 
-    /** 잠금 읽기로 transaction snapshot 이후 커밋된 하위 노드까지 포함해 서브트리를 계산한다. */
-    @Query(value = "SELECT * FROM tb_roadmap_nodes WHERE roadmap_id = :roadmapId FOR UPDATE", nativeQuery = true)
-    List<RoadmapNode> findAllByRoadmapIdForUpdate(Long roadmapId);
+    /**
+     * 잠금 읽기로 transaction snapshot 이후 커밋된 하위 노드까지 포함해 서브트리를 계산한다. 서브트리 계산에는 계층 정보만
+     * 필요하므로 본문은 읽지 않는다.
+     */
+    @Query(value = "SELECT id AS id, parent_id AS parentId FROM tb_roadmap_nodes WHERE roadmap_id = :roadmapId FOR UPDATE", nativeQuery = true)
+    List<NodeHierarchy> findHierarchyByRoadmapIdForUpdate(Long roadmapId);
+
+    interface NodeHierarchy {
+
+        Long getId();
+
+        Long getParentId();
+    }
 }

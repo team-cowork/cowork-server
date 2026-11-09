@@ -2,6 +2,7 @@ name: Cowork Prod CI Workflow
 
 on:
   pull_request:
+    types: [opened, reopened, synchronize, edited, assigned, unassigned]
     branches:
       - 'main'
   push:
@@ -15,7 +16,10 @@ concurrency:
     ${{ github.workflow }}-${{ github.ref }}${{
       github.event_name == 'push' &&
       github.actor == 'cowork-server-versioning-bot[bot]' &&
-      '-version-writeback' || '' }}
+      '-version-writeback' || '' }}${{
+      github.event_name == 'pull_request' &&
+      contains(fromJSON('["edited", "assigned", "unassigned"]'), github.event.action) &&
+      !github.event.changes.base && '-metadata' || '' }}
   # Keep active push validation; later runs include changes since the last success.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
@@ -37,10 +41,13 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const title = context.payload.pull_request.title;
+            const { data: pullRequest } = await github.rest.pulls.get({
+              ...context.repo, pull_number: context.payload.pull_request.number,
+            });
+            const title = pullRequest.title;
             const allowedScopes = [
               'global', 'gateway', 'authorization', 'user',
-              'team', 'project', 'channel', 'roadmap', 'chat', 'voice', 'promotion', 'github',
+              'team', 'project', 'channel', 'roadmap', 'applet', 'chat', 'dm', 'voice', 'promotion', 'github', 'monitoring',
               'notification', 'preference', 'ci/cd'
             ];
 
@@ -77,9 +84,11 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      issues: write
 
     steps:
       - name: Set Up PR Metadata
+        if: contains(fromJSON('["opened", "reopened", "synchronize"]'), github.event.action)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -94,11 +103,25 @@ jobs:
           if ! gh pr edit "$PR_NUMBER" --repo "${{ github.repository }}" --add-reviewer "team-cowork/cowork-server"; then
             echo "::warning::PR reviewer setup failed; continuing CI."
           fi
+      - name: Checkout Code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: deploy/ci
+      - name: Assign PR Assignees To Related Issues
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { syncPullRequestIssues } = require('./deploy/ci/pull_request/issues.cjs');
+            await syncPullRequestIssues({ github, context, core });
 
   detect-changes:
-    name: Select CI Targets
+    name: Select CI Targets${{ github.event_name == 'pull_request' && contains(fromJSON('["edited", "assigned", "unassigned"]'), github.event.action) && !github.event.changes.base && ' (metadata)' || '' }}
     if: >
-      github.event_name != 'push' || github.actor != 'cowork-server-versioning-bot[bot]'
+      (github.event_name != 'push' || github.actor != 'cowork-server-versioning-bot[bot]') &&
+      (github.event_name != 'pull_request' ||
+       !contains(fromJSON('["edited", "assigned", "unassigned"]'), github.event.action) ||
+       github.event.changes.base != null)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -123,7 +146,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: python3 -m deploy.ci.select_base
+        run: python3 -m deploy.ci.selection.select_base
       - name: Select Image Builds
         id: images
         env:
@@ -131,7 +154,7 @@ jobs:
         run: |
           args=()
           if git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then args+=(--base "$BASE_SHA"); fi
-          python3 -m deploy.ci.build_matrix "${args[@]}"
+          python3 -m deploy.ci.selection.build_matrix "${args[@]}"
       - name: Select Module Verification
         id: verify
         env:
@@ -139,7 +162,7 @@ jobs:
         run: |
           args=()
           if git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then args+=(--base "$BASE_SHA"); fi
-          python3 -m deploy.ci.build_matrix --verify "${args[@]}"
+          python3 -m deploy.ci.selection.build_matrix --verify "${args[@]}"
 
   # Pull requests already verify the same source in coverage(pr).
   build-and-test:
@@ -150,7 +173,7 @@ jobs:
       (needs.validate-title.result == 'success' || needs.validate-title.result == 'skipped') &&
       needs.detect-changes.result == 'success' &&
       needs.detect-changes.outputs.matrix != '{"include":[]}'
-    name: Build (cowork-${{ matrix.service }})
+    name: Build (cowork-${{ matrix.service }})${{ github.event_name == 'pull_request' && contains(fromJSON('["edited", "assigned", "unassigned"]'), github.event.action) && !github.event.changes.base && ' (metadata)' || '' }}
     timeout-minutes: 60
     strategy:
       fail-fast: false
@@ -174,7 +197,7 @@ jobs:
           retention-days: 7
 
   image-build:
-    name: Image (${{ matrix.service }})
+    name: Image (${{ matrix.service }})${{ github.event_name == 'pull_request' && contains(fromJSON('["edited", "assigned", "unassigned"]'), github.event.action) && !github.event.changes.base && ' (metadata)' || '' }}
     needs: detect-changes
     if: needs.detect-changes.outputs.image-matrix != '{"include":[]}'
     runs-on: ubuntu-latest
@@ -195,12 +218,11 @@ jobs:
           tags: cowork-${{ matrix.service }}:ci
 
   image-validation:
-    name: Image Validation
+    name: Image Validation${{ github.event_name == 'pull_request' && contains(fromJSON('["edited", "assigned", "unassigned"]'), github.event.action) && !github.event.changes.base && ' (metadata)' || '' }}
     needs: [detect-changes, image-build]
     # Superseded PR runs must stop when their image builds are cancelled.
     if: >
-      !cancelled() &&
-      (github.event_name != 'push' || github.actor != 'cowork-server-versioning-bot[bot]')
+      !cancelled() && needs.detect-changes.result != 'skipped'
     runs-on: ubuntu-latest
     steps:
       - name: Require All Selected Image Builds
@@ -217,14 +239,13 @@ jobs:
           fi
 
   notify:
-    name: Send CI Notification
+    name: Send CI Notification${{ github.event_name == 'pull_request' && contains(fromJSON('["edited", "assigned", "unassigned"]'), github.event.action) && !github.event.changes.base && ' (metadata)' || '' }}
     runs-on: ubuntu-latest
     env:
       RESULT_LABELS: '{"success":"성공","failure":"실패","cancelled":"취소됨","skipped":"건너뜀","neutral":"중립","timed_out":"시간 초과","action_required":"조치 필요","stale":"만료됨"}'
     needs: [validate-title, setup-pr-metadata, detect-changes, build-and-test, image-validation, coverage-plan, coverage]
     if: >
-      always() &&
-      (github.event_name != 'push' || github.actor != 'cowork-server-versioning-bot[bot]')
+      always() && needs.detect-changes.result != 'skipped'
 
     steps:
       - name: Get Short SHA
@@ -274,7 +295,7 @@ jobs:
             **PR 검증 및 커버리지:** ${{ fromJSON(env.RESULT_LABELS)[needs.coverage-plan.result] || '확인 불가' }} / ${{ fromJSON(env.RESULT_LABELS)[needs.coverage.result] || '확인 불가' }}
 
   coverage-plan:
-    name: Plan Coverage
+    name: Plan Coverage${{ github.event_name == 'pull_request' && contains(fromJSON('["edited", "assigned", "unassigned"]'), github.event.action) && !github.event.changes.base && ' (metadata)' || '' }}
     needs: detect-changes
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -298,7 +319,7 @@ jobs:
         env:
           VERIFY_MATRIX: ${{ needs.detect-changes.outputs.matrix }}
         run: |
-          matrix=$(python3 -m deploy.ci.coverage plan --base source-base --head . \
+          matrix=$(python3 -m deploy.ci.verification.coverage plan --base source-base --head . \
             --matrix "$VERIFY_MATRIX" --output "$RUNNER_TEMP/modules.json")
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
       - name: Upload Coverage Manifest
@@ -310,7 +331,7 @@ jobs:
           retention-days: 7
 
   coverage:
-    name: Coverage (${{ matrix.module }}, ${{ matrix.snapshot }})
+    name: Coverage (${{ matrix.module }}, ${{ matrix.snapshot }})${{ github.event_name == 'pull_request' && contains(fromJSON('["edited", "assigned", "unassigned"]'), github.event.action) && !github.event.changes.base && ' (metadata)' || '' }}
     needs: coverage-plan
     if: github.event_name == 'pull_request' && needs.coverage-plan.outputs.matrix != '{"include":[]}'
     runs-on: ubuntu-latest
@@ -353,9 +374,9 @@ jobs:
           retention-days: 7
 
   coverage-comment:
-    name: Update Coverage Comment
+    name: Update Coverage Comment${{ github.event_name == 'pull_request' && contains(fromJSON('["edited", "assigned", "unassigned"]'), github.event.action) && !github.event.changes.base && ' (metadata)' || '' }}
     needs: [coverage-plan, coverage]
-    if: always() && github.event_name == 'pull_request' && !cancelled()
+    if: always() && github.event_name == 'pull_request' && !cancelled() && needs.coverage-plan.result != 'skipped'
     runs-on: ubuntu-latest
     continue-on-error: true
     permissions:
@@ -379,7 +400,7 @@ jobs:
           path: ${{ runner.temp }}/coverage-artifacts
       - name: Render Coverage Comment
         run: |
-          python3 -m deploy.ci.coverage render \
+          python3 -m deploy.ci.verification.coverage render \
             --artifacts "$RUNNER_TEMP/coverage-artifacts" --manifest "$RUNNER_TEMP/coverage-tools/modules.json" \
             --output "$RUNNER_TEMP/coverage-comment.md"
           cat "$RUNNER_TEMP/coverage-comment.md" >> "$GITHUB_STEP_SUMMARY"
@@ -389,14 +410,15 @@ jobs:
           script: |
             const fs = require('fs');
             const path = require('path');
-            const publish = require(path.join(process.env.GITHUB_WORKSPACE, 'deploy/ci/comments/coverage.cjs'));
+            const publish = require(path.join(process.env.GITHUB_WORKSPACE, 'deploy/ci/pull_request/comments/coverage.cjs'));
             const result = await publish({ github, context, core,
               body: fs.readFileSync(path.join(process.env.RUNNER_TEMP, 'coverage-comment.md'), 'utf8') });
             core.info(`Coverage publication: ${result.status}`);
 
   contrib-delta:
-    name: Update Contribution Delta
-    if: github.event_name == 'pull_request'
+    name: Update Contribution Delta${{ github.event_name == 'pull_request' && contains(fromJSON('["edited", "assigned", "unassigned"]'), github.event.action) && !github.event.changes.base && ' (metadata)' || '' }}
+    needs: detect-changes
+    if: always() && !cancelled() && github.event_name == 'pull_request' && needs.detect-changes.result != 'skipped'
     runs-on: ubuntu-latest
     continue-on-error: true
     permissions:
@@ -411,5 +433,5 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const publish = require('./deploy/ci/comments/contribution.cjs');
+            const publish = require('./deploy/ci/pull_request/comments/contribution.cjs');
             await publish({ github, context, core });

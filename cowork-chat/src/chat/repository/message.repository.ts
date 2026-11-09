@@ -1,6 +1,6 @@
 import {Buffer} from 'node:buffer';
 import {randomUUID} from 'node:crypto';
-import {Injectable as injectable} from '@nestjs/common';
+import {BadRequestException, Injectable as injectable} from '@nestjs/common';
 import {InjectModel as injectModel} from '@nestjs/mongoose';
 import {Model, PipelineStage, Types} from 'mongoose';
 import {ConfirmedAttachment} from '../../storage/attachment-upload.schema.js';
@@ -216,12 +216,13 @@ export class MessageRepository {
      커서 이전의 항목만 반환하는 `$or` 조건을 구성합니다.
 
      @param before - base64 인코딩된 커서 문자열
-     @returns MongoDB `$match` 조건 객체. 커서가 유효하지 않으면 `null`
+     @returns MongoDB `$match` 조건 객체
+     @throws BadRequestException 커서가 유효하지 않은 경우. 첫 페이지로 대체하면 같은 항목을 반복해 받게 된다
      */
-	private buildFileCursorMatch(before: string): Nullable<Record<string, unknown>> {
+	private buildFileCursorMatch(before: string): Record<string, unknown> {
 		const cursor = this.decodeFileCursor(before);
 		if (!cursor) {
-			return null;
+			throw new BadRequestException('invalid cursor');
 		}
 
 		return {
@@ -405,6 +406,21 @@ export class MessageRepository {
      */
 	async findById(messageId: string): Promise<Nullable<MessageDocument>> {
 		return this.messageModel.findOne({_id: messageId, webhookDeleted: {$ne: true}});
+	}
+
+	/**
+     멱등성 키로 저장됐지만 아직 브로드캐스트되지 않은 메시지를 조회합니다.
+     값이 명시적인 `null`인 메시지만 찾으므로, 이미 전송했거나 이 필드가 생기기 전에 저장된 메시지는 제외됩니다.
+     */
+	async findUnbroadcastedByClientMessageId(clientMessageId: string): Promise<Nullable<MessageDocument>> {
+		return this.messageModel.findOne({clientMessageId, broadcastedAt: {$type: 'null'}, webhookDeleted: {$ne: true}});
+	}
+
+	/**
+    브로드캐스트를 마쳤다고 기록합니다. 색인 재구축의 `updatedAt` catch-up 대상이 되지 않도록 시각을 바꾸지 않습니다.
+    */
+	async markBroadcasted(messageId: Types.ObjectId): Promise<void> {
+		await this.messageModel.updateOne({_id: messageId}, {$set: {broadcastedAt: new Date()}}, {timestamps: false});
 	}
 
 	/**

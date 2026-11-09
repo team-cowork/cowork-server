@@ -11,8 +11,8 @@ import com.cowork.preference.messaging.TeamRoleCommandRoleInput
 import com.cowork.preference.messaging.TeamRoleCommandType
 import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
-import com.cowork.preference.repository.ProjectAccessStateRepository
 import com.cowork.preference.repository.ProcessedTeamRoleCommandMatches
+import com.cowork.preference.repository.ProjectAccessStateRepository
 import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.repository.TeamRoleCommandInboxRepository
 import com.cowork.preference.repository.TeamRoleRepository
@@ -80,7 +80,8 @@ class TeamRoleCommandProcessorTest {
         fun `일반 멤버에게 역할 관리 권한이 없으면 역할을 생성하지 않는다`() = runBlocking {
             val result = slot<JsonObject>()
             fixture.stubCommand(createCommand, actorRole = "MEMBER")
-            coEvery { fixture.roleRepository.findMemberRoles(fixture.connection, createCommand.teamId) } returns emptyList()
+            coEvery { fixture.roleRepository.findMemberRoles(fixture.connection, createCommand.teamId) } returns
+                emptyList()
             coEvery { fixture.roleRepository.findRoles(fixture.connection, createCommand.teamId) } returns emptyList()
             coEvery { fixture.inboxRepository.insert(fixture.connection, createCommand, capture(result)) } returns Unit
 
@@ -108,14 +109,19 @@ class TeamRoleCommandProcessorTest {
 
         @Test
         fun `역할 관리자가 자신에게 없는 권한을 새 역할에 부여할 수 없다`() = runBlocking {
-            val command = createCommand.copy(role = requireNotNull(createCommand.role).copy(permissions = mapOf(PermissionKeys.MANAGE_GITHUB to true)))
+            val command = createCommand.copy(
+                role = requireNotNull(
+                    createCommand.role,
+                ).copy(permissions = mapOf(PermissionKeys.MANAGE_GITHUB to true)),
+            )
             val result = slot<JsonObject>()
             fixture.stubCommand(command, actorRole = "MEMBER")
             coEvery { fixture.roleRepository.findMemberRoles(fixture.connection, command.teamId) } returns
                 listOf(AccountTeamRole(command.actorId, command.teamId, 20L))
             coEvery { fixture.roleRepository.findRoles(fixture.connection, command.teamId) } returns
                 listOf(role(20L, priority = 20, permissions = mapOf(PermissionKeys.MANAGE_ROLES to true)))
-            coEvery { fixture.roleRepository.findRoleByName(fixture.connection, command.teamId, "Reviewer") } returns null
+            coEvery { fixture.roleRepository.findRoleByName(fixture.connection, command.teamId, "Reviewer") } returns
+                null
             coEvery { fixture.inboxRepository.insert(fixture.connection, command, capture(result)) } returns Unit
             fixture.processor.process(command)
             assertEquals("FORBIDDEN", result.captured.getJsonObject("error").getString("code"))
@@ -188,7 +194,8 @@ class TeamRoleCommandProcessorTest {
         val command = createCommand.copy(commandType = TeamRoleCommandType.DELETE, role = null, roleId = 9L)
         val result = slot<JsonObject>()
         fixture.stubCommand(command, actorRole = "OWNER")
-        coEvery { fixture.roleRepository.findRole(fixture.connection, command.teamId, 9L) } returns role(9L).copy(isDefault = true)
+        coEvery { fixture.roleRepository.findRole(fixture.connection, command.teamId, 9L) } returns
+            role(9L).copy(isDefault = true)
         coEvery { fixture.inboxRepository.insert(fixture.connection, command, capture(result)) } returns Unit
         fixture.processor.process(command)
         assertEquals("DEFAULT_ROLE_PROTECTED", result.captured.getJsonObject("error").getString("code"))
@@ -256,24 +263,16 @@ class TeamRoleCommandProcessorTest {
             role = null,
         )
 
-        fun member(
-            accountId: Long,
-            version: Instant,
-            builtInRole: String = "MEMBER",
-            deleted: Boolean = false,
-        ) = TeamMemberProjection(
-            teamId = createCommand.teamId,
-            accountId = accountId,
-            builtInRole = builtInRole,
-            deleted = deleted,
-            sourceOccurredAt = version,
-        )
+        fun member(accountId: Long, version: Instant, builtInRole: String = "MEMBER", deleted: Boolean = false) =
+            TeamMemberProjection(
+                teamId = createCommand.teamId,
+                accountId = accountId,
+                builtInRole = builtInRole,
+                deleted = deleted,
+                sourceOccurredAt = version,
+            )
 
-        fun role(
-            id: Long,
-            priority: Int = 10,
-            permissions: Map<String, Boolean> = emptyMap(),
-        ) = TeamRoleDefinition(
+        fun role(id: Long, priority: Int = 10, permissions: Map<String, Boolean> = emptyMap()) = TeamRoleDefinition(
             id = id,
             teamId = createCommand.teamId,
             name = "Reviewer",

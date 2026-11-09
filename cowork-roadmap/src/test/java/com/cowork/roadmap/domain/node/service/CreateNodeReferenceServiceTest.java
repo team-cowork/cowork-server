@@ -7,7 +7,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -55,8 +55,8 @@ class CreateNodeReferenceServiceTest {
             RoadmapNodeReference ref = invocation.getArgument(0);
             RoadmapNodeReference saved = ref.toBuilder().id(100L).build();
             // 실제 JPA saveAndFlush()는 @CreatedDate/@LastModifiedDate auditing이 채운 값을 돌려준다.
-            saved.setCreatedAt(LocalDateTime.now());
-            saved.setUpdatedAt(LocalDateTime.now());
+            saved.setCreatedAt(Instant.now());
+            saved.setUpdatedAt(Instant.now());
             return saved;
         });
 

@@ -77,6 +77,7 @@ Run these commands from the repository root:
 | Scope | Check | Format |
 |-------|-------|--------|
 | Gradle Kotlin (`gateway`, `channel`, `team`; replace `team`) | `(cd cowork-team && ./gradlew ktlintCheck)` | `(cd cowork-team && ./gradlew ktlintFormat)` |
+| Kotlin Toolchain preference | `cowork-preference/ktlint` | `cowork-preference/ktlint --format` |
 | Bun chat | `(cd cowork-chat && bun run lint --max-warnings=0)` | `(cd cowork-chat && bun run lint:fix)` |
 | Node promotion | `npm --prefix cowork-promotion run lint -- --max-warnings=0` | `npm --prefix cowork-promotion run lint:fix` |
 | Bun github | `(cd cowork-github && bun run lint --max-warnings=0)` | `(cd cowork-github && bun run lint:fix)` |
@@ -86,9 +87,9 @@ Run these commands from the repository root:
 
 Roadmap uses `cowork-roadmap/config/eclipse-java-formatter.xml` and its configured import order. `check` and `build` run `spotlessCheck`; compilation does not format files. Run `spotlessApply` explicitly.
 
-Maven-based `cowork-project` and Kotlin Toolchain-based `cowork-preference` have no Gradle build or `ktlintFormat` task. Follow `.editorconfig` and review their diffs. There is no repository-wide formatter.
+Kotlin Toolchain has no ktlint integration, so `cowork-preference/ktlint` runs the same ktlint release as the Gradle Kotlin modules, and the Dockerfile `verification` stage rejects violations. Maven-based `cowork-project` has no formatter task. Follow `.editorconfig` and review its diffs. There is no repository-wide formatter.
 
-Hooks run the owning Gradle module's formatter when available. File suffix triggers do not expand formatter targets. Hooks report failures and skip modules without a formatter; they do not replace explicit checks.
+Hooks run the owning module's formatter when available. File suffix triggers do not expand formatter targets. Hooks report failures and skip modules without a formatter; they do not replace explicit checks.
 
 ## Errors and logging
 
@@ -108,7 +109,7 @@ JVM code uses SLF4J with Logback in Spring modules and Log4j2 in Preference. Use
 
 ## Testing and build tools
 
-Write and run unit tests only for core business logic, including business authorization and access rules. Do not add or run regression or integration tests, or tests for controllers, framework wiring, configuration shape, migrations, repositories, or transport mechanics. Kafka serialization, idempotency, ordering, checkpoints, snapshot markers, retries, quarantine, and recovery are not exceptions.
+Write and run unit tests for core business logic, including business authorization and access rules. Avoid regression and integration tests; when one is necessary during development, write and run it, then delete it before committing so that it is not part of the final deliverable. Outside that exception, do not add or run tests for controllers, framework wiring, configuration shape, migrations, repositories, or transport mechanics. Kafka serialization, idempotency, ordering, checkpoints, snapshot markers, retries, quarantine, and recovery are not exceptions.
 
 This scope does not restrict CI or coverage discovery. Keep each module's normal test command; do not add test allowlists.
 
@@ -119,6 +120,7 @@ Use the module's configured runner and dependencies:
 | Kotlin Spring | Kotest and MockK |
 | Roadmap | JUnit 5, Mockito, and AssertJ |
 | Preference | JUnit 5/Vert.x test support and MockK |
+| Applet | MUnit |
 | Other runtimes | Their configured native tools |
 
 - Use Describe-Context-It with Given-When-Then inside each scenario. Test one behavior per test; related assertions and interaction checks may share it.
@@ -134,10 +136,13 @@ Run the owning module's tests from the repository root:
 | Java roadmap | `(cd cowork-roadmap && ./gradlew test)` |
 | Maven project | `(cd cowork-project && ./mvnw test)` |
 | Kotlin Toolchain preference | `(cd cowork-preference && ./kotlin test)` |
+| sbt applet | `(cd cowork-applet && ./sbtw test)` |
 
 Each Gradle module owns its Wrapper, settings, version catalog, and build configuration; versions may differ by module. Run the module's Wrapper from its directory. There is no root Gradle build. Use the checked-in Maven wrapper for Project and native commands for other runtimes.
 
 Preference uses `cowork-preference/kotlin` or `kotlin.bat` for local builds, Docker, and CI. The wrapper provisions the pinned toolchain and JDK without a global CLI. Update both wrappers together with `./kotlin update --target-version=<version>` from the module directory.
+
+Applet uses Scala 3 and Play on Java 25, the newest Java that Play 3.0 supports. `cowork-applet/sbtw` downloads the pinned sbt launcher for local builds, Docker, and CI. Its SurrealDB definitions live in `conf/surreal/schema.surql`, use `IF NOT EXISTS`, and run at application start; there is no migration history, so backfill existing records separately when a stored shape changes.
 
 ## Security
 

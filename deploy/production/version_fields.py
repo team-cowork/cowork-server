@@ -22,7 +22,7 @@ def field(path):
         return r'(?m)^(\tVersion:\s+")[^"]+(",[^\S\n]*)$'
     if re.fullmatch(r"cowork-(?:authorization|notification|voice)/swagger/swagger\.json", path):
         return r'(?m)^( {8}"version": ")[^"]+(",?[^\S\n]*)$'
-    if re.fullmatch(r"cowork-(?:authorization|notification|voice)/swagger/swagger\.yaml", path):
+    if path == "cowork-applet/conf/swagger.yml" or re.fullmatch(r"cowork-(?:authorization|notification|voice)/swagger/swagger\.yaml", path):
         return r'(?m)^(  version: ")[^"]+("[^\S\n]*)$'
     if path == "cowork-chat/src/main.ts":
         return r"(\.setVersion\(')[^']+('\))"
@@ -76,6 +76,8 @@ def module_files(module):
         candidates.append(directory / "src/openapi.json")
     if module == "preference":
         candidates.append(directory / "src/main/resources/openapi.json")
+    if module == "applet":
+        candidates.append(directory / "conf/swagger.yml")
     if module in {"channel", "project", "team", "roadmap"}:
         language, extension = ("java", "java") if module == "roadmap" else ("kotlin", "kt")
         candidates.append(directory / f"src/main/{language}/com/cowork/{module}/global/config/OpenApiConfig.{extension}")
