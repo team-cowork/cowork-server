@@ -29,6 +29,10 @@ export class ChatMessageProcessor {
 	private async broadcast(event: ChatMessageEvent, saved: MessageDocument): Promise<void> {
 		if (this.io) {
 			await this.channelMessageReadAccess.emitToReadableChannelUsers(this.io, event.channelId, {event: 'message', payload: toMessageBroadcastPayload(saved)});
+			// 기록이 실패해도 전송은 끝났으므로 다시 던지지 않는다. 다시 던지면 재전달로 같은 메시지를 한 번 더 보낸다.
+			await this.messageRepository.markBroadcasted(saved._id).catch((error: unknown) => {
+				this.logger.warn(`Failed to record message broadcast messageId=${saved._id.toString()}: ${String(error)}`);
+			});
 		} else {
 			this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${event.channelId})`);
 		}
@@ -77,10 +81,10 @@ export class ChatMessageProcessor {
 				throw error;
 			}
 
-			// 저장 뒤 브로드캐스트가 실패해 재전달된 경우일 수 있으므로, 같은 작성자·채널의 기존 메시지면 다시 전송한다.
+			// 저장 뒤 브로드캐스트가 실패해 재전달된 경우에만 다시 전송한다. 이미 전송한 메시지를 다시 보내면 클라이언트에 중복으로 보인다.
 			const existing = event.clientMessageId === undefined
 				? null
-				: await this.messageRepository.findByClientMessageId(event.clientMessageId);
+				: await this.messageRepository.findUnbroadcastedByClientMessageId(event.clientMessageId);
 			if (existing?.channelId !== event.channelId || existing.authorId !== event.authorId) {
 				this.logger.warn(`Duplicate message detected, skipping (clientMessageId: ${event.clientMessageId})`);
 				return;
