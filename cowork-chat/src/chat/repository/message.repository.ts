@@ -408,6 +408,13 @@ export class MessageRepository {
 	}
 
 	/**
+	이미 저장된 메시지를 멱등성 키로 조회합니다. Kafka 재전달로 저장이 중복 처리된 경우에 사용합니다.
+	*/
+	async findByClientMessageId(clientMessageId: string): Promise<Nullable<MessageDocument>> {
+		return this.messageModel.findOne({clientMessageId, webhookDeleted: {$ne: true}});
+	}
+
+	/**
      MessageId와 channelId를 함께 사용하여 메시지를 조회합니다.
 
      채널 귀속 검증이 필요한 경우(예: 권한 확인)에 사용하며,
