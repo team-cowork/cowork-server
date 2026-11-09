@@ -24,9 +24,9 @@ import org.mockito.InOrder;
 import org.springframework.http.HttpStatus;
 
 import com.cowork.roadmap.domain.assignment.repository.RoadmapAssignmentRepository;
-import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeReferenceRepository;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
+import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository.NodeHierarchy;
 import com.cowork.roadmap.domain.node.service.impl.DeleteRoadmapNodeServiceImpl;
 import com.cowork.roadmap.domain.node.service.support.RoadmapNodeLookupSupport;
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
@@ -71,12 +71,9 @@ class DeleteRoadmapNodeServiceTest {
     @Test
     void deleteNode_computesSubtreeFromLockedReadAndCountsAssignmentsOnlyWithinSubtree() {
         prepareTree();
-        RoadmapNode concurrentGrandChild = node(5L, 10L, 3L);
-        when(nodeRepository.findAllByRoadmapIdForUpdate(10L)).thenReturn(List.of(node(1L, 10L, null),
-                node(2L, 10L, 1L),
-                node(3L, 10L, 2L),
-                node(4L, 10L, null),
-                concurrentGrandChild));
+        NodeHierarchy concurrentGrandChild = node(5L, 3L);
+        when(nodeRepository.findHierarchyByRoadmapIdForUpdate(10L))
+                .thenReturn(List.of(node(1L, null), node(2L, 1L), node(3L, 2L), node(4L, null), concurrentGrandChild));
         when(assignmentRepository.countByRoadmapIdAndNodeIdInForShare(anyLong(), any())).thenReturn(0L);
 
         deleteRoadmapNodeService.execute(1L, "ADMIN", 1L);
@@ -86,7 +83,7 @@ class DeleteRoadmapNodeServiceTest {
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Iterable<Long>> deleteCaptor = ArgumentCaptor.forClass(Iterable.class);
         InOrder inOrder = inOrder(nodeRepository, assignmentRepository);
-        inOrder.verify(nodeRepository).findAllByRoadmapIdForUpdate(10L);
+        inOrder.verify(nodeRepository).findHierarchyByRoadmapIdForUpdate(10L);
         inOrder.verify(assignmentRepository).countByRoadmapIdAndNodeIdInForShare(eq(10L), countCaptor.capture());
         inOrder.verify(nodeRepository).deleteAllByIdInBatch(deleteCaptor.capture());
         assertThat(countCaptor.getValue()).containsExactlyInAnyOrder(1L, 2L, 3L, 5L);
@@ -107,15 +104,16 @@ class DeleteRoadmapNodeServiceTest {
     }
 
     private void prepareTree() {
-        RoadmapNode root = node(1L, 10L, null);
-        RoadmapNode child = node(2L, 10L, 1L);
-        RoadmapNode grandChild = node(3L, 10L, 2L);
-        RoadmapNode otherRoot = node(4L, 10L, null);
+        NodeHierarchy root = node(1L, null);
+        NodeHierarchy child = node(2L, 1L);
+        NodeHierarchy grandChild = node(3L, 2L);
+        NodeHierarchy otherRoot = node(4L, null);
 
         when(nodeRepository.findRoadmapIdById(1L)).thenReturn(Optional.of(10L));
         when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
 
-        when(nodeRepository.findAllByRoadmapIdForUpdate(10L)).thenReturn(List.of(root, child, grandChild, otherRoot));
+        when(nodeRepository.findHierarchyByRoadmapIdForUpdate(10L))
+                .thenReturn(List.of(root, child, grandChild, otherRoot));
     }
 
     private static Set<Long> toSet(Iterable<Long> ids) {
@@ -128,13 +126,18 @@ class DeleteRoadmapNodeServiceTest {
         return Roadmap.builder().id(id).scope(RoadmapScope.GLOBAL.name()).build();
     }
 
-    private static RoadmapNode node(Long id, Long roadmapId, Long parentId) {
-        return RoadmapNode.builder()
-                .id(id)
-                .roadmapId(roadmapId)
-                .parentId(parentId)
-                .position(0)
-                .title("node" + id)
-                .build();
+    private static NodeHierarchy node(Long id, Long parentId) {
+        return new NodeHierarchy() {
+
+            @Override
+            public Long getId() {
+                return id;
+            }
+
+            @Override
+            public Long getParentId() {
+                return parentId;
+            }
+        };
     }
 }

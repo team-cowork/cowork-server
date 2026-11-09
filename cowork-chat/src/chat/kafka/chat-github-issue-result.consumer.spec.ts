@@ -9,6 +9,8 @@ const mockChatService = {
 
 const mockConfigService = {};
 
+const mockProjectionReadiness = {areReady: jest.fn().mockReturnValue(true)};
+
 const mockChannelMessageReadAccess = {
 	emitToReadableChannelUsers: jest.fn().mockResolvedValue(undefined),
 };
@@ -22,6 +24,7 @@ describe('ChatGithubIssueResultConsumer', () => {
 			mockChatService as never,
 			mockConfigService as never,
 			mockChannelMessageReadAccess as never,
+			mockProjectionReadiness as never,
 		);
 		consumer.setSocketServer({} as never);
 	});

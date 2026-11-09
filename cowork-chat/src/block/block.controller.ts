@@ -35,6 +35,7 @@ export class BlockController {
 	@apiOperation({summary: '사용자 차단', description: '차단한 사용자의 DM을 받지 않습니다.'})
 	@apiParameter({name: 'targetUserId', description: '차단할 사용자 ID', type: Number})
 	@apiNoContentResponse({description: '차단 성공'})
+	@apiResponse({status: 409, description: '차단 목록이 상한에 도달함', type: ApiResponseMetadataDto})
 	async blockUser(
 		@currentUserId() userId: number,
 		@requestParameter('targetUserId', SafePositiveIntPipe) targetUserId: number,
