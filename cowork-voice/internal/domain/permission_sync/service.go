@@ -26,6 +26,10 @@ type LiveSessions interface {
 	FindActiveSession(context.Context, int64) (*live.LiveSession, error)
 }
 
+type VoiceSessions interface {
+	FindActiveSession(context.Context, int64) (*voice.VoiceSession, error)
+}
+
 // LiveKit calls reconcile ephemeral connections; durable session changes remain in webhook handlers.
 type Rooms interface {
 	ListRooms(context.Context, *livekit.ListRoomsRequest) (*livekit.ListRoomsResponse, error)
@@ -39,10 +43,11 @@ type Service struct {
 	rooms       Rooms
 	permissions PermissionChecker
 	live        LiveSessions
+	voice       VoiceSessions
 }
 
-func New(rooms Rooms, permissions PermissionChecker, sessions LiveSessions) *Service {
-	return &Service{rooms: rooms, permissions: permissions, live: sessions}
+func New(rooms Rooms, permissions PermissionChecker, liveSessions LiveSessions, voiceSessions VoiceSessions) *Service {
+	return &Service{rooms: rooms, permissions: permissions, live: liveSessions, voice: voiceSessions}
 }
 
 func (s *Service) Run(ctx context.Context) {
@@ -96,7 +101,7 @@ func (s *Service) Reconcile(ctx context.Context) error {
 func (s *Service) reconcileRoom(ctx context.Context, name string, check permission.ConnectCheck) error {
 	var channelID, hostID int64
 	var hostAccess permission.Access
-	var hostErr error
+	var hostErr, sessionErr error
 	if parsed, ok := live.ParseRoomName(name); ok && parsed.ChannelID > 0 {
 		channelID = parsed.ChannelID
 		session, err := s.live.FindActiveSession(ctx, channelID)
@@ -115,15 +120,23 @@ func (s *Service) reconcileRoom(ctx context.Context, name string, check permissi
 		}
 	} else if parsed, ok := voice.ParseRoomName(name); ok && parsed.ChannelID > 0 {
 		channelID = parsed.ChannelID
+		session, err := s.voice.FindActiveSession(ctx, channelID)
+		// A lookup failure keeps the room and still reconciles participant permissions below.
+		sessionErr = err
+		// A room recreated after its session ended would split the channel from the next session's room.
+		if err == nil && (session == nil || session.RoomName != name || session.SessionID != parsed.SessionID) {
+			_, err := s.rooms.DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: name})
+			return err
+		}
 	} else {
 		return nil
 	}
 
 	participants, err := s.rooms.ListParticipants(ctx, &livekit.ListParticipantsRequest{Room: name})
 	if err != nil {
-		return err
+		return errors.Join(sessionErr, err)
 	}
-	var failures []error
+	failures := []error{sessionErr}
 	for _, participant := range participants.GetParticipants() {
 		userID, parseErr := strconv.ParseInt(participant.GetIdentity(), 10, 64)
 		access, accessErr := hostAccess, hostErr

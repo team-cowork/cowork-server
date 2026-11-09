@@ -12,6 +12,7 @@ locals {
     "cowork-project" : "nomad/apps/project",
     "cowork-roadmap" : "nomad/apps/roadmap",
     "cowork-github" : "nomad/apps/github",
+    "cowork-applet" : "nomad/apps/applet",
     "cowork-authorization-db" : "nomad/data/authorization",
     "cowork-user-db" : "nomad/data/user",
     "cowork-team-db" : "nomad/data/team",
@@ -19,6 +20,7 @@ locals {
     "cowork-channel-db" : "nomad/data/channel",
     "cowork-roadmap-db" : "nomad/data/roadmap",
     "cowork-preference-db" : "nomad/data/preference",
+    "cowork-applet-db" : "nomad/data/applet",
     "cowork-chat-db" : "nomad/data/chat",
     "cowork-voice-db" : "nomad/data/voice",
     "cowork-user-storage" : "nomad/data/user/storage",
@@ -27,8 +29,7 @@ locals {
     "cowork-chat-search" : "nomad/data/chat/search",
     "cowork-kafka" : "nomad/data/kafka",
     "cowork-livekit" : "nomad/data/voice/livekit",
-    "cowork-monitoring" : "nomad/apps/monitoring",
-    "cowork-user-migrations" : "nomad/data/user"
+    "cowork-monitoring" : "nomad/apps/monitoring"
   }
   service_jobs = {
     "cowork-gateway" : "cowork-gateway",
@@ -43,6 +44,7 @@ locals {
     "cowork-project" : "cowork-project",
     "cowork-roadmap" : "cowork-roadmap",
     "cowork-github" : "cowork-github",
+    "cowork-applet" : "cowork-applet",
     "cowork-authorization-db" : "cowork-authorization-db",
     "cowork-user-db" : "cowork-user-db",
     "cowork-team-db" : "cowork-team-db",
@@ -50,6 +52,7 @@ locals {
     "cowork-channel-db" : "cowork-channel-db",
     "cowork-roadmap-db" : "cowork-roadmap-db",
     "cowork-preference-db" : "cowork-preference-db",
+    "cowork-applet-db" : "cowork-applet-db",
     "cowork-chat-db" : "cowork-chat-db",
     "cowork-voice-db" : "cowork-voice-db",
     "cowork-user-storage" : "cowork-user-storage",
@@ -59,7 +62,6 @@ locals {
     "cowork-kafka" : "cowork-kafka",
     "cowork-livekit" : "cowork-livekit",
     "cowork-monitoring" : "cowork-monitoring",
-    "cowork-user-migrations" : "cowork-user-migrations",
     "cowork-redis" : "cowork-redis",
     "cowork-authorization-db-metrics" : "cowork-authorization-db",
     "cowork-user-db-metrics" : "cowork-user-db",
@@ -68,6 +70,7 @@ locals {
     "cowork-channel-db-metrics" : "cowork-channel-db",
     "cowork-roadmap-db-metrics" : "cowork-roadmap-db",
     "cowork-preference-db-metrics" : "cowork-preference-db",
+    "cowork-applet-db-metrics" : "cowork-applet-db",
     "cowork-chat-db-metrics" : "cowork-chat-db",
     "cowork-voice-db-metrics" : "cowork-voice-db"
   }
@@ -84,6 +87,7 @@ locals {
       "cowork-project",
       "cowork-roadmap",
       "cowork-github",
+      "cowork-applet",
       "cowork-user-storage",
       "cowork-team-storage",
       "cowork-chat-storage",
@@ -130,11 +134,11 @@ locals {
     "cowork-github" : [
       "cowork-redis"
     ],
+    "cowork-applet" : [
+      "cowork-applet-db"
+    ],
     "cowork-livekit" : [
       "cowork-voice"
-    ],
-    "cowork-user-migrations" : [
-      "cowork-user-db"
     ],
     "cowork-monitoring" : [
       "cowork-redis",
@@ -145,6 +149,7 @@ locals {
       "cowork-channel-db-metrics",
       "cowork-roadmap-db-metrics",
       "cowork-preference-db-metrics",
+      "cowork-applet-db-metrics",
       "cowork-chat-db-metrics",
       "cowork-voice-db-metrics"
     ]

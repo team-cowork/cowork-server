@@ -16,8 +16,11 @@ import com.cowork.channel.domain.sharedAccount.service.support.SharedAccountLook
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 import java.util.Optional
@@ -42,6 +45,7 @@ class UpdateSharedAccountServiceImplTest {
 
     private val service =
         UpdateSharedAccountServiceImpl(
+            sharedAccountRepository,
             channelAccessGuard,
             credentialEncryptionService,
             sharedAccountAccessGuard,
@@ -60,6 +64,7 @@ class UpdateSharedAccountServiceImplTest {
         provider: AccountProvider = AccountProvider.GITHUB,
         credential: String? = "iv:ciphertext",
         createdBy: Long = 1L,
+        connectedViaOAuth: Boolean = false,
     ) = SharedAccount(
         id = id,
         channelId = channelId,
@@ -67,7 +72,7 @@ class UpdateSharedAccountServiceImplTest {
         providerLabel = null,
         accountIdentifier = "user",
         credential = credential,
-        connectedViaOAuth = false,
+        connectedViaOAuth = connectedViaOAuth,
         createdBy = createdBy,
     )
 
@@ -162,5 +167,76 @@ class UpdateSharedAccountServiceImplTest {
             )
         }
         assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
+    }
+
+    @Test
+    fun `updateAccount는 변경한 식별자가 이미 등록되어 있으면 CONFLICT`() {
+        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns account(createdBy = 1L)
+        every { sharedAccountRepository.flush() } throws DataIntegrityViolationException(
+            "Duplicate entry for key 'uq_tb_channel_accounts_channel_provider_identifier'",
+        )
+
+        val ex = assertThrows<ExpectedException> {
+            service.updateAccount(
+                1L,
+                1L,
+                10L,
+                UpdateSharedAccountRequest(accountIdentifier = "alice", credential = null, providerLabel = null),
+            )
+        }
+        assertEquals(HttpStatus.CONFLICT, ex.statusCode)
+    }
+
+    private fun stubOAuthAccount(): SharedAccount {
+        val acc = account(connectedViaOAuth = true)
+        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns acc
+        every { credentialEncryptionService.encrypt(any()) } returns "iv:new"
+        every { credentialEncryptionService.decrypt(any()) } returns "plain"
+        every { credentialEncryptionService.mask(any()) } returns "••••in"
+        return acc
+    }
+
+    @Test
+    fun `updateAccount는 OAuth 계정의 식별자를 바꾸면 OAuth 연결 표시를 해제함`() {
+        stubOAuthAccount()
+
+        val result = service.updateAccount(
+            1L,
+            1L,
+            10L,
+            UpdateSharedAccountRequest(accountIdentifier = "company-admin", credential = null, providerLabel = null),
+        )
+
+        assertFalse(result.connectedViaOAuth)
+    }
+
+    @Test
+    fun `updateAccount는 OAuth 계정의 credential을 바꾸면 OAuth 연결 표시를 해제함`() {
+        stubOAuthAccount()
+
+        val result = service.updateAccount(
+            1L,
+            1L,
+            10L,
+            UpdateSharedAccountRequest(accountIdentifier = null, credential = "password", providerLabel = null),
+        )
+
+        assertFalse(result.connectedViaOAuth)
+    }
+
+    @Test
+    fun `updateAccount는 OAuth 계정의 식별자가 같고 라벨만 바꾸면 OAuth 연결 표시를 유지함`() {
+        stubOAuthAccount()
+
+        val result = service.updateAccount(
+            1L,
+            1L,
+            10L,
+            UpdateSharedAccountRequest(accountIdentifier = "user", credential = null, providerLabel = "업무용"),
+        )
+
+        assertTrue(result.connectedViaOAuth)
     }
 }

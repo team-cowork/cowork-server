@@ -204,6 +204,7 @@ class ChangeTeamMemberNicknameServiceImplTest :
             permissions = mapOf(TeamRolePermission.MANAGE_NICKNAMES.key to manageNicknames),
             createdAt = null,
             updatedAt = null,
+            isDefault = false,
         )
     }
 }
