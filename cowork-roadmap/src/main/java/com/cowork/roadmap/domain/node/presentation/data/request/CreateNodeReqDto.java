@@ -10,7 +10,7 @@ public record CreateNodeReqDto(
 
         @Schema(description = "노드/문서 제목", example = "Dart로 AI 만들기") @NotBlank @Size(max = 200) String title,
 
-        @Schema(description = "번역된 본문 (마크다운)") String content,
+        @Schema(description = "번역된 본문 (마크다운). 최대 100,000자") @Size(max = 100_000) String content,
 
         @Schema(description = "원본 문서 URL") @Size(max = 500) String sourceUrl,
 
