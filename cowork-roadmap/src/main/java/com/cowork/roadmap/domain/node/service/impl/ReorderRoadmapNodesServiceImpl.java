@@ -5,7 +5,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 import org.springframework.http.HttpStatus;
@@ -35,10 +34,7 @@ public class ReorderRoadmapNodesServiceImpl implements ReorderRoadmapNodesServic
     public void execute(Long userId, String userRole, Long roadmapId, ReorderNodesReqDto request) {
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
         accessGuard.requireMutable(roadmap, userId, userRole);
-        List<RoadmapNode> siblings = nodeRepository.findByRoadmapIdOrderByPositionAsc(roadmapId)
-                .stream()
-                .filter(node -> Objects.equals(node.getParentId(), request.parentId()))
-                .toList();
+        List<RoadmapNode> siblings = findSiblings(roadmapId, request.parentId());
         Set<Long> siblingIds = new HashSet<>();
         siblings.forEach(node -> siblingIds.add(node.getId()));
         Set<Long> requested = new HashSet<>(request.orderedNodeIds());
@@ -60,6 +56,13 @@ public class ReorderRoadmapNodesServiceImpl implements ReorderRoadmapNodesServic
         // 유일성 제약과 충돌하지 않도록 임시 position을 DB에 반영한 뒤 최종 position을 저장한다.
         nodeRepository.saveAllAndFlush(parked);
         nodeRepository.saveAll(updated);
+    }
+
+    private List<RoadmapNode> findSiblings(Long roadmapId, Long parentId) {
+        if (parentId == null) {
+            return nodeRepository.findByRoadmapIdAndParentIdIsNullOrderByPositionAsc(roadmapId);
+        }
+        return nodeRepository.findByRoadmapIdAndParentIdOrderByPositionAsc(roadmapId, parentId);
     }
 
     private RoadmapNode withPosition(RoadmapNode node, int position, Long userId) {
