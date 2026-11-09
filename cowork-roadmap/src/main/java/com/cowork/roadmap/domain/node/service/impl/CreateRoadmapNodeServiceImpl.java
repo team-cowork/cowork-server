@@ -31,6 +31,7 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
         accessGuard.requireMutable(roadmap, userId, userRole);
         validateNodeCount(roadmapId);
+        validateTotalContentLength(roadmapId, request.content());
         validateParent(roadmapId, request.parentId());
         int position = nextPosition(roadmapId, request.parentId());
         RoadmapNode node = RoadmapNode.builder()
@@ -51,6 +52,19 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
     private void validateNodeCount(Long roadmapId) {
         if (nodeRepository.countByRoadmapId(roadmapId) >= RoadmapNode.MAX_NODES_PER_ROADMAP) {
             throw new ExpectedException("로드맵 하나에는 노드를 최대 " + RoadmapNode.MAX_NODES_PER_ROADMAP + "개까지 만들 수 있습니다.",
+                    HttpStatus.BAD_REQUEST);
+        }
+    }
+
+    /**
+     * 로드맵 행 잠금 아래에서 합계를 읽으므로 동시 생성·수정도 상한을 넘지 않는다. 본문이 없으면 합계가 늘지 않으므로 확인하지 않는다.
+     */
+    private void validateTotalContentLength(Long roadmapId, String content) {
+        int length = RoadmapNode.contentLength(content);
+        if (length > 0 && nodeRepository.sumContentLengthByRoadmapId(roadmapId)
+                + length > RoadmapNode.MAX_TOTAL_CONTENT_LENGTH_PER_ROADMAP) {
+            throw new ExpectedException(
+                    "로드맵 하나의 노드 본문은 합계 " + RoadmapNode.MAX_TOTAL_CONTENT_LENGTH_PER_ROADMAP + "자를 넘을 수 없습니다.",
                     HttpStatus.BAD_REQUEST);
         }
     }
