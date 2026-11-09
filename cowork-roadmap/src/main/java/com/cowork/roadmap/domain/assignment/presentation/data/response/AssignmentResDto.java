@@ -1,6 +1,6 @@
 package com.cowork.roadmap.domain.assignment.presentation.data.response;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import com.cowork.roadmap.domain.assignment.entity.RoadmapAssignment;
 
@@ -26,9 +26,9 @@ public record AssignmentResDto(
 
         @Schema(description = "진행 상태", example = "IN_PROGRESS") String status,
 
-        @Schema(description = "마감 일시", type = "string", example = "2025-03-02T00:00:00") LocalDateTime dueDate,
+        @Schema(description = "마감 일시 (UTC)", type = "string", example = "2025-03-01T15:00:00Z") Instant dueDate,
 
-        @Schema(description = "생성 일시", type = "string", example = "2025-03-02T00:00:00") LocalDateTime createdAt) {
+        @Schema(description = "생성 일시 (UTC)", type = "string", example = "2025-03-01T15:00:00Z") Instant createdAt) {
 
     public static AssignmentResDto from(RoadmapAssignment assignment) {
         return new AssignmentResDto(assignment.getId(),
