@@ -78,7 +78,8 @@ spring:
       # - Redis 오류 시 RedisRateLimiter는 요청을 허용한다(fail-open). 이때 gateway_ratelimit_events_total{outcome="redis_error"}로 집계한다.
       # - 차단 시 429, CommonApiResponse 본문과 Retry-After를 반환한다.
       # 제한이 없는 라우트와 이유:
-      # - chat-service(HTTP·GraphQL): Chat이 메시지 전송(chat:msgrate)과 슬로우 모드를 사용자·채널 단위로 직접 제한한다.
+      # - chat-service-public: 헬스체크와 AsyncAPI 문서 조회다. 미인증 요청은 프록시 주소 하나의 버킷을 공유하므로, 몰리는 요청이
+      #   헬스체크를 429로 막지 않게 chat-service 제한에서 분리한다.
       # - chat-service-ws: 연결 요청만 Gateway가 제한하고, 연결 후 이벤트(입력 중 표시 등)는 Chat이 제한한다.
       # - webhook-ingress: Gateway는 웹훅별 30/60만 적용하고 수신 경로 전체 상한은 두지 않는다. 서명 검증으로 무작위 실행 ID를
       #   먼저 차단하며, Chat 웹훅 제한기가 Redis 오류 시 신규 메시지를 막는다(fail-closed).
@@ -335,19 +336,31 @@ spring:
         - id: chat-service
           uri: ${COWORK_CHAT_URL}
           predicates:
-            - Path=/api/chat/chat/**, /api/chat/health, /api/chat/graphql, /api/chat/asyncapi.json
+            - Path=/api/chat/chat/**, /api/chat/graphql
           filters:
             - StripPrefix=2
-            - name: CircuitBreaker
-              args:
-                name: chatCB
-                fallbackUri: forward:/fallback
+            # 429가 chatCB 안에서 성공으로 집계되지 않도록 서킷 앞에서 제한한다.
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 20
                 redis-rate-limiter.burstCapacity: 40
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@userKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: chatCB
+                fallbackUri: forward:/fallback
+
+        - id: chat-service-public
+          uri: ${COWORK_CHAT_URL}
+          predicates:
+            - Path=/api/chat/health, /api/chat/asyncapi.json
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: chatCB
+                fallbackUri: forward:/fallback
 
         - id: channel-service
           uri: ${COWORK_CHANNEL_URL}
