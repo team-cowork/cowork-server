@@ -8,7 +8,11 @@ import io.vertx.core.json.JsonObject
 object TeamRolePermissions {
 
     fun everyone(): Map<String, Boolean> = canonicalize(
-        mapOf(PermissionKeys.MESSAGE_READ to true, PermissionKeys.VOICE_CONNECT to true, PermissionKeys.PROJECT_READ to true),
+        mapOf(
+            PermissionKeys.MESSAGE_READ to true,
+            PermissionKeys.VOICE_CONNECT to true,
+            PermissionKeys.PROJECT_READ to true,
+        ),
     )
 
     fun validate(permissions: Map<String, Any?>) {

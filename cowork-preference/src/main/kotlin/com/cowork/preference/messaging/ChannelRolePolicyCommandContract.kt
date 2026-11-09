@@ -101,6 +101,7 @@ object ChannelRolePolicyCommandParser {
         val permissionsValue = json.getValue("permissions")
         val permissions = when (envelope.commandType) {
             ChannelRolePolicyCommandType.UPSERT -> parsePermissions(permissionsValue)
+
             ChannelRolePolicyCommandType.DELETE -> {
                 require(permissionsValue == null) { "DELETE permissions must be null or absent" }
                 null
