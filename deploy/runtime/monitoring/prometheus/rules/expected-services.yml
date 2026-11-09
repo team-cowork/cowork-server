@@ -2,6 +2,16 @@ groups:
 - name: cowork-expected-services
   rules:
   - alert: coworkServiceMissing
+    expr: absent(up{job="cowork-services",service="applet"})
+    for: 3m
+    labels:
+      severity: critical
+      service: applet
+      job: cowork-services
+    annotations:
+      summary: applet 서비스 검색 결과 누락
+      description: Nomad 배포 상태와 Consul 서비스 등록을 확인해 주세요.
+  - alert: coworkServiceMissing
     expr: absent(up{job="cowork-services",service="authorization"})
     for: 3m
     labels:

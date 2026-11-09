@@ -13,9 +13,11 @@ internal fun authorizationStatus(e: Throwable): Int? = when (e) {
     is TeamMembershipDeniedException,
     is ResourceAccessDeniedException,
     -> 403
+
     is TeamMembershipProjectionNotReadyException,
     is ProjectionNotReadyException,
     -> 503
+
     else -> null
 }
 

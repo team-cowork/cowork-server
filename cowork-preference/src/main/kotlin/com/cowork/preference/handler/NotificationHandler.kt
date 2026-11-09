@@ -32,7 +32,9 @@ class NotificationHandler(
                 channelAccessGuard.requireChannelAccess(channelId, accountId)
                 service.getNotification(accountId, channelId)
             }
-                .onSuccess { ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(it.encode()) }
+                .onSuccess {
+                    ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(it.encode())
+                }
                 .onFailure { respondFailure(ctx, it, accountId, channelId) }
         }
     }
@@ -55,7 +57,9 @@ class NotificationHandler(
                 channelAccessGuard.requireChannelAccess(channelId, accountId)
                 service.updateNotification(accountId, channelId, body)
             }
-                .onSuccess { ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(it.encode()) }
+                .onSuccess {
+                    ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(it.encode())
+                }
                 .onFailure { respondFailure(ctx, it, accountId, channelId) }
         }
     }
@@ -86,6 +90,5 @@ class NotificationHandler(
         ctx.response().setStatusCode(status ?: fallback).end(errorBody(e.message))
     }
 
-    private fun errorBody(message: String?) =
-        JsonObject().put("error", message ?: "Internal server error").encode()
+    private fun errorBody(message: String?) = JsonObject().put("error", message ?: "Internal server error").encode()
 }
