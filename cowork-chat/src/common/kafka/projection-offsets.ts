@@ -94,11 +94,26 @@ Upstream이 주기적으로 full snapshot을 다시 발행하므로, 이미 read
 */
 export const PROJECTION_LAG_GRACE_MS = 30_000;
 
+export type ProjectionLag = {
+	since: number;
+	targets: StartupPartitionOffset[];
+};
+
 /**
-Lag이 시작된 시각을 유지하고, high-watermark에 도달하면 지운다.
-*/
-export function nextLagSince(lagSince: number | undefined, hasReachedOffsets: boolean, now: number): number | undefined {
-	return hasReachedOffsets ? undefined : (lagSince ?? now);
+ 현재 high-watermark에 도달하면 lag을 지운다. 쓰기가 계속되면 poll 순간의 high-watermark에는 거의 닿지 못하므로,
+ lag이 시작될 때의 목표에 도달했으면 따라가는 중으로 보고 새 목표와 시각으로 다시 잰다.
+ */
+export function nextLag(
+	previous: ProjectionLag | undefined,
+	input: {targets: StartupPartitionOffset[]; checkpoints: PartitionOffset[]; now: number},
+): ProjectionLag | undefined {
+	if (hasReachedStartupOffsets(input.targets, input.checkpoints)) {
+		return undefined;
+	}
+
+	return previous === undefined || hasReachedStartupOffsets(previous.targets, input.checkpoints)
+		? {since: input.now, targets: input.targets}
+		: previous;
 }
 
 /**
@@ -109,7 +124,7 @@ export function isReadyWithLagGrace(input: {
 	wasReady: boolean;
 	invariantsHold: boolean;
 	hasReachedOffsets: boolean;
-	lagSince?: number;
+	lag?: Pick<ProjectionLag, 'since'>;
 	now: number;
 }): boolean {
 	if (!input.invariantsHold) {
@@ -121,8 +136,8 @@ export function isReadyWithLagGrace(input: {
 	}
 
 	return input.wasReady
-		&& input.lagSince !== undefined
-		&& input.now - input.lagSince < PROJECTION_LAG_GRACE_MS;
+		&& input.lag !== undefined
+		&& input.now - input.lag.since < PROJECTION_LAG_GRACE_MS;
 }
 
 /**
