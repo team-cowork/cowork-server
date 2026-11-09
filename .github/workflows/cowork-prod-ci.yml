@@ -123,7 +123,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: python3 -m deploy.ci.select_base
+        run: python3 -m deploy.ci.selection.select_base
       - name: Select Image Builds
         id: images
         env:
@@ -131,7 +131,7 @@ jobs:
         run: |
           args=()
           if git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then args+=(--base "$BASE_SHA"); fi
-          python3 -m deploy.ci.build_matrix "${args[@]}"
+          python3 -m deploy.ci.selection.build_matrix "${args[@]}"
       - name: Select Module Verification
         id: verify
         env:
@@ -139,7 +139,7 @@ jobs:
         run: |
           args=()
           if git cat-file -e "${BASE_SHA}^{commit}" 2>/dev/null; then args+=(--base "$BASE_SHA"); fi
-          python3 -m deploy.ci.build_matrix --verify "${args[@]}"
+          python3 -m deploy.ci.selection.build_matrix --verify "${args[@]}"
 
   # Pull requests already verify the same source in coverage(pr).
   build-and-test:
@@ -298,7 +298,7 @@ jobs:
         env:
           VERIFY_MATRIX: ${{ needs.detect-changes.outputs.matrix }}
         run: |
-          matrix=$(python3 -m deploy.ci.coverage plan --base source-base --head . \
+          matrix=$(python3 -m deploy.ci.verification.coverage plan --base source-base --head . \
             --matrix "$VERIFY_MATRIX" --output "$RUNNER_TEMP/modules.json")
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
       - name: Upload Coverage Manifest
@@ -379,7 +379,7 @@ jobs:
           path: ${{ runner.temp }}/coverage-artifacts
       - name: Render Coverage Comment
         run: |
-          python3 -m deploy.ci.coverage render \
+          python3 -m deploy.ci.verification.coverage render \
             --artifacts "$RUNNER_TEMP/coverage-artifacts" --manifest "$RUNNER_TEMP/coverage-tools/modules.json" \
             --output "$RUNNER_TEMP/coverage-comment.md"
           cat "$RUNNER_TEMP/coverage-comment.md" >> "$GITHUB_STEP_SUMMARY"
@@ -389,7 +389,7 @@ jobs:
           script: |
             const fs = require('fs');
             const path = require('path');
-            const publish = require(path.join(process.env.GITHUB_WORKSPACE, 'deploy/ci/comments/coverage.cjs'));
+            const publish = require(path.join(process.env.GITHUB_WORKSPACE, 'deploy/ci/pull_request/comments/coverage.cjs'));
             const result = await publish({ github, context, core,
               body: fs.readFileSync(path.join(process.env.RUNNER_TEMP, 'coverage-comment.md'), 'utf8') });
             core.info(`Coverage publication: ${result.status}`);
@@ -411,5 +411,5 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const publish = require('./deploy/ci/comments/contribution.cjs');
+            const publish = require('./deploy/ci/pull_request/comments/contribution.cjs');
             await publish({ github, context, core });
