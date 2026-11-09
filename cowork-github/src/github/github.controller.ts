@@ -50,12 +50,19 @@ export class GithubController {
 		try {
 			const result = await this.issueService.createIssue(dto);
 			if (isPresent(dto.channelId) && isPresent(dto.teamId)) {
+				// 이슈는 이미 만들어졌으므로 전송 실패로 재전달하면 이슈가 한 번 더 생긴다. 결과 메시지 하나를 잃는 쪽을 택한다.
 				await this.issueResultProducer.send({
 					channelId: dto.channelId,
 					teamId: dto.teamId,
 					success: true,
 					issueUrl: result.issueUrl,
 					issueNumber: result.issueNumber,
+				}).catch((error: unknown) => {
+					this.logger.error('Failed to send issue result after the issue was created, skipping redelivery', {
+						channelId: dto.channelId,
+						issueNumber: result.issueNumber,
+						message: error instanceof Error ? error.message : String(error),
+					});
 				});
 			}
 
