@@ -48,9 +48,11 @@ QueryDSL is not configured in these modules. For another service's durable state
 
 ### Responses
 
-`cowork-team`, `cowork-channel`, and `cowork-project` disable the SDK response wrapper. Gateway's `ApiResponseWrapperFilter` wraps eligible JSON responses. It bypasses configured paths, streaming responses, unsupported content types, and responses over its size limit.
+`cowork-team`, `cowork-channel`, and `cowork-project` disable the SDK response wrapper; `cowork-roadmap` excludes SDK auto-configuration. HTTP handlers, including Gateway's own handlers, return raw JSON success payloads. Gateway streams them into `CommonApiResponse.data` without parsing or buffering the complete payload. Payload size does not change the response format. Do not return `CommonApiResponse` from success handlers or infer envelopes from payload field names.
 
-Keep `204 No Content` responses bodyless. A message-only response may use `CommonApiResponse<Nothing>` with a status that permits a body. For eligible responses already in `CommonApiResponse` format, Gateway preserves `message` and non-null `data`, and sets `status` and `code` from the HTTP status.
+Keep `204 No Content`, `304 Not Modified`, HEAD, and empty success responses bodyless. Configured paths, storage relay, streaming media, encoded bodies, and unsupported content types bypass wrapping. JSON upstreams must return identity-encoded bodies. A successful response with a message returns a raw DTO containing that message as business data.
+
+Gateway reads error bodies up to `gateway.response-wrapper.max-error-body-size` (64KB by default), takes the message from `message`, `error`, a JSON string, or plain text, and preserves optional error `data`. HTTP status determines the envelope's `status` and `code`. Oversized error bodies become a small common error with the original HTTP status and its default message; they are never relayed as raw JSON. This limit does not apply to success responses.
 
 ### Transactions
 

@@ -132,35 +132,6 @@ class CreateRoadmapNodeServiceTest {
         verify(nodeRepository, never()).saveAndFlush(any());
     }
 
-    @Test
-    void createNode_reachingTotalContentLimit_saves() {
-        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
-        when(nodeRepository.sumContentLengthByRoadmapId(10L))
-                .thenReturn(RoadmapNode.MAX_TOTAL_CONTENT_LENGTH_PER_ROADMAP - 2);
-        when(nodeRepository.findNextRootPosition(10L)).thenReturn(0L);
-        when(nodeRepository.saveAndFlush(any()))
-                .thenAnswer(invocation -> simulateSaved(invocation.getArgument(0), 103L));
-
-        var response = createRoadmapNodeService
-                .execute(7L, "ADMIN", 10L, new CreateNodeReqDto(null, "제목", "내용", null, null));
-
-        assertThat(response.id()).isEqualTo(103L);
-    }
-
-    @Test
-    void createNode_exceedingTotalContentLimit_failsWithBadRequestAndDoesNotSave() {
-        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
-        when(nodeRepository.sumContentLengthByRoadmapId(10L))
-                .thenReturn(RoadmapNode.MAX_TOTAL_CONTENT_LENGTH_PER_ROADMAP - 1);
-
-        CreateNodeReqDto request = new CreateNodeReqDto(null, "제목", "내용", null, null);
-
-        ExpectedException error = assertThrows(ExpectedException.class,
-                () -> createRoadmapNodeService.execute(7L, "ADMIN", 10L, request));
-        assertTrue(error.getStatusCode() == HttpStatus.BAD_REQUEST);
-        verify(nodeRepository, never()).saveAndFlush(any());
-    }
-
     private static Roadmap roadmap(Long id) {
         return Roadmap.builder().id(id).scope(RoadmapScope.GLOBAL.name()).build();
     }

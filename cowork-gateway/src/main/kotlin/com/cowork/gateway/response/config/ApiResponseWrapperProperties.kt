@@ -7,7 +7,7 @@ import org.springframework.util.unit.DataSize
 @Component
 @ConfigurationProperties(prefix = "gateway.response-wrapper")
 class ApiResponseWrapperProperties {
-    var maxWrappableSize: DataSize = DataSize.ofMegabytes(1)
+    var maxErrorBodySize: DataSize = DataSize.ofKilobytes(64)
 
     var skipPatterns: List<String> = listOf(
         "/actuator/**",
@@ -22,9 +22,9 @@ class ApiResponseWrapperProperties {
         "/api/chat/asyncapi.json",
     )
 
-    fun maxWrappableBytes(): Int = maxWrappableSize.toBytes().also {
+    fun maxErrorBodyBytes(): Int = maxErrorBodySize.toBytes().also {
         require(it in 1..Int.MAX_VALUE.toLong()) {
-            "gateway.response-wrapper.max-wrappable-size must be between 1B and ${Int.MAX_VALUE}B"
+            "gateway.response-wrapper.max-error-body-size must be between 1B and ${Int.MAX_VALUE}B"
         }
     }.toInt()
 }
