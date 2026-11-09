@@ -16,7 +16,11 @@ public interface RoadmapRepository extends JpaRepository<Roadmap, Long> {
 
     List<Roadmap> findByOwnerTeamIdOrderByIdDesc(Long ownerTeamId);
 
+    List<Roadmap> findByOwnerTeamIdAndCategoryOrderByIdDesc(Long ownerTeamId, String category);
+
     List<Roadmap> findByOwnerProjectIdOrderByIdDesc(Long ownerProjectId);
+
+    List<Roadmap> findByOwnerProjectIdAndCategoryOrderByIdDesc(Long ownerProjectId, String category);
 
     /**
      * 로드맵 수정, 노드 생성·수정·재정렬·삭제, 참고 자료와 과제 생성을 로드맵 단위로 직렬화한다. 모든 경로가 로드맵 행을 노드 행보다 먼저
