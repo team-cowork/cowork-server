@@ -4,8 +4,8 @@ import com.cowork.preference.domain.ChannelLifecycleProjection
 import com.cowork.preference.domain.TeamMemberProjection
 import com.cowork.preference.messaging.ProjectionReadinessView
 import com.cowork.preference.repository.ChannelLifecycleProjectionRepository
-import com.cowork.preference.repository.DmParticipantProjectionRepository
 import com.cowork.preference.repository.ChannelRolePolicyRepository
+import com.cowork.preference.repository.DmParticipantProjectionRepository
 import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.security.RequesterContext
 import io.kotest.assertions.throwables.shouldNotThrowAny
@@ -16,8 +16,8 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.vertx.sqlclient.Pool
-import java.time.Instant
 import kotlinx.coroutines.runBlocking
+import java.time.Instant
 
 private const val CHANNEL_ID = 11L
 private const val TEAM_ID = 42L
@@ -49,7 +49,13 @@ private class ChannelGuardFixture {
         every { managerReadiness.isReady } returns manager
     }
 
-    fun channel(teamId: Long? = TEAM_ID, isPrivate: Boolean? = false, deleted: Boolean = false, found: Boolean = true, type: String? = "TEXT") {
+    fun channel(
+        teamId: Long? = TEAM_ID,
+        isPrivate: Boolean? = false,
+        deleted: Boolean = false,
+        found: Boolean = true,
+        type: String? = "TEXT",
+    ) {
         coEvery { channelRepository.findForRead(pool, CHANNEL_ID) } returns
             if (found) ChannelLifecycleProjection(CHANNEL_ID, teamId, deleted, VERSION, isPrivate, type) else null
     }
@@ -64,7 +70,8 @@ private class ChannelGuardFixture {
     }
 
     fun messageRead(allowed: Boolean) {
-        coEvery { policyRepository.canAccess(any(), TEAM_ID, USER_ID, CHANNEL_ID, "message_read", any()) } returns allowed
+        coEvery { policyRepository.canAccess(any(), TEAM_ID, USER_ID, CHANNEL_ID, "message_read", any()) } returns
+            allowed
     }
 
     fun access() = runBlocking { guard.requireChannelAccess(CHANNEL_ID, USER_ID) }
@@ -86,7 +93,9 @@ class ChannelAccessGuardTest :
                         fixture.messageRead(true)
 
                         shouldNotThrowAny { fixture.access() }
-                        coVerify(exactly = 0) { fixture.dmParticipantRepository.isActiveParticipant(any(), any(), any()) }
+                        coVerify(exactly = 0) {
+                            fixture.dmParticipantRepository.isActiveParticipant(any(), any(), any())
+                        }
                     }
                 }
 
@@ -95,11 +104,31 @@ class ChannelAccessGuardTest :
                         fixture.ready()
                         fixture.channel(type = "VOICE")
                         fixture.teamMember()
-                        coEvery { fixture.policyRepository.canAccess(any(), TEAM_ID, USER_ID, CHANNEL_ID, "voice_connect", false) } returns true
+                        coEvery {
+                            fixture.policyRepository.canAccess(
+                                any(),
+                                TEAM_ID,
+                                USER_ID,
+                                CHANNEL_ID,
+                                "voice_connect",
+                                false,
+                            )
+                        } returns true
                         shouldNotThrowAny { fixture.access() }
-                        coEvery { fixture.policyRepository.canAccess(any(), TEAM_ID, USER_ID, CHANNEL_ID, "voice_connect", false) } returns false
+                        coEvery {
+                            fixture.policyRepository.canAccess(
+                                any(),
+                                TEAM_ID,
+                                USER_ID,
+                                CHANNEL_ID,
+                                "voice_connect",
+                                false,
+                            )
+                        } returns false
                         shouldThrow<ResourceAccessDeniedException> { fixture.access() }
-                        coVerify(exactly = 0) { fixture.policyRepository.canAccess(any(), any(), any(), any(), "message_read", any()) }
+                        coVerify(exactly = 0) {
+                            fixture.policyRepository.canAccess(any(), any(), any(), any(), "message_read", any())
+                        }
                     }
                 }
 
@@ -109,9 +138,27 @@ class ChannelAccessGuardTest :
                         fixture.teamMember()
                         listOf(true, null).forEach { isPrivate ->
                             fixture.channel(isPrivate = isPrivate)
-                            coEvery { fixture.policyRepository.canAccess(any(), TEAM_ID, USER_ID, CHANNEL_ID, "message_read", true) } returns false
+                            coEvery {
+                                fixture.policyRepository.canAccess(
+                                    any(),
+                                    TEAM_ID,
+                                    USER_ID,
+                                    CHANNEL_ID,
+                                    "message_read",
+                                    true,
+                                )
+                            } returns false
                             shouldThrow<ResourceAccessDeniedException> { fixture.access() }
-                            coEvery { fixture.policyRepository.canAccess(any(), TEAM_ID, USER_ID, CHANNEL_ID, "message_read", true) } returns true
+                            coEvery {
+                                fixture.policyRepository.canAccess(
+                                    any(),
+                                    TEAM_ID,
+                                    USER_ID,
+                                    CHANNEL_ID,
+                                    "message_read",
+                                    true,
+                                )
+                            } returns true
                             shouldNotThrowAny { fixture.access() }
                         }
                     }
@@ -137,7 +184,9 @@ class ChannelAccessGuardTest :
                             }
                         }
 
-                        coVerify(exactly = 0) { fixture.policyRepository.canAccess(any(), any(), any(), any(), any(), any()) }
+                        coVerify(exactly = 0) {
+                            fixture.policyRepository.canAccess(any(), any(), any(), any(), any(), any())
+                        }
                     }
                 }
 
@@ -192,7 +241,9 @@ class ChannelAccessGuardTest :
                                 shouldThrow<ResourceAccessDeniedException> { fixture.access() }
                             }
 
-                        coVerify(exactly = 0) { fixture.dmParticipantRepository.isActiveParticipant(any(), any(), any()) }
+                        coVerify(exactly = 0) {
+                            fixture.dmParticipantRepository.isActiveParticipant(any(), any(), any())
+                        }
                     }
                 }
 
@@ -229,10 +280,23 @@ class ChannelAccessGuardTest :
                         fixture.channel()
                         fixture.teamMember()
                         fixture.messageRead(true)
-                        coEvery { fixture.policyRepository.canAccess(any(), TEAM_ID, USER_ID, CHANNEL_ID, "channel_manage", false) } returns true
-                        shouldNotThrowAny { runBlocking { fixture.guard.requireSettingsManager(CHANNEL_ID, REQUESTER) } }
+                        coEvery {
+                            fixture.policyRepository.canAccess(
+                                any(),
+                                TEAM_ID,
+                                USER_ID,
+                                CHANNEL_ID,
+                                "channel_manage",
+                                false,
+                            )
+                        } returns true
+                        shouldNotThrowAny {
+                            runBlocking { fixture.guard.requireSettingsManager(CHANNEL_ID, REQUESTER) }
+                        }
                         fixture.messageRead(false)
-                        shouldThrow<ResourceAccessDeniedException> { runBlocking { fixture.guard.requireSettingsManager(CHANNEL_ID, REQUESTER) } }
+                        shouldThrow<ResourceAccessDeniedException> {
+                            runBlocking { fixture.guard.requireSettingsManager(CHANNEL_ID, REQUESTER) }
+                        }
                     }
                 }
 
