@@ -30,7 +30,17 @@ public interface RoadmapNodeRepository extends JpaRepository<RoadmapNode, Long> 
     @Query(value = "SELECT * FROM tb_roadmap_nodes WHERE id = :id FOR SHARE", nativeQuery = true)
     Optional<RoadmapNode> findByIdForShare(Long id);
 
-    /** 잠금 읽기로 transaction snapshot 이후 커밋된 하위 노드까지 포함해 서브트리를 계산한다. */
-    @Query(value = "SELECT * FROM tb_roadmap_nodes WHERE roadmap_id = :roadmapId FOR UPDATE", nativeQuery = true)
-    List<RoadmapNode> findAllByRoadmapIdForUpdate(Long roadmapId);
+    /**
+     * 잠금 읽기로 transaction snapshot 이후 커밋된 하위 노드까지 포함해 서브트리를 계산한다. 서브트리 계산에는 계층 정보만
+     * 필요하므로 본문은 읽지 않는다.
+     */
+    @Query(value = "SELECT id AS id, parent_id AS parentId FROM tb_roadmap_nodes WHERE roadmap_id = :roadmapId FOR UPDATE", nativeQuery = true)
+    List<NodeHierarchy> findHierarchyByRoadmapIdForUpdate(Long roadmapId);
+
+    interface NodeHierarchy {
+
+        Long getId();
+
+        Long getParentId();
+    }
 }
