@@ -418,7 +418,7 @@ jobs:
   contrib-delta:
     name: Update Contribution Delta${{ github.event_name == 'pull_request' && contains(fromJSON('["edited", "assigned", "unassigned"]'), github.event.action) && !github.event.changes.base && ' (metadata)' || '' }}
     needs: detect-changes
-    if: github.event_name == 'pull_request'
+    if: always() && !cancelled() && github.event_name == 'pull_request' && needs.detect-changes.result != 'skipped'
     runs-on: ubuntu-latest
     continue-on-error: true
     permissions:
