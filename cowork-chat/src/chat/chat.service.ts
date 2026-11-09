@@ -535,9 +535,15 @@ export class ChatService {
      @param dto - 메시지 내용, 타입, 첨부파일 등
      */
 	async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
+		// 첨부파일만 보내는 메시지는 본문이 비어도 되지만, 그 밖의 메시지는 공백만으로 저장될 수 없다.
+		const attachmentCount = dto.attachments?.length ?? 0;
+		if (attachmentCount === 0 && dto.content.trim() === '') {
+			throw new BadRequestException('메시지 내용을 입력하세요');
+		}
+
 		const permissions: ChannelActionPermission[] = [
 			dto.parentMessageId !== undefined && dto.parentMessageId !== '' ? 'thread_reply' : 'message_send',
-			...((dto.attachments?.length ?? 0) > 0 ? ['file_attach' as const] : []),
+			...(attachmentCount > 0 ? ['file_attach' as const] : []),
 		];
 		await this.channelMessageReadAccess.requirePermissions(ctx.channelId, ctx.userId, permissions);
 		const channel = await this.channelProjectionRepository.findById(ctx.channelId);
@@ -555,7 +561,7 @@ export class ChatService {
 			await this.verifyDmSendable(ctx.channelId, ctx.userId);
 		}
 
-		if ((dto.attachments?.length ?? 0) > 0 && (dto.clientMessageId === undefined || dto.clientMessageId === '')) {
+		if (attachmentCount > 0 && (dto.clientMessageId === undefined || dto.clientMessageId === '')) {
 			throw new BadRequestException('첨부 메시지에는 재시도에 사용할 clientMessageId가 필요합니다');
 		}
 
