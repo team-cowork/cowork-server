@@ -113,15 +113,17 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 
 	/**
      가득 찬 배치가 이어지면 시간 예산 안에서 계속 가져온다. 다음 틱까지 기다리면 백로그가 쌓인다.
+     드레인 중 readiness가 닫히면 수신자를 계산할 수 없으므로 멈춘다.
      */
 	private async drainWhileFull(deadline: number): Promise<void> {
-		if (await this.processBatch() === BATCH_SIZE && Date.now() < deadline) {
+		if (await this.processBatch() === BATCH_SIZE && Date.now() < deadline && this.projectionReadiness.isReady()) {
 			await this.drainWhileFull(deadline);
 		}
 	}
 
 	/**
-     PENDING 메시지를 한 배치 점유해 처리하고, 점유한 메시지 수를 반환한다.
+     PENDING 메시지를 한 배치 점유해 처리한다. 모두 성공했으면 점유한 메시지 수를, 하나라도 실패했으면 0을 반환한다.
+     장애로 빠르게 실패하는 동안 이어서 점유하면 백로그 전체가 재시도 한도를 소진하기 때문이다.
      */
 	private async processBatch(): Promise<number> {
 		// 1단계: 배치 내 메시지 수집 (PENDING → PROCESSING 원자적 전환)
@@ -157,18 +159,19 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 		}
 
 		// 3단계: 각 메시지 처리 (메시지 간 의존관계 없어 병렬 처리)
-		await Promise.all(msgs.map(async message => this.processMessageAndUpdateStatus(message, recipientCache, parentCache)));
-		return msgs.length;
+		const results = await Promise.all(msgs.map(async message => this.processMessageAndUpdateStatus(message, recipientCache, parentCache)));
+		return results.every(Boolean) ? msgs.length : 0;
 	}
 
 	private async processMessageAndUpdateStatus(
 		message: NotificationMessage,
 		recipientCache: Map<string, number[]>,
 		parentCache: Map<string, Nullable<{authorId: Nullable<number>}>>,
-	): Promise<void> {
+	): Promise<boolean> {
 		try {
 			await this.processMessage(message, recipientCache, parentCache);
 			await this.messageRepository.updateNotificationStatus(message._id, message.notificationClaimId!, 'SENT');
+			return true;
 		} catch (error) {
 			const retryCount = (message.notificationRetryCount ?? 0) + 1;
 			const nextStatus = retryCount >= MAX_RETRY ? 'FAILED' : 'PENDING';
@@ -177,6 +180,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 				retryCount,
 				...(nextStatus === 'PENDING' && {nextAttemptAt: nextAttemptAt(retryCount)}),
 			});
+			return false;
 		}
 	}
 
