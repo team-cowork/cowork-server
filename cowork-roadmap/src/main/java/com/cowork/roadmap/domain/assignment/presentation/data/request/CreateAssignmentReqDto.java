@@ -1,11 +1,13 @@
 package com.cowork.roadmap.domain.assignment.presentation.data.request;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
+import com.cowork.roadmap.global.time.SeoulFallbackInstantDeserializer;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
+import tools.jackson.databind.annotation.JsonDeserialize;
 
 public record CreateAssignmentReqDto(
 
@@ -22,5 +24,5 @@ public record CreateAssignmentReqDto(
 
         @Schema(description = "온보딩 대상 사용자 ID (teamId 팀의 활성 멤버)") @NotNull Long assigneeUserId,
 
-        @Schema(description = "마감 일시 (선택)") LocalDateTime dueDate) {
+        @Schema(description = "마감 일시 (선택). 오프셋을 포함한 ISO-8601 형식이며, 오프셋이 없으면 Asia/Seoul 기준으로 해석", type = "string", example = "2025-03-02T00:00:00+09:00") @JsonDeserialize(using = SeoulFallbackInstantDeserializer.class) Instant dueDate) {
 }
