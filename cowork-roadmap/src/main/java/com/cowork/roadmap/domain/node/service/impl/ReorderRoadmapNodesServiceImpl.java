@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.cowork.roadmap.domain.node.presentation.data.request.ReorderNodesReqDto;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
-import com.cowork.roadmap.domain.node.repository.view.NodePositionView;
+import com.cowork.roadmap.domain.node.repository.projection.NodePositionProjection;
 import com.cowork.roadmap.domain.node.service.ReorderRoadmapNodesService;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
@@ -34,7 +34,7 @@ public class ReorderRoadmapNodesServiceImpl implements ReorderRoadmapNodesServic
     public void execute(Long userId, String userRole, Long roadmapId, ReorderNodesReqDto request) {
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
         accessGuard.requireMutable(roadmap, userId, userRole);
-        List<NodePositionView> siblings = nodeRepository.findSiblingPositions(roadmapId, request.parentId());
+        List<NodePositionProjection> siblings = nodeRepository.findSiblingPositions(roadmapId, request.parentId());
         Set<Long> siblingIds = new HashSet<>();
         siblings.forEach(node -> siblingIds.add(node.getId()));
         Set<Long> requested = new HashSet<>(request.orderedNodeIds());

@@ -22,7 +22,7 @@ import org.springframework.http.HttpStatus;
 
 import com.cowork.roadmap.domain.node.presentation.data.request.ReorderNodesReqDto;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
-import com.cowork.roadmap.domain.node.repository.view.NodePositionView;
+import com.cowork.roadmap.domain.node.repository.projection.NodePositionProjection;
 import com.cowork.roadmap.domain.node.service.impl.ReorderRoadmapNodesServiceImpl;
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
@@ -107,15 +107,15 @@ class ReorderRoadmapNodesServiceTest {
         return updates;
     }
 
-    private Roadmap prepareNodes(Long parentId, List<NodePositionView> nodes) {
+    private Roadmap prepareNodes(Long parentId, List<NodePositionProjection> nodes) {
         Roadmap roadmap = Roadmap.builder().id(10L).scope(RoadmapScope.GLOBAL.name()).build();
         when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap));
         when(nodeRepository.findSiblingPositions(10L, parentId)).thenReturn(nodes);
         return roadmap;
     }
 
-    private NodePositionView node(Long id, int position) {
-        NodePositionView node = mock(NodePositionView.class);
+    private NodePositionProjection node(Long id, int position) {
+        NodePositionProjection node = mock(NodePositionProjection.class);
         when(node.getId()).thenReturn(id);
         when(node.getPosition()).thenReturn(position);
         return node;
