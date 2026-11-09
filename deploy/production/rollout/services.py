@@ -97,7 +97,12 @@ class Services:
 
     def apply(self, variables, plan_file, changed, specs, run_id,
                             *, gateway_available, flag_services):
-        previous = {job_id: self.platform.api('job/' + job_id) for job_id in changed} if gateway_available else {}
+        previous = {}
+        if gateway_available:
+            for job_id in changed:
+                job = self.platform.api('job/' + job_id, missing=True)
+                if job is not None:
+                    previous[job_id] = job
         flagged = set()
         started = False
         try:
@@ -111,8 +116,9 @@ class Services:
             started = True
             indices = self.platform.tofu_apply_plan('apps', variables, plan_file)
             self.platform.wait_jobs(indices, specs)
-            if gateway_available and flagged:
-                self.gateway.wait_upstreams(flagged)
+            # The active Gateway has no upstream for a service's first deployment.
+            if gateway_available and (existing := flagged & previous.keys()):
+                self.gateway.wait_upstreams(existing)
             if not gateway_available or 'cowork-authorization' in flagged:
                 self.wait_authorization_consumer()
             for job_id in sorted(flagged):
@@ -140,18 +146,23 @@ class Services:
             if not gateway_available:
                 raise RuntimeError('Gateway is unavailable; business jobs and recovery flags remain '
                                    'for the next CD run') from error
+            existing = flagged & previous.keys()
             if started:
                 try:
-                    restored = {job_id: self.platform.register_previous_job(job_id, previous[job_id]) for job_id in sorted(flagged)}
+                    # Restore initial absence so retries still recognize a first deployment.
+                    for job_id in sorted(flagged - previous.keys()):
+                        self.platform.api('job/' + job_id + '?purge=true', method='DELETE', missing=True)
+                    restored = {job_id: self.platform.register_previous_job(job_id, previous[job_id]) for job_id in sorted(existing)}
                     self.platform.wait_jobs(restored, previous)
                 except Exception as error:
                     raise RuntimeError('Business deployment and automatic rollback both failed (' +
                                        type(error).__name__ + '); recovery flags remain') from None
             else:
-                self.platform.wait_jobs({job_id: previous[job_id]['JobModifyIndex'] for job_id in flagged}, previous)
-            self.gateway.wait_upstreams(flagged)
+                self.platform.wait_jobs({job_id: previous[job_id]['JobModifyIndex'] for job_id in existing}, previous)
+            if existing:
+                self.gateway.wait_upstreams(existing)
             for job_id in sorted(flagged):
-                if job_id == 'cowork-authorization':
+                if job_id == 'cowork-authorization' and job_id in existing:
                     self.wait_authorization_consumer()
                 self.state_clear(job_id, run_id)
                 self.gateway.wait_state(job_id)
