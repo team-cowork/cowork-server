@@ -1,6 +1,5 @@
 package com.cowork.preference.messaging
 
-import com.cowork.preference.domain.Webhook
 import com.cowork.preference.domain.AccountTeamRole
 import com.cowork.preference.domain.ChannelNotificationPreference
 import com.cowork.preference.domain.ChannelRolePolicyPermissions
@@ -8,6 +7,7 @@ import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.domain.SettingSchema
 import com.cowork.preference.domain.TeamRoleDefinition
 import com.cowork.preference.domain.TeamRolePermissions
+import com.cowork.preference.domain.Webhook
 import io.vertx.core.json.JsonObject
 import java.time.Instant
 
@@ -259,12 +259,7 @@ object PreferenceEvents {
     )
 
     /** 닉네임 형식 안내는 예시가 있을 때만 켠다. 형식 판정 기준이 아니므로 소비자는 안내 표시에만 쓴다. */
-    fun teamSettingState(
-        teamId: Long,
-        settings: JsonObject,
-        occurredAt: Instant,
-        snapshot: Boolean,
-    ): PreferenceEvent {
+    fun teamSettingState(teamId: Long, settings: JsonObject, occurredAt: Instant, snapshot: Boolean): PreferenceEvent {
         val nicknameFormatExample = validSetting(ResourceType.TEAM, settings, "nickname_format_example")
         return PreferenceEvent(
             topic = TEAM_SETTING_STATE_TOPIC,

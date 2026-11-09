@@ -107,17 +107,20 @@ object TeamRoleCommandParser {
                         role.mentionable != null && role.permissions != null,
                 ) { "CREATE role state is incomplete" }
             }
+
             TeamRoleCommandType.UPDATE -> {
                 require(roleId != null && role != null) { "UPDATE requires roleId and role" }
                 require(targetAccountId == null && targetMembershipVersion == null) {
                     "UPDATE contains unrelated target fields"
                 }
             }
+
             TeamRoleCommandType.DELETE -> {
                 require(roleId != null && role == null && targetAccountId == null && targetMembershipVersion == null) {
                     "DELETE contract is invalid"
                 }
             }
+
             TeamRoleCommandType.ASSIGN, TeamRoleCommandType.REVOKE -> {
                 require(roleId != null && targetAccountId != null && targetMembershipVersion != null && role == null) {
                     "${envelope.commandType} contract is invalid"

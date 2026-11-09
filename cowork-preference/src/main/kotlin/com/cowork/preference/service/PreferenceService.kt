@@ -65,6 +65,7 @@ class PreferenceService(
                         snapshot = false,
                     ),
                 )
+
                 ResourceType.TEAM -> outboxRepository.enqueue(
                     connection,
                     PreferenceEvents.teamSettingState(
@@ -74,6 +75,7 @@ class PreferenceService(
                         snapshot = false,
                     ),
                 )
+
                 ResourceType.TEXT_CHANNEL -> outboxRepository.enqueue(
                     connection,
                     PreferenceEvents.textChannelSettingState(
@@ -83,6 +85,7 @@ class PreferenceService(
                         snapshot = false,
                     ),
                 )
+
                 ResourceType.VOICE_CHANNEL -> outboxRepository.enqueue(
                     connection,
                     PreferenceEvents.voiceChannelSettingState(
@@ -92,6 +95,7 @@ class PreferenceService(
                         snapshot = false,
                     ),
                 )
+
                 else -> Unit
             }
             if (resourceType == ResourceType.GITHUB_REPO) {
@@ -172,7 +176,11 @@ class PreferenceService(
         VersionedSettings(normalizeSettings(resourceType, state?.settings), state?.stateOccurredAt ?: Instant.EPOCH)
 
     private fun normalizeSettings(resourceType: ResourceType, settings: JsonObject?): JsonObject {
-        if (resourceType == ResourceType.TEXT_CHANNEL) return (settings?.copy() ?: JsonObject()).apply { remove("webhook") }
+        if (resourceType ==
+            ResourceType.TEXT_CHANNEL
+        ) {
+            return (settings?.copy() ?: JsonObject()).apply { remove("webhook") }
+        }
         if (resourceType != ResourceType.GITHUB_REPO) return settings ?: JsonObject()
         val resolved = SettingDefaultsResolver.resolve(settings, GITHUB_REPO_DEFAULTS)
         return JsonObject()

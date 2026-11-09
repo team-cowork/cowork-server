@@ -9,14 +9,20 @@ if [[ "$TOOL_NAME" == "Edit" ]] || [[ "$TOOL_NAME" == "Write" ]]; then
         *.kt)
             [[ "$FILE_PATH" = /* ]] || FILE_PATH="$CWD/$FILE_PATH"
             MODULE_DIR=$(dirname "$FILE_PATH")
-            while [[ "$MODULE_DIR" != / && ! -f "$MODULE_DIR/gradlew" ]]; do
+            while [[ "$MODULE_DIR" != / && ! -f "$MODULE_DIR/gradlew" && ! -f "$MODULE_DIR/ktlint" ]]; do
                 MODULE_DIR=$(dirname "$MODULE_DIR")
             done
-            [[ -f "$MODULE_DIR/gradlew" && -f "$MODULE_DIR/build.gradle.kts" ]] || exit 0
-            grep -Fq 'libs.plugins.ktlint' "$MODULE_DIR/build.gradle.kts" || exit 0
+            if [[ -f "$MODULE_DIR/ktlint" && -x "$MODULE_DIR/ktlint" ]]; then
+                FORMAT_COMMAND=(./ktlint --format)
+            elif [[ -f "$MODULE_DIR/gradlew" && -f "$MODULE_DIR/build.gradle.kts" ]] \
+                && grep -Fq 'libs.plugins.ktlint' "$MODULE_DIR/build.gradle.kts"; then
+                FORMAT_COMMAND=(./gradlew ktlintFormat -q)
+            else
+                exit 0
+            fi
             echo "[Hook] Running ktlintFormat for $(basename "$FILE_PATH")" >&2
             cd "$MODULE_DIR" || exit 0
-            if ./gradlew ktlintFormat -q 2>&1; then
+            if "${FORMAT_COMMAND[@]}" 2>&1; then
                 echo "[Hook] Format OK" >&2
             else
                 echo "[Hook] Format failed" >&2

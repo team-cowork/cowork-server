@@ -1,6 +1,6 @@
 package com.cowork.roadmap.domain.node.presentation.data.response;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 
 import com.cowork.roadmap.domain.node.entity.RoadmapNode;
@@ -27,9 +27,9 @@ public record NodeResDto(
 
         @Schema(description = "관련 자료 목록") List<NodeReferenceResDto> references,
 
-        @Schema(description = "생성 일시", type = "string", example = "2025-03-02T00:00:00") LocalDateTime createdAt,
+        @Schema(description = "생성 일시 (UTC)", type = "string", example = "2025-03-01T15:00:00Z") Instant createdAt,
 
-        @Schema(description = "수정 일시", type = "string", example = "2025-03-02T00:00:00") LocalDateTime updatedAt) {
+        @Schema(description = "수정 일시 (UTC)", type = "string", example = "2025-03-01T15:00:00Z") Instant updatedAt) {
 
     public static NodeResDto of(RoadmapNode node, List<NodeReferenceResDto> references) {
         return new NodeResDto(node.getId(),

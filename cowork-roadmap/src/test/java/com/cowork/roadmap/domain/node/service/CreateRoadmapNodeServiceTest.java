@@ -7,7 +7,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -118,8 +118,8 @@ class CreateRoadmapNodeServiceTest {
         RoadmapNode saved = node.toBuilder().id(id).build();
         saved.setCreatedBy(node.getCreatedBy());
         saved.setLastModifiedBy(node.getLastModifiedBy());
-        saved.setCreatedAt(LocalDateTime.now());
-        saved.setUpdatedAt(LocalDateTime.now());
+        saved.setCreatedAt(Instant.now());
+        saved.setUpdatedAt(Instant.now());
         return saved;
     }
 }

@@ -77,6 +77,7 @@ Run these commands from the repository root:
 | Scope | Check | Format |
 |-------|-------|--------|
 | Gradle Kotlin (`gateway`, `channel`, `team`; replace `team`) | `(cd cowork-team && ./gradlew ktlintCheck)` | `(cd cowork-team && ./gradlew ktlintFormat)` |
+| Kotlin Toolchain preference | `cowork-preference/ktlint` | `cowork-preference/ktlint --format` |
 | Bun chat | `(cd cowork-chat && bun run lint --max-warnings=0)` | `(cd cowork-chat && bun run lint:fix)` |
 | Node promotion | `npm --prefix cowork-promotion run lint -- --max-warnings=0` | `npm --prefix cowork-promotion run lint:fix` |
 | Bun github | `(cd cowork-github && bun run lint --max-warnings=0)` | `(cd cowork-github && bun run lint:fix)` |
@@ -86,9 +87,9 @@ Run these commands from the repository root:
 
 Roadmap uses `cowork-roadmap/config/eclipse-java-formatter.xml` and its configured import order. `check` and `build` run `spotlessCheck`; compilation does not format files. Run `spotlessApply` explicitly.
 
-Maven-based `cowork-project` and Kotlin Toolchain-based `cowork-preference` have no Gradle build or `ktlintFormat` task. Follow `.editorconfig` and review their diffs. There is no repository-wide formatter.
+Kotlin Toolchain has no ktlint integration, so `cowork-preference/ktlint` runs the same ktlint release as the Gradle Kotlin modules, and the Dockerfile `verification` stage rejects violations. Maven-based `cowork-project` has no formatter task. Follow `.editorconfig` and review its diffs. There is no repository-wide formatter.
 
-Hooks run the owning Gradle module's formatter when available. File suffix triggers do not expand formatter targets. Hooks report failures and skip modules without a formatter; they do not replace explicit checks.
+Hooks run the owning module's formatter when available. File suffix triggers do not expand formatter targets. Hooks report failures and skip modules without a formatter; they do not replace explicit checks.
 
 ## Errors and logging
 
@@ -108,7 +109,7 @@ JVM code uses SLF4J with Logback in Spring modules and Log4j2 in Preference. Use
 
 ## Testing and build tools
 
-Write and run unit tests only for core business logic, including business authorization and access rules. Do not add or run regression or integration tests, or tests for controllers, framework wiring, configuration shape, migrations, repositories, or transport mechanics. Kafka serialization, idempotency, ordering, checkpoints, snapshot markers, retries, quarantine, and recovery are not exceptions.
+Write and run unit tests for core business logic, including business authorization and access rules. Avoid regression and integration tests; when one is necessary during development, write and run it, then delete it before committing so that it is not part of the final deliverable. Outside that exception, do not add or run tests for controllers, framework wiring, configuration shape, migrations, repositories, or transport mechanics. Kafka serialization, idempotency, ordering, checkpoints, snapshot markers, retries, quarantine, and recovery are not exceptions.
 
 This scope does not restrict CI or coverage discovery. Keep each module's normal test command; do not add test allowlists.
 
