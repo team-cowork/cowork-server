@@ -132,12 +132,31 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 	@webSocketServer() server!: Server;
 
 	constructor(configService: ConfigService) {
-		this.typingRateLimitWindowMs = Number(
-			getOptionalConfig(configService, 'CHAT_TYPING_RATE_LIMIT_WINDOW_MS') ?? DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS,
+		this.typingRateLimitWindowMs = this.resolveTypingRateLimitSetting(
+			configService,
+			'CHAT_TYPING_RATE_LIMIT_WINDOW_MS',
+			DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS,
 		);
-		this.typingRateLimitMaxRequests = Number(
-			getOptionalConfig(configService, 'CHAT_TYPING_RATE_LIMIT_MAX_REQUESTS') ?? DEFAULT_TYPING_RATE_LIMIT_MAX_REQUESTS,
+		this.typingRateLimitMaxRequests = this.resolveTypingRateLimitSetting(
+			configService,
+			'CHAT_TYPING_RATE_LIMIT_MAX_REQUESTS',
+			DEFAULT_TYPING_RATE_LIMIT_MAX_REQUESTS,
 		);
+	}
+
+	private resolveTypingRateLimitSetting(configService: ConfigService, key: string, fallback: number): number {
+		const raw = getOptionalConfig(configService, key);
+		if (raw === undefined) {
+			return fallback;
+		}
+
+		const parsed = Number(raw);
+		if (isSafePositiveInteger(parsed)) {
+			return parsed;
+		}
+
+		this.logger.warn(`Invalid ${key} value (${raw}), falling back to default (${fallback})`);
+		return fallback;
 	}
 
 	/**
@@ -228,18 +247,19 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 			return;
 		}
 
-		if (!(await this.chatService.canReadChannel(payload.channelId, client.data.userId))) {
-			await client.leave(room);
-			client.emit('channel:access:revoked', {channelId: payload.channelId});
-			return;
-		}
-
+		// 권한 조회는 여러 Mongo 쿼리이므로, 한도 초과 요청이 이를 치지 않도록 Redis 한도를 먼저 확인한다.
 		const isAllowed = await this.rateLimiter.tryAcquire(
 			`${TYPING_RATE_LIMIT_KEY_PREFIX}${client.data.userId}`,
 			this.typingRateLimitWindowMs,
 			this.typingRateLimitMaxRequests,
 		);
 		if (!isAllowed) {
+			return;
+		}
+
+		if (!(await this.chatService.canReadChannel(payload.channelId, client.data.userId))) {
+			await client.leave(room);
+			client.emit('channel:access:revoked', {channelId: payload.channelId});
 			return;
 		}
 
