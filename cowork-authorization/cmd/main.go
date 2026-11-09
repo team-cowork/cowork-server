@@ -1,5 +1,5 @@
 // @title           cowork Authorization API
-// @version         20261106.0
+// @version         20261109.0
 // @description     DataGSM 계정으로 로그인하고 Cowork 토큰을 발급하거나 갱신합니다.
 // @BasePath        /api/authorization
 // @securityDefinitions.apikey BearerAuth
