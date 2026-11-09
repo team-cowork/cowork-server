@@ -37,6 +37,7 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     private final ProjectionTopicGenerationRegistry topicGeneration;
     private final String consumerGroup;
     private final String topic;
+    private final long assignmentRetryBackoffMs;
 
     private final Object stateLock = new Object();
 
@@ -50,17 +51,30 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
             ProjectionTopicIdentityProvider topicIdentity,
             ProjectionTopicGenerationRegistry topicGeneration,
             @Value("${KAFKA_GROUP_ID_TEAM_MEMBER:cowork-roadmap.team-member}") String consumerGroup,
-            @Value("${KAFKA_TOPIC_TEAM_MEMBER:team.member.event}") String topic) {
+            @Value("${KAFKA_TOPIC_TEAM_MEMBER:team.member.event}") String topic,
+            @Value("${projection.readiness.assignment-retry-backoff-ms:1000}") long assignmentRetryBackoffMs) {
         this.checkpoints = checkpoints;
         this.topicIdentity = topicIdentity;
         this.topicGeneration = topicGeneration;
         this.consumerGroup = consumerGroup;
         this.topic = topic;
+        this.assignmentRetryBackoffMs = assignmentRetryBackoffMs;
     }
 
     @Override
     public void onPartitionsAssigned(Consumer<?, ?> consumer, Collection<TopicPartition> partitions) {
         invalidate();
+        try {
+            initializeAssignment(consumer, partitions);
+        } catch (RuntimeException exception) {
+            // The container only logs listener failures, so without a new rebalance the
+            // assignment would stay uninitialized until restart.
+            log.warn("Failed to initialize team member projection assignment, requesting a rebalance", exception);
+            requestRebalanceAfterBackoff(consumer);
+        }
+    }
+
+    private void initializeAssignment(Consumer<?, ?> consumer, Collection<TopicPartition> partitions) {
         String topicId = topicIdentity.topicId(topic);
         List<TopicPartition> allPartitions = consumer.partitionsFor(topic)
                 .stream()
@@ -88,6 +102,17 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
         topicGeneration.markAssigned(topicId);
         initialized = true;
         refresh();
+    }
+
+    // The coordinator rejoins within the same poll, so back off to avoid a tight
+    // rebalance loop while the dependency is still unavailable.
+    private void requestRebalanceAfterBackoff(Consumer<?, ?> consumer) {
+        try {
+            Thread.sleep(assignmentRetryBackoffMs);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+        }
+        consumer.enforceRebalance("team member projection assignment initialization failed");
     }
 
     @Override
