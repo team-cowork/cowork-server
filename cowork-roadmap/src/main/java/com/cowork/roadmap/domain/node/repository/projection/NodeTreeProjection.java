@@ -1,6 +1,6 @@
-package com.cowork.roadmap.domain.node.repository.view;
+package com.cowork.roadmap.domain.node.repository.projection;
 
-public interface NodeTreeView {
+public interface NodeTreeProjection {
 
     Long getId();
 

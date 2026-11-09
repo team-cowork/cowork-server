@@ -13,7 +13,7 @@ import org.junit.jupiter.api.Test;
 import com.cowork.roadmap.domain.node.entity.RoadmapNodeReference;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeReferenceRepository;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
-import com.cowork.roadmap.domain.node.repository.view.NodeTreeView;
+import com.cowork.roadmap.domain.node.repository.projection.NodeTreeProjection;
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
 import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
@@ -36,9 +36,9 @@ class QueryRoadmapTreeServiceTest {
     @Test
     void getRoadmapTree_assemblesNodesIntoNestedTreeWithReferences() {
         Roadmap roadmap = roadmap(10L, RoadmapScope.GLOBAL);
-        NodeTreeView root1 = node(1L, null, 0, "root1");
-        NodeTreeView child = node(2L, 1L, 0, "child");
-        NodeTreeView root2 = node(3L, null, 1, "root2");
+        NodeTreeProjection root1 = node(1L, null, 0, "root1");
+        NodeTreeProjection child = node(2L, 1L, 0, "child");
+        NodeTreeProjection root2 = node(3L, null, 1, "root2");
         RoadmapNodeReference ref = reference(100L, 2L, "관련자료");
 
         when(roadmapRepository.findById(10L)).thenReturn(Optional.of(roadmap));
@@ -64,8 +64,8 @@ class QueryRoadmapTreeServiceTest {
         return Roadmap.builder().id(id).title("roadmap").category("Flutter").scope(scope.name()).build();
     }
 
-    private static NodeTreeView node(Long id, Long parentId, int position, String title) {
-        NodeTreeView node = mock(NodeTreeView.class);
+    private static NodeTreeProjection node(Long id, Long parentId, int position, String title) {
+        NodeTreeProjection node = mock(NodeTreeProjection.class);
         when(node.getId()).thenReturn(id);
         when(node.getParentId()).thenReturn(parentId);
         when(node.getPosition()).thenReturn(position);
