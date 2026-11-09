@@ -65,8 +65,9 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
 			throw new ProjectionContractError('channel role policy occurredAt must be RFC3339');
 		}
 
+		let isApplied: boolean;
 		if (payload.eventType === 'UPSERT') {
-			await this.repository.upsert({
+			isApplied = await this.repository.upsert({
 				teamId: payload.teamId,
 				channelId: payload.channelId,
 				roleId: payload.roleId,
@@ -74,12 +75,13 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
 				...eventTime,
 			});
 		} else {
-			await this.repository.remove({
+			isApplied = await this.repository.remove({
 				teamId: payload.teamId, channelId: payload.channelId, roleId: payload.roleId, occurredAt: eventTime.occurredAt, sourceVersion: eventTime.sourceVersion,
 			});
 		}
 
-		if (this.io) {
+		// 변경 없이 끝난 snapshot 재발행은 소켓 재검증을 건너뛰고, live 재전달은 항상 재검증한다.
+		if (this.io && (isApplied || payload.snapshot !== true)) {
 			await this.accessService.evictUnauthorizedSockets(this.io, [payload.channelId]);
 		}
 	}
