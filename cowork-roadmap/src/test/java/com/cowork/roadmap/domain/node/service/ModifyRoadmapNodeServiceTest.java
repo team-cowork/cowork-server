@@ -200,6 +200,7 @@ class ModifyRoadmapNodeServiceTest {
                 assertThat(response.content()).isEqualTo("새내용");
             }
         }
+
     }
 
     private void givenModifiableNode(RoadmapNode node) {
