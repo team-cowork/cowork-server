@@ -6,7 +6,7 @@ paths:
 
 # Security
 
-- Validate Cowork access JWTs at Gateway. Downstream HTTP handlers use its `X-User-Id` and `X-User-Role` headers and enforce resource-level authorization. Chat's WebSocket handshake is the only access-JWT validation exception; do not extend it to HTTP routes.
+- Validate Cowork access JWTs at Gateway. Downstream HTTP handlers use its `X-User-Id` and `X-User-Role` headers and enforce resource-level authorization. Gateway also validates the cookie-based access JWT on the `/ws/chat` WebSocket handshake and injects the same headers there, so Chat validates no access JWT itself, on WebSocket or HTTP routes.
 - Gateway owns HTTP CORS; Chat owns WebSocket CORS.
 - Public application APIs enter through Gateway. Keep raw backend listeners inside Nomad allocation networks and expose only declared Consul mesh connections. Preserve explicitly configured ingress for signed external webhooks and LiveKit media.
 - Keep external HTTPS termination and existing VM addresses unchanged unless the user authorizes infrastructure changes. Restrict host ingress to the declared proxy and inventory peers.
