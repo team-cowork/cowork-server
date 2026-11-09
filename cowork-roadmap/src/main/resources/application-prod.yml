@@ -6,6 +6,12 @@ spring:
     url: jdbc:mysql://${DB_HOST}:${DB_PORT}/${DB_NAME}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+  jackson:
+    factory:
+      constraints:
+        read:
+          # Gateway RequestSize는 Content-Length가 없는 chunked 요청을 막지 못하므로 파싱 중에도 1MB에서 중단한다.
+          max-document-length: 1048576
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
 
