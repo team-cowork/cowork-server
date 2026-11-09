@@ -281,6 +281,34 @@ describe('ChatGateway', () => {
 			expect(mockChatService.emitToReadableChannelUsers).not.toHaveBeenCalled();
 		});
 
+		it('한도를 초과한 typing은 권한 조회 없이 무시한다', async () => {
+			mockRateLimiter.tryAcquire.mockResolvedValueOnce(false);
+			const client = mockSocket();
+			client.data.userId = 42;
+			client.rooms.add('chat:1');
+
+			await gateway.handleTypingStart(client as unknown as ChatSocket, {channelId: 1});
+
+			expect(mockChatService.canReadChannel).not.toHaveBeenCalled();
+		});
+
+		it('CHAT_TYPING_RATE_LIMIT_* 값이 양의 정수가 아니면 기본값으로 한도를 적용한다', async () => {
+			const invalidConfigService = {get: jest.fn().mockReturnValue('abc')};
+			const invalidGateway = Object.assign<ChatGateway, Record<string, unknown>>(new ChatGateway(invalidConfigService as never), {
+				chatService: mockChatService,
+				rateLimiter: mockRateLimiter,
+				projectionReadiness: mockProjectionReadiness,
+				socketIoRedis: {isReady: () => true},
+			});
+			const client = mockSocket();
+			client.data.userId = 42;
+			client.rooms.add('chat:1');
+
+			await invalidGateway.handleTypingStart(client as unknown as ChatSocket, {channelId: 1});
+
+			expect(mockRateLimiter.tryAcquire).toHaveBeenCalledWith('chat:typingrate:42', 5000, 20);
+		});
+
 		it('typing 시점에 권한이 회수됐으면 sender를 room에서 제거하고 이벤트를 보내지 않는다', async () => {
 			mockChatService.canReadChannel.mockResolvedValueOnce(false);
 			const client = mockSocket();
