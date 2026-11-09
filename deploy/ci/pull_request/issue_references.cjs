@@ -23,6 +23,8 @@ function referenceList(text, repository) {
   return { numbers, remaining };
 }
 
+// TODO: Once PRs consistently use the template's "해결 이슈" section over time,
+// simplify parsing to support only that format.
 function referencedIssueNumbers(body, repository) {
   let fence;
   const text = (body || '')
