@@ -16,6 +16,11 @@ import {NotificationTriggerProducer} from './notification-trigger.producer.js';
 const POLL_INTERVAL_MS = 5000;
 const BATCH_SIZE = 10;
 /**
+한 틱에서 가득 찬 배치를 이어 가져올 수 있는 시간. 폴링 간격(5초)보다 짧아야 다음 틱과 겹치지 않는다.
+예산은 배치 사이에서만 확인하므로 마지막 배치는 예산을 조금 넘을 수 있다.
+*/
+const DRAIN_TIME_BUDGET_MS = 4000;
+/**
 재시도 한도. 백오프 상한과 함께 약 20분 동안 이어지는 broker 장애까지 견딘다
 */
 const MAX_RETRY = 10;
@@ -103,10 +108,26 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 			}
 		}
 
+		await this.drainWhileFull(Date.now() + DRAIN_TIME_BUDGET_MS);
+	}
+
+	/**
+     가득 찬 배치가 이어지면 시간 예산 안에서 계속 가져온다. 다음 틱까지 기다리면 백로그가 쌓인다.
+     */
+	private async drainWhileFull(deadline: number): Promise<void> {
+		if (await this.processBatch() === BATCH_SIZE && Date.now() < deadline) {
+			await this.drainWhileFull(deadline);
+		}
+	}
+
+	/**
+     PENDING 메시지를 한 배치 점유해 처리하고, 점유한 메시지 수를 반환한다.
+     */
+	private async processBatch(): Promise<number> {
 		// 1단계: 배치 내 메시지 수집 (PENDING → PROCESSING 원자적 전환)
 		const msgs = await this.messageRepository.findPendingAndMarkProcessing(BATCH_SIZE);
 		if (msgs.length === 0) {
-			return;
+			return 0;
 		}
 
 		// 2단계: 배치 내 고유 channelId/parentMessageId를 한 번에 조회해 캐시 사전 채움
@@ -137,6 +158,7 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 
 		// 3단계: 각 메시지 처리 (메시지 간 의존관계 없어 병렬 처리)
 		await Promise.all(msgs.map(async message => this.processMessageAndUpdateStatus(message, recipientCache, parentCache)));
+		return msgs.length;
 	}
 
 	private async processMessageAndUpdateStatus(
