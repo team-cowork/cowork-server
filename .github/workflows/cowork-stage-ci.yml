@@ -68,6 +68,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      issues: write
 
     steps:
       - name: Set Up PR Metadata
@@ -85,6 +86,17 @@ jobs:
           if ! gh pr edit "$PR_NUMBER" --repo "${{ github.repository }}" --add-reviewer "team-cowork/cowork-server"; then
             echo "::warning::PR reviewer setup failed; continuing CI."
           fi
+      - name: Checkout Code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: deploy/ci
+      - name: Assign PR Assignees To Related Issues
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { syncPullRequestIssues } = require('./deploy/ci/pull_request/issues.cjs');
+            await syncPullRequestIssues({ github, context, core });
 
   detect-changes:
     name: Select CI Targets
