@@ -19,6 +19,7 @@ platform_data_volumes:
   project: [{name: project-db, uid: 999}]
   roadmap: [{name: roadmap-db, uid: 999}]
   preference: [{name: preference-db, uid: 999}]
+  applet: [{name: applet-db, uid: 65532}]
   chat: [{name: chat-db, uid: 999}, {name: chat-storage, uid: 10001}, {name: chat-search, uid: 1000}]
   voice: [{name: voice-db, uid: 999}]
   notification: [{name: notification-data, uid: 10001}]

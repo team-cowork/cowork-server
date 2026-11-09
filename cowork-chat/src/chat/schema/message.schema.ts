@@ -210,6 +210,12 @@ export class Message {
 	@prop({enum: ['PENDING', 'PROCESSING', 'SENT', 'FAILED'], default: 'PENDING'}) notificationStatus!: string;
 
 	/**
+     Kafka consumer가 채널 브로드캐스트를 마친 시각. 저장 직후에는 `null`이다.
+     이 필드가 생기기 전에 저장된 메시지에는 값이 없으며, 재전달 시 다시 브로드캐스트하지 않는다.
+     */
+	@prop({type: Date, default: null}) broadcastedAt!: Nullable<Date>;
+
+	/**
      알림 발송 재시도 횟수. 발송 실패 시마다 증가하며,
      한도 초과 시 `notificationStatus`가 `FAILED`로 전환됩니다.
      */
