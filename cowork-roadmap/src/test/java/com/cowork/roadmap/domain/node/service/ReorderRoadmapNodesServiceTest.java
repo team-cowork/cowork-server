@@ -9,7 +9,8 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -91,8 +92,8 @@ class ReorderRoadmapNodesServiceTest {
         void movedNodes_areParkedAtNegativePositionsBeforeFinalSave() {
             RoadmapNode first = node(1L, 10L, null, 0);
             RoadmapNode fixed = node(2L, 10L, null, 1);
-            LocalDateTime previousModifiedAt = LocalDateTime.of(2025, 1, 2, 0, 0);
-            fixed.setCreatedAt(previousModifiedAt.minusDays(1));
+            Instant previousModifiedAt = Instant.parse("2025-01-02T00:00:00Z");
+            fixed.setCreatedAt(previousModifiedAt.minus(1, ChronoUnit.DAYS));
             fixed.setUpdatedAt(previousModifiedAt);
             fixed.setLastModifiedBy(7L);
             RoadmapNode last = node(3L, 10L, null, 2);
