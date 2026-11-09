@@ -2,11 +2,13 @@ package com.cowork.project.domain.github.service
 
 import com.cowork.project.domain.github.entity.ChatGithubIssueCreateOperation
 import com.cowork.project.domain.github.entity.ProjectGithubRepo
+import com.cowork.project.domain.github.entity.TeamGithubInstallation
 import com.cowork.project.domain.github.event.ChatGithubIssueCreateCommand
 import com.cowork.project.domain.github.event.ChatGithubIssueCreateResult
 import com.cowork.project.domain.github.event.GithubIssueCreateCommand
 import com.cowork.project.domain.github.repository.ChatGithubIssueCreateOperationRepository
 import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
+import com.cowork.project.domain.github.repository.TeamGithubInstallationRepository
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.service.ProjectAccessGuard
 import com.cowork.project.global.outbox.OutboxWriter
@@ -18,6 +20,7 @@ import io.mockk.just
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 import java.time.Instant
@@ -29,6 +32,7 @@ class ChatGithubIssueCommandProcessorTest :
         lateinit var projectAccessGuard: ProjectAccessGuard
         lateinit var projectGithubRepoRepository: ProjectGithubRepoRepository
         lateinit var outboxWriter: OutboxWriter
+        lateinit var teamGithubInstallationRepository: TeamGithubInstallationRepository
         lateinit var processor: ChatGithubIssueCommandProcessor
 
         val project = Project(id = 1L, teamId = 100L, name = "p", description = null, createdBy = 1L)
@@ -63,16 +67,20 @@ class ChatGithubIssueCommandProcessorTest :
             projectAccessGuard = mockk()
             projectGithubRepoRepository = mockk()
             outboxWriter = mockk()
+            teamGithubInstallationRepository = mockk()
             processor = ChatGithubIssueCommandProcessor(
                 operationRepository,
                 projectAccessGuard,
                 projectGithubRepoRepository,
                 outboxWriter,
+                GithubRepoAccessResolver(projectAccessGuard, projectGithubRepoRepository, teamGithubInstallationRepository),
             )
 
             every { operationRepository.existsById(any()) } returns false
             every { operationRepository.save(any()) } answers { firstArg() }
             every { outboxWriter.enqueue(any(), any(), any()) } just Runs
+            every { teamGithubInstallationRepository.findByIdOrNull(100L) } returns
+                TeamGithubInstallation(teamId = 100L, installationId = 1L, orgLogin = "my-org")
         }
 
         describe("ChatGithubIssueCommandProcessor 클래스의 process 메서드는") {
@@ -179,6 +187,23 @@ class ChatGithubIssueCommandProcessorTest :
                     val result = slot<ChatGithubIssueCreateResult>()
                     verify { outboxWriter.enqueue(any(), any(), capture(result)) }
                     result.captured.error?.code shouldBe "GITHUB_REPO_AMBIGUOUS"
+                }
+            }
+
+            context("연결된 저장소가 팀에 연결된 GitHub 조직의 저장소가 아니면") {
+                it("REJECTED로 처리하고 발행하지 않는다") {
+                    every { projectAccessGuard.findProjectOrThrow(1L) } returns project
+                    every { projectGithubRepoRepository.findAllByProjectId(1L) } returns
+                        listOf(repoLink("https://github.com/other-org/private-repo"))
+                    every { projectAccessGuard.requireProjectModifier(project, 42L) } just Runs
+
+                    processor.process(command())
+
+                    verify(exactly = 0) { outboxWriter.enqueue("github.issue.create", any(), any()) }
+                    val result = slot<ChatGithubIssueCreateResult>()
+                    verify { outboxWriter.enqueue(any(), any(), capture(result)) }
+                    result.captured.status shouldBe "REJECTED"
+                    result.captured.error?.code shouldBe "FORBIDDEN"
                 }
             }
 

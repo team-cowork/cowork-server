@@ -14,8 +14,11 @@ import java.time.ZoneOffset
 class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepository) {
     suspend fun refresh(client: SqlClient, projectId: Long, accountId: Long? = null) {
         // Serialize recomputation so concurrent grants/revocations cannot publish an older decision last.
-        val project = client.preparedQuery("SELECT team_id, deleted, is_private FROM tb_project_lifecycle_projections WHERE project_id = \$1 FOR UPDATE")
-            .execute(Tuple.of(projectId)).coAwait().firstOrNull() ?: return
+        val project =
+            client.preparedQuery(
+                "SELECT team_id, deleted, is_private FROM tb_project_lifecycle_projections WHERE project_id = \$1 FOR UPDATE",
+            )
+                .execute(Tuple.of(projectId)).coAwait().firstOrNull() ?: return
         val team = loadTeamAccess(client, project.getLong("team_id"), accountId)
         refreshProject(client, projectId, accountId, project, team)
     }
@@ -47,21 +50,27 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
                 ProjectPermissions()
             } else {
                 ProjectPermissions.resolve(
-                    teamPermissions, projectPermissions, manager,
+                    teamPermissions,
+                    projectPermissions,
+                    manager,
                     isPrivate = project.getBoolean("is_private"),
                 )
             }
-            val canReadPrivate = active && ProjectPermissions.resolve(teamPermissions, projectPermissions, manager, isPrivate = true).read
+            val canReadPrivate =
+                active &&
+                    ProjectPermissions.resolve(teamPermissions, projectPermissions, manager, isPrivate = true).read
             val previous = existing[accountId]
-            val membershipVersion = member?.getOffsetDateTime("source_occurred_at") ?: Instant.EPOCH.atOffset(ZoneOffset.UTC)
+            val membershipVersion =
+                member?.getOffsetDateTime("source_occurred_at") ?: Instant.EPOCH.atOffset(ZoneOffset.UTC)
             val authorizationVersion = member?.getOffsetDateTime("authorization_version")
             val previousAuthorizationVersion = previous?.getOffsetDateTime("source_authorization_version")
-            // A nullable stamp repair must publish a newer decision even when its effective version is unchanged.
             if (previous != null && previous.permissions() == permissions &&
                 previous.getBoolean("can_read_private") == canReadPrivate &&
                 previous.getOffsetDateTime("source_membership_version").toInstant() == membershipVersion.toInstant() &&
                 previousAuthorizationVersion?.toInstant() == authorizationVersion?.toInstant()
-            ) return@forEach
+            ) {
+                return@forEach
+            }
             val rows = client.preparedQuery(
                 """
                 INSERT INTO tb_project_access_states
@@ -77,9 +86,15 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
                     state_occurred_at = GREATEST(clock_timestamp(), tb_project_access_states.state_occurred_at + INTERVAL '1 microsecond')
                 RETURNING *
                 """.trimIndent(),
-            ).execute(Tuple.tuple().addLong(projectId).addLong(accountId).addBoolean(permissions.read).addBoolean(permissions.write)
-                .addBoolean(permissions.manage).addBoolean(permissions.reorder).addBoolean(canReadPrivate).addOffsetDateTime(membershipVersion)
-                .addOffsetDateTime(authorizationVersion)).coAwait()
+            ).execute(
+                Tuple.tuple().addLong(
+                    projectId,
+                ).addLong(accountId).addBoolean(permissions.read).addBoolean(permissions.write)
+                    .addBoolean(
+                        permissions.manage,
+                    ).addBoolean(permissions.reorder).addBoolean(canReadPrivate).addOffsetDateTime(membershipVersion)
+                    .addOffsetDateTime(authorizationVersion),
+            ).coAwait()
             rows.forEach { outbox.enqueue(client, event(it)) }
         }
     }
@@ -130,14 +145,21 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
     }
 
     suspend fun publishSnapshot(client: SqlClient) {
-        val projects = client.query("SELECT project_id FROM tb_project_lifecycle_projections ORDER BY project_id").execute().coAwait()
+        val projects = client.query(
+            "SELECT project_id FROM tb_project_lifecycle_projections ORDER BY project_id",
+        ).execute().coAwait()
         projects.forEach { refresh(client, it.getLong("project_id")) }
-        val states = client.query("SELECT * FROM tb_project_access_states ORDER BY project_id, account_id").execute().coAwait()
+        val states = client.query(
+            "SELECT * FROM tb_project_access_states ORDER BY project_id, account_id",
+        ).execute().coAwait()
         states.forEach { outbox.enqueue(client, event(it)) }
     }
 
     private fun Row.permissions() = ProjectPermissions(
-        getBoolean("can_read"), getBoolean("can_write"), getBoolean("can_manage"), getBoolean("can_reorder"),
+        getBoolean("can_read"),
+        getBoolean("can_write"),
+        getBoolean("can_manage"),
+        getBoolean("can_reorder"),
     )
 
     private data class TeamAccess(
@@ -159,7 +181,10 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
                 .put("read", row.getBoolean("can_read")).put("write", row.getBoolean("can_write"))
                 .put("manage", row.getBoolean("can_manage")).put("reorder", row.getBoolean("can_reorder"))
                 .put("readPrivate", row.getBoolean("can_read_private"))
-                .put("sourceMembershipVersion", row.getOffsetDateTime("source_membership_version").toInstant().toString())
+                .put(
+                    "sourceMembershipVersion",
+                    row.getOffsetDateTime("source_membership_version").toInstant().toString(),
+                )
                 .put("sourceAuthorizationVersion", authorizationVersion?.toString())
                 .put("occurredAt", version.toString()),
             version,

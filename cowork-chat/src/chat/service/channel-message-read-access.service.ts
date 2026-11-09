@@ -5,7 +5,7 @@ import {
 	Inject as inject,
 } from '@nestjs/common';
 import {Server} from 'socket.io';
-import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
+import {CHANNEL_PERMISSION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {
 	DmParticipantRepository,
 	ChannelProjectionRepository,
@@ -107,7 +107,7 @@ export class ChannelMessageReadAccessService {
 			}
 		}
 
-		if (!this.projectionReadiness.isReady()) {
+		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
 			return false;
 		}
 
@@ -123,7 +123,7 @@ export class ChannelMessageReadAccessService {
 			requests.map(request => [accessKey(request.channelId, request.userId), request]),
 		).values().toArray();
 		const result = new Map(uniqueRequests.map(request => [accessKey(request.channelId, request.userId), false]));
-		if (uniqueRequests.length === 0 || !this.projectionReadiness.isReady()) {
+		if (uniqueRequests.length === 0 || !this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
 			return result;
 		}
 
@@ -208,7 +208,7 @@ export class ChannelMessageReadAccessService {
 		for (const {request, channel, teamId} of policyCandidates) {
 			const assignedRoleIds = assignmentsByTeamUser.get(teamUserKey(teamId, request.userId)) ?? [];
 			const applicable = roleById.values().filter(role => role.teamId === teamId
-				&& (role.isDefault === true || assignedRoleIds.includes(role.roleId))).toArray();
+				&& (role.isDefault || assignedRoleIds.includes(role.roleId))).toArray();
 			const channelPolicies = new Map(applicable.flatMap(role => {
 				const policy = policyByKey.get(policyKey(request.channelId, role.roleId));
 				return policy?.teamId === teamId ? [[role.roleId, policy.permissions ?? {}] as const] : [];
@@ -248,7 +248,7 @@ export class ChannelMessageReadAccessService {
 	}
 
 	async requireCanRead(channelId: number, userId: number): Promise<void> {
-		if (!this.projectionReadiness.isReady()) {
+		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
 			throw new ServiceUnavailableException('권한 정보가 아직 동기화되지 않았습니다');
 		}
 
@@ -262,7 +262,7 @@ export class ChannelMessageReadAccessService {
 	}
 
 	async requirePermissions(channelId: number, userId: number, permissions: ChannelActionPermission[]): Promise<void> {
-		if (!this.projectionReadiness.isReady()) {
+		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
 			throw new ServiceUnavailableException('권한 정보가 아직 동기화되지 않았습니다');
 		}
 
@@ -344,7 +344,7 @@ export class ChannelMessageReadAccessService {
 		userIds?: number[],
 	): Promise<void> {
 		const uniqueChannelIds = [...new Set(channelIds)];
-		if (uniqueChannelIds.length === 0 || !this.projectionReadiness.isReady()) {
+		if (uniqueChannelIds.length === 0 || !this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
 			return;
 		}
 
@@ -364,7 +364,7 @@ export class ChannelMessageReadAccessService {
 		const access = await this.evaluateMany(
 			socketsWithChannels.map(({channelId, userId}) => ({channelId, userId})),
 		);
-		if (!this.projectionReadiness.isReady()) {
+		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
 			return;
 		}
 
@@ -384,7 +384,7 @@ export class ChannelMessageReadAccessService {
      readiness가 닫힌 동안의 판정은 전부 거부이므로 판정 전후로 확인해, 닫혀 있으면 아무것도 제거하지 않는다.
      */
 	async evictUnauthorizedRooms(sockets: RoomSocket[]): Promise<number> {
-		if (!this.projectionReadiness.isReady()) {
+		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
 			return 0;
 		}
 
@@ -396,7 +396,7 @@ export class ChannelMessageReadAccessService {
 			this.evaluateMany(channelRooms.map(({id, userId}) => ({channelId: id, userId}))),
 			this.teamMemberRepository.findByTeamIdsAndUserIds(teamIds, teamUserIds),
 		]);
-		if (!this.projectionReadiness.isReady()) {
+		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
 			return 0;
 		}
 
@@ -450,7 +450,7 @@ export class ChannelMessageReadAccessService {
 
 		// 채팅방(room) 멤버십은 projection 기준의 판정 결과이므로, projection이 catch-up 중이면 그 판정을 믿을 수 없다.
 		// 이전에는 이 구간의 평가가 전부 거부로 떨어져 아무에게도 전달되지 않았다(fail-closed). 같은 성질을 유지한다.
-		if (!this.projectionReadiness.isReady()) {
+		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
 			this.needsRoomSweepAfterReadinessGap = true;
 			return;
 		}
@@ -496,7 +496,7 @@ export class ChannelMessageReadAccessService {
 		event: string,
 		payload: unknown,
 	): Promise<void> {
-		if (!this.projectionReadiness.isReady()) {
+		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
 			return;
 		}
 

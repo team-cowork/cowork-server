@@ -40,11 +40,13 @@ object ChannelNotificationSettings {
     fun fromRequest(raw: JsonObject): JsonObject {
         val level = when {
             raw.containsKey(NOTIFICATION_LEVEL) -> parseLevel(raw.getValue(NOTIFICATION_LEVEL))
+
             raw.containsKey(NOTIFICATION) -> {
                 val enabled = raw.getValue(NOTIFICATION)
                 require(enabled is Boolean) { "$NOTIFICATION must be a boolean" }
                 if (enabled) NotificationLevel.ALL else NotificationLevel.NONE
             }
+
             else -> null
         }
         val mutedUntil = raw.getValue(MUTED_UNTIL)?.let { value ->
