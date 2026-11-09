@@ -32,7 +32,14 @@ class ProjectLifecycleProjectionRepository {
                )
             """.trimIndent(),
         ).execute(
-            Tuple.of(event.projectId, event.teamId, event.deleted, event.occurredAt.atOffset(ZoneOffset.UTC), event.createdBy, event.isPrivate),
+            Tuple.of(
+                event.projectId,
+                event.teamId,
+                event.deleted,
+                event.occurredAt.atOffset(ZoneOffset.UTC),
+                event.createdBy,
+                event.isPrivate,
+            ),
         ).coAwait()
         return rows.rowCount() == 1
     }

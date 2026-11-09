@@ -255,16 +255,23 @@ export class ElasticsearchService implements OnModuleInit {
 		return hitCount === limit && lastHit?.sort ? Buffer.from(JSON.stringify(lastHit.sort)).toString('base64') : null;
 	}
 
-	private parseSearchAfter(before: string | undefined): estypes.SortResults | undefined {
-		if (before === undefined || before === '') {
+	private parseSearchAfter(before: Nullable<string> | undefined): estypes.SortResults | undefined {
+		// GraphQL은 nullable 인자에 `null`을 넘기고 `@isOptional`도 이를 통과시키므로, 첫 페이지 요청으로 본다.
+		if (before === undefined || before === null || before.length === 0) {
 			return undefined;
 		}
 
+		let parsed: unknown;
 		try {
-			return JSON.parse(Buffer.from(before, 'base64').toString()) as estypes.SortResults;
-		} catch {
-			return undefined;
+			parsed = JSON.parse(Buffer.from(before, 'base64').toString());
+		} catch {}
+
+		// 첫 페이지로 되돌리면 클라이언트가 이미 본 결과를 중복으로 받으므로, 잘못된 커서는 거부한다.
+		if (!Array.isArray(parsed)) {
+			throw new BadRequestException('invalid cursor');
 		}
+
+		return parsed as estypes.SortResults;
 	}
 
 	private buildContentQuery(q: string): estypes.QueryDslQueryContainer {
@@ -449,31 +456,6 @@ export class ElasticsearchService implements OnModuleInit {
 	}
 
 	/**
-     메시지 전체 문서를 색인에 upsert한다.
-
-     부분 갱신 대신 항상 MongoDB의 최신 전체 문서를 쓰기 때문에 최초 색인이 누락된 메시지도
-     이후 편집·고정 작업으로 복원된다.
-
-     @param doc 색인할 메시지 문서
-     @param version MongoDB가 부여한 메시지별 단조 증가 버전
-     @param index 대상 물리 index. 생략하면 검색 alias에 쓴다
-     */
-	async upsertMessage(doc: MessageIndexDoc, version: number, index: string = MESSAGE_SEARCH_ALIAS): Promise<IndexWriteResult> {
-		try {
-			await this.client.index({
-				index,
-				id: doc.messageId,
-				document: doc,
-				version,
-				[esField.versionType]: 'external',
-			});
-			return {outcome: 'APPLIED'};
-		} catch (error) {
-			return this.classifyWrite('upsert', doc.messageId, error);
-		}
-	}
-
-	/**
      색인에서 메시지를 제거한다.
 
      외부 버전 삭제는 문서가 이미 없어도 버전 tombstone을 남기고 `404`로 응답하므로,
@@ -533,8 +515,8 @@ export class ElasticsearchService implements OnModuleInit {
 	}
 
 	/**
-     색인 아웃박스가 사용하는 대량 upsert. 개별 {@link upsertMessage}를 문서 수만큼 호출하는
-     대신 `_bulk` API 한 번으로 묶어 보낸다. 항목별로 RETRYABLE/PERMANENT까지 구분해 돌려주므로
+     색인 아웃박스가 사용하는 대량 upsert. 문서마다 요청을 보내는 대신 `_bulk` API 한 번으로 묶어 보낸다.
+     항목별로 RETRYABLE/PERMANENT까지 구분해 돌려주므로
      호출자가 outbox 상태 전이(재시도 vs 영구 실패)에 그대로 쓸 수 있다.
 
      bulk 응답 항목은 요청과 같은 순서로 오므로 인덱스로 짝짓는다({@link bulkUpsertMessages}와
@@ -543,8 +525,8 @@ export class ElasticsearchService implements OnModuleInit {
      `client.bulk()` 자체가 던지는 요청 단위 실패(타임아웃·연결 끊김·429 등)는 항목별 결과가
      아니므로 여기서 잡아 모든 항목에 {@link classifyElasticsearchError}의 같은 분류를
      매핑해 돌려준다. 그러지 않으면 예외가 호출자까지 전파돼 배치 전체가 상태 전이
-     (`markSynced`/`markRetry`) 없이 `PROCESSING`으로 남는다 — 단건 {@link upsertMessage}가
-     절대 throw하지 않는 것과 같은 이유다.
+     (`markSynced`/`markRetry`) 없이 `PROCESSING`으로 남는다 — 단건 쓰기가 예외 대신 결과를
+     돌려주는 것과 같은 이유다.
      */
 	async bulkUpsertForOutbox(entries: BulkUpsertEntry[], index: string = MESSAGE_SEARCH_ALIAS): Promise<BulkOutboxWriteResult[]> {
 		if (entries.length === 0) {

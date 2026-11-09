@@ -34,7 +34,8 @@ GitHub App으로 조직 저장소의 이슈·PR·라벨을 다루고 GitHub 이�
 | `KAFKA_GROUP_ID`                             | 명령 consumer group                                    |
 | `KAFKA_SECURITY_PROTOCOL`                    | `PLAINTEXT`, `SSL`, `SASL_SSL` 지원                    |
 | `KAFKA_SASL_MECHANISM`                       | SASL 사용 시 `PLAIN`, `SCRAM-SHA-256`, `SCRAM-SHA-512` |
-| `KAFKA_SASL_USERNAME`, `KAFKA_SASL_PASSWORD` | `SASL_SSL`에서 필수                                    |
+| `KAFKA_SASL_USERNAME`                        | Kafka SASL 사용자명. `SASL_SSL`에서 필수                   |
+| `KAFKA_SASL_PASSWORD`                        | Kafka SASL 비밀번호. `SASL_SSL`에서 필수                   |
 | `KAFKA_SSL_CA_LOCATION`                      | PEM CA 파일 경로. TLS 서버 인증서 검증 유지            |
 | `GITHUB_APP_ID`                              | 필수. GitHub App ID                                    |
 | `GITHUB_PRIVATE_KEY`                         | 필수. Base64로 인코딩한 PEM 개인 키                    |
@@ -42,4 +43,5 @@ GitHub App으로 조직 저장소의 이슈·PR·라벨을 다루고 GitHub 이�
 | `GITHUB_APP_CLIENT_SECRET`                   | 필수. 설치 콜백 사용자 인증용 App Client secret        |
 | `GITHUB_WEBHOOK_SECRET`                      | 필수. GitHub webhook 서명 검증 키                      |
 | `INTERNAL_API_KEY`                           | 필수. 내부 HTTP API 공유 키                            |
-| `REDIS_HOST`, `REDIS_PORT`                   | 토큰·설치 캐시 연결                                    |
+| `REDIS_HOST`                                 | 토큰·설치 캐시 Redis 연결 호스트                          |
+| `REDIS_PORT`                                 | 토큰·설치 캐시 Redis 연결 포트                           |

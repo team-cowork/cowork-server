@@ -20,7 +20,7 @@ describe('ProjectClient project read permission', () => {
 		readiness.isReady.mockReturnValue(true);
 		projects.findById.mockResolvedValue({projectId: 7, teamId: 3, createdBy: 1});
 		members.findByTeamIdsAndUserIds.mockResolvedValue([{
-			teamId: 3, userId: 217, role: 'MEMBER', sourceVersion: 1000n,
+			teamId: 3, userId: 217, role: 'MEMBER', sourceVersion: 1000n, authorizationVersion: 1000n,
 		}]);
 		permission.canRead.mockResolvedValue(false);
 	});
@@ -50,7 +50,7 @@ describe('ProjectClient project read permission', () => {
 		permission.canRead.mockImplementation(async (_projectId, _userId, sourceVersion) => sourceVersion === 1000n);
 		await expect(service.canRead(7, 217)).resolves.toBe(true);
 		members.findByTeamIdsAndUserIds.mockResolvedValue([{
-			teamId: 3, userId: 217, role: 'MEMBER', sourceVersion: 2000n,
+			teamId: 3, userId: 217, role: 'MEMBER', sourceVersion: 2000n, authorizationVersion: 2000n,
 		}]);
 		await expect(service.canRead(7, 217)).resolves.toBe(false);
 		expect(permission.canRead).toHaveBeenLastCalledWith(7, 217, 2000n);
@@ -76,14 +76,14 @@ describe('ProjectClient project read permission', () => {
 		expect(permission.canRead).toHaveBeenCalledWith(7, 217, 2000n);
 	});
 
-	it('uses the original membership fence while the explicit authorization stamp is unknown', async () => {
+	it('denies access when the authorization stamp is missing instead of using membership time', async () => {
 		members.findByTeamIdsAndUserIds.mockResolvedValue([{
 			teamId: 3, userId: 217, role: 'MEMBER', sourceVersion: 1000n, authorizationVersion: null,
 		}]);
 		permission.canRead.mockImplementation(async (_projectId, _userId, authorizationVersion) => authorizationVersion === 1000n);
 
-		await expect(service.canRead(7, 217)).resolves.toBe(true);
-		expect(permission.canRead).toHaveBeenCalledWith(7, 217, 1000n);
+		await expect(service.canRead(7, 217)).resolves.toBe(false);
+		expect(permission.canRead).not.toHaveBeenCalled();
 	});
 
 	it('denies legacy membership without its source version', async () => {

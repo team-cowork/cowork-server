@@ -4,10 +4,13 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.InterruptException;
+import org.apache.kafka.common.errors.WakeupException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,6 +40,8 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     private final ProjectionTopicGenerationRegistry topicGeneration;
     private final String consumerGroup;
     private final String topic;
+    private final long assignmentRetryBackoffMs;
+    private final long assignmentRetryTimeoutMs;
 
     private final Object stateLock = new Object();
 
@@ -45,22 +50,59 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     // Guarded by stateLock. Bumped on every rebalance so a refresh that started
     // before it cannot publish a stale result.
     private long generation;
+    // Only accessed on the consumer thread. Limits stack traces to the first
+    // failure of a run.
+    private int consecutiveAssignmentFailures;
 
     public TeamMemberProjectionReadiness(ProjectionCheckpointRepository checkpoints,
             ProjectionTopicIdentityProvider topicIdentity,
             ProjectionTopicGenerationRegistry topicGeneration,
             @Value("${KAFKA_GROUP_ID_TEAM_MEMBER:cowork-roadmap.team-member}") String consumerGroup,
-            @Value("${KAFKA_TOPIC_TEAM_MEMBER:team.member.event}") String topic) {
+            @Value("${KAFKA_TOPIC_TEAM_MEMBER:team.member.event}") String topic,
+            @Value("${projection.readiness.assignment-retry-backoff-ms:1000}") long assignmentRetryBackoffMs,
+            @Value("${projection.readiness.assignment-retry-timeout-ms:60000}") long assignmentRetryTimeoutMs) {
         this.checkpoints = checkpoints;
         this.topicIdentity = topicIdentity;
         this.topicGeneration = topicGeneration;
         this.consumerGroup = consumerGroup;
         this.topic = topic;
+        this.assignmentRetryBackoffMs = Math.max(0L, assignmentRetryBackoffMs);
+        this.assignmentRetryTimeoutMs = Math.max(0L, assignmentRetryTimeoutMs);
     }
 
     @Override
     public void onPartitionsAssigned(Consumer<?, ?> consumer, Collection<TopicPartition> partitions) {
         invalidate();
+        // Retry inside the callback first: a rebalance would also take every healthy
+        // member out of readiness. Keep the timeout well below max.poll.interval.ms,
+        // because one attempt can itself block for the client API timeout.
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(assignmentRetryTimeoutMs);
+        while (true) {
+            try {
+                initializeAssignment(consumer, partitions);
+                consecutiveAssignmentFailures = 0;
+                return;
+            } catch (WakeupException | InterruptException exception) {
+                // The coordinator runs the callback again on the next poll.
+                throw exception;
+            } catch (RuntimeException exception) {
+                logAssignmentFailure(exception);
+            }
+            if (System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(assignmentRetryBackoffMs) - deadline >= 0) {
+                requestRebalance(consumer);
+                return;
+            }
+            try {
+                Thread.sleep(assignmentRetryBackoffMs);
+            } catch (InterruptedException exception) {
+                // The consumer is stopping, so a new rebalance is not useful.
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+    }
+
+    private void initializeAssignment(Consumer<?, ?> consumer, Collection<TopicPartition> partitions) {
         String topicId = topicIdentity.topicId(topic);
         List<TopicPartition> allPartitions = consumer.partitionsFor(topic)
                 .stream()
@@ -88,6 +130,27 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
         topicGeneration.markAssigned(topicId);
         initialized = true;
         refresh();
+    }
+
+    private void logAssignmentFailure(RuntimeException exception) {
+        consecutiveAssignmentFailures++;
+        if (consecutiveAssignmentFailures == 1) {
+            log.warn("Failed to initialize team member projection assignment", exception);
+        } else {
+            log.warn("Failed to initialize team member projection assignment again, failure {}: {}",
+                    consecutiveAssignmentFailures,
+                    exception.toString());
+        }
+    }
+
+    private void requestRebalance(Consumer<?, ?> consumer) {
+        log.warn("Requesting a rebalance to retry team member projection assignment");
+        // The container only logs listener failures, so without a new rebalance the
+        // assignment would stay uninitialized until restart. This depends on the
+        // classic
+        // group protocol: with group.protocol=consumer, enforceRebalance only logs a
+        // warning.
+        consumer.enforceRebalance("team member projection assignment initialization failed");
     }
 
     @Override

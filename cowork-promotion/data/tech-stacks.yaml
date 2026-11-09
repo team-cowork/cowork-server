@@ -13,6 +13,12 @@ categories:
         released: "1995년"
         description: "서버와 다양한 기기에서 실행되는 프로그램을 만드는 언어입니다. 같은 코드를 여러 운영체제에서 실행할 수 있도록 설계됐습니다."
         documentation: "https://docs.oracle.com/en/java/"
+      - name: "Scala"
+        logo: scala.svg
+        color: "#dc322f"
+        released: "2004년"
+        description: "객체지향과 함수형 프로그래밍을 함께 쓰는 언어입니다. 엄격한 타입 검사로 오류를 미리 찾고, Java 라이브러리를 그대로 사용할 수 있습니다."
+        documentation: "https://docs.scala-lang.org/"
       - name: "TypeScript"
         logo: typescript-icon.svg
         color: "#3178c6"
@@ -139,6 +145,12 @@ categories:
         released: "2012년"
         description: "많은 연결과 요청을 동시에 다루는 서버용 도구 모음입니다. 작업이 끝나기를 기다리며 멈추는 시간을 줄이는 방식으로 동작합니다."
         documentation: "https://vertx.io/docs/"
+      - name: "Play Framework"
+        logo: play.svg
+        color: "#92d13d"
+        released: "2007년"
+        description: "Scala와 Java로 웹 서버를 만드는 프레임워크입니다. 주소별 처리 규칙을 파일로 관리하고, 많은 요청을 적은 자원으로 처리합니다."
+        documentation: "https://www.playframework.com/documentation/latest/Home"
       - name: "Node.js"
         logo: nodejs-icon.svg
         color: "#5fa04e"
@@ -220,6 +232,12 @@ categories:
         released: "2010년"
         description: "많은 데이터에서 원하는 내용을 빠르게 찾는 검색 엔진입니다. 문장 검색과 조건별 필터링, 데이터 집계를 지원합니다."
         documentation: "https://www.elastic.co/docs/reference/elasticsearch"
+      - name: "SurrealDB"
+        logo: surrealdb.svg
+        color: "#ff00a0"
+        released: "2022년"
+        description: "문서와 그래프 데이터를 함께 다루는 데이터베이스입니다. 구조가 자유로운 데이터를 저장하면서, 여러 데이터를 한 번에 안전하게 변경할 수 있습니다."
+        documentation: "https://surrealdb.com/docs"
       - name: "SeaweedFS"
         logo: seaweedfs.png
         color: "#0162bf"
@@ -379,6 +397,12 @@ categories:
         released: "2023년"
         description: "Kotlin 프로젝트의 빌드 설정을 간단한 파일로 작성하는 JetBrains의 도구입니다. Amper에서 이어졌으며, 필요한 도구와 JDK를 자동으로 준비합니다."
         documentation: "https://kotlin-toolchain.org/latest/"
+      - name: "sbt"
+        logo: sbt.svg
+        color: "#380d09"
+        released: "2008년"
+        description: "Scala 프로젝트의 빌드와 라이브러리를 관리하는 도구입니다. 코드를 컴파일하고 테스트한 뒤 실행 가능한 형태로 묶습니다."
+        documentation: "https://www.scala-sbt.org/1.x/docs/"
 
 positions:
   Server:
@@ -387,6 +411,7 @@ positions:
     technologies:
       - Kotlin
       - Java
+      - Scala
       - TypeScript
       - Go
       - C#
@@ -394,6 +419,7 @@ positions:
       - Spring Cloud Gateway
       - OpenFeign
       - Vert.x
+      - Play Framework
       - Node.js
       - NestJS
       - Gin
@@ -407,6 +433,7 @@ positions:
       - MongoDB
       - Redis
       - Elasticsearch
+      - SurrealDB
       - SeaweedFS
       - Flyway
       - Apache Kafka
@@ -414,6 +441,7 @@ positions:
       - Maven
       - Gradle
       - Kotlin Toolchain
+      - sbt
   Web Client:
     color: "#eab308"
     description: 클릭과 결과 사이의 군더더기를 걷어냅니다. 웹에서 보고 누르는 화면을 만들어, 생각한 일을 곧바로 실행하게 합니다.

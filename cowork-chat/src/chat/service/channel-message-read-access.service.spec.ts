@@ -19,7 +19,7 @@ describe('ChannelMessageReadAccessService', () => {
 		findRolesByIds: jest.fn(),
 	};
 	const policyRepository = {findByChannelIdsAndRoleIds: jest.fn()};
-	const projectionReadiness = {isReady: jest.fn()};
+	const projectionReadiness = {areReady: jest.fn()};
 	// 브로드캐스트 판정 캐시가 인스턴스에 상태로 남으므로, 테스트 간 오염을 막기 위해
 	// 매 테스트마다 새 인스턴스를 만든다(캐시도 함께 초기화됨).
 	let service: ChannelMessageReadAccessService;
@@ -46,7 +46,7 @@ describe('ChannelMessageReadAccessService', () => {
 			policyRepository,
 			projectionReadiness,
 		});
-		projectionReadiness.isReady.mockReturnValue(true);
+		projectionReadiness.areReady.mockReturnValue(true);
 		teamRoleRepository.findDefaultRolesByTeamIds.mockResolvedValue([]);
 		channelRepository.findByIds.mockResolvedValue([
 			{
@@ -435,9 +435,9 @@ describe('ChannelMessageReadAccessService', () => {
 		});
 
 		it.each([
-			['판정 전 readiness가 닫혀 있으면', () => projectionReadiness.isReady.mockReturnValue(false)],
+			['판정 전 readiness가 닫혀 있으면', () => projectionReadiness.areReady.mockReturnValue(false)],
 			['판정 도중 readiness가 닫히면', () => channelRepository.findByIds.mockImplementationOnce(async () => {
-				projectionReadiness.isReady.mockReturnValue(false);
+				projectionReadiness.areReady.mockReturnValue(false);
 				return [{
 					channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false,
 				}];
@@ -478,7 +478,7 @@ describe('ChannelMessageReadAccessService', () => {
 
 		it('판정 도중 readiness가 닫히면 그 판정으로 room을 제거하지 않는다', async () => {
 			channelRepository.findByIds.mockImplementationOnce(async () => {
-				projectionReadiness.isReady.mockReturnValue(false);
+				projectionReadiness.areReady.mockReturnValue(false);
 				return [{
 					channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false,
 				}];
@@ -504,7 +504,7 @@ describe('ChannelMessageReadAccessService', () => {
 		});
 
 		it('projection readiness가 닫혀 있는 동안은 전송하지 않는다(fail-closed)', async () => {
-			projectionReadiness.isReady.mockReturnValue(false);
+			projectionReadiness.areReady.mockReturnValue(false);
 			const emit = jest.fn();
 			const to = jest.fn().mockReturnValue({emit});
 
@@ -526,9 +526,9 @@ describe('ChannelMessageReadAccessService', () => {
 			});
 			const io = {local: {fetchSockets: jest.fn().mockResolvedValue(sockets)}, to: jest.fn().mockReturnValue({emit})};
 
-			projectionReadiness.isReady.mockReturnValue(false);
+			projectionReadiness.areReady.mockReturnValue(false);
 			await service.emitToReadableChannelUsers(io as never, 10, {event: 'message', payload: {value: 1}});
-			projectionReadiness.isReady.mockReturnValue(true);
+			projectionReadiness.areReady.mockReturnValue(true);
 			teamRoleRepository.findDefaultRolesByTeamIds.mockResolvedValue([]);
 			await service.emitToReadableChannelUsers(io as never, 10, {event: 'message', payload: {value: 2}});
 			await service.emitToReadableChannelUsers(io as never, 10, {event: 'message', payload: {value: 3}});
@@ -540,21 +540,21 @@ describe('ChannelMessageReadAccessService', () => {
 
 		it('재검증 도중 readiness가 다시 닫히면 전송하지 않고 다음 전송에서 재검증한다', async () => {
 			const evict = jest.spyOn(service, 'evictUnauthorizedRooms').mockImplementation(async () => {
-				projectionReadiness.isReady.mockReturnValue(false);
+				projectionReadiness.areReady.mockReturnValue(false);
 				return 0;
 			});
 			const emit = jest.fn();
 			const io = {local: {fetchSockets: jest.fn().mockResolvedValue([])}, to: jest.fn().mockReturnValue({emit})};
 
-			projectionReadiness.isReady.mockReturnValue(false);
+			projectionReadiness.areReady.mockReturnValue(false);
 			await service.emitToReadableChannelUsers(io as never, 10, {event: 'message', payload: {value: 1}});
-			projectionReadiness.isReady.mockReturnValue(true);
+			projectionReadiness.areReady.mockReturnValue(true);
 			teamRoleRepository.findDefaultRolesByTeamIds.mockResolvedValue([]);
 			await service.emitToReadableChannelUsers(io as never, 10, {event: 'message', payload: {value: 2}});
 			expect(emit).not.toHaveBeenCalled();
 
 			evict.mockImplementation(async () => 0);
-			projectionReadiness.isReady.mockReturnValue(true);
+			projectionReadiness.areReady.mockReturnValue(true);
 			teamRoleRepository.findDefaultRolesByTeamIds.mockResolvedValue([]);
 			await service.emitToReadableChannelUsers(io as never, 10, {event: 'message', payload: {value: 3}});
 
