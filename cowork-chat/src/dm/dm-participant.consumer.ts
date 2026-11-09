@@ -131,19 +131,7 @@ export class DmParticipantConsumer implements OnModuleInit, OnModuleDestroy {
 					{upsert: true, timestamps: false, updatePipeline: true},
 				);
 				const isApplied = isProjectionUpdateApplied(result);
-				// Replay 중 projection은 reset 직후 상태라 대부분의 멤버십이 비어 있다.
-				// 그 상태로 접근을 평가하면 접속 중인 사용자를 전부 방에서 쫓아낸다.
-				// 권한 stream이 닫히면 판정은 전부 거부이므로 메시지 전송과 같은 readiness를 판정 전후로 확인한다.
-				if (this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)
-					&& this.io
-					&& this.readAccessEvaluator
-					&& !(await this.readAccessEvaluator(channelId, userId))
-					&& this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
-					this.io.in(`user:${userId}`).socketsLeave(`chat:${channelId}`);
-					if (event.snapshot !== true) {
-						this.io.to(`user:${userId}`).emit('channel:access:revoked', {channelId});
-					}
-				}
+				await this.revokeUnreadableAccess(event, isApplied);
 
 				if (!isApplied || event.snapshot === true) {
 					return;
@@ -154,6 +142,29 @@ export class DmParticipantConsumer implements OnModuleInit, OnModuleDestroy {
 		} catch (error) {
 			this.logger.error(`Failed to handle DM participant event [${eventType}]`, error);
 			throw error;
+		}
+	}
+
+	/**
+    Replay 중 projection은 reset 직후 상태라 대부분의 멤버십이 비어 있다.
+    그 상태로 접근을 평가하면 접속 중인 사용자를 전부 방에서 쫓아낸다.
+    권한 stream이 닫히면 판정은 전부 거부이므로 그 readiness를 판정 전후로 확인한다.
+    변경 없이 끝난 snapshot 재발행은 접근 판정을 건너뛰고, live 재전달은 항상 판정한다.
+    */
+	private async revokeUnreadableAccess(event: DmParticipantEvent, isApplied: boolean): Promise<void> {
+		const {channelId, userId} = event;
+		if ((!isApplied && event.snapshot === true)
+			|| !this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)
+			|| !this.io
+			|| !this.readAccessEvaluator
+			|| await this.readAccessEvaluator(channelId, userId)
+			|| !this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
+			return;
+		}
+
+		this.io.in(`user:${userId}`).socketsLeave(`chat:${channelId}`);
+		if (event.snapshot !== true) {
+			this.io.to(`user:${userId}`).emit('channel:access:revoked', {channelId});
 		}
 	}
 

@@ -74,13 +74,15 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 
 		const {occurredAt, sourceVersion} = eventTime;
 		const authorizationVersion = parseEventTime(payload.authorizationVersion)!.sourceVersion;
+		let isApplied: boolean;
 		if (payload.eventType === 'DELETE') {
-			await this.memberRepository.remove({
+			const isRemoved = await this.memberRepository.remove({
 				teamId: payload.teamId, userId: payload.userId, occurredAt, sourceVersion, authorizationVersion, role: payload.role,
 			});
-			await this.roleRepository.deleteMemberAssignments(payload.teamId, payload.userId, occurredAt, sourceVersion);
+			const isCascaded = await this.roleRepository.deleteMemberAssignments(payload.teamId, payload.userId, occurredAt, sourceVersion);
+			isApplied = isRemoved || isCascaded;
 		} else {
-			await this.memberRepository.upsert({
+			isApplied = await this.memberRepository.upsert({
 				teamId: payload.teamId,
 				userId: payload.userId,
 				role: payload.role,
@@ -97,8 +99,12 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 			return;
 		}
 
-		const channelIds = await this.channelRepository.findIdsByTeamId(payload.teamId);
-		await this.channelMessageReadAccess.evictUnauthorizedSockets(this.io, channelIds, [payload.userId]);
+		// 변경 없이 끝난 snapshot 재발행은 소켓 재검증을 건너뛰고, live 재전달은 항상 재검증한다.
+		if (isApplied || payload.snapshot !== true) {
+			const channelIds = await this.channelRepository.findIdsByTeamId(payload.teamId);
+			await this.channelMessageReadAccess.evictUnauthorizedSockets(this.io, channelIds, [payload.userId]);
+		}
+
 		if (payload.eventType !== 'DELETE' || (await this.memberRepository.exists(payload.teamId, payload.userId))) {
 			return;
 		}
