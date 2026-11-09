@@ -15,8 +15,8 @@ import com.cowork.preference.messaging.TeamRoleCommandQuarantineRecord
 import com.cowork.preference.messaging.TeamRoleCommandType
 import com.cowork.preference.repository.ChannelRolePolicyRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
-import com.cowork.preference.repository.ProjectAccessStateRepository
 import com.cowork.preference.repository.ProcessedTeamRoleCommand
+import com.cowork.preference.repository.ProjectAccessStateRepository
 import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.repository.TeamRoleCommandInboxRepository
 import com.cowork.preference.repository.TeamRoleRepository
@@ -191,8 +191,11 @@ class TeamRoleCommandProcessor(
             ?: reject("ROLE_NOT_FOUND", "역할을 찾을 수 없습니다.")
         requireManageable(actor, current.priority)
         val input = requireNotNull(command.role)
-        if (current.isDefault && ((input.name != null && input.name != current.name) ||
-                (input.priority != null && input.priority != current.priority))) {
+        if (current.isDefault && (
+                (input.name != null && input.name != current.name) ||
+                    (input.priority != null && input.priority != current.priority)
+                )
+        ) {
             reject("DEFAULT_ROLE_PROTECTED", "기본 역할의 이름과 우선순위는 변경할 수 없습니다.")
         }
         val nextName = input.name ?: current.name
@@ -206,7 +209,13 @@ class TeamRoleCommandProcessor(
         if (roleRepository.findRoleByNameExceptId(connection, command.teamId, nextName, roleId) != null) {
             reject("DUPLICATE_ROLE_NAME", "같은 이름의 역할이 이미 존재합니다.")
         }
-        requireGrantable(actor, input.permissions.orEmpty().filter { (key, allowed) -> allowed && current.permissions[key] != true })
+        requireGrantable(
+            actor,
+            input.permissions.orEmpty().filter { (key, allowed) ->
+                allowed &&
+                    current.permissions[key] != true
+            },
+        )
         val role = roleRepository.updateRole(
             connection,
             roleId,
@@ -487,7 +496,11 @@ class TeamRoleCommandProcessor(
 
     private fun reject(code: String, message: String): Nothing = throw CommandRejected(code, message)
 
-    private data class ActorContext(val builtInManager: Boolean, val maxPriority: Int, val permissions: Set<String> = emptySet())
+    private data class ActorContext(
+        val builtInManager: Boolean,
+        val maxPriority: Int,
+        val permissions: Set<String> = emptySet(),
+    )
     private data class CommandOutcome(
         val stateEvents: List<PreferenceEvent>,
         val result: JsonObject,

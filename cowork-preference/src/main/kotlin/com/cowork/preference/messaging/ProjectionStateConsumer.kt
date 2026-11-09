@@ -180,36 +180,35 @@ class ProjectionStateConsumer(
         }
     }
 
-    private suspend fun initializeAssignedPartitionsWithRetry(
-        partitions: Set<TopicPartition>,
-    ): Boolean = retry("initialize assigned partition checkpoints") {
-        awaitConsumerOperation { consumer.pause(partitions) }
-        val topicState = topicIdentity.topicState(topic)
-        currentCoroutineContext().ensureActive()
-        val result = checkpointRepository.initializeAssignment(
-            consumerGroup = groupId,
-            topic = topic,
-            topicId = topicState.topicId,
-            ranges = topicState.ranges.map { (partition, range) ->
-                ProjectionPartitionRange(partition, range.beginningOffset, range.endOffset)
-            },
-            assignedPartitions = partitions.mapTo(mutableSetOf()) { it.partition },
-        )
-        currentCoroutineContext().ensureActive()
-        partitions.sortedBy(TopicPartition::getPartition).forEach { partition ->
-            val seekOffset = requireNotNull(result.seekOffsets[partition.partition])
-            awaitConsumerOperation { consumer.seek(partition, seekOffset) }
-            log.info(
-                "Kafka projection partition initialized topic={} partition={} checkpoint={} topicId={}",
-                topic,
-                partition.partition,
-                seekOffset,
-                topicState.topicId,
+    private suspend fun initializeAssignedPartitionsWithRetry(partitions: Set<TopicPartition>): Boolean =
+        retry("initialize assigned partition checkpoints") {
+            awaitConsumerOperation { consumer.pause(partitions) }
+            val topicState = topicIdentity.topicState(topic)
+            currentCoroutineContext().ensureActive()
+            val result = checkpointRepository.initializeAssignment(
+                consumerGroup = groupId,
+                topic = topic,
+                topicId = topicState.topicId,
+                ranges = topicState.ranges.map { (partition, range) ->
+                    ProjectionPartitionRange(partition, range.beginningOffset, range.endOffset)
+                },
+                assignedPartitions = partitions.mapTo(mutableSetOf()) { it.partition },
             )
+            currentCoroutineContext().ensureActive()
+            partitions.sortedBy(TopicPartition::getPartition).forEach { partition ->
+                val seekOffset = requireNotNull(result.seekOffsets[partition.partition])
+                awaitConsumerOperation { consumer.seek(partition, seekOffset) }
+                log.info(
+                    "Kafka projection partition initialized topic={} partition={} checkpoint={} topicId={}",
+                    topic,
+                    partition.partition,
+                    seekOffset,
+                    topicState.topicId,
+                )
+            }
+            assignedTopicId = topicState.topicId
+            result.invalidCheckpoint
         }
-        assignedTopicId = topicState.topicId
-        result.invalidCheckpoint
-    }
 
     private suspend fun processBatchWithRetry(records: KafkaConsumerRecords<String, String>) {
         val rangeIsValid = retry("validate batch checkpoint range") {
@@ -222,9 +221,7 @@ class ProjectionStateConsumer(
         }
     }
 
-    private suspend fun validateBatchCheckpointRange(
-        records: KafkaConsumerRecords<String, String>,
-    ): Boolean {
+    private suspend fun validateBatchCheckpointRange(records: KafkaConsumerRecords<String, String>): Boolean {
         if (records.isEmpty) return true
         val checkpoints = checkpointRepository.load(groupId, topic)
         currentCoroutineContext().ensureActive()
@@ -280,10 +277,7 @@ class ProjectionStateConsumer(
         }
     }
 
-    private suspend fun processRecord(
-        checkpoint: ProjectionCheckpoint,
-        record: KafkaConsumerRecord<String, String>,
-    ) {
+    private suspend fun processRecord(checkpoint: ProjectionCheckpoint, record: KafkaConsumerRecord<String, String>) {
         if (ProjectionSnapshotCompletion.isReserved(record.key())) {
             val violation = ProjectionSnapshotCompletion.violation(
                 record.key(),

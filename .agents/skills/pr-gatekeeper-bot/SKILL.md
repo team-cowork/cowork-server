@@ -43,7 +43,7 @@ The target repository (OWNER/REPO) is the repository the PR lives in. It can be 
 - `write-pr` takes precedence. Use this skill only when the user explicitly names pr-gatekeeper-bot (or the gatekeeper bot) for a PR; otherwise create PRs with `write-pr`.
 - Once this skill is selected, create and merge PRs **only** through pr-gatekeeper-bot. Never run `gh pr create` or `gh pr merge` without the bot token — that records the action under the user's personal account.
 - Merge **only after explicit user confirmation**. Before merging, show the PR number, base branch, and merge method, and wait for a yes.
-- If the user does not specify a base, use the repository's default branch (`gh repo view --json defaultBranchRef -q .defaultBranchRef.name`), and tell the user which branch the PR targets before running anything.
+- If the user does not specify a base, prefer a development integration branch such as `develop` when the repository has one (`git ls-remote --heads origin develop dev development`). If there is none, use the repository's default branch (`gh repo view --json defaultBranchRef -q .defaultBranchRef.name`). If several candidates exist or the right base is unclear, ask the user instead of choosing. Tell the user which branch the PR targets before running anything.
 
 ## 2. Mode selection
 
