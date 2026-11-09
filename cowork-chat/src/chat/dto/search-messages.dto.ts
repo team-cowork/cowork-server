@@ -6,6 +6,7 @@ import {
 	IsBoolean as isBoolean,
 	Min as min,
 	Max as max,
+	MaxLength as maxLength,
 	MinLength as minLength,
 } from 'class-validator';
 import {ApiProperty as apiProperty, ApiPropertyOptional as apiPropertyOptional} from '@nestjs/swagger';
@@ -13,7 +14,7 @@ import {Transform as transform, Type as transformType} from 'class-transformer';
 
 export class SearchMessagesDto {
 	@apiProperty({description: '검색 키워드 (최소 1자)', minLength: 1})
-	@isString() @minLength(1) q!: string;
+	@isString() @minLength(1) @maxLength(200) q!: string;
 
 	@apiPropertyOptional({description: '특정 채널로 범위 축소'})
 	@isInt() @min(1) @max(Number.MAX_SAFE_INTEGER) @isOptional() @transformType(() => Number) channelId?: number;

@@ -386,6 +386,30 @@
       "GITHUB_APP_ID": "COWORK_GITHUB_APP_ID"
     }
   },
+  "applet": {
+    "environment": "Prod-CD(applet)",
+    "secret_bindings": {
+      "APPLET_SECRET_KEY": "APPLET_SECRET_KEY",
+      "DB_PASSWORD": "DB_PASSWORD"
+    },
+    "data_secret_bindings": {
+      "DB_ADMIN_PASSWORD": "DB_ADMIN_PASSWORD",
+      "DB_PASSWORD": "DB_PASSWORD"
+    },
+    "optional_secrets": [],
+    "immutable_secrets": [
+      "DB_ADMIN_PASSWORD"
+    ],
+    "kafka_principal": "cowork-applet",
+    "variable_bindings": {
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME"
+    },
+    "data_variable_bindings": {
+      "DB_NAME": "DB_NAME",
+      "DB_USERNAME": "DB_USERNAME"
+    }
+  },
   "monitoring": {
     "environment": "Prod-CD(monitoring)",
     "secret_bindings": {
