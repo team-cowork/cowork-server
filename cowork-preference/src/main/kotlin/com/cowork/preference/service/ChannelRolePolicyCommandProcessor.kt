@@ -1,11 +1,11 @@
 package com.cowork.preference.service
 
 import com.cowork.preference.domain.ChannelLifecycleProjection
+import com.cowork.preference.domain.ChannelRolePolicyPermissions
+import com.cowork.preference.domain.ChannelRolePolicyState
 import com.cowork.preference.domain.PermissionKeys
 import com.cowork.preference.domain.TeamMemberProjection
 import com.cowork.preference.domain.TeamRoleDefinition
-import com.cowork.preference.domain.ChannelRolePolicyPermissions
-import com.cowork.preference.domain.ChannelRolePolicyState
 import com.cowork.preference.messaging.ChannelRolePolicyCommand
 import com.cowork.preference.messaging.ChannelRolePolicyCommandEnvelope
 import com.cowork.preference.messaging.ChannelRolePolicyCommandParser
@@ -130,6 +130,7 @@ class ChannelRolePolicyCommandProcessor(
                 roleId = command.roleId,
                 permissions = requireNotNull(command.permissions),
             )
+
             ChannelRolePolicyCommandType.DELETE -> policyRepository.deletePolicy(
                 client = connection,
                 teamId = command.teamId,
@@ -145,7 +146,10 @@ class ChannelRolePolicyCommandProcessor(
      * 채널 projection row를 잠가 기존 거부 검증과 정책 교체, 삭제 정리의 순서를 직렬화한다.
      * 삭제가 먼저 반영됐으면 command를 종료하고, 정책이 먼저 반영됐으면 뒤따른 삭제가 그 정책을 정리한다.
      */
-    private suspend fun requireActiveChannel(connection: SqlConnection, command: ChannelRolePolicyCommand): ChannelLifecycleProjection {
+    private suspend fun requireActiveChannel(
+        connection: SqlConnection,
+        command: ChannelRolePolicyCommand,
+    ): ChannelLifecycleProjection {
         val channel = channelRepository.findForUpdate(connection, command.channelId)
             ?: throw ChannelRolePolicyProjectionNotReadyException(
                 "channel projection is missing for ${command.channelId}",
@@ -157,7 +161,10 @@ class ChannelRolePolicyCommandProcessor(
         return channel
     }
 
-    private suspend fun requireActiveActor(connection: SqlConnection, command: ChannelRolePolicyCommand): TeamMemberProjection {
+    private suspend fun requireActiveActor(
+        connection: SqlConnection,
+        command: ChannelRolePolicyCommand,
+    ): TeamMemberProjection {
         val member = memberRepository.find(connection, command.teamId, command.actorId)
             ?: throw ChannelRolePolicyProjectionNotReadyException(
                 "member projection is missing for ${command.teamId}:${command.actorId}",
@@ -198,16 +205,40 @@ class ChannelRolePolicyCommandProcessor(
             "VOICE" -> PermissionKeys.VOICE_CONNECT
             else -> throw ChannelRolePolicyProjectionNotReadyException("channel type is not known yet")
         }
-        if (!policyRepository.canAccess(connection, command.teamId, command.actorId, command.channelId, accessPermission, channel.isPrivate != false)) {
+        if (!policyRepository.canAccess(
+                connection,
+                command.teamId,
+                command.actorId,
+                command.channelId,
+                accessPermission,
+                channel.isPrivate != false,
+            )
+        ) {
             reject("FORBIDDEN", "채널에 접근할 권한이 없습니다.")
         }
-        val currentOverwrite = policyRepository.findPolicy(connection, command.teamId, command.channelId, command.roleId)?.permissions
+        val currentOverwrite = policyRepository.findPolicy(
+            connection,
+            command.teamId,
+            command.channelId,
+            command.roleId,
+        )?.permissions
         val grants = PermissionKeys.CHANNEL_SCOPED.filter { permission ->
             command.permissions?.getValue(permission) as? Boolean
-                ?: (currentOverwrite?.getBoolean(permission) == false || (command.permissions == null && target.permissions[permission] == true))
+                ?: (
+                    currentOverwrite?.getBoolean(permission) == false ||
+                        (command.permissions == null && target.permissions[permission] == true)
+                    )
         }
         for (permission in grants) {
-            if (!policyRepository.canAccess(connection, command.teamId, command.actorId, command.channelId, permission, channel.isPrivate != false)) {
+            if (!policyRepository.canAccess(
+                    connection,
+                    command.teamId,
+                    command.actorId,
+                    command.channelId,
+                    permission,
+                    channel.isPrivate != false,
+                )
+            ) {
                 reject("FORBIDDEN", "자신이 보유하지 않은 권한은 부여할 수 없습니다.")
             }
         }
@@ -314,6 +345,7 @@ class ChannelRolePolicyCommandProcessor(
         ChannelRolePolicyCommandType.UPSERT -> copy(
             permissions = ChannelRolePolicyPermissions.canonicalize(requireNotNull(permissions)),
         )
+
         ChannelRolePolicyCommandType.DELETE -> copy(permissions = null)
     }
 
