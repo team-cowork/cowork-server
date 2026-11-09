@@ -13,14 +13,7 @@ import {getOptionalConfig, getRequiredConfig} from '../config/config.util.js';
 // This.client에만 캐스팅해서 붙이는 타입 — ioredis의 공유 RedisCommander를 전역으로 확장하면
 // defineCommand를 호출하지 않은 다른 Redis 클라이언트에도 이 메서드가 타입상 노출되어 버린다.
 type WithTryAcquireScript<Context extends ClientContext = {type: 'default'}> = {
-	tryAcquireScript(
-		key: string,
-		windowStart: number,
-		now: number,
-		member: string,
-		windowMs: number,
-		maxRequests: number,
-	): Result<number, Context>;
+	tryAcquireScript(key: string, windowMs: number, maxRequests: number, member: string): Result<number, Context>;
 	tryReserveScript(key: string, holder: string, ttlMs: number): Result<number, Context>;
 	releaseScript(key: string, holder: string): Result<number, Context>;
 	webhookAcquireScript(key: string, windowMs: number, limit: number, member: string): Result<number, Context>;
@@ -56,14 +49,17 @@ end
 return 0
 `;
 
-// KEYS[1]=key ARGV[1]=windowStart ARGV[2]=now ARGV[3]=member ARGV[4]=windowMs ARGV[5]=maxRequests
+// KEYS[1]=key ARGV[1]=windowMs ARGV[2]=maxRequests ARGV[3]=member
+// 시각은 Redis 서버 시계로 읽어 레플리카마다 시계가 달라도 같은 시간창을 쓴다.
 const TRY_ACQUIRE_SCRIPT = `
-redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, ARGV[1])
-if redis.call('ZCARD', KEYS[1]) >= tonumber(ARGV[5]) then
+local clock = redis.call('TIME')
+local now = tonumber(clock[1]) * 1000 + math.floor(tonumber(clock[2]) / 1000)
+redis.call('ZREMRANGEBYSCORE', KEYS[1], 0, now - tonumber(ARGV[1]))
+if redis.call('ZCARD', KEYS[1]) >= tonumber(ARGV[2]) then
     return 0
 end
-redis.call('ZADD', KEYS[1], ARGV[2], ARGV[3])
-redis.call('PEXPIRE', KEYS[1], ARGV[4])
+redis.call('ZADD', KEYS[1], now, ARGV[3])
+redis.call('PEXPIRE', KEYS[1], ARGV[1])
 return 1
 `;
 
@@ -173,12 +169,8 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
      @returns 한도 내면 `true`, 초과했으면 `false`. Redis 오류 시에는 `true`(fail-open)를 반환한다.
      */
 	async tryAcquire(key: string, windowMs: number, maxRequests: number): Promise<boolean> {
-		const now = Date.now();
-		const windowStart = now - windowMs;
-		const member = `${now}-${randomUUID()}`;
-
 		try {
-			const acquired = await this.client.tryAcquireScript(key, windowStart, now, member, windowMs, maxRequests);
+			const acquired = await this.client.tryAcquireScript(key, windowMs, maxRequests, randomUUID());
 			return acquired === 1;
 		} catch (error) {
 			this.logger.warn(`Rate limit check failed, failing open [key=${key}]`, error);
