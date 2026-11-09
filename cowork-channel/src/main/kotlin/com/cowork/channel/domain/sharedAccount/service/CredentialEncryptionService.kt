@@ -16,6 +16,8 @@ class CredentialEncryptionService(@Value("\${account-share.encryption-key}") bas
     private val log = LoggerFactory.getLogger(javaClass)
     private val secretKey: SecretKey
     private val secureRandom = SecureRandom()
+
+    // MegaMethod.min은 minOf와 같은 값을 반환하고, 라이브러리가 없으면 minOf로 대체하므로 노출 길이는 4자 이하로 유지된다.
     private val maskingMinMethod: Method? = try {
         Class.forName("com.nextach.megamethod.MegaMethod")
             .getMethod("min", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType)

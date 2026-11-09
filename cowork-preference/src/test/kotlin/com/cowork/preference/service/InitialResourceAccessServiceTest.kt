@@ -79,9 +79,11 @@ class InitialResourceAccessServiceTest {
 
     @Test
     fun `초기 정책은 거부 키도 생성자가 가진 기본 권한 범위로 제한한다`() = runBlocking {
-        val seed = channelSeed.copy(overwrites = listOf(
-            InitialChannelRoleOverwrite(ROLE, JsonObject().put("message_read", true).put("message_manage", false)),
-        ))
+        val seed = channelSeed.copy(
+            overwrites = listOf(
+                InitialChannelRoleOverwrite(ROLE, JsonObject().put("message_read", true).put("message_manage", false)),
+            ),
+        )
 
         service.channel(client, channelEvent.copy(initialRolePolicySeed = seed), channel)
 
@@ -91,9 +93,11 @@ class InitialResourceAccessServiceTest {
     @Test
     fun `다른 역할만 허용해 생성자가 비공개 채널을 읽을 수 없으면 초기화하지 않는다`() = runBlocking {
         coEvery { roles.findRoles(client, TEAM) } returns listOf(role, role.copy(id = ROLE + 1, isDefault = false))
-        val seed = channelSeed.copy(overwrites = listOf(
-            InitialChannelRoleOverwrite(ROLE + 1, JsonObject().put("message_read", true)),
-        ))
+        val seed = channelSeed.copy(
+            overwrites = listOf(
+                InitialChannelRoleOverwrite(ROLE + 1, JsonObject().put("message_read", true)),
+            ),
+        )
 
         service.channel(client, channelEvent.copy(initialRolePolicySeed = seed), channel)
 
@@ -102,22 +106,28 @@ class InitialResourceAccessServiceTest {
 
     @Test
     fun `초기 정책의 일부 역할이 삭제됐어도 남은 정책이 생성자 접근을 허용하면 적용한다`() = runBlocking {
-        val seed = channelSeed.copy(overwrites = channelSeed.overwrites +
-            InitialChannelRoleOverwrite(ROLE + 1, JsonObject().put("message_manage", true)))
+        val seed = channelSeed.copy(
+            overwrites = channelSeed.overwrites +
+                InitialChannelRoleOverwrite(ROLE + 1, JsonObject().put("message_manage", true)),
+        )
 
         service.channel(client, channelEvent.copy(initialRolePolicySeed = seed), channel)
 
-        coVerify(exactly = 1) { policies.upsertPolicy(client, TEAM, CHANNEL, ROLE, JsonObject().put("message_read", true)) }
+        coVerify(exactly = 1) {
+            policies.upsertPolicy(client, TEAM, CHANNEL, ROLE, JsonObject().put("message_read", true))
+        }
         coVerify(exactly = 0) { policies.upsertPolicy(client, TEAM, CHANNEL, ROLE + 1, any()) }
     }
 
     @Test
     fun `삭제된 역할을 제외한 초기 정책으로 생성자 접근이 불가능하면 적용하지 않는다`() = runBlocking {
         coEvery { roles.findRoles(client, TEAM) } returns listOf(role, role.copy(id = ROLE + 2, isDefault = false))
-        val seed = channelSeed.copy(overwrites = listOf(
-            InitialChannelRoleOverwrite(ROLE + 1, JsonObject().put("message_read", true)),
-            InitialChannelRoleOverwrite(ROLE + 2, JsonObject().put("message_read", true)),
-        ))
+        val seed = channelSeed.copy(
+            overwrites = listOf(
+                InitialChannelRoleOverwrite(ROLE + 1, JsonObject().put("message_read", true)),
+                InitialChannelRoleOverwrite(ROLE + 2, JsonObject().put("message_read", true)),
+            ),
+        )
 
         service.channel(client, channelEvent.copy(initialRolePolicySeed = seed), channel)
 
@@ -126,9 +136,11 @@ class InitialResourceAccessServiceTest {
 
     @Test
     fun `초기 정책의 모든 대상 역할이 삭제됐으면 권한을 만들지 않는다`() = runBlocking {
-        val seed = channelSeed.copy(overwrites = listOf(
-            InitialChannelRoleOverwrite(ROLE + 1, JsonObject().put("message_read", true)),
-        ))
+        val seed = channelSeed.copy(
+            overwrites = listOf(
+                InitialChannelRoleOverwrite(ROLE + 1, JsonObject().put("message_read", true)),
+            ),
+        )
 
         service.channel(client, channelEvent.copy(initialRolePolicySeed = seed), channel)
 
@@ -138,17 +150,21 @@ class InitialResourceAccessServiceTest {
     @Test
     fun `팀 관리자는 일부 역할 삭제 후에도 기본 권한과 초기 접근 검사를 우회한다`() = runBlocking {
         coEvery { roles.findAccountRoles(client, TEAM, ACTOR) } returns emptyList()
-        val seed = channelSeed.copy(overwrites = listOf(
-            InitialChannelRoleOverwrite(ROLE, JsonObject().put("message_read", false)),
-            InitialChannelRoleOverwrite(ROLE + 1, JsonObject().put("message_read", true)),
-        ))
+        val seed = channelSeed.copy(
+            overwrites = listOf(
+                InitialChannelRoleOverwrite(ROLE, JsonObject().put("message_read", false)),
+                InitialChannelRoleOverwrite(ROLE + 1, JsonObject().put("message_read", true)),
+            ),
+        )
         listOf("OWNER", "ADMIN").forEach { builtInRole ->
             coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(builtInRole = builtInRole)
 
             service.channel(client, channelEvent.copy(initialRolePolicySeed = seed), channel)
         }
 
-        coVerify(exactly = 2) { policies.upsertPolicy(client, TEAM, CHANNEL, ROLE, JsonObject().put("message_read", false)) }
+        coVerify(exactly = 2) {
+            policies.upsertPolicy(client, TEAM, CHANNEL, ROLE, JsonObject().put("message_read", false))
+        }
         coVerify(exactly = 0) { policies.upsertPolicy(client, TEAM, CHANNEL, ROLE + 1, any()) }
     }
 
@@ -183,7 +199,8 @@ class InitialResourceAccessServiceTest {
 
     @Test
     fun `탈퇴 후 재가입 등 멤버 버전이 앞서면 이전 초기 권한을 다시 부여하지 않는다`() = runBlocking {
-        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(sourceOccurredAt = VERSION.plusSeconds(1))
+        coEvery { members.find(client, TEAM, ACTOR) } returns
+            member.copy(sourceOccurredAt = VERSION.plusSeconds(1), authorizationVersion = VERSION.plusSeconds(1))
 
         service.channel(client, channelEvent, channel)
         assertFalse(service.project(client, projectEvent, project))
@@ -195,15 +212,26 @@ class InitialResourceAccessServiceTest {
     @Test
     fun `닉네임만 바뀌어 권한 버전이 같으면 생성 시 승인한 초기 접근을 허용한다`() = runBlocking {
         coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(
-            sourceOccurredAt = VERSION.plusSeconds(1), authorizationVersion = VERSION,
+            sourceOccurredAt = VERSION.plusSeconds(1),
+            authorizationVersion = VERSION,
         )
 
-        service.channel(client, channelEvent.copy(
-            initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = VERSION),
-        ), channel)
-        assertTrue(service.project(client, projectEvent.copy(
-            initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, VERSION),
-        ), project))
+        service.channel(
+            client,
+            channelEvent.copy(
+                initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = VERSION),
+            ),
+            channel,
+        )
+        assertTrue(
+            service.project(
+                client,
+                projectEvent.copy(
+                    initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, VERSION),
+                ),
+                project,
+            ),
+        )
 
         coVerify { policies.upsertPolicy(client, TEAM, CHANNEL, ROLE, any()) }
         coVerify { projectRoles.assignRole(ACTOR, PROJECT, "초기 접근", client) }
@@ -212,74 +240,57 @@ class InitialResourceAccessServiceTest {
     @Test
     fun `역할 변경이나 재가입으로 권한 버전이 바뀌면 이전 초기 접근을 거부한다`() = runBlocking {
         coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(
-            sourceOccurredAt = VERSION.plusSeconds(1), authorizationVersion = VERSION.plusSeconds(1),
+            sourceOccurredAt = VERSION.plusSeconds(1),
+            authorizationVersion = VERSION.plusSeconds(1),
         )
 
-        service.channel(client, channelEvent.copy(
-            initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = VERSION),
-        ), channel)
-        assertFalse(service.project(client, projectEvent.copy(
-            initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, VERSION),
-        ), project))
+        service.channel(
+            client,
+            channelEvent.copy(
+                initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = VERSION),
+            ),
+            channel,
+        )
+        assertFalse(
+            service.project(
+                client,
+                projectEvent.copy(
+                    initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, VERSION),
+                ),
+                project,
+            ),
+        )
 
         coVerify(exactly = 0) { policies.upsertPolicy(any(), any(), any(), any(), any()) }
         coVerify(exactly = 0) { projectRoles.assignRole(any(), any(), any(), any()) }
-    }
-
-    @Test
-    fun `구형 초기 요청은 새 권한 버전으로 바꾸지 않고 당시 멤버 버전으로 검사한다`() = runBlocking {
-        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(
-            authorizationVersion = VERSION.minusSeconds(1),
-        )
-        assertTrue(service.project(client, projectEvent, project))
-
-        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(
-            sourceOccurredAt = VERSION.plusSeconds(1), authorizationVersion = VERSION.minusSeconds(1),
-        )
-        assertFalse(service.project(client, projectEvent, project))
-        coVerify(exactly = 1) { projectRoles.assignRole(ACTOR, PROJECT, "초기 접근", client) }
     }
 
     @Test
     fun `새 구형 이벤트로 원본 권한 버전이 없어진 경우 이전 승인 버전을 재사용하지 않는다`() = runBlocking {
-        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(sourceOccurredAt = VERSION.plusSeconds(1))
+        coEvery { members.find(client, TEAM, ACTOR) } returns
+            member.copy(sourceOccurredAt = VERSION.plusSeconds(1), authorizationVersion = null)
 
-        assertFalse(service.project(client, projectEvent.copy(
-            initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, VERSION),
-        ), project))
+        assertFalse(
+            service.project(
+                client,
+                projectEvent.copy(
+                    initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, VERSION),
+                ),
+                project,
+            ),
+        )
 
         coVerify(exactly = 0) { projectRoles.assignRole(any(), any(), any(), any()) }
     }
 
     @Test
-    fun `같은 멤버 버전의 권한 메타데이터가 없으면 초기 접근을 재시도한다`() {
-        assertAuthorizationRepairRetry(null)
-    }
-
-    @Test
-    fun `같은 멤버 버전의 권한 메타데이터가 승인 버전보다 뒤처지면 초기 접근을 재시도한다`() {
-        assertAuthorizationRepairRetry(VERSION.minusSeconds(2))
-    }
-
-    private fun assertAuthorizationRepairRetry(currentAuthorizationVersion: Instant?) {
-        coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(
-            authorizationVersion = currentAuthorizationVersion,
-        )
-        val approvedVersion = VERSION.minusSeconds(1)
-
-        assertThrows<IllegalStateException> {
-            runBlocking {
-                service.channel(client, channelEvent.copy(
-                    initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = approvedVersion),
-                ), channel)
-            }
-        }
-        assertThrows<IllegalStateException> {
-            runBlocking {
-                service.project(client, projectEvent.copy(
-                    initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, approvedVersion),
-                ), project)
-            }
+    fun `동일 멤버 버전에서도 권한 버전이 없거나 다르면 초기 접근을 부여하지 않는다`() = runBlocking {
+        listOf(null, VERSION.minusSeconds(2)).forEach { currentAuthorization ->
+            coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(
+                authorizationVersion = currentAuthorization,
+            )
+            service.channel(client, channelEvent, channel)
+            assertFalse(service.project(client, projectEvent, project))
         }
 
         coVerify(exactly = 0) { policies.upsertPolicy(any(), any(), any(), any(), any()) }
@@ -287,16 +298,26 @@ class InitialResourceAccessServiceTest {
     }
 
     @Test
-    fun `같은 멤버 버전의 권한 보정이 완료됐으면 승인한 초기 접근을 허용한다`() = runBlocking {
+    fun `승인한 권한 버전이 현재와 같으면 초기 접근을 허용한다`() = runBlocking {
         val approvedVersion = VERSION.minusSeconds(1)
         coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(authorizationVersion = approvedVersion)
 
-        service.channel(client, channelEvent.copy(
-            initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = approvedVersion),
-        ), channel)
-        assertTrue(service.project(client, projectEvent.copy(
-            initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, approvedVersion),
-        ), project))
+        service.channel(
+            client,
+            channelEvent.copy(
+                initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = approvedVersion),
+            ),
+            channel,
+        )
+        assertTrue(
+            service.project(
+                client,
+                projectEvent.copy(
+                    initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, approvedVersion),
+                ),
+                project,
+            ),
+        )
 
         coVerify { policies.upsertPolicy(client, TEAM, CHANNEL, ROLE, any()) }
         coVerify { projectRoles.assignRole(ACTOR, PROJECT, "초기 접근", client) }
@@ -307,12 +328,22 @@ class InitialResourceAccessServiceTest {
         coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(authorizationVersion = VERSION)
         val approvedVersion = VERSION.minusSeconds(1)
 
-        service.channel(client, channelEvent.copy(
-            initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = approvedVersion),
-        ), channel)
-        assertFalse(service.project(client, projectEvent.copy(
-            initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, approvedVersion),
-        ), project))
+        service.channel(
+            client,
+            channelEvent.copy(
+                initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = approvedVersion),
+            ),
+            channel,
+        )
+        assertFalse(
+            service.project(
+                client,
+                projectEvent.copy(
+                    initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, approvedVersion),
+                ),
+                project,
+            ),
+        )
 
         coVerify(exactly = 0) { policies.upsertPolicy(any(), any(), any(), any(), any()) }
         coVerify(exactly = 0) { projectRoles.assignRole(any(), any(), any(), any()) }
@@ -322,12 +353,22 @@ class InitialResourceAccessServiceTest {
     fun `삭제된 멤버의 권한 메타데이터 누락은 보정을 기다리지 않고 초기 접근을 거부한다`() = runBlocking {
         coEvery { members.find(client, TEAM, ACTOR) } returns member.copy(deleted = true)
 
-        service.channel(client, channelEvent.copy(
-            initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = VERSION),
-        ), channel)
-        assertFalse(service.project(client, projectEvent.copy(
-            initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, VERSION),
-        ), project))
+        service.channel(
+            client,
+            channelEvent.copy(
+                initialRolePolicySeed = channelSeed.copy(actorAuthorizationVersion = VERSION),
+            ),
+            channel,
+        )
+        assertFalse(
+            service.project(
+                client,
+                projectEvent.copy(
+                    initialReadGrant = InitialProjectReadGrant(ACTOR, VERSION, VERSION),
+                ),
+                project,
+            ),
+        )
 
         coVerify(exactly = 0) { policies.upsertPolicy(any(), any(), any(), any(), any()) }
         coVerify(exactly = 0) { projectRoles.assignRole(any(), any(), any(), any()) }
@@ -420,25 +461,44 @@ class InitialResourceAccessServiceTest {
         private const val CHANNEL = 4L
         private const val PROJECT = 5L
         private val VERSION = Instant.parse("2026-10-25T00:00:00Z")
-        private val member = TeamMemberProjection(TEAM, ACTOR, "MEMBER", false, VERSION)
+        private val member = TeamMemberProjection(TEAM, ACTOR, "MEMBER", false, VERSION, VERSION)
         private val role = TeamRoleDefinition(
             id = ROLE, teamId = TEAM, name = "@everyone", colorHex = "#99AAB5", priority = Int.MIN_VALUE,
             mentionable = false,
-            permissions = mapOf("manage_channels" to true, "message_read" to true,
-                "manage_projects" to true, "project_read" to true),
+            permissions = mapOf(
+                "manage_channels" to true,
+                "message_read" to true,
+                "manage_projects" to true,
+                "project_read" to true,
+            ),
             createdAt = null,
             updatedAt = null,
             isDefault = true,
         )
         private val channelSeed = InitialChannelRolePolicySeed(
-            ACTOR, VERSION, listOf(InitialChannelRoleOverwrite(ROLE, JsonObject().put("message_read", true))),
+            ACTOR,
+            VERSION,
+            listOf(InitialChannelRoleOverwrite(ROLE, JsonObject().put("message_read", true))),
+            VERSION,
         )
         private val channelEvent = ChannelLifecycleEvent(
-            CHANNEL, TEAM, false, VERSION, true, "TEXT", channelSeed,
+            CHANNEL,
+            TEAM,
+            false,
+            VERSION,
+            true,
+            "TEXT",
+            channelSeed,
         )
         private val channel = ChannelLifecycleProjection(CHANNEL, TEAM, false, VERSION, true, "TEXT")
         private val projectEvent = ProjectLifecycleEvent(
-            PROJECT, TEAM, false, VERSION, ACTOR, true, InitialProjectReadGrant(ACTOR, VERSION),
+            PROJECT,
+            TEAM,
+            false,
+            VERSION,
+            ACTOR,
+            true,
+            InitialProjectReadGrant(ACTOR, VERSION, VERSION),
         )
         private val project = ProjectLifecycleProjection(PROJECT, TEAM, false, VERSION, ACTOR, true)
     }

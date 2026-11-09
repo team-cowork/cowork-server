@@ -10,19 +10,15 @@ import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {parseEventTime} from '../../common/util/event-time.util.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
-import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
+import {ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
 import {TeamSettingProjectionRepository} from '../repository/index.js';
-import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
+import {startProjectionConsumer} from '../../common/kafka/projection-consumer.js';
 
-/**
-`tagSpamBlock`이 없는 레코드는 필드 추가 전에 발행된 것이므로 꺼진 것으로 본다.
-*/
 type TeamSettingEvent = {
 	schemaVersion: 1;
 	eventType: 'UPSERT';
 	teamId: number;
-	// @todo(#624) 임시 호환 코드. preference가 `tagSpamBlock`을 실은 전체 snapshot을 다시 발행하고 compaction으로 이전 레코드가 지워지면 필수 필드로 바꾸고 `?? false` 처리를 지운다.
-	tagSpamBlock?: boolean;
+	tagSpamBlock: boolean;
 	occurredAt: string;
 	snapshot?: boolean;
 };
@@ -52,38 +48,22 @@ export class TeamSettingEventConsumer implements OnModuleInit, OnModuleDestroy {
 		const eventTime = parseEventTime(payload.occurredAt)!;
 		await this.repository.upsert({
 			teamId: payload.teamId,
-			tagSpamBlock: payload.tagSpamBlock ?? false,
+			tagSpamBlock: payload.tagSpamBlock,
 			...eventTime,
 		});
 	}
 
-	async onModuleInit(): Promise<void> {
+	async onModuleInit() {
 		const kafka = new Kafka({
 			clientId: 'cowork-chat-team-setting-event',
 			...getKafkaClientConfig(this.configService),
 		});
 		const stream = PROJECTION_STREAMS.teamSetting;
 		this.consumer = kafka.consumer({groupId: stream.groupId});
-		await connectWithRetry(this.logger, `Kafka consumer startup: ${stream.topic}`, async () => {
-			await this.consumer.connect();
-			await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
-			await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+		await startProjectionConsumer({
+			logger: this.logger, kafka, consumer: this.consumer, readiness: this.projectionReadiness, stream,
+			handleEvent: async (payload, key) => this.handleEvent(payload, key),
 		});
-
-		void this.consumer.run({
-			eachMessage: async ({partition, message}): Promise<void> => {
-				await this.projectionReadiness.processMessage(stream, partition, message.offset, async () =>
-					applyProjectionMessage(stream, {
-						partition, message, readiness: this.projectionReadiness, apply: async (payload, key) => this.handleEvent(payload, key),
-					},
-					));
-			},
-		}).catch(async (error: unknown) => {
-			this.logger.error(`${stream.topic} Kafka consumer failed`, error);
-			// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
-			throw error;
-		});
-		this.logger.log(`Kafka projection consumer started: ${stream.topic}`);
 	}
 
 	async onModuleDestroy(): Promise<void> {
@@ -100,7 +80,7 @@ export function isTeamSettingEvent(payload: unknown): payload is TeamSettingEven
 	return event.schemaVersion === 1
 		&& event.eventType === 'UPSERT'
 		&& isSafePositiveInteger(event.teamId)
-		&& (event.tagSpamBlock === undefined || typeof event.tagSpamBlock === 'boolean')
+		&& typeof event.tagSpamBlock === 'boolean'
 		&& parseEventTime(event.occurredAt) !== null
 		&& (event.snapshot === undefined || typeof event.snapshot === 'boolean');
 }

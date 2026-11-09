@@ -43,7 +43,12 @@ object ChannelLifecycleEventParser {
             else -> error("isPrivate must be a boolean")
         }
 
-        val event = ChannelLifecycleEvent(channelId, teamId, eventType == "DELETED", occurredAt, isPrivate,
+        val event = ChannelLifecycleEvent(
+            channelId,
+            teamId,
+            eventType == "DELETED",
+            occurredAt,
+            isPrivate,
             payload.getString("channelType") ?: payload.getString("type"),
             payload.getJsonObject("initialRolePolicySeed")?.let(InitialChannelRolePolicySeed::fromJson),
         )

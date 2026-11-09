@@ -13,10 +13,10 @@ import {parseEventTime} from '../../common/util/event-time.util.js';
 import {isBooleanRecord} from '../../common/util/boolean-record.util.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
-import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
+import {ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
 import {TeamRoleProjectionRepository, ChannelProjectionRepository} from '../repository/index.js';
 import {ChannelMessageReadAccessService} from '../service/index.js';
-import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
+import {startProjectionConsumer} from '../../common/kafka/projection-consumer.js';
 
 type TeamRoleEvent = {
 	eventType: 'ROLE_UPSERTED' | 'ROLE_DELETED' | 'ASSIGNMENT_UPSERTED' | 'ASSIGNMENT_DELETED' | 'MEMBER_ASSIGNMENTS_DELETED';
@@ -25,8 +25,6 @@ type TeamRoleEvent = {
 	accountId?: number;
 	name?: string;
 	priority?: number;
-	// @todo #596: 2026-11-01 05:00 KST 이후 구형 outbox·Kafka 레코드 보정과 rollback 종료 확인 후 ROLE_UPSERTED의 isDefault 누락·false 대체 제거.
-	// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
 	isDefault?: boolean;
 	permissions?: Record<string, boolean>;
 	occurredAt: string;
@@ -65,14 +63,15 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
 		}
 
 		let affectedUserIds: number[] | undefined;
+		let isApplied = false;
 		switch (payload.eventType) {
 			case 'ROLE_UPSERTED': {
-				await this.repository.upsertRole({
+				isApplied = await this.repository.upsertRole({
 					teamId: payload.teamId,
 					roleId: payload.roleId!,
 					name: payload.name!,
 					priority: payload.priority!,
-					isDefault: payload.isDefault ?? false,
+					isDefault: payload.isDefault!,
 					permissions: payload.permissions!,
 					...eventTime,
 				});
@@ -81,13 +80,13 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
 			}
 
 			case 'ROLE_DELETED': {
-				await this.repository.deleteRole(payload.teamId, payload.roleId!, eventTime.occurredAt, eventTime.sourceVersion);
+				isApplied = await this.repository.deleteRole(payload.teamId, payload.roleId!, eventTime.occurredAt, eventTime.sourceVersion);
 
 				break;
 			}
 
 			case 'ASSIGNMENT_UPSERTED': {
-				await this.repository.upsertAssignment({
+				isApplied = await this.repository.upsertAssignment({
 					teamId: payload.teamId,
 					accountId: payload.accountId!,
 					roleId: payload.roleId!,
@@ -99,7 +98,7 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
 			}
 
 			case 'ASSIGNMENT_DELETED': {
-				await this.repository.deleteAssignment({
+				isApplied = await this.repository.deleteAssignment({
 					teamId: payload.teamId, accountId: payload.accountId!, roleId: payload.roleId!, occurredAt: eventTime.occurredAt, sourceVersion: eventTime.sourceVersion,
 				});
 				affectedUserIds = [payload.accountId!];
@@ -108,7 +107,7 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
 			}
 
 			case 'MEMBER_ASSIGNMENTS_DELETED': {
-				await this.repository.deleteMemberAssignments(
+				isApplied = await this.repository.deleteMemberAssignments(
 					payload.teamId,
 					payload.accountId!,
 					eventTime.occurredAt,
@@ -116,6 +115,12 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
 				);
 				affectedUserIds = [payload.accountId!];
 			}
+		}
+
+		// Shortcut: 이 토픽은 snapshot 여부를 싣지 않아 변경 없는 레코드는 모두 건너뛴다. 재검증 실패 뒤 재전달된 회수는
+		// ChatGateway의 30초 room sweep이 정리한다. preference가 snapshot 필드를 싣게 되면 다른 consumer처럼 live 재전달은 항상 재검증한다.
+		if (!isApplied) {
+			return;
 		}
 
 		const affectedChannelIds = await this.channels.findIdsByTeamId(payload.teamId);
@@ -141,7 +146,7 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
 			return isSafePositiveInteger(event.roleId)
 				&& typeof event.name === 'string' && event.name.length > 0
 				&& Number.isSafeInteger(event.priority)
-				&& (event.isDefault === undefined || typeof event.isDefault === 'boolean')
+				&& typeof event.isDefault === 'boolean'
 				&& isBooleanRecord(event.permissions);
 		}
 
@@ -173,33 +178,17 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
 		this.io = io;
 	}
 
-	async onModuleInit(): Promise<void> {
+	async onModuleInit() {
 		const kafka = new Kafka({
 			clientId: 'cowork-chat-team-role-event',
 			...getKafkaClientConfig(this.configService),
 		});
 		const stream = PROJECTION_STREAMS.teamRole;
 		this.consumer = kafka.consumer({groupId: stream.groupId});
-		await connectWithRetry(this.logger, `Kafka consumer startup: ${stream.topic}`, async () => {
-			await this.consumer.connect();
-			await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
-			await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+		await startProjectionConsumer({
+			logger: this.logger, kafka, consumer: this.consumer, readiness: this.projectionReadiness, stream,
+			handleEvent: async (payload, key) => this.handleEvent(payload, key),
 		});
-
-		void this.consumer.run({
-			eachMessage: async ({partition, message}): Promise<void> => {
-				await this.projectionReadiness.processMessage(stream, partition, message.offset, async () =>
-					applyProjectionMessage(stream, {
-						partition, message, readiness: this.projectionReadiness, apply: async (payload, key) => this.handleEvent(payload, key),
-					},
-					));
-			},
-		}).catch(async (error: unknown) => {
-			this.logger.error(`${stream.topic} Kafka consumer failed`, error);
-			// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
-			throw error;
-		});
-		this.logger.log(`Kafka projection consumer started: ${stream.topic}`);
 	}
 
 	async onModuleDestroy(): Promise<void> {

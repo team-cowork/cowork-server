@@ -13,12 +13,11 @@ import {createChatApiDocument} from './common/config/swagger.js';
 import {GlobalExceptionFilter} from './common/filter/global-exception.filter.js';
 import {RedisIoAdapter, SocketIoRedisConnection} from './common/adapter/redis-io.adapter.js';
 import {
+	CHANNEL_PERMISSION_STREAMS,
 	PROJECTION_STREAMS,
 	type ProjectionName,
 	ProjectionReadinessService,
 } from './common/kafka/projection-readiness.service.js';
-
-const CHANNEL_PERMISSION_STREAMS: ProjectionName[] = ['channel', 'teamMember', 'teamRole', 'channelRolePolicy', 'dmParticipant'];
 
 const ALL_PROJECTION_STREAMS = Object.keys(PROJECTION_STREAMS) as ProjectionName[];
 

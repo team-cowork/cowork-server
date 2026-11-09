@@ -2,8 +2,8 @@ package com.cowork.preference.service
 
 import com.cowork.preference.messaging.ProjectionReadinessView
 import com.cowork.preference.repository.ChannelLifecycleProjectionRepository
-import com.cowork.preference.repository.DmParticipantProjectionRepository
 import com.cowork.preference.repository.ChannelRolePolicyRepository
+import com.cowork.preference.repository.DmParticipantProjectionRepository
 import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.security.RequesterContext
 import io.vertx.sqlclient.Pool
@@ -26,7 +26,8 @@ class ChannelAccessGuard(
     private val managerReadiness: ProjectionReadinessView,
 ) {
     /** 팀 채널은 역할 권한, DM은 대화 참여자로 접근을 판단한다. */
-    suspend fun requireChannelAccess(channelId: Long, accountId: Long) = requireChannelAccess(pool, channelId, accountId)
+    suspend fun requireChannelAccess(channelId: Long, accountId: Long) =
+        requireChannelAccess(pool, channelId, accountId)
 
     suspend fun requireChannelAccess(client: SqlClient, channelId: Long, accountId: Long) {
         if (!accessReadiness.isReady) {
@@ -46,13 +47,16 @@ class ChannelAccessGuard(
             "TEXT" -> "message_read"
             else -> throw ProjectionNotReadyException("team channel type is not known yet")
         }
-        if (teamMember.builtInRole !in MANAGER_ROLES && !policyRepository.canAccess(client, teamId, accountId, channelId, permission, channel.isPrivate != false)) {
+        if (teamMember.builtInRole !in MANAGER_ROLES &&
+            !policyRepository.canAccess(client, teamId, accountId, channelId, permission, channel.isPrivate != false)
+        ) {
             throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
         }
     }
 
     /** 채널 설정 수정은 접근 권한과 channel_manage가 모두 필요하다. */
-    suspend fun requireSettingsManager(channelId: Long, requester: RequesterContext) = requireSettingsManager(pool, channelId, requester)
+    suspend fun requireSettingsManager(channelId: Long, requester: RequesterContext) =
+        requireSettingsManager(pool, channelId, requester)
 
     suspend fun requireSettingsManager(client: SqlClient, channelId: Long, requester: RequesterContext) {
         if (!managerReadiness.isReady) {
@@ -65,7 +69,15 @@ class ChannelAccessGuard(
         if (member == null || member.deleted) throw ResourceAccessDeniedException(MANAGER_DENIED)
         if (member.builtInRole in MANAGER_ROLES) return
         requireChannelAccess(client, channelId, requester.userId)
-        if (!policyRepository.canAccess(client, teamId, requester.userId, channelId, "channel_manage", channel.isPrivate != false)) {
+        if (!policyRepository.canAccess(
+                client,
+                teamId,
+                requester.userId,
+                channelId,
+                "channel_manage",
+                channel.isPrivate != false,
+            )
+        ) {
             throw ResourceAccessDeniedException(MANAGER_DENIED)
         }
     }

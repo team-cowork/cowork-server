@@ -30,6 +30,7 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
     public NodeResDto execute(Long userId, String userRole, Long roadmapId, CreateNodeReqDto request) {
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
         accessGuard.requireMutable(roadmap, userId, userRole);
+        validateNodeCount(roadmapId);
         validateParent(roadmapId, request.parentId());
         int position = nextPosition(roadmapId, request.parentId());
         RoadmapNode node = RoadmapNode.builder()
@@ -44,6 +45,14 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
         node.setCreatedBy(userId);
         node.setLastModifiedBy(userId);
         return NodeResDto.of(nodeRepository.saveAndFlush(node), List.of());
+    }
+
+    /** 로드맵 행 잠금 아래에서 세므로 동시 생성도 상한을 넘지 않는다. */
+    private void validateNodeCount(Long roadmapId) {
+        if (nodeRepository.countByRoadmapId(roadmapId) >= RoadmapNode.MAX_NODES_PER_ROADMAP) {
+            throw new ExpectedException("로드맵 하나에는 노드를 최대 " + RoadmapNode.MAX_NODES_PER_ROADMAP + "개까지 만들 수 있습니다.",
+                    HttpStatus.BAD_REQUEST);
+        }
     }
 
     private void validateParent(Long roadmapId, Long parentId) {

@@ -8,7 +8,8 @@ import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -104,8 +105,8 @@ class ModifyRoadmapServiceTest {
             void it_refreshes_modified_time_and_keeps_creation_audit() {
                 // given
                 Roadmap roadmap = roadmap();
-                LocalDateTime createdAt = LocalDateTime.of(2025, 1, 1, 0, 0);
-                LocalDateTime updatedAt = createdAt.plusDays(1);
+                Instant createdAt = Instant.parse("2025-01-01T00:00:00Z");
+                Instant updatedAt = createdAt.plus(1, ChronoUnit.DAYS);
                 roadmap.setCreatedAt(createdAt);
                 roadmap.setUpdatedAt(updatedAt);
                 roadmap.setCreatedBy(3L);

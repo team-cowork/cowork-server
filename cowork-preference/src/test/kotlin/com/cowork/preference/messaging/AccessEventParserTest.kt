@@ -50,7 +50,12 @@ class AccessEventParserTest :
 
             context("key가 channelId와 userId 조합과 다르면") {
                 it("다른 채널의 DM 참여을 바꾸지 못하도록 격리한다") {
-                    val value = json("eventType" to "JOIN", "channelId" to 11, "userId" to 100, "occurredAt" to OCCURRED_AT)
+                    val value = json(
+                        "eventType" to "JOIN",
+                        "channelId" to 11,
+                        "userId" to 100,
+                        "occurredAt" to OCCURRED_AT,
+                    )
 
                     DmParticipantEventParser.parse("12:100", value)
                         .shouldBeInstanceOf<DmParticipantRecordDecision.Quarantine>()
@@ -66,6 +71,7 @@ class AccessEventParserTest :
                         "projectId" to 7,
                         "teamId" to 42,
                         "occurredAt" to OCCURRED_AT,
+                        "isPrivate" to true,
                     )
 
                     val event = ProjectLifecycleEventParser.parse("7", value)
@@ -78,7 +84,13 @@ class AccessEventParserTest :
 
             context("DELETED 이벤트이면") {
                 it("삭제된 프로젝트로 해석해 권한을 회수한다") {
-                    val value = json("eventType" to "DELETED", "projectId" to 7, "teamId" to 42, "occurredAt" to OCCURRED_AT)
+                    val value = json(
+                        "eventType" to "DELETED",
+                        "projectId" to 7,
+                        "teamId" to 42,
+                        "occurredAt" to OCCURRED_AT,
+                        "isPrivate" to true,
+                    )
 
                     ProjectLifecycleEventParser.parse("7", value)
                         .shouldBeInstanceOf<ProjectLifecycleRecordDecision.Apply>().event.deleted shouldBe true
@@ -87,7 +99,13 @@ class AccessEventParserTest :
 
             context("key가 projectId와 다르면") {
                 it("다른 프로젝트의 소속 팀을 바꾸지 못하도록 격리한다") {
-                    val value = json("eventType" to "UPDATED", "projectId" to 7, "teamId" to 42, "occurredAt" to OCCURRED_AT)
+                    val value = json(
+                        "eventType" to "UPDATED",
+                        "projectId" to 7,
+                        "teamId" to 42,
+                        "occurredAt" to OCCURRED_AT,
+                        "isPrivate" to true,
+                    )
 
                     ProjectLifecycleEventParser.parse("8", value)
                         .shouldBeInstanceOf<ProjectLifecycleRecordDecision.Quarantine>()

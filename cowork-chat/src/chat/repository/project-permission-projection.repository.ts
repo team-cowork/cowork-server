@@ -16,9 +16,7 @@ export class ProjectPermissionProjectionRepository {
 				projectId,
 				userId,
 				read: true,
-				// @todo #596: 2026-11-01 05:00 KST 이후 구형 이벤트·Mongo auth stamp 보정과 rollback 종료 확인 후 membership 대체 제거.
-				// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-				$expr: {$eq: [{$ifNull: ['$sourceAuthorizationVersion', '$sourceMembershipVersion']}, sourceAuthorizationVersion]},
+				$expr: {$eq: ['$sourceAuthorizationVersion', sourceAuthorizationVersion]},
 			})) !== null;
 	}
 
@@ -30,32 +28,20 @@ export class ProjectPermissionProjectionRepository {
 			canWrite: boolean;
 			occurredAt: Date;
 			sourceVersion: mongo.Long;
-			// @todo #596: 2026-11-01 05:00 KST 이후 구형 이벤트·Mongo stamp 보정과 rollback 종료 확인 후 이 인자 기본값만 제거.
-			// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-			sourceMembershipVersion?: mongo.Long;
-			// @todo #596: 2026-11-01 05:00 KST 이후 구형 이벤트·Mongo auth stamp 보정과 rollback 종료 확인 후 null 기본값 제거.
-			// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-			sourceAuthorizationVersion?: Nullable<mongo.Long>;
+			sourceMembershipVersion: mongo.Long;
+			sourceAuthorizationVersion: Nullable<mongo.Long>;
 		},
 
 	): Promise<void> {
-		const {projectId, userId, canRead, canWrite, occurredAt, sourceVersion, sourceMembershipVersion = mongo.Long.ZERO, sourceAuthorizationVersion = null} = grant;
+		const {projectId, userId, canRead, canWrite, occurredAt, sourceVersion, sourceMembershipVersion, sourceAuthorizationVersion} = grant;
 		const newer = {$gt: [sourceVersion, projectionSourceVersion]};
 		const equal = {$eq: [sourceVersion, projectionSourceVersion]};
 		const sameMembership = {
 			$eq: [
-				{$ifNull: ['$sourceMembershipVersion', mongo.Long.ZERO]}, sourceMembershipVersion,
+				'$sourceMembershipVersion', sourceMembershipVersion,
 			],
 		};
-		// A legacy snapshot can fill a missing stamp, but equal-version conflicting grants cannot be rebound.
-		const compatibleAuthorization = sourceAuthorizationVersion === null
-			? true
-			: {
-				$or: [
-					{$eq: [{$ifNull: ['$sourceAuthorizationVersion', null]}, null]},
-					{$eq: ['$sourceAuthorizationVersion', sourceAuthorizationVersion]},
-				],
-			};
+		const compatibleAuthorization = {$eq: ['$sourceAuthorizationVersion', sourceAuthorizationVersion]};
 		const permission = (field: string, isAllowed: boolean) => ({
 			$cond: [
 				newer,
@@ -75,7 +61,7 @@ export class ProjectPermissionProjectionRepository {
 					$cond: [
 						newer,
 						sourceAuthorizationVersion,
-						{$cond: [{$and: [equal, sameMembership]}, {$ifNull: ['$sourceAuthorizationVersion', sourceAuthorizationVersion]}, {$ifNull: ['$sourceAuthorizationVersion', null]}]},
+						'$sourceAuthorizationVersion',
 					],
 				},
 				sourceMembershipVersion: {

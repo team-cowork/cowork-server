@@ -519,6 +519,122 @@
       },
       "options": {"legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
       "description": "Gateway 인스턴스의 배포 상태 갱신 실패를 초당 횟수로 합산한 값입니다. 실패 이력이 없거나 지표가 없으면 N/A입니다."
+    },
+    {
+      "id": 14,
+      "title": "응답 래핑 결과 (req/s)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 55},
+      "targets": [
+        {
+          "expr": "sum by (route, outcome) (rate(gateway_response_wrapper_requests_total{job=\"cowork-services\",service=\"gateway\"}[$__rate_interval]))",
+          "legendFormat": "{{route}} / {{outcome}}",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "reqps",
+          "color": {"mode": "palette-classic"},
+          "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"}
+        }
+      },
+      "options": {"legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "description": "일반 JSON의 스트리밍 래핑, 예외 경로, 전송 실패, 클라이언트 취소를 구분합니다. 크기 초과로 성공 응답을 우회하지 않습니다."
+    },
+    {
+      "id": 15,
+      "title": "완료된 JSON 응답 평균 크기",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 55},
+      "targets": [
+        {
+          "expr": "sum by (route, direction) (rate(gateway_response_wrapper_bytes_sum{job=\"cowork-services\",service=\"gateway\",outcome=\"wrapped\"}[$__rate_interval])) / (sum by (route, direction) (rate(gateway_response_wrapper_bytes_count{job=\"cowork-services\",service=\"gateway\",outcome=\"wrapped\"}[$__rate_interval])) > 0)",
+          "legendFormat": "{{route}} / {{direction}}",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "bytes",
+          "color": {"mode": "palette-classic"},
+          "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"}
+        }
+      },
+      "options": {"legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "description": "정상 완료된 래핑 응답의 전체 원본 크기와 전송 크기입니다. 취소되거나 실패한 응답의 부분 크기는 제외합니다."
+    },
+    {
+      "id": 16,
+      "title": "응답 래핑 실패 / 오류 본문 한도 초과",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 63},
+      "targets": [
+        {
+          "expr": "sum by (route, outcome) (rate(gateway_response_wrapper_requests_total{job=\"cowork-services\",service=\"gateway\",outcome=~\"error|error_body_too_large\"}[$__rate_interval]))",
+          "legendFormat": "{{route}} / {{outcome}}",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "reqps",
+          "color": {"mode": "palette-classic"},
+          "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"}
+        }
+      },
+      "options": {"legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "description": "HTTP 성공 상태 이후 전송 실패도 포함합니다. 오류 본문 한도 초과 시 원래 HTTP 상태의 공통 오류로 응답합니다."
+    },
+    {
+      "id": 17,
+      "title": "Gateway 할당별 RSS / 메모리 상한",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 63},
+      "targets": [
+        {
+          "expr": "nomad_client_allocs_memory_rss{job=\"nomad\",exported_job=\"cowork-gateway\",task=\"app\"}",
+          "legendFormat": "{{alloc_id}} RSS",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "nomad_client_allocs_memory_max_allocated{job=\"nomad\",exported_job=\"cowork-gateway\",task=\"app\"}",
+          "legendFormat": "{{alloc_id}} 상한",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "refId": "B",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "bytes",
+          "color": {"mode": "palette-classic"},
+          "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"}
+        }
+      },
+      "options": {"legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "description": "JVM 힙 외 메모리와 canary 동시 실행을 확인하기 위한 Nomad 할당별 프로세스 RSS와 메모리 상한입니다."
     }
   ],
   "templating": {

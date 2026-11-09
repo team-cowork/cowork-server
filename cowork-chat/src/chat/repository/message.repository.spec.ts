@@ -146,3 +146,15 @@ describe('MessageRepository 알림 아웃박스 점유', () => {
 		});
 	});
 });
+
+describe('MessageRepository 메시지 수정', () => {
+	it('본문의 $ 문자열을 표현식이 아닌 리터럴로 저장한다', async () => {
+		const findOneAndUpdate = jest.fn().mockResolvedValue(null);
+		const repository = new MessageRepository({findOneAndUpdate} as unknown as Model<Message>);
+
+		await repository.applyEdit(new Types.ObjectId().toHexString(), '$attachments', false);
+
+		const [, [stage]] = findOneAndUpdate.mock.calls[0] as [unknown, Array<{$set: {content: unknown}}>];
+		expect(stage.$set.content).toEqual({$literal: '$attachments'});
+	});
+});

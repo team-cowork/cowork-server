@@ -38,14 +38,14 @@ class TeamMemberEventConsumer(
             }
         val expectedKey = "${payload.teamId}:${payload.userId}"
         val occurredAt = payload.occurredAt
-        // TODO(#596): 2026-11-01 05:00 KST 이후 구형 레코드 재처리·롤백 지원 종료와 snapshot 보정 완료를 확인한 뒤 authorizationVersion 필수화.
-        // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
         val authorizationVersion = payload.authorizationVersion
         val reason = when {
             record.key() != expectedKey -> "teamId:userId와 Kafka key가 일치하지 않습니다."
             payload.teamId <= 0 || payload.userId <= 0 -> "teamId와 userId는 양수여야 합니다."
             occurredAt == null -> "occurredAt이 필요합니다."
-            authorizationVersion != null && (!authorizationVersion.isAfter(Instant.EPOCH) || authorizationVersion.isAfter(occurredAt)) ->
+            authorizationVersion == null -> "authorizationVersion이 필요합니다."
+
+            (!authorizationVersion.isAfter(Instant.EPOCH) || authorizationVersion.isAfter(occurredAt)) ->
                 "authorizationVersion은 양수이며 occurredAt 이하여야 합니다."
             payload.role !in setOf("OWNER", "ADMIN", "MEMBER") -> "지원하지 않는 role입니다."
             payload.eventType !in setOf("UPSERT", "DELETE") -> "지원하지 않는 eventType입니다."

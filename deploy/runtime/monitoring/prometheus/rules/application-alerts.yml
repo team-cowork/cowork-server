@@ -49,7 +49,7 @@ groups:
           description: "{{ $labels.service }}{{ if $labels.module }} (모듈: {{ $labels.module }}){{ end }}{{ if $labels.host }} (호스트: {{ $labels.host }}){{ end }}의 메트릭을 2분 동안 수집하지 못했습니다."
 
       - alert: coworkDatastoreUnavailable
-        expr: mysql_up == 0 or pg_up == 0 or mongodb_up == 0 or redis_up == 0 or kafka_brokers < 1
+        expr: mysql_up == 0 or pg_up == 0 or mongodb_up == 0 or redis_up == 0 or kafka_brokers < 1 or up{job="infrastructure-discovery",service="surrealdb"} == 0
         for: 2m
         labels:
           severity: critical
@@ -179,6 +179,20 @@ groups:
         annotations:
           summary: "HTTP 응답 지연"
           description: "서비스 {{ $labels.service }}의 HTTP P99 응답 시간이 5분 동안 2초를 초과했습니다."
+
+  - name: cowork-gateway-response
+    rules:
+      - alert: coworkGatewayResponseWrappingFailed
+        expr: |
+          sum by (service, route, outcome) (
+            increase(gateway_response_wrapper_requests_total{outcome=~"error|error_body_too_large"}[5m])
+          ) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gateway 응답 변환 실패"
+          description: "{{ $labels.route }} 라우트에서 응답 스트림이 실패하거나 오류 본문 한도를 초과했습니다({{ $labels.outcome }}). HTTP 2xx 이후 전송 중단도 포함하므로 Gateway와 upstream 로그를 확인해 주세요."
 
   - name: cowork-gateway-ratelimit
     rules:
@@ -344,6 +358,21 @@ groups:
           module: github
           observed_value: '{{ $value | humanizePercentage }}'
           description: "GitHub 태스크의 RSS가 5분 동안 Nomad 메모리 상한의 85%를 초과했습니다."
+
+  - name: cowork-team
+    rules:
+      - alert: coworkTeamHighMemory
+        expr: |
+          nomad_client_allocs_memory_rss{job="nomad",exported_job="cowork-team",task="app"}
+            / (nomad_client_allocs_memory_max_allocated{job="nomad",exported_job="cowork-team",task="app"} > 0) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "team 메모리 사용률 높음"
+          module: team
+          observed_value: '{{ $value | humanizePercentage }}'
+          description: "team 태스크의 RSS가 5분 동안 Nomad 메모리 상한의 85%를 초과했습니다."
 
   - name: cowork-chat-socketio
     rules:

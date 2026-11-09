@@ -13,10 +13,10 @@ import {parseEventTime} from '../../common/util/event-time.util.js';
 import {isBooleanRecord} from '../../common/util/boolean-record.util.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
-import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
+import {ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
 import {ChannelRolePolicyProjectionRepository} from '../repository/index.js';
 import {ChannelMessageReadAccessService} from '../service/index.js';
-import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
+import {startProjectionConsumer} from '../../common/kafka/projection-consumer.js';
 import {type Nullable} from '../../common/type/nullable.js';
 
 type ChannelRolePolicyEvent = {
@@ -65,8 +65,9 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
 			throw new ProjectionContractError('channel role policy occurredAt must be RFC3339');
 		}
 
+		let isApplied: boolean;
 		if (payload.eventType === 'UPSERT') {
-			await this.repository.upsert({
+			isApplied = await this.repository.upsert({
 				teamId: payload.teamId,
 				channelId: payload.channelId,
 				roleId: payload.roleId,
@@ -74,12 +75,13 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
 				...eventTime,
 			});
 		} else {
-			await this.repository.remove({
+			isApplied = await this.repository.remove({
 				teamId: payload.teamId, channelId: payload.channelId, roleId: payload.roleId, occurredAt: eventTime.occurredAt, sourceVersion: eventTime.sourceVersion,
 			});
 		}
 
-		if (this.io) {
+		// 변경 없이 끝난 snapshot 재발행은 소켓 재검증을 건너뛰고, live 재전달은 항상 재검증한다.
+		if (this.io && (isApplied || payload.snapshot !== true)) {
 			await this.accessService.evictUnauthorizedSockets(this.io, [payload.channelId]);
 		}
 	}
@@ -109,33 +111,17 @@ export class ChannelRolePolicyEventConsumer implements OnModuleInit, OnModuleDes
 		this.io = io;
 	}
 
-	async onModuleInit(): Promise<void> {
+	async onModuleInit() {
 		const kafka = new Kafka({
 			clientId: 'cowork-chat-channel-role-policy-event',
 			...getKafkaClientConfig(this.configService),
 		});
 		const stream = PROJECTION_STREAMS.channelRolePolicy;
 		this.consumer = kafka.consumer({groupId: stream.groupId});
-		await connectWithRetry(this.logger, `Kafka consumer startup: ${stream.topic}`, async () => {
-			await this.consumer.connect();
-			await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
-			await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+		await startProjectionConsumer({
+			logger: this.logger, kafka, consumer: this.consumer, readiness: this.projectionReadiness, stream,
+			handleEvent: async (payload, key) => this.handleEvent(payload, key),
 		});
-
-		void this.consumer.run({
-			eachMessage: async ({partition, message}): Promise<void> => {
-				await this.projectionReadiness.processMessage(stream, partition, message.offset, async () =>
-					applyProjectionMessage(stream, {
-						partition, message, readiness: this.projectionReadiness, apply: async (payload, key) => this.handleEvent(payload, key),
-					},
-					));
-			},
-		}).catch(async (error: unknown) => {
-			this.logger.error(`${stream.topic} Kafka consumer failed`, error);
-			// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
-			throw error;
-		});
-		this.logger.log(`Kafka projection consumer started: ${stream.topic}`);
 	}
 
 	async onModuleDestroy(): Promise<void> {

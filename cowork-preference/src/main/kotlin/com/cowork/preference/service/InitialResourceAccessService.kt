@@ -17,8 +17,8 @@ import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.repository.TeamRoleRepository
 import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlClient
-import java.time.Instant
 import org.slf4j.LoggerFactory
+import java.time.Instant
 
 class InitialResourceAccessService(
     private val ledger: InitialResourceAccessRepository,
@@ -41,7 +41,11 @@ class InitialResourceAccessService(
         val teamId = event.teamId ?: return
         if (current.teamId != teamId || roles.isTeamDeleted(client, teamId)) return
         val actor = actor(
-            client, teamId, seed.actorId, seed.actorMembershipVersion, seed.actorAuthorizationVersion,
+            client,
+            teamId,
+            seed.actorId,
+            seed.actorMembershipVersion,
+            seed.actorAuthorizationVersion,
         ) ?: return
         if (ledger.hasChannelPolicyHistory(client, teamId, event.channelId)) return
         val actorRoles = roles.findAccountRoles(client, teamId, seed.actorId)
@@ -50,16 +54,28 @@ class InitialResourceAccessService(
         if (survivingOverwrites.size != seed.overwrites.size) {
             log.warn(
                 "Skip deleted roles in initial channel access [teamId={}, channelId={}, skippedRoles={}]",
-                teamId, event.channelId, seed.overwrites.size - survivingOverwrites.size,
+                teamId,
+                event.channelId,
+                seed.overwrites.size - survivingOverwrites.size,
             )
         }
         fun skip(reason: String) {
-            log.warn("Skip initial channel access [teamId={}, channelId={}, reason={}]", teamId, event.channelId, reason)
+            log.warn(
+                "Skip initial channel access [teamId={}, channelId={}, reason={}]",
+                teamId,
+                event.channelId,
+                reason,
+            )
         }
         if (survivingOverwrites.isEmpty()) return skip("No requested roles remain")
         if (actor.builtInRole !in MANAGERS) {
             fun allowed(permission: String) = actorRoles.any { it.permissions[permission] == true }
-            if (!allowed(PermissionKeys.MANAGE_CHANNELS)) return skip("Creator no longer has channel management permission")
+            if (!allowed(
+                    PermissionKeys.MANAGE_CHANNELS,
+                )
+            ) {
+                return skip("Creator no longer has channel management permission")
+            }
             if (survivingOverwrites.any { overwrite -> overwrite.permissions.fieldNames().any { !allowed(it) } }) {
                 return skip("Creator does not hold the remaining overwrite permissions")
             }
@@ -84,12 +100,20 @@ class InitialResourceAccessService(
         }
         for (overwrite in survivingOverwrites) {
             val state = channelPolicies.upsertPolicy(
-                client, teamId, event.channelId, overwrite.roleId, overwrite.permissions,
+                client,
+                teamId,
+                event.channelId,
+                overwrite.roleId,
+                overwrite.permissions,
             )
             outbox.enqueue(
                 client,
                 PreferenceEvents.channelRolePolicyState(
-                    teamId, event.channelId, overwrite.roleId, state.permissions, state.stateOccurredAt,
+                    teamId,
+                    event.channelId,
+                    overwrite.roleId,
+                    state.permissions,
+                    state.stateOccurredAt,
                     snapshot = false,
                 ),
             )
@@ -106,13 +130,20 @@ class InitialResourceAccessService(
         if (current.teamId != event.teamId || current.createdBy != seed.accountId || !current.isPrivate) return false
         if (roles.isTeamDeleted(client, event.teamId)) return false
         val actor = actor(
-            client, event.teamId, seed.accountId, seed.sourceMembershipVersion, seed.sourceAuthorizationVersion,
+            client,
+            event.teamId,
+            seed.accountId,
+            seed.sourceMembershipVersion,
+            seed.sourceAuthorizationVersion,
         ) ?: return false
         if (actor.builtInRole in MANAGERS || ledger.hasProjectAccessHistory(client, event.projectId)) return false
         val actorRoles = roles.findAccountRoles(client, event.teamId, seed.accountId)
         if (listOf(PermissionKeys.MANAGE_PROJECTS, PermissionKeys.PROJECT_READ).any { permission ->
                 actorRoles.none { it.permissions[permission] == true }
-            }) return false
+            }
+        ) {
+            return false
+        }
         projectRoles.insertRole(event.projectId, INITIAL_PROJECT_ROLE_NAME, JsonObject().put("read", true), 0, client)
         projectRoles.assignRole(seed.accountId, event.projectId, INITIAL_PROJECT_ROLE_NAME, client)
         return true
@@ -123,27 +154,14 @@ class InitialResourceAccessService(
         teamId: Long,
         accountId: Long,
         membershipVersion: Instant,
-        authorizationVersion: Instant?,
+        authorizationVersion: Instant,
     ): TeamMemberProjection? {
         check(teamReadiness.isReady) { "Team projection is not ready for initial access" }
         val member = members.find(client, teamId, accountId)
         check(member != null && !member.sourceOccurredAt.isBefore(membershipVersion)) {
             "Team membership is behind initial access version"
         }
-        if (!member.deleted && authorizationVersion != null && member.sourceOccurredAt == membershipVersion) {
-            // TODO(#596): 2026-11-01 05:00 KST 이후 실제 CD + 7일·구형 producer 종료·전체 권한 버전 보정 확인 후 동일 source 보정 대기 제거.
-            check(member.authorizationVersion != null && member.authorizationVersion >= authorizationVersion) {
-                "Team authorization is behind initial access version"
-            }
-        }
-        // TODO(#596): 2026-11-01 05:00 KST 이후 구버전 producer 중단·legacy seed ledger 처리·snapshot 확인 후 null seed 검사를 제거한다.
-        // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-        val matches = if (authorizationVersion == null) {
-            member.sourceOccurredAt == membershipVersion
-        } else {
-            member.effectiveAuthorizationVersion == authorizationVersion
-        }
-        return member.takeIf { !it.deleted && matches }
+        return member.takeIf { !it.deleted && it.authorizationVersion == authorizationVersion }
     }
 
     companion object {
