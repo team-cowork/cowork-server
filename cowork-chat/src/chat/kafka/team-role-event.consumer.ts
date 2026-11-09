@@ -63,9 +63,10 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
 		}
 
 		let affectedUserIds: number[] | undefined;
+		let isApplied = false;
 		switch (payload.eventType) {
 			case 'ROLE_UPSERTED': {
-				await this.repository.upsertRole({
+				isApplied = await this.repository.upsertRole({
 					teamId: payload.teamId,
 					roleId: payload.roleId!,
 					name: payload.name!,
@@ -79,13 +80,13 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
 			}
 
 			case 'ROLE_DELETED': {
-				await this.repository.deleteRole(payload.teamId, payload.roleId!, eventTime.occurredAt, eventTime.sourceVersion);
+				isApplied = await this.repository.deleteRole(payload.teamId, payload.roleId!, eventTime.occurredAt, eventTime.sourceVersion);
 
 				break;
 			}
 
 			case 'ASSIGNMENT_UPSERTED': {
-				await this.repository.upsertAssignment({
+				isApplied = await this.repository.upsertAssignment({
 					teamId: payload.teamId,
 					accountId: payload.accountId!,
 					roleId: payload.roleId!,
@@ -97,7 +98,7 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
 			}
 
 			case 'ASSIGNMENT_DELETED': {
-				await this.repository.deleteAssignment({
+				isApplied = await this.repository.deleteAssignment({
 					teamId: payload.teamId, accountId: payload.accountId!, roleId: payload.roleId!, occurredAt: eventTime.occurredAt, sourceVersion: eventTime.sourceVersion,
 				});
 				affectedUserIds = [payload.accountId!];
@@ -106,7 +107,7 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
 			}
 
 			case 'MEMBER_ASSIGNMENTS_DELETED': {
-				await this.repository.deleteMemberAssignments(
+				isApplied = await this.repository.deleteMemberAssignments(
 					payload.teamId,
 					payload.accountId!,
 					eventTime.occurredAt,
@@ -114,6 +115,12 @@ export class TeamRoleEventConsumer implements OnModuleInit, OnModuleDestroy {
 				);
 				affectedUserIds = [payload.accountId!];
 			}
+		}
+
+		// Shortcut: 이 토픽은 snapshot 여부를 싣지 않아 변경 없는 레코드는 모두 건너뛴다. 재검증 실패 뒤 재전달된 회수는
+		// ChatGateway의 30초 room sweep이 정리한다. preference가 snapshot 필드를 싣게 되면 다른 consumer처럼 live 재전달은 항상 재검증한다.
+		if (!isApplied) {
+			return;
 		}
 
 		const affectedChannelIds = await this.channels.findIdsByTeamId(payload.teamId);
