@@ -307,6 +307,11 @@ describe('ChatService', () => {
 			);
 		});
 
+		it('첨부파일 없이 공백만 있는 본문은 거부하고 발행하지 않는다', async () => {
+			await expect(service.sendMessage(ctx, {content: ' '.repeat(3)})).rejects.toBeInstanceOf(BadRequestException);
+			expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
+		});
+
 		it('메시지 작성 권한이 없으면 발행하지 않는다', async () => {
 			mockChannelMessageReadAccess.requirePermissions.mockRejectedValueOnce(new ForbiddenException());
 
