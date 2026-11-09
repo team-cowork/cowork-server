@@ -113,7 +113,7 @@ public class RoadmapController {
         return queryRoadmapService.execute(userId, userRole, roadmapId);
     }
 
-    @Operation(summary = "로드맵 트리 조회", description = "노드와 관련 자료를 계층 구조로 반환합니다.")
+    @Operation(summary = "로드맵 트리 조회", description = "본문을 제외한 노드 정보와 관련 자료를 계층 구조로 반환합니다. 노드 본문은 GET /roadmaps/nodes/{nodeId}로 조회합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 완료", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
