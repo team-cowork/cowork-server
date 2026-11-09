@@ -25,7 +25,7 @@ jobs:
 
   close-related-issues:
     name: Close Related Issues
-    if: github.event.pull_request.merged == true
+    if: github.event.pull_request.merged == true && contains(fromJSON('["develop", "main"]'), github.event.pull_request.base.ref)
     runs-on: ubuntu-latest
     permissions:
       contents: read
