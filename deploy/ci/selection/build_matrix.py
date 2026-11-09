@@ -12,7 +12,7 @@ from pathlib import Path, PurePosixPath
 
 from deploy.production.version_fields import changed_paths
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[3]
 CATALOG = json.loads((ROOT / "deploy/images/catalog.json").read_text())
 
 
