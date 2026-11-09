@@ -121,7 +121,8 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
 	}
 
 	private async broadcastChannelEvent(io: Server, event: ChannelEvent, isApplied: boolean, deletionRecipientSocketIds: string[]): Promise<void> {
-		if (event.eventType === 'UPDATED') {
+		// 변경 없이 끝난 snapshot 재발행은 소켓 재검증을 건너뛰고, live 재전달은 항상 재검증한다.
+		if (event.eventType === 'UPDATED' && (isApplied || event.snapshot !== true)) {
 			await this.channelMessageReadAccess.evictUnauthorizedSockets(io, [event.channelId]);
 		}
 
