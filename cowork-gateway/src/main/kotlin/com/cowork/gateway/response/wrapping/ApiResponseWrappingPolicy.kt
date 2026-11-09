@@ -34,8 +34,6 @@ internal class ApiResponseWrappingPolicy(private val properties: ApiResponseWrap
             ApiResponseWrappingDecision.BYPASS_CONTENT_TYPE
         }
 
-        headers.contentLength > properties.maxWrappableBytes() -> ApiResponseWrappingDecision.BYPASS_KNOWN_LARGE
-
-        else -> ApiResponseWrappingDecision.WRAP_BOUNDED
+        else -> ApiResponseWrappingDecision.WRAP
     }
 }
