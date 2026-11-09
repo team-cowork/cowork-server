@@ -18,6 +18,11 @@ const MESSAGE_BATCH_SIZE = 50;
 const TOMBSTONE_BATCH_SIZE = 50;
 const LEGACY_BACKFILL_BATCH_SIZE = 500;
 /**
+한 틱에서 가득 찬 배치를 이어 가져올 수 있는 시간. 폴링 간격(3초)보다 짧아야 다음 틱과 겹치지 않는다.
+예산은 배치 사이에서만 확인하므로 마지막 배치는 예산을 조금 넘을 수 있다.
+*/
+const DRAIN_TIME_BUDGET_MS = 2500;
+/**
 점유 후 이 시간 이상 진행이 없으면 다른 replica가 회수한다.
 */
 const CLAIM_STALE_THRESHOLD_MS = 2 * 60 * 1000;
@@ -75,8 +80,9 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
 			}
 
 			await this.backfillLegacyState();
-			await this.drainTombstones();
-			await this.drainMessages();
+			const deadline = Date.now() + DRAIN_TIME_BUDGET_MS;
+			await this.drainWhileFull(async () => this.drainTombstones(), TOMBSTONE_BATCH_SIZE, deadline);
+			await this.drainWhileFull(async () => this.drainMessages(), MESSAGE_BATCH_SIZE, deadline);
 		} catch (error) {
 			this.logger.error('Message search index outbox cycle failed', error);
 		} finally {
@@ -163,22 +169,34 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
 		this.logger.log('Legacy search index state backfill completed');
 	}
 
-	private async drainTombstones(): Promise<void> {
+	/**
+     배치가 가득 찬 동안 시간 예산 안에서 계속 점유한다. 다음 틱(3초)까지 기다리면 백로그가 쌓인다.
+     배치가 가득 차지 않았거나 예산을 넘기면 멈춘다. 각 틱은 최소 한 배치를 처리한다.
+     */
+	private async drainWhileFull(drainBatch: () => Promise<number>, batchSize: number, deadline: number): Promise<void> {
+		if (await drainBatch() === batchSize && Date.now() < deadline) {
+			await this.drainWhileFull(drainBatch, batchSize, deadline);
+		}
+	}
+
+	private async drainTombstones(): Promise<number> {
 		const tombstones = await this.tombstoneRepository.claimPending(TOMBSTONE_BATCH_SIZE);
 		if (tombstones.length === 0) {
-			return;
+			return 0;
 		}
 
 		await this.indexService.applyTombstones(tombstones);
+		return tombstones.length;
 	}
 
-	private async drainMessages(): Promise<void> {
+	private async drainMessages(): Promise<number> {
 		const messages = await this.indexRepository.claimPending(MESSAGE_BATCH_SIZE);
 		if (messages.length === 0) {
-			return;
+			return 0;
 		}
 
 		await this.indexService.applyMessages(messages);
+		return messages.length;
 	}
 
 	private async refreshMetricsIfDue(): Promise<void> {
