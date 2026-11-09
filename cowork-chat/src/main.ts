@@ -99,7 +99,7 @@ async function bootstrap() {
 	const socketIoRedis = app.get(SocketIoRedisConnection);
 	app.useWebSocketAdapter(new RedisIoAdapter(app, socketIoRedis));
 
-	const document = createChatApiDocument(app, new DocumentBuilder().setVersion('20261106.0'));
+	const document = createChatApiDocument(app, new DocumentBuilder().setVersion('20261109.0'));
 
 	SwaggerModule.setup('api', app, document, {jsonDocumentUrl: 'api-json'});
 
