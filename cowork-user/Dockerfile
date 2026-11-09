@@ -1,3 +1,5 @@
+FROM flyway/flyway:12.8.1@sha256:b8a2d72926b98234c1fb8f45659fd23d8a001af9ee7f450326aa46af14d447bb AS flyway
+
 FROM mcr.microsoft.com/dotnet/sdk:10.0.402-noble@sha256:0d99ebf1ccad15037b5c98c9fe8979d6b8dbac23812feae2277a0b277b5c5ffa AS builder
 WORKDIR /workspace/cowork-user
 ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
@@ -26,6 +28,9 @@ COPY --from=verification /coverage /
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0.13-noble@sha256:d5633778c754e89a386882eddf8dbee6942447a8a4b8267c19cf1e1158d0b0ac AS runtime
 WORKDIR /app
+ENV JAVA_HOME=/opt/java/openjdk PATH="/flyway:/opt/java/openjdk/bin:${PATH}"
+COPY --from=flyway /opt/java/openjdk /opt/java/openjdk
+COPY --from=flyway /flyway /flyway
 RUN apt-get update \
     && apt-get install -y --no-install-recommends wget \
     && rm -rf /var/lib/apt/lists/* \
@@ -39,5 +44,6 @@ RUN test -f /app/CoworkUser.dll \
     && test -n "$(find /app/db/migration -name 'V*__*.sql' -print -quit)"
 RUN test "$(stat -c %u /var/log/cowork)" = 10001
 USER cowork
+RUN flyway -v
 EXPOSE 8082
 ENTRYPOINT ["dotnet", "/app/CoworkUser.dll"]

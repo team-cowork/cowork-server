@@ -102,6 +102,7 @@ class GithubRepoSettingCommandProcessor(
             )
             currentState(connection, existing.repoId)
         }
+
         GithubRepoSettingCommandType.DELETE -> {
             require(existing.result == null) { "DELETE inbox must not contain a result" }
             currentState(connection, existing.repoId)

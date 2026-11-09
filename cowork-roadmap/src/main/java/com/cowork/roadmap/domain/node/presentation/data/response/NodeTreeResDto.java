@@ -13,8 +13,6 @@ public record NodeTreeResDto(
 
         @Schema(description = "노드 제목") String title,
 
-        @Schema(description = "본문 (마크다운)") String content,
-
         @Schema(description = "원본 문서 URL") String sourceUrl,
 
         @Schema(description = "원본 문서 제목") String sourceTitle,

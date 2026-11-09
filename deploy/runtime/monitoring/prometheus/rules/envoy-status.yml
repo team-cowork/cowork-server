@@ -8,7 +8,7 @@ groups:
       or on (service)
       (0 * max by (service) (
         label_replace(
-          up{job="nomad",role="client",host=~"authorization|channel|chat|gateway|github|monitoring|notification|preference|project|roadmap|team|user|voice"} == 1,
+          up{job="nomad",role="client",host=~"applet|authorization|channel|chat|gateway|github|monitoring|notification|preference|project|roadmap|team|user|voice"} == 1,
           "service", "$1", "host", "(.+)"
         )
       ))

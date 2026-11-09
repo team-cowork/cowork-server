@@ -30,7 +30,7 @@ class SharedAccount(
     var credential: String?,
 
     @Column(name = "connected_via_oauth", nullable = false)
-    val connectedViaOAuth: Boolean = false,
+    var connectedViaOAuth: Boolean = false,
 
     @Column(name = "created_by", nullable = false)
     val createdBy: Long,
@@ -44,6 +44,10 @@ class SharedAccount(
     var updatedAt: LocalDateTime = LocalDateTime.now(),
 ) {
     fun update(accountIdentifier: String?, credential: String?, providerLabel: String?) {
+        // provider가 확인하지 않은 식별자·credential로 바뀌면 OAuth 연결로 표시하지 않는다
+        if ((accountIdentifier != null && accountIdentifier != this.accountIdentifier) || credential != null) {
+            connectedViaOAuth = false
+        }
         accountIdentifier?.let { this.accountIdentifier = it }
         credential?.let { this.credential = it }
         providerLabel?.let { this.providerLabel = it }

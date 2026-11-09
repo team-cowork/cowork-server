@@ -178,7 +178,9 @@ class ChannelMessageReadPolicyEvaluator(
         val membership = membershipRepository.findByTeamIdAndUserId(teamId, userId)
             ?.takeIf { it.active }
             ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
-        if (overwrites.isNotEmpty() && !membership.sourceOccurredAt.isAfter(Instant.EPOCH)) {
+        if (overwrites.isNotEmpty() &&
+            (!membership.sourceOccurredAt.isAfter(Instant.EPOCH) || membership.authorizationVersion == null)
+        ) {
             throw ExpectedException("팀 멤버십 정보 동기화가 필요합니다.", HttpStatus.SERVICE_UNAVAILABLE)
         }
         val targetRoleIds = overwrites.mapTo(mutableSetOf()) { it.roleId }
@@ -207,7 +209,12 @@ class ChannelMessageReadPolicyEvaluator(
             }
         }
         return overwrites.takeIf { it.isNotEmpty() }?.let {
-            InitialChannelRolePolicySeed(userId, membership.sourceOccurredAt, it, membership.authorizationVersion)
+            InitialChannelRolePolicySeed(
+                userId,
+                membership.sourceOccurredAt,
+                it,
+                checkNotNull(membership.authorizationVersion),
+            )
         }
     }
 

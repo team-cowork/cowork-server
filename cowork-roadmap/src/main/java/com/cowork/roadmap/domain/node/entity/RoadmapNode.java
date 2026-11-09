@@ -20,6 +20,12 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RoadmapNode extends BaseEntity {
 
+    /** 본문 최대 길이. UTF-16 코드 단위로 센다. */
+    public static final int MAX_CONTENT_LENGTH = 100_000;
+
+    /** 트리 조회와 계층 연산이 한 번에 처리하는 노드 수의 상한. */
+    public static final int MAX_NODES_PER_ROADMAP = 1_000;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

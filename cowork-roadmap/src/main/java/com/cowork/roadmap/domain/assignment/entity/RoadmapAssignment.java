@@ -1,6 +1,6 @@
 package com.cowork.roadmap.domain.assignment.entity;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 
 import com.cowork.roadmap.global.audit.TimestampEntity;
 
@@ -51,7 +51,7 @@ public class RoadmapAssignment extends TimestampEntity {
     private String status;
 
     @Column(name = "due_date")
-    private LocalDateTime dueDate;
+    private Instant dueDate;
 
     @Builder(toBuilder = true)
     public RoadmapAssignment(Long id,
@@ -63,7 +63,7 @@ public class RoadmapAssignment extends TimestampEntity {
             Long assigneeUserId,
             Long assignedBy,
             String status,
-            LocalDateTime dueDate) {
+            Instant dueDate) {
         this.id = id;
         this.roadmapId = roadmapId;
         this.nodeId = nodeId;

@@ -57,6 +57,7 @@ class RemoveTeamMemberServiceImplTest :
             permissions = mapOf("kick_members" to true),
             createdAt = null,
             updatedAt = null,
+            isDefault = false,
         )
 
         describe("RemoveTeamMemberServiceImpl 클래스의 execute 메서드는") {

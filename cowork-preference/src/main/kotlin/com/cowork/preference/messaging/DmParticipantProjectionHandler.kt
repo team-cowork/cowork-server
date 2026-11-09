@@ -16,6 +16,7 @@ class DmParticipantProjectionHandler(
                 }
                 null
             }
+
             is DmParticipantRecordDecision.Quarantine -> decision.reason
         }
 }

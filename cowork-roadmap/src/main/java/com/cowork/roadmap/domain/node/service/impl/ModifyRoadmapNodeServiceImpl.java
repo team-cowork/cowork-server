@@ -51,4 +51,5 @@ public class ModifyRoadmapNodeServiceImpl implements ModifyRoadmapNodeService {
         RoadmapNode saved = nodeRepository.saveAndFlush(updated);
         return NodeResDto.of(saved, nodeLookupSupport.loadReferences(saved.getId()));
     }
+
 }

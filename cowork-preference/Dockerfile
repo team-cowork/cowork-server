@@ -20,8 +20,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 \
     && rm -rf /var/lib/apt/lists/*
 COPY .editorconfig /workspace/.editorconfig
 COPY deploy/ci/verification /ci
+COPY --chmod=0755 cowork-preference/ktlint ktlint
 RUN --mount=type=cache,id=cowork-preference-toolchain,target=/root/.cache,sharing=locked \
-    bash /ci/run-jvm.sh kotlin-toolchain cowork-preference /workspace /coverage \
+    ./ktlint \
+    && bash /ci/run-jvm.sh kotlin-toolchain cowork-preference /workspace /coverage \
     && python3 /ci/report.py collect --module cowork-preference --snapshot pr --format jacoco --metric line --input /coverage/report.xml --output /coverage/coverage.json --exit-code 0
 
 FROM scratch AS verify
