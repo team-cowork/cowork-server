@@ -159,6 +159,12 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
         topicGeneration.markRevoked();
     }
 
+    @Override
+    public void onPartitionsLost(Consumer<?, ?> consumer, Collection<TopicPartition> partitions) {
+        // The spring-kafka default does nothing, which would keep a stale ready state.
+        onPartitionsRevokedBeforeCommit(consumer, partitions);
+    }
+
     /** Returns the cached readiness without touching the database or the broker. */
     public boolean isReady() {
         return initialized && ready;
