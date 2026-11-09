@@ -82,6 +82,7 @@ object GithubRepoSettingCommandParser {
                 settingsObject.getValue("label_auto_apply") as? Boolean
                     ?: error("label_auto_apply must be boolean")
             }
+
             GithubRepoSettingCommandType.DELETE -> {
                 require(settings == null) { "DELETE settings must be null or absent" }
                 null
