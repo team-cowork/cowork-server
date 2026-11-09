@@ -43,7 +43,7 @@ class HealthCheckController(webClientBuilder: WebClient.Builder, private val rou
                     ExampleObject(
                         value = """
                 {
-                  "status": "OK",
+                  "status": "200 OK",
                   "code": 200,
                   "message": "OK",
                   "data": {
@@ -59,7 +59,7 @@ class HealthCheckController(webClientBuilder: WebClient.Builder, private val rou
         ],
     )
     @GetMapping
-    fun checkAll(): Mono<ResponseEntity<CommonApiResponse<Map<String, ServiceStatus>>>> = routeLocator.routes
+    fun checkAll(): Mono<ResponseEntity<Map<String, ServiceStatus>>> = routeLocator.routes
         .filter { it.metadata["cowork-service"] is String && it.metadata["health-path"] is String }
         .map { route ->
             val service = route.metadata["cowork-service"] as String
@@ -94,7 +94,7 @@ class HealthCheckController(webClientBuilder: WebClient.Builder, private val rou
             }
         }
         .collectMap<String, ServiceStatus>({ it.first }, { it.second })
-        .map { ResponseEntity.ok(CommonApiResponse.success("OK", it)) }
+        .map { ResponseEntity.ok(it) }
 
     enum class ServiceStatus {
         UP,
