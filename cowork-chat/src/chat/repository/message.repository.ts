@@ -408,10 +408,18 @@ export class MessageRepository {
 	}
 
 	/**
-	이미 저장된 메시지를 멱등성 키로 조회합니다. Kafka 재전달로 저장이 중복 처리된 경우에 사용합니다.
-	*/
-	async findByClientMessageId(clientMessageId: string): Promise<Nullable<MessageDocument>> {
-		return this.messageModel.findOne({clientMessageId, webhookDeleted: {$ne: true}});
+     멱등성 키로 저장됐지만 아직 브로드캐스트되지 않은 메시지를 조회합니다.
+     값이 명시적인 `null`인 메시지만 찾으므로, 이미 전송했거나 이 필드가 생기기 전에 저장된 메시지는 제외됩니다.
+     */
+	async findUnbroadcastedByClientMessageId(clientMessageId: string): Promise<Nullable<MessageDocument>> {
+		return this.messageModel.findOne({clientMessageId, broadcastedAt: {$type: 'null'}, webhookDeleted: {$ne: true}});
+	}
+
+	/**
+    브로드캐스트를 마쳤다고 기록합니다. 색인 재구축의 `updatedAt` catch-up 대상이 되지 않도록 시각을 바꾸지 않습니다.
+    */
+	async markBroadcasted(messageId: Types.ObjectId): Promise<void> {
+		await this.messageModel.updateOne({_id: messageId}, {$set: {broadcastedAt: new Date()}}, {timestamps: false});
 	}
 
 	/**
