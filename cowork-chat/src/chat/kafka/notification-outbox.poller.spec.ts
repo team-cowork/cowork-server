@@ -76,6 +76,14 @@ describe('NotificationOutboxPoller 실패 처리', () => {
 		expect(messageRepository.updateNotificationStatus).toHaveBeenCalledWith(claimed._id, claimId, 'PENDING', {retryCount: 3, nextAttemptAt: expect.any(Date) as Date});
 	});
 
+	it('가득 찬 배치라도 실패가 섞이면 같은 틱에서 이어 점유하지 않는다', async () => {
+		messageRepository.findPendingAndMarkProcessing.mockResolvedValue(Array.from({length: 10}, () => claimedMessage(0)));
+
+		await runCycle();
+
+		expect(messageRepository.findPendingAndMarkProcessing).toHaveBeenCalledTimes(1);
+	});
+
 	it('재시도 한도에 닿으면 FAILED로 전환하고 다음 시도 시각은 남기지 않는다', async () => {
 		const claimed = claimedMessage(9);
 		messageRepository.findPendingAndMarkProcessing.mockResolvedValue([claimed]);

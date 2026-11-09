@@ -90,6 +90,57 @@ export function hasReachedStartupOffsets(
 }
 
 /**
+Upstream이 주기적으로 full snapshot을 다시 발행하므로, 이미 ready였던 stream이 high-watermark를 잠시 못 따라가는 것은 정상이다.
+*/
+export const PROJECTION_LAG_GRACE_MS = 30_000;
+
+export type ProjectionLag = {
+	since: number;
+	targets: StartupPartitionOffset[];
+};
+
+/**
+ 현재 high-watermark에 도달하면 lag을 지운다. 쓰기가 계속되면 poll 순간의 high-watermark에는 거의 닿지 못하므로,
+ lag이 시작될 때의 목표에 도달했으면 따라가는 중으로 보고 새 목표와 시각으로 다시 잰다.
+ */
+export function nextLag(
+	previous: ProjectionLag | undefined,
+	input: {targets: StartupPartitionOffset[]; checkpoints: PartitionOffset[]; now: number},
+): ProjectionLag | undefined {
+	if (hasReachedStartupOffsets(input.targets, input.checkpoints)) {
+		return undefined;
+	}
+
+	return previous === undefined || hasReachedStartupOffsets(previous.targets, input.checkpoints)
+		? {since: input.now, targets: input.targets}
+		: previous;
+}
+
+/**
+ Lag 외의 불변식이 깨지면 즉시 닫는다. Lag만 있을 때는 이 프로세스에서 이미 ready였던 stream만
+ 유예 시간 동안 열어 두고, 한 번도 ready가 아니었던 stream은 startup gate대로 high-watermark 도달을 기다린다.
+ */
+export function isReadyWithLagGrace(input: {
+	wasReady: boolean;
+	invariantsHold: boolean;
+	hasReachedOffsets: boolean;
+	lag?: Pick<ProjectionLag, 'since'>;
+	now: number;
+}): boolean {
+	if (!input.invariantsHold) {
+		return false;
+	}
+
+	if (input.hasReachedOffsets) {
+		return true;
+	}
+
+	return input.wasReady
+		&& input.lag !== undefined
+		&& input.now - input.lag.since < PROJECTION_LAG_GRACE_MS;
+}
+
+/**
 모든 partition에서 full snapshot marker까지 checkpoint가 전진했는지 판정한다.
 */
 export function hasCompletedSnapshotBarriers(
@@ -116,6 +167,32 @@ export function hasCompletedSnapshotBarriers(
 			return false;
 		}
 	});
+}
+
+/**
+ 실행 중 checkpoint를 순서대로 확인해 처음 발견한 복구 불가 사유를 반환한다. 문제가 없으면 `undefined`를 반환한다.
+ */
+export function describeActiveCheckpointProblem(
+	topic: string,
+	dataset: Pick<ProjectionDatasetState, 'datasetGeneration' | 'sourceGeneration'>,
+	storedCheckpoints: ProjectionCheckpointOffset[],
+	currentByPartition: Map<number, StartupPartitionOffset>,
+): string | undefined {
+	for (const checkpoint of storedCheckpoints) {
+		const current = currentByPartition.get(checkpoint.partition);
+		if (!current || !isCheckpointWithinRetainedRange(checkpoint.offset, current)) {
+			return 'Kafka projection checkpoint is outside the retained log: '
+				+ `${topic}[${checkpoint.partition}] checkpoint=${checkpoint.offset} `
+				+ `retained=${current?.low ?? 'missing'}-${current?.high ?? 'missing'}`;
+		}
+
+		if (checkpoint.datasetGeneration !== dataset.datasetGeneration
+			|| checkpoint.sourceGeneration !== dataset.sourceGeneration) {
+			return `Kafka projection checkpoint generation mismatch: ${topic}[${checkpoint.partition}]`;
+		}
+	}
+
+	return undefined;
 }
 
 /**
