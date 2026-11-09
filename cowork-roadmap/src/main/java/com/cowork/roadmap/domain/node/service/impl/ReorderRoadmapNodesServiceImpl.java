@@ -53,7 +53,10 @@ public class ReorderRoadmapNodesServiceImpl implements ReorderRoadmapNodesServic
             }
         }
         for (int i = 0; i < ordered.size(); i++) {
-            nodeRepository.updatePosition(roadmapId, ordered.get(i), i, userId, updatedAt);
+            Long nodeId = ordered.get(i);
+            if (positions.get(nodeId) != i) {
+                nodeRepository.updatePosition(roadmapId, nodeId, i, userId, updatedAt);
+            }
         }
     }
 }

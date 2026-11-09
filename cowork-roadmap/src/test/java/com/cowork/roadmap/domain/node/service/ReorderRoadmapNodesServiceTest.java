@@ -67,21 +67,30 @@ class ReorderRoadmapNodesServiceTest {
     }
 
     @Test
-    void movedNodes_areParkedBeforeFinalPositionsAndAllSiblingsReceiveAuditFields() {
+    void movedNodes_areParkedBeforeFinalPositionsAndOnlyMovedNodesReceiveAuditFields() {
         prepareNodes(null, List.of(node(1L, 0), node(2L, 1), node(3L, 2)));
         List<Update> updates = captureUpdates();
         Instant before = Instant.now();
 
         service.execute(7L, "MEMBER", 10L, new ReorderNodesReqDto(null, List.of(3L, 2L, 1L)));
 
-        assertThat(updates).extracting(Update::nodeId).containsExactly(3L, 1L, 3L, 2L, 1L);
-        assertThat(updates).extracting(Update::position).containsExactly(-1, -3, 0, 1, 2);
+        assertThat(updates).extracting(Update::nodeId).containsExactly(3L, 1L, 3L, 1L);
+        assertThat(updates).extracting(Update::position).containsExactly(-1, -3, 0, 2);
         assertThat(updates).allSatisfy(update -> {
             assertThat(update.roadmapId()).isEqualTo(10L);
             assertThat(update.userId()).isEqualTo(7L);
             assertThat(update.updatedAt()).isBetween(before, Instant.now());
         });
         assertThat(updates).extracting(Update::updatedAt).containsOnly(updates.getFirst().updatedAt());
+    }
+
+    @Test
+    void unchangedOrder_doesNotUpdatePositionsOrAuditFields() {
+        prepareNodes(null, List.of(node(1L, 0), node(2L, 1), node(3L, 2)));
+
+        service.execute(7L, "MEMBER", 10L, new ReorderNodesReqDto(null, List.of(1L, 2L, 3L)));
+
+        verify(nodeRepository, never()).updatePosition(anyLong(), anyLong(), anyInt(), anyLong(), any());
     }
 
     @Test
