@@ -18,7 +18,7 @@ function storedMessage(overrides: Record<string, unknown> = {}) {
 }
 
 describe('ChatMessageProcessor', () => {
-	const messages = {createMessage: jest.fn(), findByClientMessageId: jest.fn()};
+	const messages = {createMessage: jest.fn(), findUnbroadcastedByClientMessageId: jest.fn(), markBroadcasted: jest.fn()};
 	const channelRead = {advance: jest.fn()};
 	const readAccess = {emitToReadableChannelUsers: jest.fn()};
 	const scope = {validate: jest.fn()};
@@ -27,6 +27,7 @@ describe('ChatMessageProcessor', () => {
 	beforeEach(() => {
 		jest.clearAllMocks();
 		channelRead.advance.mockResolvedValue(null);
+		messages.markBroadcasted.mockResolvedValue(undefined);
 		processor = new ChatMessageProcessor(messages as never, channelRead as never, readAccess as never, scope as never);
 		processor.setSocketServer({to: jest.fn()} as never);
 	});
@@ -35,7 +36,7 @@ describe('ChatMessageProcessor', () => {
 		it('저장 뒤 브로드캐스트가 실패해 재전달되면 기존 메시지를 다시 브로드캐스트한다', async () => {
 			const saved = storedMessage();
 			messages.createMessage.mockRejectedValue(Object.assign(new Error('dup'), {code: 11_000}));
-			messages.findByClientMessageId.mockResolvedValue(saved);
+			messages.findUnbroadcastedByClientMessageId.mockResolvedValue(saved);
 
 			await processor.process(event);
 
@@ -47,11 +48,29 @@ describe('ChatMessageProcessor', () => {
 
 		it('다른 작성자의 메시지와 키가 겹치면 브로드캐스트하지 않는다', async () => {
 			messages.createMessage.mockRejectedValue(Object.assign(new Error('dup'), {code: 11_000}));
-			messages.findByClientMessageId.mockResolvedValue(storedMessage({authorId: 99}));
+			messages.findUnbroadcastedByClientMessageId.mockResolvedValue(storedMessage({authorId: 99}));
 
 			await processor.process(event);
 
 			expect(readAccess.emitToReadableChannelUsers).not.toHaveBeenCalled();
+		});
+
+		it('이미 브로드캐스트한 메시지의 키가 다시 오면 보내지 않는다', async () => {
+			messages.createMessage.mockRejectedValue(Object.assign(new Error('dup'), {code: 11_000}));
+			messages.findUnbroadcastedByClientMessageId.mockResolvedValue(null);
+
+			await processor.process(event);
+
+			expect(readAccess.emitToReadableChannelUsers).not.toHaveBeenCalled();
+		});
+
+		it('브로드캐스트를 마치면 전송 완료를 기록한다', async () => {
+			const saved = storedMessage();
+			messages.createMessage.mockResolvedValue(saved);
+
+			await processor.process(event);
+
+			expect(messages.markBroadcasted).toHaveBeenCalledWith(saved._id);
 		});
 
 		it('중복이 아닌 저장 오류는 재전달되도록 다시 던진다', async () => {
