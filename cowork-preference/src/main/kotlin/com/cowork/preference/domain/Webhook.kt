@@ -41,8 +41,12 @@ object WebhookModePolicy {
     }
 }
 
-class WebhookRequestException(val status: Int, message: String, val retryAfter: Long? = null, val nextAllowedAt: Instant? = null) :
-    RuntimeException(message)
+class WebhookRequestException(
+    val status: Int,
+    message: String,
+    val retryAfter: Long? = null,
+    val nextAllowedAt: Instant? = null,
+) : RuntimeException(message)
 
 object WebhookInput {
     fun create(body: JsonObject): JsonObject {
@@ -80,9 +84,12 @@ object WebhookInput {
             ?: invalid("웹훅 아바타 주소는 512자 이하여야 합니다.")
     }
 
-    private fun boolean(body: JsonObject, key: String, default: Boolean): Boolean =
-        if (!body.containsKey(key)) default else body.getValue(key) as? Boolean
+    private fun boolean(body: JsonObject, key: String, default: Boolean): Boolean = if (!body.containsKey(key)) {
+        default
+    } else {
+        body.getValue(key) as? Boolean
             ?: invalid("$key 값은 boolean이어야 합니다.")
+    }
 
     private fun allowed(body: JsonObject, keys: Set<String>) {
         if (!keys.containsAll(body.fieldNames())) invalid("지원하지 않는 웹훅 설정입니다.")
