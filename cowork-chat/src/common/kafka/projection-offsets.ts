@@ -90,6 +90,42 @@ export function hasReachedStartupOffsets(
 }
 
 /**
+Upstream이 주기적으로 full snapshot을 다시 발행하므로, 이미 ready였던 stream이 high-watermark를 잠시 못 따라가는 것은 정상이다.
+*/
+export const PROJECTION_LAG_GRACE_MS = 30_000;
+
+/**
+Lag이 시작된 시각을 유지하고, high-watermark에 도달하면 지운다.
+*/
+export function nextLagSince(lagSince: number | undefined, hasReachedOffsets: boolean, now: number): number | undefined {
+	return hasReachedOffsets ? undefined : (lagSince ?? now);
+}
+
+/**
+ Lag 외의 불변식이 깨지면 즉시 닫는다. Lag만 있을 때는 이 프로세스에서 이미 ready였던 stream만
+ 유예 시간 동안 열어 두고, 한 번도 ready가 아니었던 stream은 startup gate대로 high-watermark 도달을 기다린다.
+ */
+export function isReadyWithLagGrace(input: {
+	wasReady: boolean;
+	invariantsHold: boolean;
+	hasReachedOffsets: boolean;
+	lagSince?: number;
+	now: number;
+}): boolean {
+	if (!input.invariantsHold) {
+		return false;
+	}
+
+	if (input.hasReachedOffsets) {
+		return true;
+	}
+
+	return input.wasReady
+		&& input.lagSince !== undefined
+		&& input.now - input.lagSince < PROJECTION_LAG_GRACE_MS;
+}
+
+/**
 모든 partition에서 full snapshot marker까지 checkpoint가 전진했는지 판정한다.
 */
 export function hasCompletedSnapshotBarriers(
@@ -116,6 +152,32 @@ export function hasCompletedSnapshotBarriers(
 			return false;
 		}
 	});
+}
+
+/**
+ 실행 중 checkpoint를 순서대로 확인해 처음 발견한 복구 불가 사유를 반환한다. 문제가 없으면 `undefined`를 반환한다.
+ */
+export function describeActiveCheckpointProblem(
+	topic: string,
+	dataset: Pick<ProjectionDatasetState, 'datasetGeneration' | 'sourceGeneration'>,
+	storedCheckpoints: ProjectionCheckpointOffset[],
+	currentByPartition: Map<number, StartupPartitionOffset>,
+): string | undefined {
+	for (const checkpoint of storedCheckpoints) {
+		const current = currentByPartition.get(checkpoint.partition);
+		if (!current || !isCheckpointWithinRetainedRange(checkpoint.offset, current)) {
+			return 'Kafka projection checkpoint is outside the retained log: '
+				+ `${topic}[${checkpoint.partition}] checkpoint=${checkpoint.offset} `
+				+ `retained=${current?.low ?? 'missing'}-${current?.high ?? 'missing'}`;
+		}
+
+		if (checkpoint.datasetGeneration !== dataset.datasetGeneration
+			|| checkpoint.sourceGeneration !== dataset.sourceGeneration) {
+			return `Kafka projection checkpoint generation mismatch: ${topic}[${checkpoint.partition}]`;
+		}
+	}
+
+	return undefined;
 }
 
 /**
