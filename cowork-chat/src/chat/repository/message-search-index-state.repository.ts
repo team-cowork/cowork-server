@@ -65,19 +65,39 @@ export class MessageSearchIndexStateRepository {
 	async tryAcquireRebuildLock(lockId: string, staleThresholdMs: number): Promise<boolean> {
 		const now = new Date();
 		const staleBefore = new Date(now.getTime() - staleThresholdMs);
+		try {
+			const result = await this.model.updateOne(
+				{
+					_id: MESSAGE_SEARCH_INDEX_STATE_ID,
+					$or: [
+						{rebuildLockedAt: null},
+						{rebuildLockedAt: {$lt: staleBefore}},
+						{rebuildLockId: lockId},
+					],
+				},
+				{$set: {rebuildLockedAt: now, rebuildLockId: lockId}},
+				{upsert: true},
+			);
+			return result.matchedCount > 0 || result.upsertedCount > 0;
+		} catch (error) {
+			// 다른 holder의 최근 락이 있으면 필터가 빗나가 upsert가 같은 `_id`를 삽입하려다 E11000이 난다. 점유 실패와 같다.
+			if ((error as {code?: unknown}).code === 11_000) {
+				return false;
+			}
+
+			throw error;
+		}
+	}
+
+	/**
+    이 `lockId`가 아직 쥔 재구축 락의 점유 시각을 갱신한다. 락을 잃었으면 `false`를 반환한다.
+    */
+	async renewRebuildLock(lockId: string): Promise<boolean> {
 		const result = await this.model.updateOne(
-			{
-				_id: MESSAGE_SEARCH_INDEX_STATE_ID,
-				$or: [
-					{rebuildLockedAt: null},
-					{rebuildLockedAt: {$lt: staleBefore}},
-					{rebuildLockId: lockId},
-				],
-			},
-			{$set: {rebuildLockedAt: now, rebuildLockId: lockId}},
-			{upsert: true},
+			{_id: MESSAGE_SEARCH_INDEX_STATE_ID, rebuildLockId: lockId},
+			{$set: {rebuildLockedAt: new Date()}},
 		);
-		return result.matchedCount > 0 || result.upsertedCount > 0;
+		return result.matchedCount > 0;
 	}
 
 	/**
