@@ -1,6 +1,7 @@
 import {type Admin, type Consumer, type Kafka} from 'kafkajs';
 import {type ProjectionAssignmentLease, type ProjectionCheckpointOffset} from './projection-checkpoint.repository.js';
 import {type ProjectionDatasetState} from './projection-dataset.repository.js';
+import {type ProjectionLag} from './projection-offsets.js';
 import {type ProjectionDatasetStatus, type ProjectionRunMode} from './projection-dataset.schema.js';
 import {type ProjectionStream, type StartupPartitionOffset} from './projection-streams.js';
 
@@ -50,6 +51,10 @@ export type ProjectionCatchupState = {
 	activatedDatasetGeneration?: string;
 	catchupStartedAt: number;
 	lastDocumentCountCheckAt?: number;
+	/**
+	 Checkpoint가 high-watermark에 못 미친 상태가 시작된 시각과 그때의 목표 offset.
+	 */
+	lag?: ProjectionLag;
 	ready: boolean;
 	checkPromise?: Promise<void>;
 	pollTimer?: NodeJS.Timeout;
