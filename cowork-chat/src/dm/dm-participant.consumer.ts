@@ -13,8 +13,8 @@ import {DmParticipant} from '../chat/schema/dm-participant.schema.js';
 import {getKafkaClientConfig} from '../common/config/config.util.js';
 import {parseEventTime} from '../common/util/event-time.util.js';
 import {isSafePositiveInteger} from '../common/util/safe-integer.util.js';
-import {PROJECTION_STREAMS, ProjectionReadinessService} from '../common/kafka/projection-readiness.service.js';
-import {applyProjectionMessage, ProjectionContractError} from '../common/kafka/projection-message.processor.js';
+import {CHANNEL_PERMISSION_STREAMS, PROJECTION_STREAMS, ProjectionReadinessService} from '../common/kafka/projection-readiness.service.js';
+import {ProjectionContractError} from '../common/kafka/projection-message.processor.js';
 import {
 	activeProjectionCondition,
 	deletedProjectionCondition,
@@ -23,7 +23,7 @@ import {
 	projectionTimestampFields,
 	PROJECTION_EPOCH,
 } from '../chat/repository/versioned-projection.util.js';
-import {connectWithRetry} from '../common/kafka/connect-with-retry.js';
+import {startProjectionConsumer} from '../common/kafka/projection-consumer.js';
 import {DmParticipantEvent} from './event/dm-participant.event.js';
 
 @injectable()
@@ -131,19 +131,7 @@ export class DmParticipantConsumer implements OnModuleInit, OnModuleDestroy {
 					{upsert: true, timestamps: false, updatePipeline: true},
 				);
 				const isApplied = isProjectionUpdateApplied(result);
-				// Replay 중 projection은 reset 직후 상태라 대부분의 멤버십이 비어 있다.
-				// 그 상태로 접근을 평가하면 접속 중인 사용자를 전부 방에서 쫓아낸다.
-				// 다른 stream이 닫혀도 판정은 전부 거부이므로 전체 readiness를 판정 전후로 확인한다.
-				if (this.projectionReadiness.isReady()
-					&& this.io
-					&& this.readAccessEvaluator
-					&& !(await this.readAccessEvaluator(channelId, userId))
-					&& this.projectionReadiness.isReady()) {
-					this.io.in(`user:${userId}`).socketsLeave(`chat:${channelId}`);
-					if (event.snapshot !== true) {
-						this.io.to(`user:${userId}`).emit('channel:access:revoked', {channelId});
-					}
-				}
+				await this.revokeUnreadableAccess(event, isApplied);
 
 				if (!isApplied || event.snapshot === true) {
 					return;
@@ -154,6 +142,29 @@ export class DmParticipantConsumer implements OnModuleInit, OnModuleDestroy {
 		} catch (error) {
 			this.logger.error(`Failed to handle DM participant event [${eventType}]`, error);
 			throw error;
+		}
+	}
+
+	/**
+    Replay 중 projection은 reset 직후 상태라 대부분의 멤버십이 비어 있다.
+    그 상태로 접근을 평가하면 접속 중인 사용자를 전부 방에서 쫓아낸다.
+    권한 stream이 닫히면 판정은 전부 거부이므로 그 readiness를 판정 전후로 확인한다.
+    변경 없이 끝난 snapshot 재발행은 접근 판정을 건너뛰고, live 재전달은 항상 판정한다.
+    */
+	private async revokeUnreadableAccess(event: DmParticipantEvent, isApplied: boolean): Promise<void> {
+		const {channelId, userId} = event;
+		if ((!isApplied && event.snapshot === true)
+			|| !this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)
+			|| !this.io
+			|| !this.readAccessEvaluator
+			|| await this.readAccessEvaluator(channelId, userId)
+			|| !this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
+			return;
+		}
+
+		this.io.in(`user:${userId}`).socketsLeave(`chat:${channelId}`);
+		if (event.snapshot !== true) {
+			this.io.to(`user:${userId}`).emit('channel:access:revoked', {channelId});
 		}
 	}
 
@@ -212,27 +223,10 @@ export class DmParticipantConsumer implements OnModuleInit, OnModuleDestroy {
 		});
 		const stream = PROJECTION_STREAMS.dmParticipant;
 		this.consumer = kafka.consumer({groupId: stream.groupId});
-		await connectWithRetry(this.logger, `Kafka consumer startup: ${stream.topic}`, async () => {
-			await this.consumer.connect();
-			await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
-			await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+		await startProjectionConsumer({
+			logger: this.logger, kafka, consumer: this.consumer, readiness: this.projectionReadiness, stream,
+			handleEvent: async (payload, key) => this.handleEvent(payload, key),
 		});
-
-		void this.consumer
-			.run({
-				eachMessage: async ({partition, message}) => {
-					await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(stream, {
-						partition, message, readiness: this.projectionReadiness, apply: async (payload, key) => this.handleEvent(payload, key),
-					},
-					));
-				},
-			})
-			.catch((error: unknown) => {
-				this.logger.error(`${stream.topic} Kafka consumer failed; exiting for restart`, error);
-				// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
-				throw error;
-			});
-		this.logger.log(`Kafka consumer started: ${stream.topic}`);
 	}
 
 	async onModuleDestroy() {
