@@ -10,10 +10,10 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 
-import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.entity.RoadmapNodeReference;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeReferenceRepository;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
+import com.cowork.roadmap.domain.node.repository.view.NodeTreeView;
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
 import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
@@ -36,18 +36,21 @@ class QueryRoadmapTreeServiceTest {
     @Test
     void getRoadmapTree_assemblesNodesIntoNestedTreeWithReferences() {
         Roadmap roadmap = roadmap(10L, RoadmapScope.GLOBAL);
-        RoadmapNode root1 = node(1L, 10L, null, 0, "root1");
-        RoadmapNode child = node(2L, 10L, 1L, 0, "child");
-        RoadmapNode root2 = node(3L, 10L, null, 1, "root2");
+        NodeTreeView root1 = node(1L, null, 0, "root1");
+        NodeTreeView child = node(2L, 1L, 0, "child");
+        NodeTreeView root2 = node(3L, null, 1, "root2");
         RoadmapNodeReference ref = reference(100L, 2L, "관련자료");
 
         when(roadmapRepository.findById(10L)).thenReturn(Optional.of(roadmap));
 
-        when(nodeRepository.findByRoadmapIdOrderByPositionAsc(10L)).thenReturn(List.of(root1, child, root2));
+        when(nodeRepository.findTreeByRoadmapId(10L)).thenReturn(List.of(root1, child, root2));
         when(referenceRepository.findByNodeIdInOrderByNodeIdAscPositionAsc(any())).thenReturn(List.of(ref));
 
         var tree = queryRoadmapTreeService.execute(1L, "ADMIN", 10L);
         assertThat(tree.nodes()).hasSize(2);
+        assertThat(tree.nodes().getFirst().title()).isEqualTo("root1");
+        assertThat(tree.nodes().getFirst().sourceUrl()).isEqualTo("https://example.com/source");
+        assertThat(tree.nodes().getFirst().sourceTitle()).isEqualTo("원본 문서");
         assertThat(tree.nodes().get(0).id()).isEqualTo(1L);
         assertThat(tree.nodes().get(0).children()).hasSize(1);
         assertThat(tree.nodes().get(0).children().get(0).id()).isEqualTo(2L);
@@ -61,14 +64,15 @@ class QueryRoadmapTreeServiceTest {
         return Roadmap.builder().id(id).title("roadmap").category("Flutter").scope(scope.name()).build();
     }
 
-    private static RoadmapNode node(Long id, Long roadmapId, Long parentId, int position, String title) {
-        return RoadmapNode.builder()
-                .id(id)
-                .roadmapId(roadmapId)
-                .parentId(parentId)
-                .position(position)
-                .title(title)
-                .build();
+    private static NodeTreeView node(Long id, Long parentId, int position, String title) {
+        NodeTreeView node = mock(NodeTreeView.class);
+        when(node.getId()).thenReturn(id);
+        when(node.getParentId()).thenReturn(parentId);
+        when(node.getPosition()).thenReturn(position);
+        when(node.getTitle()).thenReturn(title);
+        when(node.getSourceUrl()).thenReturn("https://example.com/source");
+        when(node.getSourceTitle()).thenReturn("원본 문서");
+        return node;
     }
 
     private static RoadmapNodeReference reference(Long id, Long nodeId, String title) {
