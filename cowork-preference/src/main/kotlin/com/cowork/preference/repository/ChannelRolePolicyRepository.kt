@@ -1,7 +1,7 @@
 package com.cowork.preference.repository
 
-import com.cowork.preference.domain.ChannelRolePolicyState
 import com.cowork.preference.domain.ChannelRolePermissionResolver
+import com.cowork.preference.domain.ChannelRolePolicyState
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Pool
@@ -14,10 +14,22 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
     suspend fun findPolicy(teamId: Long, channelId: Long, roleId: Long): ChannelRolePolicyState? =
         findPolicy(pool, teamId, channelId, roleId)
 
-    suspend fun canAccess(teamId: Long, accountId: Long, channelId: Long, permission: String, isPrivate: Boolean): Boolean =
-        canAccess(pool, teamId, accountId, channelId, permission, isPrivate)
+    suspend fun canAccess(
+        teamId: Long,
+        accountId: Long,
+        channelId: Long,
+        permission: String,
+        isPrivate: Boolean,
+    ): Boolean = canAccess(pool, teamId, accountId, channelId, permission, isPrivate)
 
-    internal suspend fun canAccess(client: SqlClient, teamId: Long, accountId: Long, channelId: Long, permission: String, isPrivate: Boolean): Boolean {
+    internal suspend fun canAccess(
+        client: SqlClient,
+        teamId: Long,
+        accountId: Long,
+        channelId: Long,
+        permission: String,
+        isPrivate: Boolean,
+    ): Boolean {
         val rows = client.preparedQuery(
             """
             SELECT d.is_default, COALESCE((d.permissions ->> ${'$'}4)::boolean, FALSE) AS allowed,
@@ -32,7 +44,11 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
         ).execute(Tuple.of(accountId, teamId, channelId, permission)).coAwait()
         return ChannelRolePermissionResolver.resolve(
             rows.map {
-                ChannelRolePermissionResolver.RolePermission(it.getBoolean("is_default"), it.getBoolean("allowed"), it.getBoolean("overwrite"))
+                ChannelRolePermissionResolver.RolePermission(
+                    it.getBoolean("is_default"),
+                    it.getBoolean("allowed"),
+                    it.getBoolean("overwrite"),
+                )
             },
             permission,
             isPrivate,
