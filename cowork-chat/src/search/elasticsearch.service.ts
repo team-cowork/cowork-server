@@ -260,11 +260,17 @@ export class ElasticsearchService implements OnModuleInit {
 			return undefined;
 		}
 
+		let parsed: unknown;
 		try {
-			return JSON.parse(Buffer.from(before, 'base64').toString()) as estypes.SortResults;
-		} catch {
-			return undefined;
+			parsed = JSON.parse(Buffer.from(before, 'base64').toString());
+		} catch {}
+
+		// 첫 페이지로 되돌리면 클라이언트가 이미 본 결과를 중복으로 받으므로, 잘못된 커서는 거부한다.
+		if (!Array.isArray(parsed)) {
+			throw new BadRequestException('invalid cursor');
 		}
+
+		return parsed as estypes.SortResults;
 	}
 
 	private buildContentQuery(q: string): estypes.QueryDslQueryContainer {
