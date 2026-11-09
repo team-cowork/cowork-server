@@ -21,6 +21,7 @@ import java.util.Map;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.PartitionInfo;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.WakeupException;
 import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.annotation.Scheduled;
 
@@ -36,12 +37,7 @@ class TeamMemberProjectionReadinessTest {
     private final ProjectionTopicGenerationRegistry topicGeneration = new ProjectionTopicGenerationRegistry();
     @SuppressWarnings("unchecked")
     private final Consumer<String, String> consumer = mock(Consumer.class);
-    private final TeamMemberProjectionReadiness readiness = new TeamMemberProjectionReadiness(checkpoints,
-            topicIdentity,
-            topicGeneration,
-            GROUP,
-            TOPIC,
-            0L);
+    private final TeamMemberProjectionReadiness readiness = readiness(0L, 0L);
 
     @Test
     void beforeAssignment_isNotReadyWithoutQueryingBroker() {
@@ -134,6 +130,56 @@ class TeamMemberProjectionReadinessTest {
     }
 
     @Test
+    void transientAssignmentFailure_retriesWithinCallbackWithoutRebalance() {
+        TeamMemberProjectionReadiness retrying = readiness(0L, 60_000L);
+        stubCaughtUp();
+        when(topicIdentity.topicId(TOPIC)).thenThrow(new IllegalStateException("broker unavailable"))
+                .thenReturn(TOPIC_ID);
+
+        retrying.onPartitionsAssigned(consumer, List.of(PARTITION));
+
+        assertTrue(retrying.isReady());
+        verify(consumer, never()).enforceRebalance(anyString());
+    }
+
+    @Test
+    void negativeBackoff_isTreatedAsZero() {
+        TeamMemberProjectionReadiness retrying = readiness(-1L, 60_000L);
+        stubCaughtUp();
+        when(topicIdentity.topicId(TOPIC)).thenThrow(new IllegalStateException("broker unavailable"))
+                .thenReturn(TOPIC_ID);
+
+        retrying.onPartitionsAssigned(consumer, List.of(PARTITION));
+
+        assertTrue(retrying.isReady());
+    }
+
+    @Test
+    void wakeupDuringAssignment_propagatesWithoutRebalance() {
+        stubCaughtUp();
+        when(topicIdentity.topicId(TOPIC)).thenThrow(new WakeupException());
+
+        assertThrows(WakeupException.class, () -> readiness.onPartitionsAssigned(consumer, List.of(PARTITION)));
+
+        assertFalse(readiness.isReady());
+        verify(consumer, never()).enforceRebalance(anyString());
+    }
+
+    @Test
+    void interruptDuringBackoff_stopsWithoutRebalance() {
+        TeamMemberProjectionReadiness retrying = readiness(60_000L, 120_000L);
+        stubCaughtUp();
+        when(topicIdentity.topicId(TOPIC)).thenThrow(new IllegalStateException("broker unavailable"));
+        Thread.currentThread().interrupt();
+
+        retrying.onPartitionsAssigned(consumer, List.of(PARTITION));
+
+        assertTrue(Thread.interrupted());
+        assertFalse(retrying.isReady());
+        verify(consumer, never()).enforceRebalance(anyString());
+    }
+
+    @Test
     void revocation_switchesToNotReadyImmediately() {
         stubCaughtUp();
         readiness.onPartitionsAssigned(consumer, List.of(PARTITION));
@@ -149,6 +195,16 @@ class TeamMemberProjectionReadinessTest {
         Scheduled scheduled = TeamMemberProjectionReadiness.class.getMethod("refresh").getAnnotation(Scheduled.class);
 
         assertEquals("${projection.readiness.poll-interval-ms:1000}", scheduled.fixedDelayString());
+    }
+
+    private TeamMemberProjectionReadiness readiness(long retryBackoffMs, long retryTimeoutMs) {
+        return new TeamMemberProjectionReadiness(checkpoints,
+                topicIdentity,
+                topicGeneration,
+                GROUP,
+                TOPIC,
+                retryBackoffMs,
+                retryTimeoutMs);
     }
 
     private void stubCaughtUp() {
