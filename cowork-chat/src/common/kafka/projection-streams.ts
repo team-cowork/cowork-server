@@ -108,3 +108,8 @@ export const PROJECTION_STREAMS = {
 } as const satisfies Record<ProjectionStreamName, ProjectionStream>;
 
 export type ProjectionName = keyof typeof PROJECTION_STREAMS;
+
+/**
+채널 권한 판정(HTTP 라우트 gate와 소켓 broadcast)이 읽는 projection만 모은다.
+*/
+export const CHANNEL_PERMISSION_STREAMS: ProjectionName[] = ['channel', 'teamMember', 'teamRole', 'channelRolePolicy', 'dmParticipant'];

@@ -22,6 +22,7 @@ gateway:
       cowork-voice: ${COWORK_VOICE_URL}
       cowork-github: ${COWORK_GITHUB_URL}
       cowork-preference: ${COWORK_PREFERENCE_URL}
+      cowork-applet: ${COWORK_APPLET_URL}
 
 webhook:
   url-signing-key: ${WEBHOOK_URL_SIGNING_KEY:}
@@ -51,6 +52,8 @@ cowork:
         url: /v3/api-docs/notification
       - name: preference
         url: /v3/api-docs/preference
+      - name: applet
+        url: /v3/api-docs/applet
 
 spring:
   data:
@@ -82,7 +85,7 @@ spring:
       # - chat-service-ws: 연결 요청만 Gateway가 제한하고, 연결 후 이벤트(입력 중 표시 등)는 Chat이 제한한다.
       # - webhook-ingress: Gateway는 웹훅별 30/60만 적용하고 수신 경로 전체 상한은 두지 않는다. 서명 검증으로 무작위 실행 ID를
       #   먼저 차단하며, Chat 웹훅 제한기가 Redis 오류 시 신규 메시지를 막는다(fail-closed).
-      # - project, roadmap, preference, notification, 팀·프로젝트별 channel, DM, 검색: JWT 인증 요청이며 downstream이 권한을
+      # - project, roadmap, applet, preference, notification, 팀·프로젝트별 channel, DM, 검색: JWT 인증 요청이며 downstream이 권한을
       #   검사한다. 일괄 제한은 도입하지 않았으므로 필요해지면 해당 라우트에 명시적으로 추가한다.
       # - 스토리지 relay: StorageRelay가 허용 경로와 서명 여부를 검사하고 오브젝트 스토리지가 서명을 검증한다.
       # - DataGSM 웹훅은 Gateway가 서명 검증 후 Redis에 영속 접수한다. Redis 실패 시 Authorization의 DB 접수 경로로 전달한다.
@@ -327,9 +330,27 @@ spring:
             - Path=/api/roadmap/roadmaps/**
           filters:
             - StripPrefix=2
+            # 노드 본문 상한(100,000자)을 모두 \uXXXX로 escape해도 들어가는 크기
+            - name: RequestSize
+              args:
+                maxSize: 1MB
             - name: CircuitBreaker
               args:
                 name: roadmapCB
+                fallbackUri: forward:/fallback
+
+        - id: applet-service
+          uri: ${COWORK_APPLET_URL}
+          metadata:
+            cowork-service: cowork-applet
+            health-path: /health/ready
+          predicates:
+            - Path=/api/applet/applets/**
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: appletCB
                 fallbackUri: forward:/fallback
 
         - id: chat-service
@@ -552,6 +573,13 @@ spring:
             - Path=/v3/api-docs/roadmap
           filters:
             - RewritePath=/v3/api-docs/roadmap, /v3/api-docs
+
+        - id: applet-service-docs
+          uri: ${COWORK_APPLET_URL}
+          predicates:
+            - Path=/v3/api-docs/applet
+          filters:
+            - RewritePath=/v3/api-docs/applet, /swagger/doc.json
 
 # GitHub Secrets are injected through the deployment platform.
 

@@ -7,6 +7,14 @@ import {isSearchIndexed} from './message-index-scope.js';
 const DEFAULT_TOMBSTONE_RETENTION_DAYS = 7;
 
 /**
+삭제 tombstone 보존 일수. 재구축 재개는 이 기간 안에서만 tombstone으로 삭제를 따라잡을 수 있다.
+*/
+export function tombstoneRetentionDays(): number {
+	const value = Number(process.env.CHAT_SEARCH_TOMBSTONE_RETENTION_DAYS ?? DEFAULT_TOMBSTONE_RETENTION_DAYS);
+	return Number.isSafeInteger(value) && value > 0 ? value : DEFAULT_TOMBSTONE_RETENTION_DAYS;
+}
+
+/**
  `deleteMessage` 처리 결과.
  - `DELETED`: 이 호출이 삭제를 완결했다.
  - `ALREADY_IN_PROGRESS`: 다른 요청이 이미 삭제를 예약해 진행 중이다. 그 요청이 완결을 책임진다.
@@ -35,11 +43,6 @@ export class MessageSearchDeletionService implements OnModuleInit {
 		private readonly tombstoneRepository: MessageSearchTombstoneRepository,
 	) {}
 
-	private retentionDays(): number {
-		const value = Number(process.env.CHAT_SEARCH_TOMBSTONE_RETENTION_DAYS ?? DEFAULT_TOMBSTONE_RETENTION_DAYS);
-		return Number.isSafeInteger(value) && value > 0 ? value : DEFAULT_TOMBSTONE_RETENTION_DAYS;
-	}
-
 	/**
      `CHAT_SEARCH_TOMBSTONE_RETENTION_DAYS`가 Elasticsearch `gc_deletes`
      ({@link MESSAGE_INDEX_GC_DELETES_DAYS})보다 짧으면 MongoDB tombstone이 재구축 catch-up이
@@ -47,7 +50,7 @@ export class MessageSearchDeletionService implements OnModuleInit {
      값이라 부팅 시 한 번 관계를 확인해 조용히 어긋나지 않게 한다.
      */
 	onModuleInit(): void {
-		const retentionDays = this.retentionDays();
+		const retentionDays = tombstoneRetentionDays();
 		if (retentionDays < MESSAGE_INDEX_GC_DELETES_DAYS) {
 			this.logger.error(
 				`CHAT_SEARCH_TOMBSTONE_RETENTION_DAYS(${retentionDays}) is shorter than Elasticsearch gc_deletes(${MESSAGE_INDEX_GC_DELETES_DAYS}d). `
@@ -83,8 +86,9 @@ export class MessageSearchDeletionService implements OnModuleInit {
 				teamId: reserved.teamId!,
 				projectId: reserved.projectId!,
 				channelId: reserved.channelId,
-				version: reserved.searchIndexVersion,
-				retentionDays: this.retentionDays(),
+				// 재구축 스캔은 DELETING 메시지도 예약 버전 V로 색인하므로, 삭제는 V보다 커야 그 문서를 지울 수 있다(V면 409로 무시된다).
+				version: reserved.searchIndexVersion + 1,
+				retentionDays: tombstoneRetentionDays(),
 			});
 		}
 
