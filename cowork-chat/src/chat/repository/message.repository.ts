@@ -1,6 +1,6 @@
 import {Buffer} from 'node:buffer';
 import {randomUUID} from 'node:crypto';
-import {Injectable as injectable} from '@nestjs/common';
+import {BadRequestException, Injectable as injectable} from '@nestjs/common';
 import {InjectModel as injectModel} from '@nestjs/mongoose';
 import {Model, PipelineStage, Types} from 'mongoose';
 import {ConfirmedAttachment} from '../../storage/attachment-upload.schema.js';
@@ -216,12 +216,13 @@ export class MessageRepository {
      커서 이전의 항목만 반환하는 `$or` 조건을 구성합니다.
 
      @param before - base64 인코딩된 커서 문자열
-     @returns MongoDB `$match` 조건 객체. 커서가 유효하지 않으면 `null`
+     @returns MongoDB `$match` 조건 객체
+     @throws BadRequestException 커서가 유효하지 않은 경우. 첫 페이지로 대체하면 같은 항목을 반복해 받게 된다
      */
-	private buildFileCursorMatch(before: string): Nullable<Record<string, unknown>> {
+	private buildFileCursorMatch(before: string): Record<string, unknown> {
 		const cursor = this.decodeFileCursor(before);
 		if (!cursor) {
-			return null;
+			throw new BadRequestException('invalid cursor');
 		}
 
 		return {
