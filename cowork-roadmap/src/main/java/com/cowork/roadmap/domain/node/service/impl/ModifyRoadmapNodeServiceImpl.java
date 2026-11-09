@@ -40,6 +40,7 @@ public class ModifyRoadmapNodeServiceImpl implements ModifyRoadmapNodeService {
             throw new ExpectedException("노드 제목은 공백일 수 없습니다.", HttpStatus.BAD_REQUEST);
         }
         RoadmapNode node = nodeLookupSupport.findNodeOrThrow(nodeId);
+        validateTotalContentLength(roadmapId, node.getContent(), request.content());
         RoadmapNode updated = node.toBuilder()
                 .title(request.title() != null ? request.title() : node.getTitle())
                 .content(request.content() != null ? request.content() : node.getContent())
@@ -50,5 +51,20 @@ public class ModifyRoadmapNodeServiceImpl implements ModifyRoadmapNodeService {
         updated.setLastModifiedBy(userId);
         RoadmapNode saved = nodeRepository.saveAndFlush(updated);
         return NodeResDto.of(saved, nodeLookupSupport.loadReferences(saved.getId()));
+    }
+
+    /** 로드맵 행 잠금 아래에서 합계를 읽는다. 본문이 줄거나 같으면 이미 상한을 넘은 로드맵도 수정할 수 있도록 확인하지 않는다. */
+    private void validateTotalContentLength(Long roadmapId, String currentContent, String newContent) {
+        int currentLength = RoadmapNode.contentLength(currentContent);
+        int newLength = RoadmapNode.contentLength(newContent);
+        if (newContent == null || newLength <= currentLength) {
+            return;
+        }
+        if (nodeRepository.sumContentLengthByRoadmapId(roadmapId) - currentLength
+                + newLength > RoadmapNode.MAX_TOTAL_CONTENT_LENGTH_PER_ROADMAP) {
+            throw new ExpectedException(
+                    "로드맵 하나의 노드 본문은 합계 " + RoadmapNode.MAX_TOTAL_CONTENT_LENGTH_PER_ROADMAP + "자를 넘을 수 없습니다.",
+                    HttpStatus.BAD_REQUEST);
+        }
     }
 }
