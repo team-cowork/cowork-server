@@ -47,7 +47,7 @@ jobs:
             const title = pullRequest.title;
             const allowedScopes = [
               'global', 'gateway', 'authorization', 'user',
-              'team', 'project', 'channel', 'roadmap', 'chat', 'voice', 'promotion', 'github',
+              'team', 'project', 'channel', 'roadmap', 'chat', 'dm', 'voice', 'promotion', 'github', 'monitoring',
               'notification', 'preference', 'ci/cd'
             ];
 
