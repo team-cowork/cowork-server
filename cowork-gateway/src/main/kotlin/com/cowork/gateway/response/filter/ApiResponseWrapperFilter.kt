@@ -195,10 +195,16 @@ class ApiResponseWrapperFilter(
         )
     }
 
-    private fun JsonNode?.isCommonApiResponse(): Boolean = this != null &&
-        has("code") &&
-        has("status") &&
-        has("message")
+    private fun JsonNode?.isCommonApiResponse(): Boolean {
+        if (this == null || !isObject || !COMMON_RESPONSE_FIELDS.containsAll(propertyNames())) return false
+        val declaredStatus = get("status")?.takeIf { it.isString }?.asString() ?: return false
+        val code = get("code")?.takeIf { it.isIntegralNumber && it.canConvertToInt() }?.intValue() ?: return false
+        if (get("message")?.isString != true) return false
+        val httpStatus = HttpStatus.resolve(code) ?: return false
+        // Both forms are accepted in case a service response is inconsistent, but services should
+        // converge on the canonical "<code> <STATUS_NAME>" form, for example "400 BAD_REQUEST".
+        return declaredStatus == httpStatus.toString() || declaredStatus == httpStatus.name
+    }
 
     private fun ApiResponseWrappingDecision.toOutcome(): ApiResponseWrappingOutcome = when (this) {
         ApiResponseWrappingDecision.BYPASS_PATH -> ApiResponseWrappingOutcome.BYPASS_PATH
@@ -217,5 +223,6 @@ class ApiResponseWrapperFilter(
 
     companion object {
         private const val RATE_LIMITED_MESSAGE = "요청이 너무 많습니다. 잠시 후 다시 시도하십시오."
+        private val COMMON_RESPONSE_FIELDS = setOf("status", "code", "message", "data")
     }
 }
