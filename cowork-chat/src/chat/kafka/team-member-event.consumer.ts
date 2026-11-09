@@ -13,10 +13,10 @@ import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {parseEventTime} from '../../common/util/event-time.util.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
-import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
+import {ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
 import {TeamMemberProjectionRepository, ChannelProjectionRepository, TeamRoleProjectionRepository} from '../repository/index.js';
 import {ChannelMessageReadAccessService} from '../service/index.js';
-import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
+import {startProjectionConsumer} from '../../common/kafka/projection-consumer.js';
 import {type Nullable} from '../../common/type/nullable.js';
 
 type TeamMemberEvent = {
@@ -74,13 +74,15 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 
 		const {occurredAt, sourceVersion} = eventTime;
 		const authorizationVersion = parseEventTime(payload.authorizationVersion)!.sourceVersion;
+		let isApplied: boolean;
 		if (payload.eventType === 'DELETE') {
-			await this.memberRepository.remove({
+			const isRemoved = await this.memberRepository.remove({
 				teamId: payload.teamId, userId: payload.userId, occurredAt, sourceVersion, authorizationVersion, role: payload.role,
 			});
-			await this.roleRepository.deleteMemberAssignments(payload.teamId, payload.userId, occurredAt, sourceVersion);
+			const isCascaded = await this.roleRepository.deleteMemberAssignments(payload.teamId, payload.userId, occurredAt, sourceVersion);
+			isApplied = isRemoved || isCascaded;
 		} else {
-			await this.memberRepository.upsert({
+			isApplied = await this.memberRepository.upsert({
 				teamId: payload.teamId,
 				userId: payload.userId,
 				role: payload.role,
@@ -97,8 +99,12 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 			return;
 		}
 
-		const channelIds = await this.channelRepository.findIdsByTeamId(payload.teamId);
-		await this.channelMessageReadAccess.evictUnauthorizedSockets(this.io, channelIds, [payload.userId]);
+		// 변경 없이 끝난 snapshot 재발행은 소켓 재검증을 건너뛰고, live 재전달은 항상 재검증한다.
+		if (isApplied || payload.snapshot !== true) {
+			const channelIds = await this.channelRepository.findIdsByTeamId(payload.teamId);
+			await this.channelMessageReadAccess.evictUnauthorizedSockets(this.io, channelIds, [payload.userId]);
+		}
+
 		if (payload.eventType !== 'DELETE' || (await this.memberRepository.exists(payload.teamId, payload.userId))) {
 			return;
 		}
@@ -143,25 +149,10 @@ export class TeamMemberEventConsumer implements OnModuleInit, OnModuleDestroy {
 		});
 		const stream = PROJECTION_STREAMS.teamMember;
 		this.consumer = kafka.consumer({groupId: stream.groupId});
-		await connectWithRetry(this.logger, `Kafka consumer startup: ${stream.topic}`, async () => {
-			await this.consumer.connect();
-			await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
-			await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+		await startProjectionConsumer({
+			logger: this.logger, kafka, consumer: this.consumer, readiness: this.projectionReadiness, stream,
+			handleEvent: async (payload, key) => this.handleEvent(payload, key),
 		});
-
-		void this.consumer.run({
-			eachMessage: async ({partition, message}): Promise<void> => {
-				await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(stream, {
-					partition, message, readiness: this.projectionReadiness, apply: async (payload, key) => this.handleEvent(payload, key),
-				},
-				));
-			},
-		}).catch(async (error: unknown) => {
-			this.logger.error('team.member.event Kafka consumer failed', error);
-			// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
-			throw error;
-		});
-		this.logger.log('Kafka projection consumer started: team.member.event');
 	}
 
 	async onModuleDestroy() {
