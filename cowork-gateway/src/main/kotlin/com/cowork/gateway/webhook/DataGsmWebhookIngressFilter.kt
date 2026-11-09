@@ -123,7 +123,7 @@ class DataGsmWebhookIngressFilter(
             }
             CommonApiResponse.error(message, status)
         } else {
-            CommonApiResponse(status, status.value(), status.reasonPhrase, mapOf("status" to value))
+            mapOf("status" to value)
         }
         val bytes = objectMapper.writeValueAsBytes(result)
         return exchange.response.writeNoStoreJson(status, bytes)
