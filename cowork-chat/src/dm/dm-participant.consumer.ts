@@ -13,7 +13,7 @@ import {DmParticipant} from '../chat/schema/dm-participant.schema.js';
 import {getKafkaClientConfig} from '../common/config/config.util.js';
 import {parseEventTime} from '../common/util/event-time.util.js';
 import {isSafePositiveInteger} from '../common/util/safe-integer.util.js';
-import {PROJECTION_STREAMS, ProjectionReadinessService} from '../common/kafka/projection-readiness.service.js';
+import {CHANNEL_PERMISSION_STREAMS, PROJECTION_STREAMS, ProjectionReadinessService} from '../common/kafka/projection-readiness.service.js';
 import {applyProjectionMessage, ProjectionContractError} from '../common/kafka/projection-message.processor.js';
 import {
 	activeProjectionCondition,
@@ -133,12 +133,12 @@ export class DmParticipantConsumer implements OnModuleInit, OnModuleDestroy {
 				const isApplied = isProjectionUpdateApplied(result);
 				// Replay 중 projection은 reset 직후 상태라 대부분의 멤버십이 비어 있다.
 				// 그 상태로 접근을 평가하면 접속 중인 사용자를 전부 방에서 쫓아낸다.
-				// 다른 stream이 닫혀도 판정은 전부 거부이므로 전체 readiness를 판정 전후로 확인한다.
-				if (this.projectionReadiness.isReady()
+				// 권한 stream이 닫히면 판정은 전부 거부이므로 메시지 전송과 같은 readiness를 판정 전후로 확인한다.
+				if (this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)
 					&& this.io
 					&& this.readAccessEvaluator
 					&& !(await this.readAccessEvaluator(channelId, userId))
-					&& this.projectionReadiness.isReady()) {
+					&& this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
 					this.io.in(`user:${userId}`).socketsLeave(`chat:${channelId}`);
 					if (event.snapshot !== true) {
 						this.io.to(`user:${userId}`).emit('channel:access:revoked', {channelId});
