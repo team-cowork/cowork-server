@@ -8,12 +8,12 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.entity.RoadmapNodeReference;
 import com.cowork.roadmap.domain.node.presentation.data.response.NodeReferenceResDto;
 import com.cowork.roadmap.domain.node.presentation.data.response.NodeTreeResDto;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeReferenceRepository;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
+import com.cowork.roadmap.domain.node.repository.view.NodeTreeView;
 import com.cowork.roadmap.domain.roadmap.presentation.data.response.RoadmapResDto;
 import com.cowork.roadmap.domain.roadmap.presentation.data.response.RoadmapTreeResDto;
 import com.cowork.roadmap.domain.roadmap.service.QueryRoadmapTreeService;
@@ -36,19 +36,19 @@ public class QueryRoadmapTreeServiceImpl implements QueryRoadmapTreeService {
     public RoadmapTreeResDto execute(Long userId, String userRole, Long roadmapId) {
         var roadmap = lookupSupport.findRoadmapOrThrow(roadmapId);
         accessGuard.requireReadable(roadmap, userId, userRole);
-        List<RoadmapNode> nodes = nodeRepository.findByRoadmapIdOrderByPositionAsc(roadmapId);
+        List<NodeTreeView> nodes = nodeRepository.findTreeByRoadmapId(roadmapId);
         if (nodes.isEmpty()) {
             return new RoadmapTreeResDto(RoadmapResDto.from(roadmap), List.of());
         }
-        List<Long> nodeIds = nodes.stream().map(RoadmapNode::getId).toList();
+        List<Long> nodeIds = nodes.stream().map(NodeTreeView::getId).toList();
         List<RoadmapNodeReference> refs = referenceRepository.findByNodeIdInOrderByNodeIdAscPositionAsc(nodeIds);
         return new RoadmapTreeResDto(RoadmapResDto.from(roadmap), assembleTree(nodes, refs));
     }
 
-    private List<NodeTreeResDto> assembleTree(List<RoadmapNode> nodes, List<RoadmapNodeReference> refs) {
-        List<RoadmapNode> roots = new ArrayList<>();
-        Map<Long, List<RoadmapNode>> childrenByParent = new HashMap<>();
-        for (RoadmapNode node : nodes) {
+    private List<NodeTreeResDto> assembleTree(List<NodeTreeView> nodes, List<RoadmapNodeReference> refs) {
+        List<NodeTreeView> roots = new ArrayList<>();
+        Map<Long, List<NodeTreeView>> childrenByParent = new HashMap<>();
+        for (NodeTreeView node : nodes) {
             if (node.getParentId() == null) {
                 roots.add(node);
             } else {
@@ -64,8 +64,8 @@ public class QueryRoadmapTreeServiceImpl implements QueryRoadmapTreeService {
         return roots.stream().map(root -> buildSubtree(root, childrenByParent, refsByNode)).toList();
     }
 
-    private NodeTreeResDto buildSubtree(RoadmapNode node,
-            Map<Long, List<RoadmapNode>> childrenByParent,
+    private NodeTreeResDto buildSubtree(NodeTreeView node,
+            Map<Long, List<NodeTreeView>> childrenByParent,
             Map<Long, List<NodeReferenceResDto>> refsByNode) {
         List<NodeTreeResDto> children = childrenByParent.getOrDefault(node.getId(), List.of())
                 .stream()
@@ -74,7 +74,6 @@ public class QueryRoadmapTreeServiceImpl implements QueryRoadmapTreeService {
         return new NodeTreeResDto(node.getId(),
                 node.getParentId(),
                 node.getTitle(),
-                node.getContent(),
                 node.getSourceUrl(),
                 node.getSourceTitle(),
                 node.getPosition(),
