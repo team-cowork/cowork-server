@@ -9,7 +9,7 @@ const mockRateLimiter = {
 };
 
 const mockProjectionReadiness = {
-	isReady: jest.fn(),
+	areReady: jest.fn(),
 };
 
 type HandshakeMiddleware = (socket: unknown, next: (error?: Error) => void) => void;
@@ -83,7 +83,7 @@ describe('ChatGateway', () => {
 
 	beforeEach(() => {
 		jest.clearAllMocks();
-		mockProjectionReadiness.isReady.mockReturnValue(true);
+		mockProjectionReadiness.areReady.mockReturnValue(true);
 		mockChatService.canReadChannel.mockResolvedValue(true);
 		mockChatService.emitToReadableChannelUsers.mockResolvedValue(undefined);
 		mockChatService.evictUnauthorizedRooms.mockResolvedValue(0);
@@ -138,7 +138,7 @@ describe('ChatGateway', () => {
 		});
 
 		it('Projection 동기화가 끝나지 않았으면 인증 전에 connect_error로 거절한다', async () => {
-			mockProjectionReadiness.isReady.mockReturnValue(false);
+			mockProjectionReadiness.areReady.mockReturnValue(false);
 			const client = mockSocket();
 			const error = await handshake(client);
 			expect(error?.message).toBe('Kafka projections are synchronizing');

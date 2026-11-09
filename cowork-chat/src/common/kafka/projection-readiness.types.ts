@@ -50,6 +50,10 @@ export type ProjectionCatchupState = {
 	activatedDatasetGeneration?: string;
 	catchupStartedAt: number;
 	lastDocumentCountCheckAt?: number;
+	/**
+	 Checkpoint가 현재 high-watermark에 못 미친 상태가 처음 관측된 시각.
+	 */
+	lagSince?: number;
 	ready: boolean;
 	checkPromise?: Promise<void>;
 	pollTimer?: NodeJS.Timeout;
