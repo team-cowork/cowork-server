@@ -572,9 +572,33 @@ describe('ChatService', () => {
 			expect(command.title).toBe('배포 오류');
 			expect(command.body).toBe('재현 절차');
 			expect(typeof command.operationId).toBe('string');
-			expect(typeof command.idempotencyKey).toBe('string');
 			expect(typeof command.occurredAt).toBe('string');
-			expect(command.operationId).not.toBe(command.idempotencyKey);
+		});
+
+		it('같은 사용자가 같은 재시도 키를 보내면 같은 커맨드 ID를 발행한다', async () => {
+			mockChannelProjectionRepository.findById.mockResolvedValue({channelId: 3, teamId: 10});
+			const dto = {projectId: 5, title: '배포 오류'};
+
+			await service.publishGithubIssueCreateCommand({channelId: 3, userId: 42}, dto, 'retry-key');
+			await service.publishGithubIssueCreateCommand({channelId: 3, userId: 42}, dto, 'retry-key');
+			await service.publishGithubIssueCreateCommand({channelId: 3, userId: 43}, dto, 'retry-key');
+
+			const [first, second, otherUser] = mockChatGithubIssueCommandProducer.send.mock.calls.map(([command]) => command);
+			expect(first.operationId).toBe(second.operationId);
+			expect(first.idempotencyKey).toBe(first.operationId);
+			expect(otherUser.operationId).not.toBe(first.operationId);
+			expect(first.operationId).toHaveLength(36);
+		});
+
+		it('재시도 키가 200자를 넘으면 발행하지 않는다', async () => {
+			mockChannelProjectionRepository.findById.mockResolvedValue({channelId: 3, teamId: 10});
+
+			await expect(service.publishGithubIssueCreateCommand(
+				{channelId: 3, userId: 42},
+				{projectId: 5, title: '배포 오류'},
+				'k'.repeat(201),
+			)).rejects.toBeInstanceOf(BadRequestException);
+			expect(mockChatGithubIssueCommandProducer.send).not.toHaveBeenCalled();
 		});
 
 		it('본문이 없으면 body를 null로 발행한다', async () => {
@@ -786,21 +810,25 @@ describe('ChatService', () => {
 
 	describe('handleSlashCommand', () => {
 		it('requires slash permission before publishing a supported command', async () => {
-			mockChannelMessageReadAccess.requirePermission.mockRejectedValueOnce(new ForbiddenException());
+			mockChannelMessageReadAccess.requirePermissions.mockRejectedValueOnce(new ForbiddenException());
 			await expect(service.handleSlashCommand({channelId: 1, userId: 42}, {
 				command: SlashCommand.GITHUB_ISSUE_CREATE,
 				payload: {projectId: 100, title: 'issue'},
 			})).rejects.toThrow(ForbiddenException);
-			expect(mockChannelMessageReadAccess.requirePermission).toHaveBeenCalledWith(1, 42, 'slash_command_use');
+			expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledWith(
+				1, 42, ['slash_command_use', 'github_issue_create'],
+			);
 			expect(mockChatGithubIssueCommandProducer.send).not.toHaveBeenCalled();
 		});
 
-		it('requires github_issue_create for the direct command entry point', async () => {
-			mockChannelMessageReadAccess.requirePermission.mockRejectedValueOnce(new ForbiddenException());
+		it('the deprecated direct entry point requires the same slash and issue permissions', async () => {
+			mockChannelMessageReadAccess.requirePermissions.mockRejectedValueOnce(new ForbiddenException());
 			await expect(service.publishGithubIssueCreateCommand(
 				{channelId: 1, userId: 42}, {projectId: 100, title: 'issue'},
 			)).rejects.toThrow(ForbiddenException);
-			expect(mockChannelMessageReadAccess.requirePermission).toHaveBeenCalledWith(1, 42, 'github_issue_create');
+			expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledWith(
+				1, 42, ['slash_command_use', 'github_issue_create'],
+			);
 			expect(mockChatGithubIssueCommandProducer.send).not.toHaveBeenCalled();
 		});
 
