@@ -83,7 +83,7 @@ async function syncPullRequestIssues({ github, context, core, close = false }) {
       });
     }
   }
-  if (failures.length) throw new Error(`PR issue synchronization failed: ${failures.join('; ')}`);
+  if (failures.length && close) throw new Error(`PR issue synchronization failed: ${failures.join('; ')}`);
 }
 
 module.exports = { syncPullRequestIssues };
