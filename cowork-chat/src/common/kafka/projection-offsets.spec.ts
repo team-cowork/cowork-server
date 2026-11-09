@@ -4,19 +4,34 @@ import {
 	describeStartupCheckpointProblem,
 	hasCompletedSnapshotBarriers,
 	isReadyWithLagGrace,
-	nextLagSince,
+	nextLag,
 	PROJECTION_LAG_GRACE_MS,
 } from './projection-offsets.js';
 
 const NOW = 1_000_000;
 
-describe('nextLagSince', () => {
-	it.each([
-		['처음 lag이 보이면 현재 시각을 시작점으로 잡는다', undefined, false, NOW, NOW],
-		['이미 시작된 lag의 시작점은 유지한다', NOW - 5000, false, NOW, NOW - 5000],
-		['high-watermark에 도달하면 시작점을 지운다', NOW - 5000, true, NOW, undefined],
-	])('%s', (...[, lagSince, hasReachedOffsets, now, expected]) => {
-		expect(nextLagSince(lagSince, hasReachedOffsets, now)).toBe(expected);
+describe('nextLag', () => {
+	const at = (high: string) => [{
+		partition: 0, offset: high, low: '0', high,
+	}];
+	const checkpoint = (offset: string) => [{partition: 0, offset}];
+
+	it('현재 high-watermark에 도달하면 lag을 지운다', () => {
+		expect(nextLag({since: NOW - 5000, targets: at('10')}, {targets: at('20'), checkpoints: checkpoint('20'), now: NOW})).toBeUndefined();
+	});
+
+	it('처음 lag이 보이면 현재 시각과 현재 목표로 시작한다', () => {
+		expect(nextLag(undefined, {targets: at('20'), checkpoints: checkpoint('15'), now: NOW})).toEqual({since: NOW, targets: at('20')});
+	});
+
+	it('lag 시작 때의 목표에 아직 못 미치면 시작 시각을 유지한다', () => {
+		const previous = {since: NOW - 5000, targets: at('20')};
+		expect(nextLag(previous, {targets: at('30'), checkpoints: checkpoint('15'), now: NOW})).toBe(previous);
+	});
+
+	it('쓰기가 계속돼도 lag 시작 때의 목표에 도달했으면 새 목표로 다시 잰다', () => {
+		const previous = {since: NOW - 25_000, targets: at('20')};
+		expect(nextLag(previous, {targets: at('30'), checkpoints: checkpoint('22'), now: NOW})).toEqual({since: NOW, targets: at('30')});
 	});
 });
 
@@ -36,7 +51,7 @@ describe('isReadyWithLagGrace', () => {
 			wasReady,
 			invariantsHold,
 			hasReachedOffsets,
-			lagSince: lagMs === undefined ? undefined : NOW - lagMs,
+			lag: lagMs === undefined ? undefined : {since: NOW - lagMs},
 			now: NOW,
 		})).toBe(expected);
 	});
