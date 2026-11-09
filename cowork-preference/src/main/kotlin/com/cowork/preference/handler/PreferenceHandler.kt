@@ -81,10 +81,14 @@ class PreferenceHandler(
     private suspend fun requireReadAccess(resourceType: ResourceType, resourceId: Long, requester: RequesterContext) {
         when (resourceType) {
             ResourceType.ACCOUNT -> AccountOwnershipGuard.requireOwner(resourceId, requester)
+
             ResourceType.TEAM -> teamMembershipGuard.requireMember(resourceId, requester)
+
             ResourceType.PROJECT -> projectAccessGuard.requireMember(resourceId, requester)
+
             ResourceType.VOICE_CHANNEL, ResourceType.TEXT_CHANNEL ->
                 channelAccessGuard.requireChannelAccess(resourceId, requester.userId)
+
             ResourceType.GITHUB_REPO -> throw ResourceAccessDeniedException("지원하지 않는 리소스입니다.")
         }
     }
@@ -97,14 +101,18 @@ class PreferenceHandler(
     ) {
         when (resourceType) {
             ResourceType.ACCOUNT -> AccountOwnershipGuard.requireOwner(resourceId, requester)
+
             ResourceType.TEAM -> teamMembershipGuard.requireSettingsManager(
                 resourceId,
                 requester,
                 SettingSchema.filter(resourceType, body).fieldNames(),
             )
+
             ResourceType.PROJECT -> projectAccessGuard.requireManager(resourceId, requester)
+
             ResourceType.VOICE_CHANNEL, ResourceType.TEXT_CHANNEL ->
                 channelAccessGuard.requireSettingsManager(resourceId, requester)
+
             ResourceType.GITHUB_REPO -> throw ResourceAccessDeniedException("지원하지 않는 리소스입니다.")
         }
     }
