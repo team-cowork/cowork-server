@@ -8,7 +8,7 @@ management:
 
 gateway:
   response-wrapper:
-    max-wrappable-size: 1MB
+    max-error-body-size: 64KB
   deployment:
     destinations:
       cowork-authorization: ${COWORK_AUTHORIZATION_URL}
