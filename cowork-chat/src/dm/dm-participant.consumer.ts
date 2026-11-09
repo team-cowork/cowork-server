@@ -14,7 +14,7 @@ import {getKafkaClientConfig} from '../common/config/config.util.js';
 import {parseEventTime} from '../common/util/event-time.util.js';
 import {isSafePositiveInteger} from '../common/util/safe-integer.util.js';
 import {CHANNEL_PERMISSION_STREAMS, PROJECTION_STREAMS, ProjectionReadinessService} from '../common/kafka/projection-readiness.service.js';
-import {applyProjectionMessage, ProjectionContractError} from '../common/kafka/projection-message.processor.js';
+import {ProjectionContractError} from '../common/kafka/projection-message.processor.js';
 import {
 	activeProjectionCondition,
 	deletedProjectionCondition,
@@ -23,7 +23,7 @@ import {
 	projectionTimestampFields,
 	PROJECTION_EPOCH,
 } from '../chat/repository/versioned-projection.util.js';
-import {connectWithRetry} from '../common/kafka/connect-with-retry.js';
+import {startProjectionConsumer} from '../common/kafka/projection-consumer.js';
 import {DmParticipantEvent} from './event/dm-participant.event.js';
 
 @injectable()
@@ -212,27 +212,10 @@ export class DmParticipantConsumer implements OnModuleInit, OnModuleDestroy {
 		});
 		const stream = PROJECTION_STREAMS.dmParticipant;
 		this.consumer = kafka.consumer({groupId: stream.groupId});
-		await connectWithRetry(this.logger, `Kafka consumer startup: ${stream.topic}`, async () => {
-			await this.consumer.connect();
-			await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
-			await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+		await startProjectionConsumer({
+			logger: this.logger, kafka, consumer: this.consumer, readiness: this.projectionReadiness, stream,
+			handleEvent: async (payload, key) => this.handleEvent(payload, key),
 		});
-
-		void this.consumer
-			.run({
-				eachMessage: async ({partition, message}) => {
-					await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(stream, {
-						partition, message, readiness: this.projectionReadiness, apply: async (payload, key) => this.handleEvent(payload, key),
-					},
-					));
-				},
-			})
-			.catch((error: unknown) => {
-				this.logger.error(`${stream.topic} Kafka consumer failed; exiting for restart`, error);
-				// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
-				throw error;
-			});
-		this.logger.log(`Kafka consumer started: ${stream.topic}`);
 	}
 
 	async onModuleDestroy() {
