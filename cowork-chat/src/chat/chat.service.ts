@@ -71,6 +71,10 @@ const SYSTEM_AUTHOR_NAME = 'System';
 const FILE_SHARE_VIEW_TYPE = 'FILE_SHARE';
 const DM_CHANNEL_TYPE = 'DM';
 
+function presentString(value: Nullable<string> | undefined): string | undefined {
+	return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
 function deriveGithubIssueCommandId(ctx: ChannelUserContext, dto: CreateGithubIssueDto, idempotencyKey: string): string {
 	if (idempotencyKey.length === 0 || idempotencyKey.length > 200) {
 		throw new BadRequestException('Idempotency-Key가 올바르지 않습니다');
@@ -546,9 +550,18 @@ export class ChatService {
      @param dto - 메시지 내용, 타입, 첨부파일 등
      */
 	async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
+		// 첨부파일만 보내는 메시지는 본문이 비어도 되지만, 그 밖의 메시지는 공백만으로 저장될 수 없다.
+		const attachmentCount = dto.attachments?.length ?? 0;
+		if (attachmentCount === 0 && dto.content.trim() === '') {
+			throw new BadRequestException('메시지 내용을 입력하세요');
+		}
+
+		// `@isOptional`은 `null`도 통과시키므로, 빈 문자열과 `null`을 값이 없는 것으로 본다.
+		const parentMessageId = presentString(dto.parentMessageId);
+		const requestedClientMessageId = presentString(dto.clientMessageId);
 		const permissions: ChannelActionPermission[] = [
-			dto.parentMessageId !== undefined && dto.parentMessageId !== '' ? 'thread_reply' : 'message_send',
-			...((dto.attachments?.length ?? 0) > 0 ? ['file_attach' as const] : []),
+			parentMessageId === undefined ? 'message_send' : 'thread_reply',
+			...(attachmentCount > 0 ? ['file_attach' as const] : []),
 		];
 		await this.channelMessageReadAccess.requirePermissions(ctx.channelId, ctx.userId, permissions);
 		const channel = await this.channelProjectionRepository.findById(ctx.channelId);
@@ -561,16 +574,16 @@ export class ChatService {
 			throw new ServiceUnavailableException('채널 정보가 일치하지 않습니다');
 		}
 
-		await this.requireReplyParent(dto.parentMessageId, ctx.channelId);
+		await this.requireReplyParent(parentMessageId, ctx.channelId);
 		if (channel.type === DM_CHANNEL_TYPE) {
 			await this.verifyDmSendable(ctx.channelId, ctx.userId);
 		}
 
-		if ((dto.attachments?.length ?? 0) > 0 && (dto.clientMessageId === undefined || dto.clientMessageId === '')) {
+		if (requestedClientMessageId === undefined && attachmentCount > 0) {
 			throw new BadRequestException('첨부 메시지에는 재시도에 사용할 clientMessageId가 필요합니다');
 		}
 
-		const clientMessageId = dto.clientMessageId ?? randomUUID();
+		const clientMessageId = requestedClientMessageId ?? randomUUID();
 		const slowmodeReservation = await this.slowmodeService.reserve(
 			ctx.channelId, scope?.teamId, ctx.userId, clientMessageId,
 		);
@@ -588,7 +601,7 @@ export class ChatService {
 				content: dto.content,
 				type: dto.type,
 				attachments,
-				parentMessageId: dto.parentMessageId,
+				parentMessageId,
 				clientMessageId,
 			}, ctx.userId, ctx.userRole);
 		} catch (error) {
@@ -846,6 +859,10 @@ export class ChatService {
      */
 	async editMessage(ctx: MessageUserRoleContext, dto: EditMessageDto) {
 		const message = await this.findAndVerifyMessage(ctx, 'edit');
+		// 전송에서 막은 공백 메시지를 수정으로 만들 수 없게 한다.
+		if (dto.content.trim() === '' && message.attachments.length === 0) {
+			throw new BadRequestException('메시지 내용을 입력하세요');
+		}
 
 		if (message.content === dto.content) {
 			return this.toMessageResponse({...toMessageBroadcastPayload(message), mentionedMessage: null}, ctx.userId);
