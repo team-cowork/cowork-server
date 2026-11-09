@@ -1,0 +1,35 @@
+#!/bin/sh
+# Kotlin Toolchain has no ktlint integration, so this pins the release used by the Gradle Kotlin modules.
+# Usage: ./ktlint [--format]
+set -eu
+
+ktlint_version=1.8.0
+ktlint_sha256=369ad2b789f95a011f807e1fcb690ccef80bd7cd014fd139e73ae82dcc0baeab
+ktlint_url=https://repo.maven.apache.org/maven2/com/pinterest/ktlint/ktlint-cli/$ktlint_version/ktlint-cli-$ktlint_version-all.jar
+
+module_dir=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd -P)
+cache_dir=${XDG_CACHE_HOME:-$HOME/.cache}/cowork-ktlint
+jar=$cache_dir/ktlint-cli-$ktlint_version-all.jar
+
+sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | cut -d ' ' -f 1
+  else
+    shasum -a 256 "$1" | cut -d ' ' -f 1
+  fi
+}
+
+if [ ! -f "$jar" ] || [ "$(sha256 "$jar")" != "$ktlint_sha256" ]; then
+  mkdir -p "$cache_dir"
+  temporary=$(mktemp "$jar.XXXXXX")
+  trap 'rm -f "$temporary"' EXIT
+  curl --fail --silent --show-error --location --retry 3 "$ktlint_url" --output "$temporary"
+  if [ "$(sha256 "$temporary")" != "$ktlint_sha256" ]; then
+    echo "ktlint checksum mismatch: $ktlint_version" >&2
+    exit 1
+  fi
+  mv "$temporary" "$jar"
+fi
+
+cd "$module_dir"
+exec java -jar "$jar" "$@" 'src/**/*.kt'

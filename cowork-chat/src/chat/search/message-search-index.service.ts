@@ -123,15 +123,10 @@ export class MessageSearchIndexService {
      다시 판정하지 않는 경로에서 `PENDING`이 된 비대상 문서가 여기로 들어올 수 있다.
      {@link buildMessageIndexDoc}는 호출 전 대상 확인을 전제하므로, 이 방어가 없으면 `teamId`
      단정(`!`)이 깨진 문서가 그대로 색인될 수 있다.
-     */
-	async applyMessage(message: ClaimedIndexMessage): Promise<void> {
-		await this.applyMessages([message]);
-	}
 
-	/**
-     {@link applyMessage}의 배치 버전. Elasticsearch에 문서 수만큼 개별 요청을 보내는 대신
-     `_bulk` API 한 번으로 묶어 보낸다. 메시지별 상태 전이(`markSynced`/`markRetry`/`markFailed`)는
-     배치 안에서도 서로 독립적이므로 결과를 순회하며 그대로 적용한다.
+     Elasticsearch에 문서 수만큼 개별 요청을 보내는 대신 `_bulk` API 한 번으로 묶어 보낸다.
+
+     메시지별 상태 전이(`markSynced`/`markRetry`/`markFailed`)는 배치 안에서도 서로 독립적이므로 결과를 순회하며 그대로 적용한다.
      */
 	async applyMessages(messages: ClaimedIndexMessage[]): Promise<void> {
 		if (messages.length === 0) {
@@ -160,17 +155,10 @@ export class MessageSearchIndexService {
 	}
 
 	/**
-     삭제 tombstone을 적용한다.
+     삭제 tombstone을 적용한다. tombstone 기록 뒤 MongoDB 삭제 전에 중단됐을 수 있으므로 메시지 삭제를
+     먼저 완결한 다음 색인 문서를 제거한다. 두 단계 모두 멱등하다.
 
-     tombstone 기록 뒤 MongoDB 삭제 전에 중단됐을 수 있으므로 메시지 삭제를 먼저 완결한 다음
-     색인 문서를 제거한다. 두 단계 모두 멱등하다.
-     */
-	async applyTombstone(tombstone: TombstoneRecord): Promise<void> {
-		await this.applyTombstones([tombstone]);
-	}
-
-	/**
-     {@link applyTombstone}의 배치 버전. 각 tombstone의 MongoDB 삭제를 전부 완결한 뒤에야
+     각 tombstone의 MongoDB 삭제를 전부 완결한 뒤에야
      Elasticsearch 삭제를 `_bulk`로 묶어 보내, "메시지 삭제 먼저" 순서를 tombstone별로 유지한다
      (서로 다른 tombstone 사이의 순서는 상관없다).
 

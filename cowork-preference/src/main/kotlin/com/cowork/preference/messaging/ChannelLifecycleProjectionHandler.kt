@@ -16,6 +16,7 @@ class ChannelLifecycleProjectionHandler(
                 }
                 null
             }
+
             is ChannelLifecycleRecordDecision.Quarantine -> decision.reason
         }
 }

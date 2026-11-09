@@ -2,6 +2,7 @@ import {MongooseModule} from '@nestjs/mongoose';
 import {Module as nestModule} from '@nestjs/common';
 import {ConfigModule, ConfigService} from '@nestjs/config';
 import {S3Client} from '@aws-sdk/client-s3';
+import {RedisRateLimiter} from '../common/util/redis-rate-limiter.js';
 import {AttachmentUploadRepository} from './attachment-upload.repository.js';
 import {AttachmentUpload, attachmentUploadSchema} from './attachment-upload.schema.js';
 import {S3_CLIENT, S3_SIGNING_CLIENT} from './object-storage.constants.js';
@@ -35,6 +36,8 @@ function createClient(configService: ConfigService, isSigning = false): S3Client
 		},
 		ObjectStorageService,
 		AttachmentUploadRepository,
+		// 업로드 한도는 레플리카 간에 공유돼야 하므로 Redis 기반 limiter를 쓴다. ChatModule의 인스턴스는 외부 모듈에서 보이지 않아 여기서 따로 등록한다.
+		RedisRateLimiter,
 	],
 	exports: [ObjectStorageService, AttachmentUploadRepository],
 })

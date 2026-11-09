@@ -11,9 +11,11 @@ import {
 	HttpCode as httpCode,
 	HttpStatus,
 	Header as responseHeader,
+	Headers as requestHeader,
 	ParseIntPipe,
 } from '@nestjs/common';
 import {
+	ApiHeader as apiHeader,
 	ApiOperation as apiOperation,
 	ApiQuery as apiQuery,
 	ApiResponse as apiResponse,
@@ -447,6 +449,7 @@ export class ChatController {
      @param channelId - 채널 ID
      @param dto - GitHub 이슈 생성 정보
      @param userId - Gateway가 주입한 요청자 ID
+     @param idempotencyKey - 재시도 중복 방지 키 (`Idempotency-Key` 헤더, 선택)
      @returns `{ queued: true }`
      */
 	@httpPost('github/issues')
@@ -457,6 +460,7 @@ export class ChatController {
             '새 클라이언트는 POST /api/chat/chat/channels/{channelId}/slash-commands를 사용합니다.',
 		deprecated: true,
 	})
+	@apiHeader({name: 'Idempotency-Key', required: false, description: '재시도 중복 방지 키, 최대 200자'})
 	@apiResponse({
 		status: 201,
 		description: '요청 처리 완료',
@@ -493,8 +497,9 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: CreateGithubIssueDto,
 		@currentUserId() userId: number,
+		@requestHeader('idempotency-key') idempotencyKey?: string,
 	): Promise<CreateGithubIssueResponseDto> {
-		await this.chatService.publishGithubIssueCreateCommand({channelId, userId}, dto);
+		await this.chatService.publishGithubIssueCreateCommand({channelId, userId}, dto, idempotencyKey);
 		return {queued: true};
 	}
 
@@ -506,6 +511,7 @@ export class ChatController {
      @param channelId - 채널 ID
      @param dto - 커맨드 종류와 커맨드별 payload
      @param userId - Gateway가 주입한 요청자 ID
+     @param idempotencyKey - 재시도 중복 방지 키 (`Idempotency-Key` 헤더, 선택)
      @returns `{ queued: true }`
      */
 	@httpPost('slash-commands')
@@ -514,6 +520,7 @@ export class ChatController {
 		summary: '슬래시 커맨드 발행',
 		description: 'github.issue.create 명령을 지원합니다. 응답은 명령 접수만 확인합니다.',
 	})
+	@apiHeader({name: 'Idempotency-Key', required: false, description: '재시도 중복 방지 키, 최대 200자'})
 	@apiResponse({
 		status: 201,
 		description: '요청 처리 완료',
@@ -563,8 +570,9 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: SlashCommandDto,
 		@currentUserId() userId: number,
+		@requestHeader('idempotency-key') idempotencyKey?: string,
 	): Promise<SlashCommandResponseDto> {
-		await this.chatService.handleSlashCommand({channelId, userId}, dto);
+		await this.chatService.handleSlashCommand({channelId, userId}, dto, idempotencyKey);
 		return {queued: true};
 	}
 
