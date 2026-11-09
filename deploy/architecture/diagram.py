@@ -24,6 +24,7 @@ OUTPUT = HERE / "out"
 SEAWEEDFS_ICON = str(HERE / "icons" / "seaweedfs.png")
 LIVEKIT_ICON = str(HERE / "icons" / "livekit.png")
 SQLITE_ICON = str(HERE / "icons" / "sqlite.png")
+SURREALDB_ICON = str(HERE / "icons" / "surrealdb.png")
 FONT = "Apple SD Gothic Neo"
 GRAPH = {
     "fontname": FONT, "fontsize": "24", "pad": "0.5",
@@ -43,6 +44,10 @@ def SQLite(label):
     return Custom(label, SQLITE_ICON)
 
 
+def SurrealDB(label):
+    return Custom(label, SURREALDB_ICON)
+
+
 SERVICES = [
     ("authorization", MySQL, "10.0.0.140"),
     ("user", MySQL, "10.0.0.185"),
@@ -55,6 +60,7 @@ SERVICES = [
     ("voice", MongoDB, "10.0.0.90"),
     ("preference", PostgreSQL, "10.0.0.89"),
     ("github", None, "10.0.0.150"),
+    ("applet", SurrealDB, "10.0.0.144"),
 ]
 WITH_STORAGE = {"user", "team", "chat"}
 REDIS_CLIENTS = {"authorization", "user", "chat", "preference", "github"}

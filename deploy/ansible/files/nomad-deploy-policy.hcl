@@ -16,6 +16,7 @@ host_volume "channel-db" { policy = "write" }
 host_volume "project-db" { policy = "write" }
 host_volume "roadmap-db" { policy = "write" }
 host_volume "preference-db" { policy = "write" }
+host_volume "applet-db" { policy = "write" }
 host_volume "chat-db" { policy = "write" }
 host_volume "chat-storage" { policy = "write" }
 host_volume "chat-search" { policy = "write" }
