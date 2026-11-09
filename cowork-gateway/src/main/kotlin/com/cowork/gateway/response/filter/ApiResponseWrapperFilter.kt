@@ -13,6 +13,7 @@ import org.springframework.core.io.buffer.DataBufferUtils
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import org.springframework.http.HttpStatusCode
 import org.springframework.http.MediaType
 import org.springframework.http.server.reactive.ServerHttpResponseDecorator
 import org.springframework.stereotype.Component
@@ -22,7 +23,6 @@ import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.publisher.SignalType
-import team.themoment.sdk.response.CommonApiResponse
 import tools.jackson.databind.ObjectMapper
 
 @Component
@@ -60,16 +60,20 @@ class ApiResponseWrapperFilter(
                     )
                     return super.writeWith(body)
                 }
-                val status = statusCode?.value()?.let(HttpStatus::resolve) ?: HttpStatus.OK
+                val status = statusCode ?: HttpStatus.OK
                 return super.writeWith(if (status.isError) wrapError(body, status) else wrapSuccess(body, status))
             }
 
-            private fun wrapSuccess(body: Publisher<out DataBuffer>, status: HttpStatus): Flux<DataBuffer> {
+            private fun wrapSuccess(body: Publisher<out DataBuffer>, status: HttpStatusCode): Flux<DataBuffer> {
                 val startedAt = System.nanoTime()
                 var sourceBytes = 0L
                 var resultBytes = 0L
                 val metadata = objectMapper.writeValueAsString(
-                    mapOf("status" to status.toString(), "code" to status.value(), "message" to status.reasonPhrase),
+                    mapOf(
+                        "status" to status.toString(),
+                        "code" to status.value(),
+                        "message" to (HttpStatus.resolve(status.value())?.reasonPhrase ?: "Unknown Status"),
+                    ),
                 )
                 val prefix = (metadata.dropLast(1) + ",\"data\":").toByteArray(Charsets.UTF_8)
                 return Flux.from(body)
@@ -111,7 +115,7 @@ class ApiResponseWrapperFilter(
                     }
             }
 
-            private fun wrapError(body: Publisher<out DataBuffer>, status: HttpStatus): Mono<DataBuffer> {
+            private fun wrapError(body: Publisher<out DataBuffer>, status: HttpStatusCode): Mono<DataBuffer> {
                 val startedAt = System.nanoTime()
                 var sourceBytes = 0L
                 var resultBytes = 0L
@@ -158,7 +162,7 @@ class ApiResponseWrapperFilter(
                 ) {
                     return super.setComplete()
                 }
-                val status = statusCode?.value()?.let(HttpStatus::resolve) ?: return super.setComplete()
+                val status = statusCode ?: return super.setComplete()
                 if (!status.isError) return super.setComplete()
                 val bytes = errorBody(ByteArray(0), status)
                 updateHeaders(bytes.size.toLong())
@@ -179,7 +183,11 @@ class ApiResponseWrapperFilter(
             private fun updateHeaders(contentLength: Long? = null) {
                 headers.contentType = MediaType.APPLICATION_JSON
                 headers.remove(HttpHeaders.CONTENT_LENGTH)
-                headers.remove(HttpHeaders.TRANSFER_ENCODING)
+                if (contentLength == null) {
+                    headers.set(HttpHeaders.TRANSFER_ENCODING, "chunked")
+                } else {
+                    headers.remove(HttpHeaders.TRANSFER_ENCODING)
+                }
                 headers.remove(HttpHeaders.CONTENT_ENCODING)
                 headers.remove(HttpHeaders.ETAG)
                 headers.remove("Content-MD5")
@@ -190,16 +198,24 @@ class ApiResponseWrapperFilter(
         return chain.filter(exchange.mutate().response(decoratedResponse).build())
     }
 
-    private fun errorBody(bytes: ByteArray, status: HttpStatus): ByteArray {
+    private fun errorBody(bytes: ByteArray, status: HttpStatusCode): ByteArray {
         val json = runCatching { objectMapper.readTree(bytes) }.getOrNull()
         val message = json?.get("message")?.takeIf { it.isString }?.asString()
             ?: json?.get("error")?.takeIf { it.isString }?.asString()
             ?: json?.takeIf { it.isString }?.asString()
             ?: bytes.toString(Charsets.UTF_8).trim().takeIf { json == null && it.isNotEmpty() }
-            ?: if (status == HttpStatus.TOO_MANY_REQUESTS) RATE_LIMITED_MESSAGE else status.reasonPhrase
-        return objectMapper.writeValueAsBytes(
-            CommonApiResponse(status, status.value(), message, json?.get("data")?.takeUnless { it.isNull }),
+            ?: if (status == HttpStatus.TOO_MANY_REQUESTS) {
+                RATE_LIMITED_MESSAGE
+            } else {
+                HttpStatus.resolve(status.value())?.reasonPhrase ?: "Unknown Status"
+            }
+        val response = mutableMapOf<String, Any>(
+            "status" to status.toString(),
+            "code" to status.value(),
+            "message" to message,
         )
+        json?.get("data")?.takeUnless { it.isNull }?.let { response["data"] = it }
+        return objectMapper.writeValueAsBytes(response)
     }
 
     private fun terminalOutcome(signal: SignalType, completed: ApiResponseWrappingOutcome): ApiResponseWrappingOutcome =
