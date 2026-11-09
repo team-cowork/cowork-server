@@ -9,9 +9,9 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import com.cowork.roadmap.domain.node.entity.RoadmapNode;
-import com.cowork.roadmap.domain.node.repository.view.NodeParentView;
-import com.cowork.roadmap.domain.node.repository.view.NodePositionView;
-import com.cowork.roadmap.domain.node.repository.view.NodeTreeView;
+import com.cowork.roadmap.domain.node.repository.projection.NodeParentProjection;
+import com.cowork.roadmap.domain.node.repository.projection.NodePositionProjection;
+import com.cowork.roadmap.domain.node.repository.projection.NodeTreeProjection;
 
 public interface RoadmapNodeRepository extends JpaRepository<RoadmapNode, Long> {
 
@@ -20,7 +20,7 @@ public interface RoadmapNodeRepository extends JpaRepository<RoadmapNode, Long> 
             WHERE node.roadmapId = :roadmapId
               AND ((:parentId IS NULL AND node.parentId IS NULL) OR node.parentId = :parentId)
             """)
-    List<NodePositionView> findSiblingPositions(Long roadmapId, Long parentId);
+    List<NodePositionProjection> findSiblingPositions(Long roadmapId, Long parentId);
 
     @Modifying
     @Query("""
@@ -35,7 +35,7 @@ public interface RoadmapNodeRepository extends JpaRepository<RoadmapNode, Long> 
                 node.sourceUrl AS sourceUrl, node.sourceTitle AS sourceTitle, node.position AS position
             FROM RoadmapNode node WHERE node.roadmapId = :roadmapId ORDER BY node.position, node.id
             """)
-    List<NodeTreeView> findTreeByRoadmapId(Long roadmapId);
+    List<NodeTreeProjection> findTreeByRoadmapId(Long roadmapId);
 
     // 잠금 전에 엔티티를 캐시에 올리지 않아 잠금 이후 조회가 최신 상태를 읽게 한다.
     @Query("SELECT node.roadmapId FROM RoadmapNode node WHERE node.id = :id")
@@ -55,5 +55,5 @@ public interface RoadmapNodeRepository extends JpaRepository<RoadmapNode, Long> 
 
     /** 잠금 읽기로 transaction snapshot 이후 커밋된 하위 노드까지 포함해 서브트리를 계산한다. */
     @Query(value = "SELECT id, parent_id AS parentId FROM tb_roadmap_nodes WHERE roadmap_id = :roadmapId FOR UPDATE", nativeQuery = true)
-    List<NodeParentView> findParentsByRoadmapIdForUpdate(Long roadmapId);
+    List<NodeParentProjection> findParentsByRoadmapIdForUpdate(Long roadmapId);
 }
