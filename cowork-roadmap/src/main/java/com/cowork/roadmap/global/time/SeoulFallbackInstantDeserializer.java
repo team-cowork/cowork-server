@@ -32,7 +32,7 @@ public class SeoulFallbackInstantDeserializer extends ValueDeserializer<Instant>
         }
     }
 
-    static Instant parse(String text) {
+    private static Instant parse(String text) {
         TemporalAccessor parsed = DateTimeFormatter.ISO_DATE_TIME
                 .parseBest(text, OffsetDateTime::from, LocalDateTime::from);
         if (parsed instanceof OffsetDateTime offsetDateTime) {
