@@ -36,10 +36,15 @@ public class ListRoadmapsServiceImpl implements ListRoadmapsService {
         }
         if (teamId != null) {
             accessGuard.requireTeamReadable(teamId, userId, userRole);
-            return roadmapRepository.findByOwnerTeamIdOrderByIdDesc(teamId).stream().map(RoadmapResDto::from).toList();
+            List<Roadmap> roadmaps = category == null
+                    ? roadmapRepository.findByOwnerTeamIdOrderByIdDesc(teamId)
+                    : roadmapRepository.findByOwnerTeamIdAndCategoryOrderByIdDesc(teamId, category);
+            return roadmaps.stream().map(RoadmapResDto::from).toList();
         }
         if (projectId != null) {
-            List<Roadmap> roadmaps = roadmapRepository.findByOwnerProjectIdOrderByIdDesc(projectId);
+            List<Roadmap> roadmaps = category == null
+                    ? roadmapRepository.findByOwnerProjectIdOrderByIdDesc(projectId)
+                    : roadmapRepository.findByOwnerProjectIdAndCategoryOrderByIdDesc(projectId, category);
             return roadmaps.stream()
                     .filter(roadmap -> accessGuard.canReadTeam(roadmap.getOwnerTeamId(), userId, userRole))
                     .map(RoadmapResDto::from)
