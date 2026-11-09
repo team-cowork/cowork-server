@@ -167,16 +167,16 @@ spring:
             - Method=POST
           filters:
             - StripPrefix=2
-            - name: CircuitBreaker
-              args:
-                name: authorizationCB
-                fallbackUri: forward:/fallback
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 50
                 redis-rate-limiter.burstCapacity: 200
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@anonymousKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: authorizationCB
+                fallbackUri: forward:/fallback
 
         - id: authorization-service
           uri: ${COWORK_AUTHORIZATION_URL}
@@ -187,16 +187,16 @@ spring:
             - Path=/api/authorization/auth/**
           filters:
             - StripPrefix=2
-            - name: CircuitBreaker
-              args:
-                name: authorizationCB
-                fallbackUri: forward:/fallback
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 10
                 redis-rate-limiter.burstCapacity: 20
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@userKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: authorizationCB
+                fallbackUri: forward:/fallback
 
         - id: authorization-webhook
           uri: ${COWORK_AUTHORIZATION_URL}
@@ -216,10 +216,6 @@ spring:
             - Method=GET,POST,PATCH,DELETE
           filters:
             - StripPrefix=2
-            - name: CircuitBreaker
-              args:
-                name: userCB
-                fallbackUri: forward:/fallback
             # Retry는 뒤 필터를 다시 실행하므로 외부 요청 한 건이 토큰을 한 번만 쓰도록 RequestRateLimiter를 앞에 둔다
             - name: RequestRateLimiter
               args:
@@ -227,6 +223,10 @@ spring:
                 redis-rate-limiter.burstCapacity: 40
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@userKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: userCB
+                fallbackUri: forward:/fallback
             - name: Retry
               args:
                 retries: 3
@@ -274,16 +274,16 @@ spring:
             - Path=/api/team/teams/**
           filters:
             - StripPrefix=2
-            - name: CircuitBreaker
-              args:
-                name: teamCB
-                fallbackUri: forward:/fallback
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 20
                 redis-rate-limiter.burstCapacity: 40
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@userKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: teamCB
+                fallbackUri: forward:/fallback
 
         - id: channel-service-search
           uri: ${COWORK_CHANNEL_URL}
@@ -388,16 +388,16 @@ spring:
             - Path=/api/channel/channels/**
           filters:
             - StripPrefix=2
-            - name: CircuitBreaker
-              args:
-                name: channelCB
-                fallbackUri: forward:/fallback
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 20
                 redis-rate-limiter.burstCapacity: 40
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@userKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: channelCB
+                fallbackUri: forward:/fallback
 
         - id: chat-service-ws
           uri: ${COWORK_CHAT_WS_URL}
@@ -488,16 +488,16 @@ spring:
             - Path=/api/voice/voice/**
           filters:
             - StripPrefix=2
-            - name: CircuitBreaker
-              args:
-                name: voiceCB
-                fallbackUri: forward:/fallback
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 10
                 redis-rate-limiter.burstCapacity: 20
                 redis-rate-limiter.requestedTokens: 1
                 key-resolver: "#{@userKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: voiceCB
+                fallbackUri: forward:/fallback
 
         - id: authorization-service-docs
           uri: ${COWORK_AUTHORIZATION_URL}
