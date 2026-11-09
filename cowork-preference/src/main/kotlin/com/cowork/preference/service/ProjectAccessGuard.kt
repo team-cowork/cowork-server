@@ -6,9 +6,9 @@ import com.cowork.preference.repository.ProjectRoleRepository
 import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.repository.TeamRoleRepository
 import com.cowork.preference.security.RequesterContext
+import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.SqlClient
-import io.vertx.core.json.JsonObject
 
 /** 프로젝트 조회와 설정 관리는 각각 유효한 read와 manage 권한으로 판단한다. */
 class ProjectAccessGuard(
@@ -30,7 +30,8 @@ class ProjectAccessGuard(
     /** 프로젝트 설정 수정: manage 권한 보유자 또는 팀 OWNER/ADMIN. */
     suspend fun requireManager(projectId: Long, requester: RequesterContext) {
         if (activeTeamRole(projectId, requester.userId) !in MANAGER_ROLES &&
-            !roles.canManage(projectId, requester.userId)) {
+            !roles.canManage(projectId, requester.userId)
+        ) {
             throw ResourceAccessDeniedException("프로젝트 설정을 관리할 권한이 없습니다.")
         }
     }
@@ -103,7 +104,12 @@ class ProjectAccessGuard(
         if (removing && permissions.map.values.any { it == false }) {
             throw ResourceAccessDeniedException("거부 정책을 제거하려면 팀 관리자 권한이 필요합니다.")
         }
-        val held = mapOf("read" to effective.read, "write" to effective.write, "manage" to effective.manage, "reorder" to effective.reorder)
+        val held = mapOf(
+            "read" to effective.read,
+            "write" to effective.write,
+            "manage" to effective.manage,
+            "reorder" to effective.reorder,
+        )
         if (!removing && permissions.map.any { (key, value) -> value == true && held[key] != true }) {
             throw ResourceAccessDeniedException("보유하지 않은 프로젝트 권한은 부여할 수 없습니다.")
         }
@@ -127,7 +133,8 @@ class ProjectAccessGuard(
             if (target.builtInRole in MANAGER_ROLES) {
                 throw ResourceAccessDeniedException("팀 관리자의 프로젝트 역할은 변경할 수 없습니다.")
             }
-            val targetPriority = teamRoles.findAccountRoles(client, actor.teamId, accountId).maxOfOrNull { it.priority } ?: 0
+            val targetPriority =
+                teamRoles.findAccountRoles(client, actor.teamId, accountId).maxOfOrNull { it.priority } ?: 0
             if (targetPriority >= actor.maxPriority) {
                 throw ResourceAccessDeniedException("자신의 최상위 역할보다 높거나 같은 멤버의 프로젝트 역할은 변경할 수 없습니다.")
             }

@@ -11,10 +11,10 @@ import com.cowork.preference.repository.ResourceSettingState
 import com.cowork.preference.repository.TeamRoleRepository
 import com.cowork.preference.repository.WebhookRepository
 import io.vertx.sqlclient.SqlConnection
+import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
-import org.slf4j.LoggerFactory
 
 class PreferenceSnapshotPublisher(
     private val projectAccessRepository: ProjectAccessStateRepository,
@@ -100,7 +100,12 @@ class PreferenceSnapshotPublisher(
             while (true) {
                 val page = outboxRepository.inTransaction(connection) { client ->
                     repository.snapshotPage(client, afterId, PAGE_SIZE).also { rows ->
-                        outboxRepository.enqueueAll(client, rows.map { PreferenceEvents.webhookState(it, snapshot = true) })
+                        outboxRepository.enqueueAll(
+                            client,
+                            rows.map {
+                                PreferenceEvents.webhookState(it, snapshot = true)
+                            },
+                        )
                     }
                 }
                 if (page.isEmpty()) break

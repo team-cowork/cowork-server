@@ -23,7 +23,10 @@ class TeamRoleService(
 
     internal suspend fun ensureDefaultRole(client: SqlClient, teamId: Long): Boolean {
         val role = repository.ensureDefaultRole(client, teamId) ?: return false
-        outboxRepository.enqueue(client, PreferenceEvents.roleUpserted(role, requireNotNull(role.updatedAt).toInstant()))
+        outboxRepository.enqueue(
+            client,
+            PreferenceEvents.roleUpserted(role, requireNotNull(role.updatedAt).toInstant()),
+        )
         return true
     }
 
@@ -76,8 +79,11 @@ class TeamRoleService(
     ): Result<TeamRoleDefinition> {
         val existing = repository.findRole(teamId, roleId)
             ?: return Result.failure(NoSuchElementException("Role '$roleId' not found"))
-        if (existing.isDefault && ((name != null && name != existing.name) ||
-                (priority != null && priority != existing.priority))) {
+        if (existing.isDefault && (
+                (name != null && name != existing.name) ||
+                    (priority != null && priority != existing.priority)
+                )
+        ) {
             return Result.failure(IllegalArgumentException("기본 역할의 이름과 우선순위는 변경할 수 없습니다."))
         }
         val nextName = name ?: existing.name
@@ -241,7 +247,16 @@ class TeamRoleService(
             sequenceOf(occurredAt) + removedAssignments.asSequence().mapNotNull { it.updatedAt?.toInstant() },
         )
         // A delayed leave must not fence assignments granted after the member rejoined.
-        val memberFence = if (publishMemberFence) repository.upsertMemberFence(client, teamId, accountId, tombstoneVersion) else null
+        val memberFence = if (publishMemberFence) {
+            repository.upsertMemberFence(
+                client,
+                teamId,
+                accountId,
+                tombstoneVersion,
+            )
+        } else {
+            null
+        }
         val assignmentTombstones = removedAssignments.map { assignment ->
             repository.deleteAssignment(
                 client,
@@ -258,7 +273,12 @@ class TeamRoleService(
                     AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
                     tombstone.stateOccurredAt,
                 )
-            } + listOfNotNull(memberFence?.let { PreferenceEvents.memberAssignmentsDeleted(teamId, accountId, it.stateOccurredAt) }),
+            } +
+                listOfNotNull(
+                    memberFence?.let {
+                        PreferenceEvents.memberAssignmentsDeleted(teamId, accountId, it.stateOccurredAt)
+                    },
+                ),
         )
     }
 

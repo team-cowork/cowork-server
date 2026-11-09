@@ -38,7 +38,11 @@ object ProjectLifecycleEventParser {
             .getOrElse { error("occurredAt must be an RFC3339 instant") }
 
         ProjectLifecycleRecordDecision.Apply(
-            ProjectLifecycleEvent(projectId, teamId, eventType == "DELETED", occurredAt,
+            ProjectLifecycleEvent(
+                projectId,
+                teamId,
+                eventType == "DELETED",
+                occurredAt,
                 payload.getValue("createdBy")?.let { positiveLong(it, "createdBy") },
                 payload.getValue("isPrivate") as? Boolean ?: error("isPrivate must be a boolean"),
                 payload.getJsonObject("initialReadGrant")?.let(InitialProjectReadGrant::fromJson),
