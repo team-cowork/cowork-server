@@ -322,13 +322,6 @@
         "segment.ms": "3600000"
       }
     },
-    "channel.webhook-legacy.state.v1": {
-      "partitions": 1,
-      "config": {
-        "cleanup.policy": "compact",
-        "segment.ms": "3600000"
-      }
-    },
     "preference.voice-channel-setting.state.v1": {
       "partitions": 1,
       "config": {
@@ -454,8 +447,7 @@
         "preference.channel-role-policy.state.v2",
         "preference.channel-role-policy.command.v2",
         "preference.channel-role-policy.result.v2",
-        "preference.channel-role-policy.result.v2-dlt",
-        "channel.webhook-legacy.state.v1"
+        "preference.channel-role-policy.result.v2-dlt"
       ]
     },
     "cowork-chat": {
@@ -544,7 +536,6 @@
         "preference.team-setting.state.v1",
         "preference.text-channel-setting.state.v1",
         "preference.webhook.state.v2",
-        "channel.webhook-legacy.state.v1",
         "preference.voice-channel-setting.state.v1",
         "preference.github-repo.setting.result-dlt"
       ]
