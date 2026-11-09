@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# Runs sbt from a pinned launcher so local builds, Docker, and CI need no global sbt.
+set -euo pipefail
+
+launcher_version=1.13.1
+launcher_sha256=b73aabc037a4b6e06b5d07d36edd026a97c3ac11c2f7e0d6f581d8efa47472e8
+
+sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | cut -d' ' -f1
+  else
+    shasum -a 256 "$1" | cut -d' ' -f1
+  fi
+}
+
+cache_dir=${XDG_CACHE_HOME:-$HOME/.cache}/cowork-sbt
+launcher="$cache_dir/sbt-launch-$launcher_version.jar"
+
+if [[ ! -f "$launcher" || "$(sha256 "$launcher")" != "$launcher_sha256" ]]; then
+  mkdir -p "$cache_dir"
+  temporary=$(mktemp "$launcher.XXXXXX")
+  trap 'rm -f "$temporary"' EXIT
+  curl --fail --silent --show-error --location --retry 3 \
+    "https://repo.maven.apache.org/maven2/org/scala-sbt/sbt-launch/$launcher_version/sbt-launch-$launcher_version.jar" \
+    --output "$temporary"
+  if [[ "$(sha256 "$temporary")" != "$launcher_sha256" ]]; then
+    echo 'sbt launcher checksum mismatch.' >&2
+    exit 1
+  fi
+  mv "$temporary" "$launcher"
+  trap - EXIT
+fi
+
+cd "$(dirname "${BASH_SOURCE[0]}")"
+exec java -Dsbt.supershell=false -jar "$launcher" "$@"
