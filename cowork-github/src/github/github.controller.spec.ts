@@ -69,6 +69,19 @@ describe('GithubController', () => {
 			});
 		});
 
+		it('이슈 생성 뒤 결과 전송이 실패해도 재전달하지 않고 오프셋을 커밋한다', async () => {
+			issueService.createIssue.mockResolvedValue({
+				issueUrl: 'https://github.com/my-org/my-repo/issues/1',
+				issueNumber: 1,
+			});
+			issueResultProducer.send.mockRejectedValue(new Error('broker unavailable'));
+
+			await controller.handleIssueCreate(payloadWithContext, ctx);
+
+			expect(issueService.createIssue).toHaveBeenCalledTimes(1);
+			expect(commitOffsets).toHaveBeenCalledTimes(1);
+		});
+
 		it('channelId가 없으면 결과 이벤트를 발행하지 않는다', async () => {
 			issueService.createIssue.mockResolvedValue({
 				issueUrl: 'https://github.com/my-org/my-repo/issues/1',

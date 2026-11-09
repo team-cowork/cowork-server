@@ -58,6 +58,7 @@ class PreferenceOutboxDispatcher(
             if (closed) return
             when (repository.dispatchNextIfLeader(producer::publishOutboxEvent)) {
                 PreferenceOutboxDispatchResult.PUBLISHED -> Unit
+
                 PreferenceOutboxDispatchResult.EMPTY,
                 PreferenceOutboxDispatchResult.BUSY,
                 -> return

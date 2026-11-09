@@ -1,16 +1,16 @@
 package com.cowork.preference
 
-import com.cowork.preference.config.kafkaClientProperties
 import com.cowork.preference.cache.PreferenceCache
 import com.cowork.preference.config.AppConfig
-import com.cowork.preference.handler.WebhookHandler
+import com.cowork.preference.config.kafkaClientProperties
 import com.cowork.preference.handler.NotificationHandler
 import com.cowork.preference.handler.PreferenceHandler
 import com.cowork.preference.handler.ProjectRoleHandler
+import com.cowork.preference.handler.WebhookHandler
 import com.cowork.preference.messaging.ChannelLifecycleProjectionHandler
-import com.cowork.preference.messaging.DmParticipantProjectionHandler
 import com.cowork.preference.messaging.ChannelRolePolicyCommandConsumer
 import com.cowork.preference.messaging.CombinedProjectionReadiness
+import com.cowork.preference.messaging.DmParticipantProjectionHandler
 import com.cowork.preference.messaging.GithubRepoSettingCommandConsumer
 import com.cowork.preference.messaging.PreferenceEvents
 import com.cowork.preference.messaging.PreferenceOutboxDispatcher
@@ -22,39 +22,39 @@ import com.cowork.preference.messaging.ProjectionStateConsumer
 import com.cowork.preference.messaging.ProjectionTopicIdentityProvider
 import com.cowork.preference.messaging.TeamMemberProjectionHandler
 import com.cowork.preference.messaging.TeamRoleCommandConsumer
-import com.cowork.preference.repository.WebhookRepository
 import com.cowork.preference.repository.ChannelLifecycleProjectionRepository
-import com.cowork.preference.repository.DmParticipantProjectionRepository
 import com.cowork.preference.repository.ChannelRolePolicyCommandInboxRepository
 import com.cowork.preference.repository.ChannelRolePolicyRepository
+import com.cowork.preference.repository.DmParticipantProjectionRepository
 import com.cowork.preference.repository.GithubRepoSettingCommandInboxRepository
+import com.cowork.preference.repository.InitialResourceAccessRepository
 import com.cowork.preference.repository.NotificationRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
 import com.cowork.preference.repository.PreferenceRepository
 import com.cowork.preference.repository.ProjectAccessStateRepository
 import com.cowork.preference.repository.ProjectLifecycleProjectionRepository
 import com.cowork.preference.repository.ProjectRoleRepository
-import com.cowork.preference.repository.InitialResourceAccessRepository
 import com.cowork.preference.repository.ProjectionCheckpointRepository
 import com.cowork.preference.repository.TeamMemberProjectionRepository
 import com.cowork.preference.repository.TeamRoleCommandInboxRepository
 import com.cowork.preference.repository.TeamRoleRepository
+import com.cowork.preference.repository.WebhookRepository
 import com.cowork.preference.router.buildRouter
-import com.cowork.preference.service.WebhookSecrets
-import com.cowork.preference.service.WebhookUrlSigner
-import com.cowork.preference.service.WebhookService
 import com.cowork.preference.service.ChannelAccessGuard
 import com.cowork.preference.service.ChannelLifecycleService
 import com.cowork.preference.service.ChannelRolePolicyCommandProcessor
 import com.cowork.preference.service.GithubRepoSettingCommandProcessor
+import com.cowork.preference.service.InitialResourceAccessService
 import com.cowork.preference.service.NotificationService
 import com.cowork.preference.service.PreferenceService
 import com.cowork.preference.service.ProjectAccessGuard
 import com.cowork.preference.service.ProjectRoleService
-import com.cowork.preference.service.InitialResourceAccessService
 import com.cowork.preference.service.TeamMembershipGuard
 import com.cowork.preference.service.TeamRoleCommandProcessor
 import com.cowork.preference.service.TeamRoleService
+import com.cowork.preference.service.WebhookSecrets
+import com.cowork.preference.service.WebhookService
+import com.cowork.preference.service.WebhookUrlSigner
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.Future
 import io.vertx.core.Promise
@@ -66,13 +66,13 @@ import io.vertx.redis.client.Redis
 import io.vertx.redis.client.RedisOptions
 import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.PoolOptions
-import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableJob
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MainVerticle : AbstractVerticle() {
 
@@ -152,8 +152,13 @@ class MainVerticle : AbstractVerticle() {
         val projectAccessRepo = ProjectAccessStateRepository(outboxRepository)
         val initialAccessRepo = InitialResourceAccessRepository()
         val initialAccessService = InitialResourceAccessService(
-            initialAccessRepo, teamMemberProjectionRepo, teamRoleRepo, channelRolePolicyRepo,
-            roleRepo, outboxRepository, projectionReadiness,
+            initialAccessRepo,
+            teamMemberProjectionRepo,
+            teamRoleRepo,
+            channelRolePolicyRepo,
+            roleRepo,
+            outboxRepository,
+            projectionReadiness,
         )
         val teamRoleService = TeamRoleService(teamRoleRepo, outboxRepository, channelRolePolicyRepo, projectAccessRepo)
         val channelLifecycleService = ChannelLifecycleService(
@@ -198,7 +203,8 @@ class MainVerticle : AbstractVerticle() {
             roleRepo,
             teamRoleRepo,
         )
-        val roleService = ProjectRoleService(roleRepo, outboxRepository, projectAccessRepo, initialAccessRepo, projectAccessGuard)
+        val roleService =
+            ProjectRoleService(roleRepo, outboxRepository, projectAccessRepo, initialAccessRepo, projectAccessGuard)
         val channelAccessGuard = ChannelAccessGuard(
             pool = pool,
             channelRepository = channelLifecycleProjectionRepo,
@@ -215,9 +221,16 @@ class MainVerticle : AbstractVerticle() {
             projectAccessGuard,
             channelAccessGuard,
         )
-        val webhookService = WebhookService(pool, webhookRepository, channelLifecycleProjectionRepo, channelAccessGuard,
-            outboxRepository, channelProjectionReadiness, WebhookSecrets(appConfig.webhookSecretEncryptionKey),
-            WebhookUrlSigner(appConfig.webhookUrlSigningKey))
+        val webhookService = WebhookService(
+            pool,
+            webhookRepository,
+            channelLifecycleProjectionRepo,
+            channelAccessGuard,
+            outboxRepository,
+            channelProjectionReadiness,
+            WebhookSecrets(appConfig.webhookSecretEncryptionKey),
+            WebhookUrlSigner(appConfig.webhookUrlSigningKey),
+        )
         val webhookHandler = WebhookHandler(webhookService, scope)
         val notifHandler = NotificationHandler(notifService, scope, channelAccessGuard)
         val roleHandler = ProjectRoleHandler(roleService, scope, projectAccessGuard)
@@ -267,7 +280,12 @@ class MainVerticle : AbstractVerticle() {
             groupId = appConfig.kafka.teamMemberConsumerGroupId,
             topic = appConfig.kafka.teamMemberTopic,
             expectedSnapshotSource = TEAM_SNAPSHOT_SOURCE,
-            handler = TeamMemberProjectionHandler(teamRoleService, teamMemberProjectionRepo, checkpointRepository, projectAccessRepo),
+            handler = TeamMemberProjectionHandler(
+                teamRoleService,
+                teamMemberProjectionRepo,
+                checkpointRepository,
+                projectAccessRepo,
+            ),
             checkpointRepository = checkpointRepository,
             topicIdentity = projectionTopicIdentity,
             readiness = projectionReadiness,
@@ -296,7 +314,10 @@ class MainVerticle : AbstractVerticle() {
             topic = appConfig.kafka.projectTopic,
             expectedSnapshotSource = PROJECT_SNAPSHOT_SOURCE,
             handler = ProjectLifecycleProjectionHandler(
-                projectLifecycleProjectionRepo, checkpointRepository, projectAccessRepo, initialAccessService,
+                projectLifecycleProjectionRepo,
+                checkpointRepository,
+                projectAccessRepo,
+                initialAccessService,
             ),
             checkpointRepository = checkpointRepository,
             topicIdentity = projectionTopicIdentity,
@@ -455,7 +476,6 @@ class MainVerticle : AbstractVerticle() {
 
     override fun stop(stopPromise: Promise<Void>) {
         if (::preferenceOutboxDispatcher.isInitialized) preferenceOutboxDispatcher.close()
-
 
         val quiesceFutures = mutableListOf<Future<Void>>()
         if (::githubRepoSettingCommandConsumer.isInitialized) {

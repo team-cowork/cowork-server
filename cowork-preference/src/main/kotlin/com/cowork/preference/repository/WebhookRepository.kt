@@ -1,7 +1,7 @@
 package com.cowork.preference.repository
 
-import com.cowork.preference.domain.WebhookRequestException
 import com.cowork.preference.domain.Webhook
+import com.cowork.preference.domain.WebhookRequestException
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Row
@@ -29,7 +29,13 @@ class WebhookRepository {
     suspend fun now(client: SqlClient): Instant = client.query("SELECT clock_timestamp() AS now")
         .execute().coAwait().first().getOffsetDateTime("now").toInstant()
 
-    suspend fun create(client: SqlClient, channelId: Long, actorId: Long, input: JsonObject, secretHash: String?): Webhook {
+    suspend fun create(
+        client: SqlClient,
+        channelId: Long,
+        actorId: Long,
+        input: JsonObject,
+        secretHash: String?,
+    ): Webhook {
         val id = client.query("SELECT nextval(pg_get_serial_sequence('tb_webhooks', 'id')) AS id")
             .execute().coAwait().first().getLong("id")
         if (id !in 1..9_007_199_254_740_991L) throw WebhookRequestException(503, "웹훅 식별자를 발급할 수 없습니다.")
@@ -38,8 +44,18 @@ class WebhookRepository {
             INSERT INTO tb_webhooks (channel_id, name, avatar_url, is_secure, secret_hash, is_active, created_by, id)
             VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6, ${'$'}7, ${'$'}8) RETURNING *
             """.trimIndent(),
-        ).execute(Tuple.of(channelId, input.getString("name"), input.getString("avatarUrl"),
-            input.getBoolean("isSecure"), secretHash, input.getBoolean("isActive"), actorId, id)).coAwait().first()
+        ).execute(
+            Tuple.of(
+                channelId,
+                input.getString("name"),
+                input.getString("avatarUrl"),
+                input.getBoolean("isSecure"),
+                secretHash,
+                input.getBoolean("isActive"),
+                actorId,
+                id,
+            ),
+        ).coAwait().first()
         return row.webhook()
     }
 
@@ -49,18 +65,28 @@ class WebhookRepository {
             updated_at = GREATEST(clock_timestamp(), updated_at + INTERVAL '1 microsecond')
         WHERE id = ${'$'}1 RETURNING *
         """.trimIndent(),
-    ).execute(Tuple.of(webhook.id, input.getString("name", webhook.name),
-        if (input.containsKey("avatarUrl")) input.getString("avatarUrl") else webhook.avatarUrl,
-        input.getBoolean("isActive", webhook.isActive))).coAwait().first().webhook()
+    ).execute(
+        Tuple.of(
+            webhook.id,
+            input.getString("name", webhook.name),
+            if (input.containsKey("avatarUrl")) input.getString("avatarUrl") else webhook.avatarUrl,
+            input.getBoolean("isActive", webhook.isActive),
+        ),
+    ).coAwait().first().webhook()
 
-    suspend fun changeMode(client: SqlClient, webhook: Webhook, target: Boolean, secretHash: String?, now: Instant): Webhook =
-        client.preparedQuery(
-            """
+    suspend fun changeMode(
+        client: SqlClient,
+        webhook: Webhook,
+        target: Boolean,
+        secretHash: String?,
+        now: Instant,
+    ): Webhook = client.preparedQuery(
+        """
             UPDATE tb_webhooks SET is_secure = ${'$'}2, secret_hash = ${'$'}3, mode_changed_at = ${'$'}4,
                 updated_at = GREATEST(clock_timestamp(), updated_at + INTERVAL '1 microsecond')
             WHERE id = ${'$'}1 RETURNING *
-            """.trimIndent(),
-        ).execute(Tuple.of(webhook.id, target, secretHash, now.atOffset(ZoneOffset.UTC))).coAwait().first().webhook()
+        """.trimIndent(),
+    ).execute(Tuple.of(webhook.id, target, secretHash, now.atOffset(ZoneOffset.UTC))).coAwait().first().webhook()
 
     suspend fun rotateExecutionId(client: SqlClient, webhookId: Long): Webhook = client.preparedQuery(
         """
@@ -94,8 +120,12 @@ class WebhookRepository {
         "SELECT request_hash, response, secret_ciphertext, created_at FROM tb_webhook_operations " +
             "WHERE actor_id = \$1 AND idempotency_key = \$2",
     ).execute(Tuple.of(actorId, key)).coAwait().firstOrNull()?.let {
-        WebhookOperation(it.getString("request_hash"), it.getJsonObject("response"), it.getString("secret_ciphertext"),
-            it.getOffsetDateTime("created_at").toInstant())
+        WebhookOperation(
+            it.getString("request_hash"),
+            it.getJsonObject("response"),
+            it.getString("secret_ciphertext"),
+            it.getOffsetDateTime("created_at").toInstant(),
+        )
     }
 
     suspend fun clearOperationSecret(client: SqlClient, actorId: Long, key: String) {
@@ -113,8 +143,14 @@ class WebhookRepository {
         ).execute(Tuple.of(cutoff.atOffset(ZoneOffset.UTC))).coAwait()
     }
 
-    suspend fun saveOperation(client: SqlClient, actorId: Long, key: String, requestHash: String,
-        response: JsonObject, secretCiphertext: String?) {
+    suspend fun saveOperation(
+        client: SqlClient,
+        actorId: Long,
+        key: String,
+        requestHash: String,
+        response: JsonObject,
+        secretCiphertext: String?,
+    ) {
         client.preparedQuery(
             """
             INSERT INTO tb_webhook_operations (actor_id, idempotency_key, request_hash, response, secret_ciphertext)
@@ -127,7 +163,10 @@ class WebhookRepository {
         id = getLong("id"), channelId = getLong("channel_id"), name = getString("name"),
         avatarUrl = getString("avatar_url"), isSecure = getBoolean("is_secure"), secretHash = getString("secret_hash"),
         isActive = getBoolean("is_active"), deleted = getBoolean("deleted"), createdBy = getLong("created_by"),
-        createdAt = getOffsetDateTime("created_at").toInstant(), updatedAt = getOffsetDateTime("updated_at").toInstant(),
+        createdAt = getOffsetDateTime(
+            "created_at",
+        ).toInstant(),
+        updatedAt = getOffsetDateTime("updated_at").toInstant(),
         modeChangedAt = getOffsetDateTime("mode_changed_at")?.toInstant(), executionId = getUUID("execution_id"),
     )
 }
