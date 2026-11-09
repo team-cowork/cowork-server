@@ -9,7 +9,7 @@ import re
 import subprocess
 from zoneinfo import ZoneInfo
 
-from deploy.ci.build_matrix import affected
+from deploy.ci.selection.build_matrix import affected
 from deploy.production.version_fields import VERSION, changed_paths, module_files, normalized, rewrite
 
 ROOT = Path(__file__).resolve().parents[2]
