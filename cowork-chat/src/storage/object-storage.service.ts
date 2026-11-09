@@ -8,8 +8,6 @@ import {
 	Inject as inject,
 	Injectable as injectable,
 	Logger,
-	OnModuleDestroy,
-	OnModuleInit,
 	PayloadTooLargeException,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
@@ -23,6 +21,7 @@ import {
 } from '@aws-sdk/client-s3';
 import {getSignedUrl} from '@aws-sdk/s3-request-presigner';
 import * as mime from 'mime-types';
+import {RedisRateLimiter} from '../common/util/redis-rate-limiter.js';
 import {AttachmentUploadRepository} from './attachment-upload.repository.js';
 import {AttachmentUpload, ConfirmedAttachment} from './attachment-upload.schema.js';
 import {S3_CLIENT, S3_SIGNING_CLIENT} from './object-storage.constants.js';
@@ -61,12 +60,12 @@ function attachmentDisposition(filename: string): string {
 }
 
 @injectable()
-export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
+export class ObjectStorageService {
 	private readonly logger = new Logger(ObjectStorageService.name);
 	private readonly config: ObjectStorageConfig;
-	private readonly uploadRateLimitBuckets = new Map<number, number[]>();
-	private cleanupTimer?: ReturnType<typeof setInterval>;
-	private isCleaningUpRateLimitEntries = false;
+
+	@inject()
+	private readonly rateLimiter!: RedisRateLimiter;
 
 	constructor(
 		@inject(S3_CLIENT) private readonly s3Client: S3Client,
@@ -113,31 +112,17 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
 		}
 	}
 
-	private checkUploadRateLimit(userId: number): void {
-		const now = Date.now();
-		const windowStart = now - this.config.uploadRateLimitWindowMs;
-		const recentRequests = (this.uploadRateLimitBuckets.get(userId) ?? []).filter(
-			requestedAt => requestedAt > windowStart,
+	private async checkUploadRateLimit(userId: number): Promise<void> {
+		const isAllowed = await this.rateLimiter.tryAcquire(
+			`object-storage:upload:${userId}`,
+			this.config.uploadRateLimitWindowMs,
+			this.config.uploadRateLimitMaxRequests,
 		);
-
-		if (recentRequests.length >= this.config.uploadRateLimitMaxRequests) {
-			this.uploadRateLimitBuckets.set(userId, recentRequests);
+		if (!isAllowed) {
 			throw new HttpException(
 				'짧은 시간에 업로드 요청이 너무 많습니다. 잠시 후 다시 시도하세요',
 				HttpStatus.TOO_MANY_REQUESTS,
 			);
-		}
-
-		recentRequests.push(now);
-		this.uploadRateLimitBuckets.set(userId, recentRequests);
-	}
-
-	private cleanupStaleRateLimitEntries(): void {
-		const windowStart = Date.now() - this.config.uploadRateLimitWindowMs;
-		for (const [userId, timestamps] of this.uploadRateLimitBuckets) {
-			if (timestamps.every(t => t <= windowStart)) {
-				this.uploadRateLimitBuckets.delete(userId);
-			}
 		}
 	}
 
@@ -167,30 +152,6 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
 		return extensionFromMime === false || extensionFromMime === '' ? 'bin' : extensionFromMime;
 	}
 
-	onModuleInit(): void {
-		this.cleanupTimer = setInterval(() => {
-			if (this.isCleaningUpRateLimitEntries) {
-				return;
-			}
-
-			this.isCleaningUpRateLimitEntries = true;
-			try {
-				this.cleanupStaleRateLimitEntries();
-			} finally {
-				this.isCleaningUpRateLimitEntries = false;
-			}
-		}, this.config.uploadRateLimitWindowMs);
-	}
-
-	onModuleDestroy(): void {
-		if (!this.cleanupTimer) {
-			return;
-		}
-
-		clearInterval(this.cleanupTimer);
-		this.cleanupTimer = undefined;
-	}
-
 	async createPresignedUpload(parameters: {
 		channelId: number;
 		userId: number;
@@ -198,7 +159,7 @@ export class ObjectStorageService implements OnModuleInit, OnModuleDestroy {
 		contentType: string;
 		size: number;
 	}): Promise<PresignedUpload> {
-		this.checkUploadRateLimit(parameters.userId);
+		await this.checkUploadRateLimit(parameters.userId);
 		this.validateContentType(parameters.contentType);
 		this.validateFileSize(parameters.size);
 
