@@ -22,3 +22,24 @@ jobs:
           echo "Removing label '$LABEL' from PR #$PR_NUMBER..."
           gh pr edit $PR_NUMBER --repo ${{ github.repository }} --remove-label "$LABEL" || true
           echo "Done."
+
+  close-related-issues:
+    name: Close Related Issues
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: write
+    steps:
+      - name: Checkout Merged Code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: deploy/ci
+      - name: Assign And Close Related Issues
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const { syncPullRequestIssues } = require('./deploy/ci/pull_request/issues.cjs');
+            await syncPullRequestIssues({ github, context, core, close: true });
