@@ -130,7 +130,8 @@ class ReorderRoadmapNodesServiceTest {
     private void prepareNodes(List<RoadmapNode> nodes) {
         when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
 
-        when(nodeRepository.findByRoadmapIdOrderByPositionAsc(10L)).thenReturn(nodes);
+        when(nodeRepository.findByRoadmapIdAndParentIdIsNullOrderByPositionAsc(10L))
+                .thenReturn(nodes.stream().filter(node -> node.getParentId() == null).toList());
     }
 
     private static Roadmap roadmap(Long id) {
