@@ -312,6 +312,17 @@ describe('ChatService', () => {
 			expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
 		});
 
+		it('빈 문자열이나 null 재시도 키·부모 ID는 값이 없는 것으로 본다', async () => {
+			mockDmParticipantRepository.findMembership.mockResolvedValue({teamId: 100, channelType: 'TEXT'});
+
+			await service.sendMessage(ctx, {content: 'hi', clientMessageId: '', parentMessageId: null as never});
+
+			expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledWith(1, 42, ['message_send']);
+			const [, published] = mockChatMessageProducer.sendMessage.mock.calls[0] as [number, {clientMessageId: string; parentMessageId?: string}];
+			expect(published.clientMessageId).not.toBe('');
+			expect(published.parentMessageId).toBeUndefined();
+		});
+
 		it('메시지 작성 권한이 없으면 발행하지 않는다', async () => {
 			mockChannelMessageReadAccess.requirePermissions.mockRejectedValueOnce(new ForbiddenException());
 
@@ -840,6 +851,14 @@ describe('ChatService', () => {
 			await service.editMessage(ctx(), {content: '수정됨'});
 
 			expect(mockMessageRepository.applyEdit).toHaveBeenCalledWith(mockMessageId, '수정됨', false);
+		});
+
+		it('첨부파일 없는 메시지를 공백만으로 수정하면 거부한다', async () => {
+			mockDmParticipantRepository.exists.mockResolvedValue(true);
+			mockMessageRepository.findById.mockResolvedValue(makeMockMessage({attachments: []}));
+
+			await expect(service.editMessage(ctx(), {content: ' '.repeat(3)})).rejects.toBeInstanceOf(BadRequestException);
+			expect(mockMessageRepository.applyEdit).not.toHaveBeenCalled();
 		});
 
 		it('메시지가 없으면 NotFoundException을 던진다', async () => {
