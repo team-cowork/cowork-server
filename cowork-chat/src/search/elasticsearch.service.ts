@@ -255,8 +255,9 @@ export class ElasticsearchService implements OnModuleInit {
 		return hitCount === limit && lastHit?.sort ? Buffer.from(JSON.stringify(lastHit.sort)).toString('base64') : null;
 	}
 
-	private parseSearchAfter(before: string | undefined): estypes.SortResults | undefined {
-		if (before === undefined || before === '') {
+	private parseSearchAfter(before: Nullable<string> | undefined): estypes.SortResults | undefined {
+		// GraphQL은 nullable 인자에 `null`을 넘기고 `@isOptional`도 이를 통과시키므로, 첫 페이지 요청으로 본다.
+		if (before === undefined || before === null || before.length === 0) {
 			return undefined;
 		}
 
