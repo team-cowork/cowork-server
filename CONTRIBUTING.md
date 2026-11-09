@@ -89,7 +89,7 @@ Roadmap uses `cowork-roadmap/config/eclipse-java-formatter.xml` and its configur
 
 Kotlin Toolchain has no ktlint integration, so `cowork-preference/ktlint` runs the same ktlint release as the Gradle Kotlin modules, and the Dockerfile `verification` stage rejects violations. Maven-based `cowork-project` has no formatter task. Follow `.editorconfig` and review its diffs. There is no repository-wide formatter.
 
-Hooks run the owning Gradle module's formatter when available. File suffix triggers do not expand formatter targets. Hooks report failures and skip modules without a formatter; they do not replace explicit checks.
+Hooks run the owning module's formatter when available. File suffix triggers do not expand formatter targets. Hooks report failures and skip modules without a formatter; they do not replace explicit checks.
 
 ## Errors and logging
 
