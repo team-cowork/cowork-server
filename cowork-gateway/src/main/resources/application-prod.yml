@@ -342,6 +342,12 @@ spring:
               args:
                 name: chatCB
                 fallbackUri: forward:/fallback
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
 
         - id: channel-service
           uri: ${COWORK_CHANNEL_URL}
