@@ -38,7 +38,9 @@ class TeamMembershipGuard(
         if (settingKeys.isNotEmpty() &&
             NICKNAME_FORMAT_KEYS.containsAll(settingKeys) &&
             roles.any { it.permissions[PermissionKeys.MANAGE_NICKNAME_FORMAT] == true }
-        ) return
+        ) {
+            return
+        }
         throw TeamMembershipDeniedException("팀 설정을 관리할 권한이 없습니다.")
     }
 
