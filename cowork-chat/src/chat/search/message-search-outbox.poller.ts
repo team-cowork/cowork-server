@@ -80,9 +80,10 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
 			}
 
 			await this.backfillLegacyState();
-			const deadline = Date.now() + DRAIN_TIME_BUDGET_MS;
-			await this.drainWhileFull(async () => this.drainTombstones(), TOMBSTONE_BATCH_SIZE, deadline);
-			await this.drainWhileFull(async () => this.drainMessages(), MESSAGE_BATCH_SIZE, deadline);
+			// Tombstone 백로그가 예산을 모두 쓰면 메시지 색인이 틱당 한 배치로 줄어들므로, tombstone에는 절반만 준다.
+			const startedAt = Date.now();
+			await this.drainWhileFull(async () => this.drainTombstones(), TOMBSTONE_BATCH_SIZE, startedAt + (DRAIN_TIME_BUDGET_MS / 2));
+			await this.drainWhileFull(async () => this.drainMessages(), MESSAGE_BATCH_SIZE, startedAt + DRAIN_TIME_BUDGET_MS);
 		} catch (error) {
 			this.logger.error('Message search index outbox cycle failed', error);
 		} finally {
