@@ -71,13 +71,14 @@ const SYSTEM_AUTHOR_NAME = 'System';
 const FILE_SHARE_VIEW_TYPE = 'FILE_SHARE';
 const DM_CHANNEL_TYPE = 'DM';
 
-function deriveGithubIssueCommandId(userId: number, idempotencyKey: string): string {
+function deriveGithubIssueCommandId(ctx: ChannelUserContext, dto: CreateGithubIssueDto, idempotencyKey: string): string {
 	if (idempotencyKey.length === 0 || idempotencyKey.length > 200) {
 		throw new BadRequestException('Idempotency-Key가 올바르지 않습니다');
 	}
 
-	// 사용자 ID를 섞어 다른 사용자의 키와 충돌해 요청이 버려지지 않게 한다.
-	const hex = createHash('sha256').update(`${userId}:${idempotencyKey}`).digest('hex').slice(0, 32);
+	// 요청 내용까지 섞어, 같은 키를 다른 채널·내용에 다시 쓴 요청이 결과 없이 중복으로 버려지지 않게 한다.
+	const input = JSON.stringify([ctx.userId, ctx.channelId, dto.projectId, dto.title, dto.body ?? null, idempotencyKey]);
+	const hex = createHash('sha256').update(input).digest('hex').slice(0, 32);
 	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
@@ -693,7 +694,7 @@ export class ChatService {
 		await this.channelMessageReadAccess.requirePermissions(ctx.channelId, ctx.userId, ['slash_command_use', 'github_issue_create']);
 		const channelTeamId = await this.requireReadAndGetTeamId(ctx.channelId, ctx.userId);
 		// 프로젝트 서비스는 operationId로 중복을 막고 idempotencyKey는 36자 컬럼에 저장하므로, 재시도 키를 36자 ID로 고정한다.
-		const commandId = idempotencyKey === undefined ? randomUUID() : deriveGithubIssueCommandId(ctx.userId, idempotencyKey);
+		const commandId = idempotencyKey === undefined ? randomUUID() : deriveGithubIssueCommandId(ctx, dto, idempotencyKey);
 
 		await this.chatGithubIssueCommandProducer.send({
 			operationId: commandId,

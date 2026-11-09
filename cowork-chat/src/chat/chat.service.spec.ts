@@ -582,11 +582,13 @@ describe('ChatService', () => {
 			await service.publishGithubIssueCreateCommand({channelId: 3, userId: 42}, dto, 'retry-key');
 			await service.publishGithubIssueCreateCommand({channelId: 3, userId: 42}, dto, 'retry-key');
 			await service.publishGithubIssueCreateCommand({channelId: 3, userId: 43}, dto, 'retry-key');
+			await service.publishGithubIssueCreateCommand({channelId: 3, userId: 42}, {...dto, title: '다른 이슈'}, 'retry-key');
 
-			const [first, second, otherUser] = mockChatGithubIssueCommandProducer.send.mock.calls.map(([command]) => command);
+			const [first, second, otherUser, otherTitle] = mockChatGithubIssueCommandProducer.send.mock.calls.map(([command]) => command);
 			expect(first.operationId).toBe(second.operationId);
 			expect(first.idempotencyKey).toBe(first.operationId);
 			expect(otherUser.operationId).not.toBe(first.operationId);
+			expect(otherTitle.operationId).not.toBe(first.operationId);
 			expect(first.operationId).toHaveLength(36);
 		});
 
