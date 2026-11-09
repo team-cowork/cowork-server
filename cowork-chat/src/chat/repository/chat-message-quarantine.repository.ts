@@ -48,10 +48,6 @@ export class ChatMessageQuarantineRepository {
 		);
 	}
 
-	async findById(id: string): Promise<Nullable<ChatMessageQuarantineRecord>> {
-		return this.model.findById(id).lean<ChatMessageQuarantineRecord>();
-	}
-
 	/**
     원문에는 메시지 본문과 첨부 URL이 들어 있어 목록에서 제외한다.
     */
