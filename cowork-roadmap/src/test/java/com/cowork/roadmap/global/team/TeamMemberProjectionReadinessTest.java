@@ -180,6 +180,17 @@ class TeamMemberProjectionReadinessTest {
     }
 
     @Test
+    void partitionsLost_switchesToNotReadyAndClearsTopicGeneration() {
+        stubCaughtUp();
+        readiness.onPartitionsAssigned(consumer, List.of(PARTITION));
+
+        readiness.onPartitionsLost(consumer, List.of(PARTITION));
+
+        assertFalse(readiness.isReady());
+        assertThrows(IllegalStateException.class, topicGeneration::requireTopicId);
+    }
+
+    @Test
     void revocation_switchesToNotReadyImmediately() {
         stubCaughtUp();
         readiness.onPartitionsAssigned(consumer, List.of(PARTITION));
