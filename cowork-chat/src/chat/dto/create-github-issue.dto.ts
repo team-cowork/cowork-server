@@ -4,6 +4,7 @@ import {
 	IsNotEmpty as isNotEmpty,
 	IsOptional as isOptional,
 	IsString as isString,
+	Max as max,
 	MaxLength as maxLength,
 	Min as min,
 } from 'class-validator';
@@ -12,6 +13,8 @@ export class CreateGithubIssueDto {
 	@apiProperty({description: '프로젝트 ID', example: 100})
 	@isInt()
 	@min(1)
+	// 프로젝트 서비스의 Long으로 그대로 읽힐 수 있는 범위만 받는다.
+	@max(Number.MAX_SAFE_INTEGER)
 	projectId!: number;
 
 	@apiProperty({description: '이슈 제목', example: '로그인 버그'})
