@@ -180,6 +180,20 @@ groups:
           summary: "HTTP 응답 지연"
           description: "서비스 {{ $labels.service }}의 HTTP P99 응답 시간이 5분 동안 2초를 초과했습니다."
 
+  - name: cowork-gateway-response
+    rules:
+      - alert: coworkGatewayResponseWrappingFailed
+        expr: |
+          sum by (service, route, outcome) (
+            increase(gateway_response_wrapper_requests_total{outcome=~"error|error_body_too_large"}[5m])
+          ) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Gateway 응답 변환 실패"
+          description: "{{ $labels.route }} 라우트에서 응답 스트림이 실패하거나 오류 본문 한도를 초과했습니다({{ $labels.outcome }}). HTTP 2xx 이후 전송 중단도 포함하므로 Gateway와 upstream 로그를 확인해 주세요."
+
   - name: cowork-gateway-ratelimit
     rules:
       # Gateway 요청 제한기는 Redis 오류 시 요청을 허용하므로 제한이 꺼진 상태를 따로 알린다.
