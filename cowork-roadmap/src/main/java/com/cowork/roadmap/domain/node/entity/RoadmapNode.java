@@ -26,6 +26,16 @@ public class RoadmapNode extends BaseEntity {
     /** 트리 조회가 한 번에 읽는 본문 크기를 제한하기 위한 로드맵당 최대 노드 수. */
     public static final int MAX_NODES_PER_ROADMAP = 1_000;
 
+    /**
+     * 트리 조회가 한 번에 읽는 본문 총량을 제한하기 위한 로드맵당 본문 길이 합계 상한. MySQL `CHAR_LENGTH`와 같이 code
+     * point로 센다.
+     */
+    public static final long MAX_TOTAL_CONTENT_LENGTH_PER_ROADMAP = 5_000_000;
+
+    public static int contentLength(String content) {
+        return content == null ? 0 : content.codePointCount(0, content.length());
+    }
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
