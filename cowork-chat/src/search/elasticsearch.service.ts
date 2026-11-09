@@ -130,6 +130,7 @@ export class ElasticsearchService implements OnModuleInit {
 	private ready = false;
 	private lastBootstrapError: Nullable<string> = null;
 	private lastReadyCheckAt = 0;
+	private pendingReadyCheck: Nullable<Promise<boolean>> = null;
 
 	private readonly highlight: estypes.SearchHighlight = {
 		fields: {
@@ -144,13 +145,43 @@ export class ElasticsearchService implements OnModuleInit {
 
 	constructor(@inject(ELASTICSEARCH_CLIENT) private readonly client: Client) {}
 
+	private async checkIndexReady(): Promise<boolean> {
+		if (this.ready) {
+			if (Date.now() - this.lastReadyCheckAt < READY_RECHECK_INTERVAL_MS) {
+				return true;
+			}
+
+			this.lastReadyCheckAt = Date.now();
+			if (await this.aliasStillExists()) {
+				return true;
+			}
+
+			this.ready = false;
+			this.logger.warn(`Search alias no longer exists, re-bootstrapping: ${MESSAGE_SEARCH_ALIAS}`);
+		}
+
+		try {
+			await this.bootstrapIndex();
+			this.ready = true;
+			this.lastReadyCheckAt = Date.now();
+			this.lastBootstrapError = null;
+			return true;
+		} catch (error) {
+			this.ready = false;
+			this.lastBootstrapError = errorMessageOf(error);
+			this.logger.error(`Failed to prepare search index alias=${MESSAGE_SEARCH_ALIAS}`, error);
+			return false;
+		}
+	}
+
 	/**
     Alias 또는 (승격 전 배포의) 동명 물리 index가 여전히 존재하는지 확인한다.
     */
 	private async aliasStillExists(): Promise<boolean> {
 		try {
 			return (await this.client.indices.existsAlias({name: MESSAGE_SEARCH_ALIAS})) ? true : (await this.client.indices.exists({index: MESSAGE_SEARCH_ALIAS}));
-		} catch {
+		} catch (error) {
+			this.logger.warn(`Failed to check search alias alias=${MESSAGE_SEARCH_ALIAS}`, error);
 			return false;
 		}
 	}
@@ -320,8 +351,9 @@ export class ElasticsearchService implements OnModuleInit {
 		return {hits, nextCursor: this.buildNextCursor(rawHits, hits.length, limit)};
 	}
 
-	async onModuleInit() {
-		await this.ensureIndexReady();
+	onModuleInit(): void {
+		// ES가 응답하지 않아도 앱 기동을 막지 않는다. 실패하면 poller가 주기적으로 다시 시도한다.
+		void this.ensureIndexReady();
 	}
 
 	/**
@@ -345,34 +377,14 @@ export class ElasticsearchService implements OnModuleInit {
 
      부트스트랩 실패는 예외로 전파하지 않고 `false`를 반환한다. 색인 준비 실패가
      채팅 송수신 자체를 막지 않게 하되, 검색 API는 {@link assertReady}로 503을 반환한다.
+
+     기동 시 확인과 poller 확인이 겹쳐도 부트스트랩이 동시에 실행되지 않도록 진행 중인 확인을 공유한다.
      */
 	async ensureIndexReady(): Promise<boolean> {
-		if (this.ready) {
-			if (Date.now() - this.lastReadyCheckAt < READY_RECHECK_INTERVAL_MS) {
-				return true;
-			}
-
-			this.lastReadyCheckAt = Date.now();
-			if (await this.aliasStillExists()) {
-				return true;
-			}
-
-			this.ready = false;
-			this.logger.warn(`Search alias no longer exists, re-bootstrapping: ${MESSAGE_SEARCH_ALIAS}`);
-		}
-
-		try {
-			await this.bootstrapIndex();
-			this.ready = true;
-			this.lastReadyCheckAt = Date.now();
-			this.lastBootstrapError = null;
-			return true;
-		} catch (error) {
-			this.ready = false;
-			this.lastBootstrapError = errorMessageOf(error);
-			this.logger.error(`Failed to prepare search index alias=${MESSAGE_SEARCH_ALIAS}`, error);
-			return false;
-		}
+		this.pendingReadyCheck ??= this.checkIndexReady().finally(() => {
+			this.pendingReadyCheck = null;
+		});
+		return this.pendingReadyCheck;
 	}
 
 	/**
