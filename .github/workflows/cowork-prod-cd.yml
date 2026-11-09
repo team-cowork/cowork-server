@@ -206,6 +206,7 @@ jobs:
           GH_VARIABLE_S3_REGION: ${{ contains(matrix.variable_names, 'S3_REGION') && vars.S3_REGION || '' }}
           GH_SECRET_ACCOUNT_CREDENTIAL_ENCRYPTION_KEY: ${{ contains(matrix.secret_names, 'ACCOUNT_CREDENTIAL_ENCRYPTION_KEY') && secrets.ACCOUNT_CREDENTIAL_ENCRYPTION_KEY || '' }}
           GH_SECRET_ACCOUNT_SHARE_OAUTH_STATE_SECRET: ${{ contains(matrix.secret_names, 'ACCOUNT_SHARE_OAUTH_STATE_SECRET') && secrets.ACCOUNT_SHARE_OAUTH_STATE_SECRET || '' }}
+          GH_SECRET_APPLET_SECRET_KEY: ${{ contains(matrix.secret_names, 'APPLET_SECRET_KEY') && secrets.APPLET_SECRET_KEY || '' }}
           GH_SECRET_COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET') && secrets.COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET || '' }}
           GH_SECRET_COWORK_GITHUB_APP_CLIENT_SECRET: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_APP_CLIENT_SECRET') && secrets.COWORK_GITHUB_APP_CLIENT_SECRET || '' }}
           GH_SECRET_COWORK_GITHUB_INTERNAL_API_KEY: ${{ contains(matrix.secret_names, 'COWORK_GITHUB_INTERNAL_API_KEY') && secrets.COWORK_GITHUB_INTERNAL_API_KEY || '' }}

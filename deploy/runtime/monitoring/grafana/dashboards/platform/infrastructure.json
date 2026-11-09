@@ -14,7 +14,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "up{job=~\"infrastructure(-discovery)?\",service=~\"mysql|postgres|mongodb\"}",
+          "expr": "up{job=~\"infrastructure(-discovery)?\",service=~\"mysql|postgres|mongodb|surrealdb\"}",
           "legendFormat": "{{module}} / {{service}} / {{instance}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "instant": false,
@@ -43,7 +43,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
       "targets": [
         {
-          "expr": "mysql_up{job=~\"infrastructure(-discovery)?\"} or pg_up{job=~\"infrastructure(-discovery)?\"} or mongodb_up{job=~\"infrastructure(-discovery)?\"}",
+          "expr": "mysql_up{job=~\"infrastructure(-discovery)?\"} or pg_up{job=~\"infrastructure(-discovery)?\"} or mongodb_up{job=~\"infrastructure(-discovery)?\"} or up{job=\"infrastructure-discovery\",service=\"surrealdb\"}",
           "legendFormat": "{{module}} / {{service}} / {{instance}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "instant": false,
