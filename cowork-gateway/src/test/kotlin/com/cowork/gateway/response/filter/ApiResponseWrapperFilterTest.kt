@@ -2,167 +2,301 @@ package com.cowork.gateway.response.filter
 
 import com.cowork.gateway.response.config.ApiResponseWrapperProperties
 import com.cowork.gateway.response.metrics.ApiResponseWrapperMetrics
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
-import io.mockk.every
-import io.mockk.mockk
+import io.netty.buffer.PooledByteBufAllocator
+import org.reactivestreams.Publisher
+import org.springframework.core.io.buffer.DataBuffer
+import org.springframework.core.io.buffer.DataBufferUtils
+import org.springframework.core.io.buffer.DefaultDataBufferFactory
+import org.springframework.core.io.buffer.NettyDataBufferFactory
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest
 import org.springframework.mock.web.server.MockServerWebExchange
-import org.springframework.web.server.ServerWebExchange
+import org.springframework.util.unit.DataSize
 import org.springframework.web.server.WebFilterChain
+import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import tools.jackson.databind.json.JsonMapper
+import java.time.Duration
 
 class ApiResponseWrapperFilterTest :
     DescribeSpec({
-        val objectMapper = JsonMapper.builder().build()
-        val registry = SimpleMeterRegistry()
-        val filter = ApiResponseWrapperFilter(
-            objectMapper,
-            ApiResponseWrapperProperties(),
-            ApiResponseWrapperMetrics(registry),
-        )
+        val mapper = JsonMapper.builder().build()
+        val factory = DefaultDataBufferFactory.sharedInstance
+        lateinit var registry: SimpleMeterRegistry
+        lateinit var filter: ApiResponseWrapperFilter
 
-        fun completeWith(status: HttpStatus): MockServerWebExchange {
-            val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/user/users/me"))
-            val chain = mockk<WebFilterChain>()
-            every { chain.filter(any()) } answers {
-                val forwarded = firstArg<ServerWebExchange>()
-                forwarded.response.statusCode = status
-                forwarded.response.setComplete()
-            }
-            filter.filter(exchange, chain).block()
-            return exchange
+        beforeEach {
+            registry = SimpleMeterRegistry()
+            filter =
+                ApiResponseWrapperFilter(mapper, ApiResponseWrapperProperties(), ApiResponseWrapperMetrics(registry))
         }
 
-        fun respondWith(status: HttpStatus, json: String): MockServerWebExchange {
-            val exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/user/users/me"))
-            val chain = mockk<WebFilterChain>()
-            every { chain.filter(any()) } answers {
-                val response = firstArg<ServerWebExchange>().response
-                response.statusCode = status
-                response.headers.contentType = MediaType.APPLICATION_JSON
-                response.writeWith(Mono.just(response.bufferFactory().wrap(json.toByteArray())))
-            }
-            filter.filter(exchange, chain).block()
-            return exchange
+        fun exchange(path: String = "/api/roadmap/roadmaps/1/tree") =
+            MockServerWebExchange.from(MockServerHttpRequest.get(path))
+
+        fun respond(
+            exchange: MockServerWebExchange,
+            status: HttpStatus = HttpStatus.OK,
+            contentType: MediaType = MediaType.APPLICATION_JSON,
+            contentLength: Long? = null,
+            body: Publisher<out DataBuffer>,
+        ) {
+            filter.filter(
+                exchange,
+                WebFilterChain { forwarded ->
+                    forwarded.response.statusCode = status
+                    forwarded.response.headers.contentType = contentType
+                    if (contentLength != null) forwarded.response.headers.contentLength = contentLength
+                    forwarded.response.writeWith(body)
+                },
+            ).block(Duration.ofSeconds(5))
         }
 
-        fun bodyOf(exchange: MockServerWebExchange) = objectMapper.readTree(exchange.response.bodyAsString.block())
+        fun jsonBody(json: String): Mono<DataBuffer> = Mono.fromSupplier { factory.wrap(json.toByteArray()) }
+        fun parsed(exchange: MockServerWebExchange) = mapper.readTree(exchange.response.bodyAsString.block())
 
-        describe("ApiResponseWrapperFilter 클래스의 filter 메서드는") {
-            context("요청 제한기가 429를 빈 본문으로 끝내면") {
-                it("공통 오류 응답 본문을 JSON으로 채운다") {
-                    val exchange = completeWith(HttpStatus.TOO_MANY_REQUESTS)
+        describe("일반 JSON 성공 응답은") {
+            for (size in listOf(1024 * 1024 - 1, 1024 * 1024, 1024 * 1024 + 1)) {
+                for (knownLength in listOf(false, true)) {
+                    context("본문이 ${size}바이트이고 Content-Length 제공 여부가 $knownLength 이면") {
+                        it("크기에 관계없이 전체 본문을 data로 감싼다") {
+                            val payload = "{\"content\":\"" + "x".repeat(size - 14) + "\"}"
+                            val bytes = payload.toByteArray()
+                            bytes.size shouldBe size
+                            val response = exchange()
+                            val buffers = Flux.range(0, (bytes.size + 4095) / 4096).map { index ->
+                                factory.wrap(bytes.copyOfRange(index * 4096, minOf((index + 1) * 4096, bytes.size)))
+                            }
 
-                    val body = objectMapper.readTree(exchange.response.bodyAsString.block())
-                    exchange.response.headers.contentType shouldBe MediaType.APPLICATION_JSON
-                    body.get("status").asString() shouldBe "429 TOO_MANY_REQUESTS"
-                    body.get("code").asInt() shouldBe 429
-                    body.get("message").asString() shouldBe "요청이 너무 많습니다. 잠시 후 다시 시도하십시오."
-                    registry.find("gateway.response.wrapper.requests")
-                        .tags("outcome", "wrapped", "status", "4xx")
-                        .counter()?.count() shouldBe 1.0
+                            respond(response, contentLength = if (knownLength) size.toLong() else null, body = buffers)
+
+                            val result = parsed(response)
+                            result.get("status").asString() shouldBe "200 OK"
+                            result.get("code").asInt() shouldBe 200
+                            result.get("data") shouldBe mapper.readTree(payload)
+                            response.response.headers.contentLength shouldBe -1
+                            registry.find(
+                                "gateway.response.wrapper.bytes",
+                            ).tags("direction", "source", "outcome", "wrapped")
+                                .summary()?.totalAmount() shouldBe size.toDouble()
+                            registry.find(
+                                "gateway.response.wrapper.bytes",
+                            ).tags("direction", "result", "outcome", "wrapped")
+                                .summary()?.totalAmount() shouldBe
+                                response.response.bodyAsString.block()!!.toByteArray().size.toDouble()
+                        }
+                    }
                 }
             }
 
-            context("403을 빈 본문으로 끝내면") {
-                it("SDK 오류 응답 본문을 채운다") {
-                    val exchange = completeWith(HttpStatus.FORBIDDEN)
+            for (payload in listOf(
+                "[1,2]",
+                "\"한글😀\"",
+                "42",
+                "true",
+                "null",
+                "{\"status\":\"200 OK\",\"code\":200,\"message\":\"업무 값\"}",
+            )) {
+                it("JSON 값 $payload 의 바이트 경계와 업무 필드를 보존한다") {
+                    val response = exchange()
+                    val buffers = Flux.fromIterable(payload.toByteArray().toList()).map {
+                        factory.wrap(byteArrayOf(it))
+                    }
 
-                    val body = objectMapper.readTree(exchange.response.bodyAsString.block())
-                    body.get("status").asString() shouldBe "403 FORBIDDEN"
-                    body.get("code").asInt() shouldBe 403
+                    respond(response, HttpStatus.CREATED, body = buffers)
+
+                    response.response.statusCode shouldBe HttpStatus.CREATED
+                    parsed(response).get("code").asInt() shouldBe 201
+                    parsed(response).get("data") shouldBe mapper.readTree(payload)
                 }
             }
 
-            context("이미 공통 응답으로 감싼 본문을 받으면") {
-                it("중첩하지 않고 message와 data를 유지한다") {
-                    val body = bodyOf(
-                        respondWith(
-                            HttpStatus.OK,
-                            """{"status":"200 OK","code":200,"message":"처리했습니다.","data":{"id":1}}""",
-                        ),
-                    )
+            it("변환 후 원본의 길이와 무결성 헤더를 제거한다") {
+                val response = exchange()
+                response.response.headers.set(HttpHeaders.ETAG, "\"original\"")
+                response.response.headers.set("Digest", "original")
+                response.response.headers.set("Content-MD5", "original")
 
-                    body.get("message").asString() shouldBe "처리했습니다."
-                    body.get("data").get("id").asInt() shouldBe 1
-                    body.get("data").has("data") shouldBe false
-                    registry.find("gateway.response.wrapper.requests")
-                        .tags("outcome", "already_wrapped")
-                        .counter()?.count() shouldBe 1.0
-                }
+                respond(response, contentLength = 2, body = jsonBody("{}"))
 
-                it("status가 상태 이름만 있는 형식이어도 감싼 본문으로 판단한다") {
-                    val body = bodyOf(
-                        respondWith(
-                            HttpStatus.TOO_MANY_REQUESTS,
-                            """{"status":"TOO_MANY_REQUESTS","code":429,"message":"잠시 후 다시 시도하십시오.","data":{"retryAfterSeconds":3}}""",
-                        ),
-                    )
-
-                    body.get("status").asString() shouldBe "429 TOO_MANY_REQUESTS"
-                    body.get("code").asInt() shouldBe 429
-                    body.get("data").get("retryAfterSeconds").asInt() shouldBe 3
-                }
-
-                it("본문의 상태가 달라도 실제 HTTP 상태로 응답한다") {
-                    val body = bodyOf(
-                        respondWith(
-                            HttpStatus.BAD_REQUEST,
-                            """{"status":"200 OK","code":200,"message":"요청이 잘못되었습니다."}""",
-                        ),
-                    )
-
-                    body.get("status").asString() shouldBe "400 BAD_REQUEST"
-                    body.get("code").asInt() shouldBe 400
-                    body.get("message").asString() shouldBe "요청이 잘못되었습니다."
+                listOf(HttpHeaders.CONTENT_LENGTH, HttpHeaders.ETAG, "Digest", "Content-MD5").forEach {
+                    response.response.headers.getFirst(it) shouldBe null
                 }
             }
 
-            context("공통 응답과 키 이름만 겹치는 성공 본문을 받으면") {
-                it("다른 필드가 있으면 본문 전체를 data로 감싼다") {
-                    val body = bodyOf(
-                        respondWith(
-                            HttpStatus.OK,
-                            """{"status":"200 OK","code":200,"message":"안내","reason":"유지할 값"}""",
-                        ),
-                    )
+            for (emittedCount in listOf(1L, 2L)) {
+                it("upstream 완료 전 전송하며 $emittedCount 개 버퍼 뒤 취소되면 보유 버퍼를 해제한다") {
+                    val response = exchange()
+                    val pooled = NettyDataBufferFactory(
+                        PooledByteBufAllocator.DEFAULT,
+                    ).allocateBuffer().write("[1,".toByteArray())
+                    val emitted = mutableListOf<String>()
+                    response.response.setWriteHandler { body ->
+                        body.take(emittedCount).doOnNext {
+                            emitted += it.toString(Charsets.UTF_8)
+                            DataBufferUtils.release(it)
+                        }.then()
+                    }
+                    val source = Flux.concat(Mono.just(pooled), Flux.never<DataBuffer>())
 
-                    body.get("message").asString() shouldBe "OK"
-                    body.get("data").get("reason").asString() shouldBe "유지할 값"
-                }
+                    respond(response, body = source)
 
-                it("code가 숫자가 아니면 본문 전체를 data로 감싼다") {
-                    val body = bodyOf(
-                        respondWith(HttpStatus.OK, """{"status":"ACTIVE","code":"A-1","message":"정상"}"""),
-                    )
-
-                    body.get("code").asInt() shouldBe 200
-                    body.get("data").get("code").asString() shouldBe "A-1"
-                }
-
-                it("status와 code가 서로 맞지 않으면 본문 전체를 data로 감싼다") {
-                    val body = bodyOf(
-                        respondWith(HttpStatus.OK, """{"status":"200 OK","code":404,"message":"안내"}"""),
-                    )
-
-                    body.get("code").asInt() shouldBe 200
-                    body.get("data").get("code").asInt() shouldBe 404
+                    emitted.size shouldBe emittedCount.toInt()
+                    emitted.first().endsWith("\"data\":") shouldBe true
+                    pooled.nativeBuffer.refCnt() shouldBe 0
+                    registry.find(
+                        "gateway.response.wrapper.requests",
+                    ).tag("outcome", "cancelled").counter()?.count() shouldBe
+                        1.0
                 }
             }
 
-            context("감싸지 않은 오류 본문을 받으면") {
-                it("message를 공통 오류 응답으로 옮긴다") {
-                    val body = bodyOf(respondWith(HttpStatus.FORBIDDEN, """{"message":"권한이 없습니다."}"""))
-
-                    body.get("status").asString() shouldBe "403 FORBIDDEN"
-                    body.get("message").asString() shouldBe "권한이 없습니다."
-                    body.has("data") shouldBe false
+            it("중간 전송 오류를 정상 JSON 종료로 숨기지 않고 버퍼를 해제한다") {
+                val response = exchange()
+                val pooled = NettyDataBufferFactory(
+                    PooledByteBufAllocator.DEFAULT,
+                ).allocateBuffer().write("[1,".toByteArray())
+                val emitted = mutableListOf<String>()
+                response.response.setWriteHandler { body ->
+                    body.doOnNext {
+                        emitted += it.toString(Charsets.UTF_8)
+                        DataBufferUtils.release(it)
+                    }.then()
                 }
+
+                shouldThrow<IllegalStateException> {
+                    respond(
+                        response,
+                        body = Flux.concat(Mono.just(pooled), Mono.error(IllegalStateException("upstream failed"))),
+                    )
+                }
+
+                emitted.size shouldBe 2
+                emitted.last() shouldBe "[1,"
+                pooled.nativeBuffer.refCnt() shouldBe 0
+                registry.find("gateway.response.wrapper.requests").tag("outcome", "error").counter()?.count() shouldBe
+                    1.0
+            }
+        }
+
+        describe("오류 응답은") {
+            it("실제 HTTP 상태와 오류 메시지 및 data를 사용한다") {
+                val response = exchange()
+                respond(
+                    response,
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    body = jsonBody(
+                        """{"status":"200 OK","code":200,"message":"점검 중입니다.","data":{"retryAfterSeconds":3}}""",
+                    ),
+                )
+
+                val result = parsed(response)
+                result.get("status").asString() shouldBe "503 SERVICE_UNAVAILABLE"
+                result.get("code").asInt() shouldBe 503
+                result.get("message").asString() shouldBe "점검 중입니다."
+                result.get("data").get("retryAfterSeconds").asInt() shouldBe 3
+            }
+
+            for (body in listOf("""{"error":"권한이 없습니다."}""", "\"권한이 없습니다.\"", "권한이 없습니다.")) {
+                it("오류 메시지 $body 를 공통 응답으로 정리한다") {
+                    val response = exchange()
+                    respond(response, HttpStatus.FORBIDDEN, MediaType.TEXT_PLAIN, body = jsonBody(body))
+                    parsed(response).get("message").asString() shouldBe "권한이 없습니다."
+                    parsed(response).has("data") shouldBe false
+                }
+            }
+
+            it("오류 본문 한도를 넘으면 원문 대신 같은 상태의 공통 오류를 반환하고 버퍼를 해제한다") {
+                filter = ApiResponseWrapperFilter(
+                    mapper,
+                    ApiResponseWrapperProperties().apply { maxErrorBodySize = DataSize.ofBytes(16) },
+                    ApiResponseWrapperMetrics(registry),
+                )
+                val response = exchange()
+                val pooled = NettyDataBufferFactory(
+                    PooledByteBufAllocator.DEFAULT,
+                ).allocateBuffer().write("x".repeat(17).toByteArray())
+
+                respond(response, HttpStatus.BAD_GATEWAY, body = Mono.just(pooled))
+
+                parsed(response).get("code").asInt() shouldBe 502
+                parsed(response).get("message").asString() shouldBe "Bad Gateway"
+                pooled.nativeBuffer.refCnt() shouldBe 0
+                registry.find(
+                    "gateway.response.wrapper.requests",
+                ).tag("outcome", "error_body_too_large").counter()?.count() shouldBe
+                    1.0
+            }
+
+            for (writeEmpty in listOf(false, true)) {
+                it("본문 없는 429를 공통 오류로 채운다: writeWith=$writeEmpty") {
+                    val response = exchange()
+                    filter.filter(
+                        response,
+                        WebFilterChain { forwarded ->
+                            forwarded.response.statusCode = HttpStatus.TOO_MANY_REQUESTS
+                            if (writeEmpty) {
+                                forwarded.response.writeWith(
+                                    Flux.empty(),
+                                )
+                            } else {
+                                forwarded.response.setComplete()
+                            }
+                        },
+                    ).block()
+                    parsed(response).get("message").asString() shouldBe "요청이 너무 많습니다. 잠시 후 다시 시도하십시오."
+                }
+            }
+        }
+
+        describe("래핑 제외 응답은") {
+            for (path in listOf(
+                "/api/storage/teams/object",
+                "/v3/api-docs/roadmap",
+                "/internal/deployment-state",
+                "/api/chat/graphql",
+            )) {
+                it("$path 의 본문과 길이를 유지한다") {
+                    val response = exchange(path)
+                    respond(response, contentLength = 2, body = jsonBody("{}"))
+                    response.response.bodyAsString.block() shouldBe "{}"
+                    response.response.headers.contentLength shouldBe 2L
+                }
+            }
+            for (status in listOf(HttpStatus.OK, HttpStatus.NO_CONTENT, HttpStatus.NOT_MODIFIED)) {
+                it("본문 없는 $status 에 data를 만들지 않는다") {
+                    val response = exchange()
+                    respond(response, status, body = Flux.empty())
+                    response.response.bodyAsString.block() shouldBe ""
+                }
+            }
+            it("HEAD 오류 응답에 본문을 만들지 않는다") {
+                val response = MockServerWebExchange.from(MockServerHttpRequest.head("/api/roadmap/roadmaps/1/tree"))
+                filter.filter(
+                    response,
+                    WebFilterChain { forwarded ->
+                        forwarded.response.statusCode = HttpStatus.NOT_FOUND
+                        forwarded.response.setComplete()
+                    },
+                ).block()
+                response.response.bodyAsString.block() shouldBe ""
+            }
+            it("SSE flush 경계를 유지한다") {
+                val response = exchange("/api/notification/notifications/stream")
+                filter.filter(
+                    response,
+                    WebFilterChain { forwarded ->
+                        forwarded.response.headers.contentType = MediaType.TEXT_EVENT_STREAM
+                        forwarded.response.writeAndFlushWith(Flux.just(jsonBody("data: hello\n\n")))
+                    },
+                ).block()
+                response.response.bodyAsString.block() shouldBe "data: hello\n\n"
             }
         }
     })
