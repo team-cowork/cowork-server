@@ -17,6 +17,7 @@ import {
 } from '../repository/index.js';
 import {type Nullable} from '../../common/type/nullable.js';
 import {buildMessageIndexDoc} from './message-index-scope.js';
+import {tombstoneRetentionDays} from './message-search-deletion.service.js';
 
 const SCAN_BATCH_SIZE = 500;
 /**
@@ -77,10 +78,14 @@ export class MessageSearchRebuildError extends Error {}
  모든 쓰기는 메시지별 단조 증가 버전을 외부 버전으로 사용하므로, 스캔이 읽은 오래된 문서가
  재구축 중 발생한 최신 변경을 덮어쓰지 않는다.
  */
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 type CatchUpProgress = {
 	applied: number;
 	tombstones: number;
 	watermark: Date;
+	// 마지막 회차가 시간 예산 안에 창을 모두 비웠는지. 비우지 못한 index를 승격하면 반영 안 된 삭제가 검색에 남는다.
+	completed: boolean;
 };
 
 type CatchUpWindow = {
@@ -119,6 +124,11 @@ export class MessageSearchRebuilder {
 		try {
 			const scanned = await this.scanAll(index, cursor, lockId);
 			const catchUp = await this.catchUp(index, new Date(startedAt.getTime() - CATCH_UP_SKEW_MS), CATCH_UP_ROUNDS, lockId);
+			// 승격 뒤 catch-up은 이미 alias가 바뀐 뒤라 미완료여도 되돌리지 않는다. 남은 변경은 색인 아웃박스가 반영한다.
+			if (!catchUp.completed) {
+				throw new MessageSearchRebuildError('search index rebuild catch-up did not drain within its rounds; the alias was not promoted');
+			}
+
 			const verification = await this.verify(index);
 
 			await this.renewLock(lockId);
@@ -160,8 +170,12 @@ export class MessageSearchRebuilder {
 		if (isResume) {
 			const state = await this.stateRepository.get();
 			const previous = state?.lastRebuildIndex;
+			const previousStartedAt = state?.lastRebuildStartedAt;
+			// 중단 전에 스캔한 문서의 삭제는 tombstone으로만 따라잡을 수 있으므로, tombstone이 남아 있는 기간에만 재개한다.
 			if (
 				(previous !== null && previous !== undefined)
+				&& (previousStartedAt !== null && previousStartedAt !== undefined)
+				&& Date.now() - previousStartedAt.getTime() < tombstoneRetentionDays() * DAY_MS
 				&& isManagedMessageIndex(previous)
 				&& !(await this.isAliasTarget(previous))
 				&& await this.elasticsearchService.indexExists(previous)
@@ -170,8 +184,8 @@ export class MessageSearchRebuilder {
 				return {
 					index: previous,
 					cursor: state?.lastRebuildScanCursor === null || state?.lastRebuildScanCursor === undefined ? null : new Types.ObjectId(state.lastRebuildScanCursor),
-					// 중단 전에 스캔한 문서도 중단 동안 바뀌었을 수 있으므로 처음 시작 시각부터 따라잡는다. 기준이 없으면 가장 이른 시각부터 따라잡는다.
-					startedAt: state?.lastRebuildStartedAt ?? new Date(0),
+					// 중단 전에 스캔한 문서도 중단 동안 바뀌었을 수 있으므로 처음 시작 시각부터 따라잡는다.
+					startedAt: previousStartedAt,
 				};
 			}
 
@@ -235,8 +249,9 @@ export class MessageSearchRebuilder {
 
 		const nextScanned = scanned + batch.length;
 		const nextCursor = batch.at(-1)!._id;
-		await this.stateRepository.saveRebuildScanCursor(nextCursor.toString());
+		// 락을 잃은 재구축이 새 소유자의 재개 위치를 덮어쓰지 않도록 커서보다 락을 먼저 확인한다.
 		await this.renewLock(lockId);
+		await this.stateRepository.saveRebuildScanCursor(nextCursor.toString());
 		this.logger.log(`Search index rebuild scanned=${nextScanned} index=${index}`);
 		return this.scanFrom(index, nextCursor, nextScanned, lockId);
 	}
@@ -252,7 +267,9 @@ export class MessageSearchRebuilder {
      건너뛰게 되므로, 같은 기준점으로 다음 회차를 다시 시도한다.
      */
 	private async catchUp(index: string, since: Date, rounds: number, lockId: string): Promise<CatchUpProgress> {
-		return this.catchUpRound({index, lockId}, {applied: 0, tombstones: 0, watermark: since}, 0, rounds);
+		return this.catchUpRound({index, lockId}, {
+			applied: 0, tombstones: 0, watermark: since, completed: false,
+		}, 0, rounds);
 	}
 
 	/**
@@ -274,10 +291,14 @@ export class MessageSearchRebuilder {
 
 		if (!tombstoneResult.completed || !reindexResult.completed) {
 			this.logger.warn(`Search index rebuild catch-up round=${round + 1} did not drain within its time budget, retrying the same window`);
-			return this.catchUpRound(run, {applied, tombstones, watermark: progress.watermark}, round + 1, rounds);
+			return this.catchUpRound(run, {
+				applied, tombstones, watermark: progress.watermark, completed: false,
+			}, round + 1, rounds);
 		}
 
-		const next = {applied, tombstones, watermark: roundStartedAt};
+		const next = {
+			applied, tombstones, watermark: roundStartedAt, completed: true,
+		};
 		if (reindexResult.applied + tombstoneResult.replayed <= CATCH_UP_CONVERGED_THRESHOLD) {
 			return next;
 		}
