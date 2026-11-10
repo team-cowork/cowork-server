@@ -112,6 +112,23 @@ func TestWebhookAuthenticationAndEnvelope(t *testing.T) {
 		})
 	}
 }
+
+func TestUnsubscribedEventsAreIgnoredAfterAuthentication(t *testing.T) {
+	for _, kind := range []string{"club.updated", "project.updated", "student.created", "ping"} {
+		t.Run(kind, func(t *testing.T) {
+			inbox := &fakeWebhookInbox{}
+			svc := NewEventService(&config.AppConfig{DataGSMWebhookSecret: testSecret}, inbox)
+			body := []byte(`{"id":"ignored-event","event":"` + kind + `","timestamp":"2026-11-10T00:00:00Z","data":{"future_field":true}}`)
+			result, err := svc.ProcessEvent(context.Background(), body, sign(body))
+			if err != nil || result != domain.WebhookIgnored || inbox.calls != 0 {
+				t.Fatalf("result=%s err=%v writes=%d", result, err, inbox.calls)
+			}
+			if _, err = svc.ProcessEvent(context.Background(), body, "invalid"); !errors.Is(err, event.ErrInvalidSignature) {
+				t.Fatalf("ignored event bypassed signature verification: %v", err)
+			}
+		})
+	}
+}
 func TestWebhookHashPreservesStoredReceiptContract(t *testing.T) {
 	inbox := &fakeWebhookInbox{}
 	svc := NewEventService(&config.AppConfig{DataGSMWebhookSecret: testSecret}, inbox)
