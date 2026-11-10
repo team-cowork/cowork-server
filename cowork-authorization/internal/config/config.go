@@ -116,6 +116,9 @@ func parseRedirectURIs(raw string) ([]string, error) {
 	seen := make(map[string]bool)
 	for _, value := range strings.Split(raw, ",") {
 		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
 		u, err := url.Parse(value)
 		if err != nil || u.Scheme == "" || u.Host == "" || u.User != nil || u.Fragment != "" || u.RawQuery != "" ||
 			(u.Scheme == "http" && u.Hostname() != "localhost" && !net.ParseIP(u.Hostname()).IsLoopback()) ||
@@ -126,6 +129,9 @@ func parseRedirectURIs(raw string) ([]string, error) {
 			result = append(result, value)
 			seen[value] = true
 		}
+	}
+	if len(result) == 0 {
+		return nil, fmt.Errorf("DATAGSM_REDIRECT_URIS must contain at least one registered callback URL")
 	}
 	return result, nil
 }
