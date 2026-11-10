@@ -453,6 +453,7 @@
         "project.event.v2",
         "preference.team-role.state.v2",
         "preference.channel-role-policy.state.v2",
+        "preference.project-access.state.v1",
         "preference.channel-role-policy.command.v2",
         "preference.channel-role-policy.result.v2",
         "preference.channel-role-policy.result.v2-dlt"
