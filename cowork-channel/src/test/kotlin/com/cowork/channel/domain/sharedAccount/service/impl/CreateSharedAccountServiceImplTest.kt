@@ -24,7 +24,6 @@ import org.junit.jupiter.api.assertThrows
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
-import java.util.Optional
 
 class CreateSharedAccountServiceImplTest {
 
@@ -59,7 +58,7 @@ class CreateSharedAccountServiceImplTest {
 
     @Test
     fun `createAccount는 CUSTOM provider에 providerLabel이 없으면 BAD_REQUEST`() {
-        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { channelRepository.findByIdForUpdate(1L) } returns accountShareChannel()
         every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
 
         val ex = assertThrows<ExpectedException> {
@@ -79,7 +78,7 @@ class CreateSharedAccountServiceImplTest {
 
     @Test
     fun `createAccount는 credential을 암호화하여 저장함`() {
-        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { channelRepository.findByIdForUpdate(1L) } returns accountShareChannel()
         every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
         every { credentialEncryptionService.encrypt("plainPwd") } returns "encryptedPwd"
         every { credentialEncryptionService.decrypt("encryptedPwd") } returns "plainPwd"
@@ -106,7 +105,7 @@ class CreateSharedAccountServiceImplTest {
 
     @Test
     fun `createAccount는 credential이 null이면 암호화를 수행하지 않음`() {
-        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { channelRepository.findByIdForUpdate(1L) } returns accountShareChannel()
         every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
 
         val saved = slot<SharedAccount>()
@@ -129,7 +128,7 @@ class CreateSharedAccountServiceImplTest {
 
     @Test
     fun `createAccount는 같은 계정이 이미 등록되어 있으면 CONFLICT`() {
-        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { channelRepository.findByIdForUpdate(1L) } returns accountShareChannel()
         every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
         every { sharedAccountRepository.saveAndFlush(any<SharedAccount>()) } throws
             DataIntegrityViolationException(
@@ -153,7 +152,7 @@ class CreateSharedAccountServiceImplTest {
 
     @Test
     fun `createAccount는 unique 위반이 아닌 무결성 오류를 그대로 던짐`() {
-        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { channelRepository.findByIdForUpdate(1L) } returns accountShareChannel()
         every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
         val violation = DataIntegrityViolationException("Data too long for column 'account_identifier'")
         every { sharedAccountRepository.saveAndFlush(any<SharedAccount>()) } throws violation
