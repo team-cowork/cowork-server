@@ -83,50 +83,6 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	c.JSON(http.StatusOK, pair)
 }
 
-// Token godoc
-// Deprecated: use /auth/authorize and /auth/callback.
-// TODO(legacy-login): Remove this endpoint and its SDK compatibility path after the web and mobile implementations migrate to server-managed OAuth/OIDC.
-// TODO(legacy-login): Regenerate swagger/docs.go, swagger/swagger.json, and swagger/swagger.yaml with make swagger-gen when removing this endpoint and its request type.
-// @Summary 기존 클라이언트의 PKCE 코드 교환
-// @Description 클라이언트가 생성한 PKCE verifier와 인가 코드를 교환합니다. state 검증은 클라이언트가 담당합니다. redirect_uri는 서버 허용 목록 및 DataGSM 등록값과 일치해야 합니다.
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param body body CodeExchangeRequest true "PKCE 코드 교환 요청"
-// @Success 200 {object} apidoc.Success[service.TokenPair]
-// @Header 200 {string} Set-Cookie "WebSocket 인증 쿠키(cowork_ws_token, Path=/ws)"
-// @Failure 400 {object} apidoc.Error "잘못된 요청 또는 콜백 URL"
-// @Failure 401 {object} apidoc.Error "인증 실패"
-// @Failure 429 {object} apidoc.Error "요청 한도 초과"
-// @Failure 503 {object} apidoc.Error "인증 서비스 사용 불가"
-// @Router /auth/token [post]
-// @Deprecated
-func (h *AuthHandler) Token(c *gin.Context) {
-	c.Header("Cache-Control", "no-store")
-	c.Header("Pragma", "no-cache")
-	var req CodeExchangeRequest
-	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required fields"})
-		return
-	}
-	pair, err := h.authSvc.ExchangeCode(c.Request.Context(), req.Code, req.CodeVerifier, req.RedirectURI) //nolint:staticcheck // TODO(legacy-login): Remove this intentional compatibility call after web/mobile migration.
-	if err != nil {
-		log.Printf("legacy token exchange failed")
-		loginError(c, err)
-		return
-	}
-	setWsCookie(c, pair)
-	c.JSON(http.StatusOK, pair)
-}
-
-// Deprecated: use LoginStartRequest and LoginCallbackRequest.
-// TODO(legacy-login): Remove this request type with /auth/token after the web and mobile implementations migrate to server-managed OAuth/OIDC.
-type CodeExchangeRequest struct {
-	Code         string `json:"code" binding:"required"`
-	CodeVerifier string `json:"code_verifier" binding:"required"`
-	RedirectURI  string `json:"redirect_uri" binding:"required"`
-}
-
 type LoginCallbackRequest struct {
 	State string `json:"state" binding:"required"`
 	Code  string `json:"code"`
