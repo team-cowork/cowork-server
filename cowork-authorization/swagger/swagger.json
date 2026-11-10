@@ -264,71 +264,6 @@
                 }
             }
         },
-        "/auth/token": {
-            "post": {
-                "description": "클라이언트가 생성한 PKCE verifier와 인가 코드를 교환합니다. state 검증은 클라이언트가 담당합니다. redirect_uri는 서버 허용 목록 및 DataGSM 등록값과 일치해야 합니다.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "기존 클라이언트의 PKCE 코드 교환",
-                "deprecated": true,
-                "parameters": [
-                    {
-                        "description": "PKCE 코드 교환 요청",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/internal_handler.CodeExchangeRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_TokenPair"
-                        },
-                        "headers": {
-                            "Set-Cookie": {
-                                "type": "string",
-                                "description": "WebSocket 인증 쿠키(cowork_ws_token, Path=/ws)"
-                            }
-                        }
-                    },
-                    "400": {
-                        "description": "잘못된 요청 또는 콜백 URL",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
-                        }
-                    },
-                    "401": {
-                        "description": "인증 실패",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
-                        }
-                    },
-                    "429": {
-                        "description": "요청 한도 초과",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
-                        }
-                    },
-                    "503": {
-                        "description": "인증 서비스 사용 불가",
-                        "schema": {
-                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
-                        }
-                    }
-                }
-            }
-        },
         "/events/datagsm": {
             "post": {
                 "description": "서명한 이벤트 본문을 전송합니다(최대 1 MiB). 200은 접수를 뜻하며 학생 정보는 나중에 반영됩니다. 같은 ID와 내용은 중복으로 처리하고 내용이 다르면 충돌로 처리합니다. 발생한 지 30일 이상 지났거나 현재보다 5분을 초과해 앞선 이벤트는 처리하지 않습니다.",
@@ -538,25 +473,6 @@
                     "type": "string"
                 },
                 "token_type": {
-                    "type": "string"
-                }
-            }
-        },
-        "internal_handler.CodeExchangeRequest": {
-            "type": "object",
-            "required": [
-                "code",
-                "code_verifier",
-                "redirect_uri"
-            ],
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "code_verifier": {
-                    "type": "string"
-                },
-                "redirect_uri": {
                     "type": "string"
                 }
             }
