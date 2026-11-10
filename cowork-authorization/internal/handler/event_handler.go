@@ -11,6 +11,7 @@ import (
 	"github.com/cowork/authorization/internal/monitoring"
 	"github.com/cowork/authorization/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/tmp-it-play/datagsm-sdk-go/event"
 )
 
 const maxWebhookBodyBytes = 1 << 20
@@ -32,7 +33,7 @@ func NewEventHandler(eventSvc *service.EventService) *EventHandler {
 // @Accept       json
 // @Produce      json
 // @Param        X-DataGSM-Signature  header  string  true  "sha256=<HMAC-SHA256(secret, body)>"
-// @Param        body  body  object{id=string,event=string,timestamp=string,data=object}  true  "이벤트 ID, 종류, RFC 3339 발생 시각 및 데이터. student.updated는 data.new에 변경 항목을 담습니다."
+// @Param        body  body  object{id=string,event=string,timestamp=string,data=object}  true  "이벤트 ID, 종류, RFC 3339 발생 시각 및 데이터. data.old와 data.new는 같은 index로 변경 전후를 짝지으며 학생의 new.object는 비어 있을 수 없습니다."
 // @Success      200  {object}  apidoc.Success[WebhookReceipt]  "접수 상태: accepted, duplicate 또는 ignored"
 // @Failure      400  {object}  apidoc.Error  "잘못된 이벤트 형식 또는 발생 시각"
 // @Failure      401  {object}  apidoc.Error  "웹훅 서명 검증 실패"
@@ -50,13 +51,15 @@ func (h *EventHandler) DataGSMWebhook(c *gin.Context) {
 		webhookError(c, http.StatusRequestEntityTooLarge, "payload_too_large", "invalid")
 		return
 	}
-	if !h.eventSvc.VerifySignature(body, c.GetHeader("X-DataGSM-Signature")) {
+	if len(c.Request.Header.Values(event.SignatureHeader)) != 1 {
 		webhookError(c, http.StatusUnauthorized, "invalid_signature", "invalid")
 		return
 	}
-	result, err := h.eventSvc.ProcessEvent(c.Request.Context(), body)
+	result, err := h.eventSvc.ProcessEvent(c.Request.Context(), body, c.GetHeader(event.SignatureHeader))
 	if err != nil {
 		switch {
+		case errors.Is(err, event.ErrInvalidSignature):
+			webhookError(c, http.StatusUnauthorized, "invalid_signature", "invalid")
 		case errors.Is(err, domain.ErrInvalidWebhookPayload):
 			webhookError(c, http.StatusBadRequest, "invalid_payload", "invalid")
 		case errors.Is(err, domain.ErrWebhookExpired):
