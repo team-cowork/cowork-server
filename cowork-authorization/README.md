@@ -4,7 +4,7 @@
 
 DataGSM 로그인과 인증 토큰·로그인 세션을 관리합니다.
 
-- OAuth2 PKCE 로그인과 JWT 발급·갱신·로그아웃
+- OAuth2 PKCE·OIDC 로그인과 cowork JWT 발급/갱신/로그아웃
 - 사용자 계정·프로필 소유 서비스인 cowork-user에 로그인 정보 동기화 요청
 - DataGSM 사용자 변경 웹훅의 원자 접수·outbox 전달, Redis 대기열 소비와 온라인·오프라인 상태 발행
 
@@ -36,10 +36,13 @@ DataGSM 로그인과 인증 토큰·로그인 세션을 관리합니다.
 | `DB_PASSWORD`                                                 | MySQL 비밀번호. 개별 DB 입력 5개를 모두 지정하거나 `DB_DSN` 사용                                                                                        |
 | `DB_DSN`                                                      | 개별 DB 입력이 없을 때 사용하는 MySQL DSN                                                                                                         |
 | `DATAGSM_CLIENT_ID`                                           | OAuth client ID                                                                                                                               |
+| `DATAGSM_REDIRECT_URIS`                                       | 필수. DataGSM에 등록된 웹·모바일·데스크탑 콜백 URL을 쉼표로 구분한 허용 목록. [전환·폐기 절차](docs/datagsm-migration.md) 참고 |
+| `DATAGSM_AUTHORIZATION_BASE_URL`                              | 선택. 기본값 `https://oauth.authorization.datagsm.kr` |
+| `DATAGSM_RESOURCE_BASE_URL`                                   | 선택. 기본값 `https://oauth.resource.datagsm.kr` |
 | `JWT_SECRET`                                                  | JWT 서명 키                                                                                                                                      |
 | `DATAGSM_WEBHOOK_SECRET`                                      | Gateway와 공유하는 DataGSM webhook 검증 값. 새 키를 적용한 Authorization은 이전 키로 서명된 대기 항목을 `invalid`로 분류해 로그·지표 기록 후 삭제 |
-| `REDIS_HOST`                                                  | DataGSM webhook 대기열 Redis 접속 호스트. 운영에서는 Consul Envoy loopback 사용                                                                    |
-| `REDIS_PORT`                                                  | DataGSM webhook 대기열 Redis 접속 포트. 운영에서는 Consul Envoy loopback 사용                                                                     |
+| `REDIS_HOST`                                                  | 로그인 시도·DataGSM webhook 대기열 Redis 접속 호스트. 운영에서는 Consul Envoy loopback 사용                                                                    |
+| `REDIS_PORT`                                                  | 로그인 시도·DataGSM webhook 대기열 Redis 접속 포트. 운영에서는 Consul Envoy loopback 사용                                                                     |
 | `JWT_ACCESS_EXPIRE`                                           | Access JWT 유효기간                                                                                                                               |
 | `JWT_REFRESH_EXPIRE`                                          | Refresh JWT 유효기간                                                                                                                              |
 | `KAFKA_BOOTSTRAP_SERVERS`                                     | Kafka broker 목록                                                                                                                                 |
