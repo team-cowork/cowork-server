@@ -31,7 +31,7 @@ class WebhookService(
     suspend fun list(channelId: Long, requester: RequesterContext): JsonArray {
         authorize(channelId, requester)
         urlSigner.requireReady()
-        requireTextChannel(pool, channelId, lock = false)
+        requireTextChannel(pool, channelId, lock = false, writable = false)
         return JsonArray(repository.list(pool, channelId).map { withExecutionPath(it.response()) })
     }
 
@@ -158,7 +158,7 @@ class WebhookService(
         authorize(channelId, requester)
         outbox.inTransaction { connection ->
             authorize(channelId, requester, connection)
-            requireTextChannel(connection, channelId)
+            requireTextChannel(connection, channelId, writable = false)
             requireWebhook(connection, channelId, webhookId)
             val deleted = repository.delete(connection, webhookId)
             outbox.enqueue(connection, PreferenceEvents.webhookState(deleted, snapshot = false))
@@ -183,7 +183,13 @@ class WebhookService(
         accessGuard.requireSettingsManager(client, channelId, requester)
     }
 
-    private suspend fun requireTextChannel(client: SqlClient, channelId: Long, lock: Boolean = true) {
+    /** 조회와 삭제는 보관된 채널에서도 허용하고, 그 밖의 변경은 [writable]로 보관 여부를 확인한다. */
+    private suspend fun requireTextChannel(
+        client: SqlClient,
+        channelId: Long,
+        lock: Boolean = true,
+        writable: Boolean = true,
+    ) {
         val channel = if (lock) {
             channelRepository.findForUpdate(
                 client,
@@ -194,6 +200,7 @@ class WebhookService(
         }
         if (channel == null || channel.deleted) throw WebhookRequestException(404, "채널을 찾을 수 없습니다.")
         if (channel.channelType != "TEXT") throw WebhookRequestException(400, "TEXT 채널에서만 웹훅을 사용할 수 있습니다.")
+        if (writable && channel.archived) throw WebhookRequestException(409, "보관된 채널의 웹훅은 변경할 수 없습니다.")
     }
 
     private suspend fun requireWebhook(connection: SqlConnection, channelId: Long, webhookId: Long): Webhook =

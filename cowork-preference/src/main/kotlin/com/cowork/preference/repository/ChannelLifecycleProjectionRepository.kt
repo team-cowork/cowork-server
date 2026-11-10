@@ -17,13 +17,14 @@ class ChannelLifecycleProjectionRepository {
         val rows = client.preparedQuery(
             """
             INSERT INTO tb_channel_lifecycle_projections
-                (channel_id, team_id, deleted, is_private, source_occurred_at, channel_type)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6)
+                (channel_id, team_id, deleted, is_private, source_occurred_at, channel_type, archived)
+            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6, ${'$'}7)
             ON CONFLICT (channel_id)
             DO UPDATE SET
                 team_id = EXCLUDED.team_id,
                 deleted = EXCLUDED.deleted,
                 is_private = EXCLUDED.is_private,
+                archived = EXCLUDED.archived,
                 channel_type = COALESCE(EXCLUDED.channel_type, tb_channel_lifecycle_projections.channel_type),
                 source_occurred_at = EXCLUDED.source_occurred_at,
                 updated_at = now()
@@ -53,6 +54,7 @@ class ChannelLifecycleProjectionRepository {
                 event.isPrivate,
                 event.occurredAt.atOffset(ZoneOffset.UTC),
                 event.channelType,
+                event.archived,
             ),
         ).coAwait()
         return rows.rowCount() == 1
@@ -61,7 +63,7 @@ class ChannelLifecycleProjectionRepository {
     suspend fun findForUpdate(client: SqlClient, channelId: Long): ChannelLifecycleProjection? {
         val rows = client.preparedQuery(
             """
-            SELECT channel_id, team_id, deleted, is_private, source_occurred_at, channel_type
+            SELECT channel_id, team_id, deleted, is_private, source_occurred_at, channel_type, archived
             FROM tb_channel_lifecycle_projections
             WHERE channel_id = ${'$'}1
             FOR UPDATE
@@ -74,7 +76,7 @@ class ChannelLifecycleProjectionRepository {
     suspend fun findForRead(client: SqlClient, channelId: Long): ChannelLifecycleProjection? {
         val rows = client.preparedQuery(
             """
-            SELECT channel_id, team_id, deleted, is_private, source_occurred_at, channel_type
+            SELECT channel_id, team_id, deleted, is_private, source_occurred_at, channel_type, archived
             FROM tb_channel_lifecycle_projections
             WHERE channel_id = ${'$'}1
             """.trimIndent(),
@@ -88,6 +90,7 @@ class ChannelLifecycleProjectionRepository {
         deleted = getBoolean("deleted"),
         isPrivate = getBoolean("is_private"),
         channelType = getString("channel_type"),
+        archived = getBoolean("archived"),
         sourceOccurredAt = getOffsetDateTime("source_occurred_at").toInstant(),
     )
 }
