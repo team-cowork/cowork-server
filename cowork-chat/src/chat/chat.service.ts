@@ -654,13 +654,14 @@ export class ChatService {
      @returns 채널 ID, 상대 사용자 ID, 안읽음 수, 마지막 메시지 요약 목록
      */
 	async getMyDms(userId: number) {
+		this.channelMessageReadAccess.requireProjectionsReady();
 		const memberships = await this.dmParticipantRepository.findDmMemberships(userId);
+		this.channelMessageReadAccess.requireProjectionsReady();
 		if (memberships.length === 0) {
 			return [];
 		}
 
 		const readableChannelIds = new Set(await this.channelMessageReadAccess.filterReadableChannelIds(
-			0,
 			userId,
 			memberships.map(({channelId}) => channelId),
 		));
@@ -807,6 +808,7 @@ export class ChatService {
 		ctx: UserContext,
 	): Promise<SearchMessagesResponseDto> {
 		const isMember = await this.projectClient.canRead(projectId, ctx.userId);
+		this.channelMessageReadAccess.requireProjectionsReady();
 		if (!isMember) {
 			throw new ForbiddenException('프로젝트 접근 권한이 없습니다');
 		}
@@ -847,12 +849,13 @@ export class ChatService {
 		dto: SearchTeamMessagesDto,
 		ctx: UserContext,
 	): Promise<SearchMessagesResponseDto> {
+		let accessibleChannelIds = await this.channelMessageReadAccess.requireReadableTeamChannelIds(teamId, ctx.userId);
+
 		const isMember = await this.teamMemberRepository.exists(teamId, ctx.userId);
+		this.channelMessageReadAccess.requireProjectionsReady();
 		if (!isMember) {
 			throw new ForbiddenException('팀 접근 권한이 없습니다');
 		}
-
-		let accessibleChannelIds = await this.channelMessageReadAccess.requireReadableTeamChannelIds(teamId, ctx.userId);
 
 		if (dto.channelId !== undefined) {
 			if (!accessibleChannelIds.includes(dto.channelId)) {
@@ -1091,14 +1094,17 @@ export class ChatService {
 	}
 
 	async getTeamUnread(teamId: number, userId: number): Promise<Array<{channelId: number; unreadCount: number}>> {
-		if (!(await this.teamMemberRepository.exists(teamId, userId))) {
+		const readableChannelIds = await this.channelMessageReadAccess.requireReadableTeamChannelIds(teamId, userId);
+
+		const isMember = await this.teamMemberRepository.exists(teamId, userId);
+		this.channelMessageReadAccess.requireProjectionsReady();
+		if (!isMember) {
 			throw new ForbiddenException('팀 접근 권한이 없습니다');
 		}
 
 		// 보관된 채널은 목록에 없어 읽음 처리할 수 없으므로 팀 미읽음에서 제외한다.
-		const channelIds = await this.withoutArchivedChannels(
-			await this.channelMessageReadAccess.findReadableTeamChannelIds(teamId, userId),
-		);
+		const channelIds = await this.withoutArchivedChannels(readableChannelIds);
+		this.channelMessageReadAccess.requireProjectionsReady();
 		const unreadCounts = await this.getUnreadCounts(userId, channelIds);
 		return channelIds.map(channelId => ({channelId, unreadCount: unreadCounts.get(channelId) ?? 0}));
 	}
