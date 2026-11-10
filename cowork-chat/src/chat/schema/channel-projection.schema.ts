@@ -15,6 +15,10 @@ export class ChannelProjection {
 	@prop({type: String, default: null}) description!: Nullable<string>;
 	@prop({required: true, default: false}) isPrivate!: boolean;
 	@prop({required: true, default: 0}) position!: number;
+	/**
+	보관된 채널은 읽기 전용이다. 필드가 없던 이벤트와 기존 문서는 활성 채널이다.
+	*/
+	@prop({required: true, default: false}) archived!: boolean;
 	@prop({required: true, default: false}) deleted!: boolean;
 	@prop({required: true, type: Date}) sourceOccurredAt!: Date;
 	@prop({required: true}) sourceVersion!: bigint;

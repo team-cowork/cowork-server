@@ -22,6 +22,7 @@ export type ChannelProjectionView = {
 	description: Nullable<string>;
 	isPrivate: boolean;
 	position: number;
+	archived?: boolean;
 };
 
 export type ChannelProjectionState = {
@@ -90,6 +91,7 @@ export class ChannelProjectionRepository {
 			description,
 			isPrivate,
 			position,
+			archived,
 			occurredAt,
 			sourceVersion,
 		} = event;
@@ -111,6 +113,7 @@ export class ChannelProjectionRepository {
 					},
 					isPrivate: {$cond: [applyCondition, isPrivate, {$ifNull: ['$isPrivate', false]}]},
 					position: {$cond: [applyCondition, position, {$ifNull: ['$position', 0]}]},
+					archived: {$cond: [applyCondition, archived === true, {$ifNull: ['$archived', false]}]},
 					deleted: {$cond: [applyCondition, false, {$ifNull: ['$deleted', false]}]},
 					sourceOccurredAt: {
 						$cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
@@ -139,6 +142,7 @@ export class ChannelProjectionRepository {
 					description: {$ifNull: ['$description', null]},
 					isPrivate: {$ifNull: ['$isPrivate', false]},
 					position: {$ifNull: ['$position', 0]},
+					archived: {$ifNull: ['$archived', false]},
 					deleted: {$cond: [applyCondition, true, {$ifNull: ['$deleted', false]}]},
 					sourceOccurredAt: {
 						$cond: [applyCondition, occurredAt, {$ifNull: ['$sourceOccurredAt', PROJECTION_EPOCH]}],
