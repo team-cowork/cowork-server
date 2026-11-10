@@ -132,6 +132,8 @@ public class ContractTests
 {
     static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement;
 
+    // TODO(legacy-identity-topic): Migrate active-contract fixtures and v1/v2 parser assertions when v1 is retired;
+    // retain historical hash fixtures while persisted inbox rows still require their hash versions.
     const string IdentityCommand = """
         {"schemaVersion":1,"operationId":"0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11","idempotencyKey":"login:7",
          "commandType":"UPSERT","userId":7,"name":"김코워크","email":"kim@gsm.hs.kr","sex":"MAN","grade":2,
@@ -156,21 +158,36 @@ public class ContractTests
     }
 
     [Fact]
+    public void Nullable_major_is_allowed_only_on_the_v2_identity_contract()
+    {
+        var nullable = IdentityCommand.Replace("\"major\":\"SW_DEVELOPMENT\"", "\"major\":null");
+        Assert.Null(IdentityCommandContract.Parse(Json(nullable), "7", schemaVersion: 1));
+        var v2 = nullable.Replace("\"schemaVersion\":1", "\"schemaVersion\":2");
+        var command = IdentityCommandContract.Parse(Json(v2), "7", schemaVersion: 2);
+        Assert.NotNull(command);
+        Assert.Null(command.Major);
+        Assert.Contains("\"major\":null", IdentityCommandContract.CanonicalPayload(command));
+        Assert.Contains("\"schemaVersion\":2", IdentityCommandContract.CanonicalPayload(command));
+        Assert.Null(IdentityCommandContract.Parse(Json(v2), "7", schemaVersion: 1));
+        Assert.Null(IdentityCommandContract.Parse(Json(nullable), "7", schemaVersion: 2));
+    }
+
+    [Fact]
     public void Identity_command_hash_input_identifies_the_command_regardless_of_timestamp_form()
     {
-        var original = IdentityCommandContract.CanonicalPayload(IdentityCommandContract.Parse(Json(IdentityCommand), "7")!);
+        var original = IdentityCommandContract.CanonicalPayload(IdentityCommandContract.Parse(Json(IdentityCommand), "7", schemaVersion: 1)!);
         var sameInstant = IdentityCommand.Replace("2026-10-18T10:00:00.120+09:00", "2026-10-18T01:00:00.12Z");
-        Assert.Equal(original, IdentityCommandContract.CanonicalPayload(IdentityCommandContract.Parse(Json(sameInstant), "7")!));
+        Assert.Equal(original, IdentityCommandContract.CanonicalPayload(IdentityCommandContract.Parse(Json(sameInstant), "7", schemaVersion: 1)!));
         Assert.Contains("\"occurredAt\":\"2026-10-18T01:00:00.120000Z\"", original);
 
         var renamed = IdentityCommand.Replace("김코워크", "박코워크");
-        Assert.NotEqual(original, IdentityCommandContract.CanonicalPayload(IdentityCommandContract.Parse(Json(renamed), "7")!));
+        Assert.NotEqual(original, IdentityCommandContract.CanonicalPayload(IdentityCommandContract.Parse(Json(renamed), "7", schemaVersion: 1)!));
     }
 
     [Fact]
     public void Legacy_identity_command_hash_input_matches_what_the_previous_runtime_stored()
     {
-        var command = IdentityCommandContract.Parse(Json(IdentityCommand), "7")!;
+        var command = IdentityCommandContract.Parse(Json(IdentityCommand), "7", schemaVersion: 1)!;
         Assert.Equal(
             """{"classNumber":1,"commandType":"UPSERT","dataGSMStudentId":42,"email":"kim@gsm.hs.kr","githubId":null,"grade":2,"idempotencyKey":"login:7","major":"SW_DEVELOPMENT","name":"김코워크","occurredAt":"2026-10-18T01:00:00.120Z","operationId":"0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11","requestedBy":7,"role":"GENERAL_STUDENT","schemaVersion":1,"sex":"MAN","studentNumberInClass":5,"userId":7}""",
             IdentityCommandContract.LegacyCanonicalPayload(command));
@@ -182,7 +199,7 @@ public class ContractTests
         // Emoji, U+2028 and U+007F stay raw; only quotes, backslashes and control characters are escaped.
         var name = "😀" + (char)0x2028 + (char)0x7f + (char)34 + "q" + (char)1;
         var payload = IdentityCommand.Replace("김코워크", JsonSerializer.Serialize(name)[1..^1]);
-        var canonical = IdentityCommandContract.LegacyCanonicalPayload(IdentityCommandContract.Parse(Json(payload), "7")!);
+        var canonical = IdentityCommandContract.LegacyCanonicalPayload(IdentityCommandContract.Parse(Json(payload), "7", schemaVersion: 1)!);
         var expected = string.Concat("😀", (char)0x2028, (char)0x7f, (char)92, (char)34, "q", (char)92, "u0001");
         Assert.Contains(string.Concat((char)34, "name", (char)34, ":", (char)34, expected, (char)34), canonical);
     }
@@ -190,9 +207,9 @@ public class ContractTests
     [Fact]
     public void Stored_identity_command_hashes_are_checked_with_the_rule_they_were_written_under()
     {
-        var command = IdentityCommandContract.Parse(Json(IdentityCommand), "7")!;
-        var again = IdentityCommandContract.Parse(Json(IdentityCommand), "7")!;
-        var renamed = IdentityCommandContract.Parse(Json(IdentityCommand.Replace("김코워크", "박코워크")), "7")!;
+        var command = IdentityCommandContract.Parse(Json(IdentityCommand), "7", schemaVersion: 1)!;
+        var again = IdentityCommandContract.Parse(Json(IdentityCommand), "7", schemaVersion: 1)!;
+        var renamed = IdentityCommandContract.Parse(Json(IdentityCommand.Replace("김코워크", "박코워크")), "7", schemaVersion: 1)!;
         foreach (var version in new long[] { 1, IdentityCommandContract.HashVersion })
         {
             Assert.Equal(IdentityCommandHandler.HashFor(version, command), IdentityCommandHandler.HashFor(version, again));
@@ -207,13 +224,13 @@ public class ContractTests
     [InlineData("8", IdentityCommand)]
     [InlineData("7", """{"schemaVersion":1}""")]
     public void Identity_command_rejects_mismatched_keys_and_shapes(string key, string payload) =>
-        Assert.Null(IdentityCommandContract.Parse(Json(payload), key));
+        Assert.Null(IdentityCommandContract.Parse(Json(payload), key, schemaVersion: 1));
 
     [Fact]
     public void Identity_command_rejects_non_canonical_operation_ids()
     {
         var upper = IdentityCommand.Replace("0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11", "0B0F4C8E-6F0E-4A8E-9D3B-1F0C2A9B7C11");
-        Assert.Null(IdentityCommandContract.Parse(Json(upper), "7"));
+        Assert.Null(IdentityCommandContract.Parse(Json(upper), "7", schemaVersion: 1));
         Assert.Null(IdentityCommandContract.CorrelationOperationId(Json(upper)));
         Assert.Equal("0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11", IdentityCommandContract.CorrelationOperationId(Json(IdentityCommand)));
     }

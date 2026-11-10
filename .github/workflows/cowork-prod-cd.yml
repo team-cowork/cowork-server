@@ -189,6 +189,7 @@ jobs:
           GH_VARIABLE_COWORK_GITHUB_APP_ID: ${{ contains(matrix.variable_names, 'COWORK_GITHUB_APP_ID') && vars.COWORK_GITHUB_APP_ID || '' }}
           GH_VARIABLE_COWORK_GITHUB_APP_SLUG: ${{ contains(matrix.variable_names, 'COWORK_GITHUB_APP_SLUG') && vars.COWORK_GITHUB_APP_SLUG || '' }}
           GH_VARIABLE_DATAGSM_CLIENT_ID: ${{ contains(matrix.variable_names, 'DATAGSM_CLIENT_ID') && vars.DATAGSM_CLIENT_ID || '' }}
+          GH_VARIABLE_DATAGSM_REDIRECT_URIS: ${{ contains(matrix.variable_names, 'DATAGSM_REDIRECT_URIS') && vars.DATAGSM_REDIRECT_URIS || '' }}
           GH_VARIABLE_DB_NAME: ${{ contains(matrix.variable_names, 'DB_NAME') && vars.DB_NAME || '' }}
           GH_VARIABLE_DB_USERNAME: ${{ contains(matrix.variable_names, 'DB_USERNAME') && vars.DB_USERNAME || '' }}
           GH_VARIABLE_FACEBOOK_ACCOUNT_SHARE_CLIENT_ID: ${{ contains(matrix.variable_names, 'FACEBOOK_ACCOUNT_SHARE_CLIENT_ID') && vars.FACEBOOK_ACCOUNT_SHARE_CLIENT_ID || '' }}

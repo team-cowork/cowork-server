@@ -3,21 +3,18 @@ package service
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/tmp-it-play/datagsm-sdk-go/event"
 )
 
-type WebhookEvent struct {
-	ID        string          `json:"id"`
-	Event     string          `json:"event"`
-	Timestamp string          `json:"timestamp"`
-	Data      json.RawMessage `json:"data"`
-}
-
+// Keep this projection stable: existing inbox hashes use these fields and their order.
 type studentEventData struct {
 	StudentID     int64   `json:"student_id"`
 	Name          string  `json:"name"`
@@ -51,83 +48,49 @@ type userSyncMessage struct {
 	DataGSMRefID  int64   `json:"datagsm_student_id"`
 }
 
-func parseWebhookEnvelope(body []byte) (WebhookEvent, time.Time, error) {
-	var envelope WebhookEvent
-	if !utf8.Valid(body) || uniqueJSONKeys(body) != nil {
-		return envelope, time.Time{}, ErrInvalidPayload
-	}
-	if decodeKnownObject(body, &envelope, "id", "event", "timestamp", "data") != nil ||
-		!requiredString(envelope.ID, 255) || len(envelope.ID) > 255 || strings.TrimSpace(envelope.ID) != envelope.ID ||
-		!requiredString(envelope.Event, 64) {
-		return envelope, time.Time{}, ErrInvalidPayload
-	}
-	occurredAt, err := time.Parse(time.RFC3339Nano, envelope.Timestamp)
-	if err != nil || occurredAt.Year() < 1000 || occurredAt.Year() > 9999 {
-		return envelope, time.Time{}, ErrInvalidPayload
-	}
-	return envelope, occurredAt.UTC(), nil
-}
-
-// decodeKnownObject selects exact, case-sensitive provider field names. Unknown
-// metadata is ignored; encoding/json's case-insensitive struct matching is not
-// allowed to reinterpret another field as an identity or a business value.
-func decodeKnownObject(raw []byte, target any, names ...string) error {
-	var fields map[string]json.RawMessage
-	if json.Unmarshal(raw, &fields) != nil || fields == nil {
-		return ErrInvalidPayload
-	}
-	selected := make(map[string]json.RawMessage, len(names))
-	for _, name := range names {
-		if value, ok := fields[name]; ok {
-			selected[name] = value
+func parseProviderEvent(body []byte, signature, secret string) (*event.Event, error) {
+	received, err := event.Parse(body, signature, secret)
+	if err != nil {
+		if errors.Is(err, event.ErrInvalidSignature) {
+			return nil, err
 		}
-	}
-	encoded, err := json.Marshal(selected)
-	if err != nil || json.Unmarshal(encoded, target) != nil {
-		return ErrInvalidPayload
-	}
-	return nil
-}
-
-func parseStudentItems(raw []byte) ([]studentItem, error) {
-	var data struct {
-		New []json.RawMessage `json:"new"`
-	}
-	if uniqueJSONKeys(raw) != nil || decodeKnownObject(raw, &data, "new") != nil || len(data.New) == 0 {
 		return nil, ErrInvalidPayload
 	}
-	items := make([]studentItem, 0, len(data.New))
-	indices := make(map[int64]struct{}, len(data.New))
-	students := make(map[int64]struct{}, len(data.New))
-	for _, rawItem := range data.New {
-		var item struct {
-			Index  *int64          `json:"index"`
-			Object json.RawMessage `json:"object"`
-		}
-		if decodeKnownObject(rawItem, &item, "index", "object") != nil || item.Index == nil || *item.Index < 0 {
+	if !utf8.Valid(body) || uniqueJSONKeys(body) != nil || !requiredString(received.ID, 255) ||
+		len(received.ID) > 255 || strings.TrimSpace(received.ID) != received.ID ||
+		received.Timestamp.Year() < 1000 || received.Timestamp.Year() > 9999 {
+		return nil, ErrInvalidPayload
+	}
+	return received, nil
+}
+
+func studentItems(received *event.Event) ([]studentItem, error) {
+	changes, err := event.Changes[event.Student](received)
+	if err != nil || len(changes) == 0 {
+		return nil, ErrInvalidPayload
+	}
+	items := make([]studentItem, 0, len(changes))
+	students := make(map[int64]bool, len(changes))
+	for _, change := range changes {
+		if change.New == nil {
 			return nil, ErrInvalidPayload
 		}
-		if _, exists := indices[*item.Index]; exists {
+		st := change.New
+		student := studentEventData{StudentID: st.ID, Name: st.Name, Email: st.Email,
+			Sex: string(st.Sex), Role: string(st.Role), Specialty: st.Specialty, GithubID: st.GitHubID}
+		if st.StudentNumber != nil {
+			n := int64(*st.StudentNumber)
+			student.StudentNumber = &n
+		}
+		if st.Major != nil {
+			major := string(*st.Major)
+			student.Major = &major
+		}
+		if !validStudent(student) || students[st.ID] {
 			return nil, ErrInvalidPayload
 		}
-		indices[*item.Index] = struct{}{}
-		var object map[string]json.RawMessage
-		if json.Unmarshal(item.Object, &object) != nil || object == nil {
-			return nil, ErrInvalidPayload
-		}
-		if len(object) == 0 {
-			items = append(items, studentItem{Index: *item.Index})
-			continue
-		}
-		var student studentEventData
-		if decodeKnownObject(item.Object, &student, "student_id", "name", "email", "sex", "role", "student_number", "major", "specialty", "github_id") != nil || !validStudent(student) {
-			return nil, ErrInvalidPayload
-		}
-		if _, exists := students[student.StudentID]; exists {
-			return nil, ErrInvalidPayload
-		}
-		students[student.StudentID] = struct{}{}
-		items = append(items, studentItem{Index: *item.Index, Object: &student})
+		students[st.ID] = true
+		items = append(items, studentItem{Index: int64(change.Index), Object: &student})
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].Index < items[j].Index })
 	return items, nil
@@ -147,7 +110,7 @@ func validStudent(student studentEventData) bool {
 		optionalString(student.Major, 50) && optionalString(student.Specialty, 255) && optionalString(student.GithubID, 100)
 }
 
-func studentMessages(envelope WebhookEvent, items []studentItem) []userSyncMessage {
+func studentMessages(envelope *event.Event, items []studentItem) []userSyncMessage {
 	messages := make([]userSyncMessage, 0, len(items))
 	for _, item := range items {
 		student := item.Object
@@ -155,7 +118,7 @@ func studentMessages(envelope WebhookEvent, items []studentItem) []userSyncMessa
 			continue
 		}
 		messages = append(messages, userSyncMessage{
-			EventType: envelope.Event, EventID: envelope.ID, EventIndex: item.Index, OccurredAt: envelope.Timestamp,
+			EventType: string(envelope.Type), EventID: envelope.ID, EventIndex: item.Index, OccurredAt: envelope.Timestamp.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano),
 			Email: student.Email, Name: student.Name, Sex: student.Sex, StudentRole: student.Role,
 			StudentNumber: student.StudentNumber, Major: student.Major, Specialty: student.Specialty,
 			GithubID: student.GithubID, DataGSMRefID: student.StudentID,
@@ -206,6 +169,13 @@ func readJSONValue(decoder *json.Decoder, depth int) error {
 			}
 			if _, exists := seen[key]; exists {
 				return ErrInvalidPayload
+			}
+			// encoding/json accepts case-insensitive aliases; provider identity fields are exact.
+			switch strings.ToLower(key) {
+			case "id", "event", "timestamp", "data", "old", "new", "index", "object", "student_id", "name", "email", "sex", "role", "student_number", "major", "specialty", "github_id":
+				if key != strings.ToLower(key) {
+					return ErrInvalidPayload
+				}
 			}
 			seen[key] = struct{}{}
 			if err := readJSONValue(decoder, depth+1); err != nil {
