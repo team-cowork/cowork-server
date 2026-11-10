@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"sort"
 	"strconv"
@@ -48,25 +49,16 @@ type userSyncMessage struct {
 }
 
 func parseProviderEvent(body []byte, signature, secret string) (*event.Event, error) {
-	if err := event.VerifySignature(body, signature, secret); err != nil {
-		return nil, err
-	}
-	var envelope struct {
-		ID        string     `json:"id"`
-		Type      event.Type `json:"event"`
-		Timestamp time.Time  `json:"timestamp"`
-	}
-	if !utf8.Valid(body) || uniqueJSONKeys(body) != nil || json.Unmarshal(body, &envelope) != nil ||
-		!requiredString(envelope.ID, 255) || len(envelope.ID) > 255 || strings.TrimSpace(envelope.ID) != envelope.ID ||
-		!requiredString(string(envelope.Type), 64) || envelope.Timestamp.Year() < 1000 || envelope.Timestamp.Year() > 9999 {
-		return nil, ErrInvalidPayload
-	}
-	// Unsubscribed event payloads may use schemas this SDK version does not know.
-	if envelope.Type != event.StudentUpdated {
-		return &event.Event{ID: envelope.ID, Type: envelope.Type, Timestamp: envelope.Timestamp}, nil
-	}
 	received, err := event.Parse(body, signature, secret)
 	if err != nil {
+		if errors.Is(err, event.ErrInvalidSignature) {
+			return nil, err
+		}
+		return nil, ErrInvalidPayload
+	}
+	if !utf8.Valid(body) || uniqueJSONKeys(body) != nil || !requiredString(received.ID, 255) ||
+		len(received.ID) > 255 || strings.TrimSpace(received.ID) != received.ID ||
+		received.Timestamp.Year() < 1000 || received.Timestamp.Year() > 9999 {
 		return nil, ErrInvalidPayload
 	}
 	return received, nil
