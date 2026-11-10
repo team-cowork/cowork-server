@@ -830,7 +830,6 @@ export class ChatService {
 		}
 
 		const {hits, nextCursor} = await this.elasticsearchService.searchMessages({
-			projectId,
 			accessibleChannelIds: filteredChannelIds,
 			q: dto.q,
 			authorId: dto.authorId,
