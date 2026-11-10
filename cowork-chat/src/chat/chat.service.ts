@@ -380,6 +380,16 @@ export class ChatService {
 		}
 	}
 
+	private async withoutArchivedChannels(channelIds: number[]): Promise<number[]> {
+		if (channelIds.length === 0) {
+			return channelIds;
+		}
+
+		const channels = await this.channelProjectionRepository.findByIds(channelIds);
+		const archived = new Set(channels.filter(channel => channel.archived === true).map(channel => channel.channelId));
+		return channelIds.filter(channelId => !archived.has(channelId));
+	}
+
 	private async requireReplyParent(parentMessageId: string | undefined, channelId: number): Promise<void> {
 		if (parentMessageId === undefined || parentMessageId === '') {
 			return;
@@ -1085,7 +1095,10 @@ export class ChatService {
 			throw new ForbiddenException('팀 접근 권한이 없습니다');
 		}
 
-		const channelIds = await this.channelMessageReadAccess.findReadableTeamChannelIds(teamId, userId);
+		// 보관된 채널은 목록에 없어 읽음 처리할 수 없으므로 팀 미읽음에서 제외한다.
+		const channelIds = await this.withoutArchivedChannels(
+			await this.channelMessageReadAccess.findReadableTeamChannelIds(teamId, userId),
+		);
 		const unreadCounts = await this.getUnreadCounts(userId, channelIds);
 		return channelIds.map(channelId => ({channelId, unreadCount: unreadCounts.get(channelId) ?? 0}));
 	}
