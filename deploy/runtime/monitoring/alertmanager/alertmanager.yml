@@ -27,6 +27,12 @@ inhibit_rules:
       - alertname = coworkPublicGatewayUnavailable
     target_matchers:
       - alertname =~ "coworkGatewayApiProbeFailed|coworkGatewayCorsPreflightFailed"
+  # 서비스 프로세스가 내려가면 같은 서비스의 Gateway 경유 점검 알림은 보내지 않는다.
+  - source_matchers:
+      - alertname = coworkServiceDown
+    target_matchers:
+      - alertname = coworkGatewayApiProbeFailed
+    equal: [service]
 
 receivers:
   - name: discord
