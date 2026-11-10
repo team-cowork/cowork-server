@@ -209,6 +209,8 @@ describe('ChatService', () => {
 		mockChannelProjectionRepository.findByIdIncludingDeleted.mockResolvedValue({
 			channelId: 1, teamId: 100, projectId: null, type: 'TEXT', deleted: false,
 		});
+		mockChannelProjectionRepository.findByIds.mockImplementation(async (ids: number[]) =>
+			ids.map(channelId => ({channelId})));
 		mockMessageSearchDeletion.deleteMessage.mockResolvedValue('DELETED');
 		mockMessageRepository.applyEdit.mockImplementation(async (_id: string, content: string) =>
 			makeMockMessage({content, isEdited: true, updatedAt: new Date('2026-05-12T00:00:00.000Z')}));
@@ -1258,6 +1260,20 @@ describe('ChatService', () => {
 				[1, {count: 5, readCursor: oid1.toHexString()}],
 				[2, {count: 0, readCursor: oid2.toHexString()}],
 			]));
+		});
+
+		it('보관된 채널은 팀 미읽 카운트에서 제외한다', async () => {
+			mockChannelMessageReadAccess.findReadableTeamChannelIds.mockResolvedValue([1, 2]);
+			mockChannelProjectionRepository.findByIds.mockResolvedValue([
+				{channelId: 1, archived: true},
+				{channelId: 2, archived: false},
+			]);
+			mockReadStateRepository.findForChannels.mockResolvedValue([{channelId: 2, lastReadMessageId: null}]);
+			mockMessageRepository.countUnreadForChannels.mockResolvedValue(new Map([[2, 3]]));
+
+			const result = await service.getTeamUnread(10, 42);
+
+			expect(result).toEqual([{channelId: 2, unreadCount: 3}]);
 		});
 
 		it('읽기 권한이 있는 채널이 없으면 빈 배열을 반환한다', async () => {
