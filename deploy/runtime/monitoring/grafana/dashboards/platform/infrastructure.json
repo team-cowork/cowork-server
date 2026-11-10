@@ -321,12 +321,12 @@
     },
     {
       "id": 19,
-      "title": "MongoDB - 작업 평균 지연 (ms)",
+      "title": "MongoDB - 작업 평균 지연",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
       "targets": [
         {
-          "expr": "sum by (module, type) (rate(mongodb_mongod_op_latencies_latency_total{service=\"mongodb\",type=~\"read|write|command\"}[$__rate_interval])) / (sum by (module, type) (rate(mongodb_mongod_op_latencies_ops_total{service=\"mongodb\",type=~\"read|write|command\"}[$__rate_interval])) > 0) / 1000",
+          "expr": "sum by (module, type) (rate(mongodb_mongod_op_latencies_latency_total{service=\"mongodb\",type=~\"read|write|command\"}[$__rate_interval])) / (sum by (module, type) (rate(mongodb_mongod_op_latencies_ops_total{service=\"mongodb\",type=~\"read|write|command\"}[$__rate_interval])) > 0)",
           "legendFormat": "{{module}} / {{type}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
@@ -338,7 +338,7 @@
         "defaults": {
           "noValue": "N/A",
           "min": 0,
-          "unit": "ms",
+          "unit": "µs",
           "color": { "mode": "palette-classic" },
           "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
         }
@@ -423,7 +423,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 56 },
       "targets": [
         {
-          "expr": "mongodb_memory{service=\"mongodb\",type=\"resident\"} * 1048576",
+          "expr": "mongodb_memory{service=\"mongodb\",type=\"resident\"}",
           "legendFormat": "{{module}} 상주 메모리",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
@@ -435,7 +435,7 @@
         "defaults": {
           "noValue": "N/A",
           "min": 0,
-          "unit": "bytes",
+          "unit": "mbytes",
           "color": { "mode": "palette-classic" },
           "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
         }
