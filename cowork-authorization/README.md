@@ -36,7 +36,7 @@ DataGSM 로그인과 인증 토큰·로그인 세션을 관리합니다.
 | `DB_PASSWORD`                                                 | MySQL 비밀번호. 개별 DB 입력 5개를 모두 지정하거나 `DB_DSN` 사용                                                                                        |
 | `DB_DSN`                                                      | 개별 DB 입력이 없을 때 사용하는 MySQL DSN                                                                                                         |
 | `DATAGSM_CLIENT_ID`                                           | OAuth client ID                                                                                                                               |
-| `DATAGSM_REDIRECT_URIS`                                       | 필수. DataGSM에 등록된 웹·모바일·데스크탑 콜백 URL을 쉼표로 구분한 허용 목록. [전환·폐기 절차](docs/datagsm-migration.md) 참고 |
+| `DATAGSM_REDIRECT_URIS`                                       | 필수. DataGSM에 등록된 웹·모바일·데스크탑 콜백 URL을 쉼표로 구분한 허용 목록. |
 | `DATAGSM_AUTHORIZATION_BASE_URL`                              | 선택. 기본값 `https://oauth.authorization.datagsm.kr` |
 | `DATAGSM_RESOURCE_BASE_URL`                                   | 선택. 기본값 `https://oauth.resource.datagsm.kr` |
 | `JWT_SECRET`                                                  | JWT 서명 키                                                                                                                                      |
