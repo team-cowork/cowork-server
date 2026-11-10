@@ -254,6 +254,38 @@ scrape_configs:
     - [[[ printf "%s/api/github/health" $publicAPI | toJSON ]]]
     labels:
       service: github
+  - targets:
+    - [[[ printf "%s/api/user/health" $publicAPI | toJSON ]]]
+    labels:
+      service: user
+  - targets:
+    - [[[ printf "%s/api/team/health" $publicAPI | toJSON ]]]
+    labels:
+      service: team
+  - targets:
+    - [[[ printf "%s/api/project/health" $publicAPI | toJSON ]]]
+    labels:
+      service: project
+  - targets:
+    - [[[ printf "%s/api/channel/health" $publicAPI | toJSON ]]]
+    labels:
+      service: channel
+  - targets:
+    - [[[ printf "%s/api/roadmap/health" $publicAPI | toJSON ]]]
+    labels:
+      service: roadmap
+  - targets:
+    - [[[ printf "%s/api/notification/health" $publicAPI | toJSON ]]]
+    labels:
+      service: notification
+  - targets:
+    - [[[ printf "%s/api/preference/health" $publicAPI | toJSON ]]]
+    labels:
+      service: preference
+  - targets:
+    - [[[ printf "%s/api/applet/health" $publicAPI | toJSON ]]]
+    labels:
+      service: applet
   relabel_configs:
   - source_labels:
     - __address__
