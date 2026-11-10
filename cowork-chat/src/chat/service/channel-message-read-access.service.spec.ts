@@ -237,7 +237,7 @@ describe('ChannelMessageReadAccessService', () => {
 
 		it('OWNER는 별도 채널 등록 없이 메시지를 읽는다', async () => {
 			await expect(service.canReadChannel(10, 7)).resolves.toBe(true);
-			await expect(service.filterVisibleChannelIds(1, 7, [10])).resolves.toEqual([10]);
+			await expect(service.filterVisibleChannelIds(7, [10])).resolves.toEqual([10]);
 		});
 
 		it('비공개 채널도 역할 권한으로 읽는다', async () => {
@@ -272,7 +272,7 @@ describe('ChannelMessageReadAccessService', () => {
 			await expect(service.requirePermissions(10, 2, ['message_send'])).rejects.toThrow(ForbiddenException);
 		});
 		it('기본 읽기 허용은 공개 채널에만 적용하고 비공개 채널만 숨긴다', async () => {
-			await expect(service.filterVisibleChannelIds(1, 2, [10, 20])).resolves.toEqual([10]);
+			await expect(service.filterVisibleChannelIds(2, [10, 20])).resolves.toEqual([10]);
 			await expect(service.canReadChannel(20, 2)).resolves.toBe(false);
 			await expect(service.requirePermissions(20, 2, ['message_send'])).rejects.toThrow(ForbiddenException);
 		});
@@ -289,7 +289,7 @@ describe('ChannelMessageReadAccessService', () => {
 			channelRepository.findByIds.mockResolvedValue([{
 				channelId: 20, teamId: 1, type: 'VOICE', isPrivate: true,
 			}]);
-			await expect(service.filterVisibleChannelIds(1, 2, [20])).resolves.toEqual([]);
+			await expect(service.filterVisibleChannelIds(2, [20])).resolves.toEqual([]);
 		});
 		it('채널에서 send를 허용하면 역할 기본값을 덮어쓴다', async () => {
 			policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([
@@ -308,7 +308,7 @@ describe('ChannelMessageReadAccessService', () => {
 					teamId: 1, channelId: 10, roleId: 101, permissions: Object.fromEntries([['message_read', false], ['voice_connect', true]]),
 				},
 			]);
-			await expect(service.filterVisibleChannelIds(1, 2, [10])).resolves.toEqual([10]);
+			await expect(service.filterVisibleChannelIds(2, [10])).resolves.toEqual([10]);
 			await expect(service.canReadChannel(10, 2)).resolves.toBe(false);
 		});
 	});
@@ -436,6 +436,40 @@ describe('ChannelMessageReadAccessService', () => {
 			});
 
 			await expect(find()).rejects.toBeInstanceOf(ServiceUnavailableException);
+		});
+	});
+
+	describe('API 권한 평가', () => {
+		it.each(['read', 'visible'] as const)('%s 필터는 미준비 상태를 빈 목록으로 바꾸지 않는다', async mode => {
+			projectionReadiness.areReady.mockReturnValue(false);
+			const read = mode === 'read'
+				? service.filterReadableChannelIds(2, [])
+				: service.filterVisibleChannelIds(2, []);
+
+			await expect(read).rejects.toBeInstanceOf(ServiceUnavailableException);
+		});
+
+		it('평가 중 미준비를 관측하면 복구 후에도 권한 거부로 바꾸지 않는다', async () => {
+			projectionReadiness.areReady.mockReturnValueOnce(true).mockReturnValueOnce(false).mockReturnValue(true);
+
+			await expect(service.filterReadableChannelIds(2, [10])).rejects.toBeInstanceOf(ServiceUnavailableException);
+		});
+
+		it('평가 도중 미준비가 되면 허용 결과를 반환하지 않는다', async () => {
+			channelRepository.findByIds.mockImplementationOnce(async () => {
+				projectionReadiness.areReady.mockReturnValue(false);
+				return [{
+					channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false,
+				}];
+			});
+
+			await expect(service.filterVisibleChannelIds(2, [10])).rejects.toBeInstanceOf(ServiceUnavailableException);
+		});
+
+		it('내부 수신자 판정은 미준비 상태에서 접근을 거부한다', async () => {
+			projectionReadiness.areReady.mockReturnValue(false);
+
+			await expect(service.canReadChannel(10, 2)).resolves.toBe(false);
 		});
 	});
 
