@@ -293,10 +293,64 @@
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
+      "id": 24,
+      "title": "SurrealDB - 메모리 사용량",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "targets": [
+        {
+          "expr": "surrealdb_process_memory_bytes{service=\"surrealdb\"}",
+          "legendFormat": "{{module}} 메모리",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "bytes",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
+      "description": "SurrealDB 프로세스의 메모리 사용량입니다."
+    },
+    {
+      "id": 25,
+      "title": "SurrealDB - CPU 사용률 (%)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "targets": [
+        {
+          "expr": "surrealdb_process_cpu_percent{service=\"surrealdb\"}",
+          "legendFormat": "{{module}} CPU",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "percent",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
+      "description": "SurrealDB 프로세스의 CPU 사용률입니다."
+    },
+    {
       "id": 14,
       "title": "모듈 DB - 애플리케이션 커넥션 풀 사용량",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
       "targets": [
         {
           "expr": "sum by (service) (hikaricp_connections_active)",
@@ -347,7 +401,7 @@
       "id": 15,
       "title": "모듈 DB - 커넥션 대기",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 },
       "targets": [
         {
           "expr": "sum by (service) (hikaricp_connections_pending)",
@@ -382,7 +436,7 @@
       "id": 16,
       "title": "모듈 DB - 커넥션 획득 시간 (ms)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 56 },
       "targets": [
         {
           "expr": "histogram_quantile(0.99, sum by (le, service) (rate(hikaricp_connections_acquire_seconds_bucket[$__rate_interval]))) * 1000",
@@ -411,7 +465,7 @@
       "id": 17,
       "title": "SQLite - 파일 크기",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 56 },
       "targets": [
         {
           "expr": "cowork_notification_sqlite_file_size_bytes{file=\"db\"}",
@@ -446,7 +500,7 @@
       "id": 11,
       "title": "호스트 CPU 사용률",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 56 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 64 },
       "targets": [
         {
           "expr": "100 * (1 - avg by (host, instance) (rate(node_cpu_seconds_total{service=\"host\",mode=\"idle\"}[$__rate_interval])))",
@@ -474,7 +528,7 @@
       "id": 12,
       "title": "호스트 메모리 사용률",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 56 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 64 },
       "targets": [
         {
           "expr": "(1 - node_memory_MemAvailable_bytes{service=\"host\"} / node_memory_MemTotal_bytes{service=\"host\"}) * 100",
@@ -502,7 +556,7 @@
       "id": 13,
       "title": "현재 파일시스템 사용률",
       "type": "bargauge",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 64 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 72 },
       "targets": [
         {
           "expr": "sort_desc((1 - node_filesystem_avail_bytes{service=\"host\",fstype!~\"tmpfs|devtmpfs|overlay|squashfs\"} / (node_filesystem_size_bytes{service=\"host\",fstype!~\"tmpfs|devtmpfs|overlay|squashfs\"} > 0)) * 100)",
