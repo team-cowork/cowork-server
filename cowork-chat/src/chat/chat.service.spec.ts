@@ -297,6 +297,20 @@ describe('ChatService', () => {
 	});
 
 	describe('searchProjectMessages', () => {
+		it('현재 프로젝트에서 읽을 수 있는 채널만 검색 범위로 전달한다', async () => {
+			mockProjectClient.canRead.mockResolvedValue(true);
+			mockChannelMessageReadAccess.requireReadableProjectChannelIds.mockResolvedValue([10, 20]);
+			mockElasticsearchService.searchMessages.mockResolvedValue({hits: [], nextCursor: null});
+
+			await service.searchProjectMessages(7, {q: '배포', channelId: 20}, {userId: 42});
+
+			expect(mockChannelMessageReadAccess.requireReadableProjectChannelIds).toHaveBeenCalledWith(7, 42);
+			expect(mockElasticsearchService.searchMessages).toHaveBeenCalledWith({
+				accessibleChannelIds: [20], q: '배포', authorId: undefined, type: undefined,
+				hasFile: undefined, before: undefined, limit: 50,
+			});
+		});
+
 		it('프로젝트 멤버지만 읽을 수 있는 채널이 없으면 ES를 호출하지 않고 빈 결과를 반환한다', async () => {
 			mockProjectClient.canRead.mockResolvedValue(true);
 			mockChannelMessageReadAccess.requireReadableProjectChannelIds.mockResolvedValue([]);
