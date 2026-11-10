@@ -36,7 +36,7 @@ class DeleteTemplateSectionServiceImplTest {
     @Test
     fun `deleteSection은 정상적으로 섹션을 삭제`() {
         val sec = section()
-        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
+        every { meetingNoteAccessGuard.requireWritableChannelAccess(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(template())
         every { sectionRepository.findById(20L) } returns Optional.of(sec)
 

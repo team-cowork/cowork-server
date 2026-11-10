@@ -41,7 +41,10 @@ Elasticsearch에 저장하는 메시지 색인 문서. MongoDB 메시지에서 �
 export type MessageIndexDoc = {
 	messageId: string;
 	teamId: number;
-	projectId: number;
+	/**
+	프로젝트에 연결되지 않은 팀 채널의 메시지는 `null`이다.
+	*/
+	projectId: Nullable<number>;
 	channelId: number;
 	authorId: Nullable<number>;
 	webhook?: WebhookMessageAuthor;
@@ -54,9 +57,10 @@ export type MessageIndexDoc = {
 
 /**
 색인 문서에 반드시 존재해야 하는 필드. 재구축 검증이 표본 문서에서 확인한다.
+`projectId`는 프로젝트 없는 채널에서 `null`이므로 포함하지 않는다.
 */
 export const MESSAGE_INDEX_REQUIRED_FIELDS: Array<keyof MessageIndexDoc> = [
-	'messageId', 'teamId', 'projectId', 'channelId', 'authorId', 'content', 'type', 'createdAt',
+	'messageId', 'teamId', 'channelId', 'authorId', 'content', 'type', 'createdAt',
 ];
 
 /**
