@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -19,8 +20,9 @@ const (
 	// 브라우저의 WebSocket 핸드셰이크는 커스텀 Authorization 헤더를 실을 수 없어,
 	// Gateway가 이 쿠키에서 access token을 꺼내 검증한다(Path=/ws로 노출 범위 최소화).
 	// 특정 모듈(chat 등)에 종속되지 않으므로 향후 다른 웹소켓 모듈도 그대로 재사용한다.
-	wsCookieName = "cowork_ws_token"
-	wsCookiePath = "/ws"
+	wsCookieName    = "cowork_ws_token"
+	wsCookiePath    = "/ws"
+	loginCookieName = "__Host-cowork_oauth"
 )
 
 type AuthHandler struct {
@@ -43,45 +45,169 @@ func clearWsCookie(c *gin.Context) {
 	c.SetCookie(wsCookieName, "", -1, wsCookiePath, "", true, true)
 }
 
-// Token godoc
+// Callback godoc
 // @Summary      인가 코드로 토큰 발급
-// @Description  DataGSM 인가 코드와 PKCE 검증 값으로 액세스 토큰과 리프레시 토큰을 발급합니다.
+// @Description  로그인 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 서버가 PKCE와 OIDC를 검증하고 Cowork 토큰을 발급합니다. 로그인 시도는 한 번만 사용할 수 있습니다.
 // @Tags         auth
 // @Accept       json
 // @Produce      json
-// @Param        body  body      object{code=string,code_verifier=string,redirect_uri=string}  true  "코드 교환 요청"
+// @Param        body  body      LoginCallbackRequest  true  "DataGSM 콜백"
 // @Success      200   {object}  apidoc.Success[service.TokenPair]  "새 토큰 쌍"
 // @Header       200   {string}  Set-Cookie  "WebSocket 인증 쿠키(cowork_ws_token, Path=/ws)"
 // @Failure      400   {object}  apidoc.Error  "필수 요청 값이 없거나 형식이 잘못됨"
 // @Failure      401   {object}  apidoc.Error  "인가 코드 검증 실패"
 // @Failure      503   {object}  apidoc.Error  "인증 서비스를 일시적으로 사용할 수 없음"
 // @Failure      429   {object}  apidoc.Error  "요청 한도 초과"
-// @Router       /auth/token [post]
-func (h *AuthHandler) Token(c *gin.Context) {
-	var req struct {
-		Code         string `json:"code"          binding:"required"`
-		CodeVerifier string `json:"code_verifier" binding:"required"`
-		RedirectURI  string `json:"redirect_uri"  binding:"required"`
+// @Router       /auth/callback [post]
+func (h *AuthHandler) Callback(c *gin.Context) {
+	if !h.allowLoginRequest(c) {
+		return
 	}
+	var req LoginCallbackRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required fields"})
 		return
 	}
 
-	pair, err := h.authSvc.ExchangeCode(c.Request.Context(), req.Code, req.CodeVerifier, req.RedirectURI)
+	session, _ := c.Cookie(loginCookieName)
+	setLoginCookie(c, "", -1)
+	callback := url.Values{"state": {req.State}, "code": {req.Code}, "error": {req.Error}}
+	pair, err := h.authSvc.CompleteLogin(c.Request.Context(), session, callback)
 	if err != nil {
 		// Provider/DB errors can contain identity or unique-index values.
 		log.Printf("token exchange failed")
-		if errors.Is(err, service.ErrAuthenticationUnavailable) {
-			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "authentication temporarily unavailable"})
-			return
-		}
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication failed"})
+		loginError(c, err)
 		return
 	}
 
 	setWsCookie(c, pair)
 	c.JSON(http.StatusOK, pair)
+}
+
+// Token godoc
+// Deprecated: use /auth/authorize and /auth/callback.
+// TODO(legacy-login): Remove this endpoint and its SDK compatibility path after the web and mobile implementations migrate to server-managed OAuth/OIDC.
+// TODO(legacy-login): Regenerate swagger/docs.go, swagger/swagger.json, and swagger/swagger.yaml with make swagger-gen when removing this endpoint and its request type.
+// @Summary 기존 클라이언트의 PKCE 코드 교환
+// @Description 클라이언트가 생성한 PKCE verifier와 인가 코드를 교환합니다. state 검증은 클라이언트가 담당합니다. redirect_uri는 서버 허용 목록 및 DataGSM 등록값과 일치해야 합니다.
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param body body CodeExchangeRequest true "PKCE 코드 교환 요청"
+// @Success 200 {object} apidoc.Success[service.TokenPair]
+// @Header 200 {string} Set-Cookie "WebSocket 인증 쿠키(cowork_ws_token, Path=/ws)"
+// @Failure 400 {object} apidoc.Error "잘못된 요청 또는 콜백 URL"
+// @Failure 401 {object} apidoc.Error "인증 실패"
+// @Failure 429 {object} apidoc.Error "요청 한도 초과"
+// @Failure 503 {object} apidoc.Error "인증 서비스 사용 불가"
+// @Router /auth/token [post]
+// @Deprecated
+func (h *AuthHandler) Token(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	c.Header("Pragma", "no-cache")
+	var req CodeExchangeRequest
+	if c.ShouldBindJSON(&req) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required fields"})
+		return
+	}
+	pair, err := h.authSvc.ExchangeCode(c.Request.Context(), req.Code, req.CodeVerifier, req.RedirectURI) //nolint:staticcheck // TODO(legacy-login): Remove this intentional compatibility call after web/mobile migration.
+	if err != nil {
+		loginError(c, err)
+		return
+	}
+	setWsCookie(c, pair)
+	c.JSON(http.StatusOK, pair)
+}
+
+// Deprecated: use LoginStartRequest and LoginCallbackRequest.
+// TODO(legacy-login): Remove this request type with /auth/token after the web and mobile implementations migrate to server-managed OAuth/OIDC.
+type CodeExchangeRequest struct {
+	Code         string `json:"code" binding:"required"`
+	CodeVerifier string `json:"code_verifier" binding:"required"`
+	RedirectURI  string `json:"redirect_uri" binding:"required"`
+}
+
+type LoginCallbackRequest struct {
+	State string `json:"state" binding:"required"`
+	Code  string `json:"code"`
+	Error string `json:"error"`
+}
+
+type LoginStartRequest struct {
+	RedirectURI string `json:"redirect_uri" binding:"required"`
+}
+
+type LoginStartResponse struct {
+	AuthorizationURL string `json:"authorization_url"`
+}
+
+// Authorize godoc
+// @Summary DataGSM 로그인 시작
+// @Description 등록된 콜백 URL로 로그인 시도를 생성합니다. 반환된 authorization_url로 이동하고 쿠키를 유지한 채 /auth/callback에 콜백을 전달합니다. 시도는 10분 뒤 만료됩니다.
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param body body LoginStartRequest true "등록된 콜백 URL"
+// @Success 200 {object} apidoc.Success[LoginStartResponse]
+// @Header 200 {string} Set-Cookie "일회성 로그인 세션 쿠키(Secure, HttpOnly)"
+// @Failure 400 {object} apidoc.Error "등록되지 않은 콜백 또는 잘못된 요청"
+// @Failure 403 {object} apidoc.Error "허용하지 않은 출처"
+// @Failure 503 {object} apidoc.Error "로그인 시도 저장 실패"
+// @Router /auth/authorize [post]
+func (h *AuthHandler) Authorize(c *gin.Context) {
+	if !h.allowLoginRequest(c) {
+		return
+	}
+	var req LoginStartRequest
+	if c.ShouldBindJSON(&req) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "redirect_uri is required"})
+		return
+	}
+	authorizationURL, session, err := h.authSvc.BeginLogin(c.Request.Context(), req.RedirectURI)
+	if err != nil {
+		loginError(c, err)
+		return
+	}
+	setLoginCookie(c, session, int(service.LoginAttemptTTL.Seconds()))
+	c.JSON(http.StatusOK, LoginStartResponse{AuthorizationURL: authorizationURL})
+}
+
+func (h *AuthHandler) allowLoginRequest(c *gin.Context) bool {
+	c.Header("Cache-Control", "no-store")
+	c.Header("Pragma", "no-cache")
+	if c.ContentType() != "application/json" {
+		c.JSON(http.StatusUnsupportedMediaType, gin.H{"error": "application/json is required"})
+		return false
+	}
+	if !h.authSvc.AllowsLoginOrigin(c.GetHeader("Origin")) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "origin is not allowed"})
+		return false
+	}
+	return true
+}
+
+func setLoginCookie(c *gin.Context, value string, maxAge int) {
+	c.SetSameSite(http.SameSiteNoneMode)
+	c.SetCookie(loginCookieName, value, maxAge, "/", "", true, true)
+}
+
+func loginError(c *gin.Context, err error) {
+	var limited *service.ProviderRateLimitError
+	switch {
+	case errors.Is(err, service.ErrInvalidLoginRequest):
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid login request"})
+	case errors.As(err, &limited):
+		if seconds, parseErr := strconv.ParseUint(limited.RetryAfter, 10, 32); parseErr == nil {
+			c.Header("Retry-After", strconv.FormatUint(seconds, 10))
+		} else if date, parseErr := http.ParseTime(limited.RetryAfter); parseErr == nil {
+			c.Header("Retry-After", date.UTC().Format(http.TimeFormat))
+		}
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "authentication rate limit exceeded"})
+	case errors.Is(err, service.ErrAuthenticationUnavailable):
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "authentication temporarily unavailable"})
+	default:
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "authentication failed"})
+	}
 }
 
 // Refresh godoc
