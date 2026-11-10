@@ -100,7 +100,14 @@ func main() {
 		cfg.KafkaTopicUserIdentityCommand,
 		cfg.KafkaIdentityCommandTimeout,
 	)
-	authSvc := service.NewAuthService(cfg, identityCoordinator, refreshTokenRepo, tokenSvc)
+	loginAttempts := redisinfra.NewLoginAttemptStore(net.JoinHostPort(cfg.RedisHost, cfg.RedisPort))
+	defer func() { _ = loginAttempts.Close() }()
+	login, err := service.NewDataGSMLogin(cfg, loginAttempts, nil)
+	if err != nil {
+		log.Fatalf("failed to configure DataGSM login: %v", err)
+	}
+	defer login.Close()
+	authSvc := service.NewAuthService(cfg, identityCoordinator, refreshTokenRepo, tokenSvc, login)
 	outboxRelay := kafkainfra.NewOutboxRelay(sqlDB, kafkaProducer)
 	snapshotBarrierPublisher := kafkainfra.NewSnapshotBarrierPublisher(
 		sqlDB,
@@ -163,6 +170,9 @@ func main() {
 
 	auth := router.Group("/auth")
 	{
+		auth.POST("/authorize", authHandler.Authorize)
+		auth.POST("/callback", authHandler.Callback)
+		// TODO(legacy-login): Remove this route after the web and mobile implementations migrate to server-managed OAuth/OIDC.
 		auth.POST("/token", authHandler.Token)
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.POST("/signout", handler.RequireUserID(), authHandler.Logout)

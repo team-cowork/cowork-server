@@ -239,8 +239,8 @@ ENV
         MONGODB_USER = "cowork_monitoring"
       }
       config {
-        image = "percona/mongodb_exporter:0.53.0@sha256:0214e482b2cd4b1849f9f4dcef90d328a99ba3727dd1103e7da48b42060bcec1"
-        args  = ["--compatible-mode"]
+        image = "percona/mongodb_exporter:0.54.0@sha256:934e9db87e85e0fa63654e73c3504845993a254e898783ca905e65a68848b5a4"
+        args  = ["--compatible-mode", "--collector.diagnosticdata"]
         ports = ["metrics"]
       }
       resources {
