@@ -78,6 +78,13 @@ enum class TeamRolePermission(
         "채널 목록에서 채널 순서를 바꿀 수 있습니다. 옮기는 채널마다 이 권한이 있어야 합니다.",
         setOf(TEXT, VOICE),
     ),
+    ARCHIVE_CHANNELS(
+        "archive_channels",
+        TeamRolePermissionGroup.CHANNEL,
+        "채널 보관",
+        "프로젝트에 속하지 않은 텍스트 채널을 보관하거나 복원할 수 있습니다. 보관된 채널은 읽기 전용이 되며, 볼 수 있는 채널만 보관할 수 있습니다. " +
+            "프로젝트 채널은 프로젝트 채널 보관 권한을 따릅니다.",
+    ),
     MESSAGE_READ(
         "message_read",
         TeamRolePermissionGroup.TEXT_CHANNEL,
@@ -209,6 +216,13 @@ enum class TeamRolePermission(
         TeamRolePermissionGroup.PROJECT,
         "프로젝트 순서 변경",
         "프로젝트 목록에서 프로젝트 순서를 바꿀 수 있습니다. 옮기는 프로젝트마다 이 권한이 있어야 합니다.",
+    ),
+    PROJECT_CHANNEL_ARCHIVE(
+        "project_channel_archive",
+        TeamRolePermissionGroup.PROJECT,
+        "프로젝트 채널 보관",
+        "프로젝트에 속한 텍스트 채널을 보관하거나 복원할 수 있습니다. 보관된 채널은 읽기 전용이 되며, 볼 수 있는 채널만 보관할 수 있습니다. " +
+            "프로젝트 역할로 프로젝트마다 허용하거나 거부할 수 있습니다.",
     ),
     ;
 

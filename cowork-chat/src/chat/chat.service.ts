@@ -2,6 +2,7 @@ import {Buffer} from 'node:buffer';
 import {createHash, randomUUID} from 'node:crypto';
 import {
 	BadRequestException,
+	ConflictException,
 	ForbiddenException,
 	forwardRef,
 	Inject as inject,
@@ -303,6 +304,7 @@ export class ChatService {
 			await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_manage');
 		}
 
+		await this.requireWritableChannel(ctx.channelId);
 		return message;
 	}
 
@@ -363,6 +365,29 @@ export class ChatService {
 		}
 
 		return names;
+	}
+
+	/**
+     보관된 채널은 읽기 전용이다. 쓰기 요청은 권한 검사를 통과한 뒤 이 검사로 거부한다.
+
+     @param channelId - 채널 ID
+     @throws ConflictException 보관된 채널인 경우
+     */
+	private async requireWritableChannel(channelId: number): Promise<void> {
+		const channel = await this.channelProjectionRepository.findById(channelId);
+		if (channel?.archived === true) {
+			throw new ConflictException('보관된 채널은 변경할 수 없습니다');
+		}
+	}
+
+	private async withoutArchivedChannels(channelIds: number[]): Promise<number[]> {
+		if (channelIds.length === 0) {
+			return channelIds;
+		}
+
+		const channels = await this.channelProjectionRepository.findByIds(channelIds);
+		const archived = new Set(channels.filter(channel => channel.archived === true).map(channel => channel.channelId));
+		return channelIds.filter(channelId => !archived.has(channelId));
 	}
 
 	private async requireReplyParent(parentMessageId: string | undefined, channelId: number): Promise<void> {
@@ -448,6 +473,7 @@ export class ChatService {
 		dto: CreateFileUploadUrlRequestDto,
 	): Promise<CreateFileUploadUrlResponseDto> {
 		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'file_attach');
+		await this.requireWritableChannel(ctx.channelId);
 		const upload = await this.objectStorageService.createPresignedUpload({
 			channelId: ctx.channelId,
 			userId: ctx.userId,
@@ -473,6 +499,7 @@ export class ChatService {
      */
 	async confirmFileUpload(ctx: ChannelUserContext, dto: ConfirmFileUploadRequestDto): Promise<ConfirmedAttachment> {
 		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'file_attach');
+		await this.requireWritableChannel(ctx.channelId);
 		return this.objectStorageService.confirmUpload(ctx.channelId, ctx.userId, dto.objectKey);
 	}
 
@@ -538,6 +565,8 @@ export class ChatService {
 			await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_manage');
 		}
 
+		await this.requireWritableChannel(ctx.channelId);
+
 		await this.deleteMessageAndAttachments(message, messageId, ctx.channelId);
 		return {channelId: ctx.channelId, messageId};
 	}
@@ -567,6 +596,10 @@ export class ChatService {
 		const channel = await this.channelProjectionRepository.findById(ctx.channelId);
 		if (!channel) {
 			throw new NotFoundException('채널을 찾을 수 없습니다');
+		}
+
+		if (channel.archived === true) {
+			throw new ConflictException('보관된 채널에는 메시지를 보낼 수 없습니다');
 		}
 
 		const scope = resolveMessageScope(channel);
@@ -705,6 +738,7 @@ export class ChatService {
 	async publishGithubIssueCreateCommand(ctx: ChannelUserContext, dto: CreateGithubIssueDto, idempotencyKey?: string): Promise<void> {
 		// 두 진입점이 같은 권한 세트를 요구해야 일반 slash command로 막힌 사용자가 deprecated 경로로 우회하지 못한다.
 		await this.channelMessageReadAccess.requirePermissions(ctx.channelId, ctx.userId, ['slash_command_use', 'github_issue_create']);
+		await this.requireWritableChannel(ctx.channelId);
 		const channelTeamId = await this.requireReadAndGetTeamId(ctx.channelId, ctx.userId);
 		// 프로젝트 서비스는 operationId로 중복을 막고 idempotencyKey는 36자 컬럼에 저장하므로, 재시도 키를 36자 ID로 고정한다.
 		const commandId = idempotencyKey === undefined ? randomUUID() : deriveGithubIssueCommandId(ctx, dto, idempotencyKey);
@@ -826,6 +860,14 @@ export class ChatService {
 			}
 
 			accessibleChannelIds = [dto.channelId];
+		}
+
+		if (dto.archived !== undefined) {
+			const channels = await this.channelProjectionRepository.findByIds(accessibleChannelIds);
+			const matched = new Set(channels
+				.filter(channel => Boolean(channel.archived) === dto.archived)
+				.map(channel => channel.channelId));
+			accessibleChannelIds = accessibleChannelIds.filter(channelId => matched.has(channelId));
 		}
 
 		if (accessibleChannelIds.length === 0) {
@@ -968,6 +1010,7 @@ export class ChatService {
      */
 	async addReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
 		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'reaction_add');
+		await this.requireWritableChannel(ctx.channelId);
 		const count = await this.messageRepository.addReaction(ctx.channelId, messageId, emoji, ctx.userId);
 		if (count === null) {
 			throw new NotFoundException('메시지를 찾을 수 없습니다');
@@ -1001,6 +1044,7 @@ export class ChatService {
      */
 	async removeReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
 		await this.requireChannelRead(ctx.channelId, ctx.userId);
+		await this.requireWritableChannel(ctx.channelId);
 		const count = await this.messageRepository.removeReaction(ctx.channelId, messageId, emoji, ctx.userId);
 		if (count === null) {
 			throw new NotFoundException('메시지를 찾을 수 없습니다');
@@ -1051,7 +1095,10 @@ export class ChatService {
 			throw new ForbiddenException('팀 접근 권한이 없습니다');
 		}
 
-		const channelIds = await this.channelMessageReadAccess.findReadableTeamChannelIds(teamId, userId);
+		// 보관된 채널은 목록에 없어 읽음 처리할 수 없으므로 팀 미읽음에서 제외한다.
+		const channelIds = await this.withoutArchivedChannels(
+			await this.channelMessageReadAccess.findReadableTeamChannelIds(teamId, userId),
+		);
 		const unreadCounts = await this.getUnreadCounts(userId, channelIds);
 		return channelIds.map(channelId => ({channelId, unreadCount: unreadCounts.get(channelId) ?? 0}));
 	}
@@ -1085,6 +1132,11 @@ export class ChatService {
 
 		if (channel.deleted) {
 			this.logger.warn(`Skipping system message for deleted channel [channelId=${channelId}, teamId=${teamId}]`);
+			return null;
+		}
+
+		if (channel.archived === true) {
+			this.logger.warn(`Skipping system message for archived channel [channelId=${channelId}, teamId=${teamId}]`);
 			return null;
 		}
 

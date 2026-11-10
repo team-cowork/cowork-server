@@ -188,7 +188,8 @@
         "required": ["channelId", "teamId"],
         "properties": {
           "channelId": { "type": "integer", "format": "int64" },
-          "teamId": { "type": "integer", "format": "int64" }
+          "teamId": { "type": "integer", "format": "int64" },
+          "archived": { "type": "boolean", "description": "보관된 채널이면 true. 보관된 채널은 읽기 전용이며 쓰기 요청은 409를 반환합니다." }
         },
         "additionalProperties": true
       },

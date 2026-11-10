@@ -85,6 +85,7 @@ class ChannelEventPublisher(
             description = state.description,
             isPrivate = state.isPrivate,
             position = state.position,
+            archived = state.archived,
             occurredAt = state.stateOccurredAt,
             snapshot = snapshot,
             initialRolePolicySeed = state.initialRolePolicySeedJson?.let {

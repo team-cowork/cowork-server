@@ -5,7 +5,7 @@ import {ChatMessageEvent} from './event/chat-message.event.js';
 
 export class ChatMessageScopeError extends Error {
 	constructor(
-		readonly reasonCode: 'CHANNEL_NOT_FOUND' | 'CHANNEL_SCOPE_MISMATCH' | 'PARENT_NOT_FOUND',
+		readonly reasonCode: 'CHANNEL_NOT_FOUND' | 'CHANNEL_ARCHIVED' | 'CHANNEL_SCOPE_MISMATCH' | 'PARENT_NOT_FOUND',
 		message: string,
 	) {
 		super(message);
@@ -27,6 +27,11 @@ export class ChatMessageScopeValidator {
 		const channel = await this.channelProjectionRepository.findById(event.channelId);
 		if (!channel) {
 			throw new ChatMessageScopeError('CHANNEL_NOT_FOUND', 'channel projection was not found');
+		}
+
+		// 전송 시점 검사를 통과한 뒤 채널이 보관되었을 수 있으므로 저장 직전에 다시 확인한다.
+		if (channel.archived === true) {
+			throw new ChatMessageScopeError('CHANNEL_ARCHIVED', 'channel was archived before the message was stored');
 		}
 
 		const scope = resolveMessageScope(channel);
