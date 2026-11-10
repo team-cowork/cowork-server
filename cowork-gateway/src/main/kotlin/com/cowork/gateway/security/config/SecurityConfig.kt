@@ -104,6 +104,14 @@ class SecurityConfig(
                         "/api/authorization/health",
                         "/api/voice/health",
                         "/api/github/health",
+                        "/api/user/health",
+                        "/api/team/health",
+                        "/api/project/health",
+                        "/api/channel/health",
+                        "/api/roadmap/health",
+                        "/api/notification/health",
+                        "/api/preference/health",
+                        "/api/applet/health",
                     ).permitAll()
                     .pathMatchers("/fallback").permitAll()
                     .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/webjars/**").permitAll()
