@@ -1,8 +1,6 @@
 package com.cowork.roadmap.domain.node.service.impl;
 
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -12,7 +10,6 @@ import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.presentation.data.request.CreateNodeReqDto;
 import com.cowork.roadmap.domain.node.presentation.data.response.NodeResDto;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
-import com.cowork.roadmap.domain.node.repository.projection.NodeParentProjection;
 import com.cowork.roadmap.domain.node.service.CreateRoadmapNodeService;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
@@ -67,19 +64,16 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
         if (!roadmapId.equals(parent.getRoadmapId())) {
             throw new ExpectedException("상위 노드가 같은 로드맵에 속하지 않습니다.", HttpStatus.BAD_REQUEST);
         }
-        validateDepth(roadmapId, parentId);
+        validateDepth(parent);
     }
 
     /** 노드의 상위 노드는 바뀌지 않고 로드맵 행 잠금 아래에서 세므로, 동시 생성도 깊이 상한을 넘지 않는다. */
-    private void validateDepth(Long roadmapId, Long parentId) {
-        Map<Long, Long> parentById = nodeRepository.findParentsByRoadmapId(roadmapId)
-                .stream()
-                .filter(node -> node.getParentId() != null)
-                .collect(Collectors.toMap(NodeParentProjection::getId, NodeParentProjection::getParentId));
+    private void validateDepth(RoadmapNode parent) {
         // 상위 노드가 루트면 새 노드는 2단계이고, 상위 노드의 조상 하나마다 한 단계씩 깊어진다.
         int depth = 2;
-        for (Long ancestor = parentById.get(parentId); ancestor != null
-                && depth <= RoadmapNode.MAX_TREE_DEPTH; ancestor = parentById.get(ancestor)) {
+        for (Long ancestorId = parent.getParentId(); ancestorId != null
+                && depth <= RoadmapNode.MAX_TREE_DEPTH; ancestorId = nodeRepository.findParentIdById(ancestorId)
+                        .orElse(null)) {
             depth++;
         }
         if (depth > RoadmapNode.MAX_TREE_DEPTH) {
