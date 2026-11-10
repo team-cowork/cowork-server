@@ -132,6 +132,8 @@ public class ContractTests
 {
     static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement;
 
+    // TODO(legacy-identity-topic): Migrate active-contract fixtures and v1/v2 parser assertions when v1 is retired;
+    // retain historical hash fixtures while persisted inbox rows still require their hash versions.
     const string IdentityCommand = """
         {"schemaVersion":1,"operationId":"0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11","idempotencyKey":"login:7",
          "commandType":"UPSERT","userId":7,"name":"김코워크","email":"kim@gsm.hs.kr","sex":"MAN","grade":2,
@@ -153,6 +155,21 @@ public class ContractTests
             Assert.Equal(":invalid_string", error);
         }
         Assert.NotNull(CoworkUser.Platform.Json.ParseObject("{\"name\":\"김코워크\"}"u8.ToArray(), out _));
+    }
+
+    [Fact]
+    public void Nullable_major_is_allowed_only_on_the_v2_identity_contract()
+    {
+        var nullable = IdentityCommand.Replace("\"major\":\"SW_DEVELOPMENT\"", "\"major\":null");
+        Assert.Null(IdentityCommandContract.Parse(Json(nullable), "7", schemaVersion: 1));
+        var v2 = nullable.Replace("\"schemaVersion\":1", "\"schemaVersion\":2");
+        var command = IdentityCommandContract.Parse(Json(v2), "7", schemaVersion: 2);
+        Assert.NotNull(command);
+        Assert.Null(command.Major);
+        Assert.Contains("\"major\":null", IdentityCommandContract.CanonicalPayload(command));
+        Assert.Contains("\"schemaVersion\":2", IdentityCommandContract.CanonicalPayload(command));
+        Assert.Null(IdentityCommandContract.Parse(Json(v2), "7", schemaVersion: 1));
+        Assert.Null(IdentityCommandContract.Parse(Json(nullable), "7", schemaVersion: 2));
     }
 
     [Fact]
