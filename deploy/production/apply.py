@@ -15,15 +15,6 @@ from deploy.production.rollout.platform import Platform, ROOT
 from deploy.production.rollout.services import Services
 
 STAGES = ('foundation', 'data', 'apps', 'edge')
-# TODO(2026-11-10 UTC): Remove PREFERENCE_FIRST, the preference-first block in main(), and the `jobs`
-# parameter of Platform.tofu_plan_jobs after the release PR (develop -> main) that contains the channel
-# archive change is merged into main and its production CD run succeeds.
-# Why: cowork-channel now reads the `channelArchive` field of preference.project-access.state.v1.
-# Only the new cowork-preference publishes that field, and its startup snapshot republishes every
-# project access state with it. If cowork-channel starts first, it reads old records as "no project
-# channel archive permission" until that snapshot arrives. After the first successful rollout,
-# every retained record already has the field, so later releases do not need this order.
-PREFERENCE_FIRST = 'cowork-preference'
 
 
 def main():
@@ -107,18 +98,6 @@ def main():
             if changed_edge != {'cowork-gateway'}:
                 raise RuntimeError('Gateway alternate-port plan did not change exactly one job')
         run_id = (os.environ.get('GITHUB_RUN_ID') or manifest['source_sha']) + ':' + uuid.uuid4().hex
-        # TODO(2026-11-10 UTC): Remove this block together with PREFERENCE_FIRST (see the note above).
-        # A cold start has no running services to keep consistent, so only normal releases use this order.
-        if previous_gateway and PREFERENCE_FIRST in changed_apps and changed_apps - {PREFERENCE_FIRST}:
-            preference_plan = directory / 'apps-preference.tfplan'
-            planned = platform.tofu_plan_jobs('apps', variables['apps'], preference_plan, jobs={PREFERENCE_FIRST})
-            if planned != {PREFERENCE_FIRST}:
-                raise RuntimeError('Preference-first plan did not change exactly cowork-preference')
-            services.apply(variables['apps'], preference_plan, planned, specs, run_id,
-                           gateway_available=True, flag_services=planned)
-            changed_apps = platform.tofu_plan_jobs('apps', variables['apps'], apps_plan)
-            if PREFERENCE_FIRST in changed_apps:
-                raise RuntimeError('cowork-preference still differs after its preference-first rollout')
         services.apply(variables['apps'], apps_plan, changed_apps, specs, run_id,
                        gateway_available=bool(previous_gateway),
                        flag_services=changed_apps if previous_gateway else business_services)
