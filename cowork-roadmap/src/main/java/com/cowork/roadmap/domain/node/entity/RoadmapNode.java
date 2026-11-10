@@ -26,6 +26,12 @@ public class RoadmapNode extends BaseEntity {
     /** 트리 조회와 계층 연산이 한 번에 처리하는 노드 수의 상한. */
     public static final int MAX_NODES_PER_ROADMAP = 1_000;
 
+    /**
+     * 루트를 1로 센 트리 깊이의 상한. 노드 한 단계가 트리 응답의 JSON 깊이를 2씩 늘려 Jackson 쓰기 깊이 기본값 500에 닿지
+     * 않게 한다.
+     */
+    public static final int MAX_TREE_DEPTH = 50;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
