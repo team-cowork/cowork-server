@@ -11,6 +11,7 @@ object PermissionKeys {
     const val MANAGE_GITHUB = "manage_github"
     const val MANAGE_NICKNAMES = "manage_nicknames"
     const val MANAGE_NICKNAME_FORMAT = "manage_nickname_format"
+    const val ARCHIVE_CHANNELS = "archive_channels"
 
     const val MESSAGE_READ = "message_read"
     const val MESSAGE_SEND = "message_send"
@@ -40,6 +41,7 @@ object PermissionKeys {
         MANAGE_GITHUB,
         MANAGE_NICKNAMES,
         MANAGE_NICKNAME_FORMAT,
+        ARCHIVE_CHANNELS,
     )
 
     val CHANNEL_SCOPED: Set<String> = linkedSetOf(
@@ -65,8 +67,15 @@ object PermissionKeys {
     const val PROJECT_WRITE = "project_write"
     const val PROJECT_MANAGE = "project_manage"
     const val PROJECT_REORDER = "project_reorder"
+    const val PROJECT_CHANNEL_ARCHIVE = "project_channel_archive"
 
-    val PROJECT_SCOPED: Set<String> = linkedSetOf(PROJECT_READ, PROJECT_WRITE, PROJECT_MANAGE, PROJECT_REORDER)
+    val PROJECT_SCOPED: Set<String> = linkedSetOf(
+        PROJECT_READ,
+        PROJECT_WRITE,
+        PROJECT_MANAGE,
+        PROJECT_REORDER,
+        PROJECT_CHANNEL_ARCHIVE,
+    )
 
     val ROLE_SCOPED: Set<String> = TEAM_SCOPED + CHANNEL_SCOPED + PROJECT_SCOPED
 }
