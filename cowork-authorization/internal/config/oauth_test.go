@@ -8,6 +8,8 @@ func TestRegisteredRedirectURIs(t *testing.T) {
 		valid bool
 	}{
 		{"https://web.example/api/auth/callback,http://localhost:3000/api/auth/callback,http://localhost:19420/callback,cowork://oauth/callback", true},
+		{" , https://web.example/api/auth/callback, ,cowork://oauth/callback, ", true},
+		{" , , ", false},
 		{"", false}, {"http://web.example/callback", false}, {"https://user:secret@web.example/callback", false}, {"https://web.example/callback#fragment", false}, {"javascript:alert(1)", false},
 	} {
 		_, err := parseRedirectURIs(tc.value)
