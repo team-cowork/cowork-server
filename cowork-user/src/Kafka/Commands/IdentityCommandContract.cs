@@ -22,8 +22,8 @@ public static class IdentityCommandContract
         long? DatagsmStudentId, long RequestedBy, DateTime OccurredAt, int OccurredAtPrecision, int SchemaVersion
         );
 
-    // TODO(legacy-identity-topic): Remove v1 parsing, the v1 default, and the required-major branch after the old topic is drained and retired.
-    public static Command? Parse(JsonElement payload, string? key, int schemaVersion = 1)
+    // TODO(legacy-identity-topic): Remove v1 parsing and the required-major branch after the old topic is drained and retired.
+    public static Command? Parse(JsonElement payload, string? key, int schemaVersion)
     {
         var operationId = Uuid(payload.Get("operationId"));
         var idempotencyKey = ContractFields.String(payload.Get("idempotencyKey"));
