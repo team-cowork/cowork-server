@@ -55,7 +55,6 @@ export type {MessageIndexDoc} from './message-index.contract.js';
 const READY_RECHECK_INTERVAL_MS = 30_000;
 
 export type SearchMessagesParameters = {
-	projectId: number;
 	accessibleChannelIds: number[];
 	q: string;
 	channelId?: number;
@@ -650,7 +649,7 @@ export class ElasticsearchService implements OnModuleInit {
 	}
 
 	async searchMessages(parameters: SearchMessagesParameters): Promise<{hits: SearchHit[]; nextCursor: Nullable<string>}> {
-		const {projectId, accessibleChannelIds, q, channelId, authorId, type, hasFile, before, limit} = parameters;
+		const {accessibleChannelIds, q, channelId, authorId, type, hasFile, before, limit} = parameters;
 
 		const filter: estypes.QueryDslQueryContainer[] = [
 			...(channelId === undefined ? [] : [{term: {channelId}}]),
@@ -660,7 +659,7 @@ export class ElasticsearchService implements OnModuleInit {
 		];
 
 		return this.runSearch(
-			[{term: {projectId}}, {terms: {channelId: accessibleChannelIds}}, this.buildContentQuery(q)],
+			[{terms: {channelId: accessibleChannelIds}}, this.buildContentQuery(q)],
 			filter,
 			before,
 			limit,

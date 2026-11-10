@@ -10,9 +10,13 @@ export type SearchIndexStatus = typeof SEARCH_INDEX_STATUSES[number];
 /**
  색인 대상 메시지 조건.
 
- 팀·프로젝트 채널의 사용자 메시지만 검색에 노출한다. DM(`teamId: null`)과 프로젝트 무관 채널,
- 그리고 입퇴장 안내 같은 `SYSTEM` 메시지는 대상이 아니다. 증분 동기화와 전체 재구축이
+ 팀 채널의 사용자 메시지만 검색에 노출한다. 프로젝트 연결 여부는 보지 않는다. 채널은
+ 프로젝트 없이 생성되고, 팀 검색은 팀의 모든 채널을 범위로 삼기 때문이다. DM(`teamId: null`)과
+ 입퇴장 안내 같은 `SYSTEM` 메시지는 대상이 아니다. 증분 동기화와 전체 재구축이
  같은 조건을 사용해야 MongoDB 기준으로 누락·잔존 문서를 판정할 수 있다.
+
+ 배포 유의사항: 프로젝트 없는 채널의 기존 메시지는 이전 조건에서 `SKIPPED`로 확정되어 색인에 없다.
+ 이 조건을 넓힌 배포 후 전체 `rebuild`를 한 번 돌려야 기존 메시지가 검색된다.
 
  배포 유의사항: 이 아웃박스 도입 이전 색인 경로(`chat-message.processor`)는 `type !== 'SYSTEM'`을
  보지 않아 프로젝트 채널의 `SYSTEM` 메시지도 이미 색인되어 있다. `backfillLegacyState`는 그
@@ -22,7 +26,6 @@ export type SearchIndexStatus = typeof SEARCH_INDEX_STATUSES[number];
 export const SEARCH_INDEX_SCOPE_FILTER = {
 	webhookDeleted: {$ne: true},
 	teamId: {$ne: null},
-	projectId: {$ne: null},
 	type: {$ne: 'SYSTEM'},
 };
 
@@ -37,7 +40,6 @@ export type IndexableMessage = {
 
 export function isSearchIndexed(message: IndexableMessage): boolean {
 	return message.teamId !== null && message.teamId !== undefined
-		&& message.projectId !== null && message.projectId !== undefined
 		&& message.type !== 'SYSTEM';
 }
 
@@ -62,7 +64,7 @@ export function buildMessageIndexDoc(message: MessageIndexSource): MessageIndexD
 	return {
 		messageId: message._id.toString(),
 		teamId: message.teamId!,
-		projectId: message.projectId!,
+		projectId: message.projectId ?? null,
 		channelId: message.channelId,
 		authorId: message.authorId,
 		...(message.webhook && {webhook: message.webhook}),
