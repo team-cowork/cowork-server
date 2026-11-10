@@ -1,17 +1,15 @@
 package service
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/domain"
+	"github.com/tmp-it-play/datagsm-sdk-go/oauth"
 	"gorm.io/gorm"
 )
 
@@ -22,28 +20,6 @@ type TokenPair struct {
 	RefreshToken string `json:"refresh_token"`
 	TokenType    string `json:"token_type"`
 	ExpiresIn    int    `json:"expires_in"`
-}
-
-type DataGSMUserInfo struct {
-	ID        int64           `json:"id"`
-	Email     string          `json:"email"`
-	Role      string          `json:"role"` // USER, ADMIN
-	IsStudent bool            `json:"isStudent"`
-	Student   *DataGSMStudent `json:"student"`
-}
-
-type DataGSMStudent struct {
-	ID            int64   `json:"id"`
-	Name          string  `json:"name"`
-	Sex           string  `json:"sex"`
-	Grade         int8    `json:"grade"`
-	ClassNum      int8    `json:"classNum"` // 반
-	Number        int8    `json:"number"`   // 번호
-	Major         string  `json:"major"`
-	Specialty     *string `json:"specialty"`
-	GithubID      *string `json:"githubId"`
-	Role          string  `json:"role"` // GENERAL_STUDENT, STUDENT_COUNCIL, ...
-	IsLeaveSchool bool    `json:"isLeaveSchool"`
 }
 
 type RefreshTokenStore interface {
@@ -74,7 +50,7 @@ type IdentityCommitCoordinator interface {
 
 type AuthService struct {
 	cfg              *config.AppConfig
-	httpClient       *http.Client
+	login            *DataGSMLogin
 	identity         IdentityCommitCoordinator
 	refreshTokenRepo RefreshTokenStore
 	tokenSvc         *TokenService
@@ -86,10 +62,11 @@ func NewAuthService(
 	identity IdentityCommitCoordinator,
 	refreshTokenRepo RefreshTokenStore,
 	tokenSvc *TokenService,
+	login *DataGSMLogin,
 ) *AuthService {
 	return &AuthService{
 		cfg:              cfg,
-		httpClient:       &http.Client{Timeout: 5 * time.Second},
+		login:            login,
 		identity:         identity,
 		refreshTokenRepo: refreshTokenRepo,
 		tokenSvc:         tokenSvc,
@@ -99,18 +76,32 @@ func NewAuthService(
 	}
 }
 
-func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redirectURI string) (*TokenPair, error) {
-	accessToken, err := s.exchangeCode(ctx, code, codeVerifier, redirectURI)
-	if err != nil {
-		return nil, fmt.Errorf("failed to exchange code: %w", err)
-	}
+func (s *AuthService) BeginLogin(ctx context.Context, redirectURI string) (string, string, error) {
+	return s.login.Begin(ctx, redirectURI)
+}
 
-	userInfo, err := s.fetchUserInfo(ctx, accessToken)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch user info: %w", err)
-	}
+func (s *AuthService) AllowsLoginOrigin(origin string) bool { return s.login.AllowsOrigin(origin) }
 
-	if !userInfo.IsStudent || userInfo.Student == nil {
+func (s *AuthService) CompleteLogin(ctx context.Context, session string, callback url.Values) (*TokenPair, error) {
+	userInfo, err := s.login.Complete(ctx, session, callback)
+	if err != nil {
+		return nil, err
+	}
+	return s.issueUserSession(ctx, userInfo)
+}
+
+// Deprecated: use BeginLogin and CompleteLogin for server-managed OAuth/OIDC.
+// TODO(legacy-login): Remove this legacy SDK login path after the web and mobile implementations migrate to server-managed OAuth/OIDC.
+func (s *AuthService) ExchangeCode(ctx context.Context, code, verifier, redirectURI string) (*TokenPair, error) {
+	userInfo, err := s.login.Exchange(ctx, code, verifier, redirectURI)
+	if err != nil {
+		return nil, err
+	}
+	return s.issueUserSession(ctx, userInfo)
+}
+
+func (s *AuthService) issueUserSession(ctx context.Context, userInfo *oauth.UserInfo) (*TokenPair, error) {
+	if userInfo.ObjectType == nil || *userInfo.ObjectType != "STUDENT" || userInfo.Student == nil {
 		return nil, fmt.Errorf("non-student users are not supported")
 	}
 
@@ -123,35 +114,52 @@ func (s *AuthService) ExchangeCode(ctx context.Context, code, codeVerifier, redi
 	if err != nil {
 		return nil, fmt.Errorf("failed to create user identity operation: %w", err)
 	}
-	grade := st.Grade
-	classNumber := st.ClassNum
-	studentNumberInClass := st.Number
+	grade, err := studentInteger(st.Grade)
+	if err != nil {
+		return nil, err
+	}
+	classNumber, err := studentInteger(st.ClassNum)
+	if err != nil {
+		return nil, err
+	}
+	studentNumberInClass, err := studentInteger(st.Number)
+	if err != nil {
+		return nil, err
+	}
+	var major *string
+	if st.Major != nil {
+		value := string(*st.Major)
+		major = &value
+	}
 	studentID := st.ID
 	command := domain.UserIdentityCommand{
-		SchemaVersion:        domain.UserIdentitySchemaVersion,
+		SchemaVersion:        domain.UserIdentityCommandSchemaVersion,
 		OperationID:          operationID,
 		IdempotencyKey:       operationID,
 		CommandType:          domain.UserIdentityCommandUpsert,
 		UserID:               userInfo.ID,
 		Name:                 st.Name,
 		Email:                userInfo.Email,
-		Sex:                  st.Sex,
-		Grade:                &grade,
-		ClassNumber:          &classNumber,
-		StudentNumberInClass: &studentNumberInClass,
-		Major:                st.Major,
-		Role:                 st.Role,
-		GithubID:             st.GithubID,
+		Sex:                  string(st.Sex),
+		Grade:                grade,
+		ClassNumber:          classNumber,
+		StudentNumberInClass: studentNumberInClass,
+		Major:                major,
+		Role:                 string(st.Role),
+		GithubID:             st.GitHubID,
 		DataGSMStudentID:     &studentID,
 		RequestedBy:          userInfo.ID,
 		OccurredAt:           s.now().UTC().Truncate(time.Microsecond),
+	}
+	if err := domain.ValidateUserIdentityCommand(command); err != nil {
+		return nil, ErrAuthenticationRejected
 	}
 	return s.commitIdentityAndIssueSession(
 		ctx,
 		command,
 		userInfo.Email,
 		platformRole,
-		st.Role,
+		string(st.Role),
 		"",
 	)
 }
@@ -298,83 +306,13 @@ func (s *AuthService) tokenPair(accessToken, rawRefresh string) *TokenPair {
 	}
 }
 
-func (s *AuthService) exchangeCode(ctx context.Context, code, codeVerifier, redirectURI string) (string, error) {
-	body, err := json.Marshal(map[string]string{
-		"grant_type":    "authorization_code",
-		"code":          code,
-		"client_id":     s.cfg.DataGSMClientID,
-		"redirect_uri":  redirectURI,
-		"code_verifier": codeVerifier,
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal token request: %w", err)
+func studentInteger(value *int) (*int8, error) {
+	if value == nil {
+		return nil, nil
 	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.cfg.DataGSMTokenURL, bytes.NewReader(body))
-	if err != nil {
-		return "", fmt.Errorf("failed to create token request: %w", err)
+	if *value < 0 || *value > 127 {
+		return nil, ErrAuthenticationRejected
 	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("%w: failed to call token endpoint: %v", ErrAuthenticationUnavailable, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("%w: failed to read token response: %v", ErrAuthenticationUnavailable, err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return "", providerStatusError("token", resp.StatusCode)
-	}
-
-	var result struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.Unmarshal(respBody, &result); err != nil {
-		return "", fmt.Errorf("%w: failed to parse token response: %v", ErrAuthenticationUnavailable, err)
-	}
-	if result.AccessToken == "" {
-		return "", fmt.Errorf("%w: empty access_token in response", ErrAuthenticationUnavailable)
-	}
-	return result.AccessToken, nil
-}
-
-func (s *AuthService) fetchUserInfo(ctx context.Context, accessToken string) (*DataGSMUserInfo, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.cfg.DataGSMUserInfoURL, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create userinfo request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+accessToken)
-
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to call userinfo endpoint: %v", ErrAuthenticationUnavailable, err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, providerStatusError("userinfo", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to read userinfo response: %v", ErrAuthenticationUnavailable, err)
-	}
-
-	var info DataGSMUserInfo
-	if err := json.Unmarshal(body, &info); err != nil {
-		return nil, fmt.Errorf("%w: failed to parse userinfo response: %v", ErrAuthenticationUnavailable, err)
-	}
-	return &info, nil
-}
-
-func providerStatusError(endpoint string, status int) error {
-	err := fmt.Errorf("%s endpoint returned status %d", endpoint, status)
-	if status >= http.StatusInternalServerError {
-		return fmt.Errorf("%w: %v", ErrAuthenticationUnavailable, err)
-	}
-	return err
+	result := int8(*value)
+	return &result, nil
 }
