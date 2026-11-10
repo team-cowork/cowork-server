@@ -35,9 +35,6 @@ public class RoadmapAccessGuard {
             requireGlobalAdmin(userRole);
             return;
         }
-        if (ownerTeamId == null) {
-            throw new ExpectedException("커스텀 로드맵에는 owner_team_id가 필요합니다.", HttpStatus.BAD_REQUEST);
-        }
         requireTeamManager(ownerTeamId, userId, "커스텀 로드맵은 팀 OWNER/ADMIN만 생성할 수 있습니다.");
     }
 
