@@ -22,15 +22,16 @@ public static class IdentityCommandContract
         long? DatagsmStudentId, long RequestedBy, DateTime OccurredAt, int OccurredAtPrecision, int SchemaVersion
         );
 
-    // TODO(legacy-identity-topic): Remove v1 parsing and the required-major branch after the old topic is drained and retired.
-    public static Command? Parse(JsonElement payload, string? key, int schemaVersion)
+    /// <summary>The only command schema version accepted from the identity command topic.</summary>
+    public const int CommandSchemaVersion = 2;
+
+    public static Command? Parse(JsonElement payload, string? key)
     {
         var operationId = Uuid(payload.Get("operationId"));
         var idempotencyKey = ContractFields.String(payload.Get("idempotencyKey"));
         var userId = payload.Get("userId").Integer();
         if (!ContractFields.ExactKeys(payload, AllowedKeys)
-            || schemaVersion is not (1 or 2)
-            || payload.Get("schemaVersion").Integer() != schemaVersion
+            || payload.Get("schemaVersion").Integer() != CommandSchemaVersion
             || operationId is null
             || idempotencyKey is null || idempotencyKey.Trim() == "" || Accounts.TextLength(idempotencyKey) > MaxIdempotencyKeyLength
             || payload.GetString("commandType") != "UPSERT"
@@ -40,7 +41,7 @@ public static class IdentityCommandContract
             || !ContractFields.RequiredString(payload.Get("name"), 50)
             || !ContractFields.RequiredString(payload.Get("email"), 255)
             || !ContractFields.RequiredString(payload.Get("sex"), 10)
-            || !(schemaVersion == 1 ? ContractFields.RequiredString(payload.Get("major"), 50) : ContractFields.OptionalString(payload.Get("major"), 50))
+            || !ContractFields.OptionalString(payload.Get("major"), 50)
             || !ContractFields.RequiredString(payload.Get("role"), 50)
             || !ContractFields.OptionalInteger(payload.Get("grade"))
             || !ContractFields.OptionalInteger(payload.Get("classNumber"))
@@ -54,7 +55,7 @@ public static class IdentityCommandContract
             payload.GetString("name")!, payload.GetString("email")!, payload.GetString("sex")!,
             payload.Get("grade").Integer(), payload.Get("classNumber").Integer(), payload.Get("studentNumberInClass").Integer(),
             payload.GetString("major"), payload.GetString("role")!, payload.GetString("githubId"),
-            payload.Get("dataGSMStudentId").Integer(), userId.Value, occurredAt, precision, schemaVersion);
+            payload.Get("dataGSMStudentId").Integer(), userId.Value, occurredAt, precision, CommandSchemaVersion);
     }
 
     /// <summary>A canonical lowercase UUID operationId usable for result correlation.</summary>
