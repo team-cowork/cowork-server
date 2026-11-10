@@ -5,12 +5,17 @@ description: Usage guide for the-sdk common library — HTTP request/response lo
 
 # the-sdk Usage Guide
 
-`com.github.themoment-team:the-sdk:1.5` — the core common library for this project.  
+`io.github.themoment-team:the-sdk:2.0` from Maven Central.
 Controlled via `sdk.*` settings in `application.yml`.
+
+For MVC auto-configuration, provide Spring Boot 4 version management and `spring-boot-starter-web`.
+Kotlin consumers also declare `tools.jackson.module:jackson-module-kotlin` (Jackson 3).
 
 ## Features
 
-- **Logging**: Assigns a UUID `Log-ID` to every HTTP request/response; automatic logging
-- **Response Wrapper**: Automatically wraps controller return values in `CommonApiResponse`. Use `success()` / `created()` / `error()` factory methods
-- **Exception Handler**: Throwing `ExpectedException(message, HttpStatus)` returns a standard error response automatically
-- **Swagger**: Auto-configured at `/v3/api-docs` and `/swagger-ui`. Only `/v1/**` paths are documented
+- **Logging**: Assigns a UUID `Log-ID` to each HTTP request/response pair.
+- **Response Wrapper**: When enabled, wraps return values in `CommonApiResponse`. Use `success()` / `created()` / `error()` factories.
+- **Exception Handler**: When enabled, handles `ExpectedException(message, HttpStatus)` as a standard error response.
+- **Swagger**: Auto-configures OpenAPI. Documented paths follow `sdk.swagger.paths-to-match` (default `/v1/**`).
+
+See the [2.0 README](https://github.com/themoment-team/the-sdk/blob/2.0/README.adoc) for detailed response and Swagger rules.
