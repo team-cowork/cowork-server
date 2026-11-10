@@ -25,4 +25,11 @@ class ChannelAccessGuard(private val channelRepository: ChannelRepository) {
         }
         return teamId
     }
+
+    /** 보관된 채널은 조회·검색·복원·삭제와 열람 대상 조정(채널 역할 권한, 공개 여부)만 허용한다. */
+    fun requireNotArchived(channel: Channel) {
+        if (channel.isArchived) {
+            throw ExpectedException("보관된 채널은 변경할 수 없습니다.", HttpStatus.CONFLICT)
+        }
+    }
 }
