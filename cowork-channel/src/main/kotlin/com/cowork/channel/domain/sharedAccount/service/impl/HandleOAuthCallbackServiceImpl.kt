@@ -70,6 +70,7 @@ class HandleOAuthCallbackServiceImpl(
     private fun authorize(channelId: Long, userId: Long) {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         teamPermissionService.requireChannelAccess(channel, userId)
+        channelAccessGuard.requireNotArchived(channel)
     }
 
     /** 이미 있는 계정이면 OAuth 연결 표시를 되돌려 반환하고, 없으면 새로 저장한다. */

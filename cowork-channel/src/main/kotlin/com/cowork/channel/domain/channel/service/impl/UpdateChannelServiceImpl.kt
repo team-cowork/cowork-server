@@ -32,6 +32,10 @@ class UpdateChannelServiceImpl(
         val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
         val teamId = channelAccessGuard.requireTeamChannel(channel)
         channelPermissionSupport.requireChannelManager(channel, userId)
+        // 보관된 채널도 열람 대상은 조정할 수 있도록 공개 여부 변경만 허용한다.
+        if (request.name != null || request.description != null || updateProjectId) {
+            channelAccessGuard.requireNotArchived(channel)
+        }
         if (!channel.isPrivate && request.isPrivate == true) {
             channelPermissionSupport.requirePrivateTransitionAccess(channel, userId)
         }

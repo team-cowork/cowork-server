@@ -23,6 +23,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 import java.time.Instant
+import java.time.LocalDateTime
 import java.util.Optional
 
 class UpdateChannelServiceImplTest {
@@ -71,6 +72,34 @@ class UpdateChannelServiceImplTest {
         id = id, teamId = null, name = "DM", type = ChannelType.DM, viewType = ChannelViewType.TEXT,
         description = null, isPrivate = true, createdBy = createdBy, dmKey = "1:2",
     )
+
+    @Test
+    fun `보관된 채널은 공개 여부만 바꿀 수 있다`() {
+        val ch = channel(createdBy = 99L).apply { archive(1L, LocalDateTime.of(2026, 11, 10, 9, 0)) }
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
+
+        val response = service.execute(1L, 1L, UpdateChannelRequest(isPrivate = true), updateProjectId = false)
+
+        assertEquals(true, response.isPrivate)
+        verify { channelEventPublisher.publishUpdated(ch, any()) }
+    }
+
+    @Test
+    fun `보관된 채널의 이름이나 프로젝트를 바꾸면 CONFLICT`() {
+        val ch = channel(createdBy = 99L).apply { archive(1L, LocalDateTime.of(2026, 11, 10, 9, 0)) }
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
+
+        val renamed = assertThrows(ExpectedException::class.java) {
+            service.execute(1L, 1L, UpdateChannelRequest(name = "renamed"), updateProjectId = false)
+        }
+        val moved = assertThrows(ExpectedException::class.java) {
+            service.execute(1L, 1L, UpdateChannelRequest(), updateProjectId = true)
+        }
+
+        assertEquals(HttpStatus.CONFLICT, renamed.statusCode)
+        assertEquals(HttpStatus.CONFLICT, moved.statusCode)
+        assertEquals("ch", ch.name)
+    }
 
     @Test
     fun `updateChannel은 팀 OWNER 등가 권한으로 통과`() {
