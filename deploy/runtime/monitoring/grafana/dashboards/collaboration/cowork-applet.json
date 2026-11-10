@@ -729,5 +729,16 @@
         "label": "데이터 소스"
       }
     ]
-  }
+  },
+  "links": [
+    {
+      "title": "Infrastructure · SurrealDB",
+      "type": "link",
+      "icon": "dashboard",
+      "url": "/d/cowork-infrastructure",
+      "targetBlank": false,
+      "includeVars": false,
+      "keepTime": true
+    }
+  ]
 }
