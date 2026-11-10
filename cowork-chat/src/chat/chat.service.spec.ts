@@ -89,12 +89,12 @@ const mockTeamMemberRepository = {
 };
 
 const mockChannelMessageReadAccess = {
+	requireProjectionsReady: jest.fn(),
 	canReadChannel: jest.fn().mockResolvedValue(true),
 	requireCanRead: jest.fn().mockResolvedValue(undefined),
 	requirePermissions: jest.fn().mockResolvedValue(undefined),
 	requirePermission: jest.fn().mockResolvedValue(undefined),
 	requireReadableProjectChannelIds: jest.fn(),
-	findReadableTeamChannelIds: jest.fn(),
 	requireReadableTeamChannelIds: jest.fn(),
 	filterReadableChannelIds: jest.fn(),
 	filterReadableUsersByChannel: jest.fn(),
@@ -222,10 +222,9 @@ describe('ChatService', () => {
 		mockChannelMessageReadAccess.requirePermissions.mockResolvedValue(undefined);
 		mockChannelMessageReadAccess.requirePermission.mockResolvedValue(undefined);
 		mockChannelMessageReadAccess.requireReadableProjectChannelIds.mockResolvedValue([]);
-		mockChannelMessageReadAccess.findReadableTeamChannelIds.mockResolvedValue([]);
 		mockChannelMessageReadAccess.requireReadableTeamChannelIds.mockResolvedValue([]);
 		mockChannelMessageReadAccess.filterReadableChannelIds.mockImplementation(
-			async (_teamId: number, _userId: number, channelIds: number[]) => channelIds,
+			async (_userId: number, channelIds: number[]) => channelIds,
 		);
 		mockChannelMessageReadAccess.filterReadableUsersByChannel.mockImplementation(
 			async (usersByChannel: Map<number, number[]>) => usersByChannel,
@@ -239,6 +238,15 @@ describe('ChatService', () => {
 	});
 
 	describe('searchTeamMessages', () => {
+		it('권한 정보가 미준비이면 멤버십 누락을 403으로 처리하지 않는다', async () => {
+			mockTeamMemberRepository.exists.mockResolvedValue(false);
+			mockChannelMessageReadAccess.requireReadableTeamChannelIds.mockRejectedValueOnce(new ServiceUnavailableException());
+
+			await expect(service.searchTeamMessages(10, {teamId: 10, q: '배포'}, {userId: 42}))
+				.rejects.toBeInstanceOf(ServiceUnavailableException);
+			expect(mockTeamMemberRepository.exists).not.toHaveBeenCalled();
+		});
+
 		it('팀 멤버지만 채널이 없으면 권한 오류 대신 빈 결과를 반환한다', async () => {
 			mockTeamMemberRepository.exists.mockResolvedValue(true);
 			mockChannelMessageReadAccess.requireReadableTeamChannelIds.mockResolvedValue([]);
@@ -267,7 +275,7 @@ describe('ChatService', () => {
 		});
 
 		it('archived를 지정하면 읽을 수 있는 채널 중 보관 상태가 일치하는 채널만 검색한다', async () => {
-			mockChannelMessageReadAccess.findReadableTeamChannelIds.mockResolvedValue([1, 2, 3]);
+			mockChannelMessageReadAccess.requireReadableTeamChannelIds.mockResolvedValue([1, 2, 3]);
 			mockChannelProjectionRepository.findByIds.mockResolvedValue([
 				{channelId: 1, archived: true},
 				{channelId: 2, archived: false},
@@ -285,7 +293,7 @@ describe('ChatService', () => {
 		});
 
 		it('archived를 생략하면 보관 상태를 조회하지 않고 읽을 수 있는 모든 채널을 검색한다', async () => {
-			mockChannelMessageReadAccess.findReadableTeamChannelIds.mockResolvedValue([1, 2]);
+			mockChannelMessageReadAccess.requireReadableTeamChannelIds.mockResolvedValue([1, 2]);
 			mockElasticsearchService.searchTeamMessages.mockResolvedValue({hits: [], nextCursor: null});
 
 			await service.searchTeamMessages(10, {teamId: 10, q: '배포'}, {userId: 42});
@@ -582,6 +590,24 @@ describe('ChatService', () => {
 	});
 
 	describe('getMyDms', () => {
+		it('권한 정보가 미준비이면 DM 목록을 조회하지 않고 503을 반환한다', async () => {
+			mockChannelMessageReadAccess.requireProjectionsReady.mockImplementationOnce(() => {
+				throw new ServiceUnavailableException();
+			});
+
+			await expect(service.getMyDms(42)).rejects.toBeInstanceOf(ServiceUnavailableException);
+			expect(mockDmParticipantRepository.findDmMemberships).not.toHaveBeenCalled();
+		});
+
+		it('DM 조회 중 권한 정보가 미준비가 되면 빈 목록 대신 503을 반환한다', async () => {
+			mockDmParticipantRepository.findDmMemberships.mockResolvedValueOnce([]);
+			mockChannelMessageReadAccess.requireProjectionsReady.mockImplementationOnce(() => undefined).mockImplementationOnce(() => {
+				throw new ServiceUnavailableException();
+			});
+
+			await expect(service.getMyDms(42)).rejects.toBeInstanceOf(ServiceUnavailableException);
+		});
+
 		it('숨기지 않은 DM을 마지막 메시지 시각 내림차순으로 반환한다', async () => {
 			mockDmParticipantRepository.findDmMemberships.mockResolvedValue([
 				{channelId: 1, lastReadMessageId: null},
@@ -1251,8 +1277,17 @@ describe('ChatService', () => {
 	});
 
 	describe('getTeamUnread', () => {
+		it('권한 정보가 미준비이면 빈 미읽음 목록 대신 503을 반환한다', async () => {
+			mockTeamMemberRepository.exists.mockResolvedValue(false);
+			mockChannelMessageReadAccess.requireReadableTeamChannelIds.mockRejectedValueOnce(new ServiceUnavailableException());
+
+			await expect(service.getTeamUnread(10, 42)).rejects.toBeInstanceOf(ServiceUnavailableException);
+			expect(mockTeamMemberRepository.exists).not.toHaveBeenCalled();
+			expect(mockMessageRepository.countUnreadForChannels).not.toHaveBeenCalled();
+		});
+
 		it('멤버 행 없이 읽기 권한이 있는 채널의 미읽 카운트를 반환한다', async () => {
-			mockChannelMessageReadAccess.findReadableTeamChannelIds.mockResolvedValue([1, 2]);
+			mockChannelMessageReadAccess.requireReadableTeamChannelIds.mockResolvedValue([1, 2]);
 			const oid1 = new Types.ObjectId();
 			const oid2 = new Types.ObjectId();
 			mockReadStateRepository.findForChannels.mockResolvedValue([
@@ -1263,7 +1298,7 @@ describe('ChatService', () => {
 
 			const result = await service.getTeamUnread(10, 42);
 
-			expect(mockChannelMessageReadAccess.findReadableTeamChannelIds).toHaveBeenCalledWith(10, 42);
+			expect(mockChannelMessageReadAccess.requireReadableTeamChannelIds).toHaveBeenCalledWith(10, 42);
 			expect(mockMessageRepository.countUnreadForChannels).toHaveBeenCalledWith([
 				{channelId: 1, lastReadMessageId: oid1},
 				{channelId: 2, lastReadMessageId: oid2},
@@ -1279,7 +1314,7 @@ describe('ChatService', () => {
 		});
 
 		it('보관된 채널은 팀 미읽 카운트에서 제외한다', async () => {
-			mockChannelMessageReadAccess.findReadableTeamChannelIds.mockResolvedValue([1, 2]);
+			mockChannelMessageReadAccess.requireReadableTeamChannelIds.mockResolvedValue([1, 2]);
 			mockChannelProjectionRepository.findByIds.mockResolvedValue([
 				{channelId: 1, archived: true},
 				{channelId: 2, archived: false},
@@ -1293,8 +1328,6 @@ describe('ChatService', () => {
 		});
 
 		it('읽기 권한이 있는 채널이 없으면 빈 배열을 반환한다', async () => {
-			mockChannelMessageReadAccess.findReadableTeamChannelIds.mockResolvedValue([]);
-
 			const result = await service.getTeamUnread(10, 42);
 
 			expect(result).toEqual([]);
@@ -1302,7 +1335,7 @@ describe('ChatService', () => {
 		});
 
 		it('읽음 위치가 없으면 전체 미읽 메시지 수를 반환한다', async () => {
-			mockChannelMessageReadAccess.findReadableTeamChannelIds.mockResolvedValue([3]);
+			mockChannelMessageReadAccess.requireReadableTeamChannelIds.mockResolvedValue([3]);
 			mockReadStateRepository.findForChannels.mockResolvedValue([
 				{channelId: 3, lastReadMessageId: null},
 			]);

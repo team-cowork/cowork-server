@@ -118,12 +118,17 @@ export class ChannelMessageReadAccessService {
 	private async evaluate(
 		requests: ChannelReadAccessRequest[],
 		modes: AccessMode[],
-	): Promise<Map<string, boolean>> {
+	): Promise<Nullable<Map<string, boolean>>> {
+		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
+			return null;
+		}
+
 		const uniqueRequests = new Map(
 			requests.map(request => [accessKey(request.channelId, request.userId), request]),
 		).values().toArray();
 		const result = new Map(uniqueRequests.map(request => [accessKey(request.channelId, request.userId), false]));
-		if (uniqueRequests.length === 0 || !this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
+
+		if (uniqueRequests.length === 0) {
 			return result;
 		}
 
@@ -242,17 +247,40 @@ export class ChannelMessageReadAccessService {
 		return Number.isSafeInteger(userId) && userId > 0 ? userId : null;
 	}
 
-	private requireProjectionsReady(): void {
-		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
-			throw new ServiceUnavailableException('권한 정보가 아직 동기화되지 않았습니다');
-		}
-	}
-
 	private async whileProjectionsReady<T>(read: () => Promise<T>): Promise<T> {
 		this.requireProjectionsReady();
 		const result = await read();
 		this.requireProjectionsReady();
 		return result;
+	}
+
+	private async requireAccess(
+		requests: ChannelReadAccessRequest[],
+		modes: AccessMode[],
+	): Promise<Map<string, boolean>> {
+		const result = await this.whileProjectionsReady(async () => this.evaluate(requests, modes));
+		// 판정 중 관측한 미준비 상태는 바로 복구되어도 권한 거부로 바꾸지 않는다.
+		if (result === null) {
+			throw new ServiceUnavailableException('권한 정보가 아직 동기화되지 않았습니다');
+		}
+
+		return result;
+	}
+
+	private async findReadableTeamChannelIds(teamId: number, userId: number): Promise<number[]> {
+		const channelIds = await this.channelRepository.findIdsByTeamId(teamId);
+		return this.filterReadableChannelIds(userId, channelIds);
+	}
+
+	private async findReadableProjectChannelIds(projectId: number, userId: number): Promise<number[]> {
+		const channelIds = await this.channelRepository.findIdsByProjectId(projectId);
+		return this.filterReadableChannelIds(userId, channelIds);
+	}
+
+	requireProjectionsReady(): void {
+		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
+			throw new ServiceUnavailableException('권한 정보가 아직 동기화되지 않았습니다');
+		}
 	}
 
 	async canReadChannel(channelId: number, userId: number): Promise<boolean> {
@@ -261,9 +289,8 @@ export class ChannelMessageReadAccessService {
 	}
 
 	async requireCanRead(channelId: number, userId: number): Promise<void> {
-		this.requireProjectionsReady();
-
-		if (!(await this.canReadChannel(channelId, userId))) {
+		const result = await this.requireAccess([{channelId, userId}], ['MESSAGE_READ']);
+		if (result.get(accessKey(channelId, userId)) !== true) {
 			throw new ForbiddenException('채널 메시지 읽기 권한이 없습니다');
 		}
 	}
@@ -273,39 +300,31 @@ export class ChannelMessageReadAccessService {
 	}
 
 	async requirePermissions(channelId: number, userId: number, permissions: ChannelActionPermission[]): Promise<void> {
-		this.requireProjectionsReady();
-
-		const result = await this.evaluate([{channelId, userId}], ['MESSAGE_READ', ...new Set(permissions)]);
+		const result = await this.requireAccess([{channelId, userId}], ['MESSAGE_READ', ...new Set(permissions)]);
 		if (result.get(accessKey(channelId, userId)) !== true) {
 			throw new ForbiddenException('채널 메시지 읽기 또는 요청한 작업 권한이 없습니다');
 		}
 	}
 
-	async filterReadableChannelIds(_teamId: number, userId: number, channelIds: number[]): Promise<number[]> {
+	async filterReadableChannelIds(userId: number, channelIds: number[]): Promise<number[]> {
 		const uniqueChannelIds = [...new Set(channelIds)];
-		const result = await this.evaluateMany(uniqueChannelIds.map(channelId => ({channelId, userId})));
+		const result = await this.requireAccess(uniqueChannelIds.map(channelId => ({channelId, userId})), ['MESSAGE_READ']);
 		return uniqueChannelIds.filter(channelId => result.get(accessKey(channelId, userId)) === true);
 	}
 
-	async filterVisibleChannelIds(_teamId: number, userId: number, channelIds: number[]): Promise<number[]> {
+	async filterVisibleChannelIds(userId: number, channelIds: number[]): Promise<number[]> {
 		const uniqueChannelIds = [...new Set(channelIds)];
-		const result = await this.evaluateVisibilityMany(
-			uniqueChannelIds.map(channelId => ({channelId, userId})),
+		const result = await this.requireAccess(
+			uniqueChannelIds.map(channelId => ({channelId, userId})), ['CHANNEL_METADATA'],
 		);
 		return uniqueChannelIds.filter(channelId => result.get(accessKey(channelId, userId)) === true);
-	}
-
-	async findReadableTeamChannelIds(teamId: number, userId: number): Promise<number[]> {
-		const channelIds = await this.channelRepository.findIdsByTeamId(teamId);
-		return this.filterReadableChannelIds(teamId, userId, channelIds);
 	}
 
 	/**
      검색 범위로 쓸 팀 채널 ID를 구한다.
 
-     권한 projection이 준비되지 않으면 {@link evaluate}가 모든 채널을 거부하므로, 그 결과를
-     그대로 쓰면 일시 장애가 "검색 결과 없음"으로 보인다. 판정 전이나 판정 도중 readiness가
-     닫히면 거부 판정 대신 503을 던진다.
+     권한 projection이 준비되지 않은 상태를 빈 목록으로 반환하면 일시 장애가 "검색 결과 없음"으로 보인다.
+     판정 전이나 판정 도중 readiness가 닫히면 거부 판정 대신 503을 던진다.
 
      @throws ServiceUnavailableException 권한 projection이 준비되지 않은 경우
      */
@@ -319,10 +338,7 @@ export class ChannelMessageReadAccessService {
      @throws ServiceUnavailableException 권한 projection이 준비되지 않은 경우
      */
 	async requireReadableProjectChannelIds(projectId: number, userId: number): Promise<number[]> {
-		return this.whileProjectionsReady(async () => {
-			const channelIds = await this.channelRepository.findIdsByProjectId(projectId);
-			return this.filterReadableChannelIds(0, userId, channelIds);
-		});
+		return this.whileProjectionsReady(async () => this.findReadableProjectChannelIds(projectId, userId));
 	}
 
 	/**
@@ -569,10 +585,12 @@ export class ChannelMessageReadAccessService {
 	}
 
 	async evaluateMany(requests: ChannelReadAccessRequest[]): Promise<Map<string, boolean>> {
-		return this.evaluate(requests, ['MESSAGE_READ']);
+		return await this.evaluate(requests, ['MESSAGE_READ'])
+			?? new Map(requests.map(({channelId, userId}) => [accessKey(channelId, userId), false]));
 	}
 
 	async evaluateVisibilityMany(requests: ChannelReadAccessRequest[]): Promise<Map<string, boolean>> {
-		return this.evaluate(requests, ['CHANNEL_METADATA']);
+		return await this.evaluate(requests, ['CHANNEL_METADATA'])
+			?? new Map(requests.map(({channelId, userId}) => [accessKey(channelId, userId), false]));
 	}
 }
