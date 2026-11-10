@@ -85,6 +85,9 @@ class SecurityConfig(
                     .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                     .pathMatchers(
                         HttpMethod.POST,
+                        "/api/authorization/auth/authorize",
+                        "/api/authorization/auth/callback",
+                        // TODO(legacy-login): Remove this public path after the web and mobile implementations migrate to server-managed OAuth/OIDC.
                         "/api/authorization/auth/token",
                         "/api/authorization/auth/refresh",
                     ).permitAll()
