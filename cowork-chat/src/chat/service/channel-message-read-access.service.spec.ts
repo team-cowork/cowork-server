@@ -1,4 +1,4 @@
-import {ForbiddenException} from '@nestjs/common';
+import {ForbiddenException, ServiceUnavailableException} from '@nestjs/common';
 import {type ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {
 	type DmParticipantRepository,
@@ -10,7 +10,7 @@ import {
 import {ChannelMessageReadAccessService} from './channel-message-read-access.service.js';
 
 describe('ChannelMessageReadAccessService', () => {
-	const channelRepository = {findByIds: jest.fn()};
+	const channelRepository = {findByIds: jest.fn(), findIdsByTeamId: jest.fn(), findIdsByProjectId: jest.fn()};
 	const dmParticipantRepository = {findByChannelIdsAndUserIds: jest.fn(), findByChannelIds: jest.fn()};
 	const teamMemberRepository = {findByTeamIdsAndUserIds: jest.fn(), findByTeamIds: jest.fn()};
 	const teamRoleRepository = {
@@ -406,6 +406,36 @@ describe('ChannelMessageReadAccessService', () => {
 			expect(access.get('30:5')).toBe(false);
 			expect(access.get('31:5')).toBe(false);
 			expect(access.get('32:5')).toBe(true);
+		});
+	});
+
+	describe('검색 범위 채널 조회', () => {
+		it('권한 projection이 준비되면 읽을 수 있는 팀 채널만 반환한다', async () => {
+			channelRepository.findIdsByTeamId.mockResolvedValue([10]);
+
+			await expect(service.requireReadableTeamChannelIds(1, 2)).resolves.toEqual([10]);
+			expect(channelRepository.findIdsByTeamId).toHaveBeenCalledWith(1);
+		});
+
+		it('판정 전 readiness가 닫혀 있으면 빈 결과 대신 503을 던진다', async () => {
+			projectionReadiness.areReady.mockReturnValue(false);
+
+			await expect(service.requireReadableTeamChannelIds(1, 2)).rejects.toBeInstanceOf(ServiceUnavailableException);
+			await expect(service.requireReadableProjectChannelIds(7, 2)).rejects.toBeInstanceOf(ServiceUnavailableException);
+			expect(channelRepository.findIdsByTeamId).not.toHaveBeenCalled();
+			expect(channelRepository.findIdsByProjectId).not.toHaveBeenCalled();
+		});
+
+		it.each([
+			['팀', async () => service.requireReadableTeamChannelIds(1, 2), channelRepository.findIdsByTeamId],
+			['프로젝트', async () => service.requireReadableProjectChannelIds(7, 2), channelRepository.findIdsByProjectId],
+		])('%s 채널 판정 도중 readiness가 닫히면 503을 던진다', async (_label, find, findIds) => {
+			findIds.mockImplementationOnce(async () => {
+				projectionReadiness.areReady.mockReturnValue(false);
+				return [10];
+			});
+
+			await expect(find()).rejects.toBeInstanceOf(ServiceUnavailableException);
 		});
 	});
 
