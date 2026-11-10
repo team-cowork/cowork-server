@@ -16,9 +16,10 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
     @Query(
         "SELECT c FROM Channel c " +
             "WHERE c.teamId = :teamId " +
+            "AND c.archivedAt IS NULL " +
             "ORDER BY c.position ASC, c.id ASC",
     )
-    fun findByTeamIdOrderByPositionAscIdAsc(@Param("teamId") teamId: Long): List<Channel>
+    fun findActiveByTeamIdOrderByPositionAscIdAsc(@Param("teamId") teamId: Long): List<Channel>
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM Channel c WHERE c.teamId = :teamId ORDER BY c.id")
@@ -30,9 +31,10 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
         "SELECT c FROM Channel c " +
             "WHERE c.projectId = :projectId " +
             "AND c.teamId = :teamId " +
+            "AND c.archivedAt IS NULL " +
             "ORDER BY c.id ASC",
     )
-    fun findByProjectIdAndTeamIdOrderByIdAsc(
+    fun findActiveByProjectIdAndTeamIdOrderByIdAsc(
         @Param("projectId") projectId: Long,
         @Param("teamId") teamId: Long,
     ): List<Channel>
@@ -40,8 +42,25 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
     @Query(
         "SELECT c FROM Channel c " +
             "WHERE c.teamId = :teamId " +
+            "AND c.archivedAt IS NULL " +
             "AND c.name LIKE CONCAT('%', :q, '%') " +
             "ORDER BY c.position ASC, c.id ASC",
     )
-    fun searchByTeamIdAndName(@Param("teamId") teamId: Long, @Param("q") q: String): List<Channel>
+    fun searchActiveByTeamIdAndName(@Param("teamId") teamId: Long, @Param("q") q: String): List<Channel>
+
+    @Query(
+        "SELECT c FROM Channel c " +
+            "WHERE c.teamId = :teamId " +
+            "AND c.archivedAt IS NOT NULL " +
+            "AND (:channelId IS NULL OR c.id = :channelId) " +
+            "AND (:projectId IS NULL OR c.projectId = :projectId) " +
+            "AND (:q IS NULL OR c.name LIKE CONCAT('%', :q, '%')) " +
+            "ORDER BY c.archivedAt DESC, c.id DESC",
+    )
+    fun searchArchived(
+        @Param("teamId") teamId: Long,
+        @Param("channelId") channelId: Long?,
+        @Param("projectId") projectId: Long?,
+        @Param("q") q: String?,
+    ): List<Channel>
 }

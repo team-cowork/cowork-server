@@ -37,6 +37,7 @@ class UpdateThreadServiceImpl(
         }
 
         teamPermissionService.requireChannelAccess(channel, userId)
+        channelAccessGuard.requireNotArchived(channel)
         if (thread.createdBy != userId) {
             teamPermissionService.requireChannelPermission(channel, userId, "channel_manage")
         }
