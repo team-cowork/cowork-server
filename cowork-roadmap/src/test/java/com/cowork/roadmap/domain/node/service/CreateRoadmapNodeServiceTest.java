@@ -132,6 +132,19 @@ class CreateRoadmapNodeServiceTest {
         verify(nodeRepository, never()).saveAndFlush(any());
     }
 
+    @Test
+    void createNode_withBlankSourceUrl_savesNullSourceUrl() {
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
+        when(nodeRepository.findNextRootPosition(10L)).thenReturn(0L);
+        when(nodeRepository.saveAndFlush(any()))
+                .thenAnswer(invocation -> simulateSaved(invocation.getArgument(0), 103L));
+
+        var response = createRoadmapNodeService
+                .execute(7L, "ADMIN", 10L, new CreateNodeReqDto(null, "제목", null, " ", null));
+
+        assertThat(response.sourceUrl()).isNull();
+    }
+
     private static Roadmap roadmap(Long id) {
         return Roadmap.builder().id(id).scope(RoadmapScope.GLOBAL.name()).build();
     }
