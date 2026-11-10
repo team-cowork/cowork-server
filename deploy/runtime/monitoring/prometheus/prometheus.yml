@@ -88,6 +88,16 @@ scrape_configs:
   - source_labels:
     - __meta_consul_node
     target_label: host
+  metric_relabel_configs:
+  - source_labels: [service, __name__]
+    regex: mongodb;(mongodb_up|mongodb_op_counters_total|mongodb_mongod_op_latencies_(latency|ops)_total|mongodb_connections|mongodb_mongod_wiredtiger_cache_(bytes|max_bytes)|mongodb_memory|mongodb_ss_metrics_queryExecutor_collectionScans_total)
+    target_label: __tmp_mongodb_keep
+    replacement: 'true'
+  - source_labels: [service, __tmp_mongodb_keep]
+    regex: mongodb;
+    action: drop
+  - regex: __tmp_mongodb_keep
+    action: labeldrop
 - job_name: infrastructure
   static_configs:
   - targets:
