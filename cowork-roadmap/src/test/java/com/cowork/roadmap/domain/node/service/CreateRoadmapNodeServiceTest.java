@@ -10,8 +10,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
@@ -20,7 +18,6 @@ import org.springframework.http.HttpStatus;
 import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.presentation.data.request.CreateNodeReqDto;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
-import com.cowork.roadmap.domain.node.repository.projection.NodeParentProjection;
 import com.cowork.roadmap.domain.node.service.impl.CreateRoadmapNodeServiceImpl;
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
@@ -163,27 +160,12 @@ class CreateRoadmapNodeServiceTest {
     /** 로드맵 10에 1..depth 번 노드를 한 줄로 잇고, 가장 깊은 노드 ID를 반환한다. */
     private long stubChainOfDepth(int depth) {
         when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
-        List<NodeParentProjection> parents = new ArrayList<>();
-        for (long id = 1; id <= depth; id++) {
-            parents.add(parent(id, id == 1 ? null : id - 1));
+        for (long id = 2; id < depth; id++) {
+            when(nodeRepository.findParentIdById(id)).thenReturn(Optional.of(id - 1));
         }
-        when(nodeRepository.findParentsByRoadmapId(10L)).thenReturn(parents);
-        when(nodeRepository.findByIdForShare((long) depth)).thenReturn(Optional.of(node((long) depth, 10L)));
+        RoadmapNode deepest = node((long) depth, 10L).toBuilder().parentId(depth == 1 ? null : depth - 1L).build();
+        when(nodeRepository.findByIdForShare((long) depth)).thenReturn(Optional.of(deepest));
         return depth;
-    }
-
-    private static NodeParentProjection parent(Long id, Long parentId) {
-        return new NodeParentProjection() {
-            @Override
-            public Long getId() {
-                return id;
-            }
-
-            @Override
-            public Long getParentId() {
-                return parentId;
-            }
-        };
     }
 
     private static Roadmap roadmap(Long id) {
