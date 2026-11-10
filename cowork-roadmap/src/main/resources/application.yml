@@ -57,11 +57,18 @@ management:
       application: ${spring.application.name}
 sdk:
   logging:
+    enabled: true
     not-logging-urls:
     - /actuator/**
-    - /metrics
-    - /health
-    - /api/health
+    - /v3/api-docs/**
+    - /swagger-ui/**
+  # 요청 로깅만 the-sdk에 맡긴다. 응답 형식, 예외 처리, API 문서는 이 모듈의 구성을 그대로 쓴다.
+  response:
+    enabled: false
+  exception:
+    enabled: false
+  swagger:
+    enabled: false
 server:
   port: 8088
 springdoc:
