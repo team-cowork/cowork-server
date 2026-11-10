@@ -39,6 +39,9 @@ public interface RoadmapNodeRepository extends JpaRepository<RoadmapNode, Long> 
 
     long countByRoadmapId(Long roadmapId);
 
+    @Query("SELECT node.id AS id, node.parentId AS parentId FROM RoadmapNode node WHERE node.roadmapId = :roadmapId")
+    List<NodeParentProjection> findParentsByRoadmapId(Long roadmapId);
+
     // 잠금 전에 엔티티를 캐시에 올리지 않아 잠금 이후 조회가 최신 상태를 읽게 한다.
     @Query("SELECT node.roadmapId FROM RoadmapNode node WHERE node.id = :id")
     Optional<Long> findRoadmapIdById(Long id);
