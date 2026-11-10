@@ -16,6 +16,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
+import java.time.LocalDateTime
 
 class ReorderTeamChannelsServiceImplTest {
 
@@ -64,6 +65,23 @@ class ReorderTeamChannelsServiceImplTest {
         assertEquals(listOf(2L, 1L), result.map { it.id })
         assertEquals(1, first.position)
         assertEquals(0, second.position)
+    }
+
+    @Test
+    fun `reorderTeamChannels는 보관된 채널을 요구하지 않고 그 위치를 유지함`() {
+        val first = channel(id = 1L, position = 0)
+        val archived = channel(id = 2L, position = 1).apply { archive(1L, LocalDateTime.of(2026, 11, 10, 9, 0)) }
+        val third = channel(id = 3L, position = 2)
+        every { teamPermission.requireTeamMember(100L, 7L) } returns Unit
+        every { channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(100L) } returns listOf(first, archived, third)
+        every { messageReadPolicyEvaluator.filterReadable(100L, 7L, listOf(first, third)) } returns listOf(first, third)
+
+        val result = service.execute(7L, 100L, listOf(3L, 1L))
+
+        assertEquals(listOf(3L, 1L), result.map { it.id })
+        assertEquals(1, archived.position)
+        assertEquals(0, third.position)
+        assertEquals(2, first.position)
     }
 
     @Test

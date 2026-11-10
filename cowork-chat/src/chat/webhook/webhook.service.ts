@@ -1,4 +1,5 @@
 import {
+	ConflictException,
 	ForbiddenException,
 	Injectable as injectable,
 	Logger,
@@ -68,6 +69,10 @@ export class WebhookService {
 		const scope = channel && resolveMessageScope(channel);
 		if (channel?.type !== 'TEXT' || (scope?.teamId === null || scope?.teamId === undefined)) {
 			throw new NotFoundException('웹훅 채널을 찾을 수 없습니다.');
+		}
+
+		if (channel.archived === true) {
+			throw new ConflictException('보관된 채널에는 메시지를 보낼 수 없습니다.');
 		}
 
 		const deliveryKey = webhookDeliveryKey(input.idempotencyKey);

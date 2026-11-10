@@ -34,9 +34,10 @@ class CreateSharedAccountServiceImpl(
         channelId: Long,
         request: CreateSharedAccountRequest,
     ): SharedAccountResponse {
-        val channel = channelAccessGuard.findChannelOrThrow(channelId)
+        val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
         sharedAccountAccessGuard.requireAccountShareChannel(channel)
         teamPermissionService.requireChannelAccess(channel, userId)
+        channelAccessGuard.requireNotArchived(channel)
 
         if (request.provider == AccountProvider.CUSTOM && request.providerLabel.isNullOrBlank()) {
             throw ExpectedException("CUSTOM 서비스는 providerLabel이 필요합니다.", HttpStatus.BAD_REQUEST)

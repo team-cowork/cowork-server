@@ -45,6 +45,12 @@ class Channel(
     @Column(name = "dm_key", nullable = true, length = 50, unique = true)
     val dmKey: String? = null,
 
+    @Column(name = "archived_at", nullable = true)
+    var archivedAt: LocalDateTime? = null,
+
+    @Column(name = "archived_by", nullable = true)
+    var archivedBy: Long? = null,
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: LocalDateTime = LocalDateTime.now(),
@@ -65,5 +71,20 @@ class Channel(
 
     fun assignProject(projectId: Long?) {
         this.projectId = projectId
+    }
+
+    val isArchived: Boolean
+        get() = archivedAt != null
+
+    fun archive(userId: Long, archivedAt: LocalDateTime) {
+        check(!isArchived) { "Channel is already archived" }
+        this.archivedAt = archivedAt
+        this.archivedBy = userId
+    }
+
+    fun unarchive() {
+        check(isArchived) { "Channel is not archived" }
+        archivedAt = null
+        archivedBy = null
     }
 }

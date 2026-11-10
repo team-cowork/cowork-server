@@ -18,6 +18,13 @@ class ProjectionStreams {
         Topics.CHANNEL_ROLE_POLICY_CHANGED,
         "cowork-preference",
     )
+
+    /** 채널 보관 권한에만 쓰므로 전역 readiness에서 제외하고 보관 권한 검사에서 따로 확인한다. */
+    val projectAccess = ProjectionStream(
+        "cowork-channel.project-access-projection",
+        Topics.PREFERENCE_PROJECT_ACCESS_STATE,
+        "cowork-preference",
+    )
     val required: Set<ProjectionStream> = setOf(project, teamMember, teamLifecycle, teamRole, channelRolePolicy)
 
     /**
