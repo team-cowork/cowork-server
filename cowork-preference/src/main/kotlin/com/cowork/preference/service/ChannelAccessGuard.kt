@@ -82,6 +82,11 @@ class ChannelAccessGuard(
         }
     }
 
+    /** 보관된 채널은 읽기 전용이므로 설정 변경을 거부한다. */
+    suspend fun requireNotArchived(channelId: Long) {
+        if (channelRepository.findForRead(pool, channelId)?.archived == true) throw ArchivedChannelException()
+    }
+
     private suspend fun requireDmParticipant(client: SqlClient, channelId: Long, accountId: Long) {
         if (!dmParticipantRepository.isActiveParticipant(client, channelId, accountId)) {
             throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)

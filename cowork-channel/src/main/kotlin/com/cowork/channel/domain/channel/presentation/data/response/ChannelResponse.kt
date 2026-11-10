@@ -16,6 +16,9 @@ data class ChannelResponse(
     val createdBy: Long,
     val createdAt: LocalDateTime,
     val updatedAt: LocalDateTime,
+    val archived: Boolean,
+    val archivedAt: LocalDateTime?,
+    val archivedBy: Long?,
 ) {
     companion object {
         fun of(channel: Channel) = ChannelResponse(
@@ -31,6 +34,9 @@ data class ChannelResponse(
             createdBy = channel.createdBy,
             createdAt = channel.createdAt,
             updatedAt = channel.updatedAt,
+            archived = channel.isArchived,
+            archivedAt = channel.archivedAt,
+            archivedBy = channel.archivedBy,
         )
     }
 }

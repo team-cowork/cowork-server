@@ -10,7 +10,7 @@ export type TombstoneRecord = MessageSearchTombstone & {_id: Types.ObjectId};
 export type CreateTombstoneInput = {
 	messageId: string;
 	teamId: number;
-	projectId: number;
+	projectId: Nullable<number>;
 	channelId: number;
 	version: number;
 	retentionDays: number;

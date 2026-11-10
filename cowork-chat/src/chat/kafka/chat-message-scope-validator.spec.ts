@@ -25,6 +25,16 @@ describe('ChatMessageScopeValidator', () => {
 			});
 		});
 
+		it('저장 전에 채널이 보관되었으면 거부한다', async () => {
+			channels.findById.mockResolvedValue({
+				teamId: 1, projectId: null, type: 'TEXT', archived: true,
+			});
+
+			await expect(validator.validate(event)).rejects.toMatchObject<Partial<ChatMessageScopeError>>({
+				reasonCode: 'CHANNEL_ARCHIVED',
+			});
+		});
+
 		it('부모 메시지가 같은 채널에 없으면 거부한다', async () => {
 			const withParent = {...event, parentMessageId: '507f1f77bcf86cd799439011'};
 			channels.findById.mockResolvedValue({teamId: 1, projectId: null, type: 'TEXT'});
