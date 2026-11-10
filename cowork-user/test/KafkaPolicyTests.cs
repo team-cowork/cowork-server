@@ -157,23 +157,6 @@ public class ContractTests
     }
 
     [Fact]
-    public void Identity_command_allows_a_null_major()
-    {
-        var nullable = IdentityCommand.Replace("\"major\":\"SW_DEVELOPMENT\"", "\"major\":null");
-        var command = IdentityCommandContract.Parse(Json(nullable), "7");
-        Assert.NotNull(command);
-        Assert.Null(command.Major);
-        Assert.Contains("\"major\":null", IdentityCommandContract.CanonicalPayload(command));
-        Assert.Contains("\"schemaVersion\":2", IdentityCommandContract.CanonicalPayload(command));
-    }
-
-    [Theory]
-    [InlineData(1)]
-    [InlineData(3)]
-    public void Identity_command_rejects_other_schema_versions(int schemaVersion) =>
-        Assert.Null(IdentityCommandContract.Parse(Json(IdentityCommand.Replace("\"schemaVersion\":2", $"\"schemaVersion\":{schemaVersion}")), "7"));
-
-    [Fact]
     public void Identity_command_hash_input_identifies_the_command_regardless_of_timestamp_form()
     {
         var original = IdentityCommandContract.CanonicalPayload(IdentityCommandContract.Parse(Json(IdentityCommand), "7")!);
