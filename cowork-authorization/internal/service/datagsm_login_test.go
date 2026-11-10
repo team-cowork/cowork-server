@@ -51,6 +51,7 @@ type loginFixture struct {
 	key                                   *rsa.PrivateKey
 	now                                   time.Time
 	nonce, subject, userSubject, audience string
+	userStatus                            string
 	expired                               bool
 	issuedAt, expiresAt, notBefore        *time.Time
 	calls, jwksCalls                      int
@@ -113,6 +114,9 @@ func newLoginFixture(t *testing.T) *loginFixture {
 			}
 			info := eligibleUser()
 			info.Subject = f.userSubject
+			if f.userStatus != "" {
+				info.Status = f.userStatus
+			}
 			body, _ := json.Marshal(info)
 			return jsonResponse(200, string(body)), nil
 		default:
@@ -200,7 +204,7 @@ func TestLoginAttemptBoundaries(t *testing.T) {
 	}
 }
 func TestOIDCIdentityVerification(t *testing.T) {
-	for _, name := range []string{"wrong nonce", "wrong audience", "expired ID token", "different UserInfo subject"} {
+	for _, name := range []string{"wrong nonce", "wrong audience", "expired ID token", "different UserInfo subject", "inactive account"} {
 		t.Run(name, func(t *testing.T) {
 			f := newLoginFixture(t)
 			session, callback := f.begin(t)
@@ -213,6 +217,8 @@ func TestOIDCIdentityVerification(t *testing.T) {
 				f.expired = true
 			case "different UserInfo subject":
 				f.userSubject = "other@gsm.hs.kr"
+			case "inactive account":
+				f.userStatus = "INACTIVE"
 			}
 			if _, err := f.login.Complete(context.Background(), session, callback); !errors.Is(err, ErrAuthenticationRejected) {
 				t.Fatalf("accepted invalid OIDC identity: %v", err)
