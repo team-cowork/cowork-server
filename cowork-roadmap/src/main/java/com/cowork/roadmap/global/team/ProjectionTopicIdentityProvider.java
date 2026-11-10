@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.apache.kafka.clients.admin.Admin;
 import org.apache.kafka.clients.admin.OffsetSpec;
+import org.apache.kafka.clients.admin.TopicDescription;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
@@ -27,18 +28,19 @@ public class ProjectionTopicIdentityProvider {
     }
 
     String topicId(String topic) {
-        return topicState(topic).topicId();
+        try {
+            return describe(topic).topicId().toString();
+        } catch (Exception exception) {
+            if (exception instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            throw new IllegalStateException("Failed to load Kafka topic ID: " + topic, exception);
+        }
     }
 
     ProjectionTopicState topicState(String topic) {
         try {
-            var description = admin.describeTopics(java.util.List.of(topic))
-                    .allTopicNames()
-                    .get(METADATA_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                    .get(topic);
-            if (description == null || description.topicId().equals(Uuid.ZERO_UUID)) {
-                throw new IllegalStateException("Kafka topic ID is unavailable: " + topic);
-            }
+            var description = describe(topic);
             Collection<TopicPartition> partitions = description.partitions()
                     .stream()
                     .map(info -> new TopicPartition(topic, info.partition()))
@@ -61,6 +63,17 @@ public class ProjectionTopicIdentityProvider {
             }
             throw new IllegalStateException("Failed to load Kafka topic state: " + topic, exception);
         }
+    }
+
+    private TopicDescription describe(String topic) throws Exception {
+        var description = admin.describeTopics(java.util.List.of(topic))
+                .allTopicNames()
+                .get(METADATA_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                .get(topic);
+        if (description == null || description.topicId().equals(Uuid.ZERO_UUID)) {
+            throw new IllegalStateException("Kafka topic ID is unavailable: " + topic);
+        }
+        return description;
     }
 
     @PreDestroy
