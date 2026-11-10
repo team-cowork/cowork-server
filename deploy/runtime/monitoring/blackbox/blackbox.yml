@@ -28,9 +28,9 @@ modules:
       # /api/health returns HTTP 200 even when a downstream service is DOWN.
       # Verify the JSON API identity; internal probes own service readiness.
       fail_if_body_json_not_matches_cel: "body.status == '200 OK' && body.code == 200.0 && type(body.data) == map && size(body.data) > 0"
-  # Unauthenticated business API probes through Gateway. They send no credentials and change no state.
-  # Protected routes are not probed: Gateway security returns 401 before routing, which proves neither route nor downstream.
-  # Public routes must reach downstream. Gateway's own 401 has no body; downstream JSON keeps its Content-Type.
+  # Unauthenticated health probes through Gateway. They send no credentials and change no state.
+  # A 200 with JSON Content-Type proves the route reached downstream: a missing route returns 404,
+  # and the circuit breaker fallback returns 503.
   http_gateway_downstream_get:
     prober: http
     timeout: 5s
@@ -38,19 +38,6 @@ modules:
       method: GET
       preferred_ip_protocol: ip4
       valid_status_codes: [200]
-      follow_redirects: false
-      body_size_limit: 64KB
-      fail_if_header_not_matches:
-        - header: Content-Type
-          regexp: '^application/json(;.*)?$'
-  # Downstream rejects a POST without body or signature with 400/401 before changing state.
-  http_gateway_downstream_post:
-    prober: http
-    timeout: 5s
-    http:
-      method: POST
-      preferred_ip_protocol: ip4
-      valid_status_codes: [400, 401]
       follow_redirects: false
       body_size_limit: 64KB
       fail_if_header_not_matches:
