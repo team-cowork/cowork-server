@@ -12,8 +12,15 @@ groups:
           description: "외부 공개 HTTPS /api/health 경로나 상태 점검이 2분 동안 실패했습니다. DNS, TLS, 프록시 라우팅과 게이트웨이 응답을 확인해 주세요."
 
       # 게이트웨이 공개 헬스체크 경로가 downstream JSON 응답을 돌려주는지 본다(blackbox.yml의 http_gateway_downstream_get 모듈).
+      # 배포 중(deploying=1)에는 DeploymentGuidanceFilter가 해당 서비스 route에 503을 돌려주므로 제외한다. 롤백(recovering=2)은 알린다.
       - alert: coworkGatewayApiProbeFailed
-        expr: probe_success{job="gateway-api"} == 0
+        expr: |
+          probe_success{job="gateway-api"} == 0
+          unless on (service)
+          label_replace(
+            max by (target_service) (gateway_deployment_state{job="cowork-services",service="gateway"}) == 1,
+            "service", "$1", "target_service", "cowork-(.+)"
+          )
         for: 2m
         labels:
           severity: critical
