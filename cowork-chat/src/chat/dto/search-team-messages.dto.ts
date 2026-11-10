@@ -31,6 +31,10 @@ export class SearchTeamMessagesDto {
 	@apiPropertyOptional({description: '첨부파일 포함 메시지만 조회'})
 	@isBoolean() @isOptional() @transform(({value}) => value === 'true' || value === true) hasFile?: boolean;
 
+	@apiPropertyOptional({description: 'true면 보관된 채널, false면 활성 채널만 검색. 생략하면 둘 다 검색'})
+	@isBoolean() @isOptional()
+	@transform(({value}) => value === undefined ? undefined : value === 'true' || value === true) archived?: boolean;
+
 	@apiPropertyOptional({description: '커서: 이전 응답의 nextCursor 값'})
 	@isString() @isOptional() before?: string;
 
