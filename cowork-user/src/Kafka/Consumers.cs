@@ -69,7 +69,7 @@ public sealed class Consumers(AppConfig config, ProjectionReadiness readiness, K
                         record => IdentityCommand.HandleAsync("cowork-user.user-identity-command", config.KafkaIdentityCommandResultTopic,
                             record, logger, schemaVersion: 1), running.Token)),
                     Run(() => RunActionConsumer(config.KafkaIdentityCommandTopic, config.KafkaIdentityCommandGroupId,
-                        record => IdentityCommand.HandleAsync(config.KafkaIdentityCommandGroupId, config.KafkaIdentityCommandResultTopic, record, logger),
+                        record => IdentityCommand.HandleAsync(config.KafkaIdentityCommandGroupId, config.KafkaIdentityCommandResultTopic, record, logger, schemaVersion: 2),
                         running.Token)),
                     Run(() => RunProjectionConsumer(config.KafkaTeamMemberTopic, config.KafkaTeamMemberGroupId, "cowork-team",
                         "team.member.event", ApplyTeamMember, running.Token)),
