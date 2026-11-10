@@ -30,7 +30,7 @@ class UpdateThreadServiceImpl(
         threadId: Long,
         request: UpdateThreadRequest,
     ): ThreadResponse {
-        val channel = channelAccessGuard.findChannelOrThrow(channelId)
+        val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
         val thread = findThreadOrThrow(threadId)
         if (thread.channelId != channelId) {
             throw ExpectedException("해당 채널의 스레드가 아닙니다.", HttpStatus.BAD_REQUEST)

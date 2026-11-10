@@ -44,7 +44,7 @@ class CreateThreadServiceImplTest :
             permissions = mockk(relaxed = true)
             evaluator = mockk(relaxed = true)
             channelAccessGuard = mockk()
-            every { channelAccessGuard.findChannelOrThrow(1L) } returns channel
+            every { channelAccessGuard.findChannelForUpdateOrThrow(1L) } returns channel
             every { channelAccessGuard.requireTeamChannel(channel) } returns 100L
             every { channelAccessGuard.requireNotArchived(any()) } returns Unit
             service = CreateThreadServiceImpl(threadRepository, permissions, evaluator, channelAccessGuard)

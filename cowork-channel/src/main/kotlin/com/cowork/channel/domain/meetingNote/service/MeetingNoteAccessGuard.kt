@@ -26,9 +26,9 @@ class MeetingNoteAccessGuard(
         channelAccessGuard.requireNotArchived(channel)
     }
 
-    /** 회의록·템플릿을 바꾸는 요청은 보관된 채널에서 거부한다. */
+    /** 회의록·템플릿을 바꾸는 요청은 채널 행을 잠가 보관과 직렬화하고, 보관된 채널이면 거부한다. */
     fun requireWritableChannelAccess(channelId: Long, userId: Long) {
-        val channel = channelAccessGuard.findChannelOrThrow(channelId)
+        val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
         channelAccessGuard.requireTeamChannel(channel)
         permissions.requireChannelAccess(channel, userId)
         channelAccessGuard.requireNotArchived(channel)
