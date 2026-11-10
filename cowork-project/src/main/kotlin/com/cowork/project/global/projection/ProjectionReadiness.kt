@@ -16,6 +16,7 @@ import org.springframework.kafka.listener.ConsumerAwareRebalanceListener
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
+import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
@@ -92,8 +93,8 @@ class ProjectionAssignmentCoordinator(
     private val readinessState: ProjectionReadinessState,
     private val topicIdentityProvider: ProjectionTopicIdentityProvider,
     private val topicGenerations: ProjectionTopicGenerationRegistry,
-    private val retryBackoffMs: Long = 1_000,
-    private val retryTimeoutMs: Long = 60_000,
+    private val retryBackoffMs: Long,
+    private val retryTimeoutMs: Long,
 ) : ConsumerAwareRebalanceListener {
     private val log = LoggerFactory.getLogger(ProjectionAssignmentCoordinator::class.java)
 
@@ -115,7 +116,12 @@ class ProjectionAssignmentCoordinator(
                 throw exception
             } catch (exception: InterruptException) {
                 throw exception
-            } catch (exception: RuntimeException) {
+            } catch (exception: InterruptedException) {
+                // Future.get clears the interrupt flag, so restore it. The consumer is stopping.
+                Thread.currentThread().interrupt()
+                return
+            } catch (exception: Exception) {
+                // Catch checked exceptions too: the topic ID lookup throws TimeoutException and ExecutionException.
                 logFailure(exception)
             }
             if (System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(retryBackoffMs) - deadline >= 0) {
@@ -134,10 +140,11 @@ class ProjectionAssignmentCoordinator(
 
     private fun initializeAssignment(consumer: Consumer<*, *>, partitions: Collection<TopicPartition>) {
         val topicId = topicIdentityProvider.topicId(stream.topic)
-        val allPartitions = consumer.partitionsFor(stream.topic).map { TopicPartition(stream.topic, it.partition()) }
+        val allPartitions = consumer.partitionsFor(stream.topic, CONSUMER_API_TIMEOUT)
+            .map { TopicPartition(stream.topic, it.partition()) }
         check(allPartitions.isNotEmpty()) { "Kafka topic has no partitions: ${stream.topic}" }
-        val beginningOffsets = consumer.beginningOffsets(allPartitions)
-        val endOffsets = consumer.endOffsets(allPartitions)
+        val beginningOffsets = consumer.beginningOffsets(allPartitions, CONSUMER_API_TIMEOUT)
+        val endOffsets = consumer.endOffsets(allPartitions, CONSUMER_API_TIMEOUT)
         val ranges = allPartitions.map { partition ->
             ProjectionPartitionRange(
                 partition = partition.partition(),
@@ -159,7 +166,7 @@ class ProjectionAssignmentCoordinator(
         readinessState.markInitialized(stream, assignedPartitions.isNotEmpty())
     }
 
-    private fun logFailure(exception: RuntimeException) {
+    private fun logFailure(exception: Exception) {
         consecutiveFailures++
         if (consecutiveFailures == 1) {
             log.warn("Failed to initialize projection assignment for {}", stream.topic, exception)
@@ -175,6 +182,8 @@ class ProjectionAssignmentCoordinator(
 
     private fun requestRebalance(consumer: Consumer<*, *>) {
         log.warn("Requesting a rebalance to retry projection assignment for {}", stream.topic)
+        // Log the next failure with its stack trace, because its cause can differ after the rebalance.
+        consecutiveFailures = 0
         // The container only logs listener failures, so without a new rebalance the stream would stay
         // initializing until restart. This depends on the classic group protocol: with group.protocol=consumer,
         // enforceRebalance only logs a warning.
@@ -184,6 +193,12 @@ class ProjectionAssignmentCoordinator(
     override fun onPartitionsRevokedBeforeCommit(consumer: Consumer<*, *>, partitions: Collection<TopicPartition>) {
         topicGenerations.markRevoked(stream)
         readinessState.markRevoked(stream)
+    }
+
+    private companion object {
+        // Overrides default.api.timeout.ms (60 s) so that one attempt cannot hold the callback near
+        // max.poll.interval.ms.
+        val CONSUMER_API_TIMEOUT: Duration = Duration.ofSeconds(10)
     }
 }
 
