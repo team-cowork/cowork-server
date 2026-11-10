@@ -90,16 +90,6 @@ func (s *AuthService) CompleteLogin(ctx context.Context, session string, callbac
 	return s.issueUserSession(ctx, userInfo)
 }
 
-// Deprecated: use BeginLogin and CompleteLogin for server-managed OAuth/OIDC.
-// TODO(legacy-login): Remove this legacy SDK login path after the web and mobile implementations migrate to server-managed OAuth/OIDC.
-func (s *AuthService) ExchangeCode(ctx context.Context, code, verifier, redirectURI string) (*TokenPair, error) {
-	userInfo, err := s.login.Exchange(ctx, code, verifier, redirectURI)
-	if err != nil {
-		return nil, err
-	}
-	return s.issueUserSession(ctx, userInfo)
-}
-
 func (s *AuthService) issueUserSession(ctx context.Context, userInfo *oauth.UserInfo) (*TokenPair, error) {
 	if userInfo.ObjectType == nil || *userInfo.ObjectType != "STUDENT" || userInfo.Student == nil {
 		return nil, fmt.Errorf("non-student users are not supported")
