@@ -23,7 +23,6 @@ import org.junit.jupiter.api.assertThrows
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
-import java.util.Optional
 
 class UpdateSharedAccountServiceImplTest {
 
@@ -80,7 +79,7 @@ class UpdateSharedAccountServiceImplTest {
     fun `updateAccount는 계정 등록자가 수정 가능함`() {
         val ch = accountShareChannel(createdBy = 99L)
         val acc = account(createdBy = 1L)
-        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
         every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns acc
         every { credentialEncryptionService.decrypt(any()) } returns "plain"
         every { credentialEncryptionService.mask(any()) } returns "••••in"
@@ -100,7 +99,7 @@ class UpdateSharedAccountServiceImplTest {
         every { teamPermissionService.requireChannelPermission(any(), 1L, "channel_manage") } returns Unit
         val ch = accountShareChannel(createdBy = 1L)
         val acc = account(createdBy = 99L)
-        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
         every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns acc
         every { credentialEncryptionService.decrypt(any()) } returns "plain"
         every { credentialEncryptionService.mask(any()) } returns "••••in"
@@ -118,7 +117,7 @@ class UpdateSharedAccountServiceImplTest {
     fun `updateAccount는 팀 Admin이 수정 가능함`() {
         val ch = accountShareChannel(createdBy = 99L)
         val acc = account(createdBy = 88L)
-        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
         every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns acc
         every { teamPermissionService.requireChannelPermission(any(), 1L, "channel_manage") } returns Unit
         every { credentialEncryptionService.decrypt(any()) } returns "plain"
@@ -137,7 +136,7 @@ class UpdateSharedAccountServiceImplTest {
     fun `updateAccount는 권한 없는 사용자이면 FORBIDDEN`() {
         val ch = accountShareChannel(createdBy = 99L)
         val acc = account(createdBy = 88L)
-        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
         every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns acc
         every { teamPermissionService.requireChannelPermission(any(), 1L, "channel_manage") } throws
             ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
@@ -155,7 +154,7 @@ class UpdateSharedAccountServiceImplTest {
 
     @Test
     fun `updateAccount는 계정이 없으면 NOT_FOUND`() {
-        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { channelRepository.findByIdForUpdate(1L) } returns accountShareChannel()
         every { sharedAccountRepository.findByIdAndChannelId(99L, 1L) } returns null
 
         val ex = assertThrows<ExpectedException> {
@@ -171,7 +170,7 @@ class UpdateSharedAccountServiceImplTest {
 
     @Test
     fun `updateAccount는 변경한 식별자가 이미 등록되어 있으면 CONFLICT`() {
-        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { channelRepository.findByIdForUpdate(1L) } returns accountShareChannel()
         every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns account(createdBy = 1L)
         every { sharedAccountRepository.flush() } throws DataIntegrityViolationException(
             "Duplicate entry for key 'uq_tb_channel_accounts_channel_provider_identifier'",
@@ -190,7 +189,7 @@ class UpdateSharedAccountServiceImplTest {
 
     private fun stubOAuthAccount(): SharedAccount {
         val acc = account(connectedViaOAuth = true)
-        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { channelRepository.findByIdForUpdate(1L) } returns accountShareChannel()
         every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns acc
         every { credentialEncryptionService.encrypt(any()) } returns "iv:new"
         every { credentialEncryptionService.decrypt(any()) } returns "plain"

@@ -41,7 +41,7 @@ class DeleteMeetingNoteServiceImplTest {
 
     @Test
     fun `deleteNote는 작성자이면 삭제`() {
-        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
+        every { meetingNoteAccessGuard.requireWritableChannelAccess(1L, 7L) } returns Unit
         val n = note()
         every { meetingNoteRepository.findById(1L) } returns Optional.of(n)
 
@@ -52,7 +52,7 @@ class DeleteMeetingNoteServiceImplTest {
 
     @Test
     fun `deleteNote는 채널 읽기 권한이 없으면이면 FORBIDDEN`() {
-        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } throws
+        every { meetingNoteAccessGuard.requireWritableChannelAccess(1L, 7L) } throws
             ExpectedException("채널 접근 권한이 없습니다.", HttpStatus.FORBIDDEN)
 
         val ex = assertThrows(ExpectedException::class.java) {
@@ -63,7 +63,7 @@ class DeleteMeetingNoteServiceImplTest {
 
     @Test
     fun `deleteNote는 작성자가 아니면 FORBIDDEN`() {
-        every { meetingNoteAccessGuard.requireChannelAccess(1L, 99L) } returns Unit
+        every { meetingNoteAccessGuard.requireWritableChannelAccess(1L, 99L) } returns Unit
         every { meetingNoteRepository.findById(1L) } returns Optional.of(note(createdBy = 7L))
 
         val ex = assertThrows(ExpectedException::class.java) {
@@ -74,7 +74,7 @@ class DeleteMeetingNoteServiceImplTest {
 
     @Test
     fun `deleteNote는 다른 채널의 회의록이면 NOT_FOUND`() {
-        every { meetingNoteAccessGuard.requireChannelAccess(2L, 7L) } returns Unit
+        every { meetingNoteAccessGuard.requireWritableChannelAccess(2L, 7L) } returns Unit
         every { meetingNoteRepository.findById(1L) } returns Optional.of(note(channelId = 1L))
 
         val ex = assertThrows(ExpectedException::class.java) {
