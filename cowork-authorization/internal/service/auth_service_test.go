@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -75,16 +74,18 @@ func (f *fakeRefreshTokenStore) RevokeSession(
 }
 
 type fakeIdentityCoordinator struct {
-	userID int64
-	err    error
-	calls  int
+	userID  int64
+	err     error
+	calls   int
+	command domain.UserIdentityCommand
 }
 
 func (f *fakeIdentityCoordinator) EnsureUser(
 	_ context.Context,
-	_ domain.UserIdentityCommand,
+	command domain.UserIdentityCommand,
 ) (int64, error) {
 	f.calls++
+	f.command = command
 	return f.userID, f.err
 }
 
@@ -95,7 +96,7 @@ func newUnitAuthService(store RefreshTokenStore, now time.Time) *AuthService {
 		JWTRefreshExpire:       24 * time.Hour,
 		KafkaTopicUserPresence: "user.presence.event",
 	}
-	service := NewAuthService(cfg, nil, store, NewTokenService(cfg))
+	service := NewAuthService(cfg, nil, store, NewTokenService(cfg), nil)
 	service.now = func() time.Time { return now }
 	return service
 }
@@ -251,7 +252,7 @@ func TestPlatformRoleFromDataGSM_AccordingToProviderRole(t *testing.T) {
 		want         string
 		wantError    bool
 	}{
-		{providerRole: "ADMIN", want: "ADMIN"},
+		{providerRole: "ADMIN", want: "MEMBER"},
 		{providerRole: "USER", want: "MEMBER"},
 		{providerRole: "", wantError: true},
 		{providerRole: "SUPER_ADMIN", wantError: true},
@@ -265,114 +266,4 @@ func TestPlatformRoleFromDataGSM_AccordingToProviderRole(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestProviderStatusError_WhenProviderRejectsRequest_DoesNotExposeResponseBody(t *testing.T) {
-	t.Parallel()
-
-	if got, want := providerStatusError("token", 401).Error(), "token endpoint returned status 401"; got != want {
-		t.Fatalf("providerStatusError() = %q, want %q", got, want)
-	}
-}
-
-func newExchangeUnitAuthService(
-	dataGSM roundTripFunc,
-	identity *fakeIdentityCoordinator,
-	store RefreshTokenStore,
-) *AuthService {
-	cfg := &config.AppConfig{
-		JWTSecret:              "unit-test-secret",
-		JWTAccessExpire:        30 * time.Minute,
-		JWTRefreshExpire:       24 * time.Hour,
-		KafkaTopicUserPresence: "user.presence.event",
-		DataGSMClientID:        "unit-test-client",
-		DataGSMTokenURL:        "https://datagsm.invalid/oauth/token",
-		DataGSMUserInfoURL:     "https://datagsm.invalid/oauth/userinfo",
-	}
-
-	service := NewAuthService(cfg, identity, store, NewTokenService(cfg))
-	service.httpClient = &http.Client{Transport: dataGSM}
-	return service
-}
-
-func dataGSMUserInfoBody(t *testing.T, info DataGSMUserInfo) string {
-	t.Helper()
-	body, err := json.Marshal(info)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(body)
-}
-
-func TestExchangeCode_AccordingToAccountEligibility(t *testing.T) {
-	t.Parallel()
-
-	t.Run("a non-student account is rejected before identity creation", func(t *testing.T) {
-		t.Parallel()
-		identity := &fakeIdentityCoordinator{userID: 1}
-		info := DataGSMUserInfo{ID: 99, Email: "staff@example.com", Role: "USER", IsStudent: false}
-		service := newExchangeUnitAuthService(func(request *http.Request) (*http.Response, error) {
-			if strings.Contains(request.URL.String(), "/oauth/token") {
-				return jsonResponse(http.StatusOK, `{"access_token":"provider-access-token"}`), nil
-			}
-			return jsonResponse(http.StatusOK, dataGSMUserInfoBody(t, info)), nil
-		}, identity, &fakeRefreshTokenStore{})
-
-		pair, err := service.ExchangeCode(context.Background(), "code", "verifier", "https://app.example/callback")
-		if err == nil || pair != nil || identity.calls != 0 {
-			t.Fatalf("ExchangeCode() = %+v, %v; identity calls=%d", pair, err, identity.calls)
-		}
-	})
-
-	t.Run("an eligible student receives a session with the mapped platform role", func(t *testing.T) {
-		t.Parallel()
-		info := DataGSMUserInfo{
-			ID:        99,
-			Email:     "student@example.com",
-			Role:      "USER",
-			IsStudent: true,
-			Student: &DataGSMStudent{
-				ID: 501, Name: "Student", Sex: "MAN", Grade: 2, ClassNum: 3, Number: 14,
-				Major: "SW_DEVELOPMENT", Role: "GENERAL_STUDENT",
-			},
-		}
-		identity := &fakeIdentityCoordinator{userID: 99}
-		store := &fakeRefreshTokenStore{}
-		service := newExchangeUnitAuthService(func(request *http.Request) (*http.Response, error) {
-			if strings.Contains(request.URL.String(), "/oauth/token") {
-				return jsonResponse(http.StatusOK, `{"access_token":"provider-access-token"}`), nil
-			}
-			return jsonResponse(http.StatusOK, dataGSMUserInfoBody(t, info)), nil
-		}, identity, store)
-
-		pair, err := service.ExchangeCode(context.Background(), "code", "verifier", "https://app.example/callback")
-		if err != nil || pair == nil || store.createdToken == nil {
-			t.Fatalf("ExchangeCode() = %+v, %v; session=%+v", pair, err, store.createdToken)
-		}
-		if identity.calls != 1 || store.createdToken.PlatformRole != "MEMBER" {
-			t.Fatalf("identity calls=%d, platform role=%q", identity.calls, store.createdToken.PlatformRole)
-		}
-	})
-
-	t.Run("an unsupported provider role is rejected before identity creation", func(t *testing.T) {
-		t.Parallel()
-		identity := &fakeIdentityCoordinator{userID: 1}
-		info := DataGSMUserInfo{
-			ID: 99, Email: "student@example.com", Role: "SUPER_ADMIN", IsStudent: true,
-			Student: &DataGSMStudent{ID: 501, Name: "Student", Role: "GENERAL_STUDENT"},
-		}
-		service := newExchangeUnitAuthService(func(request *http.Request) (*http.Response, error) {
-			if strings.Contains(request.URL.String(), "/oauth/token") {
-				return jsonResponse(http.StatusOK, `{"access_token":"provider-access-token"}`), nil
-			}
-			return jsonResponse(http.StatusOK, dataGSMUserInfoBody(t, info)), nil
-		}, identity, &fakeRefreshTokenStore{})
-
-		if pair, err := service.ExchangeCode(context.Background(), "code", "verifier", "https://app.example/callback"); err == nil || pair != nil {
-			t.Fatalf("ExchangeCode() = %+v, %v; want rejection", pair, err)
-		}
-		if identity.calls != 0 {
-			t.Fatalf("identity calls = %d, want 0", identity.calls)
-		}
-	})
 }

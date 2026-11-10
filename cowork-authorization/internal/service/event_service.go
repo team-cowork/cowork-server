@@ -2,18 +2,14 @@ package service
 
 import (
 	"context"
-	"crypto/hmac"
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
-	"strings"
 	"time"
 
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/domain"
+	"github.com/tmp-it-play/datagsm-sdk-go/event"
 )
-
-const signaturePrefix = "sha256="
 
 var ErrInvalidPayload = domain.ErrInvalidWebhookPayload
 
@@ -30,46 +26,32 @@ func NewEventService(cfg *config.AppConfig, inbox WebhookInbox) *EventService {
 	return &EventService{cfg: cfg, inbox: inbox}
 }
 
-func (s *EventService) VerifySignature(body []byte, signatureHeader string) bool {
-	provided, ok := strings.CutPrefix(signatureHeader, signaturePrefix)
-	if !ok {
-		return false
-	}
-	providedBytes, err := hex.DecodeString(provided)
-	if err != nil || len(providedBytes) != sha256.Size {
-		return false
-	}
-	mac := hmac.New(sha256.New, []byte(s.cfg.DataGSMWebhookSecret))
-	mac.Write(body)
-	return hmac.Equal(mac.Sum(nil), providedBytes)
-}
-
 // ProcessEvent acknowledges durable acceptance, not Kafka delivery or user mutation.
-func (s *EventService) ProcessEvent(ctx context.Context, body []byte) (domain.WebhookResult, error) {
-	envelope, occurredAt, err := parseWebhookEnvelope(body)
+func (s *EventService) ProcessEvent(ctx context.Context, body []byte, signature string) (domain.WebhookResult, error) {
+	envelope, err := parseProviderEvent(body, signature, s.cfg.DataGSMWebhookSecret)
 	if err != nil {
 		return "", err
 	}
-	if envelope.Event != "student.updated" {
+	if envelope.Type != event.StudentUpdated {
 		return domain.WebhookIgnored, nil
 	}
-	items, err := parseStudentItems(envelope.Data)
+	items, err := studentItems(envelope)
 	if err != nil {
 		return "", err
 	}
+	occurredAt := envelope.Timestamp.UTC()
 	canonical, err := json.Marshal(struct {
 		Event     string        `json:"event"`
 		Timestamp string        `json:"timestamp"`
 		Items     []studentItem `json:"items"`
-	}{envelope.Event, occurredAt.UTC().Format(time.RFC3339Nano), items})
+	}{string(envelope.Type), occurredAt.UTC().Format(time.RFC3339Nano), items})
 	if err != nil {
 		return "", err
 	}
 	batch := domain.WebhookBatch{
-		EventID: envelope.ID, EventType: envelope.Event,
+		EventID: envelope.ID, EventType: string(envelope.Type),
 		OccurredAt: occurredAt, PayloadHash: sha256.Sum256(canonical),
 	}
-	envelope.Timestamp = occurredAt.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)
 	for _, message := range studentMessages(envelope, items) {
 		payload, err := json.Marshal(message)
 		if err != nil {

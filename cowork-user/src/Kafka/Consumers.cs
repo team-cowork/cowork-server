@@ -61,8 +61,15 @@ public sealed class Consumers(AppConfig config, ProjectionReadiness readiness, K
                 {
                     Run(() => RunActionConsumer(config.KafkaTopic, config.KafkaGroupId,
                         record => SyncHandler.HandleAsync(config.KafkaGroupId, record, logger), running.Token)),
+                    // TODO(legacy-identity-topic): Retire user.identity.command after all legacy producers stop, their outboxes and
+                    // this consumer's backlog are drained, and the v2 consumer is ready. Then remove this
+                    // consumer, its legacy parser support, and the old topic/ACL entries from policy.json.
+                    // Removing policy entries does not delete the broker topic; delete it separately after these checks.
+                    Run(() => RunActionConsumer("user.identity.command", "cowork-user.user-identity-command",
+                        record => IdentityCommand.HandleAsync("cowork-user.user-identity-command", config.KafkaIdentityCommandResultTopic,
+                            record, logger, schemaVersion: 1), running.Token)),
                     Run(() => RunActionConsumer(config.KafkaIdentityCommandTopic, config.KafkaIdentityCommandGroupId,
-                        record => IdentityCommand.HandleAsync(config.KafkaIdentityCommandGroupId, config.KafkaIdentityCommandResultTopic, record, logger),
+                        record => IdentityCommand.HandleAsync(config.KafkaIdentityCommandGroupId, config.KafkaIdentityCommandResultTopic, record, logger, schemaVersion: 2),
                         running.Token)),
                     Run(() => RunProjectionConsumer(config.KafkaTeamMemberTopic, config.KafkaTeamMemberGroupId, "cowork-team",
                         "team.member.event", ApplyTeamMember, running.Token)),
