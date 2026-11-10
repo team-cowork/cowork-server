@@ -27,21 +27,7 @@ public class ProjectionTopicIdentityProvider {
     }
 
     String topicId(String topic) {
-        try {
-            var description = admin.describeTopics(java.util.List.of(topic))
-                    .allTopicNames()
-                    .get(METADATA_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                    .get(topic);
-            if (description == null || description.topicId().equals(Uuid.ZERO_UUID)) {
-                throw new IllegalStateException("Kafka topic ID is unavailable: " + topic);
-            }
-            return description.topicId().toString();
-        } catch (Exception exception) {
-            if (exception instanceof InterruptedException) {
-                Thread.currentThread().interrupt();
-            }
-            throw new IllegalStateException("Failed to load Kafka topic ID: " + topic, exception);
-        }
+        return topicState(topic).topicId();
     }
 
     ProjectionTopicState topicState(String topic) {
