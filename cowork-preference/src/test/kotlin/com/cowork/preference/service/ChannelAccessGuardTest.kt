@@ -55,9 +55,14 @@ private class ChannelGuardFixture {
         deleted: Boolean = false,
         found: Boolean = true,
         type: String? = "TEXT",
+        archived: Boolean = false,
     ) {
         coEvery { channelRepository.findForRead(pool, CHANNEL_ID) } returns
-            if (found) ChannelLifecycleProjection(CHANNEL_ID, teamId, deleted, VERSION, isPrivate, type) else null
+            if (found) {
+                ChannelLifecycleProjection(CHANNEL_ID, teamId, deleted, VERSION, isPrivate, type, archived)
+            } else {
+                null
+            }
     }
 
     fun teamMember(role: String = "MEMBER", deleted: Boolean = false, found: Boolean = true) {
@@ -365,6 +370,26 @@ class ChannelAccessGuardTest :
                         }
 
                         coVerify(exactly = 0) { fixture.channelRepository.findForRead(any(), any()) }
+                    }
+                }
+            }
+
+            describe("requireNotArchived 메서드는") {
+                context("보관된 채널이면") {
+                    it("설정 변경을 거부한다") {
+                        fixture.channel(archived = true)
+
+                        shouldThrow<ArchivedChannelException> {
+                            runBlocking { fixture.guard.requireNotArchived(CHANNEL_ID) }
+                        }
+                    }
+                }
+
+                context("활성 채널이면") {
+                    it("통과한다") {
+                        fixture.channel()
+
+                        shouldNotThrowAny { runBlocking { fixture.guard.requireNotArchived(CHANNEL_ID) } }
                     }
                 }
             }
