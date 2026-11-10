@@ -111,6 +111,7 @@ func (h *AuthHandler) Token(c *gin.Context) {
 	}
 	pair, err := h.authSvc.ExchangeCode(c.Request.Context(), req.Code, req.CodeVerifier, req.RedirectURI) //nolint:staticcheck // TODO(legacy-login): Remove this intentional compatibility call after web/mobile migration.
 	if err != nil {
+		log.Printf("legacy token exchange failed")
 		loginError(c, err)
 		return
 	}
