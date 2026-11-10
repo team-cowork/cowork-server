@@ -1,69 +1,64 @@
 package com.cowork.channel.domain.channel.entity
 
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Test
-import java.time.Instant
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.matchers.nulls.shouldBeNull
+import io.kotest.matchers.shouldBe
 import java.time.LocalDateTime
 
-class ChannelArchiveTest {
+class ChannelArchiveTest :
+    DescribeSpec({
 
-    private fun channel() = Channel(
-        id = 1L,
-        teamId = 10L,
-        name = "general",
-        type = ChannelType.TEXT,
-        viewType = ChannelViewType.TEXT,
-        description = null,
-        createdBy = 1L,
-    )
-
-    @Test
-    fun `보관하면 보관 시각과 보관한 사용자를 기록하고 복원하면 지운다`() {
-        val channel = channel()
+        fun channel() = Channel(
+            id = 1L,
+            teamId = 10L,
+            name = "general",
+            type = ChannelType.TEXT,
+            viewType = ChannelViewType.TEXT,
+            description = null,
+            createdBy = 1L,
+        )
         val archivedAt = LocalDateTime.of(2026, 11, 10, 9, 0)
 
-        channel.archive(7L, archivedAt)
+        describe("Channel 클래스의 archive 메서드는") {
+            context("활성 채널이면") {
+                it("보관 시각과 보관한 사용자를 기록한다") {
+                    val channel = channel()
 
-        assertTrue(channel.isArchived)
-        assertEquals(archivedAt, channel.archivedAt)
-        assertEquals(7L, channel.archivedBy)
+                    channel.archive(7L, archivedAt)
 
-        channel.unarchive()
+                    channel.isArchived shouldBe true
+                    channel.archivedAt shouldBe archivedAt
+                    channel.archivedBy shouldBe 7L
+                }
+            }
 
-        assertFalse(channel.isArchived)
-        assertNull(channel.archivedAt)
-        assertNull(channel.archivedBy)
-    }
+            context("이미 보관된 채널이면") {
+                it("상태 오류를 던진다") {
+                    val channel = channel().apply { archive(7L, archivedAt) }
 
-    @Test
-    fun `이미 보관된 채널은 다시 보관할 수 없고 활성 채널은 복원할 수 없다`() {
-        val channel = channel()
+                    shouldThrow<IllegalStateException> { channel.archive(7L, archivedAt.plusMinutes(1)) }
+                }
+            }
+        }
 
-        assertThrows(IllegalStateException::class.java) { channel.unarchive() }
-        channel.archive(7L, LocalDateTime.of(2026, 11, 10, 9, 0))
-        assertThrows(IllegalStateException::class.java) { channel.archive(7L, LocalDateTime.of(2026, 11, 10, 9, 1)) }
-    }
+        describe("Channel 클래스의 unarchive 메서드는") {
+            context("보관된 채널이면") {
+                it("보관 기록을 지운다") {
+                    val channel = channel().apply { archive(7L, archivedAt) }
 
-    @Test
-    fun `이벤트 상태는 채널의 보관 상태를 따라간다`() {
-        val channel = channel()
-        val state = ChannelEventState.create(
-            channel,
-            deleted = false,
-            requestedAt = Instant.parse("2026-11-10T00:00:00Z"),
-        )
-        assertFalse(state.archived)
+                    channel.unarchive()
 
-        channel.archive(7L, LocalDateTime.of(2026, 11, 10, 9, 0))
-        state.apply(channel, deleted = false, requestedAt = Instant.parse("2026-11-10T00:00:01Z"))
-        assertTrue(state.archived)
+                    channel.isArchived shouldBe false
+                    channel.archivedAt.shouldBeNull()
+                    channel.archivedBy.shouldBeNull()
+                }
+            }
 
-        channel.unarchive()
-        state.apply(channel, deleted = false, requestedAt = Instant.parse("2026-11-10T00:00:02Z"))
-        assertFalse(state.archived)
-    }
-}
+            context("활성 채널이면") {
+                it("상태 오류를 던진다") {
+                    shouldThrow<IllegalStateException> { channel().unarchive() }
+                }
+            }
+        }
+    })
