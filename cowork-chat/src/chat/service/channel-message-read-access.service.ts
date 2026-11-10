@@ -242,15 +242,26 @@ export class ChannelMessageReadAccessService {
 		return Number.isSafeInteger(userId) && userId > 0 ? userId : null;
 	}
 
+	private requireProjectionsReady(): void {
+		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
+			throw new ServiceUnavailableException('권한 정보가 아직 동기화되지 않았습니다');
+		}
+	}
+
+	private async whileProjectionsReady<T>(read: () => Promise<T>): Promise<T> {
+		this.requireProjectionsReady();
+		const result = await read();
+		this.requireProjectionsReady();
+		return result;
+	}
+
 	async canReadChannel(channelId: number, userId: number): Promise<boolean> {
 		const result = await this.evaluateMany([{channelId, userId}]);
 		return result.get(accessKey(channelId, userId)) ?? false;
 	}
 
 	async requireCanRead(channelId: number, userId: number): Promise<void> {
-		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
-			throw new ServiceUnavailableException('권한 정보가 아직 동기화되지 않았습니다');
-		}
+		this.requireProjectionsReady();
 
 		if (!(await this.canReadChannel(channelId, userId))) {
 			throw new ForbiddenException('채널 메시지 읽기 권한이 없습니다');
@@ -262,9 +273,7 @@ export class ChannelMessageReadAccessService {
 	}
 
 	async requirePermissions(channelId: number, userId: number, permissions: ChannelActionPermission[]): Promise<void> {
-		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
-			throw new ServiceUnavailableException('권한 정보가 아직 동기화되지 않았습니다');
-		}
+		this.requireProjectionsReady();
 
 		const result = await this.evaluate([{channelId, userId}], ['MESSAGE_READ', ...new Set(permissions)]);
 		if (result.get(accessKey(channelId, userId)) !== true) {
@@ -291,9 +300,29 @@ export class ChannelMessageReadAccessService {
 		return this.filterReadableChannelIds(teamId, userId, channelIds);
 	}
 
-	async findReadableProjectChannelIds(projectId: number, userId: number): Promise<number[]> {
-		const channelIds = await this.channelRepository.findIdsByProjectId(projectId);
-		return this.filterReadableChannelIds(0, userId, channelIds);
+	/**
+     검색 범위로 쓸 팀 채널 ID를 구한다.
+
+     권한 projection이 준비되지 않으면 {@link evaluate}가 모든 채널을 거부하므로, 그 결과를
+     그대로 쓰면 일시 장애가 "검색 결과 없음"으로 보인다. 판정 전이나 판정 도중 readiness가
+     닫히면 거부 판정 대신 503을 던진다.
+
+     @throws ServiceUnavailableException 권한 projection이 준비되지 않은 경우
+     */
+	async requireReadableTeamChannelIds(teamId: number, userId: number): Promise<number[]> {
+		return this.whileProjectionsReady(async () => this.findReadableTeamChannelIds(teamId, userId));
+	}
+
+	/**
+     검색 범위로 쓸 프로젝트 채널 ID를 구한다. readiness 처리는 {@link requireReadableTeamChannelIds}와 같다.
+
+     @throws ServiceUnavailableException 권한 projection이 준비되지 않은 경우
+     */
+	async requireReadableProjectChannelIds(projectId: number, userId: number): Promise<number[]> {
+		return this.whileProjectionsReady(async () => {
+			const channelIds = await this.channelRepository.findIdsByProjectId(projectId);
+			return this.filterReadableChannelIds(0, userId, channelIds);
+		});
 	}
 
 	/**
