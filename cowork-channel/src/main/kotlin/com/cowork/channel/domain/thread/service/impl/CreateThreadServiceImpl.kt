@@ -24,6 +24,7 @@ class CreateThreadServiceImpl(
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         val teamId = channelAccessGuard.requireTeamChannel(channel)
         permissions.requireChannelAccess(channel, userId)
+        channelAccessGuard.requireNotArchived(channel)
         evaluator.requirePermission(teamId, userId, channel, "thread_reply")
 
         val thread = threadRepository.save(

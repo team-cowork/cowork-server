@@ -30,6 +30,8 @@ class ChannelControllerTest {
         mockk(),
         objectMapper,
         Validation.buildDefaultValidatorFactory().validator,
+        mockk(),
+        mockk(),
     )
 
     @Test

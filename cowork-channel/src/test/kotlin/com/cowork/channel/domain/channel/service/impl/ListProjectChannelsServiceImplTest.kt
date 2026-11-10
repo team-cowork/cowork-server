@@ -48,13 +48,13 @@ class ListProjectChannelsServiceImplTest {
         every { projectProjectionRepository.findById(5L) } returns
             Optional.of(ProjectProjection(5L, 100L, sourceOccurredAt = Instant.EPOCH))
         every { teamPermission.requireTeamMember(100L, 1L) } returns Unit
-        every { channelRepository.findByProjectIdAndTeamIdOrderByIdAsc(5L, 100L) } returns listOf(ch)
+        every { channelRepository.findActiveByProjectIdAndTeamIdOrderByIdAsc(5L, 100L) } returns listOf(ch)
         every { evaluator.filterReadable(100L, 1L, listOf(ch)) } returns listOf(ch)
 
         val result = service.execute(1L, 5L)
         assertEquals(1, result.size)
         verify { teamPermission.requireTeamMember(100L, 1L) }
-        verify { channelRepository.findByProjectIdAndTeamIdOrderByIdAsc(5L, 100L) }
+        verify { channelRepository.findActiveByProjectIdAndTeamIdOrderByIdAsc(5L, 100L) }
     }
 
     @Test
@@ -75,7 +75,7 @@ class ListProjectChannelsServiceImplTest {
         every { projectProjectionRepository.findById(5L) } returns
             Optional.of(ProjectProjection(5L, 100L, sourceOccurredAt = Instant.EPOCH))
         every { teamPermission.requireTeamMember(100L, 1L) } returns Unit
-        every { channelRepository.findByProjectIdAndTeamIdOrderByIdAsc(5L, 100L) } returns emptyList()
+        every { channelRepository.findActiveByProjectIdAndTeamIdOrderByIdAsc(5L, 100L) } returns emptyList()
         every { evaluator.filterReadable(100L, 1L, emptyList()) } returns emptyList()
 
         val result = service.execute(1L, 5L)
