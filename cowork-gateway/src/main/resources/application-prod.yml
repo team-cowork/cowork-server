@@ -165,8 +165,7 @@ spring:
         - id: authorization-token
           uri: ${COWORK_AUTHORIZATION_URL}
           predicates:
-            # TODO(legacy-login): Remove only /api/authorization/auth/token after the web and mobile implementations migrate to server-managed OAuth/OIDC.
-            - Path=/api/authorization/auth/authorize, /api/authorization/auth/callback, /api/authorization/auth/token, /api/authorization/auth/refresh
+            - Path=/api/authorization/auth/authorize, /api/authorization/auth/callback, /api/authorization/auth/refresh
             - Method=POST
           filters:
             - StripPrefix=2
