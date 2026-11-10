@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/cowork/authorization/internal/config"
+	"github.com/cowork/authorization/internal/monitoring"
 	datagsm "github.com/tmp-it-play/datagsm-sdk-go"
 	"github.com/tmp-it-play/datagsm-sdk-go/oauth"
 )
@@ -104,81 +105,87 @@ func (s *DataGSMLogin) AllowsOrigin(origin string) bool {
 func (s *DataGSMLogin) Begin(ctx context.Context, redirectURI string) (string, string, error) {
 	client := s.clients[redirectURI]
 	if client == nil {
-		return "", "", ErrInvalidLoginRequest
+		return "", "", loginFailure("redirect_uri", ErrInvalidLoginRequest)
 	}
 	attempt, err := client.NewAuthorization(oauth.ScopeOpenID, oauth.ScopeAccountRead, oauth.ScopeStudentRead)
 	if err != nil {
-		return "", "", ErrAuthenticationUnavailable
+		return "", "", loginFailure("authorization", ErrAuthenticationUnavailable)
 	}
 	session := oauth.NewCodeVerifier()
 	if err := s.attempts.Save(ctx, HashToken(session), LoginAttempt{Authorization: *attempt,
 		RedirectURI: redirectURI, ExpiresAt: s.now().Add(LoginAttemptTTL)}, LoginAttemptTTL); err != nil {
-		return "", "", ErrAuthenticationUnavailable
+		return "", "", loginFailure("attempt_save", ErrAuthenticationUnavailable)
 	}
 	return attempt.URL, session, nil
 }
 
 func (s *DataGSMLogin) Complete(ctx context.Context, session string, callback url.Values) (*oauth.UserInfo, error) {
 	if len(session) != 43 {
-		return nil, ErrAuthenticationRejected
+		return nil, loginFailure("session_binding", ErrAuthenticationRejected)
 	}
 	if _, err := oauth.CodeChallenge(session); err != nil {
-		return nil, ErrAuthenticationRejected
+		return nil, loginFailure("session_binding", ErrAuthenticationRejected)
 	}
 	// The independent HttpOnly cookie binds the public state to the initiating client.
 	attempt, err := s.attempts.Take(ctx, HashToken(session))
 	if errors.Is(err, ErrLoginAttemptNotFound) {
-		return nil, ErrAuthenticationRejected
+		return nil, loginFailure("attempt_missing", ErrAuthenticationRejected)
 	}
 	if err != nil {
-		return nil, ErrAuthenticationUnavailable
+		return nil, loginFailure("attempt_store", ErrAuthenticationUnavailable)
 	}
 	client := s.clients[attempt.RedirectURI]
 	if client == nil || !s.now().Before(attempt.ExpiresAt) {
-		return nil, ErrAuthenticationRejected
+		return nil, loginFailure("attempt_expired", ErrAuthenticationRejected)
 	}
 	code, err := attempt.Authorization.Code(callback)
 	if err != nil {
-		return nil, ErrAuthenticationRejected
+		return nil, loginFailure("callback_validation", ErrAuthenticationRejected)
 	}
 	token, err := client.Exchange(ctx, oauth.CodeExchange{Code: code, CodeVerifier: attempt.Authorization.CodeVerifier})
 	if err != nil {
-		return nil, providerError(err)
+		return nil, loginFailure("token_exchange", providerError(err))
 	}
 	if token.IDToken == nil {
-		return nil, ErrAuthenticationRejected
+		return nil, loginFailure("id_token_missing", ErrAuthenticationRejected)
 	}
 	// RFC 6749 section 5.1 permits omission when the granted scopes equal the request.
 	if token.Scope != "" {
 		scopes := strings.Fields(token.Scope)
 		for _, required := range []string{oauth.ScopeOpenID, oauth.ScopeAccountRead, oauth.ScopeStudentRead} {
 			if !slices.Contains(scopes, required) {
-				return nil, ErrAuthenticationRejected
+				return nil, loginFailure("scope", ErrAuthenticationRejected)
 			}
 		}
 	}
 	keys, err := s.jwks(ctx, client, false)
 	if err != nil {
-		return nil, err
+		return nil, loginFailure("jwks", err)
 	}
 	claims, err := s.verifyIDToken(keys, *token.IDToken, attempt.Authorization.Nonce)
 	if err != nil {
 		// Refresh for key rotation, with a cooldown so invalid tokens cannot trigger a fetch storm.
 		keys, fetchErr := s.jwks(ctx, client, true)
 		if fetchErr != nil {
-			return nil, fetchErr
+			return nil, loginFailure("jwks_refresh", fetchErr)
 		}
 		claims, err = s.verifyIDToken(keys, *token.IDToken, attempt.Authorization.Nonce)
 		if err != nil {
-			return nil, ErrAuthenticationRejected
+			return nil, loginFailure("id_token_validation", ErrAuthenticationRejected)
 		}
 	}
 	user, err := client.UserInfo(ctx, token.AccessToken)
 	if err != nil {
-		return nil, providerError(err)
+		return nil, loginFailure("userinfo_request", providerError(err))
 	}
-	if user.Subject != claims.Subject || user.ID <= 0 || user.Status != "ACTIVE" {
-		return nil, ErrAuthenticationRejected
+	if user.Subject != claims.Subject {
+		return nil, loginFailure("userinfo_subject", ErrAuthenticationRejected)
+	}
+	if user.ID <= 0 {
+		return nil, loginFailure("userinfo_account", ErrAuthenticationRejected)
+	}
+	if user.Status != "ACTIVE" {
+		return nil, loginFailure("userinfo_status", ErrAuthenticationRejected)
 	}
 	return user, nil
 }
@@ -218,21 +225,21 @@ func (s *DataGSMLogin) verifyIDToken(keys *oauth.JWKS, token, nonce string) (*oa
 func (s *DataGSMLogin) Exchange(ctx context.Context, code, verifier, redirectURI string) (*oauth.UserInfo, error) {
 	client := s.clients[redirectURI]
 	if client == nil || code == "" {
-		return nil, ErrInvalidLoginRequest
+		return nil, loginFailure("legacy_request", ErrInvalidLoginRequest)
 	}
 	if _, err := oauth.CodeChallenge(verifier); err != nil {
-		return nil, ErrInvalidLoginRequest
+		return nil, loginFailure("legacy_verifier", ErrInvalidLoginRequest)
 	}
 	token, err := client.Exchange(ctx, oauth.CodeExchange{Code: code, CodeVerifier: verifier})
 	if err != nil {
-		return nil, providerError(err)
+		return nil, loginFailure("legacy_token_exchange", providerError(err))
 	}
 	user, err := client.UserInfo(ctx, token.AccessToken)
 	if err != nil {
-		return nil, providerError(err)
+		return nil, loginFailure("legacy_userinfo_request", providerError(err))
 	}
 	if user.ID <= 0 || user.Status != "ACTIVE" {
-		return nil, ErrAuthenticationRejected
+		return nil, loginFailure("legacy_userinfo_account", ErrAuthenticationRejected)
 	}
 	return user, nil
 }
@@ -289,6 +296,12 @@ func (s *DataGSMLogin) jwks(ctx context.Context, client *oauth.Client, refresh b
 	}
 	s.keys, s.keysFetchedAt = keys, s.now()
 	return keys, nil
+}
+
+func loginFailure(stage string, err error) error {
+	// Callers pass fixed stage names; never use tokens or provider messages as metric labels.
+	monitoring.RecordLoginFailure(stage)
+	return err
 }
 
 func providerError(err error) error {
