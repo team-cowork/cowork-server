@@ -5,6 +5,7 @@ object Topics {
     const val TEAM_MEMBER_EVENT = "team.member.event"
     const val TEAM_LIFECYCLE = "team.lifecycle"
     const val PREFERENCE_TEAM_ROLE_CHANGED = "preference.team-role.state.v2"
+    const val PREFERENCE_PROJECT_ACCESS_STATE = "preference.project-access.state.v1"
     const val CHANNEL_ROLE_POLICY_COMMAND = "preference.channel-role-policy.command.v2"
     const val CHANNEL_ROLE_POLICY_CHANGED = "preference.channel-role-policy.state.v2"
     const val CHANNEL_ROLE_POLICY_COMMAND_RESULT = "preference.channel-role-policy.result.v2"

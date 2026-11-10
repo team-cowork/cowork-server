@@ -390,6 +390,21 @@ class WebhookServiceTest {
     }
 
     @Test
+    fun `보관된 채널에서는 웹훅을 만들거나 실행 ID를 재발급하지 않는다`() = runBlocking {
+        coEvery { channels.findForUpdate(connection, 11) } returns
+            ChannelLifecycleProjection(11, 2, false, now, false, "TEXT", archived = true)
+
+        val createFailure = runCatching {
+            service.create(11, requester, JsonObject().put("name", "bot"), "archived-create")
+        }.exceptionOrNull()
+        val rotateFailure = runCatching { service.rotateExecutionId(11, 7, requester, "archived") }.exceptionOrNull()
+
+        assertEquals(409, (createFailure as? WebhookRequestException)?.status)
+        assertEquals(409, (rotateFailure as? WebhookRequestException)?.status)
+        coVerify(exactly = 0) { repository.rotateExecutionId(any(), any()) }
+    }
+
+    @Test
     fun `서명키가 준비되지 않으면 비밀키 암호화 설정이 있어도 조회와 변경을 허용하지 않는다`() = runBlocking {
         for (key in listOf(null, "not-base64", Base64.getEncoder().encodeToString(ByteArray(31)))) {
             service =
