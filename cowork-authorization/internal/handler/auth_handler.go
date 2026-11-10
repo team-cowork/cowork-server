@@ -20,9 +20,8 @@ const (
 	// 브라우저의 WebSocket 핸드셰이크는 커스텀 Authorization 헤더를 실을 수 없어,
 	// Gateway가 이 쿠키에서 access token을 꺼내 검증한다(Path=/ws로 노출 범위 최소화).
 	// 특정 모듈(chat 등)에 종속되지 않으므로 향후 다른 웹소켓 모듈도 그대로 재사용한다.
-	wsCookieName    = "cowork_ws_token"
-	wsCookiePath    = "/ws"
-	loginCookieName = "__Host-cowork_oauth"
+	wsCookieName = "cowork_ws_token"
+	wsCookiePath = "/ws"
 )
 
 type AuthHandler struct {
@@ -69,8 +68,8 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	session, _ := c.Cookie(loginCookieName)
-	setLoginCookie(c, "", -1)
+	session, _ := c.Cookie(loginCookieName(req.State))
+	setLoginCookie(c, req.State, "", -1)
 	callback := url.Values{"state": {req.State}, "code": {req.Code}, "error": {req.Error}}
 	pair, err := h.authSvc.CompleteLogin(c.Request.Context(), session, callback)
 	if err != nil {
@@ -168,7 +167,12 @@ func (h *AuthHandler) Authorize(c *gin.Context) {
 		loginError(c, err)
 		return
 	}
-	setLoginCookie(c, session, int(service.LoginAttemptTTL.Seconds()))
+	location, err := url.Parse(authorizationURL)
+	if err != nil || location.Query().Get("state") == "" {
+		loginError(c, service.ErrAuthenticationUnavailable)
+		return
+	}
+	setLoginCookie(c, location.Query().Get("state"), session, int(service.LoginAttemptTTL.Seconds()))
 	c.JSON(http.StatusOK, LoginStartResponse{AuthorizationURL: authorizationURL})
 }
 
@@ -186,9 +190,14 @@ func (h *AuthHandler) allowLoginRequest(c *gin.Context) bool {
 	return true
 }
 
-func setLoginCookie(c *gin.Context, value string, maxAge int) {
+func loginCookieName(state string) string {
+	// A separate binding per state prevents concurrent tabs from replacing each other's attempt.
+	return "__Host-cowork_oauth_" + service.HashToken(state)
+}
+
+func setLoginCookie(c *gin.Context, state, value string, maxAge int) {
 	c.SetSameSite(http.SameSiteNoneMode)
-	c.SetCookie(loginCookieName, value, maxAge, "/", "", true, true)
+	c.SetCookie(loginCookieName(state), value, maxAge, "/", "", true, true)
 }
 
 func loginError(c *gin.Context, err error) {
