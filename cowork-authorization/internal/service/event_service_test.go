@@ -113,18 +113,29 @@ func TestWebhookAuthenticationAndEnvelope(t *testing.T) {
 	}
 }
 
-func TestUnsubscribedEventsAreIgnoredAfterAuthentication(t *testing.T) {
-	for _, kind := range []string{"club.updated", "project.updated", "student.created", "ping"} {
-		t.Run(kind, func(t *testing.T) {
+func TestWebhookEventRouting(t *testing.T) {
+	for _, tc := range []struct {
+		name, kind, data string
+		ignored          bool
+	}{
+		{"valid club", "club.updated", `{"old":[{"index":0,"object":{}}],"new":[{"index":0,"object":{"club_id":7}}]}`, true},
+		{"valid project", "project.updated", `{"old":[{"index":0,"object":{}}],"new":[{"index":0,"object":{"project_id":7}}]}`, true},
+		{"unknown student type", "student.created", `{"future_field":true}`, false},
+		{"unknown ping type", "ping", `{"future_field":true}`, false},
+		{"invalid club payload", "club.updated", `{"future_field":true}`, false},
+		{"invalid project payload", "project.updated", `{"future_field":true}`, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			inbox := &fakeWebhookInbox{}
 			svc := NewEventService(&config.AppConfig{DataGSMWebhookSecret: testSecret}, inbox)
-			body := []byte(`{"id":"ignored-event","event":"` + kind + `","timestamp":"2026-11-10T00:00:00Z","data":{"future_field":true}}`)
+			body := []byte(`{"id":"event-1","event":"` + tc.kind + `","timestamp":"2026-11-10T00:00:00Z","data":` + tc.data + `}`)
 			result, err := svc.ProcessEvent(context.Background(), body, sign(body))
-			if err != nil || result != domain.WebhookIgnored || inbox.calls != 0 {
+			if tc.ignored && (err != nil || result != domain.WebhookIgnored) ||
+				!tc.ignored && !errors.Is(err, ErrInvalidPayload) || inbox.calls != 0 {
 				t.Fatalf("result=%s err=%v writes=%d", result, err, inbox.calls)
 			}
 			if _, err = svc.ProcessEvent(context.Background(), body, "invalid"); !errors.Is(err, event.ErrInvalidSignature) {
-				t.Fatalf("ignored event bypassed signature verification: %v", err)
+				t.Fatalf("event bypassed signature verification: %v", err)
 			}
 		})
 	}
