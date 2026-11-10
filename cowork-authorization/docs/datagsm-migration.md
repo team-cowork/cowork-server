@@ -12,6 +12,8 @@ DataGSM Go SDK v0.2.0의 `oauth`와 `event`를 사용한다. 기존 `/auth/token
 
 `major`는 선택 값으로 전달한다. 사용자 DB 컬럼은 이미 nullable이므로 DB migration은 필요하지 않다. wire contract의 변경은 command schema 2와 새 토픽으로 구분한다. 결과 contract는 schema 1이며, 기존 result·result-DLT 토픽을 계속 사용한다.
 
+새로 로그인할 때 DataGSM 계정 역할이 `ADMIN` 또는 `USER`이면 Cowork 플랫폼 역할은 모두 `MEMBER`로 발급한다. 기존 `/auth/token`을 통한 로그인에도 적용한다. 기존 세션과 refresh로 이어지는 세션의 역할은 변경하지 않는다.
+
 ## 클라이언트가 추후 전환할 흐름
 
 Gateway의 API prefix는 `/api/authorization`이다.
@@ -19,6 +21,8 @@ Gateway의 API prefix는 `/api/authorization`이다.
 1. `POST /auth/authorize`에 `{"redirect_uri":"등록된 콜백 URL"}`을 전송한다. 응답의 `authorization_url`로 이동하고 로그인 시도 쿠키를 유지한다.
 2. DataGSM 콜백의 `state`와 `code`를 `POST /auth/callback`으로 전달한다. 사용자가 거절하면 `state`와 `error`를 전달한다. 시작 때 받은 쿠키가 필요하다.
 3. 서버는 저장한 state·nonce·PKCE verifier, ID token 서명·issuer·audience·만료, UserInfo subject를 확인한 후 기존 Cowork 토큰 쌍을 발급한다. 로그인 시도는 성공 여부와 관계없이 소비 후 재사용할 수 없다. 실패하면 새 시도를 시작한다.
+
+ID token의 `iat`·`nbf`·`exp`에는 서버에서 30초의 시계 오차를 허용한다. 현재 시각에서 30초 이내인 토큰 유효 구간의 가장 가까운 시각으로 SDK 검증을 수행한다. SDK 수정 없이 서명과 나머지 클레임 검증을 유지한다. 각 로그인 시도는 state별 쿠키를 사용하므로 여러 탭에서 시작한 시도가 서로의 쿠키를 덮어쓰지 않는다.
 
 두 새 API는 JSON 요청을 받는다. 웹은 요청에 credentials를 포함하고 Gateway CORS가 해당 origin을 허용해야 한다. 브라우저 origin은 등록된 HTTP(S) 콜백의 origin과 일치해야 한다. 쿠키는 `Secure`, `HttpOnly`, `SameSite=None`이므로 API 접속에는 HTTPS가 필요하며 브라우저의 타사 쿠키 정책도 확인해야 한다. 서버 프록시를 사용하는 웹은 Set-Cookie와 이후 Cookie 전달을 보존해야 한다. 네이티브 앱도 시작과 완료 요청 사이에 쿠키 저장소를 유지해야 한다. 등록된 HTTP localhost 콜백은 DataGSM 리다이렉트 수신 주소이며 API의 HTTPS 요구와 별개다.
 
@@ -64,7 +68,7 @@ Swagger는 자동 생성 파일이므로 직접 TODO를 추가하지 않는다. 
 
 3. 구형 group `cowork-user.user-identity-command`의 모든 partition lag가 0이고 추가 발행이 없는지 확인한다. lag 0만으로 성공을 판정하지 않는다. 구형 command의 quarantine·실패 결과를 확인하고, 전환 전 접수된 `tb_user_identity_operations`의 `PENDING` 요청과 결과 outbox도 해소한다. 실제 전환 시각을 기록해 새 요청과 구분한다.
 4. 새 group `cowork-user.user-identity-command.v2`가 정상 소비하고 실제 로그인과 `major=null` 처리 결과가 정상인지 확인한다.
-5. `TODO(legacy-identity-topic)`이 있는 `Consumers.cs`의 v1 consumer, `IdentityCommand.cs`의 compatibility 인자, `IdentityCommandContract.cs`의 v1 parser·기본값·major 필수 분기, `KafkaPolicyTests.cs`의 관련 fixture·검증을 정리해 배포한다. 저장된 inbox가 사용하는 과거 hash version 처리와 fixture는 토픽 삭제만으로 제거하지 않는다.
+5. `TODO(legacy-identity-topic)`이 있는 `Consumers.cs`의 v1 consumer, `IdentityCommand.cs`의 compatibility 인자, `IdentityCommandContract.cs`의 v1 parser·major 필수 분기, `KafkaPolicyTests.cs`의 관련 fixture·검증을 정리해 배포한다. 저장된 inbox가 사용하는 과거 hash version 처리와 fixture는 토픽 삭제만으로 제거하지 않는다.
 6. `deploy/runtime/kafka/policy.json`의 `topics["user.identity.command"]`, `principals["cowork-authorization"].topics`, `principals["cowork-user"].topics`에 있는 구형 토픽 항목을 삭제하고 정책을 재적용한다. JSON은 주석을 지원하지 않으므로 이 세 위치의 TODO는 해당 파일을 읽는 `initialize.py`에도 기록한다. result, result-DLT, v2 command 토픽은 유지한다.
 7. 운영자가 broker 내부 listener에 접근 가능한 Kafka allocation에서 구형 토픽만 삭제한다. 다음은 확인·삭제 명령 예시이며 배포 스크립트에서 자동 실행하지 않는다.
 
