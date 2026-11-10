@@ -80,8 +80,7 @@ dependencies {
     implementation(libs.kotlin.reflect)
 
     implementation(libs.the.sdk) {
-        exclude(group = "org.springframework.boot")
-        exclude(group = "org.springframework.cloud")
+        // Use the SpringDoc version selected for this module's Spring Boot version.
         exclude(group = "org.springdoc")
     }
     implementation(libs.springdoc.openapi.webmvc.ui)
