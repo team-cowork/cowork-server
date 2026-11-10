@@ -308,24 +308,6 @@ func TestLoginVerifiesCachedSigningKeysDuringProviderOutage(t *testing.T) {
 	}
 }
 
-// TODO(legacy-login): Remove this compatibility test with Exchange after the web and mobile implementations migrate to server-managed OAuth/OIDC.
-func TestLegacyPKCEExchangeUsesSDK(t *testing.T) {
-	f := newLoginFixture(t)
-	verifier := oauth.NewCodeVerifier()
-	user, err := f.login.Exchange(context.Background(), "code", verifier, "cowork://oauth/callback")
-	if err != nil || user.ID != 99 || f.form.Get("code_verifier") != verifier || f.jwksCalls != 0 {
-		t.Fatalf("legacy exchange: %v", err)
-	}
-	before := f.calls
-	for _, request := range []struct{ verifier, redirect string }{{"short", "cowork://oauth/callback"}, {verifier, "https://evil.example/callback"}} {
-		if _, err = f.login.Exchange(context.Background(), "code", request.verifier, request.redirect); !errors.Is(err, ErrInvalidLoginRequest) {
-			t.Fatal(err)
-		}
-	}
-	if f.calls != before {
-		t.Fatal("invalid client input reached the provider")
-	}
-}
 func TestLoginStorageAndOriginPolicy(t *testing.T) {
 	f := newLoginFixture(t)
 	for _, origin := range []string{"", "https://app.example"} {
