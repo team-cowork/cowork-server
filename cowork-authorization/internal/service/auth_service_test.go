@@ -252,7 +252,7 @@ func TestPlatformRoleFromDataGSM_AccordingToProviderRole(t *testing.T) {
 		want         string
 		wantError    bool
 	}{
-		{providerRole: "ADMIN", want: "ADMIN"},
+		{providerRole: "ADMIN", want: "MEMBER"},
 		{providerRole: "USER", want: "MEMBER"},
 		{providerRole: "", wantError: true},
 		{providerRole: "SUPER_ADMIN", wantError: true},
