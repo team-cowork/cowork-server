@@ -155,13 +155,14 @@ class Platform:
         indices = output['job_modify_indices']['value']
         return {job_id: int(index) for job_id, index in indices.items()}
 
-    def tofu_plan_jobs(self, stage, variables, plan_file):
+    def tofu_plan_jobs(self, stage, variables, plan_file, jobs=()):
         self.credentials()
         prefix = ['tofu', '-chdir=deploy/tofu/' + stage]
         command(prefix + ['init', '-input=false', '-lockfile=readonly',
                           '-backend-config=ca_file=' + str(self.ca)], env=self.env, capture=True)
+        targets = ['-target=module.jobs.nomad_job.this["' + job_id + '"]' for job_id in sorted(jobs)]
         command(prefix + ['plan', '-input=false', '-lock-timeout=120s', '-out=' + str(plan_file),
-                          '-var-file=' + str(variables)], env=self.env, capture=True)
+                          '-var-file=' + str(variables), *targets], env=self.env, capture=True)
         plan = json.loads(command(prefix + ['show', '-json', str(plan_file)], env=self.env, capture=True).stdout)
         changed = set()
         for resource in plan.get('resource_changes', []):
