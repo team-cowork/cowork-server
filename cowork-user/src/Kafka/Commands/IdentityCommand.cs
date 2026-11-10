@@ -16,7 +16,7 @@ public static class IdentityCommand
     sealed class ConflictingReuse(string reason = ":conflicting_identity_command_reuse") : Exception(reason);
 
     // TODO(legacy-identity-topic): Remove the schemaVersion compatibility argument when the drained v1 consumer is retired.
-    public static async Task HandleAsync(string consumerGroup, string resultTopic, KafkaRecord record, ILogger logger, int schemaVersion = 2)
+    public static async Task HandleAsync(string consumerGroup, string resultTopic, KafkaRecord record, ILogger logger, int schemaVersion)
     {
         var payload = Json.ParseObject(record.Value, out var decodeError);
         if (payload is null)
