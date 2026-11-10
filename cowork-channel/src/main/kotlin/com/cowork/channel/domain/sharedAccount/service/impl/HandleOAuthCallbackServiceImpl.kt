@@ -75,6 +75,8 @@ class HandleOAuthCallbackServiceImpl(
 
     /** 이미 있는 계정이면 OAuth 연결 표시를 되돌려 반환하고, 없으면 새로 저장한다. */
     private fun persist(channelId: Long, userId: Long, provider: AccountProvider, identifier: String): SharedAccount {
+        // 외부 호출 사이에 채널이 보관될 수 있으므로 쓰기 트랜잭션에서 채널 행을 잠근 뒤 다시 확인한다.
+        channelAccessGuard.requireNotArchived(channelAccessGuard.findChannelForUpdateOrThrow(channelId))
         // provider가 방금 확인한 계정이므로, 식별자 수정으로 해제된 OAuth 연결 표시를 되돌린다.
         sharedAccountRepository.findByChannelIdAndProviderAndAccountIdentifier(channelId, provider, identifier)
             ?.let { return it.apply { connectedViaOAuth = true } }
