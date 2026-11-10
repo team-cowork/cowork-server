@@ -1,6 +1,7 @@
 package com.cowork.channel.domain.channel.presentation.controller
 
 import com.cowork.channel.domain.channel.presentation.data.request.ReorderChannelsRequest
+import com.cowork.channel.domain.channel.presentation.data.response.ArchivedChannelPageResponse
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
 import com.cowork.channel.domain.channel.service.ListTeamChannelsService
 import com.cowork.channel.domain.channel.service.ReorderTeamChannelsService
@@ -128,11 +129,27 @@ class TeamChannelController(
     @Operation(
         summary = "보관된 채널 조회",
         description = "읽을 수 있는 보관 채널을 보관 시각의 역순으로 조회합니다. 채널 ID, 프로젝트 ID, 채널 이름으로 좁힐 수 있습니다. " +
+            "nextCursor가 null이 될 때까지 cursor로 다음 페이지를 조회합니다. " +
             "보관 채널의 메시지 내용 검색은 채팅 서비스의 메시지 검색 API에 archived=true를 지정합니다.",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(
+            responseCode = "400",
+            description = "조회 크기 또는 커서 형식 오류",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
         ApiResponse(
             responseCode = "403",
             description = "해당 팀의 멤버가 아님",
@@ -156,5 +173,8 @@ class TeamChannelController(
         @Parameter(description = "채널 ID") @RequestParam(required = false) channelId: Long?,
         @Parameter(description = "프로젝트 ID") @RequestParam(required = false) projectId: Long?,
         @Parameter(description = "채널 이름 검색어") @RequestParam(required = false) q: String?,
-    ): List<ChannelResponse> = searchArchivedChannelsService.execute(userId, teamId, channelId, projectId, q)
+        @Parameter(description = "이전 응답의 nextCursor") @RequestParam(required = false) cursor: String?,
+        @Parameter(description = "한 번에 조회할 보관 채널 수 (1~100)") @RequestParam(defaultValue = "50") size: Int,
+    ): ArchivedChannelPageResponse =
+        searchArchivedChannelsService.execute(userId, teamId, channelId, projectId, q, cursor, size)
 }

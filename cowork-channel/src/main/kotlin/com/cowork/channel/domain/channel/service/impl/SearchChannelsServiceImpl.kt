@@ -2,6 +2,7 @@ package com.cowork.channel.domain.channel.service.impl
 
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
 import com.cowork.channel.domain.channel.repository.ChannelRepository
+import com.cowork.channel.domain.channel.repository.LikePattern
 import com.cowork.channel.domain.channel.service.SearchChannelsService
 import com.cowork.channel.domain.channel.service.TeamPermissionService
 import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
@@ -19,7 +20,7 @@ class SearchChannelsServiceImpl(
     override fun execute(userId: Long, teamId: Long, q: String): List<ChannelResponse> {
         teamPermissionService.requireTeamMember(teamId, userId)
         if (q.isBlank()) return emptyList()
-        val structurallyVisible = channelRepository.searchActiveByTeamIdAndName(teamId, q)
+        val structurallyVisible = channelRepository.searchActiveByTeamIdAndName(teamId, LikePattern.escape(q))
         return messageReadPolicyEvaluator.filterReadable(teamId, userId, structurallyVisible).map {
             ChannelResponse.of(it)
         }
