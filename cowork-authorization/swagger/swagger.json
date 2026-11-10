@@ -8,6 +8,128 @@
     },
     "basePath": "/api/authorization",
     "paths": {
+        "/auth/authorize": {
+            "post": {
+                "description": "등록된 콜백 URL로 로그인 시도를 생성합니다. 반환된 authorization_url로 이동하고 쿠키를 유지한 채 /auth/callback에 콜백을 전달합니다. 시도는 10분 뒤 만료됩니다.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "DataGSM 로그인 시작",
+                "parameters": [
+                    {
+                        "description": "등록된 콜백 URL",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.LoginStartRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Success-internal_handler_LoginStartResponse"
+                        },
+                        "headers": {
+                            "Set-Cookie": {
+                                "type": "string",
+                                "description": "일회성 로그인 세션 쿠키(Secure, HttpOnly)"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "등록되지 않은 콜백 또는 잘못된 요청",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
+                        }
+                    },
+                    "403": {
+                        "description": "허용하지 않은 출처",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
+                        }
+                    },
+                    "503": {
+                        "description": "로그인 시도 저장 실패",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/callback": {
+            "post": {
+                "description": "로그인 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 서버가 PKCE와 OIDC를 검증하고 Cowork 토큰을 발급합니다. 로그인 시도는 한 번만 사용할 수 있습니다.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "인가 코드로 토큰 발급",
+                "parameters": [
+                    {
+                        "description": "DataGSM 콜백",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/internal_handler.LoginCallbackRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "새 토큰 쌍",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_TokenPair"
+                        },
+                        "headers": {
+                            "Set-Cookie": {
+                                "type": "string",
+                                "description": "WebSocket 인증 쿠키(cowork_ws_token, Path=/ws)"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "필수 요청 값이 없거나 형식이 잘못됨",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
+                        }
+                    },
+                    "401": {
+                        "description": "인가 코드 검증 실패",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
+                        }
+                    },
+                    "429": {
+                        "description": "요청 한도 초과",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
+                        }
+                    },
+                    "503": {
+                        "description": "인증 서비스를 일시적으로 사용할 수 없음",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
+                        }
+                    }
+                }
+            }
+        },
         "/auth/refresh": {
             "post": {
                 "description": "리프레시 토큰을 교환해 새 액세스 토큰과 새 리프레시 토큰을 받습니다.",
@@ -144,7 +266,7 @@
         },
         "/auth/token": {
             "post": {
-                "description": "DataGSM 인가 코드와 PKCE 검증 값으로 액세스 토큰과 리프레시 토큰을 발급합니다.",
+                "description": "클라이언트가 생성한 PKCE verifier와 인가 코드를 교환합니다. state 검증은 클라이언트가 담당합니다. redirect_uri는 서버 허용 목록 및 DataGSM 등록값과 일치해야 합니다.",
                 "consumes": [
                     "application/json"
                 ],
@@ -154,32 +276,22 @@
                 "tags": [
                     "auth"
                 ],
-                "summary": "인가 코드로 토큰 발급",
+                "summary": "기존 클라이언트의 PKCE 코드 교환",
+                "deprecated": true,
                 "parameters": [
                     {
-                        "description": "코드 교환 요청",
+                        "description": "PKCE 코드 교환 요청",
                         "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object",
-                            "properties": {
-                                "code": {
-                                    "type": "string"
-                                },
-                                "code_verifier": {
-                                    "type": "string"
-                                },
-                                "redirect_uri": {
-                                    "type": "string"
-                                }
-                            }
+                            "$ref": "#/definitions/internal_handler.CodeExchangeRequest"
                         }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "새 토큰 쌍",
+                        "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_TokenPair"
                         },
@@ -191,13 +303,13 @@
                         }
                     },
                     "400": {
-                        "description": "필수 요청 값이 없거나 형식이 잘못됨",
+                        "description": "잘못된 요청 또는 콜백 URL",
                         "schema": {
                             "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
                     },
                     "401": {
-                        "description": "인가 코드 검증 실패",
+                        "description": "인증 실패",
                         "schema": {
                             "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
@@ -209,7 +321,7 @@
                         }
                     },
                     "503": {
-                        "description": "인증 서비스를 일시적으로 사용할 수 없음",
+                        "description": "인증 서비스 사용 불가",
                         "schema": {
                             "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
@@ -239,7 +351,7 @@
                         "required": true
                     },
                     {
-                        "description": "이벤트 ID, 종류, RFC 3339 발생 시각 및 데이터. student.updated는 data.new에 변경 항목을 담습니다.",
+                        "description": "이벤트 ID, 종류, RFC 3339 발생 시각 및 데이터. data.old와 data.new는 같은 index로 변경 전후를 짝지으며 학생의 new.object는 비어 있을 수 없습니다.",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -353,6 +465,36 @@
                 }
             }
         },
+        "github_com_cowork_authorization_internal_apidoc.Success-internal_handler_LoginStartResponse": {
+            "type": "object",
+            "required": [
+                "code",
+                "data",
+                "message",
+                "status"
+            ],
+            "properties": {
+                "code": {
+                    "type": "integer",
+                    "enum": [
+                        200
+                    ]
+                },
+                "data": {
+                    "$ref": "#/definitions/internal_handler.LoginStartResponse"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "OK"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "200 OK"
+                    ]
+                }
+            }
+        },
         "github_com_cowork_authorization_internal_apidoc.Success-internal_handler_WebhookReceipt": {
             "type": "object",
             "required": [
@@ -396,6 +538,61 @@
                     "type": "string"
                 },
                 "token_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.CodeExchangeRequest": {
+            "type": "object",
+            "required": [
+                "code",
+                "code_verifier",
+                "redirect_uri"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "code_verifier": {
+                    "type": "string"
+                },
+                "redirect_uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.LoginCallbackRequest": {
+            "type": "object",
+            "required": [
+                "state"
+            ],
+            "properties": {
+                "code": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.LoginStartRequest": {
+            "type": "object",
+            "required": [
+                "redirect_uri"
+            ],
+            "properties": {
+                "redirect_uri": {
+                    "type": "string"
+                }
+            }
+        },
+        "internal_handler.LoginStartResponse": {
+            "type": "object",
+            "properties": {
+                "authorization_url": {
                     "type": "string"
                 }
             }

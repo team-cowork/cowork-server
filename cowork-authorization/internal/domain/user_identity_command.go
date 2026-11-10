@@ -14,11 +14,12 @@ import (
 var ErrIdentityResultRejected = errors.New("identity command result permanently rejected")
 
 const (
-	UserIdentitySchemaVersion = 1
-	UserIdentityCommandUpsert = "UPSERT"
-	UserIdentityPending       = "PENDING"
-	UserIdentitySucceeded     = "SUCCEEDED"
-	UserIdentityFailed        = "FAILED"
+	UserIdentitySchemaVersion        = 1
+	UserIdentityCommandSchemaVersion = 2
+	UserIdentityCommandUpsert        = "UPSERT"
+	UserIdentityPending              = "PENDING"
+	UserIdentitySucceeded            = "SUCCEEDED"
+	UserIdentityFailed               = "FAILED"
 
 	MaxIdentityIdempotencyKeyLength = 128
 	MaxIdentityErrorCodeLength      = 64
@@ -39,7 +40,7 @@ type UserIdentityCommand struct {
 	Grade                *int8     `json:"grade"`
 	ClassNumber          *int8     `json:"classNumber"`
 	StudentNumberInClass *int8     `json:"studentNumberInClass"`
-	Major                string    `json:"major"`
+	Major                *string   `json:"major"`
 	Role                 string    `json:"role"`
 	GithubID             *string   `json:"githubId"`
 	DataGSMStudentID     *int64    `json:"dataGSMStudentId"`
@@ -98,8 +99,8 @@ func NewUUID() (string, error) {
 }
 
 func ValidateUserIdentityCommand(command UserIdentityCommand) error {
-	if command.SchemaVersion != UserIdentitySchemaVersion {
-		return fmt.Errorf("schemaVersion must be 1")
+	if command.SchemaVersion != UserIdentityCommandSchemaVersion {
+		return fmt.Errorf("command schemaVersion must be 2")
 	}
 	if !ValidUUID(command.OperationID) {
 		return fmt.Errorf("operationId must be a canonical UUID")
@@ -122,7 +123,6 @@ func ValidateUserIdentityCommand(command UserIdentityCommand) error {
 		{name: "name", value: command.Name, max: 50},
 		{name: "email", value: command.Email, max: 255},
 		{name: "sex", value: command.Sex, max: 10},
-		{name: "major", value: command.Major, max: 50},
 		{name: "role", value: command.Role, max: 50},
 	} {
 		if strings.TrimSpace(field.value) == "" {
@@ -131,6 +131,9 @@ func ValidateUserIdentityCommand(command UserIdentityCommand) error {
 		if utf8.RuneCountInString(field.value) > field.max {
 			return fmt.Errorf("%s exceeds %d characters", field.name, field.max)
 		}
+	}
+	if command.Major != nil && utf8.RuneCountInString(*command.Major) > 50 {
+		return fmt.Errorf("major exceeds 50 characters")
 	}
 	if command.GithubID != nil && utf8.RuneCountInString(*command.GithubID) > 100 {
 		return fmt.Errorf("githubId exceeds 100 characters")

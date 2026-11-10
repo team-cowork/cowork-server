@@ -2,10 +2,13 @@ package config
 
 import (
 	"fmt"
-	mysqlDriver "github.com/go-sql-driver/mysql"
 	"net"
+	"net/url"
 	"os"
+	"strings"
 	"time"
+
+	mysqlDriver "github.com/go-sql-driver/mysql"
 )
 
 const (
@@ -20,12 +23,13 @@ type AppConfig struct {
 
 	DBDSN string
 
-	DataGSMClientID      string
-	DataGSMTokenURL      string
-	DataGSMUserInfoURL   string
-	DataGSMWebhookSecret string
-	RedisHost            string
-	RedisPort            string
+	DataGSMClientID         string
+	DataGSMAuthorizationURL string
+	DataGSMResourceURL      string
+	DataGSMRedirectURIs     []string
+	DataGSMWebhookSecret    string
+	RedisHost               string
+	RedisPort               string
 
 	KafkaBootstrapServers               string
 	KafkaTopicUserSync                  string
@@ -62,20 +66,24 @@ func Load() (*AppConfig, error) {
 		KafkaSecurity:                       security,
 		Port:                                getEnvOrDefault("PORT", "8081"),
 		DataGSMClientID:                     os.Getenv("DATAGSM_CLIENT_ID"),
-		DataGSMTokenURL:                     getEnvOrDefault("DATAGSM_TOKEN_URL", "https://oauth.authorization.datagsm.kr/v1/oauth/token"),
-		DataGSMUserInfoURL:                  getEnvOrDefault("DATAGSM_USERINFO_URL", "https://oauth.resource.datagsm.kr/userinfo"),
+		DataGSMAuthorizationURL:             getEnvOrDefault("DATAGSM_AUTHORIZATION_BASE_URL", "https://oauth.authorization.datagsm.kr"),
+		DataGSMResourceURL:                  getEnvOrDefault("DATAGSM_RESOURCE_BASE_URL", "https://oauth.resource.datagsm.kr"),
 		DataGSMWebhookSecret:                os.Getenv("DATAGSM_WEBHOOK_SECRET"),
 		RedisHost:                           os.Getenv("REDIS_HOST"),
 		RedisPort:                           os.Getenv("REDIS_PORT"),
 		KafkaBootstrapServers:               os.Getenv("KAFKA_BOOTSTRAP_SERVERS"),
 		KafkaTopicUserSync:                  getEnvOrDefault("KAFKA_TOPIC_USER_SYNC", "user.data.sync"),
-		KafkaTopicUserIdentityCommand:       getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND", "user.identity.command"),
+		KafkaTopicUserIdentityCommand:       getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND", "user.identity.command.v2"),
 		KafkaTopicUserIdentityCommandResult: getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT", "user.identity.command-result"),
 		KafkaTopicUserIdentityResultDLT:     getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT_DLT", "user.identity.command-result-dlt"),
 		KafkaGroupIDUserIdentityResult:      getEnvOrDefault("KAFKA_GROUP_ID_USER_IDENTITY_COMMAND_RESULT", "cowork-authorization.user-identity-command-result"),
 		KafkaIdentityCommandTimeout:         identityCommandTimeout,
 		KafkaTopicUserPresence:              getEnvOrDefault("KAFKA_TOPIC_USER_PRESENCE", "user.presence.event"),
 		JWTSecret:                           os.Getenv("JWT_SECRET"), JWTAccessExpire: accessExpire, JWTRefreshExpire: refreshExpire,
+	}
+	cfg.DataGSMRedirectURIs, err = parseRedirectURIs(os.Getenv("DATAGSM_REDIRECT_URIS"))
+	if err != nil {
+		return nil, err
 	}
 	cfg.DBDSN, err = mysqlDSN("")
 	if err != nil {
@@ -101,6 +109,31 @@ func Load() (*AppConfig, error) {
 		}
 	}
 	return cfg, nil
+}
+
+func parseRedirectURIs(raw string) ([]string, error) {
+	var result []string
+	seen := make(map[string]bool)
+	for _, value := range strings.Split(raw, ",") {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		u, err := url.Parse(value)
+		if err != nil || u.Scheme == "" || u.Host == "" || u.User != nil || u.Fragment != "" || u.RawQuery != "" ||
+			(u.Scheme == "http" && u.Hostname() != "localhost" && !net.ParseIP(u.Hostname()).IsLoopback()) ||
+			(u.Scheme != "https" && u.Scheme != "http" && u.Scheme != "cowork") {
+			return nil, fmt.Errorf("DATAGSM_REDIRECT_URIS must contain registered HTTPS, loopback HTTP, or cowork callback URLs")
+		}
+		if !seen[value] {
+			result = append(result, value)
+			seen[value] = true
+		}
+	}
+	if len(result) == 0 {
+		return nil, fmt.Errorf("DATAGSM_REDIRECT_URIS must contain at least one registered callback URL")
+	}
+	return result, nil
 }
 
 func getEnvOrDefault(key, fallback string) string {
