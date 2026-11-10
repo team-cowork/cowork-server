@@ -31,6 +31,10 @@ type ChannelEvent = {
 	viewType: string;
 	description: Nullable<string>;
 	isPrivate: boolean;
+	/**
+    보관 상태. 필드가 추가되기 전에 발행된 이벤트는 누락될 수 있으며 활성 채널로 본다.
+    */
+	archived?: boolean;
 	occurredAt: string;
 	/**
     주기/startup state replay이면 변경 알림 부수효과를 억제한다.
@@ -114,6 +118,7 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
 			description: event.description,
 			isPrivate: event.isPrivate,
 			position: event.position ?? 0,
+			archived: event.archived ?? false,
 			occurredAt,
 			sourceVersion,
 		};
@@ -214,5 +219,6 @@ function hasValidChannelDetails(event: Partial<ChannelEvent>): boolean {
 		&& typeof event.viewType === 'string'
 		&& (event.description === null || typeof event.description === 'string')
 		&& typeof event.isPrivate === 'boolean'
-		&& (event.position === undefined || typeof event.position === 'number');
+		&& (event.position === undefined || typeof event.position === 'number')
+		&& (event.archived === undefined || typeof event.archived === 'boolean');
 }

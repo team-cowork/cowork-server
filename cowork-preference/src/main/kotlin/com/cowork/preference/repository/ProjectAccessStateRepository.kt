@@ -74,12 +74,13 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
             val rows = client.preparedQuery(
                 """
                 INSERT INTO tb_project_access_states
-                    (project_id, account_id, can_read, can_write, can_manage, can_reorder, can_read_private,
+                    (project_id, account_id, can_read, can_write, can_manage, can_reorder, can_channel_archive, can_read_private,
                      source_membership_version, source_authorization_version, state_occurred_at)
-                VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6, ${'$'}7, ${'$'}8, ${'$'}9, clock_timestamp())
+                VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6, ${'$'}7, ${'$'}8, ${'$'}9, ${'$'}10, clock_timestamp())
                 ON CONFLICT (project_id, account_id) DO UPDATE SET
                     can_read = EXCLUDED.can_read, can_write = EXCLUDED.can_write,
                     can_manage = EXCLUDED.can_manage, can_reorder = EXCLUDED.can_reorder,
+                    can_channel_archive = EXCLUDED.can_channel_archive,
                     can_read_private = EXCLUDED.can_read_private,
                     source_membership_version = EXCLUDED.source_membership_version,
                     source_authorization_version = EXCLUDED.source_authorization_version,
@@ -92,7 +93,8 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
                 ).addLong(accountId).addBoolean(permissions.read).addBoolean(permissions.write)
                     .addBoolean(
                         permissions.manage,
-                    ).addBoolean(permissions.reorder).addBoolean(canReadPrivate).addOffsetDateTime(membershipVersion)
+                    ).addBoolean(permissions.reorder).addBoolean(permissions.channelArchive)
+                    .addBoolean(canReadPrivate).addOffsetDateTime(membershipVersion)
                     .addOffsetDateTime(authorizationVersion),
             ).coAwait()
             rows.forEach { outbox.enqueue(client, event(it)) }
@@ -160,6 +162,7 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
         getBoolean("can_write"),
         getBoolean("can_manage"),
         getBoolean("can_reorder"),
+        getBoolean("can_channel_archive"),
     )
 
     private data class TeamAccess(
@@ -180,6 +183,7 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
                 .put("projectId", projectId).put("accountId", accountId)
                 .put("read", row.getBoolean("can_read")).put("write", row.getBoolean("can_write"))
                 .put("manage", row.getBoolean("can_manage")).put("reorder", row.getBoolean("can_reorder"))
+                .put("channelArchive", row.getBoolean("can_channel_archive"))
                 .put("readPrivate", row.getBoolean("can_read_private"))
                 .put(
                     "sourceMembershipVersion",

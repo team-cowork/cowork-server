@@ -20,7 +20,6 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
-import java.util.Optional
 
 class DeleteSharedAccountServiceImplTest {
 
@@ -75,7 +74,7 @@ class DeleteSharedAccountServiceImplTest {
     fun `계정 등록자가 삭제하면 해당 공유 계정을 삭제함`() {
         val ch = accountShareChannel(createdBy = 1L)
         val acc = account(createdBy = 1L)
-        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
         every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns acc
 
         service.deleteAccount(1L, 1L, 10L)
@@ -87,7 +86,7 @@ class DeleteSharedAccountServiceImplTest {
     fun `deleteAccount는 권한 없는 사용자이면 FORBIDDEN`() {
         val ch = accountShareChannel(createdBy = 99L)
         val acc = account(createdBy = 88L)
-        every { channelRepository.findById(1L) } returns Optional.of(ch)
+        every { channelRepository.findByIdForUpdate(1L) } returns ch
         every { sharedAccountRepository.findByIdAndChannelId(10L, 1L) } returns acc
         every { teamPermissionService.requireChannelPermission(any(), 1L, "channel_manage") } throws
             ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
@@ -98,7 +97,7 @@ class DeleteSharedAccountServiceImplTest {
 
     @Test
     fun `deleteAccount는 계정이 없으면 NOT_FOUND`() {
-        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { channelRepository.findByIdForUpdate(1L) } returns accountShareChannel()
         every { sharedAccountRepository.findByIdAndChannelId(99L, 1L) } returns null
 
         val ex = assertThrows<ExpectedException> { service.deleteAccount(1L, 1L, 99L) }

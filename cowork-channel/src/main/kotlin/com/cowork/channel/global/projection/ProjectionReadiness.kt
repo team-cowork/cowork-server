@@ -239,11 +239,16 @@ class ProjectionReadinessAvailability(
 @Component
 class ProjectionReadinessGate(private val readinessState: ProjectionReadinessState) {
     fun requireReady() {
-        if (!readinessState.isReady()) {
-            throw ExpectedException(
-                "외부 상태 projection 동기화가 완료되지 않았습니다.",
-                HttpStatus.SERVICE_UNAVAILABLE,
-            )
-        }
+        if (!readinessState.isReady()) throw notReady()
     }
+
+    /** 전역 readiness에 포함되지 않은 stream을 쓰는 기능이 해당 stream만 따라잡았는지 확인한다. */
+    fun requireCaughtUp(streams: Set<ProjectionStream>) {
+        if (!readinessState.isCaughtUp(streams)) throw notReady()
+    }
+
+    private fun notReady() = ExpectedException(
+        "외부 상태 projection 동기화가 완료되지 않았습니다.",
+        HttpStatus.SERVICE_UNAVAILABLE,
+    )
 }
