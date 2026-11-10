@@ -2,10 +2,12 @@ package com.cowork.channel.domain.channel.repository
 
 import com.cowork.channel.domain.channel.entity.Channel
 import jakarta.persistence.LockModeType
+import org.springframework.data.domain.Limit
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
+import java.time.LocalDateTime
 
 interface ChannelRepository : JpaRepository<Channel, Long> {
 
@@ -43,7 +45,7 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
         "SELECT c FROM Channel c " +
             "WHERE c.teamId = :teamId " +
             "AND c.archivedAt IS NULL " +
-            "AND c.name LIKE CONCAT('%', :q, '%') " +
+            "AND c.name LIKE CONCAT('%', :q, '%') ESCAPE '!' " +
             "ORDER BY c.position ASC, c.id ASC",
     )
     fun searchActiveByTeamIdAndName(@Param("teamId") teamId: Long, @Param("q") q: String): List<Channel>
@@ -54,7 +56,8 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
             "AND c.archivedAt IS NOT NULL " +
             "AND (:channelId IS NULL OR c.id = :channelId) " +
             "AND (:projectId IS NULL OR c.projectId = :projectId) " +
-            "AND (:q IS NULL OR c.name LIKE CONCAT('%', :q, '%')) " +
+            "AND (:q IS NULL OR c.name LIKE CONCAT('%', :q, '%') ESCAPE '!') " +
+            "AND (:cursorAt IS NULL OR c.archivedAt < :cursorAt OR (c.archivedAt = :cursorAt AND c.id < :cursorId)) " +
             "ORDER BY c.archivedAt DESC, c.id DESC",
     )
     fun searchArchived(
@@ -62,5 +65,8 @@ interface ChannelRepository : JpaRepository<Channel, Long> {
         @Param("channelId") channelId: Long?,
         @Param("projectId") projectId: Long?,
         @Param("q") q: String?,
+        @Param("cursorAt") cursorAt: LocalDateTime?,
+        @Param("cursorId") cursorId: Long?,
+        limit: Limit,
     ): List<Channel>
 }
