@@ -24,7 +24,7 @@ export class MessageSearchTombstone {
 	@prop({required: true}) messageId!: string;
 
 	@prop({required: true}) teamId!: number;
-	@prop({required: true}) projectId!: number;
+	@prop({type: Number, default: null}) projectId!: Nullable<number>;
 	@prop({required: true}) channelId!: number;
 
 	/**
