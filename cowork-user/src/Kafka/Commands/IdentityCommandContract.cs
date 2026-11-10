@@ -18,17 +18,19 @@ public static class IdentityCommandContract
 
     public sealed record Command(
         string OperationId, string IdempotencyKey, long UserId, string Name, string Email, string Sex,
-        long? Grade, long? ClassNumber, long? StudentNumberInClass, string Major, string Role, string? GithubId,
-        long? DatagsmStudentId, long RequestedBy, DateTime OccurredAt, int OccurredAtPrecision
+        long? Grade, long? ClassNumber, long? StudentNumberInClass, string? Major, string Role, string? GithubId,
+        long? DatagsmStudentId, long RequestedBy, DateTime OccurredAt, int OccurredAtPrecision, int SchemaVersion
         );
 
-    public static Command? Parse(JsonElement payload, string? key)
+    // TODO(legacy-identity-topic): Remove v1 parsing, the v1 default, and the required-major branch after the old topic is drained and retired.
+    public static Command? Parse(JsonElement payload, string? key, int schemaVersion = 1)
     {
         var operationId = Uuid(payload.Get("operationId"));
         var idempotencyKey = ContractFields.String(payload.Get("idempotencyKey"));
         var userId = payload.Get("userId").Integer();
         if (!ContractFields.ExactKeys(payload, AllowedKeys)
-            || payload.Get("schemaVersion").Integer() != 1
+            || schemaVersion is not (1 or 2)
+            || payload.Get("schemaVersion").Integer() != schemaVersion
             || operationId is null
             || idempotencyKey is null || idempotencyKey.Trim() == "" || Accounts.TextLength(idempotencyKey) > MaxIdempotencyKeyLength
             || payload.GetString("commandType") != "UPSERT"
@@ -38,7 +40,7 @@ public static class IdentityCommandContract
             || !ContractFields.RequiredString(payload.Get("name"), 50)
             || !ContractFields.RequiredString(payload.Get("email"), 255)
             || !ContractFields.RequiredString(payload.Get("sex"), 10)
-            || !ContractFields.RequiredString(payload.Get("major"), 50)
+            || !(schemaVersion == 1 ? ContractFields.RequiredString(payload.Get("major"), 50) : ContractFields.OptionalString(payload.Get("major"), 50))
             || !ContractFields.RequiredString(payload.Get("role"), 50)
             || !ContractFields.OptionalInteger(payload.Get("grade"))
             || !ContractFields.OptionalInteger(payload.Get("classNumber"))
@@ -51,8 +53,8 @@ public static class IdentityCommandContract
         return new Command(operationId, idempotencyKey, userId.Value,
             payload.GetString("name")!, payload.GetString("email")!, payload.GetString("sex")!,
             payload.Get("grade").Integer(), payload.Get("classNumber").Integer(), payload.Get("studentNumberInClass").Integer(),
-            payload.GetString("major")!, payload.GetString("role")!, payload.GetString("githubId"),
-            payload.Get("dataGSMStudentId").Integer(), userId.Value, occurredAt, precision);
+            payload.GetString("major"), payload.GetString("role")!, payload.GetString("githubId"),
+            payload.Get("dataGSMStudentId").Integer(), userId.Value, occurredAt, precision, schemaVersion);
     }
 
     /// <summary>A canonical lowercase UUID operationId usable for result correlation.</summary>
@@ -70,7 +72,7 @@ public static class IdentityCommandContract
     /// </summary>
     public static string CanonicalPayload(Command command) => JsonSerializer.Serialize(new SortedDictionary<string, object?>(StringComparer.Ordinal)
     {
-        ["schemaVersion"] = 1,
+        ["schemaVersion"] = command.SchemaVersion,
         ["operationId"] = command.OperationId,
         ["idempotencyKey"] = command.IdempotencyKey,
         ["commandType"] = "UPSERT",
@@ -95,7 +97,7 @@ public static class IdentityCommandContract
     /// </summary>
     public static string LegacyCanonicalPayload(Command command) => JasonEncode(new SortedDictionary<string, object?>(StringComparer.Ordinal)
     {
-        ["schemaVersion"] = 1,
+        ["schemaVersion"] = command.SchemaVersion,
         ["operationId"] = command.OperationId,
         ["idempotencyKey"] = command.IdempotencyKey,
         ["commandType"] = "UPSERT",
