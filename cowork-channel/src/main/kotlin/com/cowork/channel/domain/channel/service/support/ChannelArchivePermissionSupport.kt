@@ -4,10 +4,10 @@ import com.cowork.channel.domain.channel.entity.Channel
 import com.cowork.channel.domain.channel.entity.ChannelType
 import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
-import com.cowork.channel.domain.membership.repository.TeamMembershipRepository
 import com.cowork.channel.domain.project.entity.ProjectAccessProjection
 import com.cowork.channel.domain.project.repository.ProjectAccessProjectionRepository
 import com.cowork.channel.global.projection.ProjectionReadinessGate
+import com.cowork.channel.global.projection.ProjectionStreams
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
@@ -20,9 +20,9 @@ import team.themoment.sdk.exception.ExpectedException
 class ChannelArchivePermissionSupport(
     private val channelAccessGuard: ChannelAccessGuard,
     private val permissionEvaluator: ChannelMessageReadPolicyEvaluator,
-    private val membershipRepository: TeamMembershipRepository,
     private val projectAccessRepository: ProjectAccessProjectionRepository,
     private val projectionReadinessGate: ProjectionReadinessGate,
+    private val streams: ProjectionStreams,
 ) {
     fun requireArchivePermission(channel: Channel, userId: Long) {
         val teamId = channelAccessGuard.requireTeamChannel(channel)
@@ -35,23 +35,14 @@ class ChannelArchivePermissionSupport(
             permissionEvaluator.requireTeamPermission(teamId, userId, ARCHIVE_CHANNELS)
             return
         }
-        requireProjectChannelArchive(teamId, projectId, userId)
-    }
-
-    private fun requireProjectChannelArchive(teamId: Long, projectId: Long, userId: Long) {
-        projectionReadinessGate.requireReady()
-        val membership = membershipRepository.findByTeamIdAndUserId(teamId, userId)
-            ?.takeIf { it.active }
-            ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
-        if (membership.role in BYPASS_ROLES) return
-        val access = projectAccessRepository.findById(ProjectAccessProjection.key(projectId, userId)).orElse(null)
-        if (access?.allowsChannelArchive(membership.authorizationVersion) != true) {
-            throw ExpectedException("프로젝트 채널 보관 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        permissionEvaluator.requireMemberPermission(teamId, userId, "프로젝트 채널 보관 권한이 없습니다.") { membership ->
+            projectionReadinessGate.requireCaughtUp(setOf(streams.projectAccess))
+            projectAccessRepository.findById(ProjectAccessProjection.key(projectId, userId)).orElse(null)
+                ?.allowsChannelArchive(membership.authorizationVersion) == true
         }
     }
 
     private companion object {
         const val ARCHIVE_CHANNELS = "archive_channels"
-        val BYPASS_ROLES = setOf("OWNER", "ADMIN")
     }
 }
