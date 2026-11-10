@@ -9,6 +9,7 @@ DataGSM Go SDK v0.2.0의 `oauth`와 `event`를 사용한다. 기존 `/auth/token
 3. Kafka 정책을 먼저 적용해 `user.identity.command.v2`와 양쪽 서비스의 ACL을 준비한다. 기존 토픽과 ACL은 유지한다.
 4. v1·v2 소비를 지원하는 `cowork-user`를 먼저 배포하고 소비 상태를 확인한다. 다음으로 authorization과 Gateway를 배포한다. 동시 배포 중 v2 소비자가 아직 준비되지 않으면 로그인 결과 대기가 실패할 수 있다.
 5. 토픽 환경변수 override가 있다면 authorization과 user의 command topic을 모두 `user.identity.command.v2`로 맞춘다. 새 consumer group은 `cowork-user.user-identity-command.v2`다. 구형 consumer는 배포된 기본 토픽 `user.identity.command`와 그룹 `cowork-user.user-identity-command`를 유지한다. 운영에서 다른 구형 값을 사용했다면 해당 소비부를 배포 전에 맞춘다.
+6. 기존 클라이언트의 PKCE verifier가 43~128자의 unreserved 문자이고 S256을 사용하는지 확인한다. 2026-11-10 기준 웹 main·모바일 develop·데스크탑 main 소스는 모두 난수 32바이트를 padding 없는 base64url로 바꾼 43자 verifier를 사용한다. 실제 배포 빌드와 콜백 override는 클라이언트 팀이 확인해야 한다.
 
 `major`는 선택 값으로 전달한다. 사용자 DB 컬럼은 이미 nullable이므로 DB migration은 필요하지 않다. wire contract의 변경은 command schema 2와 새 토픽으로 구분한다. 결과 contract는 schema 1이며, 기존 result·result-DLT 토픽을 계속 사용한다.
 
@@ -25,6 +26,10 @@ Gateway의 API prefix는 `/api/authorization`이다.
 ID token의 `iat`·`nbf`·`exp`에는 서버에서 30초의 시계 오차를 허용한다. 현재 시각에서 30초 이내인 토큰 유효 구간의 가장 가까운 시각으로 SDK 검증을 수행한다. SDK 수정 없이 서명과 나머지 클레임 검증을 유지한다. 각 로그인 시도는 state별 쿠키를 사용하므로 여러 탭에서 시작한 시도가 서로의 쿠키를 덮어쓰지 않는다.
 
 두 새 API는 JSON 요청을 받는다. 웹은 요청에 credentials를 포함하고 Gateway CORS가 해당 origin을 허용해야 한다. 브라우저 origin은 등록된 HTTP(S) 콜백의 origin과 일치해야 한다. 쿠키는 `Secure`, `HttpOnly`, `SameSite=None`이므로 API 접속에는 HTTPS가 필요하며 브라우저의 타사 쿠키 정책도 확인해야 한다. 서버 프록시를 사용하는 웹은 Set-Cookie와 이후 Cookie 전달을 보존해야 한다. 네이티브 앱도 시작과 완료 요청 사이에 쿠키 저장소를 유지해야 한다. 등록된 HTTP localhost 콜백은 DataGSM 리다이렉트 수신 주소이며 API의 HTTPS 요구와 별개다.
+
+2026-11-10에 확인한 GitHub 입력은 운영 웹 origin이 일치하지 않는다. `PUBLIC_WEB_ORIGINS`는 `https://service.gsmsv.site:22118`과 `http://localhost:3000`이며, 등록된 운영 웹 콜백 origin은 `https://cowork-web-client.https.gsmsv.site`다. 두 운영 origin에서는 브라우저의 직접 API 호출이 모두 허용되지 않으므로, 현재 입력으로 전환할 때는 쿠키를 전달하는 웹 서버 프록시를 사용해야 한다. 직접 호출을 활성화하기 전에 실제 운영 origin을 확정하고 공유 입력 `PUBLIC_WEB_ORIGINS`와 DataGSM 등록 콜백·`DATAGSM_REDIRECT_URIS`를 맞춘 뒤 CD로 반영한다. 각 서비스에 별도 CORS 값을 추가하지 않는다.
+
+로그인 실패 단계는 `cowork_authorization_login_failures_total{stage="..."}`로 확인한다. `callback_validation`은 state·code·거절 응답 검사, `id_token_validation`은 ID token 검사, `userinfo_subject`는 subject 불일치, `userinfo_status`는 비활성 계정을 뜻한다. 라벨은 고정된 단계 이름만 사용하며 토큰·state 값·개인정보·provider 응답 본문을 기록하지 않는다.
 
 기존 `/auth/token`은 클라이언트가 만든 `code`, `code_verifier`, `redirect_uri`를 받는 호환 경로다. 새 서버 관리 시도는 verifier를 클라이언트에 제공하지 않으며 이 경로로 전환하지 않는다. SDK의 provider refresh/logout은 Cowork 세션 갱신·로그아웃과 다르므로 기존 Cowork 세션 처리를 유지한다. OpenAPI를 통한 전체 명부 조회는 별도 자격증명과 기능 범위가 필요해 이 로그인·웹훅 전환에 포함하지 않는다.
 
