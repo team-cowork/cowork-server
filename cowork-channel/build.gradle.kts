@@ -22,12 +22,6 @@ java {
     }
 }
 
-dependencyManagement {
-    imports {
-        mavenBom(libs.spring.cloud.dependencies.get().toString())
-    }
-}
-
 kotlin {
     compilerOptions {
         freeCompilerArgs.add("-Xjsr305=strict")
