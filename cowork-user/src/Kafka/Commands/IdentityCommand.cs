@@ -121,7 +121,6 @@ public static class IdentityCommand
     /// <summary>The hash of a command under the given version's rule, or null when the version is not supported.</summary>
     internal static string? HashFor(long hashVersion, IdentityCommandContract.Command command) => hashVersion switch
     {
-        1 => Hash(IdentityCommandContract.LegacyCanonicalPayload(command)),
         IdentityCommandContract.HashVersion => Hash(IdentityCommandContract.CanonicalPayload(command)),
         _ => null,
     };

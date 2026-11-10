@@ -132,7 +132,6 @@ public class ContractTests
 {
     static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement;
 
-    // Hash version 1 fixtures stay while persisted inbox rows still require that hash rule.
     const string IdentityCommand = """
         {"schemaVersion":2,"operationId":"0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11","idempotencyKey":"login:7",
          "commandType":"UPSERT","userId":7,"name":"김코워크","email":"kim@gsm.hs.kr","sex":"MAN","grade":2,
@@ -169,39 +168,17 @@ public class ContractTests
     }
 
     [Fact]
-    public void Legacy_identity_command_hash_input_matches_what_the_previous_runtime_stored()
-    {
-        // The previous runtime stored only v1 commands under hash version 1.
-        var command = IdentityCommandContract.Parse(Json(IdentityCommand), "7")! with { SchemaVersion = 1 };
-        Assert.Equal(
-            """{"classNumber":1,"commandType":"UPSERT","dataGSMStudentId":42,"email":"kim@gsm.hs.kr","githubId":null,"grade":2,"idempotencyKey":"login:7","major":"SW_DEVELOPMENT","name":"김코워크","occurredAt":"2026-10-18T01:00:00.120Z","operationId":"0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11","requestedBy":7,"role":"GENERAL_STUDENT","schemaVersion":1,"sex":"MAN","studentNumberInClass":5,"userId":7}""",
-            IdentityCommandContract.LegacyCanonicalPayload(command));
-    }
-
-    [Fact]
-    public void Legacy_identity_command_hash_input_escapes_like_the_previous_encoder()
-    {
-        // Emoji, U+2028 and U+007F stay raw; only quotes, backslashes and control characters are escaped.
-        var name = "😀" + (char)0x2028 + (char)0x7f + (char)34 + "q" + (char)1;
-        var payload = IdentityCommand.Replace("김코워크", JsonSerializer.Serialize(name)[1..^1]);
-        var canonical = IdentityCommandContract.LegacyCanonicalPayload(IdentityCommandContract.Parse(Json(payload), "7")!);
-        var expected = string.Concat("😀", (char)0x2028, (char)0x7f, (char)92, (char)34, "q", (char)92, "u0001");
-        Assert.Contains(string.Concat((char)34, "name", (char)34, ":", (char)34, expected, (char)34), canonical);
-    }
-
-    [Fact]
     public void Stored_identity_command_hashes_are_checked_with_the_rule_they_were_written_under()
     {
         var command = IdentityCommandContract.Parse(Json(IdentityCommand), "7")!;
         var again = IdentityCommandContract.Parse(Json(IdentityCommand), "7")!;
         var renamed = IdentityCommandContract.Parse(Json(IdentityCommand.Replace("김코워크", "박코워크")), "7")!;
-        foreach (var version in new long[] { 1, IdentityCommandContract.HashVersion })
-        {
-            Assert.Equal(IdentityCommandHandler.HashFor(version, command), IdentityCommandHandler.HashFor(version, again));
-            Assert.NotEqual(IdentityCommandHandler.HashFor(version, command), IdentityCommandHandler.HashFor(version, renamed));
-        }
-        Assert.NotEqual(IdentityCommandHandler.HashFor(1, command), IdentityCommandHandler.HashFor(IdentityCommandContract.HashVersion, command));
+        Assert.Equal(IdentityCommandHandler.HashFor(IdentityCommandContract.HashVersion, command),
+            IdentityCommandHandler.HashFor(IdentityCommandContract.HashVersion, again));
+        Assert.NotEqual(IdentityCommandHandler.HashFor(IdentityCommandContract.HashVersion, command),
+            IdentityCommandHandler.HashFor(IdentityCommandContract.HashVersion, renamed));
         Assert.Null(IdentityCommandHandler.HashFor(0, command));
+        Assert.Null(IdentityCommandHandler.HashFor(1, command));
         Assert.Null(IdentityCommandHandler.HashFor(3, command));
     }
 
