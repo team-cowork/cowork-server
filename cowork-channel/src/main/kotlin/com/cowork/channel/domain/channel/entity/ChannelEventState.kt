@@ -46,6 +46,9 @@ class ChannelEventState(
     @Column(nullable = false)
     var deleted: Boolean,
 
+    @Column(nullable = false)
+    var archived: Boolean = false,
+
     @Column(name = "state_occurred_at", nullable = false)
     var stateOccurredAt: Instant,
 
@@ -63,6 +66,7 @@ class ChannelEventState(
         description = channel.description
         isPrivate = channel.isPrivate
         position = channel.position
+        archived = channel.isArchived
         this.deleted = deleted
         stateOccurredAt = nextVersion
         return nextVersion
@@ -85,6 +89,7 @@ class ChannelEventState(
             isPrivate = channel.isPrivate,
             position = channel.position,
             deleted = deleted,
+            archived = channel.isArchived,
             stateOccurredAt = nextChannelStateOccurredAt(null, requestedAt),
             initialRolePolicySeedJson = initialRolePolicySeedJson,
         )

@@ -13,6 +13,7 @@ data class ChannelEvent(
     val description: String?,
     val isPrivate: Boolean,
     val position: Int,
+    val archived: Boolean,
     val occurredAt: Instant,
     val snapshot: Boolean = false,
     val initialRolePolicySeed: InitialChannelRolePolicySeed? = null,

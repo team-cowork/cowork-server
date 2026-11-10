@@ -33,6 +33,7 @@ class UpdateSharedAccountServiceImpl(
         sharedAccountAccessGuard.requireAccountShareChannel(channel)
         val account = lookupSupport.findAccountOrThrow(accountId, channelId)
         lookupSupport.requireAccountEditor(account, channel, userId)
+        channelAccessGuard.requireNotArchived(channel)
 
         val encryptedCredential = request.credential?.let { credentialEncryptionService.encrypt(it) }
         account.update(request.accountIdentifier, encryptedCredential, request.providerLabel)
