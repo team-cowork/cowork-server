@@ -25,10 +25,6 @@ from confluent_kafka.admin import (
 )
 
 POLICY_FILE = Path("/local/kafka/policy.json")
-# TODO(legacy-identity-topic): After v1 producers stop and outboxes/backlog drain, remove
-# policy.json topics["user.identity.command"] and its cowork-authorization/cowork-user ACL entries.
-# Reconcile that policy before an administrator deletes the broker topic; see
-# cowork-authorization/docs/datagsm-migration.md. Keep the shared result and result-DLT topics.
 CREDENTIALS_FILE = Path("/secrets/credentials.json")
 READY_FILE = Path("/alloc/data/bootstrap-ready")
 REQUEST_TIMEOUT = 60
