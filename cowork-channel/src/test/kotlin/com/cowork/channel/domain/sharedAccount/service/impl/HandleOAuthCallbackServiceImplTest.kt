@@ -139,6 +139,8 @@ class HandleOAuthCallbackServiceImplTest :
                 accountShareChannel()
             }
             every { channelAccessGuard.requireTeamChannel(any()) } returns teamId
+            every { channelAccessGuard.requireNotArchived(any()) } returns Unit
+            every { channelAccessGuard.findChannelForUpdateOrThrow(channelId) } answers { accountShareChannel() }
 
             service = HandleOAuthCallbackServiceImpl(
                 oAuthProperties,

@@ -84,7 +84,7 @@ export class MessageSearchDeletionService implements OnModuleInit {
 			await this.tombstoneRepository.create({
 				messageId,
 				teamId: reserved.teamId!,
-				projectId: reserved.projectId!,
+				projectId: reserved.projectId,
 				channelId: reserved.channelId,
 				// 재구축 스캔은 DELETING 메시지도 예약 버전 V로 색인하므로, 삭제는 V보다 커야 그 문서를 지울 수 있다(V면 409로 무시된다).
 				version: reserved.searchIndexVersion + 1,
