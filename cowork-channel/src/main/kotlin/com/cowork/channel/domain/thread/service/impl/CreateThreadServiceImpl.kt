@@ -21,9 +21,10 @@ class CreateThreadServiceImpl(
 
     @Transactional
     override fun createThread(userId: Long, channelId: Long, request: CreateThreadRequest): ThreadResponse {
-        val channel = channelAccessGuard.findChannelOrThrow(channelId)
+        val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
         val teamId = channelAccessGuard.requireTeamChannel(channel)
         permissions.requireChannelAccess(channel, userId)
+        channelAccessGuard.requireNotArchived(channel)
         evaluator.requirePermission(teamId, userId, channel, "thread_reply")
 
         val thread = threadRepository.save(

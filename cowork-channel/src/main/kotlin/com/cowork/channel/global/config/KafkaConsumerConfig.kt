@@ -84,6 +84,9 @@ class KafkaConsumerConfig(
     fun channelRolePolicyChangedListenerContainerFactory() = listenerContainerFactory(streams.channelRolePolicy)
 
     @Bean
+    fun projectAccessStateListenerContainerFactory() = listenerContainerFactory(streams.projectAccess)
+
+    @Bean
     fun channelRolePolicyCommandResultListenerContainerFactory() =
         ConcurrentKafkaListenerContainerFactory<String, String>().apply {
             setConsumerFactory(consumerFactory())

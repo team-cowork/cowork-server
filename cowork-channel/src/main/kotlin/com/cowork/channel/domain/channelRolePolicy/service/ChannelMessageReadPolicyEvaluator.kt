@@ -154,18 +154,31 @@ class ChannelMessageReadPolicyEvaluator(
 
     fun requireTeamPermission(teamId: Long, userId: Long, permission: String) {
         projectionReadinessGate.requireReady()
+        requireMemberPermission(teamId, userId, "해당 팀 작업 권한이 없습니다.") {
+            val fence = memberTombstoneRepository.findById(TeamRoleMemberTombstone.key(teamId, userId)).orElse(null)
+            val roleIds = assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(teamId, userId)
+                .filter { fence == null || it.sourceOccurredAt.isAfter(fence.sourceOccurredAt) }
+                .mapTo(mutableSetOf()) { it.roleId }
+            loadRoles(teamId, roleIds).values.any { it.permissions[permission] == true }
+        }
+    }
+
+    /**
+     * 활성 팀 멤버만 통과시킨다. OWNER와 ADMIN은 바로 허용하고, 그 밖의 멤버는 [allowed]가 true일 때만 허용한다.
+     * 호출자가 projection readiness를 먼저 확인해야 한다.
+     */
+    fun requireMemberPermission(
+        teamId: Long,
+        userId: Long,
+        deniedMessage: String,
+        allowed: (TeamMembership) -> Boolean,
+    ) {
         val membership = membershipRepository.findByTeamIdAndUserId(teamId, userId)
         if (membership == null || !membership.active) {
             throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
         }
         if (membership.role in BYPASS_ROLES) return
-        val fence = memberTombstoneRepository.findById(TeamRoleMemberTombstone.key(teamId, userId)).orElse(null)
-        val roleIds = assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(teamId, userId)
-            .filter { fence == null || it.sourceOccurredAt.isAfter(fence.sourceOccurredAt) }
-            .mapTo(mutableSetOf()) { it.roleId }
-        if (loadRoles(teamId, roleIds).values.none { it.permissions[permission] == true }) {
-            throw ExpectedException("해당 팀 작업 권한이 없습니다.", HttpStatus.FORBIDDEN)
-        }
+        if (!allowed(membership)) throw ExpectedException(deniedMessage, HttpStatus.FORBIDDEN)
     }
 
     fun prepareInitialRolePolicySeed(

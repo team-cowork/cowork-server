@@ -45,6 +45,7 @@ class ProjectPermissionsTest :
             }
             it("쓰기 관리 재정렬은 읽기가 없으면 허용되지 않는다") {
                 val overrides = JsonObject().put("write", true).put("manage", true).put("reorder", true)
+                    .put("channel_archive", true)
                 ProjectPermissions.resolve(emptyList(), listOf(overrides)) shouldBe ProjectPermissions()
             }
             it("관리와 재정렬은 쓰기 권한을 부여하지 않는다") {
@@ -59,7 +60,24 @@ class ProjectPermissionsTest :
                     manager = true,
                     isPrivate = true,
                 ) shouldBe
-                    ProjectPermissions(true, true, true, true)
+                    ProjectPermissions(true, true, true, true, true)
+            }
+            it("채널 보관은 팀 기본 키를 상속하고 프로젝트 역할로 프로젝트마다 덮어쓴다") {
+                val archiver = defaultRole.copy().put("project_channel_archive", true)
+                ProjectPermissions.resolve(listOf(archiver), emptyList()).channelArchive shouldBe true
+                ProjectPermissions.resolve(
+                    listOf(archiver),
+                    listOf(JsonObject().put("channel_archive", false)),
+                ).channelArchive shouldBe false
+                ProjectPermissions.resolve(
+                    listOf(defaultRole),
+                    listOf(JsonObject().put("channel_archive", true)),
+                ).channelArchive shouldBe true
+            }
+            it("채널 보관은 관리 권한을 부여하지 않는다") {
+                val archiver = defaultRole.copy().put("project_channel_archive", true)
+                ProjectPermissions.resolve(listOf(archiver), emptyList()) shouldBe
+                    ProjectPermissions(read = true, channelArchive = true)
             }
         }
     })
