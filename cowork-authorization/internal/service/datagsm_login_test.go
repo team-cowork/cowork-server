@@ -52,8 +52,11 @@ type loginFixture struct {
 	now                                   time.Time
 	nonce, subject, userSubject, audience string
 	expired                               bool
+	issuedAt, expiresAt, notBefore        *time.Time
 	calls, jwksCalls                      int
 	tokenStatus                           int
+	scope                                 string
+	jwksErr                               error
 	form                                  url.Values
 }
 
@@ -63,7 +66,7 @@ func newLoginFixture(t *testing.T) *loginFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f := &loginFixture{key: key, now: time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC), subject: "student@gsm.hs.kr", userSubject: "student@gsm.hs.kr", audience: "unit", tokenStatus: 200, store: &memoryLoginAttempts{attempts: map[string]LoginAttempt{}}}
+	f := &loginFixture{key: key, now: time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC), subject: "student@gsm.hs.kr", userSubject: "student@gsm.hs.kr", audience: "unit", tokenStatus: 200, scope: "openid datagsm:account_read datagsm:student_read", store: &memoryLoginAttempts{attempts: map[string]LoginAttempt{}}}
 	f.login, err = NewDataGSMLogin(&config.AppConfig{DataGSMClientID: "unit", DataGSMRedirectURIs: []string{"https://app.example/callback", "cowork://oauth/callback"}}, f.store, &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		f.calls++
 		switch r.URL.Path {
@@ -80,19 +83,27 @@ func newLoginFixture(t *testing.T) *loginFixture {
 			}
 			expires := f.now.Add(time.Hour).Unix()
 			if f.expired {
-				expires = f.now.Add(-time.Second).Unix()
+				expires = f.now.Add(-31 * time.Second).Unix()
 			}
 			claims := jwt.MapClaims{"iss": oauth.DefaultAuthorizationURL, "sub": f.subject, "aud": []string{f.audience}, "nonce": f.nonce, "iat": f.now.Add(-time.Minute).Unix(), "exp": expires}
+			for name, value := range map[string]*time.Time{"iat": f.issuedAt, "exp": f.expiresAt, "nbf": f.notBefore} {
+				if value != nil {
+					claims[name] = value.Unix()
+				}
+			}
 			token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 			token.Header["kid"] = "unit-key"
 			signed, err := token.SignedString(f.key)
 			if err != nil {
 				t.Fatal(err)
 			}
-			body, _ := json.Marshal(oauth.Token{AccessToken: "provider-token", TokenType: "Bearer", ExpiresIn: 3600, Scope: "openid datagsm:account_read datagsm:student_read", IDToken: &signed})
+			body, _ := json.Marshal(oauth.Token{AccessToken: "provider-token", TokenType: "Bearer", ExpiresIn: 3600, Scope: f.scope, IDToken: &signed})
 			return jsonResponse(200, string(body)), nil
 		case "/v1/oauth/jwks":
 			f.jwksCalls++
+			if f.jwksErr != nil {
+				return nil, f.jwksErr
+			}
 			keys := oauth.JWKS{Keys: []oauth.JWK{{KeyID: "unit-key", KeyType: "RSA", N: base64.RawURLEncoding.EncodeToString(f.key.N.Bytes()), E: base64.RawURLEncoding.EncodeToString(big.NewInt(int64(f.key.E)).Bytes())}}}
 			body, _ := json.Marshal(keys)
 			return jsonResponse(200, string(body)), nil
@@ -210,6 +221,87 @@ func TestOIDCIdentityVerification(t *testing.T) {
 	}
 }
 
+func TestLoginScopeConsent(t *testing.T) {
+	for _, tc := range []struct {
+		scope string
+		want  error
+	}{
+		{"", nil},
+		{"openid datagsm:account_read datagsm:student_read", nil},
+		{"openid datagsm:account_read", ErrAuthenticationRejected},
+		{"datagsm:account_read datagsm:student_read", ErrAuthenticationRejected},
+	} {
+		t.Run(tc.scope, func(t *testing.T) {
+			f := newLoginFixture(t)
+			f.scope = tc.scope
+			session, callback := f.begin(t)
+			user, err := f.login.Complete(context.Background(), session, callback)
+			if !errors.Is(err, tc.want) || (tc.want == nil && user == nil) {
+				t.Fatalf("user=%v err=%v", user, err)
+			}
+		})
+	}
+}
+
+func TestLoginIDTokenClockSkew(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		iat, nbf, exp time.Duration
+		valid         bool
+	}{
+		{"current", -time.Minute, 0, time.Hour, true},
+		{"issued 30 seconds ahead", 30 * time.Second, 0, time.Hour, true},
+		{"issued beyond allowance", 31 * time.Second, 0, time.Hour, false},
+		{"not-before 30 seconds ahead", -time.Minute, 30 * time.Second, time.Hour, true},
+		{"not-before beyond allowance", -time.Minute, 31 * time.Second, time.Hour, false},
+		{"expired within allowance", -time.Minute, -time.Minute, -29 * time.Second, true},
+		{"expired beyond allowance", -time.Minute, -time.Minute, -30 * time.Second, false},
+		{"near expiry is still valid", -time.Minute, -time.Minute, 10 * time.Second, true},
+		{"short-lived future issuance", 5 * time.Second, 5 * time.Second, 10 * time.Second, true},
+		{"inverted lifetime", 10 * time.Second, 0, 5 * time.Second, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newLoginFixture(t)
+			f.issuedAt, f.notBefore, f.expiresAt = datagsm.Ptr(f.now.Add(tc.iat)), datagsm.Ptr(f.now.Add(tc.nbf)), datagsm.Ptr(f.now.Add(tc.exp))
+			session, callback := f.begin(t)
+			_, err := f.login.Complete(context.Background(), session, callback)
+			if (tc.valid && err != nil) || (!tc.valid && !errors.Is(err, ErrAuthenticationRejected)) {
+				t.Fatalf("valid=%v err=%v", tc.valid, err)
+			}
+			if tc.valid {
+				session, callback = f.begin(t)
+				f.nonce = "wrong"
+				if _, err = f.login.Complete(context.Background(), session, callback); !errors.Is(err, ErrAuthenticationRejected) {
+					t.Fatalf("clock skew bypassed nonce validation: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestLoginVerifiesCachedSigningKeysDuringProviderOutage(t *testing.T) {
+	f := newLoginFixture(t)
+	session, callback := f.begin(t)
+	if _, err := f.login.Complete(context.Background(), session, callback); err != nil {
+		t.Fatal(err)
+	}
+	f.now = f.now.Add(16 * time.Minute)
+	f.jwksErr = errors.New("provider unavailable")
+	for _, invalidNonce := range []bool{false, false, true} {
+		session, callback = f.begin(t)
+		if invalidNonce {
+			f.nonce = "invalid"
+		}
+		_, err := f.login.Complete(context.Background(), session, callback)
+		if (!invalidNonce && err != nil) || (invalidNonce && !errors.Is(err, ErrAuthenticationRejected)) {
+			t.Fatalf("invalidNonce=%v err=%v", invalidNonce, err)
+		}
+	}
+	if f.jwksCalls != 2 {
+		t.Fatalf("outage bypassed refresh cooldown: %d calls", f.jwksCalls)
+	}
+}
+
 // TODO(legacy-login): Remove this compatibility test with Exchange after the web and mobile implementations migrate to server-managed OAuth/OIDC.
 func TestLegacyPKCEExchangeUsesSDK(t *testing.T) {
 	f := newLoginFixture(t)
@@ -273,6 +365,7 @@ func TestStudentLoginAllowsNullableProfile(t *testing.T) {
 		valid  bool
 	}{
 		{"nullable major and school numbers", func(*oauth.UserInfo) {}, true},
+		{"provider admin receives member session", func(u *oauth.UserInfo) { u.Role = "ADMIN" }, true},
 		{"unknown student role is retained", func(u *oauth.UserInfo) { u.Student.Role = "NEW_ROLE" }, true},
 		{"teacher", func(u *oauth.UserInfo) { u.ObjectType = datagsm.Ptr("TEACHER") }, false},
 		{"missing student scope", func(u *oauth.UserInfo) { u.Student = nil }, false},

@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -14,7 +17,10 @@ import (
 	"github.com/tmp-it-play/datagsm-sdk-go/oauth"
 )
 
-const LoginAttemptTTL = 10 * time.Minute
+const (
+	LoginAttemptTTL  = 10 * time.Minute
+	idTokenClockSkew = 30 * time.Second
+)
 
 var (
 	ErrInvalidLoginRequest    = errors.New("invalid login request")
@@ -47,6 +53,7 @@ type DataGSMLogin struct {
 	keys            *oauth.JWKS
 	keysFetchedAt   time.Time
 	keysAttemptedAt time.Time
+	keysFetchDone   chan struct{}
 }
 
 func NewDataGSMLogin(cfg *config.AppConfig, attempts LoginAttemptStore, httpClient *http.Client) (*DataGSMLogin, error) {
@@ -141,31 +148,27 @@ func (s *DataGSMLogin) Complete(ctx context.Context, session string, callback ur
 	if token.IDToken == nil {
 		return nil, ErrAuthenticationRejected
 	}
-	scopes := strings.Fields(token.Scope)
-	for _, required := range []string{oauth.ScopeOpenID, oauth.ScopeAccountRead, oauth.ScopeStudentRead} {
-		found := false
-		for _, scope := range scopes {
-			if scope == required {
-				found = true
-				break
+	// RFC 6749 section 5.1 permits omission when the granted scopes equal the request.
+	if token.Scope != "" {
+		scopes := strings.Fields(token.Scope)
+		for _, required := range []string{oauth.ScopeOpenID, oauth.ScopeAccountRead, oauth.ScopeStudentRead} {
+			if !slices.Contains(scopes, required) {
+				return nil, ErrAuthenticationRejected
 			}
-		}
-		if !found {
-			return nil, ErrAuthenticationUnavailable
 		}
 	}
 	keys, err := s.jwks(ctx, client, false)
 	if err != nil {
 		return nil, err
 	}
-	claims, err := keys.VerifyIDToken(*token.IDToken, s.issuer, s.clientID, attempt.Authorization.Nonce, s.now())
+	claims, err := s.verifyIDToken(keys, *token.IDToken, attempt.Authorization.Nonce)
 	if err != nil {
 		// Refresh for key rotation, with a cooldown so invalid tokens cannot trigger a fetch storm.
 		keys, fetchErr := s.jwks(ctx, client, true)
 		if fetchErr != nil {
 			return nil, fetchErr
 		}
-		claims, err = keys.VerifyIDToken(*token.IDToken, s.issuer, s.clientID, attempt.Authorization.Nonce, s.now())
+		claims, err = s.verifyIDToken(keys, *token.IDToken, attempt.Authorization.Nonce)
 		if err != nil {
 			return nil, ErrAuthenticationRejected
 		}
@@ -178,6 +181,34 @@ func (s *DataGSMLogin) Complete(ctx context.Context, session string, callback ur
 		return nil, ErrAuthenticationRejected
 	}
 	return user, nil
+}
+
+func (s *DataGSMLogin) verifyIDToken(keys *oauth.JWKS, token, nonce string) (*oauth.IDTokenClaims, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return nil, oauth.ErrInvalidToken
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	var claims oauth.IDTokenClaims
+	if err != nil || json.Unmarshal(payload, &claims) != nil || claims.ExpiresAt <= 0 {
+		return nil, oauth.ErrInvalidToken
+	}
+	now := s.now()
+	if now.IsZero() {
+		return nil, oauth.ErrInvalidToken
+	}
+	first, last := max(claims.IssuedAt, claims.NotBefore), claims.ExpiresAt-1
+	if first > last {
+		return nil, oauth.ErrInvalidToken
+	}
+	// These unverified times only select an instant within 30 seconds of now.
+	// The SDK still verifies the original token's signature and every required claim.
+	verificationTime := max(first, min(now.Unix(), last))
+	skew := int64(idTokenClockSkew / time.Second)
+	if verificationTime < now.Unix()-skew || verificationTime > now.Unix()+skew {
+		return nil, oauth.ErrInvalidToken
+	}
+	return keys.VerifyIDToken(token, s.issuer, s.clientID, nonce, time.Unix(verificationTime, 0))
 }
 
 // Exchange supports existing clients that own their PKCE attempt and state validation.
@@ -208,23 +239,55 @@ func (s *DataGSMLogin) Exchange(ctx context.Context, code, verifier, redirectURI
 
 func (s *DataGSMLogin) jwks(ctx context.Context, client *oauth.Client, refresh bool) (*oauth.JWKS, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	now := s.now()
 	if s.keys != nil && now.Sub(s.keysFetchedAt) < 15*time.Minute && (!refresh || now.Sub(s.keysAttemptedAt) < 30*time.Second) {
-		return s.keys, nil
+		keys := s.keys
+		s.mu.Unlock()
+		return keys, nil
+	}
+	if done := s.keysFetchDone; done != nil {
+		keys := s.keys
+		s.mu.Unlock()
+		if keys != nil {
+			return keys, nil
+		}
+		select {
+		case <-done:
+			return s.jwks(ctx, client, false)
+		case <-ctx.Done():
+			return nil, ErrAuthenticationUnavailable
+		}
 	}
 	if now.Sub(s.keysAttemptedAt) < 30*time.Second {
+		keys := s.keys
+		s.mu.Unlock()
+		if keys != nil {
+			return keys, nil
+		}
 		return nil, ErrAuthenticationUnavailable
 	}
 	s.keysAttemptedAt = now
+	s.keysFetchDone = make(chan struct{})
+	s.mu.Unlock()
+	// Refresh outside the lock so other logins can still verify with cached signing keys.
 	keys, err := client.JWKS(ctx)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	defer func() { close(s.keysFetchDone); s.keysFetchDone = nil }()
 	if err != nil {
+		if ctx.Err() != nil {
+			s.keysAttemptedAt = time.Time{}
+		}
+		if s.keys != nil {
+			return s.keys, nil
+		}
 		return nil, providerError(err)
 	}
 	if len(keys.Keys) == 0 {
+		s.keys = nil
 		return nil, ErrAuthenticationUnavailable
 	}
-	s.keys, s.keysFetchedAt = keys, now
+	s.keys, s.keysFetchedAt = keys, s.now()
 	return keys, nil
 }
 

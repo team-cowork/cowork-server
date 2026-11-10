@@ -284,13 +284,10 @@ func (s *AuthService) commitIdentityAndIssueSession(
 	return pair, nil
 }
 
-// PlatformRoleFromDataGSM maps the provider's account role to the only two
-// platform-wide roles accepted by Gateway and downstream services.
+// PlatformRoleFromDataGSM does not grant Cowork administration from a provider account role.
 func PlatformRoleFromDataGSM(providerRole string) (string, error) {
 	switch providerRole {
-	case "ADMIN":
-		return "ADMIN", nil
-	case "USER":
+	case "ADMIN", "USER":
 		return "MEMBER", nil
 	default:
 		return "", fmt.Errorf("unsupported DataGSM account role")
