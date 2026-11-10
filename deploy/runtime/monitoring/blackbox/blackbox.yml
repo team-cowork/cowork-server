@@ -31,6 +31,7 @@ modules:
   # Unauthenticated health probes through Gateway. They send no credentials and change no state.
   # A 200 with JSON Content-Type proves the route reached downstream: a missing route returns 404,
   # and the circuit breaker fallback returns 503.
+  # Spring Actuator answers application/json only when the client asks for it.
   http_gateway_downstream_get:
     prober: http
     timeout: 5s
@@ -40,6 +41,8 @@ modules:
       valid_status_codes: [200]
       follow_redirects: false
       body_size_limit: 64KB
+      headers:
+        Accept: application/json
       fail_if_header_not_matches:
         - header: Content-Type
           regexp: '^application/json(;.*)?$'
