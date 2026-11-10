@@ -10,6 +10,7 @@ import com.cowork.project.global.projection.ProjectionTopicIdentityProvider
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.serialization.StringDeserializer
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -31,6 +32,8 @@ class KafkaConsumerConfig(
     private val streams: ProjectionStreams,
     private val topicIdentityProvider: ProjectionTopicIdentityProvider,
     private val topicGenerations: ProjectionTopicGenerationRegistry,
+    @Value("\${projection.readiness.assignment-retry-backoff-ms:1000}") private val assignmentRetryBackoffMs: Long,
+    @Value("\${projection.readiness.assignment-retry-timeout-ms:60000}") private val assignmentRetryTimeoutMs: Long,
 ) {
 
     private fun projectionListenerContainerFactory(
@@ -49,6 +52,8 @@ class KafkaConsumerConfig(
                 readinessState,
                 topicIdentityProvider,
                 topicGenerations,
+                assignmentRetryBackoffMs,
+                assignmentRetryTimeoutMs,
             ),
         )
         return factory
