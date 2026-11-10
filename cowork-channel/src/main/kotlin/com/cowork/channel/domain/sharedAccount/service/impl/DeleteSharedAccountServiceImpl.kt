@@ -22,6 +22,7 @@ class DeleteSharedAccountServiceImpl(
         sharedAccountAccessGuard.requireAccountShareChannel(channel)
         val account = lookupSupport.findAccountOrThrow(accountId, channelId)
         lookupSupport.requireAccountEditor(account, channel, userId)
+        channelAccessGuard.requireNotArchived(channel)
         sharedAccountRepository.delete(account)
     }
 }
