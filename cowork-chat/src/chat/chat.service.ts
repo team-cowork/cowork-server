@@ -799,6 +799,7 @@ export class ChatService {
      @param ctx - 사용자 컨텍스트
      @returns 검색 결과와 다음 페이지 커서
      @throws ForbiddenException 프로젝트 멤버가 아니거나 채널 접근 권한이 없는 경우
+     @throws ServiceUnavailableException 권한 projection이 준비되지 않은 경우
      */
 	async searchProjectMessages(
 		projectId: number,
@@ -810,7 +811,7 @@ export class ChatService {
 			throw new ForbiddenException('프로젝트 접근 권한이 없습니다');
 		}
 
-		const accessibleChannelIds = await this.channelMessageReadAccess.findReadableProjectChannelIds(
+		const accessibleChannelIds = await this.channelMessageReadAccess.requireReadableProjectChannelIds(
 			projectId,
 			ctx.userId,
 		);
@@ -852,7 +853,7 @@ export class ChatService {
 			throw new ForbiddenException('팀 접근 권한이 없습니다');
 		}
 
-		let accessibleChannelIds = await this.channelMessageReadAccess.findReadableTeamChannelIds(teamId, ctx.userId);
+		let accessibleChannelIds = await this.channelMessageReadAccess.requireReadableTeamChannelIds(teamId, ctx.userId);
 
 		if (dto.channelId !== undefined) {
 			if (!accessibleChannelIds.includes(dto.channelId)) {
