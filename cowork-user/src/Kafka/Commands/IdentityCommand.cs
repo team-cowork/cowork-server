@@ -7,7 +7,7 @@ using MySqlConnector;
 
 namespace CoworkUser.Kafka.Commands;
 
-/// <summary>Applies authorization's user.identity.command with an idempotent inbox and a result outbox.</summary>
+/// <summary>Applies authorization's identity commands with an idempotent inbox and a result outbox.</summary>
 public static class IdentityCommand
 {
     const string ResultErrorCode = "USER_IDENTITY_REJECTED";
@@ -15,7 +15,8 @@ public static class IdentityCommand
 
     sealed class ConflictingReuse(string reason = ":conflicting_identity_command_reuse") : Exception(reason);
 
-    public static async Task HandleAsync(string consumerGroup, string resultTopic, KafkaRecord record, ILogger logger)
+    // TODO(legacy-identity-topic): Remove the schemaVersion compatibility argument when the drained v1 consumer is retired.
+    public static async Task HandleAsync(string consumerGroup, string resultTopic, KafkaRecord record, ILogger logger, int schemaVersion)
     {
         var payload = Json.ParseObject(record.Value, out var decodeError);
         if (payload is null)
@@ -24,7 +25,7 @@ public static class IdentityCommand
             return;
         }
 
-        var command = IdentityCommandContract.Parse(payload.Value, record.KeyText);
+        var command = IdentityCommandContract.Parse(payload.Value, record.KeyText, schemaVersion);
         if (command is null)
         {
             await Quarantine(IdentityCommandContract.CorrelationOperationId(payload.Value), ":invalid_user_identity_command");

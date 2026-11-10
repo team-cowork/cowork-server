@@ -161,12 +161,12 @@ spring:
             - StorageRelay
             - StripPrefix=2
 
-        # 토큰 발급·갱신은 추측할 수 없는 PKCE 코드와 리프레시 토큰으로 인증하므로 무차별 대입 방지가 아닌
-        # authorization과 DataGSM의 과부하 방지용 전체 상한만 둔다
+        # 로그인 시작·코드 교환·토큰 갱신에는 authorization과 DataGSM의 과부하 방지용 전체 상한을 둔다.
         - id: authorization-token
           uri: ${COWORK_AUTHORIZATION_URL}
           predicates:
-            - Path=/api/authorization/auth/token, /api/authorization/auth/refresh
+            # TODO(legacy-login): Remove only /api/authorization/auth/token after the web and mobile implementations migrate to server-managed OAuth/OIDC.
+            - Path=/api/authorization/auth/authorize, /api/authorization/auth/callback, /api/authorization/auth/token, /api/authorization/auth/refresh
             - Method=POST
           filters:
             - StripPrefix=2
