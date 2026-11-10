@@ -293,10 +293,242 @@
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
+      "id": 18,
+      "title": "MongoDB - 초당 작업 수",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "targets": [
+        {
+          "expr": "sum by (module, type) (rate(mongodb_op_counters_total{service=\"mongodb\"}[$__rate_interval]))",
+          "legendFormat": "{{module}} / {{type}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "ops",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
+      "description": "insert, query, update, delete, getmore, command 작업의 초당 처리 횟수입니다."
+    },
+    {
+      "id": 19,
+      "title": "MongoDB - 작업 평균 지연",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "targets": [
+        {
+          "expr": "sum by (module, type) (rate(mongodb_mongod_op_latencies_latency_total{service=\"mongodb\",type=~\"read|write|command\"}[$__rate_interval])) / (sum by (module, type) (rate(mongodb_mongod_op_latencies_ops_total{service=\"mongodb\",type=~\"read|write|command\"}[$__rate_interval])) > 0)",
+          "legendFormat": "{{module}} / {{type}}",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "µs",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
+      "description": "읽기, 쓰기, 명령 작업 1건의 서버 내부 평균 처리 시간입니다. 해당 구간에 작업이 없으면 비워 둡니다."
+    },
+    {
+      "id": 20,
+      "title": "MongoDB - 연결 수",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
+      "targets": [
+        {
+          "expr": "mongodb_connections{service=\"mongodb\",state=\"current\"}",
+          "legendFormat": "{{module}} 현재 연결",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "mongodb_connections{service=\"mongodb\",state=\"active\"}",
+          "legendFormat": "{{module}} 작업 중인 연결",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "B",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "short",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
+      "description": "현재 열린 클라이언트 연결 수와 그중 작업을 실행 중인 연결 수입니다."
+    },
+    {
+      "id": 21,
+      "title": "MongoDB - WiredTiger 캐시 사용량",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 },
+      "targets": [
+        {
+          "expr": "mongodb_mongod_wiredtiger_cache_bytes{service=\"mongodb\",type=\"total\"}",
+          "legendFormat": "{{module}} 사용량",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        },
+        {
+          "expr": "mongodb_mongod_wiredtiger_cache_max_bytes{service=\"mongodb\"}",
+          "legendFormat": "{{module}} 최대 용량",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "B",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "bytes",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
+      "description": "WiredTiger 캐시의 현재 사용량과 설정된 최대 용량입니다. 사용량이 최대 용량에 가까우면 디스크 읽기와 축출이 늘어납니다."
+    },
+    {
+      "id": 22,
+      "title": "MongoDB - 프로세스 상주 메모리",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 56 },
+      "targets": [
+        {
+          "expr": "mongodb_memory{service=\"mongodb\",type=\"resident\"}",
+          "legendFormat": "{{module}} 상주 메모리",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "mbytes",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
+      "description": "mongod 프로세스가 실제로 점유한 물리 메모리입니다."
+    },
+    {
+      "id": 23,
+      "title": "MongoDB - 컬렉션 전체 스캔 (회/s)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 56 },
+      "targets": [
+        {
+          "expr": "sum by (module) (rate(mongodb_ss_metrics_queryExecutor_collectionScans_total{service=\"mongodb\"}[$__rate_interval]))",
+          "legendFormat": "{{module}} 전체 스캔",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "ops",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
+      "description": "인덱스를 쓰지 않고 컬렉션 전체를 읽은 쿼리의 초당 횟수입니다. 이 값이 계속 높으면 인덱스가 빠졌을 수 있습니다."
+    },
+    {
+      "id": 24,
+      "title": "SurrealDB - 메모리 사용량",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 64 },
+      "targets": [
+        {
+          "expr": "surrealdb_process_memory_bytes{service=\"surrealdb\"}",
+          "legendFormat": "{{module}} 메모리",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "bytes",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
+      "description": "SurrealDB 프로세스의 메모리 사용량입니다."
+    },
+    {
+      "id": 25,
+      "title": "SurrealDB - CPU 사용률 (%)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 64 },
+      "targets": [
+        {
+          "expr": "surrealdb_process_cpu_percent{service=\"surrealdb\"}",
+          "legendFormat": "{{module}} CPU",
+          "datasource": { "type": "prometheus", "uid": "${datasource}" },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "N/A",
+          "min": 0,
+          "unit": "percent",
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
+        }
+      },
+      "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} },
+      "description": "SurrealDB 프로세스의 CPU 사용률입니다."
+    },
+    {
       "id": 14,
       "title": "모듈 DB - 애플리케이션 커넥션 풀 사용량",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 72 },
       "targets": [
         {
           "expr": "sum by (service) (hikaricp_connections_active)",
@@ -347,7 +579,7 @@
       "id": 15,
       "title": "모듈 DB - 커넥션 대기",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 72 },
       "targets": [
         {
           "expr": "sum by (service) (hikaricp_connections_pending)",
@@ -382,7 +614,7 @@
       "id": 16,
       "title": "모듈 DB - 커넥션 획득 시간 (ms)",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 48 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 80 },
       "targets": [
         {
           "expr": "histogram_quantile(0.99, sum by (le, service) (rate(hikaricp_connections_acquire_seconds_bucket[$__rate_interval]))) * 1000",
@@ -411,7 +643,7 @@
       "id": 17,
       "title": "SQLite - 파일 크기",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 48 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 80 },
       "targets": [
         {
           "expr": "cowork_notification_sqlite_file_size_bytes{file=\"db\"}",
@@ -446,7 +678,7 @@
       "id": 11,
       "title": "호스트 CPU 사용률",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 56 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 88 },
       "targets": [
         {
           "expr": "100 * (1 - avg by (host, instance) (rate(node_cpu_seconds_total{service=\"host\",mode=\"idle\"}[$__rate_interval])))",
@@ -474,7 +706,7 @@
       "id": 12,
       "title": "호스트 메모리 사용률",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 56 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 88 },
       "targets": [
         {
           "expr": "(1 - node_memory_MemAvailable_bytes{service=\"host\"} / node_memory_MemTotal_bytes{service=\"host\"}) * 100",
@@ -502,7 +734,7 @@
       "id": 13,
       "title": "현재 파일시스템 사용률",
       "type": "bargauge",
-      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 64 },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 96 },
       "targets": [
         {
           "expr": "sort_desc((1 - node_filesystem_avail_bytes{service=\"host\",fstype!~\"tmpfs|devtmpfs|overlay|squashfs\"} / (node_filesystem_size_bytes{service=\"host\",fstype!~\"tmpfs|devtmpfs|overlay|squashfs\"} > 0)) * 100)",
