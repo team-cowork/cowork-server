@@ -717,116 +717,6 @@
           "sort": "desc"
         }
       }
-    },
-    {
-      "id": 201,
-      "title": "SurrealDB 메모리",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 28
-      },
-      "targets": [
-        {
-          "expr": "surrealdb_process_memory_bytes{service=\"surrealdb\",module=\"applet\"}",
-          "legendFormat": "SurrealDB 메모리",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "refId": "A",
-          "instant": false,
-          "range": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "N/A",
-          "min": 0,
-          "unit": "bytes",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 8,
-            "spanNulls": false,
-            "showPoints": "never"
-          }
-        }
-      },
-      "options": {
-        "legend": {
-          "showLegend": true,
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
-    },
-    {
-      "id": 202,
-      "title": "SurrealDB CPU (%)",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 28
-      },
-      "targets": [
-        {
-          "expr": "surrealdb_process_cpu_percent{service=\"surrealdb\",module=\"applet\"}",
-          "legendFormat": "SurrealDB CPU (%)",
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "refId": "A",
-          "instant": false,
-          "range": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "noValue": "N/A",
-          "min": 0,
-          "unit": "percent",
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "lineWidth": 2,
-            "fillOpacity": 8,
-            "spanNulls": false,
-            "showPoints": "never"
-          }
-        }
-      },
-      "options": {
-        "legend": {
-          "showLegend": true,
-          "displayMode": "table",
-          "placement": "bottom",
-          "calcs": [
-            "lastNotNull",
-            "max"
-          ]
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      }
     }
   ],
   "templating": {
@@ -839,5 +729,16 @@
         "label": "데이터 소스"
       }
     ]
-  }
+  },
+  "links": [
+    {
+      "title": "Infrastructure · SurrealDB",
+      "type": "link",
+      "icon": "dashboard",
+      "url": "/d/cowork-infrastructure",
+      "targetBlank": false,
+      "includeVars": false,
+      "keepTime": true
+    }
+  ]
 }

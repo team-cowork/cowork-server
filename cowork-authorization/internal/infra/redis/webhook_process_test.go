@@ -8,23 +8,21 @@ import (
 
 	"github.com/cowork/authorization/internal/domain"
 	redis "github.com/redis/go-redis/v9"
+	"github.com/tmp-it-play/datagsm-sdk-go/event"
 )
 
 type fakeWebhookProcessor struct {
 	signatureValid bool
 	result         domain.WebhookResult
 	processErr     error
-	verifyCalls    int
 	processCalls   int
 }
 
-func (f *fakeWebhookProcessor) VerifySignature(_ []byte, _ string) bool {
-	f.verifyCalls++
-	return f.signatureValid
-}
-
-func (f *fakeWebhookProcessor) ProcessEvent(_ context.Context, _ []byte) (domain.WebhookResult, error) {
+func (f *fakeWebhookProcessor) ProcessEvent(_ context.Context, _ []byte, _ string) (domain.WebhookResult, error) {
 	f.processCalls++
+	if !f.signatureValid {
+		return "", event.ErrInvalidSignature
+	}
 	return f.result, f.processErr
 }
 
@@ -42,7 +40,6 @@ func TestProcessQueuedWebhook(t *testing.T) {
 		wantResult       domain.WebhookResult
 		wantErr          error
 		wantKind         string
-		wantVerifyCalls  int
 		wantProcessCalls int
 		wantAckCalls     int
 	}{
@@ -51,7 +48,6 @@ func TestProcessQueuedWebhook(t *testing.T) {
 			values:           validValues,
 			signatureValid:   true,
 			wantResult:       domain.WebhookAccepted,
-			wantVerifyCalls:  1,
 			wantProcessCalls: 1,
 			wantAckCalls:     1,
 		},
@@ -62,7 +58,6 @@ func TestProcessQueuedWebhook(t *testing.T) {
 			processErr:       processingErr,
 			wantErr:          processingErr,
 			wantKind:         "processing",
-			wantVerifyCalls:  1,
 			wantProcessCalls: 1,
 		},
 		{
@@ -72,7 +67,6 @@ func TestProcessQueuedWebhook(t *testing.T) {
 			ackErr:           ackErr,
 			wantErr:          ackErr,
 			wantKind:         "processing",
-			wantVerifyCalls:  1,
 			wantProcessCalls: 1,
 			wantAckCalls:     1,
 		},
@@ -83,7 +77,6 @@ func TestProcessQueuedWebhook(t *testing.T) {
 			processErr:       domain.ErrWebhookConflict,
 			wantErr:          domain.ErrWebhookConflict,
 			wantKind:         "invalid",
-			wantVerifyCalls:  1,
 			wantProcessCalls: 1,
 		},
 		{
@@ -93,15 +86,14 @@ func TestProcessQueuedWebhook(t *testing.T) {
 			processErr:       domain.ErrWebhookExpired,
 			wantErr:          domain.ErrWebhookExpired,
 			wantKind:         "invalid",
-			wantVerifyCalls:  1,
 			wantProcessCalls: 1,
 		},
 		{
-			name:            "서명이 맞지 않으면 처리하지 않고 invalid로 분류한다",
-			values:          validValues,
-			wantErr:         domain.ErrInvalidWebhookPayload,
-			wantVerifyCalls: 1,
-			wantKind:        "invalid",
+			name:             "SDK 서명 검증에 실패하면 invalid로 분류한다",
+			wantProcessCalls: 1,
+			values:           validValues,
+			wantErr:          event.ErrInvalidSignature,
+			wantKind:         "invalid",
 		},
 		{
 			name:           "body가 없으면 invalid로 분류한다",
@@ -154,9 +146,6 @@ func TestProcessQueuedWebhook(t *testing.T) {
 			}
 			if result != tt.wantResult {
 				t.Fatalf("processQueuedWebhook() result = %q, want %q", result, tt.wantResult)
-			}
-			if processor.verifyCalls != tt.wantVerifyCalls {
-				t.Fatalf("VerifySignature calls = %d, want %d", processor.verifyCalls, tt.wantVerifyCalls)
 			}
 			if processor.processCalls != tt.wantProcessCalls {
 				t.Fatalf("ProcessEvent calls = %d, want %d", processor.processCalls, tt.wantProcessCalls)

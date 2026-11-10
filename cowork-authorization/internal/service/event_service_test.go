@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
@@ -10,13 +11,12 @@ import (
 	"testing"
 
 	"github.com/cowork/authorization/internal/config"
+	"github.com/cowork/authorization/internal/domain"
+	"github.com/tmp-it-play/datagsm-sdk-go/event"
 )
 
-const testSecret = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-
-func newSignatureService(secret string) *EventService {
-	return NewEventService(&config.AppConfig{DataGSMWebhookSecret: secret}, nil)
-}
+const testSecret = "unit-test-webhook-secret"
+const studentJSON = `{"student_id":7,"name":"Student","email":"student@gsm.hs.kr","sex":"MAN","role":"GENERAL_STUDENT","student_number":null,"major":null,"specialty":null,"github_id":null}`
 
 func sign(body []byte) string {
 	mac := hmac.New(sha256.New, []byte(testSecret))
@@ -24,154 +24,136 @@ func sign(body []byte) string {
 	return "sha256=" + hex.EncodeToString(mac.Sum(nil))
 }
 
-func TestVerifySignature_AccordingToWebhookAuthenticity(t *testing.T) {
-	t.Parallel()
-
-	body := []byte(`{"hello":"world"}`)
-	tests := []struct {
-		name      string
-		secret    string
-		signature string
-		want      bool
-	}{
-		{name: "a matching HMAC is accepted", secret: testSecret, signature: sign(body), want: true},
-		{name: "a mismatched HMAC is rejected", secret: testSecret, signature: "sha256=" + hex.EncodeToString([]byte("nope"))},
-		{name: "a signature without the sha256 prefix is rejected", secret: testSecret, signature: hex.EncodeToString([]byte("abc"))},
-		{name: "an empty signature is rejected", secret: testSecret},
-	}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			if got := newSignatureService(test.secret).VerifySignature(body, test.signature); got != test.want {
-				t.Fatalf("VerifySignature() = %v, want %v", got, test.want)
-			}
-		})
-	}
+type fakeWebhookInbox struct {
+	calls int
+	batch domain.WebhookBatch
+	err   error
 }
 
-func TestBuildUserSyncMessages_AccordingToStudentPayload(t *testing.T) {
-	t.Parallel()
-
-	t.Run("a valid student update maps the account fields", func(t *testing.T) {
-		t.Parallel()
-		envelope := WebhookEvent{
-			ID:        "event-1",
-			Event:     "student.updated",
-			Timestamp: "2026-08-26T01:02:03.123456Z",
-			Data: json.RawMessage(`{
-				"new":[{"index":2,"object":{
-					"student_id":7,"name":"홍길동","email":"student@example.com",
-					"sex":"MAN","role":"STUDENT_COUNCIL","student_number":2105,
-					"major":"SW_DEVELOPMENT","github_id":"hong"
-				}}]
-			}`),
-		}
-
-		messages, err := validatedStudentMessages(envelope)
-		if err != nil || len(messages) != 1 {
-			t.Fatalf("buildUserSyncMessages() = %+v, %v", messages, err)
-		}
-		message := messages[0]
-		if message.DataGSMRefID != 7 || message.StudentRole != "STUDENT_COUNCIL" || message.EventIndex != 2 {
-			t.Fatalf("mapped message = %+v", message)
-		}
-		if message.StudentNumber == nil || *message.StudentNumber != 2105 || message.GithubID == nil || *message.GithubID != "hong" {
-			t.Fatalf("optional account fields = %+v", message)
-		}
-	})
-
-	tests := []struct {
-		name string
-		data string
-	}{
-		{name: "missing new account data is rejected", data: `{"new":[]}`},
-		{name: "a non-positive student id is rejected", data: `{"new":[{"index":0,"object":{"student_id":0,"name":"홍길동","email":"x@example.com","sex":"MAN","role":"STUDENT"}}]}`},
-		{name: "missing identity fields are rejected", data: `{"new":[{"index":0,"object":{"student_id":7,"email":"x@example.com","sex":"MAN","role":"STUDENT"}}]}`},
-		{name: "missing student role is rejected", data: `{"new":[{"index":0,"object":{"student_id":7,"name":"홍길동","email":"x@example.com","sex":"MAN"}}]}`},
-		{name: "blank names are rejected before acceptance", data: `{"new":[{"index":0,"object":{"student_id":7,"name":"  ","email":"x@example.com","sex":"MAN","role":"STUDENT"}}]}`},
-		{name: "a missing item index is not index zero", data: `{"new":[{"object":{"student_id":7,"name":"홍길동","email":"x@example.com","sex":"MAN","role":"STUDENT"}}]}`},
-		{name: "negative item indices are rejected", data: `{"new":[{"index":-1,"object":{"student_id":7,"name":"홍길동","email":"x@example.com","sex":"MAN","role":"STUDENT"}}]}`},
-		{name: "null student objects are not no-ops", data: `{"new":[{"index":0,"object":null}]}`},
-		{name: "duplicate indices are rejected even for no-ops", data: `{"new":[{"index":0,"object":{}},{"index":0,"object":{}}]}`},
+func (f *fakeWebhookInbox) SubmitBatch(_ context.Context, batch domain.WebhookBatch, _ string) (domain.WebhookResult, error) {
+	f.calls++
+	f.batch = batch
+	if f.err != nil {
+		return "", f.err
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			messages, err := validatedStudentMessages(WebhookEvent{
-				ID: "event-1", Event: "student.updated", Timestamp: "2026-08-26T01:02:03Z", Data: json.RawMessage(test.data),
-			})
-			if !errors.Is(err, ErrInvalidPayload) || messages != nil {
-				t.Fatalf("buildUserSyncMessages() = %+v, %v; want invalid payload", messages, err)
-			}
-		})
-	}
+	return domain.WebhookAccepted, nil
 }
-
-// Exercise the same input policy and mapping functions used by ProcessEvent.
-func validatedStudentMessages(envelope WebhookEvent) ([]userSyncMessage, error) {
-	items, err := parseStudentItems(envelope.Data)
-	if err != nil {
-		return nil, err
-	}
-	return studentMessages(envelope, items), nil
+func eventBody(old, new string) []byte {
+	return []byte(`{"id":"event-1","event":"student.updated","timestamp":"2026-11-10T00:00:00Z","data":{"old":` + old + `,"new":` + new + `}}`)
 }
-
-func TestStudentBatchPolicy(t *testing.T) {
-	t.Parallel()
-	student := `{"student_id":7,"name":"홍길동","email":"student@example.com","sex":"MAN","role":"STUDENT"}`
-	for _, test := range []struct {
-		name, data   string
-		wantMessages int
-		invalid      bool
+func TestStudentEventAcceptance(t *testing.T) {
+	for _, tc := range []struct {
+		name, old, new string
+		valid          bool
 	}{
-		{"empty objects are explicit no-ops", `{"new":[{"index":0,"object":{}}]}`, 0, false},
-		{"no-op and student change can coexist", `{"new":[{"index":0,"object":{}},{"index":1,"object":` + student + `}]}`, 1, false},
-		{"one student cannot change twice in a batch", `{"new":[{"index":0,"object":` + student + `},{"index":1,"object":` + student + `}]}`, 0, true},
-		{"one invalid item rejects the complete batch", `{"new":[{"index":0,"object":` + student + `},{"index":1,"object":{"student_id":8}}]}`, 0, true},
-		{"oversized names cannot reach the consumer", `{"new":[{"index":0,"object":` + strings.Replace(student, "홍길동", strings.Repeat("가", 51), 1) + `}]}`, 0, true},
-		{"duplicate business fields are ambiguous", `{"new":[{"index":0,"object":` + strings.Replace(student, `"student_id":7`, `"student_id":7,"student_id":8`, 1) + `}]}`, 0, true},
-		{"student IDs must fit the owner's signed integer", `{"new":[{"index":0,"object":` + strings.Replace(student, `"student_id":7`, `"student_id":9223372036854775808`, 1) + `}]}`, 0, true},
-		{"case variants cannot impersonate provider fields", `{"new":[{"index":0,"object":` + strings.Replace(student, `"student_id"`, `"STUDENT_ID"`, 1) + `}]}`, 0, true},
+		{"creation", `[{"index":0,"object":{}}]`, `[{"index":0,"object":` + studentJSON + `}]`, true},
+		{"update", `[{"index":0,"object":` + studentJSON + `}]`, `[{"index":0,"object":` + studentJSON + `}]`, true},
+		{"graduate with null profile fields", `[{"index":0,"object":` + studentJSON + `}]`, `[{"index":0,"object":` + strings.Replace(studentJSON, "GENERAL_STUDENT", "GRADUATE", 1) + `}]`, true},
+		{"future student roles are retained", `[{"index":0,"object":{}}]`, `[{"index":0,"object":` + strings.Replace(studentJSON, "GENERAL_STUDENT", "FUTURE_ROLE", 1) + `}]`, true},
+		{"old snapshots are required", `null`, `[{"index":0,"object":` + studentJSON + `}]`, false},
+		{"student deletion is invalid", `[{"index":0,"object":` + studentJSON + `}]`, `[{"index":0,"object":{}}]`, false},
+		{"mismatched identities", `[{"index":0,"object":{"student_id":8}}]`, `[{"index":0,"object":` + studentJSON + `}]`, false},
+		{"duplicate indices", `[{"index":0,"object":{}},{"index":0,"object":{}}]`, `[{"index":0,"object":` + studentJSON + `},{"index":0,"object":` + studentJSON + `}]`, false},
+		{"duplicate students", `[{"index":0,"object":{}},{"index":1,"object":{}}]`, `[{"index":0,"object":` + studentJSON + `},{"index":1,"object":` + studentJSON + `}]`, false},
+		{"business field validation", `[{"index":0,"object":{}}]`, `[{"index":0,"object":{"student_id":7}}]`, false},
+		{"oversized name", `[{"index":0,"object":{}}]`, `[{"index":0,"object":` + strings.Replace(studentJSON, "Student", strings.Repeat("x", 51), 1) + `}]`, false},
+		{"case variants", `[{"index":0,"object":{}}]`, `[{"index":0,"object":` + strings.Replace(studentJSON, "student_id", "STUDENT_ID", 1) + `}]`, false},
+		{"duplicate JSON keys", `[{"index":0,"object":{}}]`, `[{"index":0,"object":` + strings.Replace(studentJSON, `"student_id":7`, `"student_id":7,"student_id":8`, 1) + `}]`, false},
+		{"empty batch", `[]`, `[]`, false},
 	} {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			messages, err := validatedStudentMessages(WebhookEvent{Data: json.RawMessage(test.data)})
-			if test.invalid {
-				if !errors.Is(err, ErrInvalidPayload) || messages != nil {
-					t.Fatalf("accepted invalid batch: %v", err)
+		t.Run(tc.name, func(t *testing.T) {
+			inbox := &fakeWebhookInbox{}
+			svc := NewEventService(&config.AppConfig{DataGSMWebhookSecret: testSecret, KafkaTopicUserSync: "user.data.sync"}, inbox)
+			body := eventBody(tc.old, tc.new)
+			result, err := svc.ProcessEvent(context.Background(), body, sign(body))
+			if tc.valid {
+				if err != nil || result != domain.WebhookAccepted || inbox.calls != 1 || len(inbox.batch.Messages) != 1 {
+					t.Fatalf("result=%s err=%v batch=%+v", result, err, inbox.batch)
 				}
-				return
+				var message userSyncMessage
+				if err = json.Unmarshal(inbox.batch.Messages[0].Payload, &message); err != nil {
+					t.Fatal(err)
+				}
+				if message.DataGSMRefID != 7 || message.Major != nil || message.StudentNumber != nil {
+					t.Fatalf("nullable fields lost: %+v", message)
+				}
+			} else if !errors.Is(err, ErrInvalidPayload) || inbox.calls != 0 {
+				t.Fatalf("error=%v writes=%d", err, inbox.calls)
 			}
-			if err != nil || len(messages) != test.wantMessages {
-				t.Fatalf("messages = %d, error = %v", len(messages), err)
+		})
+	}
+}
+func TestWebhookAuthenticationAndEnvelope(t *testing.T) {
+	valid := eventBody(`[{"index":0,"object":{}}]`, `[{"index":0,"object":`+studentJSON+`}]`)
+	for _, tc := range []struct {
+		name      string
+		body      []byte
+		signature string
+		want      error
+	}{
+		{"missing signature", valid, "", event.ErrInvalidSignature},
+		{"wrong signature", valid, "sha256=" + strings.Repeat("0", 64), event.ErrInvalidSignature},
+		{"invalid timestamp", []byte(strings.Replace(string(valid), "2026-11-10T00:00:00Z", "invalid", 1)), "signed", ErrInvalidPayload},
+		{"blank event identity", []byte(strings.Replace(string(valid), "event-1", " ", 1)), "signed", ErrInvalidPayload},
+		{"duplicate event identity", []byte(strings.Replace(string(valid), `"id":"event-1"`, `"id":"event-1","id":"other"`, 1)), "signed", ErrInvalidPayload},
+		{"invalid UTF8", []byte(strings.Replace(string(valid), "Student", string([]byte{255}), 1)), "signed", ErrInvalidPayload},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			inbox := &fakeWebhookInbox{}
+			svc := NewEventService(&config.AppConfig{DataGSMWebhookSecret: testSecret}, inbox)
+			signature := tc.signature
+			if signature == "signed" {
+				signature = sign(tc.body)
+			}
+			_, err := svc.ProcessEvent(context.Background(), tc.body, signature)
+			if !errors.Is(err, tc.want) || inbox.calls != 0 {
+				t.Fatalf("err=%v writes=%d", err, inbox.calls)
 			}
 		})
 	}
 }
 
-func TestWebhookEnvelopePolicy(t *testing.T) {
-	t.Parallel()
-	valid := `{"id":"event-1","event":"student.updated","timestamp":"2026-09-22T01:02:03Z","data":{"new":[]}}`
-	for _, test := range []struct {
-		name, body string
-		valid      bool
+func TestWebhookEventRouting(t *testing.T) {
+	for _, tc := range []struct {
+		name, kind, data string
+		ignored          bool
 	}{
-		{"well-formed envelope", valid, true},
-		{"empty identity", strings.Replace(valid, `"event-1"`, `""`, 1), false},
-		{"identity with trailing whitespace", strings.Replace(valid, `"event-1"`, `"event-1 "`, 1), false},
-		{"identity beyond storage byte limit", strings.Replace(valid, "event-1", strings.Repeat("가", 86), 1), false},
-		{"duplicate event IDs", strings.Replace(valid, `"id":"event-1"`, `"id":"event-1","id":"event-2"`, 1), false},
-		{"malformed timestamp", strings.Replace(valid, "2026-09-22T01:02:03Z", "not-a-time", 1), false},
-		{"multiple JSON documents", valid + `{}`, false},
-		{"invalid UTF-8", strings.Replace(valid, "event-1", string([]byte{255}), 1), false},
+		{"valid club", "club.updated", `{"old":[{"index":0,"object":{}}],"new":[{"index":0,"object":{"club_id":7}}]}`, true},
+		{"valid project", "project.updated", `{"old":[{"index":0,"object":{}}],"new":[{"index":0,"object":{"project_id":7}}]}`, true},
+		{"unknown student type", "student.created", `{"future_field":true}`, false},
+		{"unknown ping type", "ping", `{"future_field":true}`, false},
+		{"invalid club payload", "club.updated", `{"future_field":true}`, false},
+		{"invalid project payload", "project.updated", `{"future_field":true}`, false},
 	} {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-			_, _, err := parseWebhookEnvelope([]byte(test.body))
-			if (err == nil) != test.valid {
-				t.Fatalf("envelope error = %v", err)
+		t.Run(tc.name, func(t *testing.T) {
+			inbox := &fakeWebhookInbox{}
+			svc := NewEventService(&config.AppConfig{DataGSMWebhookSecret: testSecret}, inbox)
+			body := []byte(`{"id":"event-1","event":"` + tc.kind + `","timestamp":"2026-11-10T00:00:00Z","data":` + tc.data + `}`)
+			result, err := svc.ProcessEvent(context.Background(), body, sign(body))
+			if tc.ignored && (err != nil || result != domain.WebhookIgnored) ||
+				!tc.ignored && !errors.Is(err, ErrInvalidPayload) || inbox.calls != 0 {
+				t.Fatalf("result=%s err=%v writes=%d", result, err, inbox.calls)
+			}
+			if _, err = svc.ProcessEvent(context.Background(), body, "invalid"); !errors.Is(err, event.ErrInvalidSignature) {
+				t.Fatalf("event bypassed signature verification: %v", err)
 			}
 		})
+	}
+}
+func TestWebhookHashPreservesStoredReceiptContract(t *testing.T) {
+	inbox := &fakeWebhookInbox{}
+	svc := NewEventService(&config.AppConfig{DataGSMWebhookSecret: testSecret}, inbox)
+	body := eventBody(`[{"index":0,"object":{}}]`, `[{"index":0,"object":`+studentJSON+`}]`)
+	if _, err := svc.ProcessEvent(context.Background(), body, sign(body)); err != nil {
+		t.Fatal(err)
+	}
+	canonical := `{"event":"student.updated","timestamp":"2026-11-10T00:00:00Z","items":[{"index":0,"object":` + studentJSON + `}]}`
+	if inbox.batch.PayloadHash != sha256.Sum256([]byte(canonical)) {
+		t.Fatal("SDK migration changed the persisted canonical hash")
+	}
+	storageErr := errors.New("unavailable")
+	inbox.err = storageErr
+	if _, err := svc.ProcessEvent(context.Background(), body, sign(body)); !errors.Is(err, storageErr) {
+		t.Fatal("storage errors must remain retryable")
 	}
 }

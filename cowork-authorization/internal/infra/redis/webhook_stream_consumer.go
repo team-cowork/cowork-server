@@ -12,6 +12,7 @@ import (
 	"github.com/cowork/authorization/internal/domain"
 	"github.com/cowork/authorization/internal/monitoring"
 	redis "github.com/redis/go-redis/v9"
+	"github.com/tmp-it-play/datagsm-sdk-go/event"
 )
 
 const (
@@ -23,8 +24,7 @@ const (
 )
 
 type WebhookProcessor interface {
-	VerifySignature([]byte, string) bool
-	ProcessEvent(context.Context, []byte) (domain.WebhookResult, error)
+	ProcessEvent(context.Context, []byte, string) (domain.WebhookResult, error)
 }
 
 type WebhookStreamConsumer struct {
@@ -196,11 +196,10 @@ func processQueuedWebhook(ctx context.Context, processor WebhookProcessor, messa
 	body, bodyOK := message.Values["body"].(string)
 	signature, signatureOK := message.Values["signature"].(string)
 	// The currently loaded DATAGSM_WEBHOOK_SECRET is used even for entries queued before a key change.
-	if !bodyOK || !signatureOK || len(body) == 0 || len(body) > maxWebhookBodyBytes ||
-		!processor.VerifySignature([]byte(body), signature) {
+	if !bodyOK || !signatureOK || len(body) == 0 || len(body) > maxWebhookBodyBytes {
 		return "", domain.ErrInvalidWebhookPayload
 	}
-	result, err := processor.ProcessEvent(ctx, []byte(body))
+	result, err := processor.ProcessEvent(ctx, []byte(body), signature)
 	if err != nil {
 		return "", err
 	}
@@ -251,7 +250,7 @@ func (c *WebhookStreamConsumer) observe(ctx context.Context) error {
 // entry is retried until the timestamp falls inside the accepted skew. The
 // gateway rejects timestamps more than an hour ahead, which bounds the retries.
 func streamErrorKind(err error) string {
-	if errors.Is(err, domain.ErrInvalidWebhookPayload) || errors.Is(err, domain.ErrWebhookConflict) ||
+	if errors.Is(err, event.ErrInvalidSignature) || errors.Is(err, domain.ErrInvalidWebhookPayload) || errors.Is(err, domain.ErrWebhookConflict) ||
 		errors.Is(err, domain.ErrWebhookExpired) {
 		return "invalid"
 	}

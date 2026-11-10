@@ -419,6 +419,13 @@
         "cleanup.policy": "delete",
         "retention.ms": "604800000"
       }
+    },
+    "user.identity.command.v2": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
     }
   },
   "principals": {
@@ -431,7 +438,8 @@
         "user.identity.command",
         "user.identity.command-result",
         "user.identity.command-result-dlt",
-        "user.presence.event"
+        "user.presence.event",
+        "user.identity.command.v2"
       ]
     },
     "cowork-channel": {
@@ -610,7 +618,8 @@
         "user.profile.event.v2",
         "user.presence.event",
         "team.member.event",
-        "team.member.event-dlt"
+        "team.member.event-dlt",
+        "user.identity.command.v2"
       ]
     },
     "cowork-voice": {
