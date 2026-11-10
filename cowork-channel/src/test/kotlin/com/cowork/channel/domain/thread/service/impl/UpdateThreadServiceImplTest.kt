@@ -50,6 +50,7 @@ class UpdateThreadServiceImplTest :
             every { teamPermissionService.requireChannelAccess(any(), any()) } returns Unit
             every { channelAccessGuard.findChannelOrThrow(1L) } returns channel
             every { channelAccessGuard.requireTeamChannel(channel) } returns 100L
+            every { channelAccessGuard.requireNotArchived(any()) } returns Unit
             service = UpdateThreadServiceImpl(threadRepository, channelAccessGuard, teamPermissionService)
         }
 

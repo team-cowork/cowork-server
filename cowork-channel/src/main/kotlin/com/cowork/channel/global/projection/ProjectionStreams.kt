@@ -18,7 +18,13 @@ class ProjectionStreams {
         Topics.CHANNEL_ROLE_POLICY_CHANGED,
         "cowork-preference",
     )
-    val required: Set<ProjectionStream> = setOf(project, teamMember, teamLifecycle, teamRole, channelRolePolicy)
+    val projectAccess = ProjectionStream(
+        "cowork-channel.project-access-projection",
+        Topics.PREFERENCE_PROJECT_ACCESS_STATE,
+        "cowork-preference",
+    )
+    val required: Set<ProjectionStream> =
+        setOf(project, teamMember, teamLifecycle, teamRole, channelRolePolicy, projectAccess)
 
     /**
      * 채널 lifecycle 상태를 변경할 수 있는 upstream stream이다. cowork-preference 정책 snapshot이
