@@ -74,6 +74,7 @@ export class ChannelProjectionRepository {
 			.find({
 				teamId,
 				deleted: {$ne: true},
+				archived: {$ne: true},
 				name: {$regex: escapedQuery, $options: 'i'},
 			})
 			.sort({position: 1, channelId: 1})
