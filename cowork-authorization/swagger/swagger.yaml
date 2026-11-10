@@ -87,19 +87,6 @@ definitions:
       token_type:
         type: string
     type: object
-  internal_handler.CodeExchangeRequest:
-    properties:
-      code:
-        type: string
-      code_verifier:
-        type: string
-      redirect_uri:
-        type: string
-    required:
-    - code
-    - code_verifier
-    - redirect_uri
-    type: object
   internal_handler.LoginCallbackRequest:
     properties:
       code:
@@ -306,50 +293,6 @@ paths:
       security:
       - BearerAuth: []
       summary: 로그아웃
-      tags:
-      - auth
-  /auth/token:
-    post:
-      consumes:
-      - application/json
-      deprecated: true
-      description: 클라이언트가 생성한 PKCE verifier와 인가 코드를 교환합니다. state 검증은 클라이언트가 담당합니다.
-        redirect_uri는 서버 허용 목록 및 DataGSM 등록값과 일치해야 합니다.
-      parameters:
-      - description: PKCE 코드 교환 요청
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/internal_handler.CodeExchangeRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          headers:
-            Set-Cookie:
-              description: WebSocket 인증 쿠키(cowork_ws_token, Path=/ws)
-              type: string
-          schema:
-            $ref: '#/definitions/github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_TokenPair'
-        "400":
-          description: 잘못된 요청 또는 콜백 URL
-          schema:
-            $ref: '#/definitions/github_com_cowork_authorization_internal_apidoc.Error'
-        "401":
-          description: 인증 실패
-          schema:
-            $ref: '#/definitions/github_com_cowork_authorization_internal_apidoc.Error'
-        "429":
-          description: 요청 한도 초과
-          schema:
-            $ref: '#/definitions/github_com_cowork_authorization_internal_apidoc.Error'
-        "503":
-          description: 인증 서비스 사용 불가
-          schema:
-            $ref: '#/definitions/github_com_cowork_authorization_internal_apidoc.Error'
-      summary: 기존 클라이언트의 PKCE 코드 교환
       tags:
       - auth
   /events/datagsm:
