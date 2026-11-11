@@ -19,10 +19,6 @@ class InitialResourceAccessRepository {
         ).execute(Tuple.of(teamId, channelId)).coAwait().first().getBoolean("present")
 
     suspend fun hasProjectAccessHistory(client: SqlClient, projectId: Long): Boolean = client.preparedQuery(
-        "SELECT EXISTS (SELECT 1 FROM project_role_definition WHERE project_id = \$1) " +
-            // 구버전 Preference가 seed를 무시한 뒤 수동 회수한 경우를 보수적으로 보호한다.
-            // TODO(#596): 2026-11-01 05:00 KST 이후 구버전 중단·전체 seed ledger 처리·snapshot 확인 후 derived 이력 조건을 제거한다.
-            // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-            "OR EXISTS (SELECT 1 FROM tb_project_access_states WHERE project_id = \$1) AS present",
+        "SELECT EXISTS (SELECT 1 FROM project_role_definition WHERE project_id = \$1) AS present",
     ).execute(Tuple.of(projectId)).coAwait().first().getBoolean("present")
 }

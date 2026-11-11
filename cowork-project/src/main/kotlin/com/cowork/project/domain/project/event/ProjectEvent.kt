@@ -27,5 +27,5 @@ data class ProjectEvent(
 data class ProjectInitialReadGrant(
     val accountId: Long,
     val sourceMembershipVersion: Instant,
-    val sourceAuthorizationVersion: Instant? = null,
+    val sourceAuthorizationVersion: Instant,
 )

@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 NOMAD = ROOT / "deploy/nomad"
 RUNTIME = ROOT / "deploy/runtime"
 FAKE_IMAGE = "example.invalid/cowork-validation@sha256:" + "0" * 64
+DATABASE_SUFFIXES = ("-mysql", "-postgresql", "-mongodb", "-surrealdb")
 
 
 def file_map(directory):
@@ -30,16 +31,15 @@ def job_inputs(path, manifest=None, vault_mount="secret", gateway_host_port=2100
               "secret_version": 1, "vault_mount": vault_mount, "runtime_env": {}, "config_files": {}}
     if "apps" in path.relative_to(NOMAD).parts:
         values["runtime_env"] = environment(name)
-    elif name.endswith("-db"):
-        owner = name.removesuffix("-db")
-        scripts = ["mongodb-init.sh", "mongodb-init.js"] if owner in {"chat", "voice"} else [
-            "postgres-init.sh" if owner == "preference" else "mysql-init.sh"]
+    elif name.endswith(DATABASE_SUFFIXES):
+        scripts = ["mongodb-init.sh", "mongodb-init.js"] if name.endswith("-mongodb") else [
+            "postgres-init.sh" if name.endswith("-postgresql") else "mysql-init.sh"]
         values["config_files"] = {name: (RUNTIME / "databases" / name).read_text() for name in scripts}
-    elif name.endswith("-storage"):
-        values["runtime_env"] = environment(name.removesuffix("-storage"))
-        values["config_files"] = file_map(RUNTIME / "storage")
-    elif name == "chat-search":
-        values["config_files"] = file_map(RUNTIME / "search")
+    elif name.endswith("-seaweedfs"):
+        values["runtime_env"] = environment(name.removesuffix("-seaweedfs"))
+        values["config_files"] = file_map(RUNTIME / "seaweedfs")
+    elif name == "chat-elasticsearch":
+        values["config_files"] = file_map(RUNTIME / "elasticsearch")
     elif name == "kafka":
         values["config_files"] = {filename: (RUNTIME / "kafka" / filename).read_text()
                                   for filename in ("server.properties", "start-broker.sh", "policy.json")}
@@ -53,13 +53,13 @@ def job_inputs(path, manifest=None, vault_mount="secret", gateway_host_port=2100
         if "apps" in path.relative_to(NOMAD).parts:
             values.update(image=manifest["applications"][name]["image"],
                           secret_version=manifest["applications"][name]["secret_version"])
-        elif name.endswith("-db"):
+        elif name.endswith(DATABASE_SUFFIXES):
             values["secret_version"] = manifest["data_secret_versions"][name.rsplit("-", 1)[0]]
-        elif name.endswith("-storage"):
-            values["secret_version"] = manifest["data_secret_versions"][name.removesuffix("-storage") + "/storage"]
-        elif name == "chat-search":
+        elif name.endswith("-seaweedfs"):
+            values["secret_version"] = manifest["data_secret_versions"][name.removesuffix("-seaweedfs") + "/seaweedfs"]
+        elif name == "chat-elasticsearch":
             values.update(image=manifest["infrastructure_images"][name],
-                          secret_version=manifest["data_secret_versions"]["chat/search"])
+                          secret_version=manifest["data_secret_versions"]["chat/elasticsearch"])
         elif name == "kafka":
             values.update(init_image=manifest["infrastructure_images"]["kafka-init"],
                           secret_version=manifest["data_secret_versions"][name])

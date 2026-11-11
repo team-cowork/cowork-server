@@ -21,9 +21,9 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
-import java.util.Optional
 
 class CreateSharedAccountServiceImplTest {
 
@@ -58,7 +58,7 @@ class CreateSharedAccountServiceImplTest {
 
     @Test
     fun `createAccount는 CUSTOM provider에 providerLabel이 없으면 BAD_REQUEST`() {
-        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { channelRepository.findByIdForUpdate(1L) } returns accountShareChannel()
         every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
 
         val ex = assertThrows<ExpectedException> {
@@ -78,14 +78,14 @@ class CreateSharedAccountServiceImplTest {
 
     @Test
     fun `createAccount는 credential을 암호화하여 저장함`() {
-        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { channelRepository.findByIdForUpdate(1L) } returns accountShareChannel()
         every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
         every { credentialEncryptionService.encrypt("plainPwd") } returns "encryptedPwd"
         every { credentialEncryptionService.decrypt("encryptedPwd") } returns "plainPwd"
         every { credentialEncryptionService.mask("plainPwd") } returns "••••wd"
 
         val saved = slot<SharedAccount>()
-        every { sharedAccountRepository.save(capture(saved)) } answers { saved.captured }
+        every { sharedAccountRepository.saveAndFlush(capture(saved)) } answers { saved.captured }
 
         service.createAccount(
             1L,
@@ -105,11 +105,11 @@ class CreateSharedAccountServiceImplTest {
 
     @Test
     fun `createAccount는 credential이 null이면 암호화를 수행하지 않음`() {
-        every { channelRepository.findById(1L) } returns Optional.of(accountShareChannel())
+        every { channelRepository.findByIdForUpdate(1L) } returns accountShareChannel()
         every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
 
         val saved = slot<SharedAccount>()
-        every { sharedAccountRepository.save(capture(saved)) } answers { saved.captured }
+        every { sharedAccountRepository.saveAndFlush(capture(saved)) } answers { saved.captured }
 
         service.createAccount(
             1L,
@@ -124,5 +124,51 @@ class CreateSharedAccountServiceImplTest {
 
         assertNull(saved.captured.credential)
         verify(exactly = 0) { credentialEncryptionService.encrypt(any()) }
+    }
+
+    @Test
+    fun `createAccount는 같은 계정이 이미 등록되어 있으면 CONFLICT`() {
+        every { channelRepository.findByIdForUpdate(1L) } returns accountShareChannel()
+        every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
+        every { sharedAccountRepository.saveAndFlush(any<SharedAccount>()) } throws
+            DataIntegrityViolationException(
+                "Duplicate entry for key 'uq_tb_channel_accounts_channel_provider_identifier'",
+            )
+
+        val ex = assertThrows<ExpectedException> {
+            service.createAccount(
+                1L,
+                1L,
+                CreateSharedAccountRequest(
+                    provider = AccountProvider.GITHUB,
+                    providerLabel = null,
+                    accountIdentifier = "alice",
+                    credential = null,
+                ),
+            )
+        }
+        assertEquals(HttpStatus.CONFLICT, ex.statusCode)
+    }
+
+    @Test
+    fun `createAccount는 unique 위반이 아닌 무결성 오류를 그대로 던짐`() {
+        every { channelRepository.findByIdForUpdate(1L) } returns accountShareChannel()
+        every { teamPermissionService.requireChannelAccess(any(), 1L) } returns Unit
+        val violation = DataIntegrityViolationException("Data too long for column 'account_identifier'")
+        every { sharedAccountRepository.saveAndFlush(any<SharedAccount>()) } throws violation
+
+        val ex = assertThrows<DataIntegrityViolationException> {
+            service.createAccount(
+                1L,
+                1L,
+                CreateSharedAccountRequest(
+                    provider = AccountProvider.GITHUB,
+                    providerLabel = null,
+                    accountIdentifier = "alice",
+                    credential = null,
+                ),
+            )
+        }
+        assertEquals(violation, ex)
     }
 }

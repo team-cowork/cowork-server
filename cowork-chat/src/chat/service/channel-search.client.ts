@@ -24,7 +24,10 @@ export class ChannelSearchClient {
 	) {}
 
 	async searchChannels(teamId: number, query: string, userId: number): Promise<ChannelSearchItem[]> {
-		if (!(await this.memberRepository.exists(teamId, userId))) {
+		this.accessService.requireProjectionsReady();
+		const isMember = await this.memberRepository.exists(teamId, userId);
+		this.accessService.requireProjectionsReady();
+		if (!isMember) {
 			throw new ForbiddenException('팀 접근 권한이 없습니다');
 		}
 
@@ -34,7 +37,6 @@ export class ChannelSearchClient {
 
 		const channels = await this.channelRepository.searchByTeamAndName(teamId, query);
 		const visibleChannelIds = new Set(await this.accessService.filterVisibleChannelIds(
-			teamId,
 			userId,
 			channels.map(channel => channel.channelId),
 		));

@@ -1,6 +1,5 @@
 package com.cowork.preference.messaging
 
-import com.cowork.preference.domain.Webhook
 import com.cowork.preference.domain.AccountTeamRole
 import com.cowork.preference.domain.ChannelNotificationPreference
 import com.cowork.preference.domain.ChannelRolePolicyPermissions
@@ -8,6 +7,7 @@ import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.domain.SettingSchema
 import com.cowork.preference.domain.TeamRoleDefinition
 import com.cowork.preference.domain.TeamRolePermissions
+import com.cowork.preference.domain.Webhook
 import io.vertx.core.json.JsonObject
 import java.time.Instant
 
@@ -36,7 +36,6 @@ object PreferenceEvents {
     const val TEAM_SETTING_STATE_TOPIC = "preference.team-setting.state.v1"
     const val TEXT_CHANNEL_SETTING_STATE_TOPIC = "preference.text-channel-setting.state.v1"
     const val WEBHOOK_STATE_TOPIC = "preference.webhook.state.v2"
-    const val WEBHOOK_LEGACY_STATE_TOPIC = "channel.webhook-legacy.state.v1"
     const val VOICE_CHANNEL_SETTING_STATE_TOPIC = "preference.voice-channel-setting.state.v1"
     const val SETTING_STATE_SCHEMA_VERSION = 1
     val OUTBOX_TOPICS = setOf(
@@ -260,12 +259,7 @@ object PreferenceEvents {
     )
 
     /** 닉네임 형식 안내는 예시가 있을 때만 켠다. 형식 판정 기준이 아니므로 소비자는 안내 표시에만 쓴다. */
-    fun teamSettingState(
-        teamId: Long,
-        settings: JsonObject,
-        occurredAt: Instant,
-        snapshot: Boolean,
-    ): PreferenceEvent {
+    fun teamSettingState(teamId: Long, settings: JsonObject, occurredAt: Instant, snapshot: Boolean): PreferenceEvent {
         val nicknameFormatExample = validSetting(ResourceType.TEAM, settings, "nickname_format_example")
         return PreferenceEvent(
             topic = TEAM_SETTING_STATE_TOPIC,
@@ -333,7 +327,7 @@ object PreferenceEvents {
         key = webhook.id.toString(),
         payload = basePayload("WEBHOOK_STATE", webhook.updatedAt)
             .put("schemaVersion", 2).put("webhookId", webhook.id).put("channelId", webhook.channelId)
-            .put("executionId", webhook.requireExecutionId().toString())
+            .put("executionId", webhook.executionId.toString())
             .put("name", webhook.name).put("avatarUrl", webhook.avatarUrl).put("isSecure", webhook.isSecure)
             .put("secretHash", webhook.secretHash).put("isActive", webhook.isActive)
             .put("deleted", webhook.deleted).put("snapshot", snapshot),

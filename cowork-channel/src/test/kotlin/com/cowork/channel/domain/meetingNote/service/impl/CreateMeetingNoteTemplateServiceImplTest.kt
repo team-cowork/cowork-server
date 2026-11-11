@@ -21,7 +21,7 @@ class CreateMeetingNoteTemplateServiceImplTest {
 
     @Test
     fun `createTemplate은 isActive=false로 저장되고 sections는 빈 리스트`() {
-        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
+        every { meetingNoteAccessGuard.requireWritableChannelAccess(1L, 7L) } returns Unit
         val saved = slot<MeetingNoteTemplate>()
         every { templateRepository.save(capture(saved)) } answers { saved.captured }
 

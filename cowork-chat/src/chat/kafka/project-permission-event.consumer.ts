@@ -11,9 +11,9 @@ import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {parseEventTime} from '../../common/util/event-time.util.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
-import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
+import {ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
 import {ProjectPermissionProjectionRepository} from '../repository/index.js';
-import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
+import {startProjectionConsumer} from '../../common/kafka/projection-consumer.js';
 import {type Nullable} from '../../common/type/nullable.js';
 
 type ProjectPermissionEvent = {
@@ -23,12 +23,8 @@ type ProjectPermissionEvent = {
 	read: boolean;
 	write: boolean;
 	occurredAt: string;
-	// @todo #596: 2026-11-01 05:00 KST 이후 구형 outbox·Kafka stamp 보정과 rollback 종료 확인 후 누락 허용·ZERO 대체 제거.
-	// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-	sourceMembershipVersion?: string;
-	// @todo #596: 2026-11-01 05:00 KST 이후 구형 이벤트·Mongo auth stamp 보정과 rollback 종료 확인 후 nullable fallback 제거.
-	// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-	sourceAuthorizationVersion?: Nullable<string>;
+	sourceMembershipVersion: string;
+	sourceAuthorizationVersion: Nullable<string>;
 	snapshot?: boolean;
 };
 
@@ -68,8 +64,10 @@ export class ProjectPermissionEventConsumer implements OnModuleInit, OnModuleDes
 			canWrite: payload.write,
 			occurredAt,
 			sourceVersion,
-			sourceMembershipVersion: parseEventTime(payload.sourceMembershipVersion)?.sourceVersion ?? mongo.Long.ZERO,
-			sourceAuthorizationVersion: parseEventTime(payload.sourceAuthorizationVersion)?.sourceVersion ?? null,
+			sourceMembershipVersion: parseEventTime(payload.sourceMembershipVersion)!.sourceVersion,
+			sourceAuthorizationVersion: payload.sourceAuthorizationVersion === null
+				? null
+				: parseEventTime(payload.sourceAuthorizationVersion)!.sourceVersion,
 		});
 	}
 
@@ -79,20 +77,23 @@ export class ProjectPermissionEventConsumer implements OnModuleInit, OnModuleDes
 		}
 
 		const event = payload as Partial<ProjectPermissionEvent>;
-		const authorizationVersion = parseEventTime(event.sourceAuthorizationVersion)?.sourceVersion;
-		const membershipVersion = parseEventTime(event.sourceMembershipVersion)?.sourceVersion;
-		if (event.sourceAuthorizationVersion !== undefined && event.sourceAuthorizationVersion !== null
-			&& (!authorizationVersion || !membershipVersion || authorizationVersion.lessThanOrEqual(mongo.Long.ZERO) || authorizationVersion.greaterThan(membershipVersion))) {
+		const authorizationTime = parseEventTime(event.sourceAuthorizationVersion);
+		const membershipTime = parseEventTime(event.sourceMembershipVersion);
+		if (event.sourceAuthorizationVersion !== null
+			&& (!authorizationTime || !membershipTime
+				|| authorizationTime.sourceVersion.lessThanOrEqual(mongo.Long.ZERO)
+				|| authorizationTime.sourceVersion.greaterThan(membershipTime.sourceVersion))) {
 			return false;
 		}
 
-		return event.eventType === 'UPSERT'
+		return (event.sourceAuthorizationVersion !== null || (event.read === false && event.write === false))
+			&& event.eventType === 'UPSERT'
 			&& isSafePositiveInteger(event.projectId)
 			&& isSafePositiveInteger(event.accountId)
 			&& typeof event.read === 'boolean'
 			&& typeof event.write === 'boolean'
 			&& (event.snapshot === undefined || typeof event.snapshot === 'boolean')
-			&& (event.sourceMembershipVersion === undefined || parseEventTime(event.sourceMembershipVersion) !== null)
+			&& membershipTime !== null
 			&& parseEventTime(event.occurredAt) !== null;
 	}
 
@@ -103,25 +104,10 @@ export class ProjectPermissionEventConsumer implements OnModuleInit, OnModuleDes
 		});
 		const stream = PROJECTION_STREAMS.projectPermission;
 		this.consumer = kafka.consumer({groupId: stream.groupId});
-		await connectWithRetry(this.logger, `Kafka consumer startup: ${stream.topic}`, async () => {
-			await this.consumer.connect();
-			await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
-			await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+		await startProjectionConsumer({
+			logger: this.logger, kafka, consumer: this.consumer, readiness: this.projectionReadiness, stream,
+			handleEvent: async (payload, key) => this.handleEvent(payload, key),
 		});
-
-		void this.consumer.run({
-			eachMessage: async ({partition, message}): Promise<void> => {
-				await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(stream, {
-					partition, message, readiness: this.projectionReadiness, apply: async (payload, key) => this.handleEvent(payload, key),
-				},
-				));
-			},
-		}).catch(async (error: unknown) => {
-			this.logger.error(`${stream.topic} Kafka consumer failed`, error);
-			// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
-			throw error;
-		});
-		this.logger.log(`Kafka projection consumer started: ${stream.topic}`);
 	}
 
 	async onModuleDestroy() {

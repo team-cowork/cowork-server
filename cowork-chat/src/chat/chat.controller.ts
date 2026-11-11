@@ -11,9 +11,11 @@ import {
 	HttpCode as httpCode,
 	HttpStatus,
 	Header as responseHeader,
+	Headers as requestHeader,
 	ParseIntPipe,
 } from '@nestjs/common';
 import {
+	ApiHeader as apiHeader,
 	ApiOperation as apiOperation,
 	ApiQuery as apiQuery,
 	ApiResponse as apiResponse,
@@ -30,6 +32,7 @@ import {
 } from '../common/decorator/user.decorator.js';
 import {throttle} from '../common/decorator/throttle.decorator.js';
 import {SafePositiveIntPipe} from '../common/pipe/safe-positive-int.pipe.js';
+import {ObjectIdPipe} from '../common/pipe/object-id.pipe.js';
 import {ChatService} from './chat.service.js';
 import {AttachmentDownloadService} from './service/attachment-download.service.js';
 import {AttachmentDownloadResponseDto} from './dto/attachment-download.dto.js';
@@ -146,7 +149,7 @@ export class ChatController {
 	})
 	async getAttachmentDownloadUrl(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
-		@requestParameter('messageId') messageId: string,
+		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@requestParameter('attachmentIndex', ParseIntPipe) attachmentIndex: number,
 		@currentUserId() userId: number,
 	): Promise<AttachmentDownloadResponseDto> {
@@ -446,6 +449,7 @@ export class ChatController {
      @param channelId - 채널 ID
      @param dto - GitHub 이슈 생성 정보
      @param userId - Gateway가 주입한 요청자 ID
+     @param idempotencyKey - 재시도 중복 방지 키 (`Idempotency-Key` 헤더, 선택)
      @returns `{ queued: true }`
      */
 	@httpPost('github/issues')
@@ -456,6 +460,7 @@ export class ChatController {
             '새 클라이언트는 POST /api/chat/chat/channels/{channelId}/slash-commands를 사용합니다.',
 		deprecated: true,
 	})
+	@apiHeader({name: 'Idempotency-Key', required: false, description: '재시도 중복 방지 키, 최대 200자'})
 	@apiResponse({
 		status: 201,
 		description: '요청 처리 완료',
@@ -492,8 +497,9 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: CreateGithubIssueDto,
 		@currentUserId() userId: number,
+		@requestHeader('idempotency-key') idempotencyKey?: string,
 	): Promise<CreateGithubIssueResponseDto> {
-		await this.chatService.publishGithubIssueCreateCommand({channelId, userId}, dto);
+		await this.chatService.publishGithubIssueCreateCommand({channelId, userId}, dto, idempotencyKey);
 		return {queued: true};
 	}
 
@@ -505,6 +511,7 @@ export class ChatController {
      @param channelId - 채널 ID
      @param dto - 커맨드 종류와 커맨드별 payload
      @param userId - Gateway가 주입한 요청자 ID
+     @param idempotencyKey - 재시도 중복 방지 키 (`Idempotency-Key` 헤더, 선택)
      @returns `{ queued: true }`
      */
 	@httpPost('slash-commands')
@@ -513,6 +520,7 @@ export class ChatController {
 		summary: '슬래시 커맨드 발행',
 		description: 'github.issue.create 명령을 지원합니다. 응답은 명령 접수만 확인합니다.',
 	})
+	@apiHeader({name: 'Idempotency-Key', required: false, description: '재시도 중복 방지 키, 최대 200자'})
 	@apiResponse({
 		status: 201,
 		description: '요청 처리 완료',
@@ -562,8 +570,9 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: SlashCommandDto,
 		@currentUserId() userId: number,
+		@requestHeader('idempotency-key') idempotencyKey?: string,
 	): Promise<SlashCommandResponseDto> {
-		await this.chatService.handleSlashCommand({channelId, userId}, dto);
+		await this.chatService.handleSlashCommand({channelId, userId}, dto, idempotencyKey);
 		return {queued: true};
 	}
 
@@ -716,6 +725,19 @@ export class ChatController {
 		},
 	})
 	@apiResponse({
+		status: 400,
+		description: '잘못된 메시지 ID',
+		schema: {
+			allOf: [
+				{$ref: getSchemaPath(ApiResponseMetadataDto)},
+				{
+					type: 'object',
+					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
+				},
+			],
+		},
+	})
+	@apiResponse({
 		status: 403,
 		description: '채널 멤버 아님 또는 본인 메시지 아님',
 		schema: {
@@ -743,7 +765,7 @@ export class ChatController {
 	})
 	async editMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
-		@requestParameter('messageId') messageId: string,
+		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@requestBody() dto: EditMessageDto,
 		@currentUser() user: CurrentUser,
 	) {
@@ -866,6 +888,19 @@ export class ChatController {
 		},
 	})
 	@apiResponse({
+		status: 400,
+		description: '잘못된 메시지 ID',
+		schema: {
+			allOf: [
+				{$ref: getSchemaPath(ApiResponseMetadataDto)},
+				{
+					type: 'object',
+					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
+				},
+			],
+		},
+	})
+	@apiResponse({
 		status: 403,
 		description: '채널 멤버 아님 또는 본인 메시지 아님',
 		schema: {
@@ -893,7 +928,7 @@ export class ChatController {
 	})
 	async deleteMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
-		@requestParameter('messageId') messageId: string,
+		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@currentUserId() userId: number,
 		@currentUserRole() userRole: string,
 	) {
@@ -937,7 +972,7 @@ export class ChatController {
 	})
 	@apiResponse({
 		status: 400,
-		description: '이미 고정된 메시지',
+		description: '잘못된 메시지 ID 또는 이미 고정된 메시지',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -976,7 +1011,7 @@ export class ChatController {
 	})
 	async pinMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
-		@requestParameter('messageId') messageId: string,
+		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@currentUserId() userId: number,
 		@currentUserRole() userRole: string,
 	) {
@@ -1001,7 +1036,7 @@ export class ChatController {
 	@apiResponse({status: 204})
 	@apiResponse({
 		status: 400,
-		description: '고정되지 않은 메시지',
+		description: '잘못된 메시지 ID 또는 고정되지 않은 메시지',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -1040,7 +1075,7 @@ export class ChatController {
 	})
 	async unpinMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
-		@requestParameter('messageId') messageId: string,
+		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@currentUserId() userId: number,
 		@currentUserRole() userRole: string,
 	) {
@@ -1066,7 +1101,7 @@ export class ChatController {
 	@apiResponse({status: 200})
 	@apiResponse({
 		status: 400,
-		description: '유효하지 않은 이모지',
+		description: '잘못된 메시지 ID 또는 유효하지 않은 이모지',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -1105,7 +1140,7 @@ export class ChatController {
 	})
 	async addReaction(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
-		@requestParameter('messageId') messageId: string,
+		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@requestBody() dto: AddReactionDto,
 		@currentUserId() userId: number,
 	): Promise<void> {
@@ -1130,7 +1165,7 @@ export class ChatController {
 	@apiResponse({status: 200})
 	@apiResponse({
 		status: 400,
-		description: '유효하지 않은 이모지',
+		description: '잘못된 메시지 ID 또는 유효하지 않은 이모지',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -1169,7 +1204,7 @@ export class ChatController {
 	})
 	async removeReaction(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
-		@requestParameter('messageId') messageId: string,
+		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@requestParameter('emoji') emoji: string,
 		@currentUserId() userId: number,
 	): Promise<void> {

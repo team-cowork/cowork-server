@@ -1,10 +1,12 @@
 package com.cowork.roadmap.domain.roadmap.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,28 +43,29 @@ class CreateRoadmapServiceTest {
         }
 
         @Test
-        void projectScope_withoutOwnerProjectId_failsWithBadRequest() {
-            CreateRoadmapReqDto request = request(RoadmapScope.PROJECT, 5L, null);
+        void projectScope_failsWithBadRequestWithoutSaving() {
+            CreateRoadmapReqDto request = request(RoadmapScope.PROJECT, 5L, 9L);
 
             ExpectedException error = assertThrows(ExpectedException.class,
                     () -> createRoadmapService.execute(1L, "MEMBER", request));
             assertTrue(error.getStatusCode() == HttpStatus.BAD_REQUEST);
+            verify(roadmapRepository, never()).saveAndFlush(any(Roadmap.class));
         }
 
         @Test
-        void projectScope_withRequiredOwners_createsScopedRoadmap() {
-            CreateRoadmapReqDto request = request(RoadmapScope.PROJECT, 5L, 9L);
+        void teamScope_withOwnerTeamId_createsTeamRoadmap() {
+            CreateRoadmapReqDto request = request(RoadmapScope.TEAM, 5L, 9L);
 
             when(roadmapRepository.saveAndFlush(any(Roadmap.class)))
                     .thenAnswer(invocation -> invocation.getArgument(0));
 
             var response = createRoadmapService.execute(1L, "MEMBER", request);
             assertEquals("title", response.title());
-            assertEquals(RoadmapScope.PROJECT.name(), response.scope());
+            assertEquals(RoadmapScope.TEAM.name(), response.scope());
             assertEquals(5L, response.ownerTeamId());
-            assertEquals(9L, response.ownerProjectId());
+            assertNull(response.ownerProjectId());
             assertEquals(1L, response.createdBy());
-            verify(accessGuard).requireCreatable(1L, "MEMBER", RoadmapScope.PROJECT, 5L);
+            verify(accessGuard).requireCreatable(1L, "MEMBER", RoadmapScope.TEAM, 5L);
         }
     }
 
