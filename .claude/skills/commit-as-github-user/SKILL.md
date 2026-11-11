@@ -34,7 +34,7 @@ Follow the existing [git-commit skill](../git-commit/SKILL.md) for branch and me
 
 Inspect `git status --short`, staged and unstaged diffs, and untracked files. Record any pre-existing staged work before staging. Group by the smallest independently understandable, reviewable, and reversible behavior change, not by file count. Keep a change's necessary implementation, schema/config, and tests together; split unrelated behavior even when it shares a file. Order dependent commits so each has a coherent state. Do not fragment a feature into commits that are unusable on their own merely to reduce their size.
 
-Show a short list of proposed commits with purpose, paths/hunks, and subject. Follow [commit conventions](../git-commit/references/commit-conventions.md) and the [scope guide](../git-commit/references/scope-guide.md): English type and domain scope, concise Korean subject, no body or AI co-author trailer. An existing request to commit is sufficient authorization to execute this plan.
+Show a short list of proposed commits with purpose, paths/hunks, and subject. Follow [commit conventions](../git-commit/references/commit-conventions.md) and the [scope guide](../git-commit/references/scope-guide.md): English type and CI-allowed scope, concise Korean subject, no body or AI co-author trailer. An existing request to commit is sufficient authorization to execute this plan.
 
 ## Create and verify each commit
 

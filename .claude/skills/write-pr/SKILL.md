@@ -27,8 +27,8 @@ Read `${CLAUDE_SKILL_DIR}/references/commit-conventions.md` for commit type and 
 ## Step 3 — Generate PR Content
 
 **Title** — Generate 3 options in the format `[scope] description`:
-- Scope: determine from changed file paths and directory structure — infer the domain from path segments. Use `[global]` / `[ci/cd]` for cross-cutting changes only. Wrap in brackets: `[auth]`, `[user]`, etc.
-- Description: Korean, concise, no emojis, max 50 characters total
+- Scope: use one value from `allowedScopes` in `.github/workflows/cowork-stage-ci.yml` (`.github/workflows/cowork-prod-ci.yml` for PRs to `main`). Read the list before you write the title. Map a changed `cowork-<name>/` directory to `<name>`. Use `[global]` for several modules or repository-wide changes and `[ci/cd]` for build or deployment changes. Never shorten a value: use `[authorization]`, not `[auth]`. Do not use commit history to choose a scope.
+- Description: Korean, concise, no emojis, no colons, max 50 characters total
 - Wrap class names, method names, annotations, file names, and technical terms in backticks (e.g., `@Transactional`, `QueryProjectServiceImpl`, `SKILL.md`)
 
 **Body** — Follow the `.github/PULL_REQUEST_TEMPLATE.md` structure:

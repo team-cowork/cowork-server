@@ -27,6 +27,12 @@ overrides:
   codex/hooks/ktlint: false
   codex/hooks/spotless: false
 
+  # Commit and PR scopes follow this repository's CI allowedScopes list.
+  claude/skills/git-commit: false
+  claude/skills/write-pr: false
+  codex/skills/git-commit: false
+  codex/skills/write-pr: false
+
   claude/skills/nextjs-fsd-architecture: false
   claude/skills/nextjs-package-boundaries: false
   claude/skills/nextjs-turborepo-fsd: false
