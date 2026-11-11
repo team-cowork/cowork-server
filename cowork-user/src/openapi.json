@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "cowork User API",
-    "version": "20261110.1",
+    "version": "20261111.1",
     "description": "사용자 프로필, 상태, 프로필 이미지와 사용자 검색을 관리합니다."
   },
   "servers": [{"url": "/api/user", "description": "Gateway"}],

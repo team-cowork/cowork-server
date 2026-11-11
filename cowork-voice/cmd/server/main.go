@@ -1,5 +1,5 @@
 // @title           cowork Voice API
-// @version         20261109.0
+// @version         20261111.1
 // @description     음성 통화와 라이브 방송에 사용할 LiveKit 토큰을 발급합니다. 클라이언트는 응답의 data.livekit_url로 LiveKit에 직접 연결합니다. room_name은 통화방 이름이고 session_id는 세션 조회에 사용하는 ID입니다.
 // @BasePath        /api/voice
 // @securityDefinitions.apikey BearerAuth
