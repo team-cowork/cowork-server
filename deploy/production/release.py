@@ -9,7 +9,7 @@ import re
 import subprocess
 from zoneinfo import ZoneInfo
 
-from deploy.ci.build_matrix import affected
+from deploy.ci.selection.build_matrix import affected
 from deploy.production.version_fields import VERSION, changed_paths, module_files, normalized, rewrite
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -19,7 +19,7 @@ MARKER = "Cowork CD release reservation\n"
 SHA = re.compile(r"[0-9a-f]{40}")
 DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 INFRASTRUCTURE = {
-    "chat-search": "deploy/images/elasticsearch/Dockerfile",
+    "chat-elasticsearch": "deploy/images/elasticsearch/Dockerfile",
     "kafka-init": "deploy/images/kafka-init/Dockerfile",
 }
 
@@ -185,7 +185,7 @@ def prepare(args):
     changed = changed_paths(previous["source_sha"], sha) if previous.get("source_sha") else None
     for name, dockerfile in INFRASTRUCTURE.items():
         prefixes = {
-            "chat-search": ("deploy/images/elasticsearch/",),
+            "chat-elasticsearch": ("deploy/images/elasticsearch/",),
             "kafka-init": ("deploy/images/kafka-init/", "deploy/runtime/kafka/"),
         }[name]
         if name not in previous.get("infrastructure_images", {}) or changed is None or any(

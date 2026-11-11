@@ -33,7 +33,8 @@ class ReorderTeamChannelsServiceImpl(
             throw ExpectedException("채널 순서 목록에 중복 ID가 포함되어 있습니다.", HttpStatus.BAD_REQUEST)
         }
 
-        val lockedChannels = channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(teamId)
+        // 보관된 채널은 목록에 보이지 않으므로 숨겨진 채널처럼 위치를 유지한다.
+        val lockedChannels = channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(teamId).filterNot { it.isArchived }
         val readableChannels = messageReadPolicyEvaluator
             .filterReadable(teamId, userId, lockedChannels)
             .sortedWith(compareBy({ it.position }, { it.id }))

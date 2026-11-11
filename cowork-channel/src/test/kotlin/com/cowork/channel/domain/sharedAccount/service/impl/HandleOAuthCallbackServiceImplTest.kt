@@ -139,6 +139,8 @@ class HandleOAuthCallbackServiceImplTest :
                 accountShareChannel()
             }
             every { channelAccessGuard.requireTeamChannel(any()) } returns teamId
+            every { channelAccessGuard.requireNotArchived(any()) } returns Unit
+            every { channelAccessGuard.findChannelForUpdateOrThrow(channelId) } answers { accountShareChannel() }
 
             service = HandleOAuthCallbackServiceImpl(
                 oAuthProperties,
@@ -280,6 +282,29 @@ class HandleOAuthCallbackServiceImplTest :
 
                     result.id shouldBe 10L
                     verify(exactly = 0) { sharedAccountRepository.save(any()) }
+                }
+
+                it("식별자 수정으로 해제된 OAuth 연결 표시를 되돌린다") {
+                    val existing = SharedAccount(
+                        id = 10L,
+                        channelId = channelId,
+                        provider = AccountProvider.GITHUB,
+                        providerLabel = null,
+                        accountIdentifier = "octocat",
+                        credential = null,
+                        connectedViaOAuth = false,
+                        createdBy = userId,
+                    )
+                    every {
+                        oAuthIdentityResolver.resolveIdentifier(any(), any(), any(), any())
+                    } returns "octocat"
+                    every {
+                        sharedAccountRepository.findByChannelIdAndProviderAndAccountIdentifier(any(), any(), any())
+                    } returns existing
+
+                    service.handleCallback("github", "code", buildValidState())
+
+                    existing.connectedViaOAuth shouldBe true
                 }
             }
 

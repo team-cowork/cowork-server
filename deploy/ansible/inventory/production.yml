@@ -67,6 +67,11 @@ all:
       ansible_port: 24150
       ansible_user: ubuntu
       private_ip: 10.0.0.132
+    applet:
+      ansible_host: ssh.gsmsv.site
+      ansible_port: 27134
+      ansible_user: ubuntu
+      private_ip: 10.0.0.144
     monitoring:
       ansible_host: ssh.gsmsv.site
       ansible_port: 21111
@@ -110,6 +115,7 @@ all:
         project: {}
         github: {}
         roadmap: {}
+        applet: {}
         monitoring: {}
         kafka: {}
         redis: {}

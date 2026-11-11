@@ -112,7 +112,7 @@ job "cowork-authorization" {
         sidecar_service {
           proxy {
             upstreams {
-              destination_name   = "cowork-authorization-db"
+              destination_name   = "cowork-authorization-mysql"
               local_bind_port    = 13306
               local_bind_address = "127.0.0.1"
             }

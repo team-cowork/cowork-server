@@ -7,16 +7,16 @@ import {
 	Logger,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
-import {Kafka, Consumer} from 'kafkajs';
+import {Consumer} from 'kafkajs';
 import {Server} from 'socket.io';
 import {ChatService} from '../chat.service.js';
-import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {ChannelMessageReadAccessService} from '../service/index.js';
 import {toMessageBroadcastPayload} from '../repository/index.js';
-import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
+import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {type ForwardReference} from '../../common/type/forward-reference.js';
 import {GithubIssueResultEvent} from './event/github-issue.event.js';
 import {type KafkaMessageSource, systemMessageKey} from './system-message-key.js';
+import {startSystemMessageConsumer, SystemMessageBroadcaster} from './system-message-result-consumer.js';
 
 /**
  Kafka `github.issue.result` 토픽을 구독하여 GitHub 이슈 생성 결과를 처리하는 컨슈머.
@@ -27,15 +27,18 @@ import {type KafkaMessageSource, systemMessageKey} from './system-message-key.js
 @injectable()
 export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(GithubIssueResultConsumer.name);
+	private readonly broadcaster: SystemMessageBroadcaster;
 	private consumer!: Consumer;
-	private io?: Server;
 
 	constructor(
 		@inject(forwardRef(() => ChatService))
 		private readonly chatService: ForwardReference<ChatService>,
 		private readonly configService: ConfigService,
 		private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
-	) {}
+		private readonly projectionReadiness: ProjectionReadinessService,
+	) {
+		this.broadcaster = new SystemMessageBroadcaster(this.logger, this.channelMessageReadAccess);
+	}
 
 	/**
      GitHub 이슈 생성 결과 이벤트를 처리한다.
@@ -59,7 +62,7 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
 			return;
 		}
 
-		await this.notifyClient(event.channelId, toMessageBroadcastPayload(saved));
+		await this.broadcaster.notifyClient(event.channelId, toMessageBroadcastPayload(saved));
 	}
 
 	/**
@@ -76,23 +79,6 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
 	}
 
 	/**
-     Socket.IO를 통해 특정 채널의 클라이언트에게 메시지를 브로드캐스트한다.
-
-     Socket.IO 서버가 주입되지 않은 경우 (`io`가 `undefined`) 경고 로그를 남기고 무시된다.
-
-     @param channelId - 브로드캐스트 대상 채널 ID
-     @param message - 전송할 메시지 객체
-     */
-	private async notifyClient(channelId: number, message: unknown): Promise<void> {
-		if (!this.io) {
-			this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${channelId})`);
-			return;
-		}
-
-		await this.channelMessageReadAccess.emitToReadableChannelUsers(this.io, channelId, {event: 'message', payload: message});
-	}
-
-	/**
      Socket.IO 서버 인스턴스를 주입한다.
 
      `ChatGateway`의 `afterInit` 훅에서 호출되어야 하며,
@@ -101,49 +87,22 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
      @param io - Socket.IO 서버 인스턴스
      */
 	setSocketServer(io: Server) {
-		this.io = io;
+		this.broadcaster.setSocketServer(io);
 	}
 
 	/**
      모듈 초기화 시 Kafka 컨슈머를 시작하고 `github.issue.result` 토픽 구독을 설정한다.
-
-     JSON 파싱 오류(`SyntaxError`)는 재처리 불가 메시지로 판단하여 무시한다.
-     그 외 오류는 예외로 전파하여 Kafka offset을 커밋하지 않고 재전달을 유도한다.
      */
 	async onModuleInit() {
-		const kafka = new Kafka({
+		this.consumer = await startSystemMessageConsumer<GithubIssueResultEvent>({
+			logger: this.logger,
+			configService: this.configService,
+			projectionReadiness: this.projectionReadiness,
 			clientId: 'cowork-chat-github-result',
-			...getKafkaClientConfig(this.configService),
+			groupId: 'cowork-chat-github-result',
+			topic: 'github.issue.result',
+			handle: async (event, source) => this.handleResultEvent(event, source),
 		});
-		this.consumer = kafka.consumer({groupId: 'cowork-chat-github-result'});
-		await connectWithRetry(this.logger, 'Kafka consumer startup: github.issue.result', async () => {
-			await this.consumer.connect();
-			await this.consumer.subscribe({topic: 'github.issue.result', fromBeginning: false});
-		});
-
-		void this.consumer
-			.run({
-				eachMessage: async ({topic, partition, message}) => {
-					if (!message.value) {
-						return;
-					}
-
-					try {
-						const event = JSON.parse(message.value.toString()) as GithubIssueResultEvent;
-						await this.handleResultEvent(event, {topic, partition, offset: message.offset});
-					} catch (error) {
-						this.logger.error('Failed to process issue result event', error);
-						if (!(error instanceof SyntaxError)) {
-							throw error;
-						}
-					}
-				},
-			})
-			.catch(async (error: unknown) => {
-				this.logger.error('github.issue.result Kafka consumer failed', error);
-				// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
-				throw error;
-			});
 		this.logger.log('Kafka consumer started: github.issue.result');
 	}
 

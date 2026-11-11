@@ -6,6 +6,7 @@ import {
 	IsBoolean as isBoolean,
 	Min as min,
 	Max as max,
+	MaxLength as maxLength,
 	MinLength as minLength,
 } from 'class-validator';
 import {ApiProperty as apiProperty, ApiPropertyOptional as apiPropertyOptional} from '@nestjs/swagger';
@@ -13,7 +14,7 @@ import {Transform as transform, Type as transformType} from 'class-transformer';
 
 export class SearchTeamMessagesDto {
 	@apiProperty({description: '검색 키워드 (최소 1자)', minLength: 1})
-	@isString() @minLength(1) q!: string;
+	@isString() @minLength(1) @maxLength(200) q!: string;
 
 	@apiProperty({description: '팀 ID'})
 	@isInt() @min(1) @max(Number.MAX_SAFE_INTEGER) @transformType(() => Number) teamId!: number;
@@ -30,9 +31,24 @@ export class SearchTeamMessagesDto {
 	@apiPropertyOptional({description: '첨부파일 포함 메시지만 조회'})
 	@isBoolean() @isOptional() @transform(({value}) => value === 'true' || value === true) hasFile?: boolean;
 
+	@apiPropertyOptional({description: 'true면 보관된 채널, false면 활성 채널만 검색. 생략하면 둘 다 검색'})
+	@isBoolean() @isOptional()
+	@transform(({value}) => parseBooleanQuery(value)) archived?: boolean;
+
 	@apiPropertyOptional({description: '커서: 이전 응답의 nextCursor 값'})
 	@isString() @isOptional() before?: string;
 
 	@apiPropertyOptional({description: '페이지 크기 (기본 50, 최대 100)', default: 50})
 	@isInt() @min(1) @max(100) @isOptional() @transformType(() => Number) limit?: number;
+}
+
+/**
+`true`와 `false` 문자열만 boolean으로 바꾸고, 그 밖의 값은 그대로 두어 `@isBoolean()`이 거부하게 한다.
+*/
+function parseBooleanQuery(value: unknown): unknown {
+	if (value === 'true') {
+		return true;
+	}
+
+	return value === 'false' ? false : value;
 }

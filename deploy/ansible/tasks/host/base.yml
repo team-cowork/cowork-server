@@ -74,7 +74,7 @@
   loop: "{{ platform_data_volumes.get(inventory_hostname, []) }}"
 - name: Create the storage task directories
   ansible.builtin.file:
-    path: "/var/lib/cowork/data/{{ inventory_hostname }}-storage/{{ item }}"
+    path: "/var/lib/cowork/data/{{ inventory_hostname }}-seaweedfs/{{ item }}"
     state: directory
     owner: '10001'
     group: '10001'

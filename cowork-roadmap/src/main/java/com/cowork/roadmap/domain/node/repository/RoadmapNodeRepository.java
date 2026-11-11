@@ -1,16 +1,47 @@
 package com.cowork.roadmap.domain.node.repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import com.cowork.roadmap.domain.node.entity.RoadmapNode;
+import com.cowork.roadmap.domain.node.repository.projection.NodeParentProjection;
+import com.cowork.roadmap.domain.node.repository.projection.NodePositionProjection;
+import com.cowork.roadmap.domain.node.repository.projection.NodeTreeProjection;
 
 public interface RoadmapNodeRepository extends JpaRepository<RoadmapNode, Long> {
 
-    List<RoadmapNode> findByRoadmapIdOrderByPositionAsc(Long roadmapId);
+    @Query("""
+            SELECT node.id AS id, node.position AS position FROM RoadmapNode node
+            WHERE node.roadmapId = :roadmapId
+              AND ((:parentId IS NULL AND node.parentId IS NULL) OR node.parentId = :parentId)
+            """)
+    List<NodePositionProjection> findSiblingPositions(Long roadmapId, Long parentId);
+
+    @Modifying
+    @Query("""
+            UPDATE RoadmapNode node SET node.position = :position,
+                node.lastModifiedBy = :userId, node.updatedAt = :updatedAt
+            WHERE node.roadmapId = :roadmapId AND node.id = :nodeId
+            """)
+    void updatePosition(Long roadmapId, Long nodeId, Integer position, Long userId, Instant updatedAt);
+
+    @Query("""
+            SELECT node.id AS id, node.parentId AS parentId, node.title AS title,
+                node.sourceUrl AS sourceUrl, node.sourceTitle AS sourceTitle, node.position AS position
+            FROM RoadmapNode node WHERE node.roadmapId = :roadmapId ORDER BY node.position, node.id
+            """)
+    List<NodeTreeProjection> findTreeByRoadmapId(Long roadmapId);
+
+    long countByRoadmapId(Long roadmapId);
+
+    /** 노드가 없거나 루트면 빈 값을 반환한다. */
+    @Query("SELECT node.parentId FROM RoadmapNode node WHERE node.id = :id")
+    Optional<Long> findParentIdById(Long id);
 
     // 잠금 전에 엔티티를 캐시에 올리지 않아 잠금 이후 조회가 최신 상태를 읽게 한다.
     @Query("SELECT node.roadmapId FROM RoadmapNode node WHERE node.id = :id")
@@ -29,6 +60,6 @@ public interface RoadmapNodeRepository extends JpaRepository<RoadmapNode, Long> 
     Optional<RoadmapNode> findByIdForShare(Long id);
 
     /** 잠금 읽기로 transaction snapshot 이후 커밋된 하위 노드까지 포함해 서브트리를 계산한다. */
-    @Query(value = "SELECT * FROM tb_roadmap_nodes WHERE roadmap_id = :roadmapId FOR UPDATE", nativeQuery = true)
-    List<RoadmapNode> findAllByRoadmapIdForUpdate(Long roadmapId);
+    @Query(value = "SELECT id, parent_id AS parentId FROM tb_roadmap_nodes WHERE roadmap_id = :roadmapId FOR UPDATE", nativeQuery = true)
+    List<NodeParentProjection> findParentsByRoadmapIdForUpdate(Long roadmapId);
 }

@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 import {
 	BadRequestException,
+	ConflictException,
 	UnauthorizedException,
 	ServiceUnavailableException,
 	ForbiddenException,
@@ -117,6 +118,17 @@ describe('WebhookService.execute', () => {
 		webhooks.findByExecutionId.mockResolvedValue(state);
 		channels.findById.mockResolvedValue({type: 'DM', teamId: null, projectId: null});
 		await expect(service.execute(executionId, {content: 'done'})).rejects.toBeInstanceOf(NotFoundException);
+		expect(messages.save).not.toHaveBeenCalled();
+	});
+
+	it('rejects an archived channel without creating a message', async () => {
+		// Given
+		channels.findById.mockResolvedValue({
+			channelId: 8, type: 'TEXT', teamId: 9, projectId: 10, archived: true,
+		});
+
+		// When / Then
+		await expect(service.execute(executionId, {content: 'done'})).rejects.toBeInstanceOf(ConflictException);
 		expect(messages.save).not.toHaveBeenCalled();
 	});
 

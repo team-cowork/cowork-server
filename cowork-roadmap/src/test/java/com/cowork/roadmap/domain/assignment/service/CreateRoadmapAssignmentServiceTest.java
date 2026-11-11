@@ -116,14 +116,14 @@ class CreateRoadmapAssignmentServiceTest {
         }
 
         @Nested
-        @DisplayName("PROJECT 할당에 projectId가 없으면")
-        class Context_with_project_scope_without_project_id {
+        @DisplayName("할당 범위가 PROJECT이면")
+        class Context_with_project_scope {
 
             @Test
-            @DisplayName("BAD_REQUEST 예외를 던진다")
+            @DisplayName("projectId와 관계없이 BAD_REQUEST 예외를 던진다")
             void it_fails_with_bad_request() {
                 // given
-                CreateAssignmentReqDto request = request(RoadmapScope.PROJECT, null, null);
+                CreateAssignmentReqDto request = request(RoadmapScope.PROJECT, PROJECT_ID, null);
 
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
@@ -312,14 +312,14 @@ class CreateRoadmapAssignmentServiceTest {
 
                 // when
                 AssignmentResDto response = createRoadmapAssignmentService
-                        .execute(REQUESTER_ID, "MEMBER", request(RoadmapScope.PROJECT, PROJECT_ID, NODE_ID));
+                        .execute(REQUESTER_ID, "MEMBER", request(RoadmapScope.TEAM, PROJECT_ID, NODE_ID));
 
                 // then
                 assertThat(response.roadmapId()).isEqualTo(ROADMAP_ID);
                 assertThat(response.nodeId()).isEqualTo(NODE_ID);
-                assertThat(response.scope()).isEqualTo(RoadmapScope.PROJECT.name());
+                assertThat(response.scope()).isEqualTo(RoadmapScope.TEAM.name());
                 assertThat(response.teamId()).isEqualTo(OWNER_TEAM_ID);
-                assertThat(response.projectId()).isEqualTo(PROJECT_ID);
+                assertThat(response.projectId()).isNull();
                 assertThat(response.assigneeUserId()).isEqualTo(ASSIGNEE_ID);
                 assertThat(response.assignedBy()).isEqualTo(REQUESTER_ID);
                 assertThat(response.status()).isEqualTo(AssignmentStatus.ASSIGNED.name());

@@ -4,10 +4,12 @@ import com.cowork.channel.domain.channel.presentation.data.request.CreateChannel
 import com.cowork.channel.domain.channel.presentation.data.request.UpdateChannelRequest
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelAccessUserResponse
 import com.cowork.channel.domain.channel.presentation.data.response.ChannelResponse
+import com.cowork.channel.domain.channel.service.ArchiveChannelService
 import com.cowork.channel.domain.channel.service.CreateChannelService
 import com.cowork.channel.domain.channel.service.DeleteChannelService
 import com.cowork.channel.domain.channel.service.QueryChannelMembersService
 import com.cowork.channel.domain.channel.service.QueryChannelService
+import com.cowork.channel.domain.channel.service.UnarchiveChannelService
 import com.cowork.channel.domain.channel.service.UpdateChannelService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -62,6 +64,8 @@ class ChannelController(
     private val queryChannelMembersService: QueryChannelMembersService,
     private val objectMapper: ObjectMapper,
     private val validator: Validator,
+    private val archiveChannelService: ArchiveChannelService,
+    private val unarchiveChannelService: UnarchiveChannelService,
 ) {
 
     @Operation(summary = "채널 생성", security = [SecurityRequirement(name = "BearerAuth")])
@@ -313,4 +317,154 @@ class ChannelController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
     ): List<ChannelAccessUserResponse> = queryChannelMembersService.execute(userId, channelId)
+
+    @Operation(
+        summary = "채널 보관",
+        description = "텍스트 채널을 읽기 전용으로 보관합니다. 프로젝트 채널은 해당 프로젝트의 채널 보관 권한, " +
+            "프로젝트가 없는 채널은 archive_channels 팀 권한이 필요합니다. 보관된 채널은 조회·검색·복원·삭제와 " +
+            "열람 대상 조정(채널 역할 권한, 공개 여부 변경)만 할 수 있습니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "보관 성공"),
+        ApiResponse(
+            responseCode = "400",
+            description = "DM 채널이거나 텍스트 채널이 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "채널 읽기 권한 또는 채널 보관 권한이 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "409",
+            description = "이미 보관된 채널",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"409 CONFLICT","code":409,"message":"현재 상태에서는 요청을 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+    )
+    @PostMapping("/{channelId}/archive")
+    fun archiveChannel(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable channelId: Long,
+    ): ChannelResponse = archiveChannelService.execute(userId, channelId)
+
+    @Operation(
+        summary = "채널 보관 해제",
+        description = "보관된 채널을 다시 활성 채널로 되돌립니다. 보관할 때와 같은 권한이 필요합니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "보관 해제 성공"),
+        ApiResponse(
+            responseCode = "400",
+            description = "DM 채널이거나 텍스트 채널이 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "채널 읽기 권한 또는 채널 보관 권한이 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "409",
+            description = "보관된 채널이 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"409 CONFLICT","code":409,"message":"현재 상태에서는 요청을 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+    )
+    @DeleteMapping("/{channelId}/archive")
+    fun unarchiveChannel(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable channelId: Long,
+    ): ChannelResponse = unarchiveChannelService.execute(userId, channelId)
 }
