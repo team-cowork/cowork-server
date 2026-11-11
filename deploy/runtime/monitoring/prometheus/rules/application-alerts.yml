@@ -286,6 +286,21 @@ groups:
           summary: "Gateway의 배포 상태 Redis 동기화 실패"
           description: "Gateway가 마지막으로 확인된 배포 상태를 유지하고 있습니다. Redis 연결을 복구하고 서비스별 상태가 다시 갱신되는지 확인해 주세요."
 
+      # CD가 중간에 종료되면 Redis의 deploying 항목이 TTL 없이 남아 Gateway가 해당 서비스에 503을 계속 돌려준다.
+      # coworkGatewayApiProbeFailed는 deploying을 제외하므로 여기서 감지한다. 45분은 CD 대기 상한의 합(약 42분)보다 길다.
+      - alert: coworkGatewayDeploymentStuck
+        expr: |
+          label_replace(
+            max by (target_service) (gateway_deployment_state{job="cowork-services",service="gateway"}) == 1,
+            "service", "$1", "target_service", "cowork-(.+)"
+          )
+        for: 45m
+        labels:
+          severity: critical
+        annotations:
+          summary: "서비스 배포 상태 장시간 유지"
+          description: "서비스 {{ $labels.service }}가 45분 넘게 deploying 상태입니다. Gateway가 이 서비스의 요청에 503을 반환합니다. CD 실행 상태를 확인하고, 실행이 종료되었다면 배포 상태를 복구해 주세요."
+
       - alert: coworkAuthorizationWebhookStreamBacklogOld
         expr: cowork_authorization_webhook_stream_oldest_seconds > 120
         for: 2m
