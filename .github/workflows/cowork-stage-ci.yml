@@ -5,6 +5,9 @@ on:
     types: [opened, reopened, synchronize, edited, assigned, unassigned]
     branches-ignore:
       - 'main'
+  schedule:
+    # Review queue at 10:00 and 18:00 KST. Minute 7 avoids the top-of-hour scheduling delay.
+    - cron: '7 1,9 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -102,15 +105,17 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const { syncPullRequestIssues } = require('./deploy/ci/pull_request/issues.cjs');
+            const { syncPullRequestIssues } = require('./deploy/ci/pull_request/issue/issues.cjs');
             await syncPullRequestIssues({ github, context, core });
 
   detect-changes:
     name: Select CI Targets${{ github.event_name == 'pull_request' && contains(fromJSON('["edited", "assigned", "unassigned"]'), github.event.action) && !github.event.changes.base && ' (metadata)' || '' }}
     if: >
+      github.event_name != 'schedule' && (
       github.event_name != 'pull_request' ||
       !contains(fromJSON('["edited", "assigned", "unassigned"]'), github.event.action) ||
       github.event.changes.base != null
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -422,3 +427,57 @@ jobs:
           script: |
             const publish = require('./deploy/ci/pull_request/comments/contribution.cjs');
             await publish({ github, context, core });
+
+  new-pr-notification:
+    name: Notify New PR
+    # Fork and Dependabot pull requests cannot read the webhook secret. The review queue covers them.
+    if: >
+      github.event_name == 'pull_request' && github.event.action == 'opened' &&
+      github.event.pull_request.base.ref == 'develop' && !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: deploy/ci
+      - name: Send New PR Notification
+        uses: actions/github-script@v9
+        env:
+          DISCORD_REVIEW_QUEUE_WEBHOOK_URL: ${{ secrets.DISCORD_REVIEW_QUEUE_WEBHOOK_URL }}
+          DISCORD_REVIEW_MENTION_ROLE_ID: ${{ vars.DISCORD_REVIEW_MENTION_ROLE_ID }}
+        with:
+          script: |
+            const { publishNewPullRequest } = require('./deploy/ci/pull_request/reminder/review_queue.cjs');
+            await publishNewPullRequest({ context, core });
+
+  review-queue:
+    name: Publish Review Queue
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      # Pull request code is only diffed. This job must never build or run it.
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Publish Review Queue
+        uses: actions/github-script@v9
+        env:
+          JEB_API_KEY: ${{ secrets.JEB_API_KEY }}
+          DISCORD_REVIEW_QUEUE_WEBHOOK_URL: ${{ secrets.DISCORD_REVIEW_QUEUE_WEBHOOK_URL }}
+          DISCORD_REVIEW_MENTION_ROLE_ID: ${{ vars.DISCORD_REVIEW_MENTION_ROLE_ID }}
+        with:
+          script: |
+            const { publishReviewQueue } = require('./deploy/ci/pull_request/reminder/review_queue.cjs');
+            await publishReviewQueue({ github, context, core });
