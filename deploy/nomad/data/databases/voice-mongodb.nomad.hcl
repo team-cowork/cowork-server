@@ -20,15 +20,15 @@ variable "config_files" {
   type = map(string)
 }
 
-job "cowork-user-db" {
+job "cowork-voice-mongodb" {
   datacenters = ["gsm"]
   namespace   = "default"
   type        = "service"
   constraint {
     attribute = "${meta.cowork_vm}"
-    value     = "user"
+    value     = "voice"
   }
-  group "database" {
+  group "mongodb" {
     count          = 1
     shutdown_delay = "5s"
     # A changed credential or initializer needs a fresh allocation to rerun poststart.
@@ -38,7 +38,7 @@ job "cowork-user-db" {
     network {
       mode = "cni/cowork"
       port "metrics" {
-        to           = 9104
+        to           = 9216
         host_network = "private"
       }
     }
@@ -58,25 +58,25 @@ job "cowork-user-db" {
     }
     volume "data" {
       type      = "host"
-      source    = "user-db"
+      source    = "voice-mongodb"
       read_only = false
     }
     service {
-      name         = "cowork-user-db"
+      name         = "cowork-voice-mongodb"
       provider     = "consul"
-      port         = "3306"
+      port         = "27017"
       address_mode = "alloc"
-      tags         = ["cowork", "database"]
+      tags         = ["cowork", "mongodb"]
       identity {
         aud = ["consul.io"]
         ttl = "1h"
       }
       check {
-        name     = "database"
+        name     = "mongodb"
         type     = "script"
-        task     = "database"
-        command  = "/bin/sh"
-        args     = ["-c", "mysqladmin --protocol=socket --socket=/alloc/tmp/mysql.sock ping --silent >/dev/null 2>&1"]
+        task     = "mongodb"
+        command  = "mongosh"
+        args     = ["--host", "127.0.0.1", "--quiet", "--norc", "--eval", "if(db.runCommand({ping:1}).ok!==1)quit(1)"]
         interval = "10s"
         timeout  = "5s"
       }
@@ -94,17 +94,17 @@ job "cowork-user-db" {
       }
     }
     service {
-      name         = "cowork-user-db-metrics"
+      name         = "cowork-voice-mongodb-metrics"
       provider     = "consul"
       port         = "metrics"
       address_mode = "host"
-      tags         = ["cowork", "metrics", "database"]
+      tags         = ["cowork", "metrics", "mongodb"]
       meta {
         metrics_address = "${attr.unique.network.ip-address}"
         metrics_port    = "${NOMAD_HOST_PORT_metrics}"
         metrics_path    = "/metrics"
-        metrics_service = "mysql"
-        module          = "user"
+        metrics_service = "mongodb"
+        module          = "voice"
       }
       identity {
         aud = ["consul.io"]
@@ -118,23 +118,27 @@ job "cowork-user-db" {
         timeout  = "5s"
       }
     }
-    task "database" {
+    task "mongodb" {
       driver       = "docker"
       kill_timeout = "60s"
       config {
-        image = "mysql:9.7.2@sha256:29abb0a179982e4a8928138bfc7f918af9eda64e7eeb1b1d084c1720a20159e6"
-        args  = ["--bind-address=127.0.0.1", "--socket=/alloc/tmp/mysql.sock", "--mysqlx=0", "--innodb-buffer-pool-size=134217728", "--max-connections=100", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+        image = "mongo:8.3.11@sha256:5d7043a4ffe02b9ed1b6e0bab057546981af5ca0a79107e9c461e49bc44c0a7b"
+        args  = ["mongod", "--auth", "--bind_ip", "127.0.0.1", "--wiredTigerCacheSizeGB", "0.25"]
+        mount {
+          type   = "tmpfs"
+          target = "/data/configdb"
+        }
       }
       env {
-        MYSQL_ROOT_HOST = "localhost"
+        MONGO_INITDB_ROOT_USERNAME = "cowork_admin"
       }
       resources {
         cpu    = 500
-        memory = 768
+        memory = 512
       }
       volume_mount {
         volume      = "data"
-        destination = "/var/lib/mysql"
+        destination = "/data/db"
         read_only   = false
       }
       identity {
@@ -143,16 +147,15 @@ job "cowork-user-db" {
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-user-db"
+        role         = "cowork-voice-mongodb"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/user?version=${var.secret_version}" }}
-MYSQL_DATABASE={{ .Data.data.DB_NAME | toJSON }}
-MYSQL_ROOT_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
+{{ with secret "${var.vault_mount}/data/nomad/data/voice?version=${var.secret_version}" }}
+MONGO_INITDB_ROOT_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
 {{ end }}
 ENV
         destination          = "secrets/runtime.env"
@@ -173,7 +176,7 @@ ENV
         sidecar = false
       }
       config {
-        image   = "mysql:9.7.2@sha256:29abb0a179982e4a8928138bfc7f918af9eda64e7eeb1b1d084c1720a20159e6"
+        image   = "mongo:8.3.11@sha256:5d7043a4ffe02b9ed1b6e0bab057546981af5ca0a79107e9c461e49bc44c0a7b"
         command = "/bin/bash"
         args    = ["${NOMAD_TASK_DIR}/initialize.sh"]
       }
@@ -183,7 +186,7 @@ ENV
       }
       resources {
         cpu    = 100
-        memory = 128
+        memory = 256
       }
       identity {
         name = "vault_default"
@@ -191,14 +194,14 @@ ENV
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-user-db"
+        role         = "cowork-voice-mongodb"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/user?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/voice?version=${var.secret_version}" }}
 DB_NAME={{ .Data.data.DB_NAME | toJSON }}
 DB_USERNAME={{ .Data.data.DB_USERNAME | toJSON }}
 DB_ADMIN_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
@@ -213,9 +216,15 @@ ENV
         error_on_missing_key = true
       }
       template {
-        data        = var.config_files["mysql-init.sh"]
+        data        = var.config_files["mongodb-init.sh"]
         destination = "local/initialize.sh"
         perms       = "0500"
+        change_mode = "restart"
+      }
+      template {
+        data        = var.config_files["mongodb-init.js"]
+        destination = "local/initialize.js"
+        perms       = "0400"
         change_mode = "restart"
       }
       logs {
@@ -225,9 +234,13 @@ ENV
     }
     task "exporter" {
       driver = "docker"
+      env {
+        MONGODB_URI  = "mongodb://127.0.0.1:27017/admin?authSource=admin"
+        MONGODB_USER = "cowork_monitoring"
+      }
       config {
-        image = "prom/mysqld-exporter:v0.20.0@sha256:abed8dac117b4ae5b70757f988e44795935b9a72c3b58d720c67ba688f8cb79e"
-        args  = ["--mysqld.address=127.0.0.1:3306", "--mysqld.username=cowork_monitoring"]
+        image = "percona/mongodb_exporter:0.54.0@sha256:934e9db87e85e0fa63654e73c3504845993a254e898783ca905e65a68848b5a4"
+        args  = ["--compatible-mode", "--collector.diagnosticdata"]
         ports = ["metrics"]
       }
       resources {
@@ -240,15 +253,15 @@ ENV
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-user-db"
+        role         = "cowork-voice-mongodb"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/user?version=${var.secret_version}" }}
-MYSQLD_EXPORTER_PASSWORD={{ .Data.data.DB_MONITORING_PASSWORD | toJSON }}
+{{ with secret "${var.vault_mount}/data/nomad/data/voice?version=${var.secret_version}" }}
+MONGODB_PASSWORD={{ .Data.data.DB_MONITORING_PASSWORD | toJSON }}
 {{ end }}
 ENV
         destination          = "secrets/runtime.env"

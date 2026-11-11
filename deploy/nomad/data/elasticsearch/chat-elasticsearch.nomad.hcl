@@ -27,7 +27,7 @@ variable "image" {
   }
 }
 
-job "cowork-chat-search" {
+job "cowork-chat-elasticsearch" {
   datacenters = ["gsm"]
   namespace   = "default"
   type        = "service"
@@ -35,7 +35,7 @@ job "cowork-chat-search" {
     attribute = "${meta.cowork_vm}"
     value     = "chat"
   }
-  group "search" {
+  group "elasticsearch" {
     count          = 1
     shutdown_delay = "5s"
     meta {
@@ -54,23 +54,23 @@ job "cowork-chat-search" {
     }
     volume "data" {
       type      = "host"
-      source    = "chat-search"
+      source    = "chat-elasticsearch"
       read_only = false
     }
     service {
-      name         = "cowork-chat-search"
+      name         = "cowork-chat-elasticsearch"
       provider     = "consul"
       port         = "9200"
       address_mode = "alloc"
-      tags         = ["cowork", "search"]
+      tags         = ["cowork", "elasticsearch"]
       identity {
         aud = ["consul.io"]
         ttl = "1h"
       }
       check {
-        name     = "authenticated-search"
+        name     = "authenticated-elasticsearch"
         type     = "script"
-        task     = "search"
+        task     = "elasticsearch"
         command  = "/bin/bash"
         args     = ["-c", "test \"$(curl -s -o /dev/null -w '%%{http_code}' http://127.0.0.1:9200/)\" = 401"]
         interval = "10s"
@@ -89,12 +89,12 @@ job "cowork-chat-search" {
         }
       }
     }
-    task "search" {
+    task "elasticsearch" {
       driver       = "docker"
       kill_timeout = "60s"
       config {
         image = var.image
-        args  = ["elasticsearch", "-Enetwork.host=127.0.0.1", "-Ediscovery.type=single-node", "-Ecluster.name=cowork-chat-search", "-Expack.security.enabled=true", "-Expack.security.autoconfiguration.enabled=false", "-Expack.security.http.ssl.enabled=false", "-Expack.security.transport.ssl.enabled=false"]
+        args  = ["elasticsearch", "-Enetwork.host=127.0.0.1", "-Ediscovery.type=single-node", "-Ecluster.name=cowork-chat-elasticsearch", "-Expack.security.enabled=true", "-Expack.security.autoconfiguration.enabled=false", "-Expack.security.http.ssl.enabled=false", "-Expack.security.transport.ssl.enabled=false"]
         ulimit {
           nofile = "65535:65535"
         }
@@ -118,14 +118,14 @@ job "cowork-chat-search" {
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-chat-search"
+        role         = "cowork-chat-elasticsearch"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/chat/search?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/chat/elasticsearch?version=${var.secret_version}" }}
 ELASTIC_PASSWORD={{ .Data.data.ELASTICSEARCH_ADMIN_PASSWORD | toJSON }}
 {{ end }}
 ENV
@@ -166,7 +166,7 @@ ENV
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-chat-search"
+        role         = "cowork-chat-elasticsearch"
         env          = false
         disable_file = true
         change_mode  = "noop"
@@ -189,7 +189,7 @@ ENV
       }
       template {
         data                 = <<-CONFIG
-{{ with secret "${var.vault_mount}/data/nomad/data/chat/search?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/chat/elasticsearch?version=${var.secret_version}" }}
 header = "Authorization: Basic {{ printf "elastic:%s" .Data.data.ELASTICSEARCH_ADMIN_PASSWORD | base64Encode }}"
 header = "Content-Type: application/json"
 {{ end }}
@@ -203,7 +203,7 @@ CONFIG
       }
       template {
         data                 = <<-CONFIG
-{{ with secret "${var.vault_mount}/data/nomad/data/chat/search?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/chat/elasticsearch?version=${var.secret_version}" }}
 header = "Authorization: Basic {{ printf "cowork_chat:%s" .Data.data.ELASTICSEARCH_PASSWORD | base64Encode }}"
 header = "Content-Type: application/json"
 {{ end }}
@@ -217,8 +217,8 @@ CONFIG
       }
       template {
         data                 = <<-JSON
-{{ with secret "${var.vault_mount}/data/nomad/data/chat/search?version=${var.secret_version}" }}
-{"password": {{ .Data.data.ELASTICSEARCH_PASSWORD | toJSON }}, "roles": ["cowork_chat_search"], "enabled": true}
+{{ with secret "${var.vault_mount}/data/nomad/data/chat/elasticsearch?version=${var.secret_version}" }}
+{"password": {{ .Data.data.ELASTICSEARCH_PASSWORD | toJSON }}, "roles": ["cowork_chat_elasticsearch"], "enabled": true}
 {{ end }}
 JSON
         destination          = "secrets/user.json"
