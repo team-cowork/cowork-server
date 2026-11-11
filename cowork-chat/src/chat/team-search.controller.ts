@@ -16,6 +16,7 @@ import {SearchTeamMessagesDto, SearchMessagesResponseDto} from './dto/index.js';
 @apiExtraModels(ApiResponseMetadataDto, SearchMessagesResponseDto)
 @apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
+@apiResponse({status: 429, description: '요청 한도 초과', type: ApiResponseMetadataDto})
 @controller('search')
 export class TeamSearchController {
 	constructor(private readonly chatService: ChatService) {}
@@ -41,7 +42,7 @@ export class TeamSearchController {
 	@apiQuery({name: 'limit', description: '페이지 크기 (기본 50, 최대 100)', required: false})
 	@apiResponse({
 		status: 200,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
