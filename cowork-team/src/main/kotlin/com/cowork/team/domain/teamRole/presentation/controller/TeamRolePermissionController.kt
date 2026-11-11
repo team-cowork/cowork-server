@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "팀 역할", description = "팀 커스텀 역할/권한/색상/우선순위/멘션 설정 API")
+@Tag(name = "팀 역할")
 @ApiResponses(
     ApiResponse(
         responseCode = "401",
