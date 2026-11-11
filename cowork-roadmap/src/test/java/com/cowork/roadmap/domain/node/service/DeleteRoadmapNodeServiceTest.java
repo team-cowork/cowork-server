@@ -58,7 +58,7 @@ class DeleteRoadmapNodeServiceTest {
     @Test
     void deleteNode_withoutAssignments_removesTargetAndAllDescendants() {
         prepareTree();
-        when(assignmentRepository.countByRoadmapIdAndNodeIdInForShare(anyLong(), any())).thenReturn(0L);
+        when(assignmentRepository.countByRoadmapIdAndNodeIdIn(anyLong(), any())).thenReturn(0L);
 
         deleteRoadmapNodeService.execute(1L, "ADMIN", 1L);
 
@@ -69,13 +69,13 @@ class DeleteRoadmapNodeServiceTest {
     }
 
     @Test
-    void deleteNode_computesSubtreeFromLockedReadAndCountsAssignmentsOnlyWithinSubtree() {
+    void deleteNode_computesSubtreeAfterRoadmapLockAndCountsAssignmentsOnlyWithinSubtree() {
         prepareTree();
         NodeParentProjection concurrentGrandChild = node(5L, 3L);
         List<NodeParentProjection> nodes = List
                 .of(node(1L, null), node(2L, 1L), node(3L, 2L), node(4L, null), concurrentGrandChild);
-        when(nodeRepository.findParentsByRoadmapIdForUpdate(10L)).thenReturn(nodes);
-        when(assignmentRepository.countByRoadmapIdAndNodeIdInForShare(anyLong(), any())).thenReturn(0L);
+        when(nodeRepository.findParentsByRoadmapId(10L)).thenReturn(nodes);
+        when(assignmentRepository.countByRoadmapIdAndNodeIdIn(anyLong(), any())).thenReturn(0L);
 
         deleteRoadmapNodeService.execute(1L, "ADMIN", 1L);
 
@@ -83,9 +83,10 @@ class DeleteRoadmapNodeServiceTest {
         ArgumentCaptor<Collection<Long>> countCaptor = ArgumentCaptor.forClass(Collection.class);
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Iterable<Long>> deleteCaptor = ArgumentCaptor.forClass(Iterable.class);
-        InOrder inOrder = inOrder(nodeRepository, assignmentRepository);
-        inOrder.verify(nodeRepository).findParentsByRoadmapIdForUpdate(10L);
-        inOrder.verify(assignmentRepository).countByRoadmapIdAndNodeIdInForShare(eq(10L), countCaptor.capture());
+        InOrder inOrder = inOrder(roadmapRepository, nodeRepository, assignmentRepository);
+        inOrder.verify(roadmapRepository).findByIdForUpdate(10L);
+        inOrder.verify(nodeRepository).findParentsByRoadmapId(10L);
+        inOrder.verify(assignmentRepository).countByRoadmapIdAndNodeIdIn(eq(10L), countCaptor.capture());
         inOrder.verify(nodeRepository).deleteAllByIdInBatch(deleteCaptor.capture());
         assertThat(countCaptor.getValue()).containsExactlyInAnyOrder(1L, 2L, 3L, 5L);
         assertThat(toSet(deleteCaptor.getValue())).containsExactlyInAnyOrder(1L, 2L, 3L, 5L);
@@ -95,7 +96,7 @@ class DeleteRoadmapNodeServiceTest {
     @Test
     void deleteNode_withAssignmentInSubtree_failsWithConflictAndKeepsNodes() {
         prepareTree();
-        when(assignmentRepository.countByRoadmapIdAndNodeIdInForShare(anyLong(), any())).thenReturn(2L);
+        when(assignmentRepository.countByRoadmapIdAndNodeIdIn(anyLong(), any())).thenReturn(2L);
 
         ExpectedException error = assertThrows(ExpectedException.class,
                 () -> deleteRoadmapNodeService.execute(1L, "ADMIN", 1L));
@@ -113,8 +114,7 @@ class DeleteRoadmapNodeServiceTest {
         when(nodeRepository.findRoadmapIdById(1L)).thenReturn(Optional.of(10L));
         when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
 
-        when(nodeRepository.findParentsByRoadmapIdForUpdate(10L))
-                .thenReturn(List.of(root, child, grandChild, otherRoot));
+        when(nodeRepository.findParentsByRoadmapId(10L)).thenReturn(List.of(root, child, grandChild, otherRoot));
     }
 
     private static Set<Long> toSet(Iterable<Long> ids) {
