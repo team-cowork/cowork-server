@@ -112,7 +112,7 @@ job "cowork-applet" {
         sidecar_service {
           proxy {
             upstreams {
-              destination_name   = "cowork-applet-db"
+              destination_name   = "cowork-applet-surrealdb"
               local_bind_port    = 18000
               local_bind_address = "127.0.0.1"
             }

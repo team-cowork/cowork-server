@@ -112,7 +112,7 @@ job "cowork-channel" {
         sidecar_service {
           proxy {
             upstreams {
-              destination_name   = "cowork-channel-db"
+              destination_name   = "cowork-channel-mysql"
               local_bind_port    = 13306
               local_bind_address = "127.0.0.1"
             }
