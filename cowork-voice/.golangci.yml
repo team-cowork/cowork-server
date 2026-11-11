@@ -10,17 +10,18 @@ linters:
     - unused
     - misspell
   exclusions:
+    # swaggo's generated header does not match the strict Go convention.
     generated: lax
     rules:
-      - path: _test\.go
+      - path: _test\.go$
         linters:
           - errcheck
-      - path: docs/
-        linters:
-          - misspell
-          - staticcheck
 
 formatters:
   enable:
     - gofmt
     - goimports
+  settings:
+    goimports:
+      local-prefixes:
+        - github.com/cowork/cowork-voice

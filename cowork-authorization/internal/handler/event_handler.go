@@ -6,12 +6,13 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/gin-gonic/gin"
+	"github.com/tmp-it-play/datagsm-sdk-go/event"
+
 	_ "github.com/cowork/authorization/internal/apidoc" // Gateway response schemas for swag.
 	"github.com/cowork/authorization/internal/domain"
 	"github.com/cowork/authorization/internal/monitoring"
 	"github.com/cowork/authorization/internal/service"
-	"github.com/gin-gonic/gin"
-	"github.com/tmp-it-play/datagsm-sdk-go/event"
 )
 
 const maxWebhookBodyBytes = 1 << 20
