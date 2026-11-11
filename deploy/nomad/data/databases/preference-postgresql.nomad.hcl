@@ -16,26 +16,29 @@ variable "vault_mount" {
   type    = string
   default = "secret"
 }
+variable "config_files" {
+  type = map(string)
+}
 
-job "cowork-applet-db" {
+job "cowork-preference-postgresql" {
   datacenters = ["gsm"]
   namespace   = "default"
   type        = "service"
   constraint {
     attribute = "${meta.cowork_vm}"
-    value     = "applet"
+    value     = "preference"
   }
-  group "database" {
+  group "postgresql" {
     count          = 1
     shutdown_delay = "5s"
-    # A changed credential needs a fresh allocation to rerun poststart.
+    # A changed credential or initializer needs a fresh allocation to rerun poststart.
     meta {
-      initialization = sha256(jsonencode({ version = var.secret_version }))
+      initialization = sha256(jsonencode({ version = var.secret_version, scripts = var.config_files }))
     }
     network {
       mode = "cni/cowork"
       port "metrics" {
-        to           = -1
+        to           = 9187
         host_network = "private"
       }
     }
@@ -55,42 +58,30 @@ job "cowork-applet-db" {
     }
     volume "data" {
       type      = "host"
-      source    = "applet-db"
+      source    = "preference-postgresql"
       read_only = false
     }
     service {
-      name         = "cowork-applet-db"
+      name         = "cowork-preference-postgresql"
       provider     = "consul"
-      port         = "8000"
+      port         = "5432"
       address_mode = "alloc"
-      tags         = ["cowork", "database"]
+      tags         = ["cowork", "postgresql"]
       identity {
         aud = ["consul.io"]
         ttl = "1h"
       }
       check {
-        name     = "database"
+        name     = "postgresql"
         type     = "script"
-        task     = "database"
-        command  = "/surreal"
-        args     = ["is-ready", "--endpoint", "http://127.0.0.1:8000"]
+        task     = "postgresql"
+        command  = "pg_isready"
+        args     = ["-h", "127.0.0.1", "-U", "postgres"]
         interval = "10s"
         timeout  = "5s"
       }
       connect {
-        sidecar_service {
-          proxy {
-            # The SurrealDB HTTP port also serves queries, so only this path leaves the allocation.
-            expose {
-              path {
-                path            = "/metrics"
-                protocol        = "http"
-                local_path_port = 8000
-                listener_port   = "metrics"
-              }
-            }
-          }
-        }
+        sidecar_service {}
         sidecar_task {
           config {
             image = var.envoy_image
@@ -103,48 +94,47 @@ job "cowork-applet-db" {
       }
     }
     service {
-      name         = "cowork-applet-db-metrics"
+      name         = "cowork-preference-postgresql-metrics"
       provider     = "consul"
       port         = "metrics"
       address_mode = "host"
-      tags         = ["cowork", "metrics", "database"]
+      tags         = ["cowork", "metrics", "postgresql"]
       meta {
         metrics_address = "${attr.unique.network.ip-address}"
         metrics_port    = "${NOMAD_HOST_PORT_metrics}"
         metrics_path    = "/metrics"
-        metrics_service = "surrealdb"
-        module          = "applet"
+        metrics_service = "postgres"
+        module          = "preference"
       }
       identity {
         aud = ["consul.io"]
         ttl = "1h"
       }
       check {
-        name     = "metrics"
+        name     = "exporter"
         type     = "http"
         path     = "/metrics"
         interval = "15s"
         timeout  = "5s"
       }
     }
-    task "database" {
+    task "postgresql" {
       driver       = "docker"
       kill_timeout = "60s"
       config {
-        image = "surrealdb/surrealdb:v4.0.0@sha256:c35893410644e65fa90aa1bef446ac9cb0a0c2733b9d405ce3eb56754b85c330"
-        # SurrealKV sizes its cache from host memory by default, which exceeds this task's limit on the 4 GB VM.
-        args = ["start", "--bind", "127.0.0.1:8000", "--log", "info", "surrealkv:///data/applet?sync=every&block_cache_capacity=134217728&max_memtable_size=67108864"]
+        image = "postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280"
+        args  = ["postgres", "-c", "listen_addresses=127.0.0.1", "-c", "shared_buffers=128MB", "-c", "max_connections=100"]
       }
       env {
-        SURREAL_MEMORY_THRESHOLD = "640mb"
+        POSTGRES_INITDB_ARGS = "--auth-host=scram-sha-256"
       }
       resources {
         cpu    = 500
-        memory = 768
+        memory = 512
       }
       volume_mount {
         volume      = "data"
-        destination = "/data"
+        destination = "/var/lib/postgresql"
         read_only   = false
       }
       identity {
@@ -153,16 +143,16 @@ job "cowork-applet-db" {
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-applet-db"
+        role         = "cowork-preference-postgresql"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/applet?version=${var.secret_version}" }}
-SURREAL_USER="cowork_admin"
-SURREAL_PASS={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
+{{ with secret "${var.vault_mount}/data/nomad/data/preference?version=${var.secret_version}" }}
+POSTGRES_DB={{ .Data.data.DB_NAME | toJSON }}
+POSTGRES_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
 {{ end }}
 ENV
         destination          = "secrets/runtime.env"
@@ -183,14 +173,12 @@ ENV
         sidecar = false
       }
       config {
-        image = "surrealdb/surrealdb:v4.0.0@sha256:c35893410644e65fa90aa1bef446ac9cb0a0c2733b9d405ce3eb56754b85c330"
-        args  = ["import", "--endpoint", "http://127.0.0.1:8000", "${NOMAD_SECRETS_DIR}/initialize.surql"]
+        image   = "postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280"
+        command = "/bin/bash"
+        args    = ["${NOMAD_TASK_DIR}/initialize.sh"]
       }
-      # The image has no shell for a wait loop, so Nomad retries until the database accepts connections.
       restart {
-        attempts = 20
-        interval = "5m"
-        delay    = "5s"
+        attempts = 0
         mode     = "fail"
       }
       resources {
@@ -203,18 +191,19 @@ ENV
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-applet-db"
+        role         = "cowork-preference-postgresql"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/applet?version=${var.secret_version}" }}
-SURREAL_USER="cowork_admin"
-SURREAL_PASS={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
-SURREAL_NAMESPACE="cowork"
-SURREAL_DATABASE={{ .Data.data.DB_NAME | toJSON }}
+{{ with secret "${var.vault_mount}/data/nomad/data/preference?version=${var.secret_version}" }}
+DB_NAME={{ .Data.data.DB_NAME | toJSON }}
+DB_USERNAME={{ .Data.data.DB_USERNAME | toJSON }}
+DB_ADMIN_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
+DB_PASSWORD={{ .Data.data.DB_PASSWORD | toJSON }}
+DB_MONITORING_PASSWORD={{ .Data.data.DB_MONITORING_PASSWORD | toJSON }}
 {{ end }}
 ENV
         destination          = "secrets/runtime.env"
@@ -224,26 +213,56 @@ ENV
         error_on_missing_key = true
       }
       template {
-        data                 = <<-SURQL
-{{ with secret "${var.vault_mount}/data/nomad/data/applet?version=${var.secret_version}" }}
-OPTION IMPORT;
-DEFINE NAMESPACE IF NOT EXISTS cowork;
-USE NS cowork;
-DEFINE DATABASE IF NOT EXISTS {{ .Data.data.DB_NAME }};
-USE DB {{ .Data.data.DB_NAME }};
-DEFINE USER OVERWRITE {{ .Data.data.DB_USERNAME }} ON DATABASE PASSWORD {{ .Data.data.DB_PASSWORD | toJSON }} ROLES EDITOR;
-{{ end }}
-SURQL
-        destination          = "secrets/initialize.surql"
-        perms                = "0400"
-        uid                  = 65532
-        gid                  = 65532
-        change_mode          = "restart"
-        error_on_missing_key = true
+        data        = var.config_files["postgres-init.sh"]
+        destination = "local/initialize.sh"
+        perms       = "0500"
+        change_mode = "restart"
       }
       logs {
         max_files     = 2
         max_file_size = 5
+      }
+    }
+    task "exporter" {
+      driver = "docker"
+      env {
+        DATA_SOURCE_USER = "cowork_monitoring"
+      }
+      config {
+        image = "prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e"
+        ports = ["metrics"]
+      }
+      resources {
+        cpu    = 100
+        memory = 128
+      }
+      identity {
+        name = "vault_default"
+        aud  = ["vault.io"]
+        ttl  = "1h"
+      }
+      vault {
+        role         = "cowork-preference-postgresql"
+        env          = false
+        disable_file = true
+        change_mode  = "noop"
+      }
+      template {
+        data                 = <<-ENV
+{{ with secret "${var.vault_mount}/data/nomad/data/preference?version=${var.secret_version}" }}
+DATA_SOURCE_URI={{ printf "127.0.0.1:5432/%s?sslmode=disable" .Data.data.DB_NAME | toJSON }}
+DATA_SOURCE_PASS={{ .Data.data.DB_MONITORING_PASSWORD | toJSON }}
+{{ end }}
+ENV
+        destination          = "secrets/runtime.env"
+        env                  = true
+        perms                = "0600"
+        change_mode          = "restart"
+        error_on_missing_key = true
+      }
+      logs {
+        max_files     = 3
+        max_file_size = 10
       }
     }
   }
