@@ -20,7 +20,7 @@ variable "config_files" {
   type = map(string)
 }
 
-job "cowork-team-db" {
+job "cowork-team-mysql" {
   datacenters = ["gsm"]
   namespace   = "default"
   type        = "service"
@@ -28,7 +28,7 @@ job "cowork-team-db" {
     attribute = "${meta.cowork_vm}"
     value     = "team"
   }
-  group "database" {
+  group "mysql" {
     count          = 1
     shutdown_delay = "5s"
     # A changed credential or initializer needs a fresh allocation to rerun poststart.
@@ -58,23 +58,23 @@ job "cowork-team-db" {
     }
     volume "data" {
       type      = "host"
-      source    = "team-db"
+      source    = "team-mysql"
       read_only = false
     }
     service {
-      name         = "cowork-team-db"
+      name         = "cowork-team-mysql"
       provider     = "consul"
       port         = "3306"
       address_mode = "alloc"
-      tags         = ["cowork", "database"]
+      tags         = ["cowork", "mysql"]
       identity {
         aud = ["consul.io"]
         ttl = "1h"
       }
       check {
-        name     = "database"
+        name     = "mysql"
         type     = "script"
-        task     = "database"
+        task     = "mysql"
         command  = "/bin/sh"
         args     = ["-c", "mysqladmin --protocol=socket --socket=/alloc/tmp/mysql.sock ping --silent >/dev/null 2>&1"]
         interval = "10s"
@@ -94,11 +94,11 @@ job "cowork-team-db" {
       }
     }
     service {
-      name         = "cowork-team-db-metrics"
+      name         = "cowork-team-mysql-metrics"
       provider     = "consul"
       port         = "metrics"
       address_mode = "host"
-      tags         = ["cowork", "metrics", "database"]
+      tags         = ["cowork", "metrics", "mysql"]
       meta {
         metrics_address = "${attr.unique.network.ip-address}"
         metrics_port    = "${NOMAD_HOST_PORT_metrics}"
@@ -118,7 +118,7 @@ job "cowork-team-db" {
         timeout  = "5s"
       }
     }
-    task "database" {
+    task "mysql" {
       driver       = "docker"
       kill_timeout = "60s"
       config {
@@ -143,7 +143,7 @@ job "cowork-team-db" {
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-team-db"
+        role         = "cowork-team-mysql"
         env          = false
         disable_file = true
         change_mode  = "noop"
@@ -191,7 +191,7 @@ ENV
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-team-db"
+        role         = "cowork-team-mysql"
         env          = false
         disable_file = true
         change_mode  = "noop"
@@ -240,7 +240,7 @@ ENV
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-team-db"
+        role         = "cowork-team-mysql"
         env          = false
         disable_file = true
         change_mode  = "noop"

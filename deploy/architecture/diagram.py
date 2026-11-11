@@ -48,6 +48,7 @@ def SurrealDB(label):
     return Custom(label, SURREALDB_ICON)
 
 
+DATABASE_STACKS = {MySQL: "mysql", PostgreSQL: "postgresql", MongoDB: "mongodb", SurrealDB: "surrealdb"}
 SERVICES = [
     ("authorization", MySQL, "10.0.0.140"),
     ("user", MySQL, "10.0.0.185"),
@@ -112,12 +113,13 @@ def platform(extend=None):
                             apps[name] = app
                             tops.append(app)
                             continue
-                        database = engine("notification.db\n영속 파일" if name == "notification" else f"{name}-db")
+                        database = engine("notification.db\n영속 파일" if name == "notification"
+                                          else f"{name}-{DATABASE_STACKS[engine]}")
                         app >> edge(DATA) >> database
                         if name in WITH_STORAGE:
-                            app >> edge(DATA) >> Custom(f"{name}-storage", SEAWEEDFS_ICON)
+                            app >> edge(DATA) >> Custom(f"{name}-seaweedfs", SEAWEEDFS_ICON)
                         if name == "chat":
-                            app >> edge(DATA) >> Elasticsearch("chat-search")
+                            app >> edge(DATA) >> Elasticsearch("chat-elasticsearch")
                         apps[name] = app
                         tops.append(app)
                         bottoms.append(database)
