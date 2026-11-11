@@ -201,6 +201,27 @@ class ModifyRoadmapNodeServiceTest {
             }
         }
 
+        @Nested
+        @DisplayName("본문에 위험한 스킴의 링크가 있으면")
+        class Context_with_blocked_scheme_link_in_content {
+
+            @Test
+            @DisplayName("BAD_REQUEST 예외를 던지고 저장하지 않는다")
+            void it_fails_with_bad_request_before_save() {
+                // given
+                givenModifiableNode(node());
+                UpdateNodeReqDto request = new UpdateNodeReqDto(null, "[x](javascript:alert(1))", null, null);
+
+                // when
+                ExpectedException error = assertThrows(ExpectedException.class,
+                        () -> modifyRoadmapNodeService.execute(USER_ID, USER_ROLE, NODE_ID, request));
+
+                // then
+                assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+                then(nodeRepository).should(never()).saveAndFlush(any());
+            }
+        }
+
     }
 
     private void givenModifiableNode(RoadmapNode node) {

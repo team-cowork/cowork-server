@@ -11,6 +11,7 @@ import com.cowork.roadmap.domain.node.presentation.data.request.CreateNodeReqDto
 import com.cowork.roadmap.domain.node.presentation.data.response.NodeResDto;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
 import com.cowork.roadmap.domain.node.service.CreateRoadmapNodeService;
+import com.cowork.roadmap.domain.node.service.support.NodeContentLinkPolicy;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
@@ -30,6 +31,7 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
     public NodeResDto execute(Long userId, String userRole, Long roadmapId, CreateNodeReqDto request) {
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
         accessGuard.requireMutable(roadmap, userId, userRole);
+        NodeContentLinkPolicy.validate(request.content());
         validateNodeCount(roadmapId);
         validateParent(roadmapId, request.parentId());
         int position = nextPosition(roadmapId, request.parentId());

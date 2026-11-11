@@ -10,6 +10,7 @@ import com.cowork.roadmap.domain.node.presentation.data.request.UpdateNodeReqDto
 import com.cowork.roadmap.domain.node.presentation.data.response.NodeResDto;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
 import com.cowork.roadmap.domain.node.service.ModifyRoadmapNodeService;
+import com.cowork.roadmap.domain.node.service.support.NodeContentLinkPolicy;
 import com.cowork.roadmap.domain.node.service.support.RoadmapNodeLookupSupport;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
@@ -39,6 +40,7 @@ public class ModifyRoadmapNodeServiceImpl implements ModifyRoadmapNodeService {
         if (request.title() != null && request.title().isBlank()) {
             throw new ExpectedException("노드 제목은 공백일 수 없습니다.", HttpStatus.BAD_REQUEST);
         }
+        NodeContentLinkPolicy.validate(request.content());
         RoadmapNode node = nodeLookupSupport.findNodeOrThrow(nodeId);
         RoadmapNode updated = node.toBuilder()
                 .title(request.title() != null ? request.title() : node.getTitle())

@@ -132,6 +132,18 @@ class CreateRoadmapNodeServiceTest {
         verify(nodeRepository, never()).saveAndFlush(any());
     }
 
+    @Test
+    void createNode_contentWithBlockedSchemeLink_failsWithBadRequestAndDoesNotSave() {
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
+
+        CreateNodeReqDto request = new CreateNodeReqDto(null, "제목", "[x](javascript:alert(1))", null, null);
+
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> createRoadmapNodeService.execute(7L, "ADMIN", 10L, request));
+        assertTrue(error.getStatusCode() == HttpStatus.BAD_REQUEST);
+        verify(nodeRepository, never()).saveAndFlush(any());
+    }
+
     private static Roadmap roadmap(Long id) {
         return Roadmap.builder().id(id).scope(RoadmapScope.GLOBAL.name()).build();
     }
