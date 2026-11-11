@@ -16,29 +16,26 @@ variable "vault_mount" {
   type    = string
   default = "secret"
 }
-variable "config_files" {
-  type = map(string)
-}
 
-job "cowork-roadmap-db" {
+job "cowork-applet-surrealdb" {
   datacenters = ["gsm"]
   namespace   = "default"
   type        = "service"
   constraint {
     attribute = "${meta.cowork_vm}"
-    value     = "roadmap"
+    value     = "applet"
   }
-  group "database" {
+  group "surrealdb" {
     count          = 1
     shutdown_delay = "5s"
-    # A changed credential or initializer needs a fresh allocation to rerun poststart.
+    # A changed credential needs a fresh allocation to rerun poststart.
     meta {
-      initialization = sha256(jsonencode({ version = var.secret_version, scripts = var.config_files }))
+      initialization = sha256(jsonencode({ version = var.secret_version }))
     }
     network {
       mode = "cni/cowork"
       port "metrics" {
-        to           = 9104
+        to           = -1
         host_network = "private"
       }
     }
@@ -58,30 +55,42 @@ job "cowork-roadmap-db" {
     }
     volume "data" {
       type      = "host"
-      source    = "roadmap-db"
+      source    = "applet-surrealdb"
       read_only = false
     }
     service {
-      name         = "cowork-roadmap-db"
+      name         = "cowork-applet-surrealdb"
       provider     = "consul"
-      port         = "3306"
+      port         = "8000"
       address_mode = "alloc"
-      tags         = ["cowork", "database"]
+      tags         = ["cowork", "surrealdb"]
       identity {
         aud = ["consul.io"]
         ttl = "1h"
       }
       check {
-        name     = "database"
+        name     = "surrealdb"
         type     = "script"
-        task     = "database"
-        command  = "/bin/sh"
-        args     = ["-c", "mysqladmin --protocol=socket --socket=/alloc/tmp/mysql.sock ping --silent >/dev/null 2>&1"]
+        task     = "surrealdb"
+        command  = "/surreal"
+        args     = ["is-ready", "--endpoint", "http://127.0.0.1:8000"]
         interval = "10s"
         timeout  = "5s"
       }
       connect {
-        sidecar_service {}
+        sidecar_service {
+          proxy {
+            # The SurrealDB HTTP port also serves queries, so only this path leaves the allocation.
+            expose {
+              path {
+                path            = "/metrics"
+                protocol        = "http"
+                local_path_port = 8000
+                listener_port   = "metrics"
+              }
+            }
+          }
+        }
         sidecar_task {
           config {
             image = var.envoy_image
@@ -94,39 +103,40 @@ job "cowork-roadmap-db" {
       }
     }
     service {
-      name         = "cowork-roadmap-db-metrics"
+      name         = "cowork-applet-surrealdb-metrics"
       provider     = "consul"
       port         = "metrics"
       address_mode = "host"
-      tags         = ["cowork", "metrics", "database"]
+      tags         = ["cowork", "metrics", "surrealdb"]
       meta {
         metrics_address = "${attr.unique.network.ip-address}"
         metrics_port    = "${NOMAD_HOST_PORT_metrics}"
         metrics_path    = "/metrics"
-        metrics_service = "mysql"
-        module          = "roadmap"
+        metrics_service = "surrealdb"
+        module          = "applet"
       }
       identity {
         aud = ["consul.io"]
         ttl = "1h"
       }
       check {
-        name     = "exporter"
+        name     = "metrics"
         type     = "http"
         path     = "/metrics"
         interval = "15s"
         timeout  = "5s"
       }
     }
-    task "database" {
+    task "surrealdb" {
       driver       = "docker"
       kill_timeout = "60s"
       config {
-        image = "mysql:9.7.2@sha256:29abb0a179982e4a8928138bfc7f918af9eda64e7eeb1b1d084c1720a20159e6"
-        args  = ["--bind-address=127.0.0.1", "--socket=/alloc/tmp/mysql.sock", "--mysqlx=0", "--innodb-buffer-pool-size=134217728", "--max-connections=100", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+        image = "surrealdb/surrealdb:v4.0.0@sha256:c35893410644e65fa90aa1bef446ac9cb0a0c2733b9d405ce3eb56754b85c330"
+        # SurrealKV sizes its cache from host memory by default, which exceeds this task's limit on the 4 GB VM.
+        args = ["start", "--bind", "127.0.0.1:8000", "--log", "info", "surrealkv:///data/applet?sync=every&block_cache_capacity=134217728&max_memtable_size=67108864"]
       }
       env {
-        MYSQL_ROOT_HOST = "localhost"
+        SURREAL_MEMORY_THRESHOLD = "640mb"
       }
       resources {
         cpu    = 500
@@ -134,7 +144,7 @@ job "cowork-roadmap-db" {
       }
       volume_mount {
         volume      = "data"
-        destination = "/var/lib/mysql"
+        destination = "/data"
         read_only   = false
       }
       identity {
@@ -143,16 +153,16 @@ job "cowork-roadmap-db" {
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-roadmap-db"
+        role         = "cowork-applet-surrealdb"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/roadmap?version=${var.secret_version}" }}
-MYSQL_DATABASE={{ .Data.data.DB_NAME | toJSON }}
-MYSQL_ROOT_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
+{{ with secret "${var.vault_mount}/data/nomad/data/applet?version=${var.secret_version}" }}
+SURREAL_USER="cowork_admin"
+SURREAL_PASS={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
 {{ end }}
 ENV
         destination          = "secrets/runtime.env"
@@ -173,12 +183,14 @@ ENV
         sidecar = false
       }
       config {
-        image   = "mysql:9.7.2@sha256:29abb0a179982e4a8928138bfc7f918af9eda64e7eeb1b1d084c1720a20159e6"
-        command = "/bin/bash"
-        args    = ["${NOMAD_TASK_DIR}/initialize.sh"]
+        image = "surrealdb/surrealdb:v4.0.0@sha256:c35893410644e65fa90aa1bef446ac9cb0a0c2733b9d405ce3eb56754b85c330"
+        args  = ["import", "--endpoint", "http://127.0.0.1:8000", "${NOMAD_SECRETS_DIR}/initialize.surql"]
       }
+      # The image has no shell for a wait loop, so Nomad retries until the database accepts connections.
       restart {
-        attempts = 0
+        attempts = 20
+        interval = "5m"
+        delay    = "5s"
         mode     = "fail"
       }
       resources {
@@ -191,19 +203,18 @@ ENV
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-roadmap-db"
+        role         = "cowork-applet-surrealdb"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/roadmap?version=${var.secret_version}" }}
-DB_NAME={{ .Data.data.DB_NAME | toJSON }}
-DB_USERNAME={{ .Data.data.DB_USERNAME | toJSON }}
-DB_ADMIN_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
-DB_PASSWORD={{ .Data.data.DB_PASSWORD | toJSON }}
-DB_MONITORING_PASSWORD={{ .Data.data.DB_MONITORING_PASSWORD | toJSON }}
+{{ with secret "${var.vault_mount}/data/nomad/data/applet?version=${var.secret_version}" }}
+SURREAL_USER="cowork_admin"
+SURREAL_PASS={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
+SURREAL_NAMESPACE="cowork"
+SURREAL_DATABASE={{ .Data.data.DB_NAME | toJSON }}
 {{ end }}
 ENV
         destination          = "secrets/runtime.env"
@@ -213,53 +224,26 @@ ENV
         error_on_missing_key = true
       }
       template {
-        data        = var.config_files["mysql-init.sh"]
-        destination = "local/initialize.sh"
-        perms       = "0500"
-        change_mode = "restart"
+        data                 = <<-SURQL
+{{ with secret "${var.vault_mount}/data/nomad/data/applet?version=${var.secret_version}" }}
+OPTION IMPORT;
+DEFINE NAMESPACE IF NOT EXISTS cowork;
+USE NS cowork;
+DEFINE DATABASE IF NOT EXISTS {{ .Data.data.DB_NAME }};
+USE DB {{ .Data.data.DB_NAME }};
+DEFINE USER OVERWRITE {{ .Data.data.DB_USERNAME }} ON DATABASE PASSWORD {{ .Data.data.DB_PASSWORD | toJSON }} ROLES EDITOR;
+{{ end }}
+SURQL
+        destination          = "secrets/initialize.surql"
+        perms                = "0400"
+        uid                  = 65532
+        gid                  = 65532
+        change_mode          = "restart"
+        error_on_missing_key = true
       }
       logs {
         max_files     = 2
         max_file_size = 5
-      }
-    }
-    task "exporter" {
-      driver = "docker"
-      config {
-        image = "prom/mysqld-exporter:v0.20.0@sha256:abed8dac117b4ae5b70757f988e44795935b9a72c3b58d720c67ba688f8cb79e"
-        args  = ["--mysqld.address=127.0.0.1:3306", "--mysqld.username=cowork_monitoring"]
-        ports = ["metrics"]
-      }
-      resources {
-        cpu    = 100
-        memory = 128
-      }
-      identity {
-        name = "vault_default"
-        aud  = ["vault.io"]
-        ttl  = "1h"
-      }
-      vault {
-        role         = "cowork-roadmap-db"
-        env          = false
-        disable_file = true
-        change_mode  = "noop"
-      }
-      template {
-        data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/roadmap?version=${var.secret_version}" }}
-MYSQLD_EXPORTER_PASSWORD={{ .Data.data.DB_MONITORING_PASSWORD | toJSON }}
-{{ end }}
-ENV
-        destination          = "secrets/runtime.env"
-        env                  = true
-        perms                = "0600"
-        change_mode          = "restart"
-        error_on_missing_key = true
-      }
-      logs {
-        max_files     = 3
-        max_file_size = 10
       }
     }
   }

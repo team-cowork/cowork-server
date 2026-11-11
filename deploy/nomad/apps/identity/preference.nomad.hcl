@@ -112,7 +112,7 @@ job "cowork-preference" {
         sidecar_service {
           proxy {
             upstreams {
-              destination_name   = "cowork-preference-db"
+              destination_name   = "cowork-preference-postgresql"
               local_bind_port    = 15432
               local_bind_address = "127.0.0.1"
             }
