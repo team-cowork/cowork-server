@@ -6,10 +6,11 @@ RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/ubuntu.sources \
 
 WORKDIR /workspace/cowork-preference
 COPY --chmod=0755 cowork-preference/kotlin kotlin
-COPY cowork-preference/module.yaml module.yaml
+COPY cowork-preference/module.yaml cowork-preference/project.yaml ./
 RUN --mount=type=cache,id=cowork-preference-toolchain,target=/root/.cache,sharing=locked \
     ./kotlin --version
 
+COPY cowork-preference/build-plugins build-plugins
 COPY cowork-preference/src src
 RUN --mount=type=cache,id=cowork-preference-toolchain,target=/root/.cache,sharing=locked \
     ./kotlin package
@@ -20,9 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 \
     && rm -rf /var/lib/apt/lists/*
 COPY .editorconfig /workspace/.editorconfig
 COPY deploy/ci/verification /ci
-COPY --chmod=0755 cowork-preference/ktlint ktlint
 RUN --mount=type=cache,id=cowork-preference-toolchain,target=/root/.cache,sharing=locked \
-    ./ktlint \
+    ./kotlin check ktlint \
     && bash /ci/run-jvm.sh kotlin-toolchain cowork-preference /workspace /coverage \
     && python3 /ci/report.py collect --module cowork-preference --snapshot pr --format jacoco --metric line --input /coverage/report.xml --output /coverage/coverage.json --exit-code 0
 
