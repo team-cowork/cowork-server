@@ -70,7 +70,7 @@ func NewDataGSMLogin(cfg *config.AppConfig, attempts LoginAttemptStore, httpClie
 		clientID: cfg.DataGSMClientID, attempts: attempts, now: time.Now}
 	for _, redirect := range cfg.DataGSMRedirectURIs {
 		client, err := oauth.NewClient(oauth.Config{ClientID: cfg.DataGSMClientID, AuthMethod: oauth.AuthNone,
-			ClockSkew:   idTokenClockSkew,
+			RequestFormat: oauth.RequestFormatJSON, ClockSkew: idTokenClockSkew,
 			RedirectURI: redirect, AuthorizationBaseURL: issuer, ResourceBaseURL: cfg.DataGSMResourceURL, HTTPClient: httpClient})
 		if err != nil {
 			s.Close()
