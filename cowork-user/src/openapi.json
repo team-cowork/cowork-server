@@ -328,7 +328,7 @@
     }
   },
   "components": {
-    "securitySchemes": {"BearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT", "description": "Cowork 액세스 토큰"}},
+    "securitySchemes": {"BearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT", "description": "cowork 액세스 토큰"}},
     "schemas": {
       "Success": {
         "type": "object",
