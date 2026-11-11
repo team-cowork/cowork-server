@@ -7,9 +7,9 @@ import com.cowork.project.domain.githubPreference.event.GithubRepoSettingCommand
 import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
+import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
-import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -26,7 +26,13 @@ class RemoveProjectGithubRepoServiceImplTest {
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true), mockk(relaxed = true))
+        ProjectAccessGuard(
+            projectRepository,
+            mockk<ProjectAccessProjectionRepository>(relaxed = true),
+            teamMembershipRepository,
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+        )
     private val repoEventPublisher = mockk<ProjectGithubRepoEventPublisher>(relaxed = true)
     private val settingCommandPublisher = mockk<GithubRepoSettingCommandPublisher>(relaxed = true)
 

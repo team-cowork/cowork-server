@@ -44,7 +44,9 @@ class GithubRepoSettingResultHandler(
                     )
                 }
             }
+
             "FAILED" -> requireNotNull(result.error).let { operation.fail(it.code, it.message) }
+
             else -> error("지원하지 않는 GitHub 저장소 설정 결과 상태입니다: ${result.status}")
         }
         operationRepository.save(operation)
