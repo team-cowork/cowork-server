@@ -29,7 +29,7 @@ info:
   contact: {}
   description: Firebase 설치를 계정에 연결하고 실시간 알림을 제공합니다.
   title: cowork Notification API
-  version: "20261109.0"
+  version: "20261111.1"
 paths:
   /notifications/installations:
     post:
