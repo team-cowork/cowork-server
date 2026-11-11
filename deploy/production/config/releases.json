@@ -84,8 +84,8 @@
     "authorization": 2,
     "channel": 2,
     "chat": 2,
-    "chat/search": 1,
-    "chat/storage": 2,
+    "chat/elasticsearch": 1,
+    "chat/seaweedfs": 1,
     "gateway": 1,
     "github": 1,
     "kafka": 2,
@@ -95,14 +95,14 @@
     "project": 2,
     "roadmap": 2,
     "team": 2,
-    "team/storage": 2,
+    "team/seaweedfs": 1,
     "user": 2,
-    "user/storage": 2,
+    "user/seaweedfs": 1,
     "voice": 2,
     "voice/livekit": 1
   },
   "infrastructure_images": {
-    "chat-search": "ghcr.io/team-cowork/cowork-chat-search@sha256:9001f70560ce249c20ceec1952aa608e3bc03b425b53b12d261fe88bc7a45d6e",
+    "chat-elasticsearch": "ghcr.io/team-cowork/cowork-chat-search@sha256:9001f70560ce249c20ceec1952aa608e3bc03b425b53b12d261fe88bc7a45d6e",
     "kafka-init": "ghcr.io/team-cowork/cowork-kafka-init@sha256:8ff4bb079fb24a92e5d594ea4ad768897dc999aef0027b4c254b45edaff38872"
   },
   "platform_secret_versions": {
