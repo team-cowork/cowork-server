@@ -1,4 +1,4 @@
-name: Build A Cowork Image
+name: Build A cowork Image
 description: Build an image and inspect its runtime contract without starting the application
 inputs:
   service:

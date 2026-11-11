@@ -1,4 +1,4 @@
-name: Cowork Stage CI Workflow
+name: cowork Stage CI Workflow
 
 on:
   pull_request:
