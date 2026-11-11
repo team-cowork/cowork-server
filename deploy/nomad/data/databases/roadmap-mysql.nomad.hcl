@@ -20,15 +20,15 @@ variable "config_files" {
   type = map(string)
 }
 
-job "cowork-preference-db" {
+job "cowork-roadmap-mysql" {
   datacenters = ["gsm"]
   namespace   = "default"
   type        = "service"
   constraint {
     attribute = "${meta.cowork_vm}"
-    value     = "preference"
+    value     = "roadmap"
   }
-  group "database" {
+  group "mysql" {
     count          = 1
     shutdown_delay = "5s"
     # A changed credential or initializer needs a fresh allocation to rerun poststart.
@@ -38,7 +38,7 @@ job "cowork-preference-db" {
     network {
       mode = "cni/cowork"
       port "metrics" {
-        to           = 9187
+        to           = 9104
         host_network = "private"
       }
     }
@@ -58,25 +58,25 @@ job "cowork-preference-db" {
     }
     volume "data" {
       type      = "host"
-      source    = "preference-db"
+      source    = "roadmap-mysql"
       read_only = false
     }
     service {
-      name         = "cowork-preference-db"
+      name         = "cowork-roadmap-mysql"
       provider     = "consul"
-      port         = "5432"
+      port         = "3306"
       address_mode = "alloc"
-      tags         = ["cowork", "database"]
+      tags         = ["cowork", "mysql"]
       identity {
         aud = ["consul.io"]
         ttl = "1h"
       }
       check {
-        name     = "database"
+        name     = "mysql"
         type     = "script"
-        task     = "database"
-        command  = "pg_isready"
-        args     = ["-h", "127.0.0.1", "-U", "postgres"]
+        task     = "mysql"
+        command  = "/bin/sh"
+        args     = ["-c", "mysqladmin --protocol=socket --socket=/alloc/tmp/mysql.sock ping --silent >/dev/null 2>&1"]
         interval = "10s"
         timeout  = "5s"
       }
@@ -94,17 +94,17 @@ job "cowork-preference-db" {
       }
     }
     service {
-      name         = "cowork-preference-db-metrics"
+      name         = "cowork-roadmap-mysql-metrics"
       provider     = "consul"
       port         = "metrics"
       address_mode = "host"
-      tags         = ["cowork", "metrics", "database"]
+      tags         = ["cowork", "metrics", "mysql"]
       meta {
         metrics_address = "${attr.unique.network.ip-address}"
         metrics_port    = "${NOMAD_HOST_PORT_metrics}"
         metrics_path    = "/metrics"
-        metrics_service = "postgres"
-        module          = "preference"
+        metrics_service = "mysql"
+        module          = "roadmap"
       }
       identity {
         aud = ["consul.io"]
@@ -118,23 +118,23 @@ job "cowork-preference-db" {
         timeout  = "5s"
       }
     }
-    task "database" {
+    task "mysql" {
       driver       = "docker"
       kill_timeout = "60s"
       config {
-        image = "postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280"
-        args  = ["postgres", "-c", "listen_addresses=127.0.0.1", "-c", "shared_buffers=128MB", "-c", "max_connections=100"]
+        image = "mysql:9.7.2@sha256:29abb0a179982e4a8928138bfc7f918af9eda64e7eeb1b1d084c1720a20159e6"
+        args  = ["--bind-address=127.0.0.1", "--socket=/alloc/tmp/mysql.sock", "--mysqlx=0", "--innodb-buffer-pool-size=134217728", "--max-connections=100", "--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
       }
       env {
-        POSTGRES_INITDB_ARGS = "--auth-host=scram-sha-256"
+        MYSQL_ROOT_HOST = "localhost"
       }
       resources {
         cpu    = 500
-        memory = 512
+        memory = 768
       }
       volume_mount {
         volume      = "data"
-        destination = "/var/lib/postgresql"
+        destination = "/var/lib/mysql"
         read_only   = false
       }
       identity {
@@ -143,16 +143,16 @@ job "cowork-preference-db" {
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-preference-db"
+        role         = "cowork-roadmap-mysql"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/preference?version=${var.secret_version}" }}
-POSTGRES_DB={{ .Data.data.DB_NAME | toJSON }}
-POSTGRES_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
+{{ with secret "${var.vault_mount}/data/nomad/data/roadmap?version=${var.secret_version}" }}
+MYSQL_DATABASE={{ .Data.data.DB_NAME | toJSON }}
+MYSQL_ROOT_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
 {{ end }}
 ENV
         destination          = "secrets/runtime.env"
@@ -173,7 +173,7 @@ ENV
         sidecar = false
       }
       config {
-        image   = "postgres:18.6@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280"
+        image   = "mysql:9.7.2@sha256:29abb0a179982e4a8928138bfc7f918af9eda64e7eeb1b1d084c1720a20159e6"
         command = "/bin/bash"
         args    = ["${NOMAD_TASK_DIR}/initialize.sh"]
       }
@@ -191,14 +191,14 @@ ENV
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-preference-db"
+        role         = "cowork-roadmap-mysql"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/preference?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/roadmap?version=${var.secret_version}" }}
 DB_NAME={{ .Data.data.DB_NAME | toJSON }}
 DB_USERNAME={{ .Data.data.DB_USERNAME | toJSON }}
 DB_ADMIN_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
@@ -213,7 +213,7 @@ ENV
         error_on_missing_key = true
       }
       template {
-        data        = var.config_files["postgres-init.sh"]
+        data        = var.config_files["mysql-init.sh"]
         destination = "local/initialize.sh"
         perms       = "0500"
         change_mode = "restart"
@@ -225,11 +225,9 @@ ENV
     }
     task "exporter" {
       driver = "docker"
-      env {
-        DATA_SOURCE_USER = "cowork_monitoring"
-      }
       config {
-        image = "prometheuscommunity/postgres-exporter:v0.20.1@sha256:ac5ec343104fae0e2d84a27bb8d69b38430a11910c5382cad85d478d2bab713e"
+        image = "prom/mysqld-exporter:v0.20.0@sha256:abed8dac117b4ae5b70757f988e44795935b9a72c3b58d720c67ba688f8cb79e"
+        args  = ["--mysqld.address=127.0.0.1:3306", "--mysqld.username=cowork_monitoring"]
         ports = ["metrics"]
       }
       resources {
@@ -242,16 +240,15 @@ ENV
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-preference-db"
+        role         = "cowork-roadmap-mysql"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/preference?version=${var.secret_version}" }}
-DATA_SOURCE_URI={{ printf "127.0.0.1:5432/%s?sslmode=disable" .Data.data.DB_NAME | toJSON }}
-DATA_SOURCE_PASS={{ .Data.data.DB_MONITORING_PASSWORD | toJSON }}
+{{ with secret "${var.vault_mount}/data/nomad/data/roadmap?version=${var.secret_version}" }}
+MYSQLD_EXPORTER_PASSWORD={{ .Data.data.DB_MONITORING_PASSWORD | toJSON }}
 {{ end }}
 ENV
         destination          = "secrets/runtime.env"

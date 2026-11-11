@@ -102,7 +102,7 @@
     ],
     "kafka_principal": "cowork-user",
     "data_secret_groups": {
-      "storage": [
+      "seaweedfs": [
         "S3_ADMIN_ACCESS_KEY",
         "S3_ADMIN_SECRET_KEY",
         "S3_ACCESS_KEY",
@@ -150,7 +150,7 @@
     ],
     "kafka_principal": "cowork-team",
     "data_secret_groups": {
-      "storage": [
+      "seaweedfs": [
         "S3_ADMIN_ACCESS_KEY",
         "S3_ADMIN_SECRET_KEY",
         "S3_ACCESS_KEY",
@@ -257,7 +257,7 @@
     ],
     "kafka_principal": "cowork-chat",
     "data_secret_groups": {
-      "storage": [
+      "seaweedfs": [
         "S3_ADMIN_ACCESS_KEY",
         "S3_ADMIN_SECRET_KEY",
         "S3_ACCESS_KEY",
@@ -266,7 +266,7 @@
         "S3_BUCKET",
         "S3_REGION"
       ],
-      "search": [
+      "elasticsearch": [
         "ELASTICSEARCH_ADMIN_PASSWORD",
         "ELASTICSEARCH_PASSWORD"
       ]
