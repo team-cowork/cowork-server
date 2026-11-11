@@ -144,7 +144,7 @@ func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  apidoc.Success[StatusResponse]  "방송 상태와 시청자 수"
 // @Failure      400  {object}  apidoc.Error  "채널 ID 형식 오류"
 // @Failure      401  {object}  apidoc.Error  "인증 필요"
-// @Failure      403  {object}  apidoc.Error
+// @Failure      403  {object}  apidoc.Error  "음성 채널 접근 권한 없음"
 // @Failure      500  {object}  apidoc.Error  "서버 오류"
 // @Failure      503  {object}  apidoc.Error  "채널 권한 동기화 중"
 // @Router       /live/channels/{channel_id} [get]
