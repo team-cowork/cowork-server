@@ -16,7 +16,7 @@ if [[ "$ready" != true ]]; then
 fi
 if ! curl --config "$NOMAD_SECRETS_DIR/admin.curl" --silent --fail --max-time 30 --output /dev/null \
     --request PUT --data-binary "@$NOMAD_TASK_DIR/role.json" \
-    http://127.0.0.1:9200/_security/role/cowork_chat_search; then
+    http://127.0.0.1:9200/_security/role/cowork_chat_elasticsearch; then
   echo 'Search role initialization failed' >&2
   exit 1
 fi
