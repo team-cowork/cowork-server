@@ -57,7 +57,7 @@ def documentation_path(path):
     parts = Path(path).parts
     return (path.startswith(("docs/", ".agents/", ".claude/", ".codex/"))
             or "docs" in parts[:-1]
-            or Path(path).name in {"README.md", "AGENTS.md", "CONTRIBUTING.md", "PR_BODY.md"})
+            or Path(path).name in {"README.md", "README.adoc", "AGENTS.md", "CONTRIBUTING.md", "PR_BODY.md"})
 
 
 def affected(service, paths, *, verify=False):
