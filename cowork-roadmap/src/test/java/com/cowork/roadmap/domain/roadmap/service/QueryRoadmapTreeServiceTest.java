@@ -1,7 +1,6 @@
 package com.cowork.roadmap.domain.roadmap.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -11,7 +10,6 @@ import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.http.HttpStatus;
 
 import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.entity.RoadmapNodeReference;
@@ -23,8 +21,6 @@ import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
 import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.impl.QueryRoadmapTreeServiceImpl;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
-
-import team.themoment.sdk.exception.ExpectedException;
 
 class QueryRoadmapTreeServiceTest {
 
@@ -70,22 +66,23 @@ class QueryRoadmapTreeServiceTest {
     void getRoadmapTree_returnsTreeAtMaxDepth() {
         stubChainOfDepth(RoadmapNode.MAX_TREE_DEPTH);
 
-        var tree = queryRoadmapTreeService.execute(1L, "ADMIN", 10L);
+        assertThat(returnedDepth()).isEqualTo(RoadmapNode.MAX_TREE_DEPTH);
+    }
 
+    @Test
+    void getRoadmapTree_omitsNodesDeeperThanMaxDepth() {
+        stubChainOfDepth(RoadmapNode.MAX_TREE_DEPTH + 1);
+
+        assertThat(returnedDepth()).isEqualTo(RoadmapNode.MAX_TREE_DEPTH);
+    }
+
+    private int returnedDepth() {
+        var tree = queryRoadmapTreeService.execute(1L, "ADMIN", 10L);
         int depth = 0;
         for (var level = tree.nodes(); !level.isEmpty(); level = level.getFirst().children()) {
             depth++;
         }
-        assertThat(depth).isEqualTo(RoadmapNode.MAX_TREE_DEPTH);
-    }
-
-    @Test
-    void getRoadmapTree_rejectsTreeDeeperThanMaxDepth() {
-        stubChainOfDepth(RoadmapNode.MAX_TREE_DEPTH + 1);
-
-        assertThatThrownBy(() -> queryRoadmapTreeService.execute(1L, "ADMIN", 10L)).isInstanceOfSatisfying(
-                ExpectedException.class,
-                e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.CONFLICT));
+        return depth;
     }
 
     /** 루트부터 한 줄로 이어진 depth단계 트리를 로드맵 10에 심는다. */
