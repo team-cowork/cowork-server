@@ -6,8 +6,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/cowork/authorization/internal/service"
 	"github.com/redis/go-redis/v9"
+
+	"github.com/cowork/authorization/internal/service"
 )
 
 type LoginAttemptStore struct{ client *redis.Client }

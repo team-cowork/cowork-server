@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cowork/authorization/internal/domain"
 	"gorm.io/gorm"
+
+	"github.com/cowork/authorization/internal/domain"
 )
 
 type UserIdentityOperationStore interface {
