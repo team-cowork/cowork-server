@@ -11,15 +11,22 @@ groups:
           summary: "외부 공개 게이트웨이 API 응답 이상"
           description: "외부 공개 HTTPS /api/health 경로나 상태 점검이 2분 동안 실패했습니다. DNS, TLS, 프록시 라우팅과 게이트웨이 응답을 확인해 주세요."
 
-      # 공개 API가 downstream JSON 응답을 돌려주는지 본다(blackbox.yml의 http_gateway_* 모듈).
+      # 게이트웨이 공개 헬스체크 경로가 downstream JSON 응답을 돌려주는지 본다(blackbox.yml의 http_gateway_downstream_get 모듈).
+      # 배포 중(deploying=1)에는 DeploymentGuidanceFilter가 해당 서비스 route에 503을 돌려주므로 제외한다. 롤백(recovering=2)은 알린다.
       - alert: coworkGatewayApiProbeFailed
-        expr: probe_success{job="gateway-api"} == 0
+        expr: |
+          probe_success{job="gateway-api"} == 0
+          unless on (service)
+          label_replace(
+            max by (target_service) (gateway_deployment_state{job="cowork-services",service="gateway"}) == 1,
+            "service", "$1", "target_service", "cowork-(.+)"
+          )
         for: 2m
         labels:
           severity: critical
         annotations:
-          summary: "게이트웨이 경유 업무 API 응답 이상"
-          description: "게이트웨이를 거친 {{ $labels.service }} 업무 API({{ $labels.instance }})의 무인증 요청이 2분 동안 예상 상태를 받지 못했습니다. 게이트웨이 라우트와 downstream 연결을 확인해 주세요."
+          summary: "게이트웨이 경유 서비스 헬스체크 응답 이상"
+          description: "게이트웨이를 거친 {{ $labels.service }} 헬스체크({{ $labels.instance }})가 2분 동안 200 JSON 응답을 받지 못했습니다. 게이트웨이 라우트와 downstream 연결을 확인해 주세요."
 
       - alert: coworkGatewayCorsPreflightFailed
         expr: probe_success{job="gateway-cors"} == 0
@@ -278,6 +285,21 @@ groups:
         annotations:
           summary: "Gateway의 배포 상태 Redis 동기화 실패"
           description: "Gateway가 마지막으로 확인된 배포 상태를 유지하고 있습니다. Redis 연결을 복구하고 서비스별 상태가 다시 갱신되는지 확인해 주세요."
+
+      # CD가 중간에 종료되면 Redis의 deploying 항목이 TTL 없이 남아 Gateway가 해당 서비스에 503을 계속 돌려준다.
+      # coworkGatewayApiProbeFailed는 deploying을 제외하므로 여기서 감지한다. 45분은 CD 대기 상한의 합(약 42분)보다 길다.
+      - alert: coworkGatewayDeploymentStuck
+        expr: |
+          label_replace(
+            max by (target_service) (gateway_deployment_state{job="cowork-services",service="gateway"}) == 1,
+            "service", "$1", "target_service", "cowork-(.+)"
+          )
+        for: 45m
+        labels:
+          severity: critical
+        annotations:
+          summary: "서비스 배포 상태 장시간 유지"
+          description: "서비스 {{ $labels.service }}가 45분 넘게 deploying 상태입니다. Gateway가 이 서비스의 요청에 503을 반환합니다. CD 실행 상태를 확인하고, 실행이 종료되었다면 배포 상태를 복구해 주세요."
 
       - alert: coworkAuthorizationWebhookStreamBacklogOld
         expr: cowork_authorization_webhook_stream_oldest_seconds > 120
