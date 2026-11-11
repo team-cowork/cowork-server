@@ -1,7 +1,7 @@
 package com.cowork.preference.service
 
-import com.cowork.preference.domain.ChannelRolePolicyState
 import com.cowork.preference.domain.ChannelLifecycleProjection
+import com.cowork.preference.domain.ChannelRolePolicyState
 import com.cowork.preference.messaging.ChannelLifecycleEvent
 import com.cowork.preference.messaging.PreferenceEvent
 import com.cowork.preference.messaging.PreferenceEvents
@@ -35,31 +35,30 @@ class ChannelLifecycleServiceTest {
     inner class Apply {
 
         @Test
-        fun `채널 삭제가 반영되면 해당 팀 채널의 모든 역할 정책을 tombstone으로 바꾸고 DELETE 상태를 적재한다`() =
-            runBlocking {
-                val events = slot<Iterable<PreferenceEvent>>()
-                coEvery { fixture.projectionRepository.apply(fixture.connection, deletedEvent) } returns true
+        fun `채널 삭제가 반영되면 해당 팀 채널의 모든 역할 정책을 tombstone으로 바꾸고 DELETE 상태를 적재한다`() = runBlocking {
+            val events = slot<Iterable<PreferenceEvent>>()
+            coEvery { fixture.projectionRepository.apply(fixture.connection, deletedEvent) } returns true
+            coEvery {
+                fixture.policyRepository.findPoliciesByChannel(fixture.connection, TEAM_ID, CHANNEL_ID)
+            } returns listOf(activePolicy(ROLE_ID), activePolicy(OTHER_ROLE_ID))
+            listOf(ROLE_ID, OTHER_ROLE_ID).forEach { roleId ->
                 coEvery {
-                    fixture.policyRepository.findPoliciesByChannel(fixture.connection, TEAM_ID, CHANNEL_ID)
-                } returns listOf(activePolicy(ROLE_ID), activePolicy(OTHER_ROLE_ID))
-                listOf(ROLE_ID, OTHER_ROLE_ID).forEach { roleId ->
-                    coEvery {
-                        fixture.policyRepository.deletePolicy(fixture.connection, TEAM_ID, CHANNEL_ID, roleId)
-                    } returns tombstone(roleId)
-                }
-                coEvery { fixture.outboxRepository.enqueueAll(fixture.connection, capture(events)) } returns Unit
-
-                fixture.service.apply(fixture.connection, deletedEvent)
-
-                val stateEvents = events.captured.toList()
-                assertEquals(2, stateEvents.size)
-                assertTrue(stateEvents.all { it.topic == PreferenceEvents.CHANNEL_ROLE_POLICY_STATE_TOPIC })
-                assertTrue(stateEvents.all { it.payload.getValue("permissions") == null })
-                assertEquals(
-                    setOf(ROLE_ID, OTHER_ROLE_ID),
-                    stateEvents.map { it.payload.getLong("roleId") }.toSet(),
-                )
+                    fixture.policyRepository.deletePolicy(fixture.connection, TEAM_ID, CHANNEL_ID, roleId)
+                } returns tombstone(roleId)
             }
+            coEvery { fixture.outboxRepository.enqueueAll(fixture.connection, capture(events)) } returns Unit
+
+            fixture.service.apply(fixture.connection, deletedEvent)
+
+            val stateEvents = events.captured.toList()
+            assertEquals(2, stateEvents.size)
+            assertTrue(stateEvents.all { it.topic == PreferenceEvents.CHANNEL_ROLE_POLICY_STATE_TOPIC })
+            assertTrue(stateEvents.all { it.payload.getValue("permissions") == null })
+            assertEquals(
+                setOf(ROLE_ID, OTHER_ROLE_ID),
+                stateEvents.map { it.payload.getLong("roleId") }.toSet(),
+            )
+        }
 
         @Test
         fun `이미 더 높은 version이 반영돼 무시된 event는 정책을 정리하지 않는다`() = runBlocking {
@@ -89,12 +88,18 @@ class ChannelLifecycleServiceTest {
         val outboxRepository = mockk<PreferenceOutboxRepository>(relaxed = true)
         val connection = mockk<SqlConnection>()
         val service = ChannelLifecycleService(
-            projectionRepository, policyRepository, outboxRepository, mockk(relaxed = true),
+            projectionRepository,
+            policyRepository,
+            outboxRepository,
+            mockk(relaxed = true),
         )
 
         init {
             coEvery { projectionRepository.findForUpdate(connection, CHANNEL_ID) } returns ChannelLifecycleProjection(
-                CHANNEL_ID, TEAM_ID, true, deletedEvent.occurredAt,
+                CHANNEL_ID,
+                TEAM_ID,
+                true,
+                deletedEvent.occurredAt,
             )
         }
     }

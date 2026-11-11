@@ -32,7 +32,7 @@ class UpdateMeetingNoteTemplateServiceImplTest {
     @Test
     fun `updateTemplate은 이름을 수정함`() {
         val tmpl = template(name = "old")
-        every { meetingNoteAccessGuard.requireChannelAccess(1L, 7L) } returns Unit
+        every { meetingNoteAccessGuard.requireWritableChannelAccess(1L, 7L) } returns Unit
         every { templateRepository.findById(10L) } returns Optional.of(tmpl)
         every { sectionRepository.findAllByTemplateIdOrderByIdAsc(10L) } returns emptyList()
 

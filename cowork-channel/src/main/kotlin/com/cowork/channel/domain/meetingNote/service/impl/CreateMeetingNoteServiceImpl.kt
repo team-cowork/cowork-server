@@ -24,7 +24,7 @@ class CreateMeetingNoteServiceImpl(
 ) : CreateMeetingNoteService {
 
     override fun createNote(userId: Long, channelId: Long, request: CreateMeetingNoteRequest): MeetingNoteResponse {
-        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
+        meetingNoteAccessGuard.requireWritableChannelAccess(channelId, userId)
         // 제목 길이 초과도 DataIntegrityViolationException이 되므로, 아래 FK 위반 처리와 섞이지 않도록 먼저 검사한다.
         if (request.title.isBlank()) throw ExpectedException("회의록 제목은 공백일 수 없습니다.", HttpStatus.BAD_REQUEST)
         if (request.title.length > 200) throw ExpectedException("회의록 제목은 200자를 초과할 수 없습니다.", HttpStatus.BAD_REQUEST)

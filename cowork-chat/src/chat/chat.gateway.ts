@@ -22,7 +22,7 @@ import {UserRole} from '../common/enum/user-role.enum.js';
 import {getOptionalConfig} from '../common/config/config.util.js';
 import {RedisRateLimiter} from '../common/util/redis-rate-limiter.js';
 import {GlobalExceptionFilter} from '../common/filter/global-exception.filter.js';
-import {ProjectionReadinessService} from '../common/kafka/projection-readiness.service.js';
+import {CHANNEL_PERMISSION_STREAMS, ProjectionReadinessService} from '../common/kafka/projection-readiness.service.js';
 import {SocketIoRedisConnection} from '../common/adapter/redis-io.adapter.js';
 import {isSafePositiveInteger} from '../common/util/safe-integer.util.js';
 import {type ForwardReference} from '../common/type/forward-reference.js';
@@ -132,12 +132,31 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 	@webSocketServer() server!: Server;
 
 	constructor(configService: ConfigService) {
-		this.typingRateLimitWindowMs = Number(
-			getOptionalConfig(configService, 'CHAT_TYPING_RATE_LIMIT_WINDOW_MS') ?? DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS,
+		this.typingRateLimitWindowMs = this.resolveTypingRateLimitSetting(
+			configService,
+			'CHAT_TYPING_RATE_LIMIT_WINDOW_MS',
+			DEFAULT_TYPING_RATE_LIMIT_WINDOW_MS,
 		);
-		this.typingRateLimitMaxRequests = Number(
-			getOptionalConfig(configService, 'CHAT_TYPING_RATE_LIMIT_MAX_REQUESTS') ?? DEFAULT_TYPING_RATE_LIMIT_MAX_REQUESTS,
+		this.typingRateLimitMaxRequests = this.resolveTypingRateLimitSetting(
+			configService,
+			'CHAT_TYPING_RATE_LIMIT_MAX_REQUESTS',
+			DEFAULT_TYPING_RATE_LIMIT_MAX_REQUESTS,
 		);
+	}
+
+	private resolveTypingRateLimitSetting(configService: ConfigService, key: string, fallback: number): number {
+		const raw = getOptionalConfig(configService, key);
+		if (raw === undefined) {
+			return fallback;
+		}
+
+		const parsed = Number(raw);
+		if (isSafePositiveInteger(parsed)) {
+			return parsed;
+		}
+
+		this.logger.warn(`Invalid ${key} value (${raw}), falling back to default (${fallback})`);
+		return fallback;
 	}
 
 	/**
@@ -169,7 +188,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      adapter가 준비되지 않은 동안 받은 가입은 다른 replica의 브로드캐스트·room 해제를 받지 못하므로 막는다.
      */
 	private realtimeNotReadyReason(): string | undefined {
-		if (!this.projectionReadiness.isReady()) {
+		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
 			return PROJECTION_NOT_READY_MESSAGE;
 		}
 
@@ -228,18 +247,19 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 			return;
 		}
 
-		if (!(await this.chatService.canReadChannel(payload.channelId, client.data.userId))) {
-			await client.leave(room);
-			client.emit('channel:access:revoked', {channelId: payload.channelId});
-			return;
-		}
-
+		// 권한 조회는 여러 Mongo 쿼리이므로, 한도 초과 요청이 이를 치지 않도록 Redis 한도를 먼저 확인한다.
 		const isAllowed = await this.rateLimiter.tryAcquire(
 			`${TYPING_RATE_LIMIT_KEY_PREFIX}${client.data.userId}`,
 			this.typingRateLimitWindowMs,
 			this.typingRateLimitMaxRequests,
 		);
 		if (!isAllowed) {
+			return;
+		}
+
+		if (!(await this.chatService.canReadChannel(payload.channelId, client.data.userId))) {
+			await client.leave(room);
+			client.emit('channel:access:revoked', {channelId: payload.channelId});
 			return;
 		}
 

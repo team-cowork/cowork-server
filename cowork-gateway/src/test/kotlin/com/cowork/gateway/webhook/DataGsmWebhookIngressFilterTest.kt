@@ -57,15 +57,14 @@ class DataGsmWebhookIngressFilterTest :
         }
 
         describe("웹훅 접수 저장소 장애") {
-            it("영속 기록 확인 후 기존 공통 응답 구조로 200을 보낸다") {
+            it("영속 기록 확인 후 접수 상태와 HTTP 200을 반환한다") {
                 every { queue.accept(any(), signature) } returns Mono.just(true)
                 val chain = mockk<GatewayFilterChain>(relaxed = true)
                 val exchange = exchange()
                 filter.filter(exchange, chain).block()
                 val result = JsonMapper.builder().build().readTree(exchange.response.bodyAsString.block())
                 exchange.response.statusCode shouldBe HttpStatus.OK
-                result.get("code").asInt() shouldBe 200
-                result.get("data").get("status").asString() shouldBe "accepted"
+                result.get("status").asString() shouldBe "accepted"
                 verify(exactly = 0) { chain.filter(any()) }
             }
 

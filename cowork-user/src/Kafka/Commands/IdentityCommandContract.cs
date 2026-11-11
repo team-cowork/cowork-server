@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using System.Text.Json;
 using CoworkUser.Platform;
 using CoworkUser.Users;
@@ -18,9 +17,12 @@ public static class IdentityCommandContract
 
     public sealed record Command(
         string OperationId, string IdempotencyKey, long UserId, string Name, string Email, string Sex,
-        long? Grade, long? ClassNumber, long? StudentNumberInClass, string Major, string Role, string? GithubId,
+        long? Grade, long? ClassNumber, long? StudentNumberInClass, string? Major, string Role, string? GithubId,
         long? DatagsmStudentId, long RequestedBy, DateTime OccurredAt, int OccurredAtPrecision
         );
+
+    /// <summary>The only command schema version accepted from the identity command topic.</summary>
+    public const int CommandSchemaVersion = 2;
 
     public static Command? Parse(JsonElement payload, string? key)
     {
@@ -28,7 +30,7 @@ public static class IdentityCommandContract
         var idempotencyKey = ContractFields.String(payload.Get("idempotencyKey"));
         var userId = payload.Get("userId").Integer();
         if (!ContractFields.ExactKeys(payload, AllowedKeys)
-            || payload.Get("schemaVersion").Integer() != 1
+            || payload.Get("schemaVersion").Integer() != CommandSchemaVersion
             || operationId is null
             || idempotencyKey is null || idempotencyKey.Trim() == "" || Accounts.TextLength(idempotencyKey) > MaxIdempotencyKeyLength
             || payload.GetString("commandType") != "UPSERT"
@@ -38,7 +40,7 @@ public static class IdentityCommandContract
             || !ContractFields.RequiredString(payload.Get("name"), 50)
             || !ContractFields.RequiredString(payload.Get("email"), 255)
             || !ContractFields.RequiredString(payload.Get("sex"), 10)
-            || !ContractFields.RequiredString(payload.Get("major"), 50)
+            || !ContractFields.OptionalString(payload.Get("major"), 50)
             || !ContractFields.RequiredString(payload.Get("role"), 50)
             || !ContractFields.OptionalInteger(payload.Get("grade"))
             || !ContractFields.OptionalInteger(payload.Get("classNumber"))
@@ -51,7 +53,7 @@ public static class IdentityCommandContract
         return new Command(operationId, idempotencyKey, userId.Value,
             payload.GetString("name")!, payload.GetString("email")!, payload.GetString("sex")!,
             payload.Get("grade").Integer(), payload.Get("classNumber").Integer(), payload.Get("studentNumberInClass").Integer(),
-            payload.GetString("major")!, payload.GetString("role")!, payload.GetString("githubId"),
+            payload.GetString("major"), payload.GetString("role")!, payload.GetString("githubId"),
             payload.Get("dataGSMStudentId").Integer(), userId.Value, occurredAt, precision);
     }
 
@@ -70,7 +72,7 @@ public static class IdentityCommandContract
     /// </summary>
     public static string CanonicalPayload(Command command) => JsonSerializer.Serialize(new SortedDictionary<string, object?>(StringComparer.Ordinal)
     {
-        ["schemaVersion"] = 1,
+        ["schemaVersion"] = CommandSchemaVersion,
         ["operationId"] = command.OperationId,
         ["idempotencyKey"] = command.IdempotencyKey,
         ["commandType"] = "UPSERT",
@@ -88,70 +90,4 @@ public static class IdentityCommandContract
         ["requestedBy"] = command.RequestedBy,
         ["occurredAt"] = Iso8601.Format(command.OccurredAt),
     }, Json.Event);
-
-    /// <summary>
-    /// The command as hash version 1 (the previous runtime) hashed it: compact JSON with keys in byte order and
-    /// the timestamp as written. Only rows stored under version 1 are verified with it; drop it once none remain.
-    /// </summary>
-    public static string LegacyCanonicalPayload(Command command) => JasonEncode(new SortedDictionary<string, object?>(StringComparer.Ordinal)
-    {
-        ["schemaVersion"] = 1,
-        ["operationId"] = command.OperationId,
-        ["idempotencyKey"] = command.IdempotencyKey,
-        ["commandType"] = "UPSERT",
-        ["userId"] = command.UserId,
-        ["name"] = command.Name,
-        ["email"] = command.Email,
-        ["sex"] = command.Sex,
-        ["grade"] = command.Grade,
-        ["classNumber"] = command.ClassNumber,
-        ["studentNumberInClass"] = command.StudentNumberInClass,
-        ["major"] = command.Major,
-        ["role"] = command.Role,
-        ["githubId"] = command.GithubId,
-        ["dataGSMStudentId"] = command.DatagsmStudentId,
-        ["requestedBy"] = command.RequestedBy,
-        ["occurredAt"] = Iso8601.Format(command.OccurredAt, command.OccurredAtPrecision),
-    });
-
-    // Jason escapes only quotes, backslashes and control characters; System.Text.Json also escapes
-    // non-BMP and other characters, which would change the hash.
-    static string JasonEncode(SortedDictionary<string, object?> fields)
-    {
-        var json = new StringBuilder("{");
-        foreach (var (key, value) in fields)
-        {
-            if (json.Length > 1) json.Append(',');
-            JasonString(json, key);
-            json.Append(':');
-            switch (value)
-            {
-                case null: json.Append("null"); break;
-                case string text: JasonString(json, text); break;
-                default: json.Append(Convert.ToString(value, CultureInfo.InvariantCulture)); break;
-            }
-        }
-        return json.Append('}').ToString();
-    }
-
-    static void JasonString(StringBuilder json, string text)
-    {
-        json.Append('"');
-        foreach (var c in text)
-        {
-            json.Append(c switch
-            {
-                '"' => "\\\"",
-                '\\' => "\\\\",
-                '\b' => "\\b",
-                '\t' => "\\t",
-                '\n' => "\\n",
-                '\f' => "\\f",
-                '\r' => "\\r",
-                < ' ' => $"\\u{(int)c:X4}",
-                _ => c.ToString(),
-            });
-        }
-        json.Append('"');
-    }
 }

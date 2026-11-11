@@ -78,7 +78,8 @@ class TeamMembershipGuardTest :
                 context("전역 ADMIN이면") {
                     it("활성 팀 멤버가 아니면 거부한다") {
                         fixture.stubReadiness(true)
-                        coEvery { fixture.memberRepository.findForRead(any(), TEAM_ID, GLOBAL_ADMIN.userId) } returns null
+                        coEvery { fixture.memberRepository.findForRead(any(), TEAM_ID, GLOBAL_ADMIN.userId) } returns
+                            null
                         shouldThrow<TeamMembershipDeniedException> {
                             runBlocking { fixture.guard.requireMember(TEAM_ID, GLOBAL_ADMIN) }
                         }
@@ -133,7 +134,8 @@ class TeamMembershipGuardTest :
                 context("전역 ADMIN이면") {
                     it("활성 팀 멤버가 아니면 설정 관리를 거부한다") {
                         fixture.stubReadiness(true)
-                        coEvery { fixture.memberRepository.findForRead(any(), TEAM_ID, GLOBAL_ADMIN.userId) } returns null
+                        coEvery { fixture.memberRepository.findForRead(any(), TEAM_ID, GLOBAL_ADMIN.userId) } returns
+                            null
                         shouldThrow<TeamMembershipDeniedException> {
                             runBlocking { fixture.guard.requireSettingsManager(TEAM_ID, GLOBAL_ADMIN, GENERAL_KEYS) }
                         }

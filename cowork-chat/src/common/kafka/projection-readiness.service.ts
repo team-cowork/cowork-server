@@ -31,10 +31,13 @@ import {ProjectionMetricsService} from './projection-metrics.service.js';
 import {
 	compareOffsets,
 	describeStartupCheckpointProblem,
+	describeActiveCheckpointProblem,
 	hasCompletedSnapshotBarriers,
 	hasReachedStartupOffsets,
 	isCheckpointWithinRetainedRange,
+	isReadyWithLagGrace,
 	isSameLease,
+	nextLag,
 	isSuspiciousDocumentCountDrop,
 } from './projection-offsets.js';
 import {
@@ -61,6 +64,7 @@ export {
 
 export type {ProjectionPartitionStatus, ProjectionStreamStatus} from './projection-readiness.types.js';
 export {
+	CHANNEL_PERMISSION_STREAMS,
 	PROJECTION_STREAMS,
 	type ProjectionName,
 	type ProjectionStream,
@@ -222,22 +226,7 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 		}
 
 		const checkpointProblem = describeStartupCheckpointProblem(stream.topic, dataset, checkpoints, targets);
-		if (checkpointProblem !== undefined) {
-			return this.datasets.markRebuildRequired(stream, checkpointProblem, dataset);
-		}
-
-		// @todo #596: 2026-11-01 05:00 KST 이후 구형 Kafka·Mongo stamp 보정과 rollback 종료 확인 후 이 자동 재구축 및 누락 조회 제거.
-		// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-		if (name === 'projectPermission' && dataset.status === 'ACTIVE' && await this.datasets.hasLegacyProjectPermission()) {
-			return this.datasets.requestRebuild(stream, {
-				reason: 'Project permission membership stamp is missing from legacy documents',
-				baseOffsets: targets.map(({partition, low}) => ({partition, offset: low})),
-				targetOffsets: targets.map(({partition, high}) => ({partition, offset: high})),
-				expectedDatasetGeneration: dataset.datasetGeneration,
-			});
-		}
-
-		return dataset;
+		return checkpointProblem === undefined ? dataset : this.datasets.markRebuildRequired(stream, checkpointProblem, dataset);
 	}
 
 	private async captureStartupState(
@@ -714,32 +703,6 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 		}
 	}
 
-	/**
-	 저장된 checkpoint를 순서대로 확인해 처음 발견한 복구 불가 사유를 반환한다. 문제가 없으면 `undefined`를 반환한다.
-	 */
-	private describeCheckpointProblem(
-		state: ProjectionCatchupState,
-		storedCheckpoints: Awaited<ReturnType<ProjectionCheckpointRepository['find']>>,
-		currentByPartition: Map<number, StartupPartitionOffset>,
-	): string | undefined {
-		for (const checkpoint of storedCheckpoints) {
-			const current = currentByPartition.get(checkpoint.partition);
-			if (!current || !isCheckpointWithinRetainedRange(checkpoint.offset, current)) {
-				return 'Kafka projection checkpoint is outside the retained log: '
-					+ `${state.stream.topic}[${checkpoint.partition}] checkpoint=${checkpoint.offset} `
-					+ `retained=${current?.low ?? 'missing'}-${current?.high ?? 'missing'}`;
-			}
-
-			if (checkpoint.datasetGeneration !== state.dataset.datasetGeneration
-				|| checkpoint.sourceGeneration !== state.dataset.sourceGeneration) {
-				return 'Kafka projection checkpoint generation mismatch: '
-					+ `${state.stream.topic}[${checkpoint.partition}]`;
-			}
-		}
-
-		return undefined;
-	}
-
 	private revokeAssignments(
 		name: ProjectionName,
 		state: ProjectionCatchupState,
@@ -912,7 +875,12 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 				return;
 			}
 
-			const storedCheckpoints = await this.checkpoints.find(state.stream.groupId, state.stream.topic);
+			// Fence 검사는 살아 있는 lease만 보고, 보존 범위·generation 검사와 진행 판정은 lease가 만료된 partition도 포함한다.
+			// 그래야 replica가 비정상 종료해도 재할당 전까지 snapshot barrier 판정에서 partition이 빠지지 않는다.
+			const [storedCheckpoints, allCheckpoints] = await Promise.all([
+				this.checkpoints.find(state.stream.groupId, state.stream.topic),
+				this.checkpoints.findAll(state.stream.groupId, state.stream.topic),
+			]);
 			if (assignmentRevision !== state.assignmentRevision) {
 				return;
 			}
@@ -926,9 +894,10 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 				return;
 			}
 
-			const checkpointProblem = this.describeCheckpointProblem(
-				state,
-				storedCheckpoints,
+			const checkpointProblem = describeActiveCheckpointProblem(
+				state.stream.topic,
+				state.dataset,
+				allCheckpoints,
 				new Map(currentOffsets.map(offset => [offset.partition, offset])),
 			);
 			if (checkpointProblem !== undefined) {
@@ -960,9 +929,9 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 			}
 
 			state.targets = currentOffsets;
-			state.checkpoints = new Map(storedCheckpoints.map(({partition, offset}) => [partition, offset]));
+			state.checkpoints = new Map(allCheckpoints.map(({partition, offset}) => [partition, offset]));
 			state.checkpointLeases = new Map(
-				storedCheckpoints.flatMap(({
+				allCheckpoints.flatMap(({
 					partition,
 					assignmentEpoch,
 					assignmentMemberId,
@@ -980,17 +949,17 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 				)),
 			);
 			state.snapshotBarriers = new Map(
-				storedCheckpoints.flatMap(({partition, snapshotCompletedOffset}) => (
+				allCheckpoints.flatMap(({partition, snapshotCompletedOffset}) => (
 					snapshotCompletedOffset === undefined ? [] : [[partition, snapshotCompletedOffset] as const]
 				)),
 			);
 			state.snapshotOccurredAt = new Map(
-				storedCheckpoints.flatMap(({partition, snapshotOccurredAt}) => (
+				allCheckpoints.flatMap(({partition, snapshotOccurredAt}) => (
 					snapshotOccurredAt === undefined ? [] : [[partition, snapshotOccurredAt] as const]
 				)),
 			);
 			state.invalidRecordOffsets = new Map(
-				storedCheckpoints.flatMap(({partition, invalidRecordOffset}) => (
+				allCheckpoints.flatMap(({partition, invalidRecordOffset}) => (
 					invalidRecordOffset === undefined ? [] : [[partition, invalidRecordOffset] as const]
 				)),
 			);
@@ -1054,14 +1023,22 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 					const occurredAt = state.snapshotOccurredAt.get(partition);
 					return occurredAt !== undefined && occurredAt >= (state.dataset.rebuildRequestedAt!);
 				}));
-		const isCaughtUp = this.fatalInvariantReason === undefined
+		const isInvariantsHold = this.fatalInvariantReason === undefined
 			&& state.assignmentObserved
 			&& !state.leaseRenewalPaused
-			&& hasReachedStartupOffsets(state.targets, checkpointOffsets)
 			&& hasCompletedSnapshotBarriers(state.targets, checkpointState)
 			&& isFreshRebuildSnapshot;
-		state.ready = isCaughtUp && state.dataset.status === 'ACTIVE';
-		if (isCaughtUp && (state.dataset.status === 'INITIALIZING' || state.dataset.status === 'REBUILDING')) {
+		const hasReachedOffsets = hasReachedStartupOffsets(state.targets, checkpointOffsets);
+		const now = Date.now();
+		state.lag = nextLag(state.lag, {targets: state.targets, checkpoints: checkpointOffsets, now});
+		state.ready = isReadyWithLagGrace({
+			wasReady,
+			invariantsHold: isInvariantsHold && state.dataset.status === 'ACTIVE',
+			hasReachedOffsets,
+			lag: state.lag,
+			now,
+		});
+		if (isInvariantsHold && hasReachedOffsets && (state.dataset.status === 'INITIALIZING' || state.dataset.status === 'REBUILDING')) {
 			await this.activateDataset(name, state);
 		}
 
