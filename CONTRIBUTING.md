@@ -80,7 +80,7 @@ Run these commands from the repository root:
 |-------|-------|--------|
 | Gradle Kotlin (`gateway`, `channel`, `team`; replace `team`) | `(cd cowork-team && ./gradlew ktlintCheck)` | `(cd cowork-team && ./gradlew ktlintFormat)` |
 | Maven Kotlin project | `(cd cowork-project && ./mvnw ktlint:check)` | `(cd cowork-project && ./mvnw ktlint:format)` |
-| Kotlin Toolchain preference | `cowork-preference/ktlint` | `cowork-preference/ktlint --format` |
+| Kotlin Toolchain preference | `(cd cowork-preference && ./kotlin check ktlint)` | `(cd cowork-preference && ./kotlin do ktlintFormat)` |
 | Bun chat | `(cd cowork-chat && bun run lint --max-warnings=0)` | `(cd cowork-chat && bun run lint:fix)` |
 | Node promotion | `npm --prefix cowork-promotion run lint -- --max-warnings=0` | `npm --prefix cowork-promotion run lint:fix` |
 | Bun github | `(cd cowork-github && bun run lint --max-warnings=0)` | `(cd cowork-github && bun run lint:fix)` |
@@ -92,7 +92,7 @@ Roadmap uses `cowork-roadmap/config/eclipse-java-formatter.xml` and its configur
 
 Maven-based `cowork-project` uses `ktlint-maven-plugin` with the same ktlint release as the Gradle Kotlin modules and the root `.editorconfig`. Its `validate` phase checks formatting, so local `test` and `package` commands reject violations. The Dockerfile skips this check in `builder` with `-Dktlint.skip=true`; `verification` runs it through the normal test command and rejects violations in CI. Run `ktlint:format` explicitly to format files.
 
-`cowork-preference/ktlint` runs ktlint as a standalone CLI, pinned to the same release as the Gradle Kotlin modules. Its Dockerfile `verification` stage rejects violations. There is no repository-wide formatter.
+`cowork-preference` registers a local Kotlin Toolchain plugin in `build-plugins/ktlint`, using the same ktlint release as the other Kotlin modules. `check ktlint` checks application sources, tests, and plugin sources; `do ktlintFormat` formats them. Both read the root `.editorconfig`. Its Dockerfile `verification` stage rejects violations. Regular builds do not format sources. There is no repository-wide formatter.
 
 Hooks run the owning module's formatter when available. File suffix triggers do not expand formatter targets. Hooks report failures and skip modules without a formatter; they do not replace explicit checks.
 
