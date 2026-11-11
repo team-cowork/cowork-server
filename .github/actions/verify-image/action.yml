@@ -23,6 +23,11 @@ runs:
       uses: docker/setup-buildx-action@v4
       if: inputs.contract == 'true'
       id: builder
+      with:
+        # Hosted runner DNS can fail inside build containers when resolving package mirrors.
+        buildkitd-config-inline: |
+          [dns]
+            nameservers = ["1.1.1.1", "8.8.8.8"]
     # Historical base measurements do not restore, extract or save external caches.
     - name: Read Verification Cache Key And Policy
       if: inputs.contract == 'true' && inputs.snapshot != 'base'
