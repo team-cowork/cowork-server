@@ -5,11 +5,13 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
 
+import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.entity.RoadmapNodeReference;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeReferenceRepository;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
@@ -58,6 +60,40 @@ class QueryRoadmapTreeServiceTest {
         assertThat(tree.nodes().get(0).children().get(0).references().get(0).title()).isEqualTo("관련자료");
         assertThat(tree.nodes().get(1).id()).isEqualTo(3L);
         assertThat(tree.nodes().get(1).children()).isEmpty();
+    }
+
+    @Test
+    void getRoadmapTree_returnsTreeAtMaxDepth() {
+        stubChainOfDepth(RoadmapNode.MAX_TREE_DEPTH);
+
+        assertThat(returnedDepth()).isEqualTo(RoadmapNode.MAX_TREE_DEPTH);
+    }
+
+    @Test
+    void getRoadmapTree_omitsNodesDeeperThanMaxDepth() {
+        stubChainOfDepth(RoadmapNode.MAX_TREE_DEPTH + 1);
+
+        assertThat(returnedDepth()).isEqualTo(RoadmapNode.MAX_TREE_DEPTH);
+    }
+
+    private int returnedDepth() {
+        var tree = queryRoadmapTreeService.execute(1L, "ADMIN", 10L);
+        int depth = 0;
+        for (var level = tree.nodes(); !level.isEmpty(); level = level.getFirst().children()) {
+            depth++;
+        }
+        return depth;
+    }
+
+    /** 루트부터 한 줄로 이어진 depth단계 트리를 로드맵 10에 심는다. */
+    private void stubChainOfDepth(int depth) {
+        List<NodeTreeProjection> chain = new ArrayList<>();
+        for (long id = 1; id <= depth; id++) {
+            chain.add(node(id, id == 1 ? null : id - 1, 0, "node"));
+        }
+        when(roadmapRepository.findById(10L)).thenReturn(Optional.of(roadmap(10L, RoadmapScope.GLOBAL)));
+        when(nodeRepository.findTreeByRoadmapId(10L)).thenReturn(chain);
+        when(referenceRepository.findByNodeIdInOrderByNodeIdAscPositionAsc(any())).thenReturn(List.of());
     }
 
     private static Roadmap roadmap(Long id, RoadmapScope scope) {
