@@ -48,7 +48,7 @@ export class HealthController {
 	@httpGet()
 	@apiOperation({summary: '채팅 서비스 상태 조회'})
 	@apiOkResponse({
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
