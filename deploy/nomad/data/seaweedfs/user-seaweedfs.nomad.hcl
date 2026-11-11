@@ -15,14 +15,14 @@ variable "config_files" {
   type = map(string)
 }
 
-job "cowork-team-storage" {
+job "cowork-user-seaweedfs" {
   datacenters = ["gsm"]
   type        = "service"
   constraint {
     attribute = "${meta.cowork_vm}"
-    value     = "team"
+    value     = "user"
   }
-  group "storage" {
+  group "seaweedfs" {
     count = 1
     meta {
       initialization = sha256(jsonencode({ version = var.secret_version, files = var.config_files, settings = var.runtime_env }))
@@ -32,7 +32,7 @@ job "cowork-team-storage" {
     }
     volume "storage" {
       type      = "host"
-      source    = "team-storage"
+      source    = "user-seaweedfs"
       read_only = false
     }
     update {
@@ -49,11 +49,11 @@ job "cowork-team-storage" {
       mode     = "fail"
     }
     service {
-      name         = "cowork-team-storage"
+      name         = "cowork-user-seaweedfs"
       provider     = "consul"
       port         = "9000"
       address_mode = "alloc"
-      tags         = ["cowork", "storage"]
+      tags         = ["cowork", "seaweedfs"]
       identity {
         aud = ["consul.io"]
         ttl = "1h"
@@ -107,14 +107,14 @@ job "cowork-team-storage" {
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-team-storage"
+        role         = "cowork-user-seaweedfs"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/team/storage?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/user/seaweedfs?version=${var.secret_version}" }}
 PUBLIC_WEB_ORIGINS={{ .Data.data.PUBLIC_WEB_ORIGINS | toJSON }}
 {{ end }}
 ENV
@@ -126,11 +126,10 @@ ENV
       }
       template {
         data                 = <<-JSON
-{{ with secret "${var.vault_mount}/data/nomad/data/team/storage?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/user/seaweedfs?version=${var.secret_version}" }}
 {"identities":[
   {"name":"cowork-admin","credentials":[{"accessKey":{{ .Data.data.S3_ADMIN_ACCESS_KEY | toJSON }},"secretKey":{{ .Data.data.S3_ADMIN_SECRET_KEY | toJSON }}}],"actions":["Admin"]},
-  {"name":"cowork-team","credentials":[{"accessKey":{{ .Data.data.S3_ACCESS_KEY | toJSON }},"secretKey":{{ .Data.data.S3_SECRET_KEY | toJSON }}}],"actions":[{{ printf "Read:%s/team-icons/*" .Data.data.S3_BUCKET | toJSON }}, {{ printf "Read:%s/team-icon-uploads/*" .Data.data.S3_BUCKET | toJSON }}, {{ printf "Write:%s/team-icons/*" .Data.data.S3_BUCKET | toJSON }}, {{ printf "Write:%s/team-icon-uploads/*" .Data.data.S3_BUCKET | toJSON }}]},
-  {"name":"anonymous","actions":[{{ printf "Read:%s/team-icons/*" .Data.data.S3_BUCKET | toJSON }}]}
+  {"name":"cowork-user","credentials":[{"accessKey":{{ .Data.data.S3_ACCESS_KEY | toJSON }},"secretKey":{{ .Data.data.S3_SECRET_KEY | toJSON }}}],"actions":[{{ printf "Read:%s/profiles/*" .Data.data.S3_BUCKET | toJSON }}, {{ printf "Read:%s/profile-uploads/*" .Data.data.S3_BUCKET | toJSON }}, {{ printf "Write:%s/profiles/*" .Data.data.S3_BUCKET | toJSON }}, {{ printf "Write:%s/profile-uploads/*" .Data.data.S3_BUCKET | toJSON }}]}
 ]}
 {{ end }}
 JSON
@@ -183,14 +182,14 @@ JSON
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-team-storage"
+        role         = "cowork-user-seaweedfs"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/team/storage?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/user/seaweedfs?version=${var.secret_version}" }}
 AWS_ACCESS_KEY_ID={{ .Data.data.S3_ADMIN_ACCESS_KEY | toJSON }}
 AWS_SECRET_ACCESS_KEY={{ .Data.data.S3_ADMIN_SECRET_KEY | toJSON }}
 AWS_DEFAULT_REGION={{ .Data.data.S3_REGION | toJSON }}
@@ -217,10 +216,9 @@ ENV
       }
       template {
         data                 = <<-JSON
-{{ with secret "${var.vault_mount}/data/nomad/data/team/storage?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/user/seaweedfs?version=${var.secret_version}" }}
 {"Version":"2012-10-17","Statement":[
-  {"Sid":"DenyServiceBucketAdministration","Effect":"Deny","Principal":{"AWS":["arn:aws:iam::000000000000:user/cowork-team"]},"Action":["s3:PutBucketAcl","s3:PutObjectAcl","s3:PutBucketPolicy","s3:DeleteBucketPolicy"],"Resource":[{{ printf "arn:aws:s3:::%s" .Data.data.S3_BUCKET | toJSON }},{{ printf "arn:aws:s3:::%s/*" .Data.data.S3_BUCKET | toJSON }}]},
-  {"Sid":"PublicTeamIcons","Effect":"Allow","Principal":"*","Action":["s3:GetObject"],"Resource":[{{ printf "arn:aws:s3:::%s/team-icons/*" .Data.data.S3_BUCKET | toJSON }}]}
+  {"Sid":"DenyServiceBucketAdministration","Effect":"Deny","Principal":{"AWS":["arn:aws:iam::000000000000:user/cowork-user"]},"Action":["s3:PutBucketAcl","s3:PutObjectAcl","s3:PutBucketPolicy","s3:DeleteBucketPolicy"],"Resource":[{{ printf "arn:aws:s3:::%s" .Data.data.S3_BUCKET | toJSON }},{{ printf "arn:aws:s3:::%s/*" .Data.data.S3_BUCKET | toJSON }}]}
 ]}
 {{ end }}
 JSON
@@ -230,7 +228,7 @@ JSON
         error_on_missing_key = true
       }
       template {
-        data        = jsonencode({ Rules = [{ ID = "expire-temporary-uploads", Status = "Enabled", Filter = { Prefix = "team-icon-uploads/" }, Expiration = { Days = 1 } }] })
+        data        = jsonencode({ Rules = [{ ID = "expire-temporary-uploads", Status = "Enabled", Filter = { Prefix = "profile-uploads/" }, Expiration = { Days = 1 } }] })
         destination = "local/storage/bucket-lifecycle.json"
         perms       = "0444"
       }
@@ -258,7 +256,7 @@ JSON
       resources {
         cpu        = 100
         memory     = 64
-        memory_max = 128
+        memory_max = 96
       }
       logs {
         max_files     = 3
@@ -280,7 +278,7 @@ JSON
       resources {
         cpu        = 100
         memory     = 64
-        memory_max = 128
+        memory_max = 96
       }
       logs {
         max_files     = 3
