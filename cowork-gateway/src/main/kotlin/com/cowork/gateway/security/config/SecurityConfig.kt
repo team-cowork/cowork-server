@@ -87,8 +87,6 @@ class SecurityConfig(
                         HttpMethod.POST,
                         "/api/authorization/auth/authorize",
                         "/api/authorization/auth/callback",
-                        // TODO(legacy-login): Remove this public path after the web and mobile implementations migrate to server-managed OAuth/OIDC.
-                        "/api/authorization/auth/token",
                         "/api/authorization/auth/refresh",
                     ).permitAll()
                     // 파일 요청은 S3 서명으로 인증하고 공개 아이콘은 익명 읽기를 허용한다.

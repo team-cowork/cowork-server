@@ -218,32 +218,6 @@ func (s *DataGSMLogin) verifyIDToken(keys *oauth.JWKS, token, nonce string) (*oa
 	return keys.VerifyIDToken(token, s.issuer, s.clientID, nonce, time.Unix(verificationTime, 0))
 }
 
-// Exchange supports existing clients that own their PKCE attempt and state validation.
-// Server-created attempts never disclose their verifier and use Complete instead.
-// Deprecated: use Begin and Complete for server-managed OAuth/OIDC.
-// TODO(legacy-login): Remove this SDK compatibility path after the web and mobile implementations migrate to server-managed OAuth/OIDC.
-func (s *DataGSMLogin) Exchange(ctx context.Context, code, verifier, redirectURI string) (*oauth.UserInfo, error) {
-	client := s.clients[redirectURI]
-	if client == nil || code == "" {
-		return nil, loginFailure("legacy_request", ErrInvalidLoginRequest)
-	}
-	if _, err := oauth.CodeChallenge(verifier); err != nil {
-		return nil, loginFailure("legacy_verifier", ErrInvalidLoginRequest)
-	}
-	token, err := client.Exchange(ctx, oauth.CodeExchange{Code: code, CodeVerifier: verifier})
-	if err != nil {
-		return nil, loginFailure("legacy_token_exchange", providerError(err))
-	}
-	user, err := client.UserInfo(ctx, token.AccessToken)
-	if err != nil {
-		return nil, loginFailure("legacy_userinfo_request", providerError(err))
-	}
-	if user.ID <= 0 || user.Status != "ACTIVE" {
-		return nil, loginFailure("legacy_userinfo_account", ErrAuthenticationRejected)
-	}
-	return user, nil
-}
-
 func (s *DataGSMLogin) jwks(ctx context.Context, client *oauth.Client, refresh bool) (*oauth.JWKS, error) {
 	s.mu.Lock()
 	now := s.now()
