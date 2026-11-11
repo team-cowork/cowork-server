@@ -25,6 +25,7 @@
         <mockk.version>1.14.11</mockk.version>
         <kotest.version>6.2.5</kotest.version>
         <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
+        <ktlint-maven-plugin.version>3.7.1</ktlint-maven-plugin.version>
         <start-class>com.cowork.project.CoworkProjectApplicationKt</start-class>
     </properties>
 
@@ -155,6 +156,23 @@
         <sourceDirectory>src/main/kotlin</sourceDirectory>
         <testSourceDirectory>src/test/kotlin</testSourceDirectory>
         <plugins>
+            <plugin>
+                <groupId>com.github.gantsign.maven</groupId>
+                <artifactId>ktlint-maven-plugin</artifactId>
+                <version>${ktlint-maven-plugin.version}</version>
+                <configuration>
+                    <includeScripts>false</includeScripts>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>check-format</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.jetbrains.kotlin</groupId>
                 <artifactId>kotlin-maven-plugin</artifactId>

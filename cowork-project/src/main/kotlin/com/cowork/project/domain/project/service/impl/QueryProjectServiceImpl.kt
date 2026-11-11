@@ -7,9 +7,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
-class QueryProjectServiceImpl(
-    private val projectAccessGuard: ProjectAccessGuard,
-) : QueryProjectService {
+class QueryProjectServiceImpl(private val projectAccessGuard: ProjectAccessGuard) : QueryProjectService {
 
     @Transactional(readOnly = true)
     override fun execute(userId: Long, projectId: Long): ProjectDetailResDto {

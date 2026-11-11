@@ -1,8 +1,8 @@
 package com.cowork.project.domain.project.presentation.data.response
 
-import com.fasterxml.jackson.annotation.JsonProperty
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.entity.ProjectStatus
+import com.fasterxml.jackson.annotation.JsonProperty
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.LocalDateTime
 

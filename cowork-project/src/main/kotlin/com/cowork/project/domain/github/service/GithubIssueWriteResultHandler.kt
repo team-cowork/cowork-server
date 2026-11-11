@@ -42,10 +42,12 @@ class GithubIssueWriteResultHandler(
 
         val applied = when (result.status) {
             "SUCCEEDED" -> operation.succeed(result.result?.let { objectMapper.writeValueAsString(it) })
+
             "FAILED" -> {
                 val error = requireNotNull(result.error) { "FAILED에는 error가 필요합니다." }
                 operation.fail(error.code, error.message)
             }
+
             else -> error("지원하지 않는 GitHub 이슈 쓰기 result 상태입니다: ${result.status}")
         }
         operationRepository.save(operation)
