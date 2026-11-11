@@ -43,6 +43,7 @@ import {ProjectionReadinessService} from './projection-readiness.service.js';
 @apiExtraModels(ApiResponseMetadataDto, ProjectionDatasetDto)
 @apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
+@apiResponse({status: 429, description: '요청 한도 초과', type: ApiResponseMetadataDto})
 @controller('admin/projections')
 export class ProjectionAdminController {
 	constructor(private readonly readiness: ProjectionReadinessService) {}

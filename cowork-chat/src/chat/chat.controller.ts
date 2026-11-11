@@ -77,8 +77,11 @@ import {EMOJI_REGEX} from './util/index.js';
 	MessageResponseDto,
 	DeleteMessageResponseDto,
 )
+@apiResponse({status: 400, description: '요청 값이 올바르지 않음', type: ApiResponseMetadataDto})
+@apiResponse({status: 503, description: '권한 정보 동기화 중', type: ApiResponseMetadataDto})
 @apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
+@apiResponse({status: 429, description: '요청 한도 초과', type: ApiResponseMetadataDto})
 @controller('channels/:channelId')
 export class ChatController {
 	constructor(
@@ -91,7 +94,7 @@ export class ChatController {
 	@apiOperation({summary: '첨부파일 다운로드 URL 발급', description: 'URL은 60초 동안 유효합니다.'})
 	@apiResponse({
 		status: 200,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -170,7 +173,7 @@ export class ChatController {
 	@apiOperation({summary: '첨부파일 업로드 URL 발급'})
 	@apiResponse({
 		status: 201,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -200,6 +203,8 @@ export class ChatController {
 			],
 		},
 	})
+	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiResponse({status: 413, description: '파일 크기 초과', type: ApiResponseMetadataDto})
 	async createFileUploadUrl(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: CreateFileUploadUrlRequestDto,
@@ -222,7 +227,7 @@ export class ChatController {
 	@apiOperation({summary: '첨부파일 업로드 확인'})
 	@apiResponse({
 		status: 200,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -241,7 +246,7 @@ export class ChatController {
 	})
 	@apiResponse({
 		status: 400,
-		description: '유효하지 않은 objectKey',
+		description: '업로드 경로, 파일 크기 또는 형식 불일치',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -267,7 +272,7 @@ export class ChatController {
 	})
 	@apiResponse({
 		status: 409,
-		description: '파일이 아직 업로드되지 않음',
+		description: '파일 업로드 미완료/변경 또는 보관된 채널',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -314,7 +319,7 @@ export class ChatController {
 	@apiQuery({name: 'limit', required: false, description: '페이지 크기 (기본 20, 최대 100)'})
 	@apiResponse({
 		status: 200,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -388,7 +393,7 @@ export class ChatController {
 	@apiOperation({summary: '메시지 전송 요청', description: 'queued가 true이면 요청을 접수한 상태입니다. 메시지는 비동기로 처리합니다.'})
 	@apiResponse({
 		status: 201,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -431,6 +436,8 @@ export class ChatController {
 			],
 		},
 	})
+	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiResponse({status: 404, description: '채널 또는 답장 대상 메시지 없음', type: ApiResponseMetadataDto})
 	async sendMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: SendMessageDto,
@@ -463,7 +470,7 @@ export class ChatController {
 	@apiHeader({name: 'Idempotency-Key', required: false, description: '재시도 중복 방지 키, 최대 200자'})
 	@apiResponse({
 		status: 201,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -482,7 +489,7 @@ export class ChatController {
 	})
 	@apiResponse({
 		status: 403,
-		description: '채널 멤버 아님',
+		description: '메시지 읽기, slash_command_use 또는 github_issue_create 권한 없음',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -493,6 +500,7 @@ export class ChatController {
 			],
 		},
 	})
+	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
 	async createGithubIssue(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: CreateGithubIssueDto,
@@ -523,7 +531,7 @@ export class ChatController {
 	@apiHeader({name: 'Idempotency-Key', required: false, description: '재시도 중복 방지 키, 최대 200자'})
 	@apiResponse({
 		status: 201,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -555,7 +563,7 @@ export class ChatController {
 	})
 	@apiResponse({
 		status: 403,
-		description: '채널 멤버 아님',
+		description: '메시지 읽기, slash_command_use 또는 github_issue_create 권한 없음',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -566,6 +574,7 @@ export class ChatController {
 			],
 		},
 	})
+	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
 	async createSlashCommand(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: SlashCommandDto,
@@ -589,7 +598,7 @@ export class ChatController {
 	@httpPost('read')
 	@httpCode(HttpStatus.NO_CONTENT)
 	@apiOperation({summary: '채널 읽음 상태 변경'})
-	@apiResponse({status: 204})
+	@apiResponse({status: 204, description: '요청 처리 성공 (응답 본문 없음)'})
 	@apiResponse({
 		status: 400,
 		description: '유효하지 않은 메시지 ID',
@@ -628,7 +637,7 @@ export class ChatController {
 	@apiOperation({summary: '채널 메시지 목록 조회'})
 	@apiResponse({
 		status: 200,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -647,7 +656,7 @@ export class ChatController {
 	})
 	@apiResponse({
 		status: 400,
-		description: 'before, after, around 중 2개 이상 지정',
+		description: '잘못된 조회 조건 또는 before, after, around 중 2개 이상 지정',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -707,7 +716,7 @@ export class ChatController {
 	@apiOperation({summary: '메시지 수정'})
 	@apiResponse({
 		status: 200,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -763,6 +772,7 @@ export class ChatController {
 			],
 		},
 	})
+	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
 	async editMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -790,7 +800,7 @@ export class ChatController {
 	@apiOperation({summary: '첨부파일 삭제', description: '파일이 포함된 메시지 전체를 삭제합니다.'})
 	@apiResponse({
 		status: 200,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -846,6 +856,7 @@ export class ChatController {
 			],
 		},
 	})
+	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
 	async deleteFile(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('fileId') fileId: string,
@@ -870,7 +881,7 @@ export class ChatController {
 	@apiOperation({summary: '메시지 삭제'})
 	@apiResponse({
 		status: 200,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -902,7 +913,7 @@ export class ChatController {
 	})
 	@apiResponse({
 		status: 403,
-		description: '채널 멤버 아님 또는 본인 메시지 아님',
+		description: '메시지 읽기 권한 없음 또는 타인 메시지의 message_manage 권한 없음',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -926,6 +937,7 @@ export class ChatController {
 			],
 		},
 	})
+	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
 	async deleteMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -953,7 +965,7 @@ export class ChatController {
 	@apiOperation({summary: '메시지 고정'})
 	@apiResponse({
 		status: 200,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -1009,6 +1021,7 @@ export class ChatController {
 			],
 		},
 	})
+	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
 	async pinMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -1033,7 +1046,7 @@ export class ChatController {
 	@httpDelete('pins/:messageId')
 	@httpCode(HttpStatus.NO_CONTENT)
 	@apiOperation({summary: '메시지 고정 해제'})
-	@apiResponse({status: 204})
+	@apiResponse({status: 204, description: '요청 처리 성공 (응답 본문 없음)'})
 	@apiResponse({
 		status: 400,
 		description: '잘못된 메시지 ID 또는 고정되지 않은 메시지',
@@ -1073,6 +1086,7 @@ export class ChatController {
 			],
 		},
 	})
+	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
 	async unpinMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -1098,7 +1112,7 @@ export class ChatController {
 	@httpPost('messages/:messageId/reactions')
 	@httpCode(HttpStatus.OK)
 	@apiOperation({summary: '메시지 이모지 반응 추가'})
-	@apiResponse({status: 200})
+	@apiResponse({status: 200, description: '반응 변경 성공 (응답 본문 없음)'})
 	@apiResponse({
 		status: 400,
 		description: '잘못된 메시지 ID 또는 유효하지 않은 이모지',
@@ -1138,6 +1152,7 @@ export class ChatController {
 			],
 		},
 	})
+	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
 	async addReaction(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -1162,7 +1177,7 @@ export class ChatController {
 	@httpDelete('messages/:messageId/reactions/:emoji')
 	@httpCode(HttpStatus.OK)
 	@apiOperation({summary: '메시지 이모지 반응 제거'})
-	@apiResponse({status: 200})
+	@apiResponse({status: 200, description: '반응 변경 성공 (응답 본문 없음)'})
 	@apiResponse({
 		status: 400,
 		description: '잘못된 메시지 ID 또는 유효하지 않은 이모지',
@@ -1202,6 +1217,7 @@ export class ChatController {
 			],
 		},
 	})
+	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
 	async removeReaction(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -1226,7 +1242,7 @@ export class ChatController {
 	@apiOperation({summary: '채널 고정 메시지 목록 조회'})
 	@apiResponse({
 		status: 200,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},

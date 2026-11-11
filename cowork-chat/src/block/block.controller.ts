@@ -26,6 +26,7 @@ import {BlockService} from './block.service.js';
 @apiExtraModels(ApiResponseMetadataDto)
 @apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
+@apiResponse({status: 429, description: '요청 한도 초과', type: ApiResponseMetadataDto})
 @controller('block')
 export class BlockController {
 	constructor(private readonly blockService: BlockService) {}
@@ -36,6 +37,7 @@ export class BlockController {
 	@apiParameter({name: 'targetUserId', description: '차단할 사용자 ID', type: Number})
 	@apiNoContentResponse({description: '차단 성공'})
 	@apiResponse({status: 409, description: '차단 목록이 상한에 도달함', type: ApiResponseMetadataDto})
+	@apiResponse({status: 400, description: '사용자 ID 형식 오류', type: ApiResponseMetadataDto})
 	async blockUser(
 		@currentUserId() userId: number,
 		@requestParameter('targetUserId', SafePositiveIntPipe) targetUserId: number,
@@ -48,6 +50,7 @@ export class BlockController {
 	@apiOperation({summary: '차단 해제'})
 	@apiParameter({name: 'targetUserId', description: '차단 해제할 사용자 ID', type: Number})
 	@apiNoContentResponse({description: '차단 해제 성공'})
+	@apiResponse({status: 400, description: '사용자 ID 형식 오류', type: ApiResponseMetadataDto})
 	async unblockUser(
 		@currentUserId() userId: number,
 		@requestParameter('targetUserId', SafePositiveIntPipe) targetUserId: number,
@@ -58,7 +61,7 @@ export class BlockController {
 	@httpGet()
 	@apiOperation({summary: '차단 목록 조회'})
 	@apiOkResponse({
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
