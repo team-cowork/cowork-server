@@ -25,6 +25,11 @@ runs:
     - name: Set Up Docker Buildx
       uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
       id: builder
+      with:
+        # Hosted runner DNS can fail inside build containers when resolving package mirrors.
+        buildkitd-config-inline: |
+          [dns]
+            nameservers = ["1.1.1.1", "8.8.8.8"]
     - name: Read Dependency Cache Key
       id: cache-key
       shell: bash
