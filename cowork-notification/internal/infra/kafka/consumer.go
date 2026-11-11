@@ -9,9 +9,10 @@ import (
 	"log/slog"
 	"time"
 
+	segkafka "github.com/segmentio/kafka-go"
+
 	"github.com/cowork/cowork-notification/internal/config"
 	"github.com/cowork/cowork-notification/internal/health"
-	segkafka "github.com/segmentio/kafka-go"
 )
 
 var errInvalidNotificationEvent = errors.New("invalid notification event")
