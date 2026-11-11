@@ -112,7 +112,7 @@ job "cowork-roadmap" {
         sidecar_service {
           proxy {
             upstreams {
-              destination_name   = "cowork-roadmap-db"
+              destination_name   = "cowork-roadmap-mysql"
               local_bind_port    = 13306
               local_bind_address = "127.0.0.1"
             }

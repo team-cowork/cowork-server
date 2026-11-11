@@ -112,7 +112,7 @@ job "cowork-voice" {
         sidecar_service {
           proxy {
             upstreams {
-              destination_name   = "cowork-voice-db"
+              destination_name   = "cowork-voice-mongodb"
               local_bind_port    = 17017
               local_bind_address = "127.0.0.1"
             }

@@ -112,7 +112,7 @@ job "cowork-chat" {
         sidecar_service {
           proxy {
             upstreams {
-              destination_name   = "cowork-chat-db"
+              destination_name   = "cowork-chat-mongodb"
               local_bind_port    = 17017
               local_bind_address = "127.0.0.1"
             }
@@ -122,12 +122,12 @@ job "cowork-chat" {
               local_bind_address = "127.0.0.1"
             }
             upstreams {
-              destination_name   = "cowork-chat-storage"
+              destination_name   = "cowork-chat-seaweedfs"
               local_bind_port    = 19000
               local_bind_address = "127.0.0.1"
             }
             upstreams {
-              destination_name   = "cowork-chat-search"
+              destination_name   = "cowork-chat-elasticsearch"
               local_bind_port    = 19200
               local_bind_address = "127.0.0.1"
             }
