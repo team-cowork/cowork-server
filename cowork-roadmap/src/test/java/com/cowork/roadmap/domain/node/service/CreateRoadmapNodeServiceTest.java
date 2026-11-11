@@ -132,6 +132,42 @@ class CreateRoadmapNodeServiceTest {
         verify(nodeRepository, never()).saveAndFlush(any());
     }
 
+    @Test
+    void createNode_atMaxDepth_saves() {
+        long parentId = stubChainOfDepth(RoadmapNode.MAX_TREE_DEPTH - 1);
+        when(nodeRepository.findNextChildPosition(10L, parentId)).thenReturn(0L);
+        when(nodeRepository.saveAndFlush(any()))
+                .thenAnswer(invocation -> simulateSaved(invocation.getArgument(0), 103L));
+
+        var response = createRoadmapNodeService
+                .execute(7L, "ADMIN", 10L, new CreateNodeReqDto(parentId, "제목", null, null, null));
+
+        assertThat(response.parentId()).isEqualTo(parentId);
+    }
+
+    @Test
+    void createNode_beyondMaxDepth_failsWithBadRequestAndDoesNotSave() {
+        long parentId = stubChainOfDepth(RoadmapNode.MAX_TREE_DEPTH);
+
+        CreateNodeReqDto request = new CreateNodeReqDto(parentId, "제목", null, null, null);
+
+        ExpectedException error = assertThrows(ExpectedException.class,
+                () -> createRoadmapNodeService.execute(7L, "ADMIN", 10L, request));
+        assertTrue(error.getStatusCode() == HttpStatus.BAD_REQUEST);
+        verify(nodeRepository, never()).saveAndFlush(any());
+    }
+
+    /** 로드맵 10에 1..depth 번 노드를 한 줄로 잇고, 가장 깊은 노드 ID를 반환한다. */
+    private long stubChainOfDepth(int depth) {
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
+        for (long id = 2; id < depth; id++) {
+            when(nodeRepository.findParentIdById(id)).thenReturn(Optional.of(id - 1));
+        }
+        RoadmapNode deepest = node((long) depth, 10L).toBuilder().parentId(depth == 1 ? null : depth - 1L).build();
+        when(nodeRepository.findByIdForShare((long) depth)).thenReturn(Optional.of(deepest));
+        return depth;
+    }
+
     private static Roadmap roadmap(Long id) {
         return Roadmap.builder().id(id).scope(RoadmapScope.GLOBAL.name()).build();
     }
