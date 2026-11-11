@@ -19,8 +19,8 @@ This project uses Git Flow. Feature branches must be created from `develop` and 
 1. Analyze all changes with `git status` and `git diff`
 2. Infer an appropriate branch name from the changes:
    - Format: `<type>/<kebab-case-description>` — use the same type as the planned commit (exception: use `cicd/` for `ci/cd` type)
-   - Reflect the domain scope in the name
-   - Examples: `add/add-student-major-filter`, `fix/auth-api-key-deletion`, `refactor/optimize-club-query`
+   - Reflect the scope in the name
+   - Examples: `add/user-major-filter`, `fix/authorization-api-key-deletion`, `refactor/optimize-project-query`
 3. Create and checkout the branch:
    ```bash
    git checkout -b <type>/<inferred-name>
@@ -36,10 +36,7 @@ This project uses Git Flow. Feature branches must be created from `develop` and 
 Format: `type(scope): 설명`
 
 - **Types**: `add` / `update` / `fix` / `refactor` / `ci/cd` / `docs` / `test` / `merge` (English)
-- **Scopes** (English):
-  - **Primary**: Domain names — infer from changed file paths and directory structure
-  - **Cross-cutting concerns only**: Module names or `global`
-  - Use domain names by default. Only use module names when changes affect multiple modules or are cross-cutting.
+- **Scope**: one value from `allowedScopes` in the CI workflow
 - **Description**: Korean, no period, avoid endings: `~한다/~된다`, `~하기/~하기 위해`, `~합니다/~됩니다`, `~했습니다`
   - Good examples: `엔티티 필드 추가`, `트랜잭션 롤백 방지`, `로직 개선`
 - Subject line only (no body)
@@ -50,7 +47,7 @@ Format: `type(scope): 설명`
 For the full scope selection table and examples, read `.agents/skills/git-commit/references/scope-guide.md`.
 For commit type and scope naming conventions, read `.agents/skills/git-commit/references/commit-conventions.md`.
 
-Quick rule: infer domain from changed file paths and directory structure. Use `global` / `ci/cd` / module names only for cross-cutting changes.
+Quick rule: map a changed `cowork-<name>/` directory to `<name>`, and confirm that the value is in `allowedScopes`. Use `global` for several modules or repository-wide changes and `ci/cd` for build or deployment changes.
 
 ## Commit Flow
 

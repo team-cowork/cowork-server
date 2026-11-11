@@ -7,13 +7,6 @@
         "retention.ms": "604800000"
       }
     },
-    "user.identity.command": {
-      "partitions": 1,
-      "config": {
-        "cleanup.policy": "delete",
-        "retention.ms": "604800000"
-      }
-    },
     "user.identity.command-result": {
       "partitions": 1,
       "config": {
@@ -435,7 +428,6 @@
     "cowork-authorization": {
       "topics": [
         "user.data.sync",
-        "user.identity.command",
         "user.identity.command-result",
         "user.identity.command-result-dlt",
         "user.presence.event",
@@ -613,7 +605,6 @@
     "cowork-user": {
       "topics": [
         "user.data.sync",
-        "user.identity.command",
         "user.identity.command-result",
         "user.identity.command-result-dlt",
         "user.profile.event.v2",

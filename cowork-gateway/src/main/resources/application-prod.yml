@@ -83,6 +83,7 @@ spring:
       # 제한이 없는 라우트와 이유:
       # - chat-service-public: 헬스체크와 AsyncAPI 문서 조회다. 미인증 요청은 프록시 주소 하나의 버킷을 공유하므로, 몰리는 요청이
       #   헬스체크를 429로 막지 않게 chat-service 제한에서 분리한다.
+      # - <service>-service-public: 외부 점검용 헬스체크다. 같은 이유로 제한을 두지 않는다.
       # - chat-service-ws: 연결 요청만 Gateway가 제한하고, 연결 후 이벤트(입력 중 표시 등)는 Chat이 제한한다.
       # - webhook-ingress: Gateway는 웹훅별 30/60만 적용하고 수신 경로 전체 상한은 두지 않는다. 서명 검증으로 무작위 실행 ID를
       #   먼저 차단하며, Chat 웹훅 제한기가 Redis 오류 시 신규 메시지를 막는다(fail-closed).
@@ -165,8 +166,7 @@ spring:
         - id: authorization-token
           uri: ${COWORK_AUTHORIZATION_URL}
           predicates:
-            # TODO(legacy-login): Remove only /api/authorization/auth/token after the web and mobile implementations migrate to server-managed OAuth/OIDC.
-            - Path=/api/authorization/auth/authorize, /api/authorization/auth/callback, /api/authorization/auth/token, /api/authorization/auth/refresh
+            - Path=/api/authorization/auth/authorize, /api/authorization/auth/callback, /api/authorization/auth/refresh
             - Method=POST
           filters:
             - StripPrefix=2
@@ -401,6 +401,136 @@ spring:
             - name: CircuitBreaker
               args:
                 name: chatCB
+                fallbackUri: forward:/fallback
+
+        # 외부 점검(Prometheus gateway-api job)이 Gateway를 거쳐 downstream까지 도달하는지 확인하는 무인증 헬스체크다.
+        # Spring 서비스는 liveness만 연결해 다른 actuator 경로를 공개하지 않는다.
+        - id: authorization-service-public
+          uri: ${COWORK_AUTHORIZATION_URL}
+          predicates:
+            - Path=/api/authorization/health
+            - Method=GET
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: authorizationCB
+                fallbackUri: forward:/fallback
+
+        - id: voice-service-public
+          uri: ${COWORK_VOICE_URL}
+          predicates:
+            - Path=/api/voice/health
+            - Method=GET
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: voiceCB
+                fallbackUri: forward:/fallback
+
+        - id: github-service-public
+          uri: ${COWORK_GITHUB_URL}
+          predicates:
+            - Path=/api/github/health
+            - Method=GET
+          filters:
+            - StripPrefix=2
+
+        - id: user-service-public
+          uri: ${COWORK_USER_URL}
+          predicates:
+            - Path=/api/user/health
+            - Method=GET
+          filters:
+            - SetPath=/actuator/health
+            - name: CircuitBreaker
+              args:
+                name: userCB
+                fallbackUri: forward:/fallback
+
+        - id: team-service-public
+          uri: ${COWORK_TEAM_URL}
+          predicates:
+            - Path=/api/team/health
+            - Method=GET
+          filters:
+            - SetPath=/actuator/health/liveness
+            - name: CircuitBreaker
+              args:
+                name: teamCB
+                fallbackUri: forward:/fallback
+
+        - id: project-service-public
+          uri: ${COWORK_PROJECT_URL}
+          predicates:
+            - Path=/api/project/health
+            - Method=GET
+          filters:
+            - SetPath=/actuator/health/liveness
+            - name: CircuitBreaker
+              args:
+                name: projectCB
+                fallbackUri: forward:/fallback
+
+        - id: channel-service-public
+          uri: ${COWORK_CHANNEL_URL}
+          predicates:
+            - Path=/api/channel/health
+            - Method=GET
+          filters:
+            - SetPath=/actuator/health/liveness
+            - name: CircuitBreaker
+              args:
+                name: channelCB
+                fallbackUri: forward:/fallback
+
+        - id: roadmap-service-public
+          uri: ${COWORK_ROADMAP_URL}
+          predicates:
+            - Path=/api/roadmap/health
+            - Method=GET
+          filters:
+            - SetPath=/actuator/health/liveness
+            - name: CircuitBreaker
+              args:
+                name: roadmapCB
+                fallbackUri: forward:/fallback
+
+        - id: notification-service-public
+          uri: ${COWORK_NOTIFICATION_URL}
+          predicates:
+            - Path=/api/notification/health
+            - Method=GET
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: notificationCB
+                fallbackUri: forward:/fallback
+
+        - id: preference-service-public
+          uri: ${COWORK_PREFERENCE_URL}
+          predicates:
+            - Path=/api/preference/health
+            - Method=GET
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: preferenceCB
+                fallbackUri: forward:/fallback
+
+        - id: applet-service-public
+          uri: ${COWORK_APPLET_URL}
+          predicates:
+            - Path=/api/applet/health
+            - Method=GET
+          filters:
+            - StripPrefix=2
+            - name: CircuitBreaker
+              args:
+                name: appletCB
                 fallbackUri: forward:/fallback
 
         - id: channel-service
