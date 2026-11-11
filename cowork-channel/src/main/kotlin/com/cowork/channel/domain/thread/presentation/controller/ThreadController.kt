@@ -27,11 +27,6 @@ import team.themoment.sdk.response.CommonApiResponse
 @Tag(name = "스레드")
 @ApiResponses(
     ApiResponse(
-        responseCode = "400",
-        description = "요청 값이 올바르지 않음",
-        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
-    ),
-    ApiResponse(
         responseCode = "503",
         description = "권한 정보 동기화 중",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
