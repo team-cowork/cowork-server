@@ -40,16 +40,16 @@ public class DeleteRoadmapNodeServiceImpl implements DeleteRoadmapNodeService {
         Long roadmapId = nodeLookupSupport.findRoadmapIdByNodeOrThrow(nodeId);
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
         accessGuard.requireMutable(roadmap, userId, userRole);
-        List<NodeParentProjection> all = nodeRepository.findParentsByRoadmapIdForUpdate(roadmapId);
+        List<NodeParentProjection> all = nodeRepository.findParentsByRoadmapId(roadmapId);
         deleteSubtree(roadmapId, collectSubtreeIds(nodeId, all));
     }
 
     /**
-     * 과제가 연결된 노드는 진행 기록을 보존하기 위해 삭제를 거부한다. 서브트리는 노드를 잠근 읽기 결과로 계산해 하위 노드·과제 생성의 노드
-     * 공유 잠금과 직렬화하고, 잠금 읽기로 과제 수를 확인한다.
+     * 과제가 연결된 노드는 진행 기록을 보존하기 위해 삭제를 거부한다. 하위 노드·과제 생성도 로드맵 행 잠금을 먼저 잡으므로, 잠금 이후
+     * 조회한 서브트리와 과제 수는 삭제 중에 바뀌지 않는다.
      */
     private void deleteSubtree(Long roadmapId, Set<Long> subtreeIds) {
-        long assignmentCount = assignmentRepository.countByRoadmapIdAndNodeIdInForShare(roadmapId, subtreeIds);
+        long assignmentCount = assignmentRepository.countByRoadmapIdAndNodeIdIn(roadmapId, subtreeIds);
         if (assignmentCount > 0) {
             throw new ExpectedException("연결된 과제 " + assignmentCount + "건을 먼저 삭제해야 노드를 삭제할 수 있습니다.",
                     HttpStatus.CONFLICT);
