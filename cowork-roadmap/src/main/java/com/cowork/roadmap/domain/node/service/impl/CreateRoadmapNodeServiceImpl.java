@@ -38,7 +38,7 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
                 .parentId(request.parentId())
                 .title(request.title())
                 .content(request.content())
-                .sourceUrl(request.sourceUrl())
+                .sourceUrl(blankToNull(request.sourceUrl()))
                 .sourceTitle(request.sourceTitle())
                 .position(position)
                 .build();
@@ -87,5 +87,9 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
                 ? nodeRepository.findNextRootPosition(roadmapId)
                 : nodeRepository.findNextChildPosition(roadmapId, parentId);
         return next.intValue();
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
     }
 }
