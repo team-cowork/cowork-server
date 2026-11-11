@@ -5,9 +5,10 @@ import (
 	"errors"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/cowork/cowork-notification/internal/apperr"
 	"github.com/cowork/cowork-notification/internal/domain/installation"
-	"gorm.io/gorm"
 )
 
 type InstallationRepository struct {

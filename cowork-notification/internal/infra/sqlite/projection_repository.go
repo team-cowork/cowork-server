@@ -6,10 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cowork/cowork-notification/internal/domain/installation"
-	"github.com/cowork/cowork-notification/internal/domain/projection"
 	"github.com/google/uuid"
 	"gorm.io/gorm"
+
+	"github.com/cowork/cowork-notification/internal/domain/installation"
+	"github.com/cowork/cowork-notification/internal/domain/projection"
 )
 
 type channelNotificationPreference struct {

@@ -19,6 +19,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
+
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/handler"
 	kafkainfra "github.com/cowork/authorization/internal/infra/kafka"
@@ -29,13 +37,6 @@ import (
 	"github.com/cowork/authorization/internal/service"
 	"github.com/cowork/authorization/pkg/logger"
 	_ "github.com/cowork/authorization/swagger"
-	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
-	gormlogger "gorm.io/gorm/logger"
 )
 
 const (
