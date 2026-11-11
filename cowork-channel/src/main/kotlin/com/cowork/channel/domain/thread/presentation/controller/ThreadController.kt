@@ -24,8 +24,23 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "스레드", description = "채널 스레드 생성/수정/조회 API")
+@Tag(name = "스레드")
 @ApiResponses(
+    ApiResponse(
+        responseCode = "400",
+        description = "요청 값이 올바르지 않음",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
+    ),
+    ApiResponse(
+        responseCode = "503",
+        description = "권한 정보 동기화 중",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
+    ),
+    ApiResponse(
+        responseCode = "429",
+        description = "요청 한도 초과",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
+    ),
     ApiResponse(
         responseCode = "401",
         description = "액세스 토큰이 없거나 유효하지 않음",
@@ -58,6 +73,36 @@ class ThreadController(
     @Operation(summary = "스레드 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(
+            responseCode = "400",
+            description = "요청 값이 올바르지 않거나 DM 채널",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "409",
+            description = "보관된 채널은 변경할 수 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
+        ApiResponse(
             responseCode = "201",
             description = "생성 성공",
             content = [
@@ -83,7 +128,7 @@ class ThreadController(
         ),
         ApiResponse(
             responseCode = "403",
-            description = "채널 멤버가 아님",
+            description = "채널 접근 또는 thread_reply 권한 없음",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -107,6 +152,16 @@ class ThreadController(
 
     @Operation(summary = "스레드 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(responseCode = "200", description = "조회 성공"),
         ApiResponse(
             responseCode = "400",
@@ -149,6 +204,16 @@ class ThreadController(
 
     @Operation(summary = "스레드 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
+        ApiResponse(
+            responseCode = "409",
+            description = "보관된 채널은 변경할 수 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(responseCode = "200", description = "수정 성공"),
         ApiResponse(
             responseCode = "400",

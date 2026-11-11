@@ -21,6 +21,11 @@ import team.themoment.sdk.response.CommonApiResponse
 @Tag(name = "채널 역할 정책", description = "역할별 채널 권한 덮어쓰기 정책 API")
 @ApiResponses(
     ApiResponse(
+        responseCode = "429",
+        description = "요청 한도 초과",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
+    ),
+    ApiResponse(
         responseCode = "401",
         description = "액세스 토큰이 없거나 유효하지 않음",
         content = [
@@ -46,7 +51,7 @@ import team.themoment.sdk.response.CommonApiResponse
 class ChannelRolePolicyQueryController(private val queryService: QueryChannelRolePoliciesService) {
     @Operation(summary = "채널 역할 정책 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "200", description = "우선순위 내림차순 정책 조회 성공"),
+        ApiResponse(responseCode = "200", description = "조회 성공"),
         ApiResponse(
             responseCode = "400",
             description = "DM 채널",

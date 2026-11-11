@@ -29,8 +29,23 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "회의록 템플릿", description = "회의록 템플릿 및 섹션 CRUD API")
+@Tag(name = "회의록 템플릿", description = "회의록 양식과 섹션을 관리합니다.")
 @ApiResponses(
+    ApiResponse(
+        responseCode = "429",
+        description = "요청 한도 초과",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
+    ),
+    ApiResponse(
+        responseCode = "400",
+        description = "요청 값이 올바르지 않거나 DM 채널",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
+    ),
+    ApiResponse(
+        responseCode = "503",
+        description = "권한 정보 동기화 중",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
+    ),
     ApiResponse(
         responseCode = "401",
         description = "액세스 토큰이 없거나 유효하지 않음",
@@ -68,10 +83,20 @@ class MeetingNoteTemplateController(
 
     @Operation(summary = "템플릿 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(responseCode = "200", description = "조회 성공"),
         ApiResponse(
             responseCode = "403",
-            description = "채널 멤버가 아님",
+            description = "채널 접근 권한 없음",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -93,6 +118,26 @@ class MeetingNoteTemplateController(
 
     @Operation(summary = "템플릿 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
+        ApiResponse(
+            responseCode = "409",
+            description = "보관된 채널은 변경할 수 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(
             responseCode = "201",
             description = "생성 성공",
@@ -119,7 +164,7 @@ class MeetingNoteTemplateController(
         ),
         ApiResponse(
             responseCode = "403",
-            description = "채널 멤버가 아님",
+            description = "채널 접근 권한 없음",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -147,10 +192,20 @@ class MeetingNoteTemplateController(
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
+        ApiResponse(
+            responseCode = "403",
+            description = "채널 접근 권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(responseCode = "200", description = "조회 성공"),
         ApiResponse(
             responseCode = "404",
-            description = "템플릿 없음",
+            description = "채널 또는 템플릿 없음",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -173,10 +228,30 @@ class MeetingNoteTemplateController(
 
     @Operation(summary = "템플릿 이름 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
+        ApiResponse(
+            responseCode = "409",
+            description = "보관된 채널은 변경할 수 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 또는 템플릿 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(responseCode = "200", description = "수정 성공"),
         ApiResponse(
             responseCode = "403",
-            description = "채널 멤버가 아님",
+            description = "채널 접근 권한 없음",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -205,10 +280,30 @@ class MeetingNoteTemplateController(
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
+        ApiResponse(
+            responseCode = "409",
+            description = "보관된 채널은 변경할 수 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 또는 템플릿 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(responseCode = "204", description = "삭제 성공", content = [Content()]),
         ApiResponse(
             responseCode = "400",
-            description = "활성 템플릿 또는 회의록이 작성된 템플릿 삭제 시도",
+            description = "DM 채널 또는 활성/사용 중인 템플릿 삭제 시도",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -223,7 +318,7 @@ class MeetingNoteTemplateController(
         ),
         ApiResponse(
             responseCode = "403",
-            description = "채널 멤버가 아님",
+            description = "채널 접근 권한 없음",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -253,10 +348,30 @@ class MeetingNoteTemplateController(
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
+        ApiResponse(
+            responseCode = "409",
+            description = "보관된 채널은 변경할 수 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 또는 템플릿 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(responseCode = "200", description = "활성화 성공"),
         ApiResponse(
             responseCode = "403",
-            description = "채널 멤버가 아님",
+            description = "채널 접근 권한 없음",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -279,6 +394,36 @@ class MeetingNoteTemplateController(
 
     @Operation(summary = "섹션 추가", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
+        ApiResponse(
+            responseCode = "400",
+            description = "요청 값이 올바르지 않거나 지원하지 않는 섹션 유형 또는 DM 채널",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "409",
+            description = "보관된 채널 또는 같은 제목의 섹션이 이미 있음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널 또는 템플릿 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(
             responseCode = "201",
             description = "추가 성공",
@@ -305,7 +450,7 @@ class MeetingNoteTemplateController(
         ),
         ApiResponse(
             responseCode = "403",
-            description = "채널 멤버가 아님",
+            description = "채널 접근 권한 없음",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -330,10 +475,40 @@ class MeetingNoteTemplateController(
 
     @Operation(summary = "섹션 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
+        ApiResponse(
+            responseCode = "400",
+            description = "요청 값이 올바르지 않거나 지원하지 않는 섹션 유형 또는 DM 채널",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "409",
+            description = "보관된 채널 또는 같은 제목의 섹션이 이미 있음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널, 템플릿 또는 섹션 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(responseCode = "200", description = "수정 성공"),
         ApiResponse(
             responseCode = "403",
-            description = "채널 멤버가 아님",
+            description = "채널 접근 권한 없음",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -359,10 +534,30 @@ class MeetingNoteTemplateController(
 
     @Operation(summary = "섹션 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
+        ApiResponse(
+            responseCode = "409",
+            description = "보관된 채널은 변경할 수 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "채널, 템플릿 또는 섹션 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(responseCode = "204", description = "삭제 성공", content = [Content()]),
         ApiResponse(
             responseCode = "403",
-            description = "채널 멤버가 아님",
+            description = "채널 접근 권한 없음",
             content = [
                 Content(
                     mediaType = "application/json",
