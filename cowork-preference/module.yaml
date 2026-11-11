@@ -1,5 +1,9 @@
 product: jvm/app
 layout: maven-like
+
+plugins:
+  ktlint: enabled
+
 dependencies:
   - bom: io.vertx:vertx-stack-depchain:5.1.8
   - io.vertx:vertx-core
