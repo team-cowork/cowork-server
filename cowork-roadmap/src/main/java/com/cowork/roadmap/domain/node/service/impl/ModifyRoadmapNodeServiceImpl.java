@@ -45,7 +45,7 @@ public class ModifyRoadmapNodeServiceImpl implements ModifyRoadmapNodeService {
         RoadmapNode updated = node.toBuilder()
                 .title(request.title() != null ? request.title() : node.getTitle())
                 .content(request.content() != null ? request.content() : node.getContent())
-                .sourceUrl(request.sourceUrl() != null ? request.sourceUrl() : node.getSourceUrl())
+                .sourceUrl(request.sourceUrl() != null ? blankToNull(request.sourceUrl()) : node.getSourceUrl())
                 .sourceTitle(request.sourceTitle() != null ? request.sourceTitle() : node.getSourceTitle())
                 .build();
         updated.prepareUpdateFrom(node);
@@ -54,4 +54,7 @@ public class ModifyRoadmapNodeServiceImpl implements ModifyRoadmapNodeService {
         return NodeResDto.of(saved, nodeLookupSupport.loadReferences(saved.getId()));
     }
 
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
 }
