@@ -15,8 +15,7 @@ public static class IdentityCommand
 
     sealed class ConflictingReuse(string reason = ":conflicting_identity_command_reuse") : Exception(reason);
 
-    // TODO(legacy-identity-topic): Remove the schemaVersion compatibility argument when the drained v1 consumer is retired.
-    public static async Task HandleAsync(string consumerGroup, string resultTopic, KafkaRecord record, ILogger logger, int schemaVersion)
+    public static async Task HandleAsync(string consumerGroup, string resultTopic, KafkaRecord record, ILogger logger)
     {
         var payload = Json.ParseObject(record.Value, out var decodeError);
         if (payload is null)
@@ -25,7 +24,7 @@ public static class IdentityCommand
             return;
         }
 
-        var command = IdentityCommandContract.Parse(payload.Value, record.KeyText, schemaVersion);
+        var command = IdentityCommandContract.Parse(payload.Value, record.KeyText);
         if (command is null)
         {
             await Quarantine(IdentityCommandContract.CorrelationOperationId(payload.Value), ":invalid_user_identity_command");
@@ -122,7 +121,6 @@ public static class IdentityCommand
     /// <summary>The hash of a command under the given version's rule, or null when the version is not supported.</summary>
     internal static string? HashFor(long hashVersion, IdentityCommandContract.Command command) => hashVersion switch
     {
-        1 => Hash(IdentityCommandContract.LegacyCanonicalPayload(command)),
         IdentityCommandContract.HashVersion => Hash(IdentityCommandContract.CanonicalPayload(command)),
         _ => null,
     };
