@@ -1,38 +1,34 @@
 # Commit Scope Selection Guide
 
-## Priority Rule
+## Source of Truth
 
-**Domain name > Module name**
+Commit scopes and PR title scopes use the same values. The allowed values are in `allowedScopes` in the CI workflow:
 
-Always use a domain name. Only fall back to a module name when the change is genuinely cross-cutting (affects multiple domains or the entire module).
+- PRs to `develop`: `.github/workflows/cowork-stage-ci.yml`
+- PRs to `main`: `.github/workflows/cowork-prod-ci.yml`
 
-## Discover Scope at Runtime
+Read this list before you choose a scope. Do not copy the list into a document. Do not shorten a value or use another name for it.
 
-Do not use a hardcoded list. Determine scope from:
+CI validates PR titles only, so past commit subjects can contain scopes that are not allowed. Do not use commit history to choose a scope.
 
-1. `git diff --name-only` — look at changed file paths
-2. Directory structure — infer domain/module from path segments (e.g., `src/auth/`, `packages/user/`, `services/payment/`)
-3. Existing `AGENTS.md` files applicable to the changed paths, and any relevant `.claude/rules/` or `CONTRIBUTING.md` conventions
+## Select the Scope
 
-Respect the scope of nested `AGENTS.md` files. Skip missing documents and do not create them. Explicit project scope conventions take precedence over this guide’s domain-first default; otherwise infer the scope from changed paths and recent commits, and label it as inferred rather than citing a missing document.
+1. Run `git diff --name-only`.
+2. Map each changed `cowork-<name>/` directory to `<name>`. For example, `cowork-authorization/` maps to `authorization`.
+3. If the change is in one module, use that module's value.
+4. If the change is in several modules or applies to the whole repository, use `global`. Agent skills and shared documents also use `global`.
+5. If the change is to build or deployment pipelines, use `ci/cd`. If the change is to monitoring, use `monitoring`.
 
-Do not invent a priority between conflicting reference documents. Follow an explicitly documented project choice; otherwise report the conflict before choosing a scope for the affected commit.
-
-## Module / Cross-cutting Names (Secondary)
-
-| Scope    | When to use                              |
-|----------|------------------------------------------|
-| `global` | Affects multiple modules or the whole project |
-| `ci/cd`  | Build / deployment pipelines             |
-| (module) | Changes scoped to one module but multiple domains |
+Use one scope for each commit and PR title.
 
 ## Examples
 
 | Wrong | Correct | Reason |
 |-------|---------|--------|
-| `fix(module): 로그인 버그 수정` | `fix(auth): 로그인 버그 수정` | auth is the domain |
-| `update(common): 유저 엔티티 수정` | `update(user): 엔티티 필드 추가` | user entity belongs to user domain |
-| `add(module): 결제 필터 추가` | `add(payment): 결제 필터 추가` | payment feature is payment domain |
+| `fix(auth): 로그인 버그 수정` | `fix(authorization): 로그인 버그 수정` | `auth` is not in `allowedScopes` |
+| `[auth] 토큰 검증 수정` | `[authorization] 토큰 검증 수정` | `auth` is not in `allowedScopes` |
+| `update(common): 유저 엔티티 수정` | `update(user): 엔티티 필드 추가` | `cowork-user/` maps to `user` |
+| `fix(deploy): 배포 대기 시간 수정` | `fix(ci/cd): 배포 대기 시간 수정` | `deploy` is not in `allowedScopes` |
 
 ## Correct Cross-cutting Usage
 
