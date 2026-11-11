@@ -141,21 +141,17 @@ function sortQueue(queue) {
     || left.number - right.number);
 }
 
-function escapeMarkdown(text) {
-  return text.replace(/[\\*_~|>[\]()]/g, '\\$&');
-}
-
 function formatWaiting(createdAt, now) {
   const hours = Math.max(Math.floor((now.getTime() - Date.parse(createdAt)) / 3_600_000), 0);
   return hours < 24 ? `${hours}시간 대기` : `${Math.floor(hours / 24)}일 ${hours % 24}시간 대기`;
 }
 
 function formatTitle(item) {
-  return `[#${item.number} ${truncate(escapeMarkdown(item.title), TITLE_CHAR_LIMIT)}](${item.url})`;
+  return `[#${item.number}](${item.url}) ${truncate(item.title, TITLE_CHAR_LIMIT)}`;
 }
 
 function formatLine(item, now) {
-  const details = [escapeMarkdown(item.author), formatWaiting(item.createdAt, now)];
+  const details = [item.author, formatWaiting(item.createdAt, now)];
   if (item.factors.length > 0) details.push(item.factors.map(key => FACTORS[key]).join(', '));
   return `${formatTitle(item)}\n└ ${details.join(' · ')}`;
 }
@@ -174,7 +170,7 @@ function buildNewPullRequestPayload(item, roleId) {
     embeds: [{
       title: '새 PR',
       color: NEW_PULL_REQUEST_COLOR,
-      description: `${formatTitle(item)}\n└ ${escapeMarkdown(item.author)}`,
+      description: `${formatTitle(item)}\n└ ${item.author}`,
     }],
     allowed_mentions: allowedMentions(roleId),
   };
