@@ -8,9 +8,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	_ "github.com/cowork/authorization/internal/apidoc" // Gateway response schemas for swag.
 	"github.com/cowork/authorization/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 const (
