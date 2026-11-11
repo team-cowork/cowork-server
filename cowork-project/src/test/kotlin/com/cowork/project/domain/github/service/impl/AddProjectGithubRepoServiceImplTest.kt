@@ -11,9 +11,9 @@ import com.cowork.project.domain.github.service.GithubSyncRequestScheduler
 import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
+import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
-import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -31,11 +31,18 @@ class AddProjectGithubRepoServiceImplTest {
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true), mockk(relaxed = true))
+        ProjectAccessGuard(
+            projectRepository,
+            mockk<ProjectAccessProjectionRepository>(relaxed = true),
+            teamMembershipRepository,
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+        )
     private val repoEventPublisher = mockk<ProjectGithubRepoEventPublisher>(relaxed = true)
     private val githubSyncRequestScheduler = mockk<GithubSyncRequestScheduler>(relaxed = true)
     private val teamGithubInstallationRepository = mockk<TeamGithubInstallationRepository>().also {
-        every { it.findByIdOrNull(100L) } returns TeamGithubInstallation(teamId = 100L, installationId = 1L, orgLogin = "my-org")
+        every { it.findByIdOrNull(100L) } returns
+            TeamGithubInstallation(teamId = 100L, installationId = 1L, orgLogin = "my-org")
     }
 
     private val service = AddProjectGithubRepoServiceImpl(

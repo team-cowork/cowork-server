@@ -43,10 +43,14 @@ class ProjectAccessStateConsumer(
                 Instant.parse(node.path("sourceAuthorizationVersion").asString()).also {
                     require(it.isAfter(Instant.EPOCH) && !it.isAfter(membershipVersion))
                 }.toProjectionPrecision()
-            } else null
-            require(authorizationVersion != null || listOf("read", "write", "manage", "reorder", "readPrivate").none {
-                node.path(it).asBoolean()
-            })
+            } else {
+                null
+            }
+            require(
+                authorizationVersion != null || listOf("read", "write", "manage", "reorder", "readPrivate").none {
+                    node.path(it).asBoolean()
+                },
+            )
             ProjectAccessProjection(
                 record.key(), projectId, userId,
                 node.path("read").asBoolean(), node.path("write").asBoolean(),
@@ -78,7 +82,8 @@ class ProjectAccessStateConsumer(
                 val canReorder = existing.canReorder && event.canReorder
                 if (existing.canRead != canRead || existing.canWrite != canWrite || existing.canManage != canManage ||
                     existing.canReorder != canReorder ||
-                    existing.canReadPrivate != canReadPrivate) {
+                    existing.canReadPrivate != canReadPrivate
+                ) {
                     existing.canManage = canManage
                     existing.canRead = canRead
                     existing.canWrite = canWrite
