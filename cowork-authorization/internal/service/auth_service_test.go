@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/domain"
-	"gorm.io/gorm"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
