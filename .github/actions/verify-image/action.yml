@@ -1,4 +1,4 @@
-name: Verify A Cowork Module
+name: Verify A cowork Module
 description: Run the module-owned verify target and validate its coverage export
 inputs:
   module:

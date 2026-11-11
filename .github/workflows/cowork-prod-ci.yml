@@ -1,4 +1,4 @@
-name: Cowork Prod CI Workflow
+name: cowork Prod CI Workflow
 
 on:
   pull_request:
