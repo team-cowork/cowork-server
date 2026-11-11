@@ -41,5 +41,5 @@ jobs:
         uses: actions/github-script@v9
         with:
           script: |
-            const { syncPullRequestIssues } = require('./deploy/ci/pull_request/issues.cjs');
+            const { syncPullRequestIssues } = require('./deploy/ci/pull_request/issue/issues.cjs');
             await syncPullRequestIssues({ github, context, core, close: true });
