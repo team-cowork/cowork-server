@@ -16,7 +16,7 @@ export function createChatApiDocument(app: INestApplication, builder: DocumentBu
 				type: 'http',
 				scheme: 'bearer',
 				bearerFormat: 'JWT',
-				description: 'Cowork 액세스 토큰',
+				description: 'cowork 액세스 토큰',
 			},
 			'bearer',
 		)
