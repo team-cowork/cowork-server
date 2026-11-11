@@ -1,8 +1,8 @@
-name: Cowork Prod CD Workflow
+name: cowork Prod CD Workflow
 
 on:
   workflow_run:
-    workflows: ["Cowork Prod CI Workflow"]
+    workflows: ["cowork Prod CI Workflow"]
     types: [completed]
     branches: [main]
   workflow_dispatch:
