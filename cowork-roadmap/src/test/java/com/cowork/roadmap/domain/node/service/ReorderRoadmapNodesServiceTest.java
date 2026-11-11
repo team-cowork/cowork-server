@@ -1,28 +1,28 @@
 package com.cowork.roadmap.domain.node.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.mockito.InOrder;
 import org.springframework.http.HttpStatus;
 
-import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.presentation.data.request.ReorderNodesReqDto;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
+import com.cowork.roadmap.domain.node.repository.projection.NodePositionProjection;
 import com.cowork.roadmap.domain.node.service.impl.ReorderRoadmapNodesServiceImpl;
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
@@ -37,116 +37,99 @@ class ReorderRoadmapNodesServiceTest {
     private final RoadmapNodeRepository nodeRepository = mock(RoadmapNodeRepository.class);
     private final RoadmapRepository roadmapRepository = mock(RoadmapRepository.class);
     private final RoadmapAccessGuard accessGuard = mock(RoadmapAccessGuard.class);
-
-    private final RoadmapLookupSupport roadmapLookupSupport = new RoadmapLookupSupport(roadmapRepository);
-    private final ReorderRoadmapNodesServiceImpl reorderRoadmapNodesService = new ReorderRoadmapNodesServiceImpl(
-            nodeRepository,
+    private final ReorderRoadmapNodesServiceImpl service = new ReorderRoadmapNodesServiceImpl(nodeRepository,
             accessGuard,
-            roadmapLookupSupport);
+            new RoadmapLookupSupport(roadmapRepository));
 
-    @Nested
-    class Execute {
+    @Test
+    void missingExtraOrDuplicateSiblingIds_failBeforeUpdating() {
+        prepareNodes(null, List.of(node(1L, 0), node(2L, 1)));
 
-        @Test
-        void siblingIdsDoNotMatch_failsWithBadRequest() {
-            prepareNodes(List.of(node(1L, 10L, null), node(2L, 10L, null)));
-            ReorderNodesReqDto request = new ReorderNodesReqDto(null, List.of(1L, 2L, 3L));
-
+        for (List<Long> ids : List.of(List.of(1L), List.of(1L, 2L, 3L), List.of(1L, 1L))) {
             ExpectedException error = assertThrows(ExpectedException.class,
-                    () -> reorderRoadmapNodesService.execute(1L, "ADMIN", 10L, request));
-            assertTrue(error.getStatusCode() == HttpStatus.BAD_REQUEST);
+                    () -> service.execute(7L, "MEMBER", 10L, new ReorderNodesReqDto(null, ids)));
+            assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         }
 
-        @Test
-        void duplicateIds_failWithBadRequest() {
-            prepareNodes(List.of(node(1L, 10L, null), node(2L, 10L, null)));
-            ReorderNodesReqDto request = new ReorderNodesReqDto(null, List.of(1L, 1L));
-
-            ExpectedException error = assertThrows(ExpectedException.class,
-                    () -> reorderRoadmapNodesService.execute(1L, "ADMIN", 10L, request));
-            assertTrue(error.getStatusCode() == HttpStatus.BAD_REQUEST);
-        }
-
-        @Test
-        void validSiblingOrder_updatesOnlyRequestedLevel() {
-            RoadmapNode first = node(1L, 10L, null);
-            RoadmapNode second = node(2L, 10L, null);
-            RoadmapNode child = node(3L, 10L, 1L);
-            prepareNodes(List.of(first, second, child));
-            AtomicReference<List<RoadmapNode>> savedNodes = new AtomicReference<>();
-            when(nodeRepository.saveAll(anyList())).thenAnswer(invocation -> {
-                List<RoadmapNode> nodes = invocation.getArgument(0);
-                savedNodes.set(nodes);
-                return nodes;
-            });
-
-            reorderRoadmapNodesService.execute(7L, "MEMBER", 10L, new ReorderNodesReqDto(null, List.of(2L, 1L)));
-
-            assertEquals(List.of(2L, 1L), savedNodes.get().stream().map(RoadmapNode::getId).toList());
-            assertEquals(List.of(0, 1), savedNodes.get().stream().map(RoadmapNode::getPosition).toList());
-            assertEquals(List.of(7L, 7L), savedNodes.get().stream().map(RoadmapNode::getLastModifiedBy).toList());
-        }
-
-        @Test
-        void movedNodes_areParkedAtNegativePositionsBeforeFinalSave() {
-            RoadmapNode first = node(1L, 10L, null, 0);
-            RoadmapNode fixed = node(2L, 10L, null, 1);
-            LocalDateTime previousModifiedAt = LocalDateTime.of(2025, 1, 2, 0, 0);
-            fixed.setCreatedAt(previousModifiedAt.minusDays(1));
-            fixed.setUpdatedAt(previousModifiedAt);
-            fixed.setLastModifiedBy(7L);
-            RoadmapNode last = node(3L, 10L, null, 2);
-            prepareNodes(List.of(first, fixed, last));
-            List<List<RoadmapNode>> saveCalls = new ArrayList<>();
-            when(nodeRepository.saveAllAndFlush(anyList())).thenAnswer(invocation -> {
-                List<RoadmapNode> nodes = invocation.getArgument(0);
-                saveCalls.add(nodes);
-                return nodes;
-            });
-            when(nodeRepository.saveAll(anyList())).thenAnswer(invocation -> {
-                List<RoadmapNode> nodes = invocation.getArgument(0);
-                saveCalls.add(nodes);
-                return nodes;
-            });
-
-            reorderRoadmapNodesService.execute(7L, "MEMBER", 10L, new ReorderNodesReqDto(null, List.of(3L, 2L, 1L)));
-
-            InOrder order = inOrder(nodeRepository);
-            order.verify(nodeRepository).saveAllAndFlush(saveCalls.get(0));
-            order.verify(nodeRepository).saveAll(saveCalls.get(1));
-            assertEquals(2, saveCalls.size());
-            assertEquals(List.of(3L, 1L), saveCalls.get(0).stream().map(RoadmapNode::getId).toList());
-            assertEquals(List.of(-1, -3), saveCalls.get(0).stream().map(RoadmapNode::getPosition).toList());
-            assertEquals(List.of(3L, 2L, 1L), saveCalls.get(1).stream().map(RoadmapNode::getId).toList());
-            assertEquals(List.of(0, 1, 2), saveCalls.get(1).stream().map(RoadmapNode::getPosition).toList());
-            RoadmapNode unchangedPosition = saveCalls.get(1).get(1);
-            assertThat(unchangedPosition.getCreatedAt()).isEqualTo(fixed.getCreatedAt());
-            assertThat(unchangedPosition.getLastModifiedBy()).isEqualTo(7L);
-            assertThat(unchangedPosition.getUpdatedAt()).isAfter(previousModifiedAt);
-        }
+        verify(nodeRepository, never()).updatePosition(anyLong(), anyLong(), anyInt(), anyLong(), any());
     }
 
-    private void prepareNodes(List<RoadmapNode> nodes) {
-        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
+    @Test
+    void childOrder_readsOnlyRequestedParentAfterLockingAndCheckingAccess() {
+        Roadmap roadmap = prepareNodes(5L, List.of(node(1L, 0), node(2L, 1)));
 
-        when(nodeRepository.findByRoadmapIdOrderByPositionAsc(10L)).thenReturn(nodes);
+        service.execute(7L, "MEMBER", 10L, new ReorderNodesReqDto(5L, List.of(2L, 1L)));
+
+        var order = inOrder(roadmapRepository, accessGuard, nodeRepository);
+        order.verify(roadmapRepository).findByIdForUpdate(10L);
+        order.verify(accessGuard).requireMutable(roadmap, 7L, "MEMBER");
+        order.verify(nodeRepository).findSiblingPositions(10L, 5L);
     }
 
-    private static Roadmap roadmap(Long id) {
-        return Roadmap.builder().id(id).scope(RoadmapScope.GLOBAL.name()).build();
+    @Test
+    void movedNodes_areParkedBeforeFinalPositionsAndOnlyMovedNodesReceiveAuditFields() {
+        prepareNodes(null, List.of(node(1L, 0), node(2L, 1), node(3L, 2)));
+        List<Update> updates = captureUpdates();
+        Instant before = Instant.now();
+
+        service.execute(7L, "MEMBER", 10L, new ReorderNodesReqDto(null, List.of(3L, 2L, 1L)));
+
+        assertThat(updates).extracting(Update::nodeId).containsExactly(3L, 1L, 3L, 1L);
+        assertThat(updates).extracting(Update::position).containsExactly(-1, -3, 0, 2);
+        assertThat(updates).allSatisfy(update -> {
+            assertThat(update.roadmapId()).isEqualTo(10L);
+            assertThat(update.userId()).isEqualTo(7L);
+            assertThat(update.updatedAt()).isBetween(before, Instant.now());
+        });
+        assertThat(updates).extracting(Update::updatedAt).containsOnly(updates.getFirst().updatedAt());
     }
 
-    private static RoadmapNode node(Long id, Long roadmapId, Long parentId) {
-        return node(id, roadmapId, parentId, 0);
+    @Test
+    void unchangedOrder_doesNotUpdatePositionsOrAuditFields() {
+        prepareNodes(null, List.of(node(1L, 0), node(2L, 1), node(3L, 2)));
+
+        service.execute(7L, "MEMBER", 10L, new ReorderNodesReqDto(null, List.of(1L, 2L, 3L)));
+
+        verify(nodeRepository, never()).updatePosition(anyLong(), anyLong(), anyInt(), anyLong(), any());
     }
 
-    private static RoadmapNode node(Long id, Long roadmapId, Long parentId, int position) {
-        return RoadmapNode.builder()
-                .id(id)
-                .roadmapId(roadmapId)
-                .parentId(parentId)
-                .position(position)
-                .title("node" + id)
-                .build();
+    @Test
+    void positionsWithDeletionGaps_areCompacted() {
+        prepareNodes(null, List.of(node(1L, 2), node(2L, 7)));
+        List<Update> updates = captureUpdates();
+
+        service.execute(7L, "MEMBER", 10L, new ReorderNodesReqDto(null, List.of(1L, 2L)));
+
+        assertThat(updates).extracting(Update::position).containsExactly(-1, -2, 0, 1);
+    }
+
+    private List<Update> captureUpdates() {
+        List<Update> updates = new ArrayList<>();
+        doAnswer(invocation -> {
+            updates.add(new Update(invocation.getArgument(0),
+                    invocation.getArgument(1),
+                    invocation.getArgument(2),
+                    invocation.getArgument(3),
+                    invocation.getArgument(4)));
+            return null;
+        }).when(nodeRepository).updatePosition(anyLong(), anyLong(), anyInt(), anyLong(), any());
+        return updates;
+    }
+
+    private Roadmap prepareNodes(Long parentId, List<NodePositionProjection> nodes) {
+        Roadmap roadmap = Roadmap.builder().id(10L).scope(RoadmapScope.GLOBAL.name()).build();
+        when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap));
+        when(nodeRepository.findSiblingPositions(10L, parentId)).thenReturn(nodes);
+        return roadmap;
+    }
+
+    private NodePositionProjection node(Long id, int position) {
+        NodePositionProjection node = mock(NodePositionProjection.class);
+        when(node.getId()).thenReturn(id);
+        when(node.getPosition()).thenReturn(position);
+        return node;
+    }
+
+    private record Update(Long roadmapId, Long nodeId, Integer position, Long userId, Instant updatedAt) {
     }
 }

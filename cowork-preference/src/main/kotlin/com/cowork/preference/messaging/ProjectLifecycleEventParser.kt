@@ -38,12 +38,13 @@ object ProjectLifecycleEventParser {
             .getOrElse { error("occurredAt must be an RFC3339 instant") }
 
         ProjectLifecycleRecordDecision.Apply(
-            ProjectLifecycleEvent(projectId, teamId, eventType == "DELETED", occurredAt,
+            ProjectLifecycleEvent(
+                projectId,
+                teamId,
+                eventType == "DELETED",
+                occurredAt,
                 payload.getValue("createdBy")?.let { positiveLong(it, "createdBy") },
-                // TODO(#596): 2026-11-01 05:00 KST 이후 아래 조건 완료를 확인하고 제거한다.
-                // 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-                // producer 전환·재동기화 및 구형 이벤트 재처리 종료 확인 후 누락 시 true 호환을 제거한다.
-                if (payload.containsKey("isPrivate")) payload.getValue("isPrivate") as? Boolean ?: error("isPrivate must be a boolean") else true,
+                payload.getValue("isPrivate") as? Boolean ?: error("isPrivate must be a boolean"),
                 payload.getJsonObject("initialReadGrant")?.let(InitialProjectReadGrant::fromJson),
             ),
         )

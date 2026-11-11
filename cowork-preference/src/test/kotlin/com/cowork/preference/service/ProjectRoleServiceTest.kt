@@ -1,8 +1,8 @@
 package com.cowork.preference.service
 
-import com.cowork.preference.domain.ProjectRoleDefinition
 import com.cowork.preference.domain.ProjectLifecycleProjection
 import com.cowork.preference.domain.ProjectPermissions
+import com.cowork.preference.domain.ProjectRoleDefinition
 import com.cowork.preference.domain.TeamMemberProjection
 import com.cowork.preference.domain.TeamRoleDefinition
 import com.cowork.preference.messaging.ProjectionReadinessView
@@ -19,8 +19,8 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.vertx.core.json.JsonObject
-import io.vertx.sqlclient.SqlConnection
 import io.vertx.sqlclient.Pool
+import io.vertx.sqlclient.SqlConnection
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -107,7 +107,8 @@ class ProjectRoleServiceTest {
 
     @Test
     fun `역할 부여와 회수는 같은 트랜잭션에서 접근 권한을 다시 계산한다`() = runBlocking {
-        coEvery { repository.findRole(projectId, roleName, any()) } returns ProjectRoleDefinition(projectId, roleName, permissions, 20)
+        coEvery { repository.findRole(projectId, roleName, any()) } returns
+            ProjectRoleDefinition(projectId, roleName, permissions, 20)
         service.assignRole(targetId, projectId, roleName, requester).getOrThrow()
         service.removeRole(targetId, projectId, roleName, requester)
         coVerify(exactly = 2) { access.refresh(any(), projectId) }

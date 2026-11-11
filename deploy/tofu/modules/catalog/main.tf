@@ -12,19 +12,21 @@ locals {
     "cowork-project" : "nomad/apps/project",
     "cowork-roadmap" : "nomad/apps/roadmap",
     "cowork-github" : "nomad/apps/github",
-    "cowork-authorization-db" : "nomad/data/authorization",
-    "cowork-user-db" : "nomad/data/user",
-    "cowork-team-db" : "nomad/data/team",
-    "cowork-project-db" : "nomad/data/project",
-    "cowork-channel-db" : "nomad/data/channel",
-    "cowork-roadmap-db" : "nomad/data/roadmap",
-    "cowork-preference-db" : "nomad/data/preference",
-    "cowork-chat-db" : "nomad/data/chat",
-    "cowork-voice-db" : "nomad/data/voice",
-    "cowork-user-storage" : "nomad/data/user/storage",
-    "cowork-team-storage" : "nomad/data/team/storage",
-    "cowork-chat-storage" : "nomad/data/chat/storage",
-    "cowork-chat-search" : "nomad/data/chat/search",
+    "cowork-applet" : "nomad/apps/applet",
+    "cowork-authorization-mysql" : "nomad/data/authorization",
+    "cowork-user-mysql" : "nomad/data/user",
+    "cowork-team-mysql" : "nomad/data/team",
+    "cowork-project-mysql" : "nomad/data/project",
+    "cowork-channel-mysql" : "nomad/data/channel",
+    "cowork-roadmap-mysql" : "nomad/data/roadmap",
+    "cowork-preference-postgresql" : "nomad/data/preference",
+    "cowork-applet-surrealdb" : "nomad/data/applet",
+    "cowork-chat-mongodb" : "nomad/data/chat",
+    "cowork-voice-mongodb" : "nomad/data/voice",
+    "cowork-user-seaweedfs" : "nomad/data/user/seaweedfs",
+    "cowork-team-seaweedfs" : "nomad/data/team/seaweedfs",
+    "cowork-chat-seaweedfs" : "nomad/data/chat/seaweedfs",
+    "cowork-chat-elasticsearch" : "nomad/data/chat/elasticsearch",
     "cowork-kafka" : "nomad/data/kafka",
     "cowork-livekit" : "nomad/data/voice/livekit",
     "cowork-monitoring" : "nomad/apps/monitoring"
@@ -42,32 +44,35 @@ locals {
     "cowork-project" : "cowork-project",
     "cowork-roadmap" : "cowork-roadmap",
     "cowork-github" : "cowork-github",
-    "cowork-authorization-db" : "cowork-authorization-db",
-    "cowork-user-db" : "cowork-user-db",
-    "cowork-team-db" : "cowork-team-db",
-    "cowork-project-db" : "cowork-project-db",
-    "cowork-channel-db" : "cowork-channel-db",
-    "cowork-roadmap-db" : "cowork-roadmap-db",
-    "cowork-preference-db" : "cowork-preference-db",
-    "cowork-chat-db" : "cowork-chat-db",
-    "cowork-voice-db" : "cowork-voice-db",
-    "cowork-user-storage" : "cowork-user-storage",
-    "cowork-team-storage" : "cowork-team-storage",
-    "cowork-chat-storage" : "cowork-chat-storage",
-    "cowork-chat-search" : "cowork-chat-search",
+    "cowork-applet" : "cowork-applet",
+    "cowork-authorization-mysql" : "cowork-authorization-mysql",
+    "cowork-user-mysql" : "cowork-user-mysql",
+    "cowork-team-mysql" : "cowork-team-mysql",
+    "cowork-project-mysql" : "cowork-project-mysql",
+    "cowork-channel-mysql" : "cowork-channel-mysql",
+    "cowork-roadmap-mysql" : "cowork-roadmap-mysql",
+    "cowork-preference-postgresql" : "cowork-preference-postgresql",
+    "cowork-applet-surrealdb" : "cowork-applet-surrealdb",
+    "cowork-chat-mongodb" : "cowork-chat-mongodb",
+    "cowork-voice-mongodb" : "cowork-voice-mongodb",
+    "cowork-user-seaweedfs" : "cowork-user-seaweedfs",
+    "cowork-team-seaweedfs" : "cowork-team-seaweedfs",
+    "cowork-chat-seaweedfs" : "cowork-chat-seaweedfs",
+    "cowork-chat-elasticsearch" : "cowork-chat-elasticsearch",
     "cowork-kafka" : "cowork-kafka",
     "cowork-livekit" : "cowork-livekit",
     "cowork-monitoring" : "cowork-monitoring",
     "cowork-redis" : "cowork-redis",
-    "cowork-authorization-db-metrics" : "cowork-authorization-db",
-    "cowork-user-db-metrics" : "cowork-user-db",
-    "cowork-team-db-metrics" : "cowork-team-db",
-    "cowork-project-db-metrics" : "cowork-project-db",
-    "cowork-channel-db-metrics" : "cowork-channel-db",
-    "cowork-roadmap-db-metrics" : "cowork-roadmap-db",
-    "cowork-preference-db-metrics" : "cowork-preference-db",
-    "cowork-chat-db-metrics" : "cowork-chat-db",
-    "cowork-voice-db-metrics" : "cowork-voice-db"
+    "cowork-authorization-mysql-metrics" : "cowork-authorization-mysql",
+    "cowork-user-mysql-metrics" : "cowork-user-mysql",
+    "cowork-team-mysql-metrics" : "cowork-team-mysql",
+    "cowork-project-mysql-metrics" : "cowork-project-mysql",
+    "cowork-channel-mysql-metrics" : "cowork-channel-mysql",
+    "cowork-roadmap-mysql-metrics" : "cowork-roadmap-mysql",
+    "cowork-preference-postgresql-metrics" : "cowork-preference-postgresql",
+    "cowork-applet-surrealdb-metrics" : "cowork-applet-surrealdb",
+    "cowork-chat-mongodb-metrics" : "cowork-chat-mongodb",
+    "cowork-voice-mongodb-metrics" : "cowork-voice-mongodb"
   }
   upstreams = {
     "cowork-gateway" : [
@@ -82,66 +87,71 @@ locals {
       "cowork-project",
       "cowork-roadmap",
       "cowork-github",
-      "cowork-user-storage",
-      "cowork-team-storage",
-      "cowork-chat-storage",
+      "cowork-applet",
+      "cowork-user-seaweedfs",
+      "cowork-team-seaweedfs",
+      "cowork-chat-seaweedfs",
       "cowork-redis"
     ],
     "cowork-authorization" : [
-      "cowork-authorization-db",
+      "cowork-authorization-mysql",
       "cowork-redis"
     ],
     "cowork-preference" : [
-      "cowork-preference-db",
+      "cowork-preference-postgresql",
       "cowork-redis"
     ],
     "cowork-user" : [
-      "cowork-user-db",
-      "cowork-user-storage",
+      "cowork-user-mysql",
+      "cowork-user-seaweedfs",
       "cowork-redis"
     ],
     "cowork-team" : [
-      "cowork-team-db",
-      "cowork-team-storage"
+      "cowork-team-mysql",
+      "cowork-team-seaweedfs"
     ],
     "cowork-channel" : [
-      "cowork-channel-db"
+      "cowork-channel-mysql"
     ],
     "cowork-notification" : [],
     "cowork-chat" : [
-      "cowork-chat-db",
-      "cowork-chat-storage",
+      "cowork-chat-mongodb",
+      "cowork-chat-seaweedfs",
       "cowork-redis",
-      "cowork-chat-search"
+      "cowork-chat-elasticsearch"
     ],
     "cowork-voice" : [
-      "cowork-voice-db",
+      "cowork-voice-mongodb",
       "cowork-livekit"
     ],
     "cowork-project" : [
-      "cowork-project-db",
+      "cowork-project-mysql",
       "cowork-github"
     ],
     "cowork-roadmap" : [
-      "cowork-roadmap-db"
+      "cowork-roadmap-mysql"
     ],
     "cowork-github" : [
       "cowork-redis"
+    ],
+    "cowork-applet" : [
+      "cowork-applet-surrealdb"
     ],
     "cowork-livekit" : [
       "cowork-voice"
     ],
     "cowork-monitoring" : [
       "cowork-redis",
-      "cowork-authorization-db-metrics",
-      "cowork-user-db-metrics",
-      "cowork-team-db-metrics",
-      "cowork-project-db-metrics",
-      "cowork-channel-db-metrics",
-      "cowork-roadmap-db-metrics",
-      "cowork-preference-db-metrics",
-      "cowork-chat-db-metrics",
-      "cowork-voice-db-metrics"
+      "cowork-authorization-mysql-metrics",
+      "cowork-user-mysql-metrics",
+      "cowork-team-mysql-metrics",
+      "cowork-project-mysql-metrics",
+      "cowork-channel-mysql-metrics",
+      "cowork-roadmap-mysql-metrics",
+      "cowork-preference-postgresql-metrics",
+      "cowork-applet-surrealdb-metrics",
+      "cowork-chat-mongodb-metrics",
+      "cowork-voice-mongodb-metrics"
     ]
   }
 }

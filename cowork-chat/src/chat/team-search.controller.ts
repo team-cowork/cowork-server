@@ -34,6 +34,9 @@ export class TeamSearchController {
 		name: 'type', enum: ['TEXT', 'FILE', 'SYSTEM'], description: '메시지 타입 필터', required: false,
 	})
 	@apiQuery({name: 'hasFile', description: '첨부파일 포함 메시지만 조회 (true/false)', required: false})
+	@apiQuery({
+		name: 'archived', description: 'true면 보관된 채널, false면 활성 채널만 검색. 생략하면 둘 다 검색', required: false,
+	})
 	@apiQuery({name: 'before', description: '커서: 이전 응답의 nextCursor 값', required: false})
 	@apiQuery({name: 'limit', description: '페이지 크기 (기본 50, 최대 100)', required: false})
 	@apiResponse({

@@ -9,8 +9,4 @@ data class ProjectRoleDefinition(
     val priority: Int = 0,
 )
 
-data class AccountProjectRole(
-    val accountId: Long,
-    val projectId: Long,
-    val roleName: String,
-)
+data class AccountProjectRole(val accountId: Long, val projectId: Long, val roleName: String)

@@ -1,6 +1,7 @@
 package com.cowork.preference.service
 
 import com.cowork.preference.domain.AccountProjectRole
+import com.cowork.preference.domain.ProjectPermissions
 import com.cowork.preference.domain.ProjectRoleDefinition
 import com.cowork.preference.repository.InitialResourceAccessRepository
 import com.cowork.preference.repository.PreferenceOutboxRepository
@@ -26,8 +27,13 @@ class ProjectRoleService(
         priority: Int = 0,
     ): Result<ProjectRoleDefinition> = runCatching {
         require(roleName.isNotBlank() && roleName.length <= 50) { "Invalid roleName" }
-        require(permissions.fieldNames().all { it in setOf("read", "write", "manage", "reorder") && permissions.getValue(it) is Boolean }) {
-            "Project permissions must use read, write, manage or reorder boolean values"
+        require(
+            permissions.fieldNames().all {
+                it in ProjectPermissions.ROLE_KEYS &&
+                    permissions.getValue(it) is Boolean
+            },
+        ) {
+            "Project permissions must use read, write, manage, reorder or channel_archive boolean values"
         }
         val canonical = permissions.copy()
         outbox.inTransaction { client ->
@@ -52,7 +58,12 @@ class ProjectRoleService(
 
     suspend fun getMemberRoles(projectId: Long): List<AccountProjectRole> = repository.findMemberRoles(projectId)
 
-    suspend fun assignRole(accountId: Long, projectId: Long, roleName: String, requester: RequesterContext): Result<Unit> = runCatching {
+    suspend fun assignRole(
+        accountId: Long,
+        projectId: Long,
+        roleName: String,
+        requester: RequesterContext,
+    ): Result<Unit> = runCatching {
         outbox.inTransaction { client ->
             guard.requireRoleAssignment(projectId, requester, roleName, accountId, client)
             repository.findRole(projectId, roleName, client) ?: throw NoSuchElementException("Role not found")

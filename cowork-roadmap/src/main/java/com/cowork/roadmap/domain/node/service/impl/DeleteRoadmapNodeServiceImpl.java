@@ -14,8 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.cowork.roadmap.domain.assignment.repository.RoadmapAssignmentRepository;
-import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.repository.RoadmapNodeRepository;
+import com.cowork.roadmap.domain.node.repository.projection.NodeParentProjection;
 import com.cowork.roadmap.domain.node.service.DeleteRoadmapNodeService;
 import com.cowork.roadmap.domain.node.service.support.RoadmapNodeLookupSupport;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
@@ -40,7 +40,7 @@ public class DeleteRoadmapNodeServiceImpl implements DeleteRoadmapNodeService {
         Long roadmapId = nodeLookupSupport.findRoadmapIdByNodeOrThrow(nodeId);
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
         accessGuard.requireMutable(roadmap, userId, userRole);
-        List<RoadmapNode> all = nodeRepository.findAllByRoadmapIdForUpdate(roadmapId);
+        List<NodeParentProjection> all = nodeRepository.findParentsByRoadmapIdForUpdate(roadmapId);
         deleteSubtree(roadmapId, collectSubtreeIds(nodeId, all));
     }
 
@@ -57,9 +57,9 @@ public class DeleteRoadmapNodeServiceImpl implements DeleteRoadmapNodeService {
         nodeRepository.deleteAllByIdInBatch(subtreeIds);
     }
 
-    private Set<Long> collectSubtreeIds(Long rootId, List<RoadmapNode> all) {
+    private Set<Long> collectSubtreeIds(Long rootId, List<NodeParentProjection> all) {
         Map<Long, List<Long>> childrenByParent = new HashMap<>();
-        for (RoadmapNode node : all) {
+        for (NodeParentProjection node : all) {
             if (node.getParentId() != null) {
                 childrenByParent.computeIfAbsent(node.getParentId(), key -> new ArrayList<>()).add(node.getId());
             }

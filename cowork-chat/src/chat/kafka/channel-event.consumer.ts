@@ -12,10 +12,10 @@ import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {parseEventTime, type ParsedEventTime} from '../../common/util/event-time.util.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {PROJECTION_STREAMS, ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
-import {applyProjectionMessage, ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
+import {ProjectionContractError} from '../../common/kafka/projection-message.processor.js';
 import {ChannelProjectionEvent, ChannelProjectionRepository} from '../repository/index.js';
 import {ChannelMessageReadAccessService} from '../service/index.js';
-import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
+import {startProjectionConsumer} from '../../common/kafka/projection-consumer.js';
 import {type Nullable} from '../../common/type/nullable.js';
 
 type ChannelEvent = {
@@ -31,6 +31,10 @@ type ChannelEvent = {
 	viewType: string;
 	description: Nullable<string>;
 	isPrivate: boolean;
+	/**
+    보관 상태. 필드가 추가되기 전에 발행된 이벤트는 누락될 수 있으며 활성 채널로 본다.
+    */
+	archived?: boolean;
 	occurredAt: string;
 	/**
     주기/startup state replay이면 변경 알림 부수효과를 억제한다.
@@ -114,6 +118,7 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
 			description: event.description,
 			isPrivate: event.isPrivate,
 			position: event.position ?? 0,
+			archived: event.archived ?? false,
 			occurredAt,
 			sourceVersion,
 		};
@@ -121,7 +126,8 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
 	}
 
 	private async broadcastChannelEvent(io: Server, event: ChannelEvent, isApplied: boolean, deletionRecipientSocketIds: string[]): Promise<void> {
-		if (event.eventType === 'UPDATED') {
+		// 변경 없이 끝난 snapshot 재발행은 소켓 재검증을 건너뛰고, live 재전달은 항상 재검증한다.
+		if (event.eventType === 'UPDATED' && (isApplied || event.snapshot !== true)) {
 			await this.channelMessageReadAccess.evictUnauthorizedSockets(io, [event.channelId]);
 		}
 
@@ -187,25 +193,10 @@ export class ChannelEventConsumer implements OnModuleInit, OnModuleDestroy {
 		});
 		const stream = PROJECTION_STREAMS.channel;
 		this.consumer = kafka.consumer({groupId: stream.groupId});
-		await connectWithRetry(this.logger, `Kafka consumer startup: ${stream.topic}`, async () => {
-			await this.consumer.connect();
-			await this.consumer.subscribe({topic: stream.topic, fromBeginning: true});
-			await this.projectionReadiness.registerProjection(kafka, this.consumer, stream);
+		await startProjectionConsumer({
+			logger: this.logger, kafka, consumer: this.consumer, readiness: this.projectionReadiness, stream,
+			handleEvent: async (payload, key) => this.handleEvent(payload, key),
 		});
-
-		void this.consumer.run({
-			eachMessage: async ({partition, message}): Promise<void> => {
-				await this.projectionReadiness.processMessage(stream, partition, message.offset, async () => applyProjectionMessage(stream, {
-					partition, message, readiness: this.projectionReadiness, apply: async (payload, key) => this.handleEvent(payload, key),
-				},
-				));
-			},
-		}).catch(async (error: unknown) => {
-			this.logger.error(`${stream.topic} Kafka consumer failed`, error);
-			// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
-			throw error;
-		});
-		this.logger.log(`Kafka projection consumer started: ${stream.topic}`);
 	}
 
 	async onModuleDestroy() {
@@ -228,5 +219,6 @@ function hasValidChannelDetails(event: Partial<ChannelEvent>): boolean {
 		&& typeof event.viewType === 'string'
 		&& (event.description === null || typeof event.description === 'string')
 		&& typeof event.isPrivate === 'boolean'
-		&& (event.position === undefined || typeof event.position === 'number');
+		&& (event.position === undefined || typeof event.position === 'number')
+		&& (event.archived === undefined || typeof event.archived === 'boolean');
 }

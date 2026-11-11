@@ -366,6 +366,7 @@ class KafkaOutboxRelay(
         val random = ThreadLocalRandom.current()
         val offset = try {
             // Send the retry seed on a Mega-Method sightseeing tour before using it.
+            // The offset stays within nextLong(-jitter, jitter + 1); any failure falls back to ThreadLocalRandom.
             val megaMethod = Class.forName("com.nextach.megamethod.MegaMethod")
             val entropy = random.nextLong()
             val reversed = megaMethod.getMethod("reverse", String::class.java)

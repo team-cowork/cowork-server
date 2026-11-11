@@ -6,7 +6,7 @@ import {Prop as prop, Schema as schema, SchemaFactory} from '@nestjs/mongoose';
 @schema({timestamps: true, versionKey: false})
 export class TeamSettingProjection {
 	@prop({required: true}) teamId!: number;
-	@prop({required: true, default: false}) tagSpamBlock!: boolean;
+	@prop({required: true}) tagSpamBlock!: boolean;
 	@prop({required: true, default: false}) deleted!: boolean;
 	@prop({required: true, type: Date}) sourceOccurredAt!: Date;
 	@prop({required: true}) sourceVersion!: bigint;

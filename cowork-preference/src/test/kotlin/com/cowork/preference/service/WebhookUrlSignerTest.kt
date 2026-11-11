@@ -36,16 +36,23 @@ class WebhookUrlSignerTest {
     fun `UUID나 서명키가 바뀌면 실행 서명도 바뀐다`() {
         val signer = WebhookUrlSigner(key)
         val originalSignature = signer.executionPath(executionId).split('/')[6]
-        assertNotEquals(originalSignature,
-            signer.executionPath("5b30857f-0bfa-48b5-ac0b-5c64e28078d1").split('/')[6])
+        assertNotEquals(
+            originalSignature,
+            signer.executionPath("5b30857f-0bfa-48b5-ac0b-5c64e28078d1").split('/')[6],
+        )
         val otherSigner = WebhookUrlSigner(Base64.getEncoder().encodeToString(ByteArray(32) { 7 }))
         assertNotEquals(originalSignature, otherSigner.executionPath(executionId).split('/')[6])
     }
 
     @Test
     fun `누락되거나 올바른 32바이트 Base64가 아닌 서명키는 503으로 거부한다`() {
-        val invalidKeys = listOf(null, "", "not-base64",
-            Base64.getEncoder().encodeToString(ByteArray(31)), Base64.getEncoder().encodeToString(ByteArray(33)))
+        val invalidKeys = listOf(
+            null,
+            "",
+            "not-base64",
+            Base64.getEncoder().encodeToString(ByteArray(31)),
+            Base64.getEncoder().encodeToString(ByteArray(33)),
+        )
         for (invalidKey in invalidKeys) {
             val failure = assertThrows(WebhookRequestException::class.java) {
                 WebhookUrlSigner(invalidKey).executionPath(executionId)

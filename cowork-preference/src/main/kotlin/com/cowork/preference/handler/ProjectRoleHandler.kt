@@ -28,9 +28,14 @@ class ProjectRoleHandler(
             if (!authorizeMember(ctx, requester, projectId)) return@launch
             runCatching { service.getRoles(projectId) }
                 .onSuccess { roles ->
-                    val arr = JsonArray(roles.map {
-                        JsonObject().put("roleName", it.roleName).put("permissions", it.permissions).put("priority", it.priority)
-                    })
+                    val arr = JsonArray(
+                        roles.map {
+                            JsonObject().put(
+                                "roleName",
+                                it.roleName,
+                            ).put("permissions", it.permissions).put("priority", it.priority)
+                        },
+                    )
                     ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(arr.encode())
                 }
                 .onFailure { ctx.response().setStatusCode(500).end(errorBody(it.message)) }
@@ -55,7 +60,10 @@ class ProjectRoleHandler(
         scope.launch(ctx.vertx().dispatcher()) {
             service.createRole(projectId, roleName, permissions, requester, body.getInteger("priority", 0))
                 .onSuccess {
-                    val resp = JsonObject().put("roleName", it.roleName).put("permissions", it.permissions).put("priority", it.priority)
+                    val resp = JsonObject().put(
+                        "roleName",
+                        it.roleName,
+                    ).put("permissions", it.permissions).put("priority", it.priority)
                     ctx.response().setStatusCode(201).putHeader("Content-Type", "application/json").end(resp.encode())
                 }
                 .onFailure { e ->
@@ -103,9 +111,11 @@ class ProjectRoleHandler(
             if (!authorizeMember(ctx, requester, projectId)) return@launch
             runCatching { service.getMemberRoles(projectId) }
                 .onSuccess { members ->
-                    val arr = JsonArray(members.map {
-                        JsonObject().put("accountId", it.accountId).put("roleName", it.roleName)
-                    })
+                    val arr = JsonArray(
+                        members.map {
+                            JsonObject().put("accountId", it.accountId).put("roleName", it.roleName)
+                        },
+                    )
                     ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(arr.encode())
                 }
                 .onFailure { ctx.response().setStatusCode(500).end(errorBody(it.message)) }
@@ -169,11 +179,10 @@ class ProjectRoleHandler(
     }
 
     /** 요청자 헤더가 없거나 잘못되면 400으로 응답하고 null을 반환한다. */
-    private fun requesterOrReject(ctx: RoutingContext): RequesterContext? =
-        RequesterContext.from(ctx) ?: run {
-            ctx.response().setStatusCode(400).end(errorBody("Missing or invalid requester headers"))
-            null
-        }
+    private fun requesterOrReject(ctx: RoutingContext): RequesterContext? = RequesterContext.from(ctx) ?: run {
+        ctx.response().setStatusCode(400).end(errorBody("Missing or invalid requester headers"))
+        null
+    }
 
     /** 응답을 이미 보냈으면 false를 반환한다. */
     private suspend fun authorizeMember(ctx: RoutingContext, requester: RequesterContext, projectId: Long): Boolean =
@@ -196,6 +205,5 @@ class ProjectRoleHandler(
             auditAuthorizationFailure(log, status, requester.userId, "PROJECT_ROLE", projectId)
         }
 
-    private fun errorBody(message: String?) =
-        JsonObject().put("error", message ?: "Internal server error").encode()
+    private fun errorBody(message: String?) = JsonObject().put("error", message ?: "Internal server error").encode()
 }
