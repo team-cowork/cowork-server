@@ -55,11 +55,7 @@ public interface RoadmapNodeRepository extends JpaRepository<RoadmapNode, Long> 
     @Query(value = "SELECT COALESCE(MAX(position) + 1, 0) FROM tb_roadmap_nodes WHERE roadmap_id = :roadmapId AND parent_id = :parentId", nativeQuery = true)
     Long findNextChildPosition(Long roadmapId, Long parentId);
 
-    /** 하위 노드·과제 생성이 삭제 중인 노드를 참조하지 않도록 노드 삭제의 배타 잠금과 직렬화한다. */
-    @Query(value = "SELECT * FROM tb_roadmap_nodes WHERE id = :id FOR SHARE", nativeQuery = true)
-    Optional<RoadmapNode> findByIdForShare(Long id);
-
-    /** 잠금 읽기로 transaction snapshot 이후 커밋된 하위 노드까지 포함해 서브트리를 계산한다. */
-    @Query(value = "SELECT id, parent_id AS parentId FROM tb_roadmap_nodes WHERE roadmap_id = :roadmapId FOR UPDATE", nativeQuery = true)
-    List<NodeParentProjection> findParentsByRoadmapIdForUpdate(Long roadmapId);
+    /** 노드 생성과 삭제는 로드맵 행 잠금 아래에서 실행되므로, 잠금 이후 이 조회는 최신 커밋된 서브트리를 읽는다. */
+    @Query("SELECT node.id AS id, node.parentId AS parentId FROM RoadmapNode node WHERE node.roadmapId = :roadmapId")
+    List<NodeParentProjection> findParentsByRoadmapId(Long roadmapId);
 }
