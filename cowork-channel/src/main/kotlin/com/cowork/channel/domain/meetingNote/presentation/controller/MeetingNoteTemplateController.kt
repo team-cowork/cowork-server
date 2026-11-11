@@ -37,11 +37,6 @@ import team.themoment.sdk.response.CommonApiResponse
         content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
     ),
     ApiResponse(
-        responseCode = "400",
-        description = "요청 값이 올바르지 않거나 DM 채널",
-        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
-    ),
-    ApiResponse(
         responseCode = "503",
         description = "권한 정보 동기화 중",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
@@ -84,6 +79,16 @@ class MeetingNoteTemplateController(
     @Operation(summary = "템플릿 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(
+            responseCode = "400",
+            description = "요청 값이 올바르지 않거나 DM 채널",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
+        ApiResponse(
             responseCode = "404",
             description = "채널 없음",
             content = [
@@ -118,6 +123,16 @@ class MeetingNoteTemplateController(
 
     @Operation(summary = "템플릿 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
+        ApiResponse(
+            responseCode = "400",
+            description = "요청 값이 올바르지 않거나 DM 채널",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(
             responseCode = "409",
             description = "보관된 채널은 변경할 수 없음",
@@ -193,6 +208,16 @@ class MeetingNoteTemplateController(
     )
     @ApiResponses(
         ApiResponse(
+            responseCode = "400",
+            description = "요청 값이 올바르지 않거나 DM 채널",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
+        ApiResponse(
             responseCode = "403",
             description = "채널 접근 권한 없음",
             content = [
@@ -228,6 +253,16 @@ class MeetingNoteTemplateController(
 
     @Operation(summary = "템플릿 이름 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
+        ApiResponse(
+            responseCode = "400",
+            description = "요청 값이 올바르지 않거나 DM 채널",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(
             responseCode = "409",
             description = "보관된 채널은 변경할 수 없음",
@@ -348,6 +383,16 @@ class MeetingNoteTemplateController(
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
+        ApiResponse(
+            responseCode = "400",
+            description = "요청 값이 올바르지 않거나 DM 채널",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(
             responseCode = "409",
             description = "보관된 채널은 변경할 수 없음",
@@ -534,6 +579,16 @@ class MeetingNoteTemplateController(
 
     @Operation(summary = "섹션 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
+        ApiResponse(
+            responseCode = "400",
+            description = "요청 값이 올바르지 않거나 DM 채널",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(
             responseCode = "409",
             description = "보관된 채널은 변경할 수 없음",

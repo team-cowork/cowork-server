@@ -26,11 +26,6 @@ import team.themoment.sdk.response.CommonApiResponse
 @Tag(name = "계정 공유", description = "ACCOUNT_SHARE 채널의 공유 계정 관리 API")
 @ApiResponses(
     ApiResponse(
-        responseCode = "400",
-        description = "요청 값이 올바르지 않음",
-        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
-    ),
-    ApiResponse(
         responseCode = "503",
         description = "권한 정보 동기화 중",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
@@ -129,6 +124,16 @@ class SharedAccountController(
 
     @Operation(summary = "공유 계정 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
+        ApiResponse(
+            responseCode = "400",
+            description = "ACCOUNT_SHARE 채널이 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(responseCode = "200", description = "조회 성공"),
         ApiResponse(
             responseCode = "403",
@@ -256,6 +261,16 @@ class SharedAccountController(
     @Operation(summary = "공유 계정 수정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(
+            responseCode = "400",
+            description = "ACCOUNT_SHARE 채널이 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
+        ApiResponse(
             responseCode = "409",
             description = "보관된 채널 또는 이미 등록된 공유 계정",
             content = [
@@ -307,6 +322,16 @@ class SharedAccountController(
 
     @Operation(summary = "공유 계정 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
+        ApiResponse(
+            responseCode = "400",
+            description = "ACCOUNT_SHARE 채널이 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(
             responseCode = "409",
             description = "보관된 채널은 변경할 수 없음",
@@ -365,6 +390,16 @@ class SharedAccountController(
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
+        ApiResponse(
+            responseCode = "400",
+            description = "ACCOUNT_SHARE 채널이 아님",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(responseCode = "200", description = "복호화한 인증 정보 반환"),
         ApiResponse(
             responseCode = "403",
