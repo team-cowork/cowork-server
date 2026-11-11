@@ -6,9 +6,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cowork/authorization/internal/domain"
 	redis "github.com/redis/go-redis/v9"
 	"github.com/tmp-it-play/datagsm-sdk-go/event"
+
+	"github.com/cowork/authorization/internal/domain"
 )
 
 type fakeWebhookProcessor struct {
