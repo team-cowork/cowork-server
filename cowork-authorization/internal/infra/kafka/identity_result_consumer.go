@@ -11,9 +11,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/segmentio/kafka-go"
+
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/domain"
-	"github.com/segmentio/kafka-go"
 )
 
 type identityResultProcessor interface {
