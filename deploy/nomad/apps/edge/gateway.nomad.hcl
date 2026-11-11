@@ -190,17 +190,17 @@ job "cowork-gateway" {
               local_bind_address = "127.0.0.1"
             }
             upstreams {
-              destination_name   = "cowork-team-storage"
+              destination_name   = "cowork-team-seaweedfs"
               local_bind_port    = 19101
               local_bind_address = "127.0.0.1"
             }
             upstreams {
-              destination_name   = "cowork-user-storage"
+              destination_name   = "cowork-user-seaweedfs"
               local_bind_port    = 19102
               local_bind_address = "127.0.0.1"
             }
             upstreams {
-              destination_name   = "cowork-chat-storage"
+              destination_name   = "cowork-chat-seaweedfs"
               local_bind_port    = 19103
               local_bind_address = "127.0.0.1"
             }

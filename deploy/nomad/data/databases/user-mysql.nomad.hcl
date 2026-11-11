@@ -20,15 +20,15 @@ variable "config_files" {
   type = map(string)
 }
 
-job "cowork-authorization-db" {
+job "cowork-user-mysql" {
   datacenters = ["gsm"]
   namespace   = "default"
   type        = "service"
   constraint {
     attribute = "${meta.cowork_vm}"
-    value     = "authorization"
+    value     = "user"
   }
-  group "database" {
+  group "mysql" {
     count          = 1
     shutdown_delay = "5s"
     # A changed credential or initializer needs a fresh allocation to rerun poststart.
@@ -58,23 +58,23 @@ job "cowork-authorization-db" {
     }
     volume "data" {
       type      = "host"
-      source    = "authorization-db"
+      source    = "user-mysql"
       read_only = false
     }
     service {
-      name         = "cowork-authorization-db"
+      name         = "cowork-user-mysql"
       provider     = "consul"
       port         = "3306"
       address_mode = "alloc"
-      tags         = ["cowork", "database"]
+      tags         = ["cowork", "mysql"]
       identity {
         aud = ["consul.io"]
         ttl = "1h"
       }
       check {
-        name     = "database"
+        name     = "mysql"
         type     = "script"
-        task     = "database"
+        task     = "mysql"
         command  = "/bin/sh"
         args     = ["-c", "mysqladmin --protocol=socket --socket=/alloc/tmp/mysql.sock ping --silent >/dev/null 2>&1"]
         interval = "10s"
@@ -94,17 +94,17 @@ job "cowork-authorization-db" {
       }
     }
     service {
-      name         = "cowork-authorization-db-metrics"
+      name         = "cowork-user-mysql-metrics"
       provider     = "consul"
       port         = "metrics"
       address_mode = "host"
-      tags         = ["cowork", "metrics", "database"]
+      tags         = ["cowork", "metrics", "mysql"]
       meta {
         metrics_address = "${attr.unique.network.ip-address}"
         metrics_port    = "${NOMAD_HOST_PORT_metrics}"
         metrics_path    = "/metrics"
         metrics_service = "mysql"
-        module          = "authorization"
+        module          = "user"
       }
       identity {
         aud = ["consul.io"]
@@ -118,7 +118,7 @@ job "cowork-authorization-db" {
         timeout  = "5s"
       }
     }
-    task "database" {
+    task "mysql" {
       driver       = "docker"
       kill_timeout = "60s"
       config {
@@ -143,14 +143,14 @@ job "cowork-authorization-db" {
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-authorization-db"
+        role         = "cowork-user-mysql"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/authorization?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/user?version=${var.secret_version}" }}
 MYSQL_DATABASE={{ .Data.data.DB_NAME | toJSON }}
 MYSQL_ROOT_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
 {{ end }}
@@ -191,14 +191,14 @@ ENV
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-authorization-db"
+        role         = "cowork-user-mysql"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/authorization?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/user?version=${var.secret_version}" }}
 DB_NAME={{ .Data.data.DB_NAME | toJSON }}
 DB_USERNAME={{ .Data.data.DB_USERNAME | toJSON }}
 DB_ADMIN_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
@@ -240,14 +240,14 @@ ENV
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-authorization-db"
+        role         = "cowork-user-mysql"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/authorization?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/user?version=${var.secret_version}" }}
 MYSQLD_EXPORTER_PASSWORD={{ .Data.data.DB_MONITORING_PASSWORD | toJSON }}
 {{ end }}
 ENV
