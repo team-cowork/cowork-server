@@ -49,7 +49,11 @@ import team.themoment.sdk.response.CommonApiResponse
 @RestController
 @RequestMapping("/channels/{channelId}/role-policies")
 class ChannelRolePolicyQueryController(private val queryService: QueryChannelRolePoliciesService) {
-    @Operation(summary = "채널 역할 정책 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(
+        summary = "채널 역할 정책 목록 조회",
+        description = "역할 우선순위 내림차순으로 반환합니다. 우선순위가 같으면 역할 ID 오름차순으로 정렬합니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
         ApiResponse(
