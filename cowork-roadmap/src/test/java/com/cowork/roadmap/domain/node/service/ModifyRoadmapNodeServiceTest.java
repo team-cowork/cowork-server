@@ -201,6 +201,47 @@ class ModifyRoadmapNodeServiceTest {
             }
         }
 
+        @Nested
+        @DisplayName("원본 문서 URL이 빈 문자열이거나 공백만 있으면")
+        class Context_with_blank_source_url {
+
+            @ParameterizedTest
+            @ValueSource(strings = {"", " "})
+            @DisplayName("원본 문서 URL을 null로 저장한다")
+            void it_clears_source_url(String sourceUrl) {
+                // given
+                givenModifiableNode(node().toBuilder().sourceUrl("https://example.com").build());
+                ArgumentCaptor<RoadmapNode> savedCaptor = givenSaveCaptured();
+
+                // when
+                modifyRoadmapNodeService
+                        .execute(USER_ID, USER_ROLE, NODE_ID, new UpdateNodeReqDto(null, null, sourceUrl, null));
+
+                // then
+                assertThat(savedCaptor.getValue().getSourceUrl()).isNull();
+            }
+        }
+
+        @Nested
+        @DisplayName("원본 문서 URL 없이 요청하면")
+        class Context_without_source_url {
+
+            @Test
+            @DisplayName("기존 원본 문서 URL을 유지한다")
+            void it_keeps_source_url() {
+                // given
+                givenModifiableNode(node().toBuilder().sourceUrl("https://example.com").build());
+                ArgumentCaptor<RoadmapNode> savedCaptor = givenSaveCaptured();
+
+                // when
+                modifyRoadmapNodeService
+                        .execute(USER_ID, USER_ROLE, NODE_ID, new UpdateNodeReqDto("새제목", null, null, null));
+
+                // then
+                assertThat(savedCaptor.getValue().getSourceUrl()).isEqualTo("https://example.com");
+            }
+        }
+
     }
 
     private void givenModifiableNode(RoadmapNode node) {

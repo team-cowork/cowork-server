@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -72,6 +70,7 @@ func NewDataGSMLogin(cfg *config.AppConfig, attempts LoginAttemptStore, httpClie
 		clientID: cfg.DataGSMClientID, attempts: attempts, now: time.Now}
 	for _, redirect := range cfg.DataGSMRedirectURIs {
 		client, err := oauth.NewClient(oauth.Config{ClientID: cfg.DataGSMClientID, AuthMethod: oauth.AuthNone,
+			RequestFormat: oauth.RequestFormatJSON, ClockSkew: idTokenClockSkew,
 			RedirectURI: redirect, AuthorizationBaseURL: issuer, ResourceBaseURL: cfg.DataGSMResourceURL, HTTPClient: httpClient})
 		if err != nil {
 			s.Close()
@@ -191,57 +190,7 @@ func (s *DataGSMLogin) Complete(ctx context.Context, session string, callback ur
 }
 
 func (s *DataGSMLogin) verifyIDToken(keys *oauth.JWKS, token, nonce string) (*oauth.IDTokenClaims, error) {
-	parts := strings.Split(token, ".")
-	if len(parts) != 3 {
-		return nil, oauth.ErrInvalidToken
-	}
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	var claims oauth.IDTokenClaims
-	if err != nil || json.Unmarshal(payload, &claims) != nil || claims.ExpiresAt <= 0 {
-		return nil, oauth.ErrInvalidToken
-	}
-	now := s.now()
-	if now.IsZero() {
-		return nil, oauth.ErrInvalidToken
-	}
-	first, last := max(claims.IssuedAt, claims.NotBefore), claims.ExpiresAt-1
-	if first > last {
-		return nil, oauth.ErrInvalidToken
-	}
-	// These unverified times only select an instant within 30 seconds of now.
-	// The SDK still verifies the original token's signature and every required claim.
-	verificationTime := max(first, min(now.Unix(), last))
-	skew := int64(idTokenClockSkew / time.Second)
-	if verificationTime < now.Unix()-skew || verificationTime > now.Unix()+skew {
-		return nil, oauth.ErrInvalidToken
-	}
-	return keys.VerifyIDToken(token, s.issuer, s.clientID, nonce, time.Unix(verificationTime, 0))
-}
-
-// Exchange supports existing clients that own their PKCE attempt and state validation.
-// Server-created attempts never disclose their verifier and use Complete instead.
-// Deprecated: use Begin and Complete for server-managed OAuth/OIDC.
-// TODO(legacy-login): Remove this SDK compatibility path after the web and mobile implementations migrate to server-managed OAuth/OIDC.
-func (s *DataGSMLogin) Exchange(ctx context.Context, code, verifier, redirectURI string) (*oauth.UserInfo, error) {
-	client := s.clients[redirectURI]
-	if client == nil || code == "" {
-		return nil, loginFailure("legacy_request", ErrInvalidLoginRequest)
-	}
-	if _, err := oauth.CodeChallenge(verifier); err != nil {
-		return nil, loginFailure("legacy_verifier", ErrInvalidLoginRequest)
-	}
-	token, err := client.Exchange(ctx, oauth.CodeExchange{Code: code, CodeVerifier: verifier})
-	if err != nil {
-		return nil, loginFailure("legacy_token_exchange", providerError(err))
-	}
-	user, err := client.UserInfo(ctx, token.AccessToken)
-	if err != nil {
-		return nil, loginFailure("legacy_userinfo_request", providerError(err))
-	}
-	if user.ID <= 0 || user.Status != "ACTIVE" {
-		return nil, loginFailure("legacy_userinfo_account", ErrAuthenticationRejected)
-	}
-	return user, nil
+	return keys.VerifyIDToken(token, s.issuer, s.clientID, nonce, s.now())
 }
 
 func (s *DataGSMLogin) jwks(ctx context.Context, client *oauth.Client, refresh bool) (*oauth.JWKS, error) {

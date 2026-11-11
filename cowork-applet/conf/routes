@@ -16,6 +16,9 @@
 GET     /applets/random     com.cowork.applet.domain.placeholder.presentation.controller.RandomValueController.random
 
 ### NoDocs ###
+GET     /health             com.cowork.applet.global.health.HealthController.live
+
+### NoDocs ###
 GET     /health/ready       com.cowork.applet.global.health.HealthController.ready
 
 ### NoDocs ###

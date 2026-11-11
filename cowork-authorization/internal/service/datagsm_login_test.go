@@ -58,7 +58,7 @@ type loginFixture struct {
 	tokenStatus                           int
 	scope                                 string
 	jwksErr                               error
-	form                                  url.Values
+	tokenRequest                          map[string]string
 }
 
 func newLoginFixture(t *testing.T) *loginFixture {
@@ -72,13 +72,12 @@ func newLoginFixture(t *testing.T) *loginFixture {
 		f.calls++
 		switch r.URL.Path {
 		case "/v1/oauth/token":
-			if r.Header.Get("Content-Type") != "application/x-www-form-urlencoded" {
-				t.Error("SDK must send form encoding")
+			if r.Header.Get("Content-Type") != "application/json" {
+				t.Error("SDK must send JSON encoding")
 			}
-			if err := r.ParseForm(); err != nil {
+			if err := json.NewDecoder(r.Body).Decode(&f.tokenRequest); err != nil {
 				t.Fatal(err)
 			}
-			f.form = r.Form
 			if f.tokenStatus != 200 {
 				return jsonResponse(f.tokenStatus, `{"error":"invalid_grant","error_description":"sensitive provider text"}`), nil
 			}
@@ -163,7 +162,7 @@ func TestServerManagedLogin(t *testing.T) {
 	if err != nil || user.ID != 99 {
 		t.Fatalf("user=%+v err=%v", user, err)
 	}
-	if f.form.Get("code_verifier") != attempt.Authorization.CodeVerifier || f.form.Get("redirect_uri") != attempt.RedirectURI {
+	if f.tokenRequest["code_verifier"] != attempt.Authorization.CodeVerifier || f.tokenRequest["redirect_uri"] != attempt.RedirectURI {
 		t.Fatal("exchange did not use saved attempt")
 	}
 	before := f.calls
@@ -308,24 +307,6 @@ func TestLoginVerifiesCachedSigningKeysDuringProviderOutage(t *testing.T) {
 	}
 }
 
-// TODO(legacy-login): Remove this compatibility test with Exchange after the web and mobile implementations migrate to server-managed OAuth/OIDC.
-func TestLegacyPKCEExchangeUsesSDK(t *testing.T) {
-	f := newLoginFixture(t)
-	verifier := oauth.NewCodeVerifier()
-	user, err := f.login.Exchange(context.Background(), "code", verifier, "cowork://oauth/callback")
-	if err != nil || user.ID != 99 || f.form.Get("code_verifier") != verifier || f.jwksCalls != 0 {
-		t.Fatalf("legacy exchange: %v", err)
-	}
-	before := f.calls
-	for _, request := range []struct{ verifier, redirect string }{{"short", "cowork://oauth/callback"}, {verifier, "https://evil.example/callback"}} {
-		if _, err = f.login.Exchange(context.Background(), "code", request.verifier, request.redirect); !errors.Is(err, ErrInvalidLoginRequest) {
-			t.Fatal(err)
-		}
-	}
-	if f.calls != before {
-		t.Fatal("invalid client input reached the provider")
-	}
-}
 func TestLoginStorageAndOriginPolicy(t *testing.T) {
 	f := newLoginFixture(t)
 	for _, origin := range []string{"", "https://app.example"} {
