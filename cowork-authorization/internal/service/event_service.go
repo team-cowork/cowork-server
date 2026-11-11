@@ -6,9 +6,10 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/tmp-it-play/datagsm-sdk-go/event"
+
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/domain"
-	"github.com/tmp-it-play/datagsm-sdk-go/event"
 )
 
 var ErrInvalidPayload = domain.ErrInvalidWebhookPayload
