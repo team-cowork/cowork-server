@@ -13,6 +13,7 @@ data class ChannelLifecycleEvent(
     val isPrivate: Boolean? = null,
     val channelType: String? = null,
     val initialRolePolicySeed: InitialChannelRolePolicySeed? = null,
+    val archived: Boolean = false,
 )
 
 sealed interface ChannelLifecycleRecordDecision {
@@ -43,9 +44,22 @@ object ChannelLifecycleEventParser {
             else -> error("isPrivate must be a boolean")
         }
 
-        val event = ChannelLifecycleEvent(channelId, teamId, eventType == "DELETED", occurredAt, isPrivate,
+        // 필드 추가 전에 발행된 이벤트에는 값이 없으며 활성 채널로 본다.
+        val archived = when (val value = payload.getValue("archived")) {
+            null -> false
+            is Boolean -> value
+            else -> error("archived must be a boolean")
+        }
+
+        val event = ChannelLifecycleEvent(
+            channelId,
+            teamId,
+            eventType == "DELETED",
+            occurredAt,
+            isPrivate,
             payload.getString("channelType") ?: payload.getString("type"),
             payload.getJsonObject("initialRolePolicySeed")?.let(InitialChannelRolePolicySeed::fromJson),
+            archived = archived,
         )
         ChannelLifecycleRecordDecision.Apply(event)
     }.getOrElse { error ->

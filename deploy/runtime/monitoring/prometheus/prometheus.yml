@@ -88,6 +88,16 @@ scrape_configs:
   - source_labels:
     - __meta_consul_node
     target_label: host
+  metric_relabel_configs:
+  - source_labels: [service, __name__]
+    regex: mongodb;(mongodb_up|mongodb_op_counters_total|mongodb_mongod_op_latencies_(latency|ops)_total|mongodb_connections|mongodb_mongod_wiredtiger_cache_(bytes|max_bytes)|mongodb_memory|mongodb_ss_metrics_queryExecutor_collectionScans_total)
+    target_label: __tmp_mongodb_keep
+    replacement: 'true'
+  - source_labels: [service, __tmp_mongodb_keep]
+    regex: mongodb;
+    action: drop
+  - regex: __tmp_mongodb_keep
+    action: labeldrop
 - job_name: infrastructure
   static_configs:
   - targets:
@@ -191,7 +201,7 @@ scrape_configs:
       ca_file: /etc/cowork/ca/ca.crt
   relabel_configs:
   - source_labels: [__meta_consul_service]
-    regex: cowork-(authorization|channel|chat|gateway|github|monitoring|notification|preference|project|roadmap|team|user|voice)-sidecar-proxy
+    regex: cowork-(applet|authorization|channel|chat|gateway|github|monitoring|notification|preference|project|roadmap|team|user|voice)-sidecar-proxy
     action: keep
   - source_labels: [__meta_consul_service]
     regex: cowork-(.+)-sidecar-proxy
@@ -222,28 +232,60 @@ scrape_configs:
   - target_label: __address__
     replacement: 127.0.0.1:9115
 - job_name: gateway-api
+  # Unauthenticated health routes through Gateway prove the public route reaches each downstream.
   metrics_path: /probe
+  params:
+    module:
+    - http_gateway_downstream_get
   static_configs:
   - targets:
-    - [[[ printf "%s/api/authorization/auth/refresh" $publicAPI | toJSON ]]]
+    - [[[ printf "%s/api/authorization/health" $publicAPI | toJSON ]]]
     labels:
       service: authorization
-      __param_module: http_gateway_downstream_post
   - targets:
     - [[[ printf "%s/api/chat/health" $publicAPI | toJSON ]]]
     labels:
       service: chat
-      __param_module: http_gateway_downstream_get
   - targets:
-    - [[[ printf "%s/api/voice/voice/webhook" $publicAPI | toJSON ]]]
+    - [[[ printf "%s/api/voice/health" $publicAPI | toJSON ]]]
     labels:
       service: voice
-      __param_module: http_gateway_downstream_post
   - targets:
-    - [[[ printf "%s/api/github/github/webhooks" $publicAPI | toJSON ]]]
+    - [[[ printf "%s/api/github/health" $publicAPI | toJSON ]]]
     labels:
       service: github
-      __param_module: http_gateway_downstream_post
+  - targets:
+    - [[[ printf "%s/api/user/health" $publicAPI | toJSON ]]]
+    labels:
+      service: user
+  - targets:
+    - [[[ printf "%s/api/team/health" $publicAPI | toJSON ]]]
+    labels:
+      service: team
+  - targets:
+    - [[[ printf "%s/api/project/health" $publicAPI | toJSON ]]]
+    labels:
+      service: project
+  - targets:
+    - [[[ printf "%s/api/channel/health" $publicAPI | toJSON ]]]
+    labels:
+      service: channel
+  - targets:
+    - [[[ printf "%s/api/roadmap/health" $publicAPI | toJSON ]]]
+    labels:
+      service: roadmap
+  - targets:
+    - [[[ printf "%s/api/notification/health" $publicAPI | toJSON ]]]
+    labels:
+      service: notification
+  - targets:
+    - [[[ printf "%s/api/preference/health" $publicAPI | toJSON ]]]
+    labels:
+      service: preference
+  - targets:
+    - [[[ printf "%s/api/applet/health" $publicAPI | toJSON ]]]
+    labels:
+      service: applet
   relabel_configs:
   - source_labels:
     - __address__
@@ -358,6 +400,11 @@ scrape_configs:
     labels:
       service: host
       host: roadmap
+  - targets:
+    - 10.0.0.144:9100
+    labels:
+      service: host
+      host: applet
   - targets:
     - 10.0.0.137:9100
     labels:
@@ -501,6 +548,11 @@ scrape_configs:
     labels:
       service: alloy
       host: roadmap
+  - targets:
+    - 10.0.0.144:12345
+    labels:
+      service: alloy
+      host: applet
   - targets:
     - 10.0.0.137:12345
     labels:

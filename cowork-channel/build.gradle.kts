@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20261106.0"
+version = "20261111.1"
 
 repositories {
     mavenCentral()
@@ -19,12 +19,6 @@ repositories {
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(libs.versions.java.get().toInt())
-    }
-}
-
-dependencyManagement {
-    imports {
-        mavenBom(libs.spring.cloud.dependencies.get().toString())
     }
 }
 
@@ -60,7 +54,7 @@ dependencies {
     compileOnly(libs.jetbrains.annotations)
 
     add(megaMethod.name, libs.mega.method)
-    // Keep JitPack failures optional without hiding failures in required dependencies.
+    // JitPack is sometimes down, so keep this team-owned library optional; callers fall back to the standard library.
     runtimeOnly(megaMethod.incoming.artifactView { isLenient = true }.files)
 
     implementation(libs.spring.boot.starter.web)
@@ -80,8 +74,7 @@ dependencies {
     implementation(libs.kotlin.reflect)
 
     implementation(libs.the.sdk) {
-        exclude(group = "org.springframework.boot")
-        exclude(group = "org.springframework.cloud")
+        // Use the SpringDoc version selected for this module's Spring Boot version.
         exclude(group = "org.springdoc")
     }
     implementation(libs.springdoc.openapi.webmvc.ui)

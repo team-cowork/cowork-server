@@ -1,0 +1,28 @@
+###
+#  summary: 임의의 값을 생성합니다.
+#  tags:
+#    - applet
+#  responses:
+#    200:
+#      description: 생성한 임의의 값입니다.
+#      content:
+#        application/json:
+#          schema:
+#            type: object
+#            properties:
+#              value:
+#                type: string
+###
+GET     /applets/random     com.cowork.applet.domain.placeholder.presentation.controller.RandomValueController.random
+
+### NoDocs ###
+GET     /health             com.cowork.applet.global.health.HealthController.live
+
+### NoDocs ###
+GET     /health/ready       com.cowork.applet.global.health.HealthController.ready
+
+### NoDocs ###
+GET     /metrics            com.cowork.applet.global.metrics.MetricsController.scrape
+
+### NoDocs ###
+GET     /swagger/doc.json   com.cowork.applet.global.swagger.OpenApiController.document

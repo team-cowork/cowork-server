@@ -7,13 +7,6 @@
         "retention.ms": "604800000"
       }
     },
-    "user.identity.command": {
-      "partitions": 1,
-      "config": {
-        "cleanup.policy": "delete",
-        "retention.ms": "604800000"
-      }
-    },
     "user.identity.command-result": {
       "partitions": 1,
       "config": {
@@ -322,13 +315,6 @@
         "segment.ms": "3600000"
       }
     },
-    "channel.webhook-legacy.state.v1": {
-      "partitions": 1,
-      "config": {
-        "cleanup.policy": "compact",
-        "segment.ms": "3600000"
-      }
-    },
     "preference.voice-channel-setting.state.v1": {
       "partitions": 1,
       "config": {
@@ -426,16 +412,26 @@
         "cleanup.policy": "delete",
         "retention.ms": "604800000"
       }
+    },
+    "user.identity.command.v2": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
     }
   },
   "principals": {
+    "cowork-applet": {
+      "topics": []
+    },
     "cowork-authorization": {
       "topics": [
         "user.data.sync",
-        "user.identity.command",
         "user.identity.command-result",
         "user.identity.command-result-dlt",
-        "user.presence.event"
+        "user.presence.event",
+        "user.identity.command.v2"
       ]
     },
     "cowork-channel": {
@@ -449,10 +445,10 @@
         "project.event.v2",
         "preference.team-role.state.v2",
         "preference.channel-role-policy.state.v2",
+        "preference.project-access.state.v1",
         "preference.channel-role-policy.command.v2",
         "preference.channel-role-policy.result.v2",
-        "preference.channel-role-policy.result.v2-dlt",
-        "channel.webhook-legacy.state.v1"
+        "preference.channel-role-policy.result.v2-dlt"
       ]
     },
     "cowork-chat": {
@@ -541,7 +537,6 @@
         "preference.team-setting.state.v1",
         "preference.text-channel-setting.state.v1",
         "preference.webhook.state.v2",
-        "channel.webhook-legacy.state.v1",
         "preference.voice-channel-setting.state.v1",
         "preference.github-repo.setting.result-dlt"
       ]
@@ -610,13 +605,13 @@
     "cowork-user": {
       "topics": [
         "user.data.sync",
-        "user.identity.command",
         "user.identity.command-result",
         "user.identity.command-result-dlt",
         "user.profile.event.v2",
         "user.presence.event",
         "team.member.event",
-        "team.member.event-dlt"
+        "team.member.event-dlt",
+        "user.identity.command.v2"
       ]
     },
     "cowork-voice": {

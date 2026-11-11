@@ -1,7 +1,8 @@
 import {Buffer} from 'node:buffer';
-import {randomUUID} from 'node:crypto';
+import {createHash, randomUUID} from 'node:crypto';
 import {
 	BadRequestException,
+	ConflictException,
 	ForbiddenException,
 	forwardRef,
 	Inject as inject,
@@ -70,6 +71,21 @@ const SYSTEM_AUTHOR_ID = 0;
 const SYSTEM_AUTHOR_NAME = 'System';
 const FILE_SHARE_VIEW_TYPE = 'FILE_SHARE';
 const DM_CHANNEL_TYPE = 'DM';
+
+function presentString(value: Nullable<string> | undefined): string | undefined {
+	return typeof value === 'string' && value !== '' ? value : undefined;
+}
+
+function deriveGithubIssueCommandId(ctx: ChannelUserContext, dto: CreateGithubIssueDto, idempotencyKey: string): string {
+	if (idempotencyKey.length === 0 || idempotencyKey.length > 200) {
+		throw new BadRequestException('Idempotency-Key가 올바르지 않습니다');
+	}
+
+	// 요청 내용까지 섞어, 같은 키를 다른 채널·내용에 다시 쓴 요청이 결과 없이 중복으로 버려지지 않게 한다.
+	const input = JSON.stringify([ctx.userId, ctx.channelId, dto.projectId, dto.title, dto.body ?? null, idempotencyKey]);
+	const hex = createHash('sha256').update(input).digest('hex').slice(0, 32);
+	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 /**
  채팅 서비스의 핵심 비즈니스 로직 클래스.
@@ -288,6 +304,7 @@ export class ChatService {
 			await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_manage');
 		}
 
+		await this.requireWritableChannel(ctx.channelId);
 		return message;
 	}
 
@@ -348,6 +365,29 @@ export class ChatService {
 		}
 
 		return names;
+	}
+
+	/**
+     보관된 채널은 읽기 전용이다. 쓰기 요청은 권한 검사를 통과한 뒤 이 검사로 거부한다.
+
+     @param channelId - 채널 ID
+     @throws ConflictException 보관된 채널인 경우
+     */
+	private async requireWritableChannel(channelId: number): Promise<void> {
+		const channel = await this.channelProjectionRepository.findById(channelId);
+		if (channel?.archived === true) {
+			throw new ConflictException('보관된 채널은 변경할 수 없습니다');
+		}
+	}
+
+	private async withoutArchivedChannels(channelIds: number[]): Promise<number[]> {
+		if (channelIds.length === 0) {
+			return channelIds;
+		}
+
+		const channels = await this.channelProjectionRepository.findByIds(channelIds);
+		const archived = new Set(channels.filter(channel => channel.archived === true).map(channel => channel.channelId));
+		return channelIds.filter(channelId => !archived.has(channelId));
 	}
 
 	private async requireReplyParent(parentMessageId: string | undefined, channelId: number): Promise<void> {
@@ -433,6 +473,7 @@ export class ChatService {
 		dto: CreateFileUploadUrlRequestDto,
 	): Promise<CreateFileUploadUrlResponseDto> {
 		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'file_attach');
+		await this.requireWritableChannel(ctx.channelId);
 		const upload = await this.objectStorageService.createPresignedUpload({
 			channelId: ctx.channelId,
 			userId: ctx.userId,
@@ -458,6 +499,7 @@ export class ChatService {
      */
 	async confirmFileUpload(ctx: ChannelUserContext, dto: ConfirmFileUploadRequestDto): Promise<ConfirmedAttachment> {
 		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'file_attach');
+		await this.requireWritableChannel(ctx.channelId);
 		return this.objectStorageService.confirmUpload(ctx.channelId, ctx.userId, dto.objectKey);
 	}
 
@@ -523,6 +565,8 @@ export class ChatService {
 			await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_manage');
 		}
 
+		await this.requireWritableChannel(ctx.channelId);
+
 		await this.deleteMessageAndAttachments(message, messageId, ctx.channelId);
 		return {channelId: ctx.channelId, messageId};
 	}
@@ -535,9 +579,18 @@ export class ChatService {
      @param dto - 메시지 내용, 타입, 첨부파일 등
      */
 	async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
+		// 첨부파일만 보내는 메시지는 본문이 비어도 되지만, 그 밖의 메시지는 공백만으로 저장될 수 없다.
+		const attachmentCount = dto.attachments?.length ?? 0;
+		if (attachmentCount === 0 && dto.content.trim() === '') {
+			throw new BadRequestException('메시지 내용을 입력하세요');
+		}
+
+		// `@isOptional`은 `null`도 통과시키므로, 빈 문자열과 `null`을 값이 없는 것으로 본다.
+		const parentMessageId = presentString(dto.parentMessageId);
+		const requestedClientMessageId = presentString(dto.clientMessageId);
 		const permissions: ChannelActionPermission[] = [
-			dto.parentMessageId !== undefined && dto.parentMessageId !== '' ? 'thread_reply' : 'message_send',
-			...((dto.attachments?.length ?? 0) > 0 ? ['file_attach' as const] : []),
+			parentMessageId === undefined ? 'message_send' : 'thread_reply',
+			...(attachmentCount > 0 ? ['file_attach' as const] : []),
 		];
 		await this.channelMessageReadAccess.requirePermissions(ctx.channelId, ctx.userId, permissions);
 		const channel = await this.channelProjectionRepository.findById(ctx.channelId);
@@ -545,21 +598,25 @@ export class ChatService {
 			throw new NotFoundException('채널을 찾을 수 없습니다');
 		}
 
+		if (channel.archived === true) {
+			throw new ConflictException('보관된 채널에는 메시지를 보낼 수 없습니다');
+		}
+
 		const scope = resolveMessageScope(channel);
 		if (!scope) {
 			throw new ServiceUnavailableException('채널 정보가 일치하지 않습니다');
 		}
 
-		await this.requireReplyParent(dto.parentMessageId, ctx.channelId);
+		await this.requireReplyParent(parentMessageId, ctx.channelId);
 		if (channel.type === DM_CHANNEL_TYPE) {
 			await this.verifyDmSendable(ctx.channelId, ctx.userId);
 		}
 
-		if ((dto.attachments?.length ?? 0) > 0 && (dto.clientMessageId === undefined || dto.clientMessageId === '')) {
+		if (requestedClientMessageId === undefined && attachmentCount > 0) {
 			throw new BadRequestException('첨부 메시지에는 재시도에 사용할 clientMessageId가 필요합니다');
 		}
 
-		const clientMessageId = dto.clientMessageId ?? randomUUID();
+		const clientMessageId = requestedClientMessageId ?? randomUUID();
 		const slowmodeReservation = await this.slowmodeService.reserve(
 			ctx.channelId, scope?.teamId, ctx.userId, clientMessageId,
 		);
@@ -577,7 +634,7 @@ export class ChatService {
 				content: dto.content,
 				type: dto.type,
 				attachments,
-				parentMessageId: dto.parentMessageId,
+				parentMessageId,
 				clientMessageId,
 			}, ctx.userId, ctx.userRole);
 		} catch (error) {
@@ -597,13 +654,14 @@ export class ChatService {
      @returns 채널 ID, 상대 사용자 ID, 안읽음 수, 마지막 메시지 요약 목록
      */
 	async getMyDms(userId: number) {
+		this.channelMessageReadAccess.requireProjectionsReady();
 		const memberships = await this.dmParticipantRepository.findDmMemberships(userId);
+		this.channelMessageReadAccess.requireProjectionsReady();
 		if (memberships.length === 0) {
 			return [];
 		}
 
 		const readableChannelIds = new Set(await this.channelMessageReadAccess.filterReadableChannelIds(
-			0,
 			userId,
 			memberships.map(({channelId}) => channelId),
 		));
@@ -652,15 +710,15 @@ export class ChatService {
 
      @param ctx - 채널·사용자 컨텍스트
      @param dto - 커맨드 종류와 payload
+     @param idempotencyKey - 클라이언트 재시도 키 (선택)
      @throws BadRequestException 지원하지 않는 커맨드인 경우
      */
-	async handleSlashCommand(ctx: ChannelUserContext, dto: SlashCommandDto): Promise<void> {
+	async handleSlashCommand(ctx: ChannelUserContext, dto: SlashCommandDto, idempotencyKey?: string): Promise<void> {
 		if (dto.command !== SlashCommand.GITHUB_ISSUE_CREATE) {
 			throw new BadRequestException('지원하지 않는 슬래시 커맨드입니다');
 		}
 
-		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'slash_command_use');
-		await this.publishGithubIssueCreateCommand(ctx, dto.payload);
+		await this.publishGithubIssueCreateCommand(ctx, dto.payload, idempotencyKey);
 	}
 
 	/**
@@ -674,15 +732,21 @@ export class ChatService {
 
      @param ctx - 채널·사용자 컨텍스트
      @param dto - GitHub 이슈 생성 정보 (projectId, title, body)
+     @param idempotencyKey - 클라이언트 재시도 키 (선택). 같은 사용자·키의 재시도는 같은 커맨드 ID가 된다.
      @throws ForbiddenException 채널 권한이 없는 경우
+     @throws BadRequestException 재시도 키 길이가 올바르지 않은 경우
      */
-	async publishGithubIssueCreateCommand(ctx: ChannelUserContext, dto: CreateGithubIssueDto): Promise<void> {
-		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'github_issue_create');
+	async publishGithubIssueCreateCommand(ctx: ChannelUserContext, dto: CreateGithubIssueDto, idempotencyKey?: string): Promise<void> {
+		// 두 진입점이 같은 권한 세트를 요구해야 일반 slash command로 막힌 사용자가 deprecated 경로로 우회하지 못한다.
+		await this.channelMessageReadAccess.requirePermissions(ctx.channelId, ctx.userId, ['slash_command_use', 'github_issue_create']);
+		await this.requireWritableChannel(ctx.channelId);
 		const channelTeamId = await this.requireReadAndGetTeamId(ctx.channelId, ctx.userId);
+		// 프로젝트 서비스는 operationId로 중복을 막고 idempotencyKey는 36자 컬럼에 저장하므로, 재시도 키를 36자 ID로 고정한다.
+		const commandId = idempotencyKey === undefined ? randomUUID() : deriveGithubIssueCommandId(ctx, dto, idempotencyKey);
 
 		await this.chatGithubIssueCommandProducer.send({
-			operationId: randomUUID(),
-			idempotencyKey: randomUUID(),
+			operationId: commandId,
+			idempotencyKey: commandId,
 			projectId: dto.projectId,
 			channelId: ctx.channelId,
 			teamId: channelTeamId,
@@ -736,6 +800,7 @@ export class ChatService {
      @param ctx - 사용자 컨텍스트
      @returns 검색 결과와 다음 페이지 커서
      @throws ForbiddenException 프로젝트 멤버가 아니거나 채널 접근 권한이 없는 경우
+     @throws ServiceUnavailableException 권한 projection이 준비되지 않은 경우
      */
 	async searchProjectMessages(
 		projectId: number,
@@ -743,11 +808,12 @@ export class ChatService {
 		ctx: UserContext,
 	): Promise<SearchMessagesResponseDto> {
 		const isMember = await this.projectClient.canRead(projectId, ctx.userId);
+		this.channelMessageReadAccess.requireProjectionsReady();
 		if (!isMember) {
 			throw new ForbiddenException('프로젝트 접근 권한이 없습니다');
 		}
 
-		const accessibleChannelIds = await this.channelMessageReadAccess.findReadableProjectChannelIds(
+		const accessibleChannelIds = await this.channelMessageReadAccess.requireReadableProjectChannelIds(
 			projectId,
 			ctx.userId,
 		);
@@ -766,7 +832,6 @@ export class ChatService {
 		}
 
 		const {hits, nextCursor} = await this.elasticsearchService.searchMessages({
-			projectId,
 			accessibleChannelIds: filteredChannelIds,
 			q: dto.q,
 			authorId: dto.authorId,
@@ -784,12 +849,13 @@ export class ChatService {
 		dto: SearchTeamMessagesDto,
 		ctx: UserContext,
 	): Promise<SearchMessagesResponseDto> {
+		let accessibleChannelIds = await this.channelMessageReadAccess.requireReadableTeamChannelIds(teamId, ctx.userId);
+
 		const isMember = await this.teamMemberRepository.exists(teamId, ctx.userId);
+		this.channelMessageReadAccess.requireProjectionsReady();
 		if (!isMember) {
 			throw new ForbiddenException('팀 접근 권한이 없습니다');
 		}
-
-		let accessibleChannelIds = await this.channelMessageReadAccess.findReadableTeamChannelIds(teamId, ctx.userId);
 
 		if (dto.channelId !== undefined) {
 			if (!accessibleChannelIds.includes(dto.channelId)) {
@@ -797,6 +863,14 @@ export class ChatService {
 			}
 
 			accessibleChannelIds = [dto.channelId];
+		}
+
+		if (dto.archived !== undefined) {
+			const channels = await this.channelProjectionRepository.findByIds(accessibleChannelIds);
+			const matched = new Set(channels
+				.filter(channel => Boolean(channel.archived) === dto.archived)
+				.map(channel => channel.channelId));
+			accessibleChannelIds = accessibleChannelIds.filter(channelId => matched.has(channelId));
 		}
 
 		if (accessibleChannelIds.length === 0) {
@@ -830,6 +904,10 @@ export class ChatService {
      */
 	async editMessage(ctx: MessageUserRoleContext, dto: EditMessageDto) {
 		const message = await this.findAndVerifyMessage(ctx, 'edit');
+		// 전송에서 막은 공백 메시지를 수정으로 만들 수 없게 한다.
+		if (dto.content.trim() === '' && message.attachments.length === 0) {
+			throw new BadRequestException('메시지 내용을 입력하세요');
+		}
 
 		if (message.content === dto.content) {
 			return this.toMessageResponse({...toMessageBroadcastPayload(message), mentionedMessage: null}, ctx.userId);
@@ -935,6 +1013,7 @@ export class ChatService {
      */
 	async addReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
 		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'reaction_add');
+		await this.requireWritableChannel(ctx.channelId);
 		const count = await this.messageRepository.addReaction(ctx.channelId, messageId, emoji, ctx.userId);
 		if (count === null) {
 			throw new NotFoundException('메시지를 찾을 수 없습니다');
@@ -968,6 +1047,7 @@ export class ChatService {
      */
 	async removeReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
 		await this.requireChannelRead(ctx.channelId, ctx.userId);
+		await this.requireWritableChannel(ctx.channelId);
 		const count = await this.messageRepository.removeReaction(ctx.channelId, messageId, emoji, ctx.userId);
 		if (count === null) {
 			throw new NotFoundException('메시지를 찾을 수 없습니다');
@@ -1014,11 +1094,17 @@ export class ChatService {
 	}
 
 	async getTeamUnread(teamId: number, userId: number): Promise<Array<{channelId: number; unreadCount: number}>> {
-		if (!(await this.teamMemberRepository.exists(teamId, userId))) {
+		const readableChannelIds = await this.channelMessageReadAccess.requireReadableTeamChannelIds(teamId, userId);
+
+		const isMember = await this.teamMemberRepository.exists(teamId, userId);
+		this.channelMessageReadAccess.requireProjectionsReady();
+		if (!isMember) {
 			throw new ForbiddenException('팀 접근 권한이 없습니다');
 		}
 
-		const channelIds = await this.channelMessageReadAccess.findReadableTeamChannelIds(teamId, userId);
+		// 보관된 채널은 목록에 없어 읽음 처리할 수 없으므로 팀 미읽음에서 제외한다.
+		const channelIds = await this.withoutArchivedChannels(readableChannelIds);
+		this.channelMessageReadAccess.requireProjectionsReady();
 		const unreadCounts = await this.getUnreadCounts(userId, channelIds);
 		return channelIds.map(channelId => ({channelId, unreadCount: unreadCounts.get(channelId) ?? 0}));
 	}
@@ -1052,6 +1138,11 @@ export class ChatService {
 
 		if (channel.deleted) {
 			this.logger.warn(`Skipping system message for deleted channel [channelId=${channelId}, teamId=${teamId}]`);
+			return null;
+		}
+
+		if (channel.archived === true) {
+			this.logger.warn(`Skipping system message for archived channel [channelId=${channelId}, teamId=${teamId}]`);
 			return null;
 		}
 

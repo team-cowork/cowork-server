@@ -21,13 +21,16 @@ class ProjectLifecycleProjectionHandler(
                         projectRepository.findForRead(connection, decision.event.projectId)?.let { current ->
                             initialAccess.project(connection, decision.event, current)
                         } ?: false
-                    } else false
+                    } else {
+                        false
+                    }
                     if (applied || initialized) {
                         projectAccess.refresh(connection, decision.event.projectId)
                     }
                 }
                 null
             }
+
             is ProjectLifecycleRecordDecision.Quarantine -> decision.reason
         }
 }

@@ -7,7 +7,7 @@ using MySqlConnector;
 
 namespace CoworkUser.Kafka.Commands;
 
-/// <summary>Applies authorization's user.identity.command with an idempotent inbox and a result outbox.</summary>
+/// <summary>Applies authorization's identity commands with an idempotent inbox and a result outbox.</summary>
 public static class IdentityCommand
 {
     const string ResultErrorCode = "USER_IDENTITY_REJECTED";
@@ -121,7 +121,6 @@ public static class IdentityCommand
     /// <summary>The hash of a command under the given version's rule, or null when the version is not supported.</summary>
     internal static string? HashFor(long hashVersion, IdentityCommandContract.Command command) => hashVersion switch
     {
-        1 => Hash(IdentityCommandContract.LegacyCanonicalPayload(command)),
         IdentityCommandContract.HashVersion => Hash(IdentityCommandContract.CanonicalPayload(command)),
         _ => null,
     };

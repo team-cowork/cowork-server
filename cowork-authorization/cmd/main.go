@@ -1,5 +1,5 @@
 // @title           cowork Authorization API
-// @version         20261106.0
+// @version         20261111.1
 // @description     DataGSM 계정으로 로그인하고 Cowork 토큰을 발급하거나 갱신합니다.
 // @BasePath        /api/authorization
 // @securityDefinitions.apikey BearerAuth
@@ -100,7 +100,14 @@ func main() {
 		cfg.KafkaTopicUserIdentityCommand,
 		cfg.KafkaIdentityCommandTimeout,
 	)
-	authSvc := service.NewAuthService(cfg, identityCoordinator, refreshTokenRepo, tokenSvc)
+	loginAttempts := redisinfra.NewLoginAttemptStore(net.JoinHostPort(cfg.RedisHost, cfg.RedisPort))
+	defer func() { _ = loginAttempts.Close() }()
+	login, err := service.NewDataGSMLogin(cfg, loginAttempts, nil)
+	if err != nil {
+		log.Fatalf("failed to configure DataGSM login: %v", err)
+	}
+	defer login.Close()
+	authSvc := service.NewAuthService(cfg, identityCoordinator, refreshTokenRepo, tokenSvc, login)
 	outboxRelay := kafkainfra.NewOutboxRelay(sqlDB, kafkaProducer)
 	snapshotBarrierPublisher := kafkainfra.NewSnapshotBarrierPublisher(
 		sqlDB,
@@ -163,7 +170,8 @@ func main() {
 
 	auth := router.Group("/auth")
 	{
-		auth.POST("/token", authHandler.Token)
+		auth.POST("/authorize", authHandler.Authorize)
+		auth.POST("/callback", authHandler.Callback)
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.POST("/signout", handler.RequireUserID(), authHandler.Logout)
 	}

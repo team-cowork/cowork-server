@@ -56,10 +56,8 @@ export class ProjectClient {
 			return true;
 		}
 
-		// @todo #596: 2026-11-01 05:00 KST 이후 구형 이벤트·Mongo auth stamp 보정과 rollback 종료 확인 후 nullable fallback 제거.
-		// 2026-10-25 05:00 KST 배포 + 7일 기준이며, 실제 배포가 늦어지면 제거일도 연기한다.
-		const authorizationVersion = member.authorizationVersion ?? member.sourceVersion;
-		return authorizationVersion === undefined ? false : this.permissionRepository.canRead(projectId, userId, authorizationVersion);
+		const {authorizationVersion} = member;
+		return authorizationVersion === undefined || authorizationVersion === null ? false : this.permissionRepository.canRead(projectId, userId, authorizationVersion);
 	}
 
 	/**

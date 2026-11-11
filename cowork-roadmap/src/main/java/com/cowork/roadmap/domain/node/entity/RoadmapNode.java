@@ -20,6 +20,18 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class RoadmapNode extends BaseEntity {
 
+    /** 본문 최대 길이. UTF-16 코드 단위로 센다. */
+    public static final int MAX_CONTENT_LENGTH = 100_000;
+
+    /** 트리 조회와 계층 연산이 한 번에 처리하는 노드 수의 상한. */
+    public static final int MAX_NODES_PER_ROADMAP = 1_000;
+
+    /**
+     * 루트를 1로 센 트리 깊이의 제품 상한. 노드 한 단계가 트리 응답의 JSON 깊이를 2씩 늘리므로, Jackson 쓰기 깊이 기본값
+     * 500이 허용하는 약 249단계보다 넉넉히 작게 둔다.
+     */
+    public static final int MAX_TREE_DEPTH = 50;
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

@@ -7,7 +7,7 @@ awspring-cloud = "4.1.1"
 ktlint-plugin = "14.2.0"
 ktlint = "1.8.0"
 springdoc-webmvc = "3.1.1"
-the-sdk = "1.5"
+the-sdk = "2.0"
 logstash-logback = "9.0"
 mockk = "1.14.11"
 kotest = "6.2.5"
@@ -28,7 +28,7 @@ awspring-cloud-bom = { module = "io.awspring.cloud:spring-cloud-aws-dependencies
 awspring-cloud-s3 = { module = "io.awspring.cloud:spring-cloud-aws-starter-s3" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
 springdoc-openapi-webmvc-ui = { module = "org.springdoc:springdoc-openapi-starter-webmvc-ui", version.ref = "springdoc-webmvc" }
-the-sdk = { module = "com.github.themoment-team:the-sdk", version.ref = "the-sdk" }
+the-sdk = { module = "io.github.themoment-team:the-sdk", version.ref = "the-sdk" }
 spring-boot-flyway = { module = "org.springframework.boot:spring-boot-flyway" }
 flyway-core = { module = "org.flywaydb:flyway-core" }
 flyway-mysql = { module = "org.flywaydb:flyway-mysql" }
