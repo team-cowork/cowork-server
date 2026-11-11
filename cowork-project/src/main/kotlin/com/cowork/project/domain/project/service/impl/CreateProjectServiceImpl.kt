@@ -27,7 +27,11 @@ class CreateProjectServiceImpl(
      */
     @Transactional(isolation = Isolation.READ_COMMITTED)
     override fun execute(userId: Long, request: CreateProjectReqDto): ProjectResDto {
-        val initialReadAuthorization = projectAccessGuard.requireProjectCreation(request.teamId, userId, request.isPrivate)
+        val initialReadAuthorization = projectAccessGuard.requireProjectCreation(
+            request.teamId,
+            userId,
+            request.isPrivate,
+        )
         val lockedProjects = projectRepository.findAllByTeamIdForUpdate(request.teamId)
 
         val project = try {

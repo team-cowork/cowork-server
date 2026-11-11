@@ -54,6 +54,7 @@ class GithubIssueWriteResultConsumer(
         }
         when (result.status) {
             "SUCCEEDED" -> require(result.error == null) { "SUCCEEDED에는 error를 포함할 수 없습니다." }
+
             "FAILED" -> {
                 val error = requireNotNull(result.error) { "FAILED에는 error가 필요합니다." }
                 require(error.code.isNotBlank() && error.code.length <= 100) { "error.code가 유효하지 않습니다." }
@@ -61,6 +62,7 @@ class GithubIssueWriteResultConsumer(
                     "error.message가 유효하지 않습니다."
                 }
             }
+
             else -> throw IllegalArgumentException("지원하지 않는 result status입니다.")
         }
     }

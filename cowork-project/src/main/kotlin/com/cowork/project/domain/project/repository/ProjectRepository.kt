@@ -37,7 +37,11 @@ interface ProjectRepository :
             "AND (m.role IN ('OWNER', 'ADMIN') OR EXISTS (" +
             "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = :userId AND a.canRead = true AND a.sourceAuthorizationVersion = m.authorizationVersion))",
     )
-    fun findReadableByTeamId(@Param("teamId") teamId: Long, @Param("userId") userId: Long, pageable: Pageable): Page<Project>
+    fun findReadableByTeamId(
+        @Param("teamId") teamId: Long,
+        @Param("userId") userId: Long,
+        pageable: Pageable,
+    ): Page<Project>
 
     @Query(
         "SELECT COUNT(m) FROM Project p JOIN TeamMembership m ON m.teamId = p.teamId " +
