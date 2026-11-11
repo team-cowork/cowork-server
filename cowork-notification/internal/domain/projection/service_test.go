@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cowork/cowork-notification/internal/domain/projection"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/cowork/cowork-notification/internal/domain/projection"
 )
 
 type channelNotificationWrite struct {
