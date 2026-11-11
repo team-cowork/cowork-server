@@ -30,11 +30,6 @@ import team.themoment.sdk.response.CommonApiResponse
         content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
     ),
     ApiResponse(
-        responseCode = "400",
-        description = "요청 값이 올바르지 않거나 DM 채널",
-        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
-    ),
-    ApiResponse(
         responseCode = "503",
         description = "권한 정보 동기화 중",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
@@ -73,6 +68,16 @@ class MeetingNoteController(
     @Operation(summary = "회의록 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
         ApiResponse(
+            responseCode = "400",
+            description = "요청 값이 올바르지 않거나 DM 채널",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
+        ApiResponse(
             responseCode = "404",
             description = "채널 없음",
             content = [
@@ -107,6 +112,16 @@ class MeetingNoteController(
 
     @Operation(summary = "회의록 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
+        ApiResponse(
+            responseCode = "400",
+            description = "요청 값이 올바르지 않거나 DM 채널",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(responseCode = "200", description = "조회 성공"),
         ApiResponse(
             responseCode = "403",
@@ -305,6 +320,16 @@ class MeetingNoteController(
 
     @Operation(summary = "회의록 삭제", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
+        ApiResponse(
+            responseCode = "400",
+            description = "요청 값이 올바르지 않거나 DM 채널",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(
             responseCode = "409",
             description = "보관된 채널은 변경할 수 없음",
