@@ -232,28 +232,60 @@ scrape_configs:
   - target_label: __address__
     replacement: 127.0.0.1:9115
 - job_name: gateway-api
+  # Unauthenticated health routes through Gateway prove the public route reaches each downstream.
   metrics_path: /probe
+  params:
+    module:
+    - http_gateway_downstream_get
   static_configs:
   - targets:
-    - [[[ printf "%s/api/authorization/auth/refresh" $publicAPI | toJSON ]]]
+    - [[[ printf "%s/api/authorization/health" $publicAPI | toJSON ]]]
     labels:
       service: authorization
-      __param_module: http_gateway_downstream_post
   - targets:
     - [[[ printf "%s/api/chat/health" $publicAPI | toJSON ]]]
     labels:
       service: chat
-      __param_module: http_gateway_downstream_get
   - targets:
-    - [[[ printf "%s/api/voice/voice/webhook" $publicAPI | toJSON ]]]
+    - [[[ printf "%s/api/voice/health" $publicAPI | toJSON ]]]
     labels:
       service: voice
-      __param_module: http_gateway_downstream_post
   - targets:
-    - [[[ printf "%s/api/github/github/webhooks" $publicAPI | toJSON ]]]
+    - [[[ printf "%s/api/github/health" $publicAPI | toJSON ]]]
     labels:
       service: github
-      __param_module: http_gateway_downstream_post
+  - targets:
+    - [[[ printf "%s/api/user/health" $publicAPI | toJSON ]]]
+    labels:
+      service: user
+  - targets:
+    - [[[ printf "%s/api/team/health" $publicAPI | toJSON ]]]
+    labels:
+      service: team
+  - targets:
+    - [[[ printf "%s/api/project/health" $publicAPI | toJSON ]]]
+    labels:
+      service: project
+  - targets:
+    - [[[ printf "%s/api/channel/health" $publicAPI | toJSON ]]]
+    labels:
+      service: channel
+  - targets:
+    - [[[ printf "%s/api/roadmap/health" $publicAPI | toJSON ]]]
+    labels:
+      service: roadmap
+  - targets:
+    - [[[ printf "%s/api/notification/health" $publicAPI | toJSON ]]]
+    labels:
+      service: notification
+  - targets:
+    - [[[ printf "%s/api/preference/health" $publicAPI | toJSON ]]]
+    labels:
+      service: preference
+  - targets:
+    - [[[ printf "%s/api/applet/health" $publicAPI | toJSON ]]]
+    labels:
+      service: applet
   relabel_configs:
   - source_labels:
     - __address__
