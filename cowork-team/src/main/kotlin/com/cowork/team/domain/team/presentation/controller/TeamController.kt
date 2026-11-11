@@ -33,7 +33,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "팀", description = "팀 생성/수정/삭제 API")
+@Tag(name = "팀")
 @ApiResponses(
     ApiResponse(
         responseCode = "401",
@@ -145,7 +145,7 @@ class TeamController(
         ),
         ApiResponse(
             responseCode = "409",
-            description = "S3에 파일 없음 (업로드 미완료)",
+            description = "파일 업로드 미완료",
             content = [
                 Content(
                     mediaType = "application/json",

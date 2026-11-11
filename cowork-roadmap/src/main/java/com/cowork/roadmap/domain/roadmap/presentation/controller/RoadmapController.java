@@ -59,7 +59,7 @@ public class RoadmapController {
 
     @Operation(summary = "로드맵 생성")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "생성 완료", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
+            @ApiResponse(responseCode = "201", description = "생성 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
                             @SchemaProperty(name = "status", schema = @Schema(implementation = HttpStatus.class, example = "201 CREATED")),
                             @SchemaProperty(name = "code", schema = @Schema(type = "integer", example = "201")),
@@ -78,7 +78,7 @@ public class RoadmapController {
 
     @Operation(summary = "로드맵 목록 조회", description = "팀 로드맵은 teamId로, 프로젝트 로드맵은 projectId로 조회합니다. 두 값을 동시에 지정할 수 없습니다. 둘 다 생략하면 scope를 사용하며 기본값은 GLOBAL입니다.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 완료", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
+            @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
                             @SchemaProperty(name = "status", schema = @Schema(implementation = HttpStatus.class, example = "200 OK")),
                             @SchemaProperty(name = "code", schema = @Schema(type = "integer", example = "200")),
@@ -97,7 +97,7 @@ public class RoadmapController {
 
     @Operation(summary = "로드맵 기본 정보 조회")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 완료", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
+            @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
                             @SchemaProperty(name = "status", schema = @Schema(implementation = HttpStatus.class, example = "200 OK")),
                             @SchemaProperty(name = "code", schema = @Schema(type = "integer", example = "200")),
@@ -115,7 +115,7 @@ public class RoadmapController {
 
     @Operation(summary = "로드맵 트리 조회", description = "본문을 제외한 노드 정보와 관련 자료를 계층 구조로 반환합니다. 노드 본문은 GET /roadmaps/nodes/{nodeId}로 조회합니다.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 완료", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
+            @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
                             @SchemaProperty(name = "status", schema = @Schema(implementation = HttpStatus.class, example = "200 OK")),
                             @SchemaProperty(name = "code", schema = @Schema(type = "integer", example = "200")),
