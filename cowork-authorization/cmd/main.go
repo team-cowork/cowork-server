@@ -172,8 +172,6 @@ func main() {
 	{
 		auth.POST("/authorize", authHandler.Authorize)
 		auth.POST("/callback", authHandler.Callback)
-		// TODO(legacy-login): Remove this route after the web and mobile implementations migrate to server-managed OAuth/OIDC.
-		auth.POST("/token", authHandler.Token)
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.POST("/signout", handler.RequireUserID(), authHandler.Logout)
 	}
