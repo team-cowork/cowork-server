@@ -2,7 +2,7 @@
   "asyncapi": "2.6.0",
   "info": {
     "title": "cowork Chat WebSocket API",
-    "version": "20261106.0",
+    "version": "20261111.0",
     "description": "Socket.IO /chat 네임스페이스의 실시간 이벤트 명세. 메시지 작성은 WebSocket 이벤트가 아니라 REST API와 chat.message.v2 Kafka 흐름을 사용합니다."
   },
   "servers": {
@@ -188,7 +188,8 @@
         "required": ["channelId", "teamId"],
         "properties": {
           "channelId": { "type": "integer", "format": "int64" },
-          "teamId": { "type": "integer", "format": "int64" }
+          "teamId": { "type": "integer", "format": "int64" },
+          "archived": { "type": "boolean", "description": "보관된 채널이면 true. 보관된 채널은 읽기 전용이며 쓰기 요청은 409를 반환합니다." }
         },
         "additionalProperties": true
       },

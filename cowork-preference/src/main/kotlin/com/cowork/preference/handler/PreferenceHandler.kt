@@ -4,6 +4,7 @@ import com.cowork.preference.domain.ResourceType
 import com.cowork.preference.domain.SettingSchema
 import com.cowork.preference.security.RequesterContext
 import com.cowork.preference.service.AccountOwnershipGuard
+import com.cowork.preference.service.ArchivedChannelException
 import com.cowork.preference.service.ChannelAccessGuard
 import com.cowork.preference.service.PreferenceService
 import com.cowork.preference.service.ProjectAccessGuard
@@ -71,7 +72,11 @@ class PreferenceHandler(
                     ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(it.encode())
                 }
                 .onFailure { e ->
-                    val fallback = if (e is IllegalArgumentException) 400 else 500
+                    val fallback = when (e) {
+                        is IllegalArgumentException -> 400
+                        is ArchivedChannelException -> 409
+                        else -> 500
+                    }
                     respondFailure(ctx, e, fallback, resourceType, resourceId, requester)
                 }
         }
@@ -81,10 +86,14 @@ class PreferenceHandler(
     private suspend fun requireReadAccess(resourceType: ResourceType, resourceId: Long, requester: RequesterContext) {
         when (resourceType) {
             ResourceType.ACCOUNT -> AccountOwnershipGuard.requireOwner(resourceId, requester)
+
             ResourceType.TEAM -> teamMembershipGuard.requireMember(resourceId, requester)
+
             ResourceType.PROJECT -> projectAccessGuard.requireMember(resourceId, requester)
+
             ResourceType.VOICE_CHANNEL, ResourceType.TEXT_CHANNEL ->
                 channelAccessGuard.requireChannelAccess(resourceId, requester.userId)
+
             ResourceType.GITHUB_REPO -> throw ResourceAccessDeniedException("지원하지 않는 리소스입니다.")
         }
     }
@@ -97,14 +106,20 @@ class PreferenceHandler(
     ) {
         when (resourceType) {
             ResourceType.ACCOUNT -> AccountOwnershipGuard.requireOwner(resourceId, requester)
+
             ResourceType.TEAM -> teamMembershipGuard.requireSettingsManager(
                 resourceId,
                 requester,
                 SettingSchema.filter(resourceType, body).fieldNames(),
             )
+
             ResourceType.PROJECT -> projectAccessGuard.requireManager(resourceId, requester)
-            ResourceType.VOICE_CHANNEL, ResourceType.TEXT_CHANNEL ->
+
+            ResourceType.VOICE_CHANNEL, ResourceType.TEXT_CHANNEL -> {
                 channelAccessGuard.requireSettingsManager(resourceId, requester)
+                channelAccessGuard.requireNotArchived(resourceId)
+            }
+
             ResourceType.GITHUB_REPO -> throw ResourceAccessDeniedException("지원하지 않는 리소스입니다.")
         }
     }

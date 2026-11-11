@@ -6,22 +6,15 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20261106.0"
+version = "20261111.2"
 
 repositories {
     mavenCentral()
-    maven { url = uri("https://jitpack.io") }
 }
 
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(libs.versions.java.get().toInt())
-    }
-}
-
-dependencyManagement {
-    imports {
-        mavenBom(libs.spring.cloud.dependencies.get().toString())
     }
 }
 
@@ -40,8 +33,7 @@ dependencies {
     implementation(libs.flyway.mysql)
 
     implementation(libs.the.sdk) {
-        exclude(group = "org.springframework.boot")
-        exclude(group = "org.springframework.cloud")
+        // Use the SpringDoc version selected for this module's Spring Boot version.
         exclude(group = "org.springdoc")
     }
     implementation(libs.springdoc.openapi.webmvc.ui)

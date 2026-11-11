@@ -112,12 +112,12 @@ job "cowork-team" {
         sidecar_service {
           proxy {
             upstreams {
-              destination_name   = "cowork-team-db"
+              destination_name   = "cowork-team-mysql"
               local_bind_port    = 13306
               local_bind_address = "127.0.0.1"
             }
             upstreams {
-              destination_name   = "cowork-team-storage"
+              destination_name   = "cowork-team-seaweedfs"
               local_bind_port    = 19000
               local_bind_address = "127.0.0.1"
             }
@@ -160,7 +160,7 @@ job "cowork-team" {
 
       resources {
         cpu        = 500
-        memory     = 512
+        memory     = 1024
         memory_max = 1024
       }
 
