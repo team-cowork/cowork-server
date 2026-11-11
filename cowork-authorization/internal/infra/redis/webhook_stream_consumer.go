@@ -9,10 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cowork/authorization/internal/domain"
-	"github.com/cowork/authorization/internal/monitoring"
 	redis "github.com/redis/go-redis/v9"
 	"github.com/tmp-it-play/datagsm-sdk-go/event"
+
+	"github.com/cowork/authorization/internal/domain"
+	"github.com/cowork/authorization/internal/monitoring"
 )
 
 const (
