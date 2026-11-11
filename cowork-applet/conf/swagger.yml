@@ -9,9 +9,23 @@ servers:
 security:
   - BearerAuth: []
 components:
+  schemas:
+    ApiError:
+      type: object
+      required: [status, code, message]
+      properties:
+        status:
+          type: string
+          example: 401 UNAUTHORIZED
+        code:
+          type: integer
+          example: 401
+        message:
+          type: string
+          example: Unauthorized
   securitySchemes:
     BearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Cowork 액세스 토큰
+      description: cowork 액세스 토큰
