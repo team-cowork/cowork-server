@@ -8,8 +8,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/cowork/cowork-notification/internal/domain/delivery"
 	"gorm.io/gorm"
+
+	"github.com/cowork/cowork-notification/internal/domain/delivery"
 )
 
 type deliveryRow struct {

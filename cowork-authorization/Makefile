@@ -1,7 +1,7 @@
 GOPATH := $(shell go env GOPATH)
 SWAG   := $(GOPATH)/bin/swag
 
-.PHONY: swagger-install swagger-deps swagger-gen tidy build setup lint-install fmt lint
+.PHONY: swagger-install swagger-deps swagger-gen tidy build setup fmt
 
 swagger-install:
 	go install github.com/swaggo/swag/cmd/swag@v1.16.6
@@ -20,13 +20,7 @@ tidy:
 build:
 	go build -o bin/authorization ./cmd/...
 
-lint-install:
-	go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
-
 fmt:
-	golangci-lint fmt ./...
-
-lint:
-	golangci-lint run ./...
+	golangci-lint fmt --config .golangci.yml ./...
 
 setup: swagger-install swagger-deps swagger-gen tidy
