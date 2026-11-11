@@ -112,7 +112,7 @@ job "cowork-user" {
         sidecar_service {
           proxy {
             upstreams {
-              destination_name   = "cowork-user-db"
+              destination_name   = "cowork-user-mysql"
               local_bind_port    = 13306
               local_bind_address = "127.0.0.1"
             }
@@ -122,7 +122,7 @@ job "cowork-user" {
               local_bind_address = "127.0.0.1"
             }
             upstreams {
-              destination_name   = "cowork-user-storage"
+              destination_name   = "cowork-user-seaweedfs"
               local_bind_port    = 19000
               local_bind_address = "127.0.0.1"
             }
