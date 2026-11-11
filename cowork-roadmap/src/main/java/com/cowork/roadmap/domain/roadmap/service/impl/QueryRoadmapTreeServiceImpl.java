@@ -5,9 +5,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.cowork.roadmap.domain.node.entity.RoadmapNode;
 import com.cowork.roadmap.domain.node.entity.RoadmapNodeReference;
 import com.cowork.roadmap.domain.node.presentation.data.response.NodeReferenceResDto;
 import com.cowork.roadmap.domain.node.presentation.data.response.NodeTreeResDto;
@@ -21,6 +23,7 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import lombok.RequiredArgsConstructor;
+import team.themoment.sdk.exception.ExpectedException;
 
 @Service
 @RequiredArgsConstructor
@@ -61,15 +64,21 @@ public class QueryRoadmapTreeServiceImpl implements QueryRoadmapTreeService {
             refsByNode.computeIfAbsent(ref.getNodeId(), key -> new ArrayList<>()).add(NodeReferenceResDto.from(ref));
         }
 
-        return roots.stream().map(root -> buildSubtree(root, childrenByParent, refsByNode)).toList();
+        return roots.stream().map(root -> buildSubtree(root, 1, childrenByParent, refsByNode)).toList();
     }
 
+    /** 깊이 상한이 생기기 전에 만들어진 트리는 상한보다 깊을 수 있어, 직렬화 깊이 한도로 실패하기 전에 거부한다. */
     private NodeTreeResDto buildSubtree(NodeTreeProjection node,
+            int depth,
             Map<Long, List<NodeTreeProjection>> childrenByParent,
             Map<Long, List<NodeReferenceResDto>> refsByNode) {
+        if (depth > RoadmapNode.MAX_TREE_DEPTH) {
+            throw new ExpectedException("노드 트리가 최대 " + RoadmapNode.MAX_TREE_DEPTH + "단계를 넘어 조회할 수 없습니다.",
+                    HttpStatus.CONFLICT);
+        }
         List<NodeTreeResDto> children = childrenByParent.getOrDefault(node.getId(), List.of())
                 .stream()
-                .map(child -> buildSubtree(child, childrenByParent, refsByNode))
+                .map(child -> buildSubtree(child, depth + 1, childrenByParent, refsByNode))
                 .toList();
         return new NodeTreeResDto(node.getId(),
                 node.getParentId(),
