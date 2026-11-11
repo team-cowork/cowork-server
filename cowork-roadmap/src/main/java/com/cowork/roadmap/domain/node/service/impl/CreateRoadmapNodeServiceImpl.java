@@ -59,7 +59,7 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
         if (parentId == null) {
             return;
         }
-        RoadmapNode parent = nodeRepository.findByIdForShare(parentId)
+        RoadmapNode parent = nodeRepository.findById(parentId)
                 .orElseThrow(() -> new ExpectedException("상위 노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         if (!roadmapId.equals(parent.getRoadmapId())) {
             throw new ExpectedException("상위 노드가 같은 로드맵에 속하지 않습니다.", HttpStatus.BAD_REQUEST);
