@@ -97,7 +97,22 @@ class SecurityConfig(
                     // The handler itself accepts only a direct loopback connection inside the allocation.
                     .pathMatchers(HttpMethod.GET, "/internal/deployment-state").permitAll()
                     .pathMatchers("/api/health").permitAll()
-                    .pathMatchers(HttpMethod.GET, "/api/chat/health", "/api/chat/chat/health/ready").permitAll()
+                    .pathMatchers(
+                        HttpMethod.GET,
+                        "/api/chat/health",
+                        "/api/chat/chat/health/ready",
+                        "/api/authorization/health",
+                        "/api/voice/health",
+                        "/api/github/health",
+                        "/api/user/health",
+                        "/api/team/health",
+                        "/api/project/health",
+                        "/api/channel/health",
+                        "/api/roadmap/health",
+                        "/api/notification/health",
+                        "/api/preference/health",
+                        "/api/applet/health",
+                    ).permitAll()
                     .pathMatchers("/fallback").permitAll()
                     .pathMatchers("/swagger-ui.html", "/swagger-ui/**", "/webjars/**").permitAll()
                     .pathMatchers("/v3/api-docs/**").permitAll()
