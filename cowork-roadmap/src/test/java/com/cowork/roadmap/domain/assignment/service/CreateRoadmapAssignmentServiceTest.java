@@ -93,7 +93,7 @@ class CreateRoadmapAssignmentServiceTest {
                 // given
                 Roadmap roadmap = Roadmap.builder().id(ROADMAP_ID).scope(RoadmapScope.GLOBAL.name()).build();
                 given(roadmapRepository.findByIdForUpdate(ROADMAP_ID)).willReturn(Optional.of(roadmap));
-                given(nodeRepository.findByIdForShare(NODE_ID)).willReturn(Optional.of(node(NODE_ID, ROADMAP_ID)));
+                given(nodeRepository.findById(NODE_ID)).willReturn(Optional.of(node(NODE_ID, ROADMAP_ID)));
 
                 for (String role : new String[]{"ADMIN", "MEMBER"}) {
                     for (RoadmapScope scope : new RoadmapScope[]{RoadmapScope.TEAM, RoadmapScope.PROJECT}) {
@@ -143,7 +143,7 @@ class CreateRoadmapAssignmentServiceTest {
             void it_fails_with_not_found() {
                 // given
                 givenTeamRoadmap();
-                given(nodeRepository.findByIdForShare(NODE_ID)).willReturn(Optional.empty());
+                given(nodeRepository.findById(NODE_ID)).willReturn(Optional.empty());
 
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
@@ -164,7 +164,7 @@ class CreateRoadmapAssignmentServiceTest {
             void it_fails_with_bad_request() {
                 // given
                 givenTeamRoadmap();
-                given(nodeRepository.findByIdForShare(NODE_ID)).willReturn(Optional.of(node(NODE_ID, 2L)));
+                given(nodeRepository.findById(NODE_ID)).willReturn(Optional.of(node(NODE_ID, 2L)));
 
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
@@ -262,10 +262,9 @@ class CreateRoadmapAssignmentServiceTest {
             void it_fails_with_conflict_for_node_assignment() {
                 // given
                 givenTeamRoadmap();
-                given(nodeRepository.findByIdForShare(NODE_ID)).willReturn(Optional.of(node(NODE_ID, ROADMAP_ID)));
+                given(nodeRepository.findById(NODE_ID)).willReturn(Optional.of(node(NODE_ID, ROADMAP_ID)));
                 given(assignmentRepository
-                        .countByRoadmapIdAndNodeKeyAndAssigneeUserIdForShare(ROADMAP_ID, NODE_ID, ASSIGNEE_ID))
-                        .willReturn(1L);
+                        .countByRoadmapIdAndNodeKeyAndAssigneeUserId(ROADMAP_ID, NODE_ID, ASSIGNEE_ID)).willReturn(1L);
 
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
@@ -282,8 +281,7 @@ class CreateRoadmapAssignmentServiceTest {
             void it_fails_with_conflict_for_whole_roadmap_assignment() {
                 // given
                 givenTeamRoadmap();
-                given(assignmentRepository
-                        .countByRoadmapIdAndNodeKeyAndAssigneeUserIdForShare(ROADMAP_ID, 0L, ASSIGNEE_ID))
+                given(assignmentRepository.countByRoadmapIdAndNodeKeyAndAssigneeUserId(ROADMAP_ID, 0L, ASSIGNEE_ID))
                         .willReturn(1L);
 
                 // when
@@ -306,7 +304,7 @@ class CreateRoadmapAssignmentServiceTest {
             void it_stores_initial_business_state() {
                 // given
                 givenTeamRoadmap();
-                given(nodeRepository.findByIdForShare(NODE_ID)).willReturn(Optional.of(node(NODE_ID, ROADMAP_ID)));
+                given(nodeRepository.findById(NODE_ID)).willReturn(Optional.of(node(NODE_ID, ROADMAP_ID)));
                 given(assignmentRepository.saveAndFlush(any(RoadmapAssignment.class)))
                         .willAnswer(invocation -> invocation.getArgument(0));
 
@@ -324,12 +322,14 @@ class CreateRoadmapAssignmentServiceTest {
                 assertThat(response.assignedBy()).isEqualTo(REQUESTER_ID);
                 assertThat(response.status()).isEqualTo(AssignmentStatus.ASSIGNED.name());
 
-                InOrder order = inOrder(accessGuard, assignmentRepository);
+                InOrder order = inOrder(roadmapRepository, nodeRepository, accessGuard, assignmentRepository);
+                order.verify(roadmapRepository).findByIdForUpdate(ROADMAP_ID);
                 order.verify(accessGuard).requireReadable(any(Roadmap.class), any(), any());
                 order.verify(accessGuard).requireTeamManagerOrAdmin(REQUESTER_ID, "MEMBER", OWNER_TEAM_ID);
+                order.verify(nodeRepository).findById(NODE_ID);
                 order.verify(accessGuard).requireAssignableMember(OWNER_TEAM_ID, ASSIGNEE_ID);
                 order.verify(assignmentRepository)
-                        .countByRoadmapIdAndNodeKeyAndAssigneeUserIdForShare(ROADMAP_ID, NODE_ID, ASSIGNEE_ID);
+                        .countByRoadmapIdAndNodeKeyAndAssigneeUserId(ROADMAP_ID, NODE_ID, ASSIGNEE_ID);
                 order.verify(assignmentRepository).saveAndFlush(any(RoadmapAssignment.class));
             }
         }

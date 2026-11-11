@@ -79,7 +79,7 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
      */
     private void validateNotAssigned(CreateAssignmentReqDto request) {
         long nodeKey = request.nodeId() == null ? 0L : request.nodeId();
-        if (assignmentRepository.countByRoadmapIdAndNodeKeyAndAssigneeUserIdForShare(request.roadmapId(),
+        if (assignmentRepository.countByRoadmapIdAndNodeKeyAndAssigneeUserId(request.roadmapId(),
                 nodeKey,
                 request.assigneeUserId()) > 0) {
             throw new ExpectedException("이미 같은 담당자에게 할당된 과제입니다.", HttpStatus.CONFLICT);
@@ -90,7 +90,7 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
         if (nodeId == null) {
             return;
         }
-        var node = nodeRepository.findByIdForShare(nodeId)
+        var node = nodeRepository.findById(nodeId)
                 .orElseThrow(() -> new ExpectedException("노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         if (!roadmapId.equals(node.getRoadmapId())) {
             throw new ExpectedException("노드가 해당 로드맵에 속하지 않습니다.", HttpStatus.BAD_REQUEST);
