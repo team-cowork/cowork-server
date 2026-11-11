@@ -9,7 +9,7 @@ if [[ "$TOOL_NAME" == "Edit" ]] || [[ "$TOOL_NAME" == "Write" ]]; then
         *.kt)
             [[ "$FILE_PATH" = /* ]] || FILE_PATH="$CWD/$FILE_PATH"
             MODULE_DIR=$(dirname "$FILE_PATH")
-            while [[ "$MODULE_DIR" != / && ! -f "$MODULE_DIR/gradlew" && ! -f "$MODULE_DIR/ktlint" && ! -f "$MODULE_DIR/mvnw" ]]; do
+            while [[ "$MODULE_DIR" != / && ! -f "$MODULE_DIR/gradlew" && ! -f "$MODULE_DIR/ktlint" && ! -f "$MODULE_DIR/mvnw" && ! -f "$MODULE_DIR/kotlin" ]]; do
                 MODULE_DIR=$(dirname "$MODULE_DIR")
             done
             if [[ -f "$MODULE_DIR/ktlint" && -x "$MODULE_DIR/ktlint" ]]; then
@@ -20,6 +20,9 @@ if [[ "$TOOL_NAME" == "Edit" ]] || [[ "$TOOL_NAME" == "Write" ]]; then
             elif [[ -f "$MODULE_DIR/mvnw" && -f "$MODULE_DIR/pom.xml" ]] \
                 && grep -Fq '<artifactId>ktlint-maven-plugin</artifactId>' "$MODULE_DIR/pom.xml"; then
                 FORMAT_COMMAND=(./mvnw ktlint:format -q)
+            elif [[ -f "$MODULE_DIR/kotlin" && -f "$MODULE_DIR/module.yaml" ]] \
+                && grep -Fq 'ktlint: enabled' "$MODULE_DIR/module.yaml"; then
+                FORMAT_COMMAND=(./kotlin do ktlintFormat)
             else
                 exit 0
             fi
