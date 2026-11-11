@@ -58,7 +58,7 @@ type loginFixture struct {
 	tokenStatus                           int
 	scope                                 string
 	jwksErr                               error
-	form                                  url.Values
+	tokenRequest                          map[string]string
 }
 
 func newLoginFixture(t *testing.T) *loginFixture {
@@ -72,13 +72,12 @@ func newLoginFixture(t *testing.T) *loginFixture {
 		f.calls++
 		switch r.URL.Path {
 		case "/v1/oauth/token":
-			if r.Header.Get("Content-Type") != "application/x-www-form-urlencoded" {
-				t.Error("SDK must send form encoding")
+			if r.Header.Get("Content-Type") != "application/json" {
+				t.Error("SDK must send JSON encoding")
 			}
-			if err := r.ParseForm(); err != nil {
+			if err := json.NewDecoder(r.Body).Decode(&f.tokenRequest); err != nil {
 				t.Fatal(err)
 			}
-			f.form = r.Form
 			if f.tokenStatus != 200 {
 				return jsonResponse(f.tokenStatus, `{"error":"invalid_grant","error_description":"sensitive provider text"}`), nil
 			}
@@ -163,7 +162,7 @@ func TestServerManagedLogin(t *testing.T) {
 	if err != nil || user.ID != 99 {
 		t.Fatalf("user=%+v err=%v", user, err)
 	}
-	if f.form.Get("code_verifier") != attempt.Authorization.CodeVerifier || f.form.Get("redirect_uri") != attempt.RedirectURI {
+	if f.tokenRequest["code_verifier"] != attempt.Authorization.CodeVerifier || f.tokenRequest["redirect_uri"] != attempt.RedirectURI {
 		t.Fatal("exchange did not use saved attempt")
 	}
 	before := f.calls
