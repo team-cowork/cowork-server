@@ -1,5 +1,6 @@
 package com.cowork.gateway.response.handler
 
+import com.cowork.gateway.response.body.defaultApiErrorMessage
 import com.cowork.gateway.response.body.writeNoStoreJson
 import com.cowork.gateway.response.config.ApiResponseWrapperProperties
 import com.cowork.gateway.response.wrapping.ApiResponseWrappingPolicy
@@ -39,7 +40,7 @@ class ApiExceptionHandler(private val objectMapper: ObjectMapper, properties: Ap
             return exchange.response.setComplete()
         }
 
-        val body = CommonApiResponse.error(status.reasonPhrase, status)
+        val body = CommonApiResponse.error(defaultApiErrorMessage(status), status)
         return exchange.response.writeNoStoreJson(status, objectMapper.writeValueAsBytes(body))
     }
 }
