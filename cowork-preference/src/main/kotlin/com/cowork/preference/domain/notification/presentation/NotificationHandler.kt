@@ -1,11 +1,11 @@
 package com.cowork.preference.domain.notification.presentation
 
 import com.cowork.preference.domain.access.exception.AccountOwnershipDeniedException
+import com.cowork.preference.domain.access.presentation.auditAuthorizationFailure
+import com.cowork.preference.domain.access.presentation.authorizationStatus
 import com.cowork.preference.domain.access.service.AccountOwnershipGuard
 import com.cowork.preference.domain.access.service.ChannelAccessGuard
 import com.cowork.preference.domain.notification.service.NotificationService
-import com.cowork.preference.global.http.auditAuthorizationFailure
-import com.cowork.preference.global.http.authorizationStatus
 import com.cowork.preference.global.security.RequesterContext
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext

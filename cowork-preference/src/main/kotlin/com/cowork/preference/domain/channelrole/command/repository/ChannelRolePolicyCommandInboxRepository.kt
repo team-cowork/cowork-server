@@ -1,8 +1,10 @@
 package com.cowork.preference.domain.channelrole.command.repository
 
 import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommand
-import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommandQuarantineRecord
 import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommandType
+import com.cowork.preference.domain.channelrole.command.model.ProcessedChannelRolePolicyCommand
+import com.cowork.preference.global.messaging.command.model.CommandQuarantineRecord
+import com.cowork.preference.global.messaging.command.model.ProcessedCommandMatches
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Pool
@@ -14,7 +16,7 @@ class ChannelRolePolicyCommandInboxRepository(private val pool: Pool) {
     suspend fun findMatches(
         client: SqlClient,
         command: ChannelRolePolicyCommand,
-    ): ProcessedChannelRolePolicyCommandMatches {
+    ): ProcessedCommandMatches<ProcessedChannelRolePolicyCommand> {
         val rows = client.preparedQuery(
             """
             SELECT operation_id, actor_id, idempotency_key, request_hash, command_type, team_id,
@@ -40,9 +42,9 @@ class ChannelRolePolicyCommandInboxRepository(private val pool: Pool) {
                 result = row.getJsonObject("result"),
             )
         }
-        return ProcessedChannelRolePolicyCommandMatches(
+        return ProcessedCommandMatches(
             byOperationId = processed.firstOrNull { it.operationId == command.operationId },
-            byActorAndIdempotencyKey = processed.firstOrNull {
+            byIdempotencyKey = processed.firstOrNull {
                 it.actorId == command.actorId && it.idempotencyKey == command.idempotencyKey
             },
         )
@@ -76,9 +78,9 @@ class ChannelRolePolicyCommandInboxRepository(private val pool: Pool) {
         ).coAwait()
     }
 
-    suspend fun quarantine(record: ChannelRolePolicyCommandQuarantineRecord): Boolean = quarantine(pool, record)
+    suspend fun quarantine(record: CommandQuarantineRecord): Boolean = quarantine(pool, record)
 
-    suspend fun quarantine(client: SqlClient, record: ChannelRolePolicyCommandQuarantineRecord): Boolean {
+    suspend fun quarantine(client: SqlClient, record: CommandQuarantineRecord): Boolean {
         val result = client.preparedQuery(
             """
             INSERT INTO tb_channel_role_policy_command_quarantine
