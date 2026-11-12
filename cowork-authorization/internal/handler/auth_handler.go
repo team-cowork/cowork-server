@@ -10,7 +10,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	_ "github.com/cowork/authorization/internal/apidoc" // Gateway response schemas for swag.
 	"github.com/cowork/authorization/internal/service"
 )
 
@@ -45,20 +44,6 @@ func clearWsCookie(c *gin.Context) {
 	c.SetCookie(wsCookieName, "", -1, wsCookiePath, "", true, true)
 }
 
-// Callback godoc
-// @Summary      인가 코드로 토큰 발급
-// @Description  로그인 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 로그인 시도는 한 번만 사용할 수 있습니다.
-// @Tags         auth
-// @Accept       json
-// @Produce      json
-// @Param        body  body      LoginCallbackRequest  true  "DataGSM 콜백"
-// @Success      200   {object}  apidoc.Success[service.TokenPair]  "새 토큰 쌍"
-// @Header       200   {string}  Set-Cookie  "WebSocket 인증 쿠키(cowork_ws_token, Path=/ws)"
-// @Failure      400   {object}  apidoc.Error  "필수 요청 값이 없거나 형식이 잘못됨"
-// @Failure      401   {object}  apidoc.Error  "인가 코드 검증 실패"
-// @Failure      503   {object}  apidoc.Error  "인증 서비스를 일시적으로 사용할 수 없음"
-// @Failure      429   {object}  apidoc.Error  "요청 한도 초과"
-// @Router       /auth/callback [post]
 func (h *AuthHandler) Callback(c *gin.Context) {
 	if !h.allowLoginRequest(c) {
 		return
@@ -98,20 +83,6 @@ type LoginStartResponse struct {
 	AuthorizationURL string `json:"authorization_url"`
 }
 
-// Authorize godoc
-// @Summary DataGSM 로그인 시작
-// @Description 등록된 콜백 URL로 로그인 시도를 생성합니다. 반환된 authorization_url로 이동하고 쿠키를 유지한 채 /auth/callback에 콜백을 전달합니다. 시도는 10분 뒤 만료됩니다.
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param body body LoginStartRequest true "등록된 콜백 URL"
-// @Success 200 {object} apidoc.Success[LoginStartResponse] "인증 URL 발급 성공"
-// @Header 200 {string} Set-Cookie "일회성 로그인 세션 쿠키(Secure, HttpOnly)"
-// @Failure 400 {object} apidoc.Error "등록되지 않은 콜백 또는 잘못된 요청"
-// @Failure 403 {object} apidoc.Error "허용하지 않은 출처"
-// @Failure 429 {object} apidoc.Error "요청 한도 초과"
-// @Failure 503 {object} apidoc.Error "로그인 시도 저장 실패"
-// @Router /auth/authorize [post]
 func (h *AuthHandler) Authorize(c *gin.Context) {
 	if !h.allowLoginRequest(c) {
 		return
@@ -178,20 +149,6 @@ func loginError(c *gin.Context, err error) {
 	}
 }
 
-// Refresh godoc
-// @Summary      액세스 토큰 갱신
-// @Description  리프레시 토큰을 교환해 새 액세스 토큰과 새 리프레시 토큰을 받습니다.
-// @Tags         auth
-// @Accept       json
-// @Produce      json
-// @Param        body  body      object{refresh_token=string}  true  "리프레시 토큰"
-// @Success      200   {object}  apidoc.Success[service.TokenPair]  "새 토큰 쌍"
-// @Header       200   {string}  Set-Cookie  "WebSocket 인증 쿠키(cowork_ws_token, Path=/ws)"
-// @Failure      400   {object}  apidoc.Error  "필수 요청 값이 없거나 형식이 잘못됨"
-// @Failure      401   {object}  apidoc.Error  "유효하지 않거나 만료된 리프레시 토큰"
-// @Failure      503   {object}  apidoc.Error  "인증 서비스를 일시적으로 사용할 수 없음"
-// @Failure      429   {object}  apidoc.Error  "요청 한도 초과"
-// @Router       /auth/refresh [post]
 func (h *AuthHandler) Refresh(c *gin.Context) {
 	var req struct {
 		RefreshToken string `json:"refresh_token" binding:"required"`
@@ -216,20 +173,6 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	c.JSON(http.StatusOK, pair)
 }
 
-// Logout godoc
-// @Summary      로그아웃
-// @Description  리프레시 토큰을 무효화하고 WebSocket 인증 쿠키를 삭제합니다.
-// @Tags         auth
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Param        body  body  object{refresh_token=string}  true  "리프레시 토큰"
-// @Success      204   "로그아웃 완료. 응답 본문은 없습니다."
-// @Failure      400   {object}  apidoc.Error  "필수 요청 값이 없거나 형식이 잘못됨"
-// @Failure      401   {object}  apidoc.Error  "인증 실패 또는 유효하지 않은 리프레시 토큰"
-// @Failure      503   {object}  apidoc.Error  "인증 서비스를 일시적으로 사용할 수 없음"
-// @Failure      429   {object}  apidoc.Error  "요청 한도 초과"
-// @Router       /auth/signout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
 	var req struct {
 		RefreshToken string `json:"refresh_token" binding:"required"`
