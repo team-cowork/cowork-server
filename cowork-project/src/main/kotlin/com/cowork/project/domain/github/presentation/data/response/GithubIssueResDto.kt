@@ -2,7 +2,7 @@ package com.cowork.project.domain.github.presentation.data.response
 
 import io.swagger.v3.oas.annotations.media.Schema
 
-@Schema(description = "GitHub 이슈 목록 요약 (보드 카드)")
+@Schema(description = "GitHub 이슈 요약")
 data class GithubIssueResDto(
     @field:Schema(description = "이슈 번호", example = "1")
     val number: Int,
