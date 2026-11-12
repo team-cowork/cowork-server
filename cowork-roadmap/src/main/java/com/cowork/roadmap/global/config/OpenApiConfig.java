@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import io.swagger.v3.oas.annotations.servers.Server;
 
 @Configuration
-@OpenAPIDefinition(info = @Info(title = "cowork Roadmap API", description = "로드맵 관리 서비스 API", version = "20261111.2"), servers = @Server(url = "/api/roadmap", description = "Gateway"), security = @SecurityRequirement(name = "BearerAuth"))
+@OpenAPIDefinition(info = @Info(title = "cowork Roadmap API", description = "로드맵 관리 서비스 API", version = "20261112.0"), servers = @Server(url = "/api/roadmap", description = "Gateway"), security = @SecurityRequirement(name = "BearerAuth"))
 @SecurityScheme(name = "BearerAuth", type = SecuritySchemeType.HTTP, scheme = "bearer", bearerFormat = "JWT", description = "cowork 액세스 토큰")
 public class OpenApiConfig {
 }
