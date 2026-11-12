@@ -22,7 +22,7 @@ class ChannelMembershipAuthorizationTest :
         beforeEach {
             members = mockk()
             roles = mockk(relaxed = true)
-            handler = ChannelLifecycleHandler(mockk(), members, mockk(), roles, mockk())
+            handler = ChannelLifecycleHandler(mockk(), members, mockk(), roles, mockk(), mockk())
             member = TeamMembership(
                 teamId = 10L,
                 userId = 7L,

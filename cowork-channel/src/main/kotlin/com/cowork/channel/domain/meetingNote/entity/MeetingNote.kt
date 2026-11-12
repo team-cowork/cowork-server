@@ -35,9 +35,19 @@ class MeetingNote(
     @UpdateTimestamp
     @Column(name = "updated_at", nullable = false)
     var updatedAt: LocalDateTime = LocalDateTime.now(),
+
+    @ElementCollection
+    @CollectionTable(name = "tb_meeting_note_attachments", joinColumns = [JoinColumn(name = "note_id")])
+    @OrderColumn(name = "position")
+    var attachments: MutableList<MeetingNoteAttachment> = mutableListOf(),
 ) {
-    fun update(title: String?, content: String?) {
+    fun update(title: String?, content: String?, attachments: List<MeetingNoteAttachment>? = null) {
         title?.let { this.title = it }
         content?.let { this.content = it }
+        attachments?.let {
+            this.attachments.clear()
+            this.attachments.addAll(it)
+            updatedAt = LocalDateTime.now()
+        }
     }
 }
