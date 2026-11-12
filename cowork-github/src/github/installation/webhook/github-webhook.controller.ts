@@ -101,6 +101,33 @@ export class GithubWebhookController {
 		});
 	}
 
+	// 조직 이름이 바뀌면 owner 이름으로 저장된 설치 캐시와 팀·프로젝트의 orgLogin이 모두 옛 이름으로 남는다.
+	private async handleInstallationTarget(
+		payload: GithubWebhookPayload,
+	): Promise<void> {
+		const orgLogin = payload.account?.login;
+		if (orgLogin === undefined || payload.action !== 'renamed' || !payload.installation) {
+			return;
+		}
+
+		const installationId = payload.installation.id;
+		const previousLogin = payload.changes?.login?.from;
+		if (previousLogin !== undefined) {
+			await this.authService.evictInstallation(previousLogin, installationId);
+		}
+
+		await this.authService.cacheInstallation(orgLogin, installationId);
+
+		const revision = await this.redis.incr(
+			githubCacheKeys.installationRevision(installationId),
+		);
+		await this.producer.send('team.github.renamed', {
+			installationId,
+			orgLogin,
+			revision,
+		});
+	}
+
 	private async handleRepoEvent(
 		eventName: string,
 		payload: GithubWebhookPayload,
@@ -409,6 +436,11 @@ export class GithubWebhookController {
 		switch (eventName) {
 			case 'installation': {
 				await this.handleInstallation(payload);
+				break;
+			}
+
+			case 'installation_target': {
+				await this.handleInstallationTarget(payload);
 				break;
 			}
 
