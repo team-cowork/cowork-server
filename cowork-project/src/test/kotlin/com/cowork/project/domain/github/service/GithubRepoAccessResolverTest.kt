@@ -29,7 +29,12 @@ class GithubRepoAccessResolverTest :
             projectAccessGuard = mockk()
             projectGithubRepoRepository = mockk()
             teamGithubInstallationRepository = mockk()
-            resolver = GithubRepoAccessResolver(projectAccessGuard, projectGithubRepoRepository, teamGithubInstallationRepository)
+            resolver =
+                GithubRepoAccessResolver(
+                    projectAccessGuard,
+                    projectGithubRepoRepository,
+                    teamGithubInstallationRepository,
+                )
             every { teamGithubInstallationRepository.findByIdOrNull(100L) } returns
                 TeamGithubInstallation(teamId = 100L, installationId = 1L, orgLogin = "My-Org")
         }
