@@ -7,7 +7,7 @@ COPY cowork-project/mvnw cowork-project/pom.xml ./
 RUN chmod +x mvnw
 COPY cowork-project/src src
 RUN --mount=type=cache,id=cowork-project-maven,target=/root/.m2,sharing=locked \
-    ./mvnw -B -DskipTests clean package \
+    ./mvnw -B -DskipTests -Dktlint.skip=true clean package \
     && artifact="$(find target -maxdepth 1 -type f -name 'cowork-project-*.jar' -print -quit)" \
     && test -n "${artifact}" \
     && cp "${artifact}" /workspace/app.jar
