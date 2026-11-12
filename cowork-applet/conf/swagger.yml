@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: cowork Applet API
   description: 사용자가 서비스 안에서 만드는 앱을 관리합니다.
-  version: "20261112.0"
+  version: "20261113.0"
 servers:
   - url: /api/applet
     description: Gateway
