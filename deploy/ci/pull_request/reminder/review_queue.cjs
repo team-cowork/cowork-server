@@ -10,8 +10,9 @@ const BODY_CHAR_LIMIT = 2_000;
 const STAT_CHAR_LIMIT = 2_000;
 const RETRYABLE_STATUSES = new Set([502, 503]);
 const FACTOR_THRESHOLD = 0.5;
-// 15 lines stay under the Discord limit of 4,096 characters for each embed description.
+// Cap the reminder at 15 PRs and split long groups at Discord's embed description limit.
 const MAX_LISTED = 15;
+const EMBED_DESCRIPTION_CHAR_LIMIT = 4_096;
 const TITLE_CHAR_LIMIT = 100;
 const HOUR_MS = 3_600_000;
 const KST_OFFSET_MS = 9 * HOUR_MS;
@@ -186,11 +187,17 @@ function buildPayload(queue, roleId, now) {
   const embeds = GRADES.flatMap(grade => {
     const items = listed.filter(item => item.grade === grade.key);
     if (items.length === 0) return [];
-    return [{
-      title: `중요도 ${grade.label} (${items.length})`,
+    const groups = [[]];
+    for (const item of items) {
+      const line = formatLine(item, now);
+      if ([...groups.at(-1), line].join('\n').length > EMBED_DESCRIPTION_CHAR_LIMIT) groups.push([]);
+      groups.at(-1).push(line);
+    }
+    return groups.map(lines => ({
+      title: `중요도 ${grade.label} (${lines.length})`,
       color: grade.color,
-      description: items.map(item => formatLine(item, now)).join('\n'),
-    }];
+      description: lines.join('\n'),
+    }));
   });
 
   // Discord does not notify a role mentioned inside an embed, so the mention stays in content.
