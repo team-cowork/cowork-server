@@ -2,6 +2,7 @@ name: cowork Prod CI Workflow
 
 on:
   pull_request:
+    # Metadata edits do not start another run; push or reopen after title/base changes to revalidate.
     types: [opened, reopened, synchronize]
     branches:
       - 'main'
@@ -85,7 +86,6 @@ jobs:
 
     steps:
       - name: Set Up PR Metadata
-        if: contains(fromJSON('["opened", "reopened", "synchronize"]'), github.event.action)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
