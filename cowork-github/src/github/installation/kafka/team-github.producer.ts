@@ -9,10 +9,12 @@ import {AppConfigService} from '../../../config/app-config.service.js';
 import {
 	TeamGithubConnectedEvent,
 	TeamGithubDisconnectedEvent,
+	TeamGithubRenamedEvent,
 } from './event/team-github.event.js';
 
 export type TeamGithubTopic =
 	| 'team.github.connected'
+	| 'team.github.renamed'
 	| 'team.github.disconnected';
 
 @injectable()
@@ -38,7 +40,7 @@ export class TeamGithubProducer implements OnModuleInit, OnModuleDestroy {
 
 	async send(
 		topic: TeamGithubTopic,
-		event: TeamGithubConnectedEvent | TeamGithubDisconnectedEvent,
+		event: TeamGithubConnectedEvent | TeamGithubRenamedEvent | TeamGithubDisconnectedEvent,
 	): Promise<void> {
 		await this.producer.send({
 			topic,
