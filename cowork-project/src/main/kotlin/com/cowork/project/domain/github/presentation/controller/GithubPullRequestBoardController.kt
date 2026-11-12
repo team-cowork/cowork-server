@@ -99,7 +99,7 @@ class GithubPullRequestBoardController(private val queryPullRequestBoardService:
         ),
         ApiResponse(
             responseCode = "502",
-            description = "GitHub 연동 서버 통신 오류",
+            description = "GitHub 연동 오류",
             content = [
                 Content(
                     mediaType = "application/json",

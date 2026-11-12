@@ -31,7 +31,14 @@ class GithubPullRequestProjectionTest :
         )
 
         fun event(title: String, at: Instant, files: List<GithubPullRequestFileState>? = null) =
-            GithubPullRequestStateEvent(owner = "my-org", repo = "my-repo", number = 7, title = title, sourceOccurredAt = at, files = files)
+            GithubPullRequestStateEvent(
+                owner = "my-org",
+                repo = "my-repo",
+                number = 7,
+                title = title,
+                sourceOccurredAt = at,
+                files = files,
+            )
 
         describe("GithubPullRequestProjection 클래스의 apply 메서드는") {
             context("labeled(T2) 뒤에 파일이 실린 synchronize(T1)가 늦게 도착하면") {
@@ -39,7 +46,9 @@ class GithubPullRequestProjectionTest :
                     val projection = projection()
                     projection.apply(event("labeled", t2))
 
-                    val applied = projection.apply(event("synchronize", t1, listOf(GithubPullRequestFileState(filename = "a.kt"))))
+                    val applied = projection.apply(
+                        event("synchronize", t1, listOf(GithubPullRequestFileState(filename = "a.kt"))),
+                    )
 
                     applied shouldBe true
                     projection.title shouldBe "labeled"
@@ -52,7 +61,9 @@ class GithubPullRequestProjectionTest :
                     val projection = projection()
                     projection.apply(event("new", t2, listOf(GithubPullRequestFileState(filename = "new.kt"))))
 
-                    val applied = projection.apply(event("old", t1, listOf(GithubPullRequestFileState(filename = "old.kt"))))
+                    val applied = projection.apply(
+                        event("old", t1, listOf(GithubPullRequestFileState(filename = "old.kt"))),
+                    )
 
                     applied shouldBe false
                     projection.files.map { it.filename } shouldBe listOf("new.kt")

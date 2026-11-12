@@ -1,12 +1,18 @@
 // @title           cowork Authorization API
 // @version         20261111.1
-// @description     DataGSM 계정으로 로그인하고 Cowork 토큰을 발급하거나 갱신합니다.
+// @description     DataGSM 계정으로 로그인하고 cowork 토큰을 발급하거나 갱신합니다.
 // @BasePath        /api/authorization
+// @tag.name        auth
+// @tag.description DataGSM 로그인과 토큰 발급, 갱신, 로그아웃을 처리합니다.
+// @tag.name        events
+// @tag.description DataGSM의 사용자 변경 이벤트를 수신합니다.
 // @securityDefinitions.apikey BearerAuth
 // @in              header
 // @name            Authorization
 // @description     "Bearer {access_token}" 형식으로 입력합니다.
 package main
+
+//go:generate go -C .. run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/main.go -o swagger --parseDependency --parseInternal
 
 import (
 	"context"
@@ -19,6 +25,14 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	gormlogger "gorm.io/gorm/logger"
+
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/handler"
 	kafkainfra "github.com/cowork/authorization/internal/infra/kafka"
@@ -29,13 +43,6 @@ import (
 	"github.com/cowork/authorization/internal/service"
 	"github.com/cowork/authorization/pkg/logger"
 	_ "github.com/cowork/authorization/swagger"
-	"github.com/gin-gonic/gin"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
-	"gorm.io/driver/mysql"
-	"gorm.io/gorm"
-	gormlogger "gorm.io/gorm/logger"
 )
 
 const (

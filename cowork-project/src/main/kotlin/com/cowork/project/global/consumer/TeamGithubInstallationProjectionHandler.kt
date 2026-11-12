@@ -6,6 +6,7 @@ import com.cowork.project.domain.github.entity.TeamGithubInstallationOwnershipFe
 import com.cowork.project.domain.github.repository.TeamGithubInstallationEventStateRepository
 import com.cowork.project.domain.github.repository.TeamGithubInstallationOwnershipFenceRepository
 import com.cowork.project.domain.github.repository.TeamGithubInstallationRepository
+import com.cowork.project.domain.github.service.ProjectGithubRepoOwnerRenamer
 import com.cowork.project.global.projection.toProjectionPrecision
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -19,6 +20,7 @@ class TeamGithubInstallationProjectionHandler(
     private val installationRepository: TeamGithubInstallationRepository,
     private val stateRepository: TeamGithubInstallationEventStateRepository,
     private val ownershipFenceRepository: TeamGithubInstallationOwnershipFenceRepository,
+    private val repoOwnerRenamer: ProjectGithubRepoOwnerRenamer,
 ) {
     private val log = LoggerFactory.getLogger(TeamGithubInstallationProjectionHandler::class.java)
 
@@ -157,8 +159,11 @@ class TeamGithubInstallationProjectionHandler(
         val targetInstallation = currentTeamInstallation
             ?.takeIf { it.installationId == installationId }
             ?: TeamGithubInstallation(teamId = teamId, installationId = installationId, orgLogin = orgLogin)
+        // 같은 설치의 orgLogin이 바뀌었으면 GitHub 조직 이름이 바뀐 것이다.
+        val previousOrgLogin = targetInstallation.orgLogin
         targetInstallation.update(installationId, orgLogin)
         installationRepository.save(targetInstallation)
+        if (previousOrgLogin != orgLogin) repoOwnerRenamer.rename(teamId, previousOrgLogin, orgLogin)
 
         val targetState = state ?: TeamGithubInstallationEventState(
             teamId = teamId,

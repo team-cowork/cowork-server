@@ -7,9 +7,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/cowork/authorization/internal/domain"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+
+	"github.com/cowork/authorization/internal/domain"
 )
 
 const expiredSessionBatchSize = 500

@@ -8,8 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cowork/authorization/internal/config"
 	"github.com/segmentio/kafka-go"
+
+	"github.com/cowork/authorization/internal/config"
 )
 
 type Producer struct {

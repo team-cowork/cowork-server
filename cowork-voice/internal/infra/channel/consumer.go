@@ -10,12 +10,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cowork/cowork-voice/internal/config"
 	"github.com/google/uuid"
 	segkafka "github.com/segmentio/kafka-go"
 	"github.com/twmb/franz-go/pkg/kerr"
 	"github.com/twmb/franz-go/pkg/kgo"
 	"github.com/twmb/franz-go/pkg/kmsg"
+
+	"github.com/cowork/cowork-voice/internal/config"
 )
 
 const (

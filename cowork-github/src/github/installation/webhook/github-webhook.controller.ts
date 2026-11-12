@@ -8,14 +8,24 @@ import {
 	Post as httpPost,
 	UseGuards as useGuards,
 } from '@nestjs/common';
+import {
+	ApiBody as apiBody,
+	ApiHeader as apiHeader,
+	ApiOkResponse as apiOkResponse,
+	ApiOperation as apiOperation,
+	ApiResponse as apiResponse,
+	ApiTags as apiTags,
+} from '@nestjs/swagger';
 import type {Redis} from 'ioredis';
 import {AppConfigService} from '../../../config/app-config.service.js';
+import {gatewayApiErrorSchema} from '../../../config/swagger-schemas.js';
 import {GithubAuthService} from '../../auth/github-auth.service.js';
 import {
 	readCommentAuthor,
 } from '../../common/comment-author-marker.js';
 import {REDIS_CLIENT} from '../../constants.js';
 import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../../github.cache.js';
+import {githubField} from '../../github-field.js';
 import {PullRequestService} from '../../pull-request/pull-request.service.js';
 import type {PullRequestFileState, PullRequestStateEvent} from '../kafka/event/pull-request-state.js';
 import {toRepoIdentity} from '../kafka/event/repo-identity.js';
@@ -28,6 +38,7 @@ import {GithubWebhookSignatureGuard} from './github-webhook-signature.guard.js';
 
 const PR_FILE_REFRESH_ACTIONS = new Set(['opened', 'synchronize', 'reopened']);
 
+@apiTags('webhook')
 @controller('github/webhooks')
 @useGuards(GithubWebhookSignatureGuard)
 export class GithubWebhookController {
@@ -97,6 +108,33 @@ export class GithubWebhookController {
 		);
 		await this.producer.send('team.github.disconnected', {
 			installationId,
+			revision,
+		});
+	}
+
+	// 조직 이름이 바뀌면 owner 이름으로 저장된 설치 캐시와 팀·프로젝트의 orgLogin이 모두 옛 이름으로 남는다.
+	private async handleInstallationTarget(
+		payload: GithubWebhookPayload,
+	): Promise<void> {
+		const orgLogin = payload.account?.login;
+		if (orgLogin === undefined || payload.action !== 'renamed' || !payload.installation) {
+			return;
+		}
+
+		const installationId = payload.installation.id;
+		const previousLogin = payload.changes?.login?.from;
+		if (previousLogin !== undefined) {
+			await this.authService.evictInstallation(previousLogin, installationId);
+		}
+
+		await this.authService.cacheInstallation(orgLogin, installationId);
+
+		const revision = await this.redis.incr(
+			githubCacheKeys.installationRevision(installationId),
+		);
+		await this.producer.send('team.github.renamed', {
+			installationId,
+			orgLogin,
 			revision,
 		});
 	}
@@ -174,7 +212,7 @@ export class GithubWebhookController {
 		// 백필과 같은 기준(수신 시각)을 버전으로 쓴다 — repository.updated_at은 삭제 시 갱신되지 않아
 		// 백필 시각보다 오래된 이벤트로 버려질 수 있다.
 		const sourceOccurredAt = new Date().toISOString();
-		// 이름 변경(renamed)·이전(transferred)은 projection 키(owner/repo)가 바뀌므로 이전 키를 삭제 처리한다.
+		// 이름 변경(renamed)/이전(transferred)은 projection 키(owner/repo)가 바뀌므로 이전 키를 삭제 처리한다.
 		const previousFullName = this.previousRepoFullName(payload.changes, owner, repo);
 		// 대소문자만 바뀐 경우는 projection 키가 같으므로 이전 키를 삭제하지 않는다.
 		if (toRepoIdentity(previousFullName) !== toRepoIdentity(fullName)) {
@@ -402,6 +440,44 @@ export class GithubWebhookController {
 
 	@httpPost()
 	@httpCode(200)
+	@apiOperation({
+		summary: 'GitHub 웹훅 수신',
+		description: 'installation/installation_repositories/repository/push/issues/pull_request/label/issue_comment 이벤트를 처리합니다. 그 외 이벤트는 무시하고 HTTP 200을 반환합니다.',
+	})
+	@apiHeader({
+		name: 'X-GitHub-Event', description: 'GitHub 이벤트 이름', required: true, schema: {type: 'string', example: 'issues'},
+	})
+	@apiHeader({
+		name: 'X-Hub-Signature-256', description: '웹훅 비밀 키와 원본 본문으로 계산한 HMAC-SHA256 (sha256= 접두사 포함)', required: true, schema: {type: 'string'},
+	})
+	@apiBody({
+		description: 'X-GitHub-Event에 해당하는 JSON 본문 (이벤트별 필드 상이)',
+		schema: {
+			type: 'object',
+			additionalProperties: true,
+			example: {
+				action: 'opened', installation: {id: 12_345}, repository: {[githubField.fullName]: 'octo-org/example'}, issue: {number: 1, title: '새 이슈', state: 'open'},
+			},
+		},
+	})
+	@apiOkResponse({
+		description: '이벤트 처리/미지원 이벤트 무시 완료',
+		schema: {
+			type: 'object',
+			required: ['status', 'code', 'message', 'data'],
+			properties: {
+				status: {type: 'string', example: '200 OK'},
+				code: {type: 'integer', enum: [200]},
+				message: {type: 'string', example: 'OK'},
+				data: {type: 'object', required: ['ok'], properties: {ok: {type: 'boolean', enum: [true]}}},
+			},
+		},
+	})
+	@apiResponse({status: 400, description: 'JSON 본문 형식 오류', schema: gatewayApiErrorSchema})
+	@apiResponse({status: 401, description: '웹훅 서명 누락/불일치', schema: gatewayApiErrorSchema})
+	@apiResponse({status: 413, description: '요청 본문 크기 제한 초과', schema: gatewayApiErrorSchema})
+	@apiResponse({status: 500, description: '이벤트 반영 실패', schema: gatewayApiErrorSchema})
+	@apiResponse({status: 'default', description: '기타 요청/서버 오류', schema: gatewayApiErrorSchema})
 	async handle(
 		@requestHeaders('x-github-event') eventName: string,
 		@requestBody() payload: GithubWebhookPayload,
@@ -409,6 +485,11 @@ export class GithubWebhookController {
 		switch (eventName) {
 			case 'installation': {
 				await this.handleInstallation(payload);
+				break;
+			}
+
+			case 'installation_target': {
+				await this.handleInstallationTarget(payload);
 				break;
 			}
 

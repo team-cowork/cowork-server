@@ -7,10 +7,11 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/cowork/authorization/internal/config"
-	"github.com/cowork/authorization/internal/domain"
 	"github.com/tmp-it-play/datagsm-sdk-go/oauth"
 	"gorm.io/gorm"
+
+	"github.com/cowork/authorization/internal/config"
+	"github.com/cowork/authorization/internal/domain"
 )
 
 var ErrAuthenticationUnavailable = errors.New("authentication temporarily unavailable")
