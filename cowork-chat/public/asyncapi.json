@@ -21,7 +21,7 @@
     "/chat": {
       "description": "Socket.IO namespace /chat (path /ws/chat)",
       "publish": {
-        "summary": "클라이언트 → 서버 room·typing 이벤트",
+        "summary": "클라이언트 → 서버 room/typing 이벤트",
         "message": {
           "oneOf": [
             { "$ref": "#/components/messages/JoinChannel" },
@@ -34,7 +34,7 @@
         }
       },
       "subscribe": {
-        "summary": "서버 → 클라이언트 채팅·멤버십·팀 이벤트",
+        "summary": "서버 → 클라이언트 채팅/멤버십/팀 이벤트",
         "message": {
           "oneOf": [
             { "$ref": "#/components/messages/Message" },

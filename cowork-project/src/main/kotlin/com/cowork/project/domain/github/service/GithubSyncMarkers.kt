@@ -59,7 +59,7 @@ class GithubSyncMarkers(
     fun requireSynced(stream: GithubSyncStream, owner: String, repo: String? = null) {
         if (repository.existsById(GithubSyncMarker.id(stream, owner, repo))) return
         if (repo != null && isRemovedRepo(owner, repo)) {
-            throw ExpectedException("GitHub에서 삭제되었거나 앱 설치 범위에서 빠진 레포입니다.", HttpStatus.NOT_FOUND)
+            throw ExpectedException("GitHub에서 삭제되었거나 앱 설치 범위에서 빠진 저장소입니다.", HttpStatus.NOT_FOUND)
         }
         throw ExpectedException("GitHub 데이터 동기화가 완료되지 않았습니다.", HttpStatus.SERVICE_UNAVAILABLE)
     }

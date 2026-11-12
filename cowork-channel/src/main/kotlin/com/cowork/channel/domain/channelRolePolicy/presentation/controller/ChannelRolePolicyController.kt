@@ -30,6 +30,11 @@ import team.themoment.sdk.response.CommonApiResponse
 @Tag(name = "채널 역할 정책", description = "역할별 채널 권한 덮어쓰기 정책 API")
 @ApiResponses(
     ApiResponse(
+        responseCode = "429",
+        description = "요청 한도 초과",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
+    ),
+    ApiResponse(
         responseCode = "401",
         description = "액세스 토큰이 없거나 유효하지 않음",
         content = [

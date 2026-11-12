@@ -15,7 +15,7 @@ export class SearchWebhookAuthor {
 	@field(() => String, {nullable: true}) avatarUrl!: Nullable<string>;
 }
 
-@objectType({description: '통합 검색 — 메시지 검색 결과 단건'})
+@objectType({description: '통합 검색의 메시지 결과'})
 export class SearchMessageItem {
 	@field({description: '메시지 MongoDB ObjectId'})
 	messageId!: string;
@@ -48,7 +48,7 @@ export class SearchMessageItem {
 	createdAt!: string;
 }
 
-@objectType({description: '통합 검색 — 채널 검색 결과 단건'})
+@objectType({description: '통합 검색의 채널 결과'})
 export class SearchChannelItem {
 	@field(() => Int, {description: '채널 ID'})
 	id!: number;
@@ -69,7 +69,7 @@ export class SearchChannelItem {
 	isPrivate!: boolean;
 }
 
-@objectType({description: '통합 검색 결과 — 메시지(ES)와 Kafka 동기화 채널 projection을 병렬 조회해 반환'})
+@objectType({description: '메시지/채널 통합 검색 결과'})
 export class UnifiedSearchResult {
 	@field(() => [SearchMessageItem], {description: 'Elasticsearch 메시지 검색 결과 (최신순)'})
 	messages!: SearchMessageItem[];

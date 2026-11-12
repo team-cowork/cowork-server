@@ -20,7 +20,7 @@ class ProjectGithubRepo(
     val teamId: Long,
 
     @Column(name = "github_repo_url", nullable = false, length = 512)
-    val githubRepoUrl: String,
+    var githubRepoUrl: String,
 
     @Column(name = "github_webhook_channel_id")
     var githubWebhookChannelId: Long? = null,

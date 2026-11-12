@@ -8,11 +8,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cowork/cowork-voice/internal/apperr"
-	"github.com/cowork/cowork-voice/internal/domain/permission"
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
+
+	"github.com/cowork/cowork-voice/internal/apperr"
+	"github.com/cowork/cowork-voice/internal/domain/permission"
 )
 
 const permissionCollection = "channel_permission_sources"

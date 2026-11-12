@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "검색", description = "전체 검색 API")
+@Tag(name = "검색", description = "접근 가능한 채널을 검색합니다.")
 @ApiResponses(
     ApiResponse(
         responseCode = "401",

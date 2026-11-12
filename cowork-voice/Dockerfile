@@ -7,7 +7,8 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY cowork-voice/ ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/cowork-voice ./cmd/server
+    go generate ./cmd/server/main.go \
+    && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/cowork-voice ./cmd/server
 
 
 FROM builder AS verification
@@ -16,7 +17,7 @@ COPY --from=golangci/golangci-lint:v2.13.2-alpine@sha256:da1f79b184ff1d987816484
 COPY deploy/ci/verification /ci
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    golangci-lint run \
+    golangci-lint run --config .golangci.yml ./... \
     && go vet ./... \
     && bash /ci/run-native.sh go cowork-voice /workspace /coverage \
     && python3 /ci/report.py collect --module cowork-voice --snapshot pr --format go --metric statement --input /coverage/report.out --output /coverage/coverage.json --exit-code 0

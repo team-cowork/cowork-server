@@ -11,9 +11,9 @@ import com.cowork.project.domain.github.service.GithubSyncRequestScheduler
 import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
+import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
-import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -31,11 +31,18 @@ class AddProjectGithubRepoServiceImplTest {
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true), mockk(relaxed = true))
+        ProjectAccessGuard(
+            projectRepository,
+            mockk<ProjectAccessProjectionRepository>(relaxed = true),
+            teamMembershipRepository,
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+        )
     private val repoEventPublisher = mockk<ProjectGithubRepoEventPublisher>(relaxed = true)
     private val githubSyncRequestScheduler = mockk<GithubSyncRequestScheduler>(relaxed = true)
     private val teamGithubInstallationRepository = mockk<TeamGithubInstallationRepository>().also {
-        every { it.findByIdOrNull(100L) } returns TeamGithubInstallation(teamId = 100L, installationId = 1L, orgLogin = "my-org")
+        every { it.findByIdOrNull(100L) } returns
+            TeamGithubInstallation(teamId = 100L, installationId = 1L, orgLogin = "my-org")
     }
 
     private val service = AddProjectGithubRepoServiceImpl(
@@ -82,6 +89,7 @@ class AddProjectGithubRepoServiceImplTest {
                 service.execute(99L, 1L, AddProjectGithubRepoReqDto("https://github.com/my-org/my-repo"))
             }
             assertEquals(HttpStatus.CONFLICT, ex.statusCode)
+            assertEquals("이미 팀 내 다른 프로젝트에 연결된 저장소입니다.", ex.message)
         }
 
         @Test
@@ -95,6 +103,7 @@ class AddProjectGithubRepoServiceImplTest {
                 service.execute(99L, 1L, AddProjectGithubRepoReqDto("https://github.com/other-org/private-repo"))
             }
             assertEquals(HttpStatus.FORBIDDEN, ex.statusCode)
+            assertEquals("팀에 연결된 GitHub 조직의 저장소만 사용할 수 있습니다.", ex.message)
             verify(exactly = 0) { projectGithubRepoRepository.saveAndFlush(any()) }
             verify(exactly = 0) { githubSyncRequestScheduler.requestRepositorySync(any()) }
         }
@@ -110,6 +119,7 @@ class AddProjectGithubRepoServiceImplTest {
                 service.execute(99L, 1L, AddProjectGithubRepoReqDto("https://gitlab.com/my-org/my-repo"))
             }
             assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+            assertEquals("유효하지 않은 GitHub 저장소 URL입니다.", ex.message)
         }
 
         @Test

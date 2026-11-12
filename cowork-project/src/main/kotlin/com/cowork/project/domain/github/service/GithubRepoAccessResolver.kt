@@ -41,13 +41,13 @@ class GithubRepoAccessResolver(
         val project = projectAccessGuard.findProjectForUpdateOrThrow(projectId)
         projectAccessGuard.requireGithubManager(project, userId)
         val repoLink = projectGithubRepoRepository.findByIdAndProjectIdForUpdate(repoId, projectId)
-            ?: throw ExpectedException("등록된 레포를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+            ?: throw ExpectedException("등록된 저장소를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         return parseLinkedRepoUrl(project.teamId, repoLink.githubRepoUrl)
     }
 
     private fun parseLinkedRepo(teamId: Long, projectId: Long, repoId: Long): GithubRepoRef {
         val repoLink = projectGithubRepoRepository.findByIdAndProjectId(repoId, projectId)
-            ?: throw ExpectedException("등록된 레포를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+            ?: throw ExpectedException("등록된 저장소를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         return parseLinkedRepoUrl(teamId, repoLink.githubRepoUrl)
     }
 
@@ -58,14 +58,14 @@ class GithubRepoAccessResolver(
     fun requireTeamOrgRepo(teamId: Long, ref: GithubRepoRef) {
         val orgLogin = teamGithubInstallationRepository.findByIdOrNull(teamId)?.orgLogin
         if (!ref.owner.equals(orgLogin, ignoreCase = true)) {
-            throw ExpectedException("팀에 연결된 GitHub 조직의 레포지토리만 사용할 수 있습니다.", HttpStatus.FORBIDDEN)
+            throw ExpectedException("팀에 연결된 GitHub 조직의 저장소만 사용할 수 있습니다.", HttpStatus.FORBIDDEN)
         }
     }
 
     private fun parseLinkedRepoUrl(teamId: Long, githubRepoUrl: String): GithubRepoRef {
         val ref = GithubRepoUrlParser.parse(githubRepoUrl)
             ?: throw ExpectedException(
-                "연결된 GitHub 레포지토리 URL이 올바르지 않습니다.",
+                "연결된 GitHub 저장소 URL이 올바르지 않습니다.",
                 HttpStatus.BAD_REQUEST,
             )
         requireTeamOrgRepo(teamId, ref)

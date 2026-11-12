@@ -29,7 +29,12 @@ class GithubRepoAccessResolverTest :
             projectAccessGuard = mockk()
             projectGithubRepoRepository = mockk()
             teamGithubInstallationRepository = mockk()
-            resolver = GithubRepoAccessResolver(projectAccessGuard, projectGithubRepoRepository, teamGithubInstallationRepository)
+            resolver =
+                GithubRepoAccessResolver(
+                    projectAccessGuard,
+                    projectGithubRepoRepository,
+                    teamGithubInstallationRepository,
+                )
             every { teamGithubInstallationRepository.findByIdOrNull(100L) } returns
                 TeamGithubInstallation(teamId = 100L, installationId = 1L, orgLogin = "My-Org")
         }
@@ -81,6 +86,7 @@ class GithubRepoAccessResolverTest :
                         val ex = shouldThrow<ExpectedException> { resolver.resolveForRead(7L, 1L, 5L) }
 
                         ex.statusCode shouldBe HttpStatus.NOT_FOUND
+                        ex.message shouldBe "등록된 저장소를 찾을 수 없습니다."
                     }
                 }
 
@@ -95,6 +101,7 @@ class GithubRepoAccessResolverTest :
                         val ex = shouldThrow<ExpectedException> { resolver.resolveForRead(7L, 1L, 5L) }
 
                         ex.statusCode shouldBe HttpStatus.FORBIDDEN
+                        ex.message shouldBe "팀에 연결된 GitHub 조직의 저장소만 사용할 수 있습니다."
                     }
                 }
 
@@ -109,6 +116,7 @@ class GithubRepoAccessResolverTest :
                         val ex = shouldThrow<ExpectedException> { resolver.resolveForRead(7L, 1L, 5L) }
 
                         ex.statusCode shouldBe HttpStatus.BAD_REQUEST
+                        ex.message shouldBe "연결된 GitHub 저장소 URL이 올바르지 않습니다."
                     }
                 }
             }

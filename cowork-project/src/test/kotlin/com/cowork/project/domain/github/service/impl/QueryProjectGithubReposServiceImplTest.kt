@@ -13,9 +13,9 @@ import io.mockk.Runs
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
-import java.util.Optional
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
+import java.util.Optional
 
 class QueryProjectGithubReposServiceImplTest :
     DescribeSpec({
