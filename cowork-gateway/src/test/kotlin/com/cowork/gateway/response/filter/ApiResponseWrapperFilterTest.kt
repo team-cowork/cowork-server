@@ -226,7 +226,7 @@ class ApiResponseWrapperFilterTest :
                 respond(response, HttpStatus.BAD_GATEWAY, body = Mono.just(pooled))
 
                 parsed(response).get("code").asInt() shouldBe 502
-                parsed(response).get("message").asString() shouldBe "Bad Gateway"
+                parsed(response).get("message").asString() shouldBe "서비스에서 유효한 응답을 받지 못했습니다."
                 pooled.nativeBuffer.refCnt() shouldBe 0
                 registry.find(
                     "gateway.response.wrapper.requests",
@@ -234,23 +234,34 @@ class ApiResponseWrapperFilterTest :
                     1.0
             }
 
-            for (writeEmpty in listOf(false, true)) {
-                it("본문 없는 429를 공통 오류로 채운다: writeWith=$writeEmpty") {
-                    val response = exchange()
-                    filter.filter(
-                        response,
-                        WebFilterChain { forwarded ->
-                            forwarded.response.statusCode = HttpStatus.TOO_MANY_REQUESTS
-                            if (writeEmpty) {
-                                forwarded.response.writeWith(
-                                    Flux.empty(),
-                                )
-                            } else {
-                                forwarded.response.setComplete()
-                            }
-                        },
-                    ).block()
-                    parsed(response).get("message").asString() shouldBe "요청이 너무 많습니다. 잠시 후 다시 시도하십시오."
+            for ((status, message) in mapOf(
+                HttpStatus.UNAUTHORIZED to "인증이 필요합니다.",
+                HttpStatus.FORBIDDEN to "접근 권한이 없습니다.",
+                HttpStatus.NOT_FOUND to "요청한 대상을 찾을 수 없습니다.",
+                HttpStatus.TOO_MANY_REQUESTS to "요청이 너무 많습니다. 잠시 후 다시 시도하십시오.",
+                HttpStatus.INTERNAL_SERVER_ERROR to "요청을 처리할 수 없습니다.",
+            )) {
+                for (writeEmpty in listOf(false, true)) {
+                    it("본문 없는 $status 응답에 오류 안내를 넣는다: writeWith=$writeEmpty") {
+                        val response = exchange()
+                        filter.filter(
+                            response,
+                            WebFilterChain { forwarded ->
+                                forwarded.response.statusCode = status
+                                if (writeEmpty) {
+                                    forwarded.response.writeWith(Flux.empty())
+                                } else {
+                                    forwarded.response.setComplete()
+                                }
+                            },
+                        ).block()
+
+                        val result = parsed(response)
+                        result.get("status").asString() shouldBe status.toString()
+                        result.get("code").asInt() shouldBe status.value()
+                        result.get("message").asString() shouldBe message
+                        result.has("data") shouldBe false
+                    }
                 }
             }
         }
