@@ -108,17 +108,23 @@ describe('AttachmentCleanupPoller', () => {
 	let deletions: FakeDeletions;
 	let uploads: FakeUploads;
 	let poller: AttachmentCleanupPoller;
+	const meetingNotes = {references: jest.fn()};
+	const readiness = {areReady: jest.fn(), isCaughtUp: jest.fn()};
 
 	const messageId = new Types.ObjectId().toString();
 	const keyA = 'chat-files/1/42/a.png';
 	const keyB = 'chat-files/1/42/b.png';
 
 	beforeEach(() => {
+		meetingNotes.references.mockReset().mockResolvedValue(false);
+		readiness.areReady.mockReset().mockReturnValue(true);
+		readiness.isCaughtUp.mockReset().mockReturnValue(true);
 		storage = new FakeStorage();
 		messages = new FakeMessages();
 		deletions = new FakeDeletions();
 		uploads = new FakeUploads();
 		poller = new AttachmentCleanupPoller(deletions as never, uploads as never, messages as never, storage as never);
+		Object.assign(poller, {meetingNotes, readiness});
 		storage.objects.add(keyA);
 		storage.objects.add(keyB);
 	});
@@ -130,6 +136,37 @@ describe('AttachmentCleanupPoller', () => {
 		};
 		uploads.rows.set(upload.uploadKey, upload);
 	};
+
+	it('회의록에 등록된 파일은 업로드 회수 대상이어도 보관한다', async () => {
+		addUpload();
+		meetingNotes.references.mockResolvedValue(true);
+		await poller.runCycle(at(UPLOAD_RECLAIM_AGE_MS + 1));
+		expect(storage.objects.has(keyA)).toBe(true);
+	});
+
+	it('회의록에서 사용하는 파일은 채팅 메시지가 삭제되어도 보관한다', async () => {
+		deletions.record({messageId, channelId: 1, objectKeys: [keyA]}, T0);
+		meetingNotes.references.mockResolvedValue(true);
+		await poller.runCycle(at(DAY_MS));
+		expect(storage.objects.has(keyA)).toBe(true);
+	});
+
+	it('회의록 참조가 동기화되지 않았으면 정리를 보류한다', async () => {
+		addUpload();
+		readiness.areReady.mockReturnValue(false);
+		readiness.isCaughtUp.mockReturnValue(false);
+		await poller.runCycle(at(UPLOAD_RECLAIM_AGE_MS + 1));
+		expect(storage.objects.has(keyA)).toBe(true);
+		expect(uploads.rows.size).toBe(1);
+	});
+
+	it('API 읽기 유예 중이어도 알려진 동기화 지연이 있으면 파일을 삭제하지 않는다', async () => {
+		addUpload();
+		readiness.isCaughtUp.mockReturnValue(false);
+		await poller.runCycle(at(UPLOAD_RECLAIM_AGE_MS + 1));
+		expect(storage.objects.has(keyA)).toBe(true);
+		expect(uploads.rows.size).toBe(1);
+	});
 
 	describe('메시지 삭제 의도', () => {
 		it('메시지가 남아 있으면 객체를 지우지 않는다', async () => {
