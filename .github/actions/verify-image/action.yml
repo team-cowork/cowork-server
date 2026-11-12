@@ -1,4 +1,4 @@
-name: Verify A Cowork Module
+name: Verify A cowork Module
 description: Run the module-owned verify target and validate its coverage export
 inputs:
   module:
@@ -23,6 +23,11 @@ runs:
       uses: docker/setup-buildx-action@v4
       if: inputs.contract == 'true'
       id: builder
+      with:
+        # GitHub-hosted runners only: public DNS bypasses package-mirror lookup failures in build containers.
+        buildkitd-config-inline: |
+          [dns]
+            nameservers = ["1.1.1.1", "8.8.8.8"]
     # Historical base measurements do not restore, extract or save external caches.
     - name: Read Verification Cache Key And Policy
       if: inputs.contract == 'true' && inputs.snapshot != 'base'
