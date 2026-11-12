@@ -2,6 +2,7 @@ package com.cowork.team.global.config
 
 import com.cowork.team.global.consumer.TeamGithubConnectedPayload
 import com.cowork.team.global.consumer.TeamGithubDisconnectedPayload
+import com.cowork.team.global.consumer.TeamGithubRenamedPayload
 import com.cowork.team.global.projection.ProjectionAssignmentCoordinator
 import com.cowork.team.global.projection.ProjectionCheckpointStore
 import com.cowork.team.global.projection.ProjectionReadinessState
@@ -119,6 +120,14 @@ class KafkaConsumerConfig(
         ConcurrentKafkaListenerContainerFactory<String, TeamGithubConnectedPayload> =
         listenerContainerFactory(
             TeamGithubConnectedPayload::class.java,
+            KafkaConsumerRetryPolicy.externalEventBackOff(),
+        )
+
+    @Bean
+    fun teamGithubRenamedListenerContainerFactory():
+        ConcurrentKafkaListenerContainerFactory<String, TeamGithubRenamedPayload> =
+        listenerContainerFactory(
+            TeamGithubRenamedPayload::class.java,
             KafkaConsumerRetryPolicy.externalEventBackOff(),
         )
 
