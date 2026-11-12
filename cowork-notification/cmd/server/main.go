@@ -1,18 +1,4 @@
-// @title          cowork Notification API
-// @version        20261113.0
-// @description    Firebase 설치를 계정에 연결하고 실시간 알림을 제공합니다.
-// @BasePath       /api/notification
-// @tag.name        installations
-// @tag.description 알림을 받을 Firebase 설치를 등록하고 해제합니다.
-// @tag.name        notifications
-// @tag.description 실시간 알림 스트림을 구독합니다.
-// @securityDefinitions.apikey BearerAuth
-// @in             header
-// @name           Authorization
-// @description    "Bearer {access_token}" 형식으로 입력합니다.
 package main
-
-//go:generate go -C ../.. run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/server/main.go -o swagger --parseDependency --parseInternal
 
 import (
 	"context"
@@ -25,11 +11,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
-	httpswagger "github.com/swaggo/http-swagger/v2"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 
+	"github.com/cowork/cowork-notification/internal/apidoc"
 	"github.com/cowork/cowork-notification/internal/config"
 	"github.com/cowork/cowork-notification/internal/domain/delivery"
 	installationdomain "github.com/cowork/cowork-notification/internal/domain/installation"
@@ -42,11 +28,16 @@ import (
 	"github.com/cowork/cowork-notification/internal/middleware"
 	"github.com/cowork/cowork-notification/internal/monitoring"
 	"github.com/cowork/cowork-notification/pkg/logger"
-	_ "github.com/cowork/cowork-notification/swagger"
 )
 
 func main() {
 	logger.Init("cowork-notification")
+
+	swaggerHandler, err := apidoc.NewHandler()
+	if err != nil {
+		slog.Error("Initialize OpenAPI documentation", "err", err)
+		os.Exit(1)
+	}
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -137,7 +128,7 @@ func main() {
 	r.Get("/health", health.Handler)
 	r.Get("/health/ready", health.ReadyHandler(projectionReadiness))
 	r.Get("/metrics", monitoring.Handler)
-	r.Get("/swagger/*", httpswagger.WrapHandler)
+	r.Get("/swagger/*", swaggerHandler)
 
 	r.Group(func(r chi.Router) {
 		r.Use(middleware.ExtractAuthUser)

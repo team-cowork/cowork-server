@@ -7,8 +7,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY cowork-voice/ ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go generate ./cmd/server/main.go \
-    && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/cowork-voice ./cmd/server
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/cowork-voice ./cmd/server
 
 
 FROM builder AS verification
