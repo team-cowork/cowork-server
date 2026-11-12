@@ -5,6 +5,12 @@ export type TeamGithubConnectedEvent = {
 	revision: number;
 };
 
+export type TeamGithubRenamedEvent = {
+	installationId: number;
+	orgLogin: string;
+	revision: number;
+};
+
 export type TeamGithubDisconnectedEvent = {
 	installationId: number;
 	revision: number;
