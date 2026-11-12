@@ -24,7 +24,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "스레드")
+@Tag(name = "스레드", description = "채널의 스레드를 생성하고 조회하거나 수정합니다.")
 @ApiResponses(
     ApiResponse(
         responseCode = "503",
