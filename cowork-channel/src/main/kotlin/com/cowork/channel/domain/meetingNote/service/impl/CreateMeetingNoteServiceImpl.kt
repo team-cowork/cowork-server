@@ -1,12 +1,14 @@
 package com.cowork.channel.domain.meetingNote.service.impl
 
 import com.cowork.channel.domain.meetingNote.entity.MeetingNote
+import com.cowork.channel.domain.meetingNote.event.MeetingNoteAttachmentPublisher
 import com.cowork.channel.domain.meetingNote.presentation.data.request.CreateMeetingNoteRequest
 import com.cowork.channel.domain.meetingNote.presentation.data.response.MeetingNoteResponse
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteRepository
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteTemplateRepository
 import com.cowork.channel.domain.meetingNote.service.CreateMeetingNoteService
 import com.cowork.channel.domain.meetingNote.service.MeetingNoteAccessGuard
+import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteAttachmentSupport
 import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteContentSupport
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
@@ -15,20 +17,24 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional
 class CreateMeetingNoteServiceImpl(
     private val meetingNoteRepository: MeetingNoteRepository,
     private val templateRepository: MeetingNoteTemplateRepository,
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
     private val meetingNoteContentSupport: MeetingNoteContentSupport,
+    private val attachmentSupport: MeetingNoteAttachmentSupport,
+    private val attachmentPublisher: MeetingNoteAttachmentPublisher,
 ) : CreateMeetingNoteService {
 
+    @Transactional
     override fun createNote(userId: Long, channelId: Long, request: CreateMeetingNoteRequest): MeetingNoteResponse {
         meetingNoteAccessGuard.requireWritableChannelAccess(channelId, userId)
         // 제목 길이 초과도 DataIntegrityViolationException이 되므로, 아래 FK 위반 처리와 섞이지 않도록 먼저 검사한다.
         if (request.title.isBlank()) throw ExpectedException("회의록 제목은 공백일 수 없습니다.", HttpStatus.BAD_REQUEST)
         if (request.title.length > 200) throw ExpectedException("회의록 제목은 200자를 초과할 수 없습니다.", HttpStatus.BAD_REQUEST)
         meetingNoteContentSupport.requireJsonObject(request.content)
+        val attachments = attachmentSupport.validate(request.attachments, channelId, userId)
+        if (attachments.isNotEmpty()) meetingNoteAccessGuard.requireAttachmentPermission(channelId, userId)
         val template = templateRepository.findById(request.templateId).orElseThrow { templateNotFoundException() }
         if (template.channelId != channelId) {
             throw templateNotFoundException()
@@ -42,11 +48,13 @@ class CreateMeetingNoteServiceImpl(
                     title = request.title,
                     content = request.content,
                     createdBy = userId,
+                    attachments = attachments.toMutableList(),
                 ),
             )
         } catch (e: DataIntegrityViolationException) {
             throw templateNotFoundException()
         }
+        attachmentPublisher.publish(note)
         return MeetingNoteResponse.of(note)
     }
 
