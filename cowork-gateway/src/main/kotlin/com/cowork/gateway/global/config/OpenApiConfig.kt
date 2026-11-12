@@ -7,7 +7,11 @@ import org.springframework.context.annotation.Configuration
 
 @Configuration
 @OpenAPIDefinition(
-    info = Info(title = "cowork Gateway API", version = "20261113.0"),
+    info = Info(
+        title = "cowork Gateway API",
+        description = "서비스별 API 요청을 전달하고 서비스 상태를 조회합니다.",
+        version = "20261113.0",
+    ),
     servers = [Server(url = "/")],
 )
 class OpenApiConfig
