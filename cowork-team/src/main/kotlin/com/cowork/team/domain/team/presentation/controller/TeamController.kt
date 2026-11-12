@@ -33,8 +33,13 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "팀", description = "팀 생성/수정/삭제 API")
+@Tag(name = "팀", description = "팀을 생성·조회·수정·삭제하고 팀 아이콘을 관리합니다.")
 @ApiResponses(
+    ApiResponse(
+        responseCode = "429",
+        description = "요청 한도 초과",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
+    ),
     ApiResponse(
         responseCode = "401",
         description = "액세스 토큰이 없거나 유효하지 않음",
@@ -145,7 +150,7 @@ class TeamController(
         ),
         ApiResponse(
             responseCode = "409",
-            description = "S3에 파일 없음 (업로드 미완료)",
+            description = "파일 업로드 미완료",
             content = [
                 Content(
                     mediaType = "application/json",

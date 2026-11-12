@@ -11,7 +11,7 @@
 ## 스택
 
 - Go / Chi
-- Go modules + Makefile
+- Go modules
 - GORM / SQLite
 - Kafka / Firebase Admin SDK
 

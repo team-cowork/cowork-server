@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cowork/authorization/internal/config"
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/cowork/authorization/internal/config"
 )
 
 func newUnitTokenService(accessExpire, refreshExpire time.Duration) *TokenService {

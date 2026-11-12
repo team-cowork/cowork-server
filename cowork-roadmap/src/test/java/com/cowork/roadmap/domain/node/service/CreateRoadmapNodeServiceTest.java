@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -13,6 +14,7 @@ import java.time.Instant;
 import java.util.Optional;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.InOrder;
 import org.springframework.http.HttpStatus;
 
 import com.cowork.roadmap.domain.node.entity.RoadmapNode;
@@ -58,11 +60,11 @@ class CreateRoadmapNodeServiceTest {
     }
 
     @Test
-    void createNode_withValidParent_usesNextPositionAfterChildMax() {
+    void createNode_withValidParent_readsParentAfterRoadmapLockAndUsesNextPositionAfterChildMax() {
         RoadmapNode parent = node(50L, 10L);
         when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
 
-        when(nodeRepository.findByIdForShare(50L)).thenReturn(Optional.of(parent));
+        when(nodeRepository.findById(50L)).thenReturn(Optional.of(parent));
         when(nodeRepository.findNextChildPosition(10L, 50L)).thenReturn(1L);
         when(nodeRepository.saveAndFlush(any())).thenAnswer(invocation -> {
             RoadmapNode node = invocation.getArgument(0);
@@ -74,13 +76,18 @@ class CreateRoadmapNodeServiceTest {
         var response = createRoadmapNodeService.execute(7L, "ADMIN", 10L, request);
         assertThat(response.position()).isEqualTo(1);
         assertThat(response.parentId()).isEqualTo(50L);
+
+        InOrder order = inOrder(roadmapRepository, nodeRepository);
+        order.verify(roadmapRepository).findByIdForUpdate(10L);
+        order.verify(nodeRepository).findById(50L);
+        order.verify(nodeRepository).saveAndFlush(any());
     }
 
     @Test
     void createNode_parentNotFound_failsWithNotFound() {
         when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
 
-        when(nodeRepository.findByIdForShare(99L)).thenReturn(Optional.empty());
+        when(nodeRepository.findById(99L)).thenReturn(Optional.empty());
         when(nodeRepository.findNextChildPosition(10L, 99L)).thenReturn(0L);
 
         CreateNodeReqDto request = new CreateNodeReqDto(99L, "제목", null, null, null);
@@ -95,7 +102,7 @@ class CreateRoadmapNodeServiceTest {
         RoadmapNode parent = node(50L, 999L);
         when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap(10L)));
 
-        when(nodeRepository.findByIdForShare(50L)).thenReturn(Optional.of(parent));
+        when(nodeRepository.findById(50L)).thenReturn(Optional.of(parent));
         when(nodeRepository.findNextChildPosition(10L, 50L)).thenReturn(0L);
 
         CreateNodeReqDto request = new CreateNodeReqDto(50L, "제목", null, null, null);
@@ -177,7 +184,7 @@ class CreateRoadmapNodeServiceTest {
             when(nodeRepository.findParentIdById(id)).thenReturn(Optional.of(id - 1));
         }
         RoadmapNode deepest = node((long) depth, 10L).toBuilder().parentId(depth == 1 ? null : depth - 1L).build();
-        when(nodeRepository.findByIdForShare((long) depth)).thenReturn(Optional.of(deepest));
+        when(nodeRepository.findById((long) depth)).thenReturn(Optional.of(deepest));
         return depth;
     }
 

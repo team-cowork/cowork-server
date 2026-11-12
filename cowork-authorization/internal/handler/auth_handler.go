@@ -8,9 +8,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gin-gonic/gin"
+
 	_ "github.com/cowork/authorization/internal/apidoc" // Gateway response schemas for swag.
 	"github.com/cowork/authorization/internal/service"
-	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -46,7 +47,7 @@ func clearWsCookie(c *gin.Context) {
 
 // Callback godoc
 // @Summary      인가 코드로 토큰 발급
-// @Description  로그인 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 서버가 PKCE와 OIDC를 검증하고 Cowork 토큰을 발급합니다. 로그인 시도는 한 번만 사용할 수 있습니다.
+// @Description  로그인 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 로그인 시도는 한 번만 사용할 수 있습니다.
 // @Tags         auth
 // @Accept       json
 // @Produce      json
@@ -104,10 +105,11 @@ type LoginStartResponse struct {
 // @Accept json
 // @Produce json
 // @Param body body LoginStartRequest true "등록된 콜백 URL"
-// @Success 200 {object} apidoc.Success[LoginStartResponse]
+// @Success 200 {object} apidoc.Success[LoginStartResponse] "인증 URL 발급 성공"
 // @Header 200 {string} Set-Cookie "일회성 로그인 세션 쿠키(Secure, HttpOnly)"
 // @Failure 400 {object} apidoc.Error "등록되지 않은 콜백 또는 잘못된 요청"
 // @Failure 403 {object} apidoc.Error "허용하지 않은 출처"
+// @Failure 429 {object} apidoc.Error "요청 한도 초과"
 // @Failure 503 {object} apidoc.Error "로그인 시도 저장 실패"
 // @Router /auth/authorize [post]
 func (h *AuthHandler) Authorize(c *gin.Context) {

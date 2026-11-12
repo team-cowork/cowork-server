@@ -157,12 +157,22 @@ case "$runner" in
     validate_tests "$module_dir/build/reports"
     # Artifact names use Kotlin Toolchain's module identity, which need not match the directory.
     # The pinned JVM layout gives production artifacts a jvm suffix and tests jvmTest.
-    python3 - "$module_dir/build/artifacts/CompiledJvmArtifact" "$output/kotlin-toolchain-classdirs.txt" <<'PY'
+    "$kotlin_cli" show modules --fields=name,type > "$output/kotlin-toolchain-modules.txt"
+    python3 - "$module_dir/build/artifacts/CompiledJvmArtifact" "$output/kotlin-toolchain-classdirs.txt" \
+      "$output/kotlin-toolchain-modules.txt" <<'PY'
 import sys
 from pathlib import Path
 artifacts = Path(sys.argv[1])
+rows = [
+    [cell.strip() for cell in line.split('│')[1:-1]]
+    for line in Path(sys.argv[3]).read_text().splitlines() if line.startswith('│')
+]
+if len(rows) < 2 or rows[0] != ['Name', 'Type'] or any(len(row) != 2 for row in rows):
+    raise SystemExit('Unexpected Kotlin Toolchain module table; cannot identify build plugins')
+# Build plugins run during compilation; they are not application coverage targets.
+plugin_artifacts = {f'{name}jvm' for name, product in rows[1:] if product == 'jvm/amper-plugin'}
 class_dirs = sorted(
-    output for artifact in artifacts.glob('*jvm') if artifact.is_dir()
+    output for artifact in artifacts.glob('*jvm') if artifact.is_dir() and artifact.name not in plugin_artifacts
     for name in ('kotlin-output', 'java-output')
     if (output := artifact / name).is_dir() and any(output.rglob('*.class'))
 )

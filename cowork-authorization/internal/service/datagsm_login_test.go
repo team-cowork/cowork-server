@@ -14,11 +14,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cowork/authorization/internal/config"
-	"github.com/cowork/authorization/internal/domain"
 	"github.com/golang-jwt/jwt/v5"
 	datagsm "github.com/tmp-it-play/datagsm-sdk-go"
 	"github.com/tmp-it-play/datagsm-sdk-go/oauth"
+
+	"github.com/cowork/authorization/internal/config"
+	"github.com/cowork/authorization/internal/domain"
 )
 
 type memoryLoginAttempts struct {

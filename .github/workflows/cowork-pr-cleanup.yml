@@ -1,4 +1,4 @@
-name: Cowork PR Cleanup Workflow
+name: cowork PR Cleanup Workflow
 
 on:
   pull_request:

@@ -1,12 +1,13 @@
 FROM eclipse-temurin:26.0.2_10-jdk-alpine-3.24@sha256:e5b0a876436e5d1c8ff84dfd091cb530b83a9ed4273317d24acb673695bb7e0c AS builder
 WORKDIR /workspace/cowork-project
 
+COPY .editorconfig /workspace/.editorconfig
 COPY cowork-project/.mvn .mvn
 COPY cowork-project/mvnw cowork-project/pom.xml ./
 RUN chmod +x mvnw
 COPY cowork-project/src src
 RUN --mount=type=cache,id=cowork-project-maven,target=/root/.m2,sharing=locked \
-    ./mvnw -B -DskipTests clean package \
+    ./mvnw -B -DskipTests -Dktlint.skip=true clean package \
     && artifact="$(find target -maxdepth 1 -type f -name 'cowork-project-*.jar' -print -quit)" \
     && test -n "${artifact}" \
     && cp "${artifact}" /workspace/app.jar
@@ -17,7 +18,6 @@ RUN java -Djarmode=tools -jar /workspace/app.jar extract \
 
 FROM builder AS verification
 RUN apk --no-cache add bash python3 curl
-COPY .editorconfig /workspace/.editorconfig
 COPY deploy/ci/verification /ci
 RUN --mount=type=cache,id=cowork-project-maven,target=/root/.m2,sharing=locked \
     bash /ci/run-jvm.sh maven cowork-project /workspace /coverage \

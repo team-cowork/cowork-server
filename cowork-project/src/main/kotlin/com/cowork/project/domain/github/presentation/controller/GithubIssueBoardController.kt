@@ -111,7 +111,7 @@ class GithubIssueBoardController(
         ),
         ApiResponse(
             responseCode = "502",
-            description = "GitHub 연동 서버 통신 오류",
+            description = "GitHub 연동 오류",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -138,7 +138,7 @@ class GithubIssueBoardController(
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
-        ApiResponse(responseCode = "202", description = "요청 접수. 응답 본문은 없습니다.", content = [Content()]),
+        ApiResponse(responseCode = "202", description = "요청 접수 (응답 본문 없음)", content = [Content()]),
         ApiResponse(
             responseCode = "400",
             description = "등록된 GitHub 저장소 URL 형식 오류",
@@ -247,7 +247,7 @@ class GithubIssueBoardController(
         ),
         ApiResponse(
             responseCode = "502",
-            description = "GitHub 연동 서버 통신 오류",
+            description = "GitHub 연동 오류",
             content = [
                 Content(
                     mediaType = "application/json",

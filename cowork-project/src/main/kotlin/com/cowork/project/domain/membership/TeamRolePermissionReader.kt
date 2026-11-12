@@ -20,7 +20,14 @@ class TeamRolePermissionReader(
         val assignedIds = assignments.findAllByTeamIdAndAccountIdAndDeletedFalse(teamId, userId)
             .filter { fence == null || it.sourceOccurredAt.isAfter(fence.sourceOccurredAt) }
             .mapTo(mutableSetOf()) { it.roleId }
-        val assigned = if (assignedIds.isEmpty()) emptyList() else roles.findAllByTeamIdAndRoleIdInAndDeletedFalse(teamId, assignedIds)
+        val assigned = if (assignedIds.isEmpty()) {
+            emptyList()
+        } else {
+            roles.findAllByTeamIdAndRoleIdInAndDeletedFalse(
+                teamId,
+                assignedIds,
+            )
+        }
         return (defaults + assigned).any { role ->
             role.permissionsJson?.let { objectMapper.readTree(it).path(permission).asBoolean(false) } == true
         }

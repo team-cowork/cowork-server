@@ -7,9 +7,16 @@
   },
   "servers": [{"url": "/api/user", "description": "Gateway"}],
   "security": [{"BearerAuth": []}],
+  "tags": [
+    {"name": "내 프로필", "description": "내 프로필 정보를 조회하고 수정합니다."},
+    {"name": "사용자 상태", "description": "내 상태와 상태 메시지를 설정합니다."},
+    {"name": "프로필 이미지", "description": "프로필 이미지를 업로드하고 삭제합니다."},
+    {"name": "사용자 조회", "description": "사용자 프로필과 표시 이름을 조회하고 사용자를 검색합니다."}
+  ],
   "paths": {
     "/users/me": {
       "get": {
+        "tags": ["내 프로필"],
         "summary": "내 프로필 조회",
         "responses": {
           "200": {
@@ -29,6 +36,7 @@
         }
       },
       "patch": {
+        "tags": ["내 프로필"],
         "summary": "내 프로필 수정",
         "requestBody": {
           "required": true,
@@ -72,6 +80,7 @@
     },
     "/users/me/status": {
       "patch": {
+        "tags": ["사용자 상태"],
         "summary": "사용자 상태와 상태 메시지 설정",
         "requestBody": {
           "required": true,
@@ -111,6 +120,7 @@
     },
     "/users/me/profile-image/presigned": {
       "post": {
+        "tags": ["프로필 이미지"],
         "summary": "프로필 이미지 업로드 URL 발급",
         "requestBody": {
           "required": true,
@@ -139,6 +149,7 @@
     },
     "/users/me/profile-image/confirm": {
       "post": {
+        "tags": ["프로필 이미지"],
         "summary": "프로필 이미지 업로드 확인",
         "requestBody": {
           "required": true,
@@ -169,6 +180,7 @@
     },
     "/users/me/profile-image": {
       "delete": {
+        "tags": ["프로필 이미지"],
         "summary": "프로필 이미지 삭제",
         "responses": {
           "204": {"description": "응답 본문 없음"},
@@ -192,6 +204,7 @@
     },
     "/users/{user_id}": {
       "get": {
+        "tags": ["사용자 조회"],
         "summary": "사용자 조회",
         "parameters": [{"in": "path", "name": "user_id", "required": true, "schema": {"type": "integer"}}],
         "responses": {
@@ -215,6 +228,7 @@
     },
     "/users/batch": {
       "get": {
+        "tags": ["사용자 조회"],
         "summary": "사용자 표시 이름 일괄 조회",
         "parameters": [
           {
@@ -245,6 +259,7 @@
     },
     "/users/search": {
       "get": {
+        "tags": ["사용자 조회"],
         "summary": "사용자 검색",
         "parameters": [
           {
@@ -306,6 +321,7 @@
     },
     "/users/by-github/{githubUsername}": {
       "get": {
+        "tags": ["사용자 조회"],
         "summary": "GitHub 사용자 이름으로 프로필 조회",
         "parameters": [{"in": "path", "name": "githubUsername", "required": true, "schema": {"type": "string"}}],
         "responses": {
@@ -328,7 +344,7 @@
     }
   },
   "components": {
-    "securitySchemes": {"BearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT", "description": "Cowork 액세스 토큰"}},
+    "securitySchemes": {"BearerAuth": {"type": "http", "scheme": "bearer", "bearerFormat": "JWT", "description": "cowork 액세스 토큰"}},
     "schemas": {
       "Success": {
         "type": "object",

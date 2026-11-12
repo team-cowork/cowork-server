@@ -4,15 +4,15 @@ const { execFileSync } = require('node:child_process');
 
 const JEB_URL = 'https://jeb.https.gsmsv.site/v1/systemone';
 const JEB_TIMEOUT_MS = 60_000;
-const BASE_BRANCH = 'develop';
 // jeb rejects input over about 8,000 tokens with HTTP 502, so the second attempt halves the diff.
 const DIFF_CHAR_LIMITS = [12_000, 6_000];
 const BODY_CHAR_LIMIT = 2_000;
 const STAT_CHAR_LIMIT = 2_000;
 const RETRYABLE_STATUSES = new Set([502, 503]);
 const FACTOR_THRESHOLD = 0.5;
-// 15 lines stay under the Discord limit of 4,096 characters for each embed description.
+// Cap the reminder at 15 PRs and split long groups at Discord's embed description limit.
 const MAX_LISTED = 15;
+const EMBED_DESCRIPTION_CHAR_LIMIT = 4_096;
 const TITLE_CHAR_LIMIT = 100;
 const HOUR_MS = 3_600_000;
 const KST_OFFSET_MS = 9 * HOUR_MS;
@@ -47,10 +47,11 @@ const QUESTIONS = {
 };
 
 const OPEN_PULL_REQUESTS_QUERY = `
-  query($owner: String!, $repo: String!, $base: String!) {
+  query($owner: String!, $repo: String!, $after: String) {
     repository(owner: $owner, name: $repo) {
-      pullRequests(states: OPEN, baseRefName: $base, first: 100) {
-        nodes { number title body url isDraft createdAt reviewDecision author { login } }
+      pullRequests(states: OPEN, first: 100, after: $after) {
+        pageInfo { hasNextPage endCursor }
+        nodes { number title body url baseRefName isDraft createdAt reviewDecision author { login } }
       }
     }
   }
@@ -141,21 +142,22 @@ function sortQueue(queue) {
     || left.number - right.number);
 }
 
-function escapeMarkdown(text) {
-  return text.replace(/[\\*_~|>[\]()]/g, '\\$&');
-}
-
 function formatWaiting(createdAt, now) {
   const hours = Math.max(Math.floor((now.getTime() - Date.parse(createdAt)) / 3_600_000), 0);
   return hours < 24 ? `${hours}시간 대기` : `${Math.floor(hours / 24)}일 ${hours % 24}시간 대기`;
 }
 
 function formatTitle(item) {
-  return `[#${item.number} ${truncate(escapeMarkdown(item.title), TITLE_CHAR_LIMIT)}](${item.url})`;
+  // Preserve complete code spans; escape formatting only outside them.
+  const title = truncate(item.title, TITLE_CHAR_LIMIT).replace(
+    /(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)|[\\`*_~|>[\]()]/g,
+    (match, codeDelimiter) => codeDelimiter ? match : `\\${match}`,
+  );
+  return `[#${item.number}](${item.url}) ${title}`;
 }
 
 function formatLine(item, now) {
-  const details = [escapeMarkdown(item.author), formatWaiting(item.createdAt, now)];
+  const details = [item.author, formatWaiting(item.createdAt, now)];
   if (item.factors.length > 0) details.push(item.factors.map(key => FACTORS[key]).join(', '));
   return `${formatTitle(item)}\n└ ${details.join(' · ')}`;
 }
@@ -174,7 +176,7 @@ function buildNewPullRequestPayload(item, roleId) {
     embeds: [{
       title: '새 PR',
       color: NEW_PULL_REQUEST_COLOR,
-      description: `${formatTitle(item)}\n└ ${escapeMarkdown(item.author)}`,
+      description: `${formatTitle(item)}\n└ ${item.author}`,
     }],
     allowed_mentions: allowedMentions(roleId),
   };
@@ -185,11 +187,17 @@ function buildPayload(queue, roleId, now) {
   const embeds = GRADES.flatMap(grade => {
     const items = listed.filter(item => item.grade === grade.key);
     if (items.length === 0) return [];
-    return [{
-      title: `중요도 ${grade.label} (${items.length})`,
+    const groups = [[]];
+    for (const item of items) {
+      const line = formatLine(item, now);
+      if ([...groups.at(-1), line].join('\n').length > EMBED_DESCRIPTION_CHAR_LIMIT) groups.push([]);
+      groups.at(-1).push(line);
+    }
+    return groups.map(lines => ({
+      title: `중요도 ${grade.label} (${lines.length})`,
       color: grade.color,
-      description: items.map(item => formatLine(item, now)).join('\n'),
-    }];
+      description: lines.join('\n'),
+    }));
   });
 
   // Discord does not notify a role mentioned inside an embed, so the mention stays in content.
@@ -201,16 +209,18 @@ function buildPayload(queue, roleId, now) {
   };
 }
 
-function readPullRequestDiff(number) {
+function readPullRequestDiff(number, baseRefName) {
   const git = args => execFileSync('git', args, {
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
-  const ref = `refs/review-queue/${number}`;
-  git(['fetch', '--no-tags', '--quiet', 'origin', `+refs/pull/${number}/head:${ref}`]);
+  const ref = `refs/review-queue/${number}/head`;
+  const baseRef = `refs/review-queue/${number}/base`;
+  git(['fetch', '--no-tags', '--quiet', 'origin',
+    `+refs/pull/${number}/head:${ref}`, `+refs/heads/${baseRefName}:${baseRef}`]);
 
-  const range = `origin/${BASE_BRANCH}...${ref}`;
+  const range = `${baseRef}...${ref}`;
   const diff = ['diff', '--no-ext-diff', '--no-textconv', '-w', '--ignore-blank-lines'];
   return {
     patch: git([...diff, '--unified=1', range]),
@@ -234,9 +244,15 @@ async function publishReviewQueue({
     return;
   }
 
-  const result = await github.graphql(OPEN_PULL_REQUESTS_QUERY, { ...context.repo, base: BASE_BRANCH });
-  const pullRequests = result.repository.pullRequests.nodes
-    .filter(pullRequest => !pullRequest.isDraft && pullRequest.reviewDecision !== 'APPROVED');
+  const pullRequests = [];
+  let after = null;
+  do {
+    const result = await github.graphql(OPEN_PULL_REQUESTS_QUERY, { ...context.repo, after });
+    const page = result.repository.pullRequests;
+    pullRequests.push(...page.nodes.filter(pullRequest =>
+      !pullRequest.isDraft && pullRequest.reviewDecision !== 'APPROVED'));
+    after = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
+  } while (after);
   if (pullRequests.length === 0) {
     core.info('No pull request is waiting for review');
     return;
@@ -246,7 +262,7 @@ async function publishReviewQueue({
   for (const pullRequest of pullRequests) {
     let evaluation = { grade: 'unrated', factors: [] };
     try {
-      evaluation = await evaluate(pullRequest, readDiff(pullRequest.number), apiKey, fetchImpl);
+      evaluation = await evaluate(pullRequest, readDiff(pullRequest.number, pullRequest.baseRefName), apiKey, fetchImpl);
     } catch (error) {
       core.warning(`Could not evaluate PR #${pullRequest.number}: ${error.message}`);
     }
