@@ -6,6 +6,9 @@ info:
 servers:
   - url: /api/applet
     description: Gateway
+tags:
+  - name: applet
+    description: 앱에서 사용할 임의 값을 생성합니다.
 security:
   - BearerAuth: []
 components:
