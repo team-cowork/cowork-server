@@ -10,7 +10,8 @@ import {MeetingNoteAttachmentProjectionRepository} from '../repository/meeting-n
 import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {ObjectStorageService} from '../../storage/object-storage.service.js';
 import {AttachmentUploadRepository} from '../../storage/attachment-upload.repository.js';
-import {AttachmentUpload, ATTACHMENT_UPLOAD_RETENTION_SECONDS} from '../../storage/attachment-upload.schema.js';
+import {AttachmentUpload, UPLOAD_RECLAIM_AGE_MS} from '../../storage/attachment-upload.schema.js';
+import {MeetingNoteAttachmentRetentionRepository, type ClaimedAttachmentRetention} from '../repository/meeting-note-attachment-retention.repository.js';
 import {MessageRepository} from '../repository/message.repository.js';
 import {AttachmentDeletionRepository, type AttachmentDeletionRecord} from '../repository/attachment-deletion.repository.js';
 
@@ -28,17 +29,13 @@ export const ABANDONED_DELETION_MS = 15 * 60 * 1000;
 const RECLAIM_INTERVAL_MS = 10 * 60 * 1000;
 const RECLAIM_BATCH_SIZE = 50;
 const RECLAIM_LEASE_MS = 60 * 60 * 1000;
-/**
-재시도 창(생성 후 7일) 뒤 비동기 메시지 저장·quarantine 재처리를 기다리는 유예.
-*/
-const UPLOAD_RECLAIM_GRACE_MS = 24 * 60 * 60 * 1000;
-export const UPLOAD_RECLAIM_AGE_MS = (ATTACHMENT_UPLOAD_RETENTION_SECONDS * 1000) + UPLOAD_RECLAIM_GRACE_MS;
 
 /**
  첨부 객체 정리 워커.
 
  - 메시지 삭제 의도: 메시지가 사라진 것을 확인한 뒤에만 객체를 지우고 의도를 제거한다.
  - 미전송 업로드: 재시도 창과 유예가 지난 업로드 기록을 정리하며, 메시지와 회의록이 참조하지 않는 확정 객체는 먼저 지운다.
+ - 회의록 첨부: 업로드 기록 만료 후에도 정리 기록을 유지하고, 모든 참조가 사라지면 객체를 지운다.
 
  항목은 처리 시각을 뒤로 미루는 점유로 꺼내므로 여러 replica가 같은 항목을 동시에 처리하지 않는다.
  실패한 항목은 점유가 끝나면 다시 처리되고, 객체 삭제는 이미 없는 객체도 성공으로 보므로 반복해도 안전하다.
@@ -55,6 +52,9 @@ export class AttachmentCleanupPoller implements OnModuleInit, OnModuleDestroy {
 
 	@inject()
 	private readonly readiness!: ProjectionReadinessService;
+
+	@inject()
+	private readonly retentions!: MeetingNoteAttachmentRetentionRepository;
 
 	constructor(
 		private readonly deletions: AttachmentDeletionRepository,
@@ -110,10 +110,24 @@ export class AttachmentCleanupPoller implements OnModuleInit, OnModuleDestroy {
 		return isUnsent;
 	}
 
-	private async removeObject(objectKey: string): Promise<void> {
+	private async reclaimRetainedAttachment(record: ClaimedAttachmentRetention): Promise<void> {
+		try {
+			if (await this.messages.referencesObject(record.objectKey)) {
+				return;
+			}
+
+			if (await this.removeObject(record.objectKey)) {
+				await this.retentions.remove(record.objectKey, record.claimId);
+			}
+		} catch (error) {
+			this.logger.warn(`Meeting note attachment reclaim failed, will retry objectKey=${record.objectKey}`, error);
+		}
+	}
+
+	private async removeObject(objectKey: string): Promise<boolean> {
 		try {
 			if (await this.meetingNotes.references(objectKey)) {
-				return;
+				return false;
 			}
 
 			// 동기화가 끊기면 참조가 없다는 판정을 신뢰하지 않고 다음 주기에 재시도한다.
@@ -130,6 +144,8 @@ export class AttachmentCleanupPoller implements OnModuleInit, OnModuleDestroy {
 
 			this.logger.warn(`Skipping attachment object with an invalid key [key=${objectKey}]`);
 		}
+
+		return true;
 	}
 
 	async runCycle(now = new Date()): Promise<void> {
@@ -141,6 +157,8 @@ export class AttachmentCleanupPoller implements OnModuleInit, OnModuleDestroy {
 		try {
 			const intents = await this.deletions.claimDue(now, DELETION_LEASE_MS, DELETION_BATCH_SIZE);
 			await Promise.all(intents.map(async intent => this.processDeletion(intent, now)));
+			const retained = await this.retentions.claimDue(now, RECLAIM_LEASE_MS, RECLAIM_BATCH_SIZE);
+			await Promise.all(retained.map(async record => this.reclaimRetainedAttachment(record)));
 
 			if (now.getTime() - this.lastReclaimAt >= RECLAIM_INTERVAL_MS) {
 				this.lastReclaimAt = now.getTime();
