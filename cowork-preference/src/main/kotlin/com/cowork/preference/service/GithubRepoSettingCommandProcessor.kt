@@ -3,6 +3,7 @@ package com.cowork.preference.service
 import com.cowork.preference.cache.PreferenceCache
 import com.cowork.preference.cache.VersionedSettings
 import com.cowork.preference.domain.ResourceType
+import com.cowork.preference.domain.SettingSchema
 import com.cowork.preference.messaging.GithubRepoSettingCommand
 import com.cowork.preference.messaging.GithubRepoSettingCommandEnvelope
 import com.cowork.preference.messaging.GithubRepoSettingCommandQuarantineRecord
@@ -124,7 +125,7 @@ class GithubRepoSettingCommandProcessor(
     /** 삭제된 설정(null)은 조회와 같은 기본값으로 기록해, 삭제 전 값을 늦게 채우는 조회를 version으로 막는다. */
     private fun cacheState(settings: JsonObject?, stateOccurredAt: Instant) = CacheAction.Set(
         VersionedSettings(
-            JsonObject().put("label_auto_apply", settings?.getBoolean("label_auto_apply", true) ?: true),
+            SettingSchema.resolve(ResourceType.GITHUB_REPO, settings),
             stateOccurredAt,
         ),
     )
@@ -171,10 +172,7 @@ class GithubRepoSettingCommandProcessor(
             repoId = command.repoId,
             settings = JsonObject().put("label_auto_apply", labelAutoApply),
         )
-        val normalizedSettings = JsonObject().put(
-            "label_auto_apply",
-            update.settings.getBoolean("label_auto_apply", true),
-        )
+        val normalizedSettings = SettingSchema.resolve(ResourceType.GITHUB_REPO, update.settings)
         val state = PreferenceEvents.githubRepoSettingState(
             repoId = command.repoId,
             settings = normalizedSettings,
