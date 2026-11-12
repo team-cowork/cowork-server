@@ -85,9 +85,11 @@ class TeamGithubInstallationConsumer(
             log.warn("team.github.renamed: installation {} 의 orgLogin이 비어 있어 무시합니다", payload.installationId)
             return
         }
+        // renamed는 이미 연결된 팀의 이름만 바꾼다. 연결된 팀이 없을 때 원장을 올리면 같은 revision 카운터를 쓰는
+        // connected가 뒤늦게 도착했을 때 낮은 revision으로 버려져 팀이 연결되지 않으므로, 팀을 먼저 확인한다.
+        val existing = teamRepository.findByGithubInstallationId(payload.installationId) ?: return
         if (!guardRevision(Topics.TEAM_GITHUB_RENAMED, payload.installationId, payload.revision)) return
 
-        val existing = teamRepository.findByGithubInstallationId(payload.installationId) ?: return
         val team = teamRepository.findByIdForUpdate(existing.id) ?: return
         if (team.githubInstallationId != payload.installationId) return
         if (team.githubOrgLogin == payload.orgLogin) return
