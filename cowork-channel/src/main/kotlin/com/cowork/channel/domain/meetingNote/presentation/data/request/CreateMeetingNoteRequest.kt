@@ -9,4 +9,6 @@ data class CreateMeetingNoteRequest(
     val title: String,
     @param:Schema(description = "섹션별 작성 내용 JSON 블록", example = "{\"회의 제목\": \"API 설계 논의\", \"참석자\": \"홍길동, 김철수\"}")
     val content: String,
+    @param:Schema(description = "회의록 첨부파일. 업로드 완료 후 반환된 objectKey를 사용합니다.")
+    val attachments: List<MeetingNoteAttachmentRequest> = emptyList(),
 )

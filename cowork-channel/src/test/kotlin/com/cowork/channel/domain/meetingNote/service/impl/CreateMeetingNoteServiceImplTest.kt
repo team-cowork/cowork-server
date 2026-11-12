@@ -3,9 +3,11 @@ package com.cowork.channel.domain.meetingNote.service.impl
 import com.cowork.channel.domain.meetingNote.entity.MeetingNote
 import com.cowork.channel.domain.meetingNote.entity.MeetingNoteTemplate
 import com.cowork.channel.domain.meetingNote.presentation.data.request.CreateMeetingNoteRequest
+import com.cowork.channel.domain.meetingNote.presentation.data.request.MeetingNoteAttachmentRequest
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteRepository
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteTemplateRepository
 import com.cowork.channel.domain.meetingNote.service.MeetingNoteAccessGuard
+import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteAttachmentSupport
 import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteContentSupport
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
@@ -38,10 +40,32 @@ class CreateMeetingNoteServiceImplTest :
                 templateRepository,
                 accessGuard,
                 MeetingNoteContentSupport(JsonMapper.builder().build()),
+                MeetingNoteAttachmentSupport(),
+                mockk(relaxed = true),
             )
         }
 
         describe("CreateMeetingNoteServiceImpl 클래스의 createNote 메서드는") {
+            it("파일 첨부 권한이 회수되면 이미 업로드한 파일도 연결하지 않는다") {
+                every { noteRepository.saveAndFlush(any()) } answers { firstArg() }
+                every { accessGuard.requireAttachmentPermission(1L, 20L) } throws
+                    ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
+                every { templateRepository.findById(7L) } returns Optional.of(
+                    MeetingNoteTemplate(id = 7L, channelId = 1L, name = "기본", createdBy = 20L),
+                )
+                val attachment = MeetingNoteAttachmentRequest(
+                    "chat-files/1/20/123e4567-e89b-12d3-a456-426614174000.pdf",
+                    "자료.pdf",
+                )
+
+                val error = shouldThrow<ExpectedException> {
+                    service.createNote(20L, 1L, request.copy(attachments = listOf(attachment)))
+                }
+
+                error.statusCode shouldBe HttpStatus.FORBIDDEN
+                verify(exactly = 0) { noteRepository.saveAndFlush(any()) }
+            }
+
             context("content가 JSON 객체가 아니면") {
                 it("BAD_REQUEST로 거부한다") {
                     val invalid = CreateMeetingNoteRequest(7L, "주간 회의", "[\"agenda\"]")
