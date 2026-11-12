@@ -15,7 +15,7 @@ data class InitialChannelRolePolicySeed(
             val overwrites = requireNotNull(payload.getJsonArray("overwrites")).map { value ->
                 val overwrite = value as? JsonObject ?: error("initial overwrite must be an object")
                 InitialChannelRoleOverwrite(
-                    positiveId(overwrite, "roleId"),
+                    InitialResourceAccessInput.positiveId(overwrite, "roleId"),
                     ChannelRolePolicyPermissions.canonicalize(requireNotNull(overwrite.getJsonObject("permissions"))),
                 )
             }
@@ -24,10 +24,14 @@ data class InitialChannelRolePolicySeed(
             }
             val membershipVersion = Instant.parse(payload.getString("actorMembershipVersion"))
             return InitialChannelRolePolicySeed(
-                positiveId(payload, "actorId"),
+                InitialResourceAccessInput.positiveId(payload, "actorId"),
                 membershipVersion,
                 overwrites,
-                authorizationVersion(payload, "actorAuthorizationVersion", membershipVersion),
+                InitialResourceAccessInput.authorizationVersion(
+                    payload,
+                    "actorAuthorizationVersion",
+                    membershipVersion,
+                ),
             )
         }
     }

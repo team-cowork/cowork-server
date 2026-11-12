@@ -1,11 +1,12 @@
 package com.cowork.preference.domain.setting.command
 
 import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommand
-import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommandDecision
-import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommandQuarantineRecord
+import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommandEnvelope
 import com.cowork.preference.domain.setting.command.repository.GithubRepoSettingCommandInboxRepository
 import com.cowork.preference.global.config.kafkaClientProperties
-import com.cowork.preference.global.messaging.event.PreferenceEvents
+import com.cowork.preference.global.messaging.command.model.CommandDecision
+import com.cowork.preference.global.messaging.command.model.CommandQuarantineRecord
+import com.cowork.preference.global.messaging.event.PreferenceTopics
 import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.kafka.client.consumer.KafkaConsumer
@@ -56,10 +57,10 @@ class GithubRepoSettingCommandConsumer(
             }
         }
         scope.launch(vertx.dispatcher()) {
-            retry("subscribe") { consumer.subscribe(PreferenceEvents.GITHUB_REPO_SETTING_COMMAND_TOPIC).coAwait() }
+            retry("subscribe") { consumer.subscribe(PreferenceTopics.GITHUB_REPO_SETTING_COMMAND_TOPIC).coAwait() }
             log.info(
                 "GitHub repo setting command consumer subscribed topic={} group={}",
-                PreferenceEvents.GITHUB_REPO_SETTING_COMMAND_TOPIC,
+                PreferenceTopics.GITHUB_REPO_SETTING_COMMAND_TOPIC,
                 groupId,
             )
         }
@@ -74,9 +75,9 @@ class GithubRepoSettingCommandConsumer(
         for (index in 0 until records.size()) {
             val record = records.recordAt(index)
             when (val decision = GithubRepoSettingCommandParser.parse(record.key(), record.value())) {
-                is GithubRepoSettingCommandDecision.Apply -> processWithRetry(record, decision.command)
-                is GithubRepoSettingCommandDecision.Reject -> rejectWithRetry(record, decision)
-                is GithubRepoSettingCommandDecision.Quarantine -> quarantineWithRetry(record, decision.reason)
+                is CommandDecision.Apply -> processWithRetry(record, decision.command)
+                is CommandDecision.Reject -> rejectWithRetry(record, decision)
+                is CommandDecision.Quarantine -> quarantineWithRetry(record, decision.reason)
             }
         }
     }
@@ -107,7 +108,7 @@ class GithubRepoSettingCommandConsumer(
 
     private suspend fun rejectWithRetry(
         record: KafkaConsumerRecord<String, String>,
-        rejection: GithubRepoSettingCommandDecision.Reject,
+        rejection: CommandDecision.Reject<GithubRepoSettingCommandEnvelope>,
     ) {
         while (!closed) {
             try {
@@ -171,7 +172,7 @@ class GithubRepoSettingCommandConsumer(
     private fun quarantineRecord(
         record: KafkaConsumerRecord<String, String>,
         reason: String,
-    ): GithubRepoSettingCommandQuarantineRecord = GithubRepoSettingCommandQuarantineRecord(
+    ): CommandQuarantineRecord = CommandQuarantineRecord(
         topic = record.topic(),
         partition = record.partition(),
         offset = record.offset(),

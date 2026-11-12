@@ -1,0 +1,66 @@
+package com.cowork.preference.domain.access.projection.dm.parser
+
+import com.cowork.preference.domain.access.projection.dm.model.DmParticipantRecordDecision
+import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
+import io.vertx.core.json.JsonObject
+
+private const val OCCURRED_AT = "2026-10-13T01:00:00Z"
+
+private fun json(vararg fields: Pair<String, Any?>): String = JsonObject(mapOf(*fields)).encode()
+
+class DmParticipantEventParserTest :
+    DescribeSpec({
+        describe("DmParticipantEventParser 객체의") {
+            context("JOIN 이벤트이면") {
+                it("활성 DM 참여으로 해석한다") {
+                    val value = json(
+                        "eventType" to "JOIN",
+                        "channelId" to 11,
+                        "teamId" to null,
+                        "channelType" to "DM",
+                        "userId" to 100,
+                        "occurredAt" to OCCURRED_AT,
+                    )
+
+                    val event = DmParticipantEventParser.parse("11:100", value)
+                        .shouldBeInstanceOf<DmParticipantRecordDecision.Apply>().event
+
+                    event.channelId shouldBe 11L
+                    event.userId shouldBe 100L
+                    event.deleted shouldBe false
+                }
+            }
+
+            context("LEAVE 이벤트이면") {
+                it("삭제된 DM 참여으로 해석해 권한을 회수한다") {
+                    val value = json(
+                        "eventType" to "LEAVE",
+                        "channelId" to 11,
+                        "teamId" to null,
+                        "channelType" to "DM",
+                        "userId" to 100,
+                        "occurredAt" to OCCURRED_AT,
+                    )
+
+                    DmParticipantEventParser.parse("11:100", value)
+                        .shouldBeInstanceOf<DmParticipantRecordDecision.Apply>().event.deleted shouldBe true
+                }
+            }
+
+            context("key가 channelId와 userId 조합과 다르면") {
+                it("다른 채널의 DM 참여을 바꾸지 못하도록 격리한다") {
+                    val value = json(
+                        "eventType" to "JOIN",
+                        "channelId" to 11,
+                        "userId" to 100,
+                        "occurredAt" to OCCURRED_AT,
+                    )
+
+                    DmParticipantEventParser.parse("12:100", value)
+                        .shouldBeInstanceOf<DmParticipantRecordDecision.Quarantine>()
+                }
+            }
+        }
+    })

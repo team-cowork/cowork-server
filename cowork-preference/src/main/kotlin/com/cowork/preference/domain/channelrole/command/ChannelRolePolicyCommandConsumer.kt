@@ -1,11 +1,12 @@
 package com.cowork.preference.domain.channelrole.command
 
 import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommand
-import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommandDecision
-import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommandQuarantineRecord
+import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommandEnvelope
 import com.cowork.preference.domain.channelrole.command.repository.ChannelRolePolicyCommandInboxRepository
 import com.cowork.preference.global.config.kafkaClientProperties
-import com.cowork.preference.global.messaging.event.PreferenceEvents
+import com.cowork.preference.global.messaging.command.model.CommandDecision
+import com.cowork.preference.global.messaging.command.model.CommandQuarantineRecord
+import com.cowork.preference.global.messaging.event.PreferenceTopics
 import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.kafka.client.consumer.KafkaConsumer
@@ -56,10 +57,10 @@ class ChannelRolePolicyCommandConsumer(
             }
         }
         scope.launch(vertx.dispatcher()) {
-            retry("subscribe") { consumer.subscribe(PreferenceEvents.CHANNEL_ROLE_POLICY_COMMAND_TOPIC).coAwait() }
+            retry("subscribe") { consumer.subscribe(PreferenceTopics.CHANNEL_ROLE_POLICY_COMMAND_TOPIC).coAwait() }
             log.info(
                 "Channel role policy command consumer subscribed topic={} group={}",
-                PreferenceEvents.CHANNEL_ROLE_POLICY_COMMAND_TOPIC,
+                PreferenceTopics.CHANNEL_ROLE_POLICY_COMMAND_TOPIC,
                 groupId,
             )
         }
@@ -74,9 +75,9 @@ class ChannelRolePolicyCommandConsumer(
         for (index in 0 until records.size()) {
             val record = records.recordAt(index)
             when (val decision = ChannelRolePolicyCommandParser.parse(record.key(), record.value())) {
-                is ChannelRolePolicyCommandDecision.Apply -> processWithRetry(record, decision.command)
-                is ChannelRolePolicyCommandDecision.Reject -> rejectWithRetry(record, decision)
-                is ChannelRolePolicyCommandDecision.Quarantine -> quarantineWithRetry(record, decision.reason)
+                is CommandDecision.Apply -> processWithRetry(record, decision.command)
+                is CommandDecision.Reject -> rejectWithRetry(record, decision)
+                is CommandDecision.Quarantine -> quarantineWithRetry(record, decision.reason)
             }
         }
     }
@@ -107,7 +108,7 @@ class ChannelRolePolicyCommandConsumer(
 
     private suspend fun rejectWithRetry(
         record: KafkaConsumerRecord<String, String>,
-        rejection: ChannelRolePolicyCommandDecision.Reject,
+        rejection: CommandDecision.Reject<ChannelRolePolicyCommandEnvelope>,
     ) {
         while (!closed) {
             try {
@@ -171,7 +172,7 @@ class ChannelRolePolicyCommandConsumer(
     private fun quarantineRecord(
         record: KafkaConsumerRecord<String, String>,
         reason: String,
-    ): ChannelRolePolicyCommandQuarantineRecord = ChannelRolePolicyCommandQuarantineRecord(
+    ): CommandQuarantineRecord = CommandQuarantineRecord(
         topic = record.topic(),
         partition = record.partition(),
         offset = record.offset(),

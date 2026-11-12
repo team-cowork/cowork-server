@@ -1,34 +1,37 @@
 package com.cowork.preference.domain.channelrole.command
 
 import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommand
-import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommandDecision
 import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommandEnvelope
 import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommandType
 import com.cowork.preference.domain.channelrole.model.ChannelRolePolicyPermissions
+import com.cowork.preference.global.messaging.command.model.CommandDecision
 import io.vertx.core.json.JsonObject
 import java.time.Instant
 import java.util.UUID
 
 object ChannelRolePolicyCommandParser {
-    fun parse(key: String?, value: String?): ChannelRolePolicyCommandDecision {
+    fun parse(
+        key: String?,
+        value: String?,
+    ): CommandDecision<ChannelRolePolicyCommand, ChannelRolePolicyCommandEnvelope> {
         val json = runCatching {
             require(!value.isNullOrBlank()) { "payload is required" }
             JsonObject(value)
         }.getOrElse {
-            return ChannelRolePolicyCommandDecision.Quarantine(
+            return CommandDecision.Quarantine(
                 it.message ?: "invalid channel role policy command",
             )
         }
         val envelope = runCatching { envelope(json) }.getOrElse {
-            return ChannelRolePolicyCommandDecision.Quarantine(
+            return CommandDecision.Quarantine(
                 it.message ?: "invalid channel role policy command envelope",
             )
         }
         return runCatching { command(key, json, envelope) }
             .fold(
-                onSuccess = ChannelRolePolicyCommandDecision::Apply,
+                onSuccess = { CommandDecision.Apply(it) },
                 onFailure = {
-                    ChannelRolePolicyCommandDecision.Reject(
+                    CommandDecision.Reject(
                         envelope,
                         it.message ?: "invalid channel role policy command",
                     )
@@ -62,8 +65,12 @@ object ChannelRolePolicyCommandParser {
         json: JsonObject,
         envelope: ChannelRolePolicyCommandEnvelope,
     ): ChannelRolePolicyCommand {
-        require(json.getInteger("schemaVersion") == SCHEMA_VERSION) { "unsupported schemaVersion" }
-        require(key == policyKey(envelope.teamId, envelope.channelId, envelope.roleId)) {
+        require(json.getInteger("schemaVersion") == ChannelRolePolicyCommandContract.SCHEMA_VERSION) {
+            "unsupported schemaVersion"
+        }
+        require(
+            key == ChannelRolePolicyCommandContract.policyKey(envelope.teamId, envelope.channelId, envelope.roleId),
+        ) {
             "record key must equal policy:{teamId}:{channelId}:{roleId}"
         }
         val permissionsValue = json.getValue("permissions")
@@ -109,10 +116,6 @@ object ChannelRolePolicyCommandParser {
         val text = json.getValue(field) as? String ?: error("$field must be an RFC3339 string")
         return runCatching { Instant.parse(text) }.getOrElse { error("$field must be an RFC3339 instant") }
     }
-
-    fun policyKey(teamId: Long, channelId: Long, roleId: Long): String = "policy:$teamId:$channelId:$roleId"
-
-    const val SCHEMA_VERSION = 2
 
     private val REQUEST_HASH = Regex("^[0-9a-f]{64}$")
 }

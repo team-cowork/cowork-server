@@ -1,10 +1,11 @@
 package com.cowork.preference.domain.access.service
 
-import com.cowork.preference.domain.access.projection.channel.ChannelLifecycleEvent
-import com.cowork.preference.domain.access.projection.channel.ChannelLifecycleProjectionRepository
+import com.cowork.preference.domain.access.projection.channel.model.ChannelLifecycleEvent
+import com.cowork.preference.domain.access.projection.channel.repository.ChannelLifecycleProjectionRepository
+import com.cowork.preference.domain.channelrole.event.ChannelRolePolicyEvents
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
+import com.cowork.preference.domain.webhook.event.WebhookEvents
 import com.cowork.preference.domain.webhook.repository.WebhookRepository
-import com.cowork.preference.global.messaging.event.PreferenceEvents
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import io.vertx.sqlclient.SqlClient
 
@@ -28,7 +29,7 @@ class ChannelLifecycleService(
         }
         if (!applied || !event.deleted) return
         webhookRepository?.deleteChannel(client, event.channelId)?.let { deleted ->
-            outboxRepository.enqueueAll(client, deleted.map { PreferenceEvents.webhookState(it, snapshot = false) })
+            outboxRepository.enqueueAll(client, deleted.map { WebhookEvents.webhookState(it, snapshot = false) })
         }
         val teamId = event.teamId ?: return
         val tombstones = policyRepository.findPoliciesByChannel(client, teamId, event.channelId).map { policy ->
@@ -37,7 +38,7 @@ class ChannelLifecycleService(
         outboxRepository.enqueueAll(
             client,
             tombstones.map { tombstone ->
-                PreferenceEvents.channelRolePolicyState(
+                ChannelRolePolicyEvents.channelRolePolicyState(
                     teamId = tombstone.teamId,
                     channelId = tombstone.channelId,
                     roleId = tombstone.roleId,

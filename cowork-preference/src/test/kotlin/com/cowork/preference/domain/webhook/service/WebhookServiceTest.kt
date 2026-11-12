@@ -1,8 +1,8 @@
 package com.cowork.preference.domain.webhook.service
 
 import com.cowork.preference.domain.access.exception.ResourceAccessDeniedException
-import com.cowork.preference.domain.access.projection.channel.ChannelLifecycleProjection
-import com.cowork.preference.domain.access.projection.channel.ChannelLifecycleProjectionRepository
+import com.cowork.preference.domain.access.projection.channel.model.ChannelLifecycleProjection
+import com.cowork.preference.domain.access.projection.channel.repository.ChannelLifecycleProjectionRepository
 import com.cowork.preference.domain.access.service.ChannelAccessGuard
 import com.cowork.preference.domain.webhook.exception.WebhookRequestException
 import com.cowork.preference.domain.webhook.model.Webhook

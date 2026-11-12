@@ -1,8 +1,8 @@
 package com.cowork.preference.domain.webhook.presentation
 
+import com.cowork.preference.domain.access.presentation.authorizationStatus
 import com.cowork.preference.domain.webhook.exception.WebhookRequestException
 import com.cowork.preference.domain.webhook.service.WebhookService
-import com.cowork.preference.global.http.authorizationStatus
 import com.cowork.preference.global.security.RequesterContext
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.Router

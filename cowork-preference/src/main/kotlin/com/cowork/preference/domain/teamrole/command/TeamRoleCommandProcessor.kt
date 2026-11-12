@@ -1,23 +1,24 @@
 package com.cowork.preference.domain.teamrole.command
 
 import com.cowork.preference.domain.access.permission.PermissionKeys
-import com.cowork.preference.domain.access.projection.team.TeamMemberProjection
-import com.cowork.preference.domain.access.projection.team.TeamMemberProjectionRepository
+import com.cowork.preference.domain.access.projection.team.model.TeamMemberProjection
+import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
+import com.cowork.preference.domain.channelrole.event.ChannelRolePolicyEvents
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectAccessStateRepository
+import com.cowork.preference.domain.teamrole.command.model.ProcessedTeamRoleCommand
 import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommand
 import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommandEnvelope
-import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommandQuarantineRecord
 import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommandType
-import com.cowork.preference.domain.teamrole.command.repository.ProcessedTeamRoleCommand
 import com.cowork.preference.domain.teamrole.command.repository.TeamRoleCommandInboxRepository
+import com.cowork.preference.domain.teamrole.event.TeamRoleEvents
 import com.cowork.preference.domain.teamrole.exception.TeamRoleProjectionNotReadyException
 import com.cowork.preference.domain.teamrole.model.AccountTeamRole
 import com.cowork.preference.domain.teamrole.model.TeamRoleDefinition
 import com.cowork.preference.domain.teamrole.model.TeamRolePermissions
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
+import com.cowork.preference.global.messaging.command.model.CommandQuarantineRecord
 import com.cowork.preference.global.messaging.event.PreferenceEvent
-import com.cowork.preference.global.messaging.event.PreferenceEvents
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import com.cowork.preference.global.projection.readiness.ProjectionReadiness
 import io.vertx.core.json.JsonObject
@@ -50,7 +51,7 @@ class TeamRoleCommandProcessor(
                 }
                 return@inTransaction
             }
-            matches.byActorAndIdempotencyKey?.let { existing ->
+            matches.byIdempotencyKey?.let { existing ->
                 if (existing.matches(command)) {
                     replay(connection, command.operationId, existing.result)
                 } else {
@@ -75,7 +76,7 @@ class TeamRoleCommandProcessor(
             outboxRepository.enqueueAll(connection, outcome.stateEvents)
             outboxRepository.enqueue(
                 connection,
-                PreferenceEvents.teamRoleCommandResult(command.operationId, outcome.result, outcome.occurredAt),
+                TeamRoleEvents.teamRoleCommandResult(command.operationId, outcome.result, outcome.occurredAt),
             )
             inboxRepository.insert(connection, command, outcome.result)
         }
@@ -83,7 +84,7 @@ class TeamRoleCommandProcessor(
 
     suspend fun rejectInvalid(
         envelope: TeamRoleCommandEnvelope,
-        quarantineRecord: TeamRoleCommandQuarantineRecord,
+        quarantineRecord: CommandQuarantineRecord,
         reason: String,
     ) {
         outboxRepository.inTransaction { connection ->
@@ -100,7 +101,7 @@ class TeamRoleCommandProcessor(
                 )
             outboxRepository.enqueue(
                 connection,
-                PreferenceEvents.teamRoleCommandResult(envelope.operationId, result, occurredAt),
+                TeamRoleEvents.teamRoleCommandResult(envelope.operationId, result, occurredAt),
             )
         }
     }
@@ -110,7 +111,7 @@ class TeamRoleCommandProcessor(
         val occurredAt = Instant.parse(result.getString("occurredAt"))
         outboxRepository.enqueue(
             connection,
-            PreferenceEvents.teamRoleCommandResult(operationId, result, occurredAt),
+            TeamRoleEvents.teamRoleCommandResult(operationId, result, occurredAt),
         )
     }
 
@@ -123,7 +124,7 @@ class TeamRoleCommandProcessor(
         val outcome = rejected(command, CommandRejected(code, message))
         outboxRepository.enqueue(
             connection,
-            PreferenceEvents.teamRoleCommandResult(command.operationId, outcome.result, outcome.occurredAt),
+            TeamRoleEvents.teamRoleCommandResult(command.operationId, outcome.result, outcome.occurredAt),
         )
     }
 
@@ -176,7 +177,7 @@ class TeamRoleCommandProcessor(
             requireNotNull(input.mentionable),
             TeamRolePermissions.canonicalize(requireNotNull(input.permissions)),
         )
-        return success(command, role, PreferenceEvents.roleUpserted(role, role.version()), deleted = false)
+        return success(command, role, TeamRoleEvents.roleUpserted(role, role.version()), deleted = false)
     }
 
     private suspend fun update(
@@ -229,7 +230,7 @@ class TeamRoleCommandProcessor(
         if (projectPermissionsChanged) {
             projectAccess.refreshTeam(connection, command.teamId)
         }
-        return success(command, role, PreferenceEvents.roleUpserted(role, role.version()), deleted = false)
+        return success(command, role, TeamRoleEvents.roleUpserted(role, role.version()), deleted = false)
     }
 
     private suspend fun delete(
@@ -260,9 +261,9 @@ class TeamRoleCommandProcessor(
             roleId,
             occurredAt,
         )
-        val roleEvent = PreferenceEvents.roleDeleted(command.teamId, roleId, roleTombstone.stateOccurredAt)
+        val roleEvent = TeamRoleEvents.roleDeleted(command.teamId, roleId, roleTombstone.stateOccurredAt)
         val events = policyEvents + assignmentTombstones.map { tombstone ->
-            PreferenceEvents.assignmentDeleted(
+            TeamRoleEvents.assignmentDeleted(
                 AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
                 tombstone.stateOccurredAt,
             )
@@ -283,7 +284,7 @@ class TeamRoleCommandProcessor(
                 policy.channelId,
                 policy.roleId,
             )
-            PreferenceEvents.channelRolePolicyState(
+            ChannelRolePolicyEvents.channelRolePolicyState(
                 teamId = tombstone.teamId,
                 channelId = tombstone.channelId,
                 roleId = tombstone.roleId,
@@ -321,7 +322,7 @@ class TeamRoleCommandProcessor(
             targetMember.sourceOccurredAt,
         )
         val assignment = requireNotNull(roleRepository.findAssignment(connection, targetId, command.teamId, roleId))
-        val event = PreferenceEvents.assignmentUpserted(assignment, requireNotNull(assignment.updatedAt).toInstant())
+        val event = TeamRoleEvents.assignmentUpserted(assignment, requireNotNull(assignment.updatedAt).toInstant())
         projectAccess.refreshTeam(connection, command.teamId, targetId)
         return success(command, role, event, deleted = false)
     }
@@ -353,7 +354,7 @@ class TeamRoleCommandProcessor(
             now(),
         )
         val assignment = AccountTeamRole(targetId, command.teamId, roleId)
-        val event = PreferenceEvents.assignmentDeleted(assignment, tombstone.stateOccurredAt)
+        val event = TeamRoleEvents.assignmentDeleted(assignment, tombstone.stateOccurredAt)
         projectAccess.refreshTeam(connection, command.teamId, targetId)
         return success(command, role, event, deleted = true)
     }
