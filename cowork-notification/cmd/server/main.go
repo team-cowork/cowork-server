@@ -1,5 +1,5 @@
 // @title          cowork Notification API
-// @version        20261111.1
+// @version        20261112.0
 // @description    Firebase 설치를 계정에 연결하고 실시간 알림을 제공합니다.
 // @BasePath       /api/notification
 // @tag.name        installations
