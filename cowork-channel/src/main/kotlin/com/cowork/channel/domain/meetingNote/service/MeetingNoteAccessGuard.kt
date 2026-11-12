@@ -2,13 +2,21 @@ package com.cowork.channel.domain.meetingNote.service
 
 import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channel.service.support.ChannelPermissionSupport
+import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
 import org.springframework.stereotype.Service
 
 @Service
 class MeetingNoteAccessGuard(
     private val channelAccessGuard: ChannelAccessGuard,
     private val permissions: ChannelPermissionSupport,
+    private val evaluator: ChannelMessageReadPolicyEvaluator,
 ) {
+    fun requireAttachmentPermission(channelId: Long, userId: Long) {
+        val channel = channelAccessGuard.findChannelOrThrow(channelId)
+        val teamId = channelAccessGuard.requireTeamChannel(channel)
+        evaluator.requirePermission(teamId, userId, channel, "file_attach")
+    }
+
     fun requireChannelAccess(channelId: Long, userId: Long) {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         channelAccessGuard.requireTeamChannel(channel)
