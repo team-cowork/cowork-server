@@ -80,6 +80,11 @@ class TeamGithubInstallationConsumer(
     )
     @Transactional
     fun consumeRenamed(payload: TeamGithubRenamedPayload) {
+        // 빈 orgLogin을 저장하면 team.lifecycle을 받는 서비스가 그 이벤트를 격리한다.
+        if (payload.orgLogin.isBlank()) {
+            log.warn("team.github.renamed: installation {} 의 orgLogin이 비어 있어 무시합니다", payload.installationId)
+            return
+        }
         if (!guardRevision(Topics.TEAM_GITHUB_RENAMED, payload.installationId, payload.revision)) return
 
         val existing = teamRepository.findByGithubInstallationId(payload.installationId) ?: return
