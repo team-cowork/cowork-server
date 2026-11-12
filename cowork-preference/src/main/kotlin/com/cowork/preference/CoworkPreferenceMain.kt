@@ -1,6 +1,8 @@
 package com.cowork.preference
 
-import com.cowork.preference.config.AppConfig
+import com.cowork.preference.global.bootstrap.MainVerticle
+import com.cowork.preference.global.config.AppConfig
+import com.cowork.preference.global.metrics.MetricsRegistry
 import io.micrometer.prometheusmetrics.PrometheusConfig
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry
 import io.vertx.core.DeploymentOptions

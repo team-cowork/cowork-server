@@ -4,7 +4,7 @@ paths:
   - "cowork-*/internal/config/**"
   - "cowork-chat/src/common/config/**"
   - "cowork-github/src/config/**"
-  - "cowork-preference/src/main/kotlin/com/cowork/preference/{config/**,CoworkPreferenceMain.kt}"
+  - "cowork-preference/src/main/kotlin/com/cowork/preference/{global/config/**,CoworkPreferenceMain.kt}"
   - "cowork-user/src/Config/**"
   - "deploy/{production/**,ansible/**,nomad/**,tofu/**,runtime/**}"
 ---
