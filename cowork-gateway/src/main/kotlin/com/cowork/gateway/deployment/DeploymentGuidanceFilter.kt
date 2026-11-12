@@ -37,7 +37,7 @@ class DeploymentGuidanceFilter(
                 exchange,
                 service,
                 "SERVICE_STATE_UNAVAILABLE",
-                "배포 상태를 확인하는 중입니다. 잠시 후 다시 시도해주세요.",
+                "배포 상태를 확인하는 중입니다. 잠시 후 다시 시도하십시오.",
             )
         }
         if (service == null || exchange.request.method == HttpMethod.OPTIONS) {
@@ -56,9 +56,9 @@ class DeploymentGuidanceFilter(
 
         val reason = if (state.phase == "deploying") "SERVICE_DEPLOYING" else "SERVICE_RECOVERING"
         val message = if (state.phase == "deploying") {
-            "서비스를 배포 중입니다. 잠시 후 다시 시도해주세요."
+            "서비스를 배포 중입니다. 잠시 후 다시 시도하십시오."
         } else {
-            "서비스를 복구 중입니다. 잠시 후 다시 시도해주세요."
+            "서비스를 복구 중입니다. 잠시 후 다시 시도하십시오."
         }
         return respond(exchange, service, reason, message)
     }
