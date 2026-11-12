@@ -2,19 +2,19 @@
 
 ## 역할
 
-GitHub App으로 조직 저장소의 이슈·PR·라벨을 다루고 GitHub 이벤트를 cowork로 전달합니다.
+GitHub App으로 조직 저장소의 이슈/PR/라벨을 다루고 GitHub 이벤트를 cowork로 전달합니다.
 
-- 채팅 명령으로 들어온 이슈 생성과 PR 머지·승인 처리
-- 라벨 교체와 이슈 댓글 작성·수정·삭제 커맨드 처리와 결과 발행
-- 저장소·이슈·댓글·라벨·PR 조회 내부 HTTP API
-- GitHub App 설치·해제 연결과 저장소 Webhook 이벤트 발행
+- 채팅 명령으로 들어온 이슈 생성과 PR 머지/승인 처리
+- 라벨 교체와 이슈 댓글 작성/수정/삭제 커맨드 처리와 결과 발행
+- PR 실시간 상태 조회/머지/승인 내부 HTTP API
+- GitHub App 설치/해제 연결과 저장소 웹훅 이벤트 발행
 
 ## 스택
 
 - TypeScript / Bun / NestJS
 - Bun / TypeScript Compiler
 - KafkaJS / Redis (ioredis)
-- GitHub App (JWT · installation access token)
+- GitHub App (JWT / installation access token)
 
 ## 포트
 
@@ -41,7 +41,7 @@ GitHub App으로 조직 저장소의 이슈·PR·라벨을 다루고 GitHub 이�
 | `GITHUB_PRIVATE_KEY`                         | 필수. Base64로 인코딩한 PEM 개인 키                    |
 | `GITHUB_APP_CLIENT_ID`                       | 필수. 설치 콜백 사용자 인증용 App Client ID            |
 | `GITHUB_APP_CLIENT_SECRET`                   | 필수. 설치 콜백 사용자 인증용 App Client secret        |
-| `GITHUB_WEBHOOK_SECRET`                      | 필수. GitHub webhook 서명 검증 키                      |
+| `GITHUB_WEBHOOK_SECRET`                      | 필수. GitHub 웹훅 서명 검증 키                      |
 | `INTERNAL_API_KEY`                           | 필수. 내부 HTTP API 공유 키                            |
-| `REDIS_HOST`                                 | 토큰·설치 캐시 Redis 연결 호스트                          |
-| `REDIS_PORT`                                 | 토큰·설치 캐시 Redis 연결 포트                           |
+| `REDIS_HOST`                                 | 토큰/설치 캐시 Redis 연결 호스트                          |
+| `REDIS_PORT`                                 | 토큰/설치 캐시 Redis 연결 포트                           |
