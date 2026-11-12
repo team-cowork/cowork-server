@@ -74,6 +74,7 @@ class ChatGithubIssueCommandProcessor(
                     ),
                 )
             }
+
             is Decision.Rejected -> operation.reject(decision.code, decision.message)
         }
         operationRepository.save(operation)
