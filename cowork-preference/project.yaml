@@ -1,0 +1,5 @@
+modules:
+  - build-plugins/ktlint
+
+plugins:
+  - ./build-plugins/ktlint

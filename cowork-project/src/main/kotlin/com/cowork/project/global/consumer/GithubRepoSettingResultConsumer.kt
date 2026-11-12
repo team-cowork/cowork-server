@@ -42,6 +42,7 @@ class GithubRepoSettingResultConsumer(
                 require(result.error == null) { "SUCCEEDED에는 error를 포함할 수 없습니다." }
                 requireNotNull(result.stateOccurredAt) { "SUCCEEDED에는 stateOccurredAt이 필요합니다." }
             }
+
             "FAILED" -> {
                 require(result.settings == null) { "FAILED에는 settings를 포함할 수 없습니다." }
                 require(result.stateOccurredAt == null) { "FAILED에는 stateOccurredAt을 포함할 수 없습니다." }
@@ -51,6 +52,7 @@ class GithubRepoSettingResultConsumer(
                     "error.message가 유효하지 않습니다."
                 }
             }
+
             else -> throw IllegalArgumentException("지원하지 않는 result status입니다.")
         }
     }

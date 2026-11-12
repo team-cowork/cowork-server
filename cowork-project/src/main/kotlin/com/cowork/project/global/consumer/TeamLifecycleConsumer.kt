@@ -46,15 +46,22 @@ class TeamLifecycleConsumer(
         val teamStateEvent = payload.eventType in setOf("TEAM_CREATED", "TEAM_UPDATED", "TEAM_DELETED")
         val reason = when {
             record.key() != payload.teamId.toString() -> "teamId와 Kafka key가 일치하지 않습니다."
+
             payload.teamId <= 0 -> "teamId는 양수여야 합니다."
+
             !knownEvent -> "지원하지 않는 eventType입니다."
+
             payload.occurredAt == null -> "occurredAt이 필요합니다."
+
             teamStateEvent && (payload.githubInstallationId == null) != (payload.githubOrgLogin == null) ->
                 "githubInstallationId와 githubOrgLogin은 함께 존재하거나 함께 없어야 합니다."
+
             payload.githubInstallationId != null && payload.githubInstallationId <= 0 ->
                 "githubInstallationId는 양수여야 합니다."
+
             payload.githubOrgLogin != null && payload.githubOrgLogin.isBlank() ->
                 "githubOrgLogin은 비어 있을 수 없습니다."
+
             else -> null
         }
         if (reason != null) {
@@ -71,6 +78,7 @@ class TeamLifecycleConsumer(
                     teamDeleted = false,
                     occurredAt = occurredAt,
                 )
+
                 "TEAM_DELETED" -> {
                     githubInstallationHandler.apply(
                         teamId = payload.teamId,
@@ -81,6 +89,7 @@ class TeamLifecycleConsumer(
                     )
                     handler.onTeamDeleted(payload.teamId, occurredAt)
                 }
+
                 else -> Unit
             }
         }
