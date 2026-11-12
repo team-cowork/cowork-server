@@ -90,7 +90,7 @@ Run these commands from the repository root:
 
 Roadmap uses `cowork-roadmap/config/eclipse-java-formatter.xml` and its configured import order. `check` and `build` run `spotlessCheck`; compilation does not format files. Run `spotlessApply` explicitly.
 
-Maven-based `cowork-project` uses `ktlint-maven-plugin` with the same ktlint release as the Gradle Kotlin modules and the root `.editorconfig`. Its `validate` phase checks formatting, so `test`, `package`, and CI reject violations. Run `ktlint:format` explicitly to format files.
+Maven-based `cowork-project` uses `ktlint-maven-plugin` with the same ktlint release as the Gradle Kotlin modules and the root `.editorconfig`. Its `validate` phase checks formatting, so local `test` and `package` commands reject violations. The Dockerfile skips this check in `builder` with `-Dktlint.skip=true`; `verification` runs it through the normal test command and rejects violations in CI. Run `ktlint:format` explicitly to format files.
 
 `cowork-preference/ktlint` runs ktlint as a standalone CLI, pinned to the same release as the Gradle Kotlin modules. Its Dockerfile `verification` stage rejects violations. There is no repository-wide formatter.
 
