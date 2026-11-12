@@ -32,6 +32,10 @@ interface ProjectGithubRepoRepository : JpaRepository<ProjectGithubRepo, Long> {
     @Query("SELECT repo FROM ProjectGithubRepo repo WHERE repo.githubWebhookChannelId = :channelId ORDER BY repo.id")
     fun findAllByGithubWebhookChannelIdForUpdate(@Param("channelId") channelId: Long): List<ProjectGithubRepo>
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT repo FROM ProjectGithubRepo repo WHERE repo.teamId = :teamId ORDER BY repo.id")
+    fun findAllByTeamIdForUpdate(@Param("teamId") teamId: Long): List<ProjectGithubRepo>
+
     fun findAllByProjectId(projectId: Long): List<ProjectGithubRepo>
     fun findByIdAndProjectId(id: Long, projectId: Long): ProjectGithubRepo?
     fun existsByTeamIdAndGithubRepoUrl(teamId: Long, githubRepoUrl: String): Boolean

@@ -5,6 +5,7 @@ type WebhookRepository = {full_name: string; private?: boolean};
 export type GithubWebhookPayload = {
 	action?: string;
 	installation?: {id: number; account?: {login?: string}};
+	account?: {login?: string};
 	repository?: WebhookRepository;
 	repositories_added?: WebhookRepository[];
 	repositories_removed?: WebhookRepository[];
@@ -40,6 +41,7 @@ export type GithubWebhookPayload = {
 	label?: {name?: string; color?: string};
 	changes?: {
 		name?: {from?: string};
+		login?: {from?: string};
 		base?: {ref?: {from?: string}};
 		repository?: {name?: {from?: string}};
 		owner?: {from?: {user?: {login?: string}; organization?: {login?: string}}};
