@@ -147,7 +147,12 @@ function formatWaiting(createdAt, now) {
 }
 
 function formatTitle(item) {
-  return `[#${item.number}](${item.url}) ${truncate(item.title, TITLE_CHAR_LIMIT)}`;
+  // Preserve complete code spans; escape formatting only outside them.
+  const title = truncate(item.title, TITLE_CHAR_LIMIT).replace(
+    /(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)|[\\`*_~|>[\]()]/g,
+    (match, codeDelimiter) => codeDelimiter ? match : `\\${match}`,
+  );
+  return `[#${item.number}](${item.url}) ${title}`;
 }
 
 function formatLine(item, now) {
