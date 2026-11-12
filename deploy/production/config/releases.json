@@ -1,82 +1,82 @@
 {
   "applications": {
     "applet": {
-      "image": "ghcr.io/team-cowork/cowork-applet@sha256:c050d50580b49c08eb64cfc5872c640f39da62520a267f147c6d535f2fac186a",
-      "image_source_sha": "ce68022fd58a84c1965dbff974f0b069f9eda72c",
+      "image": "ghcr.io/team-cowork/cowork-applet@sha256:06c34aa3c2fa4bec262406b1ace53e7c3ed955e49cf05f97cae7bb4bae1cea7e",
+      "image_source_sha": "42ced4c6467f0aafc02396a84d6c0d97d5304cff",
       "secret_version": 1,
-      "version": "20261112.0"
+      "version": "20261113.0"
     },
     "authorization": {
-      "image": "ghcr.io/team-cowork/cowork-authorization@sha256:262227ffbd9a638f74c905fcbb9813b7d547223c084dfc70152b2bc38f801441",
-      "image_source_sha": "ce68022fd58a84c1965dbff974f0b069f9eda72c",
+      "image": "ghcr.io/team-cowork/cowork-authorization@sha256:51f752be22688f23602930c21640d81349ca9d8d13fad6458449af093d115bc1",
+      "image_source_sha": "42ced4c6467f0aafc02396a84d6c0d97d5304cff",
       "secret_version": 3,
-      "version": "20261112.0"
+      "version": "20261113.0"
     },
     "channel": {
-      "image": "ghcr.io/team-cowork/cowork-channel@sha256:57289b2698b9c32651e3e6ef67c2c5593fa47a51658d9dd91a53e7c0edbb4e4a",
-      "image_source_sha": "ce68022fd58a84c1965dbff974f0b069f9eda72c",
+      "image": "ghcr.io/team-cowork/cowork-channel@sha256:7b57f1cf5012b98082b4e97145e46092c32aabeae6f8135e880825488d78ed17",
+      "image_source_sha": "42ced4c6467f0aafc02396a84d6c0d97d5304cff",
       "secret_version": 3,
-      "version": "20261112.0"
+      "version": "20261113.0"
     },
     "chat": {
-      "image": "ghcr.io/team-cowork/cowork-chat@sha256:fb277e0911ed22bc5ab10fa85239ba74b6413b19656cd492730b64d38a7a663a",
-      "image_source_sha": "ce68022fd58a84c1965dbff974f0b069f9eda72c",
+      "image": "ghcr.io/team-cowork/cowork-chat@sha256:f1784f9c794a99f5a2d6e48f24b1cff367bf89add211825267f22c2af621108c",
+      "image_source_sha": "42ced4c6467f0aafc02396a84d6c0d97d5304cff",
       "secret_version": 4,
-      "version": "20261112.0"
+      "version": "20261113.0"
     },
     "gateway": {
-      "image": "ghcr.io/team-cowork/cowork-gateway@sha256:3235398abd948d7cd21ec57e287f9d0827f6f1a94f964ada9020273f0146d541",
-      "image_source_sha": "ce68022fd58a84c1965dbff974f0b069f9eda72c",
+      "image": "ghcr.io/team-cowork/cowork-gateway@sha256:cf982516de1a1cc43bc85385f3a998047e894a0c60364fea1aa020d4181aeb2c",
+      "image_source_sha": "42ced4c6467f0aafc02396a84d6c0d97d5304cff",
       "secret_version": 4,
-      "version": "20261112.0"
+      "version": "20261113.0"
     },
     "github": {
-      "image": "ghcr.io/team-cowork/cowork-github@sha256:865f5a02cb3c848266a50ce509a1011d6b0114c14eb4c1f07ceaf8b5eb5f5918",
-      "image_source_sha": "ce68022fd58a84c1965dbff974f0b069f9eda72c",
+      "image": "ghcr.io/team-cowork/cowork-github@sha256:893f8e8ee984286f7cc74549668c71121b022e025f494a691444f427b58265a0",
+      "image_source_sha": "42ced4c6467f0aafc02396a84d6c0d97d5304cff",
       "secret_version": 3,
-      "version": "20261112.0"
+      "version": "20261113.0"
     },
     "notification": {
-      "image": "ghcr.io/team-cowork/cowork-notification@sha256:896a57b0fd9edc0e4809d841110c1f626b89e27bb94be64b8dc9aca8d6e467d1",
-      "image_source_sha": "ce68022fd58a84c1965dbff974f0b069f9eda72c",
+      "image": "ghcr.io/team-cowork/cowork-notification@sha256:ad1a8e5714174f8b65d412c46f39c54d7d0ca63e18a2e493dcc8ab3d7881a729",
+      "image_source_sha": "42ced4c6467f0aafc02396a84d6c0d97d5304cff",
       "secret_version": 2,
-      "version": "20261112.0"
+      "version": "20261113.0"
     },
     "preference": {
-      "image": "ghcr.io/team-cowork/cowork-preference@sha256:e4e1ec3f6f4318189fc35b3ad2c0eee70c6c6cdf0f480e597c113ba8ea524736",
-      "image_source_sha": "ce68022fd58a84c1965dbff974f0b069f9eda72c",
+      "image": "ghcr.io/team-cowork/cowork-preference@sha256:f094b4676fddd4029412bd7c1308d6dff657673f0db3acc4d5df23d0738ee4e9",
+      "image_source_sha": "42ced4c6467f0aafc02396a84d6c0d97d5304cff",
       "secret_version": 2,
-      "version": "20261112.0"
+      "version": "20261113.0"
     },
     "project": {
-      "image": "ghcr.io/team-cowork/cowork-project@sha256:d6ee431e5485caebe573f08e90bc54f3ce7c47785c31c521a72d1dd64106ae7a",
-      "image_source_sha": "ce68022fd58a84c1965dbff974f0b069f9eda72c",
+      "image": "ghcr.io/team-cowork/cowork-project@sha256:216a0c6297f40f8277ec57d890d28668dadbbed102279892c6b317e5517b0e32",
+      "image_source_sha": "42ced4c6467f0aafc02396a84d6c0d97d5304cff",
       "secret_version": 2,
-      "version": "20261112.0"
+      "version": "20261113.0"
     },
     "roadmap": {
-      "image": "ghcr.io/team-cowork/cowork-roadmap@sha256:317ce5e37e10c3d18870f44e43fb1a28d559d8c46602dd65c25282fb638852bb",
-      "image_source_sha": "ce68022fd58a84c1965dbff974f0b069f9eda72c",
+      "image": "ghcr.io/team-cowork/cowork-roadmap@sha256:6cc7b61bc3796bd8d583305ee920f054e798aa47720754c6905873a3d0af6c0c",
+      "image_source_sha": "42ced4c6467f0aafc02396a84d6c0d97d5304cff",
       "secret_version": 2,
-      "version": "20261112.0"
+      "version": "20261113.0"
     },
     "team": {
-      "image": "ghcr.io/team-cowork/cowork-team@sha256:67be849fc4b3bd744a8ce15b7d271e418a7f49b42c68861b9919e2660317a1e8",
-      "image_source_sha": "ce68022fd58a84c1965dbff974f0b069f9eda72c",
+      "image": "ghcr.io/team-cowork/cowork-team@sha256:e14b7500e768733ff0513fa3d4190afb330e94b96bde4518007c80e0c11e8b73",
+      "image_source_sha": "42ced4c6467f0aafc02396a84d6c0d97d5304cff",
       "secret_version": 3,
-      "version": "20261112.0"
+      "version": "20261113.0"
     },
     "user": {
-      "image": "ghcr.io/team-cowork/cowork-user@sha256:2ac1cece7a8925070c7b80bdd7a8a0098a469717df1b1b0deaefe110134d6862",
-      "image_source_sha": "ce68022fd58a84c1965dbff974f0b069f9eda72c",
+      "image": "ghcr.io/team-cowork/cowork-user@sha256:a7dd80b2872f5792c6137464e1cbc68f6cead557fb35e622c83a982e8fc302ee",
+      "image_source_sha": "42ced4c6467f0aafc02396a84d6c0d97d5304cff",
       "secret_version": 2,
-      "version": "20261112.0"
+      "version": "20261113.0"
     },
     "voice": {
-      "image": "ghcr.io/team-cowork/cowork-voice@sha256:5aee668aaccfde9d5688d2f24de22e755f95e24e22d6be980028b93c14c3dc1b",
-      "image_source_sha": "ce68022fd58a84c1965dbff974f0b069f9eda72c",
+      "image": "ghcr.io/team-cowork/cowork-voice@sha256:2e27a863e277874ea94ed289ad36573a9107de08320c2b4c3185c51f40a80dba",
+      "image_source_sha": "42ced4c6467f0aafc02396a84d6c0d97d5304cff",
       "secret_version": 2,
-      "version": "20261112.0"
+      "version": "20261113.0"
     }
   },
   "data_secret_versions": {
@@ -103,12 +103,12 @@
   },
   "infrastructure_images": {
     "chat-elasticsearch": "ghcr.io/team-cowork/cowork-chat-elasticsearch@sha256:954e1565b6b1e88dac78c912cf19eae64be96eb75ae1d34026b54ed29e6afbad",
-    "kafka-init": "ghcr.io/team-cowork/cowork-kafka-init@sha256:8fa18d40f7cadc0b44100375d3d42c80074612ba521bbe87db56d087c5208df5"
+    "kafka-init": "ghcr.io/team-cowork/cowork-kafka-init@sha256:89e3a0a8d5398a135bf6346bda2760507affdce44881719077d78627762af4a2"
   },
   "platform_secret_versions": {
     "monitoring": 4
   },
-  "release_version": "20261112.0",
+  "release_version": "20261113.0",
   "schema_version": 1,
-  "source_sha": "ce68022fd58a84c1965dbff974f0b069f9eda72c"
+  "source_sha": "42ced4c6467f0aafc02396a84d6c0d97d5304cff"
 }
