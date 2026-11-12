@@ -1,5 +1,5 @@
 // @title           cowork Voice API
-// @version         20261112.0
+// @version         20261113.0
 // @description     음성 통화와 라이브 방송에 사용할 LiveKit 토큰을 발급합니다. 응답의 livekit_url로 연결합니다.
 // @BasePath        /api/voice
 // @tag.name        voice
