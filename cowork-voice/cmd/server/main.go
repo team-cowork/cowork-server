@@ -171,6 +171,7 @@ func main() {
 	r.Get("/health", health.Handler)
 	r.Get("/health/ready", health.ReadyHandler(projectionReadiness))
 	r.Handle("/metrics", promhttp.Handler())
+	r.Get("/v3/api-docs", swaggerHandler)
 	r.Get("/swagger/*", swaggerHandler)
 	r.Post("/voice/webhook", webhookHandler.Handle)
 
