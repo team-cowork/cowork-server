@@ -17,8 +17,18 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "계정 공유 OAuth", description = "공유 계정 OAuth 연동 API")
+@Tag(name = "계정 공유 OAuth")
 @ApiResponses(
+    ApiResponse(
+        responseCode = "503",
+        description = "권한 정보 동기화 중",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
+    ),
+    ApiResponse(
+        responseCode = "429",
+        description = "요청 한도 초과",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
+    ),
     ApiResponse(
         responseCode = "401",
         description = "액세스 토큰이 없거나 유효하지 않음",
@@ -52,6 +62,16 @@ class OAuthAccountController(
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
+        ApiResponse(
+            responseCode = "409",
+            description = "보관된 채널은 변경할 수 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                ),
+            ],
+        ),
         ApiResponse(responseCode = "200", description = "인증 URL 반환"),
         ApiResponse(
             responseCode = "400",

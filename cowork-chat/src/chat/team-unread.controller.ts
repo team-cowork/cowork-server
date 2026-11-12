@@ -16,6 +16,7 @@ import {UnreadCountItemDto} from './dto/index.js';
 @apiExtraModels(ApiResponseMetadataDto, UnreadCountItemDto)
 @apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
+@apiResponse({status: 429, description: '요청 한도 초과', type: ApiResponseMetadataDto})
 @controller('teams/:teamId')
 export class TeamUnreadController {
 	constructor(private readonly chatService: ChatService) {}
@@ -24,7 +25,7 @@ export class TeamUnreadController {
 	@apiOperation({summary: '팀 채널별 읽지 않은 메시지 수 조회'})
 	@apiResponse({
 		status: 200,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},
@@ -41,6 +42,9 @@ export class TeamUnreadController {
 			],
 		},
 	})
+	@apiResponse({status: 400, description: '팀 ID 형식 오류', type: ApiResponseMetadataDto})
+	@apiResponse({status: 403, description: '팀 접근 권한 없음', type: ApiResponseMetadataDto})
+	@apiResponse({status: 503, description: '권한 정보 동기화 중', type: ApiResponseMetadataDto})
 	async getTeamUnread(
 		@requestParameter('teamId', SafePositiveIntPipe) teamId: number,
 		@currentUserId() userId: number,

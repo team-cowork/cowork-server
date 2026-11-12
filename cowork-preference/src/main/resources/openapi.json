@@ -1054,7 +1054,7 @@
     }
   },
   "components": {
-    "securitySchemes": {"BearerAuth": {"type": "http", "scheme": "bearer", "description": "Cowork 액세스 토큰"}},
+    "securitySchemes": {"BearerAuth": {"type": "http", "scheme": "bearer", "description": "cowork 액세스 토큰"}},
     "parameters": {
       "ResourceId": {"name": "id", "in": "path", "required": true, "schema": {"type": "integer", "format": "int64"}, "description": "리소스 ID"},
       "ProjectId": {

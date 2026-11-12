@@ -76,7 +76,7 @@ public class RoadmapAssignmentController {
 
     @Operation(summary = "내 과제 목록 조회")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 완료", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
+            @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
                             @SchemaProperty(name = "status", schema = @Schema(implementation = HttpStatus.class, example = "200 OK")),
                             @SchemaProperty(name = "code", schema = @Schema(type = "integer", example = "200")),
@@ -89,7 +89,7 @@ public class RoadmapAssignmentController {
 
     @Operation(summary = "로드맵별 과제 목록 조회")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 완료", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
+            @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
                             @SchemaProperty(name = "status", schema = @Schema(implementation = HttpStatus.class, example = "200 OK")),
                             @SchemaProperty(name = "code", schema = @Schema(type = "integer", example = "200")),
@@ -107,7 +107,7 @@ public class RoadmapAssignmentController {
 
     @Operation(summary = "과제 진행 상태 변경")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "수정 완료", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
+            @ApiResponse(responseCode = "200", description = "수정 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
                             @SchemaProperty(name = "status", schema = @Schema(implementation = HttpStatus.class, example = "200 OK")),
                             @SchemaProperty(name = "code", schema = @Schema(type = "integer", example = "200")),

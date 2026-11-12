@@ -59,7 +59,7 @@ const docTemplate = `{
                         }
                     },
                     "403": {
-                        "description": "Forbidden",
+                        "description": "음성 채널 접근 권한 없음",
                         "schema": {
                             "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
@@ -341,6 +341,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
+                    "429": {
+                        "description": "요청 한도 초과",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
                     "500": {
                         "description": "서버 오류",
                         "schema": {
@@ -363,7 +369,7 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "채널에서 퇴장합니다. 마지막 참여자가 나가면 LiveKit이 빈 방을 자동 정리하고, room_finished 웹훅으로 세션이 종료됩니다.",
+                "description": "마지막 참여자가 퇴장하면 세션이 종료됩니다.",
                 "produces": [
                     "application/json"
                 ],
@@ -408,6 +414,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
+                    "429": {
+                        "description": "요청 한도 초과",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
                     "500": {
                         "description": "서버 오류",
                         "schema": {
@@ -430,7 +442,6 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "현재 음성 채널에 참여 중인 사용자 목록을 반환합니다.",
                 "produces": [
                     "application/json"
                 ],
@@ -472,6 +483,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
                     },
+                    "429": {
+                        "description": "요청 한도 초과",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
                     "500": {
                         "description": "서버 오류",
                         "schema": {
@@ -494,7 +511,6 @@ const docTemplate = `{
                         "BearerAuth": []
                     }
                 ],
-                "description": "session_id로 음성 세션 정보를 조회합니다.",
                 "produces": [
                     "application/json"
                 ],
@@ -531,7 +547,13 @@ const docTemplate = `{
                         }
                     },
                     "404": {
-                        "description": "Not Found",
+                        "description": "세션 없음",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
+                        }
+                    },
+                    "429": {
+                        "description": "요청 한도 초과",
                         "schema": {
                             "$ref": "#/definitions/github_com_cowork_cowork-voice_internal_apidoc.Error"
                         }
@@ -969,7 +991,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/api/voice",
 	Schemes:          []string{},
 	Title:            "cowork Voice API",
-	Description:      "음성 통화와 라이브 방송에 사용할 LiveKit 토큰을 발급합니다. 클라이언트는 응답의 data.livekit_url로 LiveKit에 직접 연결합니다. room_name은 통화방 이름이고 session_id는 세션 조회에 사용하는 ID입니다.",
+	Description:      "음성 통화와 라이브 방송에 사용할 LiveKit 토큰을 발급합니다. 응답의 livekit_url로 연결합니다.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",
