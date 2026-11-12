@@ -1,0 +1,5 @@
+interface:
+  display_name: "Review Open PRs"
+  short_description: "Review, follow up on, or approve the open pull requests"
+policy:
+  allow_implicit_invocation: false
