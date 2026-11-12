@@ -5,7 +5,6 @@
     <plugin id="com.intellij.spring.boot" />
     <plugin id="com.intellij.gradle" />
     <plugin id="com.github.dinbtechit.jetbrainsnestjs" />
-    <plugin id="name.kropp.intellij.makefile" />
     <plugin id="org.jetbrains.kotlin-toolchain" />
     <plugin optional="true" id="com.dsoftware.ghtoolbar" />
   </component>
