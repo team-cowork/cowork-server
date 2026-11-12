@@ -7,6 +7,11 @@ import {SearchModule} from '../search/search.module.js';
 import {RedisRateLimiter} from '../common/util/redis-rate-limiter.js';
 import {SocketIoRedisConnection} from '../common/adapter/redis-io.adapter.js';
 import {ThrottleGuard} from '../common/guard/throttle.guard.js';
+import {MeetingNoteAttachmentController} from './meeting-note-attachment.controller.js';
+import {MeetingNoteAttachmentDownloadService} from './service/meeting-note-attachment-download.service.js';
+import {MeetingNoteAttachmentConsumer} from './kafka/meeting-note-attachment.consumer.js';
+import {MeetingNoteAttachmentProjectionRepository} from './repository/meeting-note-attachment-projection.repository.js';
+import {MeetingNoteAttachmentProjection, meetingNoteAttachmentProjectionSchema} from './schema/meeting-note-attachment-projection.schema.js';
 import {WebhookRateLimiter} from './webhook/webhook-rate-limiter.js';
 import {WebhookMessageRepository} from './webhook/webhook-message.repository.js';
 import {WebhookController} from './webhook/webhook.controller.js';
@@ -130,10 +135,14 @@ import {
 	MessageSearchRebuilder,
 	MessageSearchAdminService,
 } from './search/index.js';
+import {MeetingNoteAttachmentRetention, meetingNoteAttachmentRetentionSchema} from './schema/meeting-note-attachment-retention.schema.js';
+import {MeetingNoteAttachmentRetentionRepository} from './repository/meeting-note-attachment-retention.repository.js';
 
 @nestModule({
 	imports: [
 		MongooseModule.forFeature([
+			{name: MeetingNoteAttachmentRetention.name, schema: meetingNoteAttachmentRetentionSchema},
+			{name: MeetingNoteAttachmentProjection.name, schema: meetingNoteAttachmentProjectionSchema},
 			{name: Message.name, schema: messageSchema},
 			{name: ChannelReadState.name, schema: channelReadStateSchema},
 			{name: DmParticipant.name, schema: dmParticipantSchema},
@@ -161,6 +170,7 @@ import {
 		SearchModule,
 	],
 	controllers: [
+		MeetingNoteAttachmentController,
 		WebhookController,
 		ChatController,
 		DmController,
@@ -171,6 +181,10 @@ import {
 		MessageSearchAdminController,
 	],
 	providers: [
+		MeetingNoteAttachmentRetentionRepository,
+		MeetingNoteAttachmentProjectionRepository,
+		MeetingNoteAttachmentConsumer,
+		MeetingNoteAttachmentDownloadService,
 		WebhookService,
 		WebhookMessageRepository,
 		WebhookRateLimiter,

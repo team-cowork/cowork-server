@@ -433,6 +433,13 @@
         "cleanup.policy": "delete",
         "retention.ms": "604800000"
       }
+    },
+    "channel.meeting-note-attachments.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
     }
   },
   "principals": {
@@ -462,7 +469,8 @@
         "preference.project-access.state.v1",
         "preference.channel-role-policy.command.v2",
         "preference.channel-role-policy.result.v2",
-        "preference.channel-role-policy.result.v2-dlt"
+        "preference.channel-role-policy.result.v2-dlt",
+        "channel.meeting-note-attachments.state.v1"
       ]
     },
     "cowork-chat": {
@@ -487,7 +495,8 @@
         "preference.webhook.state.v2",
         "project.chat-github-issue.command",
         "project.chat-github-issue.command-dlt",
-        "project.chat-github-issue.result"
+        "project.chat-github-issue.result",
+        "channel.meeting-note-attachments.state.v1"
       ]
     },
     "cowork-github": {
