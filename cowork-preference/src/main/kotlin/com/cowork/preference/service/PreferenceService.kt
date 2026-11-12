@@ -3,7 +3,6 @@ package com.cowork.preference.service
 import com.cowork.preference.cache.PreferenceCache
 import com.cowork.preference.cache.VersionedSettings
 import com.cowork.preference.domain.ResourceType
-import com.cowork.preference.domain.SettingDefaultsResolver
 import com.cowork.preference.domain.SettingSchema
 import com.cowork.preference.messaging.PreferenceEvents
 import com.cowork.preference.repository.PreferenceOutboxRepository
@@ -176,21 +175,16 @@ class PreferenceService(
         VersionedSettings(normalizeSettings(resourceType, state?.settings), state?.stateOccurredAt ?: Instant.EPOCH)
 
     private fun normalizeSettings(resourceType: ResourceType, settings: JsonObject?): JsonObject {
-        if (resourceType ==
-            ResourceType.TEXT_CHANNEL
-        ) {
-            return (settings?.copy() ?: JsonObject()).apply { remove("webhook") }
+        val resolved = SettingSchema.applyDefaults(resourceType, settings)
+        return when (resourceType) {
+            ResourceType.TEXT_CHANNEL -> resolved.apply { remove("webhook") }
+            ResourceType.GITHUB_REPO -> SettingSchema.filter(resourceType, resolved)
+            else -> resolved
         }
-        if (resourceType != ResourceType.GITHUB_REPO) return settings ?: JsonObject()
-        val resolved = SettingDefaultsResolver.resolve(settings, GITHUB_REPO_DEFAULTS)
-        return JsonObject()
-            .put(LABEL_AUTO_APPLY, resolved.getBoolean(LABEL_AUTO_APPLY))
     }
 
     companion object {
         private const val NICKNAME_FORMAT_ENFORCED = "nickname_format_enforced"
         private const val NICKNAME_FORMAT_EXAMPLE = "nickname_format_example"
-        private const val LABEL_AUTO_APPLY = "label_auto_apply"
-        private val GITHUB_REPO_DEFAULTS: Map<String, Any> = mapOf(LABEL_AUTO_APPLY to true)
     }
 }
