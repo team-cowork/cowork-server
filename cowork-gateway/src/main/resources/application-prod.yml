@@ -367,6 +367,25 @@ spring:
 
         # 첨부 미리보기는 첨부마다 download-url을 부르므로, 채널을 열 때 몰리는 요청이 chat-service 한도를 넘지 않게 따로 둔다.
         # chat-service의 /api/chat/chat/**보다 먼저 일치해야 하므로 그 앞에 선언한다.
+        - id: meeting-note-attachment-download-url
+          uri: ${COWORK_CHAT_URL}
+          predicates:
+            - Path=/api/channel/channels/*/meeting-notes/*/attachments/download-url
+            - Method=GET
+          filters:
+            - StripPrefix=2
+            - PrefixPath=/chat
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 50
+                redis-rate-limiter.burstCapacity: 200
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: chatCB
+                fallbackUri: forward:/fallback
+
         - id: chat-attachment-download-url
           uri: ${COWORK_CHAT_URL}
           predicates:
