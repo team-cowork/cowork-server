@@ -1,11 +1,12 @@
 package com.cowork.preference.domain.teamrole.command
 
 import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommand
-import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommandQuarantineRecord
-import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommandRecordDecision
+import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommandEnvelope
 import com.cowork.preference.domain.teamrole.command.repository.TeamRoleCommandInboxRepository
 import com.cowork.preference.global.config.kafkaClientProperties
-import com.cowork.preference.global.messaging.event.PreferenceEvents
+import com.cowork.preference.global.messaging.command.model.CommandDecision
+import com.cowork.preference.global.messaging.command.model.CommandQuarantineRecord
+import com.cowork.preference.global.messaging.event.PreferenceTopics
 import io.vertx.core.Future
 import io.vertx.core.Vertx
 import io.vertx.kafka.client.consumer.KafkaConsumer
@@ -56,10 +57,10 @@ class TeamRoleCommandConsumer(
             }
         }
         scope.launch(vertx.dispatcher()) {
-            retry("subscribe") { consumer.subscribe(PreferenceEvents.TEAM_ROLE_COMMAND_TOPIC).coAwait() }
+            retry("subscribe") { consumer.subscribe(PreferenceTopics.TEAM_ROLE_COMMAND_TOPIC).coAwait() }
             log.info(
                 "Preference team-role command consumer subscribed topic={} group={}",
-                PreferenceEvents.TEAM_ROLE_COMMAND_TOPIC,
+                PreferenceTopics.TEAM_ROLE_COMMAND_TOPIC,
                 groupId,
             )
         }
@@ -74,9 +75,9 @@ class TeamRoleCommandConsumer(
         for (index in 0 until records.size()) {
             val record = records.recordAt(index)
             when (val decision = TeamRoleCommandParser.parse(record.key(), record.value())) {
-                is TeamRoleCommandRecordDecision.Apply -> processWithRetry(record, decision.command)
-                is TeamRoleCommandRecordDecision.Reject -> rejectWithRetry(record, decision)
-                is TeamRoleCommandRecordDecision.Quarantine -> quarantineWithRetry(record, decision.reason)
+                is CommandDecision.Apply -> processWithRetry(record, decision.command)
+                is CommandDecision.Reject -> rejectWithRetry(record, decision)
+                is CommandDecision.Quarantine -> quarantineWithRetry(record, decision.reason)
             }
         }
     }
@@ -104,7 +105,7 @@ class TeamRoleCommandConsumer(
 
     private suspend fun rejectWithRetry(
         record: KafkaConsumerRecord<String, String>,
-        rejection: TeamRoleCommandRecordDecision.Reject,
+        rejection: CommandDecision.Reject<TeamRoleCommandEnvelope>,
     ) {
         while (!closed) {
             try {
@@ -168,7 +169,7 @@ class TeamRoleCommandConsumer(
     private fun quarantineRecord(
         record: KafkaConsumerRecord<String, String>,
         reason: String,
-    ): TeamRoleCommandQuarantineRecord = TeamRoleCommandQuarantineRecord(
+    ): CommandQuarantineRecord = CommandQuarantineRecord(
         topic = record.topic(),
         partition = record.partition(),
         offset = record.offset(),

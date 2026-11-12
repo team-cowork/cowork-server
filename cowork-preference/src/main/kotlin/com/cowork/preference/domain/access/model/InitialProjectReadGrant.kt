@@ -12,9 +12,13 @@ data class InitialProjectReadGrant(
         fun fromJson(payload: JsonObject): InitialProjectReadGrant {
             val membershipVersion = Instant.parse(payload.getString("sourceMembershipVersion"))
             return InitialProjectReadGrant(
-                positiveId(payload, "accountId"),
+                InitialResourceAccessInput.positiveId(payload, "accountId"),
                 membershipVersion,
-                authorizationVersion(payload, "sourceAuthorizationVersion", membershipVersion),
+                InitialResourceAccessInput.authorizationVersion(
+                    payload,
+                    "sourceAuthorizationVersion",
+                    membershipVersion,
+                ),
             )
         }
     }

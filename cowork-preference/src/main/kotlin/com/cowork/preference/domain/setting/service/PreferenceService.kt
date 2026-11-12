@@ -2,11 +2,11 @@ package com.cowork.preference.domain.setting.service
 
 import com.cowork.preference.domain.setting.cache.PreferenceCache
 import com.cowork.preference.domain.setting.cache.VersionedSettings
+import com.cowork.preference.domain.setting.event.SettingEvents
 import com.cowork.preference.domain.setting.model.ResourceSettingState
 import com.cowork.preference.domain.setting.model.ResourceType
 import com.cowork.preference.domain.setting.model.SettingSchema
 import com.cowork.preference.domain.setting.repository.PreferenceRepository
-import com.cowork.preference.global.messaging.event.PreferenceEvents
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import io.vertx.core.json.JsonObject
 import java.time.Instant
@@ -45,7 +45,7 @@ class PreferenceService(
             if (needPrevStatus) {
                 outboxRepository.enqueue(
                     connection,
-                    PreferenceEvents.statusChanged(
+                    SettingEvents.statusChanged(
                         accountId = resourceId,
                         previousStatus = result.previousStatus,
                         newStatus = filtered.getString("status"),
@@ -57,7 +57,7 @@ class PreferenceService(
             when (resourceType) {
                 ResourceType.ACCOUNT -> outboxRepository.enqueue(
                     connection,
-                    PreferenceEvents.accountSettingState(
+                    SettingEvents.accountSettingState(
                         accountId = resourceId,
                         settings = result.settings,
                         occurredAt = result.stateOccurredAt,
@@ -67,7 +67,7 @@ class PreferenceService(
 
                 ResourceType.TEAM -> outboxRepository.enqueue(
                     connection,
-                    PreferenceEvents.teamSettingState(
+                    SettingEvents.teamSettingState(
                         teamId = resourceId,
                         settings = result.settings,
                         occurredAt = result.stateOccurredAt,
@@ -77,7 +77,7 @@ class PreferenceService(
 
                 ResourceType.TEXT_CHANNEL -> outboxRepository.enqueue(
                     connection,
-                    PreferenceEvents.textChannelSettingState(
+                    SettingEvents.textChannelSettingState(
                         channelId = resourceId,
                         settings = result.settings,
                         occurredAt = result.stateOccurredAt,
@@ -87,7 +87,7 @@ class PreferenceService(
 
                 ResourceType.VOICE_CHANNEL -> outboxRepository.enqueue(
                     connection,
-                    PreferenceEvents.voiceChannelSettingState(
+                    SettingEvents.voiceChannelSettingState(
                         channelId = resourceId,
                         settings = result.settings,
                         occurredAt = result.stateOccurredAt,
@@ -100,7 +100,7 @@ class PreferenceService(
             if (resourceType == ResourceType.GITHUB_REPO) {
                 outboxRepository.enqueue(
                     connection,
-                    PreferenceEvents.githubRepoSettingState(
+                    SettingEvents.githubRepoSettingState(
                         repoId = resourceId,
                         settings = result.settings,
                         occurredAt = result.stateOccurredAt,
@@ -128,7 +128,7 @@ class PreferenceService(
             outboxRepository.enqueueAll(
                 connection,
                 clearedStates.map { state ->
-                    PreferenceEvents.accountSettingState(
+                    SettingEvents.accountSettingState(
                         accountId = state.resourceId,
                         settings = state.settings,
                         occurredAt = state.stateOccurredAt,
@@ -139,7 +139,7 @@ class PreferenceService(
             outboxRepository.enqueueAll(
                 connection,
                 lockedExpired.map { (accountId, previousStatus) ->
-                    PreferenceEvents.statusChanged(
+                    SettingEvents.statusChanged(
                         accountId = accountId,
                         previousStatus = previousStatus,
                         newStatus = null,
