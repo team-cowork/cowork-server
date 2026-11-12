@@ -34,3 +34,6 @@ docs
 **/__pycache__
 
 **/coverage
+cowork-authorization/swagger
+cowork-notification/swagger
+cowork-voice/swagger
