@@ -11,7 +11,7 @@ LiveKit 기반 음성 채널과 1:N 라이브 룸을 관리합니다.
 ## 스택
 
 - Go / Chi
-- Go modules + Makefile
+- Go modules
 - LiveKit Server SDK / MongoDB
 - Kafka
 
