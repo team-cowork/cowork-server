@@ -295,6 +295,17 @@ class TeamGithubInstallationConsumerTest :
                     }
                 }
 
+                context("orgLogin이 비어 있으면") {
+                    it("revision 원장을 건드리지 않고 무시한다") {
+                        consumer.consumeRenamed(
+                            TeamGithubRenamedPayload(installationId = 1L, orgLogin = " ", revision = 1L),
+                        )
+
+                        verify(exactly = 0) { revisionRepository.insertInitialIfAbsent(any()) }
+                        verify(exactly = 0) { teamRepository.save(any()) }
+                    }
+                }
+
                 context("installation에 연결된 팀이 없으면") {
                     it("무시한다") {
                         stubNoLedger(1L)
