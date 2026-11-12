@@ -52,6 +52,7 @@ import {StartMessageSearchRebuildDto} from './dto/index.js';
 @apiExtraModels(ApiResponseMetadataDto, MessageSearchStatusDto)
 @apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
+@apiResponse({status: 429, description: '요청 한도 초과', type: ApiResponseMetadataDto})
 @controller('admin/message-search')
 export class MessageSearchAdminController {
 	constructor(private readonly messageSearchAdminService: MessageSearchAdminService) {}
@@ -86,7 +87,7 @@ export class MessageSearchAdminController {
 	@apiOperation({summary: '실패한 색인 및 삭제 작업 재시도'})
 	@apiResponse({
 		status: 200,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},

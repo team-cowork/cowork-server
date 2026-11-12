@@ -7,8 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cowork/authorization/internal/domain"
 	"gorm.io/gorm"
+
+	"github.com/cowork/authorization/internal/domain"
 )
 
 type findResult struct {

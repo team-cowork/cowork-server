@@ -72,6 +72,32 @@ class TeamGithubInstallationConsumer(
         teamEventPublisher.publishUpdated(team, actorUserId)
     }
 
+    // GitHub 조직 이름 변경은 설치 자체가 그대로라 state가 없다. 이미 연결된 팀의 orgLogin만 갱신한다.
+    @KafkaListener(
+        topics = [Topics.TEAM_GITHUB_RENAMED],
+        groupId = "cowork-team.github-renamed",
+        containerFactory = "teamGithubRenamedListenerContainerFactory",
+    )
+    @Transactional
+    fun consumeRenamed(payload: TeamGithubRenamedPayload) {
+        // 빈 orgLogin을 저장하면 team.lifecycle을 받는 서비스가 그 이벤트를 격리한다.
+        if (payload.orgLogin.isBlank()) {
+            log.warn("team.github.renamed: installation {} 의 orgLogin이 비어 있어 무시합니다", payload.installationId)
+            return
+        }
+        // renamed는 이미 연결된 팀의 이름만 바꾼다. 연결된 팀이 없을 때 원장을 올리면 같은 revision 카운터를 쓰는
+        // connected가 뒤늦게 도착했을 때 낮은 revision으로 버려져 팀이 연결되지 않으므로, 팀을 먼저 확인한다.
+        val existing = teamRepository.findByGithubInstallationId(payload.installationId) ?: return
+        if (!guardRevision(Topics.TEAM_GITHUB_RENAMED, payload.installationId, payload.revision)) return
+
+        val team = teamRepository.findByIdForUpdate(existing.id) ?: return
+        if (team.githubInstallationId != payload.installationId) return
+        if (team.githubOrgLogin == payload.orgLogin) return
+        team.connectGithub(payload.installationId, payload.orgLogin)
+        teamRepository.save(team)
+        teamEventPublisher.publishUpdated(team, team.ownerId)
+    }
+
     @KafkaListener(
         topics = [Topics.TEAM_GITHUB_DISCONNECTED],
         groupId = "cowork-team.github-disconnected",
@@ -89,7 +115,7 @@ class TeamGithubInstallationConsumer(
         teamEventPublisher.publishUpdated(team, team.ownerId)
     }
 
-    // installation별 revision 원장을 잠근 상태로 조회한다. 같은 installation의 connected/disconnected
+    // installation별 revision 원장을 잠근 상태로 조회한다. 같은 installation의 connected/renamed/disconnected
     // topic을 각각 소비하는 트랜잭션이 이 잠금으로 서로 순서를 기다리게 되어, 두 topic 사이의 도착 순서
     // 역전을 막는다. revision이 낮거나 같으면 false를 반환해 호출자가 나머지 로직을 건너뛰게 한다.
     //

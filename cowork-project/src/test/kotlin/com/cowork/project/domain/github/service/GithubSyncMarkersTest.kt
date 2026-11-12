@@ -108,6 +108,7 @@ class GithubSyncMarkersTest :
                     }
 
                     ex.statusCode shouldBe HttpStatus.NOT_FOUND
+                    ex.message shouldBe "GitHub에서 삭제되었거나 앱 설치 범위에서 빠진 저장소입니다."
                 }
             }
 

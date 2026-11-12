@@ -5,8 +5,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cowork/cowork-voice/internal/config"
 	"github.com/segmentio/kafka-go"
+
+	"github.com/cowork/cowork-voice/internal/config"
 )
 
 type Producer struct {

@@ -53,6 +53,7 @@ import {ChatMessageQuarantineRecordIdDto, FindChatMessageQuarantineRecordsDto} f
 @apiExtraModels(ApiResponseMetadataDto, QuarantineRecordDto)
 @apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
+@apiResponse({status: 429, description: '요청 한도 초과', type: ApiResponseMetadataDto})
 @controller('admin/message-quarantine')
 export class ChatMessageQuarantineAdminController {
 	constructor(private readonly quarantineService: ChatMessageQuarantineService) {}
@@ -61,7 +62,7 @@ export class ChatMessageQuarantineAdminController {
 	@apiOperation({summary: '격리된 메시지의 상태 및 원인별 건수 조회'})
 	@apiResponse({
 		status: 200,
-		description: '요청 처리 완료',
+		description: '요청 처리 성공',
 		schema: {
 			allOf: [
 				{$ref: getSchemaPath(ApiResponseMetadataDto)},

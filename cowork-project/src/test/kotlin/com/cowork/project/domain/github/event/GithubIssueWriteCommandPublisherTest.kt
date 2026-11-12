@@ -99,7 +99,9 @@ class GithubIssueWriteCommandPublisherTest :
                         occurredAt = Instant.now(),
                     )
 
-                    verify(exactly = 2) { outboxWriter.enqueue(GITHUB_ISSUE_WRITE_COMMAND_TOPIC, "my-org/my-repo", any()) }
+                    verify(exactly = 2) {
+                        outboxWriter.enqueue(GITHUB_ISSUE_WRITE_COMMAND_TOPIC, "my-org/my-repo", any())
+                    }
                     savedOperations.map { it.operationId }.toSet() shouldHaveSize 2
                 }
 
@@ -143,7 +145,9 @@ class GithubIssueWriteCommandPublisherTest :
                         occurredAt = Instant.now(),
                     )
 
-                    verify(exactly = 2) { outboxWriter.enqueue(GITHUB_ISSUE_WRITE_COMMAND_TOPIC, "my-org/my-repo", any()) }
+                    verify(exactly = 2) {
+                        outboxWriter.enqueue(GITHUB_ISSUE_WRITE_COMMAND_TOPIC, "my-org/my-repo", any())
+                    }
                     savedOperations.map { it.operationId }.toSet() shouldHaveSize 2
                 }
             }

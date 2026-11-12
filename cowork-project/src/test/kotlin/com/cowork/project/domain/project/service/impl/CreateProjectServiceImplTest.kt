@@ -1,19 +1,18 @@
 package com.cowork.project.domain.project.service.impl
 
-import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.TeamRolePermissionReader
+import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.event.ProjectEventPublisher
 import com.cowork.project.domain.project.presentation.data.request.CreateProjectReqDto
+import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
-import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
-import java.time.Instant
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Nested
@@ -21,6 +20,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
+import java.time.Instant
 
 class CreateProjectServiceImplTest {
 
@@ -29,7 +29,13 @@ class CreateProjectServiceImplTest {
     private val projectEventPublisher = mockk<ProjectEventPublisher>(relaxed = true)
     private val teamPermissions = mockk<TeamRolePermissionReader>(relaxed = true)
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true), teamPermissions)
+        ProjectAccessGuard(
+            projectRepository,
+            mockk<ProjectAccessProjectionRepository>(relaxed = true),
+            teamMembershipRepository,
+            mockk(relaxed = true),
+            teamPermissions,
+        )
 
     private val service =
         CreateProjectServiceImpl(
@@ -59,7 +65,8 @@ class CreateProjectServiceImplTest {
 
         @Test
         fun `createProject은 마지막 position 다음에 만들고 권한 기반 접근 목록 갱신을 요청한다`() {
-            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L, "OWNER")
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns
+                membership(100L, 7L, "OWNER")
             every { projectRepository.findAllByTeamIdForUpdate(100L) } returns
                 listOf(project(id = 1L, position = 3), project(id = 2L, position = 1))
             every { projectRepository.save(any()) } answers { firstArg() }
@@ -72,7 +79,8 @@ class CreateProjectServiceImplTest {
 
         @Test
         fun `createProject은 프로젝트가 없는 팀에 position 0을 할당한다`() {
-            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L, "OWNER")
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns
+                membership(100L, 7L, "OWNER")
             every { projectRepository.findAllByTeamIdForUpdate(100L) } returns emptyList()
             every { projectRepository.save(any()) } answers { firstArg() }
 
@@ -83,9 +91,11 @@ class CreateProjectServiceImplTest {
 
         @Test
         fun `createProject은 동시 생성으로 position 유일성 제약이 충돌하면 CONFLICT`() {
-            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns membership(100L, 7L, "OWNER")
+            every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns
+                membership(100L, 7L, "OWNER")
             every { projectRepository.findAllByTeamIdForUpdate(100L) } returns emptyList()
-            every { projectRepository.save(any()) } throws DataIntegrityViolationException("uq_tb_projects_team_id_position")
+            every { projectRepository.save(any()) } throws
+                DataIntegrityViolationException("uq_tb_projects_team_id_position")
 
             val ex = assertThrows(ExpectedException::class.java) {
                 service.execute(7L, CreateProjectReqDto(teamId = 100L, name = "p", description = null))
@@ -101,7 +111,13 @@ class CreateProjectServiceImplTest {
             val authorizationVersion = version.minusSeconds(1)
             val saved = slot<Project>()
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns
-                TeamMembership(teamId = 100L, userId = 7L, role = "MEMBER", sourceOccurredAt = version, authorizationVersion = authorizationVersion)
+                TeamMembership(
+                    teamId = 100L,
+                    userId = 7L,
+                    role = "MEMBER",
+                    sourceOccurredAt = version,
+                    authorizationVersion = authorizationVersion,
+                )
             every { teamPermissions.hasPermission(100L, 7L, "manage_projects") } returns true
             every { teamPermissions.hasPermission(100L, 7L, "project_read") } returns true
             every { projectRepository.save(capture(saved)) } answers { firstArg() }

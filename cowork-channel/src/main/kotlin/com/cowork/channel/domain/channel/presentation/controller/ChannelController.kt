@@ -31,8 +31,13 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import io.swagger.v3.oas.annotations.parameters.RequestBody as SwaggerRequestBody
 
-@Tag(name = "채널", description = "채널 생성/수정/삭제 및 접근자 조회 API")
+@Tag(name = "채널", description = "채널을 생성하고 정보와 접근 가능한 사용자를 관리합니다.")
 @ApiResponses(
+    ApiResponse(
+        responseCode = "429",
+        description = "요청 한도 초과",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
+    ),
     ApiResponse(
         responseCode = "401",
         description = "액세스 토큰이 없거나 유효하지 않음",
@@ -321,7 +326,7 @@ class ChannelController(
     @Operation(
         summary = "채널 보관",
         description = "텍스트 채널을 읽기 전용으로 보관합니다. 프로젝트 채널은 해당 프로젝트의 채널 보관 권한, " +
-            "프로젝트가 없는 채널은 archive_channels 팀 권한이 필요합니다. 보관된 채널은 조회·검색·복원·삭제와 " +
+            "프로젝트가 없는 채널은 archive_channels 팀 권한이 필요합니다. 보관된 채널은 조회/검색/복원/삭제와 " +
             "열람 대상 조정(채널 역할 권한, 공개 여부 변경)만 할 수 있습니다.",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
