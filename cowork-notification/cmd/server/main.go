@@ -2,6 +2,10 @@
 // @version        20261111.1
 // @description    Firebase 설치를 계정에 연결하고 실시간 알림을 제공합니다.
 // @BasePath       /api/notification
+// @tag.name        installations
+// @tag.description 알림을 받을 Firebase 설치를 등록하고 해제합니다.
+// @tag.name        notifications
+// @tag.description 실시간 알림 스트림을 구독합니다.
 // @securityDefinitions.apikey BearerAuth
 // @in             header
 // @name           Authorization
