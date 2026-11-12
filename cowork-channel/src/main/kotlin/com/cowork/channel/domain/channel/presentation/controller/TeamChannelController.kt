@@ -25,7 +25,7 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "팀 채널")
+@Tag(name = "팀 채널", description = "팀에 속한 채널의 목록과 순서를 관리합니다.")
 @ApiResponses(
     ApiResponse(
         responseCode = "401",

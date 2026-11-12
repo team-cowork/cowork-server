@@ -2,7 +2,7 @@ package com.cowork.project.domain.github.presentation.data.response
 
 import io.swagger.v3.oas.annotations.media.Schema
 
-@Schema(description = "레포에 정의된 GitHub 라벨")
+@Schema(description = "저장소에 정의된 GitHub 라벨")
 data class GithubLabelResDto(
     @field:Schema(description = "라벨 이름", example = "bug")
     val name: String,
