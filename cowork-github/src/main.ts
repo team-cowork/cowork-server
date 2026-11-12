@@ -1,8 +1,10 @@
+import {readFileSync} from 'node:fs';
 import {Logger, ValidationPipe} from '@nestjs/common';
 import {NestFactory} from '@nestjs/core';
 import {type MicroserviceOptions, Transport} from '@nestjs/microservices';
 import {Logger as PinoLogger} from 'nestjs-pino';
 import {AppConfigService} from './config/app-config.service.js';
+import {setupSwagger} from './config/swagger.js';
 
 async function bootstrap() {
 	const {AppModule: appModule} = await import('./app.module.js');
@@ -34,6 +36,8 @@ async function bootstrap() {
 	app.useGlobalPipes(new ValidationPipe({whitelist: true}));
 	// Bun runs as PID 1, so exit after shutdown hooks instead of re-sending the signal.
 	app.enableShutdownHooks(['SIGTERM', 'SIGINT'], {useProcessExit: true});
+	const {version} = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')) as {version: string};
+	setupSwagger(app, version);
 
 	await app.startAllMicroservices();
 	await app.listen(config.port);
