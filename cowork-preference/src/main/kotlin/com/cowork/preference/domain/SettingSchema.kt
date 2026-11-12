@@ -1,5 +1,6 @@
 package com.cowork.preference.domain
 
+import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
 import java.time.DateTimeException
 import java.time.Instant
@@ -11,166 +12,179 @@ import java.time.format.DateTimeParseException
 
 object SettingSchema {
 
-    private val ACCOUNT_KEYS = setOf(
-        "status",
-        "status_expires_at",
-        "marketing_email",
-        "theme",
-        "language",
-        "time_format",
-        "date_format",
-        "timezone",
-        "notification_level",
-        "dnd_schedule",
-        "message_display",
-        "enter_to_send",
-    )
-    private val TEAM_KEYS = setOf(
-        "tag_spam_block",
-        "nickname_format_enforced",
-        "nickname_format_example",
-        "default_notification_level",
-    )
-    private val VOICE_CHANNEL_KEYS = setOf("bitrate", "max_participants")
-    private val TEXT_CHANNEL_KEYS = setOf("slowmode_seconds")
-    private val GITHUB_REPO_KEYS = setOf("label_auto_apply")
-
-    // dnd_schedule도 PUT 전체 교체 계약 — start/end는 timezone 기준 HH:mm이며 end가 start보다 이르면 자정을 넘김
-    private val DND_SCHEDULE_KEYS = setOf("enabled", "start", "end")
-
-    private val ACCOUNT_STATUS_VALUES = setOf("ONLINE", "DO_NOT_DISTURB")
-    private val ACCOUNT_THEME_VALUES = setOf("WHITE", "BLACK")
-    private val ACCOUNT_LANGUAGE_VALUES = setOf("KO", "EN")
-    private val ACCOUNT_TIME_FORMAT_VALUES = setOf("12H", "24H")
-    private val ACCOUNT_DATE_FORMAT_VALUES =
-        setOf("YYYY_MM_DD", "MM_DD_YYYY", "DD_MM_YYYY", "YYYY_DD_MM", "DD_YYYY_MM", "MM_YYYY_DD")
-    private val NOTIFICATION_LEVEL_VALUES = NotificationLevel.entries.map { it.name }.toSet()
-    private val MESSAGE_DISPLAY_VALUES = setOf("COZY", "COMPACT")
     private val HH_MM: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-    private const val MAX_SLOWMODE_SECONDS = 21_600
-    private const val MAX_VOICE_PARTICIPANTS = 99
-    private val VOICE_BITRATE_RANGE = 8_000..128_000
-    private val EXPIRES_AT_YEAR_RANGE = 1..9999
+    private val NOTIFICATION_LEVEL_VALUES = NotificationLevel.entries.map { it.name }.toTypedArray()
 
-    fun validKeys(type: ResourceType): Set<String> = when (type) {
-        ResourceType.ACCOUNT -> ACCOUNT_KEYS
-        ResourceType.TEAM -> TEAM_KEYS
-        ResourceType.PROJECT -> emptySet()
-        ResourceType.VOICE_CHANNEL -> VOICE_CHANNEL_KEYS
-        ResourceType.TEXT_CHANNEL -> TEXT_CHANNEL_KEYS
-        ResourceType.GITHUB_REPO -> GITHUB_REPO_KEYS
-    }
-
-    fun filter(type: ResourceType, raw: JsonObject): JsonObject {
-        val result = validKeys(type).fold(JsonObject()) { acc, key ->
-            if (raw.containsKey(key)) acc.put(key, raw.getValue(key)) else acc
-        }
-        if (type == ResourceType.ACCOUNT) filterNested(result, "dnd_schedule", DND_SCHEDULE_KEYS)
-        return result
-    }
-
-    private fun filterNested(settings: JsonObject, key: String, allowedKeys: Set<String>) {
-        val raw = settings.getValue(key) as? JsonObject ?: return
-        settings.put(
-            key,
-            allowedKeys.fold(JsonObject()) { acc, nestedKey ->
-                if (raw.containsKey(nestedKey)) acc.put(nestedKey, raw.getValue(nestedKey)) else acc
+    private val schemas: Map<ResourceType, Map<String, SettingDefinition<*>>> = mapOf(
+        ResourceType.ACCOUNT to mapOf(
+            "status" to choice(
+                "사용자 상태",
+                "사용자 상태를 ONLINE 또는 DO_NOT_DISTURB로 설정합니다. null이면 수동 상태를 해제합니다.",
+                "ONLINE",
+                "DO_NOT_DISTURB",
+                nullable = true,
+            ),
+            "status_expires_at" to SettingDefinition(
+                String::class,
+                "상태 만료 시각",
+                "수동 상태를 해제할 ISO-8601 시각입니다. UTC 연도 1~9999를 허용하며 null이면 자동 해제하지 않습니다.",
+                nullable = true,
+            ) { value, _ -> validateExpiresAt(value) },
+            "marketing_email" to SettingDefinition(Boolean::class, "마케팅 이메일 수신", "마케팅 이메일 수신 여부를 설정합니다."),
+            "theme" to choice("화면 테마", "화면 테마를 WHITE 또는 BLACK으로 설정합니다.", "WHITE", "BLACK", nullable = true),
+            "language" to choice("표시 언어", "표시 언어를 한국어(KO) 또는 영어(EN)로 설정합니다.", "KO", "EN", nullable = true),
+            "time_format" to choice("시간 표시 형식", "시간을 12시간제(12H) 또는 24시간제(24H)로 표시합니다.", "12H", "24H", nullable = true),
+            "date_format" to choice(
+                "날짜 표시 형식", "연도(YYYY), 월(MM), 일(DD)의 표시 순서를 설정합니다.",
+                "YYYY_MM_DD", "MM_DD_YYYY", "DD_MM_YYYY", "YYYY_DD_MM", "DD_YYYY_MM", "MM_YYYY_DD",
+                nullable = true,
+            ),
+            "timezone" to
+                SettingDefinition(String::class, "시간대", "시간 표시와 방해 금지 예약에 사용할 IANA 시간대입니다. 예: Asia/Seoul.") {
+                        value,
+                        _,
+                    ->
+                    if (isZoneId(value)) null else "must be a valid IANA time zone (e.g. Asia/Seoul)"
+                },
+            "notification_level" to choice(
+                "기본 알림 수준",
+                "계정의 기본 알림 수준을 ALL, MENTIONS, NONE 중에서 설정합니다. 미설정이면 팀의 기본 알림 수준을 따릅니다.",
+                *NOTIFICATION_LEVEL_VALUES,
+            ),
+            "dnd_schedule" to SettingDefinition(
+                JsonObject::class,
+                "방해 금지 예약",
+                "enabled(boolean), start와 end(HH:mm)가 모두 필요하며 객체 전체를 교체합니다. " +
+                    "시각은 timezone 기준이며 end가 start보다 이르면 자정을 넘깁니다.",
+                objectKeys = setOf("enabled", "start", "end"),
+            ) { value, _ -> validateDndSchedule(value) },
+            "message_display" to choice("메시지 표시 방식", "메시지를 여유 있게(COZY) 또는 조밀하게(COMPACT) 표시합니다.", "COZY", "COMPACT"),
+            "enter_to_send" to SettingDefinition(Boolean::class, "Enter 키로 전송", "Enter 키를 눌렀을 때 메시지를 전송할지 설정합니다."),
+        ),
+        ResourceType.TEAM to mapOf(
+            "tag_spam_block" to SettingDefinition(
+                Boolean::class,
+                "태그 스팸 차단",
+                "켜면 OWNER와 ADMIN을 제외한 멤버가 메시지 하나에 10명을 넘게 멘션하거나 60초 동안 20명을 넘게 멘션한 메시지를 거부합니다.",
+            ),
+            "nickname_format_enforced" to SettingDefinition(
+                Boolean::class,
+                "닉네임 형식 안내",
+                "가입할 때 닉네임 형식을 안내하고 팀 닉네임 설정을 유도합니다. 서버는 형식을 판정하지 않으며 켜려면 nickname_format_example이 필요합니다.",
+            ) { value, settings ->
+                if (value && (settings.getValue("nickname_format_example") as? String).isNullOrBlank()) {
+                    "requires nickname_format_example when true"
+                } else {
+                    null
+                }
             },
-        )
+            "nickname_format_example" to SettingDefinition(
+                String::class,
+                "닉네임 형식 예시",
+                "닉네임 형식 안내에 보여 줄 예시입니다. 공백만 있는 값은 허용하지 않습니다.",
+            ) { value, _ -> if (value.isBlank()) "cannot be blank" else null },
+            "default_notification_level" to choice(
+                "팀 기본 알림 수준",
+                "팀 채널의 기본 알림 수준을 ALL, MENTIONS, NONE 중에서 설정합니다.",
+                *NOTIFICATION_LEVEL_VALUES,
+            ),
+        ),
+        ResourceType.VOICE_CHANNEL to mapOf(
+            "bitrate" to integer(
+                "음성 비트레이트",
+                "클라이언트가 오디오 송신에 사용할 bps 값입니다. 8000~128000을 허용하며 미설정이면 클라이언트 기본값을 씁니다.",
+                8_000..128_000,
+            ),
+            "max_participants" to integer("최대 참여 인원", "동시 입장 최대 인원입니다. 0~99를 허용하며 0이거나 미설정이면 제한하지 않습니다.", 0..99),
+        ),
+        ResourceType.TEXT_CHANNEL to mapOf(
+            "slowmode_seconds" to integer("슬로우 모드", "사용자별 메시지 전송 간격(초)입니다. 0~21600을 허용하며 0은 해제입니다.", 0..21_600),
+        ),
+        ResourceType.GITHUB_REPO to mapOf(
+            "label_auto_apply" to SettingDefinition(
+                Boolean::class,
+                "GitHub 라벨 자동 적용",
+                "GitHub 저장소의 라벨 자동 적용 여부를 설정합니다.",
+                defaultValue = true,
+            ),
+        ),
+        ResourceType.PROJECT to emptyMap(),
+    )
+
+    fun definitions(): JsonArray = JsonArray(
+        ResourceType.entries.map { type ->
+            JsonObject()
+                .put("resourceType", type.name)
+                .put(
+                    "settings",
+                    JsonArray(
+                        schemas.getValue(type).map { (key, definition) ->
+                            definition.metadata(key)
+                        },
+                    ),
+                )
+        },
+    )
+
+    fun validKeys(type: ResourceType): Set<String> = schemas.getValue(type).keys
+
+    fun resolve(type: ResourceType, settings: JsonObject?): JsonObject =
+        applyDefaults(type, filter(type, settings ?: JsonObject()))
+
+    fun filter(type: ResourceType, raw: JsonObject): JsonObject = JsonObject().apply {
+        schemas.getValue(type).forEach { (key, definition) ->
+            if (raw.containsKey(key)) put(key, definition.filter(raw.getValue(key)))
+        }
     }
 
-    fun validate(type: ResourceType, settings: JsonObject): String? = when (type) {
-        ResourceType.ACCOUNT -> validateAccount(settings)
-        ResourceType.TEAM -> validateTeam(settings)
-        ResourceType.GITHUB_REPO -> validateGithubRepo(settings)
-        ResourceType.TEXT_CHANNEL -> validateTextChannel(settings)
-        ResourceType.VOICE_CHANNEL -> validateVoiceChannel(settings)
-        ResourceType.PROJECT -> null
-    }
-
-    private fun validateAccount(settings: JsonObject): String? {
-        settings.getString("status")?.let { status ->
-            if (status !in ACCOUNT_STATUS_VALUES) return "status must be one of $ACCOUNT_STATUS_VALUES"
-        }
-        settings.getString("theme")?.let { theme ->
-            if (theme !in ACCOUNT_THEME_VALUES) return "theme must be one of $ACCOUNT_THEME_VALUES"
-        }
-        settings.getString("language")?.let { lang ->
-            if (lang !in ACCOUNT_LANGUAGE_VALUES) return "language must be one of $ACCOUNT_LANGUAGE_VALUES"
-        }
-        settings.getString("time_format")?.let { fmt ->
-            if (fmt !in ACCOUNT_TIME_FORMAT_VALUES) return "time_format must be one of $ACCOUNT_TIME_FORMAT_VALUES"
-        }
-        settings.getString("date_format")?.let { fmt ->
-            if (fmt !in ACCOUNT_DATE_FORMAT_VALUES) return "date_format must be one of $ACCOUNT_DATE_FORMAT_VALUES"
-        }
-        settings.getString("status_expires_at")?.let { expiresAt ->
-            val parsed = try {
-                Instant.parse(expiresAt)
-            } catch (_: DateTimeParseException) {
-                return "status_expires_at must be a valid ISO-8601 datetime (e.g. 2026-04-19T12:00:00Z)"
+    fun validate(type: ResourceType, settings: JsonObject): String? {
+        schemas.getValue(type).forEach { (key, definition) ->
+            if (settings.containsKey(key)) {
+                definition.validate(key, settings.getValue(key), settings)?.let { return it }
             }
-            // PostgreSQL timestamptz 변환 범위를 벗어나면 만료 쿼리 전체가 실패하므로 UTC 연도 1~9999만 허용한다.
-            if (parsed.atOffset(ZoneOffset.UTC).year !in EXPIRES_AT_YEAR_RANGE) {
-                return "status_expires_at year must be between 1 and 9999"
-            }
-        }
-        if (settings.containsKey("timezone")) {
-            val timezone = settings.getValue("timezone")
-            if (timezone !is String || !isZoneId(timezone)) {
-                return "timezone must be a valid IANA time zone (e.g. Asia/Seoul)"
-            }
-        }
-        enumError(settings, "notification_level", NOTIFICATION_LEVEL_VALUES)?.let { return it }
-        enumError(settings, "message_display", MESSAGE_DISPLAY_VALUES)?.let { return it }
-        if (settings.containsKey("enter_to_send") && settings.getValue("enter_to_send") !is Boolean) {
-            return "enter_to_send must be a boolean"
-        }
-        if (settings.containsKey("dnd_schedule")) {
-            validateDndSchedule(settings.getValue("dnd_schedule"))?.let { return it }
         }
         return null
     }
 
-    private fun validateDndSchedule(value: Any?): String? {
-        val schedule = value as? JsonObject ?: return "dnd_schedule must be an object"
-        if (schedule.getValue("enabled") !is Boolean) return "dnd_schedule.enabled must be a boolean"
+    /** 기본값은 조회에만 보충한다. 부분 수정에 넣으면 요청하지 않은 기존 값을 덮어쓸 수 있다. */
+    fun applyDefaults(type: ResourceType, settings: JsonObject?): JsonObject =
+        (settings?.copy() ?: JsonObject()).apply {
+            schemas.getValue(type).forEach { (key, definition) ->
+                if (getValue(key) == null && definition.defaultValue != null) put(key, definition.resolve(null))
+            }
+        }
+
+    private fun choice(title: String, description: String, vararg values: String, nullable: Boolean = false) =
+        SettingDefinition(String::class, title, description, nullable = nullable) { value, _ ->
+            if (value in values) null else "must be one of ${values.toList()}"
+        }
+
+    private fun integer(title: String, description: String, range: IntRange) =
+        SettingDefinition(Int::class, title, description) {
+                value,
+                _,
+            ->
+            if (value in range) null else "must be an integer between ${range.first} and ${range.last}"
+        }
+
+    private fun validateExpiresAt(value: String): String? {
+        val parsed = try {
+            Instant.parse(value)
+        } catch (_: DateTimeParseException) {
+            return "must be a valid ISO-8601 datetime (e.g. 2026-04-19T12:00:00Z)"
+        }
+        // PostgreSQL timestamptz 변환 범위를 벗어나면 만료 쿼리 전체가 실패하므로 UTC 연도 1~9999만 허용한다.
+        return if (parsed.atOffset(ZoneOffset.UTC).year !in 1..9999) "year must be between 1 and 9999" else null
+    }
+
+    private fun validateDndSchedule(schedule: JsonObject): String? {
+        if (schedule.getValue("enabled") !is Boolean) return "enabled must be a boolean"
         for (key in listOf("start", "end")) {
             val time = schedule.getValue(key)
-            if (time !is String || !isHourMinute(time)) return "dnd_schedule.$key must be HH:mm"
+            if (time !is String || !isHourMinute(time)) return "$key must be HH:mm"
         }
         return null
     }
-
-    private fun validateTextChannel(settings: JsonObject): String? {
-        if (settings.containsKey("slowmode_seconds")) {
-            val seconds = settings.getValue("slowmode_seconds")
-            if (seconds !is Int || seconds !in 0..MAX_SLOWMODE_SECONDS) {
-                return "slowmode_seconds must be an integer between 0 and $MAX_SLOWMODE_SECONDS"
-            }
-        }
-        return null
-    }
-
-    // max_participants 0은 제한 없음이다. bitrate는 클라이언트가 오디오 publish에 쓰는 bps 값이다.
-    private fun validateVoiceChannel(settings: JsonObject): String? {
-        if (settings.containsKey("max_participants")) {
-            val count = settings.getValue("max_participants")
-            if (count !is Int || count !in 0..MAX_VOICE_PARTICIPANTS) {
-                return "max_participants must be an integer between 0 and $MAX_VOICE_PARTICIPANTS"
-            }
-        }
-        if (settings.containsKey("bitrate")) {
-            val bitrate = settings.getValue("bitrate")
-            if (bitrate !is Int || bitrate !in VOICE_BITRATE_RANGE) {
-                return "bitrate must be an integer between ${VOICE_BITRATE_RANGE.first} and ${VOICE_BITRATE_RANGE.last}"
-            }
-        }
-        return null
-    }
-
-    private fun enumError(settings: JsonObject, key: String, values: Set<String>): String? =
-        if (settings.containsKey(key) && settings.getValue(key) !in values) "$key must be one of $values" else null
 
     private fun isZoneId(value: String): Boolean = try {
         ZoneId.of(value)
@@ -184,35 +198,5 @@ object SettingSchema {
         true
     } catch (_: DateTimeParseException) {
         false
-    }
-
-    private fun validateTeam(settings: JsonObject): String? {
-        if (settings.containsKey("tag_spam_block") && settings.getValue("tag_spam_block") !is Boolean) {
-            return "tag_spam_block must be a boolean"
-        }
-        if (settings.containsKey("nickname_format_enforced") &&
-            settings.getValue("nickname_format_enforced") !is Boolean
-        ) {
-            return "nickname_format_enforced must be a boolean"
-        }
-        if (settings.containsKey("nickname_format_example")) {
-            val example = settings.getValue("nickname_format_example")
-            if (example !is String) return "nickname_format_example must be a string"
-            if (example.isBlank()) return "nickname_format_example cannot be blank"
-        }
-        if (settings.getBoolean("nickname_format_enforced") == true &&
-            settings.getString("nickname_format_example").isNullOrBlank()
-        ) {
-            return "nickname_format_example is required when nickname_format_enforced is true"
-        }
-        enumError(settings, "default_notification_level", NOTIFICATION_LEVEL_VALUES)?.let { return it }
-        return null
-    }
-
-    private fun validateGithubRepo(settings: JsonObject): String? {
-        if (settings.containsKey("label_auto_apply") && settings.getValue("label_auto_apply") !is Boolean) {
-            return "label_auto_apply must be a boolean"
-        }
-        return null
     }
 }

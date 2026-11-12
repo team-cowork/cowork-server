@@ -1,6 +1,7 @@
 package com.cowork.preference.handler
 
 import com.cowork.preference.domain.ResourceType
+import com.cowork.preference.domain.RolePermission
 import com.cowork.preference.domain.SettingSchema
 import com.cowork.preference.security.RequesterContext
 import com.cowork.preference.service.AccountOwnershipGuard
@@ -25,6 +26,24 @@ class PreferenceHandler(
     private val channelAccessGuard: ChannelAccessGuard,
 ) {
     private val log = LoggerFactory.getLogger(PreferenceHandler::class.java)
+
+    fun getSettingDefinitions(ctx: RoutingContext) {
+        if (RequesterContext.from(ctx) == null) {
+            ctx.response().setStatusCode(400).end(errorBody("Missing or invalid requester headers"))
+            return
+        }
+        ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json")
+            .end(SettingSchema.definitions().encode())
+    }
+
+    fun getRolePermissions(ctx: RoutingContext) {
+        if (RequesterContext.from(ctx) == null) {
+            ctx.response().setStatusCode(400).end(errorBody("Missing or invalid requester headers"))
+            return
+        }
+        ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json")
+            .end(RolePermission.catalog().encode())
+    }
 
     fun getSettings(resourceType: ResourceType): (RoutingContext) -> Unit = handler@{ ctx ->
         val resourceId = ctx.pathParam("id")?.toLongOrNull()
