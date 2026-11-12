@@ -3,9 +3,9 @@
 // @description     음성 통화와 라이브 방송에 사용할 LiveKit 토큰을 발급합니다. 응답의 livekit_url로 연결합니다.
 // @BasePath        /api/voice
 // @tag.name        voice
-// @tag.description 음성 채널 입장, 퇴장과 참여자 조회를 처리합니다.
+// @tag.description 음성 채널 입장과 퇴장, 참여자와 세션 조회를 처리합니다.
 // @tag.name        live
-// @tag.description 라이브 방송 시작, 시청 참여와 방송 상태 조회를 처리합니다.
+// @tag.description 라이브 방송 시작, 시청 참여와 퇴장, 방송 상태 조회를 처리합니다.
 // @tag.name        webhook
 // @tag.description LiveKit의 통화와 방송 이벤트를 수신합니다.
 // @securityDefinitions.apikey BearerAuth
