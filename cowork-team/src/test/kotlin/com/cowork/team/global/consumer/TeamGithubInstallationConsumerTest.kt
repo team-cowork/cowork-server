@@ -257,6 +257,58 @@ class TeamGithubInstallationConsumerTest :
                 }
             }
 
+            describe("consumeRenamed 메서드는") {
+                context("연결된 installation의 조직 이름이 바뀌면") {
+                    it("orgLogin을 갱신하고 팀 변경 이벤트를 발행한다") {
+                        val existing = team()
+                        existing.connectGithub(installationId = 1L, orgLogin = "old-org")
+                        stubNoLedger(1L)
+                        every { teamRepository.findByGithubInstallationId(1L) } returns existing
+                        every { teamRepository.findByIdForUpdate(100L) } returns existing
+                        every { teamRepository.save(existing) } returns existing
+
+                        consumer.consumeRenamed(
+                            TeamGithubRenamedPayload(installationId = 1L, orgLogin = "new-org", revision = 1L),
+                        )
+
+                        existing.githubInstallationId shouldBe 1L
+                        existing.githubOrgLogin shouldBe "new-org"
+                        verify(exactly = 1) { teamRepository.save(existing) }
+                        verify(exactly = 1) { teamEventPublisher.publishUpdated(existing, existing.ownerId, any()) }
+                    }
+                }
+
+                context("orgLogin이 이미 같으면") {
+                    it("저장하거나 발행하지 않는다") {
+                        val existing = team()
+                        existing.connectGithub(installationId = 1L, orgLogin = "new-org")
+                        stubNoLedger(1L)
+                        every { teamRepository.findByGithubInstallationId(1L) } returns existing
+                        every { teamRepository.findByIdForUpdate(100L) } returns existing
+
+                        consumer.consumeRenamed(
+                            TeamGithubRenamedPayload(installationId = 1L, orgLogin = "new-org", revision = 1L),
+                        )
+
+                        verify(exactly = 0) { teamRepository.save(any()) }
+                        verify(exactly = 0) { teamEventPublisher.publishUpdated(any(), any(), any()) }
+                    }
+                }
+
+                context("installation에 연결된 팀이 없으면") {
+                    it("무시한다") {
+                        stubNoLedger(1L)
+                        every { teamRepository.findByGithubInstallationId(1L) } returns null
+
+                        consumer.consumeRenamed(
+                            TeamGithubRenamedPayload(installationId = 1L, orgLogin = "new-org", revision = 1L),
+                        )
+
+                        verify(exactly = 0) { teamRepository.save(any()) }
+                    }
+                }
+            }
+
             describe("consumeDisconnected 메서드는") {
                 context("installationId가 현재 연결과 일치하면") {
                     it("연결을 해제한다") {
