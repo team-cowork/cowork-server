@@ -1,4 +1,19 @@
-import {isSuspiciousDocumentCountDrop} from './projection-readiness.service.js';
+import {isSuspiciousDocumentCountDrop, ProjectionReadinessService} from './projection-readiness.service.js';
+
+describe('파일 정리용 동기화 판정', () => {
+	it('알려진 지연은 API의 읽기 유예와 관계없이 정리를 막는다', () => {
+		const service = new ProjectionReadinessService({} as never, {} as never, {} as never);
+		const state: {ready: boolean; lag?: Record<string, unknown>} = {ready: true, lag: {}};
+		Object.assign(service, {states: new Map([['meetingNoteAttachment', state]])});
+		expect(service.areReady(['meetingNoteAttachment'])).toBe(true);
+		expect(service.isCaughtUp('meetingNoteAttachment')).toBe(false);
+		delete state.lag;
+		expect(service.isCaughtUp('meetingNoteAttachment')).toBe(true);
+		state.ready = false;
+		expect(service.isCaughtUp('meetingNoteAttachment')).toBe(false);
+		expect(service.isCaughtUp('channel')).toBe(false);
+	});
+});
 
 describe('isSuspiciousDocumentCountDrop', () => {
 	it('정상 범위 안의 감소나 증가는 의심하지 않는다', () => {

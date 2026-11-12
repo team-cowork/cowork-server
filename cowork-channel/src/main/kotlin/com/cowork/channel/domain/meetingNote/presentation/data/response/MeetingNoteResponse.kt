@@ -21,6 +21,8 @@ data class MeetingNoteResponse(
     val createdAt: LocalDateTime,
     @field:Schema(description = "수정 일시")
     val updatedAt: LocalDateTime,
+    @field:Schema(description = "회의록 첨부파일")
+    val attachments: List<MeetingNoteAttachmentResponse> = emptyList(),
 ) {
     companion object {
         fun of(note: MeetingNote) = MeetingNoteResponse(
@@ -32,6 +34,7 @@ data class MeetingNoteResponse(
             createdBy = note.createdBy,
             createdAt = note.createdAt,
             updatedAt = note.updatedAt,
+            attachments = note.attachments.map { MeetingNoteAttachmentResponse(it.objectKey, it.name) },
         )
     }
 }

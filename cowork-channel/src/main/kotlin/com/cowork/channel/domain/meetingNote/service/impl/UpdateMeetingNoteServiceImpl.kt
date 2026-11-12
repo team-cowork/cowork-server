@@ -1,9 +1,11 @@
 package com.cowork.channel.domain.meetingNote.service.impl
 
+import com.cowork.channel.domain.meetingNote.event.MeetingNoteAttachmentPublisher
 import com.cowork.channel.domain.meetingNote.presentation.data.request.UpdateMeetingNoteRequest
 import com.cowork.channel.domain.meetingNote.presentation.data.response.MeetingNoteResponse
 import com.cowork.channel.domain.meetingNote.service.MeetingNoteAccessGuard
 import com.cowork.channel.domain.meetingNote.service.UpdateMeetingNoteService
+import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteAttachmentSupport
 import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteContentSupport
 import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteLookupSupport
 import org.springframework.http.HttpStatus
@@ -12,13 +14,15 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-@Transactional
 class UpdateMeetingNoteServiceImpl(
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
     private val meetingNoteLookupSupport: MeetingNoteLookupSupport,
     private val meetingNoteContentSupport: MeetingNoteContentSupport,
+    private val attachmentSupport: MeetingNoteAttachmentSupport,
+    private val attachmentPublisher: MeetingNoteAttachmentPublisher,
 ) : UpdateMeetingNoteService {
 
+    @Transactional
     override fun updateNote(
         userId: Long,
         channelId: Long,
@@ -33,12 +37,20 @@ class UpdateMeetingNoteServiceImpl(
         request.content?.let { meetingNoteContentSupport.requireJsonObject(it) }
         val note = meetingNoteLookupSupport.findNoteOrThrow(noteId, channelId)
         meetingNoteLookupSupport.requireNoteOwner(note, userId)
+        val attachments = request.attachments?.let { attachmentSupport.validate(it, channelId, userId) }
+        val existingKeys = note.attachments.map { it.objectKey }.toSet()
+        if (attachments?.any { it.objectKey !in existingKeys } == true) {
+            meetingNoteAccessGuard.requireAttachmentPermission(channelId, userId)
+        }
         val updatedTitle = request.title ?: note.title
         val updatedContent = request.content ?: note.content
-        if (updatedTitle == note.title && updatedContent == note.content) {
+        if (updatedTitle == note.title && updatedContent == note.content &&
+            (attachments == null || attachments == note.attachments)
+        ) {
             return MeetingNoteResponse.of(note)
         }
-        note.update(request.title, request.content)
+        note.update(request.title, request.content, attachments)
+        attachmentPublisher.publish(note)
         return MeetingNoteResponse.of(note)
     }
 }

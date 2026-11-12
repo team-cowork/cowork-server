@@ -973,6 +973,10 @@ export class MessageRepository {
 		return (await this.messageModel.exists({clientMessageId, 'attachments.objectKey': objectKey})) !== null;
 	}
 
+	async referencesObject(objectKey: string): Promise<boolean> {
+		return (await this.messageModel.exists({'attachments.objectKey': objectKey})) !== null;
+	}
+
 	async countUnread(channelId: number, afterId: Nullable<Types.ObjectId>): Promise<number> {
 		const filter: Record<string, unknown> = {
 			webhookDeleted: {$ne: true},

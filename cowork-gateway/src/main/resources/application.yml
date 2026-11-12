@@ -26,6 +26,12 @@ server:
   port: 8080
 springdoc:
   api-docs:
+    enabled: true
+    path: /v3/api-docs/gateway
+  paths-to-match:
+    - /api/**
+  swagger-ui:
+    # SwaggerUiController serves the shared service selector.
     enabled: false
 jwt:
   secret: ${JWT_SECRET}
