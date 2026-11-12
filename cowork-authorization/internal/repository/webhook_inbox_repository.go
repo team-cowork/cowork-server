@@ -10,9 +10,10 @@ import (
 	"strings"
 	"time"
 
+	mysqlDriver "github.com/go-sql-driver/mysql"
+
 	"github.com/cowork/authorization/internal/domain"
 	"github.com/cowork/authorization/internal/monitoring"
-	mysqlDriver "github.com/go-sql-driver/mysql"
 )
 
 const (

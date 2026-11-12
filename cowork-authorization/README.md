@@ -11,7 +11,7 @@ DataGSM 로그인과 인증 토큰·로그인 세션을 관리합니다.
 ## 스택
 
 - Go / Gin
-- Go modules + Makefile
+- Go modules
 - GORM / MySQL
 - Kafka
 - Redis Streams

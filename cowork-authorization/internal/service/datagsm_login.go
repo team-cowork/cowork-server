@@ -10,10 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cowork/authorization/internal/config"
-	"github.com/cowork/authorization/internal/monitoring"
 	datagsm "github.com/tmp-it-play/datagsm-sdk-go"
 	"github.com/tmp-it-play/datagsm-sdk-go/oauth"
+
+	"github.com/cowork/authorization/internal/config"
+	"github.com/cowork/authorization/internal/monitoring"
 )
 
 const (

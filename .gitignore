@@ -41,6 +41,9 @@ node_modules/
 ### Go ###
 vendor/
 bin/
+/cowork-authorization/swagger/
+/cowork-notification/swagger/
+/cowork-voice/swagger/
 
 ### Environment ###
 *.env

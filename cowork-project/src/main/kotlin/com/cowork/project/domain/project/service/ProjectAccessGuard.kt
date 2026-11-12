@@ -2,16 +2,16 @@ package com.cowork.project.domain.project.service
 
 import com.cowork.project.domain.membership.TeamRolePermissionReader
 import com.cowork.project.domain.membership.entity.TeamMembership
-import com.cowork.project.domain.project.entity.ProjectAccessProjection
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
+import com.cowork.project.domain.project.entity.ProjectAccessProjection
 import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.global.projection.ProjectionReadinessGate
-import java.time.Instant
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import team.themoment.sdk.exception.ExpectedException
+import java.time.Instant
 
 private const val TEAM_ROLE_OWNER = "OWNER"
 private const val TEAM_ROLE_ADMIN = "ADMIN"
@@ -46,7 +46,12 @@ class ProjectAccessGuard(
     fun requireTeamMember(teamId: Long, userId: Long): String = teamRoleOf(teamId, userId)
         ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
 
-    data class Permissions(val read: Boolean, val write: Boolean, val reorder: Boolean = false, val manage: Boolean = false)
+    data class Permissions(
+        val read: Boolean,
+        val write: Boolean,
+        val reorder: Boolean = false,
+        val manage: Boolean = false,
+    )
 
     fun canRead(project: Project, userId: Long): Boolean = permissionsForUser(project, userId).read
 
@@ -77,7 +82,8 @@ class ProjectAccessGuard(
             teamMembershipRepository.findActiveByTeamIdAndUserId(it, userId)
         }
         return projects.associate { project ->
-            project.id to (members[project.teamId]?.let { permissions(it, access[project.id]) } ?: Permissions(false, false))
+            project.id to
+                (members[project.teamId]?.let { permissions(it, access[project.id]) } ?: Permissions(false, false))
         }
     }
 
@@ -88,7 +94,12 @@ class ProjectAccessGuard(
     private fun permissions(member: TeamMembership, access: ProjectAccessProjection?): Permissions {
         if (isManager(member.role)) return Permissions(true, true, true, true)
         val read = access?.canRead == true && hasCurrentAuthorization(member, access)
-        return Permissions(read, read && access?.canWrite == true, read && access?.canReorder == true, read && access?.canManage == true)
+        return Permissions(
+            read,
+            read && access?.canWrite == true,
+            read && access?.canReorder == true,
+            read && access?.canManage == true,
+        )
     }
 
     private fun hasCurrentAuthorization(member: TeamMembership, access: ProjectAccessProjection): Boolean =

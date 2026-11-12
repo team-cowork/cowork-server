@@ -24,8 +24,13 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "팀 멤버", description = "팀 멤버 초대/조회/역할 변경/닉네임 변경/추방 API")
+@Tag(name = "팀 멤버", description = "팀 멤버의 초대, 역할 변경, 탈퇴와 추방을 관리합니다.")
 @ApiResponses(
+    ApiResponse(
+        responseCode = "429",
+        description = "요청 한도 초과",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
+    ),
     ApiResponse(
         responseCode = "401",
         description = "액세스 토큰이 없거나 유효하지 않음",
@@ -165,7 +170,7 @@ class TeamMemberController(
 
     @Operation(summary = "멤버 역할 변경", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "204", description = "변경 완료. 응답 본문은 없습니다.", content = [Content()]),
+        ApiResponse(responseCode = "204", description = "변경 성공 (응답 본문 없음)", content = [Content()]),
         ApiResponse(
             responseCode = "400",
             description = "OWNER 역할을 직접 지정함",
@@ -229,7 +234,7 @@ class TeamMemberController(
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
-        ApiResponse(responseCode = "204", description = "변경 완료. 응답 본문은 없습니다.", content = [Content()]),
+        ApiResponse(responseCode = "204", description = "변경 성공 (응답 본문 없음)", content = [Content()]),
         ApiResponse(
             responseCode = "400",
             description = "닉네임 길이 초과",

@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/go-chi/chi/v5"
+
 	_ "github.com/cowork/cowork-notification/internal/apidoc" // Gateway response schemas for swag.
 	"github.com/cowork/cowork-notification/internal/apperr"
 	"github.com/cowork/cowork-notification/internal/middleware"
-	"github.com/go-chi/chi/v5"
 )
 
 type Handler struct {
