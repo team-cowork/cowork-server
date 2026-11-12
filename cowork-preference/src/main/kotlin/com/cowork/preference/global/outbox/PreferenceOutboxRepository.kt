@@ -1,7 +1,7 @@
 package com.cowork.preference.global.outbox
 
 import com.cowork.preference.global.messaging.event.PreferenceEvent
-import com.cowork.preference.global.messaging.event.PreferenceEvents
+import com.cowork.preference.global.messaging.event.PreferenceTopics
 import io.vertx.core.json.Json
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
@@ -24,7 +24,7 @@ class PreferenceOutboxRepository(private val pool: Pool) {
         withTransaction(connection, serializeOutboxWrites = true, block)
 
     suspend fun enqueue(client: SqlClient, event: PreferenceEvent) {
-        require(event.topic in PreferenceEvents.OUTBOX_TOPICS) { "unsupported outbox topic '${event.topic}'" }
+        require(event.topic in PreferenceTopics.OUTBOX_TOPICS) { "unsupported outbox topic '${event.topic}'" }
         require(event.key.isNotBlank()) { "record key must not be blank" }
         client.preparedQuery(
             """

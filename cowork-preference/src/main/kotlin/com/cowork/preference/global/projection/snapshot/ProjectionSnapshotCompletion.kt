@@ -1,12 +1,11 @@
 package com.cowork.preference.global.projection.snapshot
 
-import com.cowork.preference.global.messaging.event.PreferenceEvents
 import io.vertx.core.json.JsonObject
 import java.time.Instant
 import java.util.UUID
 
 object ProjectionSnapshotCompletion {
-    fun isReserved(key: String?): Boolean = key?.startsWith(PreferenceEvents.SNAPSHOT_COMPLETED_KEY_PREFIX) == true
+    fun isReserved(key: String?): Boolean = key?.startsWith(ProjectionSnapshotContract.KEY_PREFIX) == true
 
     fun violation(
         key: String?,
@@ -15,12 +14,12 @@ object ProjectionSnapshotCompletion {
         partition: Int,
         expectedSource: String,
     ): String? {
-        if (key != "${PreferenceEvents.SNAPSHOT_COMPLETED_KEY_PREFIX}$partition") {
+        if (key != "${ProjectionSnapshotContract.KEY_PREFIX}$partition") {
             return "projection snapshot marker key does not match its partition"
         }
         val payload = runCatching { JsonObject(payloadValue) }
             .getOrElse { return "projection snapshot marker JSON is invalid: ${it.message}" }
-        if (payload.getString("eventType") != PreferenceEvents.SNAPSHOT_COMPLETED_EVENT_TYPE) {
+        if (payload.getString("eventType") != ProjectionSnapshotContract.EVENT_TYPE) {
             return "projection snapshot marker eventType is invalid"
         }
         if (payload.getString("topic") != topic) return "projection snapshot marker topic does not match the record"

@@ -1,31 +1,34 @@
 package com.cowork.preference.domain.setting.command
 
 import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommand
-import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommandDecision
 import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommandEnvelope
 import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommandType
+import com.cowork.preference.global.messaging.command.model.CommandDecision
 import io.vertx.core.json.JsonObject
 import java.time.Instant
 import java.util.UUID
 
 object GithubRepoSettingCommandParser {
-    fun parse(key: String?, value: String?): GithubRepoSettingCommandDecision {
+    fun parse(
+        key: String?,
+        value: String?,
+    ): CommandDecision<GithubRepoSettingCommand, GithubRepoSettingCommandEnvelope> {
         val json = runCatching {
             require(!value.isNullOrBlank()) { "payload is required" }
             JsonObject(value)
         }.getOrElse {
-            return GithubRepoSettingCommandDecision.Quarantine(it.message ?: "invalid GitHub repo setting command")
+            return CommandDecision.Quarantine(it.message ?: "invalid GitHub repo setting command")
         }
         val envelope = runCatching { envelope(json) }.getOrElse {
-            return GithubRepoSettingCommandDecision.Quarantine(
+            return CommandDecision.Quarantine(
                 it.message ?: "invalid GitHub repo setting command envelope",
             )
         }
         return runCatching { command(key, json, envelope) }
             .fold(
-                onSuccess = GithubRepoSettingCommandDecision::Apply,
+                onSuccess = { CommandDecision.Apply(it) },
                 onFailure = {
-                    GithubRepoSettingCommandDecision.Reject(
+                    CommandDecision.Reject(
                         envelope,
                         it.message ?: "invalid GitHub repo setting command",
                     )

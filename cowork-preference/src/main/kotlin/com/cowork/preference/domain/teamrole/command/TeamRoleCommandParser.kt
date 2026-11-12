@@ -2,30 +2,30 @@ package com.cowork.preference.domain.teamrole.command
 
 import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommand
 import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommandEnvelope
-import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommandRecordDecision
 import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommandRoleInput
 import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommandType
 import com.cowork.preference.domain.teamrole.model.TeamRolePermissions
+import com.cowork.preference.global.messaging.command.model.CommandDecision
 import io.vertx.core.json.JsonObject
 import java.time.Instant
 import java.util.UUID
 
 object TeamRoleCommandParser {
-    fun parse(key: String?, value: String?): TeamRoleCommandRecordDecision {
+    fun parse(key: String?, value: String?): CommandDecision<TeamRoleCommand, TeamRoleCommandEnvelope> {
         val json = runCatching {
             require(!value.isNullOrBlank()) { "payload is required" }
             JsonObject(value)
         }.getOrElse {
-            return TeamRoleCommandRecordDecision.Quarantine(it.message ?: "invalid team role command")
+            return CommandDecision.Quarantine(it.message ?: "invalid team role command")
         }
         val envelope = runCatching { envelope(json) }.getOrElse {
-            return TeamRoleCommandRecordDecision.Quarantine(it.message ?: "invalid team role command envelope")
+            return CommandDecision.Quarantine(it.message ?: "invalid team role command envelope")
         }
         return runCatching { command(key, json, envelope) }
             .fold(
-                onSuccess = TeamRoleCommandRecordDecision::Apply,
+                onSuccess = { CommandDecision.Apply(it) },
                 onFailure = {
-                    TeamRoleCommandRecordDecision.Reject(
+                    CommandDecision.Reject(
                         envelope,
                         it.message ?: "invalid team role command",
                     )

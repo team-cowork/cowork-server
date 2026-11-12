@@ -1,25 +1,25 @@
 package com.cowork.preference.domain.channelrole.command
 
 import com.cowork.preference.domain.access.permission.PermissionKeys
-import com.cowork.preference.domain.access.projection.channel.ChannelLifecycleProjection
-import com.cowork.preference.domain.access.projection.channel.ChannelLifecycleProjectionRepository
-import com.cowork.preference.domain.access.projection.team.TeamMemberProjection
-import com.cowork.preference.domain.access.projection.team.TeamMemberProjectionRepository
+import com.cowork.preference.domain.access.projection.channel.model.ChannelLifecycleProjection
+import com.cowork.preference.domain.access.projection.channel.repository.ChannelLifecycleProjectionRepository
+import com.cowork.preference.domain.access.projection.team.model.TeamMemberProjection
+import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
 import com.cowork.preference.domain.access.repository.InitialResourceAccessRepository
 import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommand
 import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommandEnvelope
-import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommandQuarantineRecord
 import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommandType
+import com.cowork.preference.domain.channelrole.command.model.ProcessedChannelRolePolicyCommand
 import com.cowork.preference.domain.channelrole.command.repository.ChannelRolePolicyCommandInboxRepository
-import com.cowork.preference.domain.channelrole.command.repository.ProcessedChannelRolePolicyCommand
+import com.cowork.preference.domain.channelrole.event.ChannelRolePolicyEvents
 import com.cowork.preference.domain.channelrole.exception.ChannelRolePolicyProjectionNotReadyException
 import com.cowork.preference.domain.channelrole.model.ChannelRolePolicyPermissions
 import com.cowork.preference.domain.channelrole.model.ChannelRolePolicyState
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.teamrole.model.TeamRoleDefinition
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
+import com.cowork.preference.global.messaging.command.model.CommandQuarantineRecord
 import com.cowork.preference.global.messaging.event.PreferenceEvent
-import com.cowork.preference.global.messaging.event.PreferenceEvents
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import com.cowork.preference.global.projection.readiness.ProjectionReadinessView
 import io.vertx.core.json.JsonObject
@@ -54,7 +54,7 @@ class ChannelRolePolicyCommandProcessor(
                 }
                 return@inTransaction
             }
-            matches.byActorAndIdempotencyKey?.let { existing ->
+            matches.byIdempotencyKey?.let { existing ->
                 if (existing.matches(command)) {
                     replay(connection, command.operationId, existing.result)
                 } else {
@@ -81,7 +81,7 @@ class ChannelRolePolicyCommandProcessor(
             outboxRepository.enqueueAll(connection, outcome.stateEvents)
             outboxRepository.enqueue(
                 connection,
-                PreferenceEvents.channelRolePolicyCommandResult(
+                ChannelRolePolicyEvents.channelRolePolicyCommandResult(
                     command.operationId,
                     outcome.result,
                     outcome.occurredAt,
@@ -93,7 +93,7 @@ class ChannelRolePolicyCommandProcessor(
 
     suspend fun rejectInvalid(
         envelope: ChannelRolePolicyCommandEnvelope,
-        quarantineRecord: ChannelRolePolicyCommandQuarantineRecord,
+        quarantineRecord: CommandQuarantineRecord,
         reason: String,
     ) {
         outboxRepository.inTransaction { connection ->
@@ -101,7 +101,7 @@ class ChannelRolePolicyCommandProcessor(
             val outcome = rejected(envelope, "INVALID_COMMAND", normalizedErrorMessage(reason))
             outboxRepository.enqueue(
                 connection,
-                PreferenceEvents.channelRolePolicyCommandResult(
+                ChannelRolePolicyEvents.channelRolePolicyCommandResult(
                     envelope.operationId,
                     outcome.result,
                     outcome.occurredAt,
@@ -244,7 +244,7 @@ class ChannelRolePolicyCommandProcessor(
 
     private fun success(command: ChannelRolePolicyCommand, state: ChannelRolePolicyState): CommandOutcome {
         val permissions = state.permissions?.let(ChannelRolePolicyPermissions::canonicalize)
-        val stateEvent = PreferenceEvents.channelRolePolicyState(
+        val stateEvent = ChannelRolePolicyEvents.channelRolePolicyState(
             teamId = state.teamId,
             channelId = state.channelId,
             roleId = state.roleId,
@@ -280,7 +280,7 @@ class ChannelRolePolicyCommandProcessor(
         val occurredAt = Instant.parse(result.getString("occurredAt"))
         outboxRepository.enqueue(
             connection,
-            PreferenceEvents.channelRolePolicyCommandResult(operationId, result, occurredAt),
+            ChannelRolePolicyEvents.channelRolePolicyCommandResult(operationId, result, occurredAt),
         )
     }
 
@@ -293,7 +293,7 @@ class ChannelRolePolicyCommandProcessor(
         val outcome = rejected(envelope, code, message)
         outboxRepository.enqueue(
             connection,
-            PreferenceEvents.channelRolePolicyCommandResult(
+            ChannelRolePolicyEvents.channelRolePolicyCommandResult(
                 envelope.operationId,
                 outcome.result,
                 outcome.occurredAt,
@@ -306,7 +306,7 @@ class ChannelRolePolicyCommandProcessor(
         status: String,
         occurredAt: Instant,
     ): JsonObject = JsonObject()
-        .put("schemaVersion", ChannelRolePolicyCommandParser.SCHEMA_VERSION)
+        .put("schemaVersion", ChannelRolePolicyCommandContract.SCHEMA_VERSION)
         .put("operationId", envelope.operationId)
         .put("idempotencyKey", envelope.idempotencyKey)
         .put("requestHash", envelope.requestHash)
