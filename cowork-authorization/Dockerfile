@@ -7,8 +7,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY cowork-authorization/ ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go generate ./cmd/main.go \
-    && CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/cowork-authorization ./cmd
+    CGO_ENABLED=0 GOOS=linux go build -trimpath -o /out/cowork-authorization ./cmd
 
 
 FROM builder AS verification
