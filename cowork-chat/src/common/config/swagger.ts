@@ -37,8 +37,6 @@ export function createChatApiDocument(app: INestApplication, builder: DocumentBu
 		delete document.paths['/chat/webhooks/{executionId}/messages'];
 	}
 
-	delete document.paths['/health'];
-	delete document.paths['/health/ready'];
 	delete document.paths['/metrics'];
 
 	return document;
