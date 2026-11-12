@@ -37,6 +37,14 @@ export function createChatApiDocument(app: INestApplication, builder: DocumentBu
 		delete document.paths['/chat/webhooks/{executionId}/messages'];
 	}
 
+	const attachmentPath = '/chat/channels/{channelId}/meeting-notes/{noteId}/attachments/download-url';
+	const meetingNoteAttachment = document.paths[attachmentPath];
+	if (meetingNoteAttachment !== undefined) {
+		meetingNoteAttachment.servers = [{url: '/api/channel', description: 'Gateway'}];
+		document.paths[attachmentPath.replace('/chat/', '/')] = meetingNoteAttachment;
+		delete document.paths['/chat/channels/{channelId}/meeting-notes/{noteId}/attachments/download-url'];
+	}
+
 	delete document.paths['/metrics'];
 
 	return document;

@@ -300,6 +300,7 @@ export class Message {
 {@link Message} 클래스로부터 생성된 Mongoose 스키마 인스턴스
 */
 export const messageSchema = SchemaFactory.createForClass(Message)
+	.index({'attachments.objectKey': 1}, {sparse: true})
 	/**
 	채널별 최신순 메시지 조회를 위한 복합 인덱스 (`channelId` 오름차순, `_id` 내림차순)
 	*/

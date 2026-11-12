@@ -39,6 +39,7 @@ class DeleteChannelServiceImplTest {
         channelEventPublisher,
         channelAccessGuard,
         channelPermissionSupport,
+        mockk(relaxed = true),
         meetingNoteRepository,
     )
 
