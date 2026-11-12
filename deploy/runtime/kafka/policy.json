@@ -161,6 +161,13 @@
         "retention.ms": "604800000"
       }
     },
+    "team.github.renamed": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
     "team.github.connected-dlt": {
       "partitions": 1,
       "config": {
@@ -169,6 +176,13 @@
       }
     },
     "team.github.disconnected-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "team.github.renamed-dlt": {
       "partitions": 1,
       "config": {
         "cleanup.policy": "delete",
@@ -488,8 +502,10 @@
         "github.repo.event",
         "team.github.connected",
         "team.github.disconnected",
+        "team.github.renamed",
         "team.github.connected-dlt",
         "team.github.disconnected-dlt",
+        "team.github.renamed-dlt",
         "github.issue-write.command.v1",
         "github.issue-write.result.v1",
         "github.issue-write.result.v1-dlt",
@@ -592,8 +608,10 @@
         "team.member.event-dlt",
         "team.github.connected",
         "team.github.disconnected",
+        "team.github.renamed",
         "team.github.connected-dlt",
         "team.github.disconnected-dlt",
+        "team.github.renamed-dlt",
         "notification.trigger",
         "preference.team-role.state.v2",
         "preference.team-role.command.v2",
