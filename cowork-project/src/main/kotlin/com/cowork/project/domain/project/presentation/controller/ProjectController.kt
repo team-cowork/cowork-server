@@ -31,7 +31,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "프로젝트", description = "프로젝트 생성/수정/삭제 및 접근자 조회 API")
+@Tag(name = "프로젝트")
 @ApiResponses(
     ApiResponse(
         responseCode = "401",

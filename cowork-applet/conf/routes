@@ -1,17 +1,37 @@
 ###
-#  summary: 임의의 값을 생성합니다.
+#  summary: 임의 값 생성
 #  tags:
 #    - applet
 #  responses:
 #    200:
-#      description: 생성한 임의의 값입니다.
+#      description: 생성 성공
 #      content:
 #        application/json:
 #          schema:
 #            type: object
+#            required: [status, code, message, data]
 #            properties:
-#              value:
+#              status:
 #                type: string
+#                example: 200 OK
+#              code:
+#                type: integer
+#                example: 200
+#              message:
+#                type: string
+#                example: OK
+#              data:
+#                type: object
+#                required: [value]
+#                properties:
+#                  value:
+#                    type: string
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
 ###
 GET     /applets/random     com.cowork.applet.domain.placeholder.presentation.controller.RandomValueController.random
 
