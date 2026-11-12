@@ -159,7 +159,7 @@ object PreferenceEvents {
     ): PreferenceEvent {
         val deleted = settings == null
         val normalized = settings?.let {
-            JsonObject().put("label_auto_apply", it.getBoolean("label_auto_apply", true))
+            SettingSchema.resolve(ResourceType.GITHUB_REPO, it)
         }
         return PreferenceEvent(
             topic = GITHUB_REPO_SETTING_STATE_TOPIC,

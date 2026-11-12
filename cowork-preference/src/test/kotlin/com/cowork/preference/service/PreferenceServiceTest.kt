@@ -230,6 +230,32 @@ class PreferenceServiceTest {
     inner class UpdateSettings {
 
         @Test
+        fun `선언한 타입과 다른 값은 저장 전에 실패 결과로 반환한다`() = runBlocking {
+            val result = service.updateSettings(ResourceType.ACCOUNT, 19L, JsonObject().put("theme", 1))
+
+            assertTrue(result.exceptionOrNull() is IllegalArgumentException)
+            coVerify(exactly = 0) { outboxRepository.inTransaction<VersionedSettings>(any()) }
+        }
+
+        @Test
+        fun `부분 수정에서 누락한 항목에 기본값을 저장하지 않는다`() = runBlocking {
+            val connection = mockk<SqlConnection>()
+            val persisted = JsonObject().put("label_auto_apply", false)
+            val now = Instant.parse("2026-11-12T00:00:00Z")
+            coEvery { outboxRepository.inTransaction<VersionedSettings>(any()) } coAnswers {
+                firstArg<suspend (SqlConnection) -> VersionedSettings>().invoke(connection)
+            }
+            coEvery {
+                repository.upsertSettings(connection, 77L, ResourceType.GITHUB_REPO, JsonObject(), false)
+            } returns PreferenceSettingsUpdate(persisted, null, now, now)
+
+            val result = service.updateSettings(ResourceType.GITHUB_REPO, 77L, JsonObject())
+
+            assertEquals(persisted, result.getOrThrow())
+            coVerify { repository.upsertSettings(connection, 77L, ResourceType.GITHUB_REPO, JsonObject(), false) }
+        }
+
+        @Test
         fun `계정 상태 값이 허용 목록에 없으면 저장하지 않는다`() = runBlocking {
             val result = service.updateSettings(
                 ResourceType.ACCOUNT,
