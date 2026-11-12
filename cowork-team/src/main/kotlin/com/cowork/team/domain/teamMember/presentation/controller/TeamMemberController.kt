@@ -24,7 +24,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "팀 멤버")
+@Tag(name = "팀 멤버", description = "팀 멤버의 초대, 역할 변경, 탈퇴와 추방을 관리합니다.")
 @ApiResponses(
     ApiResponse(
         responseCode = "429",
