@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/cowork/authorization/internal/config"
 	"github.com/golang-jwt/jwt/v5"
+
+	"github.com/cowork/authorization/internal/config"
 )
 
 type Claims struct {

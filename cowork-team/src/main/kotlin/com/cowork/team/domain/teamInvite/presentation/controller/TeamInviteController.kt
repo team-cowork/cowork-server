@@ -24,6 +24,11 @@ import team.themoment.sdk.response.CommonApiResponse
 @Tag(name = "팀 초대", description = "팀 초대 링크 관리와 초대 코드를 통한 팀 가입")
 @ApiResponses(
     ApiResponse(
+        responseCode = "429",
+        description = "요청 한도 초과",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
+    ),
+    ApiResponse(
         responseCode = "401",
         description = "액세스 토큰이 없거나 유효하지 않음",
         content = [

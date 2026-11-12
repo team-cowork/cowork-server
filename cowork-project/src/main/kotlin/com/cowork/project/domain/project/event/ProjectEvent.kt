@@ -1,8 +1,7 @@
 package com.cowork.project.domain.project.event
 
-import com.fasterxml.jackson.annotation.JsonProperty
-
 import com.cowork.project.domain.project.entity.ProjectStatus
+import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.Instant
 
 enum class ProjectEventType { CREATED, UPDATED, DELETED }

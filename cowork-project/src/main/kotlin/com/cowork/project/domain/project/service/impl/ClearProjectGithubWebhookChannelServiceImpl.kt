@@ -22,7 +22,7 @@ class ClearProjectGithubWebhookChannelServiceImpl(
         val project = projectAccessGuard.findProjectForUpdateOrThrow(projectId)
         projectAccessGuard.requireGithubManager(project, userId)
         val repoLink = projectGithubRepoRepository.findByIdAndProjectIdForUpdate(repoId, projectId)
-            ?: throw ExpectedException("등록된 레포를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+            ?: throw ExpectedException("등록된 저장소를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
 
         repoLink.clearWebhookChannel()
         val saved = projectGithubRepoRepository.save(repoLink)
