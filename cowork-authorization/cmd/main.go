@@ -2,6 +2,10 @@
 // @version         20261111.1
 // @description     DataGSM 계정으로 로그인하고 cowork 토큰을 발급하거나 갱신합니다.
 // @BasePath        /api/authorization
+// @tag.name        auth
+// @tag.description DataGSM 로그인과 토큰 발급, 갱신, 로그아웃을 처리합니다.
+// @tag.name        events
+// @tag.description DataGSM의 사용자 변경 이벤트를 수신합니다.
 // @securityDefinitions.apikey BearerAuth
 // @in              header
 // @name            Authorization
