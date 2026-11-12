@@ -6,15 +6,8 @@ import {
 	Inject as inject,
 } from '@nestjs/common';
 import {InjectConnection as injectConnection} from '@nestjs/mongoose';
-import {
-	ApiOkResponse as apiOkResponse,
-	ApiOperation as apiOperation,
-	ApiExtraModels as apiExtraModels,
-	getSchemaPath,
-	ApiResponse as apiResponse,
-} from '@nestjs/swagger';
+import {ApiExcludeController as apiExcludeController} from '@nestjs/swagger';
 import mongoose from 'mongoose';
-import {ApiResponseMetadataDto} from './common/dto/api-response-metadata.dto.js';
 import {publicRoute} from './common/guard/public.decorator.js';
 import {RedisRateLimiter} from './common/util/redis-rate-limiter.js';
 import {SocketIoRedisConnection} from './common/adapter/redis-io.adapter.js';
@@ -23,8 +16,7 @@ import {ProjectionReadinessService} from './common/kafka/projection-readiness.se
 import {ElasticsearchService} from './search/elasticsearch.service.js';
 
 @publicRoute()
-@apiExtraModels(ApiResponseMetadataDto)
-@apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
+@apiExcludeController()
 @controller('health')
 export class HealthController {
 	@injectConnection()
@@ -46,25 +38,6 @@ export class HealthController {
 	private readonly socketIoRedis!: SocketIoRedisConnection;
 
 	@httpGet()
-	@apiOperation({summary: '채팅 서비스 상태 조회'})
-	@apiOkResponse({
-		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {type: 'object', properties: {status: {type: 'string', enum: ['UP']}}},
-					},
-				},
-			],
-		},
-	})
 	health() {
 		return {status: 'UP'};
 	}
