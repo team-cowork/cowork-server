@@ -33,7 +33,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "팀", description = "팀을 생성하고 팀 정보를 조회하거나 수정합니다.")
+@Tag(name = "팀", description = "팀을 생성·조회·수정·삭제하고 팀 아이콘을 관리합니다.")
 @ApiResponses(
     ApiResponse(
         responseCode = "429",
