@@ -135,10 +135,13 @@ import {
 	MessageSearchRebuilder,
 	MessageSearchAdminService,
 } from './search/index.js';
+import {MeetingNoteAttachmentRetention, meetingNoteAttachmentRetentionSchema} from './schema/meeting-note-attachment-retention.schema.js';
+import {MeetingNoteAttachmentRetentionRepository} from './repository/meeting-note-attachment-retention.repository.js';
 
 @nestModule({
 	imports: [
 		MongooseModule.forFeature([
+			{name: MeetingNoteAttachmentRetention.name, schema: meetingNoteAttachmentRetentionSchema},
 			{name: MeetingNoteAttachmentProjection.name, schema: meetingNoteAttachmentProjectionSchema},
 			{name: Message.name, schema: messageSchema},
 			{name: ChannelReadState.name, schema: channelReadStateSchema},
@@ -178,6 +181,7 @@ import {
 		MessageSearchAdminController,
 	],
 	providers: [
+		MeetingNoteAttachmentRetentionRepository,
 		MeetingNoteAttachmentProjectionRepository,
 		MeetingNoteAttachmentConsumer,
 		MeetingNoteAttachmentDownloadService,
