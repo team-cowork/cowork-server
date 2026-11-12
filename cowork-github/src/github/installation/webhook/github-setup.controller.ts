@@ -6,13 +6,22 @@ import {
 	Logger,
 	Query as requestQuery,
 } from '@nestjs/common';
+import {
+	ApiOkResponse as apiOkResponse,
+	ApiOperation as apiOperation,
+	ApiQuery as apiQuery,
+	ApiResponse as apiResponse,
+	ApiTags as apiTags,
+} from '@nestjs/swagger';
 import type {Redis} from 'ioredis';
+import {gatewayApiErrorSchema} from '../../../config/swagger-schemas.js';
 import {GithubAuthService} from '../../auth/github-auth.service.js';
 import {REDIS_CLIENT} from '../../constants.js';
 import {githubCacheKeys} from '../../github.cache.js';
 import {GithubBackfillService} from '../github-backfill.service.js';
 import {TeamGithubProducer} from '../kafka/team-github.producer.js';
 
+@apiTags('installation')
 @controller('github/setup')
 export class GithubSetupController {
 	private readonly logger = new Logger(GithubSetupController.name);
@@ -30,6 +39,28 @@ export class GithubSetupController {
 
 	@httpGet()
 	@responseHeader('Content-Type', 'text/html; charset=utf-8')
+	@apiOperation({
+		summary: 'GitHub App 설치 콜백',
+		description: '팀 연결에는 state와 code가 필요합니다. code로 사용자의 설치 접근 권한을 확인합니다.',
+	})
+	@apiQuery({
+		name: 'installation_id', description: 'GitHub App 설치 ID', type: String, example: '12345',
+	})
+	@apiQuery({
+		name: 'setup_action', description: '설치 작업 (delete는 연결 해제 안내)', type: String, example: 'install',
+	})
+	@apiQuery({
+		name: 'state', description: 'cowork에서 발급한 팀 연결 상태 값', type: String, required: false,
+	})
+	@apiQuery({
+		name: 'code', description: '설치를 진행한 사용자의 GitHub OAuth 코드', type: String, required: false,
+	})
+	@apiOkResponse({
+		description: '연결 성공/실패/해제 안내 HTML (처리 실패도 HTTP 200)',
+		content: {'text/html': {schema: {type: 'string'}}},
+	})
+	@apiResponse({status: 429, description: '설치 콜백 요청 한도 초과', schema: gatewayApiErrorSchema})
+	@apiResponse({status: 'default', description: '기타 요청/서버 오류', schema: gatewayApiErrorSchema})
 	async handle(
 		@requestQuery('installation_id') installationIdRaw: string,
 		@requestQuery('setup_action') setupAction: string,
@@ -83,7 +114,7 @@ export class GithubSetupController {
 				orgLogin,
 				revision,
 			});
-			// Repo 목록 projection을 바로 채운다. 이슈·PR 등은 cowork-project가 프로젝트에 연결된 repo만
+			// Repo 목록 projection을 바로 채운다. 이슈/PR 등은 cowork-project가 프로젝트에 연결된 repo만
 			// github.sync.command.v1로 요청한다. 대기열에 넣기만 하므로 콜백 응답이 늦어지지 않는다.
 			void this.backfillService.enqueue({type: 'ORG_REPOSITORIES', installationId, owner: orgLogin});
 			return this.page(
