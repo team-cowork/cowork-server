@@ -66,7 +66,7 @@ public class RoadmapNodeController {
 
     @Operation(summary = "노드 생성")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "생성 완료", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
+            @ApiResponse(responseCode = "201", description = "생성 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
                             @SchemaProperty(name = "status", schema = @Schema(implementation = HttpStatus.class, example = "201 CREATED")),
                             @SchemaProperty(name = "code", schema = @Schema(type = "integer", example = "201")),
@@ -102,7 +102,7 @@ public class RoadmapNodeController {
 
     @Operation(summary = "노드 상세 조회 (관련 자료 포함)")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 완료", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
+            @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
                             @SchemaProperty(name = "status", schema = @Schema(implementation = HttpStatus.class, example = "200 OK")),
                             @SchemaProperty(name = "code", schema = @Schema(type = "integer", example = "200")),
@@ -154,7 +154,7 @@ public class RoadmapNodeController {
 
     @Operation(summary = "노드 관련 자료 목록 조회")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "조회 완료", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
+            @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
                             @SchemaProperty(name = "status", schema = @Schema(implementation = HttpStatus.class, example = "200 OK")),
                             @SchemaProperty(name = "code", schema = @Schema(type = "integer", example = "200")),
@@ -172,7 +172,7 @@ public class RoadmapNodeController {
 
     @Operation(summary = "노드 관련 자료 추가")
     @ApiResponses({
-            @ApiResponse(responseCode = "201", description = "생성 완료", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
+            @ApiResponse(responseCode = "201", description = "생성 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
                             @SchemaProperty(name = "status", schema = @Schema(implementation = HttpStatus.class, example = "201 CREATED")),
                             @SchemaProperty(name = "code", schema = @Schema(type = "integer", example = "201")),
@@ -194,7 +194,7 @@ public class RoadmapNodeController {
 
     @Operation(summary = "관련 자료 수정")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "수정 완료", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
+            @ApiResponse(responseCode = "200", description = "수정 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
                             @SchemaProperty(name = "status", schema = @Schema(implementation = HttpStatus.class, example = "200 OK")),
                             @SchemaProperty(name = "code", schema = @Schema(type = "integer", example = "200")),
