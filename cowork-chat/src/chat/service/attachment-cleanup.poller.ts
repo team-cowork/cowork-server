@@ -4,7 +4,10 @@ import {
 	Logger,
 	OnModuleDestroy,
 	OnModuleInit,
+	Inject as inject,
 } from '@nestjs/common';
+import {MeetingNoteAttachmentProjectionRepository} from '../repository/meeting-note-attachment-projection.repository.js';
+import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {ObjectStorageService} from '../../storage/object-storage.service.js';
 import {AttachmentUploadRepository} from '../../storage/attachment-upload.repository.js';
 import {AttachmentUpload, ATTACHMENT_UPLOAD_RETENTION_SECONDS} from '../../storage/attachment-upload.schema.js';
@@ -35,7 +38,7 @@ export const UPLOAD_RECLAIM_AGE_MS = (ATTACHMENT_UPLOAD_RETENTION_SECONDS * 1000
  첨부 객체 정리 워커.
 
  - 메시지 삭제 의도: 메시지가 사라진 것을 확인한 뒤에만 객체를 지우고 의도를 제거한다.
- - 미전송 업로드: 재시도 창과 유예가 지난 업로드 기록을 정리하며, 메시지가 참조하지 않는 확정 객체는 먼저 지운다.
+ - 미전송 업로드: 재시도 창과 유예가 지난 업로드 기록을 정리하며, 메시지와 회의록이 참조하지 않는 확정 객체는 먼저 지운다.
 
  항목은 처리 시각을 뒤로 미루는 점유로 꺼내므로 여러 replica가 같은 항목을 동시에 처리하지 않는다.
  실패한 항목은 점유가 끝나면 다시 처리되고, 객체 삭제는 이미 없는 객체도 성공으로 보므로 반복해도 안전하다.
@@ -46,6 +49,12 @@ export class AttachmentCleanupPoller implements OnModuleInit, OnModuleDestroy {
 	private timer?: ReturnType<typeof setInterval>;
 	private running = false;
 	private lastReclaimAt = 0;
+
+	@inject()
+	private readonly meetingNotes!: MeetingNoteAttachmentProjectionRepository;
+
+	@inject()
+	private readonly readiness!: ProjectionReadinessService;
 
 	constructor(
 		private readonly deletions: AttachmentDeletionRepository,
@@ -78,15 +87,16 @@ export class AttachmentCleanupPoller implements OnModuleInit, OnModuleDestroy {
 	}
 
 	/**
-     재시도 창이 지난 업로드 기록을 정리한다. 메시지가 참조하지 않는 확정 객체는 기록보다 먼저 지운다.
-     참조 중인 객체는 메시지가 소유하므로 기록만 지운다. 확정 전 기록의 임시 객체는 버킷 lifecycle이 지운다.
+     재시도 창이 지난 업로드 기록을 정리한다. 메시지와 회의록이 참조하지 않는 확정 객체는 기록보다 먼저 지운다.
+     참조 중인 객체는 보관하고 업로드 기록만 지운다. 확정 전 기록의 임시 객체는 버킷 lifecycle이 지운다.
 
      @returns 객체를 회수했으면 `true`
      */
 	private async reclaimUpload(upload: AttachmentUpload): Promise<boolean> {
 		const {objectKey, clientMessageId} = upload;
 		const isUnsent = objectKey !== undefined
-			&& (clientMessageId === undefined || !await this.messages.referencesAttachment(clientMessageId, objectKey));
+			&& (clientMessageId === undefined || !await this.messages.referencesAttachment(clientMessageId, objectKey))
+			&& !await this.meetingNotes.references(objectKey);
 		if (isUnsent) {
 			try {
 				await this.removeObject(objectKey);
@@ -102,6 +112,15 @@ export class AttachmentCleanupPoller implements OnModuleInit, OnModuleDestroy {
 
 	private async removeObject(objectKey: string): Promise<void> {
 		try {
+			if (await this.meetingNotes.references(objectKey)) {
+				return;
+			}
+
+			// 동기화가 끊기면 참조가 없다는 판정을 신뢰하지 않고 다음 주기에 재시도한다.
+			if (!this.readiness.isCaughtUp('meetingNoteAttachment')) {
+				throw new Error('Meeting note attachment projection is not ready');
+			}
+
 			await this.storage.removeObject(objectKey);
 		} catch (error) {
 			// 형식이 잘못된 키는 재시도해도 지울 수 없다.
@@ -114,7 +133,7 @@ export class AttachmentCleanupPoller implements OnModuleInit, OnModuleDestroy {
 	}
 
 	async runCycle(now = new Date()): Promise<void> {
-		if (this.running) {
+		if (this.running || !this.readiness.isCaughtUp('meetingNoteAttachment')) {
 			return;
 		}
 
