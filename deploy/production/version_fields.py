@@ -74,7 +74,7 @@ def module_files(module):
         candidates.append(directory / "src/main/resources/openapi.json")
     if module == "applet":
         candidates.append(directory / "conf/swagger.yml")
-    if module in {"channel", "project", "team", "roadmap"}:
+    if module in {"channel", "project", "team", "roadmap", "gateway"}:
         language, extension = ("java", "java") if module == "roadmap" else ("kotlin", "kt")
         candidates.append(directory / f"src/main/{language}/com/cowork/{module}/global/config/OpenApiConfig.{extension}")
     paths = [path.relative_to(ROOT).as_posix() for path in candidates if path.is_file()]
