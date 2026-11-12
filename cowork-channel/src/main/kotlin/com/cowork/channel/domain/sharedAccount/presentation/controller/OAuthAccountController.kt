@@ -17,7 +17,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "계정 공유 OAuth")
+@Tag(name = "계정 공유 OAuth", description = "외부 서비스의 계정을 인증하고 공유 계정에 연결합니다.")
 @ApiResponses(
     ApiResponse(
         responseCode = "503",

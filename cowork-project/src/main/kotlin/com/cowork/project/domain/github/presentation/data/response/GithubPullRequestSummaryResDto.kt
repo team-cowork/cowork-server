@@ -2,7 +2,7 @@ package com.cowork.project.domain.github.presentation.data.response
 
 import io.swagger.v3.oas.annotations.media.Schema
 
-@Schema(description = "GitHub PR 목록 요약 (보드 카드)")
+@Schema(description = "GitHub PR 요약")
 data class GithubPullRequestSummaryResDto(
     @field:Schema(description = "PR 번호", example = "1")
     val number: Int,
