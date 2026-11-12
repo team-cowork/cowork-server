@@ -4,8 +4,8 @@ import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.repository.ProjectEventTombstoneRepository
 import com.cowork.project.global.outbox.OutboxWriter
 import jakarta.persistence.EntityManager
-import java.time.Instant
 import org.springframework.stereotype.Component
+import java.time.Instant
 
 @Component
 class ProjectEventPublisher(
@@ -80,9 +80,15 @@ class ProjectEventPublisher(
             projectId = project.id,
             createdBy = project.createdBy,
             isPrivate = project.isPrivate,
-            initialReadGrant = if (eventType == ProjectEventType.DELETED) null else {
+            initialReadGrant = if (eventType == ProjectEventType.DELETED) {
+                null
+            } else {
                 project.initialReadMembershipVersion?.let {
-                    ProjectInitialReadGrant(project.createdBy, it, checkNotNull(project.initialReadAuthorizationVersion))
+                    ProjectInitialReadGrant(
+                        project.createdBy,
+                        it,
+                        checkNotNull(project.initialReadAuthorizationVersion),
+                    )
                 }
             },
             teamId = project.teamId,

@@ -32,7 +32,9 @@ class TeamMembership(
     fun applyUpsert(newRole: String, occurredAt: Instant, newAuthorizationVersion: Instant? = null) {
         authorizationVersion = if (occurredAt == sourceOccurredAt) {
             listOfNotNull(authorizationVersion, newAuthorizationVersion).maxOrNull()
-        } else newAuthorizationVersion
+        } else {
+            newAuthorizationVersion
+        }
         role = newRole
         active = true
         sourceOccurredAt = occurredAt
@@ -41,7 +43,9 @@ class TeamMembership(
     fun markDeleted(occurredAt: Instant, newAuthorizationVersion: Instant? = null) {
         authorizationVersion = if (occurredAt == sourceOccurredAt) {
             listOfNotNull(authorizationVersion, newAuthorizationVersion).maxOrNull()
-        } else newAuthorizationVersion
+        } else {
+            newAuthorizationVersion
+        }
         active = false
         sourceOccurredAt = occurredAt
     }

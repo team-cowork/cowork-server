@@ -38,10 +38,15 @@ class ChannelStateConsumer(
         val reason = when {
             record.key() != payload.channelId.toString() ->
                 "channelId와 Kafka key가 일치하지 않습니다."
+
             payload.channelId <= 0 -> "channelId는 양수여야 합니다."
+
             payload.projectId != null && payload.projectId <= 0 -> "projectId는 null이거나 양수여야 합니다."
+
             payload.eventType !in setOf("CREATED", "UPDATED", "DELETED") -> "지원하지 않는 eventType입니다."
+
             occurredAt == null -> "occurredAt이 필요합니다."
+
             else -> null
         }
         if (reason != null) {

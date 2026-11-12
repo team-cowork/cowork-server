@@ -28,7 +28,13 @@ class GithubCommentAuthorizationSupportTest :
             every { projectAccessGuard.findProjectOrThrow(1L) } returns project
             usernameResolver = mockk()
             commentReader = mockk()
-            support = GithubCommentAuthorizationSupport(repoAccessResolver, projectAccessGuard, usernameResolver, commentReader)
+            support =
+                GithubCommentAuthorizationSupport(
+                    repoAccessResolver,
+                    projectAccessGuard,
+                    usernameResolver,
+                    commentReader,
+                )
         }
 
         describe("GithubCommentAuthorizationSupport 클래스의") {
