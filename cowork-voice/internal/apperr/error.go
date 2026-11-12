@@ -6,12 +6,10 @@ import (
 	"net/http"
 )
 
-// Error godoc
-// @Description API 에러 응답
 type Error struct {
-	HTTPStatus int    `json:"status"  example:"404"`
-	Code       string `json:"error"   example:"NOT_FOUND"`
-	Message    string `json:"message" example:"session not found"`
+	HTTPStatus int    `json:"status"`
+	Code       string `json:"error"`
+	Message    string `json:"message"`
 }
 
 func (e *Error) Error() string {

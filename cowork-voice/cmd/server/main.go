@@ -1,20 +1,4 @@
-// @title           cowork Voice API
-// @version         20261113.0
-// @description     음성 통화와 라이브 방송에 사용할 LiveKit 토큰을 발급합니다. 응답의 livekit_url로 연결합니다.
-// @BasePath        /api/voice
-// @tag.name        voice
-// @tag.description 음성 채널 입장과 퇴장, 참여자와 세션 조회를 처리합니다.
-// @tag.name        live
-// @tag.description 라이브 방송 시작, 시청 참여와 퇴장, 방송 상태 조회를 처리합니다.
-// @tag.name        webhook
-// @tag.description LiveKit의 통화와 방송 이벤트를 수신합니다.
-// @securityDefinitions.apikey BearerAuth
-// @in              header
-// @name            Authorization
-// @description     "Bearer {access_token}" 형식으로 입력합니다.
 package main
-
-//go:generate go -C ../.. run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/server/main.go -o swagger --parseDependency --parseInternal
 
 import (
 	"context"
@@ -30,10 +14,10 @@ import (
 	"github.com/livekit/protocol/auth"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	httpSwagger "github.com/swaggo/http-swagger/v2"
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	mongoopts "go.mongodb.org/mongo-driver/v2/mongo/options"
 
+	"github.com/cowork/cowork-voice/internal/apidoc"
 	"github.com/cowork/cowork-voice/internal/config"
 	livedomain "github.com/cowork/cowork-voice/internal/domain/live_room"
 	permissionsync "github.com/cowork/cowork-voice/internal/domain/permission_sync"
@@ -48,11 +32,16 @@ import (
 	"github.com/cowork/cowork-voice/internal/monitoring"
 	"github.com/cowork/cowork-voice/internal/relay"
 	"github.com/cowork/cowork-voice/pkg/logger"
-	_ "github.com/cowork/cowork-voice/swagger"
 )
 
 func main() {
 	logger.Init("cowork-voice")
+
+	swaggerHandler, err := apidoc.NewHandler()
+	if err != nil {
+		slog.Error("Initialize OpenAPI documentation", "err", err)
+		os.Exit(1)
+	}
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -182,9 +171,7 @@ func main() {
 	r.Get("/health", health.Handler)
 	r.Get("/health/ready", health.ReadyHandler(projectionReadiness))
 	r.Handle("/metrics", promhttp.Handler())
-	r.Get("/swagger/*", httpSwagger.Handler(
-		httpSwagger.URL("/swagger/doc.json"),
-	))
+	r.Get("/swagger/*", swaggerHandler)
 	r.Post("/voice/webhook", webhookHandler.Handle)
 
 	r.Group(func(r chi.Router) {
