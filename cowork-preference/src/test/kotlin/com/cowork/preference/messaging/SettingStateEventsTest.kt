@@ -11,6 +11,23 @@ class SettingStateEventsTest {
     private val occurredAt = Instant.parse("2026-10-23T01:02:03Z")
 
     @Test
+    fun `GitHub 설정 이벤트는 항목 기본값을 적용하지만 삭제는 null로 유지한다`() {
+        val unset = PreferenceEvents.githubRepoSettingState(77L, JsonObject(), occurredAt, snapshot = true)
+        val disabled = PreferenceEvents.githubRepoSettingState(
+            77L,
+            JsonObject().put("label_auto_apply", false),
+            occurredAt,
+            snapshot = false,
+        )
+        val deleted = PreferenceEvents.githubRepoSettingState(77L, null, occurredAt, snapshot = false)
+
+        assertEquals(JsonObject().put("label_auto_apply", true), unset.payload.getJsonObject("settings"))
+        assertEquals(JsonObject().put("label_auto_apply", false), disabled.payload.getJsonObject("settings"))
+        assertEquals("DELETE", deleted.payload.getString("eventType"))
+        assertNull(deleted.payload.getValue("settings"))
+    }
+
+    @Test
     fun `계정 설정 state는 알림 판단에 쓰는 값만 계정 키로 싣는다`() {
         val dndSchedule = JsonObject().put("enabled", true).put("start", "22:00").put("end", "08:00")
         val settings = JsonObject()
