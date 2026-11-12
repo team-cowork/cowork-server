@@ -13,7 +13,7 @@ data class UpdateTeamRoleRequest(
     val mentionable: Boolean? = null,
     @param:Schema(
         description = "변경할 역할 기본 권한. 보낸 키만 바뀌고 나머지 권한은 유지됩니다. " +
-            "사용할 수 있는 키는 역할 권한 목록 조회 API에서 확인합니다.",
+            "사용할 수 있는 키는 GET /api/preference/preferences/role-permissions에서 확인합니다.",
         example = "{\"message_send\":false}",
     )
     val permissions: Map<String, Any?>? = null,
