@@ -101,7 +101,7 @@ async function bootstrap() {
 
 	const document = createChatApiDocument(app, new DocumentBuilder().setVersion('20261113.0'));
 
-	SwaggerModule.setup('api', app, document, {jsonDocumentUrl: 'api-json'});
+	SwaggerModule.setup('api', app, document, {jsonDocumentUrl: 'v3/api-docs'});
 
 	const projectionReadiness = app.get(ProjectionReadinessService);
 	app.use((request: Request, response: Response, next: NextFunction) => {
@@ -109,7 +109,7 @@ async function bootstrap() {
 			|| request.path === '/health/ready'
 			|| request.path === '/metrics'
 			|| request.path === '/api'
-			|| request.path === '/api-json'
+			|| request.path === '/v3/api-docs'
 			|| request.path === '/asyncapi.json'
 			|| request.path.startsWith('/chat/admin/');
 		const requiredStreams = isOperationalPath ? [] : requiredProjectionStreams(request.path);

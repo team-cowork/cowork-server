@@ -68,7 +68,7 @@ func normalizedRoute(fullPath string, rawPath string) string {
 
 func shouldSkipRoute(route string) bool {
 	switch route {
-	case "/metrics", "/health", "/swagger/*any":
+	case "/metrics", "/health", "/v3/api-docs", "/swagger/*any":
 		return true
 	default:
 		return false
