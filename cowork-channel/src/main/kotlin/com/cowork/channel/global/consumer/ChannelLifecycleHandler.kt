@@ -2,6 +2,7 @@ package com.cowork.channel.global.consumer
 
 import com.cowork.channel.domain.channel.event.ChannelEventPublisher
 import com.cowork.channel.domain.channel.repository.ChannelRepository
+import com.cowork.channel.domain.meetingNote.event.MeetingNoteAttachmentPublisher
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteRepository
 import com.cowork.channel.domain.membership.entity.TeamMembership
 import com.cowork.channel.domain.membership.repository.TeamMembershipRepository
@@ -17,6 +18,7 @@ class ChannelLifecycleHandler(
     private val teamMembershipRepository: TeamMembershipRepository,
     private val channelEventPublisher: ChannelEventPublisher,
     private val roleProjectionHandler: PreferenceTeamRoleProjectionHandler,
+    private val attachmentPublisher: MeetingNoteAttachmentPublisher,
     private val meetingNoteRepository: MeetingNoteRepository,
 ) {
     private val log = LoggerFactory.getLogger(ChannelLifecycleHandler::class.java)
@@ -59,6 +61,7 @@ class ChannelLifecycleHandler(
         }
         channels.forEach { channelEventPublisher.publishDeleted(it, version) }
         // 템플릿 CASCADE가 회의록보다 먼저 처리되면 템플릿 FK가 채널 삭제를 막으므로 회의록을 먼저 지운다.
+        attachmentPublisher.deleteChannels(channels.map { it.id })
         meetingNoteRepository.deleteAllByChannelIdIn(channels.map { it.id })
         channelRepository.deleteAll(channels)
         log.info("Processed TEAM_DELETED event [teamId={}, deletedChannels={}]", teamId, channels.size)

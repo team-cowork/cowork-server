@@ -2,8 +2,8 @@ package com.cowork.gateway.health.controller
 
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.media.Content
-import io.swagger.v3.oas.annotations.media.ExampleObject
 import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.media.SchemaProperty
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
 import org.springframework.cloud.gateway.route.RouteLocator
@@ -14,45 +14,34 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.reactive.function.client.WebClient
 import reactor.core.publisher.Mono
-import team.themoment.sdk.response.CommonApiResponse
 import java.net.URI
 import java.time.Duration
 
-@Tag(name = "Health", description = "서비스 헬스 체크 API")
+@Tag(name = "서비스 상태")
 @RestController
 @RequestMapping("/api/health")
 class HealthCheckController(webClientBuilder: WebClient.Builder, private val routeLocator: RouteLocator) {
     private val webClient = webClientBuilder.build()
 
-    @Operation(
-        summary = "전체 서비스 상태 조회",
-        description = """게이트웨이 라우트에 등록된 모든 서비스의 상태를 반환합니다.
-
-- **UP**: 설정된 모든 upstream의 readiness가 정상
-- **DEGRADED**: 일부 upstream의 readiness가 비정상
-- **DOWN**: 모든 upstream에 연결할 수 없거나 readiness가 비정상""",
-    )
+    @Operation(summary = "서비스 상태 조회")
     @ApiResponse(
         responseCode = "200",
-        description = "서비스 상태 목록",
+        description = "조회 성공",
         content = [
             Content(
                 mediaType = MediaType.APPLICATION_JSON_VALUE,
-                schema = Schema(implementation = CommonApiResponse::class),
-                examples = [
-                    ExampleObject(
-                        value = """
-                {
-                  "status": "200 OK",
-                  "code": 200,
-                  "message": "OK",
-                  "data": {
-                    "cowork-user": "UP",
-                    "cowork-team": "UP",
-                    "cowork-authorization": "DEGRADED",
-                    "cowork-chat": "DOWN"
-                  }
-                }""",
+                schema = Schema(type = "object", requiredProperties = ["status", "code", "message", "data"]),
+                schemaProperties = [
+                    SchemaProperty(name = "status", schema = Schema(type = "string", allowableValues = ["200 OK"])),
+                    SchemaProperty(name = "code", schema = Schema(type = "integer", example = "200")),
+                    SchemaProperty(name = "message", schema = Schema(type = "string", allowableValues = ["OK"])),
+                    SchemaProperty(
+                        name = "data",
+                        schema = Schema(
+                            type = "object",
+                            description = "서비스 이름별 상태",
+                            additionalPropertiesSchema = ServiceStatus::class,
+                        ),
                     ),
                 ],
             ),
@@ -96,6 +85,10 @@ class HealthCheckController(webClientBuilder: WebClient.Builder, private val rou
         .collectMap<String, ServiceStatus>({ it.first }, { it.second })
         .map { ResponseEntity.ok(it) }
 
+    @Schema(
+        enumAsRef = true,
+        description = "상태 확인 경로가 모두 정상이면 UP, 일부만 정상이면 DEGRADED, 모두 비정상이면 DOWN입니다.",
+    )
     enum class ServiceStatus {
         UP,
         DEGRADED,

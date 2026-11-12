@@ -21,6 +21,13 @@ const sourceGeneration = (name: string): string => (
 );
 
 export const PROJECTION_STREAMS = {
+	meetingNoteAttachment: {
+		name: 'meetingNoteAttachment',
+		topic: 'channel.meeting-note-attachments.state.v1',
+		groupId: 'cowork-chat-meeting-note-attachments-v1-projection',
+		expectedSource: 'cowork-channel',
+		sourceGeneration: sourceGeneration('MEETING_NOTE_ATTACHMENT'),
+	},
 	channel: {
 		name: 'channel',
 		topic: 'channel.event.v2',
