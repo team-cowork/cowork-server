@@ -94,6 +94,28 @@ spring:
       # - GitHub와 Voice 웹훅은 downstream 검증에 맡긴다.
       # - API 문서 라우트: 정적 문서 조회다.
       routes:
+        - id: preference-role-permissions
+          order: -2
+          uri: ${COWORK_PREFERENCE_URL}
+          metadata:
+            cowork-service: cowork-preference
+            health-path: /health/ready
+          predicates:
+            - Path=/api/preference/preferences/role-permissions
+            - Method=GET
+          filters:
+            - SetPath=/preferences/role-permissions
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+                key-resolver: "#{@userKeyResolver}"
+            - name: CircuitBreaker
+              args:
+                name: preferenceCB
+                fallbackUri: forward:/fallback
+
         - id: preference-webhook-management
           order: -2
           uri: ${COWORK_PREFERENCE_URL}

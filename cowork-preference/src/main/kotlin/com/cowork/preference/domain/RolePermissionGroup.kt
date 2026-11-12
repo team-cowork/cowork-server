@@ -1,7 +1,7 @@
-package com.cowork.team.domain.teamRole.service.support
+package com.cowork.preference.domain
 
 /** 역할 설정 화면에서 권한을 묶어 보여주는 그룹. 선언 순서가 화면 표시 순서다. */
-enum class TeamRolePermissionGroup(val title: String) {
+enum class RolePermissionGroup(val title: String) {
     TEAM("팀 관리"),
     MEMBER("멤버 관리"),
     CHANNEL("채널 관리"),
