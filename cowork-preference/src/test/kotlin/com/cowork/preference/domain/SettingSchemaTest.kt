@@ -4,9 +4,66 @@ import io.vertx.core.json.JsonObject
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class SettingSchemaTest {
+
+    @Test
+    fun `카탈로그는 각 리소스의 모든 설정에 제목 설명과 기본값을 제공한다`() {
+        val catalog = SettingSchema.definitions().map { it as JsonObject }
+
+        assertEquals(ResourceType.entries.map { it.name }, catalog.map { it.getString("resourceType") })
+        catalog.forEach { group ->
+            val type = ResourceType.valueOf(group.getString("resourceType"))
+            val definitions = group.getJsonArray("settings").map { it as JsonObject }
+            assertEquals(SettingSchema.validKeys(type), definitions.map { it.getString("key") }.toSet())
+            definitions.forEach { definition ->
+                assertTrue(definition.getString("title").isNotBlank())
+                assertTrue(definition.getString("description").isNotBlank())
+                assertTrue(definition.getString("type") in setOf("boolean", "integer", "string", "object"))
+                assertTrue(definition.containsKey("defaultValue"))
+                definition.getValue("defaultValue")?.let { value ->
+                    assertNull(SettingSchema.validate(type, JsonObject().put(definition.getString("key"), value)))
+                }
+            }
+        }
+        val github = catalog.single { it.getString("resourceType") == "GITHUB_REPO" }.getJsonArray("settings")
+        assertEquals(true, github.getJsonObject(0).getValue("defaultValue"))
+        val account = catalog.single { it.getString("resourceType") == "ACCOUNT" }.getJsonArray("settings")
+        val theme = account.map { it as JsonObject }.single { it.getString("key") == "theme" }
+        assertNull(theme.getValue("defaultValue"))
+        assertEquals(true, theme.getBoolean("nullable"))
+        assertTrue(catalog.single { it.getString("resourceType") == "PROJECT" }.getJsonArray("settings").isEmpty)
+    }
+
+    @Test
+    fun `정의된 기본값만 채우고 기존 값과 미설정 의미를 유지한다`() {
+        val settings = JsonObject().put("label_auto_apply", false).put("unknown", true)
+
+        assertEquals(
+            JsonObject().put("label_auto_apply", false),
+            SettingSchema.resolve(ResourceType.GITHUB_REPO, settings),
+        )
+        assertEquals(JsonObject().put("label_auto_apply", true), SettingSchema.resolve(ResourceType.GITHUB_REPO, null))
+        assertEquals(
+            JsonObject().put("label_auto_apply", true),
+            SettingSchema.resolve(ResourceType.GITHUB_REPO, JsonObject().putNull("label_auto_apply")),
+        )
+        assertEquals(JsonObject(), SettingSchema.applyDefaults(ResourceType.VOICE_CHANNEL, null))
+        assertEquals(JsonObject(), SettingSchema.filter(ResourceType.GITHUB_REPO, JsonObject()))
+        assertEquals(JsonObject().put("label_auto_apply", false).put("unknown", true), settings)
+    }
+
+    @Test
+    fun `계정 항목은 선언한 타입을 검사하고 기존 null 허용을 유지한다`() {
+        for (key in listOf("status", "status_expires_at", "theme", "language", "time_format", "date_format")) {
+            assertNotNull(SettingSchema.validate(ResourceType.ACCOUNT, JsonObject().put(key, 1)))
+            assertNull(SettingSchema.validate(ResourceType.ACCOUNT, JsonObject().putNull(key)))
+        }
+        assertNull(SettingSchema.validate(ResourceType.ACCOUNT, JsonObject().put("marketing_email", false)))
+        assertNotNull(SettingSchema.validate(ResourceType.ACCOUNT, JsonObject().put("marketing_email", "false")))
+    }
 
     @Test
     fun `방해 금지 예약은 허용한 키만 남긴다`() {
