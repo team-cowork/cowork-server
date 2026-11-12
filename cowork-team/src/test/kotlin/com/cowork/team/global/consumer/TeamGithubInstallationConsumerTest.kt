@@ -307,14 +307,14 @@ class TeamGithubInstallationConsumerTest :
                 }
 
                 context("installation에 연결된 팀이 없으면") {
-                    it("무시한다") {
-                        stubNoLedger(1L)
+                    it("revision 원장을 건드리지 않고 무시한다") {
                         every { teamRepository.findByGithubInstallationId(1L) } returns null
 
                         consumer.consumeRenamed(
                             TeamGithubRenamedPayload(installationId = 1L, orgLogin = "new-org", revision = 1L),
                         )
 
+                        verify(exactly = 0) { revisionRepository.insertInitialIfAbsent(any()) }
                         verify(exactly = 0) { teamRepository.save(any()) }
                     }
                 }
