@@ -3,15 +3,14 @@ module github.com/cowork/authorization
 go 1.27.1
 
 require (
+	github.com/getkin/kin-openapi v0.153.0
 	github.com/gin-gonic/gin v1.12.0
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/prometheus/client_golang v1.24.1
 	github.com/redis/go-redis/v9 v9.23.0
 	github.com/segmentio/kafka-go v0.4.51
-	github.com/swaggo/files v1.0.1
-	github.com/swaggo/gin-swagger v1.6.1
-	github.com/swaggo/swag v1.16.6
+	github.com/swaggo/http-swagger/v2 v2.0.2
 	github.com/tmp-it-play/datagsm-sdk-go v0.3.0
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/gorm v1.31.2
@@ -60,6 +59,9 @@ require (
 	github.com/prometheus/procfs v0.22.0 // indirect
 	github.com/quic-go/qpack v0.6.0 // indirect
 	github.com/quic-go/quic-go v0.62.0 // indirect
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
+	github.com/swaggo/files/v2 v2.0.2 // indirect
+	github.com/swaggo/swag v1.16.6 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.3.2 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
@@ -68,6 +70,7 @@ require (
 	go.mongodb.org/mongo-driver/v2 v2.9.1 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	go.yaml.in/yaml/v4 v4.0.0 // indirect
 	golang.org/x/arch v0.31.0 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/mod v0.41.0 // indirect
