@@ -41,7 +41,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "OK",
+                        "description": "인증 URL 발급 성공",
                         "schema": {
                             "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Success-internal_handler_LoginStartResponse"
                         },
@@ -64,6 +64,12 @@ const docTemplate = `{
                             "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
                         }
                     },
+                    "429": {
+                        "description": "요청 한도 초과",
+                        "schema": {
+                            "$ref": "#/definitions/github_com_cowork_authorization_internal_apidoc.Error"
+                        }
+                    },
                     "503": {
                         "description": "로그인 시도 저장 실패",
                         "schema": {
@@ -75,7 +81,7 @@ const docTemplate = `{
         },
         "/auth/callback": {
             "post": {
-                "description": "로그인 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 서버가 PKCE와 OIDC를 검증하고 Cowork 토큰을 발급합니다. 로그인 시도는 한 번만 사용할 수 있습니다.",
+                "description": "로그인 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 로그인 시도는 한 번만 사용할 수 있습니다.",
                 "consumes": [
                     "application/json"
                 ],
@@ -554,7 +560,7 @@ var SwaggerInfo = &swag.Spec{
 	BasePath:         "/api/authorization",
 	Schemes:          []string{},
 	Title:            "cowork Authorization API",
-	Description:      "DataGSM 계정으로 로그인하고 Cowork 토큰을 발급하거나 갱신합니다.",
+	Description:      "DataGSM 계정으로 로그인하고 cowork 토큰을 발급하거나 갱신합니다.",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

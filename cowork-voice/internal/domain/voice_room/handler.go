@@ -33,6 +33,7 @@ func NewHandler(svc Service) *Handler {
 // @Failure      401  {object}  apidoc.Error  "인증 필요"
 // @Failure      403  {object}  apidoc.Error  "음성 채널 접근 권한 없음"
 // @Failure      409  {object}  apidoc.Error  "음성 채널 정원 초과"
+// @Failure      429  {object}  apidoc.Error  "요청 한도 초과"
 // @Failure      500  {object}  apidoc.Error  "서버 오류"
 // @Failure      503  {object}  apidoc.Error  "채널 권한 동기화 중"
 // @Router       /voice/channels/{channel_id}/join [post]
@@ -61,7 +62,7 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 
 // Leave godoc
 // @Summary      음성 채널 퇴장
-// @Description  채널에서 퇴장합니다. 마지막 참여자가 나가면 LiveKit이 빈 방을 자동 정리하고, room_finished 웹훅으로 세션이 종료됩니다.
+// @Description  마지막 참여자가 퇴장하면 세션이 종료됩니다.
 // @Tags         voice
 // @Security     BearerAuth
 // @Produce      json
@@ -71,6 +72,7 @@ func (h *Handler) Join(w http.ResponseWriter, r *http.Request) {
 // @Failure      401  {object}  apidoc.Error  "인증 필요"
 // @Failure      403  {object}  apidoc.Error  "음성 채널 접근 권한 없음"
 // @Failure      404  {object}  apidoc.Error  "활성 세션 없음"
+// @Failure      429  {object}  apidoc.Error  "요청 한도 초과"
 // @Failure      500  {object}  apidoc.Error  "서버 오류"
 // @Failure      503  {object}  apidoc.Error  "채널 권한 동기화 중"
 // @Router       /voice/channels/{channel_id}/leave [post]
@@ -98,7 +100,6 @@ func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 
 // Participants godoc
 // @Summary      채널 참여자 목록 조회
-// @Description  현재 음성 채널에 참여 중인 사용자 목록을 반환합니다.
 // @Tags         voice
 // @Security     BearerAuth
 // @Produce      json
@@ -107,6 +108,7 @@ func (h *Handler) Leave(w http.ResponseWriter, r *http.Request) {
 // @Failure      400  {object}  apidoc.Error  "채널 ID 형식 오류"
 // @Failure      401  {object}  apidoc.Error  "인증 필요"
 // @Failure      403  {object}  apidoc.Error  "음성 채널 접근 권한 없음"
+// @Failure      429  {object}  apidoc.Error  "요청 한도 초과"
 // @Failure      500  {object}  apidoc.Error  "서버 오류"
 // @Failure      503  {object}  apidoc.Error  "채널 권한 동기화 중"
 // @Router       /voice/channels/{channel_id}/participants [get]
@@ -135,7 +137,6 @@ func (h *Handler) Participants(w http.ResponseWriter, r *http.Request) {
 
 // GetSession godoc
 // @Summary      세션 조회
-// @Description  session_id로 음성 세션 정보를 조회합니다.
 // @Tags         voice
 // @Security     BearerAuth
 // @Produce      json
@@ -143,7 +144,8 @@ func (h *Handler) Participants(w http.ResponseWriter, r *http.Request) {
 // @Success      200  {object}  apidoc.Success[SessionResponse]  "음성 세션 정보"
 // @Failure      401  {object}  apidoc.Error  "인증 필요"
 // @Failure      403  {object}  apidoc.Error  "음성 채널 접근 권한 없음"
-// @Failure      404  {object}  apidoc.Error
+// @Failure      404  {object}  apidoc.Error  "세션 없음"
+// @Failure      429  {object}  apidoc.Error  "요청 한도 초과"
 // @Failure      500  {object}  apidoc.Error  "서버 오류"
 // @Failure      503  {object}  apidoc.Error  "채널 권한 동기화 중"
 // @Router       /voice/sessions/{session_id} [get]
