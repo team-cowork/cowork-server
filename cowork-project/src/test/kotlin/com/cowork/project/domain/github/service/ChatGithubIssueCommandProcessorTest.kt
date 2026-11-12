@@ -73,7 +73,11 @@ class ChatGithubIssueCommandProcessorTest :
                 projectAccessGuard,
                 projectGithubRepoRepository,
                 outboxWriter,
-                GithubRepoAccessResolver(projectAccessGuard, projectGithubRepoRepository, teamGithubInstallationRepository),
+                GithubRepoAccessResolver(
+                    projectAccessGuard,
+                    projectGithubRepoRepository,
+                    teamGithubInstallationRepository,
+                ),
             )
 
             every { operationRepository.existsById(any()) } returns false

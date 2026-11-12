@@ -2,16 +2,16 @@ package com.cowork.project.global.consumer
 
 import com.cowork.project.domain.github.service.ProjectGithubRepoDeletionSupport
 import com.cowork.project.domain.membership.entity.TeamMembership
-import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.membership.projection.TeamRoleMemberTombstone
 import com.cowork.project.domain.membership.projection.TeamRoleMemberTombstoneRepository
+import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.event.ProjectEventPublisher
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.global.projection.toProjectionPrecision
-import java.time.Instant
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Instant
 
 @Service
 class ProjectLifecycleHandler(
@@ -24,7 +24,13 @@ class ProjectLifecycleHandler(
     private val log = LoggerFactory.getLogger(ProjectLifecycleHandler::class.java)
 
     @Transactional
-    fun onMemberUpsert(teamId: Long, userId: Long, role: String, occurredAt: Instant, authorizationVersion: Instant? = null) {
+    fun onMemberUpsert(
+        teamId: Long,
+        userId: Long,
+        role: String,
+        occurredAt: Instant,
+        authorizationVersion: Instant? = null,
+    ) {
         val version = occurredAt.toProjectionPrecision()
         val membership = teamMembershipRepository.findStateByTeamIdAndUserIdForUpdate(teamId, userId)
             ?: TeamMembership(teamId = teamId, userId = userId, role = role, sourceOccurredAt = version)
@@ -60,7 +66,13 @@ class ProjectLifecycleHandler(
     }
 
     @Transactional
-    fun onMemberRemovedFromTeam(teamId: Long, targetUserId: Long, role: String, occurredAt: Instant, authorizationVersion: Instant? = null) {
+    fun onMemberRemovedFromTeam(
+        teamId: Long,
+        targetUserId: Long,
+        role: String,
+        occurredAt: Instant,
+        authorizationVersion: Instant? = null,
+    ) {
         val version = occurredAt.toProjectionPrecision()
         val fenceKey = TeamRoleMemberTombstone.key(teamId, targetUserId)
         val fence = memberFences.findById(fenceKey).orElse(null)

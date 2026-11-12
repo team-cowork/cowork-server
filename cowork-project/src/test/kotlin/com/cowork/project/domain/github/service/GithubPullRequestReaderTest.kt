@@ -31,27 +31,25 @@ class GithubPullRequestReaderTest :
             reader = GithubPullRequestReader(repository, GithubSyncMarkers(markerRepository, repoProjectionRepository))
         }
 
-        fun projection(
-            files: MutableList<GithubPullRequestProjectionFile> = mutableListOf(),
-            number: Int = 7,
-        ) = GithubPullRequestProjection(
-            id = "my-org/my-repo#$number",
-            owner = "my-org",
-            repo = "my-repo",
-            number = number,
-            title = "Add feature",
-            author = "octocat",
-            state = "open",
-            draft = false,
-            merged = false,
-            htmlUrl = "https://github.com/my-org/my-repo/pull/7",
-            headRef = "feature",
-            baseRef = "main",
-            githubCreatedAt = "2026-01-01T00:00:00Z",
-            githubUpdatedAt = "2026-01-02T00:00:00Z",
-            files = files,
-            sourceOccurredAt = Instant.EPOCH,
-        )
+        fun projection(files: MutableList<GithubPullRequestProjectionFile> = mutableListOf(), number: Int = 7) =
+            GithubPullRequestProjection(
+                id = "my-org/my-repo#$number",
+                owner = "my-org",
+                repo = "my-repo",
+                number = number,
+                title = "Add feature",
+                author = "octocat",
+                state = "open",
+                draft = false,
+                merged = false,
+                htmlUrl = "https://github.com/my-org/my-repo/pull/7",
+                headRef = "feature",
+                baseRef = "main",
+                githubCreatedAt = "2026-01-01T00:00:00Z",
+                githubUpdatedAt = "2026-01-02T00:00:00Z",
+                files = files,
+                sourceOccurredAt = Instant.EPOCH,
+            )
 
         describe("GithubPullRequestReader 클래스의") {
             describe("listPullRequests 메서드는") {

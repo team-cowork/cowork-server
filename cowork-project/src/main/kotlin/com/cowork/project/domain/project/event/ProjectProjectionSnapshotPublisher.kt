@@ -6,12 +6,12 @@ import com.cowork.project.global.projection.ProjectionReadinessState
 import com.cowork.project.global.projection.ProjectionSnapshotCompletionPublisher
 import com.cowork.project.global.projection.ProjectionSnapshotLock
 import com.cowork.project.global.projection.ProjectionStreams
-import java.util.concurrent.atomic.AtomicBoolean
 import org.springframework.data.domain.PageRequest
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
+import java.util.concurrent.atomic.AtomicBoolean
 
 @Component
 class ProjectProjectionSnapshotPublisher(
