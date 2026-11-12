@@ -1,9 +1,9 @@
 package com.cowork.preference.domain.projectrole.presentation
 
+import com.cowork.preference.domain.access.presentation.auditAuthorizationFailure
+import com.cowork.preference.domain.access.presentation.authorizationStatus
 import com.cowork.preference.domain.access.service.ProjectAccessGuard
 import com.cowork.preference.domain.projectrole.service.ProjectRoleService
-import com.cowork.preference.global.http.auditAuthorizationFailure
-import com.cowork.preference.global.http.authorizationStatus
 import com.cowork.preference.global.security.RequesterContext
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject

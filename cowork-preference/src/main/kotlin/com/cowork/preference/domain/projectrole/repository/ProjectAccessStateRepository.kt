@@ -2,7 +2,7 @@ package com.cowork.preference.domain.projectrole.repository
 
 import com.cowork.preference.domain.projectrole.model.ProjectPermissions
 import com.cowork.preference.global.messaging.event.PreferenceEvent
-import com.cowork.preference.global.messaging.event.PreferenceEvents
+import com.cowork.preference.global.messaging.event.PreferenceTopics
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
@@ -178,7 +178,7 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
         val version = row.getOffsetDateTime("state_occurred_at").toInstant()
         val authorizationVersion = row.getOffsetDateTime("source_authorization_version")?.toInstant()
         return PreferenceEvent(
-            PreferenceEvents.PROJECT_ACCESS_STATE_TOPIC,
+            PreferenceTopics.PROJECT_ACCESS_STATE_TOPIC,
             "$projectId:$accountId",
             JsonObject().put("eventType", "UPSERT")
                 .put("projectId", projectId).put("accountId", accountId)

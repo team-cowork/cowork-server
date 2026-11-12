@@ -1,19 +1,19 @@
 package com.cowork.preference.domain.teamrole.command
 
 import com.cowork.preference.domain.access.permission.PermissionKeys
-import com.cowork.preference.domain.access.projection.team.TeamMemberProjection
-import com.cowork.preference.domain.access.projection.team.TeamMemberProjectionRepository
+import com.cowork.preference.domain.access.projection.team.model.TeamMemberProjection
+import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectAccessStateRepository
 import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommand
 import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommandRoleInput
 import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommandType
-import com.cowork.preference.domain.teamrole.command.repository.ProcessedTeamRoleCommandMatches
 import com.cowork.preference.domain.teamrole.command.repository.TeamRoleCommandInboxRepository
 import com.cowork.preference.domain.teamrole.model.AccountTeamRole
 import com.cowork.preference.domain.teamrole.model.TeamRoleDefinition
 import com.cowork.preference.domain.teamrole.model.TeamRolePermissions
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
+import com.cowork.preference.global.messaging.command.model.ProcessedCommandMatches
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import com.cowork.preference.global.projection.readiness.ProjectionReadiness
 import io.mockk.coEvery
@@ -225,7 +225,7 @@ class TeamRoleCommandProcessorTest {
                 firstArg<suspend (SqlConnection) -> Unit>().invoke(connection)
             }
             coEvery { inboxRepository.findMatches(connection, command) } returns
-                ProcessedTeamRoleCommandMatches(null, null)
+                ProcessedCommandMatches(null, null)
             coEvery { roleRepository.isTeamDeleted(connection, command.teamId) } returns false
             coEvery { memberRepository.find(connection, command.teamId, command.actorId) } returns
                 member(command.actorId, command.actorMembershipVersion, builtInRole = actorRole)

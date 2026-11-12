@@ -6,13 +6,13 @@ import com.cowork.preference.domain.setting.command.GithubRepoSettingCommandProc
 import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommand
 import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommandType
 import com.cowork.preference.domain.setting.command.repository.GithubRepoSettingCommandInboxRepository
-import com.cowork.preference.domain.setting.command.repository.ProcessedGithubRepoSettingCommandMatches
 import com.cowork.preference.domain.setting.model.PreferenceSettingsUpdate
 import com.cowork.preference.domain.setting.model.ResourceSettingState
 import com.cowork.preference.domain.setting.model.ResourceType
 import com.cowork.preference.domain.setting.repository.PreferenceRepository
+import com.cowork.preference.global.messaging.command.model.ProcessedCommandMatches
 import com.cowork.preference.global.messaging.event.PreferenceEvent
-import com.cowork.preference.global.messaging.event.PreferenceEvents
+import com.cowork.preference.global.messaging.event.PreferenceTopics
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -202,7 +202,7 @@ class PreferenceServiceTest {
                 ResourceSettingState(77L, beforeDelete, olderVersion)
             }
             coEvery { inboxRepository.findMatches(connection, any()) } returns
-                ProcessedGithubRepoSettingCommandMatches(null, null)
+                ProcessedCommandMatches(null, null)
             coEvery { repository.deleteGithubRepoSettings(connection, 77L) } returns newerVersion
             coEvery { repository.upsertGithubRepoSettings(connection, 77L, beforeDelete) } returns
                 PreferenceSettingsUpdate(beforeDelete, null, recreatedVersion, recreatedVersion)
@@ -306,7 +306,7 @@ class PreferenceServiceTest {
 
             service.updateSettings(ResourceType.ACCOUNT, 19L, requested).getOrThrow()
 
-            assertEquals(PreferenceEvents.ACCOUNT_SETTING_STATE_TOPIC, event.captured.topic)
+            assertEquals(PreferenceTopics.ACCOUNT_SETTING_STATE_TOPIC, event.captured.topic)
             assertEquals(stateOccurredAt, event.captured.occurredAt)
             assertEquals("MENTIONS", event.captured.payload.getString("notificationLevel"))
             assertEquals("Asia/Seoul", event.captured.payload.getString("timezone"))
