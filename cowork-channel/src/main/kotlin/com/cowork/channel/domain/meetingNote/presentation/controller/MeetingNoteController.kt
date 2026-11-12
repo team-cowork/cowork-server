@@ -22,7 +22,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "회의록")
+@Tag(name = "회의록", description = "채널의 회의록을 작성하고 조회, 수정, 삭제합니다.")
 @ApiResponses(
     ApiResponse(
         responseCode = "429",

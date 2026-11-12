@@ -36,7 +36,7 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "팀 역할")
+@Tag(name = "팀 역할", description = "팀 역할과 역할별 권한을 관리합니다.")
 @ApiResponses(
     ApiResponse(
         responseCode = "429",

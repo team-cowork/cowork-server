@@ -38,7 +38,7 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "GitHub 레포 연동", description = "프로젝트에 등록된 GitHub 저장소 관리 API (프로젝트당 여러 개 등록 가능)")
+@Tag(name = "GitHub 저장소 연동", description = "프로젝트의 GitHub 저장소 연결과 알림 채널, 라벨 정책을 관리합니다.")
 @ApiResponses(
     ApiResponse(
         responseCode = "401",

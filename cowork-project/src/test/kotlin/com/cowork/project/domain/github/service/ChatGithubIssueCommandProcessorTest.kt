@@ -176,6 +176,7 @@ class ChatGithubIssueCommandProcessorTest :
                     val result = slot<ChatGithubIssueCreateResult>()
                     verify { outboxWriter.enqueue(any(), any(), capture(result)) }
                     result.captured.error?.code shouldBe "GITHUB_REPO_NOT_FOUND"
+                    result.captured.error?.message shouldBe "프로젝트 GitHub 저장소 정보를 찾을 수 없습니다."
                 }
             }
 
@@ -208,6 +209,7 @@ class ChatGithubIssueCommandProcessorTest :
                     verify { outboxWriter.enqueue(any(), any(), capture(result)) }
                     result.captured.status shouldBe "REJECTED"
                     result.captured.error?.code shouldBe "FORBIDDEN"
+                    result.captured.error?.message shouldBe "팀에 연결된 GitHub 조직의 저장소만 사용할 수 있습니다."
                 }
             }
 

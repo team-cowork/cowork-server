@@ -31,7 +31,7 @@ import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import io.swagger.v3.oas.annotations.parameters.RequestBody as SwaggerRequestBody
 
-@Tag(name = "채널")
+@Tag(name = "채널", description = "채널을 생성하고 정보와 접근 가능한 사용자를 관리합니다.")
 @ApiResponses(
     ApiResponse(
         responseCode = "429",
