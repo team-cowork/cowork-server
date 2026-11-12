@@ -1,7 +1,7 @@
 import {Types} from 'mongoose';
-import {type AttachmentUpload} from '../../storage/attachment-upload.schema.js';
+import {type AttachmentUpload, UPLOAD_RECLAIM_AGE_MS} from '../../storage/attachment-upload.schema.js';
 import {type AttachmentDeletionRecord} from '../repository/attachment-deletion.repository.js';
-import {AttachmentCleanupPoller, ABANDONED_DELETION_MS, UPLOAD_RECLAIM_AGE_MS} from './attachment-cleanup.poller.js';
+import {AttachmentCleanupPoller, ABANDONED_DELETION_MS} from './attachment-cleanup.poller.js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const T0 = new Date('2026-11-01T00:00:00.000Z');
@@ -31,6 +31,10 @@ class FakeMessages {
 
 	async referencesAttachment(clientMessageId: string, objectKey: string): Promise<boolean> {
 		return this.rows.values().some(row => row.clientMessageId === clientMessageId && row.attachments.some(a => a.objectKey === objectKey));
+	}
+
+	async referencesObject(objectKey: string): Promise<boolean> {
+		return this.rows.values().some(row => row.attachments.some(a => a.objectKey === objectKey));
 	}
 }
 
@@ -110,12 +114,15 @@ describe('AttachmentCleanupPoller', () => {
 	let poller: AttachmentCleanupPoller;
 	const meetingNotes = {references: jest.fn()};
 	const readiness = {areReady: jest.fn(), isCaughtUp: jest.fn()};
+	const retentions = {claimDue: jest.fn(), remove: jest.fn()};
 
 	const messageId = new Types.ObjectId().toString();
 	const keyA = 'chat-files/1/42/a.png';
 	const keyB = 'chat-files/1/42/b.png';
 
 	beforeEach(() => {
+		retentions.claimDue.mockReset().mockResolvedValue([]);
+		retentions.remove.mockReset().mockResolvedValue(undefined);
 		meetingNotes.references.mockReset().mockResolvedValue(false);
 		readiness.areReady.mockReset().mockReturnValue(true);
 		readiness.isCaughtUp.mockReset().mockReturnValue(true);
@@ -124,7 +131,7 @@ describe('AttachmentCleanupPoller', () => {
 		deletions = new FakeDeletions();
 		uploads = new FakeUploads();
 		poller = new AttachmentCleanupPoller(deletions as never, uploads as never, messages as never, storage as never);
-		Object.assign(poller, {meetingNotes, readiness});
+		Object.assign(poller, {meetingNotes, readiness, retentions});
 		storage.objects.add(keyA);
 		storage.objects.add(keyB);
 	});
@@ -136,6 +143,32 @@ describe('AttachmentCleanupPoller', () => {
 		};
 		uploads.rows.set(upload.uploadKey, upload);
 	};
+
+	it('업로드 기록이 만료된 뒤에도 회의록에서 해제된 파일을 정리한다', async () => {
+		retentions.claimDue.mockResolvedValue([{objectKey: keyA, claimId: 'claim'}]);
+		await poller.runCycle(at(30 * DAY_MS));
+		expect(storage.objects.has(keyA)).toBe(false);
+		expect(retentions.remove).toHaveBeenCalledWith(keyA, 'claim');
+	});
+
+	it('다른 회의록이 참조하는 동안 보관하고 마지막 참조가 없어지면 삭제한다', async () => {
+		retentions.claimDue.mockResolvedValue([{objectKey: keyA, claimId: 'claim'}]);
+		meetingNotes.references.mockResolvedValue(true);
+		await poller.runCycle(at(30 * DAY_MS));
+		expect(storage.objects.has(keyA)).toBe(true);
+		expect(retentions.remove).not.toHaveBeenCalled();
+		meetingNotes.references.mockResolvedValue(false);
+		await poller.runCycle(at(31 * DAY_MS));
+		expect(storage.objects.has(keyA)).toBe(false);
+	});
+
+	it('회의록에서 해제해도 메시지가 참조하는 파일은 보관한다', async () => {
+		retentions.claimDue.mockResolvedValue([{objectKey: keyA, claimId: 'claim'}]);
+		messages.rows.set(messageId, {_id: messageId, searchIndexStatus: 'INDEXED', attachments: [{objectKey: keyA}]});
+		await poller.runCycle(at(30 * DAY_MS));
+		expect(storage.objects.has(keyA)).toBe(true);
+		expect(retentions.remove).not.toHaveBeenCalled();
+	});
 
 	it('회의록에 등록된 파일은 업로드 회수 대상이어도 보관한다', async () => {
 		addUpload();
