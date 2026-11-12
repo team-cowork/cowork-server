@@ -21,7 +21,12 @@ class DeleteMeetingNoteServiceImplTest {
     private val meetingNoteLookupSupport = MeetingNoteLookupSupport(meetingNoteRepository)
 
     private val service =
-        DeleteMeetingNoteServiceImpl(meetingNoteRepository, meetingNoteAccessGuard, meetingNoteLookupSupport)
+        DeleteMeetingNoteServiceImpl(
+            meetingNoteRepository,
+            meetingNoteAccessGuard,
+            meetingNoteLookupSupport,
+            mockk(relaxed = true),
+        )
 
     private fun note(
         id: Long = 1L,

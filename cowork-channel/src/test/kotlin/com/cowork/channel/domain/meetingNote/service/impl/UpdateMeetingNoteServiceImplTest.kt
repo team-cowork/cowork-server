@@ -1,13 +1,18 @@
 package com.cowork.channel.domain.meetingNote.service.impl
 
 import com.cowork.channel.domain.meetingNote.entity.MeetingNote
+import com.cowork.channel.domain.meetingNote.entity.MeetingNoteAttachment
+import com.cowork.channel.domain.meetingNote.event.MeetingNoteAttachmentPublisher
+import com.cowork.channel.domain.meetingNote.presentation.data.request.MeetingNoteAttachmentRequest
 import com.cowork.channel.domain.meetingNote.presentation.data.request.UpdateMeetingNoteRequest
 import com.cowork.channel.domain.meetingNote.repository.MeetingNoteRepository
 import com.cowork.channel.domain.meetingNote.service.MeetingNoteAccessGuard
+import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteAttachmentSupport
 import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteContentSupport
 import com.cowork.channel.domain.meetingNote.service.support.MeetingNoteLookupSupport
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.verify
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
@@ -24,8 +29,46 @@ class UpdateMeetingNoteServiceImplTest {
 
     private val meetingNoteContentSupport = MeetingNoteContentSupport(JsonMapper.builder().build())
 
+    private val attachmentPublisher = mockk<MeetingNoteAttachmentPublisher>(relaxed = true)
+
     private val service =
-        UpdateMeetingNoteServiceImpl(meetingNoteAccessGuard, meetingNoteLookupSupport, meetingNoteContentSupport)
+        UpdateMeetingNoteServiceImpl(
+            meetingNoteAccessGuard,
+            meetingNoteLookupSupport,
+            meetingNoteContentSupport,
+            MeetingNoteAttachmentSupport(),
+            attachmentPublisher,
+        )
+
+    @Test
+    fun `파일 첨부 권한 없이 기존 첨부를 유지하거나 제거할 수 있지만 새 파일은 추가할 수 없다`() {
+        every { meetingNoteAccessGuard.requireAttachmentPermission(1L, 7L) } throws
+            ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
+        val existing = note()
+        val key = "chat-files/1/7/123e4567-e89b-12d3-a456-426614174000.pdf"
+        existing.attachments.add(MeetingNoteAttachment(key, "자료.pdf"))
+        every { meetingNoteRepository.findById(1L) } returns Optional.of(existing)
+
+        service.updateNote(
+            7L,
+            1L,
+            1L,
+            UpdateMeetingNoteRequest(null, null, listOf(MeetingNoteAttachmentRequest(key, "자료.pdf"))),
+        )
+        service.updateNote(7L, 1L, 1L, UpdateMeetingNoteRequest(null, null, emptyList()))
+        assertEquals(0, existing.attachments.size)
+
+        val error = assertThrows(ExpectedException::class.java) {
+            service.updateNote(
+                7L,
+                1L,
+                1L,
+                UpdateMeetingNoteRequest(null, null, listOf(MeetingNoteAttachmentRequest(key, "자료.pdf"))),
+            )
+        }
+        assertEquals(HttpStatus.FORBIDDEN, error.statusCode)
+        assertEquals(0, existing.attachments.size)
+    }
 
     private fun note(
         id: Long = 1L,
@@ -141,5 +184,34 @@ class UpdateMeetingNoteServiceImplTest {
             service.updateNote(7L, 2L, 1L, UpdateMeetingNoteRequest(title = "x", content = null))
         }
         assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
+    }
+
+    @Test
+    fun `첨부 목록 생략은 유지하고 빈 목록은 모두 해제한다`() {
+        val existing = note()
+        existing.attachments.add(
+            MeetingNoteAttachment("chat-files/1/7/123e4567-e89b-12d3-a456-426614174000.pdf", "자료.pdf"),
+        )
+        every { meetingNoteRepository.findById(1L) } returns Optional.of(existing)
+
+        service.updateNote(7L, 1L, 1L, UpdateMeetingNoteRequest(null, null))
+        assertEquals(1, existing.attachments.size)
+
+        service.updateNote(7L, 1L, 1L, UpdateMeetingNoteRequest(null, null, emptyList()))
+        assertEquals(0, existing.attachments.size)
+        verify { attachmentPublisher.publish(existing) }
+    }
+
+    @Test
+    fun `본문 변경 없이 첨부파일만 교체하고 발행한다`() {
+        val existing = note()
+        every { meetingNoteRepository.findById(1L) } returns Optional.of(existing)
+        val attachment =
+            MeetingNoteAttachmentRequest("chat-files/1/7/123e4567-e89b-12d3-a456-426614174000.pdf", "자료.pdf")
+
+        val result = service.updateNote(7L, 1L, 1L, UpdateMeetingNoteRequest(null, null, listOf(attachment)))
+
+        assertEquals(attachment.objectKey, result.attachments.single().objectKey)
+        verify { attachmentPublisher.publish(existing) }
     }
 }
