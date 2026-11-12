@@ -1,5 +1,6 @@
 package com.cowork.gateway.response.filter
 
+import com.cowork.gateway.response.body.defaultApiErrorMessage
 import com.cowork.gateway.response.config.ApiResponseWrapperProperties
 import com.cowork.gateway.response.metrics.ApiResponseWrapperMetrics
 import com.cowork.gateway.response.metrics.ApiResponseWrappingOutcome
@@ -204,11 +205,7 @@ class ApiResponseWrapperFilter(
             ?: json?.get("error")?.takeIf { it.isString }?.asString()
             ?: json?.takeIf { it.isString }?.asString()
             ?: bytes.toString(Charsets.UTF_8).trim().takeIf { json == null && it.isNotEmpty() }
-            ?: if (status == HttpStatus.TOO_MANY_REQUESTS) {
-                RATE_LIMITED_MESSAGE
-            } else {
-                HttpStatus.resolve(status.value())?.reasonPhrase ?: "Unknown Status"
-            }
+            ?: defaultApiErrorMessage(status)
         val response = mutableMapOf<String, Any>(
             "status" to status.toString(),
             "code" to status.value(),
@@ -231,9 +228,5 @@ class ApiResponseWrapperFilter(
         ApiResponseWrappingDecision.BYPASS_EMPTY -> ApiResponseWrappingOutcome.BYPASS_EMPTY
         ApiResponseWrappingDecision.BYPASS_STREAMING -> ApiResponseWrappingOutcome.BYPASS_STREAMING
         ApiResponseWrappingDecision.WRAP -> error("wrapping decision must not be recorded as a bypass")
-    }
-
-    companion object {
-        private const val RATE_LIMITED_MESSAGE = "요청이 너무 많습니다. 잠시 후 다시 시도하십시오."
     }
 }
