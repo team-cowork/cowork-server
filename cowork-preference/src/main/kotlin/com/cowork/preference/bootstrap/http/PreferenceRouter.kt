@@ -46,7 +46,7 @@ fun buildRouter(
     }
 
     val openapiSpec = object {}.javaClass.getResourceAsStream("/openapi.json")?.use { it.bufferedReader().readText() }
-    router.get("/swagger/doc.json").handler { ctx ->
+    router.get("/v3/api-docs").handler { ctx ->
         if (openapiSpec != null) {
             ctx.response().putHeader("Content-Type", "application/json").end(openapiSpec)
         } else {
