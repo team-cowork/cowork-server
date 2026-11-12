@@ -46,6 +46,8 @@ cowork:
         url: /v3/api-docs/roadmap
       - name: chat
         url: /v3/api-docs/chat
+      - name: github
+        url: /v3/api-docs/github
       - name: voice
         url: /v3/api-docs/voice
       - name: notification
@@ -430,6 +432,14 @@ spring:
             - Path=/v3/api-docs/chat
           filters:
             - RewritePath=/v3/api-docs/chat, /api-json
+
+        - id: github-service-docs
+          uri: ${COWORK_GITHUB_URL}
+          predicates:
+            - Path=/v3/api-docs/github
+            - Method=GET
+          filters:
+            - RewritePath=/v3/api-docs/github, /api-json
 
         - id: applet-service
           uri: ${COWORK_APPLET_URL}
