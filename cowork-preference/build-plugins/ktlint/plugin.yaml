@@ -1,0 +1,18 @@
+tasks:
+  check:
+    action: !com.cowork.build.runKtlint
+      moduleDirectory: ${module.rootDir}
+      classpath: [com.pinterest.ktlint:ktlint-cli:1.8.0]
+  format:
+    action: !com.cowork.build.runKtlint
+      moduleDirectory: ${module.rootDir}
+      classpath: [com.pinterest.ktlint:ktlint-cli:1.8.0]
+      format: true
+
+checks:
+  - name: ktlint
+    performedBy: check
+
+commands:
+  - name: ktlintFormat
+    performedBy: format

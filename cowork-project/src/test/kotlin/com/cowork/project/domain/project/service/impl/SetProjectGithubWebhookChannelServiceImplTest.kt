@@ -8,9 +8,9 @@ import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.presentation.data.request.SetProjectGithubWebhookChannelReqDto
+import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
-import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
@@ -30,7 +30,13 @@ class SetProjectGithubWebhookChannelServiceImplTest {
     private val channelProjectionReader = mockk<ChannelProjectionReader>()
     private val repoEventPublisher = mockk<ProjectGithubRepoEventPublisher>(relaxed = true)
     private val projectAccessGuard =
-        ProjectAccessGuard(projectRepository, mockk<ProjectAccessProjectionRepository>(relaxed = true), teamMembershipRepository, mockk(relaxed = true), mockk(relaxed = true))
+        ProjectAccessGuard(
+            projectRepository,
+            mockk<ProjectAccessProjectionRepository>(relaxed = true),
+            teamMembershipRepository,
+            mockk(relaxed = true),
+            mockk(relaxed = true),
+        )
 
     private val service = SetProjectGithubWebhookChannelServiceImpl(
         projectGithubRepoRepository,
