@@ -1,20 +1,20 @@
 package com.cowork.preference.domain.channelrole.command
 
-import com.cowork.preference.domain.access.projection.channel.ChannelLifecycleProjection
-import com.cowork.preference.domain.access.projection.channel.ChannelLifecycleProjectionRepository
-import com.cowork.preference.domain.access.projection.team.TeamMemberProjection
-import com.cowork.preference.domain.access.projection.team.TeamMemberProjectionRepository
+import com.cowork.preference.domain.access.projection.channel.model.ChannelLifecycleProjection
+import com.cowork.preference.domain.access.projection.channel.repository.ChannelLifecycleProjectionRepository
+import com.cowork.preference.domain.access.projection.team.model.TeamMemberProjection
+import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
 import com.cowork.preference.domain.access.repository.InitialResourceAccessRepository
 import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommand
 import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommandType
 import com.cowork.preference.domain.channelrole.command.repository.ChannelRolePolicyCommandInboxRepository
-import com.cowork.preference.domain.channelrole.command.repository.ProcessedChannelRolePolicyCommandMatches
 import com.cowork.preference.domain.channelrole.exception.ChannelRolePolicyProjectionNotReadyException
 import com.cowork.preference.domain.channelrole.model.ChannelRolePolicyState
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.teamrole.model.AccountTeamRole
 import com.cowork.preference.domain.teamrole.model.TeamRoleDefinition
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
+import com.cowork.preference.global.messaging.command.model.ProcessedCommandMatches
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import com.cowork.preference.global.projection.readiness.ProjectionReadinessView
 import io.mockk.coEvery
@@ -294,7 +294,7 @@ class ChannelRolePolicyCommandProcessorTest {
                 firstArg<suspend (SqlConnection) -> Unit>().invoke(connection)
             }
             coEvery { inboxRepository.findMatches(connection, command) } returns
-                ProcessedChannelRolePolicyCommandMatches(null, null)
+                ProcessedCommandMatches(null, null)
             coEvery { channelRepository.findForUpdate(connection, command.channelId) } returns channel
             coEvery {
                 policyRepository.findPolicy(connection, command.teamId, command.channelId, command.roleId)

@@ -3,11 +3,11 @@ package com.cowork.preference.domain.access.service
 import com.cowork.preference.domain.access.exception.ArchivedChannelException
 import com.cowork.preference.domain.access.exception.ProjectionNotReadyException
 import com.cowork.preference.domain.access.exception.ResourceAccessDeniedException
-import com.cowork.preference.domain.access.projection.channel.ChannelLifecycleProjection
-import com.cowork.preference.domain.access.projection.channel.ChannelLifecycleProjectionRepository
-import com.cowork.preference.domain.access.projection.dm.DmParticipantProjectionRepository
-import com.cowork.preference.domain.access.projection.team.TeamMemberProjection
-import com.cowork.preference.domain.access.projection.team.TeamMemberProjectionRepository
+import com.cowork.preference.domain.access.projection.channel.model.ChannelLifecycleProjection
+import com.cowork.preference.domain.access.projection.channel.repository.ChannelLifecycleProjectionRepository
+import com.cowork.preference.domain.access.projection.dm.repository.DmParticipantProjectionRepository
+import com.cowork.preference.domain.access.projection.team.model.TeamMemberProjection
+import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.global.projection.readiness.ProjectionReadinessView
 import com.cowork.preference.global.security.RequesterContext

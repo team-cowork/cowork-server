@@ -1,14 +1,15 @@
 package com.cowork.preference.domain.teamrole.service
 
 import com.cowork.preference.domain.access.permission.PermissionKeys
+import com.cowork.preference.domain.channelrole.event.ChannelRolePolicyEvents
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectAccessStateRepository
+import com.cowork.preference.domain.teamrole.event.TeamRoleEvents
 import com.cowork.preference.domain.teamrole.model.AccountTeamRole
 import com.cowork.preference.domain.teamrole.model.TeamRoleDefinition
 import com.cowork.preference.domain.teamrole.model.TeamRolePermissions
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
 import com.cowork.preference.global.messaging.event.PreferenceEvent
-import com.cowork.preference.global.messaging.event.PreferenceEvents
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import io.vertx.sqlclient.SqlClient
 import java.time.Instant
@@ -25,7 +26,7 @@ class TeamRoleService(
         val role = repository.ensureDefaultRole(client, teamId) ?: return false
         outboxRepository.enqueue(
             client,
-            PreferenceEvents.roleUpserted(role, requireNotNull(role.updatedAt).toInstant()),
+            TeamRoleEvents.roleUpserted(role, requireNotNull(role.updatedAt).toInstant()),
         )
         return true
     }
@@ -58,7 +59,7 @@ class TeamRoleService(
             )
             outboxRepository.enqueue(
                 connection,
-                PreferenceEvents.roleUpserted(
+                TeamRoleEvents.roleUpserted(
                     persisted,
                     requireNotNull(persisted.updatedAt ?: persisted.createdAt).toInstant(),
                 ),
@@ -110,7 +111,7 @@ class TeamRoleService(
             )
             outboxRepository.enqueue(
                 connection,
-                PreferenceEvents.roleUpserted(
+                TeamRoleEvents.roleUpserted(
                     persisted,
                     requireNotNull(persisted.updatedAt ?: persisted.createdAt).toInstant(),
                 ),
@@ -140,7 +141,7 @@ class TeamRoleService(
                     )
                     outboxRepository.enqueue(
                         connection,
-                        PreferenceEvents.roleDeleted(teamId, roleId, tombstone.stateOccurredAt),
+                        TeamRoleEvents.roleDeleted(teamId, roleId, tombstone.stateOccurredAt),
                     )
                 }
             }
@@ -168,11 +169,11 @@ class TeamRoleService(
                 outboxRepository.enqueueAll(
                     connection,
                     policyEvents + assignmentTombstones.map { tombstone ->
-                        PreferenceEvents.assignmentDeleted(
+                        TeamRoleEvents.assignmentDeleted(
                             AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
                             tombstone.stateOccurredAt,
                         )
-                    } + PreferenceEvents.roleDeleted(teamId, roleId, roleTombstone.stateOccurredAt),
+                    } + TeamRoleEvents.roleDeleted(teamId, roleId, roleTombstone.stateOccurredAt),
                 )
                 projectAccess.refreshTeam(connection, teamId)
             }
@@ -199,7 +200,7 @@ class TeamRoleService(
             val assignment = requireNotNull(repository.findAssignment(connection, accountId, teamId, roleId))
             outboxRepository.enqueue(
                 connection,
-                PreferenceEvents.assignmentUpserted(assignment, requireNotNull(assignment.updatedAt).toInstant()),
+                TeamRoleEvents.assignmentUpserted(assignment, requireNotNull(assignment.updatedAt).toInstant()),
             )
             projectAccess.refreshTeam(connection, teamId, accountId)
             persistedRole
@@ -219,7 +220,7 @@ class TeamRoleService(
             )
             outboxRepository.enqueue(
                 connection,
-                PreferenceEvents.assignmentDeleted(
+                TeamRoleEvents.assignmentDeleted(
                     AccountTeamRole(accountId, teamId, roleId),
                     tombstone.stateOccurredAt,
                 ),
@@ -269,14 +270,14 @@ class TeamRoleService(
         outboxRepository.enqueueAll(
             client,
             assignmentTombstones.map { tombstone ->
-                PreferenceEvents.assignmentDeleted(
+                TeamRoleEvents.assignmentDeleted(
                     AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
                     tombstone.stateOccurredAt,
                 )
             } +
                 listOfNotNull(
                     memberFence?.let {
-                        PreferenceEvents.memberAssignmentsDeleted(teamId, accountId, it.stateOccurredAt)
+                        TeamRoleEvents.memberAssignmentsDeleted(teamId, accountId, it.stateOccurredAt)
                     },
                 ),
         )
@@ -315,14 +316,14 @@ class TeamRoleService(
         outboxRepository.enqueueAll(
             client,
             policyEvents + assignmentTombstones.map { tombstone ->
-                PreferenceEvents.assignmentDeleted(
+                TeamRoleEvents.assignmentDeleted(
                     AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
                     tombstone.stateOccurredAt,
                 )
             } + memberFences.values.map { fence ->
-                PreferenceEvents.memberAssignmentsDeleted(fence.teamId, fence.accountId, fence.stateOccurredAt)
+                TeamRoleEvents.memberAssignmentsDeleted(fence.teamId, fence.accountId, fence.stateOccurredAt)
             } + roleTombstones.map { tombstone ->
-                PreferenceEvents.roleDeleted(tombstone.teamId, tombstone.roleId, tombstone.stateOccurredAt)
+                TeamRoleEvents.roleDeleted(tombstone.teamId, tombstone.roleId, tombstone.stateOccurredAt)
             },
         )
     }
@@ -344,7 +345,7 @@ class TeamRoleService(
         roleId: Long,
     ): PreferenceEvent {
         val tombstone = channelRolePolicyRepository.deletePolicy(client, teamId, channelId, roleId)
-        return PreferenceEvents.channelRolePolicyState(
+        return ChannelRolePolicyEvents.channelRolePolicyState(
             teamId = tombstone.teamId,
             channelId = tombstone.channelId,
             roleId = tombstone.roleId,

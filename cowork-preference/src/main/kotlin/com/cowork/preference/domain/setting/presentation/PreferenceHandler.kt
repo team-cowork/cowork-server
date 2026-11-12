@@ -3,6 +3,8 @@ package com.cowork.preference.domain.setting.presentation
 import com.cowork.preference.domain.access.exception.ArchivedChannelException
 import com.cowork.preference.domain.access.exception.ResourceAccessDeniedException
 import com.cowork.preference.domain.access.permission.RolePermission
+import com.cowork.preference.domain.access.presentation.auditAuthorizationFailure
+import com.cowork.preference.domain.access.presentation.authorizationStatus
 import com.cowork.preference.domain.access.service.AccountOwnershipGuard
 import com.cowork.preference.domain.access.service.ChannelAccessGuard
 import com.cowork.preference.domain.access.service.ProjectAccessGuard
@@ -10,8 +12,6 @@ import com.cowork.preference.domain.access.service.TeamMembershipGuard
 import com.cowork.preference.domain.setting.model.ResourceType
 import com.cowork.preference.domain.setting.model.SettingSchema
 import com.cowork.preference.domain.setting.service.PreferenceService
-import com.cowork.preference.global.http.auditAuthorizationFailure
-import com.cowork.preference.global.http.authorizationStatus
 import com.cowork.preference.global.security.RequesterContext
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext

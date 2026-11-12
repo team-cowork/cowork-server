@@ -2,8 +2,8 @@ package com.cowork.preference.domain.access.service
 
 import com.cowork.preference.domain.access.exception.ProjectionNotReadyException
 import com.cowork.preference.domain.access.exception.ResourceAccessDeniedException
-import com.cowork.preference.domain.access.projection.project.ProjectLifecycleProjectionRepository
-import com.cowork.preference.domain.access.projection.team.TeamMemberProjectionRepository
+import com.cowork.preference.domain.access.projection.project.repository.ProjectLifecycleProjectionRepository
+import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectRoleRepository
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
 import com.cowork.preference.global.projection.readiness.ProjectionReadinessView

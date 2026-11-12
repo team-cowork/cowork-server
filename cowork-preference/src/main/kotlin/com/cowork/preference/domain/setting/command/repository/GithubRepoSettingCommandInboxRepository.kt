@@ -1,8 +1,10 @@
 package com.cowork.preference.domain.setting.command.repository
 
 import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommand
-import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommandQuarantineRecord
 import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommandType
+import com.cowork.preference.domain.setting.command.model.ProcessedGithubRepoSettingCommand
+import com.cowork.preference.global.messaging.command.model.CommandQuarantineRecord
+import com.cowork.preference.global.messaging.command.model.ProcessedCommandMatches
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
 import io.vertx.sqlclient.Pool
@@ -14,7 +16,7 @@ class GithubRepoSettingCommandInboxRepository(private val pool: Pool) {
     suspend fun findMatches(
         client: SqlClient,
         command: GithubRepoSettingCommand,
-    ): ProcessedGithubRepoSettingCommandMatches {
+    ): ProcessedCommandMatches<ProcessedGithubRepoSettingCommand> {
         val rows = client.preparedQuery(
             """
             SELECT operation_id, idempotency_key, command_type, repo_id, requested_by, label_auto_apply,
@@ -37,9 +39,9 @@ class GithubRepoSettingCommandInboxRepository(private val pool: Pool) {
                 result = row.getString("result")?.let(::JsonObject),
             )
         }
-        return ProcessedGithubRepoSettingCommandMatches(
+        return ProcessedCommandMatches(
             byOperationId = processed.firstOrNull { it.operationId == command.operationId },
-            byRequesterAndIdempotencyKey = processed.firstOrNull {
+            byIdempotencyKey = processed.firstOrNull {
                 it.requestedBy == command.requestedBy && it.idempotencyKey == command.idempotencyKey
             },
         )
@@ -67,9 +69,9 @@ class GithubRepoSettingCommandInboxRepository(private val pool: Pool) {
         ).coAwait()
     }
 
-    suspend fun quarantine(record: GithubRepoSettingCommandQuarantineRecord): Boolean = quarantine(pool, record)
+    suspend fun quarantine(record: CommandQuarantineRecord): Boolean = quarantine(pool, record)
 
-    suspend fun quarantine(client: SqlClient, record: GithubRepoSettingCommandQuarantineRecord): Boolean {
+    suspend fun quarantine(client: SqlClient, record: CommandQuarantineRecord): Boolean {
         val result = client.preparedQuery(
             """
             INSERT INTO tb_github_repo_setting_command_quarantine

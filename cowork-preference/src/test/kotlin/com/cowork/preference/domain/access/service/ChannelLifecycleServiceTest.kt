@@ -1,12 +1,12 @@
 package com.cowork.preference.domain.access.service
 
-import com.cowork.preference.domain.access.projection.channel.ChannelLifecycleEvent
-import com.cowork.preference.domain.access.projection.channel.ChannelLifecycleProjection
-import com.cowork.preference.domain.access.projection.channel.ChannelLifecycleProjectionRepository
+import com.cowork.preference.domain.access.projection.channel.model.ChannelLifecycleEvent
+import com.cowork.preference.domain.access.projection.channel.model.ChannelLifecycleProjection
+import com.cowork.preference.domain.access.projection.channel.repository.ChannelLifecycleProjectionRepository
 import com.cowork.preference.domain.channelrole.model.ChannelRolePolicyState
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.global.messaging.event.PreferenceEvent
-import com.cowork.preference.global.messaging.event.PreferenceEvents
+import com.cowork.preference.global.messaging.event.PreferenceTopics
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -52,7 +52,7 @@ class ChannelLifecycleServiceTest {
 
             val stateEvents = events.captured.toList()
             assertEquals(2, stateEvents.size)
-            assertTrue(stateEvents.all { it.topic == PreferenceEvents.CHANNEL_ROLE_POLICY_STATE_TOPIC })
+            assertTrue(stateEvents.all { it.topic == PreferenceTopics.CHANNEL_ROLE_POLICY_STATE_TOPIC })
             assertTrue(stateEvents.all { it.payload.getValue("permissions") == null })
             assertEquals(
                 setOf(ROLE_ID, OTHER_ROLE_ID),

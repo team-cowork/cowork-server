@@ -1,0 +1,39 @@
+package com.cowork.preference.domain.access.projection.project.handler
+
+import com.cowork.preference.domain.access.projection.project.model.ProjectLifecycleRecordDecision
+import com.cowork.preference.domain.access.projection.project.parser.ProjectLifecycleEventParser
+import com.cowork.preference.domain.access.projection.project.repository.ProjectLifecycleProjectionRepository
+import com.cowork.preference.domain.access.service.InitialResourceAccessService
+import com.cowork.preference.domain.projectrole.repository.ProjectAccessStateRepository
+import com.cowork.preference.global.projection.checkpoint.ProjectionCheckpoint
+import com.cowork.preference.global.projection.checkpoint.ProjectionCheckpointRepository
+import com.cowork.preference.global.projection.consumer.ProjectionRecordHandler
+
+class ProjectLifecycleProjectionHandler(
+    private val projectRepository: ProjectLifecycleProjectionRepository,
+    private val checkpointRepository: ProjectionCheckpointRepository,
+    private val projectAccess: ProjectAccessStateRepository,
+    private val initialAccess: InitialResourceAccessService,
+) : ProjectionRecordHandler {
+    override suspend fun apply(checkpoint: ProjectionCheckpoint, key: String?, value: String?): String? =
+        when (val decision = ProjectLifecycleEventParser.parse(key, value)) {
+            is ProjectLifecycleRecordDecision.Apply -> {
+                checkpointRepository.inTransaction(checkpoint) { connection ->
+                    val applied = projectRepository.apply(connection, decision.event)
+                    val initialized = if (decision.event.deleted || decision.event.initialReadGrant != null) {
+                        projectRepository.findForRead(connection, decision.event.projectId)?.let { current ->
+                            initialAccess.project(connection, decision.event, current)
+                        } ?: false
+                    } else {
+                        false
+                    }
+                    if (applied || initialized) {
+                        projectAccess.refresh(connection, decision.event.projectId)
+                    }
+                }
+                null
+            }
+
+            is ProjectLifecycleRecordDecision.Quarantine -> decision.reason
+        }
+}

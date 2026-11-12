@@ -1,8 +1,9 @@
 package com.cowork.preference.domain.webhook.service
 
 import com.cowork.preference.domain.access.exception.ProjectionNotReadyException
-import com.cowork.preference.domain.access.projection.channel.ChannelLifecycleProjectionRepository
+import com.cowork.preference.domain.access.projection.channel.repository.ChannelLifecycleProjectionRepository
 import com.cowork.preference.domain.access.service.ChannelAccessGuard
+import com.cowork.preference.domain.webhook.event.WebhookEvents
 import com.cowork.preference.domain.webhook.exception.WebhookRequestException
 import com.cowork.preference.domain.webhook.model.Webhook
 import com.cowork.preference.domain.webhook.policy.WebhookModePolicy
@@ -10,7 +11,6 @@ import com.cowork.preference.domain.webhook.repository.WebhookRepository
 import com.cowork.preference.domain.webhook.security.WebhookSecrets
 import com.cowork.preference.domain.webhook.security.WebhookUrlSigner
 import com.cowork.preference.domain.webhook.validation.WebhookInput
-import com.cowork.preference.global.messaging.event.PreferenceEvents
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import com.cowork.preference.global.projection.readiness.ProjectionReadinessView
 import com.cowork.preference.global.security.RequesterContext
@@ -61,7 +61,7 @@ class WebhookService(
                     input,
                     token?.let(WebhookSecrets::hash),
                 )
-                outbox.enqueue(connection, PreferenceEvents.webhookState(webhook, snapshot = false))
+                outbox.enqueue(connection, WebhookEvents.webhookState(webhook, snapshot = false))
                 webhook.response(token)
             }.let(::withExecutionPath)
         }
@@ -77,7 +77,7 @@ class WebhookService(
             val current = requireWebhook(connection, channelId, webhookId)
             if (input.isEmpty) return@inTransaction withExecutionPath(current.response())
             val updated = repository.patch(connection, current, input)
-            outbox.enqueue(connection, PreferenceEvents.webhookState(updated, snapshot = false))
+            outbox.enqueue(connection, WebhookEvents.webhookState(updated, snapshot = false))
             withExecutionPath(updated.response())
         }
     }
@@ -111,7 +111,7 @@ class WebhookService(
                 }
                 val token = if (target) secrets.generate() else null
                 val updated = repository.changeMode(connection, current, target, token?.let(WebhookSecrets::hash), now)
-                outbox.enqueue(connection, PreferenceEvents.webhookState(updated, snapshot = false))
+                outbox.enqueue(connection, WebhookEvents.webhookState(updated, snapshot = false))
                 updated.response(token)
             }.let(::withExecutionPath)
         }
@@ -152,7 +152,7 @@ class WebhookService(
             idempotent(connection, requester.userId, key, "ROTATE_EXECUTION_ID:$channelId:$webhookId") {
                 val current = requireWebhook(connection, channelId, webhookId)
                 val updated = repository.rotateExecutionId(connection, current.id)
-                outbox.enqueue(connection, PreferenceEvents.webhookState(updated, snapshot = false))
+                outbox.enqueue(connection, WebhookEvents.webhookState(updated, snapshot = false))
                 updated.response()
             }.let(::withExecutionPath)
         }
@@ -165,7 +165,7 @@ class WebhookService(
             requireTextChannel(connection, channelId, writable = false)
             requireWebhook(connection, channelId, webhookId)
             val deleted = repository.delete(connection, webhookId)
-            outbox.enqueue(connection, PreferenceEvents.webhookState(deleted, snapshot = false))
+            outbox.enqueue(connection, WebhookEvents.webhookState(deleted, snapshot = false))
         }
     }
 

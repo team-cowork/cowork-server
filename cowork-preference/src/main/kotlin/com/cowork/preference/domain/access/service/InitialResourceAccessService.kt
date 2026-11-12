@@ -1,18 +1,18 @@
 package com.cowork.preference.domain.access.service
 
 import com.cowork.preference.domain.access.permission.PermissionKeys
-import com.cowork.preference.domain.access.projection.channel.ChannelLifecycleEvent
-import com.cowork.preference.domain.access.projection.channel.ChannelLifecycleProjection
-import com.cowork.preference.domain.access.projection.project.ProjectLifecycleEvent
-import com.cowork.preference.domain.access.projection.project.ProjectLifecycleProjection
-import com.cowork.preference.domain.access.projection.team.TeamMemberProjection
-import com.cowork.preference.domain.access.projection.team.TeamMemberProjectionRepository
+import com.cowork.preference.domain.access.projection.channel.model.ChannelLifecycleEvent
+import com.cowork.preference.domain.access.projection.channel.model.ChannelLifecycleProjection
+import com.cowork.preference.domain.access.projection.project.model.ProjectLifecycleEvent
+import com.cowork.preference.domain.access.projection.project.model.ProjectLifecycleProjection
+import com.cowork.preference.domain.access.projection.team.model.TeamMemberProjection
+import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
 import com.cowork.preference.domain.access.repository.InitialResourceAccessRepository
+import com.cowork.preference.domain.channelrole.event.ChannelRolePolicyEvents
 import com.cowork.preference.domain.channelrole.model.ChannelRolePermissionResolver
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectRoleRepository
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
-import com.cowork.preference.global.messaging.event.PreferenceEvents
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import com.cowork.preference.global.projection.readiness.ProjectionReadiness
 import io.vertx.core.json.JsonObject
@@ -108,7 +108,7 @@ class InitialResourceAccessService(
             )
             outbox.enqueue(
                 client,
-                PreferenceEvents.channelRolePolicyState(
+                ChannelRolePolicyEvents.channelRolePolicyState(
                     teamId,
                     event.channelId,
                     overwrite.roleId,

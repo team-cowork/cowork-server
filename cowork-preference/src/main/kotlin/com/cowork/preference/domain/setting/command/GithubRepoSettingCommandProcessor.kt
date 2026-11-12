@@ -4,14 +4,14 @@ import com.cowork.preference.domain.setting.cache.PreferenceCache
 import com.cowork.preference.domain.setting.cache.VersionedSettings
 import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommand
 import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommandEnvelope
-import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommandQuarantineRecord
 import com.cowork.preference.domain.setting.command.model.GithubRepoSettingCommandType
+import com.cowork.preference.domain.setting.command.model.ProcessedGithubRepoSettingCommand
 import com.cowork.preference.domain.setting.command.repository.GithubRepoSettingCommandInboxRepository
-import com.cowork.preference.domain.setting.command.repository.ProcessedGithubRepoSettingCommand
+import com.cowork.preference.domain.setting.event.SettingEvents
 import com.cowork.preference.domain.setting.model.ResourceType
 import com.cowork.preference.domain.setting.model.SettingSchema
 import com.cowork.preference.domain.setting.repository.PreferenceRepository
-import com.cowork.preference.global.messaging.event.PreferenceEvents
+import com.cowork.preference.global.messaging.command.model.CommandQuarantineRecord
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlConnection
@@ -42,7 +42,7 @@ class GithubRepoSettingCommandProcessor(
                     CacheAction.None
                 }
             }
-            matches.byRequesterAndIdempotencyKey?.let { existing ->
+            matches.byIdempotencyKey?.let { existing ->
                 return@inTransaction if (existing.matches(command)) {
                     replay(connection, command.operationId, existing)
                 } else {
@@ -71,7 +71,7 @@ class GithubRepoSettingCommandProcessor(
 
     suspend fun rejectInvalid(
         envelope: GithubRepoSettingCommandEnvelope,
-        quarantineRecord: GithubRepoSettingCommandQuarantineRecord,
+        quarantineRecord: CommandQuarantineRecord,
         reason: String,
     ) {
         outboxRepository.inTransaction { connection ->
@@ -99,7 +99,7 @@ class GithubRepoSettingCommandProcessor(
             val occurredAt = Instant.parse(result.getString("occurredAt"))
             outboxRepository.enqueue(
                 connection,
-                PreferenceEvents.githubRepoSettingResult(operationId, result, occurredAt),
+                SettingEvents.githubRepoSettingResult(operationId, result, occurredAt),
             )
             currentState(connection, existing.repoId)
         }
@@ -151,7 +151,7 @@ class GithubRepoSettingCommandProcessor(
             .put("occurredAt", occurredAt.toString())
         outboxRepository.enqueue(
             connection,
-            PreferenceEvents.githubRepoSettingResult(operationId, result, occurredAt),
+            SettingEvents.githubRepoSettingResult(operationId, result, occurredAt),
         )
     }
 
@@ -173,7 +173,7 @@ class GithubRepoSettingCommandProcessor(
             settings = JsonObject().put("label_auto_apply", labelAutoApply),
         )
         val normalizedSettings = SettingSchema.resolve(ResourceType.GITHUB_REPO, update.settings)
-        val state = PreferenceEvents.githubRepoSettingState(
+        val state = SettingEvents.githubRepoSettingState(
             repoId = command.repoId,
             settings = normalizedSettings,
             occurredAt = update.stateOccurredAt,
@@ -193,7 +193,7 @@ class GithubRepoSettingCommandProcessor(
         outboxRepository.enqueue(connection, state)
         outboxRepository.enqueue(
             connection,
-            PreferenceEvents.githubRepoSettingResult(command.operationId, result, occurredAt),
+            SettingEvents.githubRepoSettingResult(command.operationId, result, occurredAt),
         )
         inboxRepository.insert(connection, command, result)
         return CacheAction.Set(VersionedSettings(normalizedSettings, update.stateOccurredAt))
@@ -204,7 +204,7 @@ class GithubRepoSettingCommandProcessor(
         val stateOccurredAt = preferenceRepository.deleteGithubRepoSettings(connection, command.repoId)
         outboxRepository.enqueue(
             connection,
-            PreferenceEvents.githubRepoSettingState(
+            SettingEvents.githubRepoSettingState(
                 repoId = command.repoId,
                 settings = null,
                 occurredAt = stateOccurredAt,
