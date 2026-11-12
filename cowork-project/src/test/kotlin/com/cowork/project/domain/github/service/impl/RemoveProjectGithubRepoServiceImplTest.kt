@@ -81,6 +81,7 @@ class RemoveProjectGithubRepoServiceImplTest {
                 service.execute(99L, 1L, 5L)
             }
             assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
+            assertEquals("등록된 저장소를 찾을 수 없습니다.", ex.message)
         }
 
         @Test
