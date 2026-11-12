@@ -1415,6 +1415,12 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 		return streams.every(name => this.states.get(name)?.ready === true);
 	}
 
+	// 물리 삭제는 API 읽기용 지연 유예를 사용하지 않는다.
+	isCaughtUp(name: ProjectionName): boolean {
+		const state = this.states.get(name);
+		return state?.ready === true && state.lag === undefined;
+	}
+
 	async whenReady(): Promise<void> {
 		return this.isReady() ? Promise.resolve() : this.readyPromise;
 	}
