@@ -163,6 +163,7 @@ func main() {
 
 	router.GET(healthPath, handler.Health)
 	router.GET(metricsPath, gin.WrapH(promhttp.Handler()))
+	router.GET("/v3/api-docs", gin.WrapH(swaggerHandler))
 	router.GET("/swagger/*any", gin.WrapH(swaggerHandler))
 
 	auth := router.Group("/auth")
