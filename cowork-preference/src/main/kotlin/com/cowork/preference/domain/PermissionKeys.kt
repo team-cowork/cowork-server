@@ -77,5 +77,9 @@ object PermissionKeys {
         PROJECT_CHANNEL_ARCHIVE,
     )
 
-    val ROLE_SCOPED: Set<String> = TEAM_SCOPED + CHANNEL_SCOPED + PROJECT_SCOPED
+    val ROLE_SCOPED: Set<String> = buildSet {
+        addAll(this@PermissionKeys.TEAM_SCOPED)
+        addAll(this@PermissionKeys.CHANNEL_SCOPED)
+        addAll(this@PermissionKeys.PROJECT_SCOPED)
+    }
 }

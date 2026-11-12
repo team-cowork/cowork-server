@@ -54,6 +54,9 @@ fun buildRouter(
         }
     }
 
+    router.get("/preferences/definitions").handler(preferenceHandler::getSettingDefinitions)
+    router.get("/preferences/role-permissions").handler(preferenceHandler::getRolePermissions)
+
     // ACCOUNT
     router.get("/preferences/account/:id").handler(preferenceHandler.getSettings(ResourceType.ACCOUNT))
     router.put("/preferences/account/:id").handler(preferenceHandler.updateSettings(ResourceType.ACCOUNT))
