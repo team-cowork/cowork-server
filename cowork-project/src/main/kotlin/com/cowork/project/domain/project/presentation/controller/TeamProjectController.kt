@@ -20,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "팀 프로젝트")
+@Tag(name = "팀 프로젝트", description = "팀에 속한 프로젝트의 순서를 관리합니다.")
 @ApiResponses(
     ApiResponse(
         responseCode = "401",
