@@ -82,5 +82,5 @@ func normalizedRoute(pattern string, rawPath string) string {
 }
 
 func shouldSkipRoute(route string) bool {
-	return route == "/metrics" || route == "/health" || strings.HasPrefix(route, "/swagger")
+	return route == "/metrics" || route == "/health" || route == "/v3/api-docs" || strings.HasPrefix(route, "/swagger")
 }

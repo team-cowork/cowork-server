@@ -75,7 +75,7 @@ func HTTPMetricsMiddleware(next http.Handler) http.Handler {
 
 func shouldSkipRoute(route string) bool {
 	switch route {
-	case "/metrics", "/health", "/swagger/*":
+	case "/metrics", "/health", "/v3/api-docs", "/swagger/*":
 		return true
 	default:
 		return false
