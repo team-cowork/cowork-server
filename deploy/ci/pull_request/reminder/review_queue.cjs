@@ -4,7 +4,6 @@ const { execFileSync } = require('node:child_process');
 
 const JEB_URL = 'https://jeb.https.gsmsv.site/v1/systemone';
 const JEB_TIMEOUT_MS = 60_000;
-const BASE_BRANCH = 'develop';
 // jeb rejects input over about 8,000 tokens with HTTP 502, so the second attempt halves the diff.
 const DIFF_CHAR_LIMITS = [12_000, 6_000];
 const BODY_CHAR_LIMIT = 2_000;
@@ -47,10 +46,11 @@ const QUESTIONS = {
 };
 
 const OPEN_PULL_REQUESTS_QUERY = `
-  query($owner: String!, $repo: String!, $base: String!) {
+  query($owner: String!, $repo: String!, $after: String) {
     repository(owner: $owner, name: $repo) {
-      pullRequests(states: OPEN, baseRefName: $base, first: 100) {
-        nodes { number title body url isDraft createdAt reviewDecision author { login } }
+      pullRequests(states: OPEN, first: 100, after: $after) {
+        pageInfo { hasNextPage endCursor }
+        nodes { number title body url baseRefName isDraft createdAt reviewDecision author { login } }
       }
     }
   }
@@ -202,16 +202,18 @@ function buildPayload(queue, roleId, now) {
   };
 }
 
-function readPullRequestDiff(number) {
+function readPullRequestDiff(number, baseRefName) {
   const git = args => execFileSync('git', args, {
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe'],
   }).trim();
-  const ref = `refs/review-queue/${number}`;
-  git(['fetch', '--no-tags', '--quiet', 'origin', `+refs/pull/${number}/head:${ref}`]);
+  const ref = `refs/review-queue/${number}/head`;
+  const baseRef = `refs/review-queue/${number}/base`;
+  git(['fetch', '--no-tags', '--quiet', 'origin',
+    `+refs/pull/${number}/head:${ref}`, `+refs/heads/${baseRefName}:${baseRef}`]);
 
-  const range = `origin/${BASE_BRANCH}...${ref}`;
+  const range = `${baseRef}...${ref}`;
   const diff = ['diff', '--no-ext-diff', '--no-textconv', '-w', '--ignore-blank-lines'];
   return {
     patch: git([...diff, '--unified=1', range]),
@@ -235,9 +237,15 @@ async function publishReviewQueue({
     return;
   }
 
-  const result = await github.graphql(OPEN_PULL_REQUESTS_QUERY, { ...context.repo, base: BASE_BRANCH });
-  const pullRequests = result.repository.pullRequests.nodes
-    .filter(pullRequest => !pullRequest.isDraft && pullRequest.reviewDecision !== 'APPROVED');
+  const pullRequests = [];
+  let after = null;
+  do {
+    const result = await github.graphql(OPEN_PULL_REQUESTS_QUERY, { ...context.repo, after });
+    const page = result.repository.pullRequests;
+    pullRequests.push(...page.nodes.filter(pullRequest =>
+      !pullRequest.isDraft && pullRequest.reviewDecision !== 'APPROVED'));
+    after = page.pageInfo.hasNextPage ? page.pageInfo.endCursor : null;
+  } while (after);
   if (pullRequests.length === 0) {
     core.info('No pull request is waiting for review');
     return;
@@ -247,7 +255,7 @@ async function publishReviewQueue({
   for (const pullRequest of pullRequests) {
     let evaluation = { grade: 'unrated', factors: [] };
     try {
-      evaluation = await evaluate(pullRequest, readDiff(pullRequest.number), apiKey, fetchImpl);
+      evaluation = await evaluate(pullRequest, readDiff(pullRequest.number, pullRequest.baseRefName), apiKey, fetchImpl);
     } catch (error) {
       core.warning(`Could not evaluate PR #${pullRequest.number}: ${error.message}`);
     }
