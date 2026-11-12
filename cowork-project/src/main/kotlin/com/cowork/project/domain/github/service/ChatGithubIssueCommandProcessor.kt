@@ -109,7 +109,7 @@ class ChatGithubIssueCommandProcessor(
 
         val repos = projectGithubRepoRepository.findAllByProjectId(command.projectId)
         if (repos.isEmpty()) {
-            return Decision.Rejected(GITHUB_REPO_NOT_FOUND, "프로젝트 GitHub 레포지토리 정보를 찾을 수 없습니다")
+            return Decision.Rejected(GITHUB_REPO_NOT_FOUND, "프로젝트 GitHub 저장소 정보를 찾을 수 없습니다.")
         }
         if (repos.size > 1) {
             return Decision.Rejected(GITHUB_REPO_AMBIGUOUS, "프로젝트에 연결된 저장소가 여러 개여서 이슈 대상을 결정할 수 없습니다")
@@ -122,11 +122,11 @@ class ChatGithubIssueCommandProcessor(
         }
 
         val repo = GithubRepoUrlParser.parse(repos[0].githubRepoUrl)
-            ?: return Decision.Rejected(GITHUB_REPO_URL_INVALID, "연결된 GitHub 레포지토리 URL이 올바르지 않습니다.")
+            ?: return Decision.Rejected(GITHUB_REPO_URL_INVALID, "연결된 GitHub 저장소 URL이 올바르지 않습니다.")
         try {
             repoAccessResolver.requireTeamOrgRepo(project.teamId, repo)
         } catch (ex: ExpectedException) {
-            return Decision.Rejected(ex.statusCode.name, ex.message ?: "팀에 연결된 GitHub 조직의 레포지토리가 아닙니다.")
+            return Decision.Rejected(ex.statusCode.name, ex.message ?: "팀에 연결된 GitHub 조직의 저장소가 아닙니다.")
         }
 
         return Decision.Accepted(repo)
