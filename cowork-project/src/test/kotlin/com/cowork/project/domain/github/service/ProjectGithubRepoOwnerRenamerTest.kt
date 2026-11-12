@@ -23,10 +23,7 @@ class ProjectGithubRepoOwnerRenamerTest :
             every { repoLinkRepository.save(any()) } answers { firstArg() }
         }
 
-        fun repoLink(
-            id: Long,
-            url: String,
-        ) = ProjectGithubRepo(
+        fun repoLink(id: Long, url: String) = ProjectGithubRepo(
             id = id,
             projectId = 10L,
             teamId = 1L,
