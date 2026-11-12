@@ -24,7 +24,7 @@ runs:
       if: inputs.contract == 'true'
       id: builder
       with:
-        # Hosted runner DNS can fail inside build containers when resolving package mirrors.
+        # GitHub-hosted runners only: public DNS bypasses package-mirror lookup failures in build containers.
         buildkitd-config-inline: |
           [dns]
             nameservers = ["1.1.1.1", "8.8.8.8"]
