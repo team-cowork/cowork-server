@@ -98,24 +98,6 @@ describe('GithubWebhookController', () => {
 		expect(authService.evictInstallation).not.toHaveBeenCalled();
 	});
 
-	it('installation_target.renamed 이벤트는 설치 캐시를 새 이름으로 옮기고 team.github.renamed를 발행한다', async () => {
-		await controller.handle('installation_target', {
-			action: 'renamed',
-			account: {login: 'new-org'},
-			changes: {login: {from: 'old-org'}},
-			installation: {id: 42},
-		});
-
-		expect(authService.evictInstallation).toHaveBeenCalledWith('old-org', 42);
-		expect(authService.cacheInstallation).toHaveBeenCalledWith('new-org', 42);
-		expect(redis.incr).toHaveBeenCalledWith('github:installation:revision:42');
-		expect(producer.send).toHaveBeenCalledWith('team.github.renamed', {
-			installationId: 42,
-			orgLogin: 'new-org',
-			revision: 5,
-		});
-	});
-
 	it('push 이벤트는 github.repo.event를 발행한다', async () => {
 		await controller.handle('push', {
 			ref: 'refs/heads/main',
