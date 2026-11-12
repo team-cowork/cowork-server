@@ -1,0 +1,514 @@
+package com.cowork.preference.domain.teamrole.command
+
+import com.cowork.preference.domain.access.permission.PermissionKeys
+import com.cowork.preference.domain.access.projection.team.model.TeamMemberProjection
+import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
+import com.cowork.preference.domain.channelrole.event.ChannelRolePolicyEvents
+import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
+import com.cowork.preference.domain.projectrole.repository.ProjectAccessStateRepository
+import com.cowork.preference.domain.teamrole.command.model.ProcessedTeamRoleCommand
+import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommand
+import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommandEnvelope
+import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommandType
+import com.cowork.preference.domain.teamrole.command.repository.TeamRoleCommandInboxRepository
+import com.cowork.preference.domain.teamrole.event.TeamRoleEvents
+import com.cowork.preference.domain.teamrole.exception.TeamRoleProjectionNotReadyException
+import com.cowork.preference.domain.teamrole.model.AccountTeamRole
+import com.cowork.preference.domain.teamrole.model.TeamRoleDefinition
+import com.cowork.preference.domain.teamrole.model.TeamRolePermissions
+import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
+import com.cowork.preference.global.messaging.command.model.CommandQuarantineRecord
+import com.cowork.preference.global.messaging.event.PreferenceEvent
+import com.cowork.preference.global.outbox.PreferenceOutboxRepository
+import com.cowork.preference.global.projection.readiness.ProjectionReadiness
+import io.vertx.core.json.JsonObject
+import io.vertx.sqlclient.SqlConnection
+import java.time.Instant
+import java.time.temporal.ChronoUnit
+
+class TeamRoleCommandProcessor(
+    private val roleRepository: TeamRoleRepository,
+    private val memberRepository: TeamMemberProjectionRepository,
+    private val inboxRepository: TeamRoleCommandInboxRepository,
+    private val outboxRepository: PreferenceOutboxRepository,
+    private val readiness: ProjectionReadiness,
+    private val channelRolePolicyRepository: ChannelRolePolicyRepository,
+    private val projectAccess: ProjectAccessStateRepository,
+) {
+    suspend fun process(command: TeamRoleCommand) {
+        outboxRepository.inTransaction { connection ->
+            val matches = inboxRepository.findMatches(connection, command)
+            matches.byOperationId?.let { existing ->
+                if (existing.matches(command)) {
+                    replay(connection, command.operationId, existing.result)
+                } else {
+                    enqueueFailure(
+                        connection,
+                        command,
+                        "OPERATION_ID_REUSED",
+                        "operationId was already used for a different request",
+                    )
+                }
+                return@inTransaction
+            }
+            matches.byIdempotencyKey?.let { existing ->
+                if (existing.matches(command)) {
+                    replay(connection, command.operationId, existing.result)
+                } else {
+                    enqueueFailure(
+                        connection,
+                        command,
+                        "IDEMPOTENCY_KEY_REUSED",
+                        "Idempotency-Key was already used for a different request",
+                    )
+                }
+                return@inTransaction
+            }
+            if (!readiness.isReady) {
+                throw TeamRoleProjectionNotReadyException("team.member.event projection is not ready")
+            }
+
+            val outcome = try {
+                applyCommand(connection, command)
+            } catch (rejected: CommandRejected) {
+                rejected(command, rejected)
+            }
+            outboxRepository.enqueueAll(connection, outcome.stateEvents)
+            outboxRepository.enqueue(
+                connection,
+                TeamRoleEvents.teamRoleCommandResult(command.operationId, outcome.result, outcome.occurredAt),
+            )
+            inboxRepository.insert(connection, command, outcome.result)
+        }
+    }
+
+    suspend fun rejectInvalid(
+        envelope: TeamRoleCommandEnvelope,
+        quarantineRecord: CommandQuarantineRecord,
+        reason: String,
+    ) {
+        outboxRepository.inTransaction { connection ->
+            if (!inboxRepository.quarantine(connection, quarantineRecord)) return@inTransaction
+            val occurredAt = now()
+            val result = baseResult(envelope, "FAILED", occurredAt)
+                .put("role", null)
+                .put("projection", null)
+                .put(
+                    "error",
+                    JsonObject()
+                        .put("code", "INVALID_COMMAND")
+                        .put("message", normalizedErrorMessage(reason, MAX_TEAM_ERROR_MESSAGE_LENGTH)),
+                )
+            outboxRepository.enqueue(
+                connection,
+                TeamRoleEvents.teamRoleCommandResult(envelope.operationId, result, occurredAt),
+            )
+        }
+    }
+
+    private suspend fun replay(connection: SqlConnection, operationId: String, storedResult: JsonObject) {
+        val result = storedResult.copy().put("operationId", operationId)
+        val occurredAt = Instant.parse(result.getString("occurredAt"))
+        outboxRepository.enqueue(
+            connection,
+            TeamRoleEvents.teamRoleCommandResult(operationId, result, occurredAt),
+        )
+    }
+
+    private suspend fun enqueueFailure(
+        connection: SqlConnection,
+        command: TeamRoleCommand,
+        code: String,
+        message: String,
+    ) {
+        val outcome = rejected(command, CommandRejected(code, message))
+        outboxRepository.enqueue(
+            connection,
+            TeamRoleEvents.teamRoleCommandResult(command.operationId, outcome.result, outcome.occurredAt),
+        )
+    }
+
+    private suspend fun applyCommand(connection: SqlConnection, command: TeamRoleCommand): CommandOutcome {
+        if (roleRepository.isTeamDeleted(connection, command.teamId)) {
+            reject("TEAM_DELETED", "삭제된 팀의 역할은 변경할 수 없습니다.")
+        }
+        val actorMember = activeMember(
+            connection,
+            command.teamId,
+            command.actorId,
+            command.actorMembershipVersion,
+            "ACTOR_NOT_MEMBER",
+            "ACTOR_MEMBERSHIP_CHANGED",
+        )
+        val actor = actorContext(connection, actorMember)
+        return when (command.commandType) {
+            TeamRoleCommandType.CREATE -> create(connection, command, actor)
+            TeamRoleCommandType.UPDATE -> update(connection, command, actor)
+            TeamRoleCommandType.DELETE -> delete(connection, command, actor)
+            TeamRoleCommandType.ASSIGN -> assign(connection, command, actor)
+            TeamRoleCommandType.REVOKE -> revoke(connection, command, actor)
+        }
+    }
+
+    private suspend fun create(
+        connection: SqlConnection,
+        command: TeamRoleCommand,
+        actor: ActorContext,
+    ): CommandOutcome {
+        val input = requireNotNull(command.role)
+        val name = requireNotNull(input.name)
+        val colorHex = requireNotNull(input.colorHex)
+        val priority = requireNotNull(input.priority)
+        if (name == "@everyone") reject("RESERVED_ROLE_NAME", "기본 역할 이름은 사용할 수 없습니다.")
+        validateRole(name, colorHex)
+        if (!actor.builtInManager && priority >= actor.maxPriority) {
+            reject("FORBIDDEN", "자신의 최상위 역할보다 높거나 같은 역할은 만들 수 없습니다.")
+        }
+        if (roleRepository.findRoleByName(connection, command.teamId, name) != null) {
+            reject("DUPLICATE_ROLE_NAME", "같은 이름의 역할이 이미 존재합니다.")
+        }
+        requireGrantable(actor, requireNotNull(input.permissions))
+        val role = roleRepository.insertRole(
+            connection,
+            command.teamId,
+            name,
+            colorHex,
+            priority,
+            requireNotNull(input.mentionable),
+            TeamRolePermissions.canonicalize(requireNotNull(input.permissions)),
+        )
+        return success(command, role, TeamRoleEvents.roleUpserted(role, role.version()), deleted = false)
+    }
+
+    private suspend fun update(
+        connection: SqlConnection,
+        command: TeamRoleCommand,
+        actor: ActorContext,
+    ): CommandOutcome {
+        val roleId = requireNotNull(command.roleId)
+        val current = roleRepository.findRole(connection, command.teamId, roleId)
+            ?: reject("ROLE_NOT_FOUND", "역할을 찾을 수 없습니다.")
+        requireManageable(actor, current.priority)
+        val input = requireNotNull(command.role)
+        if (current.isDefault && (
+                (input.name != null && input.name != current.name) ||
+                    (input.priority != null && input.priority != current.priority)
+                )
+        ) {
+            reject("DEFAULT_ROLE_PROTECTED", "기본 역할의 이름과 우선순위는 변경할 수 없습니다.")
+        }
+        val nextName = input.name ?: current.name
+        if (!current.isDefault && nextName == "@everyone" && nextName != current.name) {
+            reject("RESERVED_ROLE_NAME", "기본 역할 이름은 사용할 수 없습니다.")
+        }
+        val nextColor = input.colorHex ?: current.colorHex
+        val nextPriority = input.priority ?: current.priority
+        validateRole(nextName, nextColor)
+        requireManageable(actor, nextPriority)
+        if (roleRepository.findRoleByNameExceptId(connection, command.teamId, nextName, roleId) != null) {
+            reject("DUPLICATE_ROLE_NAME", "같은 이름의 역할이 이미 존재합니다.")
+        }
+        requireGrantable(
+            actor,
+            input.permissions.orEmpty().filter { (key, allowed) ->
+                allowed &&
+                    current.permissions[key] != true
+            },
+        )
+        val role = roleRepository.updateRole(
+            connection,
+            roleId,
+            nextName,
+            nextColor,
+            nextPriority,
+            input.mentionable ?: current.mentionable,
+            input.permissions?.let { TeamRolePermissions.merge(current.permissions, it) } ?: current.permissions,
+        )
+        val projectPermissionsChanged = PermissionKeys.PROJECT_SCOPED.any {
+            (current.permissions[it] == true) != (role.permissions[it] == true)
+        }
+        if (projectPermissionsChanged) {
+            projectAccess.refreshTeam(connection, command.teamId)
+        }
+        return success(command, role, TeamRoleEvents.roleUpserted(role, role.version()), deleted = false)
+    }
+
+    private suspend fun delete(
+        connection: SqlConnection,
+        command: TeamRoleCommand,
+        actor: ActorContext,
+    ): CommandOutcome {
+        val roleId = requireNotNull(command.roleId)
+        val role = roleRepository.findRole(connection, command.teamId, roleId)
+            ?: reject("ROLE_NOT_FOUND", "역할을 찾을 수 없습니다.")
+        if (role.isDefault) reject("DEFAULT_ROLE_PROTECTED", "기본 역할은 삭제하거나 직접 할당 및 해제할 수 없습니다.")
+        requireManageable(actor, role.priority)
+        val occurredAt = now()
+        val assignments = roleRepository.findMemberRoles(connection, command.teamId).filter { it.roleId == roleId }
+        val policyEvents = deleteChannelRolePoliciesForRole(connection, command.teamId, roleId)
+        val assignmentTombstones = assignments.map { assignment ->
+            roleRepository.deleteAssignment(
+                connection,
+                assignment.accountId,
+                assignment.teamId,
+                assignment.roleId,
+                occurredAt,
+            )
+        }
+        val roleTombstone = roleRepository.deleteRoleWithTombstone(
+            connection,
+            command.teamId,
+            roleId,
+            occurredAt,
+        )
+        val roleEvent = TeamRoleEvents.roleDeleted(command.teamId, roleId, roleTombstone.stateOccurredAt)
+        val events = policyEvents + assignmentTombstones.map { tombstone ->
+            TeamRoleEvents.assignmentDeleted(
+                AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
+                tombstone.stateOccurredAt,
+            )
+        } + roleEvent
+        projectAccess.refreshTeam(connection, command.teamId)
+        return success(command, null, roleEvent, deleted = true, stateEvents = events)
+    }
+
+    private suspend fun deleteChannelRolePoliciesForRole(
+        connection: SqlConnection,
+        teamId: Long,
+        roleId: Long,
+    ): List<PreferenceEvent> =
+        channelRolePolicyRepository.findPoliciesByRole(connection, teamId, roleId).map { policy ->
+            val tombstone = channelRolePolicyRepository.deletePolicy(
+                connection,
+                policy.teamId,
+                policy.channelId,
+                policy.roleId,
+            )
+            ChannelRolePolicyEvents.channelRolePolicyState(
+                teamId = tombstone.teamId,
+                channelId = tombstone.channelId,
+                roleId = tombstone.roleId,
+                permissions = null,
+                occurredAt = tombstone.stateOccurredAt,
+                snapshot = false,
+            )
+        }
+
+    private suspend fun assign(
+        connection: SqlConnection,
+        command: TeamRoleCommand,
+        actor: ActorContext,
+    ): CommandOutcome {
+        val targetId = requireNotNull(command.targetAccountId)
+        val targetMember = activeMember(
+            connection,
+            command.teamId,
+            targetId,
+            requireNotNull(command.targetMembershipVersion),
+            "TARGET_NOT_MEMBER",
+            "TARGET_MEMBERSHIP_CHANGED",
+        )
+        val roleId = requireNotNull(command.roleId)
+        val role = roleRepository.findRole(connection, command.teamId, roleId)
+            ?: reject("ROLE_NOT_FOUND", "역할을 찾을 수 없습니다.")
+        if (role.isDefault) reject("DEFAULT_ROLE_PROTECTED", "기본 역할은 삭제하거나 직접 할당 및 해제할 수 없습니다.")
+        requireManageable(actor, role.priority)
+        requireGrantable(actor, role.permissions)
+        roleRepository.assignRole(
+            connection,
+            targetId,
+            command.teamId,
+            roleId,
+            targetMember.sourceOccurredAt,
+        )
+        val assignment = requireNotNull(roleRepository.findAssignment(connection, targetId, command.teamId, roleId))
+        val event = TeamRoleEvents.assignmentUpserted(assignment, requireNotNull(assignment.updatedAt).toInstant())
+        projectAccess.refreshTeam(connection, command.teamId, targetId)
+        return success(command, role, event, deleted = false)
+    }
+
+    private suspend fun revoke(
+        connection: SqlConnection,
+        command: TeamRoleCommand,
+        actor: ActorContext,
+    ): CommandOutcome {
+        val targetId = requireNotNull(command.targetAccountId)
+        activeMember(
+            connection,
+            command.teamId,
+            targetId,
+            requireNotNull(command.targetMembershipVersion),
+            "TARGET_NOT_MEMBER",
+            "TARGET_MEMBERSHIP_CHANGED",
+        )
+        val roleId = requireNotNull(command.roleId)
+        val role = roleRepository.findRole(connection, command.teamId, roleId)
+            ?: reject("ROLE_NOT_FOUND", "역할을 찾을 수 없습니다.")
+        if (role.isDefault) reject("DEFAULT_ROLE_PROTECTED", "기본 역할은 삭제하거나 직접 할당 및 해제할 수 없습니다.")
+        requireManageable(actor, role.priority)
+        val tombstone = roleRepository.deleteAssignment(
+            connection,
+            targetId,
+            command.teamId,
+            roleId,
+            now(),
+        )
+        val assignment = AccountTeamRole(targetId, command.teamId, roleId)
+        val event = TeamRoleEvents.assignmentDeleted(assignment, tombstone.stateOccurredAt)
+        projectAccess.refreshTeam(connection, command.teamId, targetId)
+        return success(command, role, event, deleted = true)
+    }
+
+    private suspend fun activeMember(
+        connection: SqlConnection,
+        teamId: Long,
+        accountId: Long,
+        expectedVersion: Instant,
+        missingCode: String,
+        changedCode: String,
+    ): TeamMemberProjection {
+        val member = memberRepository.find(connection, teamId, accountId)
+            ?: throw TeamRoleProjectionNotReadyException("member projection is missing for $teamId:$accountId")
+        if (member.sourceOccurredAt.isBefore(expectedVersion)) {
+            throw TeamRoleProjectionNotReadyException(
+                "member projection is behind command version for $teamId:$accountId",
+            )
+        }
+        if (member.sourceOccurredAt.isAfter(expectedVersion)) {
+            reject(changedCode, "요청 이후 팀 멤버십 상태가 변경되었습니다.")
+        }
+        if (member.deleted) reject(missingCode, "해당 팀 멤버를 찾을 수 없습니다.")
+        return member
+    }
+
+    private suspend fun actorContext(connection: SqlConnection, member: TeamMemberProjection): ActorContext {
+        if (member.builtInRole == "OWNER" || member.builtInRole == "ADMIN") {
+            return ActorContext(builtInManager = true, maxPriority = Int.MAX_VALUE)
+        }
+        val assignments = roleRepository.findMemberRoles(connection, member.teamId)
+            .filter { it.accountId == member.accountId }
+        val assignedIds = assignments.mapTo(mutableSetOf()) { it.roleId }
+        val roles = roleRepository.findRoles(connection, member.teamId).filter { it.isDefault || it.id in assignedIds }
+        if (roles.none { it.permissions[PermissionKeys.MANAGE_ROLES] == true }) {
+            reject("FORBIDDEN", "역할 관리 권한이 없습니다.")
+        }
+        return ActorContext(
+            false,
+            roles.maxOfOrNull(TeamRoleDefinition::priority) ?: 0,
+            roles.flatMap { it.permissions.filterValues { allowed -> allowed }.keys }.toSet(),
+        )
+    }
+
+    private fun requireGrantable(actor: ActorContext, permissions: Map<String, Boolean>) {
+        if (!actor.builtInManager && permissions.any { (key, allowed) -> allowed && key !in actor.permissions }) {
+            reject("FORBIDDEN", "자신이 보유하지 않은 권한은 부여할 수 없습니다.")
+        }
+    }
+
+    private fun requireManageable(actor: ActorContext, priority: Int) {
+        if (!actor.builtInManager && priority >= actor.maxPriority) {
+            reject("FORBIDDEN", "자신의 최상위 역할보다 높거나 같은 역할은 관리할 수 없습니다.")
+        }
+    }
+
+    private fun validateRole(name: String, colorHex: String) {
+        if (name.isBlank() || name.length > 50) reject("INVALID_ROLE_NAME", "역할 이름은 1자 이상 50자 이하여야 합니다.")
+        if (!COLOR_PATTERN.matches(colorHex)) reject("INVALID_ROLE_COLOR", "역할 색상은 #RRGGBB 형식이어야 합니다.")
+    }
+
+    private fun success(
+        command: TeamRoleCommand,
+        role: TeamRoleDefinition?,
+        projectionEvent: PreferenceEvent,
+        deleted: Boolean,
+        stateEvents: List<PreferenceEvent> = listOf(projectionEvent),
+    ): CommandOutcome {
+        val occurredAt = projectionEvent.occurredAt
+        val result = baseResult(command, "SUCCEEDED", occurredAt)
+            .put("role", role?.toJson())
+            .put("error", null)
+            .put(
+                "projection",
+                JsonObject()
+                    .put("key", projectionEvent.key)
+                    .put("occurredAt", occurredAt.toString())
+                    .put("deleted", deleted),
+            )
+        return CommandOutcome(stateEvents, result, occurredAt)
+    }
+
+    private fun rejected(command: TeamRoleCommand, rejected: CommandRejected): CommandOutcome {
+        val occurredAt = now()
+        val result = baseResult(command, "FAILED", occurredAt)
+            .put("role", null)
+            .put("projection", null)
+            .put("error", JsonObject().put("code", rejected.code).put("message", rejected.message))
+        return CommandOutcome(emptyList(), result, occurredAt)
+    }
+
+    private fun baseResult(command: TeamRoleCommand, status: String, occurredAt: Instant): JsonObject = JsonObject()
+        .put("schemaVersion", TeamRoleCommandParser.SCHEMA_VERSION)
+        .put("operationId", command.operationId)
+        .put("idempotencyKey", command.idempotencyKey)
+        .put("requestHash", command.requestHash)
+        .put("commandType", command.commandType.name)
+        .put("teamId", command.teamId)
+        .put("status", status)
+        .put("occurredAt", occurredAt.toString())
+
+    private fun baseResult(envelope: TeamRoleCommandEnvelope, status: String, occurredAt: Instant): JsonObject =
+        JsonObject()
+            .put("schemaVersion", TeamRoleCommandParser.SCHEMA_VERSION)
+            .put("operationId", envelope.operationId)
+            .put("idempotencyKey", envelope.idempotencyKey)
+            .put("requestHash", envelope.requestHash)
+            .put("commandType", envelope.commandType.name)
+            .put("teamId", envelope.teamId)
+            .put("status", status)
+            .put("occurredAt", occurredAt.toString())
+
+    private fun TeamRoleDefinition.toJson(): JsonObject = JsonObject()
+        .put("id", id)
+        .put("teamId", teamId)
+        .put("name", name)
+        .put("colorHex", colorHex)
+        .put("priority", priority)
+        .put("mentionable", mentionable)
+        .put("isDefault", isDefault)
+        .put("permissions", TeamRolePermissions.toJson(permissions))
+        .put("createdAt", createdAt?.toString())
+        .put("updatedAt", updatedAt?.toString())
+
+    private fun TeamRoleDefinition.version(): Instant =
+        requireNotNull(updatedAt ?: createdAt) { "role $id has no state version" }.toInstant()
+
+    private fun now(): Instant = Instant.now().truncatedTo(ChronoUnit.MICROS)
+
+    private fun ProcessedTeamRoleCommand.matches(command: TeamRoleCommand): Boolean = actorId == command.actorId &&
+        idempotencyKey == command.idempotencyKey &&
+        requestHash == command.requestHash &&
+        commandType == command.commandType.name &&
+        teamId == command.teamId
+
+    private fun normalizedErrorMessage(reason: String, maxLength: Int): String =
+        reason.ifBlank { "invalid command" }.take(maxLength)
+
+    private fun reject(code: String, message: String): Nothing = throw CommandRejected(code, message)
+
+    private data class ActorContext(
+        val builtInManager: Boolean,
+        val maxPriority: Int,
+        val permissions: Set<String> = emptySet(),
+    )
+    private data class CommandOutcome(
+        val stateEvents: List<PreferenceEvent>,
+        val result: JsonObject,
+        val occurredAt: Instant,
+    )
+    private class CommandRejected(val code: String, override val message: String) : RuntimeException(message)
+
+    private companion object {
+        const val MAX_TEAM_ERROR_MESSAGE_LENGTH = 1_000
+        val COLOR_PATTERN = Regex("^#[0-9A-Fa-f]{6}$")
+    }
+}
