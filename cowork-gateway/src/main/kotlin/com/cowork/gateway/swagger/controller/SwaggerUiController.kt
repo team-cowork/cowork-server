@@ -19,7 +19,7 @@ class SwaggerUiController(
         produces = [MediaType.TEXT_HTML_VALUE],
     )
     fun swaggerUi(): String {
-        val urlsJson = objectMapper.writeValueAsString(swaggerUiProperties.urls)
+        val urlsJson = objectMapper.writeValueAsString(swaggerUiProperties.urls.sortedBy { it.name })
         val primaryNameJson = objectMapper.writeValueAsString(swaggerUiProperties.primaryName)
 
         return """
