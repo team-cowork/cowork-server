@@ -295,6 +295,13 @@ export class ChannelMessageReadAccessService {
 		}
 	}
 
+	async requireCanView(channelId: number, userId: number): Promise<void> {
+		const result = await this.requireAccess([{channelId, userId}], ['CHANNEL_METADATA']);
+		if (result.get(accessKey(channelId, userId)) !== true) {
+			throw new ForbiddenException('채널 접근 권한이 없습니다');
+		}
+	}
+
 	async requirePermission(channelId: number, userId: number, permission: ChannelActionPermission): Promise<void> {
 		await this.requirePermissions(channelId, userId, [permission]);
 	}
