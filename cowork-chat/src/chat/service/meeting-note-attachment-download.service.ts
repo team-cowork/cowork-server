@@ -29,7 +29,7 @@ export class MeetingNoteAttachmentDownloadService {
 			throw new BadRequestException('첨부파일 경로가 유효하지 않습니다');
 		}
 
-		await this.access.requireCanRead(channelId, userId);
+		await this.access.requireCanView(channelId, userId);
 		this.requireReady();
 		const note = await this.notes.find(noteId, channelId);
 		const attachment = note?.attachments.find(a => a.objectKey === objectKey);
