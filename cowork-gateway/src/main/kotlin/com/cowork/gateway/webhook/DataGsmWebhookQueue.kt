@@ -27,7 +27,7 @@ class DataGsmWebhookQueue(connectionFactory: LettuceConnectionFactory) {
                 STREAM_KEY,
                 mapOf("body" to String(body, StandardCharsets.UTF_8), "signature" to signature),
             ).flatMap {
-                val args = CommandArgs<String, String>(StringCodec.UTF8)
+                val args = CommandArgs(StringCodec.UTF8)
                     .add(1L).add(0L).add(2000L)
                 commands.dispatch<Long>(WAIT_AOF, IntegerListOutput(StringCodec.UTF8), args)
                     .collectList()
@@ -39,8 +39,6 @@ class DataGsmWebhookQueue(connectionFactory: LettuceConnectionFactory) {
 
     companion object {
         const val STREAM_KEY = "cowork:authorization:datagsm:webhooks"
-        private val WAIT_AOF = object : ProtocolKeyword {
-            override fun getBytes(): ByteArray = "WAITAOF".toByteArray(StandardCharsets.US_ASCII)
-        }
+        private val WAIT_AOF = ProtocolKeyword { "WAITAOF".toByteArray(StandardCharsets.US_ASCII) }
     }
 }

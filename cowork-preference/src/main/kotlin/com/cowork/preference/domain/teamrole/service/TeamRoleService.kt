@@ -169,12 +169,16 @@ class TeamRoleService(
                 val roleTombstone = repository.deleteRoleWithTombstone(connection, teamId, roleId, occurredAt)
                 outboxRepository.enqueueAll(
                     connection,
-                    policyEvents + assignmentTombstones.map { tombstone ->
-                        TeamRoleEvents.assignmentDeleted(
-                            AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
-                            tombstone.stateOccurredAt,
-                        )
-                    } + TeamRoleEvents.roleDeleted(teamId, roleId, roleTombstone.stateOccurredAt),
+                    buildList {
+                        addAll(policyEvents)
+                        assignmentTombstones.mapTo(this) { tombstone ->
+                            TeamRoleEvents.assignmentDeleted(
+                                AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
+                                tombstone.stateOccurredAt,
+                            )
+                        }
+                        add(TeamRoleEvents.roleDeleted(teamId, roleId, roleTombstone.stateOccurredAt))
+                    },
                 )
                 projectAccess.refreshTeam(connection, teamId)
             }
@@ -281,15 +285,20 @@ class TeamRoleService(
         }
         outboxRepository.enqueueAll(
             client,
-            policyEvents + assignmentTombstones.map { tombstone ->
-                TeamRoleEvents.assignmentDeleted(
-                    AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
-                    tombstone.stateOccurredAt,
-                )
-            } + memberFences.values.map { fence ->
-                TeamRoleEvents.memberAssignmentsDeleted(fence.teamId, fence.accountId, fence.stateOccurredAt)
-            } + roleTombstones.map { tombstone ->
-                TeamRoleEvents.roleDeleted(tombstone.teamId, tombstone.roleId, tombstone.stateOccurredAt)
+            buildList {
+                addAll(policyEvents)
+                assignmentTombstones.mapTo(this) { tombstone ->
+                    TeamRoleEvents.assignmentDeleted(
+                        AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
+                        tombstone.stateOccurredAt,
+                    )
+                }
+                memberFences.values.mapTo(this) { fence ->
+                    TeamRoleEvents.memberAssignmentsDeleted(fence.teamId, fence.accountId, fence.stateOccurredAt)
+                }
+                roleTombstones.mapTo(this) { tombstone ->
+                    TeamRoleEvents.roleDeleted(tombstone.teamId, tombstone.roleId, tombstone.stateOccurredAt)
+                }
             },
         )
     }

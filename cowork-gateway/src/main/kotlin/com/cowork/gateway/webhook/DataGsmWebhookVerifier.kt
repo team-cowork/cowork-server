@@ -10,6 +10,7 @@ import java.security.MessageDigest
 import java.time.Duration
 import java.time.Instant
 import java.time.OffsetDateTime
+import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeFormatterBuilder
 import java.time.format.ResolverStyle
 import java.time.temporal.ChronoField
@@ -66,7 +67,7 @@ class DataGsmWebhookVerifier(
         val MAX_FUTURE_SKEW: Duration = Duration.ofHours(1)
 
         // Matches Go time.RFC3339Nano parsing in cowork-authorization: seconds are required.
-        val RFC3339 = DateTimeFormatterBuilder()
+        val RFC3339: DateTimeFormatter = DateTimeFormatterBuilder()
             .appendPattern("uuuu-MM-dd'T'HH:mm:ss")
             .optionalStart()
             .appendFraction(ChronoField.NANO_OF_SECOND, 1, 9, true)
