@@ -425,3 +425,31 @@ jobs:
           script: |
             const publish = require('./deploy/ci/pull_request/comments/contribution.cjs');
             await publish({ github, context, core });
+
+  new-pr-notification:
+    name: Notify New PR
+    # Fork and Dependabot pull requests cannot read the webhook secret. The review queue covers them.
+    if: >
+      github.event_name == 'pull_request' && github.event.action == 'opened' &&
+      !github.event.pull_request.draft &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: deploy/ci
+      - name: Send New PR Notification
+        uses: actions/github-script@v9
+        env:
+          DISCORD_REVIEW_QUEUE_WEBHOOK_URL: ${{ secrets.DISCORD_REVIEW_QUEUE_WEBHOOK_URL }}
+          DISCORD_REVIEW_MENTION_ROLE_ID: ${{ vars.DISCORD_REVIEW_MENTION_ROLE_ID }}
+        with:
+          script: |
+            const { publishNewPullRequest } = require('./deploy/ci/pull_request/reminder/review_queue.cjs');
+            await publishNewPullRequest({ context, core });
