@@ -5,6 +5,7 @@ import {PullRequestModule} from '../github/pull-request/pull-request.module.js';
 
 export function setupSwagger(app: INestApplication, version: string) {
 	const publicDocument = SwaggerModule.createDocument(app, new DocumentBuilder()
+		.setOpenAPIVersion('3.2.1')
 		.setTitle('cowork GitHub API')
 		.setDescription('GitHub App 설치 결과와 웹훅 이벤트를 수신합니다.')
 		.setVersion(version)
@@ -16,6 +17,7 @@ export function setupSwagger(app: INestApplication, version: string) {
 	SwaggerModule.setup('api', app, publicDocument, {jsonDocumentUrl: 'v3/api-docs', ui: false, raw: ['json']});
 
 	const internalDocument = SwaggerModule.createDocument(app, new DocumentBuilder()
+		.setOpenAPIVersion('3.2.1')
 		.setTitle('cowork GitHub Internal API')
 		.setDescription('PR 실시간 상태 조회/머지/승인 API입니다. 내부 연결과 X-Internal-Api-Key가 필요합니다.')
 		.setVersion(version)
