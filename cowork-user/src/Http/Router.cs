@@ -1,12 +1,13 @@
 using System.Diagnostics;
 using System.Globalization;
-using System.Reflection;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using CoworkUser.Kafka.Projections;
 using CoworkUser.Platform;
 using CoworkUser.Users;
+using Microsoft.AspNetCore.Mvc;
+using ParameterLocation = Microsoft.OpenApi.ParameterLocation;
 
 namespace CoworkUser.Http;
 
@@ -19,72 +20,120 @@ public static class Router
     internal const string UnmatchedPattern = "{**path}";
     const string UnmatchedLabel = "NOT_FOUND";
 
-    static readonly byte[] OpenApiSpec = ReadResource("openapi.json");
     static readonly UTF8Encoding StrictUtf8 = new(false, true);
-
-    static byte[] ReadResource(string name)
-    {
-        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(name)!;
-        using var copy = new MemoryStream();
-        stream.CopyTo(copy);
-        return copy.ToArray();
-    }
 
     public static void Map(WebApplication app, ProjectionReadiness readiness)
     {
-        RouteHandlerBuilder Gated(RouteHandlerBuilder route) => route.AddEndpointFilter(async (context, next) =>
+        RouteHandlerBuilder Gated(RouteHandlerBuilder route) => route.WithMetadata(new ErrorsAttribute(503)).AddEndpointFilter(async (context, next) =>
             readiness.Ready ? await next(context) : throw new ApiError(503, "사용자 상태 투영을 동기화하는 중입니다."));
 
-        app.MapGet("/actuator/health", () => Reply(new { status = "UP" }));
+        app.MapGet("/actuator/health", () => Reply(new { status = "UP" })).ExcludeFromDescription();
         app.MapGet("/actuator/health/readiness",
-            () => Reply(new { status = readiness.Ready ? "UP" : "OUT_OF_SERVICE" }, readiness.Ready ? 200 : 503));
-        app.MapGet("/actuator/prometheus", () => Results.Text(Metrics.RenderPrometheus(), "text/plain; version=0.0.4"));
-        app.MapGet("/v3/api-docs", () => Results.Bytes(OpenApiSpec, "application/json; charset=utf-8"));
-        app.MapGet("/swagger-ui.html", () => Results.Text(SwaggerUi, "text/html"));
+            () => Reply(new { status = readiness.Ready ? "UP" : "OUT_OF_SERVICE" }, readiness.Ready ? 200 : 503)).ExcludeFromDescription();
+        app.MapGet("/actuator/prometheus", () => Results.Text(Metrics.RenderPrometheus(), "text/plain; version=0.0.4")).ExcludeFromDescription();
+        app.MapOpenApi("/v3/api-docs");
+        app.MapGet("/swagger-ui.html", () => Results.Text(SwaggerUi, "text/html")).ExcludeFromDescription();
 
-        Gated(app.MapGet("/users/me", async (HttpRequest request) => Reply(await Accounts.GetUserProfileAsync(UserId(request)))));
-        app.MapPatch("/users/me", async (HttpRequest request) =>
-        {
-            var body = await ReadBodyAsync(request);
-            return Reply(await Accounts.UpdateMyProfileAsync(UserId(request), body));
-        });
-        app.MapPatch("/users/me/status", async (HttpRequest request) =>
-        {
-            var body = await ReadBodyAsync(request);
-            return Reply(await Accounts.UpdateMyStatusAsync(UserId(request), body));
-        });
-        app.MapPost("/users/me/profile-image/presigned", async (HttpRequest request) =>
-        {
-            var body = await ReadBodyAsync(request);
-            return Reply(await Accounts.GeneratePresignedUrlAsync(UserId(request), body));
-        });
-        app.MapPost("/users/me/profile-image/confirm", async (HttpRequest request) =>
-        {
-            var body = await ReadBodyAsync(request);
-            await Accounts.ConfirmUploadAsync(UserId(request), body);
-            return Results.Ok();
-        });
-        app.MapDelete("/users/me/profile-image", async (HttpRequest request) =>
-        {
-            await ReadBodyAsync(request);
-            await Accounts.DeleteProfileImageAsync(UserId(request));
-            return Results.NoContent();
-        });
-        Gated(app.MapGet("/users/search", async (HttpRequest request) =>
-        {
-            var query = Query(request);
-            if (query.ContainsKey("teamId") && !readiness.TeamReady) throw new ApiError(503, "팀 멤버 투영을 동기화하는 중입니다.");
-            return Reply(await Accounts.SearchUsersAsync(UserId(request), query));
-        }));
-        Gated(app.MapGet("/users/batch", async (HttpRequest request) =>
-            Reply(new { users = await Accounts.GetDisplayNamesAsync(ParseIds(Query(request).GetValueOrDefault("ids"))) })));
-        Gated(app.MapGet("/users/by-github/{githubUsername}", async (string githubUsername) =>
-            Reply(await Accounts.GetByGithubAsync(githubUsername))));
-        Gated(app.MapGet("/users/{userId}", async (string userId) =>
-            Reply(await Accounts.GetUserProfileAsync(ParseInteger(userId, "user_id")))));
+        Gated(app.MapGet("/users/me", GetMyProfileAsync));
+        app.MapPatch("/users/me", UpdateMyProfileAsync);
+        app.MapPatch("/users/me/status", UpdateMyStatusAsync);
+        app.MapPost("/users/me/profile-image/presigned", GeneratePresignedUrlAsync);
+        app.MapPost("/users/me/profile-image/confirm", ConfirmUploadAsync);
+        app.MapDelete("/users/me/profile-image", DeleteProfileImageAsync);
+        Gated(app.MapGet("/users/search", SearchUsersAsync));
+        Gated(app.MapGet("/users/batch", GetDisplayNamesAsync));
+        Gated(app.MapGet("/users/by-github/{githubUsername}", GetByGithubAsync));
+        Gated(app.MapGet("/users/{userId}", GetUserProfileAsync));
 
-        app.MapFallback(UnmatchedPattern, () => Reply(new { message = "요청한 경로를 찾을 수 없습니다." }, 404));
+        app.MapFallback(UnmatchedPattern, () => Reply(new { message = "요청한 경로를 찾을 수 없습니다." }, 404)).ExcludeFromDescription();
     }
+
+    [Tags(ApiDocs.Profile), EndpointSummary("내 프로필 조회")]
+    [Ok<UserResponse>("사용자 프로필"), Errors(404)]
+    static async Task<IResult> GetMyProfileAsync(HttpRequest request) =>
+        Reply(await Accounts.GetUserProfileAsync(UserId(request)));
+
+    [Tags(ApiDocs.Profile), EndpointSummary("내 프로필 수정")]
+    [RequestBody<UpdateProfileRequest>, Ok<UserResponse>("사용자 프로필"), Errors(404)]
+    static async Task<IResult> UpdateMyProfileAsync(HttpRequest request)
+    {
+        var body = await ReadBodyAsync(request);
+        return Reply(await Accounts.UpdateMyProfileAsync(UserId(request), body));
+    }
+
+    [Tags(ApiDocs.Status), EndpointSummary("사용자 상태와 상태 메시지 설정")]
+    [EndpointDescription("message와 expiresAt은 생략하면 기존 값을 유지하고 null을 보내면 지웁니다.")]
+    [RequestBody<UpdateStatusRequest>, Ok<UserResponse>("사용자 프로필"), Errors(404)]
+    static async Task<IResult> UpdateMyStatusAsync(HttpRequest request)
+    {
+        var body = await ReadBodyAsync(request);
+        return Reply(await Accounts.UpdateMyStatusAsync(UserId(request), body));
+    }
+
+    [Tags(ApiDocs.ProfileImage), EndpointSummary("프로필 이미지 업로드 URL 발급")]
+    [RequestBody<PresignedUrlRequest>, Ok<PresignedUpload>("파일 업로드 URL과 객체 키"), Errors(404)]
+    static async Task<IResult> GeneratePresignedUrlAsync(HttpRequest request)
+    {
+        var body = await ReadBodyAsync(request);
+        return Reply(await Accounts.GeneratePresignedUrlAsync(UserId(request), body));
+    }
+
+    [Tags(ApiDocs.ProfileImage), EndpointSummary("프로필 이미지 업로드 확인")]
+    [RequestBody<ConfirmUploadRequest>, Empty(200), Errors(404, 413), Error(409, "업로드한 파일이 없거나 변경됨")]
+    static async Task<IResult> ConfirmUploadAsync(HttpRequest request)
+    {
+        var body = await ReadBodyAsync(request);
+        await Accounts.ConfirmUploadAsync(UserId(request), body);
+        return Results.Ok();
+    }
+
+    [Tags(ApiDocs.ProfileImage), EndpointSummary("프로필 이미지 삭제")]
+    [Empty(204), Errors(400, 404, 415), Error(409, "다른 요청이 프로필 이미지를 먼저 변경함")]
+    static async Task<IResult> DeleteProfileImageAsync(HttpRequest request)
+    {
+        await ReadBodyAsync(request);
+        await Accounts.DeleteProfileImageAsync(UserId(request));
+        return Results.NoContent();
+    }
+
+    [Tags(ApiDocs.Lookup), EndpointSummary("사용자 검색")]
+    [Ok<SearchResult>("페이지별 검색 결과"), Errors(400), Error(403, "팀 멤버만 검색할 수 있음")]
+    [Param("teamId", typeof(long), "지정한 팀의 멤버만 검색합니다. 요청자도 해당 팀의 멤버여야 합니다.", Minimum = "1")]
+    [Param("q", typeof(string), "이름이나 닉네임의 일부로 검색합니다. 대소문자를 구분하지 않으며 %, _ 및 역슬래시는 일반 문자로 취급합니다.")]
+    [Param("query", typeof(string), "q를 생략하거나 공백으로 보내면 대신 사용합니다.")]
+    [Param("name", typeof(string), "이름의 일부로 검색합니다. 대소문자를 구분하지 않습니다.")]
+    [Param("nickname", typeof(string), "닉네임의 일부로 검색합니다. 대소문자를 구분하지 않습니다.")]
+    [Param("major", typeof(string)), Param("student_role", typeof(string))]
+    [Param("status", typeof(string), Enum = ["online", "offline"])]
+    [Param("custom_status", typeof(string), MaxLength = 30)]
+    [Param("role", typeof(string))]
+    [Param("page", typeof(int), Default = 1)]
+    [Param("page_size", typeof(int), "페이지당 최대 100명까지 반환합니다.", Default = 20)]
+    [Param("sort_by", typeof(string), "id, name, nickname 또는 major로 정렬합니다. 그 밖의 값은 id로 처리합니다.", Default = "id")]
+    [Param("sort_order", typeof(string), Enum = ["asc", "desc"], Default = "asc")]
+    static async Task<IResult> SearchUsersAsync(HttpRequest request, [FromServices] ProjectionReadiness readiness)
+    {
+        var query = Query(request);
+        if (query.ContainsKey("teamId") && !readiness.TeamReady) throw new ApiError(503, "팀 멤버 투영을 동기화하는 중입니다.");
+        return Reply(await Accounts.SearchUsersAsync(UserId(request), query));
+    }
+
+    [Tags(ApiDocs.Lookup), EndpointSummary("사용자 표시 이름 일괄 조회")]
+    [Ok<DisplayNamesResponse>("사용자 표시 이름 목록"), Errors(400)]
+    [Param("ids", typeof(string), "쉼표로 구분한 사용자 ID입니다. 양의 정수만 사용하며 중복을 제외하고 최대 100개까지 조회합니다.", Required = true)]
+    static async Task<IResult> GetDisplayNamesAsync(HttpRequest request) =>
+        Reply(new DisplayNamesResponse(await Accounts.GetDisplayNamesAsync(ParseIds(Query(request).GetValueOrDefault("ids")))));
+
+    [Tags(ApiDocs.Lookup), EndpointSummary("GitHub 사용자 이름으로 프로필 조회")]
+    [Ok<UserResponse>("사용자 프로필"), Errors(404)]
+    static async Task<IResult> GetByGithubAsync(string githubUsername) =>
+        Reply(await Accounts.GetByGithubAsync(githubUsername));
+
+    // userId binds as a string so that a malformed value gets the service's own 400 message.
+    [Tags(ApiDocs.Lookup), EndpointSummary("사용자 조회")]
+    [Ok<UserResponse>("사용자 프로필"), Errors(400, 404), Param("userId", typeof(long), In = ParameterLocation.Path)]
+    static async Task<IResult> GetUserProfileAsync(string userId) =>
+        Reply(await Accounts.GetUserProfileAsync(ParseInteger(userId, "user_id")));
 
     public static async Task HandleAsync(HttpContext context, RequestDelegate next, ILogger logger)
     {
