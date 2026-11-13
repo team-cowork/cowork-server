@@ -14,20 +14,21 @@ overrides:
   codex/hooks/logging: true
   codex/hooks/secret-guard: true
 
-  # Keep module-owned build commands and formatters under this repository's control.
-  # false excludes these items from sync without removing their local files.
+  claude/skills/test: false
+  codex/skills/test: false
+
+  claude/agents/contradiction-finder: false
+  codex/agents/contradiction-finder: false
+
+  claude/agents/doc-polisher: false
+  claude/agents/prompt-polisher: false
   claude/agents/kotlin-convention-validator: false
   claude/agents/kotlin-test-fixer: false
-  claude/skills/test: false
-  claude/hooks/ktlint: false
-  claude/hooks/spotless: false
+  codex/agents/doc-polisher: false
+  codex/agents/prompt-polisher: false
   codex/agents/kotlin-convention-validator: false
   codex/agents/kotlin-test-fixer: false
-  codex/skills/test: false
-  codex/hooks/ktlint: false
-  codex/hooks/spotless: false
 
-  # Commit and PR scopes follow this repository's CI allowedScopes list.
   claude/skills/git-commit: false
   claude/skills/write-pr: false
   codex/skills/git-commit: false
@@ -46,8 +47,6 @@ overrides:
   codex/skills/tanstack-query-zod: false
   codex/agents/frontend-convention-validator: false
 
-branch_prefix: harness-sync/
-# The sync service reads this file from the default branch (main), even with develop as the PR base.
+branch_prefix: update/
 base_branch: develop
 language: ko
-pr_label: true
