@@ -179,7 +179,7 @@ func permissionsFor(ch State, userID int64, states []State) map[string]bool {
 	var fence int64
 	roles := map[int64]State{}
 	policies := map[int64]State{}
-	assignments := []State{}
+	var assignments []State
 	for _, s := range states {
 		if s.TeamID != ch.TeamID {
 			continue

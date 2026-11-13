@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/livekit/protocol/auth"
-	livekit "github.com/livekit/protocol/livekit"
+	"github.com/livekit/protocol/livekit"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -32,7 +32,7 @@ func generateToken(apiKey, apiSecret string, userID int64, roomName string, spea
 	media := permission.MediaAccessFor(true, speak, screenShare, liveRoom, liveHost)
 	grant.SetCanSubscribe(media.Subscribe)
 	grant.SetCanPublishData(media.PublishData)
-	sources := []livekit.TrackSource{}
+	var sources []livekit.TrackSource
 	if media.Microphone {
 		sources = append(sources, livekit.TrackSource_MICROPHONE)
 	}
