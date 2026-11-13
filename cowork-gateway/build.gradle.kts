@@ -66,6 +66,7 @@ dependencies {
     runtimeOnly(libs.jjwt.jackson)
     implementation(libs.kotlin.reflect)
     implementation(libs.springdoc.openapi.webflux.ui)
+    implementation(libs.commonmark)
 
     implementation(libs.logstash.logback.encoder)
     testImplementation(libs.spring.boot.starter.test)
