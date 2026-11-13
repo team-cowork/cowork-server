@@ -12,12 +12,12 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
 	"github.com/cowork/cowork-voice/internal/apperr"
-	live "github.com/cowork/cowork-voice/internal/domain/live_room"
+	"github.com/cowork/cowork-voice/internal/domain/liveroom"
 )
 
 func CreateLiveIndexes(ctx context.Context, db *mongo.Database) error {
-	sessions := db.Collection(live.CollectionSessions)
-	viewers := db.Collection(live.CollectionViewers)
+	sessions := db.Collection(liveroom.CollectionSessions)
+	viewers := db.Collection(liveroom.CollectionViewers)
 
 	sessionIndexes := []mongo.IndexModel{
 		{
@@ -81,10 +81,10 @@ func NewMongoLiveSessionRepository(db *mongo.Database) *MongoLiveSessionReposito
 	return &MongoLiveSessionRepository{db: db}
 }
 
-func (r *MongoLiveSessionRepository) FindActiveSession(ctx context.Context, channelID int64) (*live.LiveSession, error) {
-	col := r.db.Collection(live.CollectionSessions)
-	filter := bson.D{{Key: "channel_id", Value: channelID}, {Key: "status", Value: live.StatusActive}}
-	var s live.LiveSession
+func (r *MongoLiveSessionRepository) FindActiveSession(ctx context.Context, channelID int64) (*liveroom.Session, error) {
+	col := r.db.Collection(liveroom.CollectionSessions)
+	filter := bson.D{{Key: "channel_id", Value: channelID}, {Key: "status", Value: liveroom.StatusActive}}
+	var s liveroom.Session
 	err := col.FindOne(ctx, filter).Decode(&s)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, nil
@@ -95,10 +95,10 @@ func (r *MongoLiveSessionRepository) FindActiveSession(ctx context.Context, chan
 	return &s, nil
 }
 
-func (r *MongoLiveSessionRepository) FindSessionByRoomName(ctx context.Context, roomName string) (*live.LiveSession, error) {
-	col := r.db.Collection(live.CollectionSessions)
+func (r *MongoLiveSessionRepository) FindSessionByRoomName(ctx context.Context, roomName string) (*liveroom.Session, error) {
+	col := r.db.Collection(liveroom.CollectionSessions)
 	filter := bson.D{{Key: "room_name", Value: roomName}}
-	var s live.LiveSession
+	var s liveroom.Session
 	err := col.FindOne(ctx, filter).Decode(&s)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, nil
@@ -109,17 +109,17 @@ func (r *MongoLiveSessionRepository) FindSessionByRoomName(ctx context.Context, 
 	return &s, nil
 }
 
-func (r *MongoLiveSessionRepository) CreateSession(ctx context.Context, channelID, teamID, hostUserID int64) (*live.LiveSession, bool, error) {
-	col := r.db.Collection(live.CollectionSessions)
+func (r *MongoLiveSessionRepository) CreateSession(ctx context.Context, channelID, teamID, hostUserID int64) (*liveroom.Session, bool, error) {
+	col := r.db.Collection(liveroom.CollectionSessions)
 	now := time.Now().UTC()
 	sessionID := uuid.NewString()
-	s := &live.LiveSession{
+	s := &liveroom.Session{
 		SessionID:  sessionID,
 		ChannelID:  channelID,
 		TeamID:     teamID,
 		HostUserID: hostUserID,
-		RoomName:   live.RoomName(channelID, sessionID),
-		Status:     live.StatusActive,
+		RoomName:   liveroom.Name(channelID, sessionID),
+		Status:     liveroom.StatusActive,
 		StartedAt:  now,
 	}
 	_, err := col.InsertOne(ctx, s)
@@ -135,10 +135,10 @@ func (r *MongoLiveSessionRepository) CreateSession(ctx context.Context, channelI
 }
 
 func (r *MongoLiveSessionRepository) EndSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error) {
-	col := r.db.Collection(live.CollectionSessions)
-	filter := bson.D{{Key: "session_id", Value: sessionID}, {Key: "status", Value: live.StatusActive}}
+	col := r.db.Collection(liveroom.CollectionSessions)
+	filter := bson.D{{Key: "session_id", Value: sessionID}, {Key: "status", Value: liveroom.StatusActive}}
 	update := bson.D{{Key: "$set", Value: bson.D{
-		{Key: "status", Value: live.StatusEnded},
+		{Key: "status", Value: liveroom.StatusEnded},
 		{Key: "ended_at", Value: endedAt},
 	}}}
 	result, err := col.UpdateOne(ctx, filter, update)
@@ -148,10 +148,10 @@ func (r *MongoLiveSessionRepository) EndSession(ctx context.Context, sessionID s
 	return result.ModifiedCount == 1, nil
 }
 
-func (r *MongoLiveSessionRepository) FindCreatingSessionsBefore(ctx context.Context, before time.Time) ([]live.LiveSession, error) {
-	col := r.db.Collection(live.CollectionSessions)
+func (r *MongoLiveSessionRepository) FindCreatingSessionsBefore(ctx context.Context, before time.Time) ([]liveroom.Session, error) {
+	col := r.db.Collection(liveroom.CollectionSessions)
 	filter := bson.D{
-		{Key: "status", Value: live.StatusActive},
+		{Key: "status", Value: liveroom.StatusActive},
 		{Key: "started_event_sent_at", Value: bson.D{{Key: "$exists", Value: false}}},
 		{Key: "started_at", Value: bson.D{{Key: "$lt", Value: before}}},
 	}
@@ -159,7 +159,7 @@ func (r *MongoLiveSessionRepository) FindCreatingSessionsBefore(ctx context.Cont
 	if err != nil {
 		return nil, apperr.Internal(err.Error())
 	}
-	var sessions []live.LiveSession
+	var sessions []liveroom.Session
 	if err := cursor.All(ctx, &sessions); err != nil {
 		return nil, apperr.Internal(err.Error())
 	}
@@ -167,14 +167,14 @@ func (r *MongoLiveSessionRepository) FindCreatingSessionsBefore(ctx context.Cont
 }
 
 func (r *MongoLiveSessionRepository) EndCreatingSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error) {
-	col := r.db.Collection(live.CollectionSessions)
+	col := r.db.Collection(liveroom.CollectionSessions)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
-		{Key: "status", Value: live.StatusActive},
+		{Key: "status", Value: liveroom.StatusActive},
 		{Key: "started_event_sent_at", Value: bson.D{{Key: "$exists", Value: false}}},
 	}
 	update := bson.D{{Key: "$set", Value: bson.D{
-		{Key: "status", Value: live.StatusEnded},
+		{Key: "status", Value: liveroom.StatusEnded},
 		{Key: "ended_at", Value: endedAt},
 	}}}
 	result, err := col.UpdateOne(ctx, filter, update)
@@ -194,10 +194,10 @@ func (r *MongoLiveSessionRepository) MarkSessionStartedAndEnqueue(
 	if err != nil {
 		return false, apperr.Internal(err.Error())
 	}
-	col := r.db.Collection(live.CollectionSessions)
+	col := r.db.Collection(liveroom.CollectionSessions)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
-		{Key: "status", Value: live.StatusActive},
+		{Key: "status", Value: liveroom.StatusActive},
 		{Key: "started_event_sent_at", Value: bson.D{{Key: "$exists", Value: false}}},
 	}
 	update := bson.D{
@@ -216,7 +216,7 @@ func (r *MongoLiveSessionRepository) MarkSessionStartedAndEnqueue(
 
 func (r *MongoLiveSessionRepository) RecordViewerJoinedAndEnqueue(
 	ctx context.Context,
-	v *live.LiveViewer,
+	v *liveroom.Viewer,
 	occurrenceID string,
 	event any,
 ) (bool, error) {
@@ -224,7 +224,7 @@ func (r *MongoLiveSessionRepository) RecordViewerJoinedAndEnqueue(
 	if err != nil {
 		return false, apperr.Internal(err.Error())
 	}
-	col := r.db.Collection(live.CollectionViewers)
+	col := r.db.Collection(liveroom.CollectionViewers)
 	document := bson.D{
 		{Key: "session_id", Value: v.SessionID},
 		{Key: "user_id", Value: v.UserID},
@@ -255,7 +255,7 @@ func (r *MongoLiveSessionRepository) MarkViewerLeftAndEnqueue(
 	if err != nil {
 		return false, apperr.Internal(err.Error())
 	}
-	col := r.db.Collection(live.CollectionViewers)
+	col := r.db.Collection(liveroom.CollectionViewers)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
 		{Key: "user_id", Value: userID},
@@ -276,7 +276,7 @@ func (r *MongoLiveSessionRepository) MarkViewerLeftAndEnqueue(
 }
 
 func (r *MongoLiveSessionRepository) CleanupOrphanViewers(ctx context.Context, sessionID string, now time.Time) (int64, error) {
-	col := r.db.Collection(live.CollectionViewers)
+	col := r.db.Collection(liveroom.CollectionViewers)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
 		{Key: "left_at", Value: nil},
@@ -286,7 +286,7 @@ func (r *MongoLiveSessionRepository) CleanupOrphanViewers(ctx context.Context, s
 	if err != nil {
 		return 0, apperr.Internal(err.Error())
 	}
-	if _, err := r.db.Collection(live.CollectionSessions).UpdateOne(
+	if _, err := r.db.Collection(liveroom.CollectionSessions).UpdateOne(
 		ctx,
 		bson.D{{Key: "session_id", Value: sessionID}, {Key: "cleanup_pending", Value: true}},
 		bson.D{
@@ -305,7 +305,7 @@ func (r *MongoLiveSessionRepository) GetViewerJoinedAt(
 	userID int64,
 	occurrenceID string,
 ) (*time.Time, error) {
-	col := r.db.Collection(live.CollectionViewers)
+	col := r.db.Collection(liveroom.CollectionViewers)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
 		{Key: "user_id", Value: userID},
@@ -314,7 +314,7 @@ func (r *MongoLiveSessionRepository) GetViewerJoinedAt(
 	if occurrenceID != "" {
 		filter = append(filter, bson.E{Key: "occurrence_id", Value: occurrenceID})
 	}
-	var v live.LiveViewer
+	var v liveroom.Viewer
 	err := col.FindOne(ctx, filter).Decode(&v)
 	if errors.Is(err, mongo.ErrNoDocuments) {
 		return nil, nil
@@ -326,7 +326,7 @@ func (r *MongoLiveSessionRepository) GetViewerJoinedAt(
 }
 
 func (r *MongoLiveSessionRepository) CountActiveViewers(ctx context.Context, sessionID string) (int, error) {
-	col := r.db.Collection(live.CollectionViewers)
+	col := r.db.Collection(liveroom.CollectionViewers)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
 		{Key: "left_at", Value: nil},
@@ -350,7 +350,7 @@ func (r *MongoLiveSessionRepository) EndSessionAndEnqueue(
 		return false, apperr.Internal(err.Error())
 	}
 	set := bson.D{
-		{Key: "status", Value: live.StatusEnded},
+		{Key: "status", Value: liveroom.StatusEnded},
 		{Key: "ended_at", Value: endedAt},
 		{Key: "cleanup_pending", Value: true},
 	}
@@ -372,9 +372,9 @@ func (r *MongoLiveSessionRepository) EndSessionAndEnqueue(
 		})
 		update = mongo.Pipeline{bson.D{{Key: "$set", Value: set}}}
 	}
-	result, err := r.db.Collection(live.CollectionSessions).UpdateOne(
+	result, err := r.db.Collection(liveroom.CollectionSessions).UpdateOne(
 		ctx,
-		bson.D{{Key: "session_id", Value: sessionID}, {Key: "status", Value: live.StatusActive}},
+		bson.D{{Key: "session_id", Value: sessionID}, {Key: "status", Value: liveroom.StatusActive}},
 		update,
 	)
 	if err != nil {
@@ -384,5 +384,5 @@ func (r *MongoLiveSessionRepository) EndSessionAndEnqueue(
 }
 
 // ensure interface compliance
-var _ live.Repository = (*MongoLiveSessionRepository)(nil)
-var _ live.StartRecoveryRepository = (*MongoLiveSessionRepository)(nil)
+var _ liveroom.Repository = (*MongoLiveSessionRepository)(nil)
+var _ liveroom.StartRecoveryRepository = (*MongoLiveSessionRepository)(nil)

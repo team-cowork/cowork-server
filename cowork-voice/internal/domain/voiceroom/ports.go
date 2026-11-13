@@ -1,4 +1,4 @@
-package room
+package voiceroom
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"github.com/cowork/cowork-voice/internal/domain/permission"
 )
 
-type Service interface {
+type service interface {
 	Join(ctx context.Context, channelID, userID int64) (*JoinResponse, error)
 	Leave(ctx context.Context, channelID, userID int64) error
 	GetParticipants(ctx context.Context, channelID, userID int64) (*ParticipantsResponse, error)
@@ -17,19 +17,19 @@ type Service interface {
 type Repository interface {
 	// FindActiveSession 메서드는 MongoDB에 저장된 상태가 active인 channelID의 세션을 반환한다.
 	// active 세션이 없으면 nil을 반환한다.
-	FindActiveSession(ctx context.Context, channelID int64) (*VoiceSession, error)
+	FindActiveSession(ctx context.Context, channelID int64) (*Session, error)
 	// FindSessionByRoomName 메서드는 종료된 세션을 포함해 roomName에 해당하는 세션을 반환한다.
-	FindSessionByRoomName(ctx context.Context, roomName string) (*VoiceSession, error)
+	FindSessionByRoomName(ctx context.Context, roomName string) (*Session, error)
 	// CreateSession 메서드는 새 세션을 만들고 (session, created=true)를 반환한다.
 	// 동시 첫 입장 경쟁으로 이미 활성 세션이 존재하면 (기존 session, created=false)를 반환한다.
-	CreateSession(ctx context.Context, channelID, teamID int64) (*VoiceSession, bool, error)
-	GetSession(ctx context.Context, sessionID string) (*VoiceSession, error)
+	CreateSession(ctx context.Context, channelID, teamID int64) (*Session, bool, error)
+	GetSession(ctx context.Context, sessionID string) (*Session, error)
 	// EndSession 메서드는 active 세션을 ended로 전환하고, 실제로 전환이 일어났으면 true를 반환한다.
 	// 보상 정리 전용이며 외부로 알려야 하는 정상 종료에는 EndSessionAndEnqueue를 사용한다.
 	EndSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error)
 	// MarkSessionStartedAndEnqueue 메서드와 아래 *AndEnqueue 메서드는 authoritative 상태와 outbox event를 같은 Mongo document update에 기록한다.
 	MarkSessionStartedAndEnqueue(ctx context.Context, sessionID string, startedAt time.Time, event any) (bool, error)
-	RecordParticipantJoinedAndEnqueue(ctx context.Context, p *VoiceParticipant, occurrenceID string, event any) (bool, error)
+	RecordParticipantJoinedAndEnqueue(ctx context.Context, p *Participant, occurrenceID string, event any) (bool, error)
 	MarkParticipantLeftAndEnqueue(ctx context.Context, sessionID string, userID int64, occurrenceID string, now time.Time, event any) (bool, error)
 	EndSessionAndEnqueue(ctx context.Context, sessionID string, endedAt time.Time, event any) (bool, error)
 	CleanupOrphanParticipants(ctx context.Context, sessionID string, now time.Time) (int64, error)

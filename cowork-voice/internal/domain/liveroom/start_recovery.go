@@ -1,4 +1,4 @@
-package live
+package liveroom
 
 import (
 	"context"
@@ -22,7 +22,7 @@ const (
 
 // StartRecoveryRepository 인터페이스는 생성 중(active이고 started_event_sent_at 없음) 세션을 다룬다.
 type StartRecoveryRepository interface {
-	FindCreatingSessionsBefore(ctx context.Context, before time.Time) ([]LiveSession, error)
+	FindCreatingSessionsBefore(ctx context.Context, before time.Time) ([]Session, error)
 	// EndCreatingSession 메서드는 세션이 아직 생성 중일 때만 ended로 전환한다. 호스트가 그사이 입장했으면 no-op이다.
 	EndCreatingSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error)
 }
