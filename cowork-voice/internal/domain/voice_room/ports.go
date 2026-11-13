@@ -15,19 +15,19 @@ type Service interface {
 }
 
 type Repository interface {
-	// FindActiveSession은 MongoDB에 저장된 상태가 active인 channelID의 세션을 반환한다.
+	// FindActiveSession 메서드는 MongoDB에 저장된 상태가 active인 channelID의 세션을 반환한다.
 	// active 세션이 없으면 nil을 반환한다.
 	FindActiveSession(ctx context.Context, channelID int64) (*VoiceSession, error)
-	// FindSessionByRoomName은 종료된 세션을 포함해 roomName에 해당하는 세션을 반환한다.
+	// FindSessionByRoomName 메서드는 종료된 세션을 포함해 roomName에 해당하는 세션을 반환한다.
 	FindSessionByRoomName(ctx context.Context, roomName string) (*VoiceSession, error)
-	// CreateSession은 새 세션을 만들고 (session, created=true)를 반환한다.
+	// CreateSession 메서드는 새 세션을 만들고 (session, created=true)를 반환한다.
 	// 동시 첫 입장 경쟁으로 이미 활성 세션이 존재하면 (기존 session, created=false)를 반환한다.
 	CreateSession(ctx context.Context, channelID, teamID int64) (*VoiceSession, bool, error)
 	GetSession(ctx context.Context, sessionID string) (*VoiceSession, error)
-	// EndSession은 active 세션을 ended로 전환하고, 실제로 전환이 일어났으면 true를 반환한다.
+	// EndSession 메서드는 active 세션을 ended로 전환하고, 실제로 전환이 일어났으면 true를 반환한다.
 	// 보상 정리 전용이며 외부로 알려야 하는 정상 종료에는 EndSessionAndEnqueue를 사용한다.
 	EndSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error)
-	// 아래 메서드는 authoritative 상태와 outbox event를 같은 Mongo document update에 기록한다.
+	// MarkSessionStartedAndEnqueue 메서드와 아래 *AndEnqueue 메서드는 authoritative 상태와 outbox event를 같은 Mongo document update에 기록한다.
 	MarkSessionStartedAndEnqueue(ctx context.Context, sessionID string, startedAt time.Time, event any) (bool, error)
 	RecordParticipantJoinedAndEnqueue(ctx context.Context, p *VoiceParticipant, occurrenceID string, event any) (bool, error)
 	MarkParticipantLeftAndEnqueue(ctx context.Context, sessionID string, userID int64, occurrenceID string, now time.Time, event any) (bool, error)
@@ -46,7 +46,7 @@ type LiveKitParticipant struct {
 }
 
 type LiveKitRoom interface {
-	// maxParticipants 0은 제한 없음이다.
+	// CreateRoomIfNotExists 메서드에서 maxParticipants 0은 제한 없음이다.
 	CreateRoomIfNotExists(ctx context.Context, roomName string, maxParticipants uint32) error
 	GenerateToken(userID int64, roomName string, speak, screenShare bool) (string, error)
 	RemoveParticipant(ctx context.Context, roomName, identity string) error

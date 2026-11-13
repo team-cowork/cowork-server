@@ -8,18 +8,18 @@ import "time"
 type Status string
 
 const (
-	// StatusPendingRetry: not yet attempted, or a retryable/unclassified failure is
-	// waiting for NextAttemptAt before its next send.
+	// StatusPendingRetry means the delivery is not yet attempted, or a retryable/unclassified
+	// failure is waiting for NextAttemptAt before its next send.
 	StatusPendingRetry Status = "PENDING_RETRY"
-	// StatusInProgress: claimed by the retry worker; being sent right now.
+	// StatusInProgress means the retry worker claimed the delivery and is sending it now.
 	StatusInProgress Status = "IN_PROGRESS"
-	// StatusSuccess: FCM accepted the FID. Terminal.
+	// StatusSuccess means FCM accepted the FID. Terminal.
 	StatusSuccess Status = "SUCCESS"
-	// StatusInvalid: the FID itself is unusable and was deleted from tb_device_installation. Terminal.
+	// StatusInvalid means the FID itself is unusable and was deleted from tb_device_installation. Terminal.
 	StatusInvalid Status = "INVALID"
-	// StatusQuarantined: exceeded its retry ceiling without succeeding. Terminal.
+	// StatusQuarantined means the delivery exceeded its retry ceiling without succeeding. Terminal.
 	StatusQuarantined Status = "QUARANTINED"
-	// StatusCancelled: the underlying installation was deleted or replaced before a
+	// StatusCancelled means the underlying installation was deleted or replaced before a
 	// queued retry ran. Terminal.
 	StatusCancelled Status = "CANCELLED"
 )

@@ -92,7 +92,7 @@ func (r *statusRecorder) WriteHeader(code int) {
 	r.ResponseWriter.WriteHeader(code)
 }
 
-// SSE 핸들러가 w.(http.Flusher)로 검사하므로 임베딩만으로는 사라지는 Flush를 직접 위임한다.
+// Flush 메서드는 SSE 핸들러가 w.(http.Flusher)로 검사하므로 임베딩만으로는 사라지는 Flush를 직접 위임한다.
 func (r *statusRecorder) Flush() {
 	if f, ok := r.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
