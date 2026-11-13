@@ -37,7 +37,6 @@ class UpdateSharedAccountServiceImplTest {
     private val lookupSupport =
         SharedAccountLookupSupport(
             sharedAccountRepository,
-            channelAccessGuard,
             teamPermissionService,
             credentialEncryptionService,
         )
