@@ -29,7 +29,7 @@ final class OpenApi32Transformer extends OutputTransformer:
   private def allowNull(schema: JsObject): JsObject =
     (schema.value.get("$ref"), schema.value.get("type")) match
       case (Some(ref), _) =>
-        schema - "$ref" + ("anyOf" -> Json.arr(Json.obj("$ref" -> ref), Json.obj("type" -> "null")))
+        withNullEnum(schema - "$ref" + ("anyOf" -> Json.arr(Json.obj("$ref" -> ref), Json.obj("type" -> "null"))))
       case (_, Some(JsString(tpe))) => withNullEnum(schema + ("type" -> Json.arr(tpe, "null")))
       case (_, Some(JsArray(types))) if !types.contains(JsString("null")) =>
         withNullEnum(schema + ("type" -> JsArray(types :+ JsString("null"))))
