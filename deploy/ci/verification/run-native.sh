@@ -46,10 +46,7 @@ cd "$module_dir"
 case "$runner" in
   go)
     go test -coverpkg=./... -covermode=atomic -coverprofile="$output_dir/raw-go.out" ./...
-    # Swagger's generated registration code is not application code. Keep the
-    # unfiltered profile as evidence; the canonical profile excludes only it.
-    awk 'NR == 1 || $1 !~ /\/swagger\/docs\.go:/' \
-      "$output_dir/raw-go.out" > "$output_dir/report.out"
+    cp "$output_dir/raw-go.out" "$output_dir/report.out"
     ;;
   jest)
     npm ci --no-audit --no-fund
