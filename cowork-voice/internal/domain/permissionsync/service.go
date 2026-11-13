@@ -13,9 +13,9 @@ import (
 	"github.com/livekit/protocol/livekit"
 
 	"github.com/cowork/cowork-voice/internal/apperr"
-	live "github.com/cowork/cowork-voice/internal/domain/live_room"
+	"github.com/cowork/cowork-voice/internal/domain/liveroom"
 	"github.com/cowork/cowork-voice/internal/domain/permission"
-	voice "github.com/cowork/cowork-voice/internal/domain/voice_room"
+	"github.com/cowork/cowork-voice/internal/domain/voiceroom"
 )
 
 type PermissionChecker interface {
@@ -23,11 +23,11 @@ type PermissionChecker interface {
 }
 
 type LiveSessions interface {
-	FindActiveSession(context.Context, int64) (*live.LiveSession, error)
+	FindActiveSession(context.Context, int64) (*liveroom.Session, error)
 }
 
 type VoiceSessions interface {
-	FindActiveSession(context.Context, int64) (*voice.VoiceSession, error)
+	FindActiveSession(context.Context, int64) (*voiceroom.Session, error)
 }
 
 // Rooms is the LiveKit API used to reconcile ephemeral connections; durable session changes remain in webhook handlers.
@@ -102,7 +102,7 @@ func (s *Service) reconcileRoom(ctx context.Context, name string, check permissi
 	var channelID, hostID int64
 	var hostAccess permission.Access
 	var hostErr, sessionErr error
-	if parsed, ok := live.ParseRoomName(name); ok && parsed.ChannelID > 0 {
+	if parsed, ok := liveroom.ParseRoomName(name); ok && parsed.ChannelID > 0 {
 		channelID = parsed.ChannelID
 		session, err := s.live.FindActiveSession(ctx, channelID)
 		if err != nil {
@@ -118,7 +118,7 @@ func (s *Service) reconcileRoom(ctx context.Context, name string, check permissi
 			_, err := s.rooms.DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: name})
 			return err
 		}
-	} else if parsed, ok := voice.ParseRoomName(name); ok && parsed.ChannelID > 0 {
+	} else if parsed, ok := voiceroom.ParseRoomName(name); ok && parsed.ChannelID > 0 {
 		channelID = parsed.ChannelID
 		session, err := s.voice.FindActiveSession(ctx, channelID)
 		// A lookup failure keeps the room and still reconciles participant permissions below.

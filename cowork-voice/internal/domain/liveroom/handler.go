@@ -1,4 +1,4 @@
-package live
+package liveroom
 
 import (
 	"encoding/json"
@@ -13,10 +13,10 @@ import (
 )
 
 type Handler struct {
-	svc Service
+	svc service
 }
 
-func NewHandler(svc Service) *Handler {
+func NewHandler(svc service) *Handler {
 	return &Handler{svc: svc}
 }
 

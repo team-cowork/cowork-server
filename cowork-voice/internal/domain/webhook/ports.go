@@ -4,14 +4,14 @@ import (
 	"context"
 	"time"
 
-	livedomain "github.com/cowork/cowork-voice/internal/domain/live_room"
-	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
+	"github.com/cowork/cowork-voice/internal/domain/liveroom"
+	"github.com/cowork/cowork-voice/internal/domain/voiceroom"
 )
 
 type SessionRepository interface {
-	FindSessionByRoomName(ctx context.Context, roomName string) (*roomdomain.VoiceSession, error)
+	FindSessionByRoomName(ctx context.Context, roomName string) (*voiceroom.Session, error)
 	MarkSessionStartedAndEnqueue(ctx context.Context, sessionID string, startedAt time.Time, event any) (bool, error)
-	RecordParticipantJoinedAndEnqueue(ctx context.Context, participant *roomdomain.VoiceParticipant, occurrenceID string, event any) (bool, error)
+	RecordParticipantJoinedAndEnqueue(ctx context.Context, participant *voiceroom.Participant, occurrenceID string, event any) (bool, error)
 	GetParticipantJoinedAt(ctx context.Context, sessionID string, userID int64, occurrenceID string) (*time.Time, error)
 	MarkParticipantLeftAndEnqueue(ctx context.Context, sessionID string, userID int64, occurrenceID string, now time.Time, event any) (bool, error)
 	EndSessionAndEnqueue(ctx context.Context, sessionID string, endedAt time.Time, event any) (bool, error)
@@ -19,9 +19,9 @@ type SessionRepository interface {
 }
 
 type LiveSessionRepository interface {
-	FindSessionByRoomName(ctx context.Context, roomName string) (*livedomain.LiveSession, error)
+	FindSessionByRoomName(ctx context.Context, roomName string) (*liveroom.Session, error)
 	MarkSessionStartedAndEnqueue(ctx context.Context, sessionID string, startedAt time.Time, event any) (bool, error)
-	RecordViewerJoinedAndEnqueue(ctx context.Context, viewer *livedomain.LiveViewer, occurrenceID string, event any) (bool, error)
+	RecordViewerJoinedAndEnqueue(ctx context.Context, viewer *liveroom.Viewer, occurrenceID string, event any) (bool, error)
 	GetViewerJoinedAt(ctx context.Context, sessionID string, userID int64, occurrenceID string) (*time.Time, error)
 	MarkViewerLeftAndEnqueue(ctx context.Context, sessionID string, userID int64, occurrenceID string, now time.Time, event any) (bool, error)
 	EndSessionAndEnqueue(ctx context.Context, sessionID string, endedAt time.Time, event any, enqueueOnlyIfStarted bool) (bool, error)
@@ -33,10 +33,10 @@ type LiveRoomController interface {
 	DeleteRoom(ctx context.Context, roomName string) error
 }
 
-type WebhookEventType string
+type EventType string
 
 const (
-	EventParticipantJoined WebhookEventType = "participant_joined"
-	EventParticipantLeft   WebhookEventType = "participant_left"
-	EventRoomFinished      WebhookEventType = "room_finished"
+	EventParticipantJoined EventType = "participant_joined"
+	EventParticipantLeft   EventType = "participant_left"
+	EventRoomFinished      EventType = "room_finished"
 )

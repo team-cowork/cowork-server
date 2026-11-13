@@ -1,4 +1,4 @@
-package room
+package voiceroom
 
 type JoinResponse struct {
 	Token      string `json:"token"`

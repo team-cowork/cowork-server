@@ -1,4 +1,4 @@
-package room
+package voiceroom
 
 import (
 	"context"
@@ -16,7 +16,7 @@ func TestVoiceRoomService(t *testing.T) {
 		t.Parallel()
 
 		repo := &stubRepository{
-			createSessionResult: &VoiceSession{
+			createSessionResult: &Session{
 				SessionID: "session-1",
 				ChannelID: 123,
 				TeamID:    456,
@@ -27,7 +27,7 @@ func TestVoiceRoomService(t *testing.T) {
 		}
 		permissions := &stubConnectPermissionChecker{teamID: 456}
 		livekit := &stubLiveKitRoom{token: "issued-token"}
-		svc := NewRoomService(repo, permissions, livekit, "wss://livekit.example")
+		svc := NewService(repo, permissions, livekit, "wss://livekit.example")
 
 		resp, err := svc.Join(context.Background(), 123, 42)
 		if err != nil {
@@ -61,7 +61,7 @@ func TestVoiceRoomService(t *testing.T) {
 		t.Parallel()
 
 		repo := &stubRepository{
-			findActiveSessionResult: &VoiceSession{
+			findActiveSessionResult: &Session{
 				SessionID: "session-1",
 				ChannelID: 123,
 				TeamID:    456,
@@ -70,7 +70,7 @@ func TestVoiceRoomService(t *testing.T) {
 				StartedAt: time.Unix(1700000000, 0).UTC(),
 			},
 		}
-		svc := NewRoomService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{token: "issued-token"}, "wss://livekit.example")
+		svc := NewService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{token: "issued-token"}, "wss://livekit.example")
 
 		_, err := svc.Join(context.Background(), 123, 42)
 		if err != nil {
@@ -85,11 +85,11 @@ func TestVoiceRoomService(t *testing.T) {
 	t.Run("Join - 새 방에 정원을 걸고 bitrate를 응답에 싣는다", func(t *testing.T) {
 		t.Parallel()
 
-		repo := &stubRepository{createSessionResult: &VoiceSession{SessionID: "session-1", ChannelID: 123, TeamID: 456, RoomName: "voice-123-session-1", Status: StatusActive}}
+		repo := &stubRepository{createSessionResult: &Session{SessionID: "session-1", ChannelID: 123, TeamID: 456, RoomName: "voice-123-session-1", Status: StatusActive}}
 		bitrate := 64000
 		livekit := &stubLiveKitRoom{token: "issued-token"}
 		access := &permission.Access{TeamID: 456, MaxParticipants: 2, Bitrate: &bitrate}
-		svc := NewRoomService(repo, &stubConnectPermissionChecker{access: access}, livekit, "wss://livekit.example")
+		svc := NewService(repo, &stubConnectPermissionChecker{access: access}, livekit, "wss://livekit.example")
 
 		resp, err := svc.Join(context.Background(), 123, 42)
 		if err != nil {
@@ -106,12 +106,12 @@ func TestVoiceRoomService(t *testing.T) {
 	t.Run("Join - 정원이 찬 방은 토큰 발급 전에 거부하고 기존 참가자의 재입장은 허용한다", func(t *testing.T) {
 		t.Parallel()
 
-		active := &VoiceSession{SessionID: "session-1", ChannelID: 123, TeamID: 456, RoomName: "voice-123-session-1", Status: StatusActive}
+		active := &Session{SessionID: "session-1", ChannelID: 123, TeamID: 456, RoomName: "voice-123-session-1", Status: StatusActive}
 		full := []LiveKitParticipant{{Identity: "7"}, {Identity: "8"}}
 		access := &permission.Access{TeamID: 456, MaxParticipants: 2}
 
 		livekit := &stubLiveKitRoom{token: "issued-token", participants: full}
-		svc := NewRoomService(&stubRepository{findActiveSessionResult: active}, &stubConnectPermissionChecker{access: access}, livekit, "")
+		svc := NewService(&stubRepository{findActiveSessionResult: active}, &stubConnectPermissionChecker{access: access}, livekit, "")
 		_, err := svc.Join(context.Background(), 123, 42)
 		var appErr *apperr.Error
 		if !errors.As(err, &appErr) || appErr.Code != "CONFLICT" {
@@ -122,7 +122,7 @@ func TestVoiceRoomService(t *testing.T) {
 		}
 
 		livekit = &stubLiveKitRoom{token: "issued-token", participants: full}
-		svc = NewRoomService(&stubRepository{findActiveSessionResult: active}, &stubConnectPermissionChecker{access: access}, livekit, "")
+		svc = NewService(&stubRepository{findActiveSessionResult: active}, &stubConnectPermissionChecker{access: access}, livekit, "")
 		if _, err := svc.Join(context.Background(), 123, 8); err != nil {
 			t.Fatalf("Join() rejoin error = %v", err)
 		}
@@ -132,7 +132,7 @@ func TestVoiceRoomService(t *testing.T) {
 		t.Parallel()
 
 		repo := &stubRepository{
-			findActiveSessionResult: &VoiceSession{
+			findActiveSessionResult: &Session{
 				SessionID: "session-1",
 				ChannelID: 123,
 				RoomName:  "voice-123-session-1",
@@ -147,7 +147,7 @@ func TestVoiceRoomService(t *testing.T) {
 				{Identity: "84", JoinedAt: 1700000300},
 			},
 		}
-		svc := NewRoomService(repo, &stubConnectPermissionChecker{teamID: 456}, livekit, "wss://livekit.example")
+		svc := NewService(repo, &stubConnectPermissionChecker{teamID: 456}, livekit, "wss://livekit.example")
 
 		resp, err := svc.GetParticipants(context.Background(), 123, 42)
 		if err != nil {
@@ -168,7 +168,7 @@ func TestVoiceRoomService(t *testing.T) {
 	t.Run("GetParticipants - 활성 세션이 없으면 빈 목록을 반환한다", func(t *testing.T) {
 		t.Parallel()
 
-		svc := NewRoomService(&stubRepository{}, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+		svc := NewService(&stubRepository{}, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 		resp, err := svc.GetParticipants(context.Background(), 123, 42)
 		if err != nil {
@@ -186,7 +186,7 @@ func TestVoiceRoomService(t *testing.T) {
 	t.Run("GetSession - 세션이 없으면 NotFound를 반환한다", func(t *testing.T) {
 		t.Parallel()
 
-		svc := NewRoomService(&stubRepository{}, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+		svc := NewService(&stubRepository{}, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 		_, err := svc.GetSession(context.Background(), "missing-session", 42)
 		if err == nil {
@@ -207,7 +207,7 @@ func TestVoiceRoomService(t *testing.T) {
 
 		endedAt := time.Unix(1700000500, 0).UTC()
 		repo := &stubRepository{
-			getSessionResult: &VoiceSession{
+			getSessionResult: &Session{
 				SessionID: "session-1",
 				ChannelID: 123,
 				TeamID:    456,
@@ -216,7 +216,7 @@ func TestVoiceRoomService(t *testing.T) {
 				EndedAt:   &endedAt,
 			},
 		}
-		svc := NewRoomService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+		svc := NewService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 		resp, err := svc.GetSession(context.Background(), "session-1", 42)
 		if err != nil {
@@ -236,7 +236,7 @@ func TestVoiceRoomService(t *testing.T) {
 
 		joinedAt := time.Unix(1700000000, 0).UTC()
 		repo := &stubRepository{
-			findActiveSessionResult: &VoiceSession{
+			findActiveSessionResult: &Session{
 				SessionID: "session-1",
 				ChannelID: 123,
 				TeamID:    456,
@@ -247,7 +247,7 @@ func TestVoiceRoomService(t *testing.T) {
 			getParticipantJoinedAtValue: &joinedAt,
 			markParticipantLeftFirst:    true,
 		}
-		svc := NewRoomService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+		svc := NewService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 		if err := svc.Leave(context.Background(), 123, 42); err != nil {
 			t.Fatalf("Leave() error = %v", err)
@@ -332,12 +332,12 @@ func (s *stubLiveKitRoom) ListParticipants(_ context.Context, _ string) ([]LiveK
 }
 
 type stubRepository struct {
-	findActiveSessionResult     *VoiceSession
+	findActiveSessionResult     *Session
 	findActiveSessionErr        error
-	createSessionResult         *VoiceSession
+	createSessionResult         *Session
 	createSessionCreated        bool
 	createSessionErr            error
-	getSessionResult            *VoiceSession
+	getSessionResult            *Session
 	getSessionErr               error
 	getParticipantJoinedAtValue *time.Time
 	markParticipantLeftFirst    bool
@@ -348,20 +348,20 @@ type stubRepository struct {
 	endSessionErr               error
 }
 
-func (s *stubRepository) FindActiveSession(_ context.Context, _ int64) (*VoiceSession, error) {
+func (s *stubRepository) FindActiveSession(_ context.Context, _ int64) (*Session, error) {
 	return s.findActiveSessionResult, s.findActiveSessionErr
 }
 
-func (s *stubRepository) FindSessionByRoomName(_ context.Context, _ string) (*VoiceSession, error) {
+func (s *stubRepository) FindSessionByRoomName(_ context.Context, _ string) (*Session, error) {
 	return nil, errors.New("unexpected call")
 }
 
-func (s *stubRepository) CreateSession(_ context.Context, _, _ int64) (*VoiceSession, bool, error) {
+func (s *stubRepository) CreateSession(_ context.Context, _, _ int64) (*Session, bool, error) {
 	s.createSessionCalls++
 	return s.createSessionResult, s.createSessionCreated, s.createSessionErr
 }
 
-func (s *stubRepository) GetSession(_ context.Context, _ string) (*VoiceSession, error) {
+func (s *stubRepository) GetSession(_ context.Context, _ string) (*Session, error) {
 	return s.getSessionResult, s.getSessionErr
 }
 
@@ -376,7 +376,7 @@ func (s *stubRepository) MarkSessionStartedAndEnqueue(_ context.Context, _ strin
 
 func (s *stubRepository) RecordParticipantJoinedAndEnqueue(
 	_ context.Context,
-	_ *VoiceParticipant,
+	_ *Participant,
 	_ string,
 	_ any,
 ) (bool, error) {
@@ -417,9 +417,9 @@ func (s *stubRepository) GetParticipantJoinedAt(_ context.Context, _ string, _ i
 
 func TestJoinLimitsPublishingToRolePermissions(t *testing.T) {
 	for _, access := range []permission.Access{{TeamID: 456}, {TeamID: 456, Speak: true}, {TeamID: 456, ScreenShare: true}} {
-		repo := &stubRepository{findActiveSessionResult: &VoiceSession{SessionID: "s", RoomName: "voice", ChannelID: 123, TeamID: 456}}
+		repo := &stubRepository{findActiveSessionResult: &Session{SessionID: "s", RoomName: "voice", ChannelID: 123, TeamID: 456}}
 		lk := &stubLiveKitRoom{token: "token"}
-		svc := NewRoomService(repo, &stubConnectPermissionChecker{access: &access}, lk, "")
+		svc := NewService(repo, &stubConnectPermissionChecker{access: &access}, lk, "")
 		if _, err := svc.Join(context.Background(), 123, 42); err != nil {
 			t.Fatal(err)
 		}
