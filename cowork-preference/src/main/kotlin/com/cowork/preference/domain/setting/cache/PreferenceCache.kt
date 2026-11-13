@@ -121,7 +121,7 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
     }
 
     private suspend fun <T> attempt(operation: CacheOperation, target: String, block: suspend () -> T): Result<T> {
-        if (circuitBreaker.isOpen()) return Result.failure(CacheCircuitBreaker.OpenException)
+        if (circuitBreaker.isOpen()) return Result.failure(CacheCircuitBreaker.OpenException())
         return try {
             Result.success(withTimeout(OPERATION_TIMEOUT_MS) { block() }).also { circuitBreaker.recordSuccess() }
         } catch (error: TimeoutCancellationException) {
