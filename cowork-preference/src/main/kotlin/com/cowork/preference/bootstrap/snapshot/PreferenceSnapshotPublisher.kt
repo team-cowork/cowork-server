@@ -14,6 +14,7 @@ import com.cowork.preference.domain.teamrole.model.AccountTeamRole
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
 import com.cowork.preference.domain.webhook.event.WebhookEvents
 import com.cowork.preference.domain.webhook.repository.WebhookRepository
+import com.cowork.preference.global.coroutine.runCatchingCancellable
 import com.cowork.preference.global.messaging.event.PreferenceEvent
 import com.cowork.preference.global.messaging.event.PreferenceTopics
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
@@ -136,7 +137,7 @@ class PreferenceSnapshotPublisher(
             log.info("Deferred {} projection snapshot until upstream projections are ready", aggregate)
             return false
         }
-        return runCatching {
+        return runCatchingCancellable {
             outboxRepository.withProjectionSnapshotLock { connection ->
                 val counts = publishStates(connection)
                 check(upstreamReadiness?.isReady != false) {

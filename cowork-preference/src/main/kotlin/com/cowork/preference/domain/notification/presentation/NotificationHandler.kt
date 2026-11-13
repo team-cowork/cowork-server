@@ -6,6 +6,7 @@ import com.cowork.preference.domain.access.presentation.authorizationStatus
 import com.cowork.preference.domain.access.service.AccountOwnershipGuard
 import com.cowork.preference.domain.access.service.ChannelAccessGuard
 import com.cowork.preference.domain.notification.service.NotificationService
+import com.cowork.preference.global.coroutine.runCatchingCancellable
 import com.cowork.preference.global.security.RequesterContext
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
@@ -30,7 +31,7 @@ class NotificationHandler(
         }
         if (!authorizeOwner(ctx, accountId)) return
         scope.launch(ctx.vertx().dispatcher()) {
-            runCatching {
+            runCatchingCancellable {
                 channelAccessGuard.requireChannelAccess(channelId, accountId)
                 service.getNotification(accountId, channelId)
             }
@@ -55,7 +56,7 @@ class NotificationHandler(
             return
         }
         scope.launch(ctx.vertx().dispatcher()) {
-            runCatching {
+            runCatchingCancellable {
                 channelAccessGuard.requireChannelAccess(channelId, accountId)
                 service.updateNotification(accountId, channelId, body)
             }
