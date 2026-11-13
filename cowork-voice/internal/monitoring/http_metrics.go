@@ -47,7 +47,7 @@ func HTTPMetricsMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(ww, r)
 
-		route := normalizedRoute(chi.RouteContext(r.Context()).RoutePattern(), r.URL.Path)
+		route := normalizedRoute(chi.RouteContext(r.Context()).RoutePattern())
 		if shouldSkipRoute(route) {
 			return
 		}
@@ -74,7 +74,7 @@ func HTTPInFlightMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func normalizedRoute(pattern string, rawPath string) string {
+func normalizedRoute(pattern string) string {
 	if pattern != "" {
 		return strings.TrimSuffix(pattern, "/*")
 	}

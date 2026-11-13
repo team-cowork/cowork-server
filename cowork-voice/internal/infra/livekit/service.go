@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/livekit/protocol/auth"
-	livekit "github.com/livekit/protocol/livekit"
+	"github.com/livekit/protocol/livekit"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -32,7 +32,7 @@ func generateToken(apiKey, apiSecret string, userID int64, roomName string, spea
 	media := permission.MediaAccessFor(true, speak, screenShare, liveRoom, liveHost)
 	grant.SetCanSubscribe(media.Subscribe)
 	grant.SetCanPublishData(media.PublishData)
-	sources := []livekit.TrackSource{}
+	var sources []livekit.TrackSource
 	if media.Microphone {
 		sources = append(sources, livekit.TrackSource_MICROPHONE)
 	}
@@ -76,7 +76,7 @@ func roomMaxParticipants(maxParticipants uint32) uint32 {
 	return maxParticipants
 }
 
-// CreateRoomWithEmptyTimeout은 빈 방 자동 정리 시간을 명시해 방을 생성한다.
+// CreateRoomWithEmptyTimeout 함수는 빈 방 자동 정리 시간을 명시해 방을 생성한다.
 // 라이브는 호스트가 start 후 접속하지 않는 유령 세션을 EmptyTimeout으로 정리한다.
 func CreateRoomWithEmptyTimeout(ctx context.Context, client *lksdk.RoomServiceClient, roomName string, emptyTimeoutSecs uint32) error {
 	_, err := client.CreateRoom(ctx, &livekit.CreateRoomRequest{
@@ -92,7 +92,7 @@ func CreateRoomWithEmptyTimeout(ctx context.Context, client *lksdk.RoomServiceCl
 	return nil
 }
 
-// DeleteRoom은 방을 삭제해 전원을 퇴장시킨다(호스트 종료). 없는 방이면 무시한다(멱등).
+// DeleteRoom 함수는 방을 삭제해 전원을 퇴장시킨다(호스트 종료). 없는 방이면 무시한다(멱등).
 func DeleteRoom(ctx context.Context, client *lksdk.RoomServiceClient, roomName string) error {
 	_, err := client.DeleteRoom(ctx, &livekit.DeleteRoomRequest{Room: roomName})
 	if err != nil {

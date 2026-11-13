@@ -22,8 +22,8 @@ class GithubRepoSettingCommandInboxRepository(private val pool: Pool) {
             SELECT operation_id, idempotency_key, command_type, repo_id, requested_by, label_auto_apply,
                    command_occurred_at, result::text AS result
             FROM tb_github_repo_setting_command_inbox
-            WHERE operation_id = ${'$'}1
-               OR (requested_by IS NOT DISTINCT FROM ${'$'}2 AND idempotency_key = ${'$'}3)
+            WHERE operation_id = $1
+               OR (requested_by IS NOT DISTINCT FROM $2 AND idempotency_key = $3)
             FOR UPDATE
             """.trimIndent(),
         ).execute(Tuple.of(command.operationId, command.requestedBy, command.idempotencyKey)).coAwait()
@@ -53,7 +53,7 @@ class GithubRepoSettingCommandInboxRepository(private val pool: Pool) {
             INSERT INTO tb_github_repo_setting_command_inbox
                 (operation_id, idempotency_key, command_type, repo_id, requested_by, label_auto_apply,
                  command_occurred_at, result)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6, ${'$'}7, ${'$'}8::jsonb)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb)
             """.trimIndent(),
         ).execute(
             Tuple.of(
@@ -76,7 +76,7 @@ class GithubRepoSettingCommandInboxRepository(private val pool: Pool) {
             """
             INSERT INTO tb_github_repo_setting_command_quarantine
                 (topic, partition_id, record_offset, record_key, payload, reason)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6)
+            VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT (topic, partition_id, record_offset) DO NOTHING
             """.trimIndent(),
         ).execute(

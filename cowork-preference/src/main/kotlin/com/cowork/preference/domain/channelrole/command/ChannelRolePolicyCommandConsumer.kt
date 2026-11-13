@@ -19,6 +19,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 class ChannelRolePolicyCommandConsumer(
     private val vertx: Vertx,
@@ -100,7 +102,7 @@ class ChannelRolePolicyCommandConsumer(
                     record.offset(),
                     error,
                 )
-                delay(RETRY_DELAY_MS)
+                delay(RETRY_DELAY)
             }
         }
         throw CancellationException("Channel role policy command consumer stopped")
@@ -135,7 +137,7 @@ class ChannelRolePolicyCommandConsumer(
                     record.offset(),
                     error,
                 )
-                delay(RETRY_DELAY_MS)
+                delay(RETRY_DELAY)
             }
         }
         throw CancellationException("Channel role policy command consumer stopped")
@@ -163,7 +165,7 @@ class ChannelRolePolicyCommandConsumer(
                     record.offset(),
                     error,
                 )
-                delay(RETRY_DELAY_MS)
+                delay(RETRY_DELAY)
             }
         }
         throw CancellationException("Channel role policy command consumer stopped")
@@ -189,13 +191,13 @@ class ChannelRolePolicyCommandConsumer(
                 throw error
             } catch (error: Throwable) {
                 log.error("Channel role policy command consumer {} failed; retrying", operation, error)
-                delay(RETRY_DELAY_MS)
+                delay(RETRY_DELAY)
             }
         }
         throw CancellationException("Channel role policy command consumer stopped")
     }
 
     private companion object {
-        const val RETRY_DELAY_MS = 1_000L
+        val RETRY_DELAY: Duration = 1.seconds
     }
 }

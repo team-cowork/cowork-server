@@ -18,13 +18,13 @@ import (
 type Outcome string
 
 const (
-	// OutcomeSuccess: FCM accepted and delivered the message to the provider for this FID.
+	// OutcomeSuccess means FCM accepted and delivered the message to the provider for this FID.
 	OutcomeSuccess Outcome = "SUCCESS"
-	// OutcomeInvalid: the FID itself is unusable (unregistered, sender mismatch) and must be removed.
+	// OutcomeInvalid means the FID itself is unusable (unregistered, sender mismatch) and must be removed.
 	OutcomeInvalid Outcome = "INVALID"
-	// OutcomeRetryable: a transient provider/infra error; the same FID can be retried later.
+	// OutcomeRetryable means a transient provider/infra error; the same FID can be retried later.
 	OutcomeRetryable Outcome = "RETRYABLE"
-	// OutcomeUnclassified: an error the SDK does not map to a known permanent/transient category.
+	// OutcomeUnclassified means an error the SDK does not map to a known permanent/transient category.
 	// Treated as retryable but with a much lower attempt ceiling, since it may in fact be permanent.
 	OutcomeUnclassified Outcome = "UNCLASSIFIED"
 )

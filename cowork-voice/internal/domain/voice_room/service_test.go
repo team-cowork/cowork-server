@@ -8,7 +8,7 @@ import (
 
 	"github.com/cowork/cowork-voice/internal/apperr"
 	"github.com/cowork/cowork-voice/internal/domain/permission"
-	kafka "github.com/cowork/cowork-voice/internal/infra/kafka"
+	"github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
 func TestVoiceRoomService(t *testing.T) {

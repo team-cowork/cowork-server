@@ -70,15 +70,15 @@ func CreateIndexes(ctx context.Context, db *mongo.Database) error {
 	return CreateLiveIndexes(ctx, db)
 }
 
-type mongoSessionRepository struct {
+type MongoSessionRepository struct {
 	db *mongo.Database
 }
 
-func NewMongoSessionRepository(db *mongo.Database) *mongoSessionRepository {
-	return &mongoSessionRepository{db: db}
+func NewMongoSessionRepository(db *mongo.Database) *MongoSessionRepository {
+	return &MongoSessionRepository{db: db}
 }
 
-func (r *mongoSessionRepository) FindActiveSession(ctx context.Context, channelID int64) (*room.VoiceSession, error) {
+func (r *MongoSessionRepository) FindActiveSession(ctx context.Context, channelID int64) (*room.VoiceSession, error) {
 	col := r.db.Collection(room.CollectionSessions)
 	filter := bson.D{{Key: "channel_id", Value: channelID}, {Key: "status", Value: room.StatusActive}}
 	var s room.VoiceSession
@@ -92,7 +92,7 @@ func (r *mongoSessionRepository) FindActiveSession(ctx context.Context, channelI
 	return &s, nil
 }
 
-func (r *mongoSessionRepository) FindSessionByRoomName(ctx context.Context, roomName string) (*room.VoiceSession, error) {
+func (r *MongoSessionRepository) FindSessionByRoomName(ctx context.Context, roomName string) (*room.VoiceSession, error) {
 	col := r.db.Collection(room.CollectionSessions)
 	filter := bson.D{{Key: "room_name", Value: roomName}}
 	var s room.VoiceSession
@@ -106,7 +106,7 @@ func (r *mongoSessionRepository) FindSessionByRoomName(ctx context.Context, room
 	return &s, nil
 }
 
-func (r *mongoSessionRepository) CreateSession(ctx context.Context, channelID, teamID int64) (*room.VoiceSession, bool, error) {
+func (r *MongoSessionRepository) CreateSession(ctx context.Context, channelID, teamID int64) (*room.VoiceSession, bool, error) {
 	col := r.db.Collection(room.CollectionSessions)
 	now := time.Now().UTC()
 	sessionID := uuid.NewString()
@@ -130,7 +130,7 @@ func (r *mongoSessionRepository) CreateSession(ctx context.Context, channelID, t
 	return s, true, nil
 }
 
-func (r *mongoSessionRepository) GetSession(ctx context.Context, sessionID string) (*room.VoiceSession, error) {
+func (r *MongoSessionRepository) GetSession(ctx context.Context, sessionID string) (*room.VoiceSession, error) {
 	col := r.db.Collection(room.CollectionSessions)
 	filter := bson.D{{Key: "session_id", Value: sessionID}}
 	var s room.VoiceSession
@@ -144,7 +144,7 @@ func (r *mongoSessionRepository) GetSession(ctx context.Context, sessionID strin
 	return &s, nil
 }
 
-func (r *mongoSessionRepository) EndSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error) {
+func (r *MongoSessionRepository) EndSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error) {
 	col := r.db.Collection(room.CollectionSessions)
 	filter := bson.D{{Key: "session_id", Value: sessionID}, {Key: "status", Value: room.StatusActive}}
 	update := bson.D{{Key: "$set", Value: bson.D{
@@ -158,7 +158,7 @@ func (r *mongoSessionRepository) EndSession(ctx context.Context, sessionID strin
 	return result.ModifiedCount == 1, nil
 }
 
-func (r *mongoSessionRepository) MarkSessionStartedAndEnqueue(
+func (r *MongoSessionRepository) MarkSessionStartedAndEnqueue(
 	ctx context.Context,
 	sessionID string,
 	startedAt time.Time,
@@ -189,7 +189,7 @@ func (r *mongoSessionRepository) MarkSessionStartedAndEnqueue(
 	return result.ModifiedCount == 1, nil
 }
 
-func (r *mongoSessionRepository) RecordParticipantJoinedAndEnqueue(
+func (r *MongoSessionRepository) RecordParticipantJoinedAndEnqueue(
 	ctx context.Context,
 	p *room.VoiceParticipant,
 	occurrenceID string,
@@ -219,7 +219,7 @@ func (r *mongoSessionRepository) RecordParticipantJoinedAndEnqueue(
 	return true, nil
 }
 
-func (r *mongoSessionRepository) MarkParticipantLeftAndEnqueue(
+func (r *MongoSessionRepository) MarkParticipantLeftAndEnqueue(
 	ctx context.Context,
 	sessionID string,
 	userID int64,
@@ -251,7 +251,7 @@ func (r *mongoSessionRepository) MarkParticipantLeftAndEnqueue(
 	return result.ModifiedCount == 1, nil
 }
 
-func (r *mongoSessionRepository) CleanupOrphanParticipants(ctx context.Context, sessionID string, now time.Time) (int64, error) {
+func (r *MongoSessionRepository) CleanupOrphanParticipants(ctx context.Context, sessionID string, now time.Time) (int64, error) {
 	col := r.db.Collection(room.CollectionParticipants)
 	filter := bson.D{
 		{Key: "session_id", Value: sessionID},
@@ -275,7 +275,7 @@ func (r *mongoSessionRepository) CleanupOrphanParticipants(ctx context.Context, 
 	return result.ModifiedCount, nil
 }
 
-func (r *mongoSessionRepository) GetParticipantJoinedAt(
+func (r *MongoSessionRepository) GetParticipantJoinedAt(
 	ctx context.Context,
 	sessionID string,
 	userID int64,
@@ -301,7 +301,7 @@ func (r *mongoSessionRepository) GetParticipantJoinedAt(
 	return &p.JoinedAt, nil
 }
 
-func (r *mongoSessionRepository) EndSessionAndEnqueue(
+func (r *MongoSessionRepository) EndSessionAndEnqueue(
 	ctx context.Context,
 	sessionID string,
 	endedAt time.Time,

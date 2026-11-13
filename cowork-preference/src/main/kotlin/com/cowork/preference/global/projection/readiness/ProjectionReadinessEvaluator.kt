@@ -37,9 +37,6 @@ object ProjectionReadinessEvaluator {
             if (markerOffset < range.beginningOffset) {
                 return unavailable("snapshot completion marker is behind partition $partition retained history")
             }
-            if (checkpoint.nextOffset < range.beginningOffset) {
-                return unavailable("checkpoint is behind partition $partition retained history")
-            }
             if (checkpoint.nextOffset > range.endOffset) {
                 return unavailable("checkpoint is ahead of partition $partition log end")
             }

@@ -9,6 +9,7 @@ import com.cowork.preference.domain.teamrole.model.AccountTeamRole
 import com.cowork.preference.domain.teamrole.model.TeamRoleDefinition
 import com.cowork.preference.domain.teamrole.model.TeamRolePermissions
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
+import com.cowork.preference.global.coroutine.runCatchingCancellable
 import com.cowork.preference.global.messaging.event.PreferenceEvent
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import io.vertx.sqlclient.SqlClient
@@ -131,7 +132,7 @@ class TeamRoleService(
         val existing = repository.findRole(teamId, roleId)
         if (existing?.isDefault == true) return Result.failure(IllegalArgumentException("기본 역할은 삭제할 수 없습니다."))
         if (existing == null) {
-            return runCatching {
+            return runCatchingCancellable {
                 outboxRepository.inTransaction { connection ->
                     val tombstone = repository.deleteRoleWithTombstone(
                         connection,
@@ -152,7 +153,7 @@ class TeamRoleService(
         }
         val occurredAt = Instant.now()
 
-        return runCatching {
+        return runCatchingCancellable {
             outboxRepository.inTransaction { connection ->
                 val assignments = repository.findMemberRoles(connection, teamId).filter { it.roleId == roleId }
                 val policyEvents = deleteChannelRolePoliciesForRole(connection, teamId, roleId)
@@ -168,12 +169,16 @@ class TeamRoleService(
                 val roleTombstone = repository.deleteRoleWithTombstone(connection, teamId, roleId, occurredAt)
                 outboxRepository.enqueueAll(
                     connection,
-                    policyEvents + assignmentTombstones.map { tombstone ->
-                        TeamRoleEvents.assignmentDeleted(
-                            AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
-                            tombstone.stateOccurredAt,
-                        )
-                    } + TeamRoleEvents.roleDeleted(teamId, roleId, roleTombstone.stateOccurredAt),
+                    buildList {
+                        addAll(policyEvents)
+                        assignmentTombstones.mapTo(this) { tombstone ->
+                            TeamRoleEvents.assignmentDeleted(
+                                AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
+                                tombstone.stateOccurredAt,
+                            )
+                        }
+                        add(TeamRoleEvents.roleDeleted(teamId, roleId, roleTombstone.stateOccurredAt))
+                    },
                 )
                 projectAccess.refreshTeam(connection, teamId)
             }
@@ -206,34 +211,6 @@ class TeamRoleService(
             persistedRole
         }
         return Result.success(role)
-    }
-
-    suspend fun removeRole(accountId: Long, teamId: Long, roleId: Long) {
-        require(repository.findRole(teamId, roleId)?.isDefault != true) { "기본 역할은 해제할 수 없습니다." }
-        outboxRepository.inTransaction { connection ->
-            val tombstone = repository.deleteAssignment(
-                connection,
-                accountId,
-                teamId,
-                roleId,
-                Instant.now(),
-            )
-            outboxRepository.enqueue(
-                connection,
-                TeamRoleEvents.assignmentDeleted(
-                    AccountTeamRole(accountId, teamId, roleId),
-                    tombstone.stateOccurredAt,
-                ),
-            )
-            projectAccess.refreshTeam(connection, teamId, accountId)
-        }
-    }
-
-    suspend fun removeMemberRolesAtOrBefore(accountId: Long, teamId: Long, occurredAt: Instant) {
-        outboxRepository.inTransaction { connection ->
-            removeMemberRolesAtOrBefore(connection, accountId, teamId, occurredAt)
-            projectAccess.refreshTeam(connection, teamId, accountId)
-        }
     }
 
     internal suspend fun removeMemberRolesAtOrBefore(
@@ -283,13 +260,6 @@ class TeamRoleService(
         )
     }
 
-    suspend fun deleteTeamRoles(teamId: Long, occurredAt: Instant) {
-        outboxRepository.inTransaction { connection ->
-            deleteTeamRoles(connection, teamId, occurredAt)
-            projectAccess.refreshTeam(connection, teamId)
-        }
-    }
-
     internal suspend fun deleteTeamRoles(client: SqlClient, teamId: Long, occurredAt: Instant) {
         repository.markTeamDeleted(client, teamId, occurredAt)
         val assignments = repository.findMemberRoles(client, teamId)
@@ -315,15 +285,20 @@ class TeamRoleService(
         }
         outboxRepository.enqueueAll(
             client,
-            policyEvents + assignmentTombstones.map { tombstone ->
-                TeamRoleEvents.assignmentDeleted(
-                    AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
-                    tombstone.stateOccurredAt,
-                )
-            } + memberFences.values.map { fence ->
-                TeamRoleEvents.memberAssignmentsDeleted(fence.teamId, fence.accountId, fence.stateOccurredAt)
-            } + roleTombstones.map { tombstone ->
-                TeamRoleEvents.roleDeleted(tombstone.teamId, tombstone.roleId, tombstone.stateOccurredAt)
+            buildList {
+                addAll(policyEvents)
+                assignmentTombstones.mapTo(this) { tombstone ->
+                    TeamRoleEvents.assignmentDeleted(
+                        AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
+                        tombstone.stateOccurredAt,
+                    )
+                }
+                memberFences.values.mapTo(this) { fence ->
+                    TeamRoleEvents.memberAssignmentsDeleted(fence.teamId, fence.accountId, fence.stateOccurredAt)
+                }
+                roleTombstones.mapTo(this) { tombstone ->
+                    TeamRoleEvents.roleDeleted(tombstone.teamId, tombstone.roleId, tombstone.stateOccurredAt)
+                }
             },
         )
     }
