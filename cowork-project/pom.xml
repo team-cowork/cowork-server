@@ -7,7 +7,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.1.1</version>
+        <version>4.1.2</version>
         <relativePath/>
     </parent>
 
@@ -16,14 +16,14 @@
     <version>20261113.0</version>
 
     <properties>
-        <java.version>26</java.version>
-        <kotlin.version>2.4.20</kotlin.version>
-        <spring-cloud.version>2025.1.3</spring-cloud.version>
+        <java.version>27</java.version>
+        <kotlin.version>2.5.0-RC</kotlin.version>
+        <spring-cloud.version>2025.1.4</spring-cloud.version>
         <!-- Non-BOM-managed deps pinned to latest; flyway is left to the Spring Boot BOM. -->
-        <the-sdk.version>2.0</the-sdk.version>
-        <springdoc.version>3.1.1</springdoc.version>
-        <mockk.version>1.14.11</mockk.version>
-        <kotest.version>6.2.5</kotest.version>
+        <the-sdk.version>2.0.1</the-sdk.version>
+        <springdoc.version>3.2.0</springdoc.version>
+        <mockk.version>1.14.12</mockk.version>
+        <kotest.version>6.2.7</kotest.version>
         <logstash-logback-encoder.version>9.0</logstash-logback-encoder.version>
         <ktlint-maven-plugin.version>3.7.1</ktlint-maven-plugin.version>
         <start-class>com.cowork.project.CoworkProjectApplicationKt</start-class>
@@ -209,7 +209,7 @@
                         <plugin>spring</plugin>
                         <plugin>jpa</plugin>
                     </compilerPlugins>
-                    <jvmTarget>26</jvmTarget>
+                    <jvmTarget>27</jvmTarget>
                 </configuration>
                 <dependencies>
                     <dependency>
