@@ -17,7 +17,7 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
         // Serialize recomputation so concurrent grants/revocations cannot publish an older decision last.
         val project =
             client.preparedQuery(
-                "SELECT team_id, deleted, is_private FROM tb_project_lifecycle_projections WHERE project_id = \$1 FOR UPDATE",
+                "SELECT team_id, deleted, is_private FROM tb_project_lifecycle_projections WHERE project_id = $1 FOR UPDATE",
             )
                 .execute(Tuple.of(projectId)).coAwait().firstOrNull() ?: return
         val team = loadTeamAccess(client, project.getLong("team_id"), accountId)
@@ -34,12 +34,12 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
         val (members, defaults, assigned) = team
         val projectRoles = client.preparedQuery(
             "SELECT a.account_id, d.permissions FROM account_project_role a " +
-                "JOIN project_role_definition d USING (project_id, role_name) WHERE a.project_id = \$1 " +
-                "AND (\$2::bigint IS NULL OR a.account_id = \$2)",
+                "JOIN project_role_definition d USING (project_id, role_name) WHERE a.project_id = $1 " +
+                "AND ($2::bigint IS NULL OR a.account_id = $2)",
         ).execute(Tuple.of(projectId, accountId)).coAwait()
             .groupBy({ it.getLong("account_id") }, { it.getJsonObject("permissions") })
         val existing = client.preparedQuery(
-            "SELECT * FROM tb_project_access_states WHERE project_id = \$1 AND (\$2::bigint IS NULL OR account_id = \$2)",
+            "SELECT * FROM tb_project_access_states WHERE project_id = $1 AND ($2::bigint IS NULL OR account_id = $2)",
         ).execute(Tuple.of(projectId, accountId)).coAwait().associateBy { it.getLong("account_id") }
         (members.keys + existing.keys).sorted().forEach { accountId ->
             val member = members[accountId]
@@ -77,7 +77,7 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
                 INSERT INTO tb_project_access_states
                     (project_id, account_id, can_read, can_write, can_manage, can_reorder, can_channel_archive, can_read_private,
                      source_membership_version, source_authorization_version, state_occurred_at)
-                VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6, ${'$'}7, ${'$'}8, ${'$'}9, ${'$'}10, clock_timestamp())
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, clock_timestamp())
                 ON CONFLICT (project_id, account_id) DO UPDATE SET
                     can_read = EXCLUDED.can_read, can_write = EXCLUDED.can_write,
                     can_manage = EXCLUDED.can_manage, can_reorder = EXCLUDED.can_reorder,
@@ -105,7 +105,7 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
     suspend fun refreshTeam(client: SqlClient, teamId: Long, accountId: Long? = null) {
         val projects = client.preparedQuery(
             "SELECT project_id, deleted, is_private FROM tb_project_lifecycle_projections " +
-                "WHERE team_id = \$1 ORDER BY project_id FOR UPDATE",
+                "WHERE team_id = $1 ORDER BY project_id FOR UPDATE",
         ).execute(Tuple.of(teamId)).coAwait().toList()
         if (projects.isEmpty()) return
         // The caller's ordered outbox transaction keeps shared team inputs stable across project recomputation.
@@ -117,15 +117,15 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
         val members = client.preparedQuery(
             "SELECT account_id, built_in_role, source_occurred_at, authorization_version " +
                 "FROM tb_team_member_projections " +
-                "WHERE team_id = \$1 AND NOT deleted " +
-                "AND NOT EXISTS (SELECT 1 FROM tb_team_role_domain_tombstones WHERE team_id = \$1) " +
-                "AND (\$2::bigint IS NULL OR account_id = \$2)",
+                "WHERE team_id = $1 AND NOT deleted " +
+                "AND NOT EXISTS (SELECT 1 FROM tb_team_role_domain_tombstones WHERE team_id = $1) " +
+                "AND ($2::bigint IS NULL OR account_id = $2)",
         ).execute(Tuple.of(teamId, accountId)).coAwait().associateBy { it.getLong("account_id") }
         val teamRoles = client.preparedQuery(
             "SELECT d.permissions, d.is_default, a.account_id FROM tb_team_role_definitions d " +
                 "LEFT JOIN tb_account_team_roles a ON a.role_id = d.id AND a.team_id = d.team_id " +
-                "AND (\$2::bigint IS NULL OR a.account_id = \$2) " +
-                "WHERE d.team_id = \$1 AND (d.is_default OR a.account_id IS NOT NULL)",
+                "AND ($2::bigint IS NULL OR a.account_id = $2) " +
+                "WHERE d.team_id = $1 AND (d.is_default OR a.account_id IS NOT NULL)",
         ).execute(Tuple.of(teamId, accountId)).coAwait().toList()
         return TeamAccess(
             members,
@@ -139,9 +139,9 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
         client.preparedQuery(
             """
             DELETE FROM account_project_role a USING tb_project_lifecycle_projections p
-            WHERE p.project_id = a.project_id AND p.team_id = ${'$'}1
-              AND (${'$'}2::bigint IS NULL OR a.account_id = ${'$'}2)
-              AND (${'$'}3::timestamptz IS NULL OR a.source_membership_version <= ${'$'}3)
+            WHERE p.project_id = a.project_id AND p.team_id = $1
+              AND ($2::bigint IS NULL OR a.account_id = $2)
+              AND ($3::timestamptz IS NULL OR a.source_membership_version <= $3)
             """.trimIndent(),
         ).execute(Tuple.of(teamId, accountId, cutoff?.atOffset(ZoneOffset.UTC))).coAwait()
         refreshTeam(client, teamId, accountId)

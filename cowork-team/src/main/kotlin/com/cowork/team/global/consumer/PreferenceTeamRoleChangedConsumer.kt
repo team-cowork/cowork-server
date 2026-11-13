@@ -20,7 +20,7 @@ class PreferenceTeamRoleChangedConsumer(
 
     @KafkaListener(
         topics = [TeamRoleContractTopics.STATE],
-        groupId = "\${KAFKA_GROUP_ID_TEAM_ROLE_PREFERENCE:cowork-team.team-role-projection}",
+        groupId = $$"${KAFKA_GROUP_ID_TEAM_ROLE_PREFERENCE:cowork-team.team-role-projection}",
         containerFactory = "preferenceTeamRoleChangedListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {

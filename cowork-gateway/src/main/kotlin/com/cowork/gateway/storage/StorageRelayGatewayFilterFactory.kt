@@ -17,8 +17,8 @@ import java.net.URI
 
 @Component
 class StorageRelayGatewayFilterFactory(
-    @param:Value("\${PUBLIC_API_BASE_URL}") publicApiBaseUrl: String,
-    @param:Value("\${S3_BUCKET}") bucket: String,
+    @param:Value($$"${PUBLIC_API_BASE_URL}") publicApiBaseUrl: String,
+    @param:Value($$"${S3_BUCKET}") bucket: String,
 ) : AbstractGatewayFilterFactory<StorageRelayGatewayFilterFactory.Config>(Config::class.java) {
     class Config
 

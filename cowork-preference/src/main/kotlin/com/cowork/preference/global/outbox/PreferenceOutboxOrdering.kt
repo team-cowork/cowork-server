@@ -8,7 +8,7 @@ object PreferenceOutboxOrdering {
     const val LOCK_ID = 0x434F574F524B5052L
 
     suspend fun acquireForWrite(connection: SqlConnection) {
-        connection.preparedQuery("SELECT pg_advisory_xact_lock(${'$'}1)")
+        connection.preparedQuery("SELECT pg_advisory_xact_lock($1)")
             .execute(Tuple.of(LOCK_ID))
             .coAwait()
     }
