@@ -1,4 +1,4 @@
-package live
+package liveroom
 
 import (
 	"strconv"
@@ -13,7 +13,7 @@ type ParsedRoomName struct {
 	SessionID string
 }
 
-func RoomName(channelID int64, sessionID string) string {
+func Name(channelID int64, sessionID string) string {
 	return roomNamePrefix + strconv.FormatInt(channelID, 10) + "-" + sessionID
 }
 

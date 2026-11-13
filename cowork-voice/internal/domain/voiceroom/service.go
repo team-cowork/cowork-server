@@ -1,4 +1,4 @@
-package room
+package voiceroom
 
 import (
 	"context"
@@ -10,18 +10,18 @@ import (
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
-type RoomService struct {
+type Service struct {
 	repo         Repository
 	permissions  ConnectPermissionChecker
 	livekit      LiveKitRoom
 	livekitWsURL string
 }
 
-func NewRoomService(repo Repository, permissions ConnectPermissionChecker, livekit LiveKitRoom, livekitWsURL string) *RoomService {
-	return &RoomService{repo: repo, permissions: permissions, livekit: livekit, livekitWsURL: livekitWsURL}
+func NewService(repo Repository, permissions ConnectPermissionChecker, livekit LiveKitRoom, livekitWsURL string) *Service {
+	return &Service{repo: repo, permissions: permissions, livekit: livekit, livekitWsURL: livekitWsURL}
 }
 
-func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinResponse, error) {
+func (s *Service) Join(ctx context.Context, channelID, userID int64) (*JoinResponse, error) {
 	access, err := s.permissions.RequireConnect(ctx, channelID, userID)
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func (s *RoomService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 
 // requireSeat는 토큰 발급 전에 정원을 확인한다. 이미 방에 있는 사용자의 재입장은 허용한다.
 // 동시 입장은 이 검사를 함께 통과할 수 있으므로 최종 상한은 LiveKit 방의 MaxParticipants가 맡는다.
-func (s *RoomService) requireSeat(ctx context.Context, roomName string, userID int64, maxParticipants int) error {
+func (s *Service) requireSeat(ctx context.Context, roomName string, userID int64, maxParticipants int) error {
 	participants, err := s.livekit.ListParticipants(ctx, roomName)
 	if err != nil {
 		return err
@@ -96,7 +96,7 @@ func (s *RoomService) requireSeat(ctx context.Context, roomName string, userID i
 	return nil
 }
 
-func (s *RoomService) Leave(ctx context.Context, channelID, userID int64) error {
+func (s *Service) Leave(ctx context.Context, channelID, userID int64) error {
 	if _, err := s.permissions.RequireConnect(ctx, channelID, userID); err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func (s *RoomService) Leave(ctx context.Context, channelID, userID int64) error 
 	return err
 }
 
-func (s *RoomService) GetParticipants(ctx context.Context, channelID, userID int64) (*ParticipantsResponse, error) {
+func (s *Service) GetParticipants(ctx context.Context, channelID, userID int64) (*ParticipantsResponse, error) {
 	if _, err := s.permissions.RequireConnect(ctx, channelID, userID); err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func (s *RoomService) GetParticipants(ctx context.Context, channelID, userID int
 	}, nil
 }
 
-func (s *RoomService) GetSession(ctx context.Context, sessionID string, userID int64) (*SessionResponse, error) {
+func (s *Service) GetSession(ctx context.Context, sessionID string, userID int64) (*SessionResponse, error) {
 	sess, err := s.repo.GetSession(ctx, sessionID)
 	if err != nil {
 		return nil, err

@@ -11,8 +11,8 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo"
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 
-	livedomain "github.com/cowork/cowork-voice/internal/domain/live_room"
-	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
+	"github.com/cowork/cowork-voice/internal/domain/liveroom"
+	"github.com/cowork/cowork-voice/internal/domain/voiceroom"
 )
 
 const outboxField = "outbox"
@@ -85,10 +85,10 @@ func (r *OutboxRepository) FetchUnsent(ctx context.Context, limit int) ([]Outbox
 	}
 
 	sources := []string{
-		roomdomain.CollectionSessions,
-		roomdomain.CollectionParticipants,
-		livedomain.CollectionSessions,
-		livedomain.CollectionViewers,
+		voiceroom.CollectionSessions,
+		voiceroom.CollectionParticipants,
+		liveroom.CollectionSessions,
+		liveroom.CollectionViewers,
 	}
 	messages := make([]OutboxMessage, 0, limit)
 	for _, source := range sources {
@@ -183,16 +183,16 @@ func (r *OutboxRepository) MarkFailed(ctx context.Context, message OutboxMessage
 func (r *OutboxRepository) RecoverPendingCleanup(ctx context.Context, limit int) error {
 	if err := r.recoverCollectionCleanup(
 		ctx,
-		roomdomain.CollectionSessions,
-		roomdomain.CollectionParticipants,
+		voiceroom.CollectionSessions,
+		voiceroom.CollectionParticipants,
 		limit,
 	); err != nil {
 		return err
 	}
 	return r.recoverCollectionCleanup(
 		ctx,
-		livedomain.CollectionSessions,
-		livedomain.CollectionViewers,
+		liveroom.CollectionSessions,
+		liveroom.CollectionViewers,
 		limit,
 	)
 }

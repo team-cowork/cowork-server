@@ -1,4 +1,4 @@
-package room
+package voiceroom
 
 import (
 	"time"
@@ -13,7 +13,7 @@ const (
 	StatusEnded            = "ended"
 )
 
-type VoiceSession struct {
+type Session struct {
 	ID                 bson.ObjectID `bson:"_id,omitempty"          json:"-"`
 	SessionID          string        `bson:"session_id"             json:"session_id"`
 	ChannelID          int64         `bson:"channel_id"             json:"channel_id"`
@@ -25,7 +25,7 @@ type VoiceSession struct {
 	EndedAt            *time.Time    `bson:"ended_at,omitempty"     json:"ended_at,omitempty"`
 }
 
-type VoiceParticipant struct {
+type Participant struct {
 	ID           bson.ObjectID `bson:"_id,omitempty"`
 	SessionID    string        `bson:"session_id"`
 	UserID       int64         `bson:"user_id"`

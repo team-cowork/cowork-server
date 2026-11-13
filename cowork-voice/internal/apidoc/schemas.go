@@ -11,13 +11,13 @@ func schemas() openapi3.Schemas {
 		},
 			Required: []string{"code", "message", "status"},
 			Type:     &openapi3.Types{"object"}}},
-		"github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_live_room_JoinResponse":          successSchema(schemaRef("internal_domain_live_room.JoinResponse")),
-		"github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_live_room_StartResponse":         successSchema(schemaRef("internal_domain_live_room.StartResponse")),
-		"github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_live_room_StatusResponse":        successSchema(schemaRef("internal_domain_live_room.StatusResponse")),
-		"github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voice_room_JoinResponse":         successSchema(schemaRef("internal_domain_voice_room.JoinResponse")),
-		"github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voice_room_ParticipantsResponse": successSchema(schemaRef("internal_domain_voice_room.ParticipantsResponse")),
-		"github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voice_room_SessionResponse":      successSchema(schemaRef("internal_domain_voice_room.SessionResponse")),
-		"internal_domain_live_room.JoinResponse": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
+		"github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_liveroom_JoinResponse":          successSchema(schemaRef("internal_domain_liveroom.JoinResponse")),
+		"github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_liveroom_StartResponse":         successSchema(schemaRef("internal_domain_liveroom.StartResponse")),
+		"github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_liveroom_StatusResponse":        successSchema(schemaRef("internal_domain_liveroom.StatusResponse")),
+		"github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voiceroom_JoinResponse":         successSchema(schemaRef("internal_domain_voiceroom.JoinResponse")),
+		"github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voiceroom_ParticipantsResponse": successSchema(schemaRef("internal_domain_voiceroom.ParticipantsResponse")),
+		"github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voiceroom_SessionResponse":      successSchema(schemaRef("internal_domain_voiceroom.SessionResponse")),
+		"internal_domain_liveroom.JoinResponse": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
 			"host_user_id": &openapi3.SchemaRef{Value: &openapi3.Schema{Example: 1,
 				Type: &openapi3.Types{"integer"}}},
 			"livekit_url": &openapi3.SchemaRef{Value: &openapi3.Schema{Example: "wss://livekit.example.com",
@@ -30,7 +30,7 @@ func schemas() openapi3.Schemas {
 				Type: &openapi3.Types{"string"}}},
 		},
 			Type: &openapi3.Types{"object"}}},
-		"internal_domain_live_room.StartResponse": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
+		"internal_domain_liveroom.StartResponse": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
 			"livekit_url": &openapi3.SchemaRef{Value: &openapi3.Schema{Example: "wss://livekit.example.com",
 				Type: &openapi3.Types{"string"}}},
 			"room_name": &openapi3.SchemaRef{Value: &openapi3.Schema{Example: "live-42-550e8400",
@@ -41,7 +41,7 @@ func schemas() openapi3.Schemas {
 				Type: &openapi3.Types{"string"}}},
 		},
 			Type: &openapi3.Types{"object"}}},
-		"internal_domain_live_room.StatusResponse": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
+		"internal_domain_liveroom.StatusResponse": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
 			"host_user_id": &openapi3.SchemaRef{Value: &openapi3.Schema{Example: 1,
 				Type: &openapi3.Types{"integer"}}},
 			"live": &openapi3.SchemaRef{Value: &openapi3.Schema{Example: true,
@@ -54,7 +54,7 @@ func schemas() openapi3.Schemas {
 				Type: &openapi3.Types{"integer"}}},
 		},
 			Type: &openapi3.Types{"object"}}},
-		"internal_domain_voice_room.JoinResponse": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
+		"internal_domain_voiceroom.JoinResponse": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
 			"bitrate": &openapi3.SchemaRef{Value: &openapi3.Schema{Description: "Bitrate는 클라이언트가 오디오 publish에 적용할 bps 값이다. null이면 클라이언트 기본값을 쓴다.",
 				Example: 64000,
 				Type:    &openapi3.Types{"integer"}}},
@@ -68,23 +68,23 @@ func schemas() openapi3.Schemas {
 				Type: &openapi3.Types{"string"}}},
 		},
 			Type: &openapi3.Types{"object"}}},
-		"internal_domain_voice_room.ParticipantResponse": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
+		"internal_domain_voiceroom.ParticipantResponse": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
 			"joined_at": &openapi3.SchemaRef{Value: &openapi3.Schema{Example: "2024-01-01T00:00:00Z",
 				Type: &openapi3.Types{"string"}}},
 			"user_id": &openapi3.SchemaRef{Value: &openapi3.Schema{Example: 1,
 				Type: &openapi3.Types{"integer"}}},
 		},
 			Type: &openapi3.Types{"object"}}},
-		"internal_domain_voice_room.ParticipantsResponse": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
+		"internal_domain_voiceroom.ParticipantsResponse": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
 			"channel_id": &openapi3.SchemaRef{Value: &openapi3.Schema{Example: 42,
 				Type: &openapi3.Types{"integer"}}},
-			"participants": &openapi3.SchemaRef{Value: &openapi3.Schema{Items: schemaRef("internal_domain_voice_room.ParticipantResponse"),
+			"participants": &openapi3.SchemaRef{Value: &openapi3.Schema{Items: schemaRef("internal_domain_voiceroom.ParticipantResponse"),
 				Type: &openapi3.Types{"array"}}},
 			"room_name": &openapi3.SchemaRef{Value: &openapi3.Schema{Example: "channel-42",
 				Type: &openapi3.Types{"string"}}},
 		},
 			Type: &openapi3.Types{"object"}}},
-		"internal_domain_voice_room.SessionResponse": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
+		"internal_domain_voiceroom.SessionResponse": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
 			"channel_id": &openapi3.SchemaRef{Value: &openapi3.Schema{Example: 42,
 				Type: &openapi3.Types{"integer"}}},
 			"ended_at": &openapi3.SchemaRef{Value: &openapi3.Schema{Example: "2024-01-01T01:00:00Z",
