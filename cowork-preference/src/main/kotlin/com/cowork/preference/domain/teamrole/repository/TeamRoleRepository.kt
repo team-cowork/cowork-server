@@ -17,7 +17,7 @@ import java.time.ZoneOffset
 
 class TeamRoleRepository(private val pool: Pool) {
 
-    // Callers hold PreferenceOutboxOrdering together with lifecycle cleanup and the emitted role state.
+    /** Callers hold [PreferenceOutboxOrdering] together with lifecycle cleanup and the emitted role state. */
     internal suspend fun ensureDefaultRole(client: SqlClient, teamId: Long): TeamRoleDefinition? {
         val rows = client.preparedQuery(
             """
@@ -30,9 +30,6 @@ class TeamRoleRepository(private val pool: Pool) {
         ).execute(Tuple.of(teamId, TeamRolePermissions.toJson(TeamRolePermissions.everyone()))).coAwait()
         return rows.firstOrNull()?.toTeamRoleDefinition()
     }
-
-    suspend fun hasPermission(teamId: Long, accountId: Long, permission: String): Boolean =
-        findAccountRoles(pool, teamId, accountId).any { it.permissions[permission] == true }
 
     internal suspend fun isTeamDeleted(client: SqlClient, teamId: Long): Boolean {
         val rows = client.preparedQuery(
@@ -183,9 +180,6 @@ class TeamRoleRepository(private val pool: Pool) {
         ).execute(Tuple.of(teamId, accountId)).coAwait()
         return rows.map { it.toTeamRoleDefinition() }
     }
-
-    suspend fun findAssignment(accountId: Long, teamId: Long, roleId: Long): AccountTeamRole? =
-        findAssignment(pool, accountId, teamId, roleId)
 
     internal suspend fun findAssignment(
         client: SqlClient,
