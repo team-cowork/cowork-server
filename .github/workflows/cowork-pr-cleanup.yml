@@ -54,19 +54,24 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      pull-requests: read
+      pull-requests: write
     steps:
       - name: Delete Merged Head Branch
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          # Keep a branch that an open PR still uses as its base.
-          dependents=$(gh pr list --repo "$GITHUB_REPOSITORY" --base "$HEAD_REF" --state open --json number --jq length)
-          if [ "$dependents" -gt 0 ]; then
-            echo "Keep $HEAD_REF because $dependents open PR(s) use it as the base."
-            exit 0
-          fi
+          # Retarget stacked PRs first so that their later merges reach the merged PR's base.
+          dependents=$(gh api -X GET "repos/$GITHUB_REPOSITORY/pulls" --paginate \
+            -f state=open -f base="$HEAD_REF" --jq '.[].number')
+          for number in $dependents; do
+            if ! gh api -X PATCH "repos/$GITHUB_REPOSITORY/pulls/$number" -f base="$BASE_REF" --silent; then
+              echo "::warning::Keep $HEAD_REF because PR #$number could not be retargeted to $BASE_REF."
+              exit 0
+            fi
+            echo "Retargeted PR #$number to $BASE_REF."
+          done
           if gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$HEAD_REF"; then
             echo "Deleted $HEAD_REF."
           else
