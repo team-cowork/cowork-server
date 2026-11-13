@@ -14,7 +14,7 @@ class TeamMemberProjectionRepository {
             """
             INSERT INTO tb_team_member_projections
                 (team_id, account_id, built_in_role, deleted, source_occurred_at, authorization_version)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6)
+            VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT (team_id, account_id)
             DO UPDATE SET
                 built_in_role = EXCLUDED.built_in_role,
@@ -51,7 +51,7 @@ class TeamMemberProjectionRepository {
             """
             SELECT team_id, account_id, built_in_role, deleted, source_occurred_at, authorization_version
             FROM tb_team_member_projections
-            WHERE team_id = ${'$'}1 AND account_id = ${'$'}2
+            WHERE team_id = $1 AND account_id = $2
             FOR SHARE
             """.trimIndent(),
         ).execute(Tuple.of(teamId, accountId)).coAwait()
@@ -64,7 +64,7 @@ class TeamMemberProjectionRepository {
             """
             SELECT team_id, account_id, built_in_role, deleted, source_occurred_at, authorization_version
             FROM tb_team_member_projections
-            WHERE team_id = ${'$'}1 AND account_id = ${'$'}2
+            WHERE team_id = $1 AND account_id = $2
             """.trimIndent(),
         ).execute(Tuple.of(teamId, accountId)).coAwait()
         return rows.firstOrNull()?.toProjection()
