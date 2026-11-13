@@ -17,7 +17,7 @@ class PreferenceRepository(private val pool: Pool) {
     suspend fun findSettings(resourceId: Long, resourceType: ResourceType): ResourceSettingState? {
         val rows = pool.preparedQuery(
             "SELECT resource_id, settings, state_occurred_at FROM resource_setting " +
-                "WHERE resource_id = \$1 AND resource_type = \$2::resource_type",
+                "WHERE resource_id = $1 AND resource_type = $2::resource_type",
         ).execute(Tuple.of(resourceId, resourceType.name)).coAwait()
         return rows.firstOrNull()?.toResourceSettingState()
     }
@@ -34,10 +34,10 @@ class PreferenceRepository(private val pool: Pool) {
             WITH before_update AS (
                 SELECT settings->>'status' AS prev_status
                 FROM resource_setting
-                WHERE resource_id = ${'$'}1 AND resource_type = ${'$'}2::resource_type
+                WHERE resource_id = $1 AND resource_type = $2::resource_type
             )
             INSERT INTO resource_setting (resource_id, resource_type, settings)
-            VALUES (${'$'}1, ${'$'}2::resource_type, ${'$'}3::jsonb)
+            VALUES ($1, $2::resource_type, $3::jsonb)
             ON CONFLICT (resource_id, resource_type)
             DO UPDATE SET settings = resource_setting.settings || EXCLUDED.settings
             RETURNING settings, updated_at, state_occurred_at,
@@ -46,7 +46,7 @@ class PreferenceRepository(private val pool: Pool) {
         } else {
             """
             INSERT INTO resource_setting (resource_id, resource_type, settings)
-            VALUES (${'$'}1, ${'$'}2::resource_type, ${'$'}3::jsonb)
+            VALUES ($1, $2::resource_type, $3::jsonb)
             ON CONFLICT (resource_id, resource_type)
             DO UPDATE SET settings = resource_setting.settings || EXCLUDED.settings
             RETURNING settings, updated_at, state_occurred_at
@@ -71,7 +71,7 @@ class PreferenceRepository(private val pool: Pool) {
             """
             WITH removed_tombstone AS (
                 DELETE FROM tb_github_repo_setting_tombstones
-                WHERE repo_id = ${'$'}1
+                WHERE repo_id = $1
                 RETURNING source_occurred_at
             ),
             next_state AS (
@@ -84,7 +84,7 @@ class PreferenceRepository(private val pool: Pool) {
                 ) AS state_occurred_at
             )
             INSERT INTO resource_setting (resource_id, resource_type, settings, state_occurred_at)
-            SELECT ${'$'}1, 'GITHUB_REPO'::resource_type, ${'$'}2::jsonb, state_occurred_at
+            SELECT $1, 'GITHUB_REPO'::resource_type, $2::jsonb, state_occurred_at
             FROM next_state
             ON CONFLICT (resource_id, resource_type)
             DO UPDATE SET
@@ -112,17 +112,17 @@ class PreferenceRepository(private val pool: Pool) {
             WITH active_states AS (
                 SELECT resource_id AS repo_id, settings, state_occurred_at
                 FROM resource_setting
-                WHERE resource_type = 'GITHUB_REPO' AND resource_id > ${'$'}1
+                WHERE resource_type = 'GITHUB_REPO' AND resource_id > $1
                 ORDER BY resource_id
-                LIMIT ${'$'}2
+                LIMIT $2
                 FOR SHARE
             ),
             deleted_states AS (
                 SELECT repo_id, NULL::jsonb AS settings, source_occurred_at AS state_occurred_at
                 FROM tb_github_repo_setting_tombstones
-                WHERE repo_id > ${'$'}1
+                WHERE repo_id > $1
                 ORDER BY repo_id
-                LIMIT ${'$'}2
+                LIMIT $2
                 FOR SHARE
             ),
             latest_states AS (
@@ -133,7 +133,7 @@ class PreferenceRepository(private val pool: Pool) {
             SELECT repo_id, settings, state_occurred_at
             FROM latest_states
             ORDER BY repo_id
-            LIMIT ${'$'}2
+            LIMIT $2
             """.trimIndent(),
         ).execute(Tuple.of(afterRepoId, limit)).coAwait()
         return rows.map { row ->
@@ -150,7 +150,7 @@ class PreferenceRepository(private val pool: Pool) {
             """
             WITH deleted_setting AS (
                 DELETE FROM resource_setting
-                WHERE resource_id = ${'$'}1 AND resource_type = 'GITHUB_REPO'
+                WHERE resource_id = $1 AND resource_type = 'GITHUB_REPO'
                 RETURNING state_occurred_at
             ),
             next_tombstone AS (
@@ -164,14 +164,14 @@ class PreferenceRepository(private val pool: Pool) {
                         (
                             SELECT source_occurred_at + INTERVAL '1 microsecond'
                             FROM tb_github_repo_setting_tombstones
-                            WHERE repo_id = ${'$'}1
+                            WHERE repo_id = $1
                         ),
                         '-infinity'::timestamptz
                     )
                 ) AS source_occurred_at
             )
             INSERT INTO tb_github_repo_setting_tombstones (repo_id, source_occurred_at)
-            SELECT ${'$'}1, source_occurred_at FROM next_tombstone
+            SELECT $1, source_occurred_at FROM next_tombstone
             ON CONFLICT (repo_id) DO UPDATE SET
                 source_occurred_at = GREATEST(
                     EXCLUDED.source_occurred_at,
@@ -210,7 +210,7 @@ class PreferenceRepository(private val pool: Pool) {
             """
             UPDATE resource_setting
             SET settings = settings - 'status' - 'status_expires_at'
-            WHERE resource_id = ANY(${'$'}1) AND resource_type = 'ACCOUNT'
+            WHERE resource_id = ANY($1) AND resource_type = 'ACCOUNT'
             RETURNING resource_id, settings, state_occurred_at
             """.trimIndent(),
         ).execute(Tuple.of(resourceIds.toTypedArray<Long>())).coAwait()
@@ -227,9 +227,9 @@ class PreferenceRepository(private val pool: Pool) {
             """
             SELECT resource_id, settings, state_occurred_at
             FROM resource_setting
-            WHERE resource_type = ${'$'}1::resource_type AND resource_id > ${'$'}2
+            WHERE resource_type = $1::resource_type AND resource_id > $2
             ORDER BY resource_id
-            LIMIT ${'$'}3
+            LIMIT $3
             FOR SHARE
             """.trimIndent(),
         ).execute(Tuple.of(resourceType.name, afterResourceId, limit)).coAwait()
