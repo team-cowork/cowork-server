@@ -24,7 +24,7 @@ class ProjectionCheckpointRepository(private val pool: Pool) {
             """
             SELECT partition_id, topic_id, target_offset
             FROM tb_projection_consumer_barriers
-            WHERE consumer_group = ${'$'}1 AND topic = ${'$'}2
+            WHERE consumer_group = $1 AND topic = $2
             """.trimIndent(),
         ).execute(Tuple.of(consumerGroup, topic)).coAwait()
         return rows.associate { row ->
@@ -67,10 +67,10 @@ class ProjectionCheckpointRepository(private val pool: Pool) {
             val updated = connection.preparedQuery(
                 """
                 UPDATE tb_projection_consumer_checkpoints
-                SET snapshot_completed_offset = GREATEST(COALESCE(snapshot_completed_offset, -1), ${'$'}1),
+                SET snapshot_completed_offset = GREATEST(COALESCE(snapshot_completed_offset, -1), $1),
                     updated_at = now()
-                WHERE consumer_group = ${'$'}2 AND topic = ${'$'}3 AND partition_id = ${'$'}4
-                  AND topic_id = ${'$'}5
+                WHERE consumer_group = $2 AND topic = $3 AND partition_id = $4
+                  AND topic_id = $5
                 """.trimIndent(),
             ).execute(
                 Tuple.of(
@@ -92,7 +92,7 @@ class ProjectionCheckpointRepository(private val pool: Pool) {
                 """
                 INSERT INTO tb_projection_quarantine
                     (consumer_group, topic, partition_id, record_offset, record_key, payload, reason)
-                VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6, ${'$'}7)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 ON CONFLICT (consumer_group, topic, partition_id, record_offset) DO NOTHING
                 """.trimIndent(),
             ).execute(
@@ -123,7 +123,7 @@ class ProjectionCheckpointRepository(private val pool: Pool) {
             SELECT partition_id, topic_id, next_offset, invalid_checkpoint_offset,
                    invalid_record_offset, snapshot_completed_offset
             FROM tb_projection_consumer_checkpoints
-            WHERE consumer_group = ${'$'}1 AND topic = ${'$'}2
+            WHERE consumer_group = $1 AND topic = $2
             """.trimIndent(),
         ).execute(Tuple.of(consumerGroup, topic)).coAwait()
         return rows.associate { row ->
@@ -152,7 +152,7 @@ class ProjectionCheckpointRepository(private val pool: Pool) {
             """
             INSERT INTO tb_projection_consumer_barriers
                 (consumer_group, topic, partition_id, topic_id, target_offset)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5)
+            VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (consumer_group, topic, partition_id)
             DO UPDATE SET
                 target_offset = CASE
@@ -178,7 +178,7 @@ class ProjectionCheckpointRepository(private val pool: Pool) {
             INSERT INTO tb_projection_consumer_checkpoints
                 (consumer_group, topic, partition_id, topic_id, next_offset,
                  invalid_checkpoint_offset, snapshot_completed_offset)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6, NULL)
+            VALUES ($1, $2, $3, $4, $5, $6, NULL)
             ON CONFLICT (consumer_group, topic, partition_id)
             DO UPDATE SET
                 snapshot_completed_offset = CASE
@@ -213,7 +213,7 @@ class ProjectionCheckpointRepository(private val pool: Pool) {
             """
             INSERT INTO tb_projection_consumer_checkpoints
                 (consumer_group, topic, partition_id, topic_id, next_offset)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5)
+            VALUES ($1, $2, $3, $4, $5)
             ON CONFLICT (consumer_group, topic, partition_id)
             DO UPDATE SET
                 next_offset = GREATEST(tb_projection_consumer_checkpoints.next_offset, EXCLUDED.next_offset),
@@ -229,11 +229,11 @@ class ProjectionCheckpointRepository(private val pool: Pool) {
         val updated = connection.preparedQuery(
             """
             UPDATE tb_projection_consumer_checkpoints
-            SET next_offset = GREATEST(next_offset, ${'$'}1),
-                invalid_record_offset = GREATEST(COALESCE(invalid_record_offset, -1), ${'$'}2),
+            SET next_offset = GREATEST(next_offset, $1),
+                invalid_record_offset = GREATEST(COALESCE(invalid_record_offset, -1), $2),
                 updated_at = now()
-            WHERE consumer_group = ${'$'}3 AND topic = ${'$'}4 AND partition_id = ${'$'}5
-              AND topic_id = ${'$'}6
+            WHERE consumer_group = $3 AND topic = $4 AND partition_id = $5
+              AND topic_id = $6
             """.trimIndent(),
         ).execute(
             Tuple.of(

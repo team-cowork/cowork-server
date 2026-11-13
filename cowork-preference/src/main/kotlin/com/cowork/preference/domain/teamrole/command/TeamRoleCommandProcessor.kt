@@ -262,12 +262,16 @@ class TeamRoleCommandProcessor(
             occurredAt,
         )
         val roleEvent = TeamRoleEvents.roleDeleted(command.teamId, roleId, roleTombstone.stateOccurredAt)
-        val events = policyEvents + assignmentTombstones.map { tombstone ->
-            TeamRoleEvents.assignmentDeleted(
-                AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
-                tombstone.stateOccurredAt,
-            )
-        } + roleEvent
+        val events = buildList {
+            addAll(policyEvents)
+            assignmentTombstones.mapTo(this) { tombstone ->
+                TeamRoleEvents.assignmentDeleted(
+                    AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
+                    tombstone.stateOccurredAt,
+                )
+            }
+            add(roleEvent)
+        }
         projectAccess.refreshTeam(connection, command.teamId)
         return success(command, null, roleEvent, deleted = true, stateEvents = events)
     }

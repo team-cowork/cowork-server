@@ -12,6 +12,7 @@ import com.cowork.preference.domain.access.service.TeamMembershipGuard
 import com.cowork.preference.domain.setting.model.ResourceType
 import com.cowork.preference.domain.setting.model.SettingSchema
 import com.cowork.preference.domain.setting.service.PreferenceService
+import com.cowork.preference.global.coroutine.runCatchingCancellable
 import com.cowork.preference.global.security.RequesterContext
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
@@ -58,7 +59,7 @@ class PreferenceHandler(
             return@handler
         }
         scope.launch(ctx.vertx().dispatcher()) {
-            runCatching {
+            runCatchingCancellable {
                 requireReadAccess(resourceType, resourceId, requester)
                 service.getSettings(resourceType, resourceId)
             }
@@ -85,7 +86,7 @@ class PreferenceHandler(
             return@handler
         }
         scope.launch(ctx.vertx().dispatcher()) {
-            runCatching {
+            runCatchingCancellable {
                 requireWriteAccess(resourceType, resourceId, requester, body)
                 service.updateSettings(resourceType, resourceId, body).getOrThrow()
             }

@@ -48,12 +48,12 @@ class KafkaOutboxRelay(
     private val kafkaTemplate: KafkaTemplate<String, Any>,
     private val objectMapper: ObjectMapper,
     private val meterRegistry: MeterRegistry,
-    @Value("\${kafka.outbox.batch-size:100}") batchSize: Int,
-    @Value("\${kafka.outbox.claim-lease-ms:30000}") claimLeaseMs: Long,
-    @Value("\${kafka.outbox.send-timeout-ms:10000}") sendTimeoutMs: Long,
-    @Value("\${kafka.outbox.max-attempts:8}") maxAttempts: Int,
-    @Value("\${kafka.outbox.backoff-initial-ms:5000}") backoffInitialMs: Long,
-    @Value("\${kafka.outbox.backoff-max-ms:600000}") backoffMaxMs: Long,
+    @Value($$"${kafka.outbox.batch-size:100}") batchSize: Int,
+    @Value($$"${kafka.outbox.claim-lease-ms:30000}") claimLeaseMs: Long,
+    @Value($$"${kafka.outbox.send-timeout-ms:10000}") sendTimeoutMs: Long,
+    @Value($$"${kafka.outbox.max-attempts:8}") maxAttempts: Int,
+    @Value($$"${kafka.outbox.backoff-initial-ms:5000}") backoffInitialMs: Long,
+    @Value($$"${kafka.outbox.backoff-max-ms:600000}") backoffMaxMs: Long,
 ) {
     private val serviceName = "cowork-channel"
     private val settings = OutboxRelaySettings(
@@ -108,8 +108,8 @@ class KafkaOutboxRelay(
     }
 
     @Scheduled(
-        initialDelayString = "\${kafka.outbox.relay-initial-delay-ms:1000}",
-        fixedDelayString = "\${kafka.outbox.relay-delay-ms:1000}",
+        initialDelayString = $$"${kafka.outbox.relay-initial-delay-ms:1000}",
+        fixedDelayString = $$"${kafka.outbox.relay-delay-ms:1000}",
     )
     fun relayPendingEvents() {
         if (closed.get() || !running.compareAndSet(false, true)) {

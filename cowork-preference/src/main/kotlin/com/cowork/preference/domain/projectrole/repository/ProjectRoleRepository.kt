@@ -17,7 +17,7 @@ class ProjectRoleRepository(private val pool: Pool) {
                 "JOIN tb_project_lifecycle_projections p ON p.project_id = a.project_id AND NOT p.deleted " +
                 "JOIN tb_team_member_projections m ON m.team_id = p.team_id AND m.account_id = a.account_id " +
                 "AND NOT m.deleted " +
-                "WHERE a.project_id = \$1 AND a.account_id = \$2 " +
+                "WHERE a.project_id = $1 AND a.account_id = $2 " +
                 "AND a.source_authorization_version = " +
                 "m.authorization_version",
         ).execute(Tuple.of(projectId, accountId)).coAwait()
@@ -38,7 +38,7 @@ class ProjectRoleRepository(private val pool: Pool) {
 
     suspend fun findRoles(projectId: Long): List<ProjectRoleDefinition> {
         val rows = pool.preparedQuery(
-            "SELECT project_id, role_name, permissions, priority FROM project_role_definition WHERE project_id = \$1",
+            "SELECT project_id, role_name, permissions, priority FROM project_role_definition WHERE project_id = $1",
         ).execute(Tuple.of(projectId)).coAwait()
         return rows.map {
             ProjectRoleDefinition(
@@ -52,7 +52,7 @@ class ProjectRoleRepository(private val pool: Pool) {
 
     suspend fun findRole(projectId: Long, roleName: String, client: SqlClient = pool): ProjectRoleDefinition? {
         val rows = client.preparedQuery(
-            "SELECT project_id, role_name, permissions, priority FROM project_role_definition WHERE project_id = \$1 AND role_name = \$2",
+            "SELECT project_id, role_name, permissions, priority FROM project_role_definition WHERE project_id = $1 AND role_name = $2",
         ).execute(Tuple.of(projectId, roleName)).coAwait()
         return rows.firstOrNull()?.let {
             ProjectRoleDefinition(
@@ -72,19 +72,19 @@ class ProjectRoleRepository(private val pool: Pool) {
         client: SqlClient = pool,
     ) {
         client.preparedQuery(
-            "INSERT INTO project_role_definition (project_id, role_name, permissions, priority) VALUES (\$1, \$2, \$3::jsonb, \$4)",
+            "INSERT INTO project_role_definition (project_id, role_name, permissions, priority) VALUES ($1, $2, $3::jsonb, $4)",
         ).execute(Tuple.of(projectId, roleName, permissions, priority)).coAwait()
     }
 
     suspend fun deleteRole(projectId: Long, roleName: String, client: SqlClient = pool) {
         client.preparedQuery(
-            "DELETE FROM project_role_definition WHERE project_id = \$1 AND role_name = \$2",
+            "DELETE FROM project_role_definition WHERE project_id = $1 AND role_name = $2",
         ).execute(Tuple.of(projectId, roleName)).coAwait()
     }
 
     suspend fun findMemberRoles(projectId: Long, client: SqlClient = pool): List<AccountProjectRole> {
         val rows = client.preparedQuery(
-            "SELECT account_id, project_id, role_name FROM account_project_role WHERE project_id = \$1",
+            "SELECT account_id, project_id, role_name FROM account_project_role WHERE project_id = $1",
         ).execute(Tuple.of(projectId)).coAwait()
         return rows.map {
             AccountProjectRole(
@@ -99,12 +99,12 @@ class ProjectRoleRepository(private val pool: Pool) {
         val member = client.preparedQuery(
             "SELECT m.account_id, m.source_occurred_at FROM tb_project_lifecycle_projections p " +
                 "JOIN tb_team_member_projections m ON m.team_id = p.team_id " +
-                "WHERE p.project_id = \$1 AND m.account_id = \$2 AND NOT p.deleted AND NOT m.deleted FOR UPDATE OF p FOR SHARE OF m",
+                "WHERE p.project_id = $1 AND m.account_id = $2 AND NOT p.deleted AND NOT m.deleted FOR UPDATE OF p FOR SHARE OF m",
         ).execute(Tuple.of(projectId, accountId)).coAwait()
         val membership = requireNotNull(member.firstOrNull()) { "Target must be an active team member" }
         client.preparedQuery(
             "INSERT INTO account_project_role (account_id, project_id, role_name, source_membership_version) " +
-                "VALUES (\$1, \$2, \$3, \$4) " +
+                "VALUES ($1, $2, $3, $4) " +
                 "ON CONFLICT (account_id, project_id, role_name) DO UPDATE SET " +
                 "source_membership_version = GREATEST(account_project_role.source_membership_version, EXCLUDED.source_membership_version)",
         ).execute(
@@ -114,7 +114,7 @@ class ProjectRoleRepository(private val pool: Pool) {
 
     suspend fun removeRole(accountId: Long, projectId: Long, roleName: String, client: SqlClient = pool) {
         client.preparedQuery(
-            "DELETE FROM account_project_role WHERE account_id = \$1 AND project_id = \$2 AND role_name = \$3",
+            "DELETE FROM account_project_role WHERE account_id = $1 AND project_id = $2 AND role_name = $3",
         ).execute(Tuple.of(accountId, projectId, roleName)).coAwait()
     }
 }
