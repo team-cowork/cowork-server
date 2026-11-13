@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	livekit "github.com/livekit/protocol/livekit"
+	"github.com/livekit/protocol/livekit"
 
 	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"

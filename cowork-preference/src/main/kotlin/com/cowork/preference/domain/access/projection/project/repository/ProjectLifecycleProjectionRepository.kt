@@ -13,7 +13,7 @@ class ProjectLifecycleProjectionRepository {
         val rows = client.preparedQuery(
             """
             INSERT INTO tb_project_lifecycle_projections (project_id, team_id, deleted, source_occurred_at, created_by, is_private)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6)
+            VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT (project_id)
             DO UPDATE SET
                 team_id = EXCLUDED.team_id,
@@ -50,7 +50,7 @@ class ProjectLifecycleProjectionRepository {
             """
             SELECT project_id, team_id, deleted, source_occurred_at, created_by, is_private
             FROM tb_project_lifecycle_projections
-            WHERE project_id = ${'$'}1
+            WHERE project_id = $1
             """.trimIndent(),
         ).execute(Tuple.of(projectId)).coAwait()
         return rows.firstOrNull()?.let {

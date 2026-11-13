@@ -22,7 +22,7 @@ class PreferenceTeamRoleCommandResultConsumer(
 ) {
     @KafkaListener(
         topics = [TeamRoleContractTopics.RESULT],
-        groupId = "\${KAFKA_GROUP_ID_TEAM_ROLE_COMMAND_RESULT:cowork-team.team-role-command-result}",
+        groupId = $$"${KAFKA_GROUP_ID_TEAM_ROLE_COMMAND_RESULT:cowork-team.team-role-command-result}",
         containerFactory = "teamRoleCommandResultListenerContainerFactory",
     )
     @Transactional

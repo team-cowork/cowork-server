@@ -11,7 +11,7 @@ import org.springframework.stereotype.Component
 
 @Component
 class WebhookSignatureGatewayFilterFactory(
-    @param:Value("\${WEBHOOK_URL_SIGNING_KEY:\${webhook.url-signing-key:}}") encodedKey: String,
+    @param:Value($$"${WEBHOOK_URL_SIGNING_KEY:${webhook.url-signing-key:}}") encodedKey: String,
     meterRegistry: MeterRegistry,
 ) : AbstractGatewayFilterFactory<WebhookSignatureGatewayFilterFactory.Config>(Config::class.java) {
     class Config

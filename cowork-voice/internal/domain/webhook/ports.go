@@ -28,7 +28,7 @@ type LiveSessionRepository interface {
 	CleanupOrphanViewers(ctx context.Context, sessionID string, now time.Time) (int64, error)
 }
 
-// LiveRoomController는 호스트 이탈 시 방을 폭파해 방송을 종료하는 데 쓰인다.
+// LiveRoomController 인터페이스는 호스트 이탈 시 방을 폭파해 방송을 종료하는 데 쓰인다.
 type LiveRoomController interface {
 	DeleteRoom(ctx context.Context, roomName string) error
 }

@@ -18,7 +18,7 @@ class ChannelLifecycleProjectionRepository {
             """
             INSERT INTO tb_channel_lifecycle_projections
                 (channel_id, team_id, deleted, is_private, source_occurred_at, channel_type, archived)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6, ${'$'}7)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             ON CONFLICT (channel_id)
             DO UPDATE SET
                 team_id = EXCLUDED.team_id,
@@ -65,7 +65,7 @@ class ChannelLifecycleProjectionRepository {
             """
             SELECT channel_id, team_id, deleted, is_private, source_occurred_at, channel_type, archived
             FROM tb_channel_lifecycle_projections
-            WHERE channel_id = ${'$'}1
+            WHERE channel_id = $1
             FOR UPDATE
             """.trimIndent(),
         ).execute(Tuple.of(channelId)).coAwait()
@@ -78,7 +78,7 @@ class ChannelLifecycleProjectionRepository {
             """
             SELECT channel_id, team_id, deleted, is_private, source_occurred_at, channel_type, archived
             FROM tb_channel_lifecycle_projections
-            WHERE channel_id = ${'$'}1
+            WHERE channel_id = $1
             """.trimIndent(),
         ).execute(Tuple.of(channelId)).coAwait()
         return rows.firstOrNull()?.toProjection()

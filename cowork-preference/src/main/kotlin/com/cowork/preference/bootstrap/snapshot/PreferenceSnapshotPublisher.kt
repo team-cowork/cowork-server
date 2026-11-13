@@ -14,6 +14,7 @@ import com.cowork.preference.domain.teamrole.model.AccountTeamRole
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
 import com.cowork.preference.domain.webhook.event.WebhookEvents
 import com.cowork.preference.domain.webhook.repository.WebhookRepository
+import com.cowork.preference.global.coroutine.runCatchingCancellable
 import com.cowork.preference.global.messaging.event.PreferenceEvent
 import com.cowork.preference.global.messaging.event.PreferenceTopics
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
@@ -136,7 +137,7 @@ class PreferenceSnapshotPublisher(
             log.info("Deferred {} projection snapshot until upstream projections are ready", aggregate)
             return false
         }
-        return runCatching {
+        return runCatchingCancellable {
             outboxRepository.withProjectionSnapshotLock { connection ->
                 val counts = publishStates(connection)
                 check(upstreamReadiness?.isReady != false) {
@@ -163,7 +164,7 @@ class PreferenceSnapshotPublisher(
         }
     }
 
-    private suspend fun publishNotificationSettings(connection: io.vertx.sqlclient.SqlConnection): Int {
+    private suspend fun publishNotificationSettings(connection: SqlConnection): Int {
         var afterAccountId = -1L
         var afterChannelId = -1L
         var published = 0
@@ -189,7 +190,7 @@ class PreferenceSnapshotPublisher(
         }
     }
 
-    private suspend fun publishRoles(connection: io.vertx.sqlclient.SqlConnection): Int {
+    private suspend fun publishRoles(connection: SqlConnection): Int {
         var afterTeamId = -1L
         var afterRoleId = -1L
         var published = 0
@@ -219,7 +220,7 @@ class PreferenceSnapshotPublisher(
         }
     }
 
-    private suspend fun publishAssignments(connection: io.vertx.sqlclient.SqlConnection): Int {
+    private suspend fun publishAssignments(connection: SqlConnection): Int {
         var afterTeamId = -1L
         var afterAccountId = -1L
         var afterRoleId = -1L
@@ -259,7 +260,7 @@ class PreferenceSnapshotPublisher(
         }
     }
 
-    private suspend fun publishMemberFences(connection: io.vertx.sqlclient.SqlConnection): Int {
+    private suspend fun publishMemberFences(connection: SqlConnection): Int {
         var afterTeamId = -1L
         var afterAccountId = -1L
         var published = 0
@@ -291,7 +292,7 @@ class PreferenceSnapshotPublisher(
         }
     }
 
-    private suspend fun publishGithubRepoSettings(connection: io.vertx.sqlclient.SqlConnection): Int {
+    private suspend fun publishGithubRepoSettings(connection: SqlConnection): Int {
         var afterRepoId = 0L
         var published = 0
         while (true) {
@@ -344,7 +345,7 @@ class PreferenceSnapshotPublisher(
         }
     }
 
-    private suspend fun publishChannelRolePolicies(connection: io.vertx.sqlclient.SqlConnection): Int {
+    private suspend fun publishChannelRolePolicies(connection: SqlConnection): Int {
         var afterTeamId = -1L
         var afterChannelId = -1L
         var afterRoleId = -1L
