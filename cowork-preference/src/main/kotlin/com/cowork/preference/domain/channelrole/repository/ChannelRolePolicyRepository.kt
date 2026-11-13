@@ -4,23 +4,11 @@ import com.cowork.preference.domain.channelrole.model.ChannelRolePermissionResol
 import com.cowork.preference.domain.channelrole.model.ChannelRolePolicyState
 import io.vertx.core.json.JsonObject
 import io.vertx.kotlin.coroutines.coAwait
-import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
-class ChannelRolePolicyRepository(private val pool: Pool) {
-
-    suspend fun findPolicy(teamId: Long, channelId: Long, roleId: Long): ChannelRolePolicyState? =
-        findPolicy(pool, teamId, channelId, roleId)
-
-    suspend fun canAccess(
-        teamId: Long,
-        accountId: Long,
-        channelId: Long,
-        permission: String,
-        isPrivate: Boolean,
-    ): Boolean = canAccess(pool, teamId, accountId, channelId, permission, isPrivate)
+class ChannelRolePolicyRepository {
 
     internal suspend fun canAccess(
         client: SqlClient,
