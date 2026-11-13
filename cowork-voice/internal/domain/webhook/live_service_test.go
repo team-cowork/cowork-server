@@ -7,18 +7,18 @@ import (
 
 	"github.com/livekit/protocol/livekit"
 
-	livedomain "github.com/cowork/cowork-voice/internal/domain/live_room"
+	"github.com/cowork/cowork-voice/internal/domain/liveroom"
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
-func activeLiveSession() *livedomain.LiveSession {
-	return &livedomain.LiveSession{
+func activeLiveSession() *liveroom.Session {
+	return &liveroom.Session{
 		SessionID:  "session-1",
 		ChannelID:  123,
 		TeamID:     456,
 		HostUserID: 42,
 		RoomName:   "live-123-session-1",
-		Status:     livedomain.StatusActive,
+		Status:     liveroom.StatusActive,
 		StartedAt:  time.Unix(1700000000, 0).UTC(),
 	}
 }
@@ -31,7 +31,7 @@ func TestLiveWebhookService(t *testing.T) {
 			findSessionByRoomNameResult: activeLiveSession(),
 			markSessionStartedResult:    true,
 		}
-		svc := NewLiveWebhookService(repo, &stubLiveRoomController{})
+		svc := NewLiveService(repo, &stubLiveRoomController{})
 		svc.now = func() time.Time { return time.Unix(1700000300, 0).UTC() }
 
 		if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -63,7 +63,7 @@ func TestLiveWebhookService(t *testing.T) {
 		repo := &stubLiveSessionRepository{
 			findSessionByRoomNameResult: activeLiveSession(),
 		}
-		svc := NewLiveWebhookService(repo, &stubLiveRoomController{})
+		svc := NewLiveService(repo, &stubLiveRoomController{})
 		svc.now = func() time.Time { return time.Unix(1700000300, 0).UTC() }
 
 		if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -96,7 +96,7 @@ func TestLiveWebhookService(t *testing.T) {
 			findSessionByRoomNameResult: activeLiveSession(),
 		}
 		room := &stubLiveRoomController{}
-		svc := NewLiveWebhookService(repo, room)
+		svc := NewLiveService(repo, room)
 		svc.now = func() time.Time { return time.Unix(1700000300, 0).UTC() }
 
 		if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -128,7 +128,7 @@ func TestLiveWebhookService(t *testing.T) {
 			getViewerJoinedAtResult:     &joinedAt,
 			markViewerLeftResult:        true,
 		}
-		svc := NewLiveWebhookService(repo, &stubLiveRoomController{})
+		svc := NewLiveService(repo, &stubLiveRoomController{})
 		svc.now = func() time.Time { return time.Unix(1700000300, 0).UTC() }
 
 		if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -164,7 +164,7 @@ func TestLiveWebhookService(t *testing.T) {
 			endSessionResult:            true,
 			cleanupOrphanViewersResult:  2,
 		}
-		svc := NewLiveWebhookService(repo, &stubLiveRoomController{})
+		svc := NewLiveService(repo, &stubLiveRoomController{})
 		svc.now = func() time.Time { return time.Unix(1700000600, 0).UTC() }
 
 		if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -196,7 +196,7 @@ func TestLiveWebhookService(t *testing.T) {
 		t.Parallel()
 
 		repo := &stubLiveSessionRepository{}
-		svc := NewLiveWebhookService(repo, &stubLiveRoomController{})
+		svc := NewLiveService(repo, &stubLiveRoomController{})
 		svc.now = func() time.Time { return time.Unix(1700000300, 0).UTC() }
 
 		if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -224,7 +224,7 @@ func (s *stubLiveRoomController) DeleteRoom(_ context.Context, roomName string) 
 }
 
 type stubLiveSessionRepository struct {
-	findSessionByRoomNameResult *livedomain.LiveSession
+	findSessionByRoomNameResult *liveroom.Session
 	findSessionByRoomNameErr    error
 	markSessionStartedResult    bool
 	markSessionStartedErr       error
@@ -243,7 +243,7 @@ type stubLiveSessionRepository struct {
 	messages                    []publishedMessage
 }
 
-func (s *stubLiveSessionRepository) FindSessionByRoomName(_ context.Context, _ string) (*livedomain.LiveSession, error) {
+func (s *stubLiveSessionRepository) FindSessionByRoomName(_ context.Context, _ string) (*liveroom.Session, error) {
 	return s.findSessionByRoomNameResult, s.findSessionByRoomNameErr
 }
 
@@ -261,7 +261,7 @@ func (s *stubLiveSessionRepository) MarkSessionStartedAndEnqueue(
 
 func (s *stubLiveSessionRepository) RecordViewerJoinedAndEnqueue(
 	_ context.Context,
-	viewer *livedomain.LiveViewer,
+	viewer *liveroom.Viewer,
 	_ string,
 	event any,
 ) (bool, error) {

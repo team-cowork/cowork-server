@@ -19,7 +19,7 @@ func paths() *openapi3.Paths {
 			}},
 		},
 		Responses: openapi3.NewResponses(
-			openapi3.WithName("200", jsonResponse("방송 상태와 시청자 수", "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_live_room_StatusResponse")),
+			openapi3.WithName("200", jsonResponse("방송 상태와 시청자 수", "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_liveroom_StatusResponse")),
 			openapi3.WithName("400", jsonResponse("채널 ID 형식 오류", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
 			openapi3.WithName("401", jsonResponse("인증 필요", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
 			openapi3.WithName("403", jsonResponse("음성 채널 접근 권한 없음", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
@@ -42,7 +42,7 @@ func paths() *openapi3.Paths {
 			}},
 		},
 		Responses: openapi3.NewResponses(
-			openapi3.WithName("200", jsonResponse("접속 토큰과 세션 정보", "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_live_room_JoinResponse")),
+			openapi3.WithName("200", jsonResponse("접속 토큰과 세션 정보", "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_liveroom_JoinResponse")),
 			openapi3.WithName("400", jsonResponse("채널 ID 형식 오류", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
 			openapi3.WithName("401", jsonResponse("인증 필요", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
 			openapi3.WithName("403", jsonResponse("음성 채널 접근 권한 없음", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
@@ -90,7 +90,7 @@ func paths() *openapi3.Paths {
 			}},
 		},
 		Responses: openapi3.NewResponses(
-			openapi3.WithName("200", jsonResponse("호스트 접속 토큰과 세션 정보", "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_live_room_StartResponse")),
+			openapi3.WithName("200", jsonResponse("호스트 접속 토큰과 세션 정보", "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_liveroom_StartResponse")),
 			openapi3.WithName("400", jsonResponse("채널 ID 형식 오류", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
 			openapi3.WithName("401", jsonResponse("인증 필요", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
 			openapi3.WithName("403", jsonResponse("음성 채널 접근 또는 방송 권한 없음", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
@@ -114,7 +114,7 @@ func paths() *openapi3.Paths {
 			}},
 		},
 		Responses: openapi3.NewResponses(
-			openapi3.WithName("200", jsonResponse("접속 토큰과 세션 정보", "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voice_room_JoinResponse")),
+			openapi3.WithName("200", jsonResponse("접속 토큰과 세션 정보", "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voiceroom_JoinResponse")),
 			openapi3.WithName("400", jsonResponse("채널 ID 형식 오류", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
 			openapi3.WithName("401", jsonResponse("인증 필요", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
 			openapi3.WithName("403", jsonResponse("음성 채널 접근 권한 없음", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
@@ -163,7 +163,7 @@ func paths() *openapi3.Paths {
 			}},
 		},
 		Responses: openapi3.NewResponses(
-			openapi3.WithName("200", jsonResponse("현재 참여자 목록", "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voice_room_ParticipantsResponse")),
+			openapi3.WithName("200", jsonResponse("현재 참여자 목록", "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voiceroom_ParticipantsResponse")),
 			openapi3.WithName("400", jsonResponse("채널 ID 형식 오류", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
 			openapi3.WithName("401", jsonResponse("인증 필요", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
 			openapi3.WithName("403", jsonResponse("음성 채널 접근 권한 없음", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
@@ -186,7 +186,7 @@ func paths() *openapi3.Paths {
 			}},
 		},
 		Responses: openapi3.NewResponses(
-			openapi3.WithName("200", jsonResponse("음성 세션 정보", "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voice_room_SessionResponse")),
+			openapi3.WithName("200", jsonResponse("음성 세션 정보", "github_com_cowork_cowork-voice_internal_apidoc.Success-internal_domain_voiceroom_SessionResponse")),
 			openapi3.WithName("401", jsonResponse("인증 필요", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
 			openapi3.WithName("403", jsonResponse("음성 채널 접근 권한 없음", "github_com_cowork_cowork-voice_internal_apidoc.Error")),
 			openapi3.WithName("404", jsonResponse("세션 없음", "github_com_cowork_cowork-voice_internal_apidoc.Error")),

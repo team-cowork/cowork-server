@@ -1,4 +1,4 @@
-package live
+package liveroom
 
 import (
 	"context"
@@ -10,18 +10,18 @@ import (
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
-type LiveService struct {
+type Service struct {
 	repo         Repository
 	permissions  ConnectPermissionChecker
 	livekit      LiveKitRoom
 	livekitWsURL string
 }
 
-func NewLiveService(repo Repository, permissions ConnectPermissionChecker, livekit LiveKitRoom, livekitWsURL string) *LiveService {
-	return &LiveService{repo: repo, permissions: permissions, livekit: livekit, livekitWsURL: livekitWsURL}
+func NewService(repo Repository, permissions ConnectPermissionChecker, livekit LiveKitRoom, livekitWsURL string) *Service {
+	return &Service{repo: repo, permissions: permissions, livekit: livekit, livekitWsURL: livekitWsURL}
 }
 
-func (s *LiveService) Start(ctx context.Context, channelID, userID int64) (*StartResponse, error) {
+func (s *Service) Start(ctx context.Context, channelID, userID int64) (*StartResponse, error) {
 	access, err := s.permissions.RequireConnect(ctx, channelID, userID)
 	if err != nil {
 		return nil, err
@@ -39,7 +39,7 @@ func (s *LiveService) Start(ctx context.Context, channelID, userID int64) (*Star
 	// 경쟁 상대의 세션이 우리가 재조회하기 전에 이미 종료된 극히 드문 경우다. 이때는
 	// 채널이 실제로 비어 있으므로 오탐 409 대신 즉시 한 번 재시도한다.
 	const maxAttempts = 2
-	var liveSession *LiveSession
+	var liveSession *Session
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		created, isNew, cerr := s.repo.CreateSession(ctx, channelID, access.TeamID, userID)
 		if cerr != nil {
@@ -81,7 +81,7 @@ func (s *LiveService) Start(ctx context.Context, channelID, userID int64) (*Star
 // 고아 상태로 남는 활성 세션을 종료해, 채널이 EmptyTimeout까지 묶이지 않게 한다.
 // ctx는 클라이언트 취소·타임아웃으로 이미 취소됐을 수 있으므로, 보상 트랜잭션은
 // 별도의 취소되지 않는 컨텍스트로 실행한다.
-func (s *LiveService) compensateFailedStart(ctx context.Context, liveSession *LiveSession) {
+func (s *Service) compensateFailedStart(ctx context.Context, liveSession *Session) {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	if _, endErr := s.repo.EndSession(cleanupCtx, liveSession.SessionID, time.Now().UTC()); endErr != nil {
@@ -89,7 +89,7 @@ func (s *LiveService) compensateFailedStart(ctx context.Context, liveSession *Li
 	}
 }
 
-func (s *LiveService) Join(ctx context.Context, channelID, userID int64) (*JoinResponse, error) {
+func (s *Service) Join(ctx context.Context, channelID, userID int64) (*JoinResponse, error) {
 	access, err := s.permissions.RequireConnect(ctx, channelID, userID)
 	if err != nil {
 		return nil, err
@@ -124,7 +124,7 @@ func (s *LiveService) Join(ctx context.Context, channelID, userID int64) (*JoinR
 	}, nil
 }
 
-func (s *LiveService) Leave(ctx context.Context, channelID, userID int64) error {
+func (s *Service) Leave(ctx context.Context, channelID, userID int64) error {
 	if _, err := s.permissions.RequireConnect(ctx, channelID, userID); err != nil {
 		return err
 	}
@@ -170,7 +170,7 @@ func (s *LiveService) Leave(ctx context.Context, channelID, userID int64) error 
 	return err
 }
 
-func (s *LiveService) GetStatus(ctx context.Context, channelID, userID int64) (*StatusResponse, error) {
+func (s *Service) GetStatus(ctx context.Context, channelID, userID int64) (*StatusResponse, error) {
 	if _, err := s.permissions.RequireConnect(ctx, channelID, userID); err != nil {
 		return nil, err
 	}

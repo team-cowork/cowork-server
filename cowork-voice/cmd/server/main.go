@@ -19,9 +19,9 @@ import (
 
 	"github.com/cowork/cowork-voice/internal/apidoc"
 	"github.com/cowork/cowork-voice/internal/config"
-	livedomain "github.com/cowork/cowork-voice/internal/domain/live_room"
-	permissionsync "github.com/cowork/cowork-voice/internal/domain/permission_sync"
-	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
+	"github.com/cowork/cowork-voice/internal/domain/liveroom"
+	"github.com/cowork/cowork-voice/internal/domain/permissionsync"
+	"github.com/cowork/cowork-voice/internal/domain/voiceroom"
 	webhookdomain "github.com/cowork/cowork-voice/internal/domain/webhook"
 	"github.com/cowork/cowork-voice/internal/health"
 	"github.com/cowork/cowork-voice/internal/infra/channel"
@@ -124,9 +124,9 @@ func main() {
 		cfg.LiveKitAPISecret,
 		cfg.LiveKitTokenTTLSecs,
 	)
-	roomSvc := roomdomain.NewRoomService(sessionRepo, channelPermissions, livekitRoom, cfg.LiveKitWsURL)
-	roomHandler := roomdomain.NewHandler(roomSvc)
-	webhookSvc := webhookdomain.NewWebhookService(sessionRepo)
+	roomSvc := voiceroom.NewService(sessionRepo, channelPermissions, livekitRoom, cfg.LiveKitWsURL)
+	roomHandler := voiceroom.NewHandler(roomSvc)
+	webhookSvc := webhookdomain.NewService(sessionRepo)
 
 	// live: 방송형(1:N) 라이브. 세션과 이벤트는 MongoDB와 동일 outbox를 사용한다.
 	liveMongoRepo := mongoinfra.NewMongoLiveSessionRepository(db)
@@ -136,9 +136,9 @@ func main() {
 		cfg.LiveKitAPISecret,
 		cfg.LiveKitTokenTTLSecs,
 	)
-	liveSvc := livedomain.NewLiveService(liveMongoRepo, channelPermissions, liveLKRoom, cfg.LiveKitWsURL)
-	liveHandler := livedomain.NewHandler(liveSvc)
-	liveWebhookSvc := webhookdomain.NewLiveWebhookService(liveMongoRepo, liveLKRoom)
+	liveSvc := liveroom.NewService(liveMongoRepo, channelPermissions, liveLKRoom, cfg.LiveKitWsURL)
+	liveHandler := liveroom.NewHandler(liveSvc)
+	liveWebhookSvc := webhookdomain.NewLiveService(liveMongoRepo, liveLKRoom)
 	permissionSync := permissionsync.New(livekitClient, channelPermissions, liveMongoRepo, sessionRepo)
 	permissionSyncDone := make(chan struct{})
 	go func() {
@@ -146,7 +146,7 @@ func main() {
 		permissionSync.Run(runtimeCtx)
 	}()
 	// 세션 저장과 방 생성 사이에서 중단된 라이브 시작이 남긴 활성 세션을 정리한다.
-	startRecovery := livedomain.NewStartRecovery(liveMongoRepo, livekitClient)
+	startRecovery := liveroom.NewStartRecovery(liveMongoRepo, livekitClient)
 	startRecoveryDone := make(chan struct{})
 	go func() {
 		defer close(startRecoveryDone)
