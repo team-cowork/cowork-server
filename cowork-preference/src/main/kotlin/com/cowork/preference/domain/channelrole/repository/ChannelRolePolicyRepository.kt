@@ -32,13 +32,13 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
     ): Boolean {
         val rows = client.preparedQuery(
             """
-            SELECT d.is_default, COALESCE((d.permissions ->> ${'$'}4)::boolean, FALSE) AS allowed,
-                   (p.permissions ->> ${'$'}4)::boolean AS overwrite
+            SELECT d.is_default, COALESCE((d.permissions ->> $4)::boolean, FALSE) AS allowed,
+                   (p.permissions ->> $4)::boolean AS overwrite
             FROM tb_team_role_definitions d
-            LEFT JOIN tb_channel_role_policies p ON p.team_id = d.team_id AND p.role_id = d.id AND p.channel_id = ${'$'}3
-            WHERE d.team_id = ${'$'}2 AND (d.is_default OR EXISTS (
+            LEFT JOIN tb_channel_role_policies p ON p.team_id = d.team_id AND p.role_id = d.id AND p.channel_id = $3
+            WHERE d.team_id = $2 AND (d.is_default OR EXISTS (
                 SELECT 1 FROM tb_account_team_roles a
-                WHERE a.team_id = d.team_id AND a.role_id = d.id AND a.account_id = ${'$'}1
+                WHERE a.team_id = d.team_id AND a.role_id = d.id AND a.account_id = $1
             ))
             """.trimIndent(),
         ).execute(Tuple.of(accountId, teamId, channelId, permission)).coAwait()
@@ -65,7 +65,7 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
             """
             SELECT team_id, channel_id, role_id, permissions, state_occurred_at
             FROM tb_channel_role_policies
-            WHERE team_id = ${'$'}1 AND channel_id = ${'$'}2 AND role_id = ${'$'}3
+            WHERE team_id = $1 AND channel_id = $2 AND role_id = $3
             """.trimIndent(),
         ).execute(Tuple.of(teamId, channelId, roleId)).coAwait()
         return rows.firstOrNull()?.toPolicyState()
@@ -82,7 +82,7 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
             """
             WITH removed_tombstone AS (
                 DELETE FROM tb_channel_role_policy_tombstones
-                WHERE team_id = ${'$'}1 AND channel_id = ${'$'}2 AND role_id = ${'$'}3
+                WHERE team_id = $1 AND channel_id = $2 AND role_id = $3
                 RETURNING state_occurred_at
             ),
             next_state AS (
@@ -96,7 +96,7 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
             )
             INSERT INTO tb_channel_role_policies
                 (team_id, channel_id, role_id, permissions, state_occurred_at)
-            SELECT ${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4::jsonb, state_occurred_at
+            SELECT $1, $2, $3, $4::jsonb, state_occurred_at
             FROM next_state
             ON CONFLICT (team_id, channel_id, role_id)
             DO UPDATE SET
@@ -123,7 +123,7 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
             """
             WITH deleted_policy AS (
                 DELETE FROM tb_channel_role_policies
-                WHERE team_id = ${'$'}1 AND channel_id = ${'$'}2 AND role_id = ${'$'}3
+                WHERE team_id = $1 AND channel_id = $2 AND role_id = $3
                 RETURNING state_occurred_at
             ),
             next_state AS (
@@ -137,7 +137,7 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
                         (
                             SELECT state_occurred_at + INTERVAL '1 microsecond'
                             FROM tb_channel_role_policy_tombstones
-                            WHERE team_id = ${'$'}1 AND channel_id = ${'$'}2 AND role_id = ${'$'}3
+                            WHERE team_id = $1 AND channel_id = $2 AND role_id = $3
                         ),
                         '-infinity'::timestamptz
                     )
@@ -145,7 +145,7 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
             )
             INSERT INTO tb_channel_role_policy_tombstones
                 (team_id, channel_id, role_id, state_occurred_at)
-            SELECT ${'$'}1, ${'$'}2, ${'$'}3, state_occurred_at
+            SELECT $1, $2, $3, state_occurred_at
             FROM next_state
             ON CONFLICT (team_id, channel_id, role_id)
             DO UPDATE SET
@@ -170,7 +170,7 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
             """
             SELECT team_id, channel_id, role_id, permissions, state_occurred_at
             FROM tb_channel_role_policies
-            WHERE team_id = ${'$'}1 AND role_id = ${'$'}2
+            WHERE team_id = $1 AND role_id = $2
             ORDER BY channel_id
             FOR UPDATE
             """.trimIndent(),
@@ -183,7 +183,7 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
             """
             SELECT team_id, channel_id, role_id, permissions, state_occurred_at
             FROM tb_channel_role_policies
-            WHERE team_id = ${'$'}1
+            WHERE team_id = $1
             ORDER BY channel_id, role_id
             FOR UPDATE
             """.trimIndent(),
@@ -200,7 +200,7 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
             """
             SELECT team_id, channel_id, role_id, permissions, state_occurred_at
             FROM tb_channel_role_policies
-            WHERE team_id = ${'$'}1 AND channel_id = ${'$'}2
+            WHERE team_id = $1 AND channel_id = $2
             ORDER BY role_id
             FOR UPDATE
             """.trimIndent(),
@@ -220,17 +220,17 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
             WITH active_states AS (
                 SELECT team_id, channel_id, role_id, permissions, state_occurred_at
                 FROM tb_channel_role_policies
-                WHERE (team_id, channel_id, role_id) > (${'$'}1, ${'$'}2, ${'$'}3)
+                WHERE (team_id, channel_id, role_id) > ($1, $2, $3)
                 ORDER BY team_id, channel_id, role_id
-                LIMIT ${'$'}4
+                LIMIT $4
                 FOR SHARE
             ),
             deleted_states AS (
                 SELECT team_id, channel_id, role_id, NULL::jsonb AS permissions, state_occurred_at
                 FROM tb_channel_role_policy_tombstones
-                WHERE (team_id, channel_id, role_id) > (${'$'}1, ${'$'}2, ${'$'}3)
+                WHERE (team_id, channel_id, role_id) > ($1, $2, $3)
                 ORDER BY team_id, channel_id, role_id
-                LIMIT ${'$'}4
+                LIMIT $4
                 FOR SHARE
             ),
             states AS (
@@ -241,7 +241,7 @@ class ChannelRolePolicyRepository(private val pool: Pool) {
             SELECT team_id, channel_id, role_id, permissions, state_occurred_at
             FROM states
             ORDER BY team_id, channel_id, role_id
-            LIMIT ${'$'}4
+            LIMIT $4
             """.trimIndent(),
         ).execute(Tuple.of(afterTeamId, afterChannelId, afterRoleId, limit)).coAwait()
         return rows.map { it.toPolicyState() }

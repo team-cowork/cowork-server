@@ -13,11 +13,11 @@ import java.time.ZoneOffset
 
 class WebhookRepository {
     suspend fun list(client: SqlClient, channelId: Long): List<Webhook> = client.preparedQuery(
-        "SELECT * FROM tb_webhooks WHERE channel_id = \$1 AND NOT deleted ORDER BY id",
+        "SELECT * FROM tb_webhooks WHERE channel_id = $1 AND NOT deleted ORDER BY id",
     ).execute(Tuple.of(channelId)).coAwait().map { it.webhook() }
 
     suspend fun findForUpdate(client: SqlClient, webhookId: Long): Webhook? = client.preparedQuery(
-        "SELECT * FROM tb_webhooks WHERE id = \$1 FOR UPDATE",
+        "SELECT * FROM tb_webhooks WHERE id = $1 FOR UPDATE",
     ).execute(Tuple.of(webhookId)).coAwait().firstOrNull()?.webhook()
 
     suspend fun now(client: SqlClient): Instant = client.query("SELECT clock_timestamp() AS now")
@@ -36,7 +36,7 @@ class WebhookRepository {
         val row = client.preparedQuery(
             """
             INSERT INTO tb_webhooks (channel_id, name, avatar_url, is_secure, secret_hash, is_active, created_by, id)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6, ${'$'}7, ${'$'}8) RETURNING *
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
             """.trimIndent(),
         ).execute(
             Tuple.of(
@@ -55,9 +55,9 @@ class WebhookRepository {
 
     suspend fun patch(client: SqlClient, webhook: Webhook, input: JsonObject): Webhook = client.preparedQuery(
         """
-        UPDATE tb_webhooks SET name = ${'$'}2, avatar_url = ${'$'}3, is_active = ${'$'}4,
+        UPDATE tb_webhooks SET name = $2, avatar_url = $3, is_active = $4,
             updated_at = GREATEST(clock_timestamp(), updated_at + INTERVAL '1 microsecond')
-        WHERE id = ${'$'}1 RETURNING *
+        WHERE id = $1 RETURNING *
         """.trimIndent(),
     ).execute(
         Tuple.of(
@@ -76,9 +76,9 @@ class WebhookRepository {
         now: Instant,
     ): Webhook = client.preparedQuery(
         """
-            UPDATE tb_webhooks SET is_secure = ${'$'}2, secret_hash = ${'$'}3, mode_changed_at = ${'$'}4,
+            UPDATE tb_webhooks SET is_secure = $2, secret_hash = $3, mode_changed_at = $4,
                 updated_at = GREATEST(clock_timestamp(), updated_at + INTERVAL '1 microsecond')
-            WHERE id = ${'$'}1 RETURNING *
+            WHERE id = $1 RETURNING *
         """.trimIndent(),
     ).execute(Tuple.of(webhook.id, target, secretHash, now.atOffset(ZoneOffset.UTC))).coAwait().first().webhook()
 
@@ -86,7 +86,7 @@ class WebhookRepository {
         """
         UPDATE tb_webhooks SET execution_id = gen_random_uuid(),
             updated_at = GREATEST(clock_timestamp(), updated_at + INTERVAL '1 microsecond')
-        WHERE id = ${'$'}1 RETURNING *
+        WHERE id = $1 RETURNING *
         """.trimIndent(),
     ).execute(Tuple.of(webhookId)).coAwait().first().webhook()
 
@@ -94,7 +94,7 @@ class WebhookRepository {
         """
         UPDATE tb_webhooks SET deleted = true, is_active = false, secret_hash = NULL,
             updated_at = GREATEST(clock_timestamp(), updated_at + INTERVAL '1 microsecond')
-        WHERE id = ${'$'}1 RETURNING *
+        WHERE id = $1 RETURNING *
         """.trimIndent(),
     ).execute(Tuple.of(webhookId)).coAwait().first().webhook()
 
@@ -102,17 +102,17 @@ class WebhookRepository {
         """
         UPDATE tb_webhooks SET deleted = true, is_active = false, secret_hash = NULL,
             updated_at = GREATEST(clock_timestamp(), updated_at + INTERVAL '1 microsecond')
-        WHERE channel_id = ${'$'}1 AND NOT deleted RETURNING *
+        WHERE channel_id = $1 AND NOT deleted RETURNING *
         """.trimIndent(),
     ).execute(Tuple.of(channelId)).coAwait().map { it.webhook() }
 
     suspend fun snapshotPage(client: SqlClient, afterId: Long, limit: Int): List<Webhook> = client.preparedQuery(
-        "SELECT * FROM tb_webhooks WHERE id > \$1 ORDER BY id LIMIT \$2 FOR SHARE",
+        "SELECT * FROM tb_webhooks WHERE id > $1 ORDER BY id LIMIT $2 FOR SHARE",
     ).execute(Tuple.of(afterId, limit)).coAwait().map { it.webhook() }
 
     suspend fun findOperation(client: SqlClient, actorId: Long, key: String): WebhookOperation? = client.preparedQuery(
         "SELECT request_hash, response, secret_ciphertext, created_at FROM tb_webhook_operations " +
-            "WHERE actor_id = \$1 AND idempotency_key = \$2",
+            "WHERE actor_id = $1 AND idempotency_key = $2",
     ).execute(Tuple.of(actorId, key)).coAwait().firstOrNull()?.let {
         WebhookOperation(
             it.getString("request_hash"),
@@ -125,7 +125,7 @@ class WebhookRepository {
     suspend fun clearOperationSecret(client: SqlClient, actorId: Long, key: String) {
         client.preparedQuery(
             "UPDATE tb_webhook_operations SET secret_ciphertext = NULL " +
-                "WHERE actor_id = ${'$'}1 AND idempotency_key = ${'$'}2",
+                "WHERE actor_id = $1 AND idempotency_key = $2",
         ).execute(Tuple.of(actorId, key)).coAwait()
     }
 
@@ -133,7 +133,7 @@ class WebhookRepository {
         // Retain idempotency outcomes; only response secrets expire.
         client.preparedQuery(
             "UPDATE tb_webhook_operations SET secret_ciphertext = NULL " +
-                "WHERE secret_ciphertext IS NOT NULL AND created_at <= ${'$'}1",
+                "WHERE secret_ciphertext IS NOT NULL AND created_at <= $1",
         ).execute(Tuple.of(cutoff.atOffset(ZoneOffset.UTC))).coAwait()
     }
 
@@ -148,7 +148,7 @@ class WebhookRepository {
         client.preparedQuery(
             """
             INSERT INTO tb_webhook_operations (actor_id, idempotency_key, request_hash, response, secret_ciphertext)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4::jsonb, ${'$'}5)
+            VALUES ($1, $2, $3, $4::jsonb, $5)
             """.trimIndent(),
         ).execute(Tuple.of(actorId, key, requestHash, response, secretCiphertext)).coAwait()
     }

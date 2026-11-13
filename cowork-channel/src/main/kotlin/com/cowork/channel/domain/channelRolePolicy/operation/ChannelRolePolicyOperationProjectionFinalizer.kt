@@ -16,7 +16,7 @@ class ChannelRolePolicyOperationProjectionFinalizer(
     private val policyRepository: ChannelRolePolicyProjectionRepository,
     private val objectMapper: ObjectMapper,
 ) {
-    @Scheduled(fixedDelayString = "\${channel-role-policy.operation-finalizer-delay-ms:1000}")
+    @Scheduled(fixedDelayString = $$"${channel-role-policy.operation-finalizer-delay-ms:1000}")
     @Transactional
     fun finalizeVisibleOperations() {
         val status = ChannelRolePolicyOperationStatus.PROCESSING
