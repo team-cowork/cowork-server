@@ -148,7 +148,7 @@ Run the owning module's tests from the repository root:
 
 Each Gradle module owns its Wrapper, settings, version catalog, and build configuration; versions may differ by module. Run the module's Wrapper from its directory. There is no root Gradle build. Use the checked-in Maven wrapper for Project and native commands for other runtimes.
 
-Preference uses `cowork-preference/kotlin` or `kotlin.bat` for local builds, Docker, and CI. The wrapper provisions the pinned toolchain and JDK without a global CLI. Update both wrappers together with `./kotlin update --target-version=<version>` from the module directory.
+Preference uses `cowork-preference/kotlin` or `kotlin.bat` for local builds, Docker, and CI. The wrapper provisions the pinned toolchain and JDK without a global CLI. Update both wrappers together with `./kotlin update --target-version=<version>` from the module directory. Preference stays on Java 26 because Kotlin Toolchain 0.13.0 rejects JDK 27; move it to Java 27 when a toolchain release accepts JDK 27.
 
 Applet uses Scala 3 and Play on Java 25, the newest Java that Play 3.0 supports. `cowork-applet/sbtw` downloads the pinned sbt launcher for local builds, Docker, and CI. Its SurrealDB definitions live in `conf/surreal/schema.surql`, use `IF NOT EXISTS`, and run at application start; there is no migration history, so backfill existing records separately when a stored shape changes.
 
