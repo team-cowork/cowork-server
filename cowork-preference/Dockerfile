@@ -1,4 +1,4 @@
-FROM eclipse-temurin:26.0.2_10-jdk-noble@sha256:da98fe09607dbe8e70cc9c1bc3c731374762a3cf910df58e3183c42e4a50810c AS builder
+FROM eclipse-temurin:26.0.2.1_1-jdk-noble@sha256:9c0e8eddecccc0d5679b317b0c90fa7103ad25cae33df1c00280675eb681c7f8 AS builder
 RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/ubuntu.sources \
     && apt-get -o Acquire::Retries=3 update \
     && apt-get -o Acquire::Retries=3 install -y --no-install-recommends curl ca-certificates \
@@ -29,7 +29,7 @@ RUN --mount=type=cache,id=cowork-preference-toolchain,target=/root/.cache,sharin
 FROM scratch AS verify
 COPY --from=verification /coverage /
 
-FROM eclipse-temurin:26.0.2_10-jre-alpine-3.24@sha256:2c984601c59ac93f97947ce66d03df25c2e16bed97a28289fbc0ab157087f1b5 AS runtime
+FROM eclipse-temurin:26.0.2.1_1-jre-alpine-3.24@sha256:158186ab168dc35e5a8e799f6195eef61d57a86a73348fc3a1188317fc40f01c AS runtime
 RUN addgroup -S -g 10001 app && adduser -S -u 10001 app -G app
 WORKDIR /app
 COPY --chown=app:app --from=builder /workspace/cowork-preference/build/tasks/_cowork-preference_executableJarJvm/cowork-preference-jvm-executable.jar app.jar
