@@ -1,4 +1,4 @@
-package room
+package voiceroom
 
 import (
 	"strconv"
@@ -7,19 +7,19 @@ import (
 
 const roomNamePrefix = "voice-"
 
-type RoomNameFormat string
+type NameFormat string
 
 const (
-	RoomNameFormatScoped RoomNameFormat = "scoped"
+	NameFormatScoped NameFormat = "scoped"
 )
 
 type ParsedRoomName struct {
 	ChannelID int64
 	SessionID string
-	Format    RoomNameFormat
+	Format    NameFormat
 }
 
-func RoomName(channelID int64, sessionID string) string {
+func Name(channelID int64, sessionID string) string {
 	return roomNamePrefix + strconv.FormatInt(channelID, 10) + "-" + sessionID
 }
 
@@ -41,6 +41,6 @@ func ParseRoomName(roomName string) (*ParsedRoomName, bool) {
 	return &ParsedRoomName{
 		ChannelID: id,
 		SessionID: sessionPart,
-		Format:    RoomNameFormatScoped,
+		Format:    NameFormatScoped,
 	}, true
 }

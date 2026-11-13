@@ -9,8 +9,8 @@ import (
 var Default *slog.Logger
 
 // moduleFromFunction turns a runtime function name such as
-// "github.com/cowork/cowork-voice/internal/domain/room.(*Service).Join" into its package name
-// ("room"), so Loki can group logs by subsystem without the full function path.
+// "github.com/cowork/cowork-voice/internal/domain/voiceroom.(*Service).Join" into its package name
+// ("voiceroom"), so Loki can group logs by subsystem without the full function path.
 func moduleFromFunction(function string) string {
 	rest := function
 	if slash := strings.LastIndex(function, "/"); slash >= 0 {

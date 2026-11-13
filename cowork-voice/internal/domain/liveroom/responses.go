@@ -1,4 +1,4 @@
-package live
+package liveroom
 
 type StartResponse struct {
 	Token      string `json:"token"`
