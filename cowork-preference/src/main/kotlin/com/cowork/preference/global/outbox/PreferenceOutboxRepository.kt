@@ -30,7 +30,7 @@ class PreferenceOutboxRepository(private val pool: Pool) {
             """
             INSERT INTO tb_preference_event_outbox
                 (topic, record_key, payload, occurred_at, partition_id)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3::jsonb, ${'$'}4, ${'$'}5)
+            VALUES ($1, $2, $3::jsonb, $4, $5)
             """.trimIndent(),
         ).execute(
             Tuple.of(
@@ -94,7 +94,7 @@ class PreferenceOutboxRepository(private val pool: Pool) {
                 """
                 UPDATE tb_preference_event_outbox
                 SET published_at = now()
-                WHERE id = ${'$'}1 AND published_at IS NULL
+                WHERE id = $1 AND published_at IS NULL
                 """.trimIndent(),
             ).execute(Tuple.of(row.getLong("id"))).coAwait()
             check(updated.rowCount() == 1) { "outbox record was concurrently published" }
@@ -104,27 +104,27 @@ class PreferenceOutboxRepository(private val pool: Pool) {
     suspend fun deletePublishedBefore(cutoff: Instant): Long = pool.preparedQuery(
         """
         DELETE FROM tb_preference_event_outbox
-        WHERE published_at < ${'$'}1
+        WHERE published_at < $1
         """.trimIndent(),
     ).execute(Tuple.of(cutoff.atOffset(ZoneOffset.UTC))).coAwait().rowCount().toLong()
 
     private suspend fun acquireDispatchLock(connection: SqlConnection): Boolean {
         val rows = connection.preparedQuery(
-            "SELECT pg_try_advisory_xact_lock(${'$'}1) AS acquired",
+            "SELECT pg_try_advisory_xact_lock($1) AS acquired",
         ).execute(Tuple.of(PreferenceOutboxOrdering.LOCK_ID)).coAwait()
         return rows.first().getBoolean("acquired")
     }
 
     private suspend fun acquireProjectionSnapshotLock(connection: SqlConnection): Boolean {
         val rows = connection.preparedQuery(
-            "SELECT pg_try_advisory_lock(${'$'}1) AS acquired",
+            "SELECT pg_try_advisory_lock($1) AS acquired",
         ).execute(Tuple.of(PROJECTION_SNAPSHOT_LOCK_ID)).coAwait()
         return rows.first().getBoolean("acquired")
     }
 
     private suspend fun releaseProjectionSnapshotLock(connection: SqlConnection) {
         val rows = connection.preparedQuery(
-            "SELECT pg_advisory_unlock(${'$'}1) AS released",
+            "SELECT pg_advisory_unlock($1) AS released",
         ).execute(Tuple.of(PROJECTION_SNAPSHOT_LOCK_ID)).coAwait()
         check(rows.first().getBoolean("released")) { "Preference projection snapshot lock was not owned" }
     }

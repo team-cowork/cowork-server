@@ -13,7 +13,7 @@ class NotificationRepository(private val pool: Pool) {
 
     suspend fun findNotification(accountId: Long, channelId: Long): JsonObject? {
         val rows = pool.preparedQuery(
-            "SELECT settings FROM account_channel_notification WHERE account_id = \$1 AND channel_id = \$2",
+            "SELECT settings FROM account_channel_notification WHERE account_id = $1 AND channel_id = $2",
         ).execute(Tuple.of(accountId, channelId)).coAwait()
         return rows.firstOrNull()?.getJsonObject("settings")
     }
@@ -27,7 +27,7 @@ class NotificationRepository(private val pool: Pool) {
         val rows = client.preparedQuery(
             """
             INSERT INTO account_channel_notification (account_id, channel_id, settings)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3::jsonb)
+            VALUES ($1, $2, $3::jsonb)
             ON CONFLICT (account_id, channel_id)
             DO UPDATE SET settings = EXCLUDED.settings
             RETURNING account_id, channel_id, settings, state_occurred_at
@@ -46,9 +46,9 @@ class NotificationRepository(private val pool: Pool) {
             """
             SELECT account_id, channel_id, settings, state_occurred_at
             FROM account_channel_notification
-            WHERE (account_id, channel_id) > (${'$'}1, ${'$'}2)
+            WHERE (account_id, channel_id) > ($1, $2)
             ORDER BY account_id, channel_id
-            LIMIT ${'$'}3
+            LIMIT $3
             FOR SHARE
             """.trimIndent(),
         ).execute(Tuple.of(afterAccountId, afterChannelId, limit)).coAwait()

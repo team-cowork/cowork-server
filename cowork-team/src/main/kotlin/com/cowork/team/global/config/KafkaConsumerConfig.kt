@@ -41,8 +41,8 @@ class KafkaConsumerConfig(
     private val streams: ProjectionStreams,
     private val topicIdentityProvider: ProjectionTopicIdentityProvider,
     private val topicGenerations: ProjectionTopicGenerationRegistry,
-    @Value("\${projection.readiness.assignment-retry-backoff-ms:1000}") private val assignmentRetryBackoffMs: Long,
-    @Value("\${projection.readiness.assignment-retry-timeout-ms:60000}") private val assignmentRetryTimeoutMs: Long,
+    @Value($$"${projection.readiness.assignment-retry-backoff-ms:1000}") private val assignmentRetryBackoffMs: Long,
+    @Value($$"${projection.readiness.assignment-retry-timeout-ms:60000}") private val assignmentRetryTimeoutMs: Long,
 ) {
 
     // DeadLetterPublishingRecoverer용 범용 KafkaTemplate. 기존 KafkaConfig의 kafkaTemplate은
