@@ -22,7 +22,7 @@ def field(path):
         return r'(?m)^(  version: ")[^"]+("[^\S\n]*)$'
     if path == "cowork-chat/src/main.ts":
         return r"(\.setVersion\(')[^']+('\))"
-    if path in {"cowork-user/src/openapi.json", "cowork-preference/src/main/resources/openapi.json",
+    if path in {"cowork-preference/src/main/resources/openapi.json",
                 "cowork-chat/public/asyncapi.json"}:
         return r'(?m)^(    "version": ")[^"]+(",?[^\S\n]*)$'
     if re.fullmatch(r"cowork-[a-z-]+/src/main/(?:kotlin|java)/com/cowork/[a-z]+/global/config/OpenApiConfig\.(?:kt|java)", path):
@@ -68,8 +68,6 @@ def module_files(module):
     )]
     if module == "chat":
         candidates += [directory / "src/main.ts", directory / "public/asyncapi.json"]
-    if module == "user":
-        candidates.append(directory / "src/openapi.json")
     if module == "preference":
         candidates.append(directory / "src/main/resources/openapi.json")
     if module == "applet":
