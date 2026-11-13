@@ -23,7 +23,7 @@ func activeSession() *Session {
 	}
 }
 
-func TestLiveService(t *testing.T) {
+func TestService(t *testing.T) {
 	t.Run("Start - 활성 라이브가 없으면 세션을 만들고 호스트 토큰을 발급한다", func(t *testing.T) {
 		t.Parallel()
 
