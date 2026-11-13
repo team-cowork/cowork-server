@@ -72,7 +72,6 @@ final class ProjectionCatchUpPolicy {
                     || checkpoint.nextOffset() <= checkpoint.snapshotCompletedOffset()
                     || checkpoint.nextOffset() < barrier.targetOffset() || barrier.targetOffset() > range.endOffset()
                     || checkpoint.snapshotCompletedOffset() < range.beginningOffset()
-                    || checkpoint.nextOffset() < range.beginningOffset()
                     || checkpoint.nextOffset() != range.endOffset()) {
                 return false;
             }
