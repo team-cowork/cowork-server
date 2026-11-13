@@ -9,6 +9,7 @@
 - 요청 속도 제한, circuit breaker/retry와 공통 응답 처리
 - 배포 중인 서비스의 HTTP 요청 안내와 DataGSM 웹훅 영속 접수
 - 서비스별 OpenAPI를 모은 Swagger UI 제공
+- 서비스 약관, 개인정보처리방침, 라이선스 문서 제공
 
 ## 스택
 
