@@ -3,6 +3,7 @@ import {type DocumentBuilder, SwaggerModule} from '@nestjs/swagger';
 
 export function createChatApiDocument(app: INestApplication, builder: DocumentBuilder) {
 	const config = builder
+		.setOpenAPIVersion('3.2.1')
 		.setTitle('cowork Chat API')
 		.setDescription('채널과 개인 대화의 메시지, 첨부 파일, 읽음 상태와 메시지 검색을 관리합니다.')
 		.addServer('/api/chat', 'Gateway')
