@@ -48,7 +48,7 @@ import team.themoment.sdk.response.CommonApiResponse;
 @Tag(name = "로드맵 노드", description = "로드맵 노드(문서)와 관련 자료 구성 API")
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "액세스 토큰이 없거나 유효하지 않음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"401 UNAUTHORIZED\",\"code\":401,\"message\":\"Unauthorized\"}"))),
-        @ApiResponse(responseCode = "default", description = "기타 오류", content = @Content(schema = @Schema(implementation = CommonApiResponse.class)))})
+        @ApiResponse(description = "기타 오류", content = @Content(schema = @Schema(implementation = CommonApiResponse.class)))})
 @RestController
 @RequestMapping("/roadmaps")
 @RequiredArgsConstructor
