@@ -148,7 +148,7 @@ func (r *OutboxRepository) fetchEmbedded(ctx context.Context, source string, lim
 	return messages, nil
 }
 
-func (r *OutboxRepository) MarkSent(ctx context.Context, message OutboxMessage, sentAt time.Time) error {
+func (r *OutboxRepository) MarkSent(ctx context.Context, message OutboxMessage, _ time.Time) error {
 	_, err := r.db.Collection(message.Source).UpdateOne(
 		ctx,
 		bson.D{{Key: "_id", Value: message.OwnerID}},
