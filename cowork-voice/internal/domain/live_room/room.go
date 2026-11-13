@@ -38,12 +38,12 @@ func ParseRoomName(roomName string) (*ParsedRoomName, bool) {
 	}, true
 }
 
-// IsLiveRoomName은 웹훅 디스패치용으로 룸 이름이 라이브 룸인지 확인한다.
+// IsLiveRoomName 함수는 웹훅 디스패치용으로 룸 이름이 라이브 룸인지 확인한다.
 func IsLiveRoomName(roomName string) bool {
 	return strings.HasPrefix(roomName, roomNamePrefix)
 }
 
-// DurationSecondsSince는 from부터 now까지의 경과 시간을 초 단위로 반환한다.
+// DurationSecondsSince 함수는 from부터 now까지의 경과 시간을 초 단위로 반환한다.
 // clock skew 등으로 now < from이면 음수가 될 수 있어 0으로 보정한다.
 func DurationSecondsSince(now, from time.Time) int64 {
 	if diff := now.Sub(from); diff > 0 {
