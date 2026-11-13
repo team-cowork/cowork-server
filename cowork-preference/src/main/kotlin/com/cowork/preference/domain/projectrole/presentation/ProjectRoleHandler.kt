@@ -4,6 +4,7 @@ import com.cowork.preference.domain.access.presentation.auditAuthorizationFailur
 import com.cowork.preference.domain.access.presentation.authorizationStatus
 import com.cowork.preference.domain.access.service.ProjectAccessGuard
 import com.cowork.preference.domain.projectrole.service.ProjectRoleService
+import com.cowork.preference.global.coroutine.runCatchingCancellable
 import com.cowork.preference.global.security.RequesterContext
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
@@ -28,7 +29,7 @@ class ProjectRoleHandler(
         val requester = requesterOrReject(ctx) ?: return
         scope.launch(ctx.vertx().dispatcher()) {
             if (!authorizeMember(ctx, requester, projectId)) return@launch
-            runCatching { service.getRoles(projectId) }
+            runCatchingCancellable { service.getRoles(projectId) }
                 .onSuccess { roles ->
                     val arr = JsonArray(
                         roles.map {
@@ -111,7 +112,7 @@ class ProjectRoleHandler(
         val requester = requesterOrReject(ctx) ?: return
         scope.launch(ctx.vertx().dispatcher()) {
             if (!authorizeMember(ctx, requester, projectId)) return@launch
-            runCatching { service.getMemberRoles(projectId) }
+            runCatchingCancellable { service.getMemberRoles(projectId) }
                 .onSuccess { members ->
                     val arr = JsonArray(
                         members.map {
@@ -171,7 +172,7 @@ class ProjectRoleHandler(
         }
         val requester = requesterOrReject(ctx) ?: return
         scope.launch(ctx.vertx().dispatcher()) {
-            runCatching { service.removeRole(accountId, projectId, roleName, requester) }
+            runCatchingCancellable { service.removeRole(accountId, projectId, roleName, requester) }
                 .onSuccess { ctx.response().setStatusCode(204).end() }
                 .onFailure { e ->
                     val status = auditedAuthorizationStatus(e, requester, projectId)
@@ -196,7 +197,7 @@ class ProjectRoleHandler(
         projectId: Long,
         check: suspend () -> Unit,
     ): Boolean {
-        val failure = runCatching { check() }.exceptionOrNull() ?: return true
+        val failure = runCatchingCancellable { check() }.exceptionOrNull() ?: return true
         val status = auditedAuthorizationStatus(failure, requester, projectId)
         ctx.response().setStatusCode(status ?: 500).end(errorBody(failure.message))
         return false
