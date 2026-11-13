@@ -197,7 +197,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-// RequireUserID는 Gateway가 전달한 X-User-Id 헤더를 신뢰한다.
+// RequireUserID 함수는 Gateway가 전달한 X-User-Id 헤더를 신뢰한다.
 // cowork-gateway만 JWT를 검증하므로, 다운스트림 서비스인 이곳에서는 JWT를 직접 파싱/검증하지 않는다.
 func RequireUserID() gin.HandlerFunc {
 	return func(c *gin.Context) {

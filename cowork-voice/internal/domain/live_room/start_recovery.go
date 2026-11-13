@@ -20,10 +20,10 @@ const (
 	startRecoveryInterval = 30 * time.Second
 )
 
-// StartRecoveryRepository는 생성 중(active이고 started_event_sent_at 없음) 세션을 다룬다.
+// StartRecoveryRepository 인터페이스는 생성 중(active이고 started_event_sent_at 없음) 세션을 다룬다.
 type StartRecoveryRepository interface {
 	FindCreatingSessionsBefore(ctx context.Context, before time.Time) ([]LiveSession, error)
-	// EndCreatingSession은 세션이 아직 생성 중일 때만 ended로 전환한다. 호스트가 그사이 입장했으면 no-op이다.
+	// EndCreatingSession 메서드는 세션이 아직 생성 중일 때만 ended로 전환한다. 호스트가 그사이 입장했으면 no-op이다.
 	EndCreatingSession(ctx context.Context, sessionID string, endedAt time.Time) (bool, error)
 }
 
@@ -31,7 +31,7 @@ type RoomLister interface {
 	ListRooms(context.Context, *livekit.ListRoomsRequest) (*livekit.ListRoomsResponse, error)
 }
 
-// StartRecovery는 Start가 세션 저장과 방 생성 사이에서 중단돼 남은 활성 세션을 종료한다.
+// StartRecovery 타입은 Start가 세션 저장과 방 생성 사이에서 중단돼 남은 활성 세션을 종료한다.
 // 조건부 종료라 여러 레플리카에서 동시에 실행해도 안전하다.
 type StartRecovery struct {
 	repo  StartRecoveryRepository
@@ -58,7 +58,7 @@ func (r *StartRecovery) Run(ctx context.Context) {
 	}
 }
 
-// Recover는 유예가 지났고 LiveKit에 방이 없는 생성 중 세션을 종료하고, 종료한 수를 반환한다.
+// Recover 메서드는 유예가 지났고 LiveKit에 방이 없는 생성 중 세션을 종료하고, 종료한 수를 반환한다.
 // LIVE_STARTED가 발행되지 않은 세션이므로 compensateFailedStart처럼 이벤트 없이 종료한다.
 func (r *StartRecovery) Recover(ctx context.Context) (int, error) {
 	now := r.now().UTC()

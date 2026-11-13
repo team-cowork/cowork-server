@@ -30,7 +30,7 @@ type VoiceSessions interface {
 	FindActiveSession(context.Context, int64) (*voice.VoiceSession, error)
 }
 
-// LiveKit calls reconcile ephemeral connections; durable session changes remain in webhook handlers.
+// Rooms is the LiveKit API used to reconcile ephemeral connections; durable session changes remain in webhook handlers.
 type Rooms interface {
 	ListRooms(context.Context, *livekit.ListRoomsRequest) (*livekit.ListRoomsResponse, error)
 	ListParticipants(context.Context, *livekit.ListParticipantsRequest) (*livekit.ListParticipantsResponse, error)
