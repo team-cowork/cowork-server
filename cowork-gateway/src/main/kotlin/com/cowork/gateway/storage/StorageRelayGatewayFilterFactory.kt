@@ -52,7 +52,7 @@ class StorageRelayGatewayFilterFactory(
         val boundedRequest = object : ServerHttpRequestDecorator(routedRequest) {
             override fun getBody(): Flux<DataBuffer> = Flux.defer {
                 var bytes = 0L
-                super.getBody().handle<DataBuffer> { buffer, sink ->
+                super.getBody().handle { buffer, sink ->
                     bytes += buffer.readableByteCount()
                     if (bytes > StorageRelayPolicy.MAX_UPLOAD_BYTES) {
                         DataBufferUtils.release(buffer)

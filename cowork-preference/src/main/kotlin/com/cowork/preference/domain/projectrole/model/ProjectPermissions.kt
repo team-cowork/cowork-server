@@ -19,7 +19,15 @@ data class ProjectPermissions(
             manager: Boolean = false,
             isPrivate: Boolean = false,
         ): ProjectPermissions {
-            if (manager) return ProjectPermissions(true, true, true, true, true)
+            if (manager) {
+                return ProjectPermissions(
+                    read = true,
+                    write = true,
+                    manage = true,
+                    reorder = true,
+                    channelArchive = true,
+                )
+            }
             fun allowed(permission: String): Boolean {
                 val overrides = projectRoles.mapNotNull { it.getValue(permission) as? Boolean }
                 return when {

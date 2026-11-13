@@ -1,6 +1,7 @@
 package com.cowork.channel.global.outbox
 
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.queryForObject
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -13,7 +14,7 @@ class OutboxWriter(private val jdbcTemplate: JdbcTemplate, private val objectMap
         require(partition == null || partition >= 0) { "Kafka partition must not be negative" }
 
         val serializedPayload = objectMapper.writeValueAsString(payload)
-        val fenceId = jdbcTemplate.queryForObject(LOCK_FENCE_SQL, Long::class.java)
+        val fenceId = jdbcTemplate.queryForObject<Long>(LOCK_FENCE_SQL)
         check(fenceId == FENCE_ID) { "Kafka outbox producer fence is missing." }
 
         jdbcTemplate.update(
