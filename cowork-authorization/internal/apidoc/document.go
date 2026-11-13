@@ -5,7 +5,7 @@ import "github.com/getkin/kin-openapi/openapi3"
 
 func Document() *openapi3.T {
 	return &openapi3.T{
-		OpenAPI: "3.1.0",
+		OpenAPI: "3.2.1",
 		Info: &openapi3.Info{
 			Title:       "cowork Authorization API",
 			Version:     "20261113.0",
