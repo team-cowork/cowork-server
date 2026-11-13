@@ -9,6 +9,8 @@ import {composeTemplate} from './template.mjs';
 const projectDirectory = new URL('../../', import.meta.url);
 const sourceDirectory = new URL('../../src/', import.meta.url);
 const htmlDirectory = new URL('html/', sourceDirectory);
+const staticDirectory = new URL('static/', sourceDirectory);
+export const googleSiteVerificationFilename = 'google4558cbc4d15a11ce.html';
 
 export const stylesheetPaths = Object.freeze({
 	shared: [
@@ -56,6 +58,7 @@ export async function loadBuildInput() {
 		termsTemplate,
 		licenseTemplate,
 		legalStylesheetSources,
+		googleSiteVerificationSource,
 	] = await Promise.all([
 		composeTemplate(new URL('index.html', htmlDirectory), htmlDirectory),
 		readFile(projectUrl('data/tech-stacks.yaml'), 'utf8'),
@@ -75,6 +78,7 @@ export async function loadBuildInput() {
 		composeTemplate(new URL('terms.html', htmlDirectory), htmlDirectory),
 		composeTemplate(new URL('license.html', htmlDirectory), htmlDirectory),
 		loadStylesheets(stylesheetPaths.legal),
+		readFile(new URL(googleSiteVerificationFilename, staticDirectory)),
 	]);
 
 	return {
@@ -92,6 +96,7 @@ export async function loadBuildInput() {
 		privacyTemplate,
 		termsTemplate,
 		licenseTemplate,
+		googleSiteVerificationSource,
 		stylesheetSources: {
 			shared: sharedStylesheetSources,
 			home: homeStylesheetSources,
