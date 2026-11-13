@@ -12,10 +12,6 @@ interface DmParticipantRepository : JpaRepository<DmParticipant, Long> {
     fun findByChannelId(channelId: Long): List<DmParticipant>
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT cm FROM DmParticipant cm WHERE cm.channelId = :channelId ORDER BY cm.id")
-    fun findAllByChannelIdForUpdateOrderByIdAsc(@Param("channelId") channelId: Long): List<DmParticipant>
-
-    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query(
         "SELECT cm FROM DmParticipant cm " +
             "WHERE cm.channelId = :channelId AND cm.userId = :userId",
