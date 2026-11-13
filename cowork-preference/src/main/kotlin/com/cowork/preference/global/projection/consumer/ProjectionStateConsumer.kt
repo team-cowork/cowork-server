@@ -32,6 +32,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 
 class ProjectionStateConsumer(
     private val vertx: Vertx,
@@ -173,7 +175,7 @@ class ProjectionStateConsumer(
             refreshReadiness()
             resumeAssignment(currentAssignment)
             while (true) {
-                delay(READINESS_REFRESH_INTERVAL_MS)
+                delay(READINESS_REFRESH_INTERVAL)
                 refreshReadiness()
             }
         }
@@ -271,7 +273,7 @@ class ProjectionStateConsumer(
                     Unit
                 }
                 if (checkpointRangeBlocked.get()) return
-                delay(RETRY_DELAY_MS)
+                delay(RETRY_DELAY)
             }
         }
     }
@@ -430,7 +432,7 @@ class ProjectionStateConsumer(
             } catch (error: Throwable) {
                 currentCoroutineContext().ensureActive()
                 log.error("Failed to {}; retrying", operation, error)
-                delay(RETRY_DELAY_MS)
+                delay(RETRY_DELAY)
             }
         }
     }
@@ -444,8 +446,8 @@ class ProjectionStateConsumer(
     }
 
     private companion object {
-        const val RETRY_DELAY_MS = 1_000L
-        const val READINESS_REFRESH_INTERVAL_MS = 1_000L
+        val RETRY_DELAY: Duration = 1.seconds
+        val READINESS_REFRESH_INTERVAL: Duration = 1.seconds
     }
 
     private class Assignment(val partitions: Set<TopicPartition>, val scope: CoroutineScope) {

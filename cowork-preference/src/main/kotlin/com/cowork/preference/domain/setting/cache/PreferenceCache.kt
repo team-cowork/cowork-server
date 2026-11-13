@@ -16,11 +16,12 @@ import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import kotlin.time.Duration.Companion.milliseconds
 
 private const val TTL_SECONDS = 300L
 private const val EXPIRY_LOCK_KEY = "status:expiry:lock"
 private const val LOCK_TTL_SECONDS = 55L
-private const val OPERATION_TIMEOUT_MS = 500L
+private val OPERATION_TIMEOUT = 500.milliseconds
 
 /** version 없는 값을 쓰는 구형 인스턴스와 key를 나눠, 그 기록이 version 비교 없이 새 인스턴스에 읽히지 않게 한다. */
 private const val KEY_PREFIX = "pref:v2:"
@@ -123,7 +124,7 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
     private suspend fun <T> attempt(operation: CacheOperation, target: String, block: suspend () -> T): Result<T> {
         if (circuitBreaker.isOpen()) return Result.failure(CacheCircuitBreaker.OpenException())
         return try {
-            Result.success(withTimeout(OPERATION_TIMEOUT_MS) { block() }).also { circuitBreaker.recordSuccess() }
+            Result.success(withTimeout(OPERATION_TIMEOUT) { block() }).also { circuitBreaker.recordSuccess() }
         } catch (error: TimeoutCancellationException) {
             Result.failure(recordFailure(operation, target, error))
         } catch (error: CancellationException) {
