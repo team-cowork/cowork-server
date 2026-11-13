@@ -43,6 +43,7 @@ builder.WebHost.ConfigureKestrel(kestrel =>
 });
 builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(25));
 builder.Services.AddSingleton(config);
+builder.Services.AddApiDocs();
 builder.Services.AddSingleton<Producer>();
 builder.Services.AddSingleton<KafkaInspector>();
 builder.Services.AddSingleton<ProjectionReadiness>();
