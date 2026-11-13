@@ -1,18 +1,4 @@
-// @title           cowork Authorization API
-// @version         20261113.0
-// @description     DataGSM 계정으로 로그인하고 cowork 토큰을 발급하거나 갱신합니다.
-// @BasePath        /api/authorization
-// @tag.name        auth
-// @tag.description DataGSM 로그인과 토큰 발급, 갱신, 로그아웃을 처리합니다.
-// @tag.name        events
-// @tag.description DataGSM의 사용자 변경 이벤트를 수신합니다.
-// @securityDefinitions.apikey BearerAuth
-// @in              header
-// @name            Authorization
-// @description     "Bearer {access_token}" 형식으로 입력합니다.
 package main
-
-//go:generate go -C .. run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/main.go -o swagger --parseDependency --parseInternal
 
 import (
 	"context"
@@ -27,12 +13,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 
+	"github.com/cowork/authorization/internal/apidoc"
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/handler"
 	kafkainfra "github.com/cowork/authorization/internal/infra/kafka"
@@ -42,7 +27,6 @@ import (
 	"github.com/cowork/authorization/internal/repository"
 	"github.com/cowork/authorization/internal/service"
 	"github.com/cowork/authorization/pkg/logger"
-	_ "github.com/cowork/authorization/swagger"
 )
 
 const (
@@ -54,6 +38,12 @@ const (
 
 func main() {
 	logger.Init("cowork-authorization")
+
+	swaggerHandler, err := apidoc.NewHandler()
+	if err != nil {
+		slog.Error("Initialize OpenAPI documentation", "err", err)
+		os.Exit(1)
+	}
 	// Route Gin request and error logs through the slog JSON handler so they match the stdout log format.
 	// Added 2026-11-02 by Jongyun Jeong (jyx-07, 9th cohort).
 	gin.DefaultWriter = slog.NewLogLogger(logger.Default.Handler(), slog.LevelInfo).Writer()
@@ -173,7 +163,8 @@ func main() {
 
 	router.GET(healthPath, handler.Health)
 	router.GET(metricsPath, gin.WrapH(promhttp.Handler()))
-	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	router.GET("/v3/api-docs", gin.WrapH(swaggerHandler))
+	router.GET("/swagger/*any", gin.WrapH(swaggerHandler))
 
 	auth := router.Group("/auth")
 	{
