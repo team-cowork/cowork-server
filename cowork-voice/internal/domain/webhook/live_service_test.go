@@ -23,7 +23,7 @@ func activeLiveSession() *liveroom.Session {
 	}
 }
 
-func TestLiveWebhookService(t *testing.T) {
+func TestLiveService(t *testing.T) {
 	t.Run("HandleEvent - 호스트가 접속하면 LIVE_STARTED를 발행한다", func(t *testing.T) {
 		t.Parallel()
 
