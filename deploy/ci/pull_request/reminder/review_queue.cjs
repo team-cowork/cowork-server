@@ -21,6 +21,8 @@ const HIGH_REMINDER_MIN_AGE_MS = 4 * HOUR_MS;
 const LOW_REMINDER_INTERVAL_DAYS = 3;
 const ROLE_ID_PATTERN = /^\d{17,20}$/;
 const NEW_PULL_REQUEST_COLOR = 0x3e63dd;
+// PRs to main are releases or production fixes. They skip evaluation and get the highest grade.
+const HIGH_GRADE_BASE_BRANCH = 'main';
 
 const GRADES = [
   { key: 'high', label: '높음', color: 0xe5484d },
@@ -261,10 +263,14 @@ async function publishReviewQueue({
   const queue = [];
   for (const pullRequest of pullRequests) {
     let evaluation = { grade: 'unrated', factors: [] };
-    try {
-      evaluation = await evaluate(pullRequest, readDiff(pullRequest.number, pullRequest.baseRefName), apiKey, fetchImpl);
-    } catch (error) {
-      core.warning(`Could not evaluate PR #${pullRequest.number}: ${error.message}`);
+    if (pullRequest.baseRefName === HIGH_GRADE_BASE_BRANCH) {
+      evaluation = { grade: 'high', factors: [] };
+    } else {
+      try {
+        evaluation = await evaluate(pullRequest, readDiff(pullRequest.number, pullRequest.baseRefName), apiKey, fetchImpl);
+      } catch (error) {
+        core.warning(`Could not evaluate PR #${pullRequest.number}: ${error.message}`);
+      }
     }
     queue.push({
       number: pullRequest.number,
