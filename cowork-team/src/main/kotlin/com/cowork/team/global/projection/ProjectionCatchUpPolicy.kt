@@ -35,7 +35,7 @@ object ProjectionCatchUpPolicy {
             val safeOffset = checkpoint.nextOffset.takeIf { it in beginningOffset..endOffset } ?: beginningOffset
             return ProjectionSeekDecision(safeOffset, currentTopicId, checkpoint.invalidCheckpointOffset)
         }
-        if (checkpoint.nextOffset < beginningOffset || checkpoint.nextOffset > endOffset) {
+        if (checkpoint.nextOffset !in beginningOffset..endOffset) {
             return ProjectionSeekDecision(beginningOffset, currentTopicId, checkpoint.nextOffset)
         }
         return ProjectionSeekDecision(checkpoint.nextOffset, currentTopicId, null)

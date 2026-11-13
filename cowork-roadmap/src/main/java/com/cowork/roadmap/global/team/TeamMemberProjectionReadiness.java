@@ -11,14 +11,14 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.WakeupException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.kafka.listener.ConsumerAwareRebalanceListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Uses shared relational checkpoints and a broker topic UUID so every replica
@@ -30,10 +30,9 @@ import org.springframework.stereotype.Component;
  * transactions, so its checkpoint reads see the latest commit rather than a
  * caller's snapshot.
  */
+@Slf4j
 @Component
 public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceListener, HealthIndicator {
-
-    private static final Logger log = LoggerFactory.getLogger(TeamMemberProjectionReadiness.class);
 
     private final ProjectionCheckpointRepository checkpoints;
     private final ProjectionTopicIdentityProvider topicIdentity;

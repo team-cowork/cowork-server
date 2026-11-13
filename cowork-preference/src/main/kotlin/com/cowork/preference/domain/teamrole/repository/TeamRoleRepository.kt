@@ -17,13 +17,13 @@ import java.time.ZoneOffset
 
 class TeamRoleRepository(private val pool: Pool) {
 
-    // Callers hold PreferenceOutboxOrdering together with lifecycle cleanup and the emitted role state.
+    /** Callers hold [PreferenceOutboxOrdering] together with lifecycle cleanup and the emitted role state. */
     internal suspend fun ensureDefaultRole(client: SqlClient, teamId: Long): TeamRoleDefinition? {
         val rows = client.preparedQuery(
             """
             INSERT INTO tb_team_role_definitions (team_id, name, color_hex, priority, mentionable, permissions, is_default)
-            SELECT ${'$'}1, '@everyone', '#99AAB5', -2147483648, FALSE, ${'$'}2::jsonb, TRUE
-            WHERE NOT EXISTS (SELECT 1 FROM tb_team_role_domain_tombstones WHERE team_id = ${'$'}1)
+            SELECT $1, '@everyone', '#99AAB5', -2147483648, FALSE, $2::jsonb, TRUE
+            WHERE NOT EXISTS (SELECT 1 FROM tb_team_role_domain_tombstones WHERE team_id = $1)
             ON CONFLICT (team_id) WHERE is_default DO NOTHING
             RETURNING id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at, is_default
             """.trimIndent(),
@@ -31,12 +31,9 @@ class TeamRoleRepository(private val pool: Pool) {
         return rows.firstOrNull()?.toTeamRoleDefinition()
     }
 
-    suspend fun hasPermission(teamId: Long, accountId: Long, permission: String): Boolean =
-        findAccountRoles(pool, teamId, accountId).any { it.permissions[permission] == true }
-
     internal suspend fun isTeamDeleted(client: SqlClient, teamId: Long): Boolean {
         val rows = client.preparedQuery(
-            "SELECT EXISTS (SELECT 1 FROM tb_team_role_domain_tombstones WHERE team_id = \$1) AS deleted",
+            "SELECT EXISTS (SELECT 1 FROM tb_team_role_domain_tombstones WHERE team_id = $1) AS deleted",
         ).execute(Tuple.of(teamId)).coAwait()
         return rows.first().getBoolean("deleted")
     }
@@ -45,7 +42,7 @@ class TeamRoleRepository(private val pool: Pool) {
         client.preparedQuery(
             """
             INSERT INTO tb_team_role_domain_tombstones (team_id, source_occurred_at)
-            VALUES (${'$'}1, ${'$'}2)
+            VALUES ($1, $2)
             ON CONFLICT (team_id)
             DO UPDATE SET
                 source_occurred_at = GREATEST(
@@ -62,7 +59,7 @@ class TeamRoleRepository(private val pool: Pool) {
             """
             SELECT id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at, is_default
             FROM tb_team_role_definitions
-            WHERE team_id = ${'$'}1
+            WHERE team_id = $1
             ORDER BY priority DESC, id ASC
             """,
         ).execute(Tuple.of(teamId)).coAwait()
@@ -76,7 +73,7 @@ class TeamRoleRepository(private val pool: Pool) {
             """
             SELECT id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at, is_default
             FROM tb_team_role_definitions
-            WHERE team_id = ${'$'}1 AND id = ${'$'}2
+            WHERE team_id = $1 AND id = $2
             """,
         ).execute(Tuple.of(teamId, roleId)).coAwait()
         return rows.firstOrNull()?.toTeamRoleDefinition()
@@ -89,7 +86,7 @@ class TeamRoleRepository(private val pool: Pool) {
             """
             SELECT id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at, is_default
             FROM tb_team_role_definitions
-            WHERE team_id = ${'$'}1 AND name = ${'$'}2
+            WHERE team_id = $1 AND name = $2
             """,
         ).execute(Tuple.of(teamId, name)).coAwait()
         return rows.firstOrNull()?.toTeamRoleDefinition()
@@ -108,8 +105,8 @@ class TeamRoleRepository(private val pool: Pool) {
             """
             SELECT id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at, is_default
             FROM tb_team_role_definitions
-            WHERE team_id = ${'$'}1 AND name = ${'$'}2 AND id <> ${'$'}3
-              AND is_default = (SELECT is_default FROM tb_team_role_definitions WHERE id = ${'$'}3)
+            WHERE team_id = $1 AND name = $2 AND id <> $3
+              AND is_default = (SELECT is_default FROM tb_team_role_definitions WHERE id = $3)
             """,
         ).execute(Tuple.of(teamId, name, roleId)).coAwait()
         return rows.firstOrNull()?.toTeamRoleDefinition()
@@ -127,7 +124,7 @@ class TeamRoleRepository(private val pool: Pool) {
         val rows = client.preparedQuery(
             """
             INSERT INTO tb_team_role_definitions (team_id, name, color_hex, priority, mentionable, permissions)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6::jsonb)
+            VALUES ($1, $2, $3, $4, $5, $6::jsonb)
             RETURNING id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at, is_default
             """,
         ).execute(
@@ -148,8 +145,8 @@ class TeamRoleRepository(private val pool: Pool) {
         val rows = client.preparedQuery(
             """
             UPDATE tb_team_role_definitions
-            SET name = ${'$'}1, color_hex = ${'$'}2, priority = ${'$'}3, mentionable = ${'$'}4, permissions = ${'$'}5::jsonb
-            WHERE id = ${'$'}6
+            SET name = $1, color_hex = $2, priority = $3, mentionable = $4, permissions = $5::jsonb
+            WHERE id = $6
             RETURNING id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at, is_default
             """,
         ).execute(
@@ -163,7 +160,7 @@ class TeamRoleRepository(private val pool: Pool) {
             """
             SELECT account_id, team_id, role_id, source_membership_version, updated_at
             FROM tb_account_team_roles
-            WHERE team_id = ${'$'}1
+            WHERE team_id = $1
             """.trimIndent(),
         ).execute(Tuple.of(teamId)).coAwait()
         return rows.map { it.toAccountTeamRole() }
@@ -175,17 +172,14 @@ class TeamRoleRepository(private val pool: Pool) {
             SELECT d.id, d.team_id, d.name, d.color_hex, d.priority, d.mentionable, d.permissions,
                    d.created_at, d.updated_at, d.is_default
             FROM tb_team_role_definitions d
-            WHERE d.team_id = ${'$'}1 AND (d.is_default OR EXISTS (
+            WHERE d.team_id = $1 AND (d.is_default OR EXISTS (
                 SELECT 1 FROM tb_account_team_roles a
-                WHERE a.team_id = d.team_id AND a.role_id = d.id AND a.account_id = ${'$'}2
+                WHERE a.team_id = d.team_id AND a.role_id = d.id AND a.account_id = $2
             ))
             """.trimIndent(),
         ).execute(Tuple.of(teamId, accountId)).coAwait()
         return rows.map { it.toTeamRoleDefinition() }
     }
-
-    suspend fun findAssignment(accountId: Long, teamId: Long, roleId: Long): AccountTeamRole? =
-        findAssignment(pool, accountId, teamId, roleId)
 
     internal suspend fun findAssignment(
         client: SqlClient,
@@ -197,7 +191,7 @@ class TeamRoleRepository(private val pool: Pool) {
             """
             SELECT account_id, team_id, role_id, source_membership_version, updated_at
             FROM tb_account_team_roles
-            WHERE account_id = ${'$'}1 AND team_id = ${'$'}2 AND role_id = ${'$'}3
+            WHERE account_id = $1 AND team_id = $2 AND role_id = $3
             """.trimIndent(),
         ).execute(Tuple.of(accountId, teamId, roleId)).coAwait()
         return rows.firstOrNull()?.toAccountTeamRole()
@@ -226,9 +220,9 @@ class TeamRoleRepository(private val pool: Pool) {
                     COALESCE(updated_at, created_at) AS state_occurred_at,
                     FALSE AS deleted
                 FROM tb_team_role_definitions
-                WHERE (team_id, id) > (${'$'}1, ${'$'}2)
+                WHERE (team_id, id) > ($1, $2)
                 ORDER BY team_id, id
-                LIMIT ${'$'}3
+                LIMIT $3
                 FOR SHARE
             ), deleted_states AS (
                 SELECT
@@ -245,16 +239,16 @@ class TeamRoleRepository(private val pool: Pool) {
                     state_occurred_at,
                     TRUE AS deleted
                 FROM tb_team_role_tombstones
-                WHERE (team_id, role_id) > (${'$'}1, ${'$'}2)
+                WHERE (team_id, role_id) > ($1, $2)
                 ORDER BY team_id, role_id
-                LIMIT ${'$'}3
+                LIMIT $3
                 FOR SHARE
             )
             SELECT * FROM active_states
             UNION ALL
             SELECT * FROM deleted_states
             ORDER BY team_id, role_id
-            LIMIT ${'$'}3
+            LIMIT $3
             """.trimIndent(),
         ).execute(Tuple.of(afterTeamId, afterRoleId, limit)).coAwait()
         return rows.map { it.toTeamRoleState() }
@@ -278,9 +272,9 @@ class TeamRoleRepository(private val pool: Pool) {
                     updated_at AS state_occurred_at,
                     FALSE AS deleted
                 FROM tb_account_team_roles
-                WHERE (team_id, account_id, role_id) > (${'$'}1, ${'$'}2, ${'$'}3)
+                WHERE (team_id, account_id, role_id) > ($1, $2, $3)
                 ORDER BY team_id, account_id, role_id
-                LIMIT ${'$'}4
+                LIMIT $4
                 FOR SHARE
             ), deleted_states AS (
                 SELECT
@@ -291,16 +285,16 @@ class TeamRoleRepository(private val pool: Pool) {
                     state_occurred_at,
                     TRUE AS deleted
                 FROM tb_team_role_assignment_tombstones
-                WHERE (team_id, account_id, role_id) > (${'$'}1, ${'$'}2, ${'$'}3)
+                WHERE (team_id, account_id, role_id) > ($1, $2, $3)
                 ORDER BY team_id, account_id, role_id
-                LIMIT ${'$'}4
+                LIMIT $4
                 FOR SHARE
             )
             SELECT * FROM active_states
             UNION ALL
             SELECT * FROM deleted_states
             ORDER BY team_id, account_id, role_id
-            LIMIT ${'$'}4
+            LIMIT $4
             """.trimIndent(),
         ).execute(Tuple.of(afterTeamId, afterAccountId, afterRoleId, limit)).coAwait()
         return rows.map { it.toTeamRoleAssignmentState() }
@@ -316,9 +310,9 @@ class TeamRoleRepository(private val pool: Pool) {
             """
             SELECT team_id, account_id, state_occurred_at
             FROM tb_team_role_member_fences
-            WHERE (team_id, account_id) > (${'$'}1, ${'$'}2)
+            WHERE (team_id, account_id) > ($1, $2)
             ORDER BY team_id, account_id
-            LIMIT ${'$'}3
+            LIMIT $3
             FOR SHARE
             """.trimIndent(),
         ).execute(Tuple.of(afterTeamId, afterAccountId, limit)).coAwait()
@@ -336,18 +330,18 @@ class TeamRoleRepository(private val pool: Pool) {
             """
             WITH removed_tombstone AS (
                 DELETE FROM tb_team_role_assignment_tombstones
-                WHERE team_id = ${'$'}2 AND account_id = ${'$'}1 AND role_id = ${'$'}3
+                WHERE team_id = $2 AND account_id = $1 AND role_id = $3
                 RETURNING state_occurred_at
             ), prior_versions AS (
                 SELECT state_occurred_at FROM removed_tombstone
                 UNION ALL
                 SELECT state_occurred_at
                 FROM tb_team_role_member_fences
-                WHERE team_id = ${'$'}2 AND account_id = ${'$'}1
+                WHERE team_id = $2 AND account_id = $1
                 UNION ALL
                 SELECT updated_at AS state_occurred_at
                 FROM tb_account_team_roles
-                WHERE team_id = ${'$'}2 AND account_id = ${'$'}1 AND role_id = ${'$'}3
+                WHERE team_id = $2 AND account_id = $1 AND role_id = $3
             ), next_state AS (
                 SELECT GREATEST(
                     clock_timestamp(),
@@ -365,7 +359,7 @@ class TeamRoleRepository(private val pool: Pool) {
                 source_membership_version,
                 updated_at
             )
-            SELECT ${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, state_occurred_at
+            SELECT $1, $2, $3, $4, state_occurred_at
             FROM next_state
             ON CONFLICT (account_id, team_id, role_id)
             DO UPDATE SET
@@ -391,20 +385,20 @@ class TeamRoleRepository(private val pool: Pool) {
             """
             WITH removed_assignment AS (
                 DELETE FROM tb_account_team_roles
-                WHERE account_id = ${'$'}1 AND team_id = ${'$'}2 AND role_id = ${'$'}3
+                WHERE account_id = $1 AND team_id = $2 AND role_id = $3
                 RETURNING updated_at
             ), prior_versions AS (
                 SELECT updated_at AS state_occurred_at FROM removed_assignment
                 UNION ALL
                 SELECT state_occurred_at
                 FROM tb_team_role_assignment_tombstones
-                WHERE team_id = ${'$'}2 AND account_id = ${'$'}1 AND role_id = ${'$'}3
+                WHERE team_id = $2 AND account_id = $1 AND role_id = $3
                 UNION ALL
                 SELECT state_occurred_at
                 FROM tb_team_role_member_fences
-                WHERE team_id = ${'$'}2 AND account_id = ${'$'}1
+                WHERE team_id = $2 AND account_id = $1
                 UNION ALL
-                SELECT ${'$'}4::TIMESTAMPTZ
+                SELECT $4::TIMESTAMPTZ
             ), next_state AS (
                 SELECT GREATEST(
                     clock_timestamp(),
@@ -418,7 +412,7 @@ class TeamRoleRepository(private val pool: Pool) {
                     role_id,
                     state_occurred_at
                 )
-                SELECT ${'$'}2, ${'$'}1, ${'$'}3, state_occurred_at
+                SELECT $2, $1, $3, state_occurred_at
                 FROM next_state
                 ON CONFLICT (team_id, account_id, role_id)
                 DO UPDATE SET
@@ -453,9 +447,9 @@ class TeamRoleRepository(private val pool: Pool) {
         val rows = client.preparedQuery(
             """
             DELETE FROM tb_account_team_roles
-            WHERE account_id = ${'$'}1
-              AND team_id = ${'$'}2
-              AND (source_membership_version IS NULL OR source_membership_version <= ${'$'}3)
+            WHERE account_id = $1
+              AND team_id = $2
+              AND (source_membership_version IS NULL OR source_membership_version <= $3)
             RETURNING account_id, team_id, role_id, source_membership_version, updated_at
             """.trimIndent(),
         ).execute(Tuple.of(accountId, teamId, membershipVersion.atOffset(ZoneOffset.UTC))).coAwait()
@@ -473,19 +467,19 @@ class TeamRoleRepository(private val pool: Pool) {
             WITH next_state AS (
                 SELECT GREATEST(
                     clock_timestamp(),
-                    ${'$'}3::TIMESTAMPTZ,
+                    $3::TIMESTAMPTZ,
                     COALESCE(
                         (
                             SELECT state_occurred_at + INTERVAL '1 microsecond'
                             FROM tb_team_role_member_fences
-                            WHERE team_id = ${'$'}1 AND account_id = ${'$'}2
+                            WHERE team_id = $1 AND account_id = $2
                         ),
                         '-infinity'::TIMESTAMPTZ
                     )
                 ) AS state_occurred_at
             ), persisted AS (
                 INSERT INTO tb_team_role_member_fences (team_id, account_id, state_occurred_at)
-                SELECT ${'$'}1, ${'$'}2, state_occurred_at
+                SELECT $1, $2, state_occurred_at
                 FROM next_state
                 ON CONFLICT (team_id, account_id)
                 DO UPDATE SET
@@ -513,16 +507,16 @@ class TeamRoleRepository(private val pool: Pool) {
             """
             WITH removed_role AS (
                 DELETE FROM tb_team_role_definitions
-                WHERE team_id = ${'$'}1 AND id = ${'$'}2
+                WHERE team_id = $1 AND id = $2
                 RETURNING COALESCE(updated_at, created_at) AS state_occurred_at
             ), prior_versions AS (
                 SELECT state_occurred_at FROM removed_role
                 UNION ALL
                 SELECT state_occurred_at
                 FROM tb_team_role_tombstones
-                WHERE team_id = ${'$'}1 AND role_id = ${'$'}2
+                WHERE team_id = $1 AND role_id = $2
                 UNION ALL
-                SELECT ${'$'}3::TIMESTAMPTZ
+                SELECT $3::TIMESTAMPTZ
             ), next_state AS (
                 SELECT GREATEST(
                     clock_timestamp(),
@@ -531,7 +525,7 @@ class TeamRoleRepository(private val pool: Pool) {
                 FROM prior_versions
             ), persisted AS (
                 INSERT INTO tb_team_role_tombstones (team_id, role_id, state_occurred_at)
-                SELECT ${'$'}1, ${'$'}2, state_occurred_at
+                SELECT $1, $2, state_occurred_at
                 FROM next_state
                 ON CONFLICT (team_id, role_id)
                 DO UPDATE SET
