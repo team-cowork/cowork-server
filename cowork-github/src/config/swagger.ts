@@ -13,7 +13,7 @@ export function setupSwagger(app: INestApplication, version: string) {
 		.addTag('webhook', 'GitHub 이벤트를 수신하고 cowork에 반영합니다.')
 		.build(), {include: [InstallationModule], autoTagControllers: false});
 
-	SwaggerModule.setup('api', app, publicDocument, {jsonDocumentUrl: 'api-json', ui: false, raw: ['json']});
+	SwaggerModule.setup('api', app, publicDocument, {jsonDocumentUrl: 'v3/api-docs', ui: false, raw: ['json']});
 
 	const internalDocument = SwaggerModule.createDocument(app, new DocumentBuilder()
 		.setTitle('cowork GitHub Internal API')
@@ -24,5 +24,5 @@ export function setupSwagger(app: INestApplication, version: string) {
 		.addTag('pull-request', 'PR의 실시간 상태를 조회하고 머지/승인합니다.')
 		.build(), {include: [PullRequestModule], autoTagControllers: false});
 
-	SwaggerModule.setup('api/internal', app, internalDocument, {jsonDocumentUrl: 'api-internal-json', raw: ['json']});
+	SwaggerModule.setup('api/internal', app, internalDocument, {jsonDocumentUrl: 'v3/api-docs/internal', raw: ['json']});
 }

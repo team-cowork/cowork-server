@@ -45,4 +45,4 @@ GET     /health/ready       com.cowork.applet.global.health.HealthController.rea
 GET     /metrics            com.cowork.applet.global.metrics.MetricsController.scrape
 
 ### NoDocs ###
-GET     /swagger/doc.json   com.cowork.applet.global.swagger.OpenApiController.document
+GET     /v3/api-docs   com.cowork.applet.global.swagger.OpenApiController.document
