@@ -9,6 +9,7 @@ import com.cowork.preference.domain.teamrole.model.AccountTeamRole
 import com.cowork.preference.domain.teamrole.model.TeamRoleDefinition
 import com.cowork.preference.domain.teamrole.model.TeamRolePermissions
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
+import com.cowork.preference.global.coroutine.runCatchingCancellable
 import com.cowork.preference.global.messaging.event.PreferenceEvent
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import io.vertx.sqlclient.SqlClient
@@ -131,7 +132,7 @@ class TeamRoleService(
         val existing = repository.findRole(teamId, roleId)
         if (existing?.isDefault == true) return Result.failure(IllegalArgumentException("기본 역할은 삭제할 수 없습니다."))
         if (existing == null) {
-            return runCatching {
+            return runCatchingCancellable {
                 outboxRepository.inTransaction { connection ->
                     val tombstone = repository.deleteRoleWithTombstone(
                         connection,
@@ -152,7 +153,7 @@ class TeamRoleService(
         }
         val occurredAt = Instant.now()
 
-        return runCatching {
+        return runCatchingCancellable {
             outboxRepository.inTransaction { connection ->
                 val assignments = repository.findMemberRoles(connection, teamId).filter { it.roleId == roleId }
                 val policyEvents = deleteChannelRolePoliciesForRole(connection, teamId, roleId)
