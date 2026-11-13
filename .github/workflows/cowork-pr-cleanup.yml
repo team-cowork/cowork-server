@@ -43,3 +43,32 @@ jobs:
           script: |
             const { syncPullRequestIssues } = require('./deploy/ci/pull_request/issue/issues.cjs');
             await syncPullRequestIssues({ github, context, core, close: true });
+
+  delete-head-branch:
+    name: Delete Head Branch
+    # Repository auto-delete is off because it also deletes develop after release PRs.
+    if: >
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !contains(fromJSON('["develop", "main"]'), github.event.pull_request.head.ref)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Delete Merged Head Branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          # Keep a branch that an open PR still uses as its base.
+          dependents=$(gh pr list --repo "$GITHUB_REPOSITORY" --base "$HEAD_REF" --state open --json number --jq length)
+          if [ "$dependents" -gt 0 ]; then
+            echo "Keep $HEAD_REF because $dependents open PR(s) use it as the base."
+            exit 0
+          fi
+          if gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$HEAD_REF"; then
+            echo "Deleted $HEAD_REF."
+          else
+            echo "::warning::Could not delete $HEAD_REF. It may already be deleted."
+          fi
