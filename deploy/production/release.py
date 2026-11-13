@@ -326,7 +326,7 @@ def bot_identity():
     return ["-c", f"user.name={slug}[bot]", "-c", f"user.email={bot['id']}+{slug}[bot]@users.noreply.github.com"]
 
 
-def commit_manifest(args):
+def commit_manifest(_args):
     content = (ROOT / MANIFEST).read_text()
     data = json.loads(content)
     validate_manifest(data)
@@ -353,7 +353,7 @@ def commit_manifest(args):
     emit(manifest_sha=git("rev-parse", "HEAD"))
 
 
-def publish(args):
+def publish(_args):
     data = json.loads((ROOT / MANIFEST).read_text())
     validate_manifest(data)
     if data["source_sha"] != source_sha():
