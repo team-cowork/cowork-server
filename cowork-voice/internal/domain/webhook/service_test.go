@@ -11,7 +11,7 @@ import (
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
-func TestWebhookService(t *testing.T) {
+func TestService(t *testing.T) {
 	t.Run("HandleEvent - 참가 이벤트면 세션 시작과 사용자 입장을 발행한다", func(t *testing.T) {
 		t.Parallel()
 

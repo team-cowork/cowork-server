@@ -11,7 +11,7 @@ import (
 	"github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
-func TestVoiceRoomService(t *testing.T) {
+func TestService(t *testing.T) {
 	t.Run("Join - 활성 세션이 없으면 생성하고 참가자를 추가한다", func(t *testing.T) {
 		t.Parallel()
 
