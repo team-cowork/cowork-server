@@ -1,6 +1,4 @@
 spring:
-  reactor:
-    context-propagation: auto
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS}
     producer:
@@ -45,8 +43,6 @@ management:
       exposure:
         include: health, info, prometheus
   endpoint:
-    prometheus:
-      enabled: true
     health:
       probes:
         enabled: true
