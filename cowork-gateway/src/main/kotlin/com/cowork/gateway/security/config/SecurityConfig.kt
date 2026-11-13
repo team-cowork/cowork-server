@@ -99,6 +99,9 @@ class SecurityConfig(
                     .pathMatchers("/api/health").permitAll()
                     // 가입 전에도 약관과 라이선스를 읽을 수 있어야 한다.
                     .pathMatchers(HttpMethod.GET, "/api/legal/**").permitAll()
+                    // 2026-11-13 UTC: Link checkers and uptime monitors often probe with HEAD.
+                    // WebFlux serves HEAD with the GET handler, but authorization runs first.
+                    .pathMatchers(HttpMethod.HEAD, "/api/legal/**").permitAll()
                     .pathMatchers(
                         HttpMethod.GET,
                         "/api/chat/health",
