@@ -11,7 +11,7 @@ import (
 
 const keepaliveInterval = 30 * time.Second
 
-// Handler는 GET /notifications/stream SSE 엔드포인트를 처리합니다.
+// Handler 함수는 GET /notifications/stream SSE 엔드포인트를 처리합니다.
 func Handler(hub *Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
