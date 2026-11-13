@@ -17,7 +17,7 @@ class KafkaProducerConfig(private val kafkaProperties: KafkaProperties) {
 
     @Bean
     fun producerFactory(): ProducerFactory<String, Any> {
-        val props = kafkaProperties.buildProducerProperties().toMutableMap<String, Any>()
+        val props = kafkaProperties.buildProducerProperties().toMutableMap()
         props[ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG] = StringSerializer::class.java
         props[ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG] = JacksonJsonSerializer::class.java
         props[JacksonJsonSerializer.ADD_TYPE_INFO_HEADERS] = false
@@ -29,7 +29,7 @@ class KafkaProducerConfig(private val kafkaProperties: KafkaProperties) {
 
     @Bean
     fun channelRolePolicyResultDltProducerFactory(): ProducerFactory<String, String> {
-        val props = kafkaProperties.buildProducerProperties().toMutableMap<String, Any>()
+        val props = kafkaProperties.buildProducerProperties().toMutableMap()
         props[ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG] = StringSerializer::class.java
         props[ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG] = StringSerializer::class.java
         return DefaultKafkaProducerFactory(props)
