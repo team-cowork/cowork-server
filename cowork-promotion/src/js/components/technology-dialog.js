@@ -1,3 +1,5 @@
+import {preloadImages} from '../core/preload.js';
+
 export function createTechnologyDialog(root) {
 	const dialog = root.querySelector('#technology-dialog');
 	const logo = dialog.querySelector('[data-technology-logo]');
@@ -44,6 +46,12 @@ export function createTechnologyDialog(root) {
 
 	return {
 		mount() {
+			try {
+				preloadImages(Array.from(root.querySelectorAll('[data-technology]'), trigger => trigger.dataset.logo));
+			} catch (error) {
+				console.warn('기술 스택 로고 미리 불러오기에 실패했습니다.', error);
+			}
+
 			root.addEventListener('click', handleClick);
 			dialog.addEventListener('pointerdown', handlePointerDown);
 			dialog.addEventListener('click', handleBackdropClick);
