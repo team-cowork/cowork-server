@@ -49,7 +49,7 @@ class KafkaConsumerConfig(
     // KafkaTemplate<String, TeamEventPayload>로 타입이 고정돼 있어 DLQ 발행용으로 재사용할 수 없다.
     @Bean
     fun teamGithubDlqProducerFactory(): ProducerFactory<String, Any> {
-        val props = kafkaProperties.buildProducerProperties().toMutableMap<String, Any>()
+        val props = kafkaProperties.buildProducerProperties().toMutableMap()
         props[ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG] = StringSerializer::class.java
         props[ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG] = JacksonJsonSerializer::class.java
         props[JacksonJsonSerializer.ADD_TYPE_INFO_HEADERS] = false
@@ -60,7 +60,7 @@ class KafkaConsumerConfig(
     fun teamGithubDlqKafkaTemplate(): KafkaTemplate<String, Any> = KafkaTemplate(teamGithubDlqProducerFactory())
 
     private fun <T : Any> consumerFactory(targetType: Class<T>): ConsumerFactory<String, T> {
-        val props = kafkaProperties.buildConsumerProperties().toMutableMap<String, Any>()
+        val props = kafkaProperties.buildConsumerProperties().toMutableMap()
         props[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = ErrorHandlingDeserializer::class.java
         props[ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG] = ErrorHandlingDeserializer::class.java
         props[ErrorHandlingDeserializer.KEY_DESERIALIZER_CLASS] = StringDeserializer::class.java
@@ -68,7 +68,7 @@ class KafkaConsumerConfig(
         props[JacksonJsonDeserializer.TRUSTED_PACKAGES] = "*"
         props[JacksonJsonDeserializer.USE_TYPE_INFO_HEADERS] = false
         props[JacksonJsonDeserializer.VALUE_DEFAULT_TYPE] = targetType.name
-        return DefaultKafkaConsumerFactory<String, T>(props)
+        return DefaultKafkaConsumerFactory(props)
     }
 
     private fun <T : Any> listenerContainerFactory(
@@ -82,10 +82,10 @@ class KafkaConsumerConfig(
     }
 
     private fun stringConsumerFactory(): ConsumerFactory<String, String> {
-        val props = kafkaProperties.buildConsumerProperties().toMutableMap<String, Any>()
+        val props = kafkaProperties.buildConsumerProperties().toMutableMap()
         props[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
         props[ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
-        return DefaultKafkaConsumerFactory<String, String>(props)
+        return DefaultKafkaConsumerFactory(props)
     }
 
     private fun projectionListenerContainerFactory(
