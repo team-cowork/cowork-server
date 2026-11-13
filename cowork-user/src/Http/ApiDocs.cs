@@ -58,6 +58,8 @@ public static class ApiDocs
         });
         return services.AddOpenApi(options =>
         {
+            // TODO: Change to OpenApiSpecVersion.OpenApi3_2 (OpenAPI 3.2.1) after the upgrade to .NET 11.
+            //  Microsoft.AspNetCore.OpenApi 10.x uses Microsoft.OpenApi 2.x, which cannot write OpenAPI 3.2.
             options.OpenApiVersion = OpenApiSpecVersion.OpenApi3_0;
             options.AddSchemaTransformer((schema, context, _) =>
             {
