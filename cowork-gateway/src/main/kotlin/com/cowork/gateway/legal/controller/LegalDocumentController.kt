@@ -77,10 +77,11 @@ class LegalDocumentController(private val catalog: LegalDocumentCatalog) {
         }
         val format = LegalDocumentFormat.negotiate(accept)
             ?: throw NotAcceptableStatusException(LegalDocumentFormat.supportedTypes)
+        // A ResponseEntity Vary header replaces the Origin values that the CORS filter already added.
+        exchange.response.headers.add(HttpHeaders.VARY, HttpHeaders.ACCEPT)
         return ResponseEntity.ok()
             .contentType(format.contentType)
             .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic())
-            .header(HttpHeaders.VARY, HttpHeaders.ACCEPT)
             .body(catalog.get(type, format))
     }
 }
