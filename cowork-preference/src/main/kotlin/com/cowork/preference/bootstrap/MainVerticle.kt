@@ -46,6 +46,7 @@ import com.cowork.preference.domain.webhook.security.WebhookUrlSigner
 import com.cowork.preference.domain.webhook.service.WebhookService
 import com.cowork.preference.global.config.AppConfig
 import com.cowork.preference.global.config.kafkaClientProperties
+import com.cowork.preference.global.coroutine.runCatchingCancellable
 import com.cowork.preference.global.messaging.producer.PreferenceProducer
 import com.cowork.preference.global.metrics.MetricsRegistry
 import com.cowork.preference.global.outbox.PreferenceOutboxDispatcher
@@ -389,7 +390,7 @@ class MainVerticle : AbstractVerticle() {
     ) {
         vertx.setPeriodic(60_000L) {
             scope.launch(vertx.dispatcher()) {
-                runCatching { webhookService.clearExpiredReplaySecrets() }
+                runCatchingCancellable { webhookService.clearExpiredReplaySecrets() }
                     .onFailure { log.error("Failed to clear expired webhook response secrets", it) }
                 checkExpiredStatuses(prefService, cache)
             }
@@ -431,7 +432,7 @@ class MainVerticle : AbstractVerticle() {
 
     private suspend fun checkExpiredStatuses(prefService: PreferenceService, cache: PreferenceCache) {
         if (!cache.acquireExpiryLock()) return
-        runCatching {
+        runCatchingCancellable {
             prefService.clearExpiredStatuses().forEach { accountId ->
                 log.info("Status expired for accountId={}", accountId)
             }
