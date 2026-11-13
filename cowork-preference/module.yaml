@@ -5,7 +5,7 @@ plugins:
   ktlint: enabled
 
 dependencies:
-  - bom: io.vertx:vertx-stack-depchain:5.1.8
+  - bom: io.vertx:vertx-stack-depchain:5.2.3
   - io.vertx:vertx-core
   - io.vertx:vertx-web
   # Kotlin Toolchain does not currently package vertx-web's required auth-common transitive dependency.
@@ -15,19 +15,19 @@ dependencies:
   - io.vertx:vertx-redis-client
   - io.vertx:vertx-kafka-client
   - io.vertx:vertx-micrometer-metrics
-  - io.micrometer:micrometer-registry-prometheus:1.17.1
-  - org.flywaydb:flyway-core:13.7.0
-  - org.flywaydb:flyway-database-postgresql:13.7.0
-  - org.postgresql:postgresql:42.7.13
+  - io.micrometer:micrometer-registry-prometheus:1.17.2
+  - org.flywaydb:flyway-core:13.12.2
+  - org.flywaydb:flyway-database-postgresql:13.12.2
+  - org.postgresql:postgresql:42.7.14
   - org.apache.logging.log4j:log4j-core:2.26.1
   - org.apache.logging.log4j:log4j-layout-template-json:2.26.1
   - org.apache.logging.log4j:log4j-slf4j2-impl:2.26.1
   - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0
 
 test-dependencies:
-  - io.mockk:mockk:1.14.11
-  - io.kotest:kotest-runner-junit5-jvm:6.2.5
-  - io.kotest:kotest-assertions-core-jvm:6.2.5
+  - io.mockk:mockk:1.14.12
+  - io.kotest:kotest-runner-junit5-jvm:6.2.7
+  - io.kotest:kotest-assertions-core-jvm:6.2.7
 
 settings:
   jvm:
@@ -42,5 +42,5 @@ settings:
       systemProperties:
         net.bytebuddy.safe: "true"
   kotlin:
-    version: 2.4.20
+    version: 2.4.21
     freeCompilerArgs: [-Xjsr305=strict]

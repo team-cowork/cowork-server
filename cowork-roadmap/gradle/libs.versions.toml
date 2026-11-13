@@ -1,8 +1,8 @@
 [versions]
-java = "26"
-spring-boot = "4.1.1"
-springdoc-webmvc = "3.1.1"
-the-sdk = "2.0"
+java = "27"
+spring-boot = "4.1.2"
+springdoc-webmvc = "3.2.0"
+the-sdk = "2.0.1"
 logstash-logback = "9.0"
 lombok = "1.18.48"
 
@@ -26,4 +26,4 @@ lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 [plugins]
 spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
 spring-dependency-management = { id = "io.spring.dependency-management", version = "1.1.7" }
-spotless = { id = "com.diffplug.spotless", version = "8.10.2" }
+spotless = { id = "com.diffplug.spotless", version = "8.11.0" }

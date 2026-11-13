@@ -1,4 +1,4 @@
-FROM eclipse-temurin:26.0.2_10-jdk-alpine-3.24@sha256:e5b0a876436e5d1c8ff84dfd091cb530b83a9ed4273317d24acb673695bb7e0c AS builder
+FROM eclipse-temurin:27.0.1.0-jdk-alpine-3.24@sha256:a63e42ef2a577cdb0802b73bb6f8fa2c3b0ebf1b4f00f29eb22e7f4d83b234f7 AS builder
 WORKDIR /workspace/cowork-project
 
 COPY .editorconfig /workspace/.editorconfig
@@ -26,7 +26,7 @@ RUN --mount=type=cache,id=cowork-project-maven,target=/root/.m2,sharing=locked \
 FROM scratch AS verify
 COPY --from=verification /coverage /
 
-FROM eclipse-temurin:26.0.2_10-jre-alpine-3.24@sha256:2c984601c59ac93f97947ce66d03df25c2e16bed97a28289fbc0ab157087f1b5 AS runtime
+FROM eclipse-temurin:27.0.1.0-jre-alpine-3.24@sha256:a0f3b523fd89e242ce302715ce367f68e9073c59274e65746d0791c750f38de3 AS runtime
 RUN addgroup -S -g 10001 app && adduser -S -u 10001 app -G app
 WORKDIR /app
 COPY --chown=app:app --from=builder /workspace/extracted/dependencies/ ./
