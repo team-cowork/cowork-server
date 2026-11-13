@@ -9,18 +9,18 @@ import (
 
 	"github.com/livekit/protocol/livekit"
 
-	livedomain "github.com/cowork/cowork-voice/internal/domain/live_room"
+	"github.com/cowork/cowork-voice/internal/domain/liveroom"
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
-type LiveWebhookService struct {
+type LiveService struct {
 	repo LiveSessionRepository
 	room LiveRoomController
 	now  func() time.Time
 }
 
-func NewLiveWebhookService(repo LiveSessionRepository, room LiveRoomController) *LiveWebhookService {
-	return &LiveWebhookService{
+func NewLiveService(repo LiveSessionRepository, room LiveRoomController) *LiveService {
+	return &LiveService{
 		repo: repo,
 		room: room,
 		now: func() time.Time {
@@ -29,14 +29,14 @@ func NewLiveWebhookService(repo LiveSessionRepository, room LiveRoomController) 
 	}
 }
 
-func (s *LiveWebhookService) HandleEvent(ctx context.Context, event *livekit.WebhookEvent) error {
+func (s *LiveService) HandleEvent(ctx context.Context, event *livekit.WebhookEvent) error {
 	now := time.Now().UTC()
 	if s.now != nil {
 		now = s.now()
 	}
 	nowStr := now.Format(time.RFC3339)
 
-	switch WebhookEventType(event.GetEvent()) {
+	switch EventType(event.GetEvent()) {
 	case EventParticipantJoined:
 		return s.handleParticipantJoined(ctx, event, now, nowStr)
 	case EventParticipantLeft:
@@ -47,7 +47,7 @@ func (s *LiveWebhookService) HandleEvent(ctx context.Context, event *livekit.Web
 	return nil
 }
 
-func (s *LiveWebhookService) handleParticipantJoined(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) error {
+func (s *LiveService) handleParticipantJoined(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) error {
 	participant := event.GetParticipant()
 	if participant == nil {
 		return nil
@@ -61,7 +61,7 @@ func (s *LiveWebhookService) handleParticipantJoined(ctx context.Context, event 
 	if err != nil {
 		return nil
 	}
-	parsedRoom, ok := livedomain.ParseRoomName(room.Name)
+	parsedRoom, ok := liveroom.ParseRoomName(room.Name)
 	if !ok {
 		return nil
 	}
@@ -93,7 +93,7 @@ func (s *LiveWebhookService) handleParticipantJoined(ctx context.Context, event 
 		return nil
 	}
 
-	_, err = s.repo.RecordViewerJoinedAndEnqueue(ctx, &livedomain.LiveViewer{
+	_, err = s.repo.RecordViewerJoinedAndEnqueue(ctx, &liveroom.Viewer{
 		SessionID: liveSession.SessionID,
 		UserID:    userID,
 		ChannelID: parsedRoom.ChannelID,
@@ -113,7 +113,7 @@ func (s *LiveWebhookService) handleParticipantJoined(ctx context.Context, event 
 	return nil
 }
 
-func (s *LiveWebhookService) handleParticipantLeft(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) error {
+func (s *LiveService) handleParticipantLeft(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) error {
 	participant := event.GetParticipant()
 	if participant == nil {
 		return nil
@@ -127,7 +127,7 @@ func (s *LiveWebhookService) handleParticipantLeft(ctx context.Context, event *l
 	if err != nil {
 		return nil
 	}
-	parsedRoom, ok := livedomain.ParseRoomName(room.Name)
+	parsedRoom, ok := liveroom.ParseRoomName(room.Name)
 	if !ok {
 		return nil
 	}
@@ -161,7 +161,7 @@ func (s *LiveWebhookService) handleParticipantLeft(ctx context.Context, event *l
 
 	var durationSeconds int64
 	if joinedAt != nil {
-		durationSeconds = livedomain.DurationSecondsSince(now, *joinedAt)
+		durationSeconds = liveroom.DurationSecondsSince(now, *joinedAt)
 	}
 
 	_, err = s.repo.MarkViewerLeftAndEnqueue(ctx, liveSession.SessionID, userID, occurrenceID, now, &kafkadomain.ViewerLeftEvent{
@@ -180,13 +180,13 @@ func (s *LiveWebhookService) handleParticipantLeft(ctx context.Context, event *l
 	return nil
 }
 
-func (s *LiveWebhookService) handleRoomFinished(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) error {
+func (s *LiveService) handleRoomFinished(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) error {
 	room := event.GetRoom()
 	if room == nil {
 		return nil
 	}
 
-	parsedRoom, ok := livedomain.ParseRoomName(room.Name)
+	parsedRoom, ok := liveroom.ParseRoomName(room.Name)
 	if !ok {
 		return nil
 	}
@@ -200,7 +200,7 @@ func (s *LiveWebhookService) handleRoomFinished(ctx context.Context, event *live
 		return nil
 	}
 
-	durationSeconds := livedomain.DurationSecondsSince(now, liveSession.StartedAt)
+	durationSeconds := liveroom.DurationSecondsSince(now, liveSession.StartedAt)
 	ended, err := s.repo.EndSessionAndEnqueue(ctx, liveSession.SessionID, now, &kafkadomain.LiveEndedEvent{
 		EventType:       kafkadomain.EventLiveEnded,
 		SessionID:       liveSession.SessionID,

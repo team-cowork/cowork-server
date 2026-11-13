@@ -1,4 +1,4 @@
-package live
+package liveroom
 
 import (
 	"time"
@@ -13,7 +13,7 @@ const (
 	StatusEnded        = "ended"
 )
 
-type LiveSession struct {
+type Session struct {
 	ID                 bson.ObjectID `bson:"_id,omitempty"          json:"-"`
 	SessionID          string        `bson:"session_id"             json:"session_id"`
 	ChannelID          int64         `bson:"channel_id"             json:"channel_id"`
@@ -26,7 +26,7 @@ type LiveSession struct {
 	EndedAt            *time.Time    `bson:"ended_at,omitempty"     json:"ended_at,omitempty"`
 }
 
-type LiveViewer struct {
+type Viewer struct {
 	ID           bson.ObjectID `bson:"_id,omitempty"`
 	SessionID    string        `bson:"session_id"`
 	UserID       int64         `bson:"user_id"`

@@ -6,7 +6,7 @@ import (
 	livekitproto "github.com/livekit/protocol/livekit"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 
-	live "github.com/cowork/cowork-voice/internal/domain/live_room"
+	"github.com/cowork/cowork-voice/internal/domain/liveroom"
 )
 
 // liveEmptyTimeoutSecs는 라이브 방의 빈 방 자동 정리 시간이다.
@@ -20,7 +20,7 @@ type liveKitLiveRoomService struct {
 	ttlSecs   int64
 }
 
-func NewLiveKitLiveRoom(client *lksdk.RoomServiceClient, apiKey, apiSecret string, ttlSecs int64) live.LiveKitRoom {
+func NewLiveKitLiveRoom(client *lksdk.RoomServiceClient, apiKey, apiSecret string, ttlSecs int64) liveroom.LiveKitRoom {
 	return &liveKitLiveRoomService{
 		client:    client,
 		apiKey:    apiKey,
@@ -41,13 +41,13 @@ func (l *liveKitLiveRoomService) RemoveParticipant(ctx context.Context, roomName
 	return RemoveParticipant(ctx, l.client, roomName, identity)
 }
 
-func (l *liveKitLiveRoomService) ListParticipants(ctx context.Context, roomName string) ([]live.LiveKitParticipant, error) {
+func (l *liveKitLiveRoomService) ListParticipants(ctx context.Context, roomName string) ([]liveroom.LiveKitParticipant, error) {
 	participants, err := ListParticipants(ctx, l.client, roomName)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]live.LiveKitParticipant, 0, len(participants))
+	result := make([]liveroom.LiveKitParticipant, 0, len(participants))
 	for _, p := range participants {
 		if p == nil {
 			continue
@@ -61,8 +61,8 @@ func (l *liveKitLiveRoomService) DeleteRoom(ctx context.Context, roomName string
 	return DeleteRoom(ctx, l.client, roomName)
 }
 
-func fromProtoLiveParticipant(p *livekitproto.ParticipantInfo) live.LiveKitParticipant {
-	return live.LiveKitParticipant{
+func fromProtoLiveParticipant(p *livekitproto.ParticipantInfo) liveroom.LiveKitParticipant {
+	return liveroom.LiveKitParticipant{
 		Identity: p.Identity,
 		JoinedAt: p.JoinedAt,
 	}

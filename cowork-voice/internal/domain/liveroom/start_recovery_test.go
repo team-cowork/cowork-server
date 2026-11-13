@@ -1,4 +1,4 @@
-package live
+package liveroom
 
 import (
 	"context"
@@ -12,8 +12,8 @@ import (
 
 var recoveryNow = time.Unix(1700000000, 0).UTC()
 
-func creatingSession(id string, age time.Duration) *LiveSession {
-	return &LiveSession{
+func creatingSession(id string, age time.Duration) *Session {
+	return &Session{
 		SessionID: id,
 		ChannelID: 123,
 		RoomName:  "live-123-" + id,
@@ -33,7 +33,7 @@ func TestStartRecovery(t *testing.T) {
 		t.Parallel()
 
 		session := creatingSession("s1", startRecoveryGrace-time.Second)
-		repo := &fakeStartRecoveryRepo{sessions: []*LiveSession{session}}
+		repo := &fakeStartRecoveryRepo{sessions: []*Session{session}}
 		rooms := &fakeRoomLister{}
 
 		ended, err := newTestStartRecovery(repo, rooms).Recover(context.Background())
@@ -52,7 +52,7 @@ func TestStartRecovery(t *testing.T) {
 		t.Parallel()
 
 		session := creatingSession("s1", startRecoveryGrace+time.Second)
-		repo := &fakeStartRecoveryRepo{sessions: []*LiveSession{session}}
+		repo := &fakeStartRecoveryRepo{sessions: []*Session{session}}
 		rooms := &fakeRoomLister{}
 
 		ended, err := newTestStartRecovery(repo, rooms).Recover(context.Background())
@@ -72,7 +72,7 @@ func TestStartRecovery(t *testing.T) {
 
 		present := creatingSession("s1", startRecoveryGrace+time.Second)
 		absent := creatingSession("s2", startRecoveryGrace+time.Second)
-		repo := &fakeStartRecoveryRepo{sessions: []*LiveSession{present, absent}}
+		repo := &fakeStartRecoveryRepo{sessions: []*Session{present, absent}}
 		rooms := &fakeRoomLister{present: []string{"live-123-s1"}}
 
 		ended, err := newTestStartRecovery(repo, rooms).Recover(context.Background())
@@ -88,7 +88,7 @@ func TestStartRecovery(t *testing.T) {
 		t.Parallel()
 
 		session := creatingSession("s1", startRecoveryGrace+time.Second)
-		repo := &fakeStartRecoveryRepo{sessions: []*LiveSession{session}}
+		repo := &fakeStartRecoveryRepo{sessions: []*Session{session}}
 		rooms := &fakeRoomLister{err: errors.New("livekit unavailable")}
 
 		ended, err := newTestStartRecovery(repo, rooms).Recover(context.Background())
@@ -104,7 +104,7 @@ func TestStartRecovery(t *testing.T) {
 		t.Parallel()
 
 		session := creatingSession("s1", startRecoveryGrace+time.Second)
-		repo := &fakeStartRecoveryRepo{sessions: []*LiveSession{session}}
+		repo := &fakeStartRecoveryRepo{sessions: []*Session{session}}
 		rooms := &fakeRoomLister{onList: func() {
 			joinedAt := recoveryNow
 			session.StartedEventSentAt = &joinedAt
@@ -123,7 +123,7 @@ func TestStartRecovery(t *testing.T) {
 		t.Parallel()
 
 		session := creatingSession("s1", startRecoveryGrace+time.Second)
-		repo := &fakeStartRecoveryRepo{sessions: []*LiveSession{session}}
+		repo := &fakeStartRecoveryRepo{sessions: []*Session{session}}
 		// 두 레플리카가 같은 후보를 읽은 뒤 각자 종료를 시도하는 경우.
 		repo.staleFind = true
 		replicaA := newTestStartRecovery(repo, &fakeRoomLister{})
@@ -145,14 +145,14 @@ func TestStartRecovery(t *testing.T) {
 
 // fakeStartRecoveryRepo는 Mongo 필터와 같은 조건으로 생성 중 세션을 찾고 종료한다.
 type fakeStartRecoveryRepo struct {
-	sessions []*LiveSession
+	sessions []*Session
 	// staleFind=true이면 이미 종료된 세션도 반환해, 다른 레플리카가 먼저 종료한 경쟁을 흉내 낸다.
 	staleFind bool
 	endCalls  int
 }
 
-func (f *fakeStartRecoveryRepo) FindCreatingSessionsBefore(_ context.Context, before time.Time) ([]LiveSession, error) {
-	var result []LiveSession
+func (f *fakeStartRecoveryRepo) FindCreatingSessionsBefore(_ context.Context, before time.Time) ([]Session, error) {
+	var result []Session
 	for _, s := range f.sessions {
 		if (f.staleFind || creating(s)) && s.StartedAt.Before(before) {
 			result = append(result, *s)
@@ -173,7 +173,7 @@ func (f *fakeStartRecoveryRepo) EndCreatingSession(_ context.Context, sessionID 
 	return false, nil
 }
 
-func creating(s *LiveSession) bool {
+func creating(s *Session) bool {
 	return s.Status == StatusActive && s.StartedEventSentAt == nil
 }
 

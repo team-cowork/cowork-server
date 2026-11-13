@@ -8,9 +8,9 @@ import (
 	"github.com/livekit/protocol/livekit"
 
 	"github.com/cowork/cowork-voice/internal/apperr"
-	live "github.com/cowork/cowork-voice/internal/domain/live_room"
+	"github.com/cowork/cowork-voice/internal/domain/liveroom"
 	"github.com/cowork/cowork-voice/internal/domain/permission"
-	voice "github.com/cowork/cowork-voice/internal/domain/voice_room"
+	"github.com/cowork/cowork-voice/internal/domain/voiceroom"
 )
 
 type stubRooms struct {
@@ -66,29 +66,29 @@ func (s *stubPermissions) CurrentConnectCheck(context.Context) (permission.Conne
 }
 
 type stubSessions struct {
-	session *live.LiveSession
+	session *liveroom.Session
 	err     error
 }
 
-func (s stubSessions) FindActiveSession(context.Context, int64) (*live.LiveSession, error) {
+func (s stubSessions) FindActiveSession(context.Context, int64) (*liveroom.Session, error) {
 	return s.session, s.err
 }
 
 type stubVoiceSessions struct {
-	session *voice.VoiceSession
+	session *voiceroom.Session
 	err     error
 }
 
-func (s stubVoiceSessions) FindActiveSession(context.Context, int64) (*voice.VoiceSession, error) {
+func (s stubVoiceSessions) FindActiveSession(context.Context, int64) (*voiceroom.Session, error) {
 	return s.session, s.err
 }
 
-var activeVoice = stubVoiceSessions{session: &voice.VoiceSession{SessionID: "session", RoomName: "voice-10-session"}}
+var activeVoice = stubVoiceSessions{session: &voiceroom.Session{SessionID: "session", RoomName: "voice-10-session"}}
 
 func TestVoiceRoomSessionReconciliation(t *testing.T) {
 	for name, sessions := range map[string]stubVoiceSessions{
 		"no active session": {},
-		"newer session":     {session: &voice.VoiceSession{SessionID: "next", RoomName: "voice-10-next"}},
+		"newer session":     {session: &voiceroom.Session{SessionID: "next", RoomName: "voice-10-next"}},
 	} {
 		t.Run(name+" deletes the stale room", func(t *testing.T) {
 			rooms := &stubRooms{name: "voice-10-session", participants: []*livekit.ParticipantInfo{{Identity: "7"}}}
@@ -208,7 +208,7 @@ func TestVoicePermissionReconciliation(t *testing.T) {
 }
 
 func TestLivePermissionReconciliation(t *testing.T) {
-	session := &live.LiveSession{ChannelID: 10, SessionID: "session", RoomName: "live-10-session", HostUserID: 7}
+	session := &liveroom.Session{ChannelID: 10, SessionID: "session", RoomName: "live-10-session", HostUserID: 7}
 	t.Run("session lookup failure pauses everyone without deleting the room", func(t *testing.T) {
 		rooms := &stubRooms{name: session.RoomName, participants: []*livekit.ParticipantInfo{
 			{Identity: "7", Permission: mediaPermission(true, true, true, true, true)},

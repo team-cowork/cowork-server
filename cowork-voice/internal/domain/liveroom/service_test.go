@@ -1,4 +1,4 @@
-package live
+package liveroom
 
 import (
 	"context"
@@ -11,8 +11,8 @@ import (
 	"github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
-func activeSession() *LiveSession {
-	return &LiveSession{
+func activeSession() *Session {
+	return &Session{
 		SessionID:  "session-1",
 		ChannelID:  123,
 		TeamID:     456,
@@ -23,7 +23,7 @@ func activeSession() *LiveSession {
 	}
 }
 
-func TestLiveService(t *testing.T) {
+func TestService(t *testing.T) {
 	t.Run("Start - 활성 라이브가 없으면 세션을 만들고 호스트 토큰을 발급한다", func(t *testing.T) {
 		t.Parallel()
 
@@ -32,7 +32,7 @@ func TestLiveService(t *testing.T) {
 			createSessionCreated: true,
 		}
 		livekit := &stubLiveKitRoom{token: "host-token"}
-		svc := NewLiveService(repo, &stubConnectPermissionChecker{teamID: 456}, livekit, "wss://livekit.example")
+		svc := NewService(repo, &stubConnectPermissionChecker{teamID: 456}, livekit, "wss://livekit.example")
 
 		resp, err := svc.Start(context.Background(), 123, 42)
 		if err != nil {
@@ -59,7 +59,7 @@ func TestLiveService(t *testing.T) {
 	t.Run("Join - 라이브가 없으면 NotFound를 반환한다", func(t *testing.T) {
 		t.Parallel()
 
-		svc := NewLiveService(&stubRepository{}, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+		svc := NewService(&stubRepository{}, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 		_, err := svc.Join(context.Background(), 123, 99)
 		if err == nil {
@@ -79,7 +79,7 @@ func TestLiveService(t *testing.T) {
 
 		repo := &stubRepository{findActiveSessionResult: activeSession()}
 		livekit := &stubLiveKitRoom{token: "viewer-token"}
-		svc := NewLiveService(repo, &stubConnectPermissionChecker{teamID: 456}, livekit, "wss://livekit.example")
+		svc := NewService(repo, &stubConnectPermissionChecker{teamID: 456}, livekit, "wss://livekit.example")
 
 		resp, err := svc.Join(context.Background(), 123, 99)
 		if err != nil {
@@ -99,7 +99,7 @@ func TestLiveService(t *testing.T) {
 
 		repo := &stubRepository{findActiveSessionResult: activeSession()}
 		livekit := &stubLiveKitRoom{token: "host-token"}
-		svc := NewLiveService(repo, &stubConnectPermissionChecker{teamID: 456}, livekit, "wss://livekit.example")
+		svc := NewService(repo, &stubConnectPermissionChecker{teamID: 456}, livekit, "wss://livekit.example")
 
 		if _, err := svc.Join(context.Background(), 123, 42); err != nil {
 			t.Fatalf("Join() error = %v", err)
@@ -115,7 +115,7 @@ func TestLiveService(t *testing.T) {
 
 		repo := &stubRepository{findActiveSessionResult: activeSession()}
 		livekit := &stubLiveKitRoom{}
-		svc := NewLiveService(repo, &stubConnectPermissionChecker{teamID: 456}, livekit, "wss://livekit.example")
+		svc := NewService(repo, &stubConnectPermissionChecker{teamID: 456}, livekit, "wss://livekit.example")
 
 		if err := svc.Leave(context.Background(), 123, 42); err != nil {
 			t.Fatalf("Leave() error = %v", err)
@@ -141,7 +141,7 @@ func TestLiveService(t *testing.T) {
 			getViewerJoinedAtValue:  &joinedAt,
 			markViewerLeftFirst:     true,
 		}
-		svc := NewLiveService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+		svc := NewService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 		if err := svc.Leave(context.Background(), 123, 99); err != nil {
 			t.Fatalf("Leave() error = %v", err)
@@ -168,7 +168,7 @@ func TestLiveService(t *testing.T) {
 	t.Run("GetStatus - 라이브가 없으면 live=false를 반환한다", func(t *testing.T) {
 		t.Parallel()
 
-		svc := NewLiveService(&stubRepository{}, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+		svc := NewService(&stubRepository{}, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 		resp, err := svc.GetStatus(context.Background(), 123, 42)
 		if err != nil {
@@ -190,7 +190,7 @@ func TestLiveService(t *testing.T) {
 			findActiveSessionResult:  activeSession(),
 			countActiveViewersResult: 2,
 		}
-		svc := NewLiveService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+		svc := NewService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
 
 		resp, err := svc.GetStatus(context.Background(), 123, 99)
 		if err != nil {
@@ -276,9 +276,9 @@ func (s *stubLiveKitRoom) DeleteRoom(_ context.Context, roomName string) error {
 }
 
 type stubRepository struct {
-	findActiveSessionResult  *LiveSession
+	findActiveSessionResult  *Session
 	findActiveSessionErr     error
-	createSessionResult      *LiveSession
+	createSessionResult      *Session
 	createSessionCreated     bool
 	createSessionErr         error
 	createSessionHostUserID  int64
@@ -293,15 +293,15 @@ type stubRepository struct {
 	countActiveViewersErr    error
 }
 
-func (s *stubRepository) FindActiveSession(_ context.Context, _ int64) (*LiveSession, error) {
+func (s *stubRepository) FindActiveSession(_ context.Context, _ int64) (*Session, error) {
 	return s.findActiveSessionResult, s.findActiveSessionErr
 }
 
-func (s *stubRepository) FindSessionByRoomName(_ context.Context, _ string) (*LiveSession, error) {
+func (s *stubRepository) FindSessionByRoomName(_ context.Context, _ string) (*Session, error) {
 	return nil, errors.New("unexpected call")
 }
 
-func (s *stubRepository) CreateSession(_ context.Context, _, _, hostUserID int64) (*LiveSession, bool, error) {
+func (s *stubRepository) CreateSession(_ context.Context, _, _, hostUserID int64) (*Session, bool, error) {
 	s.createSessionHostUserID = hostUserID
 	s.createSessionCalls++
 	return s.createSessionResult, s.createSessionCreated, s.createSessionErr
@@ -318,7 +318,7 @@ func (s *stubRepository) MarkSessionStartedAndEnqueue(_ context.Context, _ strin
 
 func (s *stubRepository) RecordViewerJoinedAndEnqueue(
 	_ context.Context,
-	_ *LiveViewer,
+	_ *Viewer,
 	_ string,
 	_ any,
 ) (bool, error) {
@@ -366,7 +366,7 @@ func TestBroadcastPermissionRequiredForHost(t *testing.T) {
 	for _, start := range []bool{true, false} {
 		repo := &stubRepository{findActiveSessionResult: activeSession(), createSessionResult: activeSession(), createSessionCreated: true}
 		lk := &stubLiveKitRoom{}
-		svc := NewLiveService(repo, &stubConnectPermissionChecker{access: &permission.Access{TeamID: 456, Speak: true, ScreenShare: true}}, lk, "")
+		svc := NewService(repo, &stubConnectPermissionChecker{access: &permission.Access{TeamID: 456, Speak: true, ScreenShare: true}}, lk, "")
 		var err error
 		if start {
 			_, err = svc.Start(context.Background(), 123, 42)
@@ -386,7 +386,7 @@ func TestBroadcastPermissionRequiredForHost(t *testing.T) {
 func TestBroadcastHostRespectsMediaPermissions(t *testing.T) {
 	repo := &stubRepository{findActiveSessionResult: activeSession()}
 	lk := &stubLiveKitRoom{token: "token"}
-	svc := NewLiveService(repo, &stubConnectPermissionChecker{access: &permission.Access{TeamID: 456, Broadcast: true, ScreenShare: true}}, lk, "")
+	svc := NewService(repo, &stubConnectPermissionChecker{access: &permission.Access{TeamID: 456, Broadcast: true, ScreenShare: true}}, lk, "")
 	if _, err := svc.Join(context.Background(), 123, 42); err != nil {
 		t.Fatal(err)
 	}
@@ -405,7 +405,7 @@ func TestBroadcastHostRespectsMediaPermissions(t *testing.T) {
 func TestLiveViewerWithoutVideoPermissionCannotPublishCamera(t *testing.T) {
 	repo := &stubRepository{findActiveSessionResult: activeSession()}
 	lk := &stubLiveKitRoom{token: "token"}
-	svc := NewLiveService(repo, &stubConnectPermissionChecker{access: &permission.Access{TeamID: 456, Speak: true}}, lk, "")
+	svc := NewService(repo, &stubConnectPermissionChecker{access: &permission.Access{TeamID: 456, Speak: true}}, lk, "")
 	if _, err := svc.Join(context.Background(), 123, 99); err != nil {
 		t.Fatal(err)
 	}
