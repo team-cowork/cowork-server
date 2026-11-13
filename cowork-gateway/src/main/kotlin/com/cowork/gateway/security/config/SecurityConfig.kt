@@ -97,6 +97,8 @@ class SecurityConfig(
                     // The handler itself accepts only a direct loopback connection inside the allocation.
                     .pathMatchers(HttpMethod.GET, "/internal/deployment-state").permitAll()
                     .pathMatchers("/api/health").permitAll()
+                    // 가입 전에도 약관과 라이선스를 읽을 수 있어야 한다.
+                    .pathMatchers(HttpMethod.GET, "/api/legal/**").permitAll()
                     .pathMatchers(
                         HttpMethod.GET,
                         "/api/chat/health",
