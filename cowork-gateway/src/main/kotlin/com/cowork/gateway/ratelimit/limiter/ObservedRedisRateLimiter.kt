@@ -61,12 +61,12 @@ class ObservedRedisRateLimiter(
         private val OUTCOMES = listOf(OUTCOME_REJECTED, OUTCOME_REDIS_ERROR)
 
         private fun isRedisError(response: RateLimiter.Response): Boolean =
-            response.isAllowed && response.headers[RedisRateLimiter.REMAINING_HEADER] == "-1"
+            response.isAllowed && response.headers[REMAINING_HEADER] == "-1"
 
         private fun retryAfterSeconds(headers: Map<String, String>): Long {
             val replenishRate =
-                headers[RedisRateLimiter.REPLENISH_RATE_HEADER]?.toDoubleOrNull()?.takeIf { it > 0 } ?: return 1
-            val requestedTokens = headers[RedisRateLimiter.REQUESTED_TOKENS_HEADER]?.toDoubleOrNull() ?: 1.0
+                headers[REPLENISH_RATE_HEADER]?.toDoubleOrNull()?.takeIf { it > 0 } ?: return 1
+            val requestedTokens = headers[REQUESTED_TOKENS_HEADER]?.toDoubleOrNull() ?: 1.0
             return ceil(requestedTokens / replenishRate).toLong().coerceAtLeast(1)
         }
     }

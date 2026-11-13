@@ -98,20 +98,20 @@ class InitialResourceAccessService(
             )
             if (!canAccess) return skip("Remaining overwrites do not grant creator access")
         }
-        for (overwrite in survivingOverwrites) {
+        for ((roleId, permissions) in survivingOverwrites) {
             val state = channelPolicies.upsertPolicy(
                 client,
                 teamId,
                 event.channelId,
-                overwrite.roleId,
-                overwrite.permissions,
+                roleId,
+                permissions,
             )
             outbox.enqueue(
                 client,
                 ChannelRolePolicyEvents.channelRolePolicyState(
                     teamId,
                     event.channelId,
-                    overwrite.roleId,
+                    roleId,
                     state.permissions,
                     state.stateOccurredAt,
                     snapshot = false,

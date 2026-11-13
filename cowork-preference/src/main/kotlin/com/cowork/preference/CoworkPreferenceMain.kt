@@ -15,6 +15,7 @@ import io.vertx.micrometer.MicrometerMetricsOptions
 import io.vertx.micrometer.VertxPrometheusOptions
 import org.flywaydb.core.Flyway
 import org.slf4j.LoggerFactory
+import kotlin.system.exitProcess
 
 private val log = LoggerFactory.getLogger("CoworkPreferenceMain")
 
@@ -60,7 +61,7 @@ private fun requireDbCredentials(appConfig: AppConfig) {
             "Required config resolved to empty: {}. Check the injected DB credentials. Aborting startup.",
             missing.joinToString(", "),
         )
-        System.exit(1)
+        exitProcess(1)
     }
 }
 

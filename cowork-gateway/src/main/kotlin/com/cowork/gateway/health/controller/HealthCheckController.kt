@@ -53,14 +53,10 @@ class HealthCheckController(webClientBuilder: WebClient.Builder, private val rou
         .map { route ->
             val service = route.metadata["cowork-service"] as String
             val path = route.metadata["health-path"] as String
-            val scheme = if (route.uri.scheme ==
-                "wss"
-            ) {
-                "https"
-            } else if (route.uri.scheme == "ws") {
-                "http"
-            } else {
-                route.uri.scheme
+            val scheme = when (route.uri.scheme) {
+                "wss" -> "https"
+                "ws" -> "http"
+                else -> route.uri.scheme
             }
             service to URI(scheme, route.uri.authority, path, null, null)
         }
@@ -82,7 +78,7 @@ class HealthCheckController(webClientBuilder: WebClient.Builder, private val rou
                 }
             }
         }
-        .collectMap<String, ServiceStatus>({ it.first }, { it.second })
+        .collectMap({ it.first }, { it.second })
         .map { ResponseEntity.ok(it) }
 
     @Schema(
