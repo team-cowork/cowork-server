@@ -19,7 +19,7 @@ class PreferenceTeamSettingConsumer(
 
     @KafkaListener(
         topics = [Topics.PREFERENCE_TEAM_SETTING_STATE],
-        groupId = "\${KAFKA_GROUP_ID_TEAM_SETTING_PREFERENCE:cowork-team.team-setting-projection}",
+        groupId = $$"${KAFKA_GROUP_ID_TEAM_SETTING_PREFERENCE:cowork-team.team-setting-projection}",
         containerFactory = "preferenceTeamSettingListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {

@@ -19,7 +19,7 @@ import javax.crypto.spec.SecretKeySpec
 
 @Component
 class DataGsmWebhookVerifier(
-    @param:Value("\${webhook.datagsm-secret}") secret: String,
+    @param:Value($$"${webhook.datagsm-secret}") secret: String,
     private val objectMapper: ObjectMapper,
 ) {
     private val signingKey = SecretKeySpec(secret.toByteArray(StandardCharsets.UTF_8), "HmacSHA256")
