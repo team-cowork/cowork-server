@@ -121,7 +121,7 @@ class MainVerticle : AbstractVerticle() {
         val notifRepo = NotificationRepository(pool)
         val roleRepo = ProjectRoleRepository(pool)
         val teamRoleRepo = TeamRoleRepository(pool)
-        val channelRolePolicyRepo = ChannelRolePolicyRepository(pool)
+        val channelRolePolicyRepo = ChannelRolePolicyRepository()
         val teamMemberProjectionRepo = TeamMemberProjectionRepository()
         val channelLifecycleProjectionRepo = ChannelLifecycleProjectionRepository()
         val projectLifecycleProjectionRepo = ProjectLifecycleProjectionRepository()

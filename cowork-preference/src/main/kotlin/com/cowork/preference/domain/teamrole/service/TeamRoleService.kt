@@ -209,34 +209,6 @@ class TeamRoleService(
         return Result.success(role)
     }
 
-    suspend fun removeRole(accountId: Long, teamId: Long, roleId: Long) {
-        require(repository.findRole(teamId, roleId)?.isDefault != true) { "기본 역할은 해제할 수 없습니다." }
-        outboxRepository.inTransaction { connection ->
-            val tombstone = repository.deleteAssignment(
-                connection,
-                accountId,
-                teamId,
-                roleId,
-                Instant.now(),
-            )
-            outboxRepository.enqueue(
-                connection,
-                TeamRoleEvents.assignmentDeleted(
-                    AccountTeamRole(accountId, teamId, roleId),
-                    tombstone.stateOccurredAt,
-                ),
-            )
-            projectAccess.refreshTeam(connection, teamId, accountId)
-        }
-    }
-
-    suspend fun removeMemberRolesAtOrBefore(accountId: Long, teamId: Long, occurredAt: Instant) {
-        outboxRepository.inTransaction { connection ->
-            removeMemberRolesAtOrBefore(connection, accountId, teamId, occurredAt)
-            projectAccess.refreshTeam(connection, teamId, accountId)
-        }
-    }
-
     internal suspend fun removeMemberRolesAtOrBefore(
         client: SqlClient,
         accountId: Long,
@@ -282,13 +254,6 @@ class TeamRoleService(
                     },
                 ),
         )
-    }
-
-    suspend fun deleteTeamRoles(teamId: Long, occurredAt: Instant) {
-        outboxRepository.inTransaction { connection ->
-            deleteTeamRoles(connection, teamId, occurredAt)
-            projectAccess.refreshTeam(connection, teamId)
-        }
     }
 
     internal suspend fun deleteTeamRoles(client: SqlClient, teamId: Long, occurredAt: Instant) {
