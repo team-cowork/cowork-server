@@ -10,7 +10,7 @@
 
 ## 스택
 
-- Kotlin / Java 26 / Spring Boot
+- Kotlin / Java 27 / Spring Boot
 - Maven
 - Spring Data JPA / MySQL / Flyway
 - Spring Kafka / OpenFeign
