@@ -15,14 +15,13 @@ def field(path):
         return r'(<artifactId>cowork-[^<]+</artifactId>\s*<version>)[^<]+(</version>)'
     if path == "cowork-user/src/CoworkUser.csproj":
         return r'(<InformationalVersion>)[^<]+(</InformationalVersion>)'
-    if path in {"cowork-authorization/cmd/main.go", "cowork-notification/cmd/server/main.go",
-                "cowork-voice/cmd/server/main.go"}:
-        return r'(?m)^(// @version\s+)\S+([^\S\n]*)$'
+    if re.fullmatch(r"cowork-(?:authorization|notification|voice)/internal/apidoc/document.go", path):
+        return r'(?m)^(\s*Version:\s*")[^"]+(",[^\S\n]*)$'
     if path == "cowork-applet/conf/swagger.yml":
         return r'(?m)^(  version: ")[^"]+("[^\S\n]*)$'
     if path == "cowork-chat/src/main.ts":
         return r"(\.setVersion\(')[^']+('\))"
-    if path in {"cowork-user/src/openapi.json", "cowork-preference/src/main/resources/openapi.json",
+    if path in {"cowork-preference/src/main/resources/openapi.json",
                 "cowork-chat/public/asyncapi.json"}:
         return r'(?m)^(    "version": ")[^"]+(",?[^\S\n]*)$'
     if re.fullmatch(r"cowork-[a-z-]+/src/main/(?:kotlin|java)/com/cowork/[a-z]+/global/config/OpenApiConfig\.(?:kt|java)", path):
@@ -64,12 +63,10 @@ def module_files(module):
     directory = ROOT / f"cowork-{module}"
     candidates = [directory / name for name in (
         "build.gradle.kts", "pom.xml", "package.json", "package-lock.json",
-        "src/CoworkUser.csproj", "cmd/main.go", "cmd/server/main.go",
+        "src/CoworkUser.csproj", "internal/apidoc/document.go",
     )]
     if module == "chat":
         candidates += [directory / "src/main.ts", directory / "public/asyncapi.json"]
-    if module == "user":
-        candidates.append(directory / "src/openapi.json")
     if module == "preference":
         candidates.append(directory / "src/main/resources/openapi.json")
     if module == "applet":

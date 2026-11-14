@@ -85,6 +85,7 @@ Run these commands from the repository root:
 | Node promotion | `npm --prefix cowork-promotion run lint -- --max-warnings=0` | `npm --prefix cowork-promotion run lint:fix` |
 | Bun github | `(cd cowork-github && bun run lint --max-warnings=0)` | `(cd cowork-github && bun run lint:fix)` |
 | Java roadmap | `(cd cowork-roadmap && ./gradlew spotlessCheck)` | `(cd cowork-roadmap && ./gradlew spotlessApply)` |
+| Go (`authorization`, `notification`, `voice`; replace `voice`) | `(cd cowork-voice && golangci-lint run --config .golangci.yml ./...)` | `(cd cowork-voice && golangci-lint fmt --config .golangci.yml)` |
 
 `cowork-promotion`, `cowork-chat`, and `cowork-github` use XO's default rules and file discovery. Fix diagnostics in code; do not add inline `eslint-disable` comments or rule overrides. Promotion has no `xo.config.mjs`. Chat and GitHub use it only to give `import-x/extensions` leading dots, which `eslint-config-xo` omits; without them, `import-x/no-cycle` checks nothing. Each module's ESLint adapter passes XO configuration to editors. Review fixes and run the module build; CI rejects warnings and errors.
 
@@ -93,6 +94,8 @@ Roadmap uses `cowork-roadmap/config/eclipse-java-formatter.xml` and its configur
 Maven-based `cowork-project` uses `ktlint-maven-plugin` with the same ktlint release as the Gradle Kotlin modules and the root `.editorconfig`. Its `validate` phase checks formatting, so local `test` and `package` commands reject violations. The Dockerfile skips this check in `builder` with `-Dktlint.skip=true`; `verification` runs it through the normal test command and rejects violations in CI. Run `ktlint:format` explicitly to format files.
 
 `cowork-preference` registers a local Kotlin Toolchain plugin in `build-plugins/ktlint`, using the same ktlint release as the other Kotlin modules. `check ktlint` checks application sources, tests, and plugin sources; `do ktlintFormat` formats them. Both read the root `.editorconfig`. Its Dockerfile `verification` stage rejects violations. Regular builds do not format sources. There is no repository-wide formatter.
+
+Go modules enable `gofmt` and `goimports` in `.golangci.yml`, with the `go.mod` module path as the local import prefix. Their Dockerfile `verification` stage runs `golangci-lint run`, which rejects unformatted files. `cowork-user` has no format check; edit hooks apply only `dotnet format whitespace`, which follows `.editorconfig`.
 
 Hooks run the owning module's formatter when available. File suffix triggers do not expand formatter targets. Hooks report failures and skip modules without a formatter; they do not replace explicit checks.
 
@@ -145,7 +148,7 @@ Run the owning module's tests from the repository root:
 
 Each Gradle module owns its Wrapper, settings, version catalog, and build configuration; versions may differ by module. Run the module's Wrapper from its directory. There is no root Gradle build. Use the checked-in Maven wrapper for Project and native commands for other runtimes.
 
-Preference uses `cowork-preference/kotlin` or `kotlin.bat` for local builds, Docker, and CI. The wrapper provisions the pinned toolchain and JDK without a global CLI. Update both wrappers together with `./kotlin update --target-version=<version>` from the module directory.
+Preference uses `cowork-preference/kotlin` or `kotlin.bat` for local builds, Docker, and CI. The wrapper provisions the pinned toolchain and JDK without a global CLI. Update both wrappers together with `./kotlin update --target-version=<version>` from the module directory. Preference stays on Java 26 because Kotlin Toolchain 0.13.0 rejects JDK 27; move it to Java 27 when a toolchain release accepts JDK 27.
 
 Applet uses Scala 3 and Play on Java 25, the newest Java that Play 3.0 supports. `cowork-applet/sbtw` downloads the pinned sbt launcher for local builds, Docker, and CI. Its SurrealDB definitions live in `conf/surreal/schema.surql`, use `IF NOT EXISTS`, and run at application start; there is no migration history, so backfill existing records separately when a stored shape changes.
 

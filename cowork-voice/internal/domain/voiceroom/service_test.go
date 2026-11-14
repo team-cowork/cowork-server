@@ -1,0 +1,430 @@
+package voiceroom
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/cowork/cowork-voice/internal/apperr"
+	"github.com/cowork/cowork-voice/internal/domain/permission"
+	"github.com/cowork/cowork-voice/internal/infra/kafka"
+)
+
+func TestService(t *testing.T) {
+	t.Run("Join - 활성 세션이 없으면 생성하고 참가자를 추가한다", func(t *testing.T) {
+		t.Parallel()
+
+		repo := &stubRepository{
+			createSessionResult: &Session{
+				SessionID: "session-1",
+				ChannelID: 123,
+				TeamID:    456,
+				RoomName:  "voice-123-session-1",
+				Status:    StatusActive,
+				StartedAt: time.Unix(1700000000, 0).UTC(),
+			},
+		}
+		permissions := &stubConnectPermissionChecker{teamID: 456}
+		livekit := &stubLiveKitRoom{token: "issued-token"}
+		svc := NewService(repo, permissions, livekit, "wss://livekit.example")
+
+		resp, err := svc.Join(context.Background(), 123, 42)
+		if err != nil {
+			t.Fatalf("Join() error = %v", err)
+		}
+
+		if repo.createSessionCalls != 1 {
+			t.Fatalf("CreateSession() calls = %d, want 1", repo.createSessionCalls)
+		}
+		if livekit.createdRoomName != "voice-123-session-1" {
+			t.Fatalf("CreateRoomIfNotExists() room = %q, want voice-123-session-1", livekit.createdRoomName)
+		}
+		if livekit.tokenUserID != 42 {
+			t.Fatalf("GenerateToken() userID = %d, want 42", livekit.tokenUserID)
+		}
+		if livekit.tokenRoomName != "voice-123-session-1" {
+			t.Fatalf("GenerateToken() room = %q, want voice-123-session-1", livekit.tokenRoomName)
+		}
+		if resp.SessionID != "session-1" || resp.RoomName != "voice-123-session-1" {
+			t.Fatalf("response session = %q/%q, want session-1/voice-123-session-1", resp.SessionID, resp.RoomName)
+		}
+		if resp.Token != "issued-token" {
+			t.Fatalf("response token = %q, want issued-token", resp.Token)
+		}
+		if resp.LiveKitURL != "wss://livekit.example" {
+			t.Fatalf("response livekit_url = %q, want wss://livekit.example", resp.LiveKitURL)
+		}
+	})
+
+	t.Run("Join - 활성 세션이 있으면 재사용한다", func(t *testing.T) {
+		t.Parallel()
+
+		repo := &stubRepository{
+			findActiveSessionResult: &Session{
+				SessionID: "session-1",
+				ChannelID: 123,
+				TeamID:    456,
+				RoomName:  "voice-123-session-1",
+				Status:    StatusActive,
+				StartedAt: time.Unix(1700000000, 0).UTC(),
+			},
+		}
+		svc := NewService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{token: "issued-token"}, "wss://livekit.example")
+
+		_, err := svc.Join(context.Background(), 123, 42)
+		if err != nil {
+			t.Fatalf("Join() error = %v", err)
+		}
+
+		if repo.createSessionCalls != 0 {
+			t.Fatalf("CreateSession() calls = %d, want 0", repo.createSessionCalls)
+		}
+	})
+
+	t.Run("Join - 새 방에 정원을 걸고 bitrate를 응답에 싣는다", func(t *testing.T) {
+		t.Parallel()
+
+		repo := &stubRepository{createSessionResult: &Session{SessionID: "session-1", ChannelID: 123, TeamID: 456, RoomName: "voice-123-session-1", Status: StatusActive}}
+		bitrate := 64000
+		livekit := &stubLiveKitRoom{token: "issued-token"}
+		access := &permission.Access{TeamID: 456, MaxParticipants: 2, Bitrate: &bitrate}
+		svc := NewService(repo, &stubConnectPermissionChecker{access: access}, livekit, "wss://livekit.example")
+
+		resp, err := svc.Join(context.Background(), 123, 42)
+		if err != nil {
+			t.Fatalf("Join() error = %v", err)
+		}
+		if livekit.createdMax != 2 {
+			t.Fatalf("CreateRoomIfNotExists() maxParticipants = %d, want 2", livekit.createdMax)
+		}
+		if resp.Bitrate == nil || *resp.Bitrate != 64000 {
+			t.Fatalf("response bitrate = %v, want 64000", resp.Bitrate)
+		}
+	})
+
+	t.Run("Join - 정원이 찬 방은 토큰 발급 전에 거부하고 기존 참가자의 재입장은 허용한다", func(t *testing.T) {
+		t.Parallel()
+
+		active := &Session{SessionID: "session-1", ChannelID: 123, TeamID: 456, RoomName: "voice-123-session-1", Status: StatusActive}
+		full := []LiveKitParticipant{{Identity: "7"}, {Identity: "8"}}
+		access := &permission.Access{TeamID: 456, MaxParticipants: 2}
+
+		livekit := &stubLiveKitRoom{token: "issued-token", participants: full}
+		svc := NewService(&stubRepository{findActiveSessionResult: active}, &stubConnectPermissionChecker{access: access}, livekit, "")
+		_, err := svc.Join(context.Background(), 123, 42)
+		var appErr *apperr.Error
+		if !errors.As(err, &appErr) || appErr.Code != "CONFLICT" {
+			t.Fatalf("Join() error = %v, want CONFLICT", err)
+		}
+		if livekit.tokenUserID != 0 {
+			t.Fatalf("GenerateToken() called for user %d after capacity rejection", livekit.tokenUserID)
+		}
+
+		livekit = &stubLiveKitRoom{token: "issued-token", participants: full}
+		svc = NewService(&stubRepository{findActiveSessionResult: active}, &stubConnectPermissionChecker{access: access}, livekit, "")
+		if _, err := svc.Join(context.Background(), 123, 8); err != nil {
+			t.Fatalf("Join() rejoin error = %v", err)
+		}
+	})
+
+	t.Run("GetParticipants - 유효하지 않은 아이덴티티는 제외한다", func(t *testing.T) {
+		t.Parallel()
+
+		repo := &stubRepository{
+			findActiveSessionResult: &Session{
+				SessionID: "session-1",
+				ChannelID: 123,
+				RoomName:  "voice-123-session-1",
+				Status:    StatusActive,
+				StartedAt: time.Unix(1700000000, 0).UTC(),
+			},
+		}
+		livekit := &stubLiveKitRoom{
+			participants: []LiveKitParticipant{
+				{Identity: "42", JoinedAt: 1700000100},
+				{Identity: "not-a-number", JoinedAt: 1700000200},
+				{Identity: "84", JoinedAt: 1700000300},
+			},
+		}
+		svc := NewService(repo, &stubConnectPermissionChecker{teamID: 456}, livekit, "wss://livekit.example")
+
+		resp, err := svc.GetParticipants(context.Background(), 123, 42)
+		if err != nil {
+			t.Fatalf("GetParticipants() error = %v", err)
+		}
+
+		if len(resp.Participants) != 2 {
+			t.Fatalf("participants len = %d, want 2", len(resp.Participants))
+		}
+		if resp.Participants[0].UserID != 42 {
+			t.Fatalf("participants[0].user_id = %d, want 42", resp.Participants[0].UserID)
+		}
+		if resp.Participants[1].UserID != 84 {
+			t.Fatalf("participants[1].user_id = %d, want 84", resp.Participants[1].UserID)
+		}
+	})
+
+	t.Run("GetParticipants - 활성 세션이 없으면 빈 목록을 반환한다", func(t *testing.T) {
+		t.Parallel()
+
+		svc := NewService(&stubRepository{}, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+
+		resp, err := svc.GetParticipants(context.Background(), 123, 42)
+		if err != nil {
+			t.Fatalf("GetParticipants() error = %v", err)
+		}
+
+		if resp.ChannelID != 123 {
+			t.Fatalf("channel_id = %d, want 123", resp.ChannelID)
+		}
+		if len(resp.Participants) != 0 {
+			t.Fatalf("participants len = %d, want 0", len(resp.Participants))
+		}
+	})
+
+	t.Run("GetSession - 세션이 없으면 NotFound를 반환한다", func(t *testing.T) {
+		t.Parallel()
+
+		svc := NewService(&stubRepository{}, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+
+		_, err := svc.GetSession(context.Background(), "missing-session", 42)
+		if err == nil {
+			t.Fatal("GetSession() error = nil, want not found")
+		}
+
+		appErr, ok := err.(*apperr.Error)
+		if !ok {
+			t.Fatalf("error type = %T, want *apperr.Error", err)
+		}
+		if appErr.HTTPStatus != 404 {
+			t.Fatalf("HTTPStatus = %d, want 404", appErr.HTTPStatus)
+		}
+	})
+
+	t.Run("GetSession - 종료 시각이 있으면 RFC3339로 반환한다", func(t *testing.T) {
+		t.Parallel()
+
+		endedAt := time.Unix(1700000500, 0).UTC()
+		repo := &stubRepository{
+			getSessionResult: &Session{
+				SessionID: "session-1",
+				ChannelID: 123,
+				TeamID:    456,
+				Status:    StatusEnded,
+				StartedAt: time.Unix(1700000000, 0).UTC(),
+				EndedAt:   &endedAt,
+			},
+		}
+		svc := NewService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+
+		resp, err := svc.GetSession(context.Background(), "session-1", 42)
+		if err != nil {
+			t.Fatalf("GetSession() error = %v", err)
+		}
+
+		if resp.EndedAt == nil {
+			t.Fatal("EndedAt = nil, want value")
+		}
+		if *resp.EndedAt != endedAt.Format(time.RFC3339) {
+			t.Fatalf("EndedAt = %q, want %q", *resp.EndedAt, endedAt.Format(time.RFC3339))
+		}
+	})
+
+	t.Run("Leave - 퇴장하면 퇴장 시각을 기록하고 USER_LEFT를 발행한다", func(t *testing.T) {
+		t.Parallel()
+
+		joinedAt := time.Unix(1700000000, 0).UTC()
+		repo := &stubRepository{
+			findActiveSessionResult: &Session{
+				SessionID: "session-1",
+				ChannelID: 123,
+				TeamID:    456,
+				RoomName:  "voice-123-session-1",
+				Status:    StatusActive,
+				StartedAt: joinedAt,
+			},
+			getParticipantJoinedAtValue: &joinedAt,
+			markParticipantLeftFirst:    true,
+		}
+		svc := NewService(repo, &stubConnectPermissionChecker{teamID: 456}, &stubLiveKitRoom{}, "wss://livekit.example")
+
+		if err := svc.Leave(context.Background(), 123, 42); err != nil {
+			t.Fatalf("Leave() error = %v", err)
+		}
+
+		if repo.markParticipantLeftCalls != 1 {
+			t.Fatalf("MarkParticipantLeft() calls = %d, want 1", repo.markParticipantLeftCalls)
+		}
+		if len(repo.enqueuedEvents) != 1 {
+			t.Fatalf("enqueued events = %d, want 1 (USER_LEFT)", len(repo.enqueuedEvents))
+		}
+		evt, ok := repo.enqueuedEvents[0].(*kafka.UserLeftEvent)
+		if !ok {
+			t.Fatalf("enqueued event type = %T, want *kafka.UserLeftEvent", repo.enqueuedEvents[0])
+		}
+		if evt.EventType != kafka.EventUserLeft {
+			t.Fatalf("event_type = %q, want %q", evt.EventType, kafka.EventUserLeft)
+		}
+		if evt.SessionID != "session-1" || evt.UserID != 42 || evt.TeamID != 456 {
+			t.Fatalf("event = %+v, want session-1/user 42/team 456", evt)
+		}
+	})
+}
+
+type stubConnectPermissionChecker struct {
+	teamID int64
+	err    error
+	access *permission.Access
+}
+
+func (s *stubConnectPermissionChecker) RequireConnect(_ context.Context, _, _ int64) (permission.Access, error) {
+	if s.err != nil {
+		return permission.Access{}, s.err
+	}
+	if s.access != nil {
+		return *s.access, nil
+	}
+	return permission.Access{TeamID: s.teamID, Speak: true, ScreenShare: true, Broadcast: true}, nil
+}
+
+type stubLiveKitRoom struct {
+	token            string
+	createErr        error
+	tokenErr         error
+	removeErr        error
+	listErr          error
+	participants     []LiveKitParticipant
+	createdRoomName  string
+	createdMax       uint32
+	tokenUserID      int64
+	tokenRoomName    string
+	tokenSpeak       bool
+	tokenScreenShare bool
+}
+
+func (s *stubLiveKitRoom) CreateRoomIfNotExists(_ context.Context, roomName string, maxParticipants uint32) error {
+	s.createdRoomName = roomName
+	s.createdMax = maxParticipants
+	return s.createErr
+}
+
+func (s *stubLiveKitRoom) GenerateToken(userID int64, roomName string, speak, screenShare bool) (string, error) {
+	s.tokenUserID = userID
+	s.tokenRoomName = roomName
+	s.tokenSpeak = speak
+	s.tokenScreenShare = screenShare
+	if s.tokenErr != nil {
+		return "", s.tokenErr
+	}
+	return s.token, nil
+}
+
+func (s *stubLiveKitRoom) RemoveParticipant(_ context.Context, _, _ string) error {
+	return s.removeErr
+}
+
+func (s *stubLiveKitRoom) ListParticipants(_ context.Context, _ string) ([]LiveKitParticipant, error) {
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	return s.participants, nil
+}
+
+type stubRepository struct {
+	findActiveSessionResult     *Session
+	findActiveSessionErr        error
+	createSessionResult         *Session
+	createSessionCreated        bool
+	createSessionErr            error
+	getSessionResult            *Session
+	getSessionErr               error
+	getParticipantJoinedAtValue *time.Time
+	markParticipantLeftFirst    bool
+	enqueuedEvents              []any
+	createSessionCalls          int
+	markParticipantLeftCalls    int
+	endSessionCalls             int
+	endSessionErr               error
+}
+
+func (s *stubRepository) FindActiveSession(_ context.Context, _ int64) (*Session, error) {
+	return s.findActiveSessionResult, s.findActiveSessionErr
+}
+
+func (s *stubRepository) FindSessionByRoomName(_ context.Context, _ string) (*Session, error) {
+	return nil, errors.New("unexpected call")
+}
+
+func (s *stubRepository) CreateSession(_ context.Context, _, _ int64) (*Session, bool, error) {
+	s.createSessionCalls++
+	return s.createSessionResult, s.createSessionCreated, s.createSessionErr
+}
+
+func (s *stubRepository) GetSession(_ context.Context, _ string) (*Session, error) {
+	return s.getSessionResult, s.getSessionErr
+}
+
+func (s *stubRepository) EndSession(_ context.Context, _ string, _ time.Time) (bool, error) {
+	s.endSessionCalls++
+	return s.endSessionErr == nil, s.endSessionErr
+}
+
+func (s *stubRepository) MarkSessionStartedAndEnqueue(_ context.Context, _ string, _ time.Time, _ any) (bool, error) {
+	return false, errors.New("unexpected call")
+}
+
+func (s *stubRepository) RecordParticipantJoinedAndEnqueue(
+	_ context.Context,
+	_ *Participant,
+	_ string,
+	_ any,
+) (bool, error) {
+	return false, errors.New("unexpected call")
+}
+
+func (s *stubRepository) MarkParticipantLeftAndEnqueue(
+	_ context.Context,
+	_ string,
+	_ int64,
+	_ string,
+	_ time.Time,
+	event any,
+) (bool, error) {
+	s.markParticipantLeftCalls++
+	if s.markParticipantLeftFirst {
+		s.enqueuedEvents = append(s.enqueuedEvents, event)
+	}
+	return s.markParticipantLeftFirst, nil
+}
+
+func (s *stubRepository) EndSessionAndEnqueue(
+	_ context.Context,
+	_ string,
+	_ time.Time,
+	_ any,
+) (bool, error) {
+	return false, errors.New("unexpected call")
+}
+
+func (s *stubRepository) CleanupOrphanParticipants(_ context.Context, _ string, _ time.Time) (int64, error) {
+	return 0, errors.New("unexpected call")
+}
+
+func (s *stubRepository) GetParticipantJoinedAt(_ context.Context, _ string, _ int64, _ string) (*time.Time, error) {
+	return s.getParticipantJoinedAtValue, nil
+}
+
+func TestJoinLimitsPublishingToRolePermissions(t *testing.T) {
+	for _, access := range []permission.Access{{TeamID: 456}, {TeamID: 456, Speak: true}, {TeamID: 456, ScreenShare: true}} {
+		repo := &stubRepository{findActiveSessionResult: &Session{SessionID: "s", RoomName: "voice", ChannelID: 123, TeamID: 456}}
+		lk := &stubLiveKitRoom{token: "token"}
+		svc := NewService(repo, &stubConnectPermissionChecker{access: &access}, lk, "")
+		if _, err := svc.Join(context.Background(), 123, 42); err != nil {
+			t.Fatal(err)
+		}
+		if lk.tokenSpeak != access.Speak || lk.tokenScreenShare != access.ScreenShare {
+			t.Fatalf("unexpected publish permission: %+v", lk)
+		}
+	}
+}

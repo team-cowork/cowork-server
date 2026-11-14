@@ -6,7 +6,7 @@ import (
 	livekitproto "github.com/livekit/protocol/livekit"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 
-	room "github.com/cowork/cowork-voice/internal/domain/voice_room"
+	"github.com/cowork/cowork-voice/internal/domain/voiceroom"
 )
 
 type liveKitRoomService struct {
@@ -16,7 +16,7 @@ type liveKitRoomService struct {
 	ttlSecs   int64
 }
 
-func NewLiveKitRoom(client *lksdk.RoomServiceClient, apiKey, apiSecret string, ttlSecs int64) room.LiveKitRoom {
+func NewLiveKitRoom(client *lksdk.RoomServiceClient, apiKey, apiSecret string, ttlSecs int64) voiceroom.LiveKitRoom {
 	return &liveKitRoomService{
 		client:    client,
 		apiKey:    apiKey,
@@ -37,13 +37,13 @@ func (l *liveKitRoomService) RemoveParticipant(ctx context.Context, roomName, id
 	return RemoveParticipant(ctx, l.client, roomName, identity)
 }
 
-func (l *liveKitRoomService) ListParticipants(ctx context.Context, roomName string) ([]room.LiveKitParticipant, error) {
+func (l *liveKitRoomService) ListParticipants(ctx context.Context, roomName string) ([]voiceroom.LiveKitParticipant, error) {
 	participants, err := ListParticipants(ctx, l.client, roomName)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]room.LiveKitParticipant, 0, len(participants))
+	result := make([]voiceroom.LiveKitParticipant, 0, len(participants))
 	for _, p := range participants {
 		if p == nil {
 			continue
@@ -53,8 +53,8 @@ func (l *liveKitRoomService) ListParticipants(ctx context.Context, roomName stri
 	return result, nil
 }
 
-func fromProtoParticipant(p *livekitproto.ParticipantInfo) room.LiveKitParticipant {
-	return room.LiveKitParticipant{
+func fromProtoParticipant(p *livekitproto.ParticipantInfo) voiceroom.LiveKitParticipant {
+	return voiceroom.LiveKitParticipant{
 		Identity: p.Identity,
 		JoinedAt: p.JoinedAt,
 	}

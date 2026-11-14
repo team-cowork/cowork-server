@@ -17,8 +17,8 @@ import java.net.URI
 
 @Component
 class StorageRelayGatewayFilterFactory(
-    @param:Value("\${PUBLIC_API_BASE_URL}") publicApiBaseUrl: String,
-    @param:Value("\${S3_BUCKET}") bucket: String,
+    @param:Value($$"${PUBLIC_API_BASE_URL}") publicApiBaseUrl: String,
+    @param:Value($$"${S3_BUCKET}") bucket: String,
 ) : AbstractGatewayFilterFactory<StorageRelayGatewayFilterFactory.Config>(Config::class.java) {
     class Config
 
@@ -52,7 +52,7 @@ class StorageRelayGatewayFilterFactory(
         val boundedRequest = object : ServerHttpRequestDecorator(routedRequest) {
             override fun getBody(): Flux<DataBuffer> = Flux.defer {
                 var bytes = 0L
-                super.getBody().handle<DataBuffer> { buffer, sink ->
+                super.getBody().handle { buffer, sink ->
                     bytes += buffer.readableByteCount()
                     if (bytes > StorageRelayPolicy.MAX_UPLOAD_BYTES) {
                         DataBufferUtils.release(buffer)

@@ -21,7 +21,7 @@ groups:
           service: vault
         annotations:
           summary: "Vault 봉인됨"
-          description: "Vault가 2분 동안 봉인(sealed) 상태입니다. Nomad 작업이 시크릿을 읽지 못하므로 Vault VM에서 컨테이너 재시작 여부를 확인하고 unseal 키로 봉인을 해제해 주세요."
+          description: "Vault가 2분 동안 봉인(sealed) 상태입니다. Nomad 작업이 시크릿을 읽지 못합니다. 관리 VM cowork-control에서 `journalctl -u cowork-vault-unsealer`로 자동 해제 실패 원인을 확인해 주세요."
 
       # The served chain includes the CA, so this also covers CA expiry.
       - alert: coworkVaultTlsRenewalOverdue

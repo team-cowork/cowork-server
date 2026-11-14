@@ -218,7 +218,7 @@ class ProjectionReadinessAvailability(
     private val readinessState: ProjectionReadinessState,
     private val applicationContext: ApplicationContext,
 ) {
-    @Scheduled(fixedDelayString = "\${projection.readiness.poll-interval-ms:1000}")
+    @Scheduled(fixedDelayString = $$"${projection.readiness.poll-interval-ms:1000}")
     fun refreshAvailability() {
         val state = if (readinessState.refresh()) {
             ReadinessState.ACCEPTING_TRAFFIC

@@ -48,7 +48,7 @@ func HTTPMetricsMiddleware() gin.HandlerFunc {
 
 		c.Next()
 
-		route := normalizedRoute(c.FullPath(), c.Request.URL.Path)
+		route := normalizedRoute(c.FullPath())
 		if shouldSkipRoute(route) {
 			return
 		}
@@ -59,7 +59,7 @@ func HTTPMetricsMiddleware() gin.HandlerFunc {
 	}
 }
 
-func normalizedRoute(fullPath string, rawPath string) string {
+func normalizedRoute(fullPath string) string {
 	if fullPath != "" {
 		return fullPath
 	}
@@ -68,7 +68,7 @@ func normalizedRoute(fullPath string, rawPath string) string {
 
 func shouldSkipRoute(route string) bool {
 	switch route {
-	case "/metrics", "/health", "/swagger/*any":
+	case "/metrics", "/health", "/v3/api-docs", "/swagger/*any":
 		return true
 	default:
 		return false

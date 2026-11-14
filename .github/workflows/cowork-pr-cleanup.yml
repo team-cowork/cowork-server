@@ -43,3 +43,37 @@ jobs:
           script: |
             const { syncPullRequestIssues } = require('./deploy/ci/pull_request/issue/issues.cjs');
             await syncPullRequestIssues({ github, context, core, close: true });
+
+  delete-head-branch:
+    name: Delete Head Branch
+    # Repository auto-delete is off because it also deletes develop after release PRs.
+    if: >
+      github.event.pull_request.merged == true &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      !contains(fromJSON('["develop", "main"]'), github.event.pull_request.head.ref)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Delete Merged Head Branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          # Retarget stacked PRs first so that their later merges reach the merged PR's base.
+          dependents=$(gh api -X GET "repos/$GITHUB_REPOSITORY/pulls" --paginate \
+            -f state=open -f base="$HEAD_REF" --jq '.[].number')
+          for number in $dependents; do
+            if ! gh api -X PATCH "repos/$GITHUB_REPOSITORY/pulls/$number" -f base="$BASE_REF" --silent; then
+              echo "::warning::Keep $HEAD_REF because PR #$number could not be retargeted to $BASE_REF."
+              exit 0
+            fi
+            echo "Retargeted PR #$number to $BASE_REF."
+          done
+          if gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$HEAD_REF"; then
+            echo "Deleted $HEAD_REF."
+          else
+            echo "::warning::Could not delete $HEAD_REF. It may already be deleted."
+          fi

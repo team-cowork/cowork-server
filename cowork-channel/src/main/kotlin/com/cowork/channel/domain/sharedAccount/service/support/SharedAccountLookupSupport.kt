@@ -1,7 +1,6 @@
 package com.cowork.channel.domain.sharedAccount.service.support
 
 import com.cowork.channel.domain.channel.entity.Channel
-import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channel.service.TeamPermissionService
 import com.cowork.channel.domain.sharedAccount.entity.SharedAccount
 import com.cowork.channel.domain.sharedAccount.presentation.data.response.SharedAccountResponse
@@ -14,7 +13,6 @@ import team.themoment.sdk.exception.ExpectedException
 @Component
 class SharedAccountLookupSupport(
     private val sharedAccountRepository: SharedAccountRepository,
-    private val channelAccessGuard: ChannelAccessGuard,
     private val teamPermissionService: TeamPermissionService,
     private val credentialEncryptionService: CredentialEncryptionService,
 ) {

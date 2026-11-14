@@ -2,7 +2,11 @@ import process from 'node:process';
 import {pathToFileURL} from 'node:url';
 import {addTechnologyLogos, createAssetCollection} from './lib/assets.mjs';
 import {resolveBuildConfig} from './lib/build-config.mjs';
-import {loadBuildInput, stylesheetPaths} from './lib/build-input.mjs';
+import {
+	googleSiteVerificationFilename,
+	loadBuildInput,
+	stylesheetPaths,
+} from './lib/build-input.mjs';
 import {
 	parseContent,
 	parseFeatureStates,
@@ -127,6 +131,7 @@ export async function build(options = {}) {
 		['privacy/index.html', privacyHtml],
 		['terms/index.html', termsHtml],
 		['license/index.html', licenseHtml],
+		[googleSiteVerificationFilename, input.googleSiteVerificationSource],
 	]);
 
 	await replaceOutputDirectory(config.outputDirectory, outputFiles);

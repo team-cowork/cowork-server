@@ -4,7 +4,7 @@ import "sync"
 
 const clientChannelBuffer = 8
 
-// Hub는 사용자별 SSE 클라이언트 채널을 관리합니다.
+// Hub 타입은 사용자별 SSE 클라이언트 채널을 관리합니다.
 type Hub struct {
 	mu      sync.RWMutex
 	clients map[int64][]chan []byte
@@ -14,7 +14,7 @@ func NewHub() *Hub {
 	return &Hub{clients: make(map[int64][]chan []byte)}
 }
 
-// Subscribe는 해당 사용자의 SSE 채널을 등록합니다.
+// Subscribe 메서드는 해당 사용자의 SSE 채널을 등록합니다.
 // 클라이언트 연결 종료 시 반드시 반환된 unsubscribe를 호출해야 합니다.
 func (h *Hub) Subscribe(userID int64) (ch chan []byte, unsubscribe func()) {
 	ch = make(chan []byte, clientChannelBuffer)
@@ -41,7 +41,7 @@ func (h *Hub) Subscribe(userID int64) (ch chan []byte, unsubscribe func()) {
 	return ch, unsubscribe
 }
 
-// Broadcast는 지정된 사용자들의 모든 SSE 클라이언트에 payload를 전송합니다.
+// Broadcast 메서드는 지정된 사용자들의 모든 SSE 클라이언트에 payload를 전송합니다.
 // 클라이언트 버퍼가 가득 찬 경우 해당 메시지는 드롭됩니다.
 func (h *Hub) Broadcast(userIDs []int64, payload []byte) {
 	h.mu.RLock()

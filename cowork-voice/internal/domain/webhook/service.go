@@ -7,19 +7,19 @@ import (
 	"strconv"
 	"time"
 
-	livekit "github.com/livekit/protocol/livekit"
+	"github.com/livekit/protocol/livekit"
 
-	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
+	"github.com/cowork/cowork-voice/internal/domain/voiceroom"
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
-type WebhookService struct {
+type Service struct {
 	repo SessionRepository
 	now  func() time.Time
 }
 
-func NewWebhookService(repo SessionRepository) *WebhookService {
-	return &WebhookService{
+func NewService(repo SessionRepository) *Service {
+	return &Service{
 		repo: repo,
 		now: func() time.Time {
 			return time.Now().UTC()
@@ -27,11 +27,11 @@ func NewWebhookService(repo SessionRepository) *WebhookService {
 	}
 }
 
-func (s *WebhookService) HandleEvent(ctx context.Context, event *livekit.WebhookEvent) error {
+func (s *Service) HandleEvent(ctx context.Context, event *livekit.WebhookEvent) error {
 	now := s.now()
 	nowStr := now.Format(time.RFC3339)
 
-	switch WebhookEventType(event.GetEvent()) {
+	switch EventType(event.GetEvent()) {
 	case EventParticipantJoined:
 		return s.handleParticipantJoined(ctx, event, now, nowStr)
 	case EventParticipantLeft:
@@ -42,7 +42,7 @@ func (s *WebhookService) HandleEvent(ctx context.Context, event *livekit.Webhook
 	return nil
 }
 
-func (s *WebhookService) handleParticipantJoined(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) error {
+func (s *Service) handleParticipantJoined(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) error {
 	participant := event.GetParticipant()
 	if participant == nil {
 		return nil
@@ -56,7 +56,7 @@ func (s *WebhookService) handleParticipantJoined(ctx context.Context, event *liv
 	if err != nil {
 		return nil
 	}
-	parsedRoom, ok := roomdomain.ParseRoomName(room.Name)
+	parsedRoom, ok := voiceroom.ParseRoomName(room.Name)
 	if !ok {
 		return nil
 	}
@@ -83,7 +83,7 @@ func (s *WebhookService) handleParticipantJoined(ctx context.Context, event *liv
 		slog.Error("failed to mark session started and enqueue event", "err", err, "session_id", voiceSession.SessionID)
 		return err
 	}
-	_, err = s.repo.RecordParticipantJoinedAndEnqueue(ctx, &roomdomain.VoiceParticipant{
+	_, err = s.repo.RecordParticipantJoinedAndEnqueue(ctx, &voiceroom.Participant{
 		SessionID: voiceSession.SessionID,
 		UserID:    userID,
 		ChannelID: parsedRoom.ChannelID,
@@ -103,7 +103,7 @@ func (s *WebhookService) handleParticipantJoined(ctx context.Context, event *liv
 	return nil
 }
 
-func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) error {
+func (s *Service) handleParticipantLeft(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) error {
 	participant := event.GetParticipant()
 	if participant == nil {
 		return nil
@@ -117,7 +117,7 @@ func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livek
 	if err != nil {
 		return nil
 	}
-	parsedRoom, ok := roomdomain.ParseRoomName(room.Name)
+	parsedRoom, ok := voiceroom.ParseRoomName(room.Name)
 	if !ok {
 		return nil
 	}
@@ -163,13 +163,13 @@ func (s *WebhookService) handleParticipantLeft(ctx context.Context, event *livek
 	return nil
 }
 
-func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) error {
+func (s *Service) handleRoomFinished(ctx context.Context, event *livekit.WebhookEvent, now time.Time, nowStr string) error {
 	room := event.GetRoom()
 	if room == nil {
 		return nil
 	}
 
-	parsedRoom, ok := roomdomain.ParseRoomName(room.Name)
+	parsedRoom, ok := voiceroom.ParseRoomName(room.Name)
 	if !ok {
 		return nil
 	}
@@ -216,6 +216,6 @@ func (s *WebhookService) handleRoomFinished(ctx context.Context, event *livekit.
 	return nil
 }
 
-func (s *WebhookService) findSession(ctx context.Context, roomName string) (*roomdomain.VoiceSession, error) {
+func (s *Service) findSession(ctx context.Context, roomName string) (*voiceroom.Session, error) {
 	return s.repo.FindSessionByRoomName(ctx, roomName)
 }

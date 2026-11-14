@@ -45,5 +45,6 @@ internal class CacheCircuitBreaker(meterRegistry: MeterRegistry) {
         log.warn("Opened preference cache circuit for {}ms after {} consecutive failures", OPEN_MS, failures)
     }
 
-    object OpenException : Exception("preference cache circuit is open")
+    /** 열린 상태에서는 요청마다 생기므로 stack trace와 suppressed 예외를 기록하지 않는다. */
+    class OpenException : Exception("preference cache circuit is open", null, false, false)
 }

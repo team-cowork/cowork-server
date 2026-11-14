@@ -20,8 +20,8 @@ class TeamRoleCommandInboxRepository(private val pool: Pool) {
             SELECT operation_id, actor_id, idempotency_key, request_hash, command_type, team_id,
                    result::text AS result
             FROM tb_team_role_command_inbox
-            WHERE operation_id = ${'$'}1
-               OR (actor_id = ${'$'}2 AND idempotency_key = ${'$'}3)
+            WHERE operation_id = $1
+               OR (actor_id = $2 AND idempotency_key = $3)
             FOR UPDATE
             """.trimIndent(),
         ).execute(Tuple.of(command.operationId, command.actorId, command.idempotencyKey)).coAwait()
@@ -49,7 +49,7 @@ class TeamRoleCommandInboxRepository(private val pool: Pool) {
             """
             INSERT INTO tb_team_role_command_inbox
                 (operation_id, actor_id, idempotency_key, request_hash, command_type, team_id, result)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6, ${'$'}7::jsonb)
+            VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb)
             """.trimIndent(),
         ).execute(
             Tuple.of(
@@ -71,7 +71,7 @@ class TeamRoleCommandInboxRepository(private val pool: Pool) {
             """
             INSERT INTO tb_team_role_command_quarantine
                 (topic, partition_id, record_offset, record_key, payload, reason)
-            VALUES (${'$'}1, ${'$'}2, ${'$'}3, ${'$'}4, ${'$'}5, ${'$'}6)
+            VALUES ($1, $2, $3, $4, $5, $6)
             ON CONFLICT (topic, partition_id, record_offset) DO NOTHING
             """.trimIndent(),
         ).execute(
