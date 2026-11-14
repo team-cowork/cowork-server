@@ -177,6 +177,10 @@
       delegate_to: "{{ groups['control_plane'][0] }}"
       no_log: true
 
+# TODO: Temporary migration code. Remove this include and vault-unsealer-migration.yml
+# after the first auto-unseal rollout succeeds in the main CD.
+- ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/services/vault-unsealer-migration.yml"
+
 # The unsealer on the management VM opens a sealed Vault. sys/health answers 503 while sealed.
 - name: Wait for the Vault unsealer to open Vault
   ansible.builtin.uri:
