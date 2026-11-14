@@ -1,0 +1,56 @@
+---
+- name: Create the Vault unsealer account
+  ansible.builtin.user:
+    name: cowork-vault-unsealer
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: Create the Vault unsealer key directory
+  ansible.builtin.file:
+    path: /etc/cowork/vault-unsealer
+    state: directory
+    owner: root
+    group: cowork-vault-unsealer
+    mode: '0750'
+
+- name: Check for the operator Vault recovery file on the controller
+  ansible.builtin.stat:
+    path: "{{ vault_recovery_file }}"
+  register: vault_recovery_stat
+  delegate_to: localhost
+  become: false
+
+# Only the key shares reach the unsealer. The root token stays in the operator recovery file.
+- name: Install the unseal key shares from the operator recovery file
+  ansible.builtin.copy:
+    content: "{{ {'keys_base64': (lookup('ansible.builtin.file', vault_recovery_file) | from_json).keys_base64} | to_json }}\n"
+    dest: /etc/cowork/vault-unsealer/keys.json
+    owner: root
+    group: cowork-vault-unsealer
+    mode: '0640'
+  when: vault_recovery_stat.stat.exists
+  no_log: true
+
+- name: Install the Vault unsealer
+  ansible.builtin.copy:
+    src: vault_unsealer.py
+    dest: /usr/local/bin/cowork-vault-unsealer.py
+    owner: root
+    group: root
+    mode: '0644'
+  register: vault_unsealer_script
+
+- name: Install the Vault unsealer service
+  ansible.builtin.template:
+    src: vault/cowork-vault-unsealer.service.j2
+    dest: /etc/systemd/system/cowork-vault-unsealer.service
+    mode: '0644'
+  register: vault_unsealer_unit
+
+- name: Run the Vault unsealer
+  ansible.builtin.systemd_service:
+    name: cowork-vault-unsealer
+    daemon_reload: true
+    enabled: true
+    state: "{{ 'restarted' if vault_unsealer_script.changed or vault_unsealer_unit.changed else 'started' }}"

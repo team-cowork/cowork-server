@@ -43,7 +43,6 @@
     - consul-gossip.key
     - nomad-gossip.key
     - tofu-state.passphrase
-    - vault-recovery.json
   delegate_to: localhost
   become: false
   register: platform_runner_recovery_files
