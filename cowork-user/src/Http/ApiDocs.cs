@@ -11,7 +11,7 @@ using Microsoft.OpenApi;
 namespace CoworkUser.Http;
 
 /// <summary>
-/// Builds the OpenAPI 3.0 document from the attributes on the endpoint handlers. The gateway wraps every
+/// Builds the OpenAPI 3.2 document from the attributes on the endpoint handlers. The gateway wraps every
 /// successful body in <see cref="Envelope{T}"/> and every failure in the Error schema, so the document shows
 /// those shapes. The gateway can also answer 401 and 429, so every operation lists them.
 /// </summary>
@@ -58,7 +58,9 @@ public static class ApiDocs
         });
         return services.AddOpenApi(options =>
         {
-            options.OpenApiVersion = OpenApiSpecVersion.OpenApi3_0;
+            // TODO: Upgrade the package to write OpenAPI 3.2.1 once Microsoft.OpenApi outputs that document version.
+            //  Microsoft.OpenApi 3.x fixes the OpenAPI 3.2 document version at "3.2.0".
+            options.OpenApiVersion = OpenApiSpecVersion.OpenApi3_2;
             options.AddSchemaTransformer((schema, context, _) =>
             {
                 var attributes = context.JsonPropertyInfo?.AttributeProvider;
@@ -111,9 +113,9 @@ public static class ApiDocs
             operation.Responses[code.ToString()] = new OpenApiResponse
             {
                 Description = description,
-                Content = new Dictionary<string, OpenApiMediaType>
+                Content = new Dictionary<string, IOpenApiMediaType>
                 {
-                    ["application/json"] = new() { Schema = new OpenApiSchemaReference($"Error{code}") },
+                    ["application/json"] = new OpenApiMediaType { Schema = new OpenApiSchemaReference($"Error{code}") },
                 },
             };
     }
