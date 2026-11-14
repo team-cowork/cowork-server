@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.2.1
 info:
   title: cowork Applet API
   description: 사용자가 서비스 안에서 만드는 앱을 관리합니다.
