@@ -1,0 +1,33 @@
+---
+# TODO: Temporary migration code. Remove this file and its include in vault.yml after the first
+# auto-unseal rollout succeeds in the main CD. It runs only while the runner still holds the
+# legacy recovery file, so later deployments skip it.
+- name: Check for the legacy Vault recovery file on the deployment runner
+  ansible.builtin.stat:
+    path: /var/lib/cowork/platform-state/vault-recovery.json
+  register: vault_legacy_recovery
+  delegate_to: "{{ groups['deployment_runner'][0] }}"
+
+- name: Prove the unsealer once and retire the runner copy of the root token
+  when: vault_legacy_recovery.stat.exists
+  block:
+    - name: Restart Vault so that it starts sealed
+      ansible.builtin.command:
+        argv: [docker, restart, cowork-vault-prod]
+      changed_when: true
+
+    - name: Wait for the Vault unsealer to open the restarted Vault
+      ansible.builtin.uri:
+        url: "https://{{ private_ip }}:8210/v1/sys/health"
+        ca_path: /etc/cowork/ca/ca.crt
+      register: vault_drill_health
+      until: vault_drill_health.status == 200
+      retries: 30
+      delay: 2
+
+    # The operator backup keeps the root token. The runner and the unsealer no longer need it.
+    - name: Remove the legacy recovery file from the deployment runner
+      ansible.builtin.file:
+        path: /var/lib/cowork/platform-state/vault-recovery.json
+        state: absent
+      delegate_to: "{{ groups['deployment_runner'][0] }}"

@@ -1,0 +1,17 @@
+[Unit]
+Description=Unseal the platform Vault after it restarts sealed
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=cowork-vault-unsealer
+ExecStart={{ platform_python_binary }} -I /usr/local/bin/cowork-vault-unsealer.py https://{{ platform_vault_ip }}:8210 /etc/cowork/ca/ca.crt /etc/cowork/vault-unsealer/keys.json
+Restart=always
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
