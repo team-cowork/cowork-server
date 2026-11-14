@@ -35,22 +35,6 @@
     group: '1000'
     mode: '0700'
 
-- name: Select the private controller recovery file
-  ansible.builtin.set_fact:
-    vault_recovery_file: "{{ lookup('ansible.builtin.env', 'COWORK_VAULT_BOOTSTRAP_FILE') | default(platform_state_dir ~ '/vault-recovery.json', true) }}"
-
-- name: Check recovery availability before changing an existing Vault
-  ansible.builtin.stat:
-    path: "{{ vault_recovery_file }}"
-  register: vault_recovery_stat
-  delegate_to: localhost
-  become: false
-
-- name: Require recovery credentials before an existing Vault can restart
-  ansible.builtin.assert:
-    that: vault_recovery_stat.stat.exists or cowork_initialize_vault | default(false) | bool
-    fail_msg: Restore the private platform Vault recovery file before reconciling Vault.
-
 - name: Find the existing Vault TLS volume
   ansible.builtin.command:
     argv: [docker, volume, inspect, --format, '{{ "{{" }}.Mountpoint{{ "}}" }}', cowork-vault-tls]
@@ -183,58 +167,24 @@
       delegate_to: localhost
       become: false
       no_log: true
-
-- name: Refresh the Vault seal status before unsealing
-  ansible.builtin.uri:
-    url: "https://{{ private_ip }}:8210/v1/sys/seal-status"
-    ca_path: /etc/cowork/ca/ca.crt
-  register: vault_seal_status
-
-- name: Unseal a restarted Vault using the explicit operator recovery file
-  when: vault_seal_status.json.sealed
-  block:
-    - name: Require the operator recovery file location
-      ansible.builtin.assert:
-        that: vault_recovery_file is match('^/')
-        fail_msg: Set COWORK_VAULT_BOOTSTRAP_FILE to the existing private controller recovery file before restarting Vault.
-    - name: Read the operator recovery keys privately
-      ansible.builtin.set_fact:
-        vault_recovery: "{{ lookup('ansible.builtin.file', vault_recovery_file) | from_json }}"
-      no_log: true
-    - name: Select the existing unseal keys
-      ansible.builtin.set_fact:
-        vault_unseal_keys: "{{ vault_recovery.unseal_keys_b64 | default(vault_recovery.keys_base64 | default(vault_recovery['keys'] | default([]))) }}"
-      no_log: true
-    - name: Require sufficient operator recovery keys
-      ansible.builtin.assert:
-        that:
-          - vault_unseal_keys is sequence
-          - vault_unseal_keys is not string
-          - vault_unseal_keys | length >= vault_seal_status.json.t
-      no_log: true
-    - name: Submit unseal keys only in the private request body
-      ansible.builtin.uri:
-        url: "https://{{ private_ip }}:8210/v1/sys/unseal"
-        method: PUT
-        ca_path: /etc/cowork/ca/ca.crt
-        body_format: json
-        body:
-          key: "{{ item }}"
-      loop: "{{ vault_unseal_keys[:vault_seal_status.json.t] }}"
-      no_log: true
-    - name: Discard temporary recovery facts
-      ansible.builtin.set_fact:
-        vault_recovery: null
-        vault_unseal_keys: []
+    - name: Give the new key shares to the Vault unsealer
+      ansible.builtin.copy:
+        content: "{{ {'keys_base64': vault_initialization.json.keys_base64} | to_json }}\n"
+        dest: /etc/cowork/vault-unsealer/keys.json
+        owner: root
+        group: cowork-vault-unsealer
+        mode: '0640'
+      delegate_to: "{{ groups['control_plane'][0] }}"
       no_log: true
 
-- name: Verify the unsealed Vault endpoint
+# The unsealer on the management VM opens a sealed Vault. sys/health answers 503 while sealed.
+- name: Wait for the Vault unsealer to open Vault
   ansible.builtin.uri:
     url: "https://{{ private_ip }}:8210/v1/sys/health"
     ca_path: /etc/cowork/ca/ca.crt
   register: vault_health
   until: vault_health.status == 200
-  retries: 15
+  retries: 30
   delay: 2
 
 - name: Discover the previous certificate renewal units
