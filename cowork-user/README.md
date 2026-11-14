@@ -10,7 +10,7 @@
 
 ## 스택
 
-- C# / ASP.NET Core (.NET 10)
+- C# / ASP.NET Core (.NET 11)
 - .NET CLI (`dotnet test cowork-user.slnx`)
 - MySqlConnector · Dapper · Flyway / MySQL
 - Confluent.Kafka / StackExchange.Redis / AWS SDK S3 / SeaweedFS
