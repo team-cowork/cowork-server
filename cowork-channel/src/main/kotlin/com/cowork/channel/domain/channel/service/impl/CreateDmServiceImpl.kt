@@ -33,9 +33,6 @@ class CreateDmServiceImpl(
      * 동시 생성 경합은 dm_key 유니크 제약 충돌 시 재조회로 해소한다.
      */
     override fun execute(userId: Long, targetUserId: Long): ChannelResponse {
-        if (targetUserId <= 0) {
-            throw ExpectedException("DM 상대 사용자 ID는 양수여야 합니다.", HttpStatus.BAD_REQUEST)
-        }
         if (targetUserId == userId) {
             throw ExpectedException("자기 자신과는 DM을 만들 수 없습니다.", HttpStatus.BAD_REQUEST)
         }
