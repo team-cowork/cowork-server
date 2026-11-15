@@ -19,6 +19,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
@@ -255,7 +256,7 @@ class SharedAccountController(
     fun createAccount(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-        @RequestBody request: CreateSharedAccountRequest,
+        @Valid @RequestBody request: CreateSharedAccountRequest,
     ): SharedAccountResponse = createSharedAccountService.createAccount(userId, channelId, request)
 
     @Operation(summary = "공유 계정 수정", security = [SecurityRequirement(name = "BearerAuth")])
@@ -317,7 +318,7 @@ class SharedAccountController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable accountId: Long,
-        @RequestBody request: UpdateSharedAccountRequest,
+        @Valid @RequestBody request: UpdateSharedAccountRequest,
     ): SharedAccountResponse = updateSharedAccountService.updateAccount(userId, channelId, accountId, request)
 
     @Operation(summary = "공유 계정 삭제", security = [SecurityRequirement(name = "BearerAuth")])
