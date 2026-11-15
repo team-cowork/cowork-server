@@ -9,7 +9,7 @@ data class UpdateSharedAccountRequest(
     val accountIdentifier: String?,
 
     // 16,000자: 3바이트 UTF-8 최악 기준 AES-GCM+Base64+IV 후에도 TEXT(65,535바이트)에 들어간다 (최대 16,373자).
-    @param:Schema(description = "변경할 비밀번호 또는 API 키 (최대 16,000자)", example = "NewP@ssw0rd!")
+    @param:Schema(description = "변경할 비밀번호 또는 API 키", example = "NewP@ssw0rd!")
     @field:Size(max = 16000, message = "비밀번호 또는 API 키는 {max}자 이하여야 합니다.")
     val credential: String?,
 
