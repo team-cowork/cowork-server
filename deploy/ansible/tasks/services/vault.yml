@@ -103,8 +103,7 @@
   changed_when: false
   failed_when: vault_container_running.rc not in [0, 1]
 
-# A restarted Vault stays sealed unless the unsealer holds the key shares. This guard also covers the
-# restart in vault-unsealer-migration.yml, which runs later in this file.
+# A restarted Vault stays sealed unless the unsealer holds the key shares.
 - name: Check for the Vault unsealer key shares on the management VM
   ansible.builtin.stat:
     path: /etc/cowork/vault-unsealer/keys.json
