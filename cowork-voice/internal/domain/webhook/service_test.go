@@ -5,28 +5,28 @@ import (
 	"testing"
 	"time"
 
-	livekit "github.com/livekit/protocol/livekit"
+	"github.com/livekit/protocol/livekit"
 
-	roomdomain "github.com/cowork/cowork-voice/internal/domain/voice_room"
+	"github.com/cowork/cowork-voice/internal/domain/voiceroom"
 	kafkadomain "github.com/cowork/cowork-voice/internal/infra/kafka"
 )
 
-func TestWebhookService(t *testing.T) {
+func TestService(t *testing.T) {
 	t.Run("HandleEvent - 참가 이벤트면 세션 시작과 사용자 입장을 발행한다", func(t *testing.T) {
 		t.Parallel()
 
 		repo := &stubSessionRepository{
-			findSessionByRoomNameResult: &roomdomain.VoiceSession{
+			findSessionByRoomNameResult: &voiceroom.Session{
 				SessionID: "session-1",
 				ChannelID: 123,
 				TeamID:    456,
 				RoomName:  "voice-123-session-1",
-				Status:    roomdomain.StatusActive,
+				Status:    voiceroom.StatusActive,
 				StartedAt: time.Unix(1700000000, 0).UTC(),
 			},
 			markSessionStartedResult: true,
 		}
-		svc := NewWebhookService(repo)
+		svc := NewService(repo)
 		now := time.Unix(1700000300, 0).UTC()
 		svc.now = func() time.Time { return now }
 
@@ -58,18 +58,18 @@ func TestWebhookService(t *testing.T) {
 
 		joinedAt := time.Unix(1700000000, 0).UTC()
 		repo := &stubSessionRepository{
-			findSessionByRoomNameResult: &roomdomain.VoiceSession{
+			findSessionByRoomNameResult: &voiceroom.Session{
 				SessionID: "session-1",
 				ChannelID: 123,
 				TeamID:    456,
 				RoomName:  "voice-123-session-1",
-				Status:    roomdomain.StatusActive,
+				Status:    voiceroom.StatusActive,
 				StartedAt: joinedAt,
 			},
 			getParticipantJoinedAtResult: &joinedAt,
 			markParticipantLeftResult:    true,
 		}
-		svc := NewWebhookService(repo)
+		svc := NewService(repo)
 		svc.now = func() time.Time { return time.Unix(1700000300, 0).UTC() }
 
 		if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -102,18 +102,18 @@ func TestWebhookService(t *testing.T) {
 		startedAt := time.Unix(1700000000, 0).UTC()
 		now := time.Unix(1700000600, 0).UTC()
 		repo := &stubSessionRepository{
-			findSessionByRoomNameResult: &roomdomain.VoiceSession{
+			findSessionByRoomNameResult: &voiceroom.Session{
 				SessionID: "session-1",
 				ChannelID: 123,
 				TeamID:    456,
 				RoomName:  "voice-123-session-1",
-				Status:    roomdomain.StatusActive,
+				Status:    voiceroom.StatusActive,
 				StartedAt: startedAt,
 			},
 			endSessionResult:                true,
 			cleanupOrphanParticipantsResult: 2,
 		}
-		svc := NewWebhookService(repo)
+		svc := NewService(repo)
 		svc.now = func() time.Time { return now }
 
 		if err := svc.HandleEvent(context.Background(), &livekit.WebhookEvent{
@@ -150,7 +150,7 @@ type publishedMessage struct {
 }
 
 type stubSessionRepository struct {
-	findSessionByRoomNameResult     *roomdomain.VoiceSession
+	findSessionByRoomNameResult     *voiceroom.Session
 	findSessionByRoomNameErr        error
 	markSessionStartedResult        bool
 	markSessionStartedErr           error
@@ -167,7 +167,7 @@ type stubSessionRepository struct {
 	messages                        []publishedMessage
 }
 
-func (s *stubSessionRepository) FindSessionByRoomName(_ context.Context, _ string) (*roomdomain.VoiceSession, error) {
+func (s *stubSessionRepository) FindSessionByRoomName(_ context.Context, _ string) (*voiceroom.Session, error) {
 	return s.findSessionByRoomNameResult, s.findSessionByRoomNameErr
 }
 
@@ -185,7 +185,7 @@ func (s *stubSessionRepository) MarkSessionStartedAndEnqueue(
 
 func (s *stubSessionRepository) RecordParticipantJoinedAndEnqueue(
 	_ context.Context,
-	participant *roomdomain.VoiceParticipant,
+	participant *voiceroom.Participant,
 	_ string,
 	event any,
 ) (bool, error) {

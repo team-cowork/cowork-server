@@ -3,7 +3,7 @@ package webhook
 import (
 	"fmt"
 
-	livekit "github.com/livekit/protocol/livekit"
+	"github.com/livekit/protocol/livekit"
 )
 
 // participantOccurrenceID identifies one physical LiveKit connection. The SID

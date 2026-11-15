@@ -36,7 +36,6 @@ class CopySharedAccountCredentialServiceImplTest {
     private val lookupSupport =
         SharedAccountLookupSupport(
             sharedAccountRepository,
-            channelAccessGuard,
             teamPermissionService,
             credentialEncryptionService,
         )

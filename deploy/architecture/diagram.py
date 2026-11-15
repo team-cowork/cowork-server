@@ -190,7 +190,7 @@ def overview():
 def full():
     observability = {}
 
-    def add_monitoring(nodes):
+    def add_monitoring(_nodes):
         with Cluster("10.0.0.137  Monitoring VM"):
             observability.update(
                 grafana=Grafana("Grafana\nNginx :8080 → :3000"),

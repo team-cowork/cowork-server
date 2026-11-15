@@ -45,8 +45,10 @@ fun buildRouter(
             .end(MetricsRegistry.registry.scrape())
     }
 
+    // TODO: Migrate the hand-written openapi.json from OpenAPI 3.0.3 to 3.2.1. Replace 3.0-only keywords such as
+    //  `nullable` with their JSON Schema 2020-12 equivalents.
     val openapiSpec = object {}.javaClass.getResourceAsStream("/openapi.json")?.use { it.bufferedReader().readText() }
-    router.get("/swagger/doc.json").handler { ctx ->
+    router.get("/v3/api-docs").handler { ctx ->
         if (openapiSpec != null) {
             ctx.response().putHeader("Content-Type", "application/json").end(openapiSpec)
         } else {

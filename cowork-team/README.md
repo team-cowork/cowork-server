@@ -11,7 +11,7 @@
 
 ## 스택
 
-- Kotlin / Java 26 / Spring Boot
+- Kotlin / Java 27 / Spring Boot
 - Gradle
 - Spring Data JPA / MySQL / Flyway
 - Spring Kafka

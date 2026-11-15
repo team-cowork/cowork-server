@@ -67,7 +67,7 @@ class WebhookHandler(private val service: WebhookService, private val scope: Cor
             try {
                 val requester = RequesterContext.from(ctx) ?: throw WebhookRequestException(400, "요청자 정보가 필요합니다.")
                 val result = action(requester, id(ctx, "channelId"))
-                ctx.response().setStatusCode(successStatus)
+                ctx.response().statusCode = successStatus
                 if (result == null) {
                     ctx.response().end()
                 } else {

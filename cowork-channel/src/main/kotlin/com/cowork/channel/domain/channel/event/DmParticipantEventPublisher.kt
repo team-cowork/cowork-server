@@ -35,21 +35,6 @@ class DmParticipantEventPublisher(
     )
 
     @Transactional(propagation = Propagation.MANDATORY)
-    fun publishLeave(
-        channelId: Long,
-        userId: Long,
-        role: String = "MEMBER",
-        requestedAt: Instant = Instant.now(),
-    ): Instant = publishMutation(
-        DmParticipantEventType.LEAVE,
-        channelId,
-        userId,
-        role,
-        deleted = true,
-        requestedAt = requestedAt,
-    )
-
-    @Transactional(propagation = Propagation.MANDATORY)
     fun publishSnapshot(state: DmParticipantEventState) {
         check(state.channelType == "DM") { "Only DM participation can be published" }
         entityManager.flush()

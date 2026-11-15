@@ -74,9 +74,8 @@ class ChannelMessageReadPolicyEvaluator(
         val membership = membershipRepository.findByTeamIdAndUserId(teamId, userId)
             ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
         if (membership.active && membership.role in BYPASS_ROLES) return
-        val candidates = channels
-        val allowed = readableChannelIds(teamId, userId, candidates, "channel_reorder")
-        if (candidates.any { it.id !in allowed }) {
+        val allowed = readableChannelIds(teamId, userId, channels, "channel_reorder")
+        if (channels.any { it.id !in allowed }) {
             throw ExpectedException("채널 재정렬 권한이 없습니다.", HttpStatus.FORBIDDEN)
         }
     }

@@ -453,7 +453,7 @@ spring:
           predicates:
             - Path=/v3/api-docs/chat
           filters:
-            - RewritePath=/v3/api-docs/chat, /api-json
+            - RewritePath=/v3/api-docs/chat, /v3/api-docs
 
         - id: github-service-docs
           uri: ${COWORK_GITHUB_URL}
@@ -461,7 +461,7 @@ spring:
             - Path=/v3/api-docs/github
             - Method=GET
           filters:
-            - RewritePath=/v3/api-docs/github, /api-json
+            - RewritePath=/v3/api-docs/github, /v3/api-docs
 
         - id: applet-service
           uri: ${COWORK_APPLET_URL}
@@ -717,7 +717,7 @@ spring:
           predicates:
             - Path=/v3/api-docs/authorization
           filters:
-            - RewritePath=/v3/api-docs/authorization, /swagger/doc.json
+            - RewritePath=/v3/api-docs/authorization, /v3/api-docs
 
         - id: user-service-docs
           uri: ${COWORK_USER_URL}
@@ -731,14 +731,14 @@ spring:
           predicates:
             - Path=/v3/api-docs/voice
           filters:
-            - RewritePath=/v3/api-docs/voice, /swagger/doc.json
+            - RewritePath=/v3/api-docs/voice, /v3/api-docs
 
         - id: preference-service-docs
           uri: ${COWORK_PREFERENCE_URL}
           predicates:
             - Path=/v3/api-docs/preference
           filters:
-            - RewritePath=/v3/api-docs/preference, /swagger/doc.json
+            - RewritePath=/v3/api-docs/preference, /v3/api-docs
 
         - id: notification-service-sse
           order: -1
@@ -768,7 +768,7 @@ spring:
           predicates:
             - Path=/v3/api-docs/notification
           filters:
-            - RewritePath=/v3/api-docs/notification, /swagger/doc.json
+            - RewritePath=/v3/api-docs/notification, /v3/api-docs
 
         - id: team-service-docs
           uri: ${COWORK_TEAM_URL}
@@ -803,7 +803,7 @@ spring:
           predicates:
             - Path=/v3/api-docs/applet
           filters:
-            - RewritePath=/v3/api-docs/applet, /swagger/doc.json
+            - RewritePath=/v3/api-docs/applet, /v3/api-docs
 
 # GitHub Secrets are injected through the deployment platform.
 

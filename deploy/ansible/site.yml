@@ -24,6 +24,7 @@
     - ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/agents/platform-acl.yml"
     - name: Reload server agents with their scoped integration identities
       ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/agents/agents.yml"
+    - ansible.builtin.include_tasks: "{{ playbook_dir }}/tasks/services/vault-unsealer.yml"
 
 - name: Reconcile the existing Vault host with platform TLS
   hosts: vault_hosts
