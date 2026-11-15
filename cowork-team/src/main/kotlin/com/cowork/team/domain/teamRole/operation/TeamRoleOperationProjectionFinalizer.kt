@@ -18,7 +18,7 @@ class TeamRoleOperationProjectionFinalizer(
     private val assignmentRepository: TeamRoleAssignmentProjectionRepository,
     private val objectMapper: ObjectMapper,
 ) {
-    @Scheduled(fixedDelayString = "\${team-role.operation-finalizer-delay-ms:1000}")
+    @Scheduled(fixedDelayString = $$"${team-role.operation-finalizer-delay-ms:1000}")
     @Transactional
     fun finalizeVisibleOperations() {
         val status = TeamRoleOperationStatus.PROCESSING

@@ -210,52 +210,52 @@ func TestServiceNotifyReverifiesOwnershipBeforeSend(t *testing.T) {
 
 	t.Run("durable delivery sends only current generations and cancels the stale claims", func(t *testing.T) {
 		repo := &snapshotRepo{snapshots: []map[int64][]installation.Installation{before, after}}
-		fcm := &mockFCM{}
+		sender := &mockFCM{}
 		ledger := &mockDelivery{}
-		svc := installation.NewService(repo, fcm, &mockPref{enabled: true}, ledger)
+		svc := installation.NewService(repo, sender, &mockPref{enabled: true}, ledger)
 
 		_, err := svc.Notify(context.Background(), "event-1", []int64{1}, nil, "title", "body", 0, 0)
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"kept"}, fcm.calledFIDs)
-		assert.Equal(t, []map[string]string{{"accountId": "1", "eventId": "event-1"}}, fcm.calledData)
+		assert.Equal(t, []string{"kept"}, sender.calledFIDs)
+		assert.Equal(t, []map[string]string{{"accountId": "1", "eventId": "event-1"}}, sender.calledData)
 		assert.ElementsMatch(t, []string{"claim-moved", "claim-deleted"}, ledger.cancelled)
 	})
 
 	t.Run("non-durable delivery skips stale generations", func(t *testing.T) {
 		repo := &snapshotRepo{snapshots: []map[int64][]installation.Installation{before, after}}
-		fcm := &mockFCM{}
-		svc := installation.NewService(repo, fcm, &mockPref{enabled: true}, nil)
+		sender := &mockFCM{}
+		svc := installation.NewService(repo, sender, &mockPref{enabled: true}, nil)
 
 		_, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 0, 0)
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"kept"}, fcm.calledFIDs)
+		assert.Equal(t, []string{"kept"}, sender.calledFIDs)
 	})
 
 	t.Run("nothing is sent when every generation went stale", func(t *testing.T) {
 		repo := &snapshotRepo{snapshots: []map[int64][]installation.Installation{before, {}}}
-		fcm := &mockFCM{}
+		sender := &mockFCM{}
 		ledger := &mockDelivery{}
-		svc := installation.NewService(repo, fcm, &mockPref{enabled: true}, ledger)
+		svc := installation.NewService(repo, sender, &mockPref{enabled: true}, ledger)
 
 		_, err := svc.Notify(context.Background(), "event-1", []int64{1}, nil, "title", "body", 0, 0)
 
 		require.NoError(t, err)
-		assert.Nil(t, fcm.calledFIDs)
+		assert.Nil(t, sender.calledFIDs)
 		assert.Len(t, ledger.cancelled, 3)
 	})
 
 	t.Run("a failed re-verification sends nothing and leaves the claims for reclaim", func(t *testing.T) {
 		repo := &snapshotRepo{snapshots: []map[int64][]installation.Installation{before}, reverifyErr: errors.New("db down")}
-		fcm := &mockFCM{}
+		sender := &mockFCM{}
 		ledger := &mockDelivery{}
-		svc := installation.NewService(repo, fcm, &mockPref{enabled: true}, ledger)
+		svc := installation.NewService(repo, sender, &mockPref{enabled: true}, ledger)
 
 		_, err := svc.Notify(context.Background(), "event-1", []int64{1}, nil, "title", "body", 0, 0)
 
 		require.ErrorIs(t, err, repo.reverifyErr)
-		assert.Nil(t, fcm.calledFIDs)
+		assert.Nil(t, sender.calledFIDs)
 		assert.Empty(t, ledger.cancelled)
 	})
 }
@@ -334,8 +334,8 @@ func TestServiceRegisterInstallationOwnership(t *testing.T) {
 		repo := &mockRepo{installations: map[int64][]installation.Installation{
 			1: {{ID: 10, AccountID: 1, FID: deviceFID, Platform: installation.PlatformIOS}},
 		}}
-		fcm := &mockFCM{}
-		svc := installation.NewService(repo, fcm, &mockPref{enabled: true}, nil)
+		sender := &mockFCM{}
+		svc := installation.NewService(repo, sender, &mockPref{enabled: true}, nil)
 
 		err := svc.RegisterInstallation(context.Background(), 2, deviceFID, "IOS")
 		require.NoError(t, err)
@@ -345,7 +345,7 @@ func TestServiceRegisterInstallationOwnership(t *testing.T) {
 
 		_, err = svc.Notify(context.Background(), "", []int64{1, 2}, nil, "title", "body", 0, 0)
 		require.NoError(t, err)
-		assert.Equal(t, []string{deviceFID}, fcm.calledFIDs)
+		assert.Equal(t, []string{deviceFID}, sender.calledFIDs)
 
 		require.Error(t, svc.DeleteInstallation(context.Background(), 1, deviceFID))
 		require.NoError(t, svc.DeleteInstallation(context.Background(), 2, deviceFID))
@@ -359,26 +359,26 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 			1: {{FID: "t1", AccountID: 1}},
 			2: {{FID: "t2", AccountID: 2}},
 		}}
-		fcm := &mockFCM{}
-		svc := installation.NewService(repo, fcm, &mockPref{enabled: true}, nil)
+		sender := &mockFCM{}
+		svc := installation.NewService(repo, sender, &mockPref{enabled: true}, nil)
 
 		_, err := svc.Notify(context.Background(), "", []int64{1, 2}, nil, "title", "body", 0, 0)
 
 		require.NoError(t, err)
-		assert.ElementsMatch(t, []string{"t1", "t2"}, fcm.calledFIDs)
+		assert.ElementsMatch(t, []string{"t1", "t2"}, sender.calledFIDs)
 	})
 
 	t.Run("muted recipients are excluded", func(t *testing.T) {
 		repo := &mockRepo{installations: map[int64][]installation.Installation{
 			1: {{FID: "t1", AccountID: 1}},
 		}}
-		fcm := &mockFCM{}
-		svc := installation.NewService(repo, fcm, &mockPref{enabled: false}, nil)
+		sender := &mockFCM{}
+		svc := installation.NewService(repo, sender, &mockPref{enabled: false}, nil)
 
 		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 42, 7)
 
 		require.NoError(t, err)
-		assert.Nil(t, fcm.calledFIDs)
+		assert.Nil(t, sender.calledFIDs)
 		assert.Empty(t, enabledIDs)
 	})
 
@@ -387,13 +387,13 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 			1: {{FID: "t1", AccountID: 1}},
 			2: {{FID: "t2", AccountID: 2}},
 		}}
-		fcm := &mockFCM{}
-		svc := installation.NewService(repo, fcm, &mockPref{enabled: false}, nil)
+		sender := &mockFCM{}
+		svc := installation.NewService(repo, sender, &mockPref{enabled: false}, nil)
 
 		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2}, []int64{2}, "title", "body", 42, 7)
 
 		require.NoError(t, err)
-		assert.Equal(t, []string{"t2"}, fcm.calledFIDs)
+		assert.Equal(t, []string{"t2"}, sender.calledFIDs)
 		assert.Equal(t, []int64{2}, enabledIDs)
 	})
 
@@ -402,13 +402,13 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 			1: {{FID: "t1", AccountID: 1}},
 			2: {{FID: "t2", AccountID: 2}},
 		}}
-		fcm := &mockFCM{}
-		svc := installation.NewService(repo, fcm, &mockPref{enabled: true}, nil)
+		sender := &mockFCM{}
+		svc := installation.NewService(repo, sender, &mockPref{enabled: true}, nil)
 
 		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 1, 2}, []int64{2, 2}, "title", "body", 42, 7)
 
 		require.NoError(t, err)
-		assert.ElementsMatch(t, []string{"t1", "t2"}, fcm.calledFIDs)
+		assert.ElementsMatch(t, []string{"t1", "t2"}, sender.calledFIDs)
 		assert.Equal(t, []int64{2, 1}, enabledIDs)
 	})
 
@@ -428,13 +428,13 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 			3: {Level: installation.NotificationLevelAll, MutedUntil: &past},
 			4: {Level: installation.NotificationLevelNone},
 		}}
-		fcm := &mockFCM{}
-		svc := installation.NewService(repo, fcm, pref, nil)
+		sender := &mockFCM{}
+		svc := installation.NewService(repo, sender, pref, nil)
 
 		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2, 3, 4, 5}, nil, "title", "body", 42, 7)
 
 		require.NoError(t, err)
-		assert.ElementsMatch(t, []string{"t3", "t5"}, fcm.calledFIDs)
+		assert.ElementsMatch(t, []string{"t3", "t5"}, sender.calledFIDs)
 		assert.ElementsMatch(t, []int64{3, 5}, enabledIDs)
 	})
 
@@ -448,13 +448,13 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 			1: {Level: installation.NotificationLevelMentions},
 			2: {Level: installation.NotificationLevelAll, MutedUntil: &future},
 		}}
-		fcm := &mockFCM{}
-		svc := installation.NewService(repo, fcm, pref, nil)
+		sender := &mockFCM{}
+		svc := installation.NewService(repo, sender, pref, nil)
 
 		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2}, []int64{1, 2}, "title", "body", 42, 7)
 
 		require.NoError(t, err)
-		assert.ElementsMatch(t, []string{"t1", "t2"}, fcm.calledFIDs)
+		assert.ElementsMatch(t, []string{"t1", "t2"}, sender.calledFIDs)
 		assert.ElementsMatch(t, []int64{1, 2}, enabledIDs)
 	})
 
@@ -462,20 +462,20 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 		repo := &mockRepo{installations: map[int64][]installation.Installation{
 			1: {{FID: "t1", AccountID: 1}},
 		}}
-		fcm := &mockFCM{}
+		sender := &mockFCM{}
 		pref := &mockPref{err: errors.New("preference service unreachable")}
-		svc := installation.NewService(repo, fcm, pref, nil)
+		svc := installation.NewService(repo, sender, pref, nil)
 
 		_, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 42, 7)
 
 		require.Error(t, err)
-		assert.Nil(t, fcm.calledFIDs)
+		assert.Nil(t, sender.calledFIDs)
 	})
 }
 
 func TestServiceNotifyResolvesAccountAndTeamLevels(t *testing.T) {
 	t.Run("account level applies to team channels without a channel setting", func(t *testing.T) {
-		fcm := &mockFCM{}
+		sender := &mockFCM{}
 		pref := &mockPref{
 			preferences: map[int64]installation.ChannelNotificationPreference{
 				2: {Level: installation.NotificationLevelAll},
@@ -485,7 +485,7 @@ func TestServiceNotifyResolvesAccountAndTeamLevels(t *testing.T) {
 				2: {Level: levelPointer(installation.NotificationLevelMentions)},
 			},
 		}
-		svc := installation.NewService(installationsFor(1, 2, 3), fcm, pref, nil)
+		svc := installation.NewService(installationsFor(1, 2, 3), sender, pref, nil)
 
 		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2, 3}, nil, "title", "body", 42, 7)
 
@@ -494,7 +494,7 @@ func TestServiceNotifyResolvesAccountAndTeamLevels(t *testing.T) {
 	})
 
 	t.Run("team default applies only when the account has no level", func(t *testing.T) {
-		fcm := &mockFCM{}
+		sender := &mockFCM{}
 		pref := &mockPref{
 			preferences: map[int64]installation.ChannelNotificationPreference{},
 			accounts: map[int64]installation.AccountNotificationSetting{
@@ -503,7 +503,7 @@ func TestServiceNotifyResolvesAccountAndTeamLevels(t *testing.T) {
 			},
 			teamDefault: levelPointer(installation.NotificationLevelNone),
 		}
-		svc := installation.NewService(installationsFor(1, 2, 3), fcm, pref, nil)
+		svc := installation.NewService(installationsFor(1, 2, 3), sender, pref, nil)
 
 		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2, 3}, nil, "title", "body", 42, 7)
 
@@ -512,7 +512,7 @@ func TestServiceNotifyResolvesAccountAndTeamLevels(t *testing.T) {
 	})
 
 	t.Run("channel level DEFAULT follows the account level while its mute still applies", func(t *testing.T) {
-		fcm := &mockFCM{}
+		sender := &mockFCM{}
 		future := time.Now().Add(time.Hour)
 		past := time.Now().Add(-time.Hour)
 		pref := &mockPref{
@@ -527,7 +527,7 @@ func TestServiceNotifyResolvesAccountAndTeamLevels(t *testing.T) {
 				3: {Level: levelPointer(installation.NotificationLevelAll)},
 			},
 		}
-		svc := installation.NewService(installationsFor(1, 2, 3), fcm, pref, nil)
+		svc := installation.NewService(installationsFor(1, 2, 3), sender, pref, nil)
 
 		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2, 3}, nil, "title", "body", 42, 7)
 
@@ -536,14 +536,14 @@ func TestServiceNotifyResolvesAccountAndTeamLevels(t *testing.T) {
 	})
 
 	t.Run("direct-message channels ignore account and team levels", func(t *testing.T) {
-		fcm := &mockFCM{}
+		sender := &mockFCM{}
 		pref := &mockPref{
 			preferences: map[int64]installation.ChannelNotificationPreference{},
 			accounts: map[int64]installation.AccountNotificationSetting{
 				1: {Level: levelPointer(installation.NotificationLevelNone)},
 			},
 		}
-		svc := installation.NewService(installationsFor(1), fcm, pref, nil)
+		svc := installation.NewService(installationsFor(1), sender, pref, nil)
 
 		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 42, 0)
 
@@ -566,14 +566,14 @@ func TestServiceNotifySuppressesDoNotDisturb(t *testing.T) {
 
 	t.Run("mentions and non-channel notifications are suppressed too", func(t *testing.T) {
 		for _, channelID := range []int64{42, 0} {
-			fcm := &mockFCM{}
-			svc := installation.NewService(installationsFor(1, 2, 3, 4), fcm, pref, nil)
+			sender := &mockFCM{}
+			svc := installation.NewService(installationsFor(1, 2, 3, 4), sender, pref, nil)
 
 			enabledIDs, err := svc.Notify(context.Background(), "", []int64{2, 4}, []int64{1, 3}, "title", "body", channelID, 7)
 
 			require.NoError(t, err)
 			assert.ElementsMatch(t, []int64{2, 4}, enabledIDs)
-			assert.ElementsMatch(t, []string{"t2", "t4"}, fcm.calledFIDs)
+			assert.ElementsMatch(t, []string{"t2", "t4"}, sender.calledFIDs)
 		}
 	})
 }

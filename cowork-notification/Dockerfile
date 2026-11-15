@@ -8,8 +8,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 COPY cowork-notification/ ./
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
-    go generate ./cmd/server/main.go \
-    && CGO_ENABLED=1 GOOS=linux go build -trimpath -o /out/cowork-notification ./cmd/server
+    CGO_ENABLED=1 GOOS=linux go build -trimpath -o /out/cowork-notification ./cmd/server
 
 
 FROM builder AS verification

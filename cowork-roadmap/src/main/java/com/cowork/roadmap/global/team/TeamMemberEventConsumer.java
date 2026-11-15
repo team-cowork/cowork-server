@@ -1,19 +1,17 @@
 package com.cowork.roadmap.global.team;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
 
+@Slf4j
 @Component
 @RequiredArgsConstructor
 public class TeamMemberEventConsumer {
-
-    private static final Logger LOG = LoggerFactory.getLogger(TeamMemberEventConsumer.class);
 
     private final ObjectMapper objectMapper;
     private final TeamMemberProjectionProcessor processor;
@@ -25,7 +23,7 @@ public class TeamMemberEventConsumer {
             if (violation == null) {
                 processor.completeSnapshot(record, ProjectionSnapshotCompletion.snapshotId(objectMapper, record));
             } else {
-                LOG.error("Discarding invalid projection snapshot marker: {}", violation);
+                log.error("Discarding invalid projection snapshot marker: {}", violation);
                 discard(record, violation);
             }
             return;
@@ -35,7 +33,7 @@ public class TeamMemberEventConsumer {
         try {
             event = objectMapper.readValue(record.value(), TeamMemberEvent.class);
         } catch (Exception exception) {
-            LOG.error("Discarding malformed team.member.event payload", exception);
+            log.error("Discarding malformed team.member.event payload", exception);
             discard(record, "team.member.event JSON is malformed: " + exception.getMessage());
             return;
         }
@@ -46,7 +44,7 @@ public class TeamMemberEventConsumer {
 
         String expectedKey = event.teamId() + ":" + event.userId();
         if (!expectedKey.equals(record.key())) {
-            LOG.error("Discarding team.member.event with mismatched key: expected={}, actual={}",
+            log.error("Discarding team.member.event with mismatched key: expected={}, actual={}",
                     expectedKey,
                     record.key());
             discard(record, "team.member.event key does not match payload identity");
@@ -56,7 +54,7 @@ public class TeamMemberEventConsumer {
         try {
             processor.apply(record, event);
         } catch (IllegalArgumentException exception) {
-            LOG.error("Discarding invalid team.member.event payload", exception);
+            log.error("Discarding invalid team.member.event payload", exception);
             discard(record, exception.getMessage());
         }
     }

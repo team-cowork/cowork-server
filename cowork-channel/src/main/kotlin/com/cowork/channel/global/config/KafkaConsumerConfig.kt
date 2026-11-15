@@ -37,15 +37,15 @@ class KafkaConsumerConfig(
     private val streams: ProjectionStreams,
     private val topicIdentityProvider: ProjectionTopicIdentityProvider,
     private val topicGenerations: ProjectionTopicGenerationRegistry,
-    @Value("\${projection.readiness.assignment-retry-backoff-ms:1000}") private val assignmentRetryBackoffMs: Long,
-    @Value("\${projection.readiness.assignment-retry-timeout-ms:60000}") private val assignmentRetryTimeoutMs: Long,
+    @Value($$"${projection.readiness.assignment-retry-backoff-ms:1000}") private val assignmentRetryBackoffMs: Long,
+    @Value($$"${projection.readiness.assignment-retry-timeout-ms:60000}") private val assignmentRetryTimeoutMs: Long,
 ) {
 
     private fun consumerFactory(): ConsumerFactory<String, String> {
-        val props = kafkaProperties.buildConsumerProperties().toMutableMap<String, Any>()
+        val props = kafkaProperties.buildConsumerProperties().toMutableMap()
         props[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
         props[ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
-        return DefaultKafkaConsumerFactory<String, String>(props)
+        return DefaultKafkaConsumerFactory(props)
     }
 
     private fun listenerContainerFactory(

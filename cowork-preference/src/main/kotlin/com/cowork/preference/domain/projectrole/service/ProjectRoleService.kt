@@ -7,6 +7,7 @@ import com.cowork.preference.domain.projectrole.model.ProjectPermissions
 import com.cowork.preference.domain.projectrole.model.ProjectRoleDefinition
 import com.cowork.preference.domain.projectrole.repository.ProjectAccessStateRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectRoleRepository
+import com.cowork.preference.global.coroutine.runCatchingCancellable
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import com.cowork.preference.global.security.RequesterContext
 import io.vertx.core.json.JsonObject
@@ -26,7 +27,7 @@ class ProjectRoleService(
         permissions: JsonObject,
         requester: RequesterContext,
         priority: Int = 0,
-    ): Result<ProjectRoleDefinition> = runCatching {
+    ): Result<ProjectRoleDefinition> = runCatchingCancellable {
         require(roleName.isNotBlank() && roleName.length <= 50) { "Invalid roleName" }
         require(
             permissions.fieldNames().all {
@@ -47,15 +48,16 @@ class ProjectRoleService(
         ProjectRoleDefinition(projectId, roleName, canonical, priority)
     }
 
-    suspend fun deleteRole(projectId: Long, roleName: String, requester: RequesterContext): Result<Unit> = runCatching {
-        outbox.inTransaction { client ->
-            guard.requireRoleDeletion(projectId, requester, roleName, client)
-            repository.findRole(projectId, roleName, client) ?: throw NoSuchElementException("Role not found")
-            repository.deleteRole(projectId, roleName, client)
-            initialAccess.claim(client, "PROJECT", projectId)
-            access.refresh(client, projectId)
+    suspend fun deleteRole(projectId: Long, roleName: String, requester: RequesterContext): Result<Unit> =
+        runCatchingCancellable {
+            outbox.inTransaction { client ->
+                guard.requireRoleDeletion(projectId, requester, roleName, client)
+                repository.findRole(projectId, roleName, client) ?: throw NoSuchElementException("Role not found")
+                repository.deleteRole(projectId, roleName, client)
+                initialAccess.claim(client, "PROJECT", projectId)
+                access.refresh(client, projectId)
+            }
         }
-    }
 
     suspend fun getMemberRoles(projectId: Long): List<AccountProjectRole> = repository.findMemberRoles(projectId)
 
@@ -64,7 +66,7 @@ class ProjectRoleService(
         projectId: Long,
         roleName: String,
         requester: RequesterContext,
-    ): Result<Unit> = runCatching {
+    ): Result<Unit> = runCatchingCancellable {
         outbox.inTransaction { client ->
             guard.requireRoleAssignment(projectId, requester, roleName, accountId, client)
             repository.findRole(projectId, roleName, client) ?: throw NoSuchElementException("Role not found")

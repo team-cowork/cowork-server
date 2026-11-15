@@ -53,7 +53,7 @@ type EventInbox interface {
 	MarkCompleted(ctx context.Context, eventID string) error
 }
 
-// SSEBroadcaster는 SSE Hub의 Broadcast 메서드 인터페이스입니다.
+// SSEBroadcaster 인터페이스는 SSE Hub의 Broadcast 메서드 인터페이스입니다.
 type SSEBroadcaster interface {
 	Broadcast(userIDs []int64, payload []byte)
 }

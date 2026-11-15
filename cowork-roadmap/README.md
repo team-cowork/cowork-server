@@ -10,7 +10,7 @@
 
 ## 스택
 
-- Java 26 / Spring Boot MVC
+- Java 27 / Spring Boot MVC
 - Gradle
 - Spring Data JPA / MySQL / Flyway
 - Spring Kafka

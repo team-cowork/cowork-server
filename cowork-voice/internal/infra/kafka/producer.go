@@ -31,7 +31,7 @@ func NewProducer(security config.KafkaSecurity, brokers, topic string, messageTi
 	return &Producer{writer: w, transport: transport}
 }
 
-// PublishRaw는 이미 직렬화된 페이로드를 그대로 전송한다(outbox relay 전용).
+// PublishRaw 메서드는 이미 직렬화된 페이로드를 그대로 전송한다(outbox relay 전용).
 func (p *Producer) PublishRaw(ctx context.Context, key string, payload []byte) error {
 	return p.writer.WriteMessages(ctx, kafka.Message{
 		Key:   []byte(key),
