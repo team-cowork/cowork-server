@@ -59,6 +59,17 @@ class CreateDmServiceImplTest {
     }
 
     @Test
+    fun `openDm은 상대 사용자 ID가 양수가 아니면 BAD_REQUEST`() {
+        listOf(0L, -1L).forEach { targetUserId ->
+            val ex = assertThrows(ExpectedException::class.java) {
+                service.execute(7L, targetUserId)
+            }
+            assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
+        }
+        verify(exactly = 0) { channelRepository.save(any()) }
+    }
+
+    @Test
     fun `openDm은 기존 DM 채널이 있으면 생성 없이 그대로 반환`() {
         val existing = dmChannel()
         every { channelRepository.findByDmKey("1:2") } returns existing
