@@ -6,6 +6,7 @@ import com.cowork.gateway.security.jwt.JwtServerAuthenticationConverter
 import com.cowork.gateway.security.websocket.WsJwtServerAuthenticationConverter
 import com.cowork.gateway.security.websocket.WsOriginFilter
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.cloud.gateway.config.GlobalCorsProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.core.annotation.Order
@@ -18,6 +19,7 @@ import org.springframework.security.web.server.SecurityWebFilterChain
 import org.springframework.security.web.server.authentication.AuthenticationWebFilter
 import org.springframework.security.web.server.context.NoOpServerSecurityContextRepository
 import org.springframework.security.web.server.util.matcher.PathPatternParserServerWebExchangeMatcher
+import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource
 import org.springframework.web.util.pattern.PathPatternParser
 
 @Configuration
@@ -28,6 +30,7 @@ class SecurityConfig(
     private val jwtAuthManager: JwtReactiveAuthenticationManager,
     private val jwtAuthenticationSupport: JwtAuthenticationSupport,
     private val wsProperties: WsProperties,
+    private val globalCorsProperties: GlobalCorsProperties,
 ) {
 
     /**
@@ -70,6 +73,15 @@ class SecurityConfig(
         }
 
         return http
+            // 전역 CORS는 라우팅 단계에서만 적용되므로 인증 전에 같은 정책을 적용한다.
+            // 그래야 컨트롤러 경로와 401 응답에도 CORS 헤더가 붙는다.
+            .cors { cors ->
+                cors.configurationSource(
+                    UrlBasedCorsConfigurationSource().apply {
+                        setCorsConfigurations(globalCorsProperties.corsConfigurations)
+                    },
+                )
+            }
             .csrf { it.disable() }
             .httpBasic { it.disable() }
             .formLogin { it.disable() }
