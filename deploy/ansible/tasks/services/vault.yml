@@ -103,6 +103,18 @@
   changed_when: false
   failed_when: vault_container_running.rc not in [0, 1]
 
+# A restarted Vault stays sealed unless the unsealer holds the key shares.
+- name: Check for the Vault unsealer key shares on the management VM
+  ansible.builtin.stat:
+    path: /etc/cowork/vault-unsealer/keys.json
+  register: vault_unsealer_keys
+  delegate_to: "{{ groups['control_plane'][0] }}"
+
+- name: Require the unsealer key shares before Vault can restart
+  ansible.builtin.assert:
+    that: vault_unsealer_keys.stat.exists or vault_platform_volume.rc != 0
+    fail_msg: The Vault unsealer on the management VM has no keys.json. Set COWORK_VAULT_BOOTSTRAP_FILE to the operator recovery file and run site.yml before Vault restarts.
+
 - name: Reconcile Vault only when configuration or process state changed
   ansible.builtin.command:
     argv: >-
