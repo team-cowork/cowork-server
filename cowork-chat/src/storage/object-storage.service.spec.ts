@@ -56,6 +56,40 @@ describe('ObjectStorageService', () => {
 			expect(mockedGetSignedUrl).not.toHaveBeenCalled();
 		});
 
+		it.each([
+			['report.hwp', 'application/x-hwp'],
+			['report.hwpx', 'application/vnd.hancom.hwpx'],
+			['report.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+			['sheet.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+			['slides.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+			['archive.zip', 'application/zip'],
+			['archive.zip', 'application/x-zip-compressed'],
+			['archive.7z', 'application/x-7z-compressed'],
+		])('기본 설정은 문서와 압축 파일 %s(%s)을 허용한다', async (filename, contentType) => {
+			const service = withRateLimiter(new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never));
+
+			await service.createPresignedUpload({
+				channelId: 1, userId: 42, filename, contentType, size: 1024,
+			});
+
+			expect(mockedGetSignedUrl).toHaveBeenCalledTimes(1);
+		});
+
+		it.each([
+			['page.html', 'text/html'],
+			['icon.svg', 'image/svg+xml'],
+			['script.js', 'text/javascript'],
+			['setup.exe', 'application/x-msdownload'],
+		])('기본 설정은 실행 가능한 %s(%s)을 거부한다', async (filename, contentType) => {
+			const service = withRateLimiter(new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never));
+
+			await expect(service.createPresignedUpload({
+				channelId: 1, userId: 42, filename, contentType, size: 1024,
+			}))
+				.rejects.toBeInstanceOf(BadRequestException);
+			expect(mockedGetSignedUrl).not.toHaveBeenCalled();
+		});
+
 		it('허용 크기를 초과한 파일은 거부한다', async () => {
 			const service = withRateLimiter(new ObjectStorageService(s3Client as unknown as S3Client, configService({
 				'object-storage.chatMaxFileSizeBytes': '1024',
