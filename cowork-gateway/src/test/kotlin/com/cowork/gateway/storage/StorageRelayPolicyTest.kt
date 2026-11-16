@@ -9,13 +9,18 @@ class StorageRelayPolicyTest :
         val policy = StorageRelayPolicy("cowork-bucket")
         val prefix = "/api/storage/cowork-bucket"
         val file = "12345678-1234-1234-1234-123456789abc.png"
-        val signature = setOf("X-Amz-Signature")
+        val signature = setOf("X-Amz-Algorithm", "X-Amz-Credential", "X-Amz-Signature")
 
         describe("StorageRelayPolicy의 파일 접근 정책은") {
             context("공개 팀 아이콘이면") {
                 it("서명 없이 읽기를 허용한다") {
                     policy.allows(HttpMethod.GET, "$prefix/team-icons/$file", emptySet()) shouldBe true
                     policy.allows(HttpMethod.HEAD, "$prefix/team-icons/$file", emptySet()) shouldBe true
+                }
+                it("서명이 없으면 이름 목록 밖의 응답 덮어쓰기 query를 거부한다") {
+                    for (query in listOf("response-content-type", "x-amz-checksum-crc64nvme")) {
+                        policy.allows(HttpMethod.GET, "$prefix/team-icons/$file", setOf(query)) shouldBe false
+                    }
                 }
                 it("확정 파일의 덮어쓰기와 삭제는 거부한다") {
                     policy.allows(HttpMethod.PUT, "$prefix/team-icons/$file", signature) shouldBe false
@@ -30,13 +35,32 @@ class StorageRelayPolicyTest :
                         policy.allows(HttpMethod.PUT, "$prefix/$key", signature) shouldBe false
                     }
                 }
-                it("SDK가 서명에 포함한 응답 checksum 모드 파라미터를 허용한다") {
-                    val sdkQuery = signature + setOf(
-                        "X-Amz-Algorithm", "X-Amz-Content-Sha256", "X-Amz-Credential", "X-Amz-Date",
-                        "X-Amz-Expires", "X-Amz-SignedHeaders", "response-cache-control",
-                        "response-content-disposition", "x-amz-checksum-mode", "x-id",
+                it("서명 요청이면 x-amz-와 response- 접두사 query를 대소문자와 관계없이 허용한다") {
+                    val query = signature + setOf(
+                        "X-Amz-Date",
+                        "X-Amz-Expires",
+                        "X-Amz-SignedHeaders",
+                        "x-amz-checksum-mode",
+                        "x-amz-checksum-crc64nvme",
+                        "X-AMZ-CHECKSUM-SHA256",
+                        "response-content-type",
+                        "x-id",
                     )
-                    policy.allows(HttpMethod.GET, "$prefix/chat-files/1/42/$file", sdkQuery) shouldBe true
+                    for (key in listOf("profiles/42/$file", "chat-files/1/42/$file")) {
+                        policy.allows(HttpMethod.GET, "$prefix/$key", query) shouldBe true
+                        policy.allows(HttpMethod.HEAD, "$prefix/$key", query) shouldBe true
+                    }
+                }
+                it("서명 query 일부만 있으면 서명 요청으로 보지 않는다") {
+                    for (partial in listOf(setOf("X-Amz-Signature"), setOf("X-Amz-Algorithm", "X-Amz-Signature"))) {
+                        policy.allows(HttpMethod.GET, "$prefix/chat-files/1/42/$file", partial) shouldBe false
+                        policy.allows(
+                            HttpMethod.GET,
+                            "$prefix/team-icons/$file",
+                            partial + "response-content-type",
+                        ) shouldBe
+                            false
+                    }
                 }
             }
             context("임시 업로드이면") {
@@ -65,7 +89,7 @@ class StorageRelayPolicyTest :
                     }
                 }
                 it("객체 ACL과 정책 등 파일 외 S3 작업을 거부한다") {
-                    for (query in listOf("acl", "policy", "uploads", "uploadId", "tagging", "list-type")) {
+                    for (query in listOf("acl", "policy", "uploads", "uploadId", "tagging", "list-type", "versionId")) {
                         policy.allows(HttpMethod.GET, "$prefix/team-icons/$file", signature + query) shouldBe false
                     }
                 }
