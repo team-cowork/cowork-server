@@ -348,7 +348,7 @@ def commit_manifest(_args):
             raise ValueError(f"Release commit changes application code: {path}")
     if staged:
         git(*bot_identity(), "commit", "-m",
-            f"update(global): v{manifest_version(data)} 릴리즈 버전 반영\n\nRelease-Source: {source_sha()}")
+            f"update(global): v{manifest_version(data)} 릴리즈 버전 반영\n\n[skip ci]\n\nRelease-Source: {source_sha()}")
         git("push", "origin", "HEAD:refs/heads/main", token=os.environ["RELEASE_PUSH_TOKEN"])
     emit(manifest_sha=git("rev-parse", "HEAD"))
 
