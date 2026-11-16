@@ -9,7 +9,7 @@ import {S3_CLIENT, S3_SIGNING_CLIENT} from './object-storage.constants.js';
 import {buildObjectStorageConfig} from './object-storage.config.js';
 import {ObjectStorageService} from './object-storage.service.js';
 
-function createClient(configService: ConfigService, isSigning = false): S3Client {
+export function createClient(configService: ConfigService, isSigning = false): S3Client {
 	const config = buildObjectStorageConfig(configService);
 	return new S3Client({
 		endpoint: isSigning ? config.publicApiBaseUrl : config.internalEndpoint,
