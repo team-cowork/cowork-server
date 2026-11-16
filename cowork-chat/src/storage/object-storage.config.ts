@@ -16,7 +16,6 @@ export type ObjectStorageConfig = {
 	publicBaseUrl: string;
 	presignedPutExpirySeconds: number;
 	maxFileSizeBytes: number;
-	allowedContentTypes: string[];
 	uploadRateLimitWindowMs: number;
 	uploadRateLimitMaxRequests: number;
 };
@@ -52,27 +51,6 @@ export function buildObjectStorageConfig(configService: ConfigService): ObjectSt
 			configService,
 			['object-storage.chatMaxFileSizeBytes', 'S3_CHAT_MAX_FILE_SIZE_BYTES'],
 		) ?? DEFAULT_MAX_FILE_SIZE_BYTES),
-		allowedContentTypes: (
-			getOptionalConfig(configService, ['object-storage.chatAllowedContentTypes', 'S3_CHAT_ALLOWED_CONTENT_TYPES'])
-			?? [
-				'video/mp4',
-				'video/quicktime',
-				'video/x-msvideo',
-				'audio/mpeg',
-				'audio/ogg',
-				'audio/wav',
-				'audio/mp4',
-				'image/jpeg',
-				'image/png',
-				'image/gif',
-				'image/webp',
-				'application/pdf',
-				'text/plain',
-			].join(',')
-		)
-			.split(',')
-			.map(contentType => contentType.trim())
-			.filter(Boolean),
 		uploadRateLimitWindowMs: Number(getOptionalConfig(
 			configService,
 			['object-storage.chatUploadRateLimitWindowMs', 'S3_CHAT_UPLOAD_RATE_LIMIT_WINDOW_MS'],

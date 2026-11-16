@@ -43,16 +43,50 @@ describe('ObjectStorageService', () => {
 	});
 
 	describe('createPresignedUpload', () => {
-		it('허용되지 않은 파일 형식은 거부한다', async () => {
-			const service = withRateLimiter(new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never));
+		const newService = () => withRateLimiter(new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never));
+		const signedContentType = () => (mockedGetSignedUrl.mock.calls[0][1] as {input: {ContentType: string}}).input.ContentType;
 
-			await expect(service.createPresignedUpload({
-				channelId: 1,
-				userId: 42,
-				filename: 'payload.sh',
-				contentType: 'application/x-sh',
-				size: 1024,
+		it.each([
+			['report.hwp', 'application/x-hwp'],
+			['report.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+			['archive.zip', 'application/x-zip-compressed'],
+			['setup.exe', 'application/x-msdownload'],
+			['unknown.bin', 'application/octet-stream'],
+			['data.foo', 'application/x-foo!bar#v1$&^'],
+		])('%s(%s)을 형식 제한 없이 그 형식으로 서명한다', async (filename, contentType) => {
+			const result = await newService().createPresignedUpload({
+				channelId: 1, userId: 42, filename, contentType, size: 1024,
+			});
+
+			expect(signedContentType()).toBe(contentType);
+			expect(result.headers).toEqual({'Content-Type': contentType});
+		});
+
+		it.each(['', ' '.repeat(3)])('빈 MIME 값 %j은 application/octet-stream으로 받는다', async contentType => {
+			const result = await newService().createPresignedUpload({
+				channelId: 1, userId: 42, filename: 'report.hwp', contentType, size: 1024,
+			});
+
+			expect(signedContentType()).toBe('application/octet-stream');
+			expect(result.headers).toEqual({'Content-Type': 'application/octet-stream'});
+			expect(uploads.create).toHaveBeenCalledWith(expect.objectContaining({mimeType: 'application/octet-stream'}));
+		});
+
+		it.each(['text/html', 'Text/HTML', 'application/xhtml+xml', 'image/svg+xml', 'application/xml', 'text/javascript'])('능동 콘텐츠 %s는 업로드를 받되 application/octet-stream으로 저장한다', async contentType => {
+			const result = await newService().createPresignedUpload({
+				channelId: 1, userId: 42, filename: 'page.html', contentType, size: 1024,
+			});
+
+			expect(signedContentType()).toBe('application/octet-stream');
+			expect(result.headers).toEqual({'Content-Type': 'application/octet-stream'});
+			expect(result.objectKey).toMatch(/\.html$/v);
+		});
+
+		it.each(['png', 'image/', '../..', '+/.', '_/-', 'image/png; charset=utf-8', 'text/html\r\nX-Injected: 1'])('MIME 형식이 아닌 값 %j은 업로드 한도를 쓰지 않고 거부한다', async contentType => {
+			await expect(newService().createPresignedUpload({
+				channelId: 1, userId: 42, filename: 'file.png', contentType, size: 1024,
 			})).rejects.toBeInstanceOf(BadRequestException);
+			expect(rateLimiter.tryAcquire).not.toHaveBeenCalled();
 			expect(mockedGetSignedUrl).not.toHaveBeenCalled();
 		});
 
@@ -223,6 +257,24 @@ describe('ObjectStorageService', () => {
 			expect(result).toMatchObject({name: 'file.png', size: 100, mimeType: 'image/png'});
 			expect(result.objectKey).toMatch(/^chat-files\/1\/42\/[\w\-]+\.png$/v);
 			expect(result.objectKey).not.toBe('chat-uploads/1/42/file.png');
+		});
+		it('application/octet-stream으로 발급한 파일도 확정한다', async () => {
+			const service = withRateLimiter(new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never));
+			uploads.find.mockResolvedValue({
+				uploadKey: 'chat-uploads/1/42/report.hwp', channelId: 1, userId: 42,
+				name: 'report.hwp', mimeType: 'application/octet-stream', declaredSize: 100,
+			});
+			s3Client.send.mockResolvedValue(Object.fromEntries([['ContentLength', 100], ['ContentType', 'application/octet-stream'], ['ETag', 'etag']]));
+			uploads.confirm.mockImplementation(async (_key: string, attachment: Record<string, unknown>) => attachment);
+			const result = await service.confirmUpload(1, 42, 'chat-uploads/1/42/report.hwp');
+			expect(result).toMatchObject({name: 'report.hwp', mimeType: 'application/octet-stream'});
+			expect(result.objectKey).toMatch(/^chat-files\/1\/42\/[\w\-]+\.hwp$/v);
+		});
+		it('저장소에 형식 정보가 없으면 발급 정보와 다르다고 거부한다', async () => {
+			const service = withRateLimiter(new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never));
+			s3Client.send.mockResolvedValue(Object.fromEntries([['ContentLength', 100], ['ETag', 'etag']]));
+			await expect(service.confirmUpload(1, 42, 'chat-uploads/1/42/file.png')).rejects.toThrow('발급한 크기·형식과 업로드한 파일 정보가 다릅니다');
+			expect(uploads.confirm).not.toHaveBeenCalled();
 		});
 	});
 	describe('확정 파일의 메시지 귀속', () => {

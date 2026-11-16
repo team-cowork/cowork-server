@@ -509,20 +509,13 @@ export class ChatService {
 	): Promise<CreateFileUploadUrlResponseDto> {
 		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'file_attach');
 		await this.requireWritableChannel(ctx.channelId);
-		const upload = await this.objectStorageService.createPresignedUpload({
+		return this.objectStorageService.createPresignedUpload({
 			channelId: ctx.channelId,
 			userId: ctx.userId,
 			filename: dto.filename,
 			contentType: dto.contentType,
 			size: dto.size,
 		});
-
-		return {
-			...upload,
-			headers: {
-				'Content-Type': dto.contentType,
-			},
-		};
 	}
 
 	/**
