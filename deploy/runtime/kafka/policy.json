@@ -486,6 +486,7 @@
         "github.issue.create",
         "github.issue.result",
         "github.repo.event",
+        "voice.event",
         "notification.trigger",
         "preference.team-role.state.v2",
         "preference.channel-role-policy.state.v2",
