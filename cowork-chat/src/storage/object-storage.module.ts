@@ -18,6 +18,8 @@ function createClient(configService: ConfigService, isSigning = false): S3Client
 		forcePathStyle: true,
 		// A browser uploads the body later; do not sign the SDK's checksum for an empty body.
 		requestChecksumCalculation: 'WHEN_REQUIRED',
+		// A browser does not validate response checksums; do not add x-amz-checksum-mode to download URLs.
+		responseChecksumValidation: 'WHEN_REQUIRED',
 	});
 }
 
