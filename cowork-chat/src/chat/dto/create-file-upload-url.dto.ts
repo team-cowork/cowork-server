@@ -14,10 +14,12 @@ export class CreateFileUploadUrlRequestDto {
 	@maxLength(255)
 	filename!: string;
 
-	@apiProperty({description: 'MIME 타입', example: 'image/png'})
+	@apiProperty({
+		description: 'MIME 타입. 모든 형식을 받는다. 빈 값은 `application/octet-stream`으로 처리하고, HTML·SVG·XML·JavaScript는 `application/octet-stream`으로 저장한다. PUT 업로드에는 응답의 `headers`를 그대로 보낸다.',
+		example: 'image/png',
+	})
 	@isString()
-	@isNotEmpty()
-	@maxLength(100)
+	@maxLength(255)
 	contentType!: string;
 
 	@apiProperty({description: '파일 크기(bytes)', example: 102_400})
