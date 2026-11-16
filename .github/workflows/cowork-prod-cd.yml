@@ -491,8 +491,15 @@ jobs:
             # Collect every page first; deleting during pagination shifts later pages.
             runs=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?status=completed&per_page=100" \
               --jq '.workflow_runs[].id')
+            deleted=0 failed=0
             for run in $runs; do
-              gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/runs/$run"
+              # One failed run must not stop the rest; the next release retries it.
+              if gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/runs/$run"; then
+                deleted=$((deleted + 1))
+              else
+                failed=$((failed + 1))
+                echo "::warning::Failed to delete run $run"
+              fi
             done
-            echo "Deleted $(wc -w <<< "$runs") runs from workflow $workflow"
+            echo "Deleted $deleted runs from workflow $workflow ($failed failed)"
           done
