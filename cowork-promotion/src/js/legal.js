@@ -6,6 +6,22 @@ const content = main.querySelector('[data-legal-content]');
 const status = main.querySelector('[data-legal-status]');
 const retry = main.querySelector('[data-legal-retry]');
 
+function scrollToFragment() {
+	if (!window.location.hash) {
+		return;
+	}
+
+	let id;
+	try {
+		id = decodeURIComponent(window.location.hash.slice(1));
+	} catch {
+		// A malformed URL fragment must not turn a loaded document into an error.
+		return;
+	}
+
+	content.querySelector(`#${window.CSS.escape(id)}`)?.scrollIntoView();
+}
+
 async function loadLegalDocument() {
 	const wasRetry = document.activeElement === retry;
 	content.setAttribute('aria-busy', 'true');
@@ -15,7 +31,6 @@ async function loadLegalDocument() {
 		const type = main.dataset.legalType;
 		const response = await fetch(`/api/legal/${type}`, {
 			headers: {accept: 'application/xml'},
-			cache: 'no-store',
 			signal: AbortSignal.timeout(15_000),
 		});
 		if (!response.ok) {
@@ -30,9 +45,7 @@ async function loadLegalDocument() {
 		}
 
 		// The fragment target did not exist when the browser first opened this URL.
-		if (window.location.hash) {
-			content.querySelector(`#${window.CSS.escape(window.location.hash.slice(1))}`)?.scrollIntoView();
-		}
+		scrollToFragment();
 	} catch {
 		status.textContent = '문서를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
 		retry.hidden = false;

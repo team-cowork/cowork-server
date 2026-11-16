@@ -1,5 +1,50 @@
 import {document, window} from '../core/browser.js';
 
+// Preserve published fragment URLs independently of section ordering.
+const legacyAnchors = new Map([
+	['privacy-policy', new Map([
+		['처리 목적과 개인정보 항목', 'collection'],
+		['보유기간과 파기', 'retention'],
+		['정보 공유와 외부 서비스', 'sharing'],
+		['이용자의 권리', 'rights'],
+		['개인정보 보호 조치', 'security'],
+		['브라우저 저장소와 외부 리소스', 'storage'],
+		['문의 및 권리 구제', 'contact'],
+		['방침의 변경과 시행', 'changes'],
+	])],
+	['terms-of-service', new Map([
+		['목적과 용어', 'purpose'],
+		['가입과 계정 관리', 'account'],
+		['서비스의 제공과 변경', 'service'],
+		['이용자의 준수사항', 'conduct'],
+		['콘텐츠와 권리', 'content'],
+		['개인정보와 외부 서비스', 'privacy'],
+		['이용 제한과 이의 제기', 'restriction'],
+		['이용 종료와 데이터 처리', 'termination'],
+		['책임과 분쟁 해결', 'liability'],
+		['약관의 변경과 시행', 'changes'],
+	])],
+]);
+
+function sectionLabel(heading) {
+	return heading.textContent.replace(/^제?\d+조?\.\s*/v, '').trim();
+}
+
+function sectionId(type, heading, usedIds) {
+	const label = sectionLabel(heading);
+	const base = legacyAnchors.get(type)?.get(label) ?? `section-${label.replaceAll(/\s+/gv, '-') || 'untitled'}`;
+	let id = base;
+	let suffix = 1;
+	while (usedIds.has(id) || usedIds.has(`${id}-title`)) {
+		suffix += 1;
+		id = `${base}-${suffix}`;
+	}
+
+	usedIds.add(id);
+	usedIds.add(`${id}-title`);
+	return id;
+}
+
 function blockChildren(source) {
 	return [...source.childNodes].filter(node => {
 		if ((node.nodeType === window.Node.COMMENT_NODE) || (node.nodeType === window.Node.TEXT_NODE && node.textContent.trim() === '')) {
@@ -118,10 +163,11 @@ export function renderLegalDocument(xml, expectedType) {
 	const header = document.createElement('header');
 	header.append(headingElement(title, 'h1'));
 	const sections = [];
+	const usedIds = new Set();
 	for (const block of blocks) {
 		const element = renderBlock(block);
 		if (block.nodeName === 'section') {
-			const id = `section-${sections.length + 1}`;
+			const id = sectionId(expectedType, element.firstElementChild, usedIds);
 			element.id = id;
 			element.className = 'legal-section';
 			element.firstElementChild.id = `${id}-title`;
@@ -152,8 +198,8 @@ export function renderLegalDocument(xml, expectedType) {
 		for (const section of sections) {
 			const entry = document.createElement('li');
 			const link = document.createElement('a');
-			link.href = `#${section.id}`;
-			link.textContent = section.firstElementChild.textContent.replace(/^제?\d+조?\.\s*/v, '');
+			link.href = `#${encodeURIComponent(section.id)}`;
+			link.textContent = sectionLabel(section.firstElementChild);
 			entry.append(link);
 			list.append(entry);
 		}
