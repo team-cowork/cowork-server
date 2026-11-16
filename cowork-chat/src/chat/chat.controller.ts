@@ -47,8 +47,6 @@ import {
 	DeleteMessageResponseDto,
 	MessageResponseDto,
 	SendMessageResponseDto,
-	CreateGithubIssueDto,
-	CreateGithubIssueResponseDto,
 	SlashCommandDto,
 	SlashCommandResponseDto,
 	FileListQueryDto,
@@ -72,7 +70,6 @@ import {EMOJI_REGEX} from './util/index.js';
 	ConfirmFileUploadResponseDto,
 	FileListResponseDto,
 	SendMessageResponseDto,
-	CreateGithubIssueResponseDto,
 	SlashCommandResponseDto,
 	MessageResponseDto,
 	DeleteMessageResponseDto,
@@ -445,69 +442,6 @@ export class ChatController {
 		@currentUserRole() userRole: string,
 	): Promise<SendMessageResponseDto> {
 		await this.chatService.sendMessage({channelId, userId, userRole}, dto);
-		return {queued: true};
-	}
-
-	/**
-     GitHub 이슈 생성 커맨드를 Kafka로 비동기 발행한다.
-
-     @deprecated 신규 클라이언트는 `POST /api/chat/chat/channels/{channelId}/slash-commands`를 사용하세요.
-
-     @param channelId - 채널 ID
-     @param dto - GitHub 이슈 생성 정보
-     @param userId - Gateway가 주입한 요청자 ID
-     @param idempotencyKey - 재시도 중복 방지 키 (`Idempotency-Key` 헤더, 선택)
-     @returns `{ queued: true }`
-     */
-	@httpPost('github/issues')
-	@httpCode(HttpStatus.CREATED)
-	@apiOperation({
-		summary: 'GitHub 이슈 생성 요청',
-		description:
-            '새 클라이언트는 POST /api/chat/chat/channels/{channelId}/slash-commands를 사용합니다.',
-		deprecated: true,
-	})
-	@apiHeader({name: 'Idempotency-Key', required: false, description: '재시도 중복 방지 키, 최대 200자'})
-	@apiResponse({
-		status: 201,
-		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['201 CREATED']},
-						code: {type: 'integer', enum: [201]},
-						message: {type: 'string', example: 'Created'},
-						data: {$ref: getSchemaPath(CreateGithubIssueResponseDto)},
-					},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '메시지 읽기, slash_command_use 또는 github_issue_create 권한 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
-	async createGithubIssue(
-		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
-		@requestBody() dto: CreateGithubIssueDto,
-		@currentUserId() userId: number,
-		@requestHeader('idempotency-key') idempotencyKey?: string,
-	): Promise<CreateGithubIssueResponseDto> {
-		await this.chatService.publishGithubIssueCreateCommand({channelId, userId}, dto, idempotencyKey);
 		return {queued: true};
 	}
 

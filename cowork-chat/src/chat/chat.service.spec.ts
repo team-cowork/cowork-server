@@ -924,17 +924,6 @@ describe('ChatService', () => {
 			expect(mockChatGithubIssueCommandProducer.send).not.toHaveBeenCalled();
 		});
 
-		it('the deprecated direct entry point requires the same slash and issue permissions', async () => {
-			mockChannelMessageReadAccess.requirePermissions.mockRejectedValueOnce(new ForbiddenException());
-			await expect(service.publishGithubIssueCreateCommand(
-				{channelId: 1, userId: 42}, {projectId: 100, title: 'issue'},
-			)).rejects.toThrow(ForbiddenException);
-			expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledWith(
-				1, 42, ['slash_command_use', 'github_issue_create'],
-			);
-			expect(mockChatGithubIssueCommandProducer.send).not.toHaveBeenCalled();
-		});
-
 		it('지원하지 않는 명령은 거부한다', async () => {
 			await expect(service.handleSlashCommand(
 				{channelId: 1, userId: 42},

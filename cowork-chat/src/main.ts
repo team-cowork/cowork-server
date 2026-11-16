@@ -50,10 +50,6 @@ function requiredProjectionStreams(path: string): ProjectionName[] {
 		return [...CHANNEL_PERMISSION_STREAMS, 'userProfile'];
 	}
 
-	if (path.includes('/github/issues')) {
-		return [...CHANNEL_PERMISSION_STREAMS, 'project', 'projectPermission', 'projectGithubRepo', 'userProfile'];
-	}
-
 	return path.startsWith('/chat/channels/') ? [...CHANNEL_PERMISSION_STREAMS, 'userProfile'] : ALL_PROJECTION_STREAMS;
 }
 
