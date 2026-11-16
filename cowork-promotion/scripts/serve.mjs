@@ -116,7 +116,16 @@ const server = createServer(async (request, response) => {
 		}
 
 		if (pathname.startsWith('/api/legal/')) {
-			const result = await middleware(request);
+			// Fetch rejects some methods that Node's HTTP server accepts.
+			if (!['GET', 'HEAD'].includes(request.method)) {
+				response.writeHead(405, {Allow: 'GET, HEAD', 'Cache-Control': 'no-store'}).end();
+				return;
+			}
+
+			const result = await middleware(new Request(new URL(request.url, 'http://localhost'), {
+				method: request.method,
+				headers: request.headers,
+			}));
 			response.writeHead(result.status, Object.fromEntries(result.headers));
 			response.end(Buffer.from(await result.arrayBuffer()));
 			return;

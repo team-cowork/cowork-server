@@ -25,7 +25,7 @@ export default async function middleware(request) {
 		return new Response(null, {status: 405, headers: {...headers, Allow: 'GET, HEAD'}});
 	}
 
-	const {pathname} = new URL(request.url ?? '/', 'http://localhost');
+	const {pathname} = new URL(request.url);
 	const type = pathname.match(/^\/api\/legal\/(?<type>[^\/]+)\/?$/v)?.groups.type;
 	if (!documentTypes.has(type)) {
 		return new Response(null, {status: 404, headers});
