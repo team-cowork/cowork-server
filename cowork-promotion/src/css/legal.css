@@ -12,8 +12,7 @@
 .legal h1,
 .legal h2,
 .legal h3,
-.legal strong,
-.legal dt {
+.legal strong {
     color: var(--color-text);
 }
 
@@ -53,10 +52,13 @@
     flex-wrap: wrap;
     gap: var(--space-5) var(--space-8);
     margin-block: var(--space-8);
+    padding: 0;
+    list-style: none;
     font-size: var(--font-size-sm);
 }
 
-.legal-details dt {
+.legal-details strong {
+    display: block;
     margin-bottom: var(--space-1);
     font-weight: var(--font-weight-semibold);
 }
@@ -89,19 +91,39 @@
     margin-top: var(--space-10);
 }
 
-.legal-section p + p,
-.legal-section ul,
-.legal-section ul + p {
+.legal p + p,
+.legal header > ol,
+.legal header > ol + p,
+.legal-section :is(ul, ol),
+.legal-section :is(ul, ol) + p {
     margin-top: var(--space-3);
 }
 
-.legal-section ul {
+.legal-section :is(ul, ol),
+.legal header > ol {
     padding-left: var(--space-6);
+}
+
+.legal-section ul {
     list-style: disc;
 }
 
-.legal-section li + li {
+.legal-section ol,
+.legal header > ol {
+    list-style: decimal;
+}
+
+.legal-section li + li,
+.legal header > ol > li + li {
     margin-top: var(--space-2);
+}
+
+.legal [data-legal-retry] {
+    margin-top: var(--space-4);
+}
+
+.legal [data-legal-retry][hidden] {
+    display: none;
 }
 
 @media (max-width: 639px) {
