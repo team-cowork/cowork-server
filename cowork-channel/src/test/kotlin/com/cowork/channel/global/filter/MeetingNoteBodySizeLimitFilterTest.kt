@@ -44,22 +44,25 @@ class MeetingNoteBodySizeLimitFilterTest :
             listOf(
                 "POST" to "/channels/1/meeting-notes",
                 "PATCH" to "/channels/1/meeting-notes/2",
+                "POST" to "/channels/1/meeting%2Dnotes",
+                "POST" to "/channels/1/meeting-notes;x=y",
+                "PATCH" to "/channels/1/%6Deeting-notes/2",
             ).forEach { (method, uri) ->
-                it("$method: Content-Length가 상한을 넘으면 413으로 거부한다") {
+                it("$method $uri: Content-Length가 상한을 넘으면 413으로 거부한다") {
                     val request = MockHttpServletRequest(method, uri).apply { setContent(ByteArray(limit.toInt() + 1)) }
                     val (response, chain) = run(request)
                     response.status shouldBe 413
                     chain.request.shouldBeNull()
                 }
 
-                it("$method: Content-Length 없는 본문이 상한을 넘으면 413으로 거부한다") {
+                it("$method $uri: Content-Length 없는 본문이 상한을 넘으면 413으로 거부한다") {
                     val request = ChunkedRequest(method, uri).apply { setContent(ByteArray(limit.toInt() + 1)) }
                     val (response, chain) = run(request)
                     response.status shouldBe 413
                     chain.request.shouldBeNull()
                 }
 
-                it("$method: 상한 이하의 본문은 그대로 다음 필터로 넘긴다") {
+                it("$method $uri: 상한 이하의 본문은 그대로 다음 필터로 넘긴다") {
                     val body = """{"title":"회의"}""".toByteArray()
                     val request = ChunkedRequest(method, uri).apply { setContent(body) }
                     val (response, chain) = run(request)
