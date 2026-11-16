@@ -14,6 +14,7 @@ import {ChatService} from '../chat.service.js';
 import {ProjectClient, ChannelMessageReadAccessService} from '../service/index.js';
 import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
+import {waitForProjectionReadiness} from '../../common/kafka/projection-readiness-wait.js';
 import {toMessageBroadcastPayload} from '../repository/index.js';
 import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
 import {type Nullable} from '../../common/type/nullable.js';
@@ -25,7 +26,6 @@ import {type KafkaMessageSource, systemMessageKey} from './system-message-key.js
 `Message.content`(`schema/message.schema.ts`)의 `maxlength` 제약과 동일하다.
 */
 const MESSAGE_CONTENT_MAX_LENGTH = 25_000;
-const PROJECTION_WAIT_HEARTBEAT_INTERVAL_MS = 5000;
 
 /**
  Kafka `github.repo.event` 토픽을 구독하여 GitHub 저장소 활동(push/issues/pull_request)을 처리하는 컨슈머.
@@ -72,7 +72,7 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
 			return;
 		}
 
-		await this.waitForProjectionReadiness(heartbeat);
+		await waitForProjectionReadiness(this.projectionReadiness, heartbeat);
 		if (!this.projectionReadiness.isReady()) {
 			throw new Error('Kafka projections became unavailable while processing github.repo.event');
 		}
@@ -89,57 +89,6 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
 
 			await this.notifyClient(target.channelId, toMessageBroadcastPayload(saved));
 		}));
-	}
-
-	/**
-     초기 projection 적재가 Kafka session timeout보다 길어져도 consumer가 재조정되지 않도록
-     준비 상태를 기다리는 동안 주기적으로 heartbeat를 전송한다.
-     */
-	private async waitForProjectionReadiness(heartbeat: () => Promise<void>): Promise<void> {
-		await this.waitWithHeartbeat(this.projectionReadiness.checkCatchup(), heartbeat);
-		await this.waitUntilProjectionReady(heartbeat);
-	}
-
-	/**
-     준비될 때까지 `whenReady()` 대기를 반복한다. 이전 대기가 끝난 뒤에만 다음 대기를 시작한다.
-     */
-	private async waitUntilProjectionReady(heartbeat: () => Promise<void>): Promise<void> {
-		if (this.projectionReadiness.isReady()) {
-			return;
-		}
-
-		await this.waitWithHeartbeat(this.projectionReadiness.whenReady(), heartbeat);
-		return this.waitUntilProjectionReady(heartbeat);
-	}
-
-	/**
-     작업이 끝날 때까지 heartbeat 간격마다 heartbeat를 보낸다. 각 heartbeat가 끝난 뒤에 다음 간격을 잰다.
-     */
-	private async waitWithHeartbeat(operation: Promise<void>, heartbeat: () => Promise<void>): Promise<void> {
-		if (await this.settlesBeforeHeartbeat(operation)) {
-			return;
-		}
-
-		await heartbeat();
-		return this.waitWithHeartbeat(operation, heartbeat);
-	}
-
-	private async settlesBeforeHeartbeat(operation: Promise<void>): Promise<boolean> {
-		let timer: ReturnType<typeof setTimeout> | undefined;
-		const completed = operation.then(() => true);
-		const heartbeatInterval = new Promise<boolean>(resolve => {
-			timer = setTimeout(() => {
-				resolve(false);
-			}, PROJECTION_WAIT_HEARTBEAT_INTERVAL_MS);
-		});
-
-		try {
-			return await Promise.race([completed, heartbeatInterval]);
-		} finally {
-			if (timer) {
-				clearTimeout(timer);
-			}
-		}
 	}
 
 	/**

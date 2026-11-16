@@ -31,6 +31,7 @@ import {ChatMessageConsumer} from './kafka/chat-message.consumer.js';
 import {GithubIssueResultConsumer} from './kafka/github-issue-result.consumer.js';
 import {ChatGithubIssueResultConsumer} from './kafka/chat-github-issue-result.consumer.js';
 import {GithubRepoEventConsumer} from './kafka/github-repo-event.consumer.js';
+import {VoiceEventConsumer} from './kafka/voice-event.consumer.js';
 import {ChannelEventConsumer} from './kafka/channel-event.consumer.js';
 import {ProjectEventConsumer} from './kafka/project-event.consumer.js';
 import {TeamRoleEventConsumer} from './kafka/team-role-event.consumer.js';
@@ -101,6 +102,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
 	@inject(forwardRef(() => GithubRepoEventConsumer))
 	private readonly githubRepoEventConsumer!: ForwardReference<GithubRepoEventConsumer>;
+
+	@inject(forwardRef(() => VoiceEventConsumer))
+	private readonly voiceEventConsumer!: ForwardReference<VoiceEventConsumer>;
 
 	@inject()
 	private readonly channelEventConsumer!: ChannelEventConsumer;
@@ -316,6 +320,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 		this.githubIssueResultConsumer.setSocketServer(server);
 		this.chatGithubIssueResultConsumer.setSocketServer(server);
 		this.githubRepoEventConsumer.setSocketServer(server);
+		this.voiceEventConsumer.setSocketServer(server);
 		this.channelEventConsumer.setSocketServer(server);
 		this.projectEventConsumer.setSocketServer(server);
 		this.dmParticipantConsumer.setSocketServer(server);
