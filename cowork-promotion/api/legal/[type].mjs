@@ -41,7 +41,18 @@ export default async function legalDocument(request, response) {
 		}
 
 		const xml = await upstream.text();
-		response.writeHead(200, {'Content-Type': 'application/xml; charset=utf-8'});
+		const headers = {
+			'Content-Type': 'application/xml; charset=utf-8',
+			'Cache-Control': upstream.headers.get('cache-control') ?? 'no-store',
+		};
+		for (const name of ['age', 'date']) {
+			const value = upstream.headers.get(name);
+			if (value !== null) {
+				headers[name] = value;
+			}
+		}
+
+		response.writeHead(200, headers);
 		response.end(request.method === 'HEAD' ? undefined : xml);
 	} catch {
 		response.writeHead(502).end();
