@@ -1,6 +1,21 @@
 import process from 'node:process';
 
 const documentTypes = new Set(['privacy-policy', 'terms-of-service', 'license']);
+const gateway = resolveGateway();
+
+function resolveGateway() {
+	try {
+		const origin = new URL(process.env.PUBLIC_API_BASE_URL);
+		if (!['http:', 'https:'].includes(origin.protocol)
+			|| origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) {
+			return undefined;
+		}
+
+		return origin;
+	} catch {
+		return undefined;
+	}
+}
 
 export default async function legalDocument(request, response) {
 	response.setHeader('Cache-Control', 'no-store');
@@ -16,14 +31,7 @@ export default async function legalDocument(request, response) {
 		return;
 	}
 
-	let gateway;
-	try {
-		gateway = new URL(process.env.PUBLIC_API_BASE_URL);
-		if (!['http:', 'https:'].includes(gateway.protocol)
-			|| gateway.username || gateway.password || gateway.pathname !== '/' || gateway.search || gateway.hash) {
-			throw new Error('PUBLIC_API_BASE_URL must be an HTTP(S) origin.');
-		}
-	} catch {
+	if (!gateway) {
 		response.writeHead(503).end();
 		return;
 	}
@@ -36,6 +44,7 @@ export default async function legalDocument(request, response) {
 		});
 		const contentType = upstream.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
 		if (!upstream.ok || !['application/xml', 'text/xml'].includes(contentType)) {
+			await upstream.body?.cancel();
 			response.writeHead(502).end();
 			return;
 		}
