@@ -4,6 +4,10 @@
  `cowork-voice`가 음성 세션과 라이브 상태가 바뀔 때 발행하고 `cowork-chat`이 소비한다.
  */
 export type VoiceEventPayload = {
+	/**
+    `cowork-voice` outbox 메시지 ID(ObjectId hex). 재발행해도 바뀌지 않는다.
+    */
+	event_id?: unknown;
 	event_type?: unknown;
 	channel_id?: unknown;
 	team_id?: unknown;
@@ -16,6 +20,7 @@ export type VoiceEventPayload = {
  검증을 마친 음성 이벤트. `cowork-chat`은 시청자 입장/퇴장을 뺀 이벤트를 음성 채널의 SYSTEM 메시지로 남긴다.
  */
 export type VoiceEvent = {
+	eventId: string;
 	eventType: string;
 	channelId: number;
 	teamId: number;

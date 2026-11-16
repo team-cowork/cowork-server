@@ -21,14 +21,15 @@ import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {type Nullable} from '../../common/type/nullable.js';
 import {type ForwardReference} from '../../common/type/forward-reference.js';
 import {type VoiceEvent, type VoiceEventPayload} from './event/voice.event.js';
-import {type KafkaMessageSource, systemMessageKey} from './system-message-key.js';
+import {type KafkaMessageSource, voiceSystemMessageKey} from './system-message-key.js';
 
 const UNKNOWN_USER_NAME = '알 수 없는 사용자';
+const EVENT_ID_PATTERN = /^[\da-f]{24}$/v;
 
 /**
  `voice.event` 페이로드를 검증하고 {@link VoiceEvent}로 바꾼다. 다룰 수 없는 형태면 `null`이다.
 
- 채널과 팀 ID가 양의 정수인지, 메시지에 쓰는 사용자 ID와 시간이 있는지 본다.
+ `event_id`가 ObjectId hex인지, 채널과 팀 ID가 양의 정수인지, 메시지에 쓰는 사용자 ID와 시간이 있는지 본다.
  메시지로 만들지 않는 이벤트 종류(시청자 입장/퇴장 등)는 그 밖의 필드를 확인하지 않는다.
  */
 export function parseVoiceEvent(payload: unknown): Nullable<VoiceEvent> {
@@ -37,11 +38,14 @@ export function parseVoiceEvent(payload: unknown): Nullable<VoiceEvent> {
 	}
 
 	const wire = payload as VoiceEventPayload;
-	if (typeof wire.event_type !== 'string' || !isSafePositiveInteger(wire.channel_id) || !isSafePositiveInteger(wire.team_id)) {
+	if (typeof wire.event_id !== 'string' || !EVENT_ID_PATTERN.test(wire.event_id)
+		|| typeof wire.event_type !== 'string' || !isSafePositiveInteger(wire.channel_id) || !isSafePositiveInteger(wire.team_id)) {
 		return null;
 	}
 
-	const event: VoiceEvent = {eventType: wire.event_type, channelId: wire.channel_id, teamId: wire.team_id};
+	const event: VoiceEvent = {
+		eventId: wire.event_id, eventType: wire.event_type, channelId: wire.channel_id, teamId: wire.team_id,
+	};
 	switch (wire.event_type) {
 		case 'USER_JOINED':
 		case 'USER_LEFT': {
@@ -174,7 +178,7 @@ export class VoiceEventConsumer implements OnModuleInit, OnModuleDestroy {
      음성 이벤트를 SYSTEM 메시지로 저장하고 채널에 브로드캐스트한다.
 
      @param payload - Kafka에서 수신한 JSON 페이로드
-     @param source - 이벤트의 Kafka 메시지 위치. 시스템 메시지 멱등성 키를 만드는 데 사용한다
+     @param source - 이벤트의 Kafka 메시지 위치. 잘못된 페이로드를 로그에 남기는 데 사용한다
      @param heartbeat - 오래 걸리는 준비 대기 동안 Kafka consumer heartbeat를 보내는 함수
      */
 	private async handleVoiceEvent(payload: unknown, source: KafkaMessageSource, heartbeat: () => Promise<void>): Promise<void> {
@@ -198,7 +202,7 @@ export class VoiceEventConsumer implements OnModuleInit, OnModuleDestroy {
 		const content = voiceEventMessage(event, userId === null ? null : displayNames.get(userId) ?? null)!;
 
 		const saved = await this.chatService.saveSystemMessage(
-			event.teamId, event.channelId, content, systemMessageKey(source, event.channelId),
+			event.teamId, event.channelId, content, voiceSystemMessageKey(event.eventId, event.channelId),
 		);
 		if (!saved) {
 			return;

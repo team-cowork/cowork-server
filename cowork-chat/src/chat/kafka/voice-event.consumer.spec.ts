@@ -6,7 +6,10 @@ import {
 } from './voice-event.consumer.js';
 import {type VoiceEvent} from './event/voice.event.js';
 
+const EVENT_ID = '6afa6d0fff8500e6a244c3b9';
+
 const event = (overrides: Partial<VoiceEvent> = {}): VoiceEvent => ({
+	eventId: EVENT_ID,
 	eventType: 'SESSION_STARTED',
 	channelId: 11,
 	teamId: 3,
@@ -17,6 +20,7 @@ const event = (overrides: Partial<VoiceEvent> = {}): VoiceEvent => ({
  `cowork-voice`가 보내는 snake_case JSON 페이로드를 만든다.
  */
 const wire = (overrides: Array<[string, unknown]> = []): unknown => Object.fromEntries([
+	['event_id', EVENT_ID],
 	['event_type', 'SESSION_STARTED'],
 	['channel_id', 11],
 	['team_id', 3],
@@ -83,6 +87,8 @@ describe('parseVoiceEvent', () => {
 
 	it('필드가 없거나 잘못된 페이로드는 거부한다', () => {
 		for (const overrides of [
+			[['event_id', undefined]],
+			[['event_id', 'not-an-object-id']],
 			[['event_type', undefined]],
 			[['channel_id', 0]],
 			[['team_id', '3']],
