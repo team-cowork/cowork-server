@@ -28,3 +28,17 @@ export function systemMessageKey(
 ): string {
 	return `${SYSTEM_MESSAGE_KEY_PREFIX}${message.topic}:${message.partition}:${message.offset}:${channelId}`;
 }
+
+/**
+ 음성 이벤트의 `event_id`로 시스템 메시지의 `clientMessageId`를 만든다.
+
+ `cowork-voice` outbox는 전송 후 완료 표시 전에 장애가 나면 같은 페이로드를 새 offset에 다시 발행한다.
+ `event_id`는 재발행해도 바뀌지 않으므로, offset 대신 이 값으로 키를 만들어 중복 저장을 막는다.
+
+ @param eventId - `cowork-voice` outbox 메시지 ID
+ @param channelId - 시스템 메시지를 저장할 채널 ID
+ @returns `system:voice:{eventId}:{channelId}` 형식의 키
+ */
+export function voiceSystemMessageKey(eventId: string, channelId: number): string {
+	return `${SYSTEM_MESSAGE_KEY_PREFIX}voice:${eventId}:${channelId}`;
+}

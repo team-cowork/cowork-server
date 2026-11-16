@@ -1,4 +1,4 @@
-import {systemMessageKey} from './system-message-key.js';
+import {systemMessageKey, voiceSystemMessageKey} from './system-message-key.js';
 
 describe('systemMessageKey', () => {
 	it('같은 Kafka 메시지와 채널이면 같은 키를 만든다', () => {
@@ -13,5 +13,12 @@ describe('systemMessageKey', () => {
 
 		expect(systemMessageKey(source, 7)).not.toBe(systemMessageKey(source, 8));
 		expect(systemMessageKey(source, 7)).not.toBe(systemMessageKey({...source, offset: '43'}, 7));
+	});
+});
+
+describe('voiceSystemMessageKey', () => {
+	it('같은 event_id와 채널이면 offset과 관계없이 같은 키를 만든다', () => {
+		expect(voiceSystemMessageKey('6afa6d0fff8500e6a244c3b9', 7)).toBe('system:voice:6afa6d0fff8500e6a244c3b9:7');
+		expect(voiceSystemMessageKey('6afa6d0fff8500e6a244c3b9', 7)).not.toBe(voiceSystemMessageKey('6afa6d0fff8500e6a244c3ba', 7));
 	});
 });
