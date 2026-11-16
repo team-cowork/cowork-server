@@ -243,6 +243,23 @@ class MeetingNoteController(
                 ),
             ],
         ),
+        ApiResponse(
+            responseCode = "413",
+            description = "요청 본문이 1MB를 초과함",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value =
+                            """{"status":"413 CONTENT_TOO_LARGE","code":413,""" +
+                                """"message":"요청 본문이 허용 크기를 초과했습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
@@ -305,6 +322,23 @@ class MeetingNoteController(
                     examples = [
                         ExampleObject(
                             value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "413",
+            description = "요청 본문이 1MB를 초과함",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value =
+                            """{"status":"413 CONTENT_TOO_LARGE","code":413,""" +
+                                """"message":"요청 본문이 허용 크기를 초과했습니다."}""",
                         ),
                     ],
                 ),
