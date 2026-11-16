@@ -35,16 +35,14 @@ overrides:
   codex/skills/write-pr: false
 
   claude/skills/nextjs-fsd-architecture: false
-  claude/skills/nextjs-package-boundaries: false
-  claude/skills/nextjs-turborepo-fsd: false
   claude/skills/tailwind-shadcn: false
-  claude/skills/tanstack-query-zod: false
+  claude/skills/data-and-forms: false
+  claude/skills/react-conventions: false
   claude/agents/frontend-convention-validator: false
   codex/skills/nextjs-fsd-architecture: false
-  codex/skills/nextjs-package-boundaries: false
-  codex/skills/nextjs-turborepo-fsd: false
   codex/skills/tailwind-shadcn: false
-  codex/skills/tanstack-query-zod: false
+  codex/skills/data-and-forms: false
+  codex/skills/react-conventions: false
   codex/agents/frontend-convention-validator: false
 
 branch_prefix: update/
