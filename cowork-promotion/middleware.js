@@ -17,7 +17,7 @@ function resolveGateway() {
 	}
 }
 
-export const config = {matcher: '/api/legal/:type'};
+export const config = {matcher: '/api/legal/:type', runtime: 'nodejs'};
 
 export default async function middleware(request) {
 	const headers = {'Cache-Control': 'no-store'};
