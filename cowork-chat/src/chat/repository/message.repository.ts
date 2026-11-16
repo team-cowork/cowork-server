@@ -714,11 +714,6 @@ export class MessageRepository {
      단일 문서씩 `findOneAndUpdate`를 반복하는 방식 대비, 배치 크기와 무관하게 왕복 횟수가
      고정(3회)되어 폴링 사이클의 DB 왕복 지연을 줄입니다.
 
-     배포 유의사항: 이 배타성은 신버전 replica끼리만 보장됩니다. 롤링 배포 중 구버전 replica가
-     아직 남아 있으면, 구버전은 `notificationClaimId` 없이 `notificationProcessingStartedAt` 값만
-     보고 되읽으므로 신버전이 같은 밀리초에 찍은 점유분을 그대로 가져갈 수 있습니다. 전 replica가
-     신버전으로 교체되기 전까지는 이 회귀가 남아 있습니다.
-
      @param batchSize - 이번 사이클에서 점유할 최대 메시지 수
      @returns 이번 호출에서 `PROCESSING`으로 전환된 {@link NotificationMessage} 배열 (`createdAt` 오름차순)
      */
