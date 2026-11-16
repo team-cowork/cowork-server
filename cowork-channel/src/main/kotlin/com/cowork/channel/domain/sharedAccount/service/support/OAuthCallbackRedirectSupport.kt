@@ -2,10 +2,10 @@ package com.cowork.channel.domain.sharedAccount.service.support
 
 import com.cowork.channel.domain.sharedAccount.entity.AccountProvider
 import com.cowork.channel.domain.sharedAccount.service.HandleOAuthCallbackService
-import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
+import team.themoment.sdk.logging.logger.logger
 import java.net.URI
 
 @Component
@@ -13,7 +13,6 @@ class OAuthCallbackRedirectSupport(
     private val oAuthStateSupport: OAuthStateSupport,
     private val handleOAuthCallbackService: HandleOAuthCallbackService,
 ) {
-    private val log = LoggerFactory.getLogger(OAuthCallbackRedirectSupport::class.java)
 
     fun resolveRedirect(providerName: String, code: String?, state: String, error: String?): URI {
         val provider = runCatching { AccountProvider.valueOf(providerName.uppercase()) }.getOrElse {
@@ -29,7 +28,7 @@ class OAuthCallbackRedirectSupport(
             val account = handleOAuthCallbackService.handleCallback(providerName, code, state)
             URI.create("$returnOrigin/channels/${account.channelId}?newAccountId=${account.id}")
         } catch (ex: Exception) {
-            log.warn("Fail to complete account OAuth callback")
+            logger().warn("Fail to complete account OAuth callback")
             errorUrl
         }
     }

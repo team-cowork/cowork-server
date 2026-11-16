@@ -3,9 +3,9 @@ package com.cowork.channel.global.consumer
 import com.cowork.channel.global.projection.ProjectionRecordProcessor
 import com.cowork.channel.global.projection.ProjectionStreams
 import org.apache.kafka.clients.consumer.ConsumerRecord
-import org.slf4j.LoggerFactory
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
+import team.themoment.sdk.logging.logger.logger
 import tools.jackson.databind.ObjectMapper
 
 @Component
@@ -15,7 +15,6 @@ class TeamLifecycleConsumer(
     private val processor: ProjectionRecordProcessor,
     private val streams: ProjectionStreams,
 ) {
-    private val log = LoggerFactory.getLogger(TeamLifecycleConsumer::class.java)
 
     @KafkaListener(
         topics = [Topics.TEAM_LIFECYCLE],
@@ -61,7 +60,7 @@ class TeamLifecycleConsumer(
     }
 
     private fun quarantine(record: ConsumerRecord<String, String>, reason: String) {
-        log.warn(
+        logger().warn(
             "team.lifecycle을 격리합니다 [partition={}, offset={}, reason={}]",
             record.partition(),
             record.offset(),

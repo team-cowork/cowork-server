@@ -7,20 +7,19 @@ import com.cowork.preference.domain.access.service.AccountOwnershipGuard
 import com.cowork.preference.domain.access.service.ChannelAccessGuard
 import com.cowork.preference.domain.notification.service.NotificationService
 import com.cowork.preference.global.coroutine.runCatchingCancellable
+import com.cowork.preference.global.logging.logger
 import com.cowork.preference.global.security.RequesterContext
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import org.slf4j.LoggerFactory
 
 class NotificationHandler(
     private val service: NotificationService,
     private val scope: CoroutineScope,
     private val channelAccessGuard: ChannelAccessGuard,
 ) {
-    private val log = LoggerFactory.getLogger(NotificationHandler::class.java)
 
     fun getNotification(ctx: RoutingContext) {
         val accountId = ctx.pathParam("accountId")?.toLongOrNull()
@@ -76,7 +75,7 @@ class NotificationHandler(
         try {
             AccountOwnershipGuard.requireOwner(accountId, requester)
         } catch (e: AccountOwnershipDeniedException) {
-            auditAuthorizationFailure(log, 403, requester.userId, "ACCOUNT", accountId)
+            auditAuthorizationFailure(logger(), 403, requester.userId, "ACCOUNT", accountId)
             ctx.response().setStatusCode(403).end(errorBody(e.message))
             return false
         }
@@ -87,7 +86,7 @@ class NotificationHandler(
     private fun respondFailure(ctx: RoutingContext, e: Throwable, accountId: Long, channelId: Long) {
         val status = authorizationStatus(e)
         if (status != null) {
-            auditAuthorizationFailure(log, status, accountId, "CHANNEL_NOTIFICATION", channelId)
+            auditAuthorizationFailure(logger(), status, accountId, "CHANNEL_NOTIFICATION", channelId)
         }
         val fallback = if (e is IllegalArgumentException) 400 else 500
         ctx.response().setStatusCode(status ?: fallback).end(errorBody(e.message))
