@@ -10,7 +10,7 @@ import org.springframework.context.annotation.Configuration
     info = Info(
         title = "cowork Gateway API",
         description = "서비스별 API 요청을 전달하고 서비스 상태를 조회합니다.",
-        version = "20261116.0",
+        version = "20261117.0",
     ),
     servers = [Server(url = "/")],
 )
