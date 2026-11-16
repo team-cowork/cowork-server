@@ -7,9 +7,9 @@ import com.cowork.team.domain.teamRole.projection.TeamRoleMemberTombstoneReposit
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjection
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionRepository
 import com.cowork.team.global.projection.toProjectionPrecision
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
+import team.themoment.sdk.logging.logger.logger
 import tools.jackson.databind.ObjectMapper
 
 @Component
@@ -19,7 +19,6 @@ class PreferenceTeamRoleProjectionHandler(
     private val memberTombstoneRepository: TeamRoleMemberTombstoneRepository,
     private val objectMapper: ObjectMapper,
 ) {
-    private val log = LoggerFactory.getLogger(PreferenceTeamRoleProjectionHandler::class.java)
 
     @Transactional
     fun handle(sourceEvent: PreferenceTeamRoleChangedEvent) {
@@ -30,7 +29,7 @@ class PreferenceTeamRoleProjectionHandler(
             "ASSIGNMENT_UPSERTED" -> upsertAssignment(event)
             "ASSIGNMENT_DELETED" -> deleteAssignment(event)
             "MEMBER_ASSIGNMENTS_DELETED" -> deleteMemberAssignments(event)
-            else -> log.warn("알 수 없는 preference team-role 이벤트를 무시합니다 [eventType={}]", event.eventType)
+            else -> logger().warn("알 수 없는 preference team-role 이벤트를 무시합니다 [eventType={}]", event.eventType)
         }
     }
 

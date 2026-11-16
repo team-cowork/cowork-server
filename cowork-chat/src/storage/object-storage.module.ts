@@ -9,7 +9,7 @@ import {S3_CLIENT, S3_SIGNING_CLIENT} from './object-storage.constants.js';
 import {buildObjectStorageConfig} from './object-storage.config.js';
 import {ObjectStorageService} from './object-storage.service.js';
 
-function createClient(configService: ConfigService, isSigning = false): S3Client {
+export function createClient(configService: ConfigService, isSigning = false): S3Client {
 	const config = buildObjectStorageConfig(configService);
 	return new S3Client({
 		endpoint: isSigning ? config.publicApiBaseUrl : config.internalEndpoint,
@@ -18,6 +18,9 @@ function createClient(configService: ConfigService, isSigning = false): S3Client
 		forcePathStyle: true,
 		// A browser uploads the body later; do not sign the SDK's checksum for an empty body.
 		requestChecksumCalculation: 'WHEN_REQUIRED',
+		// A browser does not validate response checksums; do not add x-amz-checksum-mode to download URLs.
+		// The internal client keeps the SDK default so that server-side reads still validate checksums.
+		responseChecksumValidation: isSigning ? 'WHEN_REQUIRED' : 'WHEN_SUPPORTED',
 	});
 }
 

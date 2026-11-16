@@ -5,7 +5,7 @@ import {MESSAGE_SEARCH_INDEX_STATE_ID, MessageSearchIndexState} from '../schema/
 import {type Nullable} from '../../common/type/nullable.js';
 
 /**
-재구축 결과와 백필 진행 상태를 replica 간에 공유하는 단일 도큐먼트 저장소.
+재구축 결과와 락을 replica 간에 공유하는 단일 도큐먼트 저장소.
 */
 @injectable()
 export class MessageSearchIndexStateRepository {
@@ -49,10 +49,6 @@ export class MessageSearchIndexStateRepository {
 
 	async markRebuildFailed(error: string): Promise<void> {
 		return this.patch({lastRebuildFailedAt: new Date(), lastRebuildError: error});
-	}
-
-	async markLegacyBackfillCompleted(): Promise<void> {
-		return this.patch({legacyBackfillCompletedAt: new Date()});
 	}
 
 	/**

@@ -4,7 +4,6 @@ import org.apache.kafka.clients.consumer.Consumer
 import org.apache.kafka.common.TopicPartition
 import org.apache.kafka.common.errors.InterruptException
 import org.apache.kafka.common.errors.WakeupException
-import org.slf4j.LoggerFactory
 import org.springframework.boot.availability.AvailabilityChangeEvent
 import org.springframework.boot.availability.ReadinessState
 import org.springframework.boot.health.contributor.Health
@@ -16,6 +15,7 @@ import org.springframework.kafka.listener.ConsumerAwareRebalanceListener
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
+import team.themoment.sdk.logging.logger.logger
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -25,7 +25,6 @@ class ProjectionReadinessState(
     private val checkpointStore: ProjectionCheckpointStore,
     private val streams: ProjectionStreams,
 ) {
-    private val log = LoggerFactory.getLogger(ProjectionReadinessState::class.java)
     private val assignedStreams = ConcurrentHashMap.newKeySet<ProjectionStream>()
     private val initializingStreams = ConcurrentHashMap.newKeySet<ProjectionStream>().apply {
         addAll(streams.required)
@@ -59,7 +58,7 @@ class ProjectionReadinessState(
             false
         } else {
             runCatching { checkpointStore.isCaughtUp(streams.required) }
-                .onFailure { log.warn("Kafka projection readiness 조회 실패", it) }
+                .onFailure { logger().warn("Kafka projection readiness 조회 실패", it) }
                 .getOrDefault(false)
         }
         return ready
@@ -82,7 +81,6 @@ class ProjectionAssignmentCoordinator(
     private val retryBackoffMs: Long,
     private val retryTimeoutMs: Long,
 ) : ConsumerAwareRebalanceListener {
-    private val log = LoggerFactory.getLogger(ProjectionAssignmentCoordinator::class.java)
 
     // Only accessed on the consumer thread. Limits stack traces to the first failure of a run.
     private var consecutiveFailures = 0
@@ -155,9 +153,9 @@ class ProjectionAssignmentCoordinator(
     private fun logFailure(exception: Exception) {
         consecutiveFailures++
         if (consecutiveFailures == 1) {
-            log.warn("Failed to initialize projection assignment for {}", stream.topic, exception)
+            logger().warn("Failed to initialize projection assignment for {}", stream.topic, exception)
         } else {
-            log.warn(
+            logger().warn(
                 "Failed to initialize projection assignment for {} again, failure {}: {}",
                 stream.topic,
                 consecutiveFailures,
@@ -167,7 +165,7 @@ class ProjectionAssignmentCoordinator(
     }
 
     private fun requestRebalance(consumer: Consumer<*, *>) {
-        log.warn("Requesting a rebalance to retry projection assignment for {}", stream.topic)
+        logger().warn("Requesting a rebalance to retry projection assignment for {}", stream.topic)
         // Log the next failure with its stack trace, because its cause can differ after the rebalance.
         consecutiveFailures = 0
         // The container only logs listener failures, so without a new rebalance the stream would stay

@@ -62,10 +62,22 @@ export function renderAchievementsPage({template, achievements, styles, script, 
 	);
 }
 
-export function renderLegalPage({template, metadata, styles, logoUrl, socialImageUrl, siteUrl}) {
+export function renderLegalPage({template, type, language = 'ko', metadata, styles, script, logoUrl, socialImageUrl, siteUrl}) {
+	const title = escapeHtml(metadata.title.split(' | ', 1)[0]);
+	const content = type === 'license'
+		? `<header>
+			<h1>${title}</h1>
+			<p>cowork-server의 소스 코드는 <a href="https://github.com/team-cowork/cowork-server/blob/main/LICENSE">MIT 라이선스</a>로 제공됩니다. 아래는 저장소의 라이선스 원문입니다.</p>
+		</header>
+		<section class="legal-section mt-4" data-legal-content lang="${escapeHtml(language)}"></section>`
+		: `<div data-legal-content lang="ko"><h1 lang="ko">${title}</h1></div>`;
+	const html = template
+		.replaceAll('{{legal:type}}', () => escapeHtml(type))
+		.replaceAll('{{legal:language}}', () => escapeHtml(language))
+		.replaceAll('{{legal:content}}', () => content);
 	return renderPageMetadata(
 		bundlePage({
-			html: template, styles, stateData: '', logoUrl,
+			html, styles, script, stateData: '', logoUrl,
 		}),
 		{...metadata, type: 'website'},
 		{siteUrl, socialImageUrl},

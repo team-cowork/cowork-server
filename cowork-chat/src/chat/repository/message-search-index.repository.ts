@@ -295,57 +295,6 @@ export class MessageSearchIndexRepository {
 	}
 
 	/**
-     아웃박스 필드가 없는 레거시 메시지에 초기 상태를 채운다.
-
-     색인 대상이면 버전 `1`과 함께 `PENDING`으로 두어 워커가 색인을 복원하게 하고,
-     대상이 아니면 `SKIPPED`로 확정해 이후 스캔에서 제외한다.
-
-     @returns 이번 호출에서 상태를 채운 도큐먼트 수. `0`이면 백필이 끝난 것이다
-     */
-	async backfillLegacyState(batchSize: number): Promise<number> {
-		const legacy = await this.messageModel
-			.find({webhookDeleted: {$ne: true}, searchIndexStatus: null})
-			.limit(batchSize)
-			.select({teamId: 1, projectId: 1, type: 1})
-			.lean();
-		if (legacy.length === 0) {
-			return 0;
-		}
-
-		const indexedIds = legacy.filter(message => isSearchIndexed(message)).map(message => message._id);
-		const skippedIds = legacy.filter(message => !isSearchIndexed(message)).map(message => message._id);
-
-		if (indexedIds.length > 0) {
-			await this.messageModel.updateMany(
-				{webhookDeleted: {$ne: true}, _id: {$in: indexedIds}, searchIndexStatus: null},
-				{
-					$set: {
-						searchIndexStatus: 'PENDING',
-						searchIndexVersion: 1,
-						searchIndexSyncedVersion: 0,
-						searchIndexRetryCount: 0,
-						searchIndexNextAttemptAt: new Date(),
-						searchIndexProcessingStartedAt: null,
-						searchIndexLastError: null,
-						searchIndexSyncedAt: null,
-					},
-				},
-				OUTBOX_UPDATE_OPTIONS,
-			);
-		}
-
-		if (skippedIds.length > 0) {
-			await this.messageModel.updateMany(
-				{webhookDeleted: {$ne: true}, _id: {$in: skippedIds}, searchIndexStatus: null},
-				{$set: {searchIndexStatus: 'SKIPPED', searchIndexVersion: 0}},
-				OUTBOX_UPDATE_OPTIONS,
-			);
-		}
-
-		return legacy.length;
-	}
-
-	/**
     영구 실패 항목을 다시 대기 상태로 되돌린다. 운영자 재시도 명령이 사용한다.
     */
 	async retryFailed(): Promise<number> {
