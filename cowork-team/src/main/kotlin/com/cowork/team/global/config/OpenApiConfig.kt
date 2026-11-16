@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Configuration
     info = Info(
         title = "cowork Team API",
         description = "팀 정보, 멤버, 초대와 역할을 관리합니다.",
-        version = "20261115.0",
+        version = "20261117.0",
     ),
     servers = [Server(url = "/api/team", description = "Gateway")],
     security = [SecurityRequirement(name = "BearerAuth")],
