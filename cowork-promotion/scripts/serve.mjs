@@ -4,6 +4,7 @@ import process from 'node:process';
 import {readFile, stat, watch} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import achievements from '../api/achievements.mjs';
+import legalDocument from '../api/legal/[type].mjs';
 import {build} from './build.mjs';
 
 const projectDirectory = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
@@ -107,8 +108,14 @@ async function serveFile(requestUrl, response) {
 
 const server = createServer(async (request, response) => {
 	try {
-		if (new URL(request.url ?? '/', 'http://localhost').pathname === '/api/achievements') {
+		const {pathname} = new URL(request.url ?? '/', 'http://localhost');
+		if (pathname === '/api/achievements') {
 			await achievements(request, response);
+			return;
+		}
+
+		if (pathname.startsWith('/api/legal/')) {
+			await legalDocument(request, response);
 			return;
 		}
 

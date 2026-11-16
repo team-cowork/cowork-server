@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="ko">
+	<!-- @include components/head.html -->
+	<body class="bg-white text-gray-900">
+		<!-- @include components/navigation.html -->
+		<main
+			id="main-content"
+			class="legal"
+			data-legal-language="{{legal:language}}"
+			data-legal-type="{{legal:type}}"
+			tabindex="-1"
+		>
+			<div data-legal-content lang="ko">
+				<h1 lang="ko">{{legal:title}}</h1>
+			</div>
+			<p data-legal-status role="status">문서를 불러오고 있습니다.</p>
+			<button
+				type="button"
+				class="ui-button ui-button--secondary"
+				data-legal-retry
+				hidden
+			>다시 시도</button>
+			<noscript>
+				<p>문서를 보려면 JavaScript를 켜 주세요.</p>
+			</noscript>
+		</main>
+		<!-- @include components/footer.html -->
+	</body>
+</html>

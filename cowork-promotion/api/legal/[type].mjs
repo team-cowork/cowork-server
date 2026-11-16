@@ -1,0 +1,49 @@
+import process from 'node:process';
+
+const documentTypes = new Set(['privacy-policy', 'terms-of-service', 'license']);
+
+export default async function legalDocument(request, response) {
+	response.setHeader('Cache-Control', 'no-store');
+	if (!['GET', 'HEAD'].includes(request.method)) {
+		response.writeHead(405, {Allow: 'GET, HEAD'}).end();
+		return;
+	}
+
+	const {pathname} = new URL(request.url ?? '/', 'http://localhost');
+	const type = pathname.match(/^\/api\/legal\/(?<type>[^\/]+)\/?$/v)?.groups.type;
+	if (!documentTypes.has(type)) {
+		response.writeHead(404).end();
+		return;
+	}
+
+	let gateway;
+	try {
+		gateway = new URL(process.env.PUBLIC_API_BASE_URL);
+		if (!['http:', 'https:'].includes(gateway.protocol)
+			|| gateway.username || gateway.password || gateway.pathname !== '/' || gateway.search || gateway.hash) {
+			throw new Error('PUBLIC_API_BASE_URL must be an HTTP(S) origin.');
+		}
+	} catch {
+		response.writeHead(503).end();
+		return;
+	}
+
+	try {
+		const upstream = await fetch(new URL(`/api/legal/${type}`, gateway), {
+			method: request.method,
+			headers: {accept: 'application/xml'},
+			signal: AbortSignal.timeout(10_000),
+		});
+		const contentType = upstream.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
+		if (!upstream.ok || !['application/xml', 'text/xml'].includes(contentType)) {
+			response.writeHead(502).end();
+			return;
+		}
+
+		const xml = await upstream.text();
+		response.writeHead(200, {'Content-Type': 'application/xml; charset=utf-8'});
+		response.end(request.method === 'HEAD' ? undefined : xml);
+	} catch {
+		response.writeHead(502).end();
+	}
+}
