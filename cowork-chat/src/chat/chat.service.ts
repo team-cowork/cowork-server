@@ -737,7 +737,6 @@ export class ChatService {
      @throws BadRequestException 재시도 키 길이가 올바르지 않은 경우
      */
 	async publishGithubIssueCreateCommand(ctx: ChannelUserContext, dto: CreateGithubIssueDto, idempotencyKey?: string): Promise<void> {
-		// 두 진입점이 같은 권한 세트를 요구해야 일반 slash command로 막힌 사용자가 deprecated 경로로 우회하지 못한다.
 		await this.channelMessageReadAccess.requirePermissions(ctx.channelId, ctx.userId, ['slash_command_use', 'github_issue_create']);
 		await this.requireWritableChannel(ctx.channelId);
 		const channelTeamId = await this.requireReadAndGetTeamId(ctx.channelId, ctx.userId);
