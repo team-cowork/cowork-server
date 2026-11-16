@@ -142,7 +142,7 @@ function renderBlock(source, level = 2) {
 	}
 }
 
-export function renderLegalDocument(xml, expectedType) {
+export function renderLegalDocument(xml, expectedType, headingLevel = 1) {
 	// Gateway's schema has no DTD; reject it before the XML parser can expand entities.
 	if (xml.includes('<!DOCTYPE')) {
 		throw new Error('Unsupported legal document declaration.');
@@ -161,11 +161,11 @@ export function renderLegalDocument(xml, expectedType) {
 	}
 
 	const header = document.createElement('header');
-	header.append(headingElement(title, 'h1'));
+	header.append(headingElement(title, `h${headingLevel}`));
 	const sections = [];
 	const usedIds = new Set();
 	for (const block of blocks) {
-		const element = renderBlock(block);
+		const element = renderBlock(block, headingLevel + 1);
 		if (block.nodeName === 'section') {
 			const id = sectionId(expectedType, element.firstElementChild, usedIds);
 			element.id = id;
@@ -192,7 +192,7 @@ export function renderLegalDocument(xml, expectedType) {
 		const toc = document.createElement('nav');
 		toc.className = 'legal-toc';
 		toc.setAttribute('aria-label', `${title.textContent} 목차`);
-		const heading = document.createElement('h2');
+		const heading = document.createElement(`h${headingLevel + 1}`);
 		heading.textContent = '목차';
 		const list = document.createElement('ol');
 		for (const section of sections) {
