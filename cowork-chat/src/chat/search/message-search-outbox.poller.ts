@@ -9,14 +9,12 @@ import {ElasticsearchService} from '../../search/elasticsearch.service.js';
 import {
 	MessageSearchIndexRepository,
 	MessageSearchTombstoneRepository,
-	MessageSearchIndexStateRepository,
 } from '../repository/index.js';
 import {MessageSearchIndexService} from './message-search-index.service.js';
 
 const POLL_INTERVAL_MS = 3000;
 const MESSAGE_BATCH_SIZE = 50;
 const TOMBSTONE_BATCH_SIZE = 50;
-const LEGACY_BACKFILL_BATCH_SIZE = 500;
 /**
 한 틱에서 가득 찬 배치를 이어 가져올 수 있는 시간. 폴링 간격(3초)보다 짧아야 다음 틱과 겹치지 않는다.
 예산은 배치 사이에서만 확인하므로 마지막 배치는 예산을 조금 넘을 수 있다.
@@ -48,8 +46,6 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
 	private running = false;
 	private lastReclaimAt = 0;
 	private lastMetricsAt = 0;
-	private legacyBackfillDone = false;
-	private legacyBackfillStateChecked = false;
 
 	@inject()
 	private readonly elasticsearchService!: ElasticsearchService;
@@ -62,9 +58,6 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
 
 	@inject()
 	private readonly tombstoneRepository!: MessageSearchTombstoneRepository;
-
-	@inject()
-	private readonly stateRepository!: MessageSearchIndexStateRepository;
 
 	private async runCycle(): Promise<void> {
 		if (this.running) {
@@ -79,7 +72,6 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
 				return;
 			}
 
-			await this.backfillLegacyState();
 			// Tombstone 백로그가 예산을 모두 쓰면 메시지 색인이 틱당 한 배치로 줄어들므로, tombstone에는 절반만 준다.
 			const startedAt = Date.now();
 			await this.drainWhileFull(async () => this.drainTombstones(), TOMBSTONE_BATCH_SIZE, startedAt + (DRAIN_TIME_BUDGET_MS / 2));
@@ -133,41 +125,6 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
 		if (released > 0) {
 			this.logger.warn(`Released ${released} uncommitted message deletion(s) back to search indexing`);
 		}
-	}
-
-	/**
-     아웃박스 필드가 없는 레거시 메시지를 배치로 백필한다.
-
-     백필된 메시지는 일반 대기 항목이 되어 워커가 색인을 복원하므로, 이 서비스 도입 이전에
-     누락된 색인도 전체 재구축 없이 수렴한다.
-
-     `legacyBackfillDone`은 프로세스 메모리에만 있어 재기동하면 초기화된다. 매 기동 첫 호출에서
-     `MessageSearchIndexStateRepository`에 남긴 완료 기록을 한 번 읽어, 이미 끝난 백필이라면
-     `find({ searchIndexStatus: null })` 스캔을 다시 돌리지 않고 건너뛴다.
-     */
-	private async backfillLegacyState(): Promise<void> {
-		if (this.legacyBackfillDone) {
-			return;
-		}
-
-		if (!this.legacyBackfillStateChecked) {
-			this.legacyBackfillStateChecked = true;
-			const state = await this.stateRepository.get();
-			if (state?.legacyBackfillCompletedAt) {
-				this.legacyBackfillDone = true;
-				return;
-			}
-		}
-
-		const filled = await this.indexRepository.backfillLegacyState(LEGACY_BACKFILL_BATCH_SIZE);
-		if (filled > 0) {
-			this.logger.log(`Backfilled search index state for ${filled} legacy message(s)`);
-			return;
-		}
-
-		this.legacyBackfillDone = true;
-		await this.stateRepository.markLegacyBackfillCompleted();
-		this.logger.log('Legacy search index state backfill completed');
 	}
 
 	/**

@@ -9,7 +9,7 @@ export const MESSAGE_SEARCH_INDEX_STATE_ID = 'message-search-index';
 /**
  검색 색인 운영 상태.
 
- 마지막 전체 재구축 결과와 레거시 백필 완료 여부를 replica 간에 공유해,
+ 마지막 전체 재구축 결과를 replica 간에 공유해,
  지표 노출과 운영자 판단(재시도 또는 전체 재구축)의 근거로 사용한다.
  */
 @schema({timestamps: true, versionKey: false, collection: 'message_search_index_state'})
@@ -27,11 +27,6 @@ export class MessageSearchIndexState {
     재구축 snapshot scan이 마지막으로 처리한 `_id`. 중단 지점부터 재개할 때 사용한다.
     */
 	@prop({type: String, default: null}) lastRebuildScanCursor!: Nullable<string>;
-
-	/**
-    레거시 도큐먼트 백필이 끝난 시각. 완료 후에는 백필 스캔을 다시 돌리지 않는다.
-    */
-	@prop({type: Date, default: null}) legacyBackfillCompletedAt!: Nullable<Date>;
 
 	/**
      진행 중인 재구축의 replica 간 락. `rebuildLockedAt`이 최근이면 다른 replica의 `rebuild`가
