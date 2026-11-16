@@ -1,13 +1,13 @@
 package com.cowork.gateway.security.websocket
 
 import com.cowork.gateway.security.config.WsProperties
-import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ServerWebExchange
 import org.springframework.web.server.WebFilter
 import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
+import team.themoment.sdk.logging.logger.logger
 
 /**
  * `/ws` 하위 전체 핸드셰이크는 쿠키에 담긴 JWT로 인증되므로, 브라우저가 쿠키를 자동으로
@@ -20,14 +20,12 @@ import reactor.core.publisher.Mono
  */
 class WsOriginFilter(private val wsProperties: WsProperties) : WebFilter {
 
-    private val log = LoggerFactory.getLogger(WsOriginFilter::class.java)
-
     override fun filter(exchange: ServerWebExchange, chain: WebFilterChain): Mono<Void> {
         val origin = exchange.request.headers.getFirst(HttpHeaders.ORIGIN)
         if (origin != null) {
             val allowed = wsProperties.allowedOrigins
             if (!allowed.contains("*") && origin !in allowed) {
-                log.warn("Reject WS connection due to unauthorized origin {}", origin)
+                logger().warn("Reject WS connection due to unauthorized origin {}", origin)
                 exchange.response.statusCode = HttpStatus.FORBIDDEN
                 return exchange.response.setComplete()
             }

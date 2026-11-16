@@ -4,9 +4,9 @@ import com.cowork.team.domain.teamRole.operation.TeamRoleContractTopics
 import com.cowork.team.global.projection.ProjectionRecordProcessor
 import com.cowork.team.global.projection.ProjectionStreams
 import org.apache.kafka.clients.consumer.ConsumerRecord
-import org.slf4j.LoggerFactory
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
+import team.themoment.sdk.logging.logger.logger
 import tools.jackson.databind.ObjectMapper
 
 @Component
@@ -16,7 +16,6 @@ class PreferenceTeamRoleChangedConsumer(
     private val processor: ProjectionRecordProcessor,
     private val streams: ProjectionStreams,
 ) {
-    private val log = LoggerFactory.getLogger(PreferenceTeamRoleChangedConsumer::class.java)
 
     @KafkaListener(
         topics = [TeamRoleContractTopics.STATE],
@@ -86,7 +85,7 @@ class PreferenceTeamRoleChangedConsumer(
     }
 
     private fun quarantine(record: ConsumerRecord<String, String>, reason: String) {
-        log.warn(
+        logger().warn(
             "Quarantined preference team-role state record partition={} offset={} reason={}",
             record.partition(),
             record.offset(),

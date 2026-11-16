@@ -1,17 +1,16 @@
 package com.cowork.team.global.projection
 
 import org.apache.kafka.clients.consumer.ConsumerRecord
-import org.slf4j.LoggerFactory
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
+import team.themoment.sdk.logging.logger.logger
 
 @Repository
 class ProjectionCheckpointStore(
     private val jdbcTemplate: JdbcTemplate,
     private val topicIdentityProvider: ProjectionTopicIdentityProvider,
 ) {
-    private val log = LoggerFactory.getLogger(ProjectionCheckpointStore::class.java)
 
     @Transactional
     fun initializeAssignment(
@@ -53,7 +52,7 @@ class ProjectionCheckpointStore(
                 topicId,
             )
             if (decision.invalidCheckpointOffset != null) {
-                log.error(
+                logger().error(
                     "Kafka projection checkpoint 범위 불일치: 수동 projection 재구성이 필요합니다 " +
                         "[group={}, topic={}, partition={}, checkpoint={}, beginning={}, end={}]",
                     stream.consumerGroup,
@@ -65,7 +64,7 @@ class ProjectionCheckpointStore(
                 )
             }
             existing[range.partition]?.invalidRecordOffset?.let { invalidRecordOffset ->
-                log.error(
+                logger().error(
                     "Kafka projection invalid record latch가 설정되어 수동 projection 재구성이 필요합니다 " +
                         "[group={}, topic={}, partition={}, recordOffset={}]",
                     stream.consumerGroup,

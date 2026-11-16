@@ -1,7 +1,6 @@
 package com.cowork.gateway.security.filter
 
 import com.cowork.gateway.security.config.DevOriginProperties
-import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.cloud.gateway.config.GlobalCorsProperties
 import org.springframework.core.Ordered
@@ -13,6 +12,7 @@ import org.springframework.web.server.ServerWebExchange
 import org.springframework.web.server.WebFilter
 import org.springframework.web.server.WebFilterChain
 import reactor.core.publisher.Mono
+import team.themoment.sdk.logging.logger.logger
 import java.net.URI
 import java.net.URLDecoder
 import java.security.MessageDigest
@@ -29,7 +29,6 @@ class DevOriginCredentialFilter(
 ) : WebFilter,
     Ordered {
 
-    private val log = LoggerFactory.getLogger(DevOriginCredentialFilter::class.java)
     private val expected = properties.credential.toByteArray(Charsets.UTF_8)
 
     override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE + 1
@@ -44,7 +43,7 @@ class DevOriginCredentialFilter(
         ) {
             val provided = request.queryParams.getFirst(CREDENTIAL_QUERY)
             if (provided == null || !MessageDigest.isEqual(provided.toByteArray(Charsets.UTF_8), expected)) {
-                log.warn("Reject loopback origin request without a valid developer credential")
+                logger().warn("Reject loopback origin request without a valid developer credential")
                 exposeRejection(exchange, origin)
                 exchange.response.statusCode = HttpStatus.FORBIDDEN
                 return exchange.response.setComplete()

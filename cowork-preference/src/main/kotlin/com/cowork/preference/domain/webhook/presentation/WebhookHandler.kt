@@ -3,6 +3,7 @@ package com.cowork.preference.domain.webhook.presentation
 import com.cowork.preference.domain.access.presentation.authorizationStatus
 import com.cowork.preference.domain.webhook.exception.WebhookRequestException
 import com.cowork.preference.domain.webhook.service.WebhookService
+import com.cowork.preference.global.logging.logger
 import com.cowork.preference.global.security.RequesterContext
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.Router
@@ -11,10 +12,8 @@ import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import org.slf4j.LoggerFactory
 
 class WebhookHandler(private val service: WebhookService, private val scope: CoroutineScope) {
-    private val log = LoggerFactory.getLogger(WebhookHandler::class.java)
 
     fun routes(router: Router) {
         val collection = "/channels/:channelId/webhooks"
@@ -78,7 +77,11 @@ class WebhookHandler(private val service: WebhookService, private val scope: Cor
             } catch (error: Exception) {
                 val status = (error as? WebhookRequestException)?.status ?: authorizationStatus(error) ?: 500
                 val message = if (status == 500) "웹훅 요청을 처리할 수 없습니다." else error.message
-                if (status == 500) log.error("Failed to process webhook management request", error)
+                if (status ==
+                    500
+                ) {
+                    this@WebhookHandler.logger().error("Failed to process webhook management request", error)
+                }
                 val failure = error as? WebhookRequestException
                 failure?.retryAfter?.let { ctx.response().putHeader("Retry-After", it.toString()) }
                 val statusName = when (status) {

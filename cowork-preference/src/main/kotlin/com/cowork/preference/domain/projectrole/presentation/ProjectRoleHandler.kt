@@ -5,6 +5,7 @@ import com.cowork.preference.domain.access.presentation.authorizationStatus
 import com.cowork.preference.domain.access.service.ProjectAccessGuard
 import com.cowork.preference.domain.projectrole.service.ProjectRoleService
 import com.cowork.preference.global.coroutine.runCatchingCancellable
+import com.cowork.preference.global.logging.logger
 import com.cowork.preference.global.security.RequesterContext
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
@@ -12,14 +13,12 @@ import io.vertx.ext.web.RoutingContext
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import org.slf4j.LoggerFactory
 
 class ProjectRoleHandler(
     private val service: ProjectRoleService,
     private val scope: CoroutineScope,
     private val projectAccessGuard: ProjectAccessGuard,
 ) {
-    private val log = LoggerFactory.getLogger(ProjectRoleHandler::class.java)
 
     fun getRoles(ctx: RoutingContext) {
         val projectId = ctx.pathParam("projectId")?.toLongOrNull() ?: run {
@@ -205,7 +204,7 @@ class ProjectRoleHandler(
 
     private fun auditedAuthorizationStatus(failure: Throwable, requester: RequesterContext, projectId: Long): Int? =
         authorizationStatus(failure)?.also { status ->
-            auditAuthorizationFailure(log, status, requester.userId, "PROJECT_ROLE", projectId)
+            auditAuthorizationFailure(logger(), status, requester.userId, "PROJECT_ROLE", projectId)
         }
 
     private fun errorBody(message: String?) = JsonObject().put("error", message ?: "Internal server error").encode()

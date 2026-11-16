@@ -4,6 +4,7 @@ import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyC
 import com.cowork.preference.domain.channelrole.command.model.ChannelRolePolicyCommandEnvelope
 import com.cowork.preference.domain.channelrole.command.repository.ChannelRolePolicyCommandInboxRepository
 import com.cowork.preference.global.config.kafkaClientProperties
+import com.cowork.preference.global.logging.logger
 import com.cowork.preference.global.messaging.command.model.CommandDecision
 import com.cowork.preference.global.messaging.command.model.CommandQuarantineRecord
 import com.cowork.preference.global.messaging.event.PreferenceTopics
@@ -18,7 +19,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.slf4j.LoggerFactory
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -30,7 +30,6 @@ class ChannelRolePolicyCommandConsumer(
     private val inboxRepository: ChannelRolePolicyCommandInboxRepository,
     private val scope: CoroutineScope,
 ) {
-    private val log = LoggerFactory.getLogger(ChannelRolePolicyCommandConsumer::class.java)
     private var closed = false
     private val consumer = KafkaConsumer.create<String, String>(
         vertx,
@@ -46,7 +45,7 @@ class ChannelRolePolicyCommandConsumer(
     )
 
     fun start() {
-        consumer.exceptionHandler { log.error("Channel role policy command consumer failure", it) }
+        consumer.exceptionHandler { logger().error("Channel role policy command consumer failure", it) }
         consumer.batchHandler { records ->
             consumer.pause()
             scope.launch(vertx.dispatcher()) {
@@ -60,7 +59,7 @@ class ChannelRolePolicyCommandConsumer(
         }
         scope.launch(vertx.dispatcher()) {
             retry("subscribe") { consumer.subscribe(PreferenceTopics.CHANNEL_ROLE_POLICY_COMMAND_TOPIC).coAwait() }
-            log.info(
+            this@ChannelRolePolicyCommandConsumer.logger().info(
                 "Channel role policy command consumer subscribed topic={} group={}",
                 PreferenceTopics.CHANNEL_ROLE_POLICY_COMMAND_TOPIC,
                 groupId,
@@ -95,7 +94,7 @@ class ChannelRolePolicyCommandConsumer(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                log.error(
+                logger().error(
                     "Channel role policy command apply failed; retrying topic={} partition={} offset={}",
                     record.topic(),
                     record.partition(),
@@ -119,7 +118,7 @@ class ChannelRolePolicyCommandConsumer(
                     quarantineRecord(record, rejection.reason),
                     rejection.reason,
                 )
-                log.error(
+                logger().error(
                     "Rejected invalid channel role policy command topic={} partition={} offset={} reason={}",
                     record.topic(),
                     record.partition(),
@@ -130,7 +129,7 @@ class ChannelRolePolicyCommandConsumer(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                log.error(
+                logger().error(
                     "Channel role policy command rejection failed; retrying topic={} partition={} offset={}",
                     record.topic(),
                     record.partition(),
@@ -147,7 +146,7 @@ class ChannelRolePolicyCommandConsumer(
         while (!closed) {
             try {
                 inboxRepository.quarantine(quarantineRecord(record, reason))
-                log.error(
+                logger().error(
                     "Quarantined invalid channel role policy command topic={} partition={} offset={} reason={}",
                     record.topic(),
                     record.partition(),
@@ -158,7 +157,7 @@ class ChannelRolePolicyCommandConsumer(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                log.error(
+                logger().error(
                     "Channel role policy command quarantine failed; retrying topic={} partition={} offset={}",
                     record.topic(),
                     record.partition(),
@@ -190,7 +189,7 @@ class ChannelRolePolicyCommandConsumer(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                log.error("Channel role policy command consumer {} failed; retrying", operation, error)
+                logger().error("Channel role policy command consumer {} failed; retrying", operation, error)
                 delay(RETRY_DELAY)
             }
         }

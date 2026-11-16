@@ -1,6 +1,5 @@
 package com.cowork.channel.global.exception
 
-import org.slf4j.LoggerFactory
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MethodArgumentNotValidException
@@ -10,10 +9,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.multipart.MultipartException
 import team.themoment.sdk.exception.ExpectedException
+import team.themoment.sdk.logging.logger.logger
 
 @RestControllerAdvice
 class GlobalExceptionHandler {
-    private val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
 
     data class ErrorResponse(val message: String)
 
@@ -45,7 +44,7 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception::class)
     fun handleInternal(e: Exception): ResponseEntity<ErrorResponse> {
-        log.error("Caught unhandled exception", e)
+        logger().error("Caught unhandled exception", e)
         return ResponseEntity.internalServerError().body(ErrorResponse("서버 오류가 발생했습니다."))
     }
 }

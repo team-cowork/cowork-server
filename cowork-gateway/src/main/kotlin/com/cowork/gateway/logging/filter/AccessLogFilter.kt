@@ -2,7 +2,6 @@ package com.cowork.gateway.logging.filter
 
 import com.cowork.gateway.logging.config.SdkLoggingProperties
 import net.logstash.logback.argument.StructuredArguments.entries
-import org.slf4j.LoggerFactory
 import org.springframework.cloud.gateway.filter.GatewayFilterChain
 import org.springframework.cloud.gateway.filter.GlobalFilter
 import org.springframework.core.Ordered
@@ -10,6 +9,7 @@ import org.springframework.stereotype.Component
 import org.springframework.util.AntPathMatcher
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
+import team.themoment.sdk.logging.logger.logger
 import java.util.concurrent.TimeUnit
 
 @Component
@@ -17,7 +17,6 @@ class AccessLogFilter(private val sdkLoggingProperties: SdkLoggingProperties) :
     GlobalFilter,
     Ordered {
 
-    private val log = LoggerFactory.getLogger(AccessLogFilter::class.java)
     private val pathMatcher = AntPathMatcher()
 
     override fun getOrder(): Int = 0
@@ -34,7 +33,7 @@ class AccessLogFilter(private val sdkLoggingProperties: SdkLoggingProperties) :
 
             val status = exchange.response.statusCode?.value() ?: 0
             val duration = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start)
-            log.info(
+            logger().info(
                 "{}",
                 entries(
                     mapOf(
