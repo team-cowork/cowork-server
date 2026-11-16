@@ -327,7 +327,6 @@ export const messageSchema = SchemaFactory.createForClass(Message)
 	.index({notificationStatus: 1, createdAt: 1})
 	/**
 	 색인 아웃박스 워커가 처리 대기 항목을 시각 순으로 꺼내기 위한 복합 인덱스.
-	 필드가 없는 레거시 도큐먼트도 `searchIndexStatus: null`로 인덱싱되어 백필 대상이 된다.
 	 */
 	.index({searchIndexStatus: 1, searchIndexNextAttemptAt: 1})
 	/**
