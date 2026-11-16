@@ -17,23 +17,22 @@ function resolveGateway() {
 	}
 }
 
-export default async function legalDocument(request, response) {
-	response.setHeader('Cache-Control', 'no-store');
+export const config = {matcher: '/api/legal/:type'};
+
+export default async function middleware(request) {
+	const headers = {'Cache-Control': 'no-store'};
 	if (!['GET', 'HEAD'].includes(request.method)) {
-		response.writeHead(405, {Allow: 'GET, HEAD'}).end();
-		return;
+		return new Response(null, {status: 405, headers: {...headers, Allow: 'GET, HEAD'}});
 	}
 
 	const {pathname} = new URL(request.url ?? '/', 'http://localhost');
 	const type = pathname.match(/^\/api\/legal\/(?<type>[^\/]+)\/?$/v)?.groups.type;
 	if (!documentTypes.has(type)) {
-		response.writeHead(404).end();
-		return;
+		return new Response(null, {status: 404, headers});
 	}
 
 	if (!gateway) {
-		response.writeHead(503).end();
-		return;
+		return new Response(null, {status: 503, headers});
 	}
 
 	try {
@@ -45,25 +44,25 @@ export default async function legalDocument(request, response) {
 		const contentType = upstream.headers.get('content-type')?.split(';', 1)[0].trim().toLowerCase();
 		if (!upstream.ok || !['application/xml', 'text/xml'].includes(contentType)) {
 			await upstream.body?.cancel();
-			response.writeHead(502).end();
-			return;
+			return new Response(null, {status: 502, headers});
 		}
 
 		const xml = await upstream.text();
-		const headers = {
+		const responseHeaders = {
 			'Content-Type': 'application/xml; charset=utf-8',
 			'Cache-Control': upstream.headers.get('cache-control') ?? 'no-store',
 		};
 		for (const name of ['age', 'date']) {
 			const value = upstream.headers.get(name);
 			if (value !== null) {
-				headers[name] = value;
+				responseHeaders[name] = value;
 			}
 		}
 
-		response.writeHead(200, headers);
-		response.end(request.method === 'HEAD' ? undefined : xml);
+		return new Response(request.method === 'HEAD' ? null : xml, {
+			headers: responseHeaders,
+		});
 	} catch {
-		response.writeHead(502).end();
+		return new Response(null, {status: 502, headers});
 	}
 }
