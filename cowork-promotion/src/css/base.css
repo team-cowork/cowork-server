@@ -202,7 +202,8 @@ textarea::placeholder {
 button {
     cursor: pointer;
 }
-:disabled {
+:disabled,
+button[aria-disabled="true"] {
     cursor: default;
 }
 audio,

@@ -1,8 +1,8 @@
 package com.cowork.gateway.legal.document
 
 /**
- * The privacy policy and terms of service copy `cowork-promotion/src/html/{privacy,terms}.html`,
- * and the license copies the repository `LICENSE`. Update the copies in `resources/legal` when a source changes.
+ * The privacy policy and terms of service in `resources/legal` are the source of truth for clients.
+ * The license copies the repository `LICENSE`; update its resource when that source changes.
  */
 enum class LegalDocumentType(val slug: String) {
     LICENSE("license"),
