@@ -1,10 +1,11 @@
+import {Buffer} from 'node:buffer';
 import {createServer} from 'node:http';
 import path from 'node:path';
 import process from 'node:process';
 import {readFile, stat, watch} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import achievements from '../api/achievements.mjs';
-import legalDocument from '../api/legal/[type].mjs';
+import middleware from '../middleware.js';
 import {build} from './build.mjs';
 
 const projectDirectory = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
@@ -115,7 +116,9 @@ const server = createServer(async (request, response) => {
 		}
 
 		if (pathname.startsWith('/api/legal/')) {
-			await legalDocument(request, response);
+			const result = await middleware(request);
+			response.writeHead(result.status, Object.fromEntries(result.headers));
+			response.end(Buffer.from(await result.arrayBuffer()));
 			return;
 		}
 
