@@ -26,8 +26,8 @@ public class TeamMemberProjectionHandler {
     }
 
     private boolean isValid(TeamMemberEvent event) {
-        return event != null && event.teamId() != null && event.teamId() > 0 && event.userId() != null
-                && event.userId() > 0 && ROLES.contains(event.role()) && event.teamName() != null
-                && !event.teamName().isBlank() && event.occurredAt() != null;
+        return event != null && event.eventType() != null && event.teamId() != null && event.teamId() > 0
+                && event.userId() != null && event.userId() > 0 && event.role() != null && ROLES.contains(event.role())
+                && event.teamName() != null && !event.teamName().isBlank() && event.occurredAt() != null;
     }
 }
