@@ -62,10 +62,14 @@ export function renderAchievementsPage({template, achievements, styles, script, 
 	);
 }
 
-export function renderLegalPage({template, metadata, styles, logoUrl, socialImageUrl, siteUrl}) {
+export function renderLegalPage({template, type, language = 'ko', metadata, styles, script, logoUrl, socialImageUrl, siteUrl}) {
+	const html = template
+		.replaceAll('{{legal:type}}', () => escapeHtml(type))
+		.replaceAll('{{legal:language}}', () => escapeHtml(language))
+		.replaceAll('{{legal:title}}', () => escapeHtml(metadata.title.split(' | ', 1)[0]));
 	return renderPageMetadata(
 		bundlePage({
-			html: template, styles, stateData: '', logoUrl,
+			html, styles, script, stateData: '', logoUrl,
 		}),
 		{...metadata, type: 'website'},
 		{siteUrl, socialImageUrl},

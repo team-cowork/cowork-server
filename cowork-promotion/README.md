@@ -13,6 +13,7 @@ cowork 제품을 소개하는 웹사이트입니다.
 - YAML·XML·JSON 빌드 데이터
 - 정적 HTML, 해시 기반 CSS·JS 에셋 / Vercel
 - GitHub 성과 자동 갱신 / Vercel Node.js Function
+- Gateway XML 문서 조회 / Vercel Node.js Function·브라우저 XML 파싱
 
 ## 환경변수
 
@@ -20,3 +21,4 @@ cowork 제품을 소개하는 웹사이트입니다.
 |----------------|-------------------------------------------------------------------------------------------------------------|
 | `SITE_URL`     | 선택. 빌드 시 canonical·`og:url`에 사용할 HTTP(S) origin. 지정하면 Vercel 값보다 우선                       |
 | `GITHUB_TOKEN` | 서버 전용 GitHub 읽기 토큰. 미설정 시 성과 API 초기화와 로컬 서버 실행이 실패합니다. Vercel 환경변수로 설정 |
+| `PUBLIC_API_BASE_URL` | 문서 조회용 Gateway HTTP(S) origin. 런타임 필수 |

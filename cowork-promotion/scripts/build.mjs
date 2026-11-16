@@ -89,6 +89,8 @@ export async function build(options = {}) {
 		siteUrl: config.siteUrl,
 	});
 	const legalPageOptions = {
+		template: input.legalTemplate,
+		script: assets.add('legal', 'js', input.legalScriptBundle),
 		styles: [
 			sharedStyleUrl,
 			addStylesheet(assets, 'legal', stylesheetPaths.legal, input.stylesheetSources.legal),
@@ -99,7 +101,7 @@ export async function build(options = {}) {
 	};
 	const privacyHtml = renderLegalPage({
 		...legalPageOptions,
-		template: input.privacyTemplate,
+		type: 'privacy-policy',
 		metadata: {
 			title: '개인정보처리방침 | cowork',
 			description: 'team.cowork의 개인정보 처리 목적과 항목, 이용자의 권리 및 문의 방법을 안내합니다.',
@@ -108,7 +110,7 @@ export async function build(options = {}) {
 	});
 	const termsHtml = renderLegalPage({
 		...legalPageOptions,
-		template: input.termsTemplate,
+		type: 'terms-of-service',
 		metadata: {
 			title: '서비스 이용약관 | cowork',
 			description: 'cowork 서비스 이용에 관한 이용자와 team.cowork의 권리, 의무 및 이용 조건을 안내합니다.',
@@ -117,7 +119,8 @@ export async function build(options = {}) {
 	});
 	const licenseHtml = renderLegalPage({
 		...legalPageOptions,
-		template: input.licenseTemplate,
+		type: 'license',
+		language: 'en',
 		metadata: {
 			title: '라이선스 | cowork',
 			description: 'cowork-server의 MIT 라이선스 원문과 저작권 고지를 안내합니다.',
