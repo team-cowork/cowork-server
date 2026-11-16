@@ -4,12 +4,12 @@ import com.cowork.team.global.outbox.delivery.TeamKafkaSender
 import com.cowork.team.global.outbox.delivery.TeamOutboxStore
 import io.micrometer.core.instrument.MeterRegistry
 import jakarta.annotation.PreDestroy
-import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import team.themoment.sdk.logging.logger.logger
 import tools.jackson.databind.ObjectMapper
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
@@ -49,7 +49,6 @@ class KafkaOutboxRelay(
     @Value($$"${kafka.outbox.backoff-max-ms:600000}") backoffMaxMs: Long,
 ) {
     private val serviceName = "cowork-team"
-    private val logger = LoggerFactory.getLogger(javaClass)
     private val claimOwner = "$serviceName:${UUID.randomUUID()}"
     private val running = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)
@@ -90,7 +89,7 @@ class KafkaOutboxRelay(
                 processed++
             }
         } catch (exception: Exception) {
-            logger.warn("Failed to run Kafka outbox relay for {}", serviceName, exception)
+            logger().warn("Failed to run Kafka outbox relay for {}", serviceName, exception)
         } finally {
             if (closed.get()) {
                 store.releaseOwnedClaims()

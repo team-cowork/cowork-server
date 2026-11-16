@@ -3,9 +3,9 @@ package com.cowork.team.global.consumer
 import com.cowork.team.global.projection.ProjectionRecordProcessor
 import com.cowork.team.global.projection.ProjectionStreams
 import org.apache.kafka.clients.consumer.ConsumerRecord
-import org.slf4j.LoggerFactory
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
+import team.themoment.sdk.logging.logger.logger
 import tools.jackson.databind.ObjectMapper
 
 @Component
@@ -15,7 +15,6 @@ class PreferenceTeamSettingConsumer(
     private val processor: ProjectionRecordProcessor,
     private val streams: ProjectionStreams,
 ) {
-    private val log = LoggerFactory.getLogger(PreferenceTeamSettingConsumer::class.java)
 
     @KafkaListener(
         topics = [Topics.PREFERENCE_TEAM_SETTING_STATE],
@@ -46,7 +45,7 @@ class PreferenceTeamSettingConsumer(
     }
 
     private fun quarantine(record: ConsumerRecord<String, String>, reason: String) {
-        log.warn(
+        logger().warn(
             "Quarantined preference team-setting state record partition={} offset={} reason={}",
             record.partition(),
             record.offset(),

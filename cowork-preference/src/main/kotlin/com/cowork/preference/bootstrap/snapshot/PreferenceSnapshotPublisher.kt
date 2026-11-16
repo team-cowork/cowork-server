@@ -15,6 +15,7 @@ import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
 import com.cowork.preference.domain.webhook.event.WebhookEvents
 import com.cowork.preference.domain.webhook.repository.WebhookRepository
 import com.cowork.preference.global.coroutine.runCatchingCancellable
+import com.cowork.preference.global.logging.logger
 import com.cowork.preference.global.messaging.event.PreferenceEvent
 import com.cowork.preference.global.messaging.event.PreferenceTopics
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
@@ -22,7 +23,6 @@ import com.cowork.preference.global.projection.broker.ProjectionTopicIdentityPro
 import com.cowork.preference.global.projection.readiness.ProjectionReadinessView
 import com.cowork.preference.global.projection.snapshot.ProjectionSnapshotCompletionEvents
 import io.vertx.sqlclient.SqlConnection
-import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -41,7 +41,6 @@ class PreferenceSnapshotPublisher(
     private val webhookRepository: WebhookRepository? = null,
     private val webhookReadiness: ProjectionReadinessView? = null,
 ) {
-    private val log = LoggerFactory.getLogger(PreferenceSnapshotPublisher::class.java)
 
     /** team.member.event만 변경할 수 있는 aggregate이므로 채널 projection readiness를 기다리지 않는다. */
     suspend fun publishTeamStateIfLeader(): Boolean = publishIfLeader(
@@ -134,7 +133,7 @@ class PreferenceSnapshotPublisher(
         publishStates: suspend (SqlConnection) -> String,
     ): Boolean {
         if (upstreamReadiness?.isReady == false) {
-            log.info("Deferred {} projection snapshot until upstream projections are ready", aggregate)
+            logger().info("Deferred {} projection snapshot until upstream projections are ready", aggregate)
             return false
         }
         return runCatchingCancellable {
@@ -144,10 +143,10 @@ class PreferenceSnapshotPublisher(
                     "upstream projection became unavailable during $aggregate snapshot"
                 }
                 publishCompletionMarkers(connection, topics)
-                log.info("Published {} projection snapshot {}", aggregate, counts)
+                logger().info("Published {} projection snapshot {}", aggregate, counts)
             }
         }.onFailure {
-            log.error("Failed {} projection snapshot; next scheduled run will retry", aggregate, it)
+            logger().error("Failed {} projection snapshot; next scheduled run will retry", aggregate, it)
         }.getOrDefault(false)
     }
 

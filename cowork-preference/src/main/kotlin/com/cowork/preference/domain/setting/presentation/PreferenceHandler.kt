@@ -13,13 +13,13 @@ import com.cowork.preference.domain.setting.model.ResourceType
 import com.cowork.preference.domain.setting.model.SettingSchema
 import com.cowork.preference.domain.setting.service.PreferenceService
 import com.cowork.preference.global.coroutine.runCatchingCancellable
+import com.cowork.preference.global.logging.logger
 import com.cowork.preference.global.security.RequesterContext
 import io.vertx.core.json.JsonObject
 import io.vertx.ext.web.RoutingContext
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import org.slf4j.LoggerFactory
 
 class PreferenceHandler(
     private val service: PreferenceService,
@@ -28,7 +28,6 @@ class PreferenceHandler(
     private val projectAccessGuard: ProjectAccessGuard,
     private val channelAccessGuard: ChannelAccessGuard,
 ) {
-    private val log = LoggerFactory.getLogger(PreferenceHandler::class.java)
 
     fun getSettingDefinitions(ctx: RoutingContext) {
         if (RequesterContext.from(ctx) == null) {
@@ -156,7 +155,7 @@ class PreferenceHandler(
     ) {
         val authorizationStatus = authorizationStatus(e)
         if (authorizationStatus != null) {
-            auditAuthorizationFailure(log, authorizationStatus, requester.userId, resourceType.name, resourceId)
+            auditAuthorizationFailure(logger(), authorizationStatus, requester.userId, resourceType.name, resourceId)
         }
         ctx.response().setStatusCode(authorizationStatus ?: fallbackStatus).end(errorBody(e.message))
     }

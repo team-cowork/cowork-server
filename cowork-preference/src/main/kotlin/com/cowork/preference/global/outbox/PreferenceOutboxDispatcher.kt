@@ -1,12 +1,12 @@
 package com.cowork.preference.global.outbox
 
+import com.cowork.preference.global.logging.logger
 import com.cowork.preference.global.messaging.producer.PreferenceProducer
 import io.vertx.core.Vertx
 import io.vertx.kotlin.coroutines.dispatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
-import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicBoolean
@@ -17,7 +17,6 @@ class PreferenceOutboxDispatcher(
     private val producer: PreferenceProducer,
     private val scope: CoroutineScope,
 ) {
-    private val log = LoggerFactory.getLogger(PreferenceOutboxDispatcher::class.java)
     private val dispatchInProgress = AtomicBoolean(false)
     private val cleanupInProgress = AtomicBoolean(false)
     private var dispatchTimerId: Long? = null
@@ -45,7 +44,10 @@ class PreferenceOutboxDispatcher(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                log.error("Preference outbox dispatch failed; oldest record will be retried", error)
+                this@PreferenceOutboxDispatcher.logger().error(
+                    "Preference outbox dispatch failed; oldest record will be retried",
+                    error,
+                )
             } finally {
                 dispatchInProgress.set(false)
             }
@@ -70,11 +72,19 @@ class PreferenceOutboxDispatcher(
         scope.launch(vertx.dispatcher()) {
             try {
                 val deleted = repository.deletePublishedBefore(Instant.now().minus(PUBLISHED_RETENTION))
-                if (deleted > 0) log.info("Deleted {} published preference outbox records", deleted)
+                if (deleted > 0) {
+                    this@PreferenceOutboxDispatcher.logger().info(
+                        "Deleted {} published preference outbox records",
+                        deleted,
+                    )
+                }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                log.warn("Preference outbox cleanup failed; next scheduled run will retry", error)
+                this@PreferenceOutboxDispatcher.logger().warn(
+                    "Preference outbox cleanup failed; next scheduled run will retry",
+                    error,
+                )
             } finally {
                 cleanupInProgress.set(false)
             }

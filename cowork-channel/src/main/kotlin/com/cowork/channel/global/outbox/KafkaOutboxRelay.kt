@@ -5,11 +5,11 @@ import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Timer
 import jakarta.annotation.PreDestroy
-import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import team.themoment.sdk.logging.logger.logger
 import tools.jackson.databind.ObjectMapper
 import java.sql.Connection
 import java.sql.ResultSet
@@ -64,7 +64,6 @@ class KafkaOutboxRelay(
         backoffInitialMs = backoffInitialMs,
         backoffMaxMs = backoffMaxMs,
     )
-    private val logger = LoggerFactory.getLogger(javaClass)
     private val claimOwner = "$serviceName:${UUID.randomUUID()}"
     private val running = AtomicBoolean(false)
     private val closed = AtomicBoolean(false)
@@ -133,7 +132,7 @@ class KafkaOutboxRelay(
                 processed++
             }
         } catch (exception: Exception) {
-            logger.warn("Failed to run Kafka outbox relay for {}", serviceName, exception)
+            logger().warn("Failed to run Kafka outbox relay for {}", serviceName, exception)
         } finally {
             if (closed.get()) {
                 releaseOwnedClaims()
@@ -244,7 +243,7 @@ class KafkaOutboxRelay(
                 if (statement.executeUpdate() == 1) {
                     publishedCounter.increment()
                 } else {
-                    logger.warn("Skipped stale Kafka outbox success for row {}", record.id)
+                    logger().warn("Skipped stale Kafka outbox success for row {}", record.id)
                 }
             }
         }
@@ -276,7 +275,7 @@ class KafkaOutboxRelay(
             }
 
         if (!updated) {
-            logger.warn("Skipped stale Kafka outbox failure for row {}", record.id)
+            logger().warn("Skipped stale Kafka outbox failure for row {}", record.id)
             return
         }
         meterRegistry.counter(
@@ -286,7 +285,7 @@ class KafkaOutboxRelay(
         ).increment()
         if (quarantine) {
             quarantinedCounter.increment()
-            logger.warn(
+            logger().warn(
                 "Quarantined Kafka outbox row {} after {} attempt(s), failureType={}",
                 record.id,
                 attempts,
@@ -298,7 +297,7 @@ class KafkaOutboxRelay(
                 "failure_type",
                 failureType.metricTag,
             ).increment()
-            logger.warn(
+            logger().warn(
                 "Scheduled Kafka outbox row {} retry after attempt {}, failureType={}",
                 record.id,
                 attempts,
@@ -326,7 +325,7 @@ class KafkaOutboxRelay(
                 }
             }
         }.onFailure { exception ->
-            logger.warn("Failed to release Kafka outbox claims for {}", serviceName, exception)
+            logger().warn("Failed to release Kafka outbox claims for {}", serviceName, exception)
         }
     }
 
@@ -345,7 +344,7 @@ class KafkaOutboxRelay(
             }
         }.onFailure { exception ->
             observationSuccessGauge.set(0)
-            logger.warn("Failed to observe Kafka outbox backlog for {}", serviceName, exception)
+            logger().warn("Failed to observe Kafka outbox backlog for {}", serviceName, exception)
         }
     }
 
