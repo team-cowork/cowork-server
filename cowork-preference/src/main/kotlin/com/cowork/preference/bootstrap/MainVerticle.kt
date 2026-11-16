@@ -47,6 +47,7 @@ import com.cowork.preference.domain.webhook.service.WebhookService
 import com.cowork.preference.global.config.AppConfig
 import com.cowork.preference.global.config.kafkaClientProperties
 import com.cowork.preference.global.coroutine.runCatchingCancellable
+import com.cowork.preference.global.logging.logger
 import com.cowork.preference.global.messaging.producer.PreferenceProducer
 import com.cowork.preference.global.metrics.MetricsRegistry
 import com.cowork.preference.global.outbox.PreferenceOutboxDispatcher
@@ -72,7 +73,6 @@ import kotlinx.coroutines.CompletableJob
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicBoolean
 
 class MainVerticle : AbstractVerticle() {
@@ -86,7 +86,6 @@ class MainVerticle : AbstractVerticle() {
         private const val PROJECT_SNAPSHOT_SOURCE = "cowork-project"
     }
 
-    private val log = LoggerFactory.getLogger(MainVerticle::class.java)
     private lateinit var scopeJob: CompletableJob
     private lateinit var scope: CoroutineScope
     private lateinit var preferenceCache: PreferenceCache
@@ -375,7 +374,7 @@ class MainVerticle : AbstractVerticle() {
             .requestHandler(router)
             .listen(appConfig.serverPort).onComplete { result ->
                 if (result.succeeded()) {
-                    log.info("cowork-preference listening on port {}", appConfig.serverPort)
+                    logger().info("cowork-preference listening on port {}", appConfig.serverPort)
                     startPromise.complete()
                 } else {
                     startPromise.fail(result.cause())
@@ -391,7 +390,9 @@ class MainVerticle : AbstractVerticle() {
         vertx.setPeriodic(60_000L) {
             scope.launch(vertx.dispatcher()) {
                 runCatchingCancellable { webhookService.clearExpiredReplaySecrets() }
-                    .onFailure { log.error("Failed to clear expired webhook response secrets", it) }
+                    .onFailure {
+                        this@MainVerticle.logger().error("Failed to clear expired webhook response secrets", it)
+                    }
                 checkExpiredStatuses(prefService, cache)
             }
         }
@@ -434,9 +435,9 @@ class MainVerticle : AbstractVerticle() {
         if (!cache.acquireExpiryLock()) return
         runCatchingCancellable {
             prefService.clearExpiredStatuses().forEach { accountId ->
-                log.info("Status expired for accountId={}", accountId)
+                logger().info("Status expired for accountId={}", accountId)
             }
-        }.onFailure { log.error("Error checking expired statuses", it) }
+        }.onFailure { logger().error("Error checking expired statuses", it) }
     }
 
     private fun buildPgPool(config: AppConfig): Pool {

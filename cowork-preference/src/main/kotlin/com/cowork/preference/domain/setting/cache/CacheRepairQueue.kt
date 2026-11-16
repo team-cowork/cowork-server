@@ -1,9 +1,9 @@
 package com.cowork.preference.domain.setting.cache
 
+import com.cowork.preference.global.logging.logger
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Timer
-import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
@@ -20,7 +20,6 @@ private const val MAX_BACKOFF_SHIFT = 5
  */
 internal class CacheRepairQueue(private val ttl: Duration, meterRegistry: MeterRegistry) {
 
-    private val log = LoggerFactory.getLogger(CacheRepairQueue::class.java)
     private val pending = ConcurrentHashMap<String, PendingRepair>()
     private val outcomeCounters = RepairOutcome.entries.associateWith { outcome ->
         Counter.builder("preference.cache.repairs")
@@ -41,7 +40,7 @@ internal class CacheRepairQueue(private val ttl: Duration, meterRegistry: MeterR
         val now = Instant.now()
         if (!pending.containsKey(key) && pending.size >= MAX_PENDING_REPAIRS) {
             outcomeCounters.getValue(RepairOutcome.DROPPED).increment()
-            log.warn("Dropped preference cache repair because the queue is full key={}", key)
+            logger().warn("Dropped preference cache repair because the queue is full key={}", key)
             return
         }
         pending.merge(key, firstRepair(now, settings)) { current, _ ->

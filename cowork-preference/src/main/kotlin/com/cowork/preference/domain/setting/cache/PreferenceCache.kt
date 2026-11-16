@@ -1,6 +1,7 @@
 package com.cowork.preference.domain.setting.cache
 
 import com.cowork.preference.domain.setting.model.ResourceType
+import com.cowork.preference.global.logging.logger
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.MeterRegistry
 import io.vertx.core.json.JsonObject
@@ -12,7 +13,6 @@ import io.vertx.redis.client.Request
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withTimeout
-import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
@@ -53,7 +53,6 @@ return 1
  */
 class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
 
-    private val log = LoggerFactory.getLogger(PreferenceCache::class.java)
     private val redisApi = RedisAPI.api(redis)
     private val repairQueue = CacheRepairQueue(Duration.ofSeconds(TTL_SECONDS), meterRegistry)
     private val circuitBreaker = CacheCircuitBreaker(meterRegistry)
@@ -136,7 +135,7 @@ class PreferenceCache(private val redis: Redis, meterRegistry: MeterRegistry) {
 
     private fun recordFailure(operation: CacheOperation, target: String, error: Exception): Exception {
         failureCounters.getValue(operation).increment()
-        log.warn("Failed to {} preference cache key={}: {}", operation.tag, target, error.toString())
+        logger().warn("Failed to {} preference cache key={}: {}", operation.tag, target, error.toString())
         circuitBreaker.recordFailure()
         return error
     }

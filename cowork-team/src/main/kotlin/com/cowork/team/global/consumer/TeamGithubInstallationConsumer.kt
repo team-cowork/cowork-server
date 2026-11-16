@@ -5,11 +5,11 @@ import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.repository.TeamGithubInstallationRevisionRepository
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.support.TeamGithubStateSupport
-import org.slf4j.LoggerFactory
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
+import team.themoment.sdk.logging.logger.logger
 
 @Component
 class TeamGithubInstallationConsumer(
@@ -18,7 +18,6 @@ class TeamGithubInstallationConsumer(
     private val teamEventPublisher: TeamEventPublisher,
     private val teamGithubInstallationRevisionRepository: TeamGithubInstallationRevisionRepository,
 ) {
-    private val log = LoggerFactory.getLogger(TeamGithubInstallationConsumer::class.java)
 
     @KafkaListener(
         topics = [Topics.TEAM_GITHUB_CONNECTED],
@@ -32,14 +31,14 @@ class TeamGithubInstallationConsumer(
         val (teamId, actorUserId) = try {
             teamGithubStateSupport.verifyState(payload.state)
         } catch (e: ExpectedException) {
-            log.warn("team.github.connected state 검증 실패로 이벤트를 무시합니다: {}", e.message)
+            logger().warn("team.github.connected state 검증 실패로 이벤트를 무시합니다: {}", e.message)
             return
         }
         // 이미 다른 팀이 연결해둔 installation이면 탈취를 막기 위해 무시한다.
         val ownedByOtherTeam = teamRepository.findByGithubInstallationId(payload.installationId)
             ?.takeIf { it.id != teamId }
         if (ownedByOtherTeam != null) {
-            log.warn(
+            logger().warn(
                 "installation {}는 이미 다른 팀(teamId={})에 연결되어 있어 teamId={} 연결을 무시합니다",
                 payload.installationId,
                 ownedByOtherTeam.id,
@@ -49,14 +48,14 @@ class TeamGithubInstallationConsumer(
         }
 
         val team = teamRepository.findByIdForUpdate(teamId) ?: run {
-            log.warn("team.github.connected: team {} 없음", teamId)
+            logger().warn("team.github.connected: team {} 없음", teamId)
             return
         }
 
         // 이미 다른 installation이 연결된 팀이면, 명시적 해제 없이 조용히 교체되지 않도록 거부한다.
         val currentInstallationId = team.githubInstallationId
         if (currentInstallationId != null && currentInstallationId != payload.installationId) {
-            log.warn(
+            logger().warn(
                 "team {}는 이미 installation {}에 연결되어 있어 installation {} 연결 요청을 무시합니다. " +
                     "먼저 연결 해제가 필요합니다.",
                 teamId,
@@ -82,7 +81,7 @@ class TeamGithubInstallationConsumer(
     fun consumeRenamed(payload: TeamGithubRenamedPayload) {
         // 빈 orgLogin을 저장하면 team.lifecycle을 받는 서비스가 그 이벤트를 격리한다.
         if (payload.orgLogin.isBlank()) {
-            log.warn("team.github.renamed: installation {} 의 orgLogin이 비어 있어 무시합니다", payload.installationId)
+            logger().warn("team.github.renamed: installation {} 의 orgLogin이 비어 있어 무시합니다", payload.installationId)
             return
         }
         // renamed는 이미 연결된 팀의 이름만 바꾼다. 연결된 팀이 없을 때 원장을 올리면 같은 revision 카운터를 쓰는
@@ -129,7 +128,7 @@ class TeamGithubInstallationConsumer(
         val ledger = findOrCreateLedger(installationId)
 
         if (revision <= ledger.revision) {
-            log.warn(
+            logger().warn(
                 "{}: installation {} 의 revision {} 이(가) 이미 반영된 {} 보다 낮거나 같아 무시합니다",
                 eventType,
                 installationId,

@@ -2,7 +2,6 @@ package com.cowork.gateway.deployment
 
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
-import org.slf4j.LoggerFactory
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.health.contributor.Health
 import org.springframework.boot.health.contributor.ReactiveHealthIndicator
@@ -12,6 +11,7 @@ import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import reactor.core.publisher.Mono
+import team.themoment.sdk.logging.logger.logger
 import tools.jackson.databind.ObjectMapper
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicBoolean
@@ -29,7 +29,6 @@ class DeploymentStateCache(
     private val meterRegistry: MeterRegistry,
     properties: DeploymentProperties,
 ) {
-    private val logger = LoggerFactory.getLogger(javaClass)
     private val confirmed = AtomicReference<Map<String, DeploymentState>?>(null)
     private val failing = AtomicBoolean(false)
 
@@ -76,12 +75,12 @@ class DeploymentStateCache(
             }.toMap()
             confirmed.set(states)
             failure?.let { throw it }
-            if (failing.getAndSet(false)) logger.info("Recovered deployment state refresh")
+            if (failing.getAndSet(false)) logger().info("Recovered deployment state refresh")
         } catch (error: Exception) {
             // Keep the last confirmed state for entries that could not be refreshed.
             meterRegistry.counter("gateway.deployment.state.refresh.failures").increment()
             if (!failing.getAndSet(true)) {
-                logger.warn("Failed to refresh deployment state: {}", error.javaClass.simpleName)
+                logger().warn("Failed to refresh deployment state: {}", error.javaClass.simpleName)
             }
         }
     }

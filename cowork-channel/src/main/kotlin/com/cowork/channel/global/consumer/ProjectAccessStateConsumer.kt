@@ -6,9 +6,9 @@ import com.cowork.channel.global.projection.ProjectionRecordProcessor
 import com.cowork.channel.global.projection.ProjectionStreams
 import com.cowork.channel.global.projection.toProjectionPrecision
 import org.apache.kafka.clients.consumer.ConsumerRecord
-import org.slf4j.LoggerFactory
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
+import team.themoment.sdk.logging.logger.logger
 import tools.jackson.databind.JsonNode
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
@@ -20,7 +20,6 @@ class ProjectAccessStateConsumer(
     private val streams: ProjectionStreams,
     private val objectMapper: ObjectMapper,
 ) {
-    private val log = LoggerFactory.getLogger(ProjectAccessStateConsumer::class.java)
 
     @KafkaListener(
         topics = [Topics.PREFERENCE_PROJECT_ACCESS_STATE],
@@ -31,7 +30,7 @@ class ProjectAccessStateConsumer(
         val stream = streams.projectAccess
         if (processor.processControlRecord(stream, record)) return
         val event = runCatching { parse(record) }.getOrElse {
-            log.warn(
+            logger().warn(
                 "Quarantine invalid project access state [partition={}, offset={}, reason={}]",
                 record.partition(),
                 record.offset(),

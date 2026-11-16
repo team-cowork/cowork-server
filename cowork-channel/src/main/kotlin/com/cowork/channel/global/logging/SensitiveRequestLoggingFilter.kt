@@ -3,10 +3,10 @@ package com.cowork.channel.global.logging
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import org.springframework.util.AntPathMatcher
 import org.springframework.web.filter.OncePerRequestFilter
+import team.themoment.sdk.logging.logger.logger
 
 /**
  * the-sdk 로깅은 query·cookie·body를 그대로 남기므로 credential과 OAuth code가 오가는 경로는
@@ -14,7 +14,6 @@ import org.springframework.web.filter.OncePerRequestFilter
  */
 @Component
 class SensitiveRequestLoggingFilter : OncePerRequestFilter() {
-    private val log = LoggerFactory.getLogger(javaClass)
     private val pathMatcher = AntPathMatcher()
 
     override fun shouldNotFilter(request: HttpServletRequest): Boolean =
@@ -29,7 +28,7 @@ class SensitiveRequestLoggingFilter : OncePerRequestFilter() {
         try {
             filterChain.doFilter(request, response)
         } finally {
-            log.info(
+            logger().info(
                 "Handle request without query and body [method={}, uri={}, status={}, elapsedMs={}]",
                 request.method,
                 request.requestURI,

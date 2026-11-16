@@ -1,6 +1,7 @@
 package com.cowork.preference.global.projection.consumer
 
 import com.cowork.preference.global.config.kafkaClientProperties
+import com.cowork.preference.global.logging.logger
 import com.cowork.preference.global.projection.broker.ProjectionTopicIdentityProvider
 import com.cowork.preference.global.projection.broker.ProjectionTopicState
 import com.cowork.preference.global.projection.checkpoint.ProjectionCheckpoint
@@ -30,7 +31,6 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -47,7 +47,6 @@ class ProjectionStateConsumer(
     private val readiness: ProjectionReadiness,
     scope: CoroutineScope,
 ) {
-    private val log = LoggerFactory.getLogger(ProjectionStateConsumer::class.java)
     private val consumerJob = Job(scope.coroutineContext[Job])
     private val consumerScope = CoroutineScope(scope.coroutineContext + consumerJob + vertx.dispatcher())
     private val closePromise = Promise.promise<Void>()
@@ -91,7 +90,7 @@ class ProjectionStateConsumer(
         consumer.exceptionHandler { error ->
             if (closed || !consumerJob.isActive) return@exceptionHandler
             readiness.markUnavailable("$topic consumer failure")
-            log.error("Kafka projection consumer failed topic={}", topic, error)
+            logger().error("Kafka projection consumer failed topic={}", topic, error)
         }
         consumer.partitionsRevokedHandler { partitions ->
             if (closed || !consumerJob.isActive) return@partitionsRevokedHandler
@@ -101,7 +100,7 @@ class ProjectionStateConsumer(
             readiness.markInitializing("Kafka partition rebalance in progress")
             // Keep polling for reassignment while record application remains blocked.
             consumer.resume()
-            log.info("Kafka projection partitions revoked topic={} partitions={}", topic, partitions)
+            logger().info("Kafka projection partitions revoked topic={} partitions={}", topic, partitions)
         }
         consumer.partitionsAssignedHandler(::initializeAssignedPartitions)
         consumer.batchHandler { records ->
@@ -147,7 +146,7 @@ class ProjectionStateConsumer(
         retry("subscribe $topic consumer") {
             awaitConsumerOperation { consumer.subscribe(topic) }
         }
-        log.info("Kafka projection consumer subscribed topic={} group={}", topic, groupId)
+        logger().info("Kafka projection consumer subscribed topic={} group={}", topic, groupId)
     }
 
     private fun initializeAssignedPartitions(partitions: Set<TopicPartition>) {
@@ -199,7 +198,7 @@ class ProjectionStateConsumer(
             partitions.sortedBy(TopicPartition::getPartition).forEach { partition ->
                 val seekOffset = requireNotNull(result.seekOffsets[partition.partition])
                 awaitConsumerOperation { consumer.seek(partition, seekOffset) }
-                log.info(
+                logger().info(
                     "Kafka projection partition initialized topic={} partition={} checkpoint={} topicId={}",
                     topic,
                     partition.partition,
@@ -260,7 +259,7 @@ class ProjectionStateConsumer(
                 if (checkpointRangeBlocked.get()) return
                 applyBlocked.set(true)
                 readiness.markUnavailable("$topic projection apply failed")
-                log.error(
+                logger().error(
                     "Failed to apply Kafka projection record; retrying topic={} partition={} offset={}",
                     record.topic(),
                     record.partition(),
@@ -313,7 +312,7 @@ class ProjectionStateConsumer(
         checkpointRangeBlocked.set(true)
         readiness.markUnavailable("$topic invalid projection record requires manual rebuild")
         pauseAssignedPartitions()
-        log.error(
+        logger().error(
             "Quarantined invalid projection record topic={} partition={} offset={} reason={}",
             record.topic(),
             record.partition(),
@@ -345,7 +344,7 @@ class ProjectionStateConsumer(
             if (error is CancellationException) throw error
             currentCoroutineContext().ensureActive()
             readiness.markUnavailable("projection readiness verification failed")
-            log.warn("Unable to verify Kafka projection readiness topic={}", topic, error)
+            logger().warn("Unable to verify Kafka projection readiness topic={}", topic, error)
         }
     }
 
@@ -431,7 +430,7 @@ class ProjectionStateConsumer(
                 throw error
             } catch (error: Throwable) {
                 currentCoroutineContext().ensureActive()
-                log.error("Failed to {}; retrying", operation, error)
+                logger().error("Failed to {}; retrying", operation, error)
                 delay(RETRY_DELAY)
             }
         }

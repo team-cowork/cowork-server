@@ -5,9 +5,9 @@ import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyP
 import com.cowork.channel.global.projection.ProjectionRecordProcessor
 import com.cowork.channel.global.projection.ProjectionStreams
 import org.apache.kafka.clients.consumer.ConsumerRecord
-import org.slf4j.LoggerFactory
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
+import team.themoment.sdk.logging.logger.logger
 import tools.jackson.databind.ObjectMapper
 
 @Component
@@ -17,7 +17,6 @@ class ChannelRolePolicyChangedConsumer(
     private val processor: ProjectionRecordProcessor,
     private val streams: ProjectionStreams,
 ) {
-    private val log = LoggerFactory.getLogger(ChannelRolePolicyChangedConsumer::class.java)
 
     @KafkaListener(
         topics = [Topics.CHANNEL_ROLE_POLICY_CHANGED],
@@ -62,7 +61,7 @@ class ChannelRolePolicyChangedConsumer(
     }
 
     private fun quarantine(record: ConsumerRecord<String, String>, reason: String) {
-        log.warn(
+        logger().warn(
             "Quarantined preference channel-role-policy state record partition={} offset={} reason={}",
             record.partition(),
             record.offset(),
