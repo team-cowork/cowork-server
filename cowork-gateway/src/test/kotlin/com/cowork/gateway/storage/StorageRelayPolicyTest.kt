@@ -30,6 +30,14 @@ class StorageRelayPolicyTest :
                         policy.allows(HttpMethod.PUT, "$prefix/$key", signature) shouldBe false
                     }
                 }
+                it("SDK가 서명에 포함한 응답 checksum 모드 파라미터를 허용한다") {
+                    val sdkQuery = signature + setOf(
+                        "X-Amz-Algorithm", "X-Amz-Content-Sha256", "X-Amz-Credential", "X-Amz-Date",
+                        "X-Amz-Expires", "X-Amz-SignedHeaders", "response-cache-control",
+                        "response-content-disposition", "x-amz-checksum-mode", "x-id",
+                    )
+                    policy.allows(HttpMethod.GET, "$prefix/chat-files/1/42/$file", sdkQuery) shouldBe true
+                }
             }
             context("임시 업로드이면") {
                 it("서명한 PUT만 허용하고 읽기는 거부한다") {
