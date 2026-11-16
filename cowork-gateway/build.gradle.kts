@@ -8,7 +8,7 @@ plugins {
 }
 
 group = "com.cowork"
-version = "20261115.0"
+version = "20261116.0"
 
 repositories {
     mavenCentral()
