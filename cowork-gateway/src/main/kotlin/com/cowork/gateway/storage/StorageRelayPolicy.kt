@@ -28,7 +28,7 @@ class StorageRelayPolicy(private val bucket: String) {
             "X-Amz-Algorithm", "X-Amz-Credential", "X-Amz-Date", "X-Amz-Expires",
             "X-Amz-SignedHeaders", "X-Amz-Signature", "X-Amz-Security-Token",
             "X-Amz-Content-Sha256", "x-amz-checksum-crc32", "x-amz-sdk-checksum-algorithm",
-            "x-id", "response-cache-control", "response-content-disposition",
+            "x-amz-checksum-mode", "x-id", "response-cache-control", "response-content-disposition",
         )
     }
 }
