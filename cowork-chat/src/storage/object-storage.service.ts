@@ -107,8 +107,9 @@ export class ObjectStorageService {
 	}
 
 	private validateContentType(contentType: string): void {
-		if (!this.config.allowedContentTypes.includes(contentType)) {
-			throw new BadRequestException(`허용되지 않은 파일 형식입니다. 허용 형식: ${this.config.allowedContentTypes.join(', ')}`);
+		// 파일 형식은 제한하지 않는다. 값이 그대로 서명된 Content-Type 헤더가 되므로 MIME 문법만 확인한다.
+		if (!/^[\w+\-.]+\/[\w+\-.]+$/v.test(contentType)) {
+			throw new BadRequestException('파일 형식(MIME 타입)이 유효하지 않습니다');
 		}
 	}
 
