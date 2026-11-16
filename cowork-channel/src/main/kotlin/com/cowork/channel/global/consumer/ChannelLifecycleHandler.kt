@@ -7,9 +7,9 @@ import com.cowork.channel.domain.meetingNote.repository.MeetingNoteRepository
 import com.cowork.channel.domain.membership.entity.TeamMembership
 import com.cowork.channel.domain.membership.repository.TeamMembershipRepository
 import com.cowork.channel.global.projection.toProjectionPrecision
-import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import team.themoment.sdk.logging.logger.logger
 import java.time.Instant
 
 @Service
@@ -21,7 +21,6 @@ class ChannelLifecycleHandler(
     private val attachmentPublisher: MeetingNoteAttachmentPublisher,
     private val meetingNoteRepository: MeetingNoteRepository,
 ) {
-    private val log = LoggerFactory.getLogger(ChannelLifecycleHandler::class.java)
 
     @Transactional
     fun onMemberUpsert(
@@ -43,7 +42,7 @@ class ChannelLifecycleHandler(
 
         membership.applyUpsert(role, version, authorizationVersion?.toProjectionPrecision())
         teamMembershipRepository.save(membership)
-        log.info("team.member UPSERT 처리 [teamId={}, userId={}, role={}]", teamId, userId, role)
+        logger().info("team.member UPSERT 처리 [teamId={}, userId={}, role={}]", teamId, userId, role)
     }
 
     @Transactional
@@ -56,7 +55,7 @@ class ChannelLifecycleHandler(
 
         val channels = channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(teamId)
         if (channels.isEmpty()) {
-            log.info("Skipped TEAM_DELETED event: no channels to delete [teamId={}]", teamId)
+            logger().info("Skipped TEAM_DELETED event: no channels to delete [teamId={}]", teamId)
             return
         }
         channels.forEach { channelEventPublisher.publishDeleted(it, version) }
@@ -64,7 +63,7 @@ class ChannelLifecycleHandler(
         attachmentPublisher.deleteChannels(channels.map { it.id })
         meetingNoteRepository.deleteAllByChannelIdIn(channels.map { it.id })
         channelRepository.deleteAll(channels)
-        log.info("Processed TEAM_DELETED event [teamId={}, deletedChannels={}]", teamId, channels.size)
+        logger().info("Processed TEAM_DELETED event [teamId={}, deletedChannels={}]", teamId, channels.size)
     }
 
     @Transactional
@@ -99,6 +98,6 @@ class ChannelLifecycleHandler(
         membership.markDeleted(version, compatibleAuthorization?.toProjectionPrecision())
         teamMembershipRepository.save(membership)
 
-        log.info("Revoke team member access [teamId={}, userId={}]", teamId, targetUserId)
+        logger().info("Revoke team member access [teamId={}, userId={}]", teamId, targetUserId)
     }
 }

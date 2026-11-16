@@ -29,8 +29,3 @@ export class CreateGithubIssueDto {
 	@maxLength(65_536)
 	body?: string;
 }
-
-export class CreateGithubIssueResponseDto {
-	@apiProperty({description: '큐 등록 여부'})
-	queued!: boolean;
-}

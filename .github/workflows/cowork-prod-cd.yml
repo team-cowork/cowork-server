@@ -467,3 +467,39 @@ jobs:
             **매니페스트 반영:** ${{ fromJSON(env.RESULT_LABELS)[needs.manifest.result] || '확인 불가' }}
             **${{ steps.status.outputs.apply_label }}:** ${{ fromJSON(env.RESULT_LABELS)[needs.apply.result] || '확인 불가' }}
             **릴리스 게시:** ${{ fromJSON(env.RESULT_LABELS)[needs.publish.result] || '확인 불가' }}
+
+  cleanup-runs:
+    name: Delete Automation Run History
+    needs: [prepare, notify]
+    # Cleanup must not change the release result.
+    if: always() && needs.prepare.result == 'success'
+    continue-on-error: true
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+    steps:
+      - name: Delete Completed Copilot And Dependabot Runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          # GitHub-managed workflows: Copilot agent/review, Dependabot updates, dependency graph submission.
+          WORKFLOW_PATH_PATTERN: '^dynamic/(copilot|dependabot/|dependency-graph/)'
+        run: |
+          set -euo pipefail
+          workflows=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows?per_page=100" \
+            --jq ".workflows[] | select(.path | test(env.WORKFLOW_PATH_PATTERN)) | .id")
+          for workflow in $workflows; do
+            # Collect every page first; deleting during pagination shifts later pages.
+            runs=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows/$workflow/runs?status=completed&per_page=100" \
+              --jq '.workflow_runs[].id')
+            deleted=0 failed=0
+            for run in $runs; do
+              # One failed run must not stop the rest; the next release retries it.
+              if gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/runs/$run"; then
+                deleted=$((deleted + 1))
+              else
+                failed=$((failed + 1))
+                echo "::warning::Failed to delete run $run"
+              fi
+            done
+            echo "Deleted $deleted runs from workflow $workflow ($failed failed)"
+          done

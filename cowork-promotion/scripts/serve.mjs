@@ -1,9 +1,11 @@
+import {Buffer} from 'node:buffer';
 import {createServer} from 'node:http';
 import path from 'node:path';
 import process from 'node:process';
 import {readFile, stat, watch} from 'node:fs/promises';
 import {fileURLToPath} from 'node:url';
 import achievements from '../api/achievements.mjs';
+import middleware from '../middleware.js';
 import {build} from './build.mjs';
 
 const projectDirectory = path.resolve(fileURLToPath(new URL('../', import.meta.url)));
@@ -107,8 +109,25 @@ async function serveFile(requestUrl, response) {
 
 const server = createServer(async (request, response) => {
 	try {
-		if (new URL(request.url ?? '/', 'http://localhost').pathname === '/api/achievements') {
+		const {pathname} = new URL(request.url ?? '/', 'http://localhost');
+		if (pathname === '/api/achievements') {
 			await achievements(request, response);
+			return;
+		}
+
+		if (pathname.startsWith('/api/legal/')) {
+			// Fetch rejects some methods that Node's HTTP server accepts.
+			if (!['GET', 'HEAD'].includes(request.method)) {
+				response.writeHead(405, {Allow: 'GET, HEAD', 'Cache-Control': 'no-store'}).end();
+				return;
+			}
+
+			const result = await middleware(new Request(new URL(request.url, 'http://localhost'), {
+				method: request.method,
+				headers: request.headers,
+			}));
+			response.writeHead(result.status, Object.fromEntries(result.headers));
+			response.end(Buffer.from(await result.arrayBuffer()));
 			return;
 		}
 

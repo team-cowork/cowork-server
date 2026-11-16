@@ -46,7 +46,24 @@ export type PresignedUpload = {
 	objectKey: string;
 	uploadUrl: string;
 	expiresInSeconds: number;
+	headers: {'Content-Type': string};
 };
+
+const fallbackContentType = 'application/octet-stream';
+// RFC 6838 restricted-name. 값이 그대로 서명된 Content-Type 헤더가 된다.
+const mimeTypePattern = /^[\da-z][\w!#$\u{26}+\-.^]{0,126}\/[\da-z][\w!#$\u{26}+\-.^]{0,126}$/iv;
+// 브라우저가 열면 스크립트를 실행할 수 있는 형식이다. 업로드는 받되 octet-stream으로 저장한다.
+const activeContentTypes = new Set([
+	'text/html',
+	'application/xhtml+xml',
+	'image/svg+xml',
+	'text/xml',
+	'application/xml',
+	'text/javascript',
+	'application/javascript',
+	'text/ecmascript',
+	'application/ecmascript',
+]);
 
 function isNotFoundError(error: unknown): boolean {
 	const error_ = error as {name?: string; $metadata?: {httpStatusCode?: number}};
@@ -106,10 +123,18 @@ export class ObjectStorageService {
 		}
 	}
 
-	private validateContentType(contentType: string): void {
-		if (!this.config.allowedContentTypes.includes(contentType)) {
-			throw new BadRequestException(`허용되지 않은 파일 형식입니다. 허용 형식: ${this.config.allowedContentTypes.join(', ')}`);
+	// 파일 형식은 제한하지 않는다. 브라우저가 형식을 모르면 빈 값을 보내므로 octet-stream으로 받는다.
+	private normalizeContentType(contentType: string): string {
+		const trimmed = contentType.trim();
+		if (trimmed === '') {
+			return fallbackContentType;
 		}
+
+		if (!mimeTypePattern.test(trimmed)) {
+			throw new BadRequestException('파일 형식(MIME 타입)이 유효하지 않습니다');
+		}
+
+		return activeContentTypes.has(trimmed.toLowerCase()) ? fallbackContentType : trimmed;
 	}
 
 	private async checkUploadRateLimit(userId: number): Promise<void> {
@@ -159,19 +184,19 @@ export class ObjectStorageService {
 		contentType: string;
 		size: number;
 	}): Promise<PresignedUpload> {
-		await this.checkUploadRateLimit(parameters.userId);
-		this.validateContentType(parameters.contentType);
+		const contentType = this.normalizeContentType(parameters.contentType);
 		this.validateFileSize(parameters.size);
+		await this.checkUploadRateLimit(parameters.userId);
 
-		const objectKey = this.buildObjectKey(parameters.channelId, parameters.userId, parameters.filename, parameters.contentType)
+		const objectKey = this.buildObjectKey(parameters.channelId, parameters.userId, parameters.filename, contentType)
 			.replace('chat-files/', 'chat-uploads/');
 		await this.uploads.create({
 			uploadKey: objectKey, channelId: parameters.channelId, userId: parameters.userId,
-			name: parameters.filename, mimeType: parameters.contentType, declaredSize: parameters.size,
+			name: parameters.filename, mimeType: contentType, declaredSize: parameters.size,
 		});
 		const uploadUrl = await getSignedUrl(
 			this.signingClient,
-			new PutObjectCommand({[s3Field.bucket]: this.config.bucket, [s3Field.key]: objectKey, [s3Field.contentType]: parameters.contentType}),
+			new PutObjectCommand({[s3Field.bucket]: this.config.bucket, [s3Field.key]: objectKey, [s3Field.contentType]: contentType}),
 			{expiresIn: this.config.presignedPutExpirySeconds, signableHeaders: new Set(['content-type'])},
 		);
 
@@ -179,6 +204,7 @@ export class ObjectStorageService {
 			objectKey,
 			uploadUrl: this.relayUrl(uploadUrl),
 			expiresInSeconds: this.config.presignedPutExpirySeconds,
+			headers: {'Content-Type': contentType},
 		};
 	}
 
@@ -198,7 +224,6 @@ export class ObjectStorageService {
 		try {
 			const stat = await this.s3Client.send(new HeadObjectCommand({[s3Field.bucket]: this.config.bucket, [s3Field.key]: uploadKey}));
 			this.validateFileSize(stat.ContentLength ?? NaN);
-			this.validateContentType(stat.ContentType ?? '');
 			if (stat.ContentType !== upload.mimeType || stat.ContentLength !== upload.declaredSize || stat.ETag === undefined) {
 				throw new BadRequestException('발급한 크기·형식과 업로드한 파일 정보가 다릅니다');
 			}

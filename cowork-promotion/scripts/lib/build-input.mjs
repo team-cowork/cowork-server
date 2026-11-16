@@ -54,10 +54,9 @@ export async function loadBuildInput() {
 		achievementSource,
 		achievementStylesheetSources,
 		achievementScriptBundle,
-		privacyTemplate,
-		termsTemplate,
-		licenseTemplate,
+		legalTemplate,
 		legalStylesheetSources,
+		legalScriptBundle,
 		googleSiteVerificationSource,
 	] = await Promise.all([
 		composeTemplate(new URL('index.html', htmlDirectory), htmlDirectory),
@@ -74,10 +73,9 @@ export async function loadBuildInput() {
 		readFile(projectUrl('data/achievements.json'), 'utf8'),
 		loadStylesheets(stylesheetPaths.achievements),
 		bundleJavaScript(sourceUrl('js/achievements.js'), sourceDirectory),
-		composeTemplate(new URL('privacy.html', htmlDirectory), htmlDirectory),
-		composeTemplate(new URL('terms.html', htmlDirectory), htmlDirectory),
-		composeTemplate(new URL('license.html', htmlDirectory), htmlDirectory),
+		composeTemplate(new URL('legal.html', htmlDirectory), htmlDirectory),
 		loadStylesheets(stylesheetPaths.legal),
+		bundleJavaScript(sourceUrl('js/legal.js'), sourceDirectory),
 		readFile(new URL(googleSiteVerificationFilename, staticDirectory)),
 	]);
 
@@ -93,9 +91,8 @@ export async function loadBuildInput() {
 		achievementsTemplate,
 		achievementSource,
 		achievementScriptBundle,
-		privacyTemplate,
-		termsTemplate,
-		licenseTemplate,
+		legalTemplate,
+		legalScriptBundle,
 		googleSiteVerificationSource,
 		stylesheetSources: {
 			shared: sharedStylesheetSources,

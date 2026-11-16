@@ -4,7 +4,7 @@ import com.cowork.team.global.outbox.OutboxRelaySettings
 import io.micrometer.core.instrument.Counter
 import io.micrometer.core.instrument.Gauge
 import io.micrometer.core.instrument.MeterRegistry
-import org.slf4j.LoggerFactory
+import team.themoment.sdk.logging.logger.logger
 import java.sql.Connection
 import java.sql.ResultSet
 import java.util.concurrent.ThreadLocalRandom
@@ -19,7 +19,6 @@ internal class TeamOutboxStore(
     private val claimOwner: String,
 ) {
     private val serviceName = "cowork-team"
-    private val logger = LoggerFactory.getLogger(javaClass)
     private val pendingGauge = AtomicLong()
     private val oldestSecondsGauge = AtomicLong()
     private val quarantinedGauge = AtomicLong()
@@ -110,7 +109,7 @@ internal class TeamOutboxStore(
                 if (statement.executeUpdate() == 1) {
                     publishedCounter.increment()
                 } else {
-                    logger.warn("Skipped stale Kafka outbox success for row {}", record.id)
+                    logger().warn("Skipped stale Kafka outbox success for row {}", record.id)
                 }
             }
         }
@@ -137,7 +136,7 @@ internal class TeamOutboxStore(
             }
 
         if (!updated) {
-            logger.warn("Skipped stale Kafka outbox failure for row {}", record.id)
+            logger().warn("Skipped stale Kafka outbox failure for row {}", record.id)
             return
         }
         meterRegistry.counter(
@@ -147,7 +146,7 @@ internal class TeamOutboxStore(
         ).increment()
         if (quarantine) {
             quarantinedCounter.increment()
-            logger.warn(
+            logger().warn(
                 "Quarantined Kafka outbox row {} after {} attempt(s), failureType={}",
                 record.id,
                 attempts,
@@ -159,7 +158,7 @@ internal class TeamOutboxStore(
                 "failure_type",
                 failureType.metricTag,
             ).increment()
-            logger.warn(
+            logger().warn(
                 "Scheduled Kafka outbox row {} retry after attempt {}, failureType={}",
                 record.id,
                 attempts,
@@ -187,7 +186,7 @@ internal class TeamOutboxStore(
                 }
             }
         }.onFailure { exception ->
-            logger.warn("Failed to release Kafka outbox claims for {}", serviceName, exception)
+            logger().warn("Failed to release Kafka outbox claims for {}", serviceName, exception)
         }
     }
 
@@ -206,7 +205,7 @@ internal class TeamOutboxStore(
             }
         }.onFailure { exception ->
             observationSuccessGauge.set(0)
-            logger.warn("Failed to observe Kafka outbox backlog for {}", serviceName, exception)
+            logger().warn("Failed to observe Kafka outbox backlog for {}", serviceName, exception)
         }
     }
 

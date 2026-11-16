@@ -1,7 +1,7 @@
 package com.cowork.preference.domain.setting.cache
 
+import com.cowork.preference.global.logging.logger
 import io.micrometer.core.instrument.MeterRegistry
-import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -14,7 +14,6 @@ private const val OPEN_MS = 5_000L
  */
 internal class CacheCircuitBreaker(meterRegistry: MeterRegistry) {
 
-    private val log = LoggerFactory.getLogger(CacheCircuitBreaker::class.java)
     private val consecutiveFailures = AtomicInteger()
 
     @Volatile
@@ -33,7 +32,7 @@ internal class CacheCircuitBreaker(meterRegistry: MeterRegistry) {
         consecutiveFailures.set(0)
         if (!opened) return
         opened = false
-        log.info("Closed preference cache circuit after Redis recovered")
+        logger().info("Closed preference cache circuit after Redis recovered")
     }
 
     fun recordFailure() {
@@ -42,7 +41,7 @@ internal class CacheCircuitBreaker(meterRegistry: MeterRegistry) {
         openUntil = Instant.now().plusMillis(OPEN_MS)
         if (opened) return
         opened = true
-        log.warn("Opened preference cache circuit for {}ms after {} consecutive failures", OPEN_MS, failures)
+        logger().warn("Opened preference cache circuit for {}ms after {} consecutive failures", OPEN_MS, failures)
     }
 
     /** 열린 상태에서는 요청마다 생기므로 stack trace와 suppressed 예외를 기록하지 않는다. */

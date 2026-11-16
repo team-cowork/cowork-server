@@ -3,7 +3,6 @@ package com.cowork.gateway.webhook
 import com.cowork.gateway.deployment.DeploymentStateCache
 import com.cowork.gateway.response.body.writeNoStoreJson
 import io.micrometer.core.instrument.MeterRegistry
-import org.slf4j.LoggerFactory
 import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreakerFactory
 import org.springframework.cloud.gateway.filter.GatewayFilterChain
 import org.springframework.cloud.gateway.filter.GlobalFilter
@@ -20,6 +19,7 @@ import org.springframework.stereotype.Component
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
+import team.themoment.sdk.logging.logger.logger
 import team.themoment.sdk.response.CommonApiResponse
 import tools.jackson.databind.ObjectMapper
 
@@ -33,7 +33,6 @@ class DataGsmWebhookIngressFilter(
     circuitBreakerFactory: ReactiveCircuitBreakerFactory<*, *>,
 ) : GlobalFilter,
     Ordered {
-    private val logger = LoggerFactory.getLogger(javaClass)
     private val circuitBreaker = circuitBreakerFactory.create("authorizationWebhookCB")
 
     override fun getOrder(): Int = -1100
@@ -61,7 +60,7 @@ class DataGsmWebhookIngressFilter(
             }
             queue.accept(body, signature!!)
                 .onErrorResume { error ->
-                    logger.warn("Failed to reach DataGSM durable queue: {}", error.javaClass.simpleName)
+                    logger().warn("Failed to reach DataGSM durable queue: {}", error.javaClass.simpleName)
                     Mono.just(false)
                 }
                 .flatMap { accepted ->
@@ -98,7 +97,7 @@ class DataGsmWebhookIngressFilter(
                 meterRegistry.counter("gateway.datagsm.ingress", "outcome", outcome).increment()
             }
             .onErrorResume { error ->
-                logger.warn("Failed to reach DataGSM direct inbox fallback: {}", error.javaClass.simpleName)
+                logger().warn("Failed to reach DataGSM direct inbox fallback: {}", error.javaClass.simpleName)
                 if (exchange.response.isCommitted) {
                     Mono.empty()
                 } else {

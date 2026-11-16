@@ -13,11 +13,11 @@ import com.cowork.preference.domain.channelrole.model.ChannelRolePermissionResol
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectRoleRepository
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
+import com.cowork.preference.global.logging.logger
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import com.cowork.preference.global.projection.readiness.ProjectionReadiness
 import io.vertx.core.json.JsonObject
 import io.vertx.sqlclient.SqlClient
-import org.slf4j.LoggerFactory
 import java.time.Instant
 
 class InitialResourceAccessService(
@@ -29,7 +29,6 @@ class InitialResourceAccessService(
     private val outbox: PreferenceOutboxRepository,
     private val teamReadiness: ProjectionReadiness,
 ) {
-    private val log = LoggerFactory.getLogger(InitialResourceAccessService::class.java)
 
     suspend fun channel(client: SqlClient, event: ChannelLifecycleEvent, current: ChannelLifecycleProjection) {
         if (event.deleted || current.deleted) {
@@ -52,7 +51,7 @@ class InitialResourceAccessService(
         val teamRoles = roles.findRoles(client, teamId).associateBy { it.id }
         val survivingOverwrites = seed.overwrites.filter { it.roleId in teamRoles }
         if (survivingOverwrites.size != seed.overwrites.size) {
-            log.warn(
+            logger().warn(
                 "Skip deleted roles in initial channel access [teamId={}, channelId={}, skippedRoles={}]",
                 teamId,
                 event.channelId,
@@ -60,7 +59,7 @@ class InitialResourceAccessService(
             )
         }
         fun skip(reason: String) {
-            log.warn(
+            logger().warn(
                 "Skip initial channel access [teamId={}, channelId={}, reason={}]",
                 teamId,
                 event.channelId,

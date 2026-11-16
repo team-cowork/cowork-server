@@ -4,6 +4,7 @@ import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommand
 import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommandEnvelope
 import com.cowork.preference.domain.teamrole.command.repository.TeamRoleCommandInboxRepository
 import com.cowork.preference.global.config.kafkaClientProperties
+import com.cowork.preference.global.logging.logger
 import com.cowork.preference.global.messaging.command.model.CommandDecision
 import com.cowork.preference.global.messaging.command.model.CommandQuarantineRecord
 import com.cowork.preference.global.messaging.event.PreferenceTopics
@@ -18,7 +19,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import org.slf4j.LoggerFactory
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -30,7 +30,6 @@ class TeamRoleCommandConsumer(
     private val inboxRepository: TeamRoleCommandInboxRepository,
     private val scope: CoroutineScope,
 ) {
-    private val log = LoggerFactory.getLogger(TeamRoleCommandConsumer::class.java)
     private var closed = false
     private val consumer = KafkaConsumer.create<String, String>(
         vertx,
@@ -46,7 +45,7 @@ class TeamRoleCommandConsumer(
     )
 
     fun start() {
-        consumer.exceptionHandler { log.error("preference team-role command consumer failure", it) }
+        consumer.exceptionHandler { logger().error("preference team-role command consumer failure", it) }
         consumer.batchHandler { records ->
             consumer.pause()
             scope.launch(vertx.dispatcher()) {
@@ -60,7 +59,7 @@ class TeamRoleCommandConsumer(
         }
         scope.launch(vertx.dispatcher()) {
             retry("subscribe") { consumer.subscribe(PreferenceTopics.TEAM_ROLE_COMMAND_TOPIC).coAwait() }
-            log.info(
+            this@TeamRoleCommandConsumer.logger().info(
                 "Preference team-role command consumer subscribed topic={} group={}",
                 PreferenceTopics.TEAM_ROLE_COMMAND_TOPIC,
                 groupId,
@@ -92,7 +91,7 @@ class TeamRoleCommandConsumer(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                log.error(
+                logger().error(
                     "Preference team-role command apply failed; retrying topic={} partition={} offset={}",
                     record.topic(),
                     record.partition(),
@@ -116,7 +115,7 @@ class TeamRoleCommandConsumer(
                     quarantineRecord(record, rejection.reason),
                     rejection.reason,
                 )
-                log.error(
+                logger().error(
                     "Rejected invalid team-role command topic={} partition={} offset={} reason={}",
                     record.topic(),
                     record.partition(),
@@ -127,7 +126,7 @@ class TeamRoleCommandConsumer(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                log.error(
+                logger().error(
                     "Preference team-role command rejection failed; retrying topic={} partition={} offset={}",
                     record.topic(),
                     record.partition(),
@@ -144,7 +143,7 @@ class TeamRoleCommandConsumer(
         while (!closed) {
             try {
                 inboxRepository.quarantine(quarantineRecord(record, reason))
-                log.error(
+                logger().error(
                     "Quarantined invalid team-role command topic={} partition={} offset={} reason={}",
                     record.topic(),
                     record.partition(),
@@ -155,7 +154,7 @@ class TeamRoleCommandConsumer(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                log.error(
+                logger().error(
                     "Preference team-role command quarantine failed; retrying topic={} partition={} offset={}",
                     record.topic(),
                     record.partition(),
@@ -187,7 +186,7 @@ class TeamRoleCommandConsumer(
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Throwable) {
-                log.error("Preference team-role command consumer {} failed; retrying", operation, error)
+                logger().error("Preference team-role command consumer {} failed; retrying", operation, error)
                 delay(RETRY_DELAY)
             }
         }

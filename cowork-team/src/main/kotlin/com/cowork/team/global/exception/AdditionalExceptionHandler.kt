@@ -1,6 +1,5 @@
 package com.cowork.team.global.exception
 
-import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
@@ -10,11 +9,11 @@ import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import team.themoment.sdk.exception.ExpectedException
+import team.themoment.sdk.logging.logger.logger
 import team.themoment.sdk.response.CommonApiResponse
 
 @RestControllerAdvice
 class AdditionalExceptionHandler {
-    private val log = LoggerFactory.getLogger(AdditionalExceptionHandler::class.java)
 
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleMethodArgumentNotValid(e: MethodArgumentNotValidException): ResponseEntity<CommonApiResponse<Nothing>> {
@@ -26,7 +25,7 @@ class AdditionalExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException::class)
     fun handleHttpMessageNotReadable(e: HttpMessageNotReadableException): ResponseEntity<CommonApiResponse<Nothing>> {
-        log.warn("Failed to read request body", e)
+        logger().warn("Failed to read request body", e)
         return ResponseEntity.status(
             HttpStatus.BAD_REQUEST,
         ).body(CommonApiResponse.error("요청 본문을 읽을 수 없습니다.", HttpStatus.BAD_REQUEST))
@@ -53,7 +52,7 @@ class AdditionalExceptionHandler {
 
     @ExceptionHandler(Exception::class)
     fun handleInternal(e: Exception): ResponseEntity<CommonApiResponse<Nothing>> {
-        log.error("Caught unhandled exception", e)
+        logger().error("Caught unhandled exception", e)
         return ResponseEntity.internalServerError().body(
             CommonApiResponse.error("서버 오류가 발생했습니다.", HttpStatus.INTERNAL_SERVER_ERROR),
         )

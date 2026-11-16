@@ -4,7 +4,6 @@ import com.cowork.gateway.response.body.defaultApiErrorMessage
 import com.cowork.gateway.response.body.writeNoStoreJson
 import com.cowork.gateway.response.config.ApiResponseWrapperProperties
 import com.cowork.gateway.response.wrapping.ApiResponseWrappingPolicy
-import org.slf4j.LoggerFactory
 import org.springframework.core.annotation.Order
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
@@ -13,6 +12,7 @@ import org.springframework.web.ErrorResponse
 import org.springframework.web.server.ServerWebExchange
 import org.springframework.web.server.WebExceptionHandler
 import reactor.core.publisher.Mono
+import team.themoment.sdk.logging.logger.logger
 import team.themoment.sdk.response.CommonApiResponse
 import tools.jackson.databind.ObjectMapper
 
@@ -20,7 +20,6 @@ import tools.jackson.databind.ObjectMapper
 @Order(-2)
 class ApiExceptionHandler(private val objectMapper: ObjectMapper, properties: ApiResponseWrapperProperties) :
     WebExceptionHandler {
-    private val log = LoggerFactory.getLogger(ApiExceptionHandler::class.java)
     private val policy = ApiResponseWrappingPolicy(properties)
 
     override fun handle(exchange: ServerWebExchange, exception: Throwable): Mono<Void> {
@@ -33,7 +32,7 @@ class ApiExceptionHandler(private val objectMapper: ObjectMapper, properties: Ap
 
         val error = exception as? ErrorResponse
         val status = error?.statusCode?.value()?.let(HttpStatus::resolve) ?: HttpStatus.INTERNAL_SERVER_ERROR
-        if (status.is5xxServerError) log.error("Handle gateway request failure", exception)
+        if (status.is5xxServerError) logger().error("Handle gateway request failure", exception)
         error?.headers?.let { exchange.response.headers.addAll(it) }
         if (exchange.request.method == HttpMethod.HEAD) {
             exchange.response.statusCode = status

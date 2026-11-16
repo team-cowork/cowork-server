@@ -402,6 +402,41 @@ export class ChatService {
 	}
 
 	/**
+     GitHub 이슈 생성 커맨드를 Kafka `project.chat-github-issue.command` 토픽으로 발행한다.
+
+     chat은 채널 멤버십과 채널의 팀 소속만 확인하고, 프로젝트 수정 권한(프로젝트 OWNER·EDITOR
+     또는 팀 OWNER·ADMIN) 검증과 프로젝트-채널 팀 경계 검증, 실제 `github.issue.create` 발행은
+     project 서비스가 `ChatGithubIssueCommandProcessor`에서 수행한다.
+     검증 결과는 `project.chat-github-issue.result` 토픽으로 비동기 응답되며,
+     거부된 경우에만 `ChatGithubIssueResultConsumer`가 거부 시스템 메시지를 렌더링한다.
+
+     @param ctx - 채널·사용자 컨텍스트
+     @param dto - GitHub 이슈 생성 정보 (projectId, title, body)
+     @param idempotencyKey - 클라이언트 재시도 키 (선택). 같은 사용자·키의 재시도는 같은 커맨드 ID가 된다.
+     @throws ForbiddenException 채널 권한이 없는 경우
+     @throws BadRequestException 재시도 키 길이가 올바르지 않은 경우
+     */
+	private async publishGithubIssueCreateCommand(ctx: ChannelUserContext, dto: CreateGithubIssueDto, idempotencyKey?: string): Promise<void> {
+		await this.channelMessageReadAccess.requirePermissions(ctx.channelId, ctx.userId, ['slash_command_use', 'github_issue_create']);
+		await this.requireWritableChannel(ctx.channelId);
+		const channelTeamId = await this.requireReadAndGetTeamId(ctx.channelId, ctx.userId);
+		// 프로젝트 서비스는 operationId로 중복을 막고 idempotencyKey는 36자 컬럼에 저장하므로, 재시도 키를 36자 ID로 고정한다.
+		const commandId = idempotencyKey === undefined ? randomUUID() : deriveGithubIssueCommandId(ctx, dto, idempotencyKey);
+
+		await this.chatGithubIssueCommandProducer.send({
+			operationId: commandId,
+			idempotencyKey: commandId,
+			projectId: dto.projectId,
+			channelId: ctx.channelId,
+			teamId: channelTeamId,
+			requesterId: ctx.userId,
+			title: dto.title,
+			body: dto.body ?? null,
+			occurredAt: new Date().toISOString(),
+		});
+	}
+
+	/**
      사용자의 채널 읽기 권한을 확인한다.
 
      @param channelId - 확인할 채널 ID
@@ -474,20 +509,13 @@ export class ChatService {
 	): Promise<CreateFileUploadUrlResponseDto> {
 		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'file_attach');
 		await this.requireWritableChannel(ctx.channelId);
-		const upload = await this.objectStorageService.createPresignedUpload({
+		return this.objectStorageService.createPresignedUpload({
 			channelId: ctx.channelId,
 			userId: ctx.userId,
 			filename: dto.filename,
 			contentType: dto.contentType,
 			size: dto.size,
 		});
-
-		return {
-			...upload,
-			headers: {
-				'Content-Type': dto.contentType,
-			},
-		};
 	}
 
 	/**
@@ -719,42 +747,6 @@ export class ChatService {
 		}
 
 		await this.publishGithubIssueCreateCommand(ctx, dto.payload, idempotencyKey);
-	}
-
-	/**
-     GitHub 이슈 생성 커맨드를 Kafka `project.chat-github-issue.command` 토픽으로 발행한다.
-
-     chat은 채널 멤버십과 채널의 팀 소속만 확인하고, 프로젝트 수정 권한(프로젝트 OWNER·EDITOR
-     또는 팀 OWNER·ADMIN) 검증과 프로젝트-채널 팀 경계 검증, 실제 `github.issue.create` 발행은
-     project 서비스가 `ChatGithubIssueCommandProcessor`에서 수행한다.
-     검증 결과는 `project.chat-github-issue.result` 토픽으로 비동기 응답되며,
-     거부된 경우에만 `ChatGithubIssueResultConsumer`가 거부 시스템 메시지를 렌더링한다.
-
-     @param ctx - 채널·사용자 컨텍스트
-     @param dto - GitHub 이슈 생성 정보 (projectId, title, body)
-     @param idempotencyKey - 클라이언트 재시도 키 (선택). 같은 사용자·키의 재시도는 같은 커맨드 ID가 된다.
-     @throws ForbiddenException 채널 권한이 없는 경우
-     @throws BadRequestException 재시도 키 길이가 올바르지 않은 경우
-     */
-	async publishGithubIssueCreateCommand(ctx: ChannelUserContext, dto: CreateGithubIssueDto, idempotencyKey?: string): Promise<void> {
-		// 두 진입점이 같은 권한 세트를 요구해야 일반 slash command로 막힌 사용자가 deprecated 경로로 우회하지 못한다.
-		await this.channelMessageReadAccess.requirePermissions(ctx.channelId, ctx.userId, ['slash_command_use', 'github_issue_create']);
-		await this.requireWritableChannel(ctx.channelId);
-		const channelTeamId = await this.requireReadAndGetTeamId(ctx.channelId, ctx.userId);
-		// 프로젝트 서비스는 operationId로 중복을 막고 idempotencyKey는 36자 컬럼에 저장하므로, 재시도 키를 36자 ID로 고정한다.
-		const commandId = idempotencyKey === undefined ? randomUUID() : deriveGithubIssueCommandId(ctx, dto, idempotencyKey);
-
-		await this.chatGithubIssueCommandProducer.send({
-			operationId: commandId,
-			idempotencyKey: commandId,
-			projectId: dto.projectId,
-			channelId: ctx.channelId,
-			teamId: channelTeamId,
-			requesterId: ctx.userId,
-			title: dto.title,
-			body: dto.body ?? null,
-			occurredAt: new Date().toISOString(),
-		});
 	}
 
 	/**

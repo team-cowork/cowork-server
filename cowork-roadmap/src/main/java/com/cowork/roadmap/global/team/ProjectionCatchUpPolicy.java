@@ -70,7 +70,7 @@ final class ProjectionCatchUpPolicy {
                     || checkpoint.invalidCheckpointOffset() != null || checkpoint.snapshotCompletedOffset() == null
                     || checkpoint.invalidRecordOffset() != null
                     || checkpoint.nextOffset() <= checkpoint.snapshotCompletedOffset()
-                    || checkpoint.nextOffset() < barrier.targetOffset() || barrier.targetOffset() > range.endOffset()
+                    || barrier.targetOffset() > range.endOffset()
                     || checkpoint.snapshotCompletedOffset() < range.beginningOffset()
                     || checkpoint.nextOffset() != range.endOffset()) {
                 return false;
