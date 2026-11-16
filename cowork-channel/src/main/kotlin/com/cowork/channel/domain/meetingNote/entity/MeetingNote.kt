@@ -50,4 +50,9 @@ class MeetingNote(
             updatedAt = LocalDateTime.now()
         }
     }
+
+    companion object {
+        /** 본문 최대 길이. UTF-16 코드 단위로 센다. */
+        const val MAX_CONTENT_LENGTH = 100_000
+    }
 }
