@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
@@ -248,7 +249,7 @@ class MeetingNoteController(
     fun createNote(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-        @RequestBody request: CreateMeetingNoteRequest,
+        @Valid @RequestBody request: CreateMeetingNoteRequest,
     ): MeetingNoteResponse = createMeetingNoteService.createNote(userId, channelId, request)
 
     @Operation(summary = "회의록 수정", security = [SecurityRequirement(name = "BearerAuth")])
@@ -315,7 +316,7 @@ class MeetingNoteController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @PathVariable noteId: Long,
-        @RequestBody request: UpdateMeetingNoteRequest,
+        @Valid @RequestBody request: UpdateMeetingNoteRequest,
     ): MeetingNoteResponse = updateMeetingNoteService.updateNote(userId, channelId, noteId, request)
 
     @Operation(summary = "회의록 삭제", security = [SecurityRequirement(name = "BearerAuth")])
