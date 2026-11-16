@@ -11,10 +11,11 @@ import org.springframework.core.annotation.Order
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
+import org.springframework.http.server.RequestPath
 import org.springframework.stereotype.Component
-import org.springframework.util.AntPathMatcher
 import org.springframework.util.unit.DataSize
 import org.springframework.web.filter.OncePerRequestFilter
+import org.springframework.web.util.pattern.PathPatternParser
 import java.io.BufferedReader
 import java.io.ByteArrayInputStream
 import java.io.InputStream
@@ -29,8 +30,6 @@ import java.nio.charset.StandardCharsets
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class MeetingNoteBodySizeLimitFilter : OncePerRequestFilter() {
-    private val pathMatcher = AntPathMatcher()
-
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
         val pattern =
             when (request.method) {
@@ -38,7 +37,9 @@ class MeetingNoteBodySizeLimitFilter : OncePerRequestFilter() {
                 HttpMethod.PATCH.name() -> UPDATE_PATH
                 else -> return true
             }
-        return !pathMatcher.match(pattern, request.requestURI)
+        // Spring MVC처럼 디코딩하고 `;` 경로 파라미터를 뗀 경로로 비교해야 인코딩된 경로로 우회할 수 없다.
+        val path = RequestPath.parse(request.requestURI, request.contextPath).pathWithinApplication()
+        return !pattern.matches(path)
     }
 
     override fun doFilterInternal(
@@ -97,8 +98,10 @@ class MeetingNoteBodySizeLimitFilter : OncePerRequestFilter() {
     companion object {
         val MAX_BODY_BYTES: Long = DataSize.ofMegabytes(1).toBytes()
 
-        private const val CREATE_PATH = "/channels/*/meeting-notes"
-        private const val UPDATE_PATH = "/channels/*/meeting-notes/*"
+        private val CREATE_PATH = PathPatternParser.defaultInstance.parse("/channels/{channelId}/meeting-notes")
+        private val UPDATE_PATH = PathPatternParser.defaultInstance.parse(
+            "/channels/{channelId}/meeting-notes/{noteId}",
+        )
         private const val TOO_LARGE_MESSAGE = "요청 본문이 허용 크기를 초과했습니다."
 
         /** 최대 [limit]+1바이트까지만 읽는다. [limit]를 넘으면 `null`을 돌려준다. */
