@@ -28,6 +28,8 @@ class TeamMemberEventConsumerTest {
             "MEMBER",
             "team",
             Instant.parse("2026-01-01T00:00:00Z"));
+    private static final String MARKER_KEY = ProjectionSnapshotCompletion.KEY_PREFIX + 0;
+    private static final String SNAPSHOT_ID = "8f14e45f-ceea-467a-9575-6b5d1c1a2b3c";
 
     private final TeamMemberProjectionProcessor processor = mock(TeamMemberProjectionProcessor.class);
     private final TeamMemberEventConsumer consumer = new TeamMemberEventConsumer(JsonMapper.builder().build(),
@@ -93,6 +95,35 @@ class TeamMemberEventConsumerTest {
         consumer.consume(record);
 
         verify(processor).discard(record, "Invalid team.member.event payload");
+    }
+
+    @Test
+    void validSnapshotMarker_completesSnapshot() {
+        ConsumerRecord<String, String> record = record(MARKER_KEY, marker("cowork-team"));
+
+        consumer.consume(record);
+
+        verify(processor).completeSnapshot(record, SNAPSHOT_ID);
+        verify(processor, never()).discard(any(), any());
+        verify(processor, never()).apply(any(), any());
+    }
+
+    @Test
+    void invalidSnapshotMarker_discardsWithoutCompletingSnapshot() {
+        ConsumerRecord<String, String> record = record(MARKER_KEY, marker("cowork-other"));
+
+        consumer.consume(record);
+
+        verify(processor).discard(record,
+                "projection snapshot marker source does not match the expected producer: cowork-team");
+        verify(processor, never()).completeSnapshot(any(), any());
+        verify(processor, never()).apply(any(), any());
+    }
+
+    private static String marker(String source) {
+        return """
+                {"eventType":"PROJECTION_SNAPSHOT_COMPLETED","topic":"%s","partition":0,"snapshotId":"%s",\
+                "occurredAt":"2026-01-01T00:00:00Z","source":"%s"}""".formatted(TOPIC, SNAPSHOT_ID, source);
     }
 
     private static ConsumerRecord<String, String> record(String key, String value) {
