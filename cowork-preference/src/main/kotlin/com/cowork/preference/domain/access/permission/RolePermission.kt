@@ -27,7 +27,7 @@ enum class RolePermission(
         PermissionKeys.CREATE_TEAM,
         RolePermissionGroup.TEAM,
         "팀 생성",
-        "새 팀을 만들 수 있습니다.",
+        "새 팀 생성 허용",
     ),
     DELETE_TEAM(
         PermissionKeys.DELETE_TEAM,

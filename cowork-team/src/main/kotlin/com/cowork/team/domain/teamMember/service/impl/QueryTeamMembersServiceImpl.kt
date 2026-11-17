@@ -19,14 +19,14 @@ class QueryTeamMembersServiceImpl(
     override fun execute(userId: Long, teamId: Long): List<TeamMemberResponse> {
         teamAccessGuard.requireMemberExists(teamId, userId)
         val members = teamMemberRepository.findAllByTeamId(teamId)
-        val rolesById = teamRoleProjectionReader.getRoles(teamId).associateBy { it.id }
+        val rolesById = teamRoleProjectionReader.getRoles(teamId).filterNot { it.isDefault }.associateBy { it.id }
         val roleIdsByUserId = teamRoleProjectionReader.getMemberRoleAssignments(teamId)
             .groupBy({ it.accountId }, { it.roleId })
 
         return members.map { member ->
             TeamMemberResponse.of(
                 member,
-                rolesById.values.filter { it.isDefault || it.id in roleIdsByUserId[member.userId].orEmpty() },
+                rolesById.values.filter { it.id in roleIdsByUserId[member.userId].orEmpty() },
             )
         }
     }
