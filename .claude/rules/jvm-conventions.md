@@ -1,6 +1,6 @@
 ---
 paths:
-  - "**/*.{kt,java,gradle,kts}"
+  - "**/*.{kt,java,scala,gradle,kts,sbt}"
 ---
 
 # JVM Conventions

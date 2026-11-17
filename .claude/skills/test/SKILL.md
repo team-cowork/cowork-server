@@ -14,7 +14,7 @@ Based on the user's request or changed files, choose the appropriate scope:
 | Specific module     | `(cd <module> && ./gradlew test)`                                     |
 | Multiple modules    | Run each selected module's native test command separately             |
 
-Discover the owning modules from their local `gradlew` and `settings.gradle.kts`, `pom.xml`, `module.yaml`, or `package.json`. There is no root Gradle build. Use the native runner for Maven, Kotlin Toolchain, and non-JVM modules.
+Discover the owning modules from their local `gradlew` and `settings.gradle.kts`, `pom.xml`, `module.yaml`, `build.sbt`, or `package.json`. There is no root Gradle build. Use the native runner for Maven, Kotlin Toolchain, sbt (`./sbtw test`), and non-JVM modules.
 
 ## Run Tests
 

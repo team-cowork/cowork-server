@@ -64,7 +64,7 @@ X='--exclude-dir=build --exclude-dir=target --exclude-dir=node_modules --exclude
 grep -rnE $X --include='*.kt' --include='*.java' 'log(ger)?\.(trace|debug|info|warn|error)\("[^"]*\$\{?[A-Za-z]' cowork-*
 
 # "No println() in JVM code"
-grep -rn $X --include='*.kt' --include='*.java' 'println(' cowork-*
+grep -rn $X --include='*.kt' --include='*.java' --include='*.scala' 'println(' cowork-*
 
 # "ExpectedException messages contain no dynamic data" (Kotlin Spring)
 grep -rnE $X --include='*.kt' 'ExpectedException\([^)]*"[^"]*\$' cowork-*
