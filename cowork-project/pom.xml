@@ -109,17 +109,10 @@
             <artifactId>kotlin-reflect</artifactId>
         </dependency>
 
-        <!-- Use the SpringDoc version selected for this module's Spring Boot version. -->
         <dependency>
             <groupId>io.github.themoment-team</groupId>
             <artifactId>the-sdk</artifactId>
             <version>${the-sdk.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>org.springdoc</groupId>
-                    <artifactId>*</artifactId>
-                </exclusion>
-            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.springdoc</groupId>
