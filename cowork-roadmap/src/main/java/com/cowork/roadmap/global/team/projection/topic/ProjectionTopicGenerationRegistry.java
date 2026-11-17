@@ -1,4 +1,4 @@
-package com.cowork.roadmap.global.team;
+package com.cowork.roadmap.global.team.projection.topic;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -9,15 +9,15 @@ public class ProjectionTopicGenerationRegistry {
 
     private final AtomicReference<String> topicId = new AtomicReference<>();
 
-    void markAssigned(String currentTopicId) {
+    public void markAssigned(String currentTopicId) {
         topicId.set(currentTopicId);
     }
 
-    void markRevoked() {
+    public void markRevoked() {
         topicId.set(null);
     }
 
-    String requireTopicId() {
+    public String requireTopicId() {
         String current = topicId.get();
         if (current == null) {
             throw new IllegalStateException("Kafka projection topic generation is not initialized");

@@ -32,7 +32,7 @@ import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import team.themoment.sdk.exception.ExpectedException;
 
-@DisplayName("ModifyRoadmapServiceImpl 클래스의")
+@DisplayName("ModifyRoadmapService 의")
 class ModifyRoadmapServiceTest {
 
     private static final Long USER_ID = 7L;
@@ -43,7 +43,7 @@ class ModifyRoadmapServiceTest {
     private final RoadmapAccessGuard accessGuard = mock(RoadmapAccessGuard.class);
 
     private final RoadmapLookupSupport lookupSupport = new RoadmapLookupSupport(roadmapRepository);
-    private final ModifyRoadmapServiceImpl modifyRoadmapService = new ModifyRoadmapServiceImpl(roadmapRepository,
+    private final ModifyRoadmapService modifyRoadmapService = new ModifyRoadmapServiceImpl(roadmapRepository,
             accessGuard,
             lookupSupport);
 

@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
@@ -19,17 +20,18 @@ import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
-import com.cowork.roadmap.global.team.TeamMemberProjectionReadiness;
-import com.cowork.roadmap.global.team.TeamMemberProjectionRepository;
+import com.cowork.roadmap.global.team.projection.readiness.TeamMemberProjectionReadiness;
+import com.cowork.roadmap.global.team.repository.TeamMemberProjectionRepository;
 
 import team.themoment.sdk.exception.ExpectedException;
 
+@DisplayName("ListRoadmapAssignmentsService 의")
 class ListRoadmapAssignmentsServiceTest {
     private final RoadmapRepository roadmaps = mock(RoadmapRepository.class);
     private final RoadmapAssignmentRepository assignments = mock(RoadmapAssignmentRepository.class);
     private final TeamMemberProjectionRepository memberships = mock(TeamMemberProjectionRepository.class);
     private final TeamMemberProjectionReadiness readiness = mock(TeamMemberProjectionReadiness.class);
-    private final ListRoadmapAssignmentsServiceImpl service = new ListRoadmapAssignmentsServiceImpl(assignments,
+    private final ListRoadmapAssignmentsService service = new ListRoadmapAssignmentsServiceImpl(assignments,
             new RoadmapAccessGuard(memberships, readiness),
             new RoadmapLookupSupport(roadmaps));
 

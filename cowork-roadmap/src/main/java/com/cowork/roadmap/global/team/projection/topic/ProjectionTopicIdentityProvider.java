@@ -1,8 +1,9 @@
-package com.cowork.roadmap.global.team;
+package com.cowork.roadmap.global.team.projection.topic;
 
 import java.time.Duration;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -13,6 +14,9 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.Uuid;
 import org.springframework.boot.kafka.autoconfigure.KafkaProperties;
 import org.springframework.stereotype.Component;
+
+import com.cowork.roadmap.global.team.projection.model.ProjectionBrokerRange;
+import com.cowork.roadmap.global.team.projection.model.ProjectionTopicState;
 
 import jakarta.annotation.PreDestroy;
 
@@ -27,7 +31,7 @@ public class ProjectionTopicIdentityProvider {
         this.admin = Admin.create(kafkaProperties.buildAdminProperties());
     }
 
-    String topicId(String topic) {
+    public String topicId(String topic) {
         try {
             return describe(topic).topicId().toString();
         } catch (Exception exception) {
@@ -38,7 +42,7 @@ public class ProjectionTopicIdentityProvider {
         }
     }
 
-    ProjectionTopicState topicState(String topic) {
+    public ProjectionTopicState topicState(String topic) {
         try {
             var description = describe(topic);
             Collection<TopicPartition> partitions = description.partitions()
@@ -66,7 +70,7 @@ public class ProjectionTopicIdentityProvider {
     }
 
     private TopicDescription describe(String topic) throws Exception {
-        var description = admin.describeTopics(java.util.List.of(topic))
+        var description = admin.describeTopics(List.of(topic))
                 .allTopicNames()
                 .get(METADATA_TIMEOUT_SECONDS, TimeUnit.SECONDS)
                 .get(topic);

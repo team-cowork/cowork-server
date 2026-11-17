@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
@@ -20,12 +21,12 @@ import com.cowork.roadmap.domain.roadmap.service.impl.ListRoadmapsServiceImpl;
 
 import team.themoment.sdk.exception.ExpectedException;
 
+@DisplayName("ListRoadmapsService 의")
 class ListRoadmapsServiceTest {
 
     private final RoadmapRepository roadmapRepository = mock(RoadmapRepository.class);
     private final RoadmapAccessGuard accessGuard = mock(RoadmapAccessGuard.class);
-    private final ListRoadmapsServiceImpl listRoadmapsService = new ListRoadmapsServiceImpl(roadmapRepository,
-            accessGuard);
+    private final ListRoadmapsService listRoadmapsService = new ListRoadmapsServiceImpl(roadmapRepository, accessGuard);
 
     @Test
     void listByProject_returnsOnlyReadableRoadmaps() {

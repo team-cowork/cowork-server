@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 import java.time.Instant;
 import java.util.Optional;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 import org.springframework.http.HttpStatus;
@@ -29,6 +30,7 @@ import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import team.themoment.sdk.exception.ExpectedException;
 
+@DisplayName("CreateRoadmapNodeService 의")
 class CreateRoadmapNodeServiceTest {
 
     private final RoadmapNodeRepository nodeRepository = mock(RoadmapNodeRepository.class);
@@ -36,8 +38,7 @@ class CreateRoadmapNodeServiceTest {
     private final RoadmapAccessGuard accessGuard = mock(RoadmapAccessGuard.class);
 
     private final RoadmapLookupSupport roadmapLookupSupport = new RoadmapLookupSupport(roadmapRepository);
-    private final CreateRoadmapNodeServiceImpl createRoadmapNodeService = new CreateRoadmapNodeServiceImpl(
-            nodeRepository,
+    private final CreateRoadmapNodeService createRoadmapNodeService = new CreateRoadmapNodeServiceImpl(nodeRepository,
             accessGuard,
             roadmapLookupSupport);
 
