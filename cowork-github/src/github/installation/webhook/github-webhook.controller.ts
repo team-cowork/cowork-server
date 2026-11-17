@@ -26,6 +26,7 @@ import {
 import {REDIS_CLIENT} from '../../constants.js';
 import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../../github.cache.js';
 import {githubField} from '../../github-field.js';
+import {ProjectBoardWebhookHandler} from '../../project-board/project-board-webhook.handler.js';
 import {PullRequestService} from '../../pull-request/pull-request.service.js';
 import type {PullRequestFileState, PullRequestStateEvent} from '../kafka/event/pull-request-state.js';
 import {toRepoIdentity} from '../kafka/event/repo-identity.js';
@@ -57,6 +58,9 @@ export class GithubWebhookController {
 
 	@inject(PullRequestService)
 	private readonly pullRequestService!: PullRequestService;
+
+	@inject(ProjectBoardWebhookHandler)
+	private readonly projectBoardWebhookHandler!: ProjectBoardWebhookHandler;
 
 	@inject(GithubAuthService)
 	private readonly authService!: GithubAuthService;
@@ -438,11 +442,18 @@ export class GithubWebhookController {
 		});
 	}
 
+	private async handleProjectContent(payload: GithubWebhookPayload, contentNodeId: string | undefined): Promise<void> {
+		const owner = payload.repository?.full_name?.split('/', 1)[0];
+		if (owner !== undefined && owner !== '') {
+			await this.projectBoardWebhookHandler.handleContentChanged(owner, contentNodeId);
+		}
+	}
+
 	@httpPost()
 	@httpCode(200)
 	@apiOperation({
 		summary: 'GitHub 웹훅 수신',
-		description: 'installation/installation_repositories/repository/push/issues/pull_request/label/issue_comment 이벤트를 처리합니다. 그 외 이벤트는 무시하고 HTTP 200을 반환합니다.',
+		description: 'installation/installation_repositories/repository/push/issues/pull_request/label/issue_comment/projects_v2/projects_v2_item 이벤트를 처리합니다. 그 외 이벤트는 무시하고 HTTP 200을 반환합니다.',
 	})
 	@apiHeader({
 		name: 'X-GitHub-Event', description: 'GitHub 이벤트 이름', required: true, schema: {type: 'string', example: 'issues'},
@@ -501,6 +512,7 @@ export class GithubWebhookController {
 			case 'issues': {
 				await Promise.all([
 					this.handleIssueState(payload),
+					this.handleProjectContent(payload, payload.issue?.node_id),
 					this.handleRepoEvent(eventName, payload).catch((error: unknown) => {
 						this.logNotificationFailure(eventName, error);
 					}),
@@ -511,10 +523,21 @@ export class GithubWebhookController {
 			case 'pull_request': {
 				await Promise.all([
 					this.handlePullRequestState(payload),
+					this.handleProjectContent(payload, payload.pull_request?.node_id),
 					this.handleRepoEvent(eventName, payload).catch((error: unknown) => {
 						this.logNotificationFailure(eventName, error);
 					}),
 				]);
+				break;
+			}
+
+			case 'projects_v2_item': {
+				await this.projectBoardWebhookHandler.handleProjectItem(payload);
+				break;
+			}
+
+			case 'projects_v2': {
+				await this.projectBoardWebhookHandler.handleProject(payload);
 				break;
 			}
 
