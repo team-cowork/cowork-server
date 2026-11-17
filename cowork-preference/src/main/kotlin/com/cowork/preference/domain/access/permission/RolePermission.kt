@@ -23,12 +23,6 @@ enum class RolePermission(
         "관리자",
         "소유권 이양을 제외한 팀 작업을 허용하고 채널·프로젝트별 권한 제한을 우회합니다.",
     ),
-    CREATE_TEAM(
-        PermissionKeys.CREATE_TEAM,
-        RolePermissionGroup.TEAM,
-        "팀 생성",
-        "새 팀을 만들 수 있습니다.",
-    ),
     DELETE_TEAM(
         PermissionKeys.DELETE_TEAM,
         RolePermissionGroup.TEAM,

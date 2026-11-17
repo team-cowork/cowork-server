@@ -2,14 +2,14 @@
   "openapi": "3.0.3",
   "info": {
     "title": "cowork Preference API",
-    "description": "계정 역할, 프로젝트 역할, 리소스 설정과 웹훅 관리",
+    "description": "전역 역할, 프로젝트 역할, 리소스 설정과 웹훅 관리",
     "version": "20261117.1"
   },
   "servers": [{"url": "/api/preference", "description": "Gateway"}],
   "security": [{"BearerAuth": []}],
   "tags": [
     {"name": "preference", "description": "리소스 설정"},
-    {"name": "account-role", "description": "계정 역할과 사용자 할당"},
+    {"name": "account-role", "description": "전역 역할과 사용자 할당"},
     {"name": "project-role", "description": "프로젝트 역할 관리"},
     {"name": "notification", "description": "채널 알림 설정"},
     {"name": "webhook", "description": "administrator 권한 또는 채널 접근과 channel_manage 권한 필요. 보관된 채널은 조회와 삭제만 가능"}
@@ -18,7 +18,7 @@
     "/preferences/account-roles": {
       "get": {
         "tags": ["account-role"],
-        "summary": "계정 역할 목록 조회",
+        "summary": "전역 역할 목록 조회",
         "responses": {
           "200": {
             "description": "성공",
@@ -41,7 +41,7 @@
       },
       "post": {
         "tags": ["account-role"],
-        "summary": "계정 역할 생성",
+        "summary": "전역 역할 생성",
         "responses": {
           "201": {
             "description": "성공",
@@ -68,7 +68,7 @@
     "/preferences/account-roles/me": {
       "get": {
         "tags": ["account-role"],
-        "summary": "내 계정에 적용되는 역할 ID 조회",
+        "summary": "내 전역 역할 ID 조회",
         "responses": {
           "200": {
             "description": "성공",
@@ -93,7 +93,7 @@
     "/preferences/account-roles/members/{accountId}": {
       "get": {
         "tags": ["account-role"],
-        "summary": "사용자에게 적용되는 역할 ID 조회",
+        "summary": "사용자 전역 역할 ID 조회",
         "responses": {
           "200": {
             "description": "성공",
@@ -120,7 +120,7 @@
     "/preferences/account-roles/{roleId}": {
       "put": {
         "tags": ["account-role"],
-        "summary": "계정 역할 수정",
+        "summary": "전역 역할 수정",
         "responses": {
           "200": {
             "description": "성공",
@@ -146,7 +146,7 @@
       },
       "delete": {
         "tags": ["account-role"],
-        "summary": "계정 역할 삭제",
+        "summary": "전역 역할 삭제",
         "responses": {
           "204": {"description": "성공"},
           "400": {"description": "잘못된 입력 또는 기본 역할 삭제"},
@@ -161,7 +161,7 @@
     "/preferences/account-roles/{roleId}/members/{accountId}": {
       "put": {
         "tags": ["account-role"],
-        "summary": "계정 역할 부여",
+        "summary": "전역 역할 부여",
         "responses": {
           "204": {"description": "성공"},
           "400": {"description": "잘못된 입력 또는 기본 역할 직접 할당"},
@@ -177,7 +177,7 @@
       },
       "delete": {
         "tags": ["account-role"],
-        "summary": "계정 역할 회수",
+        "summary": "전역 역할 회수",
         "responses": {
           "204": {"description": "성공"},
           "400": {"description": "잘못된 입력 또는 기본 역할 회수"},
