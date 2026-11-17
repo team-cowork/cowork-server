@@ -54,6 +54,7 @@ describe('ChatGithubIssueResultConsumer', () => {
 			type: 'SYSTEM',
 			attachments: [],
 			parentMessageId: null,
+			threadId: null,
 			isEdited: false,
 			isPinned: false,
 			mentions: [],

@@ -6,6 +6,7 @@ import com.cowork.channel.domain.channel.entity.ChannelViewType
 import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channel.service.TeamPermissionService
 import com.cowork.channel.domain.thread.entity.Thread
+import com.cowork.channel.domain.thread.entity.ThreadStatus
 import com.cowork.channel.domain.thread.presentation.data.request.UpdateThreadRequest
 import com.cowork.channel.domain.thread.repository.ThreadRepository
 import io.kotest.assertions.throwables.shouldThrow
@@ -41,6 +42,7 @@ class UpdateThreadServiceImplTest :
             name = "기존 이름",
             parentMessageId = "message-1",
             createdBy = createdBy,
+            status = ThreadStatus.ACTIVE,
         )
 
         beforeEach {
@@ -51,7 +53,13 @@ class UpdateThreadServiceImplTest :
             every { channelAccessGuard.findChannelForUpdateOrThrow(1L) } returns channel
             every { channelAccessGuard.requireTeamChannel(channel) } returns 100L
             every { channelAccessGuard.requireNotArchived(any()) } returns Unit
-            service = UpdateThreadServiceImpl(threadRepository, channelAccessGuard, teamPermissionService)
+            service =
+                UpdateThreadServiceImpl(
+                    threadRepository,
+                    channelAccessGuard,
+                    teamPermissionService,
+                    mockk(relaxed = true),
+                )
         }
 
         describe("UpdateThreadServiceImpl 클래스의 updateThread 메서드는") {
@@ -64,6 +72,20 @@ class UpdateThreadServiceImplTest :
                     }
 
                     error.statusCode shouldBe HttpStatus.BAD_REQUEST
+                }
+            }
+
+            context("스레드가 시작 메시지 검증 대기 중이면") {
+                it("NOT_FOUND로 거부한다") {
+                    val pending =
+                        Thread(id = 7L, channelId = 1L, name = "대기", parentMessageId = "message-1", createdBy = 20L)
+                    every { threadRepository.findById(7L) } returns Optional.of(pending)
+
+                    val error = shouldThrow<ExpectedException> {
+                        service.updateThread(20L, 1L, 7L, UpdateThreadRequest(name = "변경"))
+                    }
+
+                    error.statusCode shouldBe HttpStatus.NOT_FOUND
                 }
             }
 

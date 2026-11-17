@@ -156,12 +156,18 @@ export class Message {
 	@prop({type: [Attachment], default: []}) attachments!: Attachment[];
 
 	/**
-     스레드(답글)의 부모 메시지 ObjectId.
-     최상위 메시지이거나 스레드가 아닌 경우 `null`입니다.
+     답장 원본 메시지 ObjectId. 답장이 아니면 `null`입니다.
+     스레드 소속은 {@link threadId}로 나타내며, 이 필드는 답장 원본으로만 씁니다.
      `$lookup` 집계로 부모 메시지 정보를 `mentionedMessage` 필드에 조인합니다.
      `Types.ObjectId` 선언은 `Mixed` 경로로 생성되므로 스키마가 ObjectId 타입을 강제하지 않습니다.
      */
 	@prop({type: Types.ObjectId, default: null}) parentMessageId!: Nullable<Types.ObjectId>;
+
+	/**
+     메시지가 속한 스레드의 식별자 (`cowork-channel`의 `tb_threads.id`).
+     채널 목록에 보이는 메시지는 `null`이며, 이 필드가 생기기 전에 저장된 메시지에는 값이 없습니다.
+     */
+	@prop({type: Number, default: null}) threadId!: Nullable<number>;
 
 	/**
      메시지가 편집된 적 있는지 여부.
@@ -309,6 +315,11 @@ export const messageSchema = SchemaFactory.createForClass(Message)
 	채널 내 스레드 답글 목록 조회를 위한 복합 인덱스 (`channelId`, `parentMessageId`, `_id` 내림차순)
 	*/
 	.index({channelId: 1, parentMessageId: 1, _id: -1})
+	/**
+	 채널 목록(`threadId: null`)과 스레드별 메시지 목록 조회를 위한 복합 인덱스.
+	 값이 없는 이전 메시지도 `null`로 색인되어 채널 목록 조회에 포함됩니다.
+	 */
+	.index({channelId: 1, threadId: 1, _id: -1})
 	/**
 	 채널별 고정 메시지를 최신순으로 조회하기 위한 부분 인덱스 (`channelId` 오름차순, `_id` 내림차순).
 	 `isPinned: true`인 도큐먼트만 담아 고정되지 않은 메시지의 쓰기에는 인덱스 비용이 들지 않습니다.

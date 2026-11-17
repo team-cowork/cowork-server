@@ -21,7 +21,7 @@ describe('NotificationOutboxPoller 실패 처리', () => {
 	let triggerProducer: {send: jest.Mock};
 	let poller: NotificationOutboxPoller;
 
-	const claimedMessage = (notificationRetryCount: number) => ({
+	const claimedMessage = (notificationRetryCount: number, threadId?: number) => ({
 		_id: new Types.ObjectId(),
 		channelId: 1,
 		teamId: 10,
@@ -32,6 +32,7 @@ describe('NotificationOutboxPoller 실패 처리', () => {
 		createdAt: new Date(),
 		notificationRetryCount,
 		notificationClaimId: claimId,
+		threadId: threadId ?? null,
 	});
 
 	beforeEach(() => {
@@ -54,6 +55,23 @@ describe('NotificationOutboxPoller 실패 처리', () => {
 	});
 
 	const runCycle = async () => (poller as unknown as {runPollCycle: () => Promise<void>}).runPollCycle();
+	const incrementIfPresent = () => (poller as unknown as {unreadCounterService: {incrementIfPresent: jest.Mock}}).unreadCounterService.incrementIfPresent;
+
+	it('채널 메시지는 처음 처리할 때 안읽음 수 캐시를 올린다', async () => {
+		messageRepository.findPendingAndMarkProcessing.mockResolvedValue([claimedMessage(0)]);
+
+		await runCycle();
+
+		expect(incrementIfPresent()).toHaveBeenCalledWith(1, [7], expect.any(String));
+	});
+
+	it('스레드 메시지는 안읽음 수 캐시를 올리지 않는다', async () => {
+		messageRepository.findPendingAndMarkProcessing.mockResolvedValue([claimedMessage(0, 3)]);
+
+		await runCycle();
+
+		expect(incrementIfPresent()).not.toHaveBeenCalled();
+	});
 
 	it('발행 실패 시 PENDING으로 되돌리며 다음 시도 시각을 미룬다', async () => {
 		const claimed = claimedMessage(0);
