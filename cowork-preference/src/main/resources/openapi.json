@@ -68,7 +68,7 @@
     "/preferences/account-roles/me": {
       "get": {
         "tags": ["account-role"],
-        "summary": "내 전역 역할 ID 조회",
+        "summary": "내 부여 역할 ID 조회",
         "responses": {
           "200": {
             "description": "성공",
@@ -93,7 +93,7 @@
     "/preferences/account-roles/members/{accountId}": {
       "get": {
         "tags": ["account-role"],
-        "summary": "사용자 전역 역할 ID 조회",
+        "summary": "사용자 부여 역할 ID 조회",
         "responses": {
           "200": {
             "description": "성공",

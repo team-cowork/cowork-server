@@ -26,8 +26,8 @@ class AccountRoleRepository(private val outbox: PreferenceOutboxRepository) {
     }
 
     suspend fun assignments(client: SqlClient, accountId: Long): List<Long> = client.preparedQuery(
-        "SELECT r.id FROM tb_account_role_definitions r WHERE NOT r.deleted AND (r.is_default OR EXISTS (" +
-            "SELECT 1 FROM tb_account_role_assignments a WHERE a.role_id = r.id AND a.account_id = $1 AND NOT a.deleted)) ORDER BY r.id",
+        "SELECT r.id FROM tb_account_role_definitions r WHERE NOT r.deleted AND NOT r.is_default AND EXISTS (" +
+            "SELECT 1 FROM tb_account_role_assignments a WHERE a.role_id = r.id AND a.account_id = $1 AND NOT a.deleted) ORDER BY r.id",
     ).execute(Tuple.of(accountId)).coAwait().map { it.getLong("id") }
 
     suspend fun roles(client: SqlClient): List<JsonObject> = client.query(
