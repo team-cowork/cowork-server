@@ -30,7 +30,6 @@ public sealed record AppConfig
     public required int PresignedPutExpiryMinutes { get; init; }
     public required int PresignedGetExpiryMinutes { get; init; }
     public required long MaxFileSizeBytes { get; init; }
-    public required IReadOnlyList<string> AllowedContentTypes { get; init; }
     public required string RedisHost { get; init; }
     public required int RedisPort { get; init; }
 
@@ -80,7 +79,6 @@ public sealed record AppConfig
             PresignedPutExpiryMinutes = int.Parse(Lookup("5", "S3_PRESIGNED_PUT_EXPIRY_MINUTES", "s3_presigned_put_expiry_minutes")),
             PresignedGetExpiryMinutes = int.Parse(Lookup("15", "S3_PRESIGNED_GET_EXPIRY_MINUTES", "s3_presigned_get_expiry_minutes")),
             MaxFileSizeBytes = long.Parse(Lookup("5242880", "S3_MAX_FILE_SIZE_BYTES", "s3_max_file_size_bytes")),
-            AllowedContentTypes = ParseCsvOrList(Lookup("image/jpeg,image/png,image/webp", "S3_ALLOWED_CONTENT_TYPES")),
             RedisHost = Required("REDIS_HOST"),
             RedisPort = int.Parse(Required("REDIS_PORT")),
         };
@@ -132,11 +130,4 @@ public sealed record AppConfig
             throw new InvalidOperationException($"{key} must not exceed {max}");
         return parsed;
     }
-
-    internal static List<string> ParseCsvOrList(string value) =>
-        value.Trim().TrimStart('[').TrimEnd(']')
-            .Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Select(entry => entry.Trim().Trim('"').Trim('\''))
-            .Where(entry => entry != "")
-            .ToList();
 }
