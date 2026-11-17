@@ -57,6 +57,38 @@ public class AccountsPolicyTests
     }
 
     [Fact]
+    public void Profile_patch_keeps_an_omitted_banner_color_absent()
+    {
+        Assert.Null(Accounts.ParseProfilePatch(Json("""{"name": "김코워크"}""")).BannerColor);
+        Assert.Equal(JsonValueKind.Null, Accounts.ParseProfilePatch(Json("""{"banner_color": null}""")).BannerColor!.Value.ValueKind);
+        var patch = Accounts.ParseProfilePatch(Json("""{"banner_color": "BLUE"}"""));
+        Assert.Equal("BLUE", patch.BannerColor!.Value.GetString());
+        Assert.Empty(patch.Profile);
+    }
+
+    [Fact]
+    public void Banner_color_accepts_only_preset_keys_and_null()
+    {
+        foreach (var key in new[] { "RED", "BLUE", "GREEN", "AMBER", "PURPLE", "NEUTRAL" })
+        {
+            var valid = new FieldErrors();
+            Assert.Equal(key, Accounts.CastBannerColor(Json($"\"{key}\""), valid));
+            Assert.False(valid.Any);
+        }
+
+        var reset = new FieldErrors();
+        Assert.Null(Accounts.CastBannerColor(Json("null"), reset));
+        Assert.False(reset.Any);
+
+        foreach (var invalid in new[] { "\"blue\"", "\" BLUE\"", "\"\"", "\"PINK\"", "1", "true", "[\"RED\"]" })
+        {
+            var errors = new FieldErrors();
+            Accounts.CastBannerColor(Json(invalid), errors);
+            Assert.Equal("banner_color should be one of RED, BLUE, GREEN, AMBER, PURPLE, NEUTRAL", Assert.Throws<FieldErrors>(errors.ThrowIfAny).Message);
+        }
+    }
+
+    [Fact]
     public void Profile_patch_roles_are_trimmed_deduplicated_and_sorted()
     {
         Assert.Empty(Accounts.ParseProfilePatch(Json("""{"roles": []}""")).Roles!);

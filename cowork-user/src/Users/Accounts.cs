@@ -47,13 +47,14 @@ public static partial class Accounts
         public string? ProfileImageKey { get; init; }
         public string? Nickname { get; init; }
         public string? Description { get; init; }
+        public string? BannerColor { get; init; }
     }
 
     const string ProfileSelect = """
         SELECT a.id, a.name, a.email, a.sex, a.github, a.description AS account_description,
                a.student_role, a.student_number, a.major, a.specialty, a.status, a.custom_status,
                a.status_message, a.status_expires_at, p.id AS profile_id, p.profile_image_key,
-               p.nickname, p.description
+               p.nickname, p.description, p.banner_color
         FROM tb_profiles p
         JOIN tb_accounts a ON a.id = p.account_id
         """;
@@ -94,7 +95,8 @@ public static partial class Accounts
             row.ProfileImageKey is { } key ? ObjectStorage.PresignedGetUrl(key) : null,
             row.Nickname,
             roles[row.ProfileId].Distinct().Order(StringComparer.Ordinal).ToList(),
-            row.Description ?? row.AccountDescription)).ToList();
+            row.Description ?? row.AccountDescription,
+            row.BannerColor)).ToList();
     }
 
     /// <summary>
@@ -182,7 +184,8 @@ public static partial class Accounts
         IReadOnlyDictionary<string, JsonElement> Profile,
         IReadOnlyDictionary<string, JsonElement> Account,
         IReadOnlyList<string>? Roles,
-        JsonElement? Github
+        JsonElement? Github,
+        JsonElement? BannerColor
         );
 
     internal static ProfilePatch ParseProfilePatch(JsonElement attrs)
@@ -201,7 +204,20 @@ public static partial class Accounts
         }
 
         return new ProfilePatch(Take(("nickname", "nickname"), ("description", "description")),
-            Take(("name", "name")), roles, attrs.TryGetProperty("github_id", out var github) ? github : null);
+            Take(("name", "name")), roles, attrs.TryGetProperty("github_id", out var github) ? github : null,
+            attrs.TryGetProperty("banner_color", out var bannerColor) ? bannerColor : null);
+    }
+
+    /// <summary>Preset keys for the profile banner. Clients map each key to a color for their theme.</summary>
+    internal static readonly string[] BannerColors = ["RED", "BLUE", "GREEN", "AMBER", "PURPLE", "NEUTRAL"];
+
+    /// <summary>Casts a banner color: null resets it to the client default, any other value must be a preset key.</summary>
+    internal static string? CastBannerColor(JsonElement value, FieldErrors errors)
+    {
+        if (value.ValueKind == JsonValueKind.Null) return null;
+        if (value.ValueKind == JsonValueKind.String && value.GetString() is { } key && BannerColors.Contains(key, StringComparer.Ordinal)) return key;
+        errors.Add("banner_color", $"should be one of {string.Join(", ", BannerColors)}");
+        return null;
     }
 
     /// <summary>Only DataGSM sync sets the GitHub login that authorizes GitHub actions; a patch may only echo the stored value.</summary>
@@ -251,24 +267,29 @@ public static partial class Accounts
             var account = await connection.QueryAsync<(string Name, string? Github)>(
                 "SELECT name, github FROM tb_accounts WHERE id = @userId FOR UPDATE", new { userId }, transaction).FirstOrNullAsync() ?? throw ApiError.NotFound();
             EnsureGithubUnchanged(patch.Github, account.Github);
-            var profile = await connection.QueryAsync<(long Id, string? Nickname, string? Description)>(
-                "SELECT id, nickname, description FROM tb_profiles WHERE account_id = @userId FOR UPDATE", new { userId }, transaction).FirstOrNullAsync() ?? throw ApiError.NotFound();
+            var profile = await connection.QueryAsync<(long Id, string? Nickname, string? Description, string? BannerColor)>(
+                "SELECT id, nickname, description, banner_color FROM tb_profiles WHERE account_id = @userId FOR UPDATE", new { userId }, transaction).FirstOrNullAsync() ?? throw ApiError.NotFound();
 
             var profileErrors = new FieldErrors();
             var profileChanges = CastStrings(patch.Profile, profileErrors);
+            var bannerColor = patch.BannerColor is { } rawBannerColor ? CastBannerColor(rawBannerColor, profileErrors) : profile.BannerColor;
             profileErrors.ThrowIfAny();
             var profileChanged = (profileChanges.TryGetValue("nickname", out var nickname) && nickname != profile.Nickname)
                                  | (profileChanges.TryGetValue("description", out var description) && description != profile.Description);
-            if (profileChanged)
+            // The profile event carries no banner color, so a banner-only change publishes nothing.
+            var bannerChanged = bannerColor != profile.BannerColor;
+            if (profileChanged || bannerChanged)
             {
                 await connection.ExecuteAsync("""
                     UPDATE tb_profiles
-                    SET nickname = @nickname, description = @description, last_modified_by = @userId, updated_at = UTC_TIMESTAMP(6)
+                    SET nickname = @nickname, description = @description, banner_color = @bannerColor,
+                        last_modified_by = @userId, updated_at = UTC_TIMESTAMP(6)
                     WHERE id = @id
                     """, new
                 {
                     nickname = profileChanges.GetValueOrDefault("nickname", profile.Nickname),
                     description = profileChanges.GetValueOrDefault("description", profile.Description),
+                    bannerColor,
                     userId,
                     id = profile.Id,
                 }, transaction);
