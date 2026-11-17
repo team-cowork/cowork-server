@@ -13,6 +13,7 @@ import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
 import com.cowork.project.domain.github.repository.GithubSyncRequestRepository
 import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
 import com.cowork.project.domain.github.repository.TeamGithubInstallationRepository
+import com.cowork.project.domain.githubBoard.repository.ProjectGithubBoardRepository
 import com.cowork.project.global.outbox.OutboxWriter
 import com.cowork.project.global.projection.ProjectionSnapshotLock
 import org.slf4j.LoggerFactory
@@ -22,39 +23,67 @@ import org.springframework.stereotype.Component
 import java.time.Instant
 import java.util.Locale
 
-/** 동기화 대상. org는 repo 목록, repo는 이슈·PR·라벨·댓글이며, 각자 확인할 완료 마커가 다르다. */
-data class GithubSyncTarget(val owner: String, val repo: String?, val installationId: Long?) {
-    val requestId: String get() = if (repo == null) "ORG_REPOSITORIES:$owner" else "REPOSITORY:$owner/$repo"
+/**
+ * 동기화 대상. org는 repo 목록, repo는 이슈, PR, 라벨, 댓글, Project는 GitHub Project의 설정과 item이며,
+ * 각자 확인할 완료 마커가 다르다.
+ */
+data class GithubSyncTarget(
+    val owner: String,
+    val repo: String?,
+    val installationId: Long?,
+    val projectNumber: Int? = null,
+) {
+    val isProject: Boolean get() = projectNumber != null
+
+    val requestId: String
+        get() = when {
+            projectNumber != null -> "PROJECT:$owner#$projectNumber"
+            repo == null -> "ORG_REPOSITORIES:$owner"
+            else -> "REPOSITORY:$owner/$repo"
+        }
 
     val repoProjectionId: String? get() = repo?.let { GithubRepoProjection.id(owner, it) }
 
     val markerIds: List<String>
-        get() = if (repo == null) {
-            listOf(GithubSyncMarker.id(GithubSyncStream.REPO, owner, null))
-        } else {
-            REPOSITORY_STREAMS.map { GithubSyncMarker.id(it, owner, repo) }
+        get() = when {
+            projectNumber != null -> PROJECT_STREAMS.map {
+                GithubSyncMarker.id(it, owner, GithubSyncMarker.projectScope(projectNumber))
+            }
+
+            repo == null -> listOf(GithubSyncMarker.id(GithubSyncStream.REPO, owner, null))
+
+            else -> REPOSITORY_STREAMS.map { GithubSyncMarker.id(it, owner, repo) }
         }
 
     fun toCommand(requestedAt: Instant) = GithubSyncCommand(
-        target = if (repo == null) "ORG_REPOSITORIES" else "REPOSITORY",
+        target = when {
+            projectNumber != null -> "PROJECT"
+            repo == null -> "ORG_REPOSITORIES"
+            else -> "REPOSITORY"
+        },
         owner = owner,
         repo = repo,
         installationId = installationId,
         requestedAt = requestedAt,
+        projectNumber = projectNumber,
     )
 
-    private companion object {
-        val REPOSITORY_STREAMS = listOf(
+    companion object {
+        private val REPOSITORY_STREAMS = listOf(
             GithubSyncStream.ISSUE,
             GithubSyncStream.PULL_REQUEST,
             GithubSyncStream.LABEL,
             GithubSyncStream.ISSUE_COMMENT,
         )
+        private val PROJECT_STREAMS = listOf(GithubSyncStream.PROJECT, GithubSyncStream.PROJECT_ITEM)
+
+        fun project(owner: String, projectNumber: Int) =
+            GithubSyncTarget(owner.lowercase(Locale.ROOT), null, null, projectNumber)
     }
 }
 
 /**
- * 팀이 설치한 org(repo 목록)와 프로젝트에 연결된 repo(이슈·PR·라벨·댓글)의 완료 마커를 주기적으로 확인해,
+ * 팀이 설치한 org의 repo 목록, 프로젝트에 연결된 repo의 이슈, PR, 라벨, 댓글, GitHub Project의 완료 마커를 주기적으로 확인해,
  * 마커가 없거나 오래된 대상만 `cowork-github`에 동기화를 요청한다. 요청한 뒤 쿨다운 동안은 다시 요청하지
  * 않으므로, `cowork-github`가 처리 중이면 기다리고 실패했거나 처리 전에 내려갔으면 쿨다운 뒤 다시 요청한다.
  * 설치 범위에서 빠지거나 삭제된 repo는 `cowork-github`가 접근할 수 없어 매번 실패하므로 요청하지 않는다.
@@ -62,6 +91,7 @@ data class GithubSyncTarget(val owner: String, val repo: String?, val installati
 @Component
 class GithubSyncRequestScheduler(
     private val projectGithubRepoRepository: ProjectGithubRepoRepository,
+    private val projectGithubBoardRepository: ProjectGithubBoardRepository,
     private val repoProjectionRepository: GithubRepoProjectionRepository,
     private val installationRepository: TeamGithubInstallationRepository,
     private val markerRepository: GithubSyncMarkerRepository,
@@ -71,6 +101,9 @@ class GithubSyncRequestScheduler(
     private val snapshotLock: ProjectionSnapshotLock,
     @Value("\${github.sync.request-cooldown-ms:1800000}") private val requestCooldownMs: Long,
     @Value("\${github.sync.stale-after-ms:604800000}") private val staleAfterMs: Long,
+    // GitHub는 field와 view 설정 변경을 웹훅으로 알리지 않는다. Project는 짧은 주기로 다시 읽어 그 변경을 따라간다.
+    @Value("\${github.sync.project-stale-after-ms:3600000}") private val projectStaleAfterMs: Long,
+    @Value("\${github.sync.manual-cooldown-ms:60000}") private val manualCooldownMs: Long,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -88,7 +121,7 @@ class GithubSyncRequestScheduler(
             val requests = requestRepository.findAllById(targets.map { it.requestId })
                 .associate { it.id to it.requestedAt }
             targets
-                .filter { needsRequest(it.markerIds.map(markers::get), requests[it.requestId], now) }
+                .filter { needsRequest(it.markerIds.map(markers::get), requests[it.requestId], now, staleAfter(it)) }
                 .forEach { request(it, now) }
         }
     }
@@ -109,11 +142,41 @@ class GithubSyncRequestScheduler(
         requestRepository.upsert(target.requestId, now)
     }
 
-    internal fun needsRequest(markerCompletedAts: List<Instant?>, lastRequestedAt: Instant?, now: Instant): Boolean {
+    /**
+     * 새로 연결한 GitHub Project나 사용자가 요청한 재동기화를 연결 트랜잭션의 outbox로 바로 요청한다.
+     * [force]이면 완료 마커가 최신이어도 요청하되, 짧은 쿨다운 동안 같은 Project를 반복해서 요청하지 않는다.
+     * 요청했으면 true다.
+     */
+    fun requestProjectSync(owner: String, projectNumber: Int, force: Boolean): Boolean {
+        val now = Instant.now()
+        val target = GithubSyncTarget.project(owner, projectNumber)
+        val lastRequestedAt = requestRepository.findById(target.requestId).map { it.requestedAt }.orElse(null)
+        val requested = if (force) {
+            lastRequestedAt == null || !lastRequestedAt.isAfter(now.minusMillis(manualCooldownMs))
+        } else {
+            val markers = markerRepository.findAllById(target.markerIds).associate { it.id to it.completedAt }
+            needsRequest(target.markerIds.map(markers::get), lastRequestedAt, now, projectStaleAfterMs)
+        }
+        if (!requested) return false
+
+        val command = target.toCommand(now)
+        outboxWriter.enqueue(GITHUB_SYNC_COMMAND_TOPIC, command.key, command)
+        requestRepository.upsert(target.requestId, now)
+        return true
+    }
+
+    internal fun needsRequest(
+        markerCompletedAts: List<Instant?>,
+        lastRequestedAt: Instant?,
+        now: Instant,
+        staleAfterMs: Long = this.staleAfterMs,
+    ): Boolean {
         if (lastRequestedAt != null && lastRequestedAt.isAfter(now.minusMillis(requestCooldownMs))) return false
         val staleBefore = now.minusMillis(staleAfterMs)
         return markerCompletedAts.any { it == null || it.isBefore(staleBefore) }
     }
+
+    private fun staleAfter(target: GithubSyncTarget): Long = if (target.isProject) projectStaleAfterMs else staleAfterMs
 
     // owner/repo는 `project.github-repo.event`와 같은 규칙으로 소문자로 맞춘다. 연결 URL의 대소문자가 서로
     // 다르거나 GitHub 정식 이름과 달라도 같은 대상·마커로 판단해야 같은 repo를 반복 요청하지 않는다.
@@ -130,7 +193,12 @@ class GithubSyncRequestScheduler(
                 repositoryTarget(ref)
             }
             .distinct()
-        return orgs + repos.excludingRemovedRepos()
+        // 팀 조직이 아닌 Project는 다른 팀 조직의 설치 토큰으로 읽게 되므로 요청하지 않는다.
+        val projects = projectGithubBoardRepository.findAll()
+            .filter { orgByTeamId[it.teamId] == it.ownerLogin.lowercase(Locale.ROOT) }
+            .map { GithubSyncTarget.project(it.ownerLogin, it.projectNumber) }
+            .distinct()
+        return orgs + repos.excludingRemovedRepos() + projects
     }
 
     // 다시 설치 범위에 들어오면 `cowork-github`가 deleted=false repo state를 발행해 projection이 되살아나므로,
