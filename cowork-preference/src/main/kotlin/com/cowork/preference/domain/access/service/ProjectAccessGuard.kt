@@ -2,6 +2,7 @@ package com.cowork.preference.domain.access.service
 
 import com.cowork.preference.domain.access.exception.ProjectionNotReadyException
 import com.cowork.preference.domain.access.exception.ResourceAccessDeniedException
+import com.cowork.preference.domain.access.permission.RolePolicy
 import com.cowork.preference.domain.access.projection.project.repository.ProjectLifecycleProjectionRepository
 import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectRoleRepository
@@ -23,17 +24,15 @@ class ProjectAccessGuard(
 ) {
     /** 프로젝트 설정·역할 조회: read 권한 보유자 또는 프로젝트 관리자. */
     suspend fun requireMember(projectId: Long, requester: RequesterContext) {
-        val role = activeTeamRole(projectId, requester.userId)
-        if (role in MANAGER_ROLES) return
+        activeTeamId(projectId, requester.userId)
         val allowed = roles.canRead(projectId, requester.userId)
         if (!allowed) throw ResourceAccessDeniedException("프로젝트 읽기 권한이 없습니다.")
     }
 
-    /** 프로젝트 설정 수정: manage 권한 보유자 또는 팀 OWNER/ADMIN. */
+    /** 프로젝트 설정 수정: manage 권한 보유자 또는 관리자 정책. */
     suspend fun requireManager(projectId: Long, requester: RequesterContext) {
-        if (activeTeamRole(projectId, requester.userId) !in MANAGER_ROLES &&
-            !roles.canManage(projectId, requester.userId)
-        ) {
+        activeTeamId(projectId, requester.userId)
+        if (!roles.canManage(projectId, requester.userId)) {
             throw ResourceAccessDeniedException("프로젝트 설정을 관리할 권한이 없습니다.")
         }
     }
@@ -81,7 +80,7 @@ class ProjectAccessGuard(
     ) {
         val permissions = roles.findRole(projectId, roleName, client)?.permissions ?: JsonObject()
         val actor = requireRoleMutation(projectId, requester, permissions, removing = true, client = client)
-        if (actor.builtInManager) return
+        if (actor.administrator) return
         val accountIds = roles.findMemberRoles(projectId, client)
             .filter { it.roleName == roleName && it.accountId != requester.userId }.map { it.accountId }.distinct()
         requireManageableTargets(actor, accountIds, requireActiveMember = false, client = client)
@@ -94,11 +93,14 @@ class ProjectAccessGuard(
         removing: Boolean,
         client: SqlClient = pool,
     ): RoleActor {
-        val builtInManager = activeTeamRole(projectId, requester.userId, client) in MANAGER_ROLES
+        val actorTeamId = activeTeamId(projectId, requester.userId, client)
+        val actorRoles = teamRoles.findAccountRoles(client, actorTeamId, requester.userId)
+        val administrator = actorRoles.any {
+            RolePolicy.allows(it.permissions, "administrator")
+        }
         val project = requireNotNull(projectRepository.findForRead(client, projectId))
-        if (builtInManager) return RoleActor(project.teamId, true, Int.MAX_VALUE)
+        if (administrator) return RoleActor(project.teamId, true, Int.MAX_VALUE)
         val effective = roles.effectivePermissions(projectId, requester.userId, client)
-        val actorRoles = teamRoles.findAccountRoles(client, project.teamId, requester.userId)
         if (!effective.read || actorRoles.none { it.permissions["manage_roles"] == true }) {
             throw ResourceAccessDeniedException("프로젝트 역할을 관리할 권한이 없습니다.")
         }
@@ -127,15 +129,18 @@ class ProjectAccessGuard(
         requireActiveMember: Boolean,
         client: SqlClient = pool,
     ) {
-        if (actor.builtInManager && !requireActiveMember) return
+        if (actor.administrator && !requireActiveMember) return
         accountIds.forEach { accountId ->
             val target = teamMemberRepository.findForRead(client, actor.teamId, accountId)?.takeUnless { it.deleted }
             if (target == null) {
                 if (requireActiveMember) throw ResourceAccessDeniedException("프로젝트 팀 멤버만 접근할 수 있습니다.")
                 return@forEach
             }
-            if (actor.builtInManager) return@forEach
-            if (target.builtInRole in MANAGER_ROLES) {
+            if (actor.administrator) return@forEach
+            if (teamRoles.findAccountRoles(client, actor.teamId, accountId).any {
+                    RolePolicy.allows(it.permissions, "administrator")
+                }
+            ) {
                 throw ResourceAccessDeniedException("팀 관리자의 프로젝트 역할은 변경할 수 없습니다.")
             }
             val targetPriority =
@@ -146,7 +151,7 @@ class ProjectAccessGuard(
         }
     }
 
-    private suspend fun activeTeamRole(projectId: Long, accountId: Long, client: SqlClient = pool): String {
+    private suspend fun activeTeamId(projectId: Long, accountId: Long, client: SqlClient = pool): Long {
         if (!readiness.isReady) {
             throw ProjectionNotReadyException("project lifecycle or team member projection is not ready")
         }
@@ -156,12 +161,8 @@ class ProjectAccessGuard(
         if (member == null || member.deleted) {
             throw ResourceAccessDeniedException("프로젝트 팀 멤버만 접근할 수 있습니다.")
         }
-        return member.builtInRole
+        return project.teamId
     }
 
-    private companion object {
-        val MANAGER_ROLES = setOf("OWNER", "ADMIN")
-    }
-
-    private data class RoleActor(val teamId: Long, val builtInManager: Boolean, val maxPriority: Int)
+    private data class RoleActor(val teamId: Long, val administrator: Boolean, val maxPriority: Int)
 }

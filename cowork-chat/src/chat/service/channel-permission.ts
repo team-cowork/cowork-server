@@ -9,6 +9,10 @@ export function hasChannelPermission(
 	permission: string,
 	isPrivateAccess = false,
 ): boolean {
+	if (roles.some(role => role.permissions?.administrator === true)) {
+		return true;
+	}
+
 	let isAllowed = !isPrivateAccess && roles.some(role => role.permissions?.[permission] === true);
 	for (const role of roles) {
 		if (!role.isDefault) {

@@ -17,6 +17,30 @@ enum class RolePermission(
     val description: String,
     val channelTypes: Set<RolePermissionChannelType> = emptySet(),
 ) {
+    ADMINISTRATOR(
+        PermissionKeys.ADMINISTRATOR,
+        RolePermissionGroup.TEAM,
+        "관리자",
+        "소유권 이양을 제외한 팀 작업을 허용하고 채널·프로젝트별 권한 제한을 우회합니다.",
+    ),
+    CREATE_TEAM(
+        PermissionKeys.CREATE_TEAM,
+        RolePermissionGroup.TEAM,
+        "팀 생성",
+        "새 팀을 만들 수 있습니다.",
+    ),
+    DELETE_TEAM(
+        PermissionKeys.DELETE_TEAM,
+        RolePermissionGroup.TEAM,
+        "팀 삭제",
+        "팀과 팀의 멤버십을 삭제할 수 있습니다.",
+    ),
+    TRANSFER_TEAM_OWNERSHIP(
+        PermissionKeys.TRANSFER_TEAM_OWNERSHIP,
+        RolePermissionGroup.TEAM,
+        "소유권 이양",
+        "현재 소유자가 다른 팀 멤버에게 소유권을 이양할 수 있습니다. 소유자 정책에만 부여됩니다.",
+    ),
     MANAGE_TEAM(
         PermissionKeys.MANAGE_TEAM,
         RolePermissionGroup.TEAM,

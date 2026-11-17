@@ -6,6 +6,7 @@ import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.presentation.data.request.CreateTeamRequest
 import com.cowork.team.domain.team.presentation.data.response.TeamResponse
 import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.team.service.AccountPermissionGuard
 import com.cowork.team.domain.team.service.CreateTeamService
 import com.cowork.team.domain.team.service.TeamIconOwnershipService
 import com.cowork.team.domain.teamMember.entity.TeamMember
@@ -16,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class CreateTeamServiceImpl(
+    private val permissions: AccountPermissionGuard,
     private val iconOwnership: TeamIconOwnershipService,
     private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
@@ -25,6 +27,7 @@ class CreateTeamServiceImpl(
 
     @Transactional
     override fun execute(ownerId: Long, request: CreateTeamRequest): TeamResponse {
+        permissions.requireCreateTeam(ownerId)
         val team = teamRepository.save(
             Team(
                 name = request.name,

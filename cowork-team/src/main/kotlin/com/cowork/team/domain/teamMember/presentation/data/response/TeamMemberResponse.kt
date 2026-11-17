@@ -10,7 +10,8 @@ data class TeamMemberResponse(
     val id: Long,
     @field:Schema(description = "사용자 ID", example = "42")
     val userId: Long,
-    @field:Schema(description = "역할", example = "MEMBER", allowableValues = ["OWNER", "ADMIN", "MEMBER"])
+    // TODO(2026-11-17T06:59:44Z): Remove this legacy label after clients use assigned role policies and ownerId.
+    @field:Schema(description = "이전 멤버십 표시값. 권한은 역할 정책으로 판정합니다.", deprecated = true)
     val role: String,
     @field:Schema(description = "팀 닉네임. null이면 계정 닉네임을 사용합니다.", example = "홍길동 / 프론트엔드")
     val nickname: String?,

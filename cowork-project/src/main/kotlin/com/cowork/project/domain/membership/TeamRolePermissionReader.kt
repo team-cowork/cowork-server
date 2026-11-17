@@ -4,8 +4,10 @@ import com.cowork.project.domain.membership.projection.TeamRoleAssignmentProject
 import com.cowork.project.domain.membership.projection.TeamRoleMemberTombstone
 import com.cowork.project.domain.membership.projection.TeamRoleMemberTombstoneRepository
 import com.cowork.project.domain.membership.projection.TeamRoleProjectionRepository
+import com.cowork.project.global.policy.RolePolicy
 import org.springframework.stereotype.Component
 import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.readValue
 
 @Component
 class TeamRolePermissionReader(
@@ -29,7 +31,10 @@ class TeamRolePermissionReader(
             )
         }
         return (defaults + assigned).any { role ->
-            role.permissionsJson?.let { objectMapper.readTree(it).path(permission).asBoolean(false) } == true
+            role.permissionsJson?.let {
+                RolePolicy.allows(objectMapper.readValue<Map<String, Boolean>>(it), permission)
+            } ==
+                true
         }
     }
 }

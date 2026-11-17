@@ -129,8 +129,9 @@ class ChannelMessageReadPolicyEvaluatorTest {
     }
 
     @Test
-    fun `활성 OWNER와 ADMIN만 정책을 우회한다`() {
-        for (role in listOf("OWNER", "ADMIN")) {
+    fun `관리자 정책이 있는 활성 멤버만 채널 제한을 우회한다`() {
+        roles(role(90L, "administrator" to true))
+        for (role in listOf("MEMBER", "OWNER", "ADMIN")) {
             every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member(role)
             assertEquals(listOf(1L), evaluator.filterReadable(10L, 7L, listOf(channel())).map { it.id })
             every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member(role, active = false)
@@ -200,8 +201,9 @@ class ChannelMessageReadPolicyEvaluatorTest {
     }
 
     @Test
-    fun `비공개 전환의 관리자 우회는 활성 OWNER와 ADMIN에게만 적용한다`() {
-        for (role in listOf("OWNER", "ADMIN")) {
+    fun `비공개 전환은 활성 멤버의 관리자 정책으로 허용한다`() {
+        roles(role(90L, "administrator" to true))
+        for (role in listOf("MEMBER", "OWNER", "ADMIN")) {
             every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member(role)
             evaluator.requirePrivateTransitionAccess(10L, 7L, channel())
             every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member(role, active = false)
@@ -309,6 +311,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `활성 관리자는 초기 정책 없이도 비공개 채널에 접근한다`() {
+        roles(role(90L, "administrator" to true))
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member("ADMIN")
         assertNull(evaluator.prepareInitialRolePolicySeed(10L, 7L, channel().apply { isPrivate = true }, emptyList()))
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member("ADMIN", active = false)
@@ -319,6 +322,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `권한 버전이 없으면 멤버십 시각으로 초기 정책을 승인하지 않는다`() {
+        roles(role(90L, "administrator" to true))
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member("ADMIN").apply {
             authorizationVersion = null
         }
@@ -336,6 +340,7 @@ class ChannelMessageReadPolicyEvaluatorTest {
 
     @Test
     fun `멤버십 버전이 확인되지 않으면 초기 정책 생성을 보류한다`() {
+        roles(role(90L, "administrator" to true))
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member("ADMIN").apply {
             sourceOccurredAt = Instant.EPOCH
         }
