@@ -63,7 +63,7 @@ class ChannelRolePermissionResolverTest :
             }
             it("기본 역할의 최초 권한은 조회와 음성 연결만 허용한다") {
                 TeamRolePermissions.everyone().filterValues { it }.keys shouldBe
-                    setOf("create_team", "message_read", "voice_connect", "project_read", "project_board_read")
+                    setOf("message_read", "voice_connect", "project_read", "project_board_read")
                 TeamRolePermissions.everyone().keys shouldBe PermissionKeys.ROLE_SCOPED
             }
         }

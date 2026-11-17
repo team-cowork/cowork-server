@@ -51,7 +51,7 @@ class AccountRoleServiceTest :
         }
 
         it("지원하지 않는 정책과 불리언이 아닌 권한을 거부한다") {
-            shouldThrow<IllegalArgumentException> { AccountRolePolicy.validate("role", mapOf("administrator" to true)) }
+            shouldThrow<IllegalArgumentException> { AccountRolePolicy.validate("role", mapOf("unknown" to true)) }
             shouldThrow<IllegalArgumentException> { AccountRolePolicy.validate("role", mapOf("create_team" to "true")) }
             AccountRolePolicy.allows(listOf(mapOf("unknown" to true)), "unknown") shouldBe false
         }
