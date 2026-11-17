@@ -31,6 +31,7 @@ edited_files() {
     done | sort -u
 }
 
+EDITED_FILES=$(edited_files)
 SEEN_MODULES=" "
 while IFS= read -r FILE_PATH; do
     case "$FILE_PATH" in
@@ -41,12 +42,15 @@ while IFS= read -r FILE_PATH; do
     while [[ "$MODULE_DIR" != / && ! -f "$MODULE_DIR/gradlew" && ! -f "$MODULE_DIR/mvnw" && ! -f "$MODULE_DIR/kotlin" ]]; do
         MODULE_DIR=$(dirname "$MODULE_DIR")
     done
-    # ktlintFormat formats the whole module, so run it once for each module.
+    # One format run per module covers every edited file in it.
     [[ "$SEEN_MODULES" == *" $MODULE_DIR "* ]] && continue
 
     if [[ -f "$MODULE_DIR/gradlew" && -f "$MODULE_DIR/build.gradle.kts" ]] \
         && grep -Fq 'libs.plugins.ktlint' "$MODULE_DIR/build.gradle.kts"; then
-        FORMAT_COMMAND=(./gradlew ktlintFormat -q)
+        # The ktlint-gradle git hook filter formats only the edited Kotlin files of this
+        # module (paths relative to it, one per line), not the whole module.
+        MODULE_FILES=$(grep -E '\.kts?$' <<<"$EDITED_FILES" | grep -F "$MODULE_DIR/" | sed "s|^$MODULE_DIR/||")
+        FORMAT_COMMAND=(./gradlew ktlintFormat -q "-PinternalKtlintGitFilter=$MODULE_FILES")
     elif [[ "$FILE_PATH" == *.kt && -f "$MODULE_DIR/mvnw" && -f "$MODULE_DIR/pom.xml" ]] \
         && grep -Fq '<artifactId>ktlint-maven-plugin</artifactId>' "$MODULE_DIR/pom.xml"; then
         FORMAT_COMMAND=(./mvnw ktlint:format -q)
@@ -64,5 +68,5 @@ while IFS= read -r FILE_PATH; do
     else
         echo "[Hook] Format failed" >&2
     fi
-done < <(edited_files)
+done <<<"$EDITED_FILES"
 exit 0
