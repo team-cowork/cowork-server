@@ -1,4 +1,4 @@
-package com.cowork.roadmap.global.team;
+package com.cowork.roadmap.global.team.service;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.Mockito.mock;
@@ -12,6 +12,9 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
+
+import com.cowork.roadmap.global.team.event.TeamMemberEvent;
+import com.cowork.roadmap.global.team.repository.TeamMemberProjectionRepository;
 
 class TeamMemberProjectionHandlerTest {
 

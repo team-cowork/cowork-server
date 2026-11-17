@@ -1,4 +1,4 @@
-package com.cowork.roadmap.global.team;
+package com.cowork.roadmap.global.team.consumer;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -13,6 +13,9 @@ import java.time.Instant;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+
+import com.cowork.roadmap.global.team.event.TeamMemberEvent;
+import com.cowork.roadmap.global.team.service.TeamMemberProjectionProcessor;
 
 import tools.jackson.databind.json.JsonMapper;
 

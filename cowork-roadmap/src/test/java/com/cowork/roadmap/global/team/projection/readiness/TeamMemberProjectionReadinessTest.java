@@ -1,4 +1,4 @@
-package com.cowork.roadmap.global.team;
+package com.cowork.roadmap.global.team.projection.readiness;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -24,6 +24,14 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.WakeupException;
 import org.junit.jupiter.api.Test;
 import org.springframework.scheduling.annotation.Scheduled;
+
+import com.cowork.roadmap.global.team.projection.model.ProjectionBarrier;
+import com.cowork.roadmap.global.team.projection.model.ProjectionBrokerRange;
+import com.cowork.roadmap.global.team.projection.model.ProjectionCheckpoint;
+import com.cowork.roadmap.global.team.projection.model.ProjectionTopicState;
+import com.cowork.roadmap.global.team.projection.topic.ProjectionTopicGenerationRegistry;
+import com.cowork.roadmap.global.team.projection.topic.ProjectionTopicIdentityProvider;
+import com.cowork.roadmap.global.team.repository.ProjectionCheckpointRepository;
 
 class TeamMemberProjectionReadinessTest {
 

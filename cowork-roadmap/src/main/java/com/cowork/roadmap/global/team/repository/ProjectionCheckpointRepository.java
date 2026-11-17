@@ -1,4 +1,4 @@
-package com.cowork.roadmap.global.team;
+package com.cowork.roadmap.global.team.repository;
 
 import java.util.HashMap;
 import java.util.List;
@@ -8,6 +8,12 @@ import java.util.Set;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+
+import com.cowork.roadmap.global.team.projection.model.ProjectionBarrier;
+import com.cowork.roadmap.global.team.projection.model.ProjectionCheckpoint;
+import com.cowork.roadmap.global.team.projection.model.ProjectionPartitionRange;
+import com.cowork.roadmap.global.team.projection.model.ProjectionSeekDecision;
+import com.cowork.roadmap.global.team.projection.policy.ProjectionCatchUpPolicy;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.Tuple;

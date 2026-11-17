@@ -19,8 +19,8 @@ import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
-import com.cowork.roadmap.global.team.TeamMemberProjectionReadiness;
-import com.cowork.roadmap.global.team.TeamMemberProjectionRepository;
+import com.cowork.roadmap.global.team.projection.readiness.TeamMemberProjectionReadiness;
+import com.cowork.roadmap.global.team.repository.TeamMemberProjectionRepository;
 
 import team.themoment.sdk.exception.ExpectedException;
 

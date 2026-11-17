@@ -1,37 +1,19 @@
-package com.cowork.roadmap.global.team;
+package com.cowork.roadmap.global.team.projection.policy;
 
 import java.util.Map;
 import java.util.Set;
 
-record ProjectionCheckpoint(long nextOffset, String topicId, Long invalidCheckpointOffset, Long snapshotCompletedOffset,
-        Long invalidRecordOffset) {
+import com.cowork.roadmap.global.team.projection.model.ProjectionBarrier;
+import com.cowork.roadmap.global.team.projection.model.ProjectionBrokerRange;
+import com.cowork.roadmap.global.team.projection.model.ProjectionCheckpoint;
+import com.cowork.roadmap.global.team.projection.model.ProjectionSeekDecision;
 
-    ProjectionCheckpoint(long nextOffset, String topicId, Long invalidCheckpointOffset, Long snapshotCompletedOffset) {
-        this(nextOffset, topicId, invalidCheckpointOffset, snapshotCompletedOffset, null);
-    }
-}
-
-record ProjectionBarrier(String topicId, long targetOffset) {
-}
-
-record ProjectionPartitionRange(int partition, long beginningOffset, long endOffset) {
-}
-
-record ProjectionBrokerRange(long beginningOffset, long endOffset) {
-}
-
-record ProjectionTopicState(String topicId, Map<Integer, ProjectionBrokerRange> ranges) {
-}
-
-record ProjectionSeekDecision(long seekOffset, String topicId, Long invalidCheckpointOffset) {
-}
-
-final class ProjectionCatchUpPolicy {
+public final class ProjectionCatchUpPolicy {
 
     private ProjectionCatchUpPolicy() {
     }
 
-    static ProjectionSeekDecision seekDecision(ProjectionCheckpoint checkpoint,
+    public static ProjectionSeekDecision seekDecision(ProjectionCheckpoint checkpoint,
             long beginningOffset,
             long endOffset,
             String currentTopicId) {
@@ -53,7 +35,7 @@ final class ProjectionCatchUpPolicy {
         return new ProjectionSeekDecision(checkpoint.nextOffset(), currentTopicId, null);
     }
 
-    static boolean isReady(Set<Integer> brokerPartitions,
+    public static boolean isReady(Set<Integer> brokerPartitions,
             String currentTopicId,
             Map<Integer, ProjectionBarrier> barriers,
             Map<Integer, ProjectionCheckpoint> checkpoints,
