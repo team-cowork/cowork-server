@@ -52,6 +52,7 @@ describe('toMessageBroadcastPayload', () => {
 			type: 'TEXT',
 			attachments: [],
 			parentMessageId: null,
+			threadId: null,
 			isEdited: false,
 			isPinned: false,
 			clientMessageId: 'client-1',
@@ -125,6 +126,22 @@ describe('MessageRepository 메시지 위치 조회', () => {
 		expect(rows.map(row => row._id)).toEqual([ids[4], ids[3]]);
 		expect(calledStages(0)[0].$match?._id).toEqual({$gt: ids[2]});
 		expect(calledStages(1)[0]).toEqual({$sort: {_id: 1}});
+	});
+
+	it('threadId가 없으면 스레드에 속하지 않은 채널 메시지만 조회한다', async () => {
+		aggregate.mockResolvedValue([]);
+
+		await repository.findMessages(1);
+
+		expect(calledStages(0)[0].$match).toMatchObject({channelId: 1, threadId: null});
+	});
+
+	it('threadId가 있으면 그 스레드의 메시지만 조회한다', async () => {
+		aggregate.mockResolvedValue([]);
+
+		await repository.findMessagesAround(1, ids[2].toHexString(), {threadId: 7});
+
+		expect(calledStages(0).map(stage => (stage.$match as {threadId?: unknown}).threadId)).toEqual([7, 7]);
 	});
 });
 
