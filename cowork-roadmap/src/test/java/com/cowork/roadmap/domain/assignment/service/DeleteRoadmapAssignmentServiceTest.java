@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Optional;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
@@ -25,12 +26,13 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 
 import team.themoment.sdk.exception.ExpectedException;
 
+@DisplayName("DeleteRoadmapAssignmentService 의")
 class DeleteRoadmapAssignmentServiceTest {
 
     private final RoadmapAssignmentRepository assignmentRepository = mock(RoadmapAssignmentRepository.class);
     private final RoadmapAccessGuard accessGuard = mock(RoadmapAccessGuard.class);
 
-    private final DeleteRoadmapAssignmentServiceImpl deleteRoadmapAssignmentService = new DeleteRoadmapAssignmentServiceImpl(
+    private final DeleteRoadmapAssignmentService deleteRoadmapAssignmentService = new DeleteRoadmapAssignmentServiceImpl(
             assignmentRepository,
             accessGuard);
 

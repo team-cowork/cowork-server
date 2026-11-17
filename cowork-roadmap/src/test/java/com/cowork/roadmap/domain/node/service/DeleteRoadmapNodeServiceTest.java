@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -37,6 +38,7 @@ import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import team.themoment.sdk.exception.ExpectedException;
 
+@DisplayName("DeleteRoadmapNodeService 의")
 class DeleteRoadmapNodeServiceTest {
 
     private final RoadmapNodeRepository nodeRepository = mock(RoadmapNodeRepository.class);
@@ -48,8 +50,7 @@ class DeleteRoadmapNodeServiceTest {
     private final RoadmapLookupSupport roadmapLookupSupport = new RoadmapLookupSupport(roadmapRepository);
     private final RoadmapNodeLookupSupport nodeLookupSupport = new RoadmapNodeLookupSupport(nodeRepository,
             referenceRepository);
-    private final DeleteRoadmapNodeServiceImpl deleteRoadmapNodeService = new DeleteRoadmapNodeServiceImpl(
-            nodeRepository,
+    private final DeleteRoadmapNodeService deleteRoadmapNodeService = new DeleteRoadmapNodeServiceImpl(nodeRepository,
             assignmentRepository,
             accessGuard,
             roadmapLookupSupport,

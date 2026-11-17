@@ -13,6 +13,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Optional;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
@@ -26,12 +27,13 @@ import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 
 import team.themoment.sdk.exception.ExpectedException;
 
+@DisplayName("ModifyRoadmapAssignmentStatusService 의")
 class ModifyRoadmapAssignmentStatusServiceTest {
 
     private final RoadmapAssignmentRepository assignmentRepository = mock(RoadmapAssignmentRepository.class);
     private final RoadmapAccessGuard accessGuard = mock(RoadmapAccessGuard.class);
 
-    private final ModifyRoadmapAssignmentStatusServiceImpl modifyRoadmapAssignmentStatusService = new ModifyRoadmapAssignmentStatusServiceImpl(
+    private final ModifyRoadmapAssignmentStatusService modifyRoadmapAssignmentStatusService = new ModifyRoadmapAssignmentStatusServiceImpl(
             assignmentRepository,
             accessGuard);
 
