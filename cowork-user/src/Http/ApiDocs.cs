@@ -67,7 +67,11 @@ public static class ApiDocs
                 if (attributes?.GetCustomAttributes(typeof(ExampleAttribute), false) is [ExampleAttribute example, ..])
                     schema.Examples = [JsonSerializer.SerializeToNode(example.Value)!];
                 if (attributes?.GetCustomAttributes(typeof(AllowedValuesAttribute), false) is [AllowedValuesAttribute allowed, ..])
+                {
                     schema.Enum = allowed.Values.Select(value => JsonSerializer.SerializeToNode(value)!).ToList();
+                    // A nullable property's enum must list null too, or JSON Schema rejects the null value.
+                    if (schema.Type?.HasFlag(JsonSchemaType.Null) == true) schema.Enum.Add(null!);
+                }
                 return Task.CompletedTask;
             });
             options.AddOperationTransformer((operation, context, _) =>
