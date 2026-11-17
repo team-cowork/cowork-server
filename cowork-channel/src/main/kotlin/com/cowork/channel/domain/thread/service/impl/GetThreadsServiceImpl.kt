@@ -2,6 +2,7 @@ package com.cowork.channel.domain.thread.service.impl
 
 import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channel.service.TeamPermissionService
+import com.cowork.channel.domain.thread.entity.ThreadStatus
 import com.cowork.channel.domain.thread.presentation.data.response.ThreadResponse
 import com.cowork.channel.domain.thread.repository.ThreadRepository
 import com.cowork.channel.domain.thread.service.GetThreadsService
@@ -30,9 +31,9 @@ class GetThreadsServiceImpl(
         ThreadListSortPolicy.requireAllowed(pageable.sort)
 
         val page = if (includeArchived) {
-            threadRepository.findByChannelId(channelId, pageable)
+            threadRepository.findByChannelIdAndStatus(channelId, ThreadStatus.ACTIVE, pageable)
         } else {
-            threadRepository.findByChannelIdAndIsArchivedFalse(channelId, pageable)
+            threadRepository.findByChannelIdAndStatusAndIsArchivedFalse(channelId, ThreadStatus.ACTIVE, pageable)
         }
         return page.map { ThreadResponse.of(it) }
     }

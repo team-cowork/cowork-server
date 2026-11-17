@@ -41,6 +41,7 @@ class DeleteChannelServiceImplTest {
         channelPermissionSupport,
         mockk(relaxed = true),
         meetingNoteRepository,
+        mockk(relaxed = true),
     )
 
     private fun dmChannel(id: Long = 1L, createdBy: Long = 1L) = Channel(
