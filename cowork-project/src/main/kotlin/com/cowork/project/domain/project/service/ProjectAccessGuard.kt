@@ -173,9 +173,7 @@ class ProjectAccessGuard(
         projectionReadinessGate.requireReady()
         val member = teamMembershipRepository.findActiveByTeamIdAndUserId(teamId, userId)
             ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
-        if (!teamPermissions.hasPermission(member.teamId, member.userId, "administrator") &&
-            !teamPermissions.hasPermission(teamId, userId, permission)
-        ) {
+        if (!teamPermissions.hasPermission(teamId, userId, permission)) {
             throw ExpectedException("팀 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
         }
         return member
