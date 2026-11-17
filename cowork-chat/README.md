@@ -32,7 +32,7 @@
 | 변수                                                          | 설명                                                                    |
 |---------------------------------------------------------------|-------------------------------------------------------------------------|
 | `PORT`                                                        | HTTP와 WebSocket 포트                                                   |
-| `APP_CONFIG_PROFILE`                                          | `prod`에서는 외부 API 주소에 HTTPS를 요구하고 Redis adapter 사용        |
+| `APP_CONFIG_PROFILE`                                          | `prod`에서는 외부 API 주소에 HTTPS를 요구                                |
 | `NODE_ENV`                                                    | 운영은 `production` 지정                                                |
 | `DB_HOST`                                                     | MongoDB 호스트. 개별 DB 입력 5개를 모두 지정하면 `MONGODB_URI`보다 우선        |
 | `DB_PORT`                                                     | MongoDB 포트. 개별 DB 입력 5개를 모두 지정하면 `MONGODB_URI`보다 우선         |
@@ -47,8 +47,8 @@
 | `KAFKA_SASL_USERNAME`                                         | Kafka SASL 사용자명. `SASL_SSL`에서 필수                                    |
 | `KAFKA_SASL_PASSWORD`                                         | Kafka SASL 비밀번호. `SASL_SSL`에서 필수                                    |
 | `KAFKA_SSL_CA_LOCATION`                                       | PEM CA 파일 경로. TLS 서버 인증서 검증 유지                             |
-| `REDIS_HOST`                                                  | Redis와 Socket.IO adapter 연결 호스트                                      |
-| `REDIS_PORT`                                                  | Redis와 Socket.IO adapter 연결 포트                                       |
+| `REDIS_HOST`                                                  | Redis 연결 호스트                                                       |
+| `REDIS_PORT`                                                  | Redis 연결 포트                                                        |
 | `ELASTICSEARCH_URL`                                           | 필수. 검색 서버 주소                                                    |
 | `ELASTICSEARCH_ENDPOINT`                                      | 선택. URL의 자격증명을 유지하면서 접속 origin을 Envoy upstream으로 변경 |
 | `PUBLIC_API_BASE_URL`                                         | 외부에서 접근하는 Gateway 주소                                          |

@@ -57,7 +57,7 @@ export class MessageSearchIndexRepository {
 	/**
      색인 대기 메시지를 최대 `batchSize`개 원자적으로 점유한다.
 
-     여러 replica가 동시에 호출해도 `PENDING`을 만족하는 문서만 전이되므로 중복 점유가 없다.
+     배포 중 구 프로세스와 새 프로세스가 동시에 호출해도 `PENDING`을 만족하는 문서만 전이되므로 중복 점유가 없다.
      되읽기 조건에는 점유 시각이 아니라 호출마다 새로 발급한 `searchIndexClaimId`를 쓴다.
      두 워커가 같은 밀리초에 점유하면 시각만으로는 서로의 점유분을 구분할 수 없기 때문이다.
      */

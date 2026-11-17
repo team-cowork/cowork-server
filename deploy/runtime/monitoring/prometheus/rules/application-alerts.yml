@@ -396,36 +396,6 @@ groups:
           observed_value: '{{ $value | humanizePercentage }}'
           description: "team 태스크의 RSS가 5분 동안 Nomad 메모리 상한의 85%를 초과했습니다."
 
-  - name: cowork-chat-socketio
-    rules:
-      # 준비 상태가 실패해도 Consul 등록과 메트릭 수집은 유지된다.
-      - alert: coworkSocketIoAdapterDegraded
-        expr: cowork_chat_socketio_adapter_state{state="DEGRADED"} == 1
-        for: 1m
-        labels:
-          severity: warning
-        annotations:
-          summary: "Socket.IO Redis 어댑터 연결 이상"
-          description: "서비스 {{ $labels.service }}의 Socket.IO Redis 어댑터가 1분 넘게 정상적으로 동작하지 못했습니다."
-
-      - alert: coworkSocketIoAdapterDegradedCritical
-        expr: cowork_chat_socketio_adapter_state{state="DEGRADED"} == 1
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Socket.IO Redis 어댑터 연결 이상 지속"
-          description: "서비스 {{ $labels.service }}의 Socket.IO Redis 어댑터가 5분 넘게 정상적으로 동작하지 못했습니다."
-
-      # 1분 안에 복구되는 짧은 단절이 반복되면 DEGRADED 알림은 울리지 않으므로 재연결 횟수로 잡는다.
-      - alert: coworkSocketIoRedisReconnectSpike
-        expr: increase(cowork_chat_socketio_redis_reconnects_total[10m]) > 5
-        labels:
-          severity: warning
-        annotations:
-          summary: "Socket.IO Redis 재연결 반복"
-          description: "서비스 {{ $labels.service }}의 Socket.IO Redis {{ $labels.client }} 클라이언트가 10분 동안 5회를 초과하여 재연결했습니다."
-
   - name: cowork-kafka
     rules:
       - alert: coworkKafkaConsumerLag

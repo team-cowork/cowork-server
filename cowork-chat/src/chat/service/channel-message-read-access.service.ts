@@ -465,8 +465,8 @@ export class ChannelMessageReadAccessService {
      room에서 제거한다. 그래서 메시지마다 다시 평가하지 않는다.
 
      이전에는 `fetchSockets()`로 room의 소켓을 모아 판정한 뒤 소켓 ID 목록을 대상으로 지정했다.
-     Redis adapter 환경에서 그 호출은 모든 인스턴스의 응답을 기다리므로 접속자 수에 비례해
-     비용이 늘고, 메시지 1건의 처리 시간을 그만큼 점유했다.
+     그 방식은 메시지마다 room의 모든 소켓을 모아 판정하므로 접속자 수에 비례해 비용이 늘고,
+     메시지 1건의 처리 시간을 그만큼 점유했다.
 
      projection readiness가 닫혀 있는 동안은 전송하지 않는다(fail-closed). 다시 열린 뒤 첫 전송 전에는
      로컬 room을 한 번 재검증해, 닫혀 있는 동안 버려진 회수가 room 멤버십으로 남지 않게 한다.
@@ -503,8 +503,8 @@ export class ChannelMessageReadAccessService {
 		}
 
 		// `chat:{channelId}` room의 멤버십 자체가 message_read 판정 결과다. 입장할 때 판정하고
-		// 권한 회수 시 room에서 제거하므로, 메시지마다 다시 평가하지 않는다. 그 덕분에 Redis adapter
-		// 환경에서도 소켓 목록을 묻는 인스턴스 간 왕복이 생기지 않는다.
+		// 권한 회수 시 room에서 제거하므로, 메시지마다 다시 평가하지 않는다. 그 덕분에 메시지마다
+		// room의 소켓 목록을 조회하고 판정하는 비용이 생기지 않는다.
 		const target = excludedSocketId === undefined
 			? io.to(`chat:${channelId}`)
 			: io.to(`chat:${channelId}`).except(excludedSocketId);

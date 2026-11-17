@@ -21,7 +21,7 @@ const TOMBSTONE_BATCH_SIZE = 50;
 */
 const DRAIN_TIME_BUDGET_MS = 2500;
 /**
-점유 후 이 시간 이상 진행이 없으면 다른 replica가 회수한다.
+점유 후 이 시간 이상 진행이 없으면 처리 중에 프로세스가 죽은 것으로 보고 회수한다.
 */
 const CLAIM_STALE_THRESHOLD_MS = 2 * 60 * 1000;
 /**
@@ -35,8 +35,8 @@ const METRICS_INTERVAL_MS = 30_000;
  검색 색인 아웃박스 워커.
 
  대기 중인 색인·삭제 명령을 주기적으로 점유해 Elasticsearch에 반영한다. 점유는 상태 전이로
- 이루어지므로 여러 replica가 동시에 돌아도 같은 항목을 중복 처리하지 않고, 중단된 replica가
- 남긴 점유는 시간이 지나면 회수된다. 색인 쓰기 순서는 메시지별 단조 증가 버전이 정하므로
+ 이루어지므로 배포 중 구 프로세스가 종료 대기(`kill_timeout`) 동안 진행 중인 주기를 마치는 사이에
+ 새 프로세스가 같은 항목을 중복 처리하지 않고, 처리 중에 죽은 프로세스가 남긴 점유는 시간이 지나면 회수된다. 색인 쓰기 순서는 메시지별 단조 증가 버전이 정하므로
  배치 내부는 병렬로 처리해도 안전하다.
  */
 @injectable()
@@ -84,7 +84,7 @@ export class MessageSearchOutboxPoller implements OnModuleInit, OnModuleDestroy 
 	}
 
 	/**
-    중단된 replica가 남긴 점유와 커밋되지 않은 삭제 예약을 회수한다.
+    처리 중에 죽은 프로세스가 남긴 점유와 커밋되지 않은 삭제 예약을 회수한다.
     */
 	private async reclaimIfDue(): Promise<void> {
 		if (Date.now() - this.lastReclaimAt < RECLAIM_INTERVAL_MS) {

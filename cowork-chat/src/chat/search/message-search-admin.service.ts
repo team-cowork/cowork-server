@@ -37,7 +37,7 @@ export class MessageSearchAdminService {
 			aliasTargets,
 			indexScopeMessages,
 			oldestPendingAt: backlog.oldestPendingAt,
-			rebuildRunning: state?.rebuildLockedAt !== null && state?.rebuildLockedAt !== undefined,
+			rebuildRunning: this.rebuilder.isRunning(),
 			lastRebuildStartedAt: state?.lastRebuildStartedAt ?? null,
 			lastRebuildSucceededAt: state?.lastRebuildSucceededAt ?? null,
 			lastRebuildFailedAt: state?.lastRebuildFailedAt ?? null,
