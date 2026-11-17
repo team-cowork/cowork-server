@@ -163,9 +163,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 	}
 
 	/**
-     회수 이벤트의 room 해제는 누락될 수 있다. `socketsLeave`는 Redis adapter로 요청만 발행하고 결과를 기다리지 않으며,
-     재시도가 소진된 회수 이벤트는 readiness가 닫힌 재처리에서 회수를 건너뛴다. 그래서 이 인스턴스에 연결된 소켓의
-     room을 주기적으로 현재 권한으로 다시 검증해 수렴시킨다. `local` 조회라 Redis 장애와 무관하게 동작한다.
+     회수 이벤트의 room 해제는 누락될 수 있다. 기본 adapter의 `socketsLeave`는 이 프로세스의 소켓을 동기로
+     room에서 빼지만, 회수 이벤트가 유실되거나 재시도가 소진된 회수 이벤트가 readiness가 닫힌 재처리에서 회수를
+     건너뛰면 해제 자체가 일어나지 않는다. 그래서 이 프로세스에 연결된 소켓의 room을 주기적으로 현재 권한으로
+     다시 검증해 수렴시킨다.
      */
 	private async sweepLocalRooms(server: Server): Promise<void> {
 		if (this.roomSweepRunning) {
