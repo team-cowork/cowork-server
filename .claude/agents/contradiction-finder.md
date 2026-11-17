@@ -70,12 +70,13 @@ X='--exclude-dir=build --exclude-dir=target --exclude-dir=node_modules --exclude
 grep -rnE $X --include='*.kt' --include='*.java' 'log(ger)?\.(trace|debug|info|warn|error)\("[^"]*\$\{?[A-Za-z]' cowork-*
 
 # "No println() in JVM code"
-grep -rn $X --include='*.kt' --include='*.java' 'println(' cowork-*
+grep -rn $X --include='*.kt' --include='*.java' --include='*.scala' 'println(' cowork-*
 
 # "ExpectedException messages contain no dynamic data" (Kotlin Spring)
 grep -rnE $X --include='*.kt' 'ExpectedException\([^)]*"[^"]*\$' cowork-*
 
 # "No inline eslint-disable comments" (XO modules)
+# TODO(2026-11-17T02:31:33Z): Remove cowork-promotion/src from this command when cowork-promotion is removed.
 grep -rn $X 'eslint-disable' cowork-chat/src cowork-github/src cowork-promotion/src
 
 # "No internal REST/Feign calls for durable state" (read each hit before reporting)
