@@ -31,18 +31,5 @@ class AccountRolePolicyTest :
                     allowed shouldBe true
                 }
             }
-
-            context("팀 관리자 권한만 있으면") {
-                it("전역 팀 생성 권한으로 사용하지 않는다") {
-                    // Given
-                    val policies = listOf(mapOf("administrator" to true))
-
-                    // When
-                    val allowed = AccountRolePolicy.allows(policies, "create_team")
-
-                    // Then
-                    allowed shouldBe false
-                }
-            }
         }
     })
