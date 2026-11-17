@@ -28,6 +28,10 @@ class Thread(
     @Column(name = "is_archived", nullable = false)
     var isArchived: Boolean = false,
 
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    var status: ThreadStatus = ThreadStatus.PENDING,
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: LocalDateTime = LocalDateTime.now(),
@@ -39,5 +43,11 @@ class Thread(
     fun update(name: String?, isArchived: Boolean?) {
         name?.let { this.name = it }
         isArchived?.let { this.isArchived = it }
+    }
+
+    /** cowork-chat이 시작 메시지를 확인한 결과를 반영한다. 검증 대기 중인 스레드만 바뀐다. */
+    fun resolve(accepted: Boolean) {
+        check(status == ThreadStatus.PENDING) { "Thread must be pending to resolve its parent message" }
+        status = if (accepted) ThreadStatus.ACTIVE else ThreadStatus.REJECTED
     }
 }

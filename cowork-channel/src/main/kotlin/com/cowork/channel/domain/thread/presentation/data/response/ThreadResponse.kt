@@ -1,6 +1,7 @@
 package com.cowork.channel.domain.thread.presentation.data.response
 
 import com.cowork.channel.domain.thread.entity.Thread
+import com.cowork.channel.domain.thread.entity.ThreadStatus
 import java.time.LocalDateTime
 
 data class ThreadResponse(
@@ -9,6 +10,7 @@ data class ThreadResponse(
     val name: String,
     val parentMessageId: String,
     val isArchived: Boolean,
+    val status: ThreadStatus,
     val createdBy: Long,
     val createdAt: LocalDateTime,
     val updatedAt: LocalDateTime,
@@ -20,6 +22,7 @@ data class ThreadResponse(
             name = thread.name,
             parentMessageId = thread.parentMessageId,
             isArchived = thread.isArchived,
+            status = thread.status,
             createdBy = thread.createdBy,
             createdAt = thread.createdAt,
             updatedAt = thread.updatedAt,
