@@ -1,5 +1,6 @@
 package com.cowork.project.domain.github.event
 
+import com.cowork.project.domain.github.entity.GithubSyncMarker
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import java.time.Instant
 
@@ -86,7 +87,7 @@ data class GithubLabelStateEvent(
 )
 
 /**
- * 각 state 토픽에 실리는 동기화 완료 마커. `repo`가 null이면 org 단위(repo 목록) 마커다.
+ * 각 state 토픽에 실리는 동기화 완료 마커. `repo`와 `projectNumber`가 모두 null이면 org의 repo 목록 마커다.
  * 엔티티 state 레코드와는 `recordType`으로 구분한다.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -95,7 +96,11 @@ data class GithubSyncCompletedMarker(
     val owner: String = "",
     val repo: String? = null,
     val completedAt: Instant = Instant.EPOCH,
-)
+    val projectNumber: Int? = null,
+) {
+    /** 마커 ID의 대상. GitHub Project 마커는 저장소 대신 Project 번호로 구분한다. */
+    val scope: String? get() = repo ?: projectNumber?.let { GithubSyncMarker.projectScope(it) }
+}
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class GithubIssueCommentStateEvent(

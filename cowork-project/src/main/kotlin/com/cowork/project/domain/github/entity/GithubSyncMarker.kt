@@ -8,7 +8,7 @@ import java.time.Instant
 import java.util.Locale
 
 /** 동기화 완료 마커가 실리는 state 토픽. */
-enum class GithubSyncStream { REPO, ISSUE, PULL_REQUEST, LABEL, ISSUE_COMMENT }
+enum class GithubSyncStream { REPO, ISSUE, PULL_REQUEST, LABEL, ISSUE_COMMENT, PROJECT, PROJECT_ITEM }
 
 /**
  * `cowork-github`가 동기화 대상의 state 레코드를 모두 보낸 뒤 같은 state 토픽에 남기는 완료 마커의 기록.
@@ -33,5 +33,8 @@ class GithubSyncMarker(
             val scope = if (repo == null) owner else "$owner/$repo"
             return "$stream:${scope.lowercase(Locale.ROOT)}"
         }
+
+        /** GitHub Project 마커의 대상. 저장소 이름과 겹치지 않도록 `#`을 붙인다. */
+        fun projectScope(projectNumber: Int): String = "#$projectNumber"
     }
 }
