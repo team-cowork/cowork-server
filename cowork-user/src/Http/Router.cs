@@ -54,7 +54,7 @@ public static class Router
         Reply(await Accounts.GetUserProfileAsync(UserId(request)));
 
     [Tags(ApiDocs.Profile), EndpointSummary("내 프로필 수정")]
-    [RequestBody<UpdateProfileRequest>, Ok<UserResponse>("사용자 프로필"), Errors(404)]
+    [RequestBody<UpdateProfileRequest>, Ok<UserResponse>("사용자 프로필"), Errors(400, 404)]
     static async Task<IResult> UpdateMyProfileAsync(HttpRequest request)
     {
         var body = await ReadBodyAsync(request);
