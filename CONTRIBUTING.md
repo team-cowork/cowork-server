@@ -72,9 +72,11 @@ Gateway reads error bodies up to `gateway.response-wrapper.max-error-body-size` 
 
 ## Formatting
 
-[.editorconfig](.editorconfig) defines editor settings: four spaces by default, tabs for XO-linted TypeScript/JavaScript in `cowork-chat` and `cowork-github`, and Kotlin's 120-character limit with `intellij_idea` KtLint style. Follow its import layout without arbitrary blank groups. Wildcard-import and property-naming checks are disabled.
+[.editorconfig](.editorconfig) defines editor settings: four spaces by default, two spaces for Scala, sbt, and HOCON files in `cowork-applet`, tabs for XO-linted TypeScript/JavaScript in `cowork-chat` and `cowork-github`, and Kotlin's 120-character limit with `intellij_idea` KtLint style. Follow its import layout without arbitrary blank groups. Wildcard-import and property-naming checks are disabled.
 
 Run these commands from the repository root:
+
+<!-- TODO(2026-11-17T02:31:33Z): Remove the "Node promotion" row when cowork-promotion is removed. -->
 
 | Scope | Check | Format |
 |-------|-------|--------|
@@ -86,6 +88,8 @@ Run these commands from the repository root:
 | Bun github | `(cd cowork-github && bun run lint --max-warnings=0)` | `(cd cowork-github && bun run lint:fix)` |
 | Java roadmap | `(cd cowork-roadmap && ./gradlew spotlessCheck)` | `(cd cowork-roadmap && ./gradlew spotlessApply)` |
 | Go (`authorization`, `notification`, `voice`; replace `voice`) | `(cd cowork-voice && golangci-lint run --config .golangci.yml ./...)` | `(cd cowork-voice && golangci-lint fmt --config .golangci.yml)` |
+
+<!-- TODO(2026-11-17T02:31:33Z): Remove cowork-promotion and the "Promotion has no xo.config.mjs" sentence from the next paragraph when cowork-promotion is removed. -->
 
 `cowork-promotion`, `cowork-chat`, and `cowork-github` use XO's default rules and file discovery. Fix diagnostics in code; do not add inline `eslint-disable` comments or rule overrides. Promotion has no `xo.config.mjs`. Chat and GitHub use it only to give `import-x/extensions` leading dots, which `eslint-config-xo` omits; without them, `import-x/no-cycle` checks nothing. Each module's ESLint adapter passes XO configuration to editors. Review fixes and run the module build; CI rejects warnings and errors.
 

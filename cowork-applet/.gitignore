@@ -1,1 +1,4 @@
 .bsp/
+.bloop/
+.metals/
+metals.sbt

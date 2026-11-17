@@ -1,6 +1,7 @@
 ---
 paths:
   - "**/{application,bootstrap}*.{yml,yaml}"
+  - "cowork-applet/conf/application.conf"
   - "cowork-*/internal/config/**"
   - "cowork-chat/src/common/config/**"
   - "cowork-github/src/config/**"

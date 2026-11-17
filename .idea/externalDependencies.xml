@@ -6,6 +6,7 @@
     <plugin id="com.intellij.gradle" />
     <plugin id="com.github.dinbtechit.jetbrainsnestjs" />
     <plugin id="org.jetbrains.kotlin-toolchain" />
+    <plugin id="org.intellij.scala" />
     <plugin optional="true" id="com.dsoftware.ghtoolbar" />
   </component>
 </project>
