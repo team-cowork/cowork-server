@@ -4,6 +4,7 @@ import {AppConfigService} from '../../config/app-config.service.js';
 import {GithubAuthModule} from '../auth/github-auth.module.js';
 import {IssueHttpModule} from '../issue-http/issue-http.module.js';
 import {LabelHttpModule} from '../label-http/label-http.module.js';
+import {ProjectBoardModule} from '../project-board/project-board.module.js';
 import {PullRequestModule} from '../pull-request/pull-request.module.js';
 import {InstallationApiClient} from './client/installation-api.client.js';
 import {GithubBackfillService} from './github-backfill.service.js';
@@ -22,6 +23,7 @@ import {GithubWebhookController} from './webhook/github-webhook.controller.js';
 		IssueHttpModule,
 		PullRequestModule,
 		LabelHttpModule,
+		ProjectBoardModule,
 	],
 	providers: [
 		AppConfigService,

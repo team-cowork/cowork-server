@@ -17,6 +17,7 @@ import {ElasticsearchService} from '../search/elasticsearch.service.js';
 import {ObjectStorageService} from '../storage/object-storage.service.js';
 import {BlockService} from '../block/block.service.js';
 import {type Nullable} from '../common/type/nullable.js';
+import {ProjectionReadinessService} from '../common/kafka/projection-readiness.service.js';
 import {publicAttachments, toMessageBroadcastPayload} from './repository/message.repository.js';
 import {MessageDocument} from './schema/index.js';
 import {
@@ -54,6 +55,9 @@ import {
 	type TagSpamReservation,
 	RoomSocket,
 	resolveMessageScope,
+	checkThreadTarget,
+	sendPermission,
+	type ThreadTargetError,
 } from './service/index.js';
 import {CHAT_SOCKET_SERVER, type ChatSocketServerProvider} from './chat-socket-server.token.js';
 import {
@@ -64,6 +68,7 @@ import {
 	TeamMemberProjectionRepository,
 	ChannelProjectionRepository,
 	AttachmentDeletionRepository,
+	ThreadProjectionRepository,
 } from './repository/index.js';
 import {MessageSearchDeletionService, isSearchIndexed} from './search/index.js';
 
@@ -71,6 +76,22 @@ const SYSTEM_AUTHOR_ID = 0;
 const SYSTEM_AUTHOR_NAME = 'System';
 const FILE_SHARE_VIEW_TYPE = 'FILE_SHARE';
 const DM_CHANNEL_TYPE = 'DM';
+
+function threadTargetException(error: ThreadTargetError): Error {
+	switch (error) {
+		case 'THREAD_NOT_FOUND': {
+			return new NotFoundException('스레드를 찾을 수 없습니다');
+		}
+
+		case 'THREAD_ARCHIVED': {
+			return new ConflictException('보관된 스레드에는 메시지를 보낼 수 없습니다');
+		}
+
+		case 'PARENT_THREAD_MISMATCH': {
+			return new BadRequestException('답장 대상은 보내는 메시지와 같은 스레드의 메시지여야 합니다');
+		}
+	}
+}
 
 function presentString(value: Nullable<string> | undefined): string | undefined {
 	return typeof value === 'string' && value !== '' ? value : undefined;
@@ -101,6 +122,12 @@ export class ChatService {
 
 	@inject()
 	private readonly messageRepository!: MessageRepository;
+
+	@inject()
+	private readonly threadProjectionRepository!: ThreadProjectionRepository;
+
+	@inject()
+	private readonly projectionReadiness!: ProjectionReadinessService;
 
 	@inject()
 	private readonly dmParticipantRepository!: DmParticipantRepository;
@@ -390,14 +417,35 @@ export class ChatService {
 		return channelIds.filter(channelId => !archived.has(channelId));
 	}
 
-	private async requireReplyParent(parentMessageId: string | undefined, channelId: number): Promise<void> {
-		if (parentMessageId === undefined || parentMessageId === '') {
-			return;
+	/**
+     답장 원본과 스레드가 메시지를 보낼 곳과 맞는지 확인한다.
+
+     @throws NotFoundException 답장 원본이나 스레드가 없는 경우
+     @throws ConflictException 스레드가 보관된 경우
+     @throws BadRequestException 답장 원본이 다른 스레드(또는 채널)의 메시지인 경우
+     @throws ServiceUnavailableException 스레드 projection이 준비되지 않은 경우
+     */
+	private async requireSendTarget(parentMessageId: string | undefined, threadId: number | undefined, channelId: number): Promise<void> {
+		let parent: Nullable<MessageDocument> | undefined;
+		if (parentMessageId !== undefined && parentMessageId !== '') {
+			parent = await this.messageRepository.findByIdAndChannelId(parentMessageId, channelId);
+			if (!parent) {
+				throw new NotFoundException('답장 대상 메시지를 찾을 수 없습니다');
+			}
 		}
 
-		const parent = await this.messageRepository.findByIdAndChannelId(parentMessageId, channelId);
-		if (!parent) {
-			throw new NotFoundException('답장 대상 메시지를 찾을 수 없습니다');
+		let thread;
+		if (threadId !== undefined) {
+			if (!this.projectionReadiness.areReady(['thread'])) {
+				throw new ServiceUnavailableException('스레드 정보를 준비하는 중입니다');
+			}
+
+			thread = await this.threadProjectionRepository.findActive(threadId);
+		}
+
+		const error = checkThreadTarget(channelId, threadId, thread, parent ?? undefined);
+		if (error !== null) {
+			throw threadTargetException(error);
 		}
 	}
 
@@ -615,9 +663,10 @@ export class ChatService {
 
 		// `@isOptional`은 `null`도 통과시키므로, 빈 문자열과 `null`을 값이 없는 것으로 본다.
 		const parentMessageId = presentString(dto.parentMessageId);
+		const threadId = dto.threadId ?? undefined;
 		const requestedClientMessageId = presentString(dto.clientMessageId);
 		const permissions: ChannelActionPermission[] = [
-			parentMessageId === undefined ? 'message_send' : 'thread_reply',
+			sendPermission(threadId),
 			...(attachmentCount > 0 ? ['file_attach' as const] : []),
 		];
 		await this.channelMessageReadAccess.requirePermissions(ctx.channelId, ctx.userId, permissions);
@@ -635,7 +684,7 @@ export class ChatService {
 			throw new ServiceUnavailableException('채널 정보가 일치하지 않습니다');
 		}
 
-		await this.requireReplyParent(parentMessageId, ctx.channelId);
+		await this.requireSendTarget(parentMessageId, threadId, ctx.channelId);
 		if (channel.type === DM_CHANNEL_TYPE) {
 			await this.verifyDmSendable(ctx.channelId, ctx.userId);
 		}
@@ -663,6 +712,7 @@ export class ChatService {
 				type: dto.type,
 				attachments,
 				parentMessageId,
+				threadId,
 				clientMessageId,
 			}, ctx.userId, ctx.userRole);
 		} catch (error) {
@@ -756,14 +806,14 @@ export class ChatService {
      `before`, `after`, `around` 커서는 하나만 지정할 수 있다.
 
      @param ctx - 채널·사용자 컨텍스트
-     @param query - `before`(이전), `after`(이후), `around`(기준 메시지 포함 앞뒤), `parentMessageId`(스레드 답글만)
+     @param query - `before`(이전), `after`(이후), `around`(기준 메시지 포함 앞뒤), `parentMessageId`(답장만), `threadId`(그 스레드 메시지만. 없으면 채널 메시지만. `around`에서 없으면 기준 메시지의 스레드를 따른다)
      @returns 최대 100개의 메시지 배열 (최신순)
      @throws BadRequestException 커서를 2개 이상 지정한 경우
      @throws NotFoundException `around` 메시지가 채널에 없는 경우
      */
 	async getMessages(ctx: ChannelUserContext, query: GetMessagesDto = {}) {
 		await this.requireChannelRead(ctx.channelId, ctx.userId);
-		const {before, after, around, parentMessageId} = query;
+		const {before, after, around, parentMessageId, threadId} = query;
 		if ([before, after, around].filter(cursor => cursor !== undefined).length > 1) {
 			throw new BadRequestException('before, after, around는 하나만 지정할 수 있습니다');
 		}
@@ -774,11 +824,12 @@ export class ChatService {
 				throw new NotFoundException('메시지를 찾을 수 없습니다');
 			}
 
-			const rows = await this.messageRepository.findMessagesAround(ctx.channelId, around, parentMessageId);
+			// 검색 결과에는 스레드 정보가 없으므로, `threadId`가 없으면 기준 메시지가 속한 스레드(또는 채널) 목록을 돌려준다.
+			const rows = await this.messageRepository.findMessagesAround(ctx.channelId, around, {parentMessageId, threadId: threadId ?? target.threadId ?? undefined});
 			return rows.map(row => this.toMessageResponse(row, ctx.userId));
 		}
 
-		const rows = await this.messageRepository.findMessages(ctx.channelId, before, parentMessageId, after);
+		const rows = await this.messageRepository.findMessages(ctx.channelId, before, {parentMessageId, threadId}, after);
 		return rows.map(row => this.toMessageResponse(row, ctx.userId));
 	}
 

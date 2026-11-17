@@ -32,7 +32,7 @@ const MAX_EDIT_HISTORY_ENTRIES = 20;
 const MESSAGE_ROW_PROJECTION: PipelineStage.Project = {
 	$project: {
 		_id: 1, teamId: 1, projectId: 1, channelId: 1, authorId: 1, webhook: 1,
-		content: 1, type: 1, attachments: 1, parentMessageId: 1,
+		content: 1, type: 1, attachments: 1, parentMessageId: 1, threadId: {$ifNull: ['$threadId', null]},
 		isEdited: 1, isPinned: 1, clientMessageId: 1, mentions: 1,
 		reactions: 1, createdAt: 1, updatedAt: 1, mentionedMessage: 1,
 	},
@@ -103,9 +103,18 @@ export type CreateMessageInput = {
 	type: string;
 	attachments: ConfirmedAttachment[];
 	parentMessageId: Nullable<Types.ObjectId>;
+	threadId: Nullable<number>;
 	clientMessageId?: string;
 	mentions: number[];
 	notificationStatus: string;
+};
+
+/**
+ 메시지 목록 조회 조건. `threadId`가 없으면 스레드에 속하지 않은 채널 메시지만 조회합니다.
+ */
+export type MessageListFilter = {
+	parentMessageId?: string;
+	threadId?: number;
 };
 
 /**
@@ -142,6 +151,7 @@ export type MessageRow = {
 	type: string;
 	attachments: Array<{name: string; objectKey?: string; url?: string; size: number; mimeType: string}>;
 	parentMessageId: Nullable<Types.ObjectId>;
+	threadId: Nullable<number>;
 	isEdited: boolean;
 	isPinned: boolean;
 	clientMessageId?: Nullable<string>;
@@ -173,12 +183,12 @@ export type MessageBroadcastPayload = Omit<MessageRow, 'mentionedMessage'>;
 export function toMessageBroadcastPayload(doc: MessageDocument): MessageBroadcastPayload {
 	const {
 		_id, teamId, projectId, channelId, authorId, webhook, content, type,
-		attachments, parentMessageId, isEdited, isPinned, clientMessageId,
+		attachments, parentMessageId, threadId, isEdited, isPinned, clientMessageId,
 		mentions, reactions, createdAt, updatedAt,
 	} = doc.toObject();
 	return {
 		_id, teamId, projectId, channelId, authorId, webhook, content, type,
-		attachments: publicAttachments(attachments), parentMessageId, isEdited, isPinned, clientMessageId,
+		attachments: publicAttachments(attachments), parentMessageId, threadId: threadId ?? null, isEdited, isPinned, clientMessageId,
 		mentions, reactions, createdAt, updatedAt,
 	};
 }
@@ -301,12 +311,14 @@ export class MessageRepository {
 
 	private async aggregateMessages(
 		channelId: number,
-		parentMessageId: string | undefined,
+		{parentMessageId, threadId}: MessageListFilter,
 		{idFilter, sortDirection, limit}: {idFilter?: Record<string, Types.ObjectId>; sortDirection: 1 | -1; limit: number},
 	): Promise<MessageRow[]> {
 		const query: Record<string, unknown> = {
 			webhookDeleted: {$ne: true},
 			channelId,
+			// `null` 조건은 이 필드가 없는 이전 메시지도 채널 메시지로 함께 찾는다.
+			threadId: threadId ?? null,
 			...(idFilter && {_id: idFilter}),
 			...(parentMessageId !== undefined && parentMessageId !== '' && {parentMessageId: new Types.ObjectId(parentMessageId)}),
 		};
@@ -365,18 +377,18 @@ export class MessageRepository {
 
      @param channelId - 조회할 채널의 식별자
      @param before - 이 ObjectId 문자열보다 이전 메시지를 조회하는 커서. 생략 시 최신부터 조회
-     @param parentMessageId - 이 메시지에 달린 답글만 조회할 부모 메시지 식별자. 생략 시 채널 전체 조회
+     @param filter - `threadId`가 있으면 그 스레드의 메시지만, 없으면 스레드에 속하지 않은 메시지만 조회. `parentMessageId`는 그 메시지에 단 답장만 조회
      @param after - 이 ObjectId 문자열보다 이후 메시지를 조회하는 커서. `before`와 함께 쓰지 않습니다
      @returns 배열 (최신순 정렬, 최대 100개)
      */
-	async findMessages(channelId: number, before?: string, parentMessageId?: string, after?: string): Promise<MessageRow[]> {
+	async findMessages(channelId: number, before?: string, filter: MessageListFilter = {}, after?: string): Promise<MessageRow[]> {
 		if (after !== undefined && after !== '') {
-			const rows = await this.aggregateMessages(channelId, parentMessageId, {idFilter: {$gt: new Types.ObjectId(after)}, sortDirection: 1, limit: MESSAGE_FETCH_LIMIT});
+			const rows = await this.aggregateMessages(channelId, filter, {idFilter: {$gt: new Types.ObjectId(after)}, sortDirection: 1, limit: MESSAGE_FETCH_LIMIT});
 			return rows.toReversed();
 		}
 
 		const idFilter = before !== undefined && before !== '' ? {$lt: new Types.ObjectId(before)} : undefined;
-		return this.aggregateMessages(channelId, parentMessageId, {idFilter, sortDirection: -1, limit: MESSAGE_FETCH_LIMIT});
+		return this.aggregateMessages(channelId, filter, {idFilter, sortDirection: -1, limit: MESSAGE_FETCH_LIMIT});
 	}
 
 	/**
@@ -385,15 +397,15 @@ export class MessageRepository {
 
      @param channelId - 조회할 채널의 식별자
      @param messageId - 기준 메시지의 ObjectId 문자열
-     @param parentMessageId - 이 메시지에 달린 답글만 조회할 부모 메시지 식별자. 생략 시 채널 전체 조회
+     @param filter - {@link findMessages}와 같은 스레드·답장 조건
      @returns 배열 (최신순 정렬, 최대 100개)
      */
-	async findMessagesAround(channelId: number, messageId: string, parentMessageId?: string): Promise<MessageRow[]> {
+	async findMessagesAround(channelId: number, messageId: string, filter: MessageListFilter = {}): Promise<MessageRow[]> {
 		const id = new Types.ObjectId(messageId);
 		const half = MESSAGE_FETCH_LIMIT / 2;
 		const [newer, older] = await Promise.all([
-			this.aggregateMessages(channelId, parentMessageId, {idFilter: {$gt: id}, sortDirection: 1, limit: half}),
-			this.aggregateMessages(channelId, parentMessageId, {idFilter: {$lte: id}, sortDirection: -1, limit: half}),
+			this.aggregateMessages(channelId, filter, {idFilter: {$gt: id}, sortDirection: 1, limit: half}),
+			this.aggregateMessages(channelId, filter, {idFilter: {$lte: id}, sortDirection: -1, limit: half}),
 		]);
 		return [...newer.toReversed(), ...older];
 	}
@@ -976,6 +988,8 @@ export class MessageRepository {
 		const filter: Record<string, unknown> = {
 			webhookDeleted: {$ne: true},
 			channelId,
+			// 채널 메시지 목록과 같은 기준으로 센다. 스레드 메시지는 채널 목록에 없으므로 채널 읽음 처리로 지울 수 없다.
+			threadId: null,
 			...(afterId && {_id: {$gt: afterId}}),
 		};
 
@@ -1024,6 +1038,7 @@ export class MessageRepository {
 
 		const orConditions = memberships.map(({channelId, lastReadMessageId}) => ({
 			channelId,
+			threadId: null,
 			...(lastReadMessageId && {_id: {$gt: lastReadMessageId}}),
 		}));
 		const results = await this.messageModel.aggregate<{_id: number; count: number}>([

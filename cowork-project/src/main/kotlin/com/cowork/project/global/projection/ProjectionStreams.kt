@@ -5,6 +5,8 @@ import com.cowork.project.domain.github.event.GITHUB_ISSUE_STATE_TOPIC
 import com.cowork.project.domain.github.event.GITHUB_LABEL_STATE_TOPIC
 import com.cowork.project.domain.github.event.GITHUB_PULL_REQUEST_STATE_TOPIC
 import com.cowork.project.domain.github.event.GITHUB_REPO_STATE_TOPIC
+import com.cowork.project.domain.githubBoard.event.GITHUB_PROJECT_ITEM_STATE_TOPIC
+import com.cowork.project.domain.githubBoard.event.GITHUB_PROJECT_STATE_TOPIC
 import com.cowork.project.global.consumer.Topics
 import org.springframework.stereotype.Component
 
@@ -47,6 +49,12 @@ class ProjectionStreams {
     val githubIssueCommentState = ProjectionStream(
         "cowork-project.github-issue-comment-state",
         GITHUB_ISSUE_COMMENT_STATE_TOPIC,
+        null,
+    )
+    val githubProjectState = ProjectionStream("cowork-project.github-project-state", GITHUB_PROJECT_STATE_TOPIC, null)
+    val githubProjectItemState = ProjectionStream(
+        "cowork-project.github-project-item-state",
+        GITHUB_PROJECT_ITEM_STATE_TOPIC,
         null,
     )
 

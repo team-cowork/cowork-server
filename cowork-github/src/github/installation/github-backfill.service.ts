@@ -6,6 +6,7 @@ import {REDIS_CLIENT} from '../constants.js';
 import {githubCacheKeys, PULL_REQUEST_FILES_TTL_SECONDS} from '../github.cache.js';
 import {IssueHttpService} from '../issue-http/issue-http.service.js';
 import {LabelHttpService} from '../label-http/label-http.service.js';
+import {ProjectBoardSyncService} from '../project-board/project-board-sync.service.js';
 import {PullRequestService} from '../pull-request/pull-request.service.js';
 import {InstallationApiClient} from './client/installation-api.client.js';
 import {IssueCommentStateEvent} from './kafka/event/issue-comment-state.js';
@@ -15,15 +16,29 @@ import {toPullRequestFileStates} from './kafka/pull-request-file-state.mapper.js
 
 export type GithubSyncTarget =
 	| {type: 'ORG_REPOSITORIES'; installationId: number; owner: string}
-	| {type: 'REPOSITORY'; owner: string; repo: string};
+	| {type: 'REPOSITORY'; owner: string; repo: string}
+	| {type: 'PROJECT'; owner: string; projectNumber: number};
 
 // MVP: 락을 갱신하지 않는다. 동기화가 TTL보다 오래 걸리면 다른 레플리카가 같은 대상을 다시 돌 수 있지만,
 // state 레코드는 버전으로 멱등 반영되므로 결과는 같다. 대상이 커져 TTL을 넘기기 시작하면 갱신을 추가한다.
 const SYNC_LOCK_TTL_MS = 30 * 60 * 1000;
 const RELEASE_LOCK_SCRIPT = 'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end';
 
-const syncTargetKey = (target: GithubSyncTarget): string =>
-	target.type === 'REPOSITORY' ? `repo:${target.owner}/${target.repo}` : `org:${target.owner}`;
+const syncTargetKey = (target: GithubSyncTarget): string => {
+	switch (target.type) {
+		case 'REPOSITORY': {
+			return `repo:${target.owner}/${target.repo}`;
+		}
+
+		case 'PROJECT': {
+			return `project:${target.owner}#${target.projectNumber}`;
+		}
+
+		case 'ORG_REPOSITORIES': {
+			return `org:${target.owner}`;
+		}
+	}
+};
 
 const mergeByNumber = <T extends {number: number}>(...lists: T[][]): T[] => {
 	const seen = new Set<number>();
@@ -65,6 +80,9 @@ export class GithubBackfillService {
 	@inject(LabelHttpService)
 	private readonly labelHttpService!: LabelHttpService;
 
+	@inject(ProjectBoardSyncService)
+	private readonly projectBoardSyncService!: ProjectBoardSyncService;
+
 	@inject(GithubReadModelEventProducers)
 	private readonly producers!: GithubReadModelEventProducers;
 
@@ -81,11 +99,28 @@ export class GithubBackfillService {
 		}
 
 		try {
-			await (target.type === 'REPOSITORY'
-				? this.syncRepository(target.owner, target.repo)
-				: this.syncOrgRepositories(target.installationId, target.owner));
+			await this.sync(target);
 		} finally {
 			await this.redis.eval(RELEASE_LOCK_SCRIPT, 1, lockKey, token);
+		}
+	}
+
+	private async sync(target: GithubSyncTarget): Promise<void> {
+		switch (target.type) {
+			case 'REPOSITORY': {
+				await this.syncRepository(target.owner, target.repo);
+				break;
+			}
+
+			case 'PROJECT': {
+				await this.projectBoardSyncService.syncProject(target.owner, target.projectNumber);
+				break;
+			}
+
+			case 'ORG_REPOSITORIES': {
+				await this.syncOrgRepositories(target.installationId, target.owner);
+				break;
+			}
 		}
 	}
 

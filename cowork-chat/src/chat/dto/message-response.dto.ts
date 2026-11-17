@@ -39,7 +39,8 @@ export class MessageResponseDto {
 	@apiProperty() content!: string;
 	@apiProperty({enum: ['TEXT', 'FILE', 'SYSTEM']}) type!: string;
 	@apiProperty({type: [AttachmentResponseDto]}) attachments!: AttachmentResponseDto[];
-	@apiProperty({nullable: true, description: '스레드 답글의 부모 메시지 ObjectId (최상위 메시지이면 null)'}) parentMessageId!: Nullable<string>;
+	@apiProperty({nullable: true, description: '답장 원본 메시지 ObjectId (답장이 아니면 null)'}) parentMessageId!: Nullable<string>;
+	@apiProperty({type: Number, nullable: true, description: '메시지가 속한 스레드 ID (채널 메시지이면 null)'}) threadId!: Nullable<number>;
 	@apiProperty() isEdited!: boolean;
 	@apiProperty() isPinned!: boolean;
 	@apiPropertyOptional({nullable: true}) clientMessageId!: Nullable<string>;
@@ -47,7 +48,7 @@ export class MessageResponseDto {
 	@apiProperty() createdAt!: string;
 	@apiProperty() updatedAt!: string;
 	@apiProperty({type: [ReactionResponseDto]}) reactions!: ReactionResponseDto[];
-	@apiPropertyOptional({type: MentionedMessageDto, nullable: true, description: '스레드 답글의 부모 메시지 정보 (최상위 메시지이거나 스레드가 아니면 null)'}) mentionedMessage?: Nullable<MentionedMessageDto>;
+	@apiPropertyOptional({type: MentionedMessageDto, nullable: true, description: '답장 원본 메시지 정보 (답장이 아니면 null)'}) mentionedMessage?: Nullable<MentionedMessageDto>;
 }
 
 export class DeleteMessageResponseDto {

@@ -15,7 +15,6 @@ import {type Nullable} from '../../common/type/nullable.js';
 import {hasChannelPermission} from './channel-permission.js';
 
 export const SLOWMODE_BYPASS_PERMISSION = 'slowmode_bypass';
-const BYPASS_TEAM_ROLES = new Set(['OWNER', 'ADMIN']);
 
 export type SlowmodeReservation = {
 	key: string;
@@ -24,7 +23,7 @@ export type SlowmodeReservation = {
 
 export type SlowmodeBypassInput = {
 	teamId: number;
-	teamRole: string | undefined;
+	isActiveMember: boolean;
 	roles: Array<{roleId: number; teamId: number; priority: number; isDefault: boolean; permissions: Record<string, boolean>}>;
 	channelPermissionsByRoleId: Map<number, Record<string, boolean>>;
 };
@@ -33,12 +32,8 @@ export type SlowmodeBypassInput = {
 Only active members can bypass; role and channel grants follow the shared permission rules.
 */
 export function canBypassSlowmode(input: SlowmodeBypassInput): boolean {
-	if (input.teamRole === undefined) {
+	if (!input.isActiveMember) {
 		return false;
-	}
-
-	if (BYPASS_TEAM_ROLES.has(input.teamRole)) {
-		return true;
 	}
 
 	return hasChannelPermission(
@@ -67,10 +62,6 @@ export class SlowmodeService {
 
 	private async canBypass(teamId: number, channelId: number, userId: number): Promise<boolean> {
 		const [member] = await this.teamMemberRepository.findByTeamIdsAndUserIds([teamId], [userId]);
-		if (member !== undefined && BYPASS_TEAM_ROLES.has(member.role)) {
-			return true;
-		}
-
 		if (member === undefined) {
 			return false;
 		}
@@ -86,7 +77,7 @@ export class SlowmodeService {
 		]);
 		return canBypassSlowmode({
 			teamId,
-			teamRole: member?.role,
+			isActiveMember: true,
 			roles: [...roles, ...defaults.map(role => ({...role, permissions: role.permissions ?? {}}))],
 			channelPermissionsByRoleId: new Map(policies
 				.filter(policy => policy.teamId === teamId)

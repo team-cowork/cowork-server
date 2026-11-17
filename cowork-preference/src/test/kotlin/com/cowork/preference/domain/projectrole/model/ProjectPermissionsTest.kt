@@ -60,7 +60,7 @@ class ProjectPermissionsTest :
                     manager = true,
                     isPrivate = true,
                 ) shouldBe
-                    ProjectPermissions(true, true, true, true, true)
+                    ProjectPermissions(true, true, true, true, true, true, true)
             }
             it("채널 보관은 팀 기본 키를 상속하고 프로젝트 역할로 프로젝트마다 덮어쓴다") {
                 val archiver = defaultRole.copy().put("project_channel_archive", true)
@@ -78,6 +78,37 @@ class ProjectPermissionsTest :
                 val archiver = defaultRole.copy().put("project_channel_archive", true)
                 ProjectPermissions.resolve(listOf(archiver), emptyList()) shouldBe
                     ProjectPermissions(read = true, channelArchive = true)
+            }
+            it("보드 보기는 팀 기본 키를 상속하고 프로젝트 역할로 프로젝트마다 덮어쓴다") {
+                val boardReader = defaultRole.copy().put("project_board_read", true)
+                ProjectPermissions.resolve(listOf(boardReader), emptyList()) shouldBe
+                    ProjectPermissions(read = true, boardRead = true)
+                ProjectPermissions.resolve(
+                    listOf(boardReader),
+                    listOf(JsonObject().put("board_read", false)),
+                ).boardRead shouldBe false
+                ProjectPermissions.resolve(
+                    listOf(defaultRole),
+                    listOf(JsonObject().put("board_read", true)),
+                ).boardRead shouldBe true
+            }
+            it("보드 수정은 보드 보기가 없으면 허용되지 않는다") {
+                val boardWriter = defaultRole.copy().put("project_board_write", true)
+                ProjectPermissions.resolve(listOf(boardWriter), emptyList()) shouldBe
+                    ProjectPermissions(read = true)
+                ProjectPermissions.resolve(
+                    listOf(boardWriter.copy().put("project_board_read", true)),
+                    listOf(JsonObject().put("board_read", false)),
+                ) shouldBe ProjectPermissions(read = true)
+            }
+            it("보드 권한은 프로젝트 읽기가 없으면 허용되지 않는다") {
+                val overrides = JsonObject().put("board_read", true).put("board_write", true)
+                ProjectPermissions.resolve(emptyList(), listOf(overrides)) shouldBe ProjectPermissions()
+            }
+            it("보드 수정은 프로젝트 쓰기 권한을 부여하지 않는다") {
+                val role = defaultRole.copy().put("project_board_read", true).put("project_board_write", true)
+                ProjectPermissions.resolve(listOf(role), emptyList()) shouldBe
+                    ProjectPermissions(read = true, boardRead = true, boardWrite = true)
             }
         }
     })

@@ -148,6 +148,7 @@ class TeamMembershipGuardTest :
                     it("설정 관리 권한을 허용한다") {
                         fixture.stubReadiness(true)
                         fixture.stubMember(role = "OWNER")
+                        fixture.stubRolePermissions(PermissionKeys.ADMINISTRATOR)
 
                         runBlocking { fixture.guard.requireSettingsManager(TEAM_ID, MEMBER, GENERAL_KEYS) }
                     }
@@ -157,6 +158,7 @@ class TeamMembershipGuardTest :
                     it("설정 관리 권한을 허용한다") {
                         fixture.stubReadiness(true)
                         fixture.stubMember(role = "ADMIN")
+                        fixture.stubRolePermissions(PermissionKeys.ADMINISTRATOR)
 
                         runBlocking { fixture.guard.requireSettingsManager(TEAM_ID, MEMBER, GENERAL_KEYS) }
                     }

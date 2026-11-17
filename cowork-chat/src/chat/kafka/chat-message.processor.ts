@@ -70,6 +70,7 @@ export class ChatMessageProcessor {
 				parentMessageId: event.parentMessageId === undefined || event.parentMessageId === ''
 					? null
 					: new Types.ObjectId(event.parentMessageId),
+				threadId: event.threadId ?? null,
 				clientMessageId: event.clientMessageId,
 				mentions,
 				notificationStatus: 'PENDING',

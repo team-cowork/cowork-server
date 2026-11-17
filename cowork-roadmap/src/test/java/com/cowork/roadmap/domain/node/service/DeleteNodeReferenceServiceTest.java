@@ -10,6 +10,7 @@ import static org.mockito.Mockito.when;
 
 import java.util.Optional;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
@@ -27,6 +28,7 @@ import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import team.themoment.sdk.exception.ExpectedException;
 
+@DisplayName("DeleteNodeReferenceService 의")
 class DeleteNodeReferenceServiceTest {
 
     private final RoadmapNodeRepository nodeRepository = mock(RoadmapNodeRepository.class);
@@ -37,7 +39,7 @@ class DeleteNodeReferenceServiceTest {
     private final RoadmapLookupSupport roadmapLookupSupport = new RoadmapLookupSupport(roadmapRepository);
     private final RoadmapNodeLookupSupport nodeLookupSupport = new RoadmapNodeLookupSupport(nodeRepository,
             referenceRepository);
-    private final DeleteNodeReferenceServiceImpl deleteNodeReferenceService = new DeleteNodeReferenceServiceImpl(
+    private final DeleteNodeReferenceService deleteNodeReferenceService = new DeleteNodeReferenceServiceImpl(
             referenceRepository,
             accessGuard,
             roadmapLookupSupport,

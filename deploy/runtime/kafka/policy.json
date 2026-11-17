@@ -427,6 +427,41 @@
         "retention.ms": "604800000"
       }
     },
+    "github.project.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "github.project-item.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "github.project-item-write.command.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "github.project-item-write.result.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "github.project-item-write.result.v1-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
     "user.identity.command.v2": {
       "partitions": 1,
       "config": {
@@ -435,6 +470,48 @@
       }
     },
     "channel.meeting-note-attachments.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "channel.thread.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "chat.thread-parent.command.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "chat.thread-parent.command.v1-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "chat.thread-parent.result.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "chat.thread-parent.result.v1-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "preference.account-role.state.v1": {
       "partitions": 1,
       "config": {
         "cleanup.policy": "compact",
@@ -470,7 +547,11 @@
         "preference.channel-role-policy.command.v2",
         "preference.channel-role-policy.result.v2",
         "preference.channel-role-policy.result.v2-dlt",
-        "channel.meeting-note-attachments.state.v1"
+        "channel.meeting-note-attachments.state.v1",
+        "channel.thread.state.v1",
+        "chat.thread-parent.command.v1",
+        "chat.thread-parent.result.v1",
+        "chat.thread-parent.result.v1-dlt"
       ]
     },
     "cowork-chat": {
@@ -497,7 +578,11 @@
         "project.chat-github-issue.command",
         "project.chat-github-issue.command-dlt",
         "project.chat-github-issue.result",
-        "channel.meeting-note-attachments.state.v1"
+        "channel.meeting-note-attachments.state.v1",
+        "channel.thread.state.v1",
+        "chat.thread-parent.command.v1",
+        "chat.thread-parent.result.v1",
+        "chat.thread-parent.command.v1-dlt"
       ]
     },
     "cowork-github": {
@@ -524,7 +609,12 @@
         "github.pull-request.state.v1",
         "github.label.state.v1",
         "github.issue-comment.state.v1",
-        "github.sync.command.v1"
+        "github.sync.command.v1",
+        "github.project.state.v1",
+        "github.project-item.state.v1",
+        "github.project-item-write.command.v1",
+        "github.project-item-write.result.v1",
+        "github.project-item-write.result.v1-dlt"
       ]
     },
     "cowork-notification": {
@@ -564,7 +654,8 @@
         "preference.text-channel-setting.state.v1",
         "preference.webhook.state.v2",
         "preference.voice-channel-setting.state.v1",
-        "preference.github-repo.setting.result-dlt"
+        "preference.github-repo.setting.result-dlt",
+        "preference.account-role.state.v1"
       ]
     },
     "cowork-project": {
@@ -601,7 +692,12 @@
         "github.pull-request.state.v1",
         "github.label.state.v1",
         "github.issue-comment.state.v1",
-        "github.sync.command.v1"
+        "github.sync.command.v1",
+        "github.project.state.v1",
+        "github.project-item.state.v1",
+        "github.project-item-write.command.v1",
+        "github.project-item-write.result.v1",
+        "github.project-item-write.result.v1-dlt"
       ]
     },
     "cowork-roadmap": {
@@ -627,7 +723,8 @@
         "preference.team-role.command.v2",
         "preference.team-role.result.v2",
         "preference.team-role.result.v2-dlt",
-        "preference.team-setting.state.v1"
+        "preference.team-setting.state.v1",
+        "preference.account-role.state.v1"
       ]
     },
     "cowork-user": {

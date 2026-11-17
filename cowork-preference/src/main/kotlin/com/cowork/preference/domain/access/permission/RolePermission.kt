@@ -17,6 +17,30 @@ enum class RolePermission(
     val description: String,
     val channelTypes: Set<RolePermissionChannelType> = emptySet(),
 ) {
+    ADMINISTRATOR(
+        PermissionKeys.ADMINISTRATOR,
+        RolePermissionGroup.TEAM,
+        "관리자",
+        "소유권 이양을 제외한 팀 작업을 허용하고 채널·프로젝트별 권한 제한을 우회합니다.",
+    ),
+    CREATE_TEAM(
+        PermissionKeys.CREATE_TEAM,
+        RolePermissionGroup.TEAM,
+        "팀 생성",
+        "새 팀을 만들 수 있습니다.",
+    ),
+    DELETE_TEAM(
+        PermissionKeys.DELETE_TEAM,
+        RolePermissionGroup.TEAM,
+        "팀 삭제",
+        "팀과 팀의 멤버십을 삭제할 수 있습니다.",
+    ),
+    TRANSFER_TEAM_OWNERSHIP(
+        PermissionKeys.TRANSFER_TEAM_OWNERSHIP,
+        RolePermissionGroup.TEAM,
+        "소유권 이양",
+        "현재 소유자가 다른 팀 멤버에게 소유권을 이양할 수 있습니다. 소유자 정책에만 부여됩니다.",
+    ),
     MANAGE_TEAM(
         PermissionKeys.MANAGE_TEAM,
         RolePermissionGroup.TEAM,
@@ -225,6 +249,20 @@ enum class RolePermission(
         "프로젝트 채널 보관",
         "프로젝트에 속한 텍스트 채널을 보관하거나 복원할 수 있습니다. 보관된 채널은 읽기 전용이 되며, 볼 수 있는 채널만 보관할 수 있습니다. " +
             "프로젝트 역할로 프로젝트마다 허용하거나 거부할 수 있습니다.",
+    ),
+    PROJECT_BOARD_READ(
+        PermissionKeys.PROJECT_BOARD_READ,
+        RolePermissionGroup.PROJECT,
+        "GitHub 보드 보기",
+        "프로젝트에 연결된 GitHub Project 보드와 카드를 볼 수 있습니다. 프로젝트 보기 권한이 있어야 사용할 수 있습니다. " +
+            "프로젝트 역할로 프로젝트마다 허용하거나 거부할 수 있습니다.",
+    ),
+    PROJECT_BOARD_WRITE(
+        PermissionKeys.PROJECT_BOARD_WRITE,
+        RolePermissionGroup.PROJECT,
+        "GitHub 보드 수정",
+        "프로젝트에 연결된 GitHub Project 보드에서 카드를 다른 컬럼으로 옮기거나 순서를 바꿀 수 있습니다. " +
+            "GitHub 보드 보기 권한이 있어야 사용할 수 있습니다. 프로젝트 역할로 프로젝트마다 허용하거나 거부할 수 있습니다.",
     ),
     ;
 

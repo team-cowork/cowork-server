@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.cowork.roadmap.domain.node.entity.RoadmapNode;
@@ -22,6 +23,7 @@ import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.impl.QueryRoadmapTreeServiceImpl;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
+@DisplayName("QueryRoadmapTreeService 의")
 class QueryRoadmapTreeServiceTest {
 
     private final RoadmapRepository roadmapRepository = mock(RoadmapRepository.class);
@@ -30,7 +32,7 @@ class QueryRoadmapTreeServiceTest {
     private final RoadmapAccessGuard accessGuard = mock(RoadmapAccessGuard.class);
 
     private final RoadmapLookupSupport lookupSupport = new RoadmapLookupSupport(roadmapRepository);
-    private final QueryRoadmapTreeServiceImpl queryRoadmapTreeService = new QueryRoadmapTreeServiceImpl(nodeRepository,
+    private final QueryRoadmapTreeService queryRoadmapTreeService = new QueryRoadmapTreeServiceImpl(nodeRepository,
             referenceRepository,
             accessGuard,
             lookupSupport);

@@ -56,6 +56,8 @@ export function validateChatMessageEvent(payload: unknown, eventKey: Nullable<st
 
 	const attachments = validateAttachments(payload.attachments);
 	const parentMessageId = optionalObjectId(payload.parentMessageId, 'PARENT_MESSAGE_ID');
+	// 이 필드가 없던 이전 이벤트는 채널 메시지다.
+	const threadId = nullablePositiveSafeInteger(payload.threadId, 'THREAD_ID') ?? undefined;
 	const clientMessageId = optionalString(payload.clientMessageId, 'CLIENT_MESSAGE_ID');
 	if (typeof payload.occurredAt !== 'string' || !isRfc3339(payload.occurredAt)) {
 		throw contractError('INVALID_OCCURRED_AT', 'occurredAt must be a valid RFC3339 timestamp');
@@ -73,6 +75,7 @@ export function validateChatMessageEvent(payload: unknown, eventKey: Nullable<st
 		type: payload.type,
 		attachments,
 		parentMessageId,
+		threadId,
 		clientMessageId,
 		occurredAt: payload.occurredAt,
 	};

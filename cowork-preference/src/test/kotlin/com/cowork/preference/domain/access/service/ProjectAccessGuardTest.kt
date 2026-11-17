@@ -61,12 +61,18 @@ private class ProjectGuardFixture {
             if (found) TeamMemberProjection(TEAM_ID, accountId, role, deleted, VERSION) else null
     }
 
-    fun stubTeamRoles(accountId: Long = MEMBER.userId, priority: Int = 10, manageRoles: Boolean = false) {
+    fun stubTeamRoles(
+        accountId: Long = MEMBER.userId,
+        priority: Int = 10,
+        manageRoles: Boolean = false,
+        administrator: Boolean = false,
+    ) {
         coEvery { teamRoles.findAccountRoles(pool, TEAM_ID, accountId) } returns listOf(
             TeamRoleDefinition(
                 accountId, TEAM_ID, "role", "#99AAB5", priority, false,
                 mapOf(
                     "manage_roles" to manageRoles,
+                    "administrator" to administrator,
                 ),
                 null, null,
             ),
@@ -123,6 +129,7 @@ class ProjectAccessGuardTest :
                         fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "deny", TARGET_ID)
                     }
                     fixture.stubTeamMember("ADMIN")
+                    fixture.stubTeamRoles(administrator = true)
                     shouldNotThrowAny { fixture.guard.requireRoleRemoval(PROJECT_ID, MEMBER, "deny", TARGET_ID) }
                 }
 
@@ -189,6 +196,7 @@ class ProjectAccessGuardTest :
                     it("팀 OWNER와 ADMIN의 프로젝트 역할을 변경할 수 없다") {
                         listOf("OWNER", "ADMIN").forEach { role ->
                             fixture.stubTeamMember(role = role, accountId = TARGET_ID)
+                            fixture.stubTeamRoles(accountId = TARGET_ID, administrator = true)
                             shouldThrow<ResourceAccessDeniedException> {
                                 fixture.guard.requireRoleAssignment(PROJECT_ID, MEMBER, "deny", TARGET_ID)
                             }
@@ -223,6 +231,7 @@ class ProjectAccessGuardTest :
                         fixture.stubTeamRoles(accountId = TARGET_ID, priority = 11)
                         listOf("OWNER", "ADMIN").forEach { role ->
                             fixture.stubTeamMember(role = role)
+                            fixture.stubTeamRoles(administrator = true)
                             shouldNotThrowAny {
                                 fixture.guard.requireRoleAssignment(PROJECT_ID, MEMBER, "deny", TARGET_ID)
                             }
@@ -344,8 +353,9 @@ class ProjectAccessGuardTest :
                     shouldThrow<ResourceAccessDeniedException> { fixture.guard.requireManager(PROJECT_ID, MEMBER) }
                 }
 
-                context("프로젝트가 속한 팀의 OWNER 또는 ADMIN이면") {
+                context("평가된 관리자 정책이 있으면") {
                     it("통과한다") {
+                        coEvery { fixture.roles.canManage(PROJECT_ID, MEMBER.userId) } returns true
                         fixture.stubReadiness(true)
                         fixture.stubProject()
 

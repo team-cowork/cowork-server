@@ -7,6 +7,7 @@ import com.cowork.project.domain.github.repository.TeamGithubInstallationEventSt
 import com.cowork.project.domain.github.repository.TeamGithubInstallationOwnershipFenceRepository
 import com.cowork.project.domain.github.repository.TeamGithubInstallationRepository
 import com.cowork.project.domain.github.service.ProjectGithubRepoOwnerRenamer
+import com.cowork.project.domain.githubBoard.service.ProjectGithubBoardLifecycleSupport
 import com.cowork.project.global.projection.toProjectionPrecision
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
@@ -21,6 +22,7 @@ class TeamGithubInstallationProjectionHandler(
     private val stateRepository: TeamGithubInstallationEventStateRepository,
     private val ownershipFenceRepository: TeamGithubInstallationOwnershipFenceRepository,
     private val repoOwnerRenamer: ProjectGithubRepoOwnerRenamer,
+    private val boardLifecycleSupport: ProjectGithubBoardLifecycleSupport,
 ) {
     private val log = LoggerFactory.getLogger(TeamGithubInstallationProjectionHandler::class.java)
 
@@ -163,7 +165,10 @@ class TeamGithubInstallationProjectionHandler(
         val previousOrgLogin = targetInstallation.orgLogin
         targetInstallation.update(installationId, orgLogin)
         installationRepository.save(targetInstallation)
-        if (previousOrgLogin != orgLogin) repoOwnerRenamer.rename(teamId, previousOrgLogin, orgLogin)
+        if (previousOrgLogin != orgLogin) {
+            repoOwnerRenamer.rename(teamId, previousOrgLogin, orgLogin)
+            boardLifecycleSupport.renameOwner(teamId, previousOrgLogin, orgLogin)
+        }
 
         val targetState = state ?: TeamGithubInstallationEventState(
             teamId = teamId,

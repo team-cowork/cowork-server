@@ -13,9 +13,6 @@ import org.springframework.stereotype.Service
 import team.themoment.sdk.exception.ExpectedException
 import java.time.Instant
 
-private const val TEAM_ROLE_OWNER = "OWNER"
-private const val TEAM_ROLE_ADMIN = "ADMIN"
-
 /**
  * 프로젝트 조회/수정 권한 검증을 담당하는 컴포넌트.
  *
@@ -51,6 +48,8 @@ class ProjectAccessGuard(
         val write: Boolean,
         val reorder: Boolean = false,
         val manage: Boolean = false,
+        val boardRead: Boolean = false,
+        val boardWrite: Boolean = false,
     )
 
     fun canRead(project: Project, userId: Long): Boolean = permissionsForUser(project, userId).read
@@ -61,7 +60,6 @@ class ProjectAccessGuard(
         projectionReadinessGate.requireReady()
         val member = teamMembershipRepository.findActiveByTeamIdAndUserId(project.teamId, userId)
             ?: return Permissions(false, false)
-        if (isManager(member.role)) return Permissions(true, true, true, true)
         return permissions(member, accessRepository.findById("${project.id}:$userId").orElse(null))
     }
 
@@ -89,16 +87,16 @@ class ProjectAccessGuard(
 
     fun countReaders(project: Project): Long = projectRepository.countReadableUsers(project.id)
 
-    private fun isManager(teamRole: String): Boolean = teamRole in setOf(TEAM_ROLE_OWNER, TEAM_ROLE_ADMIN)
-
     private fun permissions(member: TeamMembership, access: ProjectAccessProjection?): Permissions {
-        if (isManager(member.role)) return Permissions(true, true, true, true)
         val read = access?.canRead == true && hasCurrentAuthorization(member, access)
+        val boardRead = read && access?.canBoardRead == true
         return Permissions(
             read,
             read && access?.canWrite == true,
             read && access?.canReorder == true,
             read && access?.canManage == true,
+            boardRead,
+            boardRead && access?.canBoardWrite == true,
         )
     }
 
@@ -113,6 +111,18 @@ class ProjectAccessGuard(
         if (!canWrite(project, userId)) throw ExpectedException("프로젝트 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)
     }
 
+    fun requireBoardReader(project: Project, userId: Long) {
+        if (!permissionsForUser(project, userId).boardRead) {
+            throw ExpectedException("GitHub 보드 보기 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        }
+    }
+
+    fun requireBoardModifier(project: Project, userId: Long) {
+        if (!permissionsForUser(project, userId).boardWrite) {
+            throw ExpectedException("GitHub 보드 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        }
+    }
+
     fun requireProjectManager(project: Project, userId: Long) {
         if (!permissionsForUser(project, userId).manage) {
             throw ExpectedException("프로젝트 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
@@ -123,7 +133,7 @@ class ProjectAccessGuard(
         projectionReadinessGate.requireReady()
         val member = teamMembershipRepository.findActiveByTeamIdAndUserId(project.teamId, userId)
             ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
-        if (isManager(member.role)) return
+        if (teamPermissions.hasPermission(member.teamId, member.userId, "administrator")) return
         val access = accessRepository.findById("${project.id}:$userId").orElse(null)
         if (access?.canReadPrivate != true || !hasCurrentAuthorization(member, access)) {
             throw ExpectedException("비공개 전환 후에도 접근할 수 있도록 프로젝트 읽기 역할을 설정해야 합니다.", HttpStatus.BAD_REQUEST)
@@ -138,7 +148,7 @@ class ProjectAccessGuard(
 
     fun requireProjectCreation(teamId: Long, userId: Long, isPrivate: Boolean): InitialReadAuthorization? {
         val member = requireTeamPermission(teamId, userId, "manage_projects")
-        if (!isPrivate || isManager(member.role)) return null
+        if (!isPrivate || teamPermissions.hasPermission(member.teamId, member.userId, "administrator")) return null
         if (!teamPermissions.hasPermission(teamId, userId, "project_read")) {
             throw ExpectedException("비공개 프로젝트 생성에는 프로젝트 읽기 권한이 필요합니다.", HttpStatus.FORBIDDEN)
         }
@@ -163,7 +173,9 @@ class ProjectAccessGuard(
         projectionReadinessGate.requireReady()
         val member = teamMembershipRepository.findActiveByTeamIdAndUserId(teamId, userId)
             ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
-        if (!isManager(member.role) && !teamPermissions.hasPermission(teamId, userId, permission)) {
+        if (!teamPermissions.hasPermission(member.teamId, member.userId, "administrator") &&
+            !teamPermissions.hasPermission(teamId, userId, permission)
+        ) {
             throw ExpectedException("팀 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
         }
         return member

@@ -14,7 +14,7 @@ import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.FixedBackOff;
 
-import com.cowork.roadmap.global.team.TeamMemberProjectionReadiness;
+import com.cowork.roadmap.global.team.projection.readiness.TeamMemberProjectionReadiness;
 
 @Configuration
 @EnableKafka

@@ -9,6 +9,7 @@ import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
+import com.cowork.team.support.policyReader
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -27,7 +28,16 @@ class DeleteInviteServiceImplTest {
         TeamAccessGuard(
             teamRepository,
             teamMemberRepository,
-            TeamPermissionGuard(teamMemberRepository, mockk(relaxed = true)),
+            TeamPermissionGuard(
+                teamMemberRepository,
+                policyReader(
+                    1,
+                    mapOf(
+                        10L to mapOf("manage_invites" to true),
+                        42L to mapOf("manage_invites" to true),
+                    ),
+                ),
+            ),
         )
 
     private val service = DeleteInviteServiceImpl(teamInviteRepository, teamAccessGuard)

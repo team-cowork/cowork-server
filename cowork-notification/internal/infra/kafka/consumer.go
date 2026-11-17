@@ -24,9 +24,8 @@ type NotificationTriggerEvent struct {
 	// EventID is the stable identity of this logical notification, reused by the
 	// producer across its own retries (e.g. an outbox poller). It keys the completed
 	// event inbox and FCM's per-installation selective retry, and is sent to clients in
-	// SSE and FCM payloads for duplicate removal. A producer that has not been updated
-	// to send one leaves this empty, and Notify falls back to a single non-durable
-	// attempt.
+	// SSE and FCM payloads for duplicate removal. It is required: an event without one
+	// is logged as invalid and committed without any FCM or SSE send.
 	EventID       string         `json:"eventId"`
 	Type          string         `json:"type"`
 	TargetUserIDs []int64        `json:"targetUserIds"`
@@ -224,15 +223,16 @@ func (c *Consumer) handle(
 	if err := decoder.Decode(&event); err != nil {
 		return fmt.Errorf("%w: %v", errInvalidNotificationEvent, err)
 	}
-	if event.EventID != "" {
-		completed, err := c.inbox.IsCompleted(attemptCtx, event.EventID)
-		if err != nil {
-			return fmt.Errorf("check notification event inbox: %w", err)
-		}
-		if completed {
-			slog.Info("completed notification event redelivered; skipped", "eventId", event.EventID, "offset", msg.Offset)
-			return nil
-		}
+	if event.EventID == "" {
+		return fmt.Errorf("%w: missing eventId (type %q)", errInvalidNotificationEvent, event.Type)
+	}
+	completed, err := c.inbox.IsCompleted(attemptCtx, event.EventID)
+	if err != nil {
+		return fmt.Errorf("check notification event inbox: %w", err)
+	}
+	if completed {
+		slog.Info("completed notification event redelivered; skipped", "eventId", event.EventID, "offset", msg.Offset)
+		return nil
 	}
 
 	title, body, ok := c.buildMessage(attemptCtx, event)
@@ -283,9 +283,6 @@ func (c *Consumer) handle(
 // markCompleted records the finished fan-out. at-least-once: a crash or write failure
 // after the SSE/FCM sends above redelivers the event, so clients drop repeats by eventId.
 func (c *Consumer) markCompleted(ctx context.Context, eventID string) {
-	if eventID == "" {
-		return
-	}
 	// The sends already happened; a cancelled lease must not abort recording them.
 	markCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), markCompletedTimeout)
 	defer cancel()

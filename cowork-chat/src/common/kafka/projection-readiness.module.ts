@@ -1,6 +1,7 @@
 import {Global as globalModule, Module as nestModule} from '@nestjs/common';
 import {MongooseModule} from '@nestjs/mongoose';
 import {MeetingNoteAttachmentProjection, meetingNoteAttachmentProjectionSchema} from '../../chat/schema/meeting-note-attachment-projection.schema.js';
+import {ThreadProjection, threadProjectionSchema} from '../../chat/schema/thread-projection.schema.js';
 import {WebhookProjection, webhookProjectionSchema} from '../../chat/schema/webhook-projection.schema.js';
 import {DmParticipant, dmParticipantSchema} from '../../chat/schema/dm-participant.schema.js';
 import {ChannelProjection, channelProjectionSchema} from '../../chat/schema/channel-projection.schema.js';
@@ -50,6 +51,7 @@ import {ProjectionCheckpoint, projectionCheckpointSchema} from './projection-che
 	imports: [
 		MongooseModule.forFeature([
 			{name: MeetingNoteAttachmentProjection.name, schema: meetingNoteAttachmentProjectionSchema},
+			{name: ThreadProjection.name, schema: threadProjectionSchema},
 			{name: ProjectionCheckpoint.name, schema: projectionCheckpointSchema},
 			{name: ProjectionQuarantineRecord.name, schema: projectionQuarantineRecordSchema},
 			{name: ProjectionDataset.name, schema: projectionDatasetSchema},

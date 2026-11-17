@@ -6,9 +6,11 @@ import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
 import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
-import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
+import com.cowork.project.support.policyVersion
+import com.cowork.project.support.projectPolicies
+import com.cowork.project.support.teamPolicies
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -26,10 +28,10 @@ class ClearProjectGithubWebhookChannelServiceImplTest {
     private val projectAccessGuard =
         ProjectAccessGuard(
             projectRepository,
-            mockk<ProjectAccessProjectionRepository>(relaxed = true),
+            projectPolicies(99L, 1L),
             teamMembershipRepository,
             mockk(relaxed = true),
-            mockk(relaxed = true),
+            teamPolicies(99L),
         )
     private val repoEventPublisher = mockk<ProjectGithubRepoEventPublisher>(relaxed = true)
 
@@ -56,7 +58,7 @@ class ClearProjectGithubWebhookChannelServiceImplTest {
             val link = repoLink()
             every { projectRepository.findByIdForUpdate(1L) } returns proj
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
-                TeamMembership(teamId = 100L, userId = 99L, role = "OWNER")
+                TeamMembership(teamId = 100L, userId = 99L, role = "MEMBER", authorizationVersion = policyVersion)
             every { projectGithubRepoRepository.findByIdAndProjectIdForUpdate(5L, 1L) } returns link
             every { projectGithubRepoRepository.save(any<ProjectGithubRepo>()) } answers { firstArg() }
 
@@ -83,7 +85,7 @@ class ClearProjectGithubWebhookChannelServiceImplTest {
             val proj = project()
             every { projectRepository.findByIdForUpdate(1L) } returns proj
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
-                TeamMembership(teamId = 100L, userId = 99L, role = "OWNER")
+                TeamMembership(teamId = 100L, userId = 99L, role = "MEMBER", authorizationVersion = policyVersion)
             every { projectGithubRepoRepository.findByIdAndProjectIdForUpdate(5L, 1L) } returns null
 
             val ex = assertThrows(ExpectedException::class.java) {

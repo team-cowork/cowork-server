@@ -9,6 +9,9 @@
 # - Docker, Compose, and OpenTofu are omitted: the GitHub Advisory Database has no advisories
 #   for them, so they never receive security updates.
 # - cowork-chat and cowork-github use bun audit. Dependabot supports only version updates for bun.lock.
+# - cowork-applet is omitted: Dependabot supports only version updates for sbt.
+# - Gradle alerts need dependency graph data from the dependency submission API. No workflow submits
+#   it yet, so the Gradle modules get no alerts or security updates.
 version: 2
 
 updates:
@@ -31,8 +34,12 @@ updates:
           - "*"
 
   - package-ecosystem: "gradle"
-    # Covers gradle/libs.versions.toml, which build-logic also reads.
-    directory: "/"
+    # Each Gradle module owns its build and gradle/libs.versions.toml. There is no root build.
+    directories:
+      - "/cowork-channel"
+      - "/cowork-gateway"
+      - "/cowork-roadmap"
+      - "/cowork-team"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 0
@@ -61,6 +68,7 @@ updates:
         patterns:
           - "*"
 
+  # TODO(2026-11-17T02:31:33Z): Remove this npm entry when cowork-promotion is removed.
   - package-ecosystem: "npm"
     directory: "/cowork-promotion"
     schedule:

@@ -7,7 +7,8 @@
     "redhat.vscode-yaml",
     "golang.go",
     "ms-dotnettools.csharp",
-    "vscjava.vscode-java-pack"
+    "vscjava.vscode-java-pack",
+    "scalameta.metals"
   ],
   "unwantedRecommendations": []
 }
