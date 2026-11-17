@@ -75,13 +75,15 @@ describe('MessageRepository unread 집계', () => {
 	};
 	const repository = new MessageRepository(messageModel as unknown as Model<Message>);
 
-	it('단일 채널 unread는 답장을 포함하고 삭제된 웹훅 영수증은 제외한다', async () => {
+	it('단일 채널 unread는 답장을 포함하고 스레드 메시지와 삭제된 웹훅 영수증은 제외한다', async () => {
 		await expect(repository.countUnread(1, lastReadId)).resolves.toBe(3);
 
-		expect(messageModel.countDocuments).toHaveBeenCalledWith({webhookDeleted: {$ne: true}, channelId: 1, _id: {$gt: lastReadId}});
+		expect(messageModel.countDocuments).toHaveBeenCalledWith({
+			webhookDeleted: {$ne: true}, channelId: 1, threadId: null, _id: {$gt: lastReadId},
+		});
 	});
 
-	it('다중 채널 unread도 답장을 포함하고 삭제된 웹훅 영수증은 제외한다', async () => {
+	it('다중 채널 unread도 답장을 포함하고 스레드 메시지와 삭제된 웹훅 영수증은 제외한다', async () => {
 		const counts = await repository.countUnreadForChannels([
 			{channelId: 1, lastReadMessageId: lastReadId},
 			{channelId: 2, lastReadMessageId: null},
@@ -89,7 +91,7 @@ describe('MessageRepository unread 집계', () => {
 
 		expect(counts).toEqual(new Map([[1, 3]]));
 		expect(messageModel.aggregate).toHaveBeenCalledWith([
-			{$match: {webhookDeleted: {$ne: true}, $or: [{channelId: 1, _id: {$gt: lastReadId}}, {channelId: 2}]}},
+			{$match: {webhookDeleted: {$ne: true}, $or: [{channelId: 1, threadId: null, _id: {$gt: lastReadId}}, {channelId: 2, threadId: null}]}},
 			{$group: {_id: '$channelId', count: {$sum: 1}}},
 		]);
 	});
