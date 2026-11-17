@@ -40,9 +40,7 @@ public static class ActionQuarantine
 
                 // The FAILED result is published once per quarantined record.
                 var payload = IdentityCommand.ResultPayload(operationId, "FAILED", null, IdentityErrorCode, IdentityErrorMessage);
-                await connection.ExecuteAsync(
-                    "INSERT INTO tb_kafka_outbox (topic, event_key, payload) VALUES (@resultTopic, @operationId, @payload)",
-                    new { resultTopic, operationId, payload }, transaction);
+                await IdentityCommand.EnqueueResultAsync(connection, transaction, resultTopic, operationId, payload);
                 var updated = await connection.ExecuteAsync("""
                     UPDATE tb_kafka_action_quarantine
                     SET terminal_operation_id = @operationId, terminal_result_payload = @payload, updated_at = CURRENT_TIMESTAMP(6)
