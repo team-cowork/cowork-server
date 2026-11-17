@@ -226,6 +226,20 @@ enum class RolePermission(
         "프로젝트에 속한 텍스트 채널을 보관하거나 복원할 수 있습니다. 보관된 채널은 읽기 전용이 되며, 볼 수 있는 채널만 보관할 수 있습니다. " +
             "프로젝트 역할로 프로젝트마다 허용하거나 거부할 수 있습니다.",
     ),
+    PROJECT_BOARD_READ(
+        PermissionKeys.PROJECT_BOARD_READ,
+        RolePermissionGroup.PROJECT,
+        "GitHub 보드 보기",
+        "프로젝트에 연결된 GitHub Project 보드와 카드를 볼 수 있습니다. 프로젝트 보기 권한이 있어야 사용할 수 있습니다. " +
+            "프로젝트 역할로 프로젝트마다 허용하거나 거부할 수 있습니다.",
+    ),
+    PROJECT_BOARD_WRITE(
+        PermissionKeys.PROJECT_BOARD_WRITE,
+        RolePermissionGroup.PROJECT,
+        "GitHub 보드 수정",
+        "프로젝트에 연결된 GitHub Project 보드에서 카드를 다른 컬럼으로 옮기거나 순서를 바꿀 수 있습니다. " +
+            "GitHub 보드 보기 권한이 있어야 사용할 수 있습니다. 프로젝트 역할로 프로젝트마다 허용하거나 거부할 수 있습니다.",
+    ),
     ;
 
     companion object {
