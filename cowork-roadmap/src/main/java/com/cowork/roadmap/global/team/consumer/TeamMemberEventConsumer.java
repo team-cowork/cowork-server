@@ -1,8 +1,11 @@
-package com.cowork.roadmap.global.team;
+package com.cowork.roadmap.global.team.consumer;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
+
+import com.cowork.roadmap.global.team.event.TeamMemberEvent;
+import com.cowork.roadmap.global.team.service.TeamMemberProjectionProcessor;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -9,8 +9,8 @@ import org.springframework.stereotype.Component;
 
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
-import com.cowork.roadmap.global.team.TeamMemberProjectionReadiness;
-import com.cowork.roadmap.global.team.TeamMemberProjectionRepository;
+import com.cowork.roadmap.global.team.projection.readiness.TeamMemberProjectionReadiness;
+import com.cowork.roadmap.global.team.repository.TeamMemberProjectionRepository;
 
 import lombok.RequiredArgsConstructor;
 import team.themoment.sdk.exception.ExpectedException;

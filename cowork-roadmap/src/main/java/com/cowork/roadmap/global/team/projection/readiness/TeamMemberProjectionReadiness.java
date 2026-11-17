@@ -1,4 +1,4 @@
-package com.cowork.roadmap.global.team;
+package com.cowork.roadmap.global.team.projection.readiness;
 
 import java.util.Collection;
 import java.util.List;
@@ -17,6 +17,15 @@ import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.kafka.listener.ConsumerAwareRebalanceListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+
+import com.cowork.roadmap.global.team.projection.model.ProjectionBarrier;
+import com.cowork.roadmap.global.team.projection.model.ProjectionCheckpoint;
+import com.cowork.roadmap.global.team.projection.model.ProjectionPartitionRange;
+import com.cowork.roadmap.global.team.projection.model.ProjectionTopicState;
+import com.cowork.roadmap.global.team.projection.policy.ProjectionCatchUpPolicy;
+import com.cowork.roadmap.global.team.projection.topic.ProjectionTopicGenerationRegistry;
+import com.cowork.roadmap.global.team.projection.topic.ProjectionTopicIdentityProvider;
+import com.cowork.roadmap.global.team.repository.ProjectionCheckpointRepository;
 
 import lombok.extern.slf4j.Slf4j;
 

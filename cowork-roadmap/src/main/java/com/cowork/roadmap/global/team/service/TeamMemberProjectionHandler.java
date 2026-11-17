@@ -1,8 +1,11 @@
-package com.cowork.roadmap.global.team;
+package com.cowork.roadmap.global.team.service;
 
 import java.util.Set;
 
 import org.springframework.stereotype.Component;
+
+import com.cowork.roadmap.global.team.event.TeamMemberEvent;
+import com.cowork.roadmap.global.team.repository.TeamMemberProjectionRepository;
 
 import lombok.RequiredArgsConstructor;
 

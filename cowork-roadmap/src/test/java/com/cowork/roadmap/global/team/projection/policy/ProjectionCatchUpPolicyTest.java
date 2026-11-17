@@ -1,4 +1,4 @@
-package com.cowork.roadmap.global.team;
+package com.cowork.roadmap.global.team.projection.policy;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -9,6 +9,11 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+
+import com.cowork.roadmap.global.team.projection.model.ProjectionBarrier;
+import com.cowork.roadmap.global.team.projection.model.ProjectionBrokerRange;
+import com.cowork.roadmap.global.team.projection.model.ProjectionCheckpoint;
+import com.cowork.roadmap.global.team.projection.model.ProjectionSeekDecision;
 
 class ProjectionCatchUpPolicyTest {
 
