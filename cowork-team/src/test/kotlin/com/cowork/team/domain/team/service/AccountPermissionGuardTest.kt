@@ -25,7 +25,7 @@ class AccountPermissionGuardTest :
         }
 
         describe("AccountPermissionGuard 클래스의 requireCreateTeam 메서드는") {
-            context("계정 역할이 팀 생성 권한을 허용하면") {
+            context("적용된 역할 정책이 팀 생성 권한을 허용하면") {
                 it("팀 생성을 허용한다") {
                     // Given
                     every { accounts.allows(7L, "create_team") } returns true
@@ -38,7 +38,7 @@ class AccountPermissionGuardTest :
                 }
             }
 
-            context("계정 역할에 팀 생성 권한이 없으면") {
+            context("적용된 역할 정책에 팀 생성 권한이 없으면") {
                 it("팀 생성을 거부한다") {
                     // Given
                     every { accounts.allows(7L, "create_team") } returns false

@@ -7,7 +7,7 @@ class RolePolicyTest :
     DescribeSpec({
         describe("RolePolicy 클래스의 allows 메서드는") {
             context("팀 역할에 생성 권한이나 관리자 권한이 있으면") {
-                it("전역 팀 생성 권한으로 사용하지 않는다") {
+                it("팀 생성을 허용한다") {
                     // Given
                     val policies = listOf(mapOf("create_team" to true), RolePolicy.administrator(), RolePolicy.owner())
 
@@ -15,7 +15,7 @@ class RolePolicyTest :
                     val allowed = policies.map { RolePolicy.allows(it, "create_team") }
 
                     // Then
-                    allowed shouldBe listOf(false, false, false)
+                    allowed shouldBe listOf(true, true, true)
                 }
             }
             it("관리자 정책으로 삭제와 채널 작업을 허용하지만 소유권 이양은 허용하지 않는다") {
