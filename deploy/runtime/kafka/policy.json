@@ -440,6 +440,41 @@
         "cleanup.policy": "compact",
         "segment.ms": "3600000"
       }
+    },
+    "channel.thread.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "chat.thread-parent.command.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "chat.thread-parent.command.v1-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "chat.thread-parent.result.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "chat.thread-parent.result.v1-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
     }
   },
   "principals": {
@@ -470,7 +505,11 @@
         "preference.channel-role-policy.command.v2",
         "preference.channel-role-policy.result.v2",
         "preference.channel-role-policy.result.v2-dlt",
-        "channel.meeting-note-attachments.state.v1"
+        "channel.meeting-note-attachments.state.v1",
+        "channel.thread.state.v1",
+        "chat.thread-parent.command.v1",
+        "chat.thread-parent.result.v1",
+        "chat.thread-parent.result.v1-dlt"
       ]
     },
     "cowork-chat": {
@@ -497,7 +536,11 @@
         "project.chat-github-issue.command",
         "project.chat-github-issue.command-dlt",
         "project.chat-github-issue.result",
-        "channel.meeting-note-attachments.state.v1"
+        "channel.meeting-note-attachments.state.v1",
+        "channel.thread.state.v1",
+        "chat.thread-parent.command.v1",
+        "chat.thread-parent.result.v1",
+        "chat.thread-parent.command.v1-dlt"
       ]
     },
     "cowork-github": {
