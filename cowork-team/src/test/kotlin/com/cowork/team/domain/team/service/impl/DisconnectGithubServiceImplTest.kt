@@ -8,6 +8,7 @@ import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
+import com.cowork.team.support.policyReader
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.nulls.shouldBeNull
@@ -32,7 +33,10 @@ class DisconnectGithubServiceImplTest :
                 TeamAccessGuard(
                     teamRepository,
                     memberRepository,
-                    TeamPermissionGuard(memberRepository, mockk(relaxed = true)),
+                    TeamPermissionGuard(
+                        memberRepository,
+                        policyReader(1, mapOf(10L to mapOf("manage_github" to true))),
+                    ),
                 ),
                 mockk<TeamEventPublisher>(relaxed = true),
             )

@@ -2,6 +2,7 @@ package com.cowork.team.global.projection
 
 import com.cowork.team.domain.teamRole.operation.TeamRoleContractTopics
 import com.cowork.team.global.consumer.Topics
+import com.cowork.team.global.policy.AccountPolicyProjection
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 
@@ -14,5 +15,7 @@ class ProjectionStreams(
     val teamRole = ProjectionStream(consumerGroup, TeamRoleContractTopics.STATE, "cowork-preference")
     val teamSetting =
         ProjectionStream(teamSettingConsumerGroup, Topics.PREFERENCE_TEAM_SETTING_STATE, "cowork-preference")
-    val required: Set<ProjectionStream> = setOf(teamRole, teamSetting)
+    val accountRole =
+        ProjectionStream(AccountPolicyProjection.GROUP, AccountPolicyProjection.TOPIC, "cowork-preference")
+    val required: Set<ProjectionStream> = setOf(teamRole, teamSetting, accountRole)
 }

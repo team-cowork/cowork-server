@@ -182,7 +182,8 @@ class ChannelAccessGuardTest :
                 }
 
                 context("팀 OWNER 또는 ADMIN이면") {
-                    it("공개 여부와 무관하게 역할 정책을 조회하지 않고 통과한다") {
+                    it("공개 여부와 무관하게 평가된 관리자 정책으로 통과한다") {
+                        fixture.messageRead(true)
                         fixture.ready()
                         listOf("OWNER", "ADMIN").forEach { role ->
                             fixture.teamMember(role = role)
@@ -192,7 +193,7 @@ class ChannelAccessGuardTest :
                             }
                         }
 
-                        coVerify(exactly = 0) {
+                        coVerify(exactly = 6) {
                             fixture.policyRepository.canAccess(any(), any(), any(), any(), any(), any())
                         }
                     }
@@ -267,8 +268,11 @@ class ChannelAccessGuardTest :
             }
 
             describe("requireSettingsManager 메서드는") {
-                context("채널 소속 팀의 OWNER 또는 ADMIN이면") {
+                context("평가된 관리자 정책이 있으면") {
                     it("통과한다") {
+                        coEvery {
+                            fixture.policyRepository.canAccess(any(), TEAM_ID, USER_ID, CHANNEL_ID, any(), any())
+                        } returns true
                         fixture.ready()
                         fixture.channel()
 

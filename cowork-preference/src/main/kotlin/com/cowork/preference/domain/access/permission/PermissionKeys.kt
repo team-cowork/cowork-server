@@ -2,6 +2,11 @@ package com.cowork.preference.domain.access.permission
 
 object PermissionKeys {
 
+    const val ADMINISTRATOR = "administrator"
+    const val CREATE_TEAM = "create_team"
+    const val DELETE_TEAM = "delete_team"
+    const val TRANSFER_TEAM_OWNERSHIP = "transfer_team_ownership"
+
     const val MANAGE_TEAM = "manage_team"
     const val MANAGE_ROLES = "manage_roles"
     const val MANAGE_INVITES = "manage_invites"
@@ -32,6 +37,10 @@ object PermissionKeys {
     const val LIVE_BROADCAST = "live_broadcast"
 
     val TEAM_SCOPED: Set<String> = linkedSetOf(
+        ADMINISTRATOR,
+        CREATE_TEAM,
+        DELETE_TEAM,
+        TRANSFER_TEAM_OWNERSHIP,
         MANAGE_TEAM,
         MANAGE_ROLES,
         MANAGE_INVITES,

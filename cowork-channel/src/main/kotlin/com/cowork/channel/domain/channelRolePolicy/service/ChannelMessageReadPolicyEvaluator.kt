@@ -12,6 +12,7 @@ import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleProjection
 import com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyPermissionSchema
 import com.cowork.channel.domain.membership.entity.TeamMembership
 import com.cowork.channel.domain.membership.repository.TeamMembershipRepository
+import com.cowork.channel.global.policy.RolePolicy
 import com.cowork.channel.global.projection.ProjectionReadinessGate
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
@@ -73,7 +74,6 @@ class ChannelMessageReadPolicyEvaluator(
         projectionReadinessGate.requireReady()
         val membership = membershipRepository.findByTeamIdAndUserId(teamId, userId)
             ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
-        if (membership.active && membership.role in BYPASS_ROLES) return
         val allowed = readableChannelIds(teamId, userId, channels, "channel_reorder")
         if (channels.any { it.id !in allowed }) {
             throw ExpectedException("채널 재정렬 권한이 없습니다.", HttpStatus.FORBIDDEN)
@@ -91,7 +91,6 @@ class ChannelMessageReadPolicyEvaluator(
         val channelIds = channels.mapTo(mutableSetOf()) { it.id }
         val membership = membershipRepository.findByTeamIdAndUserId(teamId, userId) ?: return emptySet()
         if (!membership.active) return emptySet()
-        if (membership.role in BYPASS_ROLES) return channelIds
 
         val memberTombstone = memberTombstoneRepository.findById(
             TeamRoleMemberTombstone.key(teamId, userId),
@@ -114,8 +113,8 @@ class ChannelMessageReadPolicyEvaluator(
         projectionReadinessGate.requireReady()
         val teamId = channel.teamId ?: return emptySet()
         val activeMembers = memberships.filter { it.teamId == teamId && it.active }
-        val allowed = activeMembers.filter { it.role in BYPASS_ROLES }.mapTo(mutableSetOf()) { it.userId }
-        val candidates = activeMembers.filter { it.role !in BYPASS_ROLES }.mapTo(mutableSetOf()) { it.userId }
+        val allowed = mutableSetOf<Long>()
+        val candidates = activeMembers.mapTo(mutableSetOf()) { it.userId }
         if (candidates.isEmpty()) return allowed
         val tombstones = memberTombstoneRepository.findAllById(
             candidates.map {
@@ -158,12 +157,12 @@ class ChannelMessageReadPolicyEvaluator(
             val roleIds = assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(teamId, userId)
                 .filter { fence == null || it.sourceOccurredAt.isAfter(fence.sourceOccurredAt) }
                 .mapTo(mutableSetOf()) { it.roleId }
-            loadRoles(teamId, roleIds).values.any { it.permissions[permission] == true }
+            loadRoles(teamId, roleIds).values.any { RolePolicy.allows(it.permissions, permission) }
         }
     }
 
     /**
-     * 활성 팀 멤버만 통과시킨다. OWNER와 ADMIN은 바로 허용하고, 그 밖의 멤버는 [allowed]가 true일 때만 허용한다.
+     * 활성 팀 멤버의 관리자 정책 또는 [allowed]가 허용할 때 통과시킨다.
      * 호출자가 projection readiness를 먼저 확인해야 한다.
      */
     fun requireMemberPermission(
@@ -176,7 +175,7 @@ class ChannelMessageReadPolicyEvaluator(
         if (membership == null || !membership.active) {
             throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
         }
-        if (membership.role in BYPASS_ROLES) return
+        if (hasAdministratorPolicy(teamId, userId)) return
         if (!allowed(membership)) throw ExpectedException(deniedMessage, HttpStatus.FORBIDDEN)
     }
 
@@ -204,7 +203,7 @@ class ChannelMessageReadPolicyEvaluator(
         ) {
             throw ExpectedException("초기 채널 역할 정책은 같은 팀의 활성 역할만 지정할 수 있습니다.", HttpStatus.BAD_REQUEST)
         }
-        if (membership.role !in BYPASS_ROLES) {
+        if (!hasAdministratorPolicy(teamId, userId)) {
             val fence = memberTombstoneRepository.findById(TeamRoleMemberTombstone.key(teamId, userId)).orElse(null)
             val roleIds = assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(teamId, userId)
                 .filter { fence == null || it.sourceOccurredAt.isAfter(fence.sourceOccurredAt) }
@@ -241,7 +240,7 @@ class ChannelMessageReadPolicyEvaluator(
         requireChannelAccess(teamId, userId, channel)
         val membership = membershipRepository.findByTeamIdAndUserId(teamId, userId)
             ?: throw ExpectedException("팀 멤버만 접근할 수 있습니다.", HttpStatus.FORBIDDEN)
-        if (membership.active && membership.role in BYPASS_ROLES) return
+        if (hasAdministratorPolicy(teamId, userId)) return
         val target = roleRepository.findById(targetRoleId).orElse(null)
         if (target == null || target.teamId != teamId || target.deleted) {
             throw ExpectedException("팀 역할을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
@@ -290,6 +289,7 @@ class ChannelMessageReadPolicyEvaluator(
         isPrivate: Boolean = channel.isPrivate,
     ): Boolean {
         val applicable = roles.filter { (roleId, role) -> role.isDefault || roleId in roleIds }
+        if (applicable.values.any { RolePolicy.allows(it.permissions, "administrator") }) return true
         val accessPermission = if (channel.type == ChannelType.VOICE) "voice_connect" else "message_read"
         fun allows(key: String): Boolean {
             var allowed = !(isPrivate && key in ACCESS_PERMISSIONS) &&
@@ -305,12 +305,19 @@ class ChannelMessageReadPolicyEvaluator(
         return allows(accessPermission) && (permission == null || allows(permission))
     }
 
+    internal fun hasAdministratorPolicy(teamId: Long, userId: Long): Boolean {
+        val fence = memberTombstoneRepository.findById(TeamRoleMemberTombstone.key(teamId, userId)).orElse(null)
+        val ids = assignmentRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(teamId, userId)
+            .filter { fence == null || it.sourceOccurredAt.isAfter(fence.sourceOccurredAt) }
+            .mapTo(mutableSetOf()) { it.roleId }
+        return loadRoles(teamId, ids).values.any { RolePolicy.allows(it.permissions, "administrator") }
+    }
+
     private fun permissions(json: String?): Map<String, Boolean> = json?.let {
         objectMapper.readValue(it, object : TypeReference<Map<String, Boolean>>() {})
     }.orEmpty()
 
     private companion object {
-        val BYPASS_ROLES = setOf("OWNER", "ADMIN")
         val ACCESS_PERMISSIONS = setOf("message_read", "voice_connect")
     }
 }

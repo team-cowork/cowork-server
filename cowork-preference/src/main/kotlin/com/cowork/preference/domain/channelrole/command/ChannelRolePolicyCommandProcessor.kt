@@ -1,6 +1,7 @@
 package com.cowork.preference.domain.channelrole.command
 
 import com.cowork.preference.domain.access.permission.PermissionKeys
+import com.cowork.preference.domain.access.permission.RolePolicy
 import com.cowork.preference.domain.access.projection.channel.model.ChannelLifecycleProjection
 import com.cowork.preference.domain.access.projection.channel.repository.ChannelLifecycleProjectionRepository
 import com.cowork.preference.domain.access.projection.team.model.TeamMemberProjection
@@ -186,11 +187,11 @@ class ChannelRolePolicyCommandProcessor(
         actor: TeamMemberProjection,
         target: TeamRoleDefinition,
     ) {
-        if (actor.builtInRole in setOf("OWNER", "ADMIN")) return
         val assigned = roleRepository.findMemberRoles(connection, command.teamId)
             .filter { it.accountId == command.actorId }.map { it.roleId }.toSet()
         val roles = roleRepository.findRoles(connection, command.teamId).filter { it.isDefault || it.id in assigned }
-        if (roles.none { it.permissions[PermissionKeys.MANAGE_ROLES] == true }) {
+        if (roles.any { RolePolicy.allows(it.permissions, "administrator") }) return
+        if (roles.none { RolePolicy.allows(it.permissions, PermissionKeys.MANAGE_ROLES) }) {
             reject("FORBIDDEN", "역할 관리 권한이 없습니다.")
         }
         val highestCustomPriority = roles.filterNot { it.isDefault }.maxOfOrNull { it.priority }

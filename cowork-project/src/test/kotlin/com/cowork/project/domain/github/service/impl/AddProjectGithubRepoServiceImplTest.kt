@@ -11,9 +11,11 @@ import com.cowork.project.domain.github.service.GithubSyncRequestScheduler
 import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
-import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
+import com.cowork.project.support.policyVersion
+import com.cowork.project.support.projectPolicies
+import com.cowork.project.support.teamPolicies
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -33,10 +35,10 @@ class AddProjectGithubRepoServiceImplTest {
     private val projectAccessGuard =
         ProjectAccessGuard(
             projectRepository,
-            mockk<ProjectAccessProjectionRepository>(relaxed = true),
+            projectPolicies(99L, 1L),
             teamMembershipRepository,
             mockk(relaxed = true),
-            mockk(relaxed = true),
+            teamPolicies(99L),
         )
     private val repoEventPublisher = mockk<ProjectGithubRepoEventPublisher>(relaxed = true)
     private val githubSyncRequestScheduler = mockk<GithubSyncRequestScheduler>(relaxed = true)
@@ -63,7 +65,7 @@ class AddProjectGithubRepoServiceImplTest {
             val proj = project()
             every { projectRepository.findByIdForUpdate(1L) } returns proj
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
-                TeamMembership(teamId = 100L, userId = 99L, role = "OWNER")
+                TeamMembership(teamId = 100L, userId = 99L, role = "MEMBER", authorizationVersion = policyVersion)
             every {
                 projectGithubRepoRepository.existsByTeamIdAndGithubRepoUrl(100L, "https://github.com/my-org/my-repo")
             } returns false
@@ -80,7 +82,7 @@ class AddProjectGithubRepoServiceImplTest {
             val proj = project()
             every { projectRepository.findByIdForUpdate(1L) } returns proj
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
-                TeamMembership(teamId = 100L, userId = 99L, role = "OWNER")
+                TeamMembership(teamId = 100L, userId = 99L, role = "MEMBER", authorizationVersion = policyVersion)
             every {
                 projectGithubRepoRepository.existsByTeamIdAndGithubRepoUrl(100L, "https://github.com/my-org/my-repo")
             } returns true
@@ -97,7 +99,7 @@ class AddProjectGithubRepoServiceImplTest {
             val proj = project()
             every { projectRepository.findByIdForUpdate(1L) } returns proj
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
-                TeamMembership(teamId = 100L, userId = 99L, role = "OWNER")
+                TeamMembership(teamId = 100L, userId = 99L, role = "MEMBER", authorizationVersion = policyVersion)
 
             val ex = assertThrows(ExpectedException::class.java) {
                 service.execute(99L, 1L, AddProjectGithubRepoReqDto("https://github.com/other-org/private-repo"))
@@ -113,7 +115,7 @@ class AddProjectGithubRepoServiceImplTest {
             val proj = project()
             every { projectRepository.findByIdForUpdate(1L) } returns proj
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 99L) } returns
-                TeamMembership(teamId = 100L, userId = 99L, role = "OWNER")
+                TeamMembership(teamId = 100L, userId = 99L, role = "MEMBER", authorizationVersion = policyVersion)
 
             val ex = assertThrows(ExpectedException::class.java) {
                 service.execute(99L, 1L, AddProjectGithubRepoReqDto("https://gitlab.com/my-org/my-repo"))

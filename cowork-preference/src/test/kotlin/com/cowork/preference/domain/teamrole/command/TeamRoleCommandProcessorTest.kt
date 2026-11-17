@@ -79,7 +79,7 @@ class TeamRoleCommandProcessorTest {
         @Test
         fun `일반 멤버에게 역할 관리 권한이 없으면 역할을 생성하지 않는다`() = runBlocking {
             val result = slot<JsonObject>()
-            fixture.stubCommand(createCommand, actorRole = "MEMBER")
+            fixture.stubCommand(createCommand, actorRole = "MEMBER", administrator = false)
             coEvery { fixture.roleRepository.findMemberRoles(fixture.connection, createCommand.teamId) } returns
                 emptyList()
             coEvery { fixture.roleRepository.findRoles(fixture.connection, createCommand.teamId) } returns emptyList()
@@ -94,7 +94,7 @@ class TeamRoleCommandProcessorTest {
         @Test
         fun `사용자 정의 역할 관리자는 자신의 최상위 우선순위 이상 역할을 만들 수 없다`() = runBlocking {
             val result = slot<JsonObject>()
-            fixture.stubCommand(createCommand, actorRole = "MEMBER")
+            fixture.stubCommand(createCommand, actorRole = "MEMBER", administrator = false)
             coEvery { fixture.roleRepository.findMemberRoles(fixture.connection, createCommand.teamId) } returns
                 listOf(AccountTeamRole(createCommand.actorId, createCommand.teamId, 20L))
             coEvery { fixture.roleRepository.findRoles(fixture.connection, createCommand.teamId) } returns
@@ -115,7 +115,7 @@ class TeamRoleCommandProcessorTest {
                 ).copy(permissions = mapOf(PermissionKeys.MANAGE_GITHUB to true)),
             )
             val result = slot<JsonObject>()
-            fixture.stubCommand(command, actorRole = "MEMBER")
+            fixture.stubCommand(command, actorRole = "MEMBER", administrator = false)
             coEvery { fixture.roleRepository.findMemberRoles(fixture.connection, command.teamId) } returns
                 listOf(AccountTeamRole(command.actorId, command.teamId, 20L))
             coEvery { fixture.roleRepository.findRoles(fixture.connection, command.teamId) } returns
@@ -219,7 +219,11 @@ class TeamRoleCommandProcessorTest {
             mockk<ProjectAccessStateRepository>(relaxed = true),
         )
 
-        fun stubCommand(command: TeamRoleCommand, actorRole: String) {
+        fun stubCommand(command: TeamRoleCommand, actorRole: String, administrator: Boolean = true) {
+            coEvery { roleRepository.findMemberRoles(connection, command.teamId) } returns
+                listOf(AccountTeamRole(command.actorId, command.teamId, 999L))
+            coEvery { roleRepository.findRoles(connection, command.teamId) } returns
+                listOf(role(999L, priority = Int.MAX_VALUE, permissions = mapOf("administrator" to administrator)))
             every { readiness.isReady } returns true
             coEvery { outboxRepository.inTransaction<Unit>(any()) } coAnswers {
                 firstArg<suspend (SqlConnection) -> Unit>().invoke(connection)

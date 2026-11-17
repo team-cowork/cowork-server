@@ -3,16 +3,17 @@ package com.cowork.team.domain.teamRole.service
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
 import com.cowork.team.domain.teamRole.service.support.TeamRolePermission
+import com.cowork.team.global.policy.RolePolicy
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import team.themoment.sdk.exception.ExpectedException
 
 data class ManageRoleContext(val member: TeamMember, val roles: List<TeamRoleResponse>) {
     val maxPriority: Int = roles.maxOfOrNull { it.priority } ?: 0
+    val administrator: Boolean = roles.any { RolePolicy.allows(it.permissions, "administrator") }
 }
 
 @Service
@@ -41,15 +42,11 @@ class TeamRoleAccessGuard(
     fun requireManageRoles(teamId: Long, userId: Long): ManageRoleContext =
         requirePermission(teamId, userId, TeamRolePermission.MANAGE_ROLES.key, "역할 관리 권한이 없습니다.")
 
-    /** OWNER와 ADMIN은 모든 권한을 가지며, 그 외 멤버는 부여받은 역할 중 하나라도 권한을 허용해야 한다. */
+    /** 역할 이름과 관계없이 부여된 정책으로 작업 권한을 판정한다. */
     fun requirePermission(teamId: Long, userId: Long, permission: String, deniedMessage: String): ManageRoleContext {
         val member = findMemberOrThrow(teamId, userId)
-        if (member.role == TeamRole.OWNER || member.role == TeamRole.ADMIN) {
-            return ManageRoleContext(member, emptyList())
-        }
-
         val roles = teamRoleProjectionReader.getMemberRoles(teamId, userId)
-        if (roles.any { it.permissions[permission] == true }) {
+        if (roles.any { RolePolicy.allows(it.permissions, permission) }) {
             return ManageRoleContext(member, roles)
         }
 
@@ -57,7 +54,10 @@ class TeamRoleAccessGuard(
     }
 
     fun requireGrantablePermissions(actor: ManageRoleContext, permissions: Map<String, Boolean>) {
-        if (actor.member.role == TeamRole.OWNER || actor.member.role == TeamRole.ADMIN) return
+        if (permissions["transfer_team_ownership"] == true) {
+            throw ExpectedException("소유권 이양 권한은 소유자 정책에서만 부여됩니다.", HttpStatus.FORBIDDEN)
+        }
+        if (actor.administrator) return
         val allowed = actor.roles.flatMap { it.permissions.filterValues { value -> value }.keys }.toSet()
         if (permissions.any { (key, value) -> value && key !in allowed }) {
             throw ExpectedException("자신이 보유하지 않은 권한은 부여할 수 없습니다.", HttpStatus.FORBIDDEN)
@@ -65,6 +65,11 @@ class TeamRoleAccessGuard(
     }
 
     fun requireCustomRole(role: TeamRoleResponse) {
+        if (role.permissions["transfer_team_ownership"] ==
+            true
+        ) {
+            throw ExpectedException("소유자 정책은 소유권 이양으로만 변경할 수 있습니다.", HttpStatus.FORBIDDEN)
+        }
         if (role.isDefault) throw ExpectedException("기본 역할은 삭제하거나 직접 할당 및 해제할 수 없습니다.", HttpStatus.BAD_REQUEST)
     }
 
@@ -77,9 +82,13 @@ class TeamRoleAccessGuard(
     }
 
     fun requireManageablePriority(actor: ManageRoleContext, role: TeamRoleResponse) {
-        if (actor.member.role == TeamRole.OWNER || actor.member.role == TeamRole.ADMIN) {
-            return
+        if (role.permissions["transfer_team_ownership"] == true) {
+            throw ExpectedException("소유자 정책은 소유권 이양으로만 변경할 수 있습니다.", HttpStatus.FORBIDDEN)
         }
+        if (role.priority == Int.MAX_VALUE) {
+            throw ExpectedException("최상위 우선순위는 소유자 정책에 예약되어 있습니다.", HttpStatus.BAD_REQUEST)
+        }
+        if (actor.administrator) return
 
         if (role.priority >= actor.maxPriority) {
             throw ExpectedException("자신의 최상위 역할보다 높거나 같은 역할은 관리할 수 없습니다.", HttpStatus.FORBIDDEN)

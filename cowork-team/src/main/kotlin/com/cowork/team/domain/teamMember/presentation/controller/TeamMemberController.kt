@@ -2,10 +2,8 @@ package com.cowork.team.domain.teamMember.presentation.controller
 
 import com.cowork.team.domain.teamInvite.presentation.data.request.InviteMembersRequest
 import com.cowork.team.domain.teamMember.presentation.data.request.ChangeNicknameRequest
-import com.cowork.team.domain.teamMember.presentation.data.request.ChangeRoleRequest
 import com.cowork.team.domain.teamMember.presentation.data.response.TeamMemberResponse
 import com.cowork.team.domain.teamMember.service.ChangeTeamMemberNicknameService
-import com.cowork.team.domain.teamMember.service.ChangeTeamMemberRoleService
 import com.cowork.team.domain.teamMember.service.InviteTeamMembersService
 import com.cowork.team.domain.teamMember.service.QueryTeamMembersService
 import com.cowork.team.domain.teamMember.service.RemoveTeamMemberService
@@ -24,7 +22,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "팀 멤버", description = "팀 멤버의 초대, 역할 변경, 탈퇴와 추방을 관리합니다.")
+@Tag(name = "팀 멤버", description = "팀 멤버의 초대, 닉네임, 탈퇴와 추방을 관리합니다.")
 @ApiResponses(
     ApiResponse(
         responseCode = "429",
@@ -57,7 +55,6 @@ import team.themoment.sdk.response.CommonApiResponse
 class TeamMemberController(
     private val inviteTeamMembersService: InviteTeamMembersService,
     private val queryTeamMembersService: QueryTeamMembersService,
-    private val changeTeamMemberRoleService: ChangeTeamMemberRoleService,
     private val changeTeamMemberNicknameService: ChangeTeamMemberNicknameService,
     private val removeTeamMemberService: RemoveTeamMemberService,
 ) {
@@ -167,66 +164,6 @@ class TeamMemberController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
     ): List<TeamMemberResponse> = queryTeamMembersService.execute(userId, teamId)
-
-    @Operation(summary = "멤버 역할 변경", security = [SecurityRequirement(name = "BearerAuth")])
-    @ApiResponses(
-        ApiResponse(responseCode = "204", description = "변경 성공 (응답 본문 없음)", content = [Content()]),
-        ApiResponse(
-            responseCode = "400",
-            description = "OWNER 역할을 직접 지정함",
-            content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
-                        ),
-                    ],
-                ),
-            ],
-        ),
-        ApiResponse(
-            responseCode = "403",
-            description = "권한 없음",
-            content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
-                        ),
-                    ],
-                ),
-            ],
-        ),
-        ApiResponse(
-            responseCode = "404",
-            description = "멤버 없음",
-            content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
-                        ),
-                    ],
-                ),
-            ],
-        ),
-    )
-    @PatchMapping("/{targetUserId}/role")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    fun changeRole(
-        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
-        @PathVariable teamId: Long,
-        @PathVariable targetUserId: Long,
-        @RequestBody request: ChangeRoleRequest,
-    ) {
-        changeTeamMemberRoleService.execute(userId, teamId, targetUserId, request)
-    }
 
     @Operation(
         summary = "멤버 팀 닉네임 변경",

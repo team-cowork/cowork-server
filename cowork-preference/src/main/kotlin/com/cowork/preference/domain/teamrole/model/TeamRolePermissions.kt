@@ -10,6 +10,7 @@ object TeamRolePermissions {
 
     fun everyone(): Map<String, Boolean> = canonicalize(
         mapOf(
+            PermissionKeys.CREATE_TEAM to true,
             PermissionKeys.MESSAGE_READ to true,
             PermissionKeys.VOICE_CONNECT to true,
             PermissionKeys.PROJECT_READ to true,

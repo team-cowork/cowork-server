@@ -49,10 +49,11 @@ class ChannelPermissionSupportTest {
     private val support = ChannelPermissionSupport(memberRepository, teamPermissionService, evaluator)
 
     @Test
-    fun `비공개 채널도 OWNER는 별도 멤버 등록 없이 접근한다`() {
+    fun `관리자 정책은 비공개 채널 제한을 우회한다`() {
         every { teamPermissionService.requireTeamMember(10L, 7L) } returns Unit
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns
             TeamMembership(teamId = 10L, userId = 7L, role = "OWNER")
+        stubPolicy(messageRead = false, voiceConnect = false, administrator = true)
         support.requireChannelAccess(channel(isPrivate = true), 7L)
         verify(exactly = 0) { memberRepository.existsByChannelIdAndUserId(any(), any()) }
     }
@@ -120,7 +121,7 @@ class ChannelPermissionSupportTest {
         assertEquals("채널 메시지 읽기 권한이 없습니다.", exception.message)
     }
 
-    private fun stubPolicy(messageRead: Boolean, voiceConnect: Boolean?) {
+    private fun stubPolicy(messageRead: Boolean, voiceConnect: Boolean?, administrator: Boolean = false) {
         val occurredAt = Instant.parse("2026-10-23T00:00:00Z")
         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns
             TeamMembership(teamId = 10L, userId = 7L, role = "MEMBER")
@@ -130,7 +131,13 @@ class ChannelPermissionSupportTest {
             TeamRoleAssignmentProjection("10:7:1", 10L, 7L, 1L, sourceOccurredAt = occurredAt),
         )
         every { roleRepository.findAllByTeamIdAndRoleIdInAndDeletedFalse(10L, setOf(1L)) } returns listOf(
-            TeamRoleProjection(roleId = 1L, teamId = 10L, priority = 10, sourceOccurredAt = occurredAt),
+            TeamRoleProjection(
+                roleId = 1L,
+                teamId = 10L,
+                priority = 10,
+                permissionsJson = "{\"administrator\":$administrator}",
+                sourceOccurredAt = occurredAt,
+            ),
         )
         every {
             policyRepository.findAllByTeamIdAndChannelIdInAndRoleIdInAndDeletedFalse(10L, setOf(3L), setOf(1L))

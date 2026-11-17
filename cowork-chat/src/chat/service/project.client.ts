@@ -52,10 +52,6 @@ export class ProjectClient {
 			return false;
 		}
 
-		if (member.role === 'OWNER' || member.role === 'ADMIN') {
-			return true;
-		}
-
 		const {authorizationVersion} = member;
 		return authorizationVersion === undefined || authorizationVersion === null ? false : this.permissionRepository.canRead(projectId, userId, authorizationVersion);
 	}

@@ -16,6 +16,9 @@ import com.cowork.preference.domain.access.service.ChannelLifecycleService
 import com.cowork.preference.domain.access.service.InitialResourceAccessService
 import com.cowork.preference.domain.access.service.ProjectAccessGuard
 import com.cowork.preference.domain.access.service.TeamMembershipGuard
+import com.cowork.preference.domain.accountrole.AccountRoleHandler
+import com.cowork.preference.domain.accountrole.AccountRoleRepository
+import com.cowork.preference.domain.accountrole.AccountRoleService
 import com.cowork.preference.domain.channelrole.command.ChannelRolePolicyCommandConsumer
 import com.cowork.preference.domain.channelrole.command.ChannelRolePolicyCommandProcessor
 import com.cowork.preference.domain.channelrole.command.repository.ChannelRolePolicyCommandInboxRepository
@@ -243,6 +246,8 @@ class MainVerticle : AbstractVerticle() {
             projectionReadiness,
         )
         webhookHandler.routes(router)
+        val accountRoles = AccountRoleRepository(outboxRepository)
+        AccountRoleHandler(AccountRoleService(pool, accountRoles, outboxRepository), scope).routes(router)
 
         scheduleExpiryChecks(prefService, preferenceCache, webhookService)
         scheduleCacheRepair(preferenceCache)
@@ -259,7 +264,9 @@ class MainVerticle : AbstractVerticle() {
             channelRolePolicyReadiness = channelRolePolicyReadiness,
             webhookRepository = webhookRepository,
             webhookReadiness = channelProjectionReadiness,
+            accountRoles = accountRoles,
         )
+        scheduleProjectionSnapshots(snapshotPublisher::publishAccountRolesIfLeader)
         scheduleProjectionSnapshots(snapshotPublisher::publishTeamStateIfLeader)
         scheduleProjectionSnapshots(snapshotPublisher::publishChannelRolePoliciesIfLeader)
         scheduleProjectionSnapshots(snapshotPublisher::publishProjectAccessIfLeader)

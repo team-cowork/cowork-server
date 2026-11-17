@@ -10,35 +10,36 @@ const mentions = (count: number) => Array.from({length: count}, (_, index) => `<
 
 describe('decideTagSpam', () => {
 	it('차단이 꺼졌거나 멘션이 없으면 검사하지 않는다', () => {
-		expect(decideTagSpam({tagSpamBlock: false, teamRole: 'MEMBER', mentionCount: 50})).toBe('SKIP');
-		expect(decideTagSpam({tagSpamBlock: true, teamRole: 'MEMBER', mentionCount: 0})).toBe('SKIP');
+		expect(decideTagSpam({tagSpamBlock: false, isAdministrator: false, mentionCount: 50})).toBe('SKIP');
+		expect(decideTagSpam({tagSpamBlock: true, isAdministrator: false, mentionCount: 0})).toBe('SKIP');
 	});
 
-	it('OWNER와 ADMIN은 멘션 수와 무관하게 우회한다', () => {
-		for (const teamRole of ['OWNER', 'ADMIN']) {
-			expect(decideTagSpam({tagSpamBlock: true, teamRole, mentionCount: 50})).toBe('SKIP');
-		}
+	it('관리자 정책은 멘션 수와 무관하게 우회한다', () => {
+		expect(decideTagSpam({tagSpamBlock: true, isAdministrator: true, mentionCount: 50})).toBe('SKIP');
 	});
 
 	it('메시지당 상한을 넘으면 바로 거부하고 이하면 시간창을 검사한다', () => {
-		expect(decideTagSpam({tagSpamBlock: true, teamRole: 'MEMBER', mentionCount: 11})).toBe('MESSAGE_LIMIT_EXCEEDED');
-		expect(decideTagSpam({tagSpamBlock: true, teamRole: 'MEMBER', mentionCount: 10})).toBe('CHECK_WINDOW');
-		expect(decideTagSpam({tagSpamBlock: true, teamRole: undefined, mentionCount: 1})).toBe('CHECK_WINDOW');
+		expect(decideTagSpam({tagSpamBlock: true, isAdministrator: false, mentionCount: 11})).toBe('MESSAGE_LIMIT_EXCEEDED');
+		expect(decideTagSpam({tagSpamBlock: true, isAdministrator: false, mentionCount: 10})).toBe('CHECK_WINDOW');
+		expect(decideTagSpam({tagSpamBlock: true, isAdministrator: false, mentionCount: 1})).toBe('CHECK_WINDOW');
 	});
 });
 
 describe('TagSpamService.reserve', () => {
 	const settingRepository = {isTagSpamBlockEnabled: jest.fn()};
 	const teamMemberRepository = {findByTeamIdsAndUserIds: jest.fn()};
+	const roleRepository = {hasAdministratorPolicy: jest.fn()};
 	const rateLimiter = {tryReserveWeighted: jest.fn(), releaseWeighted: jest.fn()};
 	const service = Object.assign<TagSpamService, Record<string, unknown>>(new TagSpamService(), {
 		settingRepository,
 		teamMemberRepository,
+		roleRepository,
 		rateLimiter,
 	});
 
 	beforeEach(() => {
 		jest.clearAllMocks();
+		roleRepository.hasAdministratorPolicy.mockResolvedValue(false);
 		settingRepository.isTagSpamBlockEnabled.mockResolvedValue(true);
 		teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 10, userId: 42, role: 'MEMBER'}]);
 		rateLimiter.tryReserveWeighted.mockResolvedValue('RESERVED');
@@ -79,8 +80,9 @@ describe('TagSpamService.reserve', () => {
 		await expect(service.reserve(10, 42, mentions(3), 'client-1')).resolves.toBeUndefined();
 	});
 
-	it('OWNER와 ADMIN은 시간창도 소비하지 않는다', async () => {
-		teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 10, userId: 42, role: 'ADMIN'}]);
+	it('관리자 정책은 시간창도 소비하지 않는다', async () => {
+		teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 10, userId: 42, role: 'MEMBER'}]);
+		roleRepository.hasAdministratorPolicy.mockResolvedValue(true);
 
 		await expect(service.reserve(10, 42, mentions(30), 'client-1')).resolves.toBeUndefined();
 		expect(rateLimiter.tryReserveWeighted).not.toHaveBeenCalled();
