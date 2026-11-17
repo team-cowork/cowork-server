@@ -43,8 +43,8 @@ type Repository interface {
 
 	// ClaimDue locks and transitions up to limit due PENDING_RETRY rows to IN_PROGRESS
 	// with a fresh ClaimToken, returning them for the retry worker to attempt.
-	// Serialized across replicas by the implementation so the same row is never claimed
-	// twice concurrently.
+	// The implementation claims in one write transaction, so concurrent callers in the
+	// single service process (SQLite, Nomad count = 1) never claim the same row twice.
 	ClaimDue(ctx context.Context, limit int, now time.Time) ([]Record, error)
 
 	// FinalizeCancelled marks a claimed row CANCELLED, clearing the stored notification
