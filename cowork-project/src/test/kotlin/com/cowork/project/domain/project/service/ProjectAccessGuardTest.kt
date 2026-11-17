@@ -205,6 +205,60 @@ class ProjectAccessGuardTest :
                 shouldThrow<ExpectedException> { guard.requireGithubManager(project, 20L) }
             }
 
+            it("보드 보기는 프로젝트 읽기와 보드 보기 권한이 모두 있어야 허용한다") {
+                fun access(read: Boolean, boardRead: Boolean) = Optional.of(
+                    ProjectAccessProjection(
+                        "3:20",
+                        3L,
+                        20L,
+                        read,
+                        true,
+                        Instant.now(),
+                        sourceAuthorizationVersion = currentVersion,
+                        canBoardRead = boardRead,
+                        canBoardWrite = true,
+                    ),
+                )
+                every { access.findById("3:20") } returns access(read = true, boardRead = false)
+                shouldThrow<ExpectedException> { guard.requireBoardReader(project, 20L) }
+                shouldThrow<ExpectedException> { guard.requireBoardModifier(project, 20L) }
+                every { access.findById("3:20") } returns access(read = false, boardRead = true)
+                shouldThrow<ExpectedException> { guard.requireBoardReader(project, 20L) }
+                every { access.findById("3:20") } returns access(read = true, boardRead = true)
+                guard.requireBoardReader(project, 20L)
+                guard.requireBoardModifier(project, 20L)
+            }
+            it("보드 수정은 프로젝트 쓰기 권한으로 대체하지 않는다") {
+                every { access.findById("3:20") } returns
+                    Optional.of(
+                        ProjectAccessProjection(
+                            "3:20",
+                            3L,
+                            20L,
+                            true,
+                            true,
+                            Instant.now(),
+                            sourceAuthorizationVersion = currentVersion,
+                            canBoardRead = true,
+                        ),
+                    )
+                guard.requireProjectModifier(project, 20L)
+                guard.requireBoardReader(project, 20L)
+                val exception = shouldThrow<ExpectedException> { guard.requireBoardModifier(project, 20L) }
+                exception.statusCode shouldBe HttpStatus.FORBIDDEN
+            }
+            it("팀 관리자는 보드 권한을 모두 가진다") {
+                every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns
+                    TeamMembership(
+                        teamId = 1L,
+                        userId = 20L,
+                        role = "ADMIN",
+                        sourceOccurredAt = currentVersion,
+                        authorizationVersion = currentVersion,
+                    )
+                guard.requireBoardReader(project, 20L)
+                guard.requireBoardModifier(project, 20L)
+            }
             it("팀 가입만으로 기본 거부를 우회하지 않는다") {
                 guard.canRead(project, 20L) shouldBe false
                 shouldThrow<ExpectedException> { guard.requireProjectReader(project, 20L) }

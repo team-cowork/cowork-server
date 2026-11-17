@@ -37,6 +37,8 @@ class ProjectAccessStateConsumer(
             require(node.path("manage").isBoolean)
             require(node.path("reorder").isBoolean)
             require(node.path("readPrivate").isBoolean)
+            // Records published before board permissions existed omit these fields and grant no board access.
+            BOARD_FIELDS.forEach { require(node.path(it).isMissingNode || node.path(it).isBoolean) }
             val membershipVersion = Instant.parse(node.path("sourceMembershipVersion").asString())
             require(node.has("sourceAuthorizationVersion"))
             val authorizationVersion = if (node.hasNonNull("sourceAuthorizationVersion")) {
@@ -47,7 +49,7 @@ class ProjectAccessStateConsumer(
                 null
             }
             require(
-                authorizationVersion != null || listOf("read", "write", "manage", "reorder", "readPrivate").none {
+                authorizationVersion != null || GRANT_FIELDS.none {
                     node.path(it).asBoolean()
                 },
             )
@@ -60,6 +62,8 @@ class ProjectAccessStateConsumer(
                 sourceMembershipVersion = membershipVersion.toProjectionPrecision(),
                 sourceAuthorizationVersion = authorizationVersion,
                 canReadPrivate = node.path("readPrivate").asBoolean(),
+                canBoardRead = node.path("boardRead").asBoolean(),
+                canBoardWrite = node.path("boardWrite").asBoolean(),
             )
         }
         val event = parsed.getOrElse {
@@ -80,18 +84,29 @@ class ProjectAccessStateConsumer(
                 val canWrite = existing.canWrite && event.canWrite
                 val canManage = existing.canManage && event.canManage
                 val canReorder = existing.canReorder && event.canReorder
+                val canBoardRead = existing.canBoardRead && event.canBoardRead
+                val canBoardWrite = existing.canBoardWrite && event.canBoardWrite
                 if (existing.canRead != canRead || existing.canWrite != canWrite || existing.canManage != canManage ||
                     existing.canReorder != canReorder ||
-                    existing.canReadPrivate != canReadPrivate
+                    existing.canReadPrivate != canReadPrivate ||
+                    existing.canBoardRead != canBoardRead ||
+                    existing.canBoardWrite != canBoardWrite
                 ) {
                     existing.canManage = canManage
                     existing.canRead = canRead
                     existing.canWrite = canWrite
                     existing.canReorder = canReorder
                     existing.canReadPrivate = canReadPrivate
+                    existing.canBoardRead = canBoardRead
+                    existing.canBoardWrite = canBoardWrite
                     repository.save(existing)
                 }
             }
         }
+    }
+
+    private companion object {
+        val BOARD_FIELDS = listOf("boardRead", "boardWrite")
+        val GRANT_FIELDS = listOf("read", "write", "manage", "reorder", "readPrivate") + BOARD_FIELDS
     }
 }

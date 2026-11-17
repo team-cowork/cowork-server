@@ -13,6 +13,7 @@ object TeamRolePermissions {
             PermissionKeys.MESSAGE_READ to true,
             PermissionKeys.VOICE_CONNECT to true,
             PermissionKeys.PROJECT_READ to true,
+            PermissionKeys.PROJECT_BOARD_READ to true,
         ),
     )
 

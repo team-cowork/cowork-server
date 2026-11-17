@@ -26,7 +26,7 @@ class GithubSyncMarkers(
 
     /** 완료 마커를 기록한다. 같은 대상의 더 오래된 마커는 완료 시각을 되돌리지 않는다. consumer 트랜잭션 안에서 호출한다. */
     fun record(stream: GithubSyncStream, marker: GithubSyncCompletedMarker) {
-        val id = GithubSyncMarker.id(stream, marker.owner, marker.repo)
+        val id = GithubSyncMarker.id(stream, marker.owner, marker.scope)
         val existing = repository.findById(id).orElse(null)
         when {
             existing == null -> repository.save(GithubSyncMarker(id, marker.completedAt))

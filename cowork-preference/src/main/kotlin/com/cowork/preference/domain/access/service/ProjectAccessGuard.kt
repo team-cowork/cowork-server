@@ -112,6 +112,8 @@ class ProjectAccessGuard(
             "manage" to effective.manage,
             "reorder" to effective.reorder,
             "channel_archive" to effective.channelArchive,
+            "board_read" to effective.boardRead,
+            "board_write" to effective.boardWrite,
         )
         if (!removing && permissions.map.any { (key, value) -> value == true && held[key] != true }) {
             throw ResourceAccessDeniedException("보유하지 않은 프로젝트 권한은 부여할 수 없습니다.")
