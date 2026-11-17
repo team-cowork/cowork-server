@@ -6,6 +6,7 @@ export * from './message-search-index-state.repository.js';
 export * from './message-search-index.repository.js';
 export * from './message-search-tombstone.repository.js';
 export * from './message.repository.js';
+export * from './thread-projection.repository.js';
 export * from './project-github-repo-projection.repository.js';
 export * from './project-permission-projection.repository.js';
 export * from './project-projection.repository.js';

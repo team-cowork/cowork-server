@@ -9,11 +9,12 @@ const event = {
 describe('ChatMessageScopeValidator', () => {
 	const channels = {findById: jest.fn()};
 	const messages = {findByIdAndChannelId: jest.fn()};
+	const threads = {findActive: jest.fn()};
 	let validator: ChatMessageScopeValidator;
 
 	beforeEach(() => {
 		jest.clearAllMocks();
-		validator = new ChatMessageScopeValidator(channels as never, messages as never);
+		validator = new ChatMessageScopeValidator(channels as never, messages as never, threads as never);
 	});
 
 	describe('validate', () => {
@@ -43,6 +44,36 @@ describe('ChatMessageScopeValidator', () => {
 			await expect(validator.validate(withParent)).rejects.toMatchObject<Partial<ChatMessageScopeError>>({
 				reasonCode: 'PARENT_NOT_FOUND',
 			});
+		});
+
+		it('저장 전에 스레드가 보관되었으면 거부한다', async () => {
+			channels.findById.mockResolvedValue({teamId: 1, projectId: null, type: 'TEXT'});
+			threads.findActive.mockResolvedValue({
+				channelId: 2, status: 'ACTIVE', archived: true, deleted: false,
+			});
+
+			await expect(validator.validate({...event, threadId: 7})).rejects.toMatchObject<Partial<ChatMessageScopeError>>({
+				reasonCode: 'THREAD_ARCHIVED',
+			});
+		});
+
+		it('채널 메시지가 스레드 메시지에 답장하면 거부한다', async () => {
+			channels.findById.mockResolvedValue({teamId: 1, projectId: null, type: 'TEXT'});
+			messages.findByIdAndChannelId.mockResolvedValue({threadId: 7});
+
+			await expect(validator.validate({...event, parentMessageId: '507f1f77bcf86cd799439011'}))
+				.rejects.toMatchObject<Partial<ChatMessageScopeError>>({reasonCode: 'PARENT_THREAD_MISMATCH'});
+			expect(threads.findActive).not.toHaveBeenCalled();
+		});
+
+		it('같은 스레드의 메시지에 답장하는 스레드 메시지는 통과한다', async () => {
+			channels.findById.mockResolvedValue({teamId: 1, projectId: null, type: 'TEXT'});
+			messages.findByIdAndChannelId.mockResolvedValue({threadId: 7});
+			threads.findActive.mockResolvedValue({
+				channelId: 2, status: 'ACTIVE', archived: false, deleted: false,
+			});
+
+			await expect(validator.validate({...event, parentMessageId: '507f1f77bcf86cd799439011', threadId: 7})).resolves.toBeUndefined();
 		});
 	});
 });

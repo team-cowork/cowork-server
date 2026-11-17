@@ -138,12 +138,17 @@ import {
 } from './search/index.js';
 import {MeetingNoteAttachmentRetention, meetingNoteAttachmentRetentionSchema} from './schema/meeting-note-attachment-retention.schema.js';
 import {MeetingNoteAttachmentRetentionRepository} from './repository/meeting-note-attachment-retention.repository.js';
+import {ThreadProjection, threadProjectionSchema} from './schema/thread-projection.schema.js';
+import {ThreadProjectionRepository} from './repository/thread-projection.repository.js';
+import {ThreadStateConsumer} from './kafka/thread-state.consumer.js';
+import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consumer.js';
 
 @nestModule({
 	imports: [
 		MongooseModule.forFeature([
 			{name: MeetingNoteAttachmentRetention.name, schema: meetingNoteAttachmentRetentionSchema},
 			{name: MeetingNoteAttachmentProjection.name, schema: meetingNoteAttachmentProjectionSchema},
+			{name: ThreadProjection.name, schema: threadProjectionSchema},
 			{name: Message.name, schema: messageSchema},
 			{name: ChannelReadState.name, schema: channelReadStateSchema},
 			{name: DmParticipant.name, schema: dmParticipantSchema},
@@ -186,6 +191,9 @@ import {MeetingNoteAttachmentRetentionRepository} from './repository/meeting-not
 		MeetingNoteAttachmentProjectionRepository,
 		MeetingNoteAttachmentConsumer,
 		MeetingNoteAttachmentDownloadService,
+		ThreadProjectionRepository,
+		ThreadStateConsumer,
+		ThreadParentCommandConsumer,
 		WebhookService,
 		WebhookMessageRepository,
 		WebhookRateLimiter,
