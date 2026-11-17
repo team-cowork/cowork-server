@@ -166,21 +166,14 @@ func (s *Service) Notify(
 		return nil, err
 	}
 
-	// eventId is the (eventId, installationId) canonical delivery key. A producer that
-	// has not yet been updated to send one falls back to a single non-durable attempt
-	// (today's behavior) instead of failing the notification outright.
-	toSend := allTargets
-	durable := eventID != ""
-	if durable {
-		toSend, err = s.delivery.ResumeOrCreate(ctx, eventID, allTargets, title, body, nil)
-		if err != nil {
-			return nil, fmt.Errorf("resume or create delivery ledger: %w", err)
-		}
-		if len(toSend) == 0 {
-			return enabledIDs, nil
-		}
-	} else {
-		slog.Warn("notification event missing eventId; falling back to non-durable single-attempt delivery")
+	// eventId is the (eventId, installationId) canonical delivery key. The Kafka
+	// consumer rejects an event without one before it calls Notify.
+	toSend, err := s.delivery.ResumeOrCreate(ctx, eventID, allTargets, title, body, nil)
+	if err != nil {
+		return nil, fmt.Errorf("resume or create delivery ledger: %w", err)
+	}
+	if len(toSend) == 0 {
+		return enabledIDs, nil
 	}
 
 	toSend, messages, err := s.excludeStaleTargets(ctx, eventID, enabledIDs, toSend)
@@ -200,8 +193,9 @@ func (s *Service) Notify(
 	// The Firebase Admin SDK's default HTTP client retries 503s and network errors up to
 	// 4 times, honoring Retry-After for as long as 2 minutes, so an unbounded ctx here
 	// would let this call alone approach the retry worker's staleInProgressAfter window
-	// while these rows are still held IN_PROGRESS — another replica's reclaim could then
-	// resend them. 30s keeps a single attempt well clear of that.
+	// while these rows are still held IN_PROGRESS — the retry worker's ReclaimStale could
+	// then revert them and a later ClaimDue could resend them. 30s keeps a single
+	// attempt well clear of that.
 	sendCtx, sendCancel := context.WithTimeout(ctx, 30*time.Second)
 	results, sendErr := s.fcm.Send(sendCtx, messages, title, body)
 	sendCancel()
@@ -224,26 +218,18 @@ func (s *Service) Notify(
 		monitoring.RecordFCMDeliveryOutcome(string(r.Outcome), "initial")
 		switch r.Outcome {
 		case fcm.OutcomeSuccess:
-			if durable {
-				if err := s.delivery.FinalizeSuccess(finalizeCtx, eventID, target.InstallationID, target.ClaimToken); err != nil {
-					slog.Warn("failed to finalize successful delivery", "err", err)
-				}
+			if err := s.delivery.FinalizeSuccess(finalizeCtx, eventID, target.InstallationID, target.ClaimToken); err != nil {
+				slog.Warn("failed to finalize successful delivery", "err", err)
 			}
 		case fcm.OutcomeInvalid:
 			invalidFIDs = append(invalidFIDs, r.FID)
-			if durable {
-				if err := s.delivery.FinalizeInvalid(finalizeCtx, eventID, target.InstallationID, target.ClaimToken); err != nil {
-					slog.Warn("failed to finalize invalid delivery", "err", err)
-				}
+			if err := s.delivery.FinalizeInvalid(finalizeCtx, eventID, target.InstallationID, target.ClaimToken); err != nil {
+				slog.Warn("failed to finalize invalid delivery", "err", err)
 			}
 		case fcm.OutcomeUnclassified:
-			if durable {
-				s.finalizeFailure(finalizeCtx, eventID, target, delivery.ErrorClassUnclassified)
-			}
+			s.finalizeFailure(finalizeCtx, eventID, target, delivery.ErrorClassUnclassified)
 		default: // fcm.OutcomeRetryable
-			if durable {
-				s.finalizeFailure(finalizeCtx, eventID, target, delivery.ErrorClassRetryable)
-			}
+			s.finalizeFailure(finalizeCtx, eventID, target, delivery.ErrorClassRetryable)
 		}
 	}
 	if len(invalidFIDs) > 0 {
@@ -264,7 +250,7 @@ func (s *Service) Notify(
 // another account after the first lookup (including while ResumeOrCreate waited on row
 // locks), mirroring the retry worker's CurrentFID check. installation_id is never
 // reused, so a target is current only if the same ID still carries the same FID.
-// Dropped durable claims are finalized CANCELLED so they do not sit IN_PROGRESS until
+// Dropped claims are finalized CANCELLED so they do not sit IN_PROGRESS until
 // ReclaimStale. A lookup failure leaves the claims IN_PROGRESS for ReclaimStale and the
 // retry worker, as the worker does on its own lookup failure. The returned messages
 // align with the live targets and carry the generation's owning account
@@ -297,9 +283,6 @@ func (s *Service) excludeStaleTargets(ctx context.Context, eventID string, accou
 			messages = append(messages, fcm.Message{FID: t.FID, Data: fcm.WithAccountID(eventData(eventID), owner)})
 			continue
 		}
-		if eventID == "" {
-			continue
-		}
 		if err := s.delivery.FinalizeCancelled(finalizeCtx, eventID, t.InstallationID, t.ClaimToken); err != nil {
 			slog.Warn("failed to finalize cancelled delivery", "installationId", t.InstallationID, "err", err)
 		}
@@ -310,9 +293,6 @@ func (s *Service) excludeStaleTargets(ctx context.Context, eventID string, accou
 // eventData is the FCM data payload shared by every installation of one event. The
 // retry worker rebuilds it from the ledger's event_id, so data_json need not carry it.
 func eventData(eventID string) map[string]string {
-	if eventID == "" {
-		return nil
-	}
 	return map[string]string{fcm.DataKeyEventID: eventID}
 }
 

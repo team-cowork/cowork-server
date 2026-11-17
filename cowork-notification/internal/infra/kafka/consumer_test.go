@@ -84,18 +84,20 @@ func TestHandleLeavesFailedFanOutUncompleted(t *testing.T) {
 	}
 }
 
-func TestHandleWithoutEventIDBypassesInbox(t *testing.T) {
+func TestHandleRejectsEventWithoutEventID(t *testing.T) {
 	svc := &fakeNotifier{}
-	c, inbox, _ := newTestConsumer(svc)
+	c, inbox, sse := newTestConsumer(svc)
 	ctx := context.Background()
 
-	for range 2 {
-		if err := c.handle(ctx, ctx, triggerMessage(""), nil); err != nil {
-			t.Fatalf("handle: %v", err)
-		}
-	}
+	err := c.handle(ctx, ctx, triggerMessage(""), nil)
 
-	if svc.calls != 2 || len(inbox.completed) != 0 {
-		t.Fatalf("legacy event without eventId: notify=%d inbox=%v", svc.calls, inbox.completed)
+	if !errors.Is(err, errInvalidNotificationEvent) {
+		t.Fatalf("event without eventId must be reported as invalid, got %v", err)
+	}
+	if svc.calls != 0 || len(sse.payloads) != 0 || len(inbox.completed) != 0 {
+		t.Fatalf("event without eventId must not be sent: notify=%d sse=%d inbox=%v", svc.calls, len(sse.payloads), inbox.completed)
+	}
+	if err := c.handleWithRetry(ctx, triggerMessage(""), &unfencedLease{ctx: ctx}); err != nil {
+		t.Fatalf("invalid event must be skipped so its offset is committed, got %v", err)
 	}
 }
