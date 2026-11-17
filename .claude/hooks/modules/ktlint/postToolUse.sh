@@ -23,7 +23,8 @@ done
 
 if [[ -f "$MODULE_DIR/gradlew" && -f "$MODULE_DIR/build.gradle.kts" ]] \
     && grep -Fq 'libs.plugins.ktlint' "$MODULE_DIR/build.gradle.kts"; then
-    FORMAT_COMMAND=(./gradlew ktlintFormat -q)
+    # The ktlint-gradle git hook filter formats only this file, not the whole module.
+    FORMAT_COMMAND=(./gradlew ktlintFormat -q "-PinternalKtlintGitFilter=${FILE_PATH#"$MODULE_DIR"/}")
 elif [[ "$FILE_PATH" == *.kt && -f "$MODULE_DIR/mvnw" && -f "$MODULE_DIR/pom.xml" ]] \
     && grep -Fq '<artifactId>ktlint-maven-plugin</artifactId>' "$MODULE_DIR/pom.xml"; then
     FORMAT_COMMAND=(./mvnw ktlint:format -q)
