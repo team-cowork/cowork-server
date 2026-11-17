@@ -3,6 +3,7 @@ import {Injectable as injectable} from '@nestjs/common';
 import {InjectModel as injectModel} from '@nestjs/mongoose';
 import {Model} from 'mongoose';
 import {MeetingNoteAttachmentProjection} from '../../chat/schema/meeting-note-attachment-projection.schema.js';
+import {ThreadProjection} from '../../chat/schema/thread-projection.schema.js';
 import {WebhookProjection} from '../../chat/schema/webhook-projection.schema.js';
 import {DmParticipant} from '../../chat/schema/dm-participant.schema.js';
 import {ChannelProjection} from '../../chat/schema/channel-projection.schema.js';
@@ -27,6 +28,7 @@ import {
 
 export type ProjectionStreamName =
 	| 'meetingNoteAttachment'
+	| 'thread'
 	| 'channel'
 	| 'project'
 	| 'dmParticipant'
@@ -71,6 +73,9 @@ export class ProjectionDatasetRepository {
 
 	@injectModel(MeetingNoteAttachmentProjection.name)
 	private readonly meetingNoteAttachment!: Model<MeetingNoteAttachmentProjection>;
+
+	@injectModel(ThreadProjection.name)
+	private readonly thread!: Model<ThreadProjection>;
 
 	@injectModel(ChannelProjection.name)
 	private readonly channel!: Model<ChannelProjection>;
@@ -118,6 +123,7 @@ export class ProjectionDatasetRepository {
 		// 컬렉션마다 문서 타입이 달라 공통 연산(count·exists)용 `Model<unknown>`으로 넓힌다.
 		const models = {
 			meetingNoteAttachment: [this.meetingNoteAttachment],
+			thread: [this.thread],
 			channel: [this.channel],
 			project: [this.project],
 			dmParticipant: [this.dmParticipant],

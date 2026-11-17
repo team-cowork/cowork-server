@@ -33,6 +33,7 @@ import {ChatGithubIssueResultConsumer} from './kafka/chat-github-issue-result.co
 import {GithubRepoEventConsumer} from './kafka/github-repo-event.consumer.js';
 import {VoiceEventConsumer} from './kafka/voice-event.consumer.js';
 import {ChannelEventConsumer} from './kafka/channel-event.consumer.js';
+import {ThreadStateConsumer} from './kafka/thread-state.consumer.js';
 import {ProjectEventConsumer} from './kafka/project-event.consumer.js';
 import {TeamRoleEventConsumer} from './kafka/team-role-event.consumer.js';
 import {ChannelRolePolicyEventConsumer} from './kafka/channel-role-policy-event.consumer.js';
@@ -108,6 +109,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
 	@inject()
 	private readonly channelEventConsumer!: ChannelEventConsumer;
+
+	@inject()
+	private readonly threadStateConsumer!: ThreadStateConsumer;
 
 	@inject()
 	private readonly projectEventConsumer!: ProjectEventConsumer;
@@ -322,6 +326,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 		this.githubRepoEventConsumer.setSocketServer(server);
 		this.voiceEventConsumer.setSocketServer(server);
 		this.channelEventConsumer.setSocketServer(server);
+		this.threadStateConsumer.setSocketServer(server);
 		this.projectEventConsumer.setSocketServer(server);
 		this.dmParticipantConsumer.setSocketServer(server);
 		this.dmParticipantConsumer.setReadAccessEvaluator(async (channelId, userId) =>

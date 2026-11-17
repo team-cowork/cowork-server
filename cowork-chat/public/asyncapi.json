@@ -52,6 +52,9 @@
             { "$ref": "#/components/messages/ChannelCreated" },
             { "$ref": "#/components/messages/ChannelUpdated" },
             { "$ref": "#/components/messages/ChannelDeleted" },
+            { "$ref": "#/components/messages/ThreadCreated" },
+            { "$ref": "#/components/messages/ThreadUpdated" },
+            { "$ref": "#/components/messages/ThreadRejected" },
             { "$ref": "#/components/messages/ProjectCreated" },
             { "$ref": "#/components/messages/ProjectUpdated" },
             { "$ref": "#/components/messages/ProjectDeleted" },
@@ -85,6 +88,9 @@
       "ChannelCreated": { "name": "channel:created", "title": "채널 생성", "payload": { "$ref": "#/components/schemas/ChannelEvent" } },
       "ChannelUpdated": { "name": "channel:updated", "title": "채널 수정", "payload": { "$ref": "#/components/schemas/ChannelEvent" } },
       "ChannelDeleted": { "name": "channel:deleted", "title": "채널 삭제", "payload": { "$ref": "#/components/schemas/ChannelEvent" } },
+      "ThreadCreated": { "name": "thread:created", "title": "스레드 생성", "description": "시작 메시지가 확인되어 스레드가 확정되면 채널을 읽을 수 있는 사용자에게 보냅니다.", "payload": { "$ref": "#/components/schemas/ThreadEvent" } },
+      "ThreadUpdated": { "name": "thread:updated", "title": "스레드 수정", "description": "확정된 스레드의 이름이나 보관 상태가 바뀌면 채널을 읽을 수 있는 사용자에게 보냅니다.", "payload": { "$ref": "#/components/schemas/ThreadEvent" } },
+      "ThreadRejected": { "name": "thread:rejected", "title": "스레드 생성 거부", "description": "시작 메시지가 채널에 없거나 스레드 메시지여서 스레드가 지워지면, 스레드를 만든 사용자에게만 보냅니다.", "payload": { "$ref": "#/components/schemas/ThreadRejectedEvent" } },
       "ProjectCreated": { "name": "project:created", "title": "프로젝트 생성", "payload": { "$ref": "#/components/schemas/ProjectEvent" } },
       "ProjectUpdated": { "name": "project:updated", "title": "프로젝트 수정", "payload": { "$ref": "#/components/schemas/ProjectEvent" } },
       "ProjectDeleted": { "name": "project:deleted", "title": "프로젝트 삭제", "payload": { "$ref": "#/components/schemas/ProjectEvent" } },
@@ -114,7 +120,8 @@
           "content": { "type": "string" },
           "type": { "type": "string", "enum": ["TEXT", "FILE", "SYSTEM"] },
           "attachments": { "type": "array", "items": { "$ref": "#/components/schemas/Attachment" } },
-          "parentMessageId": { "type": "string", "nullable": true },
+          "parentMessageId": { "type": "string", "nullable": true, "description": "답장 원본 메시지 ObjectId" },
+          "threadId": { "type": "integer", "format": "int64", "nullable": true, "description": "메시지가 속한 스레드 ID. 채널 메시지이면 null" },
           "mentions": { "type": "array", "items": { "type": "integer", "format": "int64" } },
           "isEdited": { "type": "boolean" },
           "isPinned": { "type": "boolean" },
@@ -192,6 +199,27 @@
           "archived": { "type": "boolean", "description": "보관된 채널이면 true. 보관된 채널은 읽기 전용이며 쓰기 요청은 409를 반환합니다." }
         },
         "additionalProperties": true
+      },
+      "ThreadEvent": {
+        "type": "object",
+        "required": ["id", "channelId", "name", "parentMessageId", "isArchived", "createdBy"],
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "channelId": { "type": "integer", "format": "int64" },
+          "name": { "type": "string" },
+          "parentMessageId": { "type": "string", "description": "스레드 시작 메시지 ObjectId" },
+          "isArchived": { "type": "boolean" },
+          "createdBy": { "type": "integer", "format": "int64" }
+        }
+      },
+      "ThreadRejectedEvent": {
+        "type": "object",
+        "required": ["id", "channelId", "parentMessageId"],
+        "properties": {
+          "id": { "type": "integer", "format": "int64" },
+          "channelId": { "type": "integer", "format": "int64" },
+          "parentMessageId": { "type": "string" }
+        }
       },
       "ProjectEvent": {
         "type": "object",
