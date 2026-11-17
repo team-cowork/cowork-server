@@ -27,22 +27,20 @@ class AccountPolicyProjection(private val jdbc: JdbcTemplate, private val mapper
         )
     }
 
-    fun allows(accountId: Long, action: String): Boolean {
-        if (action !in setOf("create_team", "manage_account_roles")) return false
-        val accountPolicies = jdbc.query(
-            """
+    fun findAccountPolicies(accountId: Long): List<Map<String, Boolean>> = jdbc.query(
+        """
             SELECT r.permissions_json FROM tb_account_policy_projections r
             WHERE r.record_type = 'ROLE' AND NOT r.deleted AND (r.is_default OR EXISTS (
                 SELECT 1 FROM tb_account_policy_projections a
                 WHERE a.record_type = 'ASSIGNMENT' AND a.account_id = ? AND a.role_id = r.role_id AND NOT a.deleted
             ))
-            """.trimIndent(),
-            { row, _ -> mapper.readValue<Map<String, Boolean>>(row.getString("permissions_json")) },
-            accountId,
-        )
-        if (action != "create_team") return accountPolicies.any { it[action] == true }
-        val teamPolicies = jdbc.query(
-            """
+        """.trimIndent(),
+        { row, _ -> mapper.readValue<Map<String, Boolean>>(row.getString("permissions_json")) },
+        accountId,
+    )
+
+    fun findTeamPolicies(accountId: Long): List<Map<String, Boolean>> = jdbc.query(
+        """
             SELECT r.permissions_json FROM tb_team_role_projections r
             JOIN tb_team_members m ON m.team_id = r.team_id AND m.user_id = ?
             WHERE NOT r.deleted AND (r.is_default OR EXISTS (
@@ -54,12 +52,10 @@ class AccountPolicyProjection(private val jdbc: JdbcTemplate, private val mapper
                         AND f.source_occurred_at >= a.source_occurred_at
                   )
             ))
-            """.trimIndent(),
-            { row, _ -> mapper.readValue<Map<String, Boolean>>(row.getString("permissions_json")) },
-            accountId,
-        )
-        return RolePolicy.allows(accountPolicies + teamPolicies, action)
-    }
+        """.trimIndent(),
+        { row, _ -> mapper.readValue<Map<String, Boolean>>(row.getString("permissions_json")) },
+        accountId,
+    )
 
     companion object {
         const val TOPIC = "preference.account-role.state.v1"
