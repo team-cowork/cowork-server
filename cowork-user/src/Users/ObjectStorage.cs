@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text.RegularExpressions;
 using Amazon.Runtime;
@@ -30,7 +31,7 @@ public static partial class ObjectStorage
             ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED,
         });
 
-    public static bool ContentTypeAllowed(string? contentType) =>
+    public static bool ContentTypeAllowed([NotNullWhen(true)] string? contentType) =>
         contentType is not null && SupportedTypes.Contains(contentType);
 
     public static string BuildObjectKey(long userId, string contentType) =>
