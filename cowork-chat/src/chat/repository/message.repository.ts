@@ -988,6 +988,8 @@ export class MessageRepository {
 		const filter: Record<string, unknown> = {
 			webhookDeleted: {$ne: true},
 			channelId,
+			// 채널 메시지 목록과 같은 기준으로 센다. 스레드 메시지는 채널 목록에 없으므로 채널 읽음 처리로 지울 수 없다.
+			threadId: null,
 			...(afterId && {_id: {$gt: afterId}}),
 		};
 
@@ -1036,6 +1038,7 @@ export class MessageRepository {
 
 		const orConditions = memberships.map(({channelId, lastReadMessageId}) => ({
 			channelId,
+			threadId: null,
 			...(lastReadMessageId && {_id: {$gt: lastReadMessageId}}),
 		}));
 		const results = await this.messageModel.aggregate<{_id: number; count: number}>([
