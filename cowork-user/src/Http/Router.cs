@@ -54,7 +54,8 @@ public static class Router
         Reply(await Accounts.GetUserProfileAsync(UserId(request)));
 
     [Tags(ApiDocs.Profile), EndpointSummary("내 프로필 수정")]
-    [RequestBody<UpdateProfileRequest>, Ok<UserResponse>("사용자 프로필"), Errors(400, 404)]
+    [RequestBody<UpdateProfileRequest>, Ok<UserResponse>("사용자 프로필"), Errors(404)]
+    [Error(400, "요청 값이 올바르지 않거나 banner_color가 허용 목록 밖의 값임")]
     static async Task<IResult> UpdateMyProfileAsync(HttpRequest request)
     {
         var body = await ReadBodyAsync(request);
