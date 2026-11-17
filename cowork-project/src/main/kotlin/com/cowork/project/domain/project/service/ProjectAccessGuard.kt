@@ -15,6 +15,7 @@ import java.time.Instant
 
 private const val TEAM_ROLE_OWNER = "OWNER"
 private const val TEAM_ROLE_ADMIN = "ADMIN"
+private val MANAGER_PERMISSIONS = ProjectAccessGuard.Permissions(true, true, true, true, true, true)
 
 /**
  * 프로젝트 조회/수정 권한 검증을 담당하는 컴포넌트.
@@ -51,6 +52,8 @@ class ProjectAccessGuard(
         val write: Boolean,
         val reorder: Boolean = false,
         val manage: Boolean = false,
+        val boardRead: Boolean = false,
+        val boardWrite: Boolean = false,
     )
 
     fun canRead(project: Project, userId: Long): Boolean = permissionsForUser(project, userId).read
@@ -61,7 +64,7 @@ class ProjectAccessGuard(
         projectionReadinessGate.requireReady()
         val member = teamMembershipRepository.findActiveByTeamIdAndUserId(project.teamId, userId)
             ?: return Permissions(false, false)
-        if (isManager(member.role)) return Permissions(true, true, true, true)
+        if (isManager(member.role)) return MANAGER_PERMISSIONS
         return permissions(member, accessRepository.findById("${project.id}:$userId").orElse(null))
     }
 
@@ -92,13 +95,16 @@ class ProjectAccessGuard(
     private fun isManager(teamRole: String): Boolean = teamRole in setOf(TEAM_ROLE_OWNER, TEAM_ROLE_ADMIN)
 
     private fun permissions(member: TeamMembership, access: ProjectAccessProjection?): Permissions {
-        if (isManager(member.role)) return Permissions(true, true, true, true)
+        if (isManager(member.role)) return MANAGER_PERMISSIONS
         val read = access?.canRead == true && hasCurrentAuthorization(member, access)
+        val boardRead = read && access?.canBoardRead == true
         return Permissions(
             read,
             read && access?.canWrite == true,
             read && access?.canReorder == true,
             read && access?.canManage == true,
+            boardRead,
+            boardRead && access?.canBoardWrite == true,
         )
     }
 
@@ -111,6 +117,18 @@ class ProjectAccessGuard(
 
     fun requireProjectModifier(project: Project, userId: Long) {
         if (!canWrite(project, userId)) throw ExpectedException("프로젝트 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)
+    }
+
+    fun requireBoardReader(project: Project, userId: Long) {
+        if (!permissionsForUser(project, userId).boardRead) {
+            throw ExpectedException("GitHub 보드 보기 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        }
+    }
+
+    fun requireBoardModifier(project: Project, userId: Long) {
+        if (!permissionsForUser(project, userId).boardWrite) {
+            throw ExpectedException("GitHub 보드 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        }
     }
 
     fun requireProjectManager(project: Project, userId: Long) {
