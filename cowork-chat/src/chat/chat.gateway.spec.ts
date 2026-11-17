@@ -112,7 +112,6 @@ describe('ChatGateway', () => {
 			teamMemberEventConsumer: mockTeamMemberEventConsumer,
 			rateLimiter: mockRateLimiter,
 			projectionReadiness: mockProjectionReadiness,
-			socketIoRedis: {isReady: () => true},
 		});
 	});
 
@@ -308,7 +307,6 @@ describe('ChatGateway', () => {
 				chatService: mockChatService,
 				rateLimiter: mockRateLimiter,
 				projectionReadiness: mockProjectionReadiness,
-				socketIoRedis: {isReady: () => true},
 			});
 			const client = mockSocket();
 			client.data.userId = 42;

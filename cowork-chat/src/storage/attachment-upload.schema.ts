@@ -20,7 +20,7 @@ export class AttachmentUpload {
 	@prop({type: String}) objectKey?: string;
 	@prop({type: Number}) size?: number;
 	@prop({type: String}) clientMessageId?: string;
-	// 회수 워커 점유 만료 시각. 다른 replica는 이 시각 전까지 같은 기록을 점유하지 않는다.
+	// 회수 워커 점유 만료 시각. 이 시각 전까지는 다른 프로세스(배포 중 새 프로세스 등)도 같은 기록을 점유하지 않는다.
 	@prop({type: Date}) reclaimAttemptAt?: Date;
 	@prop({type: String}) reclaimClaimId?: string;
 	createdAt?: Date;
