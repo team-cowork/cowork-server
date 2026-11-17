@@ -5,7 +5,6 @@ import {BlockModule} from '../block/block.module.js';
 import {ObjectStorageModule} from '../storage/object-storage.module.js';
 import {SearchModule} from '../search/search.module.js';
 import {RedisRateLimiter} from '../common/util/redis-rate-limiter.js';
-import {SocketIoRedisConnection} from '../common/adapter/redis-io.adapter.js';
 import {ThrottleGuard} from '../common/guard/throttle.guard.js';
 import {MeetingNoteAttachmentController} from './meeting-note-attachment.controller.js';
 import {MeetingNoteAttachmentDownloadService} from './service/meeting-note-attachment-download.service.js';
@@ -261,9 +260,8 @@ import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consume
 		TagSpamService,
 		UnifiedSearchResolver,
 		RedisRateLimiter,
-		SocketIoRedisConnection,
 		ThrottleGuard,
 	],
-	exports: [RedisRateLimiter, SocketIoRedisConnection, ChatMessageProducer],
+	exports: [RedisRateLimiter, ChatMessageProducer],
 })
 export class ChatModule {}
