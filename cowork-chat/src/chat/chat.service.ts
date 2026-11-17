@@ -806,7 +806,7 @@ export class ChatService {
      `before`, `after`, `around` 커서는 하나만 지정할 수 있다.
 
      @param ctx - 채널·사용자 컨텍스트
-     @param query - `before`(이전), `after`(이후), `around`(기준 메시지 포함 앞뒤), `parentMessageId`(답장만), `threadId`(그 스레드 메시지만. 없으면 채널 메시지만)
+     @param query - `before`(이전), `after`(이후), `around`(기준 메시지 포함 앞뒤), `parentMessageId`(답장만), `threadId`(그 스레드 메시지만. 없으면 채널 메시지만. `around`에서 없으면 기준 메시지의 스레드를 따른다)
      @returns 최대 100개의 메시지 배열 (최신순)
      @throws BadRequestException 커서를 2개 이상 지정한 경우
      @throws NotFoundException `around` 메시지가 채널에 없는 경우
@@ -818,19 +818,18 @@ export class ChatService {
 			throw new BadRequestException('before, after, around는 하나만 지정할 수 있습니다');
 		}
 
-		const filter = {parentMessageId, threadId};
-
 		if (around !== undefined) {
 			const target = await this.messageRepository.findByIdAndChannelId(around, ctx.channelId);
 			if (!target) {
 				throw new NotFoundException('메시지를 찾을 수 없습니다');
 			}
 
-			const rows = await this.messageRepository.findMessagesAround(ctx.channelId, around, filter);
+			// 검색 결과에는 스레드 정보가 없으므로, `threadId`가 없으면 기준 메시지가 속한 스레드(또는 채널) 목록을 돌려준다.
+			const rows = await this.messageRepository.findMessagesAround(ctx.channelId, around, {parentMessageId, threadId: threadId ?? target.threadId ?? undefined});
 			return rows.map(row => this.toMessageResponse(row, ctx.userId));
 		}
 
-		const rows = await this.messageRepository.findMessages(ctx.channelId, before, filter, after);
+		const rows = await this.messageRepository.findMessages(ctx.channelId, before, {parentMessageId, threadId}, after);
 		return rows.map(row => this.toMessageResponse(row, ctx.userId));
 	}
 

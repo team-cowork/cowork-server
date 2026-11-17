@@ -808,13 +808,17 @@ describe('ChatService', () => {
 			expect(mockMessageRepository.findMessagesAround).not.toHaveBeenCalled();
 		});
 
-		it('around 메시지가 채널에 있으면 앞뒤 메시지를 조회한다', async () => {
+		it('around 메시지가 채널에 있으면 그 메시지가 속한 스레드(또는 채널)의 앞뒤 메시지를 조회한다', async () => {
 			const around = new Types.ObjectId().toHexString();
 			mockMessageRepository.findByIdAndChannelId.mockResolvedValue(makeMockMessage());
 			mockMessageRepository.findMessagesAround.mockResolvedValue([]);
 
 			await expect(service.getMessages({channelId: 1, userId: 42}, {around})).resolves.toEqual([]);
 			expect(mockMessageRepository.findMessagesAround).toHaveBeenCalledWith(1, around, {parentMessageId: undefined, threadId: undefined});
+
+			mockMessageRepository.findByIdAndChannelId.mockResolvedValue(makeMockMessage({threadId: 7}));
+			await service.getMessages({channelId: 1, userId: 42}, {around});
+			expect(mockMessageRepository.findMessagesAround).toHaveBeenLastCalledWith(1, around, {parentMessageId: undefined, threadId: 7});
 		});
 
 		it('after 커서를 저장소로 전달한다', async () => {
