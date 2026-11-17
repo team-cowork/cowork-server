@@ -7,10 +7,7 @@ namespace CoworkUser.Kafka;
 /// <summary>Synchronous publishing for the transactional outbox relay.</summary>
 public sealed class Producer : IDisposable
 {
-    static readonly TimeSpan MetadataTimeout = TimeSpan.FromSeconds(10);
-
     readonly IProducer<string, byte[]> producer;
-    readonly IAdminClient admin;
 
     public Producer(AppConfig config)
     {
@@ -25,7 +22,6 @@ public sealed class Producer : IDisposable
             // The Java client's key hash, so a key lands on the same partition as with other Kafka clients.
             Partitioner = Partitioner.Murmur2Random,
         }).Build();
-        admin = new DependentAdminClientBuilder(producer.Handle).Build();
     }
 
     /// <summary>Publishes to an explicit partition (snapshot markers), or to the one the partitioner picks for the key.</summary>
@@ -36,16 +32,8 @@ public sealed class Producer : IDisposable
         else await producer.ProduceAsync(topic, message);
     }
 
-    public int PartitionCount(string topic)
-    {
-        var metadata = admin.GetMetadata(topic, MetadataTimeout).Topics.Single(t => t.Topic == topic);
-        if (metadata.Error.IsError) throw new KafkaException(metadata.Error);
-        return metadata.Partitions.Count;
-    }
-
     public void Dispose()
     {
-        admin.Dispose();
         producer.Flush(TimeSpan.FromSeconds(5));
         producer.Dispose();
     }

@@ -10,7 +10,7 @@ namespace CoworkUser.Kafka.Publishing;
 /// Periodically republishes every profile followed by per-partition completion markers, so
 /// downstream projections can prove they caught up. Runs only while source projections are current.
 /// </summary>
-public sealed class ProfileSnapshotPublisher(AppConfig config, Producer producer, ProjectionReadiness readiness, ILogger<ProfileSnapshotPublisher> logger)
+public sealed class ProfileSnapshotPublisher(AppConfig config, KafkaInspector kafka, ProjectionReadiness readiness, ILogger<ProfileSnapshotPublisher> logger)
     : BackgroundService
 {
     const string LockName = "cowork-user:profile-snapshot";
@@ -97,7 +97,7 @@ public sealed class ProfileSnapshotPublisher(AppConfig config, Producer producer
     {
         var topic = config.KafkaProfileTopic;
         if (!readiness.Current()) return ":source_projections_not_ready";
-        var partitionCount = producer.PartitionCount(topic);
+        var partitionCount = kafka.PartitionCount(topic);
         if (partitionCount <= 0) return $"invalid partition count {partitionCount}";
 
         var snapshotId = Guid.NewGuid().ToString();
