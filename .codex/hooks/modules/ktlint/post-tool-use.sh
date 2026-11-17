@@ -62,7 +62,7 @@ while IFS= read -r FILE_PATH; do
     fi
     SEEN_MODULES+="$MODULE_DIR "
 
-    echo "[Hook] Running ${FORMAT_COMMAND[*]} in $(basename "$MODULE_DIR") for $(basename "$FILE_PATH")" >&2
+    echo "[Hook] Running ${FORMAT_COMMAND[*]//$'\n'/ } in $(basename "$MODULE_DIR") for $(basename "$FILE_PATH")" >&2
     if (cd "$MODULE_DIR" && "${FORMAT_COMMAND[@]}" >&2); then
         echo "[Hook] Format OK" >&2
     else
