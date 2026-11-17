@@ -715,8 +715,8 @@ export class MessageRepository {
 
      아웃박스(outbox) 패턴에서 알림 워커가 배치 전체를 한 번에 점유하기 위한 3단계 연산입니다:
      1. 후보 id를 `createdAt` 오름차순으로 최대 `batchSize`개 조회
-     2. `updateMany`로 여전히 `PENDING`인 후보만 `PROCESSING`으로 전환 (다른 워커 인스턴스가
-     그 사이 이미 점유한 문서는 필터 조건에서 자연스럽게 제외되어 중복 점유가 발생하지 않음)
+     2. `updateMany`로 여전히 `PENDING`인 후보만 `PROCESSING`으로 전환 (배포 중 종료를 기다리는
+     구 프로세스 등 다른 워커가 그 사이 이미 점유한 문서는 필터 조건에서 자연스럽게 제외되어 중복 점유가 발생하지 않음)
      3. 이번 호출에서 발급한 `notificationClaimId`로 실제 점유분만 조회
 
      3단계의 구분자로 점유 시각을 쓰면 두 워커가 같은 밀리초에 점유했을 때 서로의 점유분까지
