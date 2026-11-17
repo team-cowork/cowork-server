@@ -12,7 +12,7 @@ data class TeamSummaryResponse(
     @field:Schema(description = "팀 아이콘 URL", example = "https://example.com/icon.png")
     val iconUrl: String?,
     // TODO(2026-11-17T06:59:44Z): Remove this legacy label after clients use assigned role policies and ownerId.
-    @field:Schema(description = "이전 멤버십 표시값. 권한은 역할 정책으로 판정합니다.", deprecated = true)
+    @field:Schema(description = "권한 판정에 사용하지 않는 멤버십 표시값", deprecated = true)
     val myRole: String,
 ) {
     companion object {

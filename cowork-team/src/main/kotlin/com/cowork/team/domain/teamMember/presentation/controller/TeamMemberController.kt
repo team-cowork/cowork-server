@@ -22,7 +22,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "팀 멤버", description = "팀 멤버의 초대, 닉네임, 탈퇴와 추방을 관리합니다.")
+@Tag(name = "팀 멤버")
 @ApiResponses(
     ApiResponse(
         responseCode = "429",
@@ -167,11 +167,11 @@ class TeamMemberController(
 
     @Operation(
         summary = "멤버 팀 닉네임 변경",
-        description = "다른 멤버의 닉네임을 변경하려면 manage_nicknames 권한이 필요합니다. OWNER의 닉네임은 본인만 변경할 수 있습니다.",
+        description = "다른 멤버의 닉네임 변경은 manage_nicknames 권한 필요. 소유자 닉네임은 본인만 변경 가능",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
-        ApiResponse(responseCode = "204", description = "변경 성공 (응답 본문 없음)", content = [Content()]),
+        ApiResponse(responseCode = "204", description = "변경 성공", content = [Content()]),
         ApiResponse(
             responseCode = "400",
             description = "닉네임 길이 초과",
