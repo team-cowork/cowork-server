@@ -34,6 +34,7 @@ class TeamMemberProjectionHandler(
             if (event.eventType != "DELETE") {
                 if (!applied) return@inTransaction
                 val defaultCreated = teamRoleService.ensureDefaultRole(connection, event.teamId)
+                teamRoleService.synchronizeMembershipPolicies(connection, event)
                 projectAccess.refreshTeam(connection, event.teamId, if (defaultCreated) null else event.userId)
                 return@inTransaction
             }

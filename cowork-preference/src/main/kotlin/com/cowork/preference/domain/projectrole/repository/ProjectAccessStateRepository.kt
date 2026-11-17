@@ -46,7 +46,7 @@ class ProjectAccessStateRepository(private val outbox: PreferenceOutboxRepositor
             val active = !project.getBoolean("deleted") && member != null
             val teamPermissions = defaults + assigned[accountId].orEmpty()
             val projectPermissions = projectRoles[accountId].orEmpty()
-            val manager = member?.getString("built_in_role") in setOf("OWNER", "ADMIN")
+            val manager = teamPermissions.any { it.getBoolean("administrator") == true }
             val permissions = if (!active) {
                 ProjectPermissions()
             } else {

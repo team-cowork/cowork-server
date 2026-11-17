@@ -5,9 +5,9 @@ import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.entity.ProjectAccessProjection
 import com.cowork.project.domain.project.event.ProjectEventPublisher
-import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import com.cowork.project.domain.project.repository.ProjectRepository
 import com.cowork.project.domain.project.service.ProjectAccessGuard
+import com.cowork.project.support.projectPolicies
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -24,7 +24,7 @@ class ReorderTeamProjectsServiceImplTest {
     private val currentVersion = Instant.parse("2026-11-06T00:00:00Z")
     private val projectRepository = mockk<ProjectRepository>(relaxed = true)
     private val teamMembershipRepository = mockk<TeamMembershipRepository>()
-    private val accessRepository = mockk<ProjectAccessProjectionRepository>(relaxed = true)
+    private val accessRepository = projectPolicies(7L, 1L, 2L, 3L)
     private val projectAccessGuard =
         ProjectAccessGuard(
             projectRepository,

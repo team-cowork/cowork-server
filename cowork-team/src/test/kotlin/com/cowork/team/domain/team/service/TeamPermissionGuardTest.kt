@@ -38,13 +38,17 @@ class TeamPermissionGuardTest :
                 every { roles.getMemberRoles(1L, 3L) } returns listOf(role(1, false, true))
                 shouldThrow<ExpectedException> { guard.requirePermission(1L, 3L, "manage_team") }
             }
-            it("팀 관리자는 역할 허용 없이 통과하지만 비멤버는 통과하지 못한다") {
+            it("관리자 정책으로 허용하며 고정 ADMIN 값만으로는 허용하지 않는다") {
                 val admin = TeamMember(team = team, userId = 4L, role = TeamRole.ADMIN)
                 every { members.findByTeamIdAndUserId(1L, 4L) } returns admin
+                every { roles.getMemberRoles(1L, 4L) } returns emptyList()
+                shouldThrow<ExpectedException> { guard.requirePermission(1L, 4L, "manage_team") }
+                every { roles.getMemberRoles(1L, 4L) } returns
+                    listOf(role(8, false).copy(permissions = mapOf("administrator" to true)))
                 guard.requirePermission(1L, 4L, "manage_team") shouldBe admin
                 every { members.findByTeamIdAndUserId(1L, 5L) } returns null
                 shouldThrow<ExpectedException> { guard.requirePermission(1L, 5L, "manage_team") }
-                verify(exactly = 0) { roles.getMemberRoles(1L, 4L) }
+                verify(exactly = 2) { roles.getMemberRoles(1L, 4L) }
                 verify(exactly = 0) { roles.getMemberRoles(1L, 5L) }
             }
         }

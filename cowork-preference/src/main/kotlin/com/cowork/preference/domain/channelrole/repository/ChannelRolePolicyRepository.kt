@@ -20,7 +20,7 @@ class ChannelRolePolicyRepository {
     ): Boolean {
         val rows = client.preparedQuery(
             """
-            SELECT d.is_default, COALESCE((d.permissions ->> $4)::boolean, FALSE) AS allowed,
+            SELECT d.is_default, COALESCE((d.permissions ->> 'administrator')::boolean, FALSE) AS administrator, COALESCE((d.permissions ->> $4)::boolean, FALSE) AS allowed,
                    (p.permissions ->> $4)::boolean AS overwrite
             FROM tb_team_role_definitions d
             LEFT JOIN tb_channel_role_policies p ON p.team_id = d.team_id AND p.role_id = d.id AND p.channel_id = $3
@@ -36,6 +36,7 @@ class ChannelRolePolicyRepository {
                     it.getBoolean("is_default"),
                     it.getBoolean("allowed"),
                     it.getBoolean("overwrite"),
+                    it.getBoolean("administrator"),
                 )
             },
             permission,

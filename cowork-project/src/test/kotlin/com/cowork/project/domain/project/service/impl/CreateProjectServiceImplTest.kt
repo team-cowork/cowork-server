@@ -66,7 +66,8 @@ class CreateProjectServiceImplTest {
         @Test
         fun `createProject은 마지막 position 다음에 만들고 권한 기반 접근 목록 갱신을 요청한다`() {
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns
-                membership(100L, 7L, "OWNER")
+                membership(100L, 7L)
+            every { teamPermissions.hasPermission(100L, 7L, "manage_projects") } returns true
             every { projectRepository.findAllByTeamIdForUpdate(100L) } returns
                 listOf(project(id = 1L, position = 3), project(id = 2L, position = 1))
             every { projectRepository.save(any()) } answers { firstArg() }
@@ -80,7 +81,8 @@ class CreateProjectServiceImplTest {
         @Test
         fun `createProject은 프로젝트가 없는 팀에 position 0을 할당한다`() {
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns
-                membership(100L, 7L, "OWNER")
+                membership(100L, 7L)
+            every { teamPermissions.hasPermission(100L, 7L, "manage_projects") } returns true
             every { projectRepository.findAllByTeamIdForUpdate(100L) } returns emptyList()
             every { projectRepository.save(any()) } answers { firstArg() }
 
@@ -92,7 +94,8 @@ class CreateProjectServiceImplTest {
         @Test
         fun `createProject은 동시 생성으로 position 유일성 제약이 충돌하면 CONFLICT`() {
             every { teamMembershipRepository.findActiveByTeamIdAndUserId(100L, 7L) } returns
-                membership(100L, 7L, "OWNER")
+                membership(100L, 7L)
+            every { teamPermissions.hasPermission(100L, 7L, "manage_projects") } returns true
             every { projectRepository.findAllByTeamIdForUpdate(100L) } returns emptyList()
             every { projectRepository.save(any()) } throws
                 DataIntegrityViolationException("uq_tb_projects_team_id_position")

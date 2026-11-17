@@ -5,6 +5,7 @@ import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.presentation.data.request.CreateTeamRequest
 import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.team.service.AccountPermissionGuard
 import com.cowork.team.domain.team.service.TeamIconOwnershipService
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
@@ -40,6 +41,7 @@ class CreateTeamServiceImplTest :
                 secondArg<Team>().iconUrl = thirdArg<String>()
             }
             service = CreateTeamServiceImpl(
+                mockk<AccountPermissionGuard>(relaxed = true),
                 ownership,
                 teamRepository,
                 memberRepository,

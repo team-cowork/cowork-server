@@ -50,9 +50,7 @@ class ChannelAccessGuard(
             "TEXT" -> "message_read"
             else -> throw ProjectionNotReadyException("team channel type is not known yet")
         }
-        if (teamMember.builtInRole !in MANAGER_ROLES &&
-            !policyRepository.canAccess(client, teamId, accountId, channelId, permission, channel.isPrivate != false)
-        ) {
+        if (!policyRepository.canAccess(client, teamId, accountId, channelId, permission, channel.isPrivate != false)) {
             throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
         }
     }
@@ -70,7 +68,6 @@ class ChannelAccessGuard(
         val teamId = channel.teamId ?: throw ResourceAccessDeniedException(MANAGER_DENIED)
         val member = teamMemberRepository.findForRead(client, teamId, requester.userId)
         if (member == null || member.deleted) throw ResourceAccessDeniedException(MANAGER_DENIED)
-        if (member.builtInRole in MANAGER_ROLES) return
         requireChannelAccess(client, channelId, requester.userId)
         if (!policyRepository.canAccess(
                 client,
@@ -97,7 +94,6 @@ class ChannelAccessGuard(
     }
 
     private companion object {
-        val MANAGER_ROLES = setOf("OWNER", "ADMIN")
         const val CHANNEL_ACCESS_DENIED = "채널에 접근할 권한이 없습니다."
         const val MANAGER_DENIED = "채널 설정을 관리할 권한이 없습니다."
     }

@@ -6,6 +6,7 @@ import com.cowork.project.domain.membership.repository.TeamMembershipRepository
 import com.cowork.project.domain.project.entity.Project
 import com.cowork.project.domain.project.entity.ProjectAccessProjection
 import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
+import com.cowork.project.support.projectPolicy
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -247,7 +248,9 @@ class ProjectAccessGuardTest :
                 val exception = shouldThrow<ExpectedException> { guard.requireBoardModifier(project, 20L) }
                 exception.statusCode shouldBe HttpStatus.FORBIDDEN
             }
-            it("팀 관리자는 보드 권한을 모두 가진다") {
+            it("평가된 관리자 정책은 보드 권한을 모두 가진다") {
+                every { access.findById("3:20") } returns
+                    Optional.of(projectPolicy(3L, 20L).apply { sourceAuthorizationVersion = currentVersion })
                 every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns
                     TeamMembership(
                         teamId = 1L,
@@ -420,9 +423,12 @@ class ProjectAccessGuardTest :
                 permissions.reorder shouldBe true
                 permissions.write shouldBe false
             }
-            it("팀 OWNER는 프로젝트를 관리할 수 있다") {
+            it("프로젝트 관리 정책을 가진 멤버는 프로젝트를 관리할 수 있다") {
+                every { access.findById("3:20") } returns
+                    Optional.of(projectPolicy(3L, 20L).apply { sourceAuthorizationVersion = currentVersion })
+                every { teamPermissions.hasPermission(1L, 20L, "manage_projects") } returns true
                 every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns
-                    TeamMembership(teamId = 1L, userId = 20L, role = "OWNER")
+                    TeamMembership(teamId = 1L, userId = 20L, role = "MEMBER", authorizationVersion = currentVersion)
                 guard.requireProjectOwner(project, 20L)
                 guard.requireProjectModifier(project, 20L)
             }
@@ -486,7 +492,8 @@ class ProjectAccessGuardTest :
                 guard.requirePrivateTransitionAccess(project, 20L)
             }
 
-            it("활성 OWNER와 ADMIN만 비공개 읽기 정책을 우회한다") {
+            it("활성 멤버의 관리자 정책은 비공개 읽기 정책을 우회한다") {
+                every { teamPermissions.hasPermission(1L, 20L, "administrator") } returns true
                 listOf("OWNER", "ADMIN").forEach { role ->
                     every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns
                         TeamMembership(teamId = 1L, userId = 20L, role = role)
@@ -564,6 +571,8 @@ class ProjectAccessGuardTest :
             }
             context("생성자가 팀 OWNER 또는 ADMIN인 경우") {
                 it("비공개 프로젝트를 허용하고 강등 뒤에도 남을 초기 읽기 역할은 만들지 않는다") {
+                    every { teamPermissions.hasPermission(1L, 20L, "administrator") } returns true
+                    every { teamPermissions.hasPermission(1L, 20L, "manage_projects") } returns true
                     listOf("OWNER", "ADMIN").forEach { role ->
                         every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns
                             TeamMembership(teamId = 1L, userId = 20L, role = role)

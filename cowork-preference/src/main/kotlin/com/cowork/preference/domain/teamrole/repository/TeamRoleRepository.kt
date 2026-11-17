@@ -1,5 +1,6 @@
 package com.cowork.preference.domain.teamrole.repository
 
+import com.cowork.preference.domain.access.permission.RolePolicy
 import com.cowork.preference.domain.teamrole.model.AccountTeamRole
 import com.cowork.preference.domain.teamrole.model.TeamRoleAssignmentState
 import com.cowork.preference.domain.teamrole.model.TeamRoleDefinition
@@ -30,6 +31,43 @@ class TeamRoleRepository(private val pool: Pool) {
         ).execute(Tuple.of(teamId, TeamRolePermissions.toJson(TeamRolePermissions.everyone()))).coAwait()
         return rows.firstOrNull()?.toTeamRoleDefinition()
     }
+
+    internal suspend fun ensureManagedPolicy(client: SqlClient, teamId: Long, owner: Boolean): TeamRoleDefinition? {
+        val policy = if (owner) "owner" else "admin"
+        val rows = client.preparedQuery(
+            """
+            INSERT INTO tb_team_role_definitions
+                (team_id, name, color_hex, priority, mentionable, permissions, managed_policy)
+            SELECT $1, $2, '#99AAB5', $3, FALSE, $4::jsonb, $5
+            WHERE NOT EXISTS (SELECT 1 FROM tb_team_role_domain_tombstones WHERE team_id = $1)
+            ON CONFLICT (team_id, managed_policy) WHERE managed_policy IS NOT NULL DO NOTHING
+            RETURNING id, team_id, name, color_hex, priority, mentionable, permissions, created_at, updated_at, is_default
+            """.trimIndent(),
+        ).execute(
+            Tuple.of(
+                teamId,
+                if (owner) "Owner" else "Admin",
+                if (owner) Int.MAX_VALUE else Int.MAX_VALUE - 1,
+                TeamRolePermissions.toJson(if (owner) RolePolicy.owner() else RolePolicy.administrator()),
+                policy,
+            ),
+        ).coAwait()
+        return rows.firstOrNull()?.toTeamRoleDefinition()
+    }
+
+    internal suspend fun findManagedPolicy(client: SqlClient, teamId: Long, owner: Boolean): TeamRoleDefinition? {
+        val rows = client.preparedQuery(
+            "SELECT * FROM tb_team_role_definitions WHERE team_id = $1 AND managed_policy = $2",
+        ).execute(Tuple.of(teamId, if (owner) "owner" else "admin")).coAwait()
+        return rows.firstOrNull()?.toTeamRoleDefinition()
+    }
+
+    // TODO(2026-11-17T06:59:44Z): Remove this method when legacy ADMIN migration is retired; drop its ledger in a new
+    // migration.
+    internal suspend fun markPolicyMigrated(client: SqlClient, teamId: Long, accountId: Long): Boolean =
+        client.preparedQuery(
+            "INSERT INTO tb_team_policy_migrations (team_id, account_id) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+        ).execute(Tuple.of(teamId, accountId)).coAwait().rowCount() == 1
 
     internal suspend fun isTeamDeleted(client: SqlClient, teamId: Long): Boolean {
         val rows = client.preparedQuery(

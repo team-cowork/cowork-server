@@ -93,9 +93,9 @@ describe('ProjectClient project read permission', () => {
 		expect(permission.canRead).not.toHaveBeenCalled();
 	});
 
-	it.each(['OWNER', 'ADMIN'])('allows active built-in %s without a separate grant', async role => {
+	it.each(['OWNER', 'ADMIN'])('denies legacy %s without an evaluated policy grant', async role => {
 		members.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 3, userId: 217, role}]);
-		await expect(service.canRead(7, 217)).resolves.toBe(true);
+		await expect(service.canRead(7, 217)).resolves.toBe(false);
 	});
 
 	it('fails closed while permissions are catching up', async () => {

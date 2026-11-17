@@ -9,6 +9,7 @@ import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.global.config.TeamGithubProperties
+import com.cowork.team.support.policyReader
 import io.mockk.every
 import io.mockk.mockk
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -25,7 +26,7 @@ class GenerateGithubInstallUrlServiceImplTest {
         TeamAccessGuard(
             teamRepository,
             teamMemberRepository,
-            TeamPermissionGuard(teamMemberRepository, mockk(relaxed = true)),
+            TeamPermissionGuard(teamMemberRepository, policyReader(1, mapOf(10L to mapOf("manage_github" to true)))),
         )
     private val teamGithubStateSupport = mockk<TeamGithubStateSupport>()
     private val teamGithubProperties = TeamGithubProperties(stateSecret = "secret", appSlug = "my-app")
