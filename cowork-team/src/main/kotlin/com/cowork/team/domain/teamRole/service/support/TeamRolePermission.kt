@@ -33,6 +33,8 @@ enum class TeamRolePermission(val key: String) {
     PROJECT_MANAGE("project_manage"),
     PROJECT_REORDER("project_reorder"),
     PROJECT_CHANNEL_ARCHIVE("project_channel_archive"),
+    PROJECT_BOARD_READ("project_board_read"),
+    PROJECT_BOARD_WRITE("project_board_write"),
     ;
 
     companion object {
