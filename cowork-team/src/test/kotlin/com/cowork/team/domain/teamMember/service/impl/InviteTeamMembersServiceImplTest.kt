@@ -10,6 +10,7 @@ import com.cowork.team.domain.teamInvite.presentation.data.request.InviteMembers
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
+import com.cowork.team.support.policyReader
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.collections.shouldContainExactly
@@ -39,7 +40,10 @@ class InviteTeamMembersServiceImplTest :
                 TeamAccessGuard(
                     teamRepository,
                     memberRepository,
-                    TeamPermissionGuard(memberRepository, mockk(relaxed = true)),
+                    TeamPermissionGuard(
+                        memberRepository,
+                        policyReader(1, mapOf(10L to mapOf("manage_invites" to true))),
+                    ),
                 ),
             )
             every { teamRepository.findByIdForUpdate(1L) } returns team

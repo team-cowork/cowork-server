@@ -149,7 +149,8 @@ class InitialResourceAccessServiceTest {
 
     @Test
     fun `팀 관리자는 일부 역할 삭제 후에도 기본 권한과 초기 접근 검사를 우회한다`() = runBlocking {
-        coEvery { roles.findAccountRoles(client, TEAM, ACTOR) } returns emptyList()
+        coEvery { roles.findAccountRoles(client, TEAM, ACTOR) } returns
+            listOf(role.copy(permissions = mapOf("administrator" to true)))
         val seed = channelSeed.copy(
             overwrites = listOf(
                 InitialChannelRoleOverwrite(ROLE, JsonObject().put("message_read", false)),

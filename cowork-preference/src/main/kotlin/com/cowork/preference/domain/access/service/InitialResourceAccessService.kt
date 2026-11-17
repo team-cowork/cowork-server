@@ -1,6 +1,7 @@
 package com.cowork.preference.domain.access.service
 
 import com.cowork.preference.domain.access.permission.PermissionKeys
+import com.cowork.preference.domain.access.permission.RolePolicy
 import com.cowork.preference.domain.access.projection.channel.model.ChannelLifecycleEvent
 import com.cowork.preference.domain.access.projection.channel.model.ChannelLifecycleProjection
 import com.cowork.preference.domain.access.projection.project.model.ProjectLifecycleEvent
@@ -67,7 +68,7 @@ class InitialResourceAccessService(
             )
         }
         if (survivingOverwrites.isEmpty()) return skip("No requested roles remain")
-        if (actor.builtInRole !in MANAGERS) {
+        if (!actorRoles.any { RolePolicy.allows(it.permissions, "administrator") }) {
             fun allowed(permission: String) = actorRoles.any { it.permissions[permission] == true }
             if (!allowed(
                     PermissionKeys.MANAGE_CHANNELS,
@@ -135,7 +136,13 @@ class InitialResourceAccessService(
             seed.sourceMembershipVersion,
             seed.sourceAuthorizationVersion,
         ) ?: return false
-        if (actor.builtInRole in MANAGERS || ledger.hasProjectAccessHistory(client, event.projectId)) return false
+        if (roles.findAccountRoles(client, event.teamId, actor.accountId).any {
+                RolePolicy.allows(it.permissions, "administrator")
+            } ||
+            ledger.hasProjectAccessHistory(client, event.projectId)
+        ) {
+            return false
+        }
         val actorRoles = roles.findAccountRoles(client, event.teamId, seed.accountId)
         if (listOf(PermissionKeys.MANAGE_PROJECTS, PermissionKeys.PROJECT_READ).any { permission ->
                 actorRoles.none { it.permissions[permission] == true }
@@ -165,6 +172,5 @@ class InitialResourceAccessService(
 
     companion object {
         const val INITIAL_PROJECT_ROLE_NAME = "초기 접근"
-        private val MANAGERS = setOf("OWNER", "ADMIN")
     }
 }

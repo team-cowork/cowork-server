@@ -10,6 +10,7 @@ import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
+import com.cowork.team.support.policyReader
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -42,7 +43,7 @@ class DeleteTeamServiceImplTest :
                 TeamAccessGuard(
                     teamRepository,
                     memberRepository,
-                    TeamPermissionGuard(memberRepository, mockk(relaxed = true)),
+                    TeamPermissionGuard(memberRepository, policyReader(10, mapOf(2L to mapOf("delete_team" to true)))),
                 ),
                 iconOwnership,
             )
@@ -61,14 +62,14 @@ class DeleteTeamServiceImplTest :
                 }
             }
 
-            context("요청자가 OWNER가 아니면") {
+            context("요청자에게 삭제 정책이 없으면") {
                 it("FORBIDDEN으로 거부하고 팀을 유지한다") {
                     every { teamRepository.findByIdForUpdate(10L) } returns team
                     every {
-                        memberRepository.findByTeamIdAndUserIdAndRoleIn(10L, 2L, listOf(TeamRole.OWNER))
+                        memberRepository.findByTeamIdAndUserId(10L, 3L)
                     } returns null
 
-                    val error = shouldThrow<ExpectedException> { service.execute(2L, 10L) }
+                    val error = shouldThrow<ExpectedException> { service.execute(3L, 10L) }
 
                     error.statusCode shouldBe HttpStatus.FORBIDDEN
                     verify(exactly = 0) { teamRepository.delete(any()) }
@@ -76,20 +77,20 @@ class DeleteTeamServiceImplTest :
                 }
             }
 
-            context("요청자가 OWNER이면") {
+            context("일반 멤버에게 삭제 정책이 있으면") {
                 it("소유 아이콘을 폐기하고 모든 멤버와 팀을 삭제한다") {
                     val owner = TeamMember(team = team, userId = 1L, role = TeamRole.OWNER)
                     val member = TeamMember(team = team, userId = 2L)
                     val members = listOf(owner, member)
                     every { teamRepository.findByIdForUpdate(10L) } returns team
                     every {
-                        memberRepository.findByTeamIdAndUserIdAndRoleIn(10L, 1L, listOf(TeamRole.OWNER))
-                    } returns owner
+                        memberRepository.findByTeamIdAndUserId(10L, 2L)
+                    } returns member
                     every { memberRepository.findAllByTeamIdForUpdate(10L) } returns members
                     every { memberRepository.deleteAll(members) } just Runs
                     every { teamRepository.delete(team) } just Runs
 
-                    service.execute(1L, 10L)
+                    service.execute(2L, 10L)
 
                     verify(exactly = 1) { memberRepository.deleteAll(members) }
                     verify(exactly = 1) { iconOwnership.clear(team) }

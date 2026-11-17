@@ -12,6 +12,7 @@ import com.cowork.team.domain.teamRole.service.ManageRoleContext
 import com.cowork.team.domain.teamRole.service.TeamRoleAccessGuard
 import com.cowork.team.domain.teamRole.service.support.TeamRolePermission
 import com.cowork.team.domain.teamRole.service.support.TeamRolePermissionSchema
+import com.cowork.team.support.policyRole
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -66,7 +67,12 @@ class CreateTeamRoleServiceImplTest :
                 it("우선순위 제한 없이 접수한다") {
                     every { accessGuard.requireManageRoles(1L, 10L) } returns ManageRoleContext(
                         TeamMember(team = team, userId = 10L, role = TeamRole.OWNER),
-                        emptyList(),
+                        listOf(
+                            policyRole(
+                                mapOf("administrator" to true, "transfer_team_ownership" to true),
+                                Int.MAX_VALUE,
+                            ),
+                        ),
                     )
 
                     service.execute(10L, 1L, "request-1", request(priority = 100)) shouldBe accepted

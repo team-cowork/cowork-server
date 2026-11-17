@@ -85,6 +85,7 @@ class ChannelArchivePermissionSupportTest :
                 ),
             )
             every { evaluator.requireChannelAccess(10L, 7L, any()) } just runs
+            every { evaluator.hasAdministratorPolicy(any(), any()) } returns false
             projectAccessRepository = mockk()
             support = ChannelArchivePermissionSupport(
                 ChannelAccessGuard(mockk<ChannelRepository>()),
@@ -159,10 +160,11 @@ class ChannelArchivePermissionSupportTest :
                 }
             }
 
-            context("요청자가 팀 OWNER나 ADMIN이면") {
+            context("요청자의 역할에 관리자 정책이 있으면") {
                 it("프로젝트 권한과 project access stream 상태를 확인하지 않고 허용한다") {
                     listOf("OWNER", "ADMIN").forEach { role ->
                         every { membershipRepository.findByTeamIdAndUserId(10L, 7L) } returns member(role)
+                        every { evaluator.hasAdministratorPolicy(10L, 7L) } returns true
 
                         shouldNotThrowAny { support.requireArchivePermission(channel(), 7L) }
                     }

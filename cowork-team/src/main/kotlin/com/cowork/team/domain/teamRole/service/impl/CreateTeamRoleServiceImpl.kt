@@ -1,6 +1,5 @@
 package com.cowork.team.domain.teamRole.service.impl
 
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.domain.teamRole.operation.TeamRoleCommandRoleInput
 import com.cowork.team.domain.teamRole.operation.TeamRoleCommandSubmission
 import com.cowork.team.domain.teamRole.operation.TeamRoleCommandType
@@ -33,14 +32,16 @@ class CreateTeamRoleServiceImpl(
         actorId = actorId,
         role = TeamRoleCommandRoleInput.create(request, permissionSchema.canonicalize(request.permissions)),
     ) {
+        if (request.priority == Int.MAX_VALUE) {
+            throw ExpectedException("최상위 우선순위는 소유자 정책에 예약되어 있습니다.", HttpStatus.BAD_REQUEST)
+        }
         if (request.name == "@everyone") {
             throw ExpectedException("기본 역할 이름은 사용할 수 없습니다.", HttpStatus.BAD_REQUEST)
         }
         teamRoleAccessGuard.lockTeamOrThrow(teamId)
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
         teamRoleAccessGuard.requireGrantablePermissions(actor, permissionSchema.canonicalize(request.permissions))
-        if (actor.member.role != TeamRole.OWNER &&
-            actor.member.role != TeamRole.ADMIN &&
+        if (!actor.administrator &&
             request.priority >= actor.maxPriority
         ) {
             throw ExpectedException(

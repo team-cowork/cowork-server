@@ -11,6 +11,7 @@ import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
+import com.cowork.team.support.policyReader
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -52,7 +53,7 @@ class UpdateTeamServiceImplTest :
                 TeamAccessGuard(
                     teamRepository,
                     memberRepository,
-                    TeamPermissionGuard(memberRepository, mockk(relaxed = true)),
+                    TeamPermissionGuard(memberRepository, policyReader(1, mapOf(20L to mapOf("manage_team" to true)))),
                 ),
             )
         }

@@ -33,7 +33,11 @@ class JwtAuthenticationSupport(private val jwtProperties: JwtProperties) {
         val authorities = listOf(RoleGrantedAuthority(role))
 
         val auth = UsernamePasswordAuthenticationToken(userId, token, authorities)
-        auth.details = mapOf("userId" to userId, "role" to role)
+        auth.details = buildMap {
+            put("userId", userId)
+            put("role", role)
+            claims.expiration?.let { put("expiresAt", it.toInstant().epochSecond.toString()) }
+        }
         return auth
     }
 

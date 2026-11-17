@@ -1,6 +1,7 @@
 package com.cowork.preference.domain.teamrole.service
 
 import com.cowork.preference.domain.access.permission.PermissionKeys
+import com.cowork.preference.domain.access.projection.team.model.TeamMemberEvent
 import com.cowork.preference.domain.channelrole.event.ChannelRolePolicyEvents
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectAccessStateRepository
@@ -32,6 +33,42 @@ class TeamRoleService(
         return true
     }
 
+    internal suspend fun synchronizeMembershipPolicies(client: SqlClient, event: TeamMemberEvent) {
+        for (owner in listOf(false, true)) {
+            repository.ensureManagedPolicy(client, event.teamId, owner)?.let { role ->
+                outboxRepository.enqueue(
+                    client,
+                    TeamRoleEvents.roleUpserted(role, requireNotNull(role.updatedAt).toInstant()),
+                )
+            }
+        }
+        // TODO(2026-11-17T06:59:44Z): Remove the migration ledger check and legacy ADMIN grant after all team
+        // memberships are migrated.
+        val firstMigration = repository.markPolicyMigrated(client, event.teamId, event.userId)
+        val owner = repository.findManagedPolicy(client, event.teamId, true) ?: return
+        val assignment = repository.findAssignment(client, event.userId, event.teamId, owner.id)
+        // The membership owner flag is a source fact used to bind the root policy, never an authorization bypass.
+        if (event.role == "OWNER") {
+            if (assignment == null) grantManagedPolicy(client, event, owner.id)
+        } else if (assignment != null) {
+            val tombstone = repository.deleteAssignment(client, event.userId, event.teamId, owner.id, event.occurredAt)
+            outboxRepository.enqueue(client, TeamRoleEvents.assignmentDeleted(assignment, tombstone.stateOccurredAt))
+            repository.findManagedPolicy(client, event.teamId, false)?.let { grantManagedPolicy(client, event, it.id) }
+        }
+        if (firstMigration && event.role == "ADMIN") {
+            repository.findManagedPolicy(client, event.teamId, false)?.let { grantManagedPolicy(client, event, it.id) }
+        }
+    }
+
+    private suspend fun grantManagedPolicy(client: SqlClient, event: TeamMemberEvent, roleId: Long) {
+        repository.assignRole(client, event.userId, event.teamId, roleId, event.occurredAt)
+        val assignment = requireNotNull(repository.findAssignment(client, event.userId, event.teamId, roleId))
+        outboxRepository.enqueue(
+            client,
+            TeamRoleEvents.assignmentUpserted(assignment, requireNotNull(assignment.updatedAt).toInstant()),
+        )
+    }
+
     private val colorPattern = Regex("^#[0-9A-Fa-f]{6}$")
 
     suspend fun createRole(
@@ -42,6 +79,12 @@ class TeamRoleService(
         mentionable: Boolean,
         permissions: Map<String, Boolean>,
     ): Result<TeamRoleDefinition> {
+        if (permissions[PermissionKeys.TRANSFER_TEAM_OWNERSHIP] ==
+            true
+        ) {
+            return Result.failure(IllegalArgumentException("소유권 이양 권한은 소유자 정책에서만 부여됩니다."))
+        }
+        if (priority == Int.MAX_VALUE) return Result.failure(IllegalArgumentException("최상위 우선순위는 소유자 정책에 예약되어 있습니다."))
         if (name == "@everyone") return Result.failure(IllegalArgumentException("기본 역할 이름은 사용할 수 없습니다."))
         validateName(name).onFailure { return Result.failure(it) }
         validateColor(colorHex).onFailure { return Result.failure(it) }
@@ -79,8 +122,14 @@ class TeamRoleService(
         mentionable: Boolean?,
         permissions: Map<String, Boolean>?,
     ): Result<TeamRoleDefinition> {
+        if (priority == Int.MAX_VALUE) return Result.failure(IllegalArgumentException("최상위 우선순위는 소유자 정책에 예약되어 있습니다."))
         val existing = repository.findRole(teamId, roleId)
             ?: return Result.failure(NoSuchElementException("Role '$roleId' not found"))
+        if (existing.permissions[PermissionKeys.TRANSFER_TEAM_OWNERSHIP] == true ||
+            permissions?.get(PermissionKeys.TRANSFER_TEAM_OWNERSHIP) == true
+        ) {
+            return Result.failure(IllegalArgumentException("소유자 정책은 소유권 이양으로만 변경할 수 있습니다."))
+        }
         if (existing.isDefault && (
                 (name != null && name != existing.name) ||
                     (priority != null && priority != existing.priority)
@@ -117,7 +166,7 @@ class TeamRoleService(
                     requireNotNull(persisted.updatedAt ?: persisted.createdAt).toInstant(),
                 ),
             )
-            val projectPermissionsChanged = PermissionKeys.PROJECT_SCOPED.any {
+            val projectPermissionsChanged = (PermissionKeys.PROJECT_SCOPED + PermissionKeys.ADMINISTRATOR).any {
                 (existing.permissions[it] == true) != (persisted.permissions[it] == true)
             }
             if (projectPermissionsChanged) {
@@ -130,6 +179,11 @@ class TeamRoleService(
 
     suspend fun deleteRole(teamId: Long, roleId: Long): Result<Unit> {
         val existing = repository.findRole(teamId, roleId)
+        if (existing?.permissions?.get(PermissionKeys.TRANSFER_TEAM_OWNERSHIP) ==
+            true
+        ) {
+            return Result.failure(IllegalArgumentException("소유자 정책은 삭제할 수 없습니다."))
+        }
         if (existing?.isDefault == true) return Result.failure(IllegalArgumentException("기본 역할은 삭제할 수 없습니다."))
         if (existing == null) {
             return runCatchingCancellable {
@@ -193,6 +247,11 @@ class TeamRoleService(
     ): Result<TeamRoleDefinition> {
         val existing = repository.findRole(teamId, roleId)
             ?: return Result.failure(NoSuchElementException("Role '$roleId' not found"))
+        if (existing.permissions[PermissionKeys.TRANSFER_TEAM_OWNERSHIP] ==
+            true
+        ) {
+            return Result.failure(IllegalArgumentException("소유자 정책은 소유권 이양으로만 변경할 수 있습니다."))
+        }
         if (existing.isDefault) return Result.failure(IllegalArgumentException("기본 역할은 자동으로 적용됩니다."))
         val role = outboxRepository.inTransaction { connection ->
             val persistedRole = repository.assignRole(
