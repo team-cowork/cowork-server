@@ -289,6 +289,10 @@ class ChannelRolePolicyCommandProcessorTest {
             actorRole: String = "ADMIN",
             channel: ChannelLifecycleProjection? = activeChannel,
         ) {
+            coEvery { roleRepository.findMemberRoles(connection, command.teamId) } returns
+                listOf(AccountTeamRole(command.actorId, command.teamId, 999L))
+            coEvery { roleRepository.findRoles(connection, command.teamId) } returns
+                listOf(sameTeamRole.copy(id = 999L, permissions = mapOf("administrator" to true)))
             every { readiness.isReady } returns true
             coEvery { outboxRepository.inTransaction<Unit>(any()) } coAnswers {
                 firstArg<suspend (SqlConnection) -> Unit>().invoke(connection)

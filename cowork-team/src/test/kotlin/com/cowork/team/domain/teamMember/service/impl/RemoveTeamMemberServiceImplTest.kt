@@ -128,12 +128,14 @@ class RemoveTeamMemberServiceImplTest :
                     verify(exactly = 0) { memberRepository.delete(any()) }
                 }
 
-                it("사용자 정의 역할 우선순위가 높아도 내장 ADMIN은 제거할 수 없다") {
+                it("관리자 정책 역할보다 우선순위가 낮으면 제거할 수 없다") {
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 20L) } returns
                         TeamMember(team = team, userId = 20L)
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 30L) } returns
                         TeamMember(team = team, userId = 30L, role = TeamRole.ADMIN)
-                    every { roleReader.getMemberRoles(1L, 20L) } returns listOf(role(Int.MAX_VALUE))
+                    every { roleReader.getMemberRoles(1L, 20L) } returns listOf(role(10))
+                    every { roleReader.getMemberRoles(1L, 30L) } returns
+                        listOf(role(Int.MAX_VALUE - 1).copy(permissions = mapOf("administrator" to true)))
 
                     shouldThrow<ExpectedException> { service.execute(20L, 1L, 30L) }
                         .statusCode shouldBe HttpStatus.FORBIDDEN
@@ -144,6 +146,8 @@ class RemoveTeamMemberServiceImplTest :
             context("ADMIN이 일반 멤버를 제거하면") {
                 it("대상 멤버십을 삭제한다") {
                     val admin = TeamMember(team = team, userId = 20L, role = TeamRole.ADMIN)
+                    every { roleReader.getMemberRoles(1L, 20L) } returns
+                        listOf(role(Int.MAX_VALUE - 1).copy(permissions = mapOf("administrator" to true)))
                     val target = TeamMember(team = team, userId = 30L)
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 20L) } returns admin
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 30L) } returns target

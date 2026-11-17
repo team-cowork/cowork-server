@@ -6,7 +6,6 @@ import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.presentation.data.request.ChangeNicknameRequest
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamMember.service.ChangeTeamMemberNicknameService
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
 import com.cowork.team.domain.teamRole.service.ManageRoleContext
 import com.cowork.team.domain.teamRole.service.TeamRoleAccessGuard
@@ -59,18 +58,14 @@ class ChangeTeamMemberNicknameServiceImpl(
         return trimmed
     }
 
-    /** OWNER 닉네임은 본인만 바꾸고, 커스텀 역할로 받은 권한은 자신보다 낮은 순위의 MEMBER에게만 쓸 수 있다. */
+    /** 소유자를 보호하며 역할 우선순위에 따라 대상 멤버를 판정한다. */
     private fun requireManageable(teamId: Long, actor: ManageRoleContext, target: TeamMember) {
-        if (target.role == TeamRole.OWNER) {
+        if (target.team.ownerId == target.userId) {
             throw ExpectedException("OWNER의 닉네임은 변경할 수 없습니다.", HttpStatus.FORBIDDEN)
         }
-        if (actor.member.role == TeamRole.OWNER || actor.member.role == TeamRole.ADMIN) {
-            return
-        }
-
         val targetMaxPriority = teamRoleProjectionReader.getMemberRoles(teamId, target.userId)
             .maxOfOrNull { it.priority }
-        if (target.role == TeamRole.ADMIN || (targetMaxPriority != null && targetMaxPriority >= actor.maxPriority)) {
+        if (targetMaxPriority != null && targetMaxPriority >= actor.maxPriority) {
             throw ExpectedException("자신보다 높거나 같은 역할의 멤버 닉네임은 변경할 수 없습니다.", HttpStatus.FORBIDDEN)
         }
     }

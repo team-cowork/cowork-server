@@ -18,13 +18,13 @@ data class TeamRoleResponse(
     val priority: Int,
     @field:Schema(description = "역할 멘션 허용 여부", example = "true")
     val mentionable: Boolean,
-    @field:Schema(description = "역할 기본 권한. 모든 권한 키의 boolean 전체 상태")
+    @field:Schema(description = "전체 역할 권한")
     val permissions: Map<String, Boolean>,
     @field:Schema(description = "생성 일시")
     val createdAt: String?,
     @field:Schema(description = "수정 일시")
     val updatedAt: String?,
-    @field:Schema(description = "활성 팀 멤버 모두에게 자동 적용되는 기본 역할 여부")
+    @field:Schema(description = "모든 활성 멤버에게 적용되는 기본 역할 여부")
     @field:JsonProperty(value = "isDefault", required = true)
     @field:JsonSetter(nulls = Nulls.FAIL)
     val isDefault: Boolean,

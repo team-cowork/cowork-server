@@ -510,6 +510,13 @@
         "cleanup.policy": "delete",
         "retention.ms": "604800000"
       }
+    },
+    "preference.account-role.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
     }
   },
   "principals": {
@@ -647,7 +654,8 @@
         "preference.text-channel-setting.state.v1",
         "preference.webhook.state.v2",
         "preference.voice-channel-setting.state.v1",
-        "preference.github-repo.setting.result-dlt"
+        "preference.github-repo.setting.result-dlt",
+        "preference.account-role.state.v1"
       ]
     },
     "cowork-project": {
@@ -715,7 +723,8 @@
         "preference.team-role.command.v2",
         "preference.team-role.result.v2",
         "preference.team-role.result.v2-dlt",
-        "preference.team-setting.state.v1"
+        "preference.team-setting.state.v1",
+        "preference.account-role.state.v1"
       ]
     },
     "cowork-user": {

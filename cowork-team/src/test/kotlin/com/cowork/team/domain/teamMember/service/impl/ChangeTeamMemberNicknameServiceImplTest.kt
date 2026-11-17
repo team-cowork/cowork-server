@@ -154,7 +154,8 @@ class ChangeTeamMemberNicknameServiceImplTest :
                     stubTarget(target)
                     every { roleReader.getMemberRoles(5L, 7L) } returns
                         listOf(role(priority = 10, manageNicknames = true))
-                    every { roleReader.getMemberRoles(5L, 8L) } returns emptyList()
+                    every { roleReader.getMemberRoles(5L, 8L) } returns
+                        listOf(role(Int.MAX_VALUE - 1).copy(permissions = mapOf("administrator" to true)))
 
                     val error = shouldThrow<ExpectedException> {
                         service.execute(7L, 5L, 8L, ChangeNicknameRequest("새 닉네임"))
@@ -165,15 +166,18 @@ class ChangeTeamMemberNicknameServiceImplTest :
             }
 
             context("ADMIN이 멤버의 닉네임을 바꾸면") {
-                it("역할 순위와 무관하게 변경한다") {
+                it("자신보다 낮은 역할의 닉네임을 변경한다") {
                     val target = TeamMember(team = team, userId = 8L)
                     stubActor(TeamMember(team = team, userId = 7L, role = TeamRole.ADMIN))
+                    every { roleReader.getMemberRoles(5L, 7L) } returns
+                        listOf(role(Int.MAX_VALUE - 1).copy(permissions = mapOf("administrator" to true)))
+                    every { roleReader.getMemberRoles(5L, 8L) } returns listOf(role(10))
                     stubTarget(target)
 
                     service.execute(7L, 5L, 8L, ChangeNicknameRequest("새 닉네임"))
 
                     target.nickname shouldBe "새 닉네임"
-                    verify(exactly = 0) { roleReader.getMemberRoles(any(), any()) }
+                    verify(exactly = 1) { roleReader.getMemberRoles(5L, 7L) }
                 }
             }
 
@@ -181,6 +185,9 @@ class ChangeTeamMemberNicknameServiceImplTest :
                 it("FORBIDDEN으로 거부한다") {
                     val owner = TeamMember(team = team, userId = 1L, role = TeamRole.OWNER)
                     stubActor(TeamMember(team = team, userId = 7L, role = TeamRole.ADMIN))
+                    every { roleReader.getMemberRoles(5L, 7L) } returns
+                        listOf(role(Int.MAX_VALUE - 1).copy(permissions = mapOf("administrator" to true)))
+                    every { roleReader.getMemberRoles(5L, 8L) } returns listOf(role(10))
                     stubTarget(owner)
 
                     val error = shouldThrow<ExpectedException> {

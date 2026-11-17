@@ -7,7 +7,6 @@ import com.cowork.team.domain.team.service.DeleteTeamService
 import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.team.service.TeamIconOwnershipService
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -29,7 +28,7 @@ class DeleteTeamServiceImpl(
     override fun execute(userId: Long, teamId: Long) {
         val team = teamRepository.findByIdForUpdate(teamId)
             ?: throw ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
-        teamAccessGuard.requireRole(teamId, userId, TeamRole.OWNER)
+        teamAccessGuard.requirePermission(teamId, userId, "delete_team")
         val occurredAt = Instant.now().truncatedTo(ChronoUnit.MICROS)
         val members = teamMemberRepository.findAllByTeamIdForUpdate(teamId)
         members.forEach { teamMemberEventPublisher.publishDelete(it, occurredAt) }

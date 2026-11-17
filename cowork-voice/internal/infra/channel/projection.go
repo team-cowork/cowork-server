@@ -213,12 +213,6 @@ func permissionsFor(ch State, userID int64, states []State) map[string]bool {
 	}
 	keys := []string{"voice_connect", "voice_speak", "screen_share", "live_broadcast"}
 	allowed := make(map[string]bool, len(keys))
-	if member.Role == "OWNER" || member.Role == "ADMIN" {
-		for _, key := range keys {
-			allowed[key] = true
-		}
-		return allowed
-	}
 	applicable := map[int64]State{}
 	for id, role := range roles {
 		if role.IsDefault {
@@ -228,6 +222,14 @@ func permissionsFor(ch State, userID int64, states []State) map[string]bool {
 	for _, assignment := range assignments {
 		if role, ok := roles[assignment.RoleID]; ok && assignment.Version > fence {
 			applicable[assignment.RoleID] = role
+		}
+	}
+	for _, role := range applicable {
+		if role.Permissions["administrator"] {
+			for _, key := range keys {
+				allowed[key] = true
+			}
+			return allowed
 		}
 	}
 	for _, key := range keys {

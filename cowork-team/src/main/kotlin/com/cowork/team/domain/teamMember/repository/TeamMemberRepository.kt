@@ -1,7 +1,6 @@
 package com.cowork.team.domain.teamMember.repository
 
 import com.cowork.team.domain.teamMember.entity.TeamMember
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
@@ -26,6 +25,4 @@ interface TeamMemberRepository : JpaRepository<TeamMember, Long> {
     fun findByTeamIdAndUserId(teamId: Long, userId: Long): TeamMember?
 
     fun existsByTeamIdAndUserId(teamId: Long, userId: Long): Boolean
-
-    fun findByTeamIdAndUserIdAndRoleIn(teamId: Long, userId: Long, roles: List<TeamRole>): TeamMember?
 }

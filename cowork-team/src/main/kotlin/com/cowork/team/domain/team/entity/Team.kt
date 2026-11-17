@@ -21,7 +21,7 @@ class Team(
     var iconUrl: String?,
 
     @Column(name = "owner_id", nullable = false)
-    val ownerId: Long,
+    var ownerId: Long,
 
     @Column(name = "github_installation_id")
     var githubInstallationId: Long? = null,

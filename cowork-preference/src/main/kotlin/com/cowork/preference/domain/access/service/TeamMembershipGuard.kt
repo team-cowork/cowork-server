@@ -3,6 +3,7 @@ package com.cowork.preference.domain.access.service
 import com.cowork.preference.domain.access.exception.TeamMembershipDeniedException
 import com.cowork.preference.domain.access.exception.TeamMembershipProjectionNotReadyException
 import com.cowork.preference.domain.access.permission.PermissionKeys
+import com.cowork.preference.domain.access.permission.RolePolicy
 import com.cowork.preference.domain.access.projection.team.model.TeamMemberProjection
 import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
@@ -28,12 +29,11 @@ class TeamMembershipGuard(
     /** 팀 설정은 manage_team, 닉네임 형식 키만 수정할 때는 manage_nickname_format도 허용한다. */
     suspend fun requireSettingsManager(teamId: Long, requester: RequesterContext, settingKeys: Set<String>) {
         val member = requireActiveMember(teamId, requester.userId)
-        if (member.builtInRole in SETTINGS_MANAGER_ROLES) return
         val roles = roleRepository.findAccountRoles(pool, teamId, member.accountId)
-        if (roles.any { it.permissions[PermissionKeys.MANAGE_TEAM] == true }) return
+        if (roles.any { RolePolicy.allows(it.permissions, PermissionKeys.MANAGE_TEAM) }) return
         if (settingKeys.isNotEmpty() &&
             NICKNAME_FORMAT_KEYS.containsAll(settingKeys) &&
-            roles.any { it.permissions[PermissionKeys.MANAGE_NICKNAME_FORMAT] == true }
+            roles.any { RolePolicy.allows(it.permissions, PermissionKeys.MANAGE_NICKNAME_FORMAT) }
         ) {
             return
         }
@@ -52,7 +52,6 @@ class TeamMembershipGuard(
     }
 
     private companion object {
-        val SETTINGS_MANAGER_ROLES = setOf("OWNER", "ADMIN")
         val NICKNAME_FORMAT_KEYS = setOf("nickname_format_enforced", "nickname_format_example")
     }
 }
