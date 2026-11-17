@@ -4,6 +4,7 @@ import {githubField} from '../../github-field.js';
 import {GithubAuthService} from '../../auth/github-auth.service.js';
 import {REDIS_CLIENT} from '../../constants.js';
 import {PULL_REQUEST_FILES_TTL_SECONDS} from '../../github.cache.js';
+import {ProjectBoardWebhookHandler} from '../../project-board/project-board-webhook.handler.js';
 import {PullRequestService} from '../../pull-request/pull-request.service.js';
 import {GithubReadModelEventProducers} from '../kafka/github-read-model-event-producers.js';
 import {TeamGithubProducer} from '../kafka/team-github.producer.js';
@@ -25,6 +26,7 @@ describe('GithubWebhookController', () => {
 	let pullRequestService: {listPullRequestFiles: jest.Mock};
 	let redis: {incr: jest.Mock; get: jest.Mock; set: jest.Mock};
 	let authService: {cacheInstallation: jest.Mock; evictInstallation: jest.Mock};
+	let projectBoardWebhookHandler: {handleProjectItem: jest.Mock; handleProject: jest.Mock; handleContentChanged: jest.Mock};
 
 	beforeEach(async () => {
 		producer = {send: jest.fn()};
@@ -38,6 +40,9 @@ describe('GithubWebhookController', () => {
 		};
 		pullRequestService = {listPullRequestFiles: jest.fn().mockResolvedValue([])};
 		authService = {cacheInstallation: jest.fn(), evictInstallation: jest.fn()};
+		projectBoardWebhookHandler = {
+			handleProjectItem: jest.fn(), handleProject: jest.fn(), handleContentChanged: jest.fn(),
+		};
 		redis = {
 			incr: jest.fn().mockResolvedValue(5),
 			get: jest.fn().mockResolvedValue(null),
@@ -54,6 +59,7 @@ describe('GithubWebhookController', () => {
 				{provide: GithubAuthService, useValue: authService},
 				{provide: REDIS_CLIENT, useValue: redis},
 				{provide: AppConfigService, useValue: {githubAppId: '123'}},
+				{provide: ProjectBoardWebhookHandler, useValue: projectBoardWebhookHandler},
 			],
 		})
 			.overrideGuard(GithubWebhookSignatureGuard)
@@ -458,6 +464,33 @@ describe('GithubWebhookController', () => {
 		await controller.handle('push', {ref: 'refs/heads/main'});
 
 		expect(repoEventProducer.send).not.toHaveBeenCalled();
+	});
+
+	it('projects_v2_item과 projects_v2 이벤트는 Project 보드 처리기로 넘긴다', async () => {
+		const itemPayload = {action: 'edited', organization: {login: 'my-org'}, [githubField.projectsV2Item]: {[githubField.nodeId]: 'PVTI_1', [githubField.projectNodeId]: 'PVT_1'}};
+		const projectPayload = {action: 'edited', organization: {login: 'my-org'}, [githubField.projectsV2]: {[githubField.nodeId]: 'PVT_1', number: 3}};
+
+		await controller.handle('projects_v2_item', itemPayload);
+		await controller.handle('projects_v2', projectPayload);
+
+		expect(projectBoardWebhookHandler.handleProjectItem).toHaveBeenCalledWith(itemPayload);
+		expect(projectBoardWebhookHandler.handleProject).toHaveBeenCalledWith(projectPayload);
+	});
+
+	it('이슈와 PR 이벤트는 content가 들어 있는 Project item을 다시 읽게 한다', async () => {
+		await controller.handle('issues', {
+			action: 'edited',
+			repository: {[githubField.fullName]: 'My-Org/app'},
+			issue: {[githubField.nodeId]: 'I_1', number: 1, title: 't'},
+		});
+		await controller.handle('pull_request', {
+			action: 'edited',
+			repository: {[githubField.fullName]: 'My-Org/app'},
+			[githubField.pullRequest]: {[githubField.nodeId]: 'PR_1', number: 2, title: 't'},
+		});
+
+		expect(projectBoardWebhookHandler.handleContentChanged).toHaveBeenCalledWith('My-Org', 'I_1');
+		expect(projectBoardWebhookHandler.handleContentChanged).toHaveBeenCalledWith('My-Org', 'PR_1');
 	});
 
 	it('알 수 없는 이벤트는 무시하고 ok를 반환한다', async () => {
