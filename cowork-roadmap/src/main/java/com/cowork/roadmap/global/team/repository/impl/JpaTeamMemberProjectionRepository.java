@@ -1,10 +1,13 @@
-package com.cowork.roadmap.global.team;
+package com.cowork.roadmap.global.team.repository.impl;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Optional;
 
 import org.springframework.stereotype.Repository;
+
+import com.cowork.roadmap.global.team.event.TeamMemberEvent;
+import com.cowork.roadmap.global.team.repository.TeamMemberProjectionRepository;
 
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
