@@ -222,17 +222,6 @@ func TestServiceNotifyReverifiesOwnershipBeforeSend(t *testing.T) {
 		assert.ElementsMatch(t, []string{"claim-moved", "claim-deleted"}, ledger.cancelled)
 	})
 
-	t.Run("non-durable delivery skips stale generations", func(t *testing.T) {
-		repo := &snapshotRepo{snapshots: []map[int64][]installation.Installation{before, after}}
-		sender := &mockFCM{}
-		svc := installation.NewService(repo, sender, &mockPref{enabled: true}, nil)
-
-		_, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 0, 0)
-
-		require.NoError(t, err)
-		assert.Equal(t, []string{"kept"}, sender.calledFIDs)
-	})
-
 	t.Run("nothing is sent when every generation went stale", func(t *testing.T) {
 		repo := &snapshotRepo{snapshots: []map[int64][]installation.Installation{before, {}}}
 		sender := &mockFCM{}
@@ -276,7 +265,7 @@ func TestServiceRegisterInstallationRejectsNonFID(t *testing.T) {
 	for name, value := range cases {
 		t.Run(name, func(t *testing.T) {
 			repo := &mockRepo{}
-			svc := installation.NewService(repo, &mockFCM{}, &mockPref{}, nil)
+			svc := installation.NewService(repo, &mockFCM{}, &mockPref{}, &mockDelivery{})
 
 			registerErr := svc.RegisterInstallation(context.Background(), 1, value, "ANDROID")
 			deleteErr := svc.DeleteInstallation(context.Background(), 1, value)
@@ -294,7 +283,7 @@ func TestServiceRegisterInstallationRejectsNonFID(t *testing.T) {
 func TestServiceRegisterInstallationAcceptsMigratedLegacyIID(t *testing.T) {
 	// The Android SDK keeps a migrated 11-character Instance ID as the installation's FID.
 	repo := &mockRepo{}
-	svc := installation.NewService(repo, &mockFCM{}, &mockPref{}, nil)
+	svc := installation.NewService(repo, &mockFCM{}, &mockPref{}, &mockDelivery{})
 
 	err := svc.RegisterInstallation(context.Background(), 1, "fA1b2C3d4E_", "ANDROID")
 
@@ -306,7 +295,7 @@ func TestServiceRegisterInstallationAcceptsMigratedLegacyIID(t *testing.T) {
 func TestServiceRegisterInstallationOwnership(t *testing.T) {
 	t.Run("rejects an unsupported platform before persistence", func(t *testing.T) {
 		repo := &mockRepo{}
-		svc := installation.NewService(repo, &mockFCM{}, &mockPref{}, nil)
+		svc := installation.NewService(repo, &mockFCM{}, &mockPref{}, &mockDelivery{})
 
 		err := svc.RegisterInstallation(context.Background(), 1, deviceFID, "DESKTOP")
 
@@ -320,7 +309,7 @@ func TestServiceRegisterInstallationOwnership(t *testing.T) {
 		repo := &mockRepo{installations: map[int64][]installation.Installation{
 			1: {{ID: 10, AccountID: 1, FID: deviceFID, Platform: installation.PlatformWeb}},
 		}}
-		svc := installation.NewService(repo, &mockFCM{}, &mockPref{}, nil)
+		svc := installation.NewService(repo, &mockFCM{}, &mockPref{}, &mockDelivery{})
 
 		err := svc.RegisterInstallation(context.Background(), 1, deviceFID, "ANDROID")
 
@@ -335,7 +324,7 @@ func TestServiceRegisterInstallationOwnership(t *testing.T) {
 			1: {{ID: 10, AccountID: 1, FID: deviceFID, Platform: installation.PlatformIOS}},
 		}}
 		sender := &mockFCM{}
-		svc := installation.NewService(repo, sender, &mockPref{enabled: true}, nil)
+		svc := installation.NewService(repo, sender, &mockPref{enabled: true}, &mockDelivery{})
 
 		err := svc.RegisterInstallation(context.Background(), 2, deviceFID, "IOS")
 		require.NoError(t, err)
@@ -343,7 +332,7 @@ func TestServiceRegisterInstallationOwnership(t *testing.T) {
 		require.Len(t, repo.installations[2], 1)
 		assert.NotEqual(t, int64(10), repo.installations[2][0].ID)
 
-		_, err = svc.Notify(context.Background(), "", []int64{1, 2}, nil, "title", "body", 0, 0)
+		_, err = svc.Notify(context.Background(), "event-1", []int64{1, 2}, nil, "title", "body", 0, 0)
 		require.NoError(t, err)
 		assert.Equal(t, []string{deviceFID}, sender.calledFIDs)
 
@@ -360,9 +349,9 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 			2: {{FID: "t2", AccountID: 2}},
 		}}
 		sender := &mockFCM{}
-		svc := installation.NewService(repo, sender, &mockPref{enabled: true}, nil)
+		svc := installation.NewService(repo, sender, &mockPref{enabled: true}, &mockDelivery{})
 
-		_, err := svc.Notify(context.Background(), "", []int64{1, 2}, nil, "title", "body", 0, 0)
+		_, err := svc.Notify(context.Background(), "event-1", []int64{1, 2}, nil, "title", "body", 0, 0)
 
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"t1", "t2"}, sender.calledFIDs)
@@ -373,9 +362,9 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 			1: {{FID: "t1", AccountID: 1}},
 		}}
 		sender := &mockFCM{}
-		svc := installation.NewService(repo, sender, &mockPref{enabled: false}, nil)
+		svc := installation.NewService(repo, sender, &mockPref{enabled: false}, &mockDelivery{})
 
-		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 42, 7)
+		enabledIDs, err := svc.Notify(context.Background(), "event-1", []int64{1}, nil, "title", "body", 42, 7)
 
 		require.NoError(t, err)
 		assert.Nil(t, sender.calledFIDs)
@@ -388,9 +377,9 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 			2: {{FID: "t2", AccountID: 2}},
 		}}
 		sender := &mockFCM{}
-		svc := installation.NewService(repo, sender, &mockPref{enabled: false}, nil)
+		svc := installation.NewService(repo, sender, &mockPref{enabled: false}, &mockDelivery{})
 
-		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2}, []int64{2}, "title", "body", 42, 7)
+		enabledIDs, err := svc.Notify(context.Background(), "event-1", []int64{1, 2}, []int64{2}, "title", "body", 42, 7)
 
 		require.NoError(t, err)
 		assert.Equal(t, []string{"t2"}, sender.calledFIDs)
@@ -403,9 +392,9 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 			2: {{FID: "t2", AccountID: 2}},
 		}}
 		sender := &mockFCM{}
-		svc := installation.NewService(repo, sender, &mockPref{enabled: true}, nil)
+		svc := installation.NewService(repo, sender, &mockPref{enabled: true}, &mockDelivery{})
 
-		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 1, 2}, []int64{2, 2}, "title", "body", 42, 7)
+		enabledIDs, err := svc.Notify(context.Background(), "event-1", []int64{1, 1, 2}, []int64{2, 2}, "title", "body", 42, 7)
 
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"t1", "t2"}, sender.calledFIDs)
@@ -429,9 +418,9 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 			4: {Level: installation.NotificationLevelNone},
 		}}
 		sender := &mockFCM{}
-		svc := installation.NewService(repo, sender, pref, nil)
+		svc := installation.NewService(repo, sender, pref, &mockDelivery{})
 
-		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2, 3, 4, 5}, nil, "title", "body", 42, 7)
+		enabledIDs, err := svc.Notify(context.Background(), "event-1", []int64{1, 2, 3, 4, 5}, nil, "title", "body", 42, 7)
 
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"t3", "t5"}, sender.calledFIDs)
@@ -449,9 +438,9 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 			2: {Level: installation.NotificationLevelAll, MutedUntil: &future},
 		}}
 		sender := &mockFCM{}
-		svc := installation.NewService(repo, sender, pref, nil)
+		svc := installation.NewService(repo, sender, pref, &mockDelivery{})
 
-		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2}, []int64{1, 2}, "title", "body", 42, 7)
+		enabledIDs, err := svc.Notify(context.Background(), "event-1", []int64{1, 2}, []int64{1, 2}, "title", "body", 42, 7)
 
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []string{"t1", "t2"}, sender.calledFIDs)
@@ -464,9 +453,9 @@ func TestServiceNotifyAccordingToRecipientPreference(t *testing.T) {
 		}}
 		sender := &mockFCM{}
 		pref := &mockPref{err: errors.New("preference service unreachable")}
-		svc := installation.NewService(repo, sender, pref, nil)
+		svc := installation.NewService(repo, sender, pref, &mockDelivery{})
 
-		_, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 42, 7)
+		_, err := svc.Notify(context.Background(), "event-1", []int64{1}, nil, "title", "body", 42, 7)
 
 		require.Error(t, err)
 		assert.Nil(t, sender.calledFIDs)
@@ -485,9 +474,9 @@ func TestServiceNotifyResolvesAccountAndTeamLevels(t *testing.T) {
 				2: {Level: levelPointer(installation.NotificationLevelMentions)},
 			},
 		}
-		svc := installation.NewService(installationsFor(1, 2, 3), sender, pref, nil)
+		svc := installation.NewService(installationsFor(1, 2, 3), sender, pref, &mockDelivery{})
 
-		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2, 3}, nil, "title", "body", 42, 7)
+		enabledIDs, err := svc.Notify(context.Background(), "event-1", []int64{1, 2, 3}, nil, "title", "body", 42, 7)
 
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []int64{2, 3}, enabledIDs)
@@ -503,9 +492,9 @@ func TestServiceNotifyResolvesAccountAndTeamLevels(t *testing.T) {
 			},
 			teamDefault: levelPointer(installation.NotificationLevelNone),
 		}
-		svc := installation.NewService(installationsFor(1, 2, 3), sender, pref, nil)
+		svc := installation.NewService(installationsFor(1, 2, 3), sender, pref, &mockDelivery{})
 
-		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2, 3}, nil, "title", "body", 42, 7)
+		enabledIDs, err := svc.Notify(context.Background(), "event-1", []int64{1, 2, 3}, nil, "title", "body", 42, 7)
 
 		require.NoError(t, err)
 		assert.Equal(t, []int64{1}, enabledIDs)
@@ -527,9 +516,9 @@ func TestServiceNotifyResolvesAccountAndTeamLevels(t *testing.T) {
 				3: {Level: levelPointer(installation.NotificationLevelAll)},
 			},
 		}
-		svc := installation.NewService(installationsFor(1, 2, 3), sender, pref, nil)
+		svc := installation.NewService(installationsFor(1, 2, 3), sender, pref, &mockDelivery{})
 
-		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1, 2, 3}, nil, "title", "body", 42, 7)
+		enabledIDs, err := svc.Notify(context.Background(), "event-1", []int64{1, 2, 3}, nil, "title", "body", 42, 7)
 
 		require.NoError(t, err)
 		assert.Equal(t, []int64{3}, enabledIDs)
@@ -543,9 +532,9 @@ func TestServiceNotifyResolvesAccountAndTeamLevels(t *testing.T) {
 				1: {Level: levelPointer(installation.NotificationLevelNone)},
 			},
 		}
-		svc := installation.NewService(installationsFor(1), sender, pref, nil)
+		svc := installation.NewService(installationsFor(1), sender, pref, &mockDelivery{})
 
-		enabledIDs, err := svc.Notify(context.Background(), "", []int64{1}, nil, "title", "body", 42, 0)
+		enabledIDs, err := svc.Notify(context.Background(), "event-1", []int64{1}, nil, "title", "body", 42, 0)
 
 		require.NoError(t, err)
 		assert.Equal(t, []int64{1}, enabledIDs)
@@ -567,9 +556,9 @@ func TestServiceNotifySuppressesDoNotDisturb(t *testing.T) {
 	t.Run("mentions and non-channel notifications are suppressed too", func(t *testing.T) {
 		for _, channelID := range []int64{42, 0} {
 			sender := &mockFCM{}
-			svc := installation.NewService(installationsFor(1, 2, 3, 4), sender, pref, nil)
+			svc := installation.NewService(installationsFor(1, 2, 3, 4), sender, pref, &mockDelivery{})
 
-			enabledIDs, err := svc.Notify(context.Background(), "", []int64{2, 4}, []int64{1, 3}, "title", "body", channelID, 7)
+			enabledIDs, err := svc.Notify(context.Background(), "event-1", []int64{2, 4}, []int64{1, 3}, "title", "body", channelID, 7)
 
 			require.NoError(t, err)
 			assert.ElementsMatch(t, []int64{2, 4}, enabledIDs)
