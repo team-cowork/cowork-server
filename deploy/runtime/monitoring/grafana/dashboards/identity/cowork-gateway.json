@@ -98,7 +98,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 12, "y": 0 },
       "targets": [
         {
-          "expr": "sum(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\"}[$__rate_interval]))",
+          "expr": "sum(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health|/api/[^/]+/health(/.*)?\"}[$__rate_interval]))",
           "legendFormat": "요청",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
@@ -116,7 +116,7 @@
       "gridPos": { "h": 4, "w": 4, "x": 16, "y": 0 },
       "targets": [
         {
-          "expr": "((sum(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\",status=~\"5..\"}[$__rate_interval]))) or (0 * (sum(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\"}[$__rate_interval]))))) / ((sum(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\"}[$__rate_interval]))) > 0) * 100",
+          "expr": "((sum(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health|/api/[^/]+/health(/.*)?\",status=~\"5..\"}[$__rate_interval]))) or (0 * (sum(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health|/api/[^/]+/health(/.*)?\"}[$__rate_interval]))))) / ((sum(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health|/api/[^/]+/health(/.*)?\"}[$__rate_interval]))) > 0) * 100",
           "legendFormat": "5xx",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
@@ -163,7 +163,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "targets": [
         {
-          "expr": "sum by (uri)(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\"}[$__rate_interval]))",
+          "expr": "sum by (uri)(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health|/api/[^/]+/health(/.*)?\"}[$__rate_interval]))",
           "legendFormat": "{{uri}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
@@ -189,7 +189,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
       "targets": [
         {
-          "expr": "histogram_quantile(0.99, sum by (le, uri) (rate(http_server_requests_seconds_bucket{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\"}[$__rate_interval]))) * 1000",
+          "expr": "histogram_quantile(0.99, sum by (le, uri) (rate(http_server_requests_seconds_bucket{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health|/api/[^/]+/health(/.*)?\"}[$__rate_interval]))) * 1000",
           "legendFormat": "P99 {{uri}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
@@ -197,7 +197,7 @@
           "range": true
         },
         {
-          "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\"}[$__rate_interval]))) * 1000",
+          "expr": "histogram_quantile(0.95, sum by (le, uri) (rate(http_server_requests_seconds_bucket{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health|/api/[^/]+/health(/.*)?\"}[$__rate_interval]))) * 1000",
           "legendFormat": "P95 {{uri}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "B",
@@ -205,7 +205,7 @@
           "range": true
         },
         {
-          "expr": "sum by (uri)(rate(http_server_requests_seconds_sum{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\"}[$__rate_interval])) / (sum by (uri)(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\"}[$__rate_interval])) > 0) * 1000",
+          "expr": "sum by (uri)(rate(http_server_requests_seconds_sum{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health|/api/[^/]+/health(/.*)?\"}[$__rate_interval])) / (sum by (uri)(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health|/api/[^/]+/health(/.*)?\"}[$__rate_interval])) > 0) * 1000",
           "legendFormat": "평균 {{uri}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "C",
@@ -226,7 +226,7 @@
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
       "targets": [
         {
-          "expr": "((sum(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\",status=~\"5..\"}[$__rate_interval]))) or (0 * (sum(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\"}[$__rate_interval]))))) / ((sum(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\"}[$__rate_interval]))) > 0) * 100",
+          "expr": "((sum(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health|/api/[^/]+/health(/.*)?\",status=~\"5..\"}[$__rate_interval]))) or (0 * (sum(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health|/api/[^/]+/health(/.*)?\"}[$__rate_interval]))))) / ((sum(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health|/api/[^/]+/health(/.*)?\"}[$__rate_interval]))) > 0) * 100",
           "legendFormat": "5xx 오류 비율",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
@@ -364,7 +364,7 @@
           "range": true
         },
         {
-          "expr": "sum(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health\",status=\"429\"}[$__rate_interval]))",
+          "expr": "sum(rate(http_server_requests_seconds_count{service=\"gateway\",job=~\"cowork-.*\",uri!~\"/actuator.*|/metrics|/health|/api/health|/api/[^/]+/health(/.*)?\",status=\"429\"}[$__rate_interval]))",
           "legendFormat": "HTTP 429 전체",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "C",
