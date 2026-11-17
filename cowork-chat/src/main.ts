@@ -11,7 +11,6 @@ import {Logger as PinoLogger} from 'nestjs-pino';
 import {Gauge} from 'prom-client';
 import {createChatApiDocument} from './common/config/swagger.js';
 import {GlobalExceptionFilter} from './common/filter/global-exception.filter.js';
-import {RedisIoAdapter, SocketIoRedisConnection} from './common/adapter/redis-io.adapter.js';
 import {
 	CHANNEL_PERMISSION_STREAMS,
 	PROJECTION_STREAMS,
@@ -91,9 +90,6 @@ async function bootstrap() {
 	app.useGlobalPipes(new ValidationPipe({whitelist: true, transform: true}));
 	app.useGlobalFilters(new GlobalExceptionFilter());
 	app.useStaticAssets(join(import.meta.dirname, '..', 'public'));
-
-	const socketIoRedis = app.get(SocketIoRedisConnection);
-	app.useWebSocketAdapter(new RedisIoAdapter(app, socketIoRedis));
 
 	const document = createChatApiDocument(app, new DocumentBuilder().setVersion('20261115.0'));
 
