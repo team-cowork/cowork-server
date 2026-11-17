@@ -1,6 +1,7 @@
 package com.cowork.project.global.consumer
 
 import com.cowork.project.domain.github.service.ProjectGithubRepoDeletionSupport
+import com.cowork.project.domain.githubBoard.service.ProjectGithubBoardLifecycleSupport
 import com.cowork.project.domain.membership.entity.TeamMembership
 import com.cowork.project.domain.membership.projection.TeamRoleMemberTombstone
 import com.cowork.project.domain.membership.projection.TeamRoleMemberTombstoneRepository
@@ -20,6 +21,7 @@ class ProjectLifecycleHandler(
     private val projectEventPublisher: ProjectEventPublisher,
     private val repoDeletionSupport: ProjectGithubRepoDeletionSupport,
     private val memberFences: TeamRoleMemberTombstoneRepository,
+    private val boardLifecycleSupport: ProjectGithubBoardLifecycleSupport,
 ) {
     private val log = LoggerFactory.getLogger(ProjectLifecycleHandler::class.java)
 
@@ -60,6 +62,7 @@ class ProjectLifecycleHandler(
             return
         }
         repoDeletionSupport.deleteByProjectIds(projects.map { it.id }, version)
+        boardLifecycleSupport.deleteByProjectIds(projects.map { it.id })
         projects.forEach { projectEventPublisher.publishDeleted(it, version) }
         projectRepository.deleteAll(projects)
         log.info("TEAM_DELETED 처리 완료 [teamId={}, deletedProjects={}]", teamId, projects.size)

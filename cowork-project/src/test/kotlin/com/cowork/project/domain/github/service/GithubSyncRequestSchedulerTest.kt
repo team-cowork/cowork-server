@@ -13,6 +13,7 @@ import com.cowork.project.domain.github.repository.GithubSyncMarkerRepository
 import com.cowork.project.domain.github.repository.GithubSyncRequestRepository
 import com.cowork.project.domain.github.repository.ProjectGithubRepoRepository
 import com.cowork.project.domain.github.repository.TeamGithubInstallationRepository
+import com.cowork.project.domain.githubBoard.repository.ProjectGithubBoardRepository
 import com.cowork.project.global.outbox.OutboxWriter
 import com.cowork.project.global.projection.ProjectionSnapshotLock
 import io.kotest.core.spec.style.DescribeSpec
@@ -30,6 +31,7 @@ class GithubSyncRequestSchedulerTest :
 
         val now = Instant.parse("2026-10-22T12:00:00Z")
         lateinit var projectGithubRepoRepository: ProjectGithubRepoRepository
+        lateinit var projectGithubBoardRepository: ProjectGithubBoardRepository
         lateinit var repoProjectionRepository: GithubRepoProjectionRepository
         lateinit var installationRepository: TeamGithubInstallationRepository
         lateinit var markerRepository: GithubSyncMarkerRepository
@@ -40,6 +42,8 @@ class GithubSyncRequestSchedulerTest :
 
         beforeEach {
             projectGithubRepoRepository = mockk()
+            projectGithubBoardRepository = mockk()
+            every { projectGithubBoardRepository.findAll() } returns emptyList()
             repoProjectionRepository = mockk()
             every { repoProjectionRepository.findAllById(any()) } returns emptyList()
             installationRepository = mockk()
@@ -54,6 +58,7 @@ class GithubSyncRequestSchedulerTest :
             }
             scheduler = GithubSyncRequestScheduler(
                 projectGithubRepoRepository = projectGithubRepoRepository,
+                projectGithubBoardRepository = projectGithubBoardRepository,
                 repoProjectionRepository = repoProjectionRepository,
                 installationRepository = installationRepository,
                 markerRepository = markerRepository,
@@ -63,6 +68,8 @@ class GithubSyncRequestSchedulerTest :
                 snapshotLock = snapshotLock,
                 requestCooldownMs = Duration.ofMinutes(30).toMillis(),
                 staleAfterMs = Duration.ofDays(7).toMillis(),
+                projectStaleAfterMs = Duration.ofHours(1).toMillis(),
+                manualCooldownMs = Duration.ofMinutes(1).toMillis(),
             )
         }
 

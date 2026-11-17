@@ -31,29 +31,34 @@ class GithubStateRecordProcessor(
         syncStream: GithubSyncStream,
         record: ConsumerRecord<String, String>,
         type: Class<T>,
+        scopeOf: (JsonNode) -> String? = { it.text("repo") },
+        requireScope: Boolean = true,
         apply: (T) -> Unit,
     ) {
         val node = runCatching { objectMapper.readTree(record.value()) }.getOrNull()
         if (node == null || !node.isObject) {
-            quarantine(stream, syncStream, record, null, "JSON 객체가 아닙니다.")
+            quarantine(stream, syncStream, record, null, null, "JSON 객체가 아닙니다.")
             return
         }
         if (node.text("owner") == null) {
-            return quarantine(stream, syncStream, record, node, "owner가 필요합니다.")
+            return quarantine(stream, syncStream, record, node, null, "owner가 필요합니다.")
         }
 
         if (syncMarkers.isMarker(node)) {
             val marker = runCatching { objectMapper.treeToValue(node, GithubSyncCompletedMarker::class.java) }
-                .getOrElse { return quarantine(stream, syncStream, record, node, "완료 마커 역직렬화 실패: ${it.message}") }
+                .getOrElse {
+                    return quarantine(stream, syncStream, record, node, null, "완료 마커 역직렬화 실패: ${it.message}")
+                }
             processor.applyRecord(stream, record) { syncMarkers.record(syncStream, marker) }
             return
         }
 
-        if (node.text("repo") == null) {
-            return quarantine(stream, syncStream, record, node, "repo가 필요합니다.")
+        val scope = scopeOf(node)
+        if (requireScope && scope == null) {
+            return quarantine(stream, syncStream, record, node, null, "repo 또는 projectNumber가 필요합니다.")
         }
         val event = runCatching { objectMapper.treeToValue(node, type) }
-            .getOrElse { return quarantine(stream, syncStream, record, node, "state 역직렬화 실패: ${it.message}") }
+            .getOrElse { return quarantine(stream, syncStream, record, node, scope, "state 역직렬화 실패: ${it.message}") }
         processor.applyRecord(stream, record) { apply(event) }
     }
 
@@ -62,6 +67,7 @@ class GithubStateRecordProcessor(
         syncStream: GithubSyncStream,
         record: ConsumerRecord<String, String>,
         node: JsonNode?,
+        scope: String?,
         reason: String,
     ) {
         log.warn(
@@ -71,11 +77,11 @@ class GithubStateRecordProcessor(
             record.offset(),
             reason,
         )
-        syncMarkers.invalidate(syncStream, node?.text("owner"), node?.text("repo"))
+        syncMarkers.invalidate(syncStream, node?.text("owner"), scope)
         processor.quarantineRecord(stream, record, reason)
     }
 
-    private fun JsonNode.text(field: String): String? = path(field).takeIf { it.isTextual }?.asString()?.takeIf {
+    internal fun JsonNode.text(field: String): String? = path(field).takeIf { it.isTextual }?.asString()?.takeIf {
         it.isNotBlank()
     }
 }
