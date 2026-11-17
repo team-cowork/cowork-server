@@ -72,7 +72,7 @@ Gateway reads error bodies up to `gateway.response-wrapper.max-error-body-size` 
 
 ## Formatting
 
-[.editorconfig](.editorconfig) defines editor settings: four spaces by default, tabs for XO-linted TypeScript/JavaScript in `cowork-chat` and `cowork-github`, and Kotlin's 120-character limit with `intellij_idea` KtLint style. Follow its import layout without arbitrary blank groups. Wildcard-import and property-naming checks are disabled.
+[.editorconfig](.editorconfig) defines editor settings: four spaces by default, two spaces for Scala, sbt, and HOCON files in `cowork-applet`, tabs for XO-linted TypeScript/JavaScript in `cowork-chat` and `cowork-github`, and Kotlin's 120-character limit with `intellij_idea` KtLint style. Follow its import layout without arbitrary blank groups. Wildcard-import and property-naming checks are disabled.
 
 Run these commands from the repository root:
 
