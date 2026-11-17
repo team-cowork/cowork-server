@@ -70,6 +70,7 @@ grep -rn $X --include='*.kt' --include='*.java' --include='*.scala' 'println(' c
 grep -rnE $X --include='*.kt' 'ExpectedException\([^)]*"[^"]*\$' cowork-*
 
 # "No inline eslint-disable comments" (XO modules)
+# TODO(2026-11-17T02:31:33Z): Remove cowork-promotion/src from this command when cowork-promotion is removed.
 grep -rn $X 'eslint-disable' cowork-chat/src cowork-github/src cowork-promotion/src
 
 # "No internal REST/Feign calls for durable state" (read each hit before reporting)

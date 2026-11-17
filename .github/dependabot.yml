@@ -68,6 +68,7 @@ updates:
         patterns:
           - "*"
 
+  # TODO(2026-11-17T02:31:33Z): Remove this npm entry when cowork-promotion is removed.
   - package-ecosystem: "npm"
     directory: "/cowork-promotion"
     schedule:
