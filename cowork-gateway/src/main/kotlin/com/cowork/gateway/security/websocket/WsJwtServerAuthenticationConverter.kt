@@ -37,10 +37,6 @@ class WsJwtServerAuthenticationConverter(private val jwtAuthenticationSupport: J
             return authHeader.takeIf { it.count { ch -> ch == '.' } == 2 }
         }
 
-        return exchange.request.cookies.getFirst(WS_COOKIE_NAME)?.value?.trim()?.ifEmpty { null }
-    }
-
-    companion object {
-        private const val WS_COOKIE_NAME = "cowork_ws_token"
+        return exchange.request.cookies.getFirst(WsCookieService.COOKIE_NAME)?.value?.trim()?.ifEmpty { null }
     }
 }

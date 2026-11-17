@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 
@@ -32,12 +33,13 @@ import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
 
 import team.themoment.sdk.exception.ExpectedException;
 
+@DisplayName("ReorderRoadmapNodesService 의")
 class ReorderRoadmapNodesServiceTest {
 
     private final RoadmapNodeRepository nodeRepository = mock(RoadmapNodeRepository.class);
     private final RoadmapRepository roadmapRepository = mock(RoadmapRepository.class);
     private final RoadmapAccessGuard accessGuard = mock(RoadmapAccessGuard.class);
-    private final ReorderRoadmapNodesServiceImpl service = new ReorderRoadmapNodesServiceImpl(nodeRepository,
+    private final ReorderRoadmapNodesService service = new ReorderRoadmapNodesServiceImpl(nodeRepository,
             accessGuard,
             new RoadmapLookupSupport(roadmapRepository));
 

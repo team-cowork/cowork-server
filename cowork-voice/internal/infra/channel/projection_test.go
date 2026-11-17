@@ -40,7 +40,7 @@ func TestVoiceConnectPermission(t *testing.T) {
 		{"team membership alone does not grant access", []State{member}, false},
 		{"role grants voice without channel membership or message read", []State{member, assignment, allow}, true},
 		{"role grant requires current team membership", []State{assignment, allow}, false},
-		{"owner bypasses custom roles", []State{{Kind: "member", TeamID: 3, UserID: 217, Role: "OWNER"}}, true},
+		{"owner label alone grants nothing", []State{{Kind: "member", TeamID: 3, UserID: 217, Role: "OWNER"}}, false},
 		{"deleted role assignment revokes access", []State{member, allow, {Kind: "assignment", TeamID: 3, UserID: 217, RoleID: 10, Deleted: true, Version: 3}}, false},
 		{"member fence rejects old assignment", []State{member, assignment, allow, {Kind: "member-fence", TeamID: 3, UserID: 217, Version: 2}}, false},
 		{"channel override denies base allow", []State{member, assignment, allow, {Kind: "policy", TeamID: 3, ChannelID: 11, RoleID: 10, Permissions: map[string]bool{"voice_connect": false}}}, false},
@@ -113,7 +113,7 @@ func TestDefaultRoleAndChannelOverwrites(t *testing.T) {
 		{"default changes affect unassigned member", []State{member, {Kind: "role", TeamID: 3, RoleID: 1, IsDefault: true, Permissions: map[string]bool{"voice_connect": false}}}, false},
 		{"default deny follows role base union", []State{member, everyone, custom, assignment, denyEveryone}, false},
 		{"custom allow follows default deny", []State{member, everyone, custom, assignment, denyEveryone, allowCustom}, true},
-		{"admin bypasses overwrite", []State{{Kind: "member", TeamID: 3, UserID: 217, Role: "ADMIN"}, everyone, denyEveryone}, true},
+		{"administrator policy bypasses overwrite", []State{member, everyone, denyEveryone, assignment, {Kind: "role", TeamID: 3, RoleID: 2, Permissions: map[string]bool{"administrator": true}}}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

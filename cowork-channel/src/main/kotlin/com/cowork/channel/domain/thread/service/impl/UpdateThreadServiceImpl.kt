@@ -3,6 +3,8 @@ package com.cowork.channel.domain.thread.service.impl
 import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channel.service.TeamPermissionService
 import com.cowork.channel.domain.thread.entity.Thread
+import com.cowork.channel.domain.thread.entity.ThreadStatus
+import com.cowork.channel.domain.thread.event.ThreadStatePublisher
 import com.cowork.channel.domain.thread.presentation.data.request.UpdateThreadRequest
 import com.cowork.channel.domain.thread.presentation.data.response.ThreadResponse
 import com.cowork.channel.domain.thread.repository.ThreadRepository
@@ -17,11 +19,13 @@ class UpdateThreadServiceImpl(
     private val threadRepository: ThreadRepository,
     private val channelAccessGuard: ChannelAccessGuard,
     private val teamPermissionService: TeamPermissionService,
+    private val threadStatePublisher: ThreadStatePublisher,
 ) : UpdateThreadService {
 
-    private fun findThreadOrThrow(id: Long): Thread = threadRepository.findById(id).orElseThrow {
-        ExpectedException("스레드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
-    }
+    // 검증 대기 중인 스레드는 아직 채널 구성원에게 보이지 않으므로 없는 스레드로 다룬다.
+    private fun findThreadOrThrow(id: Long): Thread = threadRepository.findById(id)
+        .filter { it.status == ThreadStatus.ACTIVE }
+        .orElseThrow { ExpectedException("스레드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND) }
 
     @Transactional
     override fun updateThread(
@@ -43,6 +47,7 @@ class UpdateThreadServiceImpl(
         }
 
         thread.update(request.name, request.isArchived)
+        threadStatePublisher.publish(thread)
         return ThreadResponse.of(thread)
     }
 }

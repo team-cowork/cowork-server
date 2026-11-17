@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text.RegularExpressions;
 using Amazon.Runtime;
@@ -30,11 +31,11 @@ public static partial class ObjectStorage
             ResponseChecksumValidation = ResponseChecksumValidation.WHEN_REQUIRED,
         });
 
-    public static bool ContentTypeAllowed(string? contentType) =>
-        contentType is not null && App.Config.AllowedContentTypes.Contains(contentType);
+    public static bool ContentTypeAllowed([NotNullWhen(true)] string? contentType) =>
+        contentType is not null && SupportedTypes.Contains(contentType);
 
     public static string BuildObjectKey(long userId, string contentType) =>
-        $"profile-uploads/{userId}/{Guid.NewGuid()}.{contentType.Split('/')[^1]}";
+        $"profile-uploads/{userId}/{Guid.NewGuid()}.{Extension(contentType)}";
 
     public static string PresignedPutUrl(string objectKey, string contentType) => Presign(new GetPreSignedUrlRequest
     {
@@ -81,7 +82,7 @@ public static partial class ObjectStorage
         {
             var head = await Internal.Value.GetObjectMetadataAsync(config.S3Bucket, objectKey);
             var metadata = ValidateMetadata(head.ContentLength, head.Headers.ContentType, head.ETag,
-                config.MaxFileSizeBytes, config.AllowedContentTypes);
+                config.MaxFileSizeBytes);
             var finalKey = $"profiles/{userId}/{Guid.NewGuid()}.{Extension(metadata.ContentType)}";
             var copy = new CopyObjectRequest
             {
@@ -105,11 +106,11 @@ public static partial class ObjectStorage
 
     internal sealed record UploadMetadata(string ContentType, string ETag);
 
-    internal static UploadMetadata ValidateMetadata(long? size, string? contentType, string? etag, long maxSize, IReadOnlyList<string> allowedTypes)
+    internal static UploadMetadata ValidateMetadata(long? size, string? contentType, string? etag, long maxSize)
     {
         if (size is not > 0) throw ApiError.Validation("파일 크기 메타데이터가 유효하지 않습니다.");
         if (size > maxSize) throw new ApiError(413, "파일 크기가 허용 한도를 초과합니다.");
-        if (contentType is null || !allowedTypes.Contains(contentType) || !SupportedTypes.Contains(contentType))
+        if (!ContentTypeAllowed(contentType))
             throw ApiError.Validation("허용되지 않는 파일 형식입니다.");
         if (string.IsNullOrEmpty(etag)) throw ApiError.Validation("파일 무결성 메타데이터가 유효하지 않습니다.");
         return new UploadMetadata(contentType, etag);

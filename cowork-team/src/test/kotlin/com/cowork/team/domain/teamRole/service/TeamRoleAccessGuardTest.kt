@@ -8,6 +8,7 @@ import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
 import com.cowork.team.domain.teamRole.service.support.TeamRolePermission
+import com.cowork.team.support.policyRole
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -61,6 +62,18 @@ class TeamRoleAccessGuardTest :
             }
         }
 
+        it("관리자도 소유자 정책을 일반 역할처럼 부여하거나 변경할 수 없다") {
+            val actor = ManageRoleContext(
+                TeamMember(team = team, userId = 20L),
+                listOf(policyRole(mapOf("administrator" to true))),
+            )
+            val owner = role(Int.MAX_VALUE, mapOf("administrator" to true, "transfer_team_ownership" to true))
+            shouldThrow<ExpectedException> { guard.requireCustomRole(owner) }
+            shouldThrow<ExpectedException> { guard.requireManageablePriority(actor, owner) }
+            shouldThrow<ExpectedException> { guard.requireGrantablePermissions(actor, owner.permissions) }
+            shouldThrow<ExpectedException> { guard.requireManageablePriority(actor, role(Int.MAX_VALUE)) }
+        }
+
         describe("TeamRoleAccessGuard 클래스의 requireManageablePriority 메서드는") {
             context("커스텀 역할 관리자가 자신의 최상위 역할과 같거나 높은 역할을 관리하면") {
                 it("FORBIDDEN으로 거부한다") {
@@ -81,7 +94,12 @@ class TeamRoleAccessGuardTest :
                 it("우선순위 제한 없이 허용한다") {
                     val actor = ManageRoleContext(
                         TeamMember(team = team, userId = 10L, role = TeamRole.OWNER),
-                        emptyList(),
+                        listOf(
+                            policyRole(
+                                mapOf("administrator" to true, "transfer_team_ownership" to true),
+                                Int.MAX_VALUE,
+                            ),
+                        ),
                     )
 
                     guard.requireManageablePriority(actor, role(priority = 100))

@@ -6,29 +6,28 @@ import {
 	Inject as inject,
 } from '@nestjs/common';
 import {RedisRateLimiter, type WeightedReservation} from '../../common/util/redis-rate-limiter.js';
-import {TeamMemberProjectionRepository, TeamSettingProjectionRepository} from '../repository/index.js';
+import {TeamMemberProjectionRepository, TeamRoleProjectionRepository, TeamSettingProjectionRepository} from '../repository/index.js';
 import {type Nullable} from '../../common/type/nullable.js';
 import {parseMentions} from '../util/index.js';
 
 export const MAX_MENTIONS_PER_MESSAGE = 10;
 export const MAX_MENTIONS_PER_WINDOW = 20;
 export const MENTION_WINDOW_MS = 60_000;
-const BYPASS_TEAM_ROLES = new Set(['OWNER', 'ADMIN']);
 
 export type TagSpamReservation = WeightedReservation;
 
 export type TagSpamDecision = 'SKIP' | 'MESSAGE_LIMIT_EXCEEDED' | 'CHECK_WINDOW';
 
 /**
-차단이 꺼졌거나 OWNER·ADMIN이면 검사하지 않는다. 멘션 수는 메시지 안에서 중복을 뺀 사용자 수다.
+차단이 꺼졌거나 관리자 정책이 있으면 검사하지 않는다. 멘션 수는 메시지 안에서 중복을 뺀 사용자 수다.
 */
 export function decideTagSpam(input: {
 	tagSpamBlock: boolean;
-	teamRole: string | undefined;
+	isAdministrator: boolean;
 	mentionCount: number;
 }): TagSpamDecision {
 	if (!input.tagSpamBlock || input.mentionCount === 0
-		|| (input.teamRole !== undefined && BYPASS_TEAM_ROLES.has(input.teamRole))) {
+		|| input.isAdministrator) {
 		return 'SKIP';
 	}
 
@@ -45,6 +44,9 @@ export class TagSpamService {
 
 	@inject()
 	private readonly rateLimiter!: RedisRateLimiter;
+
+	@inject()
+	private readonly roleRepository!: TeamRoleProjectionRepository;
 
 	/**
      태그 스팸 차단이 켜진 팀에서 멘션 수를 `clientMessageId`로 예약하고, 전송이 실패하면 {@link release}에 넘길 예약을 돌려준다.
@@ -69,7 +71,8 @@ export class TagSpamService {
 		}
 
 		const [member] = await this.teamMemberRepository.findByTeamIdsAndUserIds([teamId], [userId]);
-		const decision = decideTagSpam({tagSpamBlock: true, teamRole: member?.role, mentionCount});
+		const isAdministrator = member !== undefined && await this.roleRepository.hasAdministratorPolicy(teamId, userId);
+		const decision = decideTagSpam({tagSpamBlock: true, isAdministrator, mentionCount});
 		if (decision === 'SKIP') {
 			return undefined;
 		}

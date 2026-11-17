@@ -125,4 +125,14 @@ class KafkaConsumerConfig(
     @Bean
     fun githubIssueCommentStateListenerContainerFactory() =
         projectionListenerContainerFactory(streams.githubIssueCommentState)
+
+    @Bean
+    fun githubProjectStateListenerContainerFactory() = projectionListenerContainerFactory(streams.githubProjectState)
+
+    @Bean
+    fun githubProjectItemStateListenerContainerFactory() =
+        projectionListenerContainerFactory(streams.githubProjectItemState)
+
+    @Bean
+    fun githubProjectItemWriteResultListenerContainerFactory() = durableResultListenerContainerFactory()
 }

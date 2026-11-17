@@ -1,6 +1,7 @@
 ---
 paths:
   - "cowork-*/{src,internal}/**"
+  - "cowork-applet/app/**"
   - "cowork-user/src/**"
 ---
 

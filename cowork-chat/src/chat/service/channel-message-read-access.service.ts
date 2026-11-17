@@ -43,7 +43,7 @@ const policyKey = (channelId: number, roleId: number) => `${channelId}:${roleId}
  Role×channel 읽기 및 채팅 작업 권한의 단일 평가 지점.
 
  기본·개별 역할 권한을 합친 뒤 기본 역할 overwrite, 개별 역할 deny, allow 순서로 적용한다.
- 활성 팀 멤버의 built-in OWNER와 ADMIN은 허용한다.
+ 활성 팀 멤버에게 부여된 관리자 정책은 채널 제한을 우회한다.
  팀 채널 접근은 역할 권한으로 결정하고 DM만 대화 참여자를 확인한다.
  */
 @injectable()
@@ -169,19 +169,8 @@ export class ChannelMessageReadAccessService {
 		const teamMembers = await this.teamMemberRepository.findByTeamIdsAndUserIds(teamIds, userIds);
 		const teamMemberByKey = new Map(teamMembers.map(member => [teamUserKey(member.teamId, member.userId), member]));
 
-		const policyCandidates = teamRequests.filter(({request, teamId}) => {
-			const member = teamMemberByKey.get(teamUserKey(teamId, request.userId));
-			if (!member) {
-				return false;
-			}
-
-			if (member.role === 'OWNER' || member.role === 'ADMIN') {
-				result.set(accessKey(request.channelId, request.userId), true);
-				return false;
-			}
-
-			return true;
-		});
+		const policyCandidates = teamRequests.filter(({request, teamId}) =>
+			teamMemberByKey.has(teamUserKey(teamId, request.userId)));
 		if (policyCandidates.length === 0) {
 			return result;
 		}

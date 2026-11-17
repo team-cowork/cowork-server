@@ -1,6 +1,6 @@
 ---
 paths:
-  - "cowork-*/**/*.{kt,java,go,ts,cs}"
+  - "cowork-*/**/*.{kt,java,scala,go,ts,cs}"
   - "deploy/{ansible/**,nomad/**,production/**,runtime/**,tofu/**}"
 ---
 

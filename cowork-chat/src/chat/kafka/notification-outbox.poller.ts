@@ -215,7 +215,8 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
 
 		const targetUserIds = [...recipientIdSet].filter(id => id !== message.authorId);
 
-		if (message.notificationRetryCount === 0) {
+		// 채널 안읽음 수는 스레드 메시지를 세지 않으므로(`MessageRepository.countUnread`), 캐시도 올리지 않는다.
+		if (message.notificationRetryCount === 0 && (message.threadId ?? null) === null) {
 			// Stale PROCESSING 회수는 재시도 횟수를 올리지 않으므로 메시지 ID로 (메시지, 수신자)당 한 번만 반영한다.
 			await this.unreadCounterService.incrementIfPresent(message.channelId, targetUserIds, message._id.toString());
 		}

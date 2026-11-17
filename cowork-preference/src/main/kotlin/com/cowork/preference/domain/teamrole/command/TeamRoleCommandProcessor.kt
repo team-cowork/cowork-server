@@ -1,6 +1,7 @@
 package com.cowork.preference.domain.teamrole.command
 
 import com.cowork.preference.domain.access.permission.PermissionKeys
+import com.cowork.preference.domain.access.permission.RolePolicy
 import com.cowork.preference.domain.access.projection.team.model.TeamMemberProjection
 import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
 import com.cowork.preference.domain.channelrole.event.ChannelRolePolicyEvents
@@ -159,9 +160,10 @@ class TeamRoleCommandProcessor(
         val name = requireNotNull(input.name)
         val colorHex = requireNotNull(input.colorHex)
         val priority = requireNotNull(input.priority)
+        if (priority == Int.MAX_VALUE) reject("RESERVED_PRIORITY", "최상위 우선순위는 소유자 정책에 예약되어 있습니다.")
         if (name == "@everyone") reject("RESERVED_ROLE_NAME", "기본 역할 이름은 사용할 수 없습니다.")
         validateRole(name, colorHex)
-        if (!actor.builtInManager && priority >= actor.maxPriority) {
+        if (!actor.administrator && priority >= actor.maxPriority) {
             reject("FORBIDDEN", "자신의 최상위 역할보다 높거나 같은 역할은 만들 수 없습니다.")
         }
         if (roleRepository.findRoleByName(connection, command.teamId, name) != null) {
@@ -188,6 +190,7 @@ class TeamRoleCommandProcessor(
         val roleId = requireNotNull(command.roleId)
         val current = roleRepository.findRole(connection, command.teamId, roleId)
             ?: reject("ROLE_NOT_FOUND", "역할을 찾을 수 없습니다.")
+        protectOwnerPolicy(current)
         requireManageable(actor, current.priority)
         val input = requireNotNull(command.role)
         if (current.isDefault && (
@@ -203,6 +206,7 @@ class TeamRoleCommandProcessor(
         }
         val nextColor = input.colorHex ?: current.colorHex
         val nextPriority = input.priority ?: current.priority
+        if (nextPriority == Int.MAX_VALUE) reject("RESERVED_PRIORITY", "최상위 우선순위는 소유자 정책에 예약되어 있습니다.")
         validateRole(nextName, nextColor)
         requireManageable(actor, nextPriority)
         if (roleRepository.findRoleByNameExceptId(connection, command.teamId, nextName, roleId) != null) {
@@ -224,7 +228,7 @@ class TeamRoleCommandProcessor(
             input.mentionable ?: current.mentionable,
             input.permissions?.let { TeamRolePermissions.merge(current.permissions, it) } ?: current.permissions,
         )
-        val projectPermissionsChanged = PermissionKeys.PROJECT_SCOPED.any {
+        val projectPermissionsChanged = (PermissionKeys.PROJECT_SCOPED + PermissionKeys.ADMINISTRATOR).any {
             (current.permissions[it] == true) != (role.permissions[it] == true)
         }
         if (projectPermissionsChanged) {
@@ -241,6 +245,7 @@ class TeamRoleCommandProcessor(
         val roleId = requireNotNull(command.roleId)
         val role = roleRepository.findRole(connection, command.teamId, roleId)
             ?: reject("ROLE_NOT_FOUND", "역할을 찾을 수 없습니다.")
+        protectOwnerPolicy(role)
         if (role.isDefault) reject("DEFAULT_ROLE_PROTECTED", "기본 역할은 삭제하거나 직접 할당 및 해제할 수 없습니다.")
         requireManageable(actor, role.priority)
         val occurredAt = now()
@@ -315,6 +320,7 @@ class TeamRoleCommandProcessor(
         val roleId = requireNotNull(command.roleId)
         val role = roleRepository.findRole(connection, command.teamId, roleId)
             ?: reject("ROLE_NOT_FOUND", "역할을 찾을 수 없습니다.")
+        protectOwnerPolicy(role)
         if (role.isDefault) reject("DEFAULT_ROLE_PROTECTED", "기본 역할은 삭제하거나 직접 할당 및 해제할 수 없습니다.")
         requireManageable(actor, role.priority)
         requireGrantable(actor, role.permissions)
@@ -348,6 +354,7 @@ class TeamRoleCommandProcessor(
         val roleId = requireNotNull(command.roleId)
         val role = roleRepository.findRole(connection, command.teamId, roleId)
             ?: reject("ROLE_NOT_FOUND", "역할을 찾을 수 없습니다.")
+        protectOwnerPolicy(role)
         if (role.isDefault) reject("DEFAULT_ROLE_PROTECTED", "기본 역할은 삭제하거나 직접 할당 및 해제할 수 없습니다.")
         requireManageable(actor, role.priority)
         val tombstone = roleRepository.deleteAssignment(
@@ -386,14 +393,14 @@ class TeamRoleCommandProcessor(
     }
 
     private suspend fun actorContext(connection: SqlConnection, member: TeamMemberProjection): ActorContext {
-        if (member.builtInRole == "OWNER" || member.builtInRole == "ADMIN") {
-            return ActorContext(builtInManager = true, maxPriority = Int.MAX_VALUE)
-        }
         val assignments = roleRepository.findMemberRoles(connection, member.teamId)
             .filter { it.accountId == member.accountId }
         val assignedIds = assignments.mapTo(mutableSetOf()) { it.roleId }
         val roles = roleRepository.findRoles(connection, member.teamId).filter { it.isDefault || it.id in assignedIds }
-        if (roles.none { it.permissions[PermissionKeys.MANAGE_ROLES] == true }) {
+        if (roles.any { RolePolicy.allows(it.permissions, PermissionKeys.ADMINISTRATOR) }) {
+            return ActorContext(administrator = true, maxPriority = roles.maxOf { it.priority })
+        }
+        if (roles.none { RolePolicy.allows(it.permissions, PermissionKeys.MANAGE_ROLES) }) {
             reject("FORBIDDEN", "역할 관리 권한이 없습니다.")
         }
         return ActorContext(
@@ -404,13 +411,22 @@ class TeamRoleCommandProcessor(
     }
 
     private fun requireGrantable(actor: ActorContext, permissions: Map<String, Boolean>) {
-        if (!actor.builtInManager && permissions.any { (key, allowed) -> allowed && key !in actor.permissions }) {
+        if (permissions[PermissionKeys.TRANSFER_TEAM_OWNERSHIP] == true) {
+            reject("OWNER_POLICY_PROTECTED", "소유권 이양 권한은 소유자 정책에서만 부여됩니다.")
+        }
+        if (!actor.administrator && permissions.any { (key, allowed) -> allowed && key !in actor.permissions }) {
             reject("FORBIDDEN", "자신이 보유하지 않은 권한은 부여할 수 없습니다.")
         }
     }
 
+    private fun protectOwnerPolicy(role: TeamRoleDefinition) {
+        if (role.permissions[PermissionKeys.TRANSFER_TEAM_OWNERSHIP] == true) {
+            reject("OWNER_POLICY_PROTECTED", "소유자 정책은 소유권 이양으로만 변경할 수 있습니다.")
+        }
+    }
+
     private fun requireManageable(actor: ActorContext, priority: Int) {
-        if (!actor.builtInManager && priority >= actor.maxPriority) {
+        if (!actor.administrator && priority >= actor.maxPriority) {
             reject("FORBIDDEN", "자신의 최상위 역할보다 높거나 같은 역할은 관리할 수 없습니다.")
         }
     }
@@ -500,7 +516,7 @@ class TeamRoleCommandProcessor(
     private fun reject(code: String, message: String): Nothing = throw CommandRejected(code, message)
 
     private data class ActorContext(
-        val builtInManager: Boolean,
+        val administrator: Boolean,
         val maxPriority: Int,
         val permissions: Set<String> = emptySet(),
     )

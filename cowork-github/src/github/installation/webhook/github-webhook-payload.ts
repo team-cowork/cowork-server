@@ -6,6 +6,7 @@ export type GithubWebhookPayload = {
 	action?: string;
 	installation?: {id: number; account?: {login?: string}};
 	account?: {login?: string};
+	organization?: {login?: string};
 	repository?: WebhookRepository;
 	repositories_added?: WebhookRepository[];
 	repositories_removed?: WebhookRepository[];
@@ -13,6 +14,7 @@ export type GithubWebhookPayload = {
 	ref?: string;
 	pusher?: {name?: string};
 	issue?: {
+		node_id?: string;
 		number?: number;
 		title?: string;
 		html_url?: string;
@@ -24,6 +26,7 @@ export type GithubWebhookPayload = {
 		pull_request?: unknown;
 	};
 	pull_request?: {
+		node_id?: string;
 		number?: number;
 		title?: string;
 		html_url?: string;
@@ -45,6 +48,15 @@ export type GithubWebhookPayload = {
 		base?: {ref?: {from?: string}};
 		repository?: {name?: {from?: string}};
 		owner?: {from?: {user?: {login?: string}; organization?: {login?: string}}};
+		field_value?: {field_node_id?: string; field_type?: string};
+	};
+	projects_v2?: {node_id?: string; number?: number};
+	projects_v2_item?: {
+		node_id?: string;
+		project_node_id?: string;
+		content_node_id?: Nullable<string>;
+		content_type?: string;
+		updated_at?: string;
 	};
 	comment?: {
 		id?: number;

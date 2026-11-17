@@ -73,10 +73,7 @@ dependencies {
     implementation(libs.flyway.mysql)
     implementation(libs.kotlin.reflect)
 
-    implementation(libs.the.sdk) {
-        // Use the SpringDoc version selected for this module's Spring Boot version.
-        exclude(group = "org.springdoc")
-    }
+    implementation(libs.the.sdk)
     implementation(libs.springdoc.openapi.webmvc.ui)
 
     testImplementation(libs.spring.boot.starter.test)

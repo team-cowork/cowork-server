@@ -14,7 +14,7 @@ import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
 import {CHAT_MESSAGE_CONTRACT_VERSION, CHAT_MESSAGE_TOPIC} from './event/chat-message-contract.js';
 import {ChatMessageEvent} from './event/chat-message.event.js';
 
-export type MessageSendInput = Pick<SendMessageDto, 'content' | 'type' | 'parentMessageId' | 'clientMessageId'>
+export type MessageSendInput = Pick<SendMessageDto, 'content' | 'type' | 'parentMessageId' | 'threadId' | 'clientMessageId'>
 	& MessageScope & {attachments?: ConfirmedAttachment[]};
 
 /**
@@ -132,6 +132,7 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
 			type: dto.type ?? 'TEXT',
 			attachments: dto.attachments,
 			parentMessageId: dto.parentMessageId,
+			threadId: dto.threadId,
 			clientMessageId: dto.clientMessageId,
 			occurredAt: new Date().toISOString(),
 		};

@@ -29,9 +29,19 @@ export class GithubSyncCommandController {
 			return undefined;
 		}
 
-		return command.target === 'REPOSITORY'
-			? {type: 'REPOSITORY', owner: command.owner, repo: command.repo!}
-			: {type: 'ORG_REPOSITORIES', installationId: command.installationId!, owner: command.owner};
+		switch (command.target) {
+			case 'REPOSITORY': {
+				return {type: 'REPOSITORY', owner: command.owner, repo: command.repo!};
+			}
+
+			case 'PROJECT': {
+				return {type: 'PROJECT', owner: command.owner, projectNumber: command.projectNumber!};
+			}
+
+			case 'ORG_REPOSITORIES': {
+				return {type: 'ORG_REPOSITORIES', installationId: command.installationId!, owner: command.owner};
+			}
+		}
 	}
 
 	private async commitOffset(context: KafkaContext): Promise<void> {

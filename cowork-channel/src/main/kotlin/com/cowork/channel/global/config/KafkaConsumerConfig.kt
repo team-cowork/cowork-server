@@ -1,5 +1,6 @@
 package com.cowork.channel.global.config
 
+import com.cowork.channel.domain.thread.event.ThreadParentContract
 import com.cowork.channel.global.consumer.Topics
 import com.cowork.channel.global.projection.ProjectionAssignmentCoordinator
 import com.cowork.channel.global.projection.ProjectionCheckpointStore
@@ -94,26 +95,45 @@ class KafkaConsumerConfig(
                 ChannelRolePolicyCommandResultErrorHandler.create(channelRolePolicyResultDltKafkaTemplate),
             )
         }
+
+    @Bean
+    fun threadParentResultListenerContainerFactory() = ConcurrentKafkaListenerContainerFactory<String, String>().apply {
+        setConsumerFactory(consumerFactory())
+        setCommonErrorHandler(
+            ChannelRolePolicyCommandResultErrorHandler.create(
+                channelRolePolicyResultDltKafkaTemplate,
+                ThreadParentContract.RESULT_TOPIC,
+                ThreadParentContract.RESULT_DLT_TOPIC,
+            ),
+        )
+    }
 }
 
 internal object ChannelRolePolicyCommandResultErrorHandler {
-    fun create(kafkaTemplate: KafkaTemplate<String, String>): DefaultErrorHandler = DefaultErrorHandler(
-        deadLetterRecoverer(kafkaTemplate),
+    fun create(
+        kafkaTemplate: KafkaTemplate<String, String>,
+        sourceTopic: String = Topics.CHANNEL_ROLE_POLICY_COMMAND_RESULT,
+        dltTopic: String = Topics.CHANNEL_ROLE_POLICY_COMMAND_RESULT_DLT,
+    ): DefaultErrorHandler = DefaultErrorHandler(
+        deadLetterRecoverer(kafkaTemplate, sourceTopic, dltTopic),
         KafkaConsumerRetryPolicy.commandResultBackOff(),
     ).apply {
         addNotRetryableExceptions(IllegalArgumentException::class.java)
     }
 
-    fun deadLetterRecoverer(kafkaTemplate: KafkaTemplate<String, String>): DeadLetterPublishingRecoverer =
-        DeadLetterPublishingRecoverer(kafkaTemplate) { record, _ ->
-            require(record.topic() == Topics.CHANNEL_ROLE_POLICY_COMMAND_RESULT) {
-                "channel role policy result DLT recoverer가 예상하지 않은 topic을 수신했습니다."
-            }
-            TopicPartition(Topics.CHANNEL_ROLE_POLICY_COMMAND_RESULT_DLT, record.partition())
-        }.apply {
-            setFailIfSendResultIsError(true)
-            setExceptionHeadersCreator(SafeExceptionHeadersCreator)
+    fun deadLetterRecoverer(
+        kafkaTemplate: KafkaTemplate<String, String>,
+        sourceTopic: String = Topics.CHANNEL_ROLE_POLICY_COMMAND_RESULT,
+        dltTopic: String = Topics.CHANNEL_ROLE_POLICY_COMMAND_RESULT_DLT,
+    ): DeadLetterPublishingRecoverer = DeadLetterPublishingRecoverer(kafkaTemplate) { record, _ ->
+        require(record.topic() == sourceTopic) {
+            "command result DLT recoverer가 예상하지 않은 topic을 수신했습니다."
         }
+        TopicPartition(dltTopic, record.partition())
+    }.apply {
+        setFailIfSendResultIsError(true)
+        setExceptionHeadersCreator(SafeExceptionHeadersCreator)
+    }
 
     private object SafeExceptionHeadersCreator : DeadLetterPublishingRecoverer.ExceptionHeadersCreator {
         override fun create(
