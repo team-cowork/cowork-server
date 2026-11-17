@@ -81,11 +81,14 @@ class JwtAuthenticationSupportTest :
 
                 context("만료 시각이 있는 토큰이 주어진 경우") {
                     it("검증된 만료 시각을 쿠키 수명 계산에 전달한다") {
+                        // Given
                         val expiresAt = Instant.now().plusSeconds(600).epochSecond
                         val token = tokenFor(subject = "42", expiration = Date.from(Instant.ofEpochSecond(expiresAt)))
 
+                        // When
                         val details = support.parse(token).details as Map<*, *>
 
+                        // Then
                         details["expiresAt"] shouldBe expiresAt.toString()
                     }
                 }
