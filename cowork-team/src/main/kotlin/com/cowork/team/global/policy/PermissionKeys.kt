@@ -3,7 +3,6 @@ package com.cowork.team.global.policy
 object PermissionKeys {
 
     const val ADMINISTRATOR = "administrator"
-    const val CREATE_TEAM = "create_team"
     const val DELETE_TEAM = "delete_team"
     const val TRANSFER_TEAM_OWNERSHIP = "transfer_team_ownership"
 
@@ -38,7 +37,6 @@ object PermissionKeys {
 
     val TEAM_SCOPED: Set<String> = linkedSetOf(
         ADMINISTRATOR,
-        CREATE_TEAM,
         DELETE_TEAM,
         TRANSFER_TEAM_OWNERSHIP,
         MANAGE_TEAM,

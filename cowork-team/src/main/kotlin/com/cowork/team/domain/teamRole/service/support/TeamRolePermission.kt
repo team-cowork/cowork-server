@@ -3,7 +3,6 @@ package com.cowork.team.domain.teamRole.service.support
 /** 역할 명령에 사용하는 권한 키 계약. 화면용 제목과 설명은 Preference의 역할 권한 카탈로그에서 제공한다. */
 enum class TeamRolePermission(val key: String) {
     ADMINISTRATOR("administrator"),
-    CREATE_TEAM("create_team"),
     DELETE_TEAM("delete_team"),
     TRANSFER_TEAM_OWNERSHIP("transfer_team_ownership"),
     MANAGE_TEAM("manage_team"),
