@@ -296,7 +296,7 @@ public sealed class UpdateProfileRequest
     [Description("생략하면 기존 역할을 유지하고 빈 배열이면 역할을 모두 해제합니다.")]
     public IReadOnlyList<string> Roles { get; init; } = [];
 
-    [Description("프로필 배경 색상 프리셋 키입니다. 생략하면 기존 값을 유지하고 null이면 기본 배경으로 되돌립니다. 그 밖의 값은 400을 반환합니다.")]
+    [Description("프로필 배경 색상 프리셋 키입니다. 생략하면 기존 값을 유지하고 null이면 기본 배경으로 되돌립니다.")]
     [AllowedValues("RED", "BLUE", "GREEN", "AMBER", "PURPLE", "NEUTRAL"), Example("BLUE")]
     public string? BannerColor { get; init; }
 }
