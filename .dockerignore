@@ -8,6 +8,7 @@ build
 **/build
 dist
 **/dist
+# TODO(2026-11-17T02:31:33Z): Remove this entry when cowork-promotion is removed.
 cowork-promotion/public
 .env
 **/*.env

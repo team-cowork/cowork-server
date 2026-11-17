@@ -171,6 +171,8 @@ PY
       --coverageThreshold='{}' "${coverage_args[@]}"
     cp "$output_dir/coverage-summary.json" "$output_dir/report.json"
     ;;
+  # TODO(2026-11-17T02:31:33Z): Remove the node runner, including its usage and runner check entries,
+  # when cowork-promotion is removed. Promotion is its only user.
   node)
     npm ci --no-audit --no-fund
     coverage_temp=$(mktemp -d "${TMPDIR:-/tmp}/cowork-c8.XXXXXX")
