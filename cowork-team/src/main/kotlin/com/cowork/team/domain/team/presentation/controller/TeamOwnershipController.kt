@@ -22,7 +22,7 @@ class TeamOwnershipController(private val transfer: TransferTeamOwnershipService
     @PutMapping("/teams/{teamId}/ownership")
     @Operation(
         summary = "팀 소유권 이양",
-        description = "현재 소유자의 transfer_team_ownership 정책이 필요합니다. 대상은 현재 팀 멤버여야 합니다.",
+        description = "현재 소유자의 transfer_team_ownership 권한 필요",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
