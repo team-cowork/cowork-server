@@ -12,7 +12,8 @@ import io.vertx.sqlclient.Tuple
 class ProjectRoleRepository(private val pool: Pool) {
     suspend fun effectivePermissions(projectId: Long, accountId: Long, client: SqlClient = pool): ProjectPermissions {
         val rows = client.preparedQuery(
-            "SELECT a.can_read, a.can_write, a.can_manage, a.can_reorder, a.can_channel_archive " +
+            "SELECT a.can_read, a.can_write, a.can_manage, a.can_reorder, a.can_channel_archive, " +
+                "a.can_board_read, a.can_board_write " +
                 "FROM tb_project_access_states a " +
                 "JOIN tb_project_lifecycle_projections p ON p.project_id = a.project_id AND NOT p.deleted " +
                 "JOIN tb_team_member_projections m ON m.team_id = p.team_id AND m.account_id = a.account_id " +
@@ -23,12 +24,15 @@ class ProjectRoleRepository(private val pool: Pool) {
         ).execute(Tuple.of(projectId, accountId)).coAwait()
         val row = rows.firstOrNull() ?: return ProjectPermissions()
         val read = row.getBoolean("can_read")
+        val boardRead = read && row.getBoolean("can_board_read")
         return ProjectPermissions(
             read,
             read && row.getBoolean("can_write"),
             read && row.getBoolean("can_manage"),
             read && row.getBoolean("can_reorder"),
             read && row.getBoolean("can_channel_archive"),
+            boardRead,
+            boardRead && row.getBoolean("can_board_write"),
         )
     }
 

@@ -1296,7 +1296,9 @@
           "write": {"type": "boolean", "description": "프로젝트 작업"},
           "manage": {"type": "boolean", "description": "프로젝트 설정 관리"},
           "reorder": {"type": "boolean", "description": "프로젝트 순서 변경"},
-          "channel_archive": {"type": "boolean", "description": "프로젝트 채널 보관과 복원"}
+          "channel_archive": {"type": "boolean", "description": "프로젝트 채널 보관과 복원"},
+          "board_read": {"type": "boolean", "description": "연결된 GitHub Project 보드 보기"},
+          "board_write": {"type": "boolean", "description": "연결된 GitHub Project 보드의 카드 이동. board_read가 허용되어야 사용할 수 있습니다."}
         },
         "example": {"read": true, "write": false}
       },

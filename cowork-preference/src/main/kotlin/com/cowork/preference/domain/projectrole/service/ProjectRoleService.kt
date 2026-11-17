@@ -35,7 +35,7 @@ class ProjectRoleService(
                     permissions.getValue(it) is Boolean
             },
         ) {
-            "Project permissions must use read, write, manage, reorder or channel_archive boolean values"
+            "Project permissions must use read, write, manage, reorder, channel_archive, board_read or board_write boolean values"
         }
         val canonical = permissions.copy()
         outbox.inTransaction { client ->
