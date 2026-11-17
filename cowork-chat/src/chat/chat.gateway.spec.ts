@@ -60,6 +60,10 @@ const mockChannelEventConsumer = {
 	setSocketServer: jest.fn(),
 };
 
+const mockThreadStateConsumer = {
+	setSocketServer: jest.fn(),
+};
+
 const mockProjectEventConsumer = {
 	setSocketServer: jest.fn(),
 };
@@ -100,6 +104,7 @@ describe('ChatGateway', () => {
 			githubRepoEventConsumer: mockGithubRepoEventConsumer,
 			voiceEventConsumer: mockVoiceEventConsumer,
 			channelEventConsumer: mockChannelEventConsumer,
+			threadStateConsumer: mockThreadStateConsumer,
 			projectEventConsumer: mockProjectEventConsumer,
 			dmParticipantConsumer: mockDmParticipantConsumer,
 			teamRoleEventConsumer: mockTeamRoleEventConsumer,

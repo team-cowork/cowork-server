@@ -28,6 +28,13 @@ export const PROJECTION_STREAMS = {
 		expectedSource: 'cowork-channel',
 		sourceGeneration: sourceGeneration('MEETING_NOTE_ATTACHMENT'),
 	},
+	thread: {
+		name: 'thread',
+		topic: 'channel.thread.state.v1',
+		groupId: 'cowork-chat-thread-state-v1-projection',
+		expectedSource: 'cowork-channel',
+		sourceGeneration: sourceGeneration('THREAD'),
+	},
 	channel: {
 		name: 'channel',
 		topic: 'channel.event.v2',

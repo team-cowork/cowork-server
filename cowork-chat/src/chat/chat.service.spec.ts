@@ -167,6 +167,14 @@ const mockChannelReadService = {
 	advance: jest.fn(),
 };
 
+const mockThreadProjectionRepository = {
+	findActive: jest.fn(),
+};
+
+const mockProjectionReadiness = {
+	areReady: jest.fn(),
+};
+
 describe('ChatService', () => {
 	let service: ChatService;
 
@@ -193,8 +201,11 @@ describe('ChatService', () => {
 			slowmodeService: mockSlowmodeService,
 			tagSpamService: mockTagSpamService,
 			channelReadService: mockChannelReadService,
+			threadProjectionRepository: mockThreadProjectionRepository,
+			projectionReadiness: mockProjectionReadiness,
 		});
 		jest.clearAllMocks();
+		mockProjectionReadiness.areReady.mockReturnValue(true);
 		mockTeamMemberRepository.exists.mockResolvedValue(true);
 		mockReadStateRepository.findForChannels.mockImplementation(async (ids: number[]) =>
 			ids.map(channelId => ({channelId, lastReadMessageId: null})));
@@ -447,38 +458,80 @@ describe('ChatService', () => {
 			expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
 		});
 
-		it('메시지 작성 권한이 있어도 답글 권한이 없으면 답장을 발행하지 않는다', async () => {
-			mockChannelMessageReadAccess.requirePermissions.mockRejectedValueOnce(new ForbiddenException());
-
-			await expect(service.sendMessage(ctx, {content: 'hi', parentMessageId: mockMessageId}))
-				.rejects.toThrow(ForbiddenException);
-
-			expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledWith(1, 42, ['thread_reply']);
-			expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
-		});
-
-		it('부모 채널 메시지 작성이 거부되어도 thread_reply로 답장할 수 있다', async () => {
-			mockChannelMessageReadAccess.requirePermissions.mockImplementation(async (_channelId, _userId, permissions: string[]) => {
-				if (permissions.includes('message_send')) {
-					throw new ForbiddenException();
-				}
-			});
-
-			mockDmParticipantRepository.findMembership.mockResolvedValue({teamId: 100, channelType: 'TEXT'});
+		it('답장은 message_send 권한으로 검사한다', async () => {
 			mockMessageRepository.findByIdAndChannelId.mockResolvedValue(makeMockMessage());
 
 			await service.sendMessage(ctx, {content: 'hi', parentMessageId: mockMessageId});
 
 			expect(mockMessageRepository.findByIdAndChannelId).toHaveBeenCalledWith(mockMessageId, 1);
-			expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledWith(1, 42, ['thread_reply']);
+			expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledWith(1, 42, ['message_send']);
 			expect(mockChatMessageProducer.sendMessage).toHaveBeenCalled();
 		});
 
-		it('첨부 답글의 모든 권한을 한 번에 검사한다', async () => {
-			mockMessageRepository.findByIdAndChannelId.mockResolvedValue(makeMockMessage());
+		it('스레드 메시지는 thread_reply 권한으로 검사하고 threadId를 담아 발행한다', async () => {
+			mockThreadProjectionRepository.findActive.mockResolvedValue({
+				channelId: 1, status: 'ACTIVE', archived: false, deleted: false,
+			});
+
+			await service.sendMessage(ctx, {content: 'hi', threadId: 7});
+
+			expect(mockThreadProjectionRepository.findActive).toHaveBeenCalledWith(7);
+			expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledWith(1, 42, ['thread_reply']);
+			expect(mockChatMessageProducer.sendMessage).toHaveBeenCalledWith(1, expect.objectContaining({threadId: 7}), ctx.userId, ctx.userRole);
+		});
+
+		it('thread_reply 권한이 없으면 스레드 메시지를 발행하지 않는다', async () => {
+			mockChannelMessageReadAccess.requirePermissions.mockRejectedValueOnce(new ForbiddenException());
+
+			await expect(service.sendMessage(ctx, {content: 'hi', threadId: 7})).rejects.toThrow(ForbiddenException);
+
+			expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledWith(1, 42, ['thread_reply']);
+			expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
+		});
+
+		it('다른 채널의 스레드로는 메시지를 발행하지 않는다', async () => {
+			mockThreadProjectionRepository.findActive.mockResolvedValue({
+				channelId: 2, status: 'ACTIVE', archived: false, deleted: false,
+			});
+
+			await expect(service.sendMessage(ctx, {content: 'hi', threadId: 7})).rejects.toThrow(NotFoundException);
+			expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
+		});
+
+		it('보관된 스레드로는 메시지를 발행하지 않는다', async () => {
+			mockThreadProjectionRepository.findActive.mockResolvedValue({
+				channelId: 1, status: 'ACTIVE', archived: true, deleted: false,
+			});
+
+			await expect(service.sendMessage(ctx, {content: 'hi', threadId: 7})).rejects.toThrow(ConflictException);
+			expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
+		});
+
+		it('스레드 projection이 준비되지 않았으면 스레드 메시지를 503으로 거부한다', async () => {
+			mockProjectionReadiness.areReady.mockReturnValue(false);
+
+			await expect(service.sendMessage(ctx, {content: 'hi', threadId: 7})).rejects.toThrow(ServiceUnavailableException);
+			expect(mockThreadProjectionRepository.findActive).not.toHaveBeenCalled();
+		});
+
+		it('다른 스레드의 메시지에는 답장할 수 없다', async () => {
+			mockMessageRepository.findByIdAndChannelId.mockResolvedValue(makeMockMessage({threadId: 8}));
+			mockThreadProjectionRepository.findActive.mockResolvedValue({
+				channelId: 1, status: 'ACTIVE', archived: false, deleted: false,
+			});
+
+			await expect(service.sendMessage(ctx, {content: 'hi', threadId: 7, parentMessageId: mockMessageId}))
+				.rejects.toThrow(BadRequestException);
+			expect(mockChatMessageProducer.sendMessage).not.toHaveBeenCalled();
+		});
+
+		it('첨부 스레드 메시지의 모든 권한을 한 번에 검사한다', async () => {
+			mockThreadProjectionRepository.findActive.mockResolvedValue({
+				channelId: 1, status: 'ACTIVE', archived: false, deleted: false,
+			});
 
 			await service.sendMessage(ctx, {
-				content: 'hi', parentMessageId: mockMessageId,
+				content: 'hi', threadId: 7,
 				attachments: [{objectKey: 'chat-files/1/42/uuid.png'}], clientMessageId: 'file-reply',
 			});
 
@@ -761,7 +814,7 @@ describe('ChatService', () => {
 			mockMessageRepository.findMessagesAround.mockResolvedValue([]);
 
 			await expect(service.getMessages({channelId: 1, userId: 42}, {around})).resolves.toEqual([]);
-			expect(mockMessageRepository.findMessagesAround).toHaveBeenCalledWith(1, around, undefined);
+			expect(mockMessageRepository.findMessagesAround).toHaveBeenCalledWith(1, around, {parentMessageId: undefined, threadId: undefined});
 		});
 
 		it('after 커서를 저장소로 전달한다', async () => {
@@ -769,7 +822,15 @@ describe('ChatService', () => {
 			mockMessageRepository.findMessages.mockResolvedValue([]);
 
 			await service.getMessages({channelId: 1, userId: 42}, {after});
-			expect(mockMessageRepository.findMessages).toHaveBeenCalledWith(1, undefined, undefined, after);
+			expect(mockMessageRepository.findMessages).toHaveBeenCalledWith(1, undefined, {parentMessageId: undefined, threadId: undefined}, after);
+		});
+
+		it('threadId를 저장소 조회 조건으로 전달한다', async () => {
+			mockMessageRepository.findMessages.mockResolvedValue([]);
+
+			await service.getMessages({channelId: 1, userId: 42}, {threadId: 7});
+
+			expect(mockMessageRepository.findMessages).toHaveBeenCalledWith(1, undefined, {parentMessageId: undefined, threadId: 7}, undefined);
 		});
 	});
 
