@@ -1,6 +1,7 @@
 package com.cowork.preference.global.messaging.event
 
 object PreferenceTopics {
+    const val ACCOUNT_ROLE_TOPIC = "preference.account-role.state.v1"
     const val CHANNEL_NOTIFICATION_TOPIC = "preference.channel-notification.changed"
     const val PROJECT_ACCESS_STATE_TOPIC = "preference.project-access.state.v1"
     const val TEAM_ROLE_TOPIC = "preference.team-role.state.v2"
@@ -19,6 +20,7 @@ object PreferenceTopics {
     const val WEBHOOK_STATE_TOPIC = "preference.webhook.state.v2"
     const val VOICE_CHANNEL_SETTING_STATE_TOPIC = "preference.voice-channel-setting.state.v1"
     val OUTBOX_TOPICS = setOf(
+        ACCOUNT_ROLE_TOPIC,
         PROJECT_ACCESS_STATE_TOPIC,
         CHANNEL_NOTIFICATION_TOPIC,
         TEAM_ROLE_TOPIC,

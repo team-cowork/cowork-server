@@ -34,8 +34,8 @@ interface ProjectRepository :
     @Query(
         "SELECT p FROM Project p JOIN TeamMembership m ON m.teamId = p.teamId " +
             "WHERE p.teamId = :teamId AND m.userId = :userId AND m.active = true " +
-            "AND (m.role IN ('OWNER', 'ADMIN') OR EXISTS (" +
-            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = :userId AND a.canRead = true AND a.sourceAuthorizationVersion = m.authorizationVersion))",
+            "AND EXISTS (" +
+            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = :userId AND a.canRead = true AND a.sourceAuthorizationVersion = m.authorizationVersion)",
     )
     fun findReadableByTeamId(
         @Param("teamId") teamId: Long,
@@ -46,16 +46,16 @@ interface ProjectRepository :
     @Query(
         "SELECT COUNT(m) FROM Project p JOIN TeamMembership m ON m.teamId = p.teamId " +
             "WHERE p.id = :projectId AND m.active = true " +
-            "AND (m.role IN ('OWNER', 'ADMIN') OR EXISTS (" +
-            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = m.userId AND a.canRead = true AND a.sourceAuthorizationVersion = m.authorizationVersion))",
+            "AND EXISTS (" +
+            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = m.userId AND a.canRead = true AND a.sourceAuthorizationVersion = m.authorizationVersion)",
     )
     fun countReadableUsers(@Param("projectId") projectId: Long): Long
 
     @Query(
         "SELECT p FROM Project p JOIN TeamMembership m ON m.teamId = p.teamId " +
             "WHERE m.userId = :userId AND m.active = true " +
-            "AND (m.role IN ('OWNER', 'ADMIN') OR EXISTS (" +
-            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = :userId AND a.canRead = true AND a.sourceAuthorizationVersion = m.authorizationVersion))",
+            "AND EXISTS (" +
+            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = :userId AND a.canRead = true AND a.sourceAuthorizationVersion = m.authorizationVersion)",
     )
     fun findReadableByUserId(@Param("userId") userId: Long, pageable: Pageable): Page<Project>
 }

@@ -36,7 +36,7 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "팀 역할", description = "팀 역할과 역할별 권한을 관리합니다.")
+@Tag(name = "팀 역할")
 @ApiResponses(
     ApiResponse(
         responseCode = "429",
@@ -570,7 +570,7 @@ class TeamRoleController(
 
     @Operation(
         summary = "팀 역할 비동기 작업 상태 조회",
-        description = "검증에 실패하면 상태는 FAILED입니다. errorCode와 errorMessage에서 원인을 확인할 수 있습니다.",
+        description = "검증 실패 시 FAILED 상태와 errorCode, errorMessage 반환",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(

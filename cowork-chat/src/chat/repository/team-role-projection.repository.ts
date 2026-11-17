@@ -54,6 +54,16 @@ export class TeamRoleProjectionRepository {
 		return typeof value === 'bigint' ? value : value.toBigInt();
 	}
 
+	async hasAdministratorPolicy(teamId: number, accountId: number): Promise<boolean> {
+		const [assignments, defaults] = await Promise.all([
+			this.findAssignmentsByTeamIdsAndAccountIds([teamId], [accountId]),
+			this.findDefaultRolesByTeamIds([teamId]),
+		]);
+		const roles = await this.findRolePermissionsByIds(assignments.map(({roleId}) => roleId));
+		return [...defaults, ...roles].some(role => role.teamId === teamId
+			&& role.permissions?.administrator === true);
+	}
+
 	async upsertRole(input: ProjectionVersion & {
 		teamId: number;
 		roleId: number;

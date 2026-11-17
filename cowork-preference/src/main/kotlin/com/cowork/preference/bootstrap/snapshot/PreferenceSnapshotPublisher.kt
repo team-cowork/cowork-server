@@ -1,5 +1,6 @@
 package com.cowork.preference.bootstrap.snapshot
 
+import com.cowork.preference.domain.accountrole.AccountRoleRepository
 import com.cowork.preference.domain.channelrole.event.ChannelRolePolicyEvents
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.notification.event.NotificationEvents
@@ -40,7 +41,16 @@ class PreferenceSnapshotPublisher(
     private val channelRolePolicyReadiness: ProjectionReadinessView,
     private val webhookRepository: WebhookRepository? = null,
     private val webhookReadiness: ProjectionReadinessView? = null,
+    private val accountRoles: AccountRoleRepository? = null,
 ) {
+
+    suspend fun publishAccountRolesIfLeader(): Boolean {
+        val repository = accountRoles ?: return false
+        return publishIfLeader("account role", setOf(PreferenceTopics.ACCOUNT_ROLE_TOPIC), null) { connection ->
+            outboxRepository.inTransaction(connection) { repository.publishSnapshot(it) }
+            "account role policies"
+        }
+    }
 
     /** team.member.event만 변경할 수 있는 aggregate이므로 채널 projection readiness를 기다리지 않는다. */
     suspend fun publishTeamStateIfLeader(): Boolean = publishIfLeader(

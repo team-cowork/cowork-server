@@ -7,6 +7,7 @@ import io.vertx.ext.web.RoutingContext
  * `X-User-Id`는 양수 Long으로 파싱되어야 하고 `X-User-Role`은 `ADMIN` 또는 `MEMBER`만 허용한다.
  */
 data class RequesterContext(val userId: Long, val role: String) {
+    // TODO(2026-11-17T06:59:44Z): Remove isGlobalAdmin after the one-time account policy migration is retired.
     val isGlobalAdmin: Boolean get() = role == GLOBAL_ADMIN_ROLE
 
     companion object {

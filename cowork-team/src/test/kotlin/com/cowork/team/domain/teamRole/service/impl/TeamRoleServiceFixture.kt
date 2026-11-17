@@ -40,6 +40,16 @@ class TeamRoleServiceFixture {
     }
 
     fun givenOwner() {
+        every { roleReader.getMemberRoles(TEAM_ID, OWNER_ID) } returns
+            listOf(
+                role(
+                    priority = Int.MAX_VALUE,
+                    permissions = mapOf(
+                        "administrator" to true,
+                        "transfer_team_ownership" to true,
+                    ),
+                ),
+            )
         every { memberRepository.findByTeamIdAndUserId(TEAM_ID, OWNER_ID) } returns
             TeamMember(team = team, userId = OWNER_ID, role = TeamRole.OWNER)
     }

@@ -15,18 +15,17 @@ const (
 	workerBatchSize      = 100
 	staleInProgressAfter = 2 * time.Minute
 	// attemptConcurrency bounds how many claimed rows Worker.tick sends to FCM at
-	// once. Attempting workerBatchSize rows one at a time is what let a slow FCM
-	// response push the tail of a batch past staleInProgressAfter, at which point
-	// another replica's ReclaimStale reverts a row this worker was still holding and
-	// a later ClaimDue can pick it up a second time. Fanning attempts out keeps the
-	// whole claimed batch's wall-clock time well under that threshold.
+	// once. Attempting workerBatchSize rows one at a time would let a slow FCM
+	// response keep the tail of a batch IN_PROGRESS past staleInProgressAfter and
+	// stretch one tick far past workerInterval. Fanning attempts out keeps the whole
+	// claimed batch's wall-clock time well under that threshold.
 	attemptConcurrency = 20
 
 	// fcmSendTimeout bounds a single Send call. The Firebase Admin SDK's default HTTP
 	// client retries 503s and network errors up to 4 times, honoring Retry-After for as
 	// long as 2 minutes, so an unbounded ctx lets one attempt approach
-	// staleInProgressAfter on its own — another replica's ReclaimStale would then revert
-	// a row this worker still holds, and a later ClaimDue could send it again.
+	// staleInProgressAfter on its own and block the whole tick, because tick waits for
+	// every attempt in its batch before the next ReclaimStale and ClaimDue.
 	fcmSendTimeout = 30 * time.Second
 	// finalizeTimeout bounds the detached context used to record an FCM result that has
 	// already happened. It must survive ctx (the Kafka consumer's lease) being cancelled

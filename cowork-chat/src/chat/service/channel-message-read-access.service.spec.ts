@@ -91,6 +91,8 @@ describe('ChannelMessageReadAccessService', () => {
 			},
 		]);
 		teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds.mockResolvedValue([
+			{teamId: 1, accountId: 1, roleId: 900},
+			{teamId: 1, accountId: 7, roleId: 900},
 			{teamId: 1, accountId: 2, roleId: 101},
 			{teamId: 1, accountId: 2, roleId: 102},
 			{teamId: 1, accountId: 3, roleId: 201},
@@ -100,6 +102,9 @@ describe('ChannelMessageReadAccessService', () => {
 			{teamId: 1, accountId: 6, roleId: 302},
 		]);
 		teamRoleRepository.findRolesByIds.mockResolvedValue([
+			{
+				teamId: 1, roleId: 900, priority: 1000, permissions: {administrator: true},
+			},
 			{teamId: 1, roleId: 101, priority: 100},
 			{teamId: 1, roleId: 102, priority: 10},
 			{teamId: 1, roleId: 201, priority: 50},
@@ -200,8 +205,9 @@ describe('ChannelMessageReadAccessService', () => {
 			}));
 		});
 
-		it('gives active built-in ADMIN access without allowing stale roles to bypass membership', async () => {
-			teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 1, userId: 4, role: 'ADMIN'}]);
+		it('requires active membership even with administrator policy', async () => {
+			teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([{teamId: 1, userId: 4, role: 'MEMBER'}]);
+			teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds.mockResolvedValue([{teamId: 1, accountId: 4, roleId: 900}]);
 			await expect(service.requirePermission(20, 4, 'message_manage')).resolves.toBeUndefined();
 			teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue([]);
 			await expect(service.requirePermission(20, 4, 'message_manage')).rejects.toThrow(ForbiddenException);
@@ -231,11 +237,11 @@ describe('ChannelMessageReadAccessService', () => {
 			await expect(service.canReadChannel(10, 6)).resolves.toBe(true);
 		});
 
-		it('built-in OWNER는 role policy 없이 공개 채널을 읽을 수 있다', async () => {
+		it('관리자 정책으로 공개 채널을 읽을 수 있다', async () => {
 			await expect(service.canReadChannel(10, 1)).resolves.toBe(true);
 		});
 
-		it('OWNER는 별도 채널 등록 없이 메시지를 읽는다', async () => {
+		it('관리자 정책으로 별도 채널 등록 없이 메시지를 읽는다', async () => {
 			await expect(service.canReadChannel(10, 7)).resolves.toBe(true);
 			await expect(service.filterVisibleChannelIds(7, [10])).resolves.toEqual([10]);
 		});
