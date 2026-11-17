@@ -95,6 +95,8 @@ class SecurityConfig(
             .authorizeExchange { exchanges ->
                 exchanges
                     .pathMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                    // 만료된 세션도 브라우저의 WebSocket 쿠키를 지울 수 있어야 한다.
+                    .pathMatchers(HttpMethod.DELETE, "/api/auth/ws-cookie").permitAll()
                     .pathMatchers(
                         HttpMethod.POST,
                         "/api/authorization/auth/authorize",
