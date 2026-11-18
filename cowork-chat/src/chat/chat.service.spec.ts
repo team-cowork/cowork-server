@@ -203,6 +203,7 @@ describe('ChatService', () => {
 			channelReadService: mockChannelReadService,
 			threadProjectionRepository: mockThreadProjectionRepository,
 			projectionReadiness: mockProjectionReadiness,
+			// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
 			latencyMetrics: {record: jest.fn()},
 		});
 		jest.clearAllMocks();
