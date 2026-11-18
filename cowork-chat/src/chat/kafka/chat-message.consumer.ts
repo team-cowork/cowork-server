@@ -13,6 +13,7 @@ import {ChatMessageQuarantineService} from '../service/index.js';
 import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
 import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {waitForProjectionReadiness} from '../../common/kafka/projection-readiness-wait.js';
+import {CHANNEL_PERMISSION_STREAMS, type ProjectionName} from '../../common/kafka/projection-streams.js';
 import {type Nullable} from '../../common/type/nullable.js';
 import {
 	ChatMessageContractError,
@@ -29,6 +30,11 @@ import {ChatMessageProcessor} from './chat-message.processor.js';
  실제 파티션 수보다 큰 값을 주면 KafkaJS가 초과분을 사용하지 않으므로 상한으로 안전하게 둔다.
  */
 const DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY = 3;
+
+/**
+ 메시지 처리에 필요한 projection. 전송 판정에는 채널 권한 stream이, 범위 재검증에는 `channel`과 `thread`가 필요하다.
+ */
+const CHAT_MESSAGE_REQUIRED_STREAMS: readonly ProjectionName[] = [...CHANNEL_PERMISSION_STREAMS, 'thread'];
 
 /**
 Kafka `chat.message.v2` record를 검증하고, poison record만 durable quarantine한다.
@@ -131,7 +137,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 			}
 
 			const event = validateChatMessageEvent(JSON.parse(payload) as unknown, eventKey);
-			await waitForProjectionReadiness(this.projectionReadiness, heartbeat);
+			await waitForProjectionReadiness(this.projectionReadiness, heartbeat, CHAT_MESSAGE_REQUIRED_STREAMS);
 			await this.processor.process(event);
 		} catch (error) {
 			const classification = classifyPoisonError(error);
