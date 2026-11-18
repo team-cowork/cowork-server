@@ -86,21 +86,21 @@ export class PullRequestHttpController {
 	}
 
 	@httpPost('merge')
-	@apiOperation({summary: 'PR 머지', description: '이미 머지된 PR은 alreadyMerged=true를 반환합니다. 그 외에는 요청자의 쓰기 권한을 확인하고 머지합니다. 머지 후 같은 저장소의 원본 브랜치 삭제를 시도합니다.'})
+	@apiOperation({summary: 'PR 머지', description: '요청자의 쓰기 권한을 확인하고 머지합니다. 이미 머지되었거나 닫힌 PR은 409를 반환합니다. 머지 후 같은 저장소의 원본 브랜치 삭제를 시도합니다.'})
 	@apiCreatedResponse({
 		description: 'PR 머지 결과',
 		schema: {
 			type: 'object',
 			required: ['alreadyMerged', 'prUrl', 'prNumber'],
 			properties: {
-				alreadyMerged: {type: 'boolean'},
+				alreadyMerged: {type: 'boolean', description: '이 API에서는 항상 false입니다. 이미 머지된 PR은 409를 반환합니다.'},
 				prUrl: {type: 'string', format: 'uri'},
 				prNumber: {type: 'integer', example: 42},
 			},
 		},
 	})
 	@apiResponse({status: 403, description: '요청자의 쓰기 권한 부족 또는 GitHub 접근 거부/요청 한도 초과', schema: internalApiErrorSchema})
-	@apiResponse({status: 409, description: '머지 불가/충돌 (GitHub 405 응답 포함)', schema: internalApiErrorSchema})
+	@apiResponse({status: 409, description: '이미 머지됨/닫힘, 머지 불가/충돌 (GitHub 405 응답 포함)', schema: internalApiErrorSchema})
 	@apiResponse({status: 413, description: '요청 본문 크기 제한 초과', schema: internalApiErrorSchema})
 	async merge(
 		@requestParameter('owner') owner: string,
@@ -109,17 +109,20 @@ export class PullRequestHttpController {
 		@requestBody() body: PullRequestActionRequestDto,
 	) {
 		return this.handle(async () =>
-			this.pullRequestService.mergePullRequest({
-				owner,
-				repo,
-				prNumber,
-				requesterGithubUsername: body.requesterGithubUsername,
-			}),
+			this.pullRequestService.mergePullRequest(
+				{
+					owner,
+					repo,
+					prNumber,
+					requesterGithubUsername: body.requesterGithubUsername,
+				},
+				{rejectAlreadyMerged: true},
+			),
 		);
 	}
 
 	@httpPost('approve')
-	@apiOperation({summary: 'PR 승인', description: '요청자의 저장소 쓰기 권한을 확인합니다. 자신이 작성한 PR은 승인할 수 없습니다.'})
+	@apiOperation({summary: 'PR 승인', description: '요청자의 저장소 쓰기 권한을 확인합니다. 자신이 작성한 PR은 승인할 수 없습니다. 승인은 GitHub App 설치 토큰으로 남기므로 GitHub에는 App 봇이 승인한 것으로 기록됩니다.'})
 	@apiCreatedResponse({
 		description: 'PR 승인 결과',
 		schema: {
@@ -132,6 +135,7 @@ export class PullRequestHttpController {
 		},
 	})
 	@apiResponse({status: 403, description: '본인 PR/쓰기 권한 부족 또는 GitHub 접근 거부/요청 한도 초과', schema: internalApiErrorSchema})
+	@apiResponse({status: 409, description: '닫히거나 머지된 PR', schema: internalApiErrorSchema})
 	@apiResponse({status: 413, description: '요청 본문 크기 제한 초과', schema: internalApiErrorSchema})
 	async approve(
 		@requestParameter('owner') owner: string,
@@ -141,6 +145,38 @@ export class PullRequestHttpController {
 	) {
 		return this.handle(async () =>
 			this.pullRequestService.approvePullRequest({
+				owner,
+				repo,
+				prNumber,
+				requesterGithubUsername: body.requesterGithubUsername,
+			}),
+		);
+	}
+
+	@httpPost('close')
+	@apiOperation({summary: 'PR 닫기', description: '요청자의 저장소 쓰기 권한을 확인하고 PR을 머지하지 않고 닫습니다. 이미 머지되었거나 닫힌 PR은 409를 반환합니다.'})
+	@apiCreatedResponse({
+		description: 'PR 닫기 결과',
+		schema: {
+			type: 'object',
+			required: ['prUrl', 'prNumber'],
+			properties: {
+				prUrl: {type: 'string', format: 'uri'},
+				prNumber: {type: 'integer', example: 42},
+			},
+		},
+	})
+	@apiResponse({status: 403, description: '요청자의 쓰기 권한 부족 또는 GitHub 접근 거부/요청 한도 초과', schema: internalApiErrorSchema})
+	@apiResponse({status: 409, description: '이미 머지되었거나 닫힌 PR', schema: internalApiErrorSchema})
+	@apiResponse({status: 413, description: '요청 본문 크기 제한 초과', schema: internalApiErrorSchema})
+	async close(
+		@requestParameter('owner') owner: string,
+		@requestParameter('repo') repo: string,
+		@requestParameter('number', ParseIntPipe) prNumber: number,
+		@requestBody() body: PullRequestActionRequestDto,
+	) {
+		return this.handle(async () =>
+			this.pullRequestService.closePullRequest({
 				owner,
 				repo,
 				prNumber,

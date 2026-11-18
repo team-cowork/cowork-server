@@ -55,7 +55,18 @@ export type MergePullRequestResult = {
 	prNumber: number;
 };
 
+export type MergePullRequestOptions = {
+	// The HTTP caller shows the result to the user right away, so it reports an already-merged PR as 409.
+	// The Kafka consumer keeps the idempotent result, so a redelivered message after a merge still succeeds.
+	rejectAlreadyMerged?: boolean;
+};
+
 export type ApprovePullRequestResult = {
+	prUrl: string;
+	prNumber: number;
+};
+
+export type ClosePullRequestResult = {
 	prUrl: string;
 	prNumber: number;
 };
@@ -97,6 +108,12 @@ export class PullRequestService {
 				'이 저장소에 대한 쓰기 권한이 없습니다.',
 				403,
 			);
+		}
+	}
+
+	private assertOpen(pr: PullRequestDetail, message: string): void {
+		if (pr.state !== 'open') {
+			throw new GithubClientError(message, 409);
 		}
 	}
 
@@ -232,11 +249,16 @@ export class PullRequestService {
 
 	async mergePullRequest(
 		parameters: PullRequestActionParameters,
+		options: MergePullRequestOptions = {},
 	): Promise<MergePullRequestResult> {
 		const {owner, repo, prNumber, requesterGithubUsername} = parameters;
 		const pr = await this.apiClient.getPullRequest(owner, repo, prNumber);
 
 		if (pr.merged) {
+			if (options.rejectAlreadyMerged) {
+				throw new GithubClientError('이미 머지된 PR입니다.', 409);
+			}
+
 			this.logger.log('PR already merged, returning idempotent result', {
 				owner,
 				repo,
@@ -245,6 +267,7 @@ export class PullRequestService {
 			return {alreadyMerged: true, prUrl: pr.html_url, prNumber};
 		}
 
+		this.assertOpen(pr, '닫힌 PR은 머지할 수 없습니다.');
 		await this.assertWritePermission(owner, repo, requesterGithubUsername);
 
 		try {
@@ -272,12 +295,37 @@ export class PullRequestService {
 		const {owner, repo, prNumber, requesterGithubUsername} = parameters;
 		const pr = await this.apiClient.getPullRequest(owner, repo, prNumber);
 
+		this.assertOpen(pr, '닫히거나 머지된 PR은 승인할 수 없습니다.');
 		this.assertNotSelfReview(pr.user.login, requesterGithubUsername);
 		await this.assertWritePermission(owner, repo, requesterGithubUsername);
 
 		await this.apiClient.approvePullRequest(owner, repo, prNumber);
 
 		this.logger.log('PR approved', {
+			owner,
+			repo,
+			prNumber,
+			requesterGithubUsername,
+		});
+		return {prUrl: pr.html_url, prNumber};
+	}
+
+	async closePullRequest(
+		parameters: PullRequestActionParameters,
+	): Promise<ClosePullRequestResult> {
+		const {owner, repo, prNumber, requesterGithubUsername} = parameters;
+		const pr = await this.apiClient.getPullRequest(owner, repo, prNumber);
+
+		if (pr.merged) {
+			throw new GithubClientError('이미 머지된 PR입니다.', 409);
+		}
+
+		this.assertOpen(pr, '이미 닫힌 PR입니다.');
+		await this.assertWritePermission(owner, repo, requesterGithubUsername);
+
+		await this.apiClient.closePullRequest(owner, repo, prNumber);
+
+		this.logger.log('PR closed', {
 			owner,
 			repo,
 			prNumber,
