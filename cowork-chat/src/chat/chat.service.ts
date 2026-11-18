@@ -222,11 +222,13 @@ export class ChatService {
 
      @param userId - 조회할 사용자 ID
      @param channelIds - 읽기 권한이 있는 채널 ID 목록 (팀 unread, DM 목록에서 공유)
+     @param hiddenSystemChannelIds - SYSTEM 메시지를 세지 않을 채널. 음성 채널 로그를 볼 수 없는 채널이다
      @returns channelId → 안읽음 수 매핑
      */
 	private async getUnreadCounts(
 		userId: number,
 		channelIds: number[],
+		hiddenSystemChannelIds = new Set<number>(),
 	): Promise<Map<number, number>> {
 		if (channelIds.length === 0) {
 			return new Map();
@@ -239,7 +241,9 @@ export class ChatService {
 		}
 
 		const readStates = await this.readStateRepository.findForChannels(missedIds, userId);
-		const recomputed = await this.messageRepository.countUnreadForChannels(readStates);
+		const recomputed = await this.messageRepository.countUnreadForChannels(readStates.map(state => ({
+			...state, shouldExcludeSystem: hiddenSystemChannelIds.has(state.channelId),
+		})));
 		// 집계 중 읽음 처리가 끝났다면 이 값은 오래된 위치 기준이므로, 기준 위치를 함께 넘겨 최신 값을 덮지 않게 한다.
 		const filled = new Map(readStates.map(({channelId, lastReadMessageId}) => [channelId, {
 			count: recomputed.get(channelId) ?? 0,
@@ -321,6 +325,7 @@ export class ChatService {
 			throw new ForbiddenException('해당 채널의 메시지가 아닙니다');
 		}
 
+		await this.requireVisibleMessage(ctx.channelId, ctx.userId, message);
 		if (action === 'pin') {
 			await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_pin');
 		} else if (message.authorId !== ctx.userId) {
@@ -333,6 +338,39 @@ export class ChatService {
 
 		await this.requireWritableChannel(ctx.channelId);
 		return message;
+	}
+
+	/**
+     사용자가 이 채널의 음성 채널 로그(SYSTEM 메시지)를 볼 수 없는지 확인한다. 음성 채널이 아니면 false다.
+     */
+	private async isVoiceLogHidden(channelId: number, userId: number): Promise<boolean> {
+		const hidden = await this.channelMessageReadAccess.requireVoiceLogHiddenChannelIds(userId, [channelId]);
+		return hidden.has(channelId);
+	}
+
+	/**
+     음성 채널 로그(SYSTEM 메시지)를 볼 수 없는 사용자에게는 그 메시지가 없는 것처럼 다룬다.
+
+     @param channelId - 메시지가 있는 채널
+     @param userId - 요청한 사용자
+     @param message - 채널 소속을 확인한 메시지. 없으면 `channelId`에서 `messageId`를 찾는다
+     @throws NotFoundException 사용자가 볼 수 없는 음성 채널 로그인 경우
+     */
+	private async requireVisibleMessage(
+		channelId: number,
+		userId: number,
+		message: Nullable<Pick<MessageDocument, 'type'>> | string,
+	): Promise<void> {
+		if (!(await this.isVoiceLogHidden(channelId, userId))) {
+			return;
+		}
+
+		const target = typeof message === 'string'
+			? await this.messageRepository.findByIdAndChannelId(message, channelId)
+			: message;
+		if (target?.type === 'SYSTEM') {
+			throw new NotFoundException('메시지를 찾을 수 없습니다');
+		}
 	}
 
 	/**
@@ -818,18 +856,21 @@ export class ChatService {
 			throw new BadRequestException('before, after, around는 하나만 지정할 수 있습니다');
 		}
 
+		const shouldExcludeSystem = await this.isVoiceLogHidden(ctx.channelId, ctx.userId);
 		if (around !== undefined) {
 			const target = await this.messageRepository.findByIdAndChannelId(around, ctx.channelId);
-			if (!target) {
+			if (!target || (shouldExcludeSystem && target.type === 'SYSTEM')) {
 				throw new NotFoundException('메시지를 찾을 수 없습니다');
 			}
 
 			// 검색 결과에는 스레드 정보가 없으므로, `threadId`가 없으면 기준 메시지가 속한 스레드(또는 채널) 목록을 돌려준다.
-			const rows = await this.messageRepository.findMessagesAround(ctx.channelId, around, {parentMessageId, threadId: threadId ?? target.threadId ?? undefined});
+			const rows = await this.messageRepository.findMessagesAround(ctx.channelId, around, {
+				parentMessageId, threadId: threadId ?? target.threadId ?? undefined, shouldExcludeSystem,
+			});
 			return rows.map(row => this.toMessageResponse(row, ctx.userId));
 		}
 
-		const rows = await this.messageRepository.findMessages(ctx.channelId, before, {parentMessageId, threadId}, after);
+		const rows = await this.messageRepository.findMessages(ctx.channelId, before, {parentMessageId, threadId, shouldExcludeSystem}, after);
 		return rows.map(row => this.toMessageResponse(row, ctx.userId));
 	}
 
@@ -874,8 +915,10 @@ export class ChatService {
 			return {messages: [], nextCursor: null};
 		}
 
+		const hiddenSystemChannelIds = await this.channelMessageReadAccess.requireVoiceLogHiddenChannelIds(ctx.userId, filteredChannelIds);
 		const {hits, nextCursor} = await this.elasticsearchService.searchMessages({
 			accessibleChannelIds: filteredChannelIds,
+			hiddenSystemChannelIds: [...hiddenSystemChannelIds],
 			q: dto.q,
 			authorId: dto.authorId,
 			type: dto.type,
@@ -920,9 +963,11 @@ export class ChatService {
 			return {messages: [], nextCursor: null};
 		}
 
+		const hiddenSystemChannelIds = await this.channelMessageReadAccess.requireVoiceLogHiddenChannelIds(ctx.userId, accessibleChannelIds);
 		const {hits, nextCursor} = await this.elasticsearchService.searchTeamMessages({
 			teamId,
 			accessibleChannelIds,
+			hiddenSystemChannelIds: [...hiddenSystemChannelIds],
 			q: dto.q,
 			authorId: dto.authorId,
 			type: dto.type,
@@ -1056,6 +1101,7 @@ export class ChatService {
      */
 	async addReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
 		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'reaction_add');
+		await this.requireVisibleMessage(ctx.channelId, ctx.userId, messageId);
 		await this.requireWritableChannel(ctx.channelId);
 		const count = await this.messageRepository.addReaction(ctx.channelId, messageId, emoji, ctx.userId);
 		if (count === null) {
@@ -1090,6 +1136,7 @@ export class ChatService {
      */
 	async removeReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
 		await this.requireChannelRead(ctx.channelId, ctx.userId);
+		await this.requireVisibleMessage(ctx.channelId, ctx.userId, messageId);
 		await this.requireWritableChannel(ctx.channelId);
 		const count = await this.messageRepository.removeReaction(ctx.channelId, messageId, emoji, ctx.userId);
 		if (count === null) {
@@ -1126,7 +1173,8 @@ export class ChatService {
 			throw new BadRequestException('채널에 존재하지 않는 메시지입니다');
 		}
 
-		const unreadCount = await this.channelReadService.advance(ctx.channelId, ctx.userId, new Types.ObjectId(lastReadMessageId));
+		const shouldExcludeSystem = await this.isVoiceLogHidden(ctx.channelId, ctx.userId);
+		const unreadCount = await this.channelReadService.advance(ctx.channelId, ctx.userId, new Types.ObjectId(lastReadMessageId), shouldExcludeSystem);
 		if (unreadCount === null) {
 			return;
 		}
@@ -1147,14 +1195,15 @@ export class ChatService {
 
 		// 보관된 채널은 목록에 없어 읽음 처리할 수 없으므로 팀 미읽음에서 제외한다.
 		const channelIds = await this.withoutArchivedChannels(readableChannelIds);
-		this.channelMessageReadAccess.requireProjectionsReady();
-		const unreadCounts = await this.getUnreadCounts(userId, channelIds);
+		const hiddenSystemChannelIds = await this.channelMessageReadAccess.requireVoiceLogHiddenChannelIds(userId, channelIds);
+		const unreadCounts = await this.getUnreadCounts(userId, channelIds, hiddenSystemChannelIds);
 		return channelIds.map(channelId => ({channelId, unreadCount: unreadCounts.get(channelId) ?? 0}));
 	}
 
 	async getPinnedMessages(ctx: ChannelUserContext) {
 		await this.requireChannelRead(ctx.channelId, ctx.userId);
-		const rows = await this.messageRepository.findPinnedMessages(ctx.channelId);
+		const shouldExcludeSystem = await this.isVoiceLogHidden(ctx.channelId, ctx.userId);
+		const rows = await this.messageRepository.findPinnedMessages(ctx.channelId, {shouldExcludeSystem});
 		return rows.map(row => this.toMessageResponse(row, ctx.userId));
 	}
 
@@ -1212,7 +1261,8 @@ export class ChatService {
 			throw error;
 		}
 
-		const readableUsers = await this.channelMessageReadAccess.findReadableUsersByChannel([channelId]);
+		// 음성 채널의 SYSTEM 메시지는 음성 채널 로그다. 로그를 볼 수 없는 사용자의 안읽음 수는 올리지 않는다.
+		const readableUsers = await this.channelMessageReadAccess.findReadableUsersByChannel([channelId], {voiceLogs: true});
 		const targetUserIds = readableUsers.get(channelId) ?? [];
 		await this.unreadCounterService.incrementIfPresent(channelId, targetUserIds);
 		return saved;
