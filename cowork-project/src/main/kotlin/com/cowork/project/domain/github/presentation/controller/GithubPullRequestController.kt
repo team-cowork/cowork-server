@@ -72,7 +72,12 @@ class GithubPullRequestController(
     private val deleteGithubCommentService: DeleteGithubCommentService,
 ) {
 
-    @Operation(summary = "PR 상세 조회", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(
+        summary = "PR 상세 조회",
+        description = "머지 가능 여부, 머지 가능 상태, 리뷰 결정 상태는 열린 PR만 GitHub에서 실시간으로 조회합니다. " +
+            "머지·닫힌 PR이거나 실시간 조회에 실패하면 이 값들은 null입니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "조회 성공"),
         ApiResponse(
@@ -115,21 +120,6 @@ class GithubPullRequestController(
                     examples = [
                         ExampleObject(
                             value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
-                        ),
-                    ],
-                ),
-            ],
-        ),
-        ApiResponse(
-            responseCode = "502",
-            description = "GitHub 연동 오류",
-            content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"502 BAD_GATEWAY","code":502,"message":"요청을 처리할 수 없습니다."}""",
                         ),
                     ],
                 ),
