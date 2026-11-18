@@ -50,6 +50,7 @@ import {
 	type ChannelActionPermission,
 	ChannelMessageReadAccessService,
 	ChannelReadService,
+	ChatMessageLatencyMetricsService,
 	SlowmodeService,
 	TagSpamService,
 	type TagSpamReservation,
@@ -188,6 +189,9 @@ export class ChatService {
 
 	@inject()
 	private readonly channelReadService!: ChannelReadService;
+
+	@inject()
+	private readonly latencyMetrics!: ChatMessageLatencyMetricsService;
 
 	/**
      DM 메시지 전송 가능 여부를 검사한다.
@@ -655,6 +659,7 @@ export class ChatService {
      @param dto - 메시지 내용, 타입, 첨부파일 등
      */
 	async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
+		const acceptStartedAt = performance.now();
 		// 첨부파일만 보내는 메시지는 본문이 비어도 되지만, 그 밖의 메시지는 공백만으로 저장될 수 없다.
 		const attachmentCount = dto.attachments?.length ?? 0;
 		if (attachmentCount === 0 && dto.content.trim() === '') {
@@ -715,6 +720,7 @@ export class ChatService {
 				threadId,
 				clientMessageId,
 			}, ctx.userId, ctx.userRole);
+			this.latencyMetrics.record('accept', acceptStartedAt, performance.now());
 		} catch (error) {
 			await Promise.all([
 				this.slowmodeService.release(slowmodeReservation),
