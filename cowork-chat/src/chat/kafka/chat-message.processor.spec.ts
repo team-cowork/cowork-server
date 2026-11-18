@@ -1,5 +1,5 @@
 import {Types} from 'mongoose';
-import {ChatMessageProcessor} from './chat-message.processor.js';
+import {ChatMessageBroadcastSkippedError, ChatMessageProcessor} from './chat-message.processor.js';
 
 const event = {
 	contractVersion: 2 as const, eventType: 'MESSAGE_SENT' as const, teamId: 1, projectId: null,
@@ -28,6 +28,7 @@ describe('ChatMessageProcessor', () => {
 		jest.clearAllMocks();
 		channelRead.advance.mockResolvedValue(null);
 		messages.markBroadcasted.mockResolvedValue(undefined);
+		readAccess.emitToReadableChannelUsers.mockResolvedValue(true);
 		processor = new ChatMessageProcessor(messages as never, channelRead as never, readAccess as never, scope as never);
 		processor.setSocketServer({to: jest.fn()} as never);
 	});
@@ -71,6 +72,32 @@ describe('ChatMessageProcessor', () => {
 			await processor.process(event);
 
 			expect(messages.markBroadcasted).toHaveBeenCalledWith(saved._id);
+		});
+
+		it('보내지 못하면 전송 완료를 기록하지 않고 재전달되도록 던진다', async () => {
+			messages.createMessage.mockResolvedValue(storedMessage());
+			readAccess.emitToReadableChannelUsers.mockResolvedValue(false);
+
+			await expect(processor.process(event)).rejects.toBeInstanceOf(ChatMessageBroadcastSkippedError);
+			expect(messages.markBroadcasted).not.toHaveBeenCalled();
+		});
+
+		it('재전달로 다시 보내지 못해도 전송 완료를 기록하지 않는다', async () => {
+			messages.createMessage.mockRejectedValue(Object.assign(new Error('dup'), {code: 11_000}));
+			messages.findUnbroadcastedByClientMessageId.mockResolvedValue(storedMessage());
+			readAccess.emitToReadableChannelUsers.mockResolvedValue(false);
+
+			await expect(processor.process(event)).rejects.toBeInstanceOf(ChatMessageBroadcastSkippedError);
+			expect(messages.markBroadcasted).not.toHaveBeenCalled();
+		});
+
+		it('clientMessageId가 없으면 보내지 못해도 다시 저장되지 않도록 던지지 않는다', async () => {
+			messages.createMessage.mockResolvedValue(storedMessage({clientMessageId: undefined}));
+			readAccess.emitToReadableChannelUsers.mockResolvedValue(false);
+
+			await processor.process({...event, clientMessageId: undefined});
+
+			expect(messages.markBroadcasted).not.toHaveBeenCalled();
 		});
 
 		it('중복이 아닌 저장 오류는 재전달되도록 다시 던진다', async () => {

@@ -11,6 +11,8 @@ import {getOptionalConfig, getKafkaClientConfig} from '../../common/config/confi
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {ChatMessageQuarantineService} from '../service/index.js';
 import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
+import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
+import {waitForProjectionReadiness} from '../../common/kafka/projection-readiness-wait.js';
 import {type Nullable} from '../../common/type/nullable.js';
 import {
 	ChatMessageContractError,
@@ -40,6 +42,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 		private readonly configService: ConfigService,
 		private readonly processor: ChatMessageProcessor,
 		private readonly quarantineService: ChatMessageQuarantineService,
+		private readonly projectionReadiness: ProjectionReadinessService,
 	) {}
 
 	/**
@@ -85,7 +88,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 		const partitionsConsumedConcurrently = this.resolveConcurrency();
 		void this.consumer.run({
 			partitionsConsumedConcurrently,
-			eachMessage: async ({topic, partition, message}) => this.processKafkaMessage(topic, partition, message),
+			eachMessage: async ({topic, partition, message, heartbeat}) => this.processKafkaMessage(topic, partition, message, heartbeat),
 		}).catch(async (error: unknown) => {
 			this.logger.error('chat.message Kafka consumer failed', error);
 			// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
@@ -101,8 +104,20 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 	/**
      반환하면 KafkaJS가 offset을 커밋할 수 있다. JSON/계약/범위 오류는 durable quarantine
      성공 뒤에만 반환하며, 저장소·Socket.IO·quarantine 오류는 반드시 전파한다.
+
+     권한 projection이 준비되지 않으면 브로드캐스트할 수 없으므로 처리 전에 준비를 기다린다.
+
+     @param topic - record의 토픽
+     @param partition - record의 파티션
+     @param message - 처리할 Kafka record
+     @param heartbeat - 오래 걸리는 준비 대기 동안 Kafka consumer heartbeat를 보내는 함수
      */
-	async processKafkaMessage(topic: string, partition: number, message: KafkaMessage): Promise<void> {
+	async processKafkaMessage(
+		topic: string,
+		partition: number,
+		message: KafkaMessage,
+		heartbeat: () => Promise<void> = async () => {/* Direct calls need no Kafka heartbeat. */},
+	): Promise<void> {
 		const eventKey = message.key?.toString() ?? null;
 		const payload = message.value?.toString() ?? null;
 		try {
@@ -116,6 +131,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 			}
 
 			const event = validateChatMessageEvent(JSON.parse(payload) as unknown, eventKey);
+			await waitForProjectionReadiness(this.projectionReadiness, heartbeat);
 			await this.processor.process(event);
 		} catch (error) {
 			const classification = classifyPoisonError(error);
