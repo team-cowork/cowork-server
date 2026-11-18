@@ -339,7 +339,24 @@ export class GithubWebhookController {
 				`Failed to fetch pull request files, sending state without files [pr=${owner}/${repo}#${number}]`,
 				error instanceof Error ? error.stack : String(error),
 			);
+			await this.evictPullRequestFiles(owner, repo, number);
 			return undefined;
+		}
+	}
+
+	/**
+     조회에 실패하면 이전 push의 파일 목록 캐시를 지운다. 남겨 두면 다음 push 전까지 labeled나 edited 같은
+     이벤트가 오래된 목록을 다시 싣는다. 지우면 다음 이벤트가 파일 목록을 다시 조회한다.
+     캐시 삭제가 실패해도 PR 상태는 보내야 하므로 경고만 남긴다.
+     */
+	private async evictPullRequestFiles(owner: string, repo: string, number: number): Promise<void> {
+		try {
+			await this.redis.del(githubCacheKeys.pullRequestFiles(owner, repo, number));
+		} catch (error) {
+			this.logger.warn(
+				`Failed to evict pull request files cache [pr=${owner}/${repo}#${number}]`,
+				error instanceof Error ? error.stack : String(error),
+			);
 		}
 	}
 

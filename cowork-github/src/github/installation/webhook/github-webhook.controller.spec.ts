@@ -24,7 +24,7 @@ describe('GithubWebhookController', () => {
 		issueComment: {send: jest.Mock};
 	};
 	let pullRequestService: {listPullRequestFiles: jest.Mock};
-	let redis: {incr: jest.Mock; get: jest.Mock; set: jest.Mock};
+	let redis: {incr: jest.Mock; get: jest.Mock; set: jest.Mock; del: jest.Mock};
 	let authService: {cacheInstallation: jest.Mock; evictInstallation: jest.Mock};
 	let projectBoardWebhookHandler: {handleProjectItem: jest.Mock; handleProject: jest.Mock; handleContentChanged: jest.Mock};
 
@@ -47,6 +47,7 @@ describe('GithubWebhookController', () => {
 			incr: jest.fn().mockResolvedValue(5),
 			get: jest.fn().mockResolvedValue(null),
 			set: jest.fn().mockResolvedValue('OK'),
+			del: jest.fn().mockResolvedValue(1),
 		};
 
 		const module: TestingModule = await Test.createTestingModule({
