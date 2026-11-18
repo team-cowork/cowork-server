@@ -13,7 +13,7 @@ class ReactionResponseDto {
 	@apiProperty() myReaction!: boolean;
 }
 
-class AttachmentResponseDto {
+export class AttachmentResponseDto {
 	@apiProperty() name!: string;
 	@apiPropertyOptional() objectKey?: string;
 	@apiProperty() size!: number;
