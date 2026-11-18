@@ -66,12 +66,15 @@ describe('PullRequestHttpController', () => {
 			prUrl: 'url',
 			prNumber: 1,
 		});
-		expect(pullRequestService.mergePullRequest).toHaveBeenCalledWith({
-			owner: 'my-org',
-			repo: 'my-repo',
-			prNumber: 1,
-			requesterGithubUsername: 'octocat',
-		});
+		expect(pullRequestService.mergePullRequest).toHaveBeenCalledWith(
+			{
+				owner: 'my-org',
+				repo: 'my-repo',
+				prNumber: 1,
+				requesterGithubUsername: 'octocat',
+			},
+			{rejectAlreadyMerged: true},
+		);
 	});
 
 	it('GithubClientError는 동일한 statusCode의 HttpException으로 변환한다', async () => {
