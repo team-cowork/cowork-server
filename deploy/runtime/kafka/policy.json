@@ -112,34 +112,6 @@
         "retention.ms": "604800000"
       }
     },
-    "github.pr.approve": {
-      "partitions": 1,
-      "config": {
-        "cleanup.policy": "delete",
-        "retention.ms": "604800000"
-      }
-    },
-    "github.pr.approve.result": {
-      "partitions": 1,
-      "config": {
-        "cleanup.policy": "delete",
-        "retention.ms": "604800000"
-      }
-    },
-    "github.pr.merge": {
-      "partitions": 1,
-      "config": {
-        "cleanup.policy": "delete",
-        "retention.ms": "604800000"
-      }
-    },
-    "github.pr.merge.result": {
-      "partitions": 1,
-      "config": {
-        "cleanup.policy": "delete",
-        "retention.ms": "604800000"
-      }
-    },
     "github.repo.event": {
       "partitions": 1,
       "config": {
@@ -590,10 +562,6 @@
         "project.github-repo.event",
         "github.issue.create",
         "github.issue.result",
-        "github.pr.approve",
-        "github.pr.approve.result",
-        "github.pr.merge",
-        "github.pr.merge.result",
         "github.repo.event",
         "team.github.connected",
         "team.github.disconnected",
@@ -670,10 +638,6 @@
         "project.github-repo.event",
         "github.issue.create",
         "github.issue.result",
-        "github.pr.approve",
-        "github.pr.approve.result",
-        "github.pr.merge",
-        "github.pr.merge.result",
         "notification.trigger",
         "preference.team-role.state.v2",
         "preference.github-repo.setting.command",
