@@ -1,3 +1,4 @@
+// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다. 이 파일 전체가 제거 대상이다.
 import {elapsedSeconds} from './chat-message-latency-metrics.service.js';
 
 describe('elapsedSeconds', () => {

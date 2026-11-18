@@ -22,6 +22,7 @@ describe('ChatMessageProcessor', () => {
 	const channelRead = {advance: jest.fn()};
 	const readAccess = {emitToReadableChannelUsers: jest.fn()};
 	const scope = {validate: jest.fn()};
+	// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
 	const latency = {record: jest.fn()};
 	let processor: ChatMessageProcessor;
 
@@ -30,6 +31,7 @@ describe('ChatMessageProcessor', () => {
 		channelRead.advance.mockResolvedValue(null);
 		messages.markBroadcasted.mockResolvedValue(undefined);
 		readAccess.emitToReadableChannelUsers.mockResolvedValue(true);
+		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다. Object.assign을 지우고 생성자 호출만 남긴다.
 		processor = Object.assign(
 			new ChatMessageProcessor(messages as never, channelRead as never, readAccess as never, scope as never),
 			{latencyMetrics: latency},
@@ -104,6 +106,7 @@ describe('ChatMessageProcessor', () => {
 			expect(messages.markBroadcasted).not.toHaveBeenCalled();
 		});
 
+		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다. 아래 세 테스트를 지운다.
 		it('consumer가 받은 시각을 주면 전송을 마친 뒤 구간별 지연을 모두 기록한다', async () => {
 			messages.createMessage.mockResolvedValue(storedMessage());
 
