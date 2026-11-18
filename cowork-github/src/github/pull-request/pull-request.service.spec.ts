@@ -221,21 +221,11 @@ describe('PullRequestService', () => {
 			requesterGithubUsername: 'octocat',
 		};
 
-		it('이미 머지된 PR은 권한 검증 없이 idempotent 응답을 반환한다', async () => {
-			apiClient.getPullRequest.mockResolvedValue({...basePr, merged: true});
-
-			const result = await service.mergePullRequest(parameters);
-
-			expect(result.alreadyMerged).toBe(true);
-			expect(apiClient.getCollaboratorPermission).not.toHaveBeenCalled();
-			expect(apiClient.mergePullRequest).not.toHaveBeenCalled();
-		});
-
-		it('rejectAlreadyMerged가 true이면 이미 머지된 PR에 409를 던진다', async () => {
+		it('이미 머지된 PR은 권한 검증 없이 409를 던진다', async () => {
 			apiClient.getPullRequest.mockResolvedValue({...basePr, state: 'closed', merged: true});
 
 			await expect(
-				service.mergePullRequest(parameters, {rejectAlreadyMerged: true}),
+				service.mergePullRequest(parameters),
 			).rejects.toMatchObject({statusCode: 409, message: '이미 머지된 PR입니다.'});
 			expect(apiClient.getCollaboratorPermission).not.toHaveBeenCalled();
 			expect(apiClient.mergePullRequest).not.toHaveBeenCalled();
