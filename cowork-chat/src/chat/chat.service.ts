@@ -616,6 +616,7 @@ export class ChatService {
 				attachmentIndex: item.attachmentIndex,
 				objectKey: item.objectKey,
 				mimeType: item.mimeType,
+				spoiler: item.spoiler,
 				uploaderId: item.uploaderId,
 				uploaderName: uploaderNames.get(item.uploaderId) ?? String(item.uploaderId),
 				uploadedAt: item.uploadedAt,

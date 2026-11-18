@@ -1,6 +1,6 @@
 import {type Model, Types} from 'mongoose';
 import type {Message} from '../schema/message.schema.js';
-import {MessageRepository, toMessageBroadcastPayload} from './message.repository.js';
+import {MessageRepository, publicAttachments, toMessageBroadcastPayload} from './message.repository.js';
 
 describe('toMessageBroadcastPayload', () => {
 	it('클라이언트가 쓰는 필드만 남기고 아웃박스 내부 상태 필드는 제외한다', () => {
@@ -64,6 +64,21 @@ describe('toMessageBroadcastPayload', () => {
 		expect(payload).not.toHaveProperty('notificationStatus');
 		expect(payload).not.toHaveProperty('searchIndexStatus');
 		expect(payload).not.toHaveProperty('editHistory');
+	});
+});
+
+describe('publicAttachments', () => {
+	const attachment = {
+		name: 'a.png', objectKey: 'chat-files/1/42/a.png', size: 10, mimeType: 'image/png',
+	};
+
+	it('스포일러 값이 없는 기존 첨부는 false로 채운다', () => {
+		expect(publicAttachments([attachment])).toEqual([{...attachment, spoiler: false}]);
+	});
+
+	it('저장된 스포일러 값을 유지하고 이전 URL은 내보내지 않는다', () => {
+		expect(publicAttachments([{...attachment, url: 'https://legacy.example/a.png', spoiler: true}]))
+			.toEqual([{...attachment, spoiler: true}]);
 	});
 });
 
