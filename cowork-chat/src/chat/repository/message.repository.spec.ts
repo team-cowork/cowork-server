@@ -67,7 +67,7 @@ describe('toMessageBroadcastPayload', () => {
 	});
 });
 
-describe('publicAttpository unread 집계', () => {
+describe('MessageRepository unread 집계', () => {
 	const lastReadId = new Types.ObjectId();
 	const messageModel = {
 		countDocuments: jest.fn().mockResolvedValue(3),
