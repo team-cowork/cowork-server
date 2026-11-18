@@ -463,11 +463,14 @@ export class ChatService {
      @throws BadRequestException 답장 원본이 다른 스레드(또는 채널)의 메시지인 경우
      @throws ServiceUnavailableException 스레드 projection이 준비되지 않은 경우
      */
-	private async requireSendTarget(parentMessageId: string | undefined, threadId: number | undefined, channelId: number): Promise<void> {
+	private async requireSendTarget(
+		ctx: ChannelUserContext, parentMessageId: string | undefined, threadId: number | undefined,
+	): Promise<void> {
+		const {channelId} = ctx;
 		let parent: Nullable<MessageDocument> | undefined;
 		if (parentMessageId !== undefined && parentMessageId !== '') {
 			parent = await this.messageRepository.findByIdAndChannelId(parentMessageId, channelId);
-			if (!parent) {
+			if (!parent || (parent.type === 'SYSTEM' && await this.isVoiceLogHidden(channelId, ctx.userId))) {
 				throw new NotFoundException('답장 대상 메시지를 찾을 수 없습니다');
 			}
 		}
@@ -722,7 +725,7 @@ export class ChatService {
 			throw new ServiceUnavailableException('채널 정보가 일치하지 않습니다');
 		}
 
-		await this.requireSendTarget(parentMessageId, threadId, ctx.channelId);
+		await this.requireSendTarget(ctx, parentMessageId, threadId);
 		if (channel.type === DM_CHANNEL_TYPE) {
 			await this.verifyDmSendable(ctx.channelId, ctx.userId);
 		}
