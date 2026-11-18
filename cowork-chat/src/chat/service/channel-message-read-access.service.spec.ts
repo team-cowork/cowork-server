@@ -567,7 +567,7 @@ describe('ChannelMessageReadAccessService', () => {
 			const to = jest.fn().mockReturnValue({emit});
 			const io = {to};
 
-			await service.emitToReadableChannelUsers(io as never, 10, {event: 'message', payload: {value: 1}});
+			await expect(service.emitToReadableChannelUsers(io as never, 10, {event: 'message', payload: {value: 1}})).resolves.toBe(true);
 
 			expect(to).toHaveBeenCalledWith('chat:10');
 			expect(emit).toHaveBeenCalledWith('message', {value: 1});
@@ -578,7 +578,7 @@ describe('ChannelMessageReadAccessService', () => {
 			const emit = jest.fn();
 			const to = jest.fn().mockReturnValue({emit});
 
-			await service.emitToReadableChannelUsers({to} as never, 10, {event: 'message', payload: {value: 1}});
+			await expect(service.emitToReadableChannelUsers({to} as never, 10, {event: 'message', payload: {value: 1}})).resolves.toBe(false);
 
 			expect(to).not.toHaveBeenCalled();
 			expect(emit).not.toHaveBeenCalled();
@@ -620,7 +620,7 @@ describe('ChannelMessageReadAccessService', () => {
 			await service.emitToReadableChannelUsers(io as never, 10, {event: 'message', payload: {value: 1}});
 			projectionReadiness.areReady.mockReturnValue(true);
 			teamRoleRepository.findDefaultRolesByTeamIds.mockResolvedValue([]);
-			await service.emitToReadableChannelUsers(io as never, 10, {event: 'message', payload: {value: 2}});
+			await expect(service.emitToReadableChannelUsers(io as never, 10, {event: 'message', payload: {value: 2}})).resolves.toBe(false);
 			expect(emit).not.toHaveBeenCalled();
 
 			evict.mockImplementation(async () => 0);
@@ -630,6 +630,10 @@ describe('ChannelMessageReadAccessService', () => {
 
 			expect(evict).toHaveBeenCalledTimes(2);
 			expect(emit).toHaveBeenCalledTimes(1);
+		});
+
+		it('Socket.IO 서버가 없으면 전송하지 않았다고 알린다', async () => {
+			await expect(service.emitToReadableChannelUsers(undefined, 10, {event: 'message', payload: {value: 1}})).resolves.toBe(false);
 		});
 
 		it('보낸 사람의 socket은 제외한다', async () => {
