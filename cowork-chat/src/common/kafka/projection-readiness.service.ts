@@ -1500,7 +1500,8 @@ export class ProjectionReadinessService implements OnModuleDestroy {
 		},
 		);
 		state.dataset = dataset;
-		state.ready = false;
+		// 전체 준비 promise도 새로 만들어야 `whenReady()`가 이미 끝난 promise를 돌려주지 않는다.
+		this.closeStreamReadiness(name, state);
 		state.catchupStartedAt = Date.now();
 		this.metrics.recordRebuild(name, 'requested');
 		this.states.set(name, state);
