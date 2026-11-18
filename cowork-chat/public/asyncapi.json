@@ -133,13 +133,13 @@
       },
       "Attachment": {
         "type": "object",
-        "required": ["name", "size", "mimeType"],
+        "required": ["name", "size", "mimeType", "spoiler"],
         "properties": {
           "objectKey": { "type": "string", "description": "확정 object key. 과거 메시지는 없을 수 있으며 다운로드는 메시지 ID와 첨부 순번으로 요청한다." },
           "name": { "type": "string" },
           "size": { "type": "integer", "minimum": 1 },
           "mimeType": { "type": "string" },
-          "spoiler": { "type": "boolean", "default": false, "description": "스포일러 표시 여부. 받는 쪽 화면에서 가려진 채 보인다. 이 값이 없던 기존 메시지는 false로 보낸다." }
+          "spoiler": { "type": "boolean", "description": "스포일러 표시 여부. 받는 쪽 화면에서 가려진 채 보인다. 이 값이 없던 기존 메시지는 false로 보낸다." }
         },
         "additionalProperties": false
       },
