@@ -109,15 +109,12 @@ export class PullRequestHttpController {
 		@requestBody() body: PullRequestActionRequestDto,
 	) {
 		return this.handle(async () =>
-			this.pullRequestService.mergePullRequest(
-				{
-					owner,
-					repo,
-					prNumber,
-					requesterGithubUsername: body.requesterGithubUsername,
-				},
-				{rejectAlreadyMerged: true},
-			),
+			this.pullRequestService.mergePullRequest({
+				owner,
+				repo,
+				prNumber,
+				requesterGithubUsername: body.requesterGithubUsername,
+			}),
 		);
 	}
 

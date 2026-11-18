@@ -55,12 +55,6 @@ export type MergePullRequestResult = {
 	prNumber: number;
 };
 
-export type MergePullRequestOptions = {
-	// The HTTP caller shows the result to the user right away, so it reports an already-merged PR as 409.
-	// The Kafka consumer keeps the idempotent result, so a redelivered message after a merge still succeeds.
-	rejectAlreadyMerged?: boolean;
-};
-
 export type ApprovePullRequestResult = {
 	prUrl: string;
 	prNumber: number;
@@ -249,22 +243,12 @@ export class PullRequestService {
 
 	async mergePullRequest(
 		parameters: PullRequestActionParameters,
-		options: MergePullRequestOptions = {},
 	): Promise<MergePullRequestResult> {
 		const {owner, repo, prNumber, requesterGithubUsername} = parameters;
 		const pr = await this.apiClient.getPullRequest(owner, repo, prNumber);
 
 		if (pr.merged) {
-			if (options.rejectAlreadyMerged) {
-				throw new GithubClientError('이미 머지된 PR입니다.', 409);
-			}
-
-			this.logger.log('PR already merged, returning idempotent result', {
-				owner,
-				repo,
-				prNumber,
-			});
-			return {alreadyMerged: true, prUrl: pr.html_url, prNumber};
+			throw new GithubClientError('이미 머지된 PR입니다.', 409);
 		}
 
 		this.assertOpen(pr, '닫힌 PR은 머지할 수 없습니다.');
