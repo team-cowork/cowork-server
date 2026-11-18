@@ -1,0 +1,270 @@
+{
+  "title": "cowork / Chat 메시지 지연 (임시)",
+  "uid": "cowork-chat-message-latency",
+  "tags": [
+    "cowork",
+    "service",
+    "chat",
+    "temporary"
+  ],
+  "description": "임시 대시보드. 2026-11-18 KST 추가, 2026-12-02까지 제거한다.",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 0,
+        "label": "데이터 소스"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "임시 대시보드 안내",
+      "type": "text",
+      "gridPos": {
+        "h": 3,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "options": {
+        "mode": "markdown",
+        "content": "**임시 대시보드**입니다. 메시지 전송 지연 측정 코드(`cowork_chat_message_latency_seconds`)와 함께 2026-12-02까지 제거합니다. (2026-11-18 KST 추가)\n\n구간: accept: 전송 요청부터 Kafka 발행까지, queue: 이벤트 발생부터 consumer 수신까지, validate_save: 재검증과 저장, emit: 소켓 전송, total: 이벤트 발생부터 소켓 전송까지."
+      }
+    },
+    {
+      "id": 2,
+      "title": "구간별 지연 p50",
+      "type": "timeseries",
+      "description": "구간별 지연의 중앙값입니다. accept: 전송 요청부터 Kafka 발행까지, queue: 이벤트 발생부터 consumer 수신까지, validate_save: 재검증과 저장, emit: 소켓 전송, total: 이벤트 발생부터 소켓 전송까지.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 3
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le, stage) (rate(cowork_chat_message_latency_seconds_bucket{service=\"chat\"}[5m])))",
+          "legendFormat": "{{stage}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "N/A",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "구간별 지연 p95",
+      "type": "timeseries",
+      "description": "구간별 지연의 95번째 백분위수입니다. accept: 전송 요청부터 Kafka 발행까지, queue: 이벤트 발생부터 consumer 수신까지, validate_save: 재검증과 저장, emit: 소켓 전송, total: 이벤트 발생부터 소켓 전송까지.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 3
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(cowork_chat_message_latency_seconds_bucket{service=\"chat\"}[5m])))",
+          "legendFormat": "{{stage}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "N/A",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "구간별 지연 p99",
+      "type": "timeseries",
+      "description": "구간별 지연의 99번째 백분위수입니다. accept: 전송 요청부터 Kafka 발행까지, queue: 이벤트 발생부터 consumer 수신까지, validate_save: 재검증과 저장, emit: 소켓 전송, total: 이벤트 발생부터 소켓 전송까지.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 11
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le, stage) (rate(cowork_chat_message_latency_seconds_bucket{service=\"chat\"}[5m])))",
+          "legendFormat": "{{stage}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "noValue": "N/A",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "구간별 기록 수 (/s)",
+      "type": "timeseries",
+      "description": "구간별로 초당 기록된 지연 수입니다. queue, validate_save는 quarantine 재처리를 세지 않고, emit, total은 전송에 성공한 메시지만 셉니다.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 11
+      },
+      "targets": [
+        {
+          "expr": "sum by (stage) (rate(cowork_chat_message_latency_seconds_count{service=\"chat\"}[5m]))",
+          "legendFormat": "{{stage}}",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "noValue": "N/A",
+          "min": 0,
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 8,
+            "spanNulls": false,
+            "showPoints": "never"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "showLegend": true,
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      }
+    }
+  ]
+}
