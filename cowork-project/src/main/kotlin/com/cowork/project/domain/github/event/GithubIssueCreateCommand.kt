@@ -16,11 +16,3 @@ data class GithubIssueCreateCommand(
     val teamId: Long? = null,
     val requesterId: Long? = null,
 )
-
-/** cowork-github의 `PullRequestActionDto`와 필드가 일치해야 한다 (channelId/teamId는 optional이라 생략). */
-data class GithubPullRequestActionCommand(
-    val owner: String,
-    val repo: String,
-    val prNumber: Int,
-    val requesterGithubUsername: String,
-)
