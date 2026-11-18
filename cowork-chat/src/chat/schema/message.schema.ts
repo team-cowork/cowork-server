@@ -39,6 +39,11 @@ class Attachment {
     파일의 MIME 타입 (예: `image/png`, `application/pdf`)
     */
 	@prop({required: true}) mimeType!: string;
+
+	/**
+    스포일러 표시 여부. 이 필드가 없는 기존 메시지는 응답에서 `false`로 본다.
+    */
+	@prop({type: Boolean}) spoiler?: boolean;
 }
 
 /**

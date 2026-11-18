@@ -62,6 +62,7 @@ export type FileAttachmentRow = {
 	fileSize: number;
 	objectKey?: string;
 	mimeType: string;
+	spoiler: boolean;
 	/**
     파일을 업로드한 메시지 작성자의 사용자 ID
     */
@@ -84,7 +85,7 @@ type FileAttachmentAggregateRow = {
 	authorId: number;
 	createdAt: Date;
 	attachmentIndex?: number;
-	attachment: {name: string; objectKey?: string; url?: string; size: number; mimeType: string};
+	attachment: {name: string; objectKey?: string; url?: string; size: number; mimeType: string; spoiler?: boolean};
 };
 
 /**
@@ -149,7 +150,7 @@ export type MessageRow = {
 	webhook?: WebhookMessageAuthor;
 	content: string;
 	type: string;
-	attachments: Array<{name: string; objectKey?: string; url?: string; size: number; mimeType: string}>;
+	attachments: Array<{name: string; objectKey?: string; url?: string; size: number; mimeType: string; spoiler?: boolean}>;
 	parentMessageId: Nullable<Types.ObjectId>;
 	threadId: Nullable<number>;
 	isEdited: boolean;
@@ -195,10 +196,11 @@ export function toMessageBroadcastPayload(doc: MessageDocument): MessageBroadcas
 
 /**
 Never return persisted legacy object URLs to API or WebSocket clients.
+Messages stored before the spoiler field existed are returned as `spoiler: false`.
 */
-export function publicAttachments(attachments: MessageRow['attachments']): MessageRow['attachments'] {
-	return attachments.map(({name, size, mimeType, objectKey}) => ({
-		name, size, mimeType, objectKey,
+export function publicAttachments(attachments: MessageRow['attachments']): Array<MessageRow['attachments'][number] & {spoiler: boolean}> {
+	return attachments.map(({name, size, mimeType, objectKey, spoiler}) => ({
+		name, size, mimeType, objectKey, spoiler: spoiler ?? false,
 	}));
 }
 
@@ -696,6 +698,7 @@ export class MessageRepository {
 				fileSize: row.attachment.size,
 				objectKey: row.attachment.objectKey,
 				mimeType: row.attachment.mimeType,
+				spoiler: row.attachment.spoiler ?? false,
 				uploaderId: row.authorId,
 				uploadedAt: row.createdAt.toISOString(),
 				attachmentIndex,

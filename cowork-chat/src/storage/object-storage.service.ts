@@ -270,7 +270,7 @@ export class ObjectStorageService {
 	}
 
 	async claimAttachments(
-		attachments: Array<{objectKey: string}>, channelId: number, userId: number, clientMessageId: string,
+		attachments: Array<{objectKey: string; spoiler?: boolean}>, channelId: number, userId: number, clientMessageId: string,
 	): Promise<ConfirmedAttachment[]> {
 		if (new Set(attachments.map(item => item.objectKey)).size !== attachments.length) {
 			throw new BadRequestException('동일한 첨부파일을 중복해서 연결할 수 없습니다');
@@ -283,12 +283,12 @@ export class ObjectStorageService {
 		const uploads = await Promise.all(
 			attachments.map(async attachment => this.uploads.claim(attachment.objectKey, channelId, userId, clientMessageId)),
 		);
-		return uploads.map(upload => {
+		return uploads.map((upload, index) => {
 			if (!upload) {
 				throw new ForbiddenException('확인된 본인 업로드만 한 메시지에 연결할 수 있습니다');
 			}
 
-			return this.confirmedAttachment(upload);
+			return {...this.confirmedAttachment(upload), spoiler: attachments[index].spoiler ?? false};
 		});
 	}
 
