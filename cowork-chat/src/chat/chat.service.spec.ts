@@ -203,6 +203,7 @@ describe('ChatService', () => {
 			channelReadService: mockChannelReadService,
 			threadProjectionRepository: mockThreadProjectionRepository,
 			projectionReadiness: mockProjectionReadiness,
+			latencyMetrics: {record: jest.fn()},
 		});
 		jest.clearAllMocks();
 		mockProjectionReadiness.areReady.mockReturnValue(true);

@@ -124,6 +124,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 		message: KafkaMessage,
 		heartbeat: () => Promise<void> = async () => {/* Direct calls need no Kafka heartbeat. */},
 	): Promise<void> {
+		const receivedAt = Date.now();
 		const eventKey = message.key?.toString() ?? null;
 		const payload = message.value?.toString() ?? null;
 		try {
@@ -138,7 +139,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 
 			const event = validateChatMessageEvent(JSON.parse(payload) as unknown, eventKey);
 			await waitForProjectionReadiness(this.projectionReadiness, heartbeat, CHAT_MESSAGE_REQUIRED_STREAMS);
-			await this.processor.process(event);
+			await this.processor.process(event, receivedAt);
 		} catch (error) {
 			const classification = classifyPoisonError(error);
 			if (!classification) {

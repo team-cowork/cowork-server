@@ -62,6 +62,7 @@ import {
 	ChannelReadService,
 	SlowmodeService,
 	TagSpamService,
+	ChatMessageLatencyMetricsService,
 	ChatMessageQuarantineService,
 } from './service/index.js';
 import {UnifiedSearchResolver} from './unified-search.resolver.js';
@@ -211,6 +212,7 @@ import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consume
 		ChatMessageScopeValidator,
 		ChatMessageQuarantineRepository,
 		ChatMessageQuarantineService,
+		ChatMessageLatencyMetricsService,
 		ChatMessageQuarantinePoller,
 		MessageSearchIndexRepository,
 		MessageSearchTombstoneRepository,
