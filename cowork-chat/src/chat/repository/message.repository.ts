@@ -15,6 +15,11 @@ import {type Nullable} from '../../common/type/nullable.js';
 const MESSAGE_FETCH_LIMIT = 100;
 
 /**
+MongoDB ObjectId의 24자리 16진수 문자열 형식
+*/
+const OBJECT_ID_PATTERN = /^[\da-f]{24}$/iv;
+
+/**
  메시지당 보관하는 최대 편집 이력 수.
  상한이 없으면 자주 수정되는 메시지의 문서가 무한정 커져 WiredTiger 문서 재배치(move)가
  반복되며 쓰기 지연이 누적된다. 최근 N개만 유지해 문서 크기를 상한선 안으로 고정한다.
@@ -165,6 +170,11 @@ export type MessageRow = {
     */
 	mentionedMessage: Nullable<MentionedMessageRow>;
 };
+
+/**
+검색 결과에 첨부를 붙이기 위해 원본 메시지에서 읽는 필드 집합
+*/
+export type MessageAttachmentsRow = Pick<MessageRow, '_id' | 'channelId' | 'attachments'>;
 
 /**
  신규 메시지 생성 직후 WebSocket으로 브로드캐스트할 때 사용하는 필드 집합.
@@ -420,6 +430,23 @@ export class MessageRepository {
      */
 	async findById(messageId: string): Promise<Nullable<MessageDocument>> {
 		return this.messageModel.findOne({_id: messageId, webhookDeleted: {$ne: true}});
+	}
+
+	/**
+     검색 결과에 붙일 첨부를 메시지 ID로 한 번에 조회합니다. 검색 색인에는 첨부가 없으므로 원본 메시지에서 읽습니다.
+
+     @param messageIds - 조회할 메시지의 ObjectId 문자열 목록. 형식이 맞지 않는 값은 건너뜁니다
+     @returns 찾은 메시지의 `_id`, `channelId`, `attachments`. 없거나 웹훅 삭제된 메시지는 빠집니다
+     */
+	async findAttachmentsByIds(messageIds: string[]): Promise<MessageAttachmentsRow[]> {
+		const ids = messageIds.filter(id => OBJECT_ID_PATTERN.test(id));
+		if (ids.length === 0) {
+			return [];
+		}
+
+		return this.messageModel
+			.find({_id: {$in: ids}, webhookDeleted: {$ne: true}}, {channelId: 1, attachments: 1})
+			.lean<MessageAttachmentsRow[]>();
 	}
 
 	/**
