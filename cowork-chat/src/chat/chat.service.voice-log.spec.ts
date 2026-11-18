@@ -19,6 +19,7 @@ const messageRepository = {
 const channelMessageReadAccess = {
 	requireCanRead: jest.fn(),
 	requirePermission: jest.fn(),
+	requirePermissions: jest.fn(),
 	requireProjectionsReady: jest.fn(),
 	requireReadableTeamChannelIds: jest.fn(),
 	requireVoiceLogHiddenChannelIds: jest.fn(),
@@ -75,6 +76,16 @@ describe('ChatService voice channel logs', () => {
 		await service.getPinnedMessages({channelId: 30, userId: 42});
 
 		expect(messageRepository.findPinnedMessages).toHaveBeenCalledWith(30, {shouldExcludeSystem: true});
+	});
+
+	it('로그를 볼 수 없으면 SYSTEM 메시지에 답장할 수 없다', async () => {
+		channelProjectionRepository.findById.mockResolvedValue({
+			channelId: 30, teamId: 10, projectId: null, type: 'VOICE', archived: false,
+		});
+		messageRepository.findByIdAndChannelId.mockResolvedValue(systemMessage);
+
+		await expect(service.sendMessage({channelId: 30, userId: 42, userRole: 'USER'}, {content: '답장', parentMessageId: messageId}))
+			.rejects.toThrow(NotFoundException);
 	});
 
 	it('로그를 볼 수 없으면 SYSTEM 메시지에 반응할 수 없다', async () => {

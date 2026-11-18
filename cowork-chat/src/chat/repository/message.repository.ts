@@ -343,7 +343,8 @@ export class MessageRepository {
 						foreignField: '_id',
 						as: 'mentionedMessage',
 						pipeline: [
-							{$match: {webhookDeleted: {$ne: true}, channelId}},
+							// 답장 미리보기로 숨긴 SYSTEM 메시지 내용이 드러나지 않게 같은 조건을 건다.
+							{$match: {webhookDeleted: {$ne: true}, channelId, ...(shouldExcludeSystem === true && NOT_SYSTEM_MESSAGE)}},
 							{
 								$project: {
 									_id: 1,
@@ -823,7 +824,7 @@ export class MessageRepository {
 					foreignField: '_id',
 					as: 'mentionedMessage',
 					pipeline: [
-						{$match: {webhookDeleted: {$ne: true}, channelId}},
+						{$match: {webhookDeleted: {$ne: true}, channelId, ...(options.shouldExcludeSystem === true && NOT_SYSTEM_MESSAGE)}},
 						{
 							$project: {
 								_id: 1,

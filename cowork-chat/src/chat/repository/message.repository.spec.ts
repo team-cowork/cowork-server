@@ -95,6 +95,19 @@ describe('MessageRepository unread 집계', () => {
 			{$group: {_id: '$channelId', count: {$sum: 1}}},
 		]);
 	});
+
+	it('음성 채널 로그를 숨기면 SYSTEM 메시지를 세지 않는다', async () => {
+		await repository.countUnread(1, null, true);
+		await repository.countUnreadForChannels([{channelId: 2, lastReadMessageId: null, shouldExcludeSystem: true}]);
+
+		expect(messageModel.countDocuments).toHaveBeenLastCalledWith({
+			webhookDeleted: {$ne: true}, channelId: 1, threadId: null, type: {$ne: 'SYSTEM'},
+		});
+		expect(messageModel.aggregate).toHaveBeenLastCalledWith([
+			{$match: {webhookDeleted: {$ne: true}, $or: [{channelId: 2, threadId: null, type: {$ne: 'SYSTEM'}}]}},
+			{$group: {_id: '$channelId', count: {$sum: 1}}},
+		]);
+	});
 });
 
 describe('MessageRepository 메시지 위치 조회', () => {
@@ -144,6 +157,31 @@ describe('MessageRepository 메시지 위치 조회', () => {
 		await repository.findMessagesAround(1, ids[2].toHexString(), {threadId: 7});
 
 		expect(calledStages(0).map(stage => (stage.$match as {threadId?: unknown}).threadId)).toEqual([7, 7]);
+	});
+
+	it('음성 채널 로그를 숨기면 목록과 답장 미리보기에서 SYSTEM 메시지를 뺀다', async () => {
+		aggregate.mockResolvedValue([]);
+
+		await repository.findMessagesAround(1, ids[2].toHexString(), {shouldExcludeSystem: true});
+		await repository.findMessages(1, undefined, {shouldExcludeSystem: true});
+		await repository.findPinnedMessages(1, {shouldExcludeSystem: true});
+
+		for (const [pipeline] of aggregate.mock.calls) {
+			const serialized = JSON.stringify(pipeline);
+			expect(pipeline[0].$match).toMatchObject({type: {$ne: 'SYSTEM'}});
+			expect(serialized.match(/"type":\{"\$ne":"SYSTEM"\}/gv)).toHaveLength(2);
+		}
+	});
+
+	it('음성 채널 로그를 숨기지 않으면 SYSTEM 조건을 넣지 않는다', async () => {
+		aggregate.mockResolvedValue([]);
+
+		await repository.findMessages(1);
+		await repository.findPinnedMessages(1);
+
+		for (const [pipeline] of aggregate.mock.calls) {
+			expect(JSON.stringify(pipeline)).not.toContain('SYSTEM');
+		}
 	});
 });
 
