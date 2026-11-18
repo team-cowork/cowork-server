@@ -14,11 +14,22 @@ data class GithubPullRequestResDto(
     val author: String,
     @field:Schema(description = "PR 상태", example = "open")
     val state: String,
-    @field:Schema(description = "머지 가능 여부")
+    @field:Schema(
+        description = "머지 가능 여부. GitHub이 아직 계산하지 않았거나, 머지·닫힌 PR이거나, 실시간 조회에 실패하면 null",
+        nullable = true,
+    )
     val mergeable: Boolean?,
-    @field:Schema(description = "머지 가능 상태", example = "clean")
-    val mergeableState: String,
-    @field:Schema(description = "리뷰 결정 상태", allowableValues = ["APPROVED", "CHANGES_REQUESTED"])
+    @field:Schema(
+        description = "머지 가능 상태. 머지·닫힌 PR이거나 실시간 조회에 실패하면 null",
+        example = "clean",
+        nullable = true,
+    )
+    val mergeableState: String?,
+    @field:Schema(
+        description = "리뷰 결정 상태. 결정이 없거나, 머지·닫힌 PR이거나, 실시간 조회에 실패하면 null",
+        allowableValues = ["APPROVED", "CHANGES_REQUESTED"],
+        nullable = true,
+    )
     val reviewDecision: String?,
     @field:Schema(description = "head 브랜치", example = "feature/login")
     val headRef: String,
