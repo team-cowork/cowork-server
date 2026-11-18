@@ -473,6 +473,9 @@ export class ChannelMessageReadAccessService {
 
      이벤트 유실이나 projection 재구축으로 room 멤버십이 실제 권한과 어긋날 수 있으므로,
      `ChatGateway`의 주기적인 로컬 room sweep(`evictUnauthorizedRooms`)이 대조해 복구한다.
+
+     @returns 실제로 전송했으면 `true`. Socket.IO 서버가 없거나, projection이 준비되지 않았거나,
+     room 재검증 중 projection이 다시 닫혀 전송하지 않았으면 `false`
      */
 	async emitToReadableChannelUsers(
 		io: Server | undefined,
@@ -483,23 +486,23 @@ export class ChannelMessageReadAccessService {
 			excludedSocketId?: string;
 		},
 
-	): Promise<void> {
+	): Promise<boolean> {
 		const {event, payload, excludedSocketId} = message;
 		if (!io) {
-			return;
+			return false;
 		}
 
 		// 채팅방(room) 멤버십은 projection 기준의 판정 결과이므로, projection이 catch-up 중이면 그 판정을 믿을 수 없다.
 		// 이전에는 이 구간의 평가가 전부 거부로 떨어져 아무에게도 전달되지 않았다(fail-closed). 같은 성질을 유지한다.
 		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
 			this.needsRoomSweepAfterReadinessGap = true;
-			return;
+			return false;
 		}
 
 		// 닫혀 있던 동안 처리된 회수는 evict 쪽에서 버려졌다. 다시 열린 뒤 첫 전송 전에 로컬 room을 대조해,
 		// 주기 sweep(최대 30초)을 기다리는 동안 회수된 사용자가 메시지를 받지 않게 한다.
 		if (!(await this.ensureRoomsSweptAfterReadinessGap(io))) {
-			return;
+			return false;
 		}
 
 		// `chat:{channelId}` room의 멤버십 자체가 message_read 판정 결과다. 입장할 때 판정하고
@@ -509,6 +512,7 @@ export class ChannelMessageReadAccessService {
 			? io.to(`chat:${channelId}`)
 			: io.to(`chat:${channelId}`).except(excludedSocketId);
 		target.emit(event, payload);
+		return true;
 	}
 
 	async emitChannelEventToVisibleTeamUsers(
