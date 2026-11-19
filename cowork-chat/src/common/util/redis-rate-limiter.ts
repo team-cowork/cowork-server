@@ -7,8 +7,8 @@ import {
 	ServiceUnavailableException,
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
-import {Redis, ClientContext, Result} from 'ioredis';
-import {getOptionalConfig, getRequiredConfig} from '../config/config.util.js';
+import {type Redis, ClientContext, Result} from 'ioredis';
+import {connectRedis} from './redis-client.util.js';
 
 // This.client에만 캐스팅해서 붙이는 타입 — ioredis의 공유 RedisCommander를 전역으로 확장하면
 // defineCommand를 호출하지 않은 다른 Redis 클라이언트에도 이 메서드가 타입상 노출되어 버린다.
@@ -127,23 +127,13 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
 	constructor(private readonly configService: ConfigService) {}
 
 	onModuleInit(): void {
-		const host = getRequiredConfig(this.configService, 'REDIS_HOST');
-		const port = Number(getOptionalConfig(this.configService, 'REDIS_PORT') ?? 6379);
-
-		this.client = new Redis({host, port, lazyConnect: true}) as RateLimiterRedis;
+		this.client = connectRedis(this.configService, this.logger) as RateLimiterRedis;
 		this.client.defineCommand('tryAcquireScript', {numberOfKeys: 1, lua: TRY_ACQUIRE_SCRIPT});
 		this.client.defineCommand('tryReserveScript', {numberOfKeys: 1, lua: TRY_RESERVE_SCRIPT});
 		this.client.defineCommand('releaseScript', {numberOfKeys: 1, lua: RELEASE_SCRIPT});
 		this.client.defineCommand('webhookAcquireScript', {numberOfKeys: 1, lua: WEBHOOK_ACQUIRE_SCRIPT});
 		this.client.defineCommand('weightedReserveScript', {numberOfKeys: 1, lua: WEIGHTED_RESERVE_SCRIPT});
 		this.client.defineCommand('weightedReleaseScript', {numberOfKeys: 1, lua: WEIGHTED_RELEASE_SCRIPT});
-		// Ioredis는 'error' 리스너가 없으면 unhandled error event로 프로세스가 죽는다
-		this.client.on('error', (error: unknown) => {
-			this.logger.error(`Redis client error: ${error instanceof Error ? error.message : String(error)}`);
-		});
-		void this.client.connect().catch((error: unknown) => {
-			this.logger.warn(`Redis initial connection failed: ${error instanceof Error ? error.message : String(error)}`);
-		});
 	}
 
 	onModuleDestroy(): void {

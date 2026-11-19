@@ -11,7 +11,7 @@ import {
 	ClientContext,
 	Result,
 } from 'ioredis';
-import {getOptionalConfig, getRequiredConfig} from '../../common/config/config.util.js';
+import {connectRedis} from '../../common/util/redis-client.util.js';
 import {type Nullable} from '../../common/type/nullable.js';
 
 // This.client와 그 pipeline()에만 캐스팅해서 붙이는 타입 — ioredis의 공유 RedisCommander를 전역으로
@@ -147,24 +147,12 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
 	}
 
 	onModuleInit(): void {
-		const host = getRequiredConfig(this.configService, 'REDIS_HOST');
-		const port = Number(getOptionalConfig(this.configService, 'REDIS_PORT') ?? 6379);
-
-		this.client = new Redis({
-			host,
-			port,
-			lazyConnect: true,
+		this.client = connectRedis(this.configService, this.logger, {
 			enableOfflineQueue: false,
 			maxRetriesPerRequest: 0,
 		}) as UnreadCounterRedis;
 		this.client.defineCommand('incrementIfPresentScript', {numberOfKeys: 0, lua: INCREMENT_IF_PRESENT_SCRIPT});
 		this.client.defineCommand('setIfNotStaleScript', {numberOfKeys: 1, lua: SET_IF_NOT_STALE_SCRIPT});
-		this.client.on('error', (error: unknown) => {
-			this.logger.error(`Redis client error: ${error instanceof Error ? error.message : String(error)}`);
-		});
-		void this.client.connect().catch((error: unknown) => {
-			this.logger.warn(`Redis initial connection failed: ${error instanceof Error ? error.message : String(error)}`);
-		});
 	}
 
 	onModuleDestroy(): void {
