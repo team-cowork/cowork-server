@@ -68,22 +68,6 @@ updates:
         patterns:
           - "*"
 
-  # TODO(2026-11-17T02:31:33Z): Remove this npm entry when cowork-promotion is removed.
-  - package-ecosystem: "npm"
-    directory: "/cowork-promotion"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 0
-    commit-message:
-      prefix: "[promotion] "
-    labels:
-      - "bug:버그"
-    groups:
-      npm-security:
-        applies-to: "security-updates"
-        patterns:
-          - "*"
-
   - package-ecosystem: "gomod"
     directory: "/cowork-authorization"
     schedule:

@@ -3,7 +3,7 @@
 set -euo pipefail
 
 if [[ $# -ne 4 ]]; then
-  echo "Usage: $0 <go|jest|bun|node|dotnet> <module> <absolute-source-root> <absolute-output-dir>" >&2
+  echo "Usage: $0 <go|jest|bun|dotnet> <module> <absolute-source-root> <absolute-output-dir>" >&2
   exit 2
 fi
 
@@ -18,7 +18,7 @@ case "$source_root:$output_dir" in
   *) echo "Source and output directories must be absolute paths." >&2; exit 2 ;;
 esac
 case "$runner" in
-  go|jest|bun|node|dotnet) ;;
+  go|jest|bun|dotnet) ;;
   *) echo "Unsupported coverage runner: $runner" >&2; exit 2 ;;
 esac
 
@@ -169,27 +169,6 @@ PY
       --coverageDirectory="$output_dir" \
       --coverageReporters=json-summary --coverageReporters=text-summary \
       --coverageThreshold='{}' "${coverage_args[@]}"
-    cp "$output_dir/coverage-summary.json" "$output_dir/report.json"
-    ;;
-  # TODO(2026-11-17T02:31:33Z): Remove the node runner, including its usage and runner check entries,
-  # when cowork-promotion is removed. Promotion is its only user.
-  node)
-    npm ci --no-audit --no-fund
-    coverage_temp=$(mktemp -d "${TMPDIR:-/tmp}/cowork-c8.XXXXXX")
-    trap 'rm -rf "$coverage_temp"' EXIT
-    # An explicit configuration prevents either checkout's local c8/nyc config
-    # from changing the measurement. --all includes files never loaded by tests.
-    printf '{}\n' > "$coverage_temp/config.json"
-    npm exec --yes --package=c8@12.0.0 -- c8 \
-      --config="$coverage_temp/config.json" \
-      --all --src=. --include='**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}' \
-      --exclude='**/*.{spec,test}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}' \
-      --exclude='**/*.d.{ts,mts,cts}' \
-      --exclude='**/{test,tests,__tests__,node_modules,generated,build,dist,coverage}/**' \
-      --check-coverage=false \
-      --reporter=json-summary --reporter=text-summary \
-      --reports-dir="$output_dir" --temp-directory="$coverage_temp/v8" \
-      npm test
     cp "$output_dir/coverage-summary.json" "$output_dir/report.json"
     ;;
   dotnet)
