@@ -12,6 +12,20 @@ NOMAD = ROOT / "deploy/nomad"
 RUNTIME = ROOT / "deploy/runtime"
 FAKE_IMAGE = "example.invalid/cowork-validation@sha256:" + "0" * 64
 DATABASE_SUFFIXES = ("-mysql", "-postgresql", "-mongodb", "-surrealdb")
+# HCL block labels cannot use variables, so shared jobs substitute the service name in the text.
+SERVICE = "__SERVICE__"
+TEMPLATE_SERVICES = {
+    "data/databases/__SERVICE__-mysql.nomad.hcl": ("authorization", "channel", "project", "roadmap", "team", "user"),
+    "data/databases/__SERVICE__-mongodb.nomad.hcl": ("chat", "voice"),
+}
+
+
+def job_files():
+    files = [(path, path.read_text()) for path in NOMAD.rglob("*.nomad.hcl") if SERVICE not in path.name]
+    for template, services in TEMPLATE_SERVICES.items():
+        text = (NOMAD / template).read_text()
+        files += [(NOMAD / template.replace(SERVICE, service), text.replace(SERVICE, service)) for service in services]
+    return sorted(files)
 
 
 def file_map(directory):
@@ -23,9 +37,9 @@ def environment(service):
     return json.loads((RUNTIME / service / "environment.json").read_text())
 
 
-def job_inputs(path, manifest=None, vault_mount="secret", gateway_host_port=21000):
+def job_inputs(path, text, manifest=None, vault_mount="secret", gateway_host_port=21000):
     name = path.name.removesuffix(".nomad.hcl")
-    declared = set(re.findall(r'^variable "([^"]+)"', path.read_text(), re.MULTILINE))
+    declared = set(re.findall(r'^variable "([^"]+)"', text, re.MULTILINE))
     values = {"image": FAKE_IMAGE, "init_image": FAKE_IMAGE, "envoy_image": FAKE_IMAGE,
               "gateway_host_port": gateway_host_port,
               "secret_version": 1, "vault_mount": vault_mount, "runtime_env": {}, "config_files": {}}
@@ -96,19 +110,21 @@ def render_jobs(manifest=None, vault_mount="secret", gateway_host_port=21000, *,
     specs = {}
     stages = {stage: {} for stage in ("data", "apps", "edge")}
     with tempfile.TemporaryDirectory(prefix="cowork-nomad-") as directory:
-        for path in sorted(NOMAD.rglob("*.nomad.hcl")):
-            values = job_inputs(path, manifest, vault_mount, gateway_host_port)
+        for path, text in job_files():
+            values = job_inputs(path, text, manifest, vault_mount, gateway_host_port)
             variables = Path(directory) / "inputs.hcl"
             variables.write_text("\n".join(f"{key} = {json.dumps(hcl_value(value))}"
                                              for key, value in values.items()))
+            jobspec = Path(directory) / path.name
+            jobspec.write_text(text)
             if validate:
-                formatted = subprocess.run([nomad, "fmt", "-check", str(path)], capture_output=True, text=True)
+                formatted = subprocess.run([nomad, "fmt", "-check", str(jobspec)], capture_output=True, text=True)
                 if formatted.returncode:
                     raise ValueError(f"Run nomad fmt on {path.relative_to(ROOT)}: {formatted.stderr or formatted.stdout}")
                 command = [nomad, "job", "validate", "-address=http://127.0.0.1:1"]
             else:
                 command = [nomad, "job", "run", "-output"]
-            result = subprocess.run([*command, f"-var-file={variables}", str(path)],
+            result = subprocess.run([*command, f"-var-file={variables}", str(jobspec)],
                                     capture_output=True, text=True)
             if result.returncode:
                 raise ValueError(f"{path.relative_to(ROOT)}: {result.stderr or result.stdout}")
@@ -119,7 +135,7 @@ def render_jobs(manifest=None, vault_mount="secret", gateway_host_port=21000, *,
             if job_id in stages[stage]:
                 raise ValueError("Duplicate Nomad job ID: " + job_id)
             stages[stage][job_id] = {
-                "jobspec": path.read_text(),
+                "jobspec": text,
                 "variables": {key: value if isinstance(value, str) else tofu_json(hcl_value(value))
                               for key, value in values.items()},
             }
