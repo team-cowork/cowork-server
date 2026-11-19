@@ -636,7 +636,7 @@
       "get": {
         "tags": ["preference"],
         "summary": "역할 권한 목록 조회",
-        "description": "배열 순서가 화면 표시 순서. 검색 조건에 일치하는 권한이 없는 그룹은 빠짐",
+        "description": "배열 순서가 화면 표시 순서",
         "parameters": [
           {"name": "query", "in": "query", "required": false, "description": "검색어. 앞뒤 공백을 지우고 대소문자를 무시해 권한 제목·설명·키와 그룹 제목에서 찾음. 그룹 제목이 일치하면 그룹의 권한을 모두 반환", "schema": {"type": "string"}},
           {"name": "channelType", "in": "query", "required": false, "description": "이 채널 종류에 적용되는 권한(`channelTypes`에 값이 있는 권한)만 반환", "schema": {"type": "string", "enum": ["TEXT", "VOICE"]}}
