@@ -10,6 +10,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 NOMAD = ROOT / "deploy/nomad"
 RUNTIME = ROOT / "deploy/runtime"
+CATALOG = ROOT / "deploy/tofu/modules/catalog/main.tf"
 FAKE_IMAGE = "example.invalid/cowork-validation@sha256:" + "0" * 64
 DATABASE_SUFFIXES = ("-mysql", "-postgresql", "-mongodb", "-surrealdb")
 # HCL block labels cannot use variables, so shared jobs substitute the service name in the text.
@@ -145,4 +146,9 @@ def render_jobs(manifest=None, vault_mount="secret", gateway_host_port=21000, *,
                 if job["ID"] != job_id or job_id in specs:
                     raise ValueError(f"Nomad job ID must match its unique filename: {path.relative_to(ROOT)}")
                 specs[job_id] = job
+    # Template jobs render only the services in TEMPLATE_SERVICES, so a catalog job without one must fail here.
+    declared = set(re.findall(r'^\s*"(cowork-[^"]+)"\s*:\s*"nomad/', CATALOG.read_text(), re.MULTILINE))
+    missing = declared - {job_id for jobs in stages.values() for job_id in jobs}
+    if missing:
+        raise ValueError("Catalog jobs without a rendered Nomad job: " + ", ".join(sorted(missing)))
     return specs, stages
