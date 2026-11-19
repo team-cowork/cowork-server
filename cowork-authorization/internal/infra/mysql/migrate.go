@@ -95,12 +95,6 @@ func Migrate(ctx context.Context, db *gorm.DB, dsn string) error {
 }
 
 func resolveMigrationDir() (string, error) {
-	if configured := strings.TrimSpace(os.Getenv("DB_MIGRATION_DIR")); configured != "" {
-		if isDirectory(configured) {
-			return configured, nil
-		}
-		return "", fmt.Errorf("configured DB_MIGRATION_DIR is not a directory: %s", configured)
-	}
 	for _, candidate := range []string{containerMigrationDir, localMigrationDir} {
 		if isDirectory(candidate) {
 			return candidate, nil
