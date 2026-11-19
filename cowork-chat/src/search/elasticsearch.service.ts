@@ -45,7 +45,6 @@ const esField = {
 	functionScore: 'function_score',
 	matchAll: 'match_all',
 	randomScore: 'random_score',
-	mustNot: 'must_not',
 } as const;
 
 export type {MessageIndexDoc} from './message-index.contract.js';
@@ -64,10 +63,6 @@ export type SearchMessagesParameters = {
 	hasFile?: boolean;
 	before?: string;
 	limit: number;
-	/**
-    이 채널들의 SYSTEM 메시지는 결과에서 뺀다. 음성 채널 로그를 볼 수 없는 채널이다.
-    */
-	hiddenSystemChannelIds?: number[];
 };
 
 export type SearchTeamMessagesParameters = {
@@ -79,20 +74,7 @@ export type SearchTeamMessagesParameters = {
 	hasFile?: boolean;
 	before?: string;
 	limit: number;
-	/**
-    이 채널들의 SYSTEM 메시지는 결과에서 뺀다. 음성 채널 로그를 볼 수 없는 채널이다.
-    */
-	hiddenSystemChannelIds?: number[];
 };
-
-/**
- `channelIds` 채널의 SYSTEM 메시지를 빼는 조건. 채널이 없으면 조건도 없다.
- */
-function excludeSystemMessagesIn(channelIds: number[] | undefined): estypes.QueryDslQueryContainer[] {
-	return channelIds === undefined || channelIds.length === 0
-		? []
-		: [{bool: {[esField.mustNot]: [{bool: {filter: [{term: {type: 'SYSTEM'}}, {terms: {channelId: channelIds}}]}}]}}];
-}
 
 export type SearchHit = {
 	messageId: string;
@@ -650,13 +632,12 @@ export class ElasticsearchService implements OnModuleInit {
 	}
 
 	async searchTeamMessages(parameters: SearchTeamMessagesParameters): Promise<{hits: SearchHit[]; nextCursor: Nullable<string>}> {
-		const {teamId, accessibleChannelIds, q, authorId, type, hasFile, before, limit, hiddenSystemChannelIds} = parameters;
+		const {teamId, accessibleChannelIds, q, authorId, type, hasFile, before, limit} = parameters;
 
 		const filter: estypes.QueryDslQueryContainer[] = [
 			...(authorId === undefined ? [] : [{term: {authorId}}]),
 			...(type === undefined ? [] : [{term: {type}}]),
 			...(hasFile === true ? [{term: {hasAttachments: true}}] : []),
-			...excludeSystemMessagesIn(hiddenSystemChannelIds),
 		];
 
 		return this.runSearch(
@@ -668,14 +649,13 @@ export class ElasticsearchService implements OnModuleInit {
 	}
 
 	async searchMessages(parameters: SearchMessagesParameters): Promise<{hits: SearchHit[]; nextCursor: Nullable<string>}> {
-		const {accessibleChannelIds, q, channelId, authorId, type, hasFile, before, limit, hiddenSystemChannelIds} = parameters;
+		const {accessibleChannelIds, q, channelId, authorId, type, hasFile, before, limit} = parameters;
 
 		const filter: estypes.QueryDslQueryContainer[] = [
 			...(channelId === undefined ? [] : [{term: {channelId}}]),
 			...(authorId === undefined ? [] : [{term: {authorId}}]),
 			...(type === undefined ? [] : [{term: {type}}]),
 			...(hasFile === true ? [{term: {hasAttachments: true}}] : []),
-			...excludeSystemMessagesIn(hiddenSystemChannelIds),
 		];
 
 		return this.runSearch(

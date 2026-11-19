@@ -28,7 +28,6 @@ const channelMessageReadAccess = {
 const readStateRepository = {findForChannels: jest.fn()};
 const teamMemberRepository = {exists: jest.fn()};
 const channelProjectionRepository = {findByIds: jest.fn(), findById: jest.fn(), findByIdIncludingDeleted: jest.fn()};
-const elasticsearchService = {searchTeamMessages: jest.fn()};
 const unreadCounterService = {getMany: jest.fn(), setMany: jest.fn(), incrementIfPresent: jest.fn()};
 
 describe('ChatService voice channel logs', () => {
@@ -42,7 +41,6 @@ describe('ChatService voice channel logs', () => {
 			readStateRepository,
 			teamMemberRepository,
 			channelProjectionRepository,
-			elasticsearchService,
 			unreadCounterService,
 		});
 		channelMessageReadAccess.requireVoiceLogHiddenChannelIds.mockResolvedValue(new Set([30]));
@@ -111,18 +109,6 @@ describe('ChatService voice channel logs', () => {
 			{channelId: 1, lastReadMessageId: null, shouldExcludeSystem: false},
 			{channelId: 30, lastReadMessageId: null, shouldExcludeSystem: true},
 		]);
-	});
-
-	it('로그를 볼 수 없는 채널을 검색 조건으로 전달한다', async () => {
-		channelMessageReadAccess.requireReadableTeamChannelIds.mockResolvedValue([1, 30]);
-		elasticsearchService.searchTeamMessages.mockResolvedValue({hits: [], nextCursor: null});
-
-		await service.searchTeamMessages(10, {teamId: 10, q: '입장'}, {userId: 42});
-
-		expect(channelMessageReadAccess.requireVoiceLogHiddenChannelIds).toHaveBeenCalledWith(42, [1, 30]);
-		expect(elasticsearchService.searchTeamMessages).toHaveBeenCalledWith(expect.objectContaining({
-			accessibleChannelIds: [1, 30], hiddenSystemChannelIds: [30],
-		}));
 	});
 
 	it('SYSTEM 메시지의 안읽음 수는 로그를 볼 수 있는 사용자에게만 올린다', async () => {
