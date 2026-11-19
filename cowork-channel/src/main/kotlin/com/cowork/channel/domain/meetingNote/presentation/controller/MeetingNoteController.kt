@@ -86,7 +86,7 @@ class MeetingNoteController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
         @Valid @RequestBody request: SummarizeMeetingNoteRequest,
-    ): MeetingNoteSummaryResponse = summarizeMeetingNoteService.summarize(userId, channelId, request)
+    ): MeetingNoteSummaryResponse = summarizeMeetingNoteService.execute(userId, channelId, request)
 
     @Operation(summary = "회의록 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
