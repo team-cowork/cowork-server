@@ -67,7 +67,7 @@ class GithubSyncRequestSchedulerTest :
                 outboxWriter = outboxWriter,
                 snapshotLock = snapshotLock,
                 requestCooldownMs = Duration.ofMinutes(30).toMillis(),
-                staleAfterMs = Duration.ofDays(7).toMillis(),
+                staleAfterMs = Duration.ofHours(1).toMillis(),
                 projectStaleAfterMs = Duration.ofHours(1).toMillis(),
                 manualCooldownMs = Duration.ofMinutes(1).toMillis(),
             )
@@ -248,13 +248,13 @@ class GithubSyncRequestSchedulerTest :
 
                 context("모든 마커가 오래되지 않은 경우") {
                     it("요청하지 않는다") {
-                        scheduler.needsRequest(listOf(now.minus(Duration.ofDays(1))), null, now) shouldBe false
+                        scheduler.needsRequest(listOf(now.minus(Duration.ofMinutes(30))), null, now) shouldBe false
                     }
                 }
 
                 context("마커 하나가 오래된 경우") {
                     it("다시 동기화를 요청한다") {
-                        val markers = listOf(now.minus(Duration.ofDays(1)), now.minus(Duration.ofDays(8)))
+                        val markers = listOf(now.minus(Duration.ofMinutes(30)), now.minus(Duration.ofHours(2)))
 
                         scheduler.needsRequest(markers, null, now) shouldBe true
                     }

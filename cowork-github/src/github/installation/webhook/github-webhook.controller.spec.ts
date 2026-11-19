@@ -24,7 +24,7 @@ describe('GithubWebhookController', () => {
 		issueComment: {send: jest.Mock};
 	};
 	let pullRequestService: {listPullRequestFiles: jest.Mock};
-	let redis: {incr: jest.Mock; get: jest.Mock; set: jest.Mock};
+	let redis: {incr: jest.Mock; get: jest.Mock; set: jest.Mock; del: jest.Mock};
 	let authService: {cacheInstallation: jest.Mock; evictInstallation: jest.Mock};
 	let projectBoardWebhookHandler: {handleProjectItem: jest.Mock; handleProject: jest.Mock; handleContentChanged: jest.Mock};
 
@@ -47,6 +47,7 @@ describe('GithubWebhookController', () => {
 			incr: jest.fn().mockResolvedValue(5),
 			get: jest.fn().mockResolvedValue(null),
 			set: jest.fn().mockResolvedValue('OK'),
+			del: jest.fn().mockResolvedValue(1),
 		};
 
 		const module: TestingModule = await Test.createTestingModule({
@@ -164,14 +165,35 @@ describe('GithubWebhookController', () => {
 	});
 
 	it('PR state 발행이 실패하면 예외가 전파된다(재시도 대상이 되도록)', async () => {
-		pullRequestService.listPullRequestFiles.mockRejectedValue(new Error('rate limited'));
+		readModelProducers.pullRequest.send.mockRejectedValue(new Error('kafka down'));
 
 		await expect(controller.handle('pull_request', {
 			action: 'synchronize',
 			repository: {[githubField.fullName]: 'my-org/my-repo'},
 			[githubField.pullRequest]: {number: 7, user: {login: 'octocat'}},
-		})).rejects.toThrow('rate limited');
+		})).rejects.toThrow('kafka down');
 	});
+
+	it.each(['opened', 'synchronize', 'reopened'])(
+		'pull_request의 %s 액션에서 파일 목록 조회가 실패해도 files 없이 state를 발행한다',
+		async action => {
+			pullRequestService.listPullRequestFiles.mockRejectedValue(new Error('rate limited'));
+
+			const result = await controller.handle('pull_request', {
+				action,
+				repository: {[githubField.fullName]: 'my-org/my-repo'},
+				[githubField.pullRequest]: {number: 7, user: {login: 'octocat'}, state: 'open'},
+			});
+
+			expect(result).toEqual({ok: true});
+			expect(redis.get).not.toHaveBeenCalled();
+			expect(redis.set).not.toHaveBeenCalled();
+			const [sentEvent] = readModelProducers.pullRequest.send.mock.calls[0] as [Record<string, unknown>];
+			expect(sentEvent.number).toBe(7);
+			expect(sentEvent.state).toBe('open');
+			expect(sentEvent.files).toBeUndefined();
+		},
+	);
 
 	it('알림(github.repo.event) 발행이 실패해도 ok를 반환하고 PR state는 발행된다', async () => {
 		repoEventProducer.send.mockRejectedValue(new Error('kafka down'));
