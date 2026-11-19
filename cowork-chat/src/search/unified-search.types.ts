@@ -15,6 +15,24 @@ export class SearchWebhookAuthor {
 	@field(() => String, {nullable: true}) avatarUrl!: Nullable<string>;
 }
 
+@objectType({description: '통합 검색 메시지의 첨부'})
+export class SearchMessageAttachment {
+	@field({description: '첨부 파일의 원본 파일명'})
+	name!: string;
+
+	@field(() => String, {nullable: true, description: '업로드 완료 확인에서 확정된 오브젝트 키. 이전 메시지는 없을 수 있다'})
+	objectKey?: string;
+
+	@field(() => Float, {description: '파일 크기 (바이트)'})
+	size!: number;
+
+	@field({description: '파일의 MIME 타입'})
+	mimeType!: string;
+
+	@field({description: '스포일러 표시 여부. 이 값이 없던 기존 메시지는 false'})
+	spoiler!: boolean;
+}
+
 @objectType({description: '통합 검색의 메시지 결과'})
 export class SearchMessageItem {
 	@field({description: '메시지 MongoDB ObjectId'})
@@ -40,6 +58,9 @@ export class SearchMessageItem {
 
 	@field({description: '첨부파일 포함 여부'})
 	hasAttachments!: boolean;
+
+	@field(() => [SearchMessageAttachment], {description: '원본 메시지의 첨부 목록. 원본을 찾지 못하면 빈 배열'})
+	attachments!: SearchMessageAttachment[];
 
 	@field({description: '고정 메시지 여부'})
 	isPinned!: boolean;

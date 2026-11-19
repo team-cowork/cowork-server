@@ -136,6 +136,7 @@ function isAttachment(value: unknown): value is NonNullable<ChatMessageEvent['at
 		&& typeof value.objectKey === 'string'
 		&& /^chat-files\/[1-9]\d*\/[1-9]\d*\/[\w\-]+\.[\da-z]+$/iv.test(value.objectKey)
 		&& typeof value.mimeType === 'string'
+		&& (value.spoiler === undefined || typeof value.spoiler === 'boolean')
 		&& typeof value.size === 'number'
 		&& Number.isSafeInteger(value.size)
 

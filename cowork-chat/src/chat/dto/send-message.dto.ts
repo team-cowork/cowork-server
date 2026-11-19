@@ -1,6 +1,7 @@
 import {
 	ArrayMaxSize as arrayMaxSize,
 	IsArray as isArray,
+	IsBoolean as isBoolean,
 	IsEnum as isEnum,
 	IsInt as isInt,
 	IsMongoId as isMongoId,
@@ -19,6 +20,9 @@ import {SYSTEM_MESSAGE_KEY_PREFIX} from '../kafka/system-message-key.js';
 export class AttachmentDto {
 	@apiProperty({description: '업로드 완료 확인에서 반환한 최종 object key'})
 	@isString() @maxLength(200) objectKey!: string;
+
+	@apiPropertyOptional({description: '스포일러로 표시할지 여부. 받는 쪽 화면에서 가려진 채 보인다', default: false})
+	@isBoolean() @isOptional() spoiler?: boolean;
 }
 
 export class SendMessageDto {

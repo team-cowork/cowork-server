@@ -13,7 +13,7 @@ import {
 } from '@nestjs/common';
 import {Types} from 'mongoose';
 import {ConfirmedAttachment} from '../storage/attachment-upload.schema.js';
-import {ElasticsearchService} from '../search/elasticsearch.service.js';
+import {ElasticsearchService, type SearchHit} from '../search/elasticsearch.service.js';
 import {ObjectStorageService} from '../storage/object-storage.service.js';
 import {BlockService} from '../block/block.service.js';
 import {type Nullable} from '../common/type/nullable.js';
@@ -72,7 +72,12 @@ import {
 	AttachmentDeletionRepository,
 	ThreadProjectionRepository,
 } from './repository/index.js';
-import {MessageSearchDeletionService, isSearchIndexed} from './search/index.js';
+import {
+	MessageSearchDeletionService,
+	attachSearchHitAttachments,
+	isSearchIndexed,
+	type SearchHitWithAttachments,
+} from './search/index.js';
 
 const SYSTEM_AUTHOR_ID = 0;
 const SYSTEM_AUTHOR_NAME = 'System';
@@ -424,6 +429,21 @@ export class ChatService {
 	}
 
 	/**
+     검색 색인에는 첨부가 없으므로 원본 메시지의 첨부를 한 번에 조회해 검색 결과에 붙인다.
+
+     @param hits - Elasticsearch 검색 결과
+     @returns 각 결과에 `attachments`를 붙인 검색 결과
+     */
+	private async withSearchHitAttachments(hits: SearchHit[]): Promise<SearchHitWithAttachments[]> {
+		if (hits.length === 0) {
+			return [];
+		}
+
+		const rows = await this.messageRepository.findAttachmentsByIds(hits.map(hit => hit.messageId));
+		return attachSearchHitAttachments(hits, rows);
+	}
+
+	/**
      답장 원본과 스레드가 메시지를 보낼 곳과 맞는지 확인한다.
 
      @throws NotFoundException 답장 원본이나 스레드가 없는 경우
@@ -616,6 +636,7 @@ export class ChatService {
 				attachmentIndex: item.attachmentIndex,
 				objectKey: item.objectKey,
 				mimeType: item.mimeType,
+				spoiler: item.spoiler,
 				uploaderId: item.uploaderId,
 				uploaderName: uploaderNames.get(item.uploaderId) ?? String(item.uploaderId),
 				uploadedAt: item.uploadedAt,
@@ -894,7 +915,7 @@ export class ChatService {
 			limit: dto.limit ?? 50,
 		});
 
-		return {messages: hits, nextCursor};
+		return {messages: await this.withSearchHitAttachments(hits), nextCursor};
 	}
 
 	async searchTeamMessages(
@@ -941,7 +962,7 @@ export class ChatService {
 			limit: dto.limit ?? 50,
 		});
 
-		return {messages: hits, nextCursor};
+		return {messages: await this.withSearchHitAttachments(hits), nextCursor};
 	}
 
 	/**

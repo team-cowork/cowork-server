@@ -290,8 +290,20 @@ describe('ObjectStorageService', () => {
 			});
 			await expect(service().claimAttachments([{objectKey: 'chat-files/1/42/file.png'}], 1, 42, 'message-a'))
 				.resolves.toEqual([{
-					objectKey: 'chat-files/1/42/file.png', name: 'verified.png', size: 100, mimeType: 'image/png',
+					objectKey: 'chat-files/1/42/file.png', name: 'verified.png', size: 100, mimeType: 'image/png', spoiler: false,
 				}]);
+		});
+		it('전송 요청에서 지정한 첨부별 스포일러 표시를 그대로 싣는다', async () => {
+			uploads.claim.mockImplementation(async (objectKey: string) => ({
+				objectKey, name: 'verified.png', size: 100, mimeType: 'image/png',
+			}));
+			const attachments = await service().claimAttachments(
+				[{objectKey: 'chat-files/1/42/a.png', spoiler: true}, {objectKey: 'chat-files/1/42/b.png', spoiler: false}],
+				1,
+				42,
+				'message-a',
+			);
+			expect(attachments.map(attachment => attachment.spoiler)).toEqual([true, false]);
 		});
 		it('다른 사용자의 파일은 이력 조회 전 거부한다', async () => {
 			await expect(service().claimAttachments([{objectKey: 'chat-files/1/99/file.png'}], 1, 42, 'message-a'))
