@@ -73,6 +73,12 @@ dependencies {
     implementation(libs.awspring.cloud.s3)
     implementation(libs.logstash.logback.encoder)
     testImplementation(libs.spring.boot.starter.test)
+    testImplementation(libs.spring.modulith.core)
+    constraints {
+        testImplementation(libs.archunit) {
+            because("Spring Modulith needs a Java 27 compatible class file reader")
+        }
+    }
     testImplementation(libs.mockk)
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.assertions.core)
