@@ -1,4 +1,4 @@
-package com.cowork.team.domain.team.presentation.data.response
+package com.cowork.team.domain.teamMember
 
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.LocalDateTime

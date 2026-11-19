@@ -1,4 +1,4 @@
-package com.cowork.team.domain.teamInvite.presentation.data.request
+package com.cowork.team.domain.teamMember.presentation.data.request
 
 import io.swagger.v3.oas.annotations.media.Schema
 
