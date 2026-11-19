@@ -1403,9 +1403,7 @@ describe('ChatService', () => {
 
 			const result = await service.getTeamUnread(10, 42);
 
-			expect(mockMessageRepository.countUnreadForChannels).toHaveBeenCalledWith([
-				{channelId: 3, lastReadMessageId: null, shouldExcludeSystem: false},
-			]);
+			expect(mockMessageRepository.countUnreadForChannels).toHaveBeenCalledWith([{channelId: 3, lastReadMessageId: null, shouldExcludeSystem: false}]);
 			expect(result).toEqual([{channelId: 3, unreadCount: 10}]);
 		});
 	});
