@@ -14,10 +14,9 @@ import {
 	ApiParam as apiParameter,
 	ApiTags as apiTags,
 	ApiExtraModels as apiExtraModels,
-	getSchemaPath,
 	ApiResponse as apiResponse,
 } from '@nestjs/swagger';
-import {ApiResponseMetadataDto} from '../common/dto/api-response-metadata.dto.js';
+import {ApiResponseMetadataDto, apiResponseEnvelope} from '../common/dto/api-response-metadata.dto.js';
 import {currentUserId} from '../common/decorator/user.decorator.js';
 import {SafePositiveIntPipe} from '../common/pipe/safe-positive-int.pipe.js';
 import {BlockService} from './block.service.js';
@@ -62,21 +61,7 @@ export class BlockController {
 	@apiOperation({summary: '차단 목록 조회'})
 	@apiOkResponse({
 		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {type: 'array', items: {type: 'number'}, example: [2, 5, 13]},
-					},
-				},
-			],
-		},
+		schema: apiResponseEnvelope(200, {type: 'array', items: {type: 'number'}, example: [2, 5, 13]}),
 	})
 	async getBlockedUsers(@currentUserId() userId: number) {
 		return this.blockService.getBlockedUsers(userId);

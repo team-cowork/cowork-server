@@ -12,7 +12,7 @@ import {
 	ApiTags as apiTags,
 	getSchemaPath,
 } from '@nestjs/swagger';
-import {ApiResponseMetadataDto} from '../dto/api-response-metadata.dto.js';
+import {ApiResponseMetadataDto, apiResponseEnvelope} from '../dto/api-response-metadata.dto.js';
 import {UserRole} from '../enum/user-role.enum.js';
 import {requireRoles} from '../guard/roles.decorator.js';
 import {ProjectionDatasetDto, ProjectionStreamStatusDto} from './dto/projection-status.dto.js';
@@ -29,15 +29,7 @@ import {ProjectionReadinessService} from './projection-readiness.service.js';
 @apiResponse({
 	status: 403,
 	description: 'ADMIN 권한 필요',
-	schema: {
-		allOf: [
-			{$ref: getSchemaPath(ApiResponseMetadataDto)},
-			{
-				type: 'object',
-				properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-			},
-		],
-	},
+	schema: apiResponseEnvelope(403),
 })
 @requireRoles(UserRole.ADMIN)
 @apiExtraModels(ApiResponseMetadataDto, ProjectionDatasetDto)
@@ -53,21 +45,7 @@ export class ProjectionAdminController {
 	@apiResponse({
 		status: 200,
 		description: '스트림 이름별 동기화 상태',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {type: 'object', additionalProperties: {$ref: getSchemaPath(ProjectionStreamStatusDto)}},
-					},
-				},
-			],
-		},
+		schema: apiResponseEnvelope(200, {type: 'object', additionalProperties: {$ref: getSchemaPath(ProjectionStreamStatusDto)}}),
 	})
 	status() {
 		return this.readiness.getDetailedStatus();
@@ -78,34 +56,12 @@ export class ProjectionAdminController {
 	@apiResponse({
 		status: 201,
 		description: '재구축 요청을 반영한 상태',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['201 CREATED']},
-						code: {type: 'integer', enum: [201]},
-						message: {type: 'string', example: 'Created'},
-						data: {$ref: getSchemaPath(ProjectionDatasetDto)},
-					},
-				},
-			],
-		},
+		schema: apiResponseEnvelope(201, ProjectionDatasetDto),
 	})
 	@apiResponse({
 		status: 400,
 		description: '스트림이 없거나 재구축 사유가 올바르지 않음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
-				},
-			],
-		},
+		schema: apiResponseEnvelope(400),
 	})
 	async rebuild(@requestParameter('stream') stream: string, @requestBody() body: RequestProjectionRebuildDto) {
 		return this.readiness.requestRebuild(stream, body.reason);
