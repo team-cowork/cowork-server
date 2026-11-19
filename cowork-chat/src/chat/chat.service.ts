@@ -918,10 +918,8 @@ export class ChatService {
 			return {messages: [], nextCursor: null};
 		}
 
-		const hiddenSystemChannelIds = await this.channelMessageReadAccess.requireVoiceLogHiddenChannelIds(ctx.userId, filteredChannelIds);
 		const {hits, nextCursor} = await this.elasticsearchService.searchMessages({
 			accessibleChannelIds: filteredChannelIds,
-			hiddenSystemChannelIds: [...hiddenSystemChannelIds],
 			q: dto.q,
 			authorId: dto.authorId,
 			type: dto.type,
@@ -966,11 +964,9 @@ export class ChatService {
 			return {messages: [], nextCursor: null};
 		}
 
-		const hiddenSystemChannelIds = await this.channelMessageReadAccess.requireVoiceLogHiddenChannelIds(ctx.userId, accessibleChannelIds);
 		const {hits, nextCursor} = await this.elasticsearchService.searchTeamMessages({
 			teamId,
 			accessibleChannelIds,
-			hiddenSystemChannelIds: [...hiddenSystemChannelIds],
 			q: dto.q,
 			authorId: dto.authorId,
 			type: dto.type,

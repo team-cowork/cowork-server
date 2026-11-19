@@ -326,7 +326,7 @@ describe('ChatService', () => {
 
 			expect(mockChannelMessageReadAccess.requireReadableProjectChannelIds).toHaveBeenCalledWith(7, 42);
 			expect(mockElasticsearchService.searchMessages).toHaveBeenCalledWith({
-				accessibleChannelIds: [20], hiddenSystemChannelIds: [], q: '배포', authorId: undefined, type: undefined,
+				accessibleChannelIds: [20], q: '배포', authorId: undefined, type: undefined,
 				hasFile: undefined, before: undefined, limit: 50,
 			});
 		});
