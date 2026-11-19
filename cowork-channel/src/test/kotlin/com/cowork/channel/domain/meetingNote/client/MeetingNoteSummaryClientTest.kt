@@ -116,10 +116,29 @@ class MeetingNoteSummaryClientTest :
                     client.summarize("출시", "회의 내용")
                     val (primary, fallback) = bodies
                     primary["model"] shouldBe "openai/gpt-oss-120b"
+                    primary["reasoning_effort"] shouldBe "low"
+                    primary["max_completion_tokens"] shouldBe 4096
                     fallback["model"] shouldBe "flash-next"
                     fallback["messages"] shouldBe primary["messages"]
                     fallback.keys shouldBe
                         setOf("model", "messages", "temperature", "max_tokens", "chat_template_kwargs")
+                }
+            }
+
+            context("다른 Groq 모델을 설정하면") {
+                it("GPT-OSS 전용 추론 설정을 보내지 않는다") {
+                    val bodies = mutableListOf<Map<String, Any>>()
+                    val requestMapper = spyk(mapper)
+                    every { requestMapper.writeValueAsBytes(capture(bodies)) } answers { callOriginal() }
+                    client = MeetingNoteSummaryClient(http, requestMapper, "groq-key", "custom-model", "", "")
+                    every { http.send(any(), any<HttpResponse.BodyHandler<ByteArray>>()) } returns
+                        response(200, successBody)
+
+                    client.summarize("", "회의")
+                    val primary = bodies.single()
+                    primary["model"] shouldBe "custom-model"
+                    primary.containsKey("reasoning_effort") shouldBe false
+                    primary["max_completion_tokens"] shouldBe 2048
                 }
             }
 

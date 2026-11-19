@@ -59,17 +59,23 @@ class MeetingNoteSummaryClient(
             mapOf("role" to "user", "content" to "제목: $title\n\n$content"),
         )
         val deadline = System.nanoTime() + Duration.ofSeconds(30).toNanos()
+        val model = groqModel.ifBlank { DEFAULT_GROQ_MODEL }
         val groq = post(
             GROQ_URL,
             groqKey,
             deadline,
-            mapOf(
-                "model" to groqModel.ifBlank { "openai/gpt-oss-120b" },
-                "messages" to messages,
-                "temperature" to 0.2,
-                "max_completion_tokens" to 2048,
-                "response_format" to mapOf("type" to "json_object"),
-            ),
+            buildMap {
+                put("model", model)
+                put("messages", messages)
+                put("temperature", 0.2)
+                put("response_format", mapOf("type" to "json_object"))
+                if (model == DEFAULT_GROQ_MODEL) {
+                    put("reasoning_effort", "low")
+                    put("max_completion_tokens", 4096)
+                } else {
+                    put("max_completion_tokens", 2048)
+                }
+            },
         )
         val response = if (groq.statusCode() == 429 && aiHubKey.isNotBlank()) {
             post(
@@ -139,6 +145,7 @@ class MeetingNoteSummaryClient(
     private fun invalidResponse() = ExpectedException("AI 요약 응답을 읽을 수 없습니다.", HttpStatus.BAD_GATEWAY)
 
     companion object {
+        private const val DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
         private val GROQ_URL = URI.create("https://api.groq.com/openai/v1/chat/completions")
         private val AI_HUB_URL = URI.create("https://jeb.https.gsmsv.site/v1/chat/completions")
     }
