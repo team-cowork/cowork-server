@@ -16,7 +16,7 @@ import {
 	getSchemaPath,
 	ApiResponse as apiResponse,
 } from '@nestjs/swagger';
-import {ApiResponseMetadataDto} from '../common/dto/api-response-metadata.dto.js';
+import {ApiResponseMetadataDto, apiResponseEnvelope} from '../common/dto/api-response-metadata.dto.js';
 import {currentUserId} from '../common/decorator/user.decorator.js';
 import {SafePositiveIntPipe} from '../common/pipe/safe-positive-int.pipe.js';
 import {DmConversationDto} from './dto/dm-conversation.dto.js';
@@ -36,21 +36,7 @@ export class DmController {
 	@apiOperation({summary: '내 DM 대화 목록 조회', description: '숨긴 대화를 제외하고 최근 메시지가 있는 대화부터 반환합니다.'})
 	@apiOkResponse({
 		description: 'DM 대화 목록',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {type: 'array', items: {$ref: getSchemaPath(DmConversationDto)}},
-					},
-				},
-			],
-		},
+		schema: apiResponseEnvelope(200, {type: 'array', items: {$ref: getSchemaPath(DmConversationDto)}}),
 	})
 	async getMyDms(@currentUserId() userId: number) {
 		return this.chatService.getMyDms(userId);

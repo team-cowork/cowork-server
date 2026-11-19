@@ -12,9 +12,8 @@ import {
 	ApiResponse as apiResponse,
 	ApiTags as apiTags,
 	ApiExtraModels as apiExtraModels,
-	getSchemaPath,
 } from '@nestjs/swagger';
-import {ApiResponseMetadataDto} from '../common/dto/api-response-metadata.dto.js';
+import {ApiResponseMetadataDto, apiResponseEnvelope} from '../common/dto/api-response-metadata.dto.js';
 import {UserRole} from '../common/enum/user-role.enum.js';
 import {requireRoles} from '../common/guard/roles.decorator.js';
 import {MessageSearchStatusDto} from './dto/admin-response.dto.js';
@@ -25,28 +24,12 @@ import {StartMessageSearchRebuildDto} from './dto/index.js';
 @apiResponse({
 	status: 400,
 	description: '요청 값이 올바르지 않음',
-	schema: {
-		allOf: [
-			{$ref: getSchemaPath(ApiResponseMetadataDto)},
-			{
-				type: 'object',
-				properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
-			},
-		],
-	},
+	schema: apiResponseEnvelope(400),
 })
 @apiResponse({
 	status: 403,
 	description: 'ADMIN 권한 필요',
-	schema: {
-		allOf: [
-			{$ref: getSchemaPath(ApiResponseMetadataDto)},
-			{
-				type: 'object',
-				properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-			},
-		],
-	},
+	schema: apiResponseEnvelope(403),
 })
 @requireRoles(UserRole.ADMIN)
 @apiExtraModels(ApiResponseMetadataDto, MessageSearchStatusDto)
@@ -62,21 +45,7 @@ export class MessageSearchAdminController {
 	@apiResponse({
 		status: 200,
 		description: '색인 상태와 최근 재구축 결과',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {$ref: getSchemaPath(MessageSearchStatusDto)},
-					},
-				},
-			],
-		},
+		schema: apiResponseEnvelope(200, MessageSearchStatusDto),
 	})
 	async status() {
 		return this.messageSearchAdminService.status();
@@ -88,21 +57,7 @@ export class MessageSearchAdminController {
 	@apiResponse({
 		status: 200,
 		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {type: 'object', properties: {messages: {type: 'integer'}, tombstones: {type: 'integer'}}},
-					},
-				},
-			],
-		},
+		schema: apiResponseEnvelope(200, {type: 'object', properties: {messages: {type: 'integer'}, tombstones: {type: 'integer'}}}),
 	})
 	async retryFailed() {
 		return this.messageSearchAdminService.retryFailed();
@@ -115,15 +70,7 @@ export class MessageSearchAdminController {
 	@apiResponse({
 		status: 409,
 		description: '현재 상태에서는 요청을 처리할 수 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['409 CONFLICT']}, code: {type: 'integer', enum: [409]}},
-				},
-			],
-		},
+		schema: apiResponseEnvelope(409),
 	})
 	async rebuild(@requestBody() body: StartMessageSearchRebuildDto): Promise<void> {
 		if (!await this.messageSearchAdminService.startRebuild(body.resume === true)) {

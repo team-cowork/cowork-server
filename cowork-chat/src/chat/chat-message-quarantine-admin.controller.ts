@@ -15,7 +15,7 @@ import {
 	ApiExtraModels as apiExtraModels,
 	getSchemaPath,
 } from '@nestjs/swagger';
-import {ApiResponseMetadataDto} from '../common/dto/api-response-metadata.dto.js';
+import {ApiResponseMetadataDto, apiResponseEnvelope} from '../common/dto/api-response-metadata.dto.js';
 import {UserRole} from '../common/enum/user-role.enum.js';
 import {requireRoles} from '../common/guard/roles.decorator.js';
 import {QuarantineRecordDto} from './dto/admin-response.dto.js';
@@ -26,28 +26,12 @@ import {ChatMessageQuarantineRecordIdDto, FindChatMessageQuarantineRecordsDto} f
 @apiResponse({
 	status: 400,
 	description: '레코드 ID 또는 상태 값이 올바르지 않음',
-	schema: {
-		allOf: [
-			{$ref: getSchemaPath(ApiResponseMetadataDto)},
-			{
-				type: 'object',
-				properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
-			},
-		],
-	},
+	schema: apiResponseEnvelope(400),
 })
 @apiResponse({
 	status: 403,
 	description: 'ADMIN 권한 필요',
-	schema: {
-		allOf: [
-			{$ref: getSchemaPath(ApiResponseMetadataDto)},
-			{
-				type: 'object',
-				properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-			},
-		],
-	},
+	schema: apiResponseEnvelope(403),
 })
 @requireRoles(UserRole.ADMIN)
 @apiExtraModels(ApiResponseMetadataDto, QuarantineRecordDto)
@@ -63,32 +47,18 @@ export class ChatMessageQuarantineAdminController {
 	@apiResponse({
 		status: 200,
 		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {
-							type: 'array',
-							items: {
-								type: 'object',
-								properties: {
-									status: {type: 'string'},
-									errorType: {type: 'string'},
-									reasonCode: {type: 'string'},
-									count: {type: 'integer'},
-								},
-							},
-						},
-					},
+		schema: apiResponseEnvelope(200, {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: {
+					status: {type: 'string'},
+					errorType: {type: 'string'},
+					reasonCode: {type: 'string'},
+					count: {type: 'integer'},
 				},
-			],
-		},
+			},
+		}),
 	})
 	async summary() {
 		return this.quarantineService.summary();
@@ -99,21 +69,7 @@ export class ChatMessageQuarantineAdminController {
 	@apiResponse({
 		status: 200,
 		description: '최근 격리 레코드 목록',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {type: 'array', items: {$ref: getSchemaPath(QuarantineRecordDto)}},
-					},
-				},
-			],
-		},
+		schema: apiResponseEnvelope(200, {type: 'array', items: {$ref: getSchemaPath(QuarantineRecordDto)}}),
 	})
 	async records(@requestQuery() query: FindChatMessageQuarantineRecordsDto) {
 		return this.quarantineService.findRecent(query.status);
@@ -126,15 +82,7 @@ export class ChatMessageQuarantineAdminController {
 	@apiResponse({
 		status: 409,
 		description: '현재 상태에서는 요청을 처리할 수 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['409 CONFLICT']}, code: {type: 'integer', enum: [409]}},
-				},
-			],
-		},
+		schema: apiResponseEnvelope(409),
 	})
 	async reprocess(@requestParameter() path: ChatMessageQuarantineRecordIdDto): Promise<void> {
 		if (!await this.quarantineService.requestReprocess(path.id)) {
@@ -149,15 +97,7 @@ export class ChatMessageQuarantineAdminController {
 	@apiResponse({
 		status: 409,
 		description: '현재 상태에서는 요청을 처리할 수 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['409 CONFLICT']}, code: {type: 'integer', enum: [409]}},
-				},
-			],
-		},
+		schema: apiResponseEnvelope(409),
 	})
 	async discard(@requestParameter() path: ChatMessageQuarantineRecordIdDto): Promise<void> {
 		if (!await this.quarantineService.discard(path.id)) {

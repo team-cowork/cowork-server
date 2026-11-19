@@ -6,7 +6,7 @@ import {
 	ApiExtraModels as apiExtraModels,
 	getSchemaPath,
 } from '@nestjs/swagger';
-import {ApiResponseMetadataDto} from '../common/dto/api-response-metadata.dto.js';
+import {ApiResponseMetadataDto, apiResponseEnvelope} from '../common/dto/api-response-metadata.dto.js';
 import {currentUserId} from '../common/decorator/user.decorator.js';
 import {SafePositiveIntPipe} from '../common/pipe/safe-positive-int.pipe.js';
 import {ChatService} from './chat.service.js';
@@ -26,21 +26,7 @@ export class TeamUnreadController {
 	@apiResponse({
 		status: 200,
 		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {type: 'array', items: {$ref: getSchemaPath(UnreadCountItemDto)}},
-					},
-				},
-			],
-		},
+		schema: apiResponseEnvelope(200, {type: 'array', items: {$ref: getSchemaPath(UnreadCountItemDto)}}),
 	})
 	@apiResponse({status: 400, description: '팀 ID 형식 오류', type: ApiResponseMetadataDto})
 	@apiResponse({status: 403, description: '팀 접근 권한 없음', type: ApiResponseMetadataDto})
