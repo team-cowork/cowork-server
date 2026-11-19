@@ -30,7 +30,8 @@ Name query DTO parameters `queryReq`, or `searchReq` for searches. Preserve quer
 | Kotlin DTO annotation | Target |
 |-----------------------|--------|
 | Jackson, including `JsonProperty` and `JsonAlias` | `@field:` |
-| Request Swagger schema | `@param:Schema` |
+| Request body Swagger schema | `@get:Schema` |
+| Query DTO Swagger schema | `@param:Schema` |
 | Response Swagger schema | `@field:Schema` |
 | Bean Validation constraints | `@field:`, with `@Valid` at the controller boundary |
 
