@@ -3,13 +3,20 @@ import {GithubGraphqlClient} from '../client/github-graphql.client.js';
 import {type Nullable} from '../common/nullable.js';
 import type {GraphqlProject, GraphqlProjectItem} from './project-board.mapper.js';
 import {
+	ADD_DRAFT_MUTATION,
+	ADD_ITEM_MUTATION,
 	CLEAR_ITEM_FIELD_VALUE_MUTATION,
 	CONTENT_PROJECT_ITEMS_QUERY,
+	CONVERT_DRAFT_MUTATION,
+	DELETE_ITEM_MUTATION,
 	PROJECT_BY_NODE_QUERY,
 	PROJECT_BY_NUMBER_QUERY,
 	PROJECT_ITEM_IDS_QUERY,
 	PROJECT_ITEM_QUERY,
 	PROJECT_ITEMS_QUERY,
+	PROJECT_REPOSITORY_QUERY,
+	REPLACE_ISSUE_ASSIGNEES_MUTATION,
+	UPDATE_DRAFT_MUTATION,
 	UPDATE_ITEM_FIELD_VALUE_MUTATION,
 	UPDATE_ITEM_POSITION_MUTATION,
 } from './project-board.queries.js';
@@ -20,8 +27,18 @@ export const MAX_PROJECT_ITEMS = 5000;
 type ItemPage<T> = {node: Nullable<{items?: {pageInfo: {hasNextPage: boolean; endCursor: Nullable<string>}; nodes: Array<Nullable<T>>}}>};
 
 export type ProjectFieldValueInput =
+	| {text: string}
+	| {number: number}
+	| {date: string}
 	| {singleSelectOptionId: string}
 	| {iterationId: string};
+
+export type ProjectRepository = {
+	id: string;
+	nameWithOwner: string;
+	owner: {__typename: string; login: string};
+	issueOrPullRequest?: Nullable<{__typename: string; id: string}>;
+};
 
 /**
  GitHub Projects(v2) GraphQL 호출을 모은다. 설치 토큰은 조직 login으로 고른다.
@@ -125,5 +142,42 @@ export class ProjectBoardApiService {
 	async updatePosition(parameters: {owner: string; projectNodeId: string; itemId: string; afterId: Nullable<string>}): Promise<void> {
 		const {owner, projectNodeId, itemId, afterId} = parameters;
 		await this.graphql.request(owner, UPDATE_ITEM_POSITION_MUTATION, {projectId: projectNodeId, itemId, afterId});
+	}
+
+	async getRepository(owner: string, repo: string, number?: number): Promise<Nullable<ProjectRepository>> {
+		const data = await this.graphql.request<{repository: Nullable<ProjectRepository>}>(owner, PROJECT_REPOSITORY_QUERY, {
+			owner, repo, number: number ?? 1, includeContent: number !== undefined,
+		});
+		return data.repository;
+	}
+
+	async createDraft(owner: string, projectNodeId: string, title: string, body: string): Promise<string> {
+		const data = await this.graphql.request<{addProjectV2DraftIssue: {projectItem: {id: string}}}>(
+			owner, ADD_DRAFT_MUTATION, {projectId: projectNodeId, title, body},
+		);
+		return data.addProjectV2DraftIssue.projectItem.id;
+	}
+
+	async updateDraft(owner: string, draftIssueId: string, changes: {title?: string; body?: string}): Promise<void> {
+		await this.graphql.request(owner, UPDATE_DRAFT_MUTATION, {input: {draftIssueId, ...changes}});
+	}
+
+	async addItem(owner: string, projectNodeId: string, contentId: string): Promise<string> {
+		const data = await this.graphql.request<{addProjectV2ItemById: {item: {id: string}}}>(
+			owner, ADD_ITEM_MUTATION, {projectId: projectNodeId, contentId},
+		);
+		return data.addProjectV2ItemById.item.id;
+	}
+
+	async removeItem(owner: string, projectNodeId: string, itemId: string): Promise<void> {
+		await this.graphql.request(owner, DELETE_ITEM_MUTATION, {projectId: projectNodeId, itemId});
+	}
+
+	async convertDraft(owner: string, itemId: string, repositoryId: string): Promise<void> {
+		await this.graphql.request(owner, CONVERT_DRAFT_MUTATION, {itemId, repositoryId});
+	}
+
+	async setAssignees(owner: string, issueId: string, assignees: string[]): Promise<void> {
+		await this.graphql.request(owner, REPLACE_ISSUE_ASSIGNEES_MUTATION, {issueId, assignees});
 	}
 }

@@ -1,6 +1,7 @@
 import type {KafkaContext} from '@nestjs/microservices';
 import {GithubClientError} from '../../github.errors.js';
 import type {ProjectBoardApiService} from '../project-board-api.service.js';
+import type {ProjectItemEditorService} from './project-item-editor.service.js';
 import {ProjectItemWriteCommandController} from './project-item-write-command.controller.js';
 import type {ProjectItemWriteResultProducer} from './project-item-write-result.producer.js';
 
@@ -37,6 +38,7 @@ describe('ProjectItemWriteCommandController', () => {
 		controller = new ProjectItemWriteCommandController(
 			api as unknown as ProjectBoardApiService,
 			resultProducer as unknown as ProjectItemWriteResultProducer,
+			{} as ProjectItemEditorService,
 		);
 	});
 

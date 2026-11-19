@@ -20,8 +20,8 @@ data class GithubProjectItemTarget(
 )
 
 /**
- * 카드 이동을 `PENDING` 작업으로 저장하고 같은 트랜잭션의 outbox로 `github.project-item-write.command.v1`을 발행한다.
- * 사용자가 같은 카드를 여러 번 옮기는 것은 별개의 작업이므로 호출마다 새 nonce로 key를 만든다.
+ * 카드 쓰기를 `PENDING` 작업으로 저장하고 같은 트랜잭션의 outbox로 `github.project-item-write.command.v1`을 발행한다.
+ * 사용자가 같은 카드를 여러 번 편집하는 것은 별개의 작업이므로 호출마다 새 nonce로 key를 만든다.
  */
 @Component
 class GithubProjectItemWriteCommandPublisher(

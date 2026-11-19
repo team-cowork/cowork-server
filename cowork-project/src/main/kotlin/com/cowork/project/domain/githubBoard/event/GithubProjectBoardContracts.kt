@@ -88,6 +88,7 @@ data class GithubProjectItemLabel(val name: String = "", val color: String = "")
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class GithubProjectItemContent(
     val title: String = "",
+    val body: String? = null,
     val number: Int? = null,
     val state: String? = null,
     val url: String? = null,
@@ -114,7 +115,25 @@ data class GithubProjectItemStateEvent(
     val sourceOccurredAt: Instant = Instant.EPOCH,
 )
 
-enum class GithubProjectItemWriteCommandType { MOVE_ITEM, REORDER_ITEM }
+enum class GithubProjectItemWriteCommandType {
+    MOVE_ITEM,
+    REORDER_ITEM,
+    SET_FIELD,
+    CLEAR_FIELD,
+    CREATE_DRAFT,
+    UPDATE_DRAFT,
+    ADD_ITEM,
+    REMOVE_ITEM,
+    CONVERT_DRAFT,
+    SET_ASSIGNEES,
+}
+
+data class GithubSetFieldPayload(val fieldId: String, val value: Map<String, Any>)
+data class GithubClearFieldPayload(val fieldId: String)
+data class GithubDraftPayload(val title: String?, val body: String?)
+data class GithubAddItemPayload(val repo: String, val number: Int)
+data class GithubConvertDraftPayload(val repo: String)
+data class GithubSetAssigneesPayload(val repo: String, val assignees: List<String>)
 
 /** 카드를 다른 컬럼으로 옮긴다. 두 값이 모두 null이면 컬럼 field 값을 지운다. `reposition`이 true이면 `afterItemId` 뒤로도 옮긴다. */
 data class GithubMoveItemPayload(

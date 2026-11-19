@@ -14,7 +14,7 @@ import java.time.LocalDateTime
 enum class GithubProjectItemWriteOperationStatus { PENDING, SUCCEEDED, FAILED }
 
 /**
- * 카드 이동 커맨드의 작업 원장. 결과가 도착하면 `SUCCEEDED`나 `FAILED`로 바뀌고, 이미 끝난 작업에 다시 온 결과는 무시한다.
+ * 카드 쓰기 커맨드의 작업 원장. 결과가 도착하면 `SUCCEEDED`나 `FAILED`로 바뀌고, 이미 끝난 작업에 다시 온 결과는 무시한다.
  * Projection은 이 결과가 아니라 `projects_v2_item` 웹훅으로 바뀐다.
  */
 @Entity
@@ -38,7 +38,7 @@ class GithubProjectItemWriteOperation(
     val projectId: Long,
 
     @Column(name = "item_id", length = 100)
-    val itemId: String?,
+    var itemId: String?,
 
     @Column(name = "requested_by", nullable = false)
     val requestedBy: Long,
@@ -61,8 +61,9 @@ class GithubProjectItemWriteOperation(
     @Column(name = "updated_at", nullable = false)
     var updatedAt: LocalDateTime = LocalDateTime.now(),
 ) {
-    fun succeed(): Boolean {
+    fun succeed(resultItemId: String? = null): Boolean {
         if (status != GithubProjectItemWriteOperationStatus.PENDING) return false
+        if (itemId == null) itemId = resultItemId
         status = GithubProjectItemWriteOperationStatus.SUCCEEDED
         return true
     }
