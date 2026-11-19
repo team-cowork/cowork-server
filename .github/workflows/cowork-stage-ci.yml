@@ -37,10 +37,9 @@ jobs:
               ...context.repo, pull_number: context.payload.pull_request.number,
             });
             const title = pullRequest.title;
-            // TODO(2026-11-17T02:31:33Z): Remove the 'promotion' scope when cowork-promotion is removed.
             const allowedScopes = [
               'global', 'gateway', 'authorization', 'user',
-              'team', 'project', 'channel', 'roadmap', 'applet', 'chat', 'dm', 'voice', 'promotion', 'github',
+              'team', 'project', 'channel', 'roadmap', 'applet', 'chat', 'dm', 'voice', 'github',
               'notification', 'preference', 'ci/cd', 'monitoring'
             ];
 
