@@ -5,7 +5,7 @@ import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
-import com.cowork.team.domain.teamRole.service.support.TeamRolePermission
+import com.cowork.team.global.policy.PermissionKeys
 import com.cowork.team.global.policy.RolePolicy
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -40,7 +40,7 @@ class TeamRoleAccessGuard(
     }
 
     fun requireManageRoles(teamId: Long, userId: Long): ManageRoleContext =
-        requirePermission(teamId, userId, TeamRolePermission.MANAGE_ROLES.key, "역할 관리 권한이 없습니다.")
+        requirePermission(teamId, userId, PermissionKeys.MANAGE_ROLES, "역할 관리 권한이 없습니다.")
 
     /** 역할 이름과 관계없이 부여된 정책으로 작업 권한을 판정한다. */
     fun requirePermission(teamId: Long, userId: Long, permission: String, deniedMessage: String): ManageRoleContext {

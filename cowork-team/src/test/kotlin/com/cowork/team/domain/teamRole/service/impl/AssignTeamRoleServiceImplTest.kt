@@ -7,7 +7,7 @@ import com.cowork.team.domain.teamRole.service.impl.TeamRoleServiceFixture.Compa
 import com.cowork.team.domain.teamRole.service.impl.TeamRoleServiceFixture.Companion.TARGET_ID
 import com.cowork.team.domain.teamRole.service.impl.TeamRoleServiceFixture.Companion.TEAM_ID
 import com.cowork.team.domain.teamRole.service.impl.TeamRoleServiceFixture.Companion.role
-import com.cowork.team.domain.teamRole.service.support.TeamRolePermission
+import com.cowork.team.global.policy.PermissionKeys
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -65,7 +65,7 @@ class AssignTeamRoleServiceImplTest :
                 it("우선순위 제한 없이 접수한다") {
                     fixture.givenOwner()
                     fixture.givenRole(
-                        role(priority = 100, permissions = mapOf(TeamRolePermission.MANAGE_TEAM.key to true)),
+                        role(priority = 100, permissions = mapOf(PermissionKeys.MANAGE_TEAM to true)),
                     )
 
                     assign(OWNER_ID) shouldBe fixture.accepted
@@ -75,7 +75,7 @@ class AssignTeamRoleServiceImplTest :
             context("관리자에게 없는 권한을 가진 역할을 부여하면") {
                 it("FORBIDDEN으로 거부한다") {
                     fixture.givenCustomManager()
-                    fixture.givenRole(role(permissions = mapOf(TeamRolePermission.MANAGE_TEAM.key to true)))
+                    fixture.givenRole(role(permissions = mapOf(PermissionKeys.MANAGE_TEAM to true)))
 
                     val error = shouldThrow<ExpectedException> { assign() }
 
