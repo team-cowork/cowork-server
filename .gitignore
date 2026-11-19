@@ -139,16 +139,6 @@ target/
 /cowork-project/**/.idea/
 /cowork-project/**/.vscode/
 
-# Promotion
-# TODO(2026-11-17T02:31:33Z): Remove this section when cowork-promotion is removed.
-/cowork-promotion/**/node_modules
-/cowork-promotion/**/.output
-/cowork-promotion/**/.nuxt
-/cowork-promotion/**/.nitro
-/cowork-promotion/**/.cache
-/cowork-promotion/**/dist
-/cowork-promotion/**/public
-
 # Team
 /cowork-team/**/*.jar
 /cowork-team/**/*.war
