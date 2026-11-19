@@ -7,7 +7,8 @@ export const UPLOAD_RECLAIM_AGE_MS = (ATTACHMENT_UPLOAD_RETENTION_SECONDS + (24 
 // 회수 워커가 처리하지 못한 기록만 지우는 backstop이다. 회수 시점(재시도 창 + 유예)보다 길어야 한다.
 export const ATTACHMENT_UPLOAD_TTL_SECONDS = 14 * 24 * 60 * 60;
 
-export type ConfirmedAttachment = {objectKey: string; name: string; size: number; mimeType: string};
+// 스포일러 표시(spoiler)는 메시지 전송 요청에서 정한다. 이전 producer의 Kafka 이벤트에는 없을 수 있다.
+export type ConfirmedAttachment = {objectKey: string; name: string; size: number; mimeType: string; spoiler?: boolean};
 
 @schema({collection: 'attachment_uploads', timestamps: true, versionKey: false})
 export class AttachmentUpload {
