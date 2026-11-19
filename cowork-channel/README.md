@@ -57,7 +57,7 @@
 | `GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET`                                                 | Google OAuth client secret |
 | `FACEBOOK_ACCOUNT_SHARE_CLIENT_ID`                                                   | Facebook OAuth client ID  |
 | `FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET`                                               | Facebook OAuth client secret |
-| `GROQ_API_KEY` | 회의록 분석용 Groq API 키 |
-| `GROQ_MODEL` | Groq 모델. 기본값 `openai/gpt-oss-120b` |
-| `AI_HUB_API_KEY` | Groq 한도 초과 시 사용할 AI Hub 키. LLM 권한 필요 |
-| `AI_HUB_MODEL` | AI Hub 요약 모델. 기본값 `flash-next` |
+| `GROQ_API_KEY`                                                                       | 회의록 분석용 Groq API 키 |
+| `GROQ_MODEL`                                                                         | Groq 모델. 기본값 `openai/gpt-oss-120b` |
+| `AI_HUB_API_KEY`                                                                     | Groq 한도 초과 시 사용할 AI Hub 키. LLM 권한 필요 |
+| `AI_HUB_MODEL`                                                                       | AI Hub 요약 모델. 기본값 `flash-next` |
