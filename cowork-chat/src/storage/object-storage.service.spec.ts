@@ -126,56 +126,17 @@ describe('ObjectStorageService', () => {
 		});
 	});
 
-	describe('assertOwnedAttachmentUrl', () => {
-		it('현재 채널에서 요청자가 업로드한 URL만 허용한다', () => {
-			const service = withRateLimiter(new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never));
-
-			expect(() => {
-				service.assertOwnedAttachmentUrl(
-					'https://api.example.com/api/storage/cowork-chat/chat-files/1/42/file.png',
-					1,
-					42,
-				);
-			}).not.toThrow();
-		});
-
-		it('다른 채널이나 다른 사용자의 URL은 거부한다', () => {
-			const service = withRateLimiter(new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never));
-
-			expect(() => {
-				service.assertOwnedAttachmentUrl(
-					'https://api.example.com/api/storage/cowork-chat/chat-files/2/99/file.png',
-					1,
-					42,
-				);
-			}).toThrow(BadRequestException);
-		});
-
-		it('관리 대상 외부 URL은 거부한다', () => {
-			const service = withRateLimiter(new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never));
-
-			expect(() => {
-				service.assertOwnedAttachmentUrl(
-					'https://attacker.example/chat-files/1/42/file.png',
-					1,
-					42,
-				);
-			}).toThrow(BadRequestException);
-		});
-	});
-
 	describe('첨부 경로 검증', () => {
 		it.each([
 			'chat-files/1/42/../secret.png',
 			'chat-files/1/42/%2e%2e/secret.png',
 			'chat-files/1/42/file.png?download=1',
 			'chat-files/1/42/file.png#fragment',
-		])('소유자 prefix 안에서도 잘못된 key %s를 거부한다', objectKey => {
+			'chat-files/2/99/file.png',
+		])('요청 채널·사용자 prefix를 벗어나거나 잘못된 key %s를 거부한다', async objectKey => {
 			const service = withRateLimiter(new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never));
-			expect(() => {
-				service.assertOwnedAttachmentUrl(`https://api.example.com/api/storage/cowork-chat/${objectKey}`, 1, 42);
-			})
-				.toThrow(BadRequestException);
+			await expect(service.createPresignedDownload(objectKey, 1, 42, 'file.png')).rejects.toBeInstanceOf(BadRequestException);
+			expect(mockedGetSignedUrl).not.toHaveBeenCalled();
 		});
 	});
 

@@ -56,14 +56,6 @@ import {
 } from './projection-readiness.types.js';
 
 export {
-	hasCompletedSnapshotBarriers,
-	hasReachedStartupOffsets,
-	isCheckpointWithinRetainedRange,
-	isSuspiciousDocumentCountDrop,
-} from './projection-offsets.js';
-
-export type {ProjectionPartitionStatus, ProjectionStreamStatus} from './projection-readiness.types.js';
-export {
 	CHANNEL_PERMISSION_STREAMS,
 	PROJECTION_STREAMS,
 	type ProjectionName,
