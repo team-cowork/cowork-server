@@ -456,74 +456,8 @@ func (c *ProjectionConsumer) initializeCheckpoints(
 	ranges map[projection.TopicPartition]projectionOffsetRange,
 ) bool {
 	for partition, offsetRange := range ranges {
-		for {
-			checkpoint, found, err := c.store.LoadCheckpoint(
-				ctx,
-				c.groupID,
-				partition.Topic,
-				partition.Partition,
-			)
-			nextOffset := checkpoint.NextOffset
-			if err == nil {
-				resumeOffset, policyErr := projectionCheckpointResumeOffset(checkpoint, found, offsetRange)
-				if policyErr != nil {
-					err = policyErr
-				} else if found && resumeOffset == nextOffset {
-					break
-				} else {
-					err = c.store.AdvanceCheckpoint(ctx, projection.Checkpoint{
-						ConsumerGroup: c.groupID,
-						Topic:         partition.Topic,
-						Partition:     partition.Partition,
-						TopicID:       offsetRange.TopicID,
-						NextOffset:    resumeOffset,
-					})
-				}
-			}
-			if err == nil {
-				break
-			}
-			if ctx.Err() != nil {
-				return false
-			}
-			if errors.Is(err, projection.ErrTopicGenerationMismatch) {
-				slog.Error(
-					"projection topic generation changed; refusing readiness and seek",
-					"topic", partition.Topic,
-					"partition", partition.Partition,
-					"checkpointTopicId", checkpoint.TopicID,
-					"brokerTopicId", offsetRange.TopicID,
-					"action", "rebuild projection tables and shared checkpoints together; do not reset offsets alone",
-				)
-			} else if errors.Is(err, ErrProjectionCheckpointAheadOfTopic) {
-				slog.Error(
-					"projection checkpoint is ahead of Kafka; refusing readiness and seek",
-					"topic", partition.Topic,
-					"partition", partition.Partition,
-					"checkpoint", nextOffset,
-					"topicEnd", offsetRange.End,
-					"action", "rebuild projection tables and shared checkpoints together; do not reset offsets alone",
-				)
-			} else if errors.Is(err, ErrProjectionCheckpointBehindTopic) {
-				slog.Error(
-					"projection checkpoint is behind Kafka retention; refusing readiness and seek",
-					"topic", partition.Topic,
-					"partition", partition.Partition,
-					"checkpoint", nextOffset,
-					"topicStart", offsetRange.First,
-					"action", "rebuild the projection and reset its shared checkpoint together",
-				)
-			} else {
-				slog.Error(
-					"projection checkpoint initialization failed; retrying",
-					"topic", partition.Topic,
-					"partition", partition.Partition,
-					"err", err,
-				)
-			}
-			if !waitForRetry(ctx) {
-				return false
-			}
+		if _, ok := c.resumeWithRetry(ctx, partition, offsetRange, true); !ok {
+			return false
 		}
 	}
 	return true
@@ -534,7 +468,7 @@ func (c *ProjectionConsumer) consumePartition(
 	partition projection.TopicPartition,
 	offsetRange projectionOffsetRange,
 ) {
-	nextOffset, ok := c.loadCheckpointWithRetry(ctx, partition, offsetRange)
+	nextOffset, ok := c.resumeWithRetry(ctx, partition, offsetRange, false)
 	if !ok {
 		return
 	}
@@ -581,11 +515,18 @@ func (c *ProjectionConsumer) consumePartition(
 	}
 }
 
-func (c *ProjectionConsumer) loadCheckpointWithRetry(
+// resumeWithRetry loads the partition checkpoint and returns its resume offset, retrying
+// until the checkpoint is valid. With advance, it also stores the resume offset when it differs.
+func (c *ProjectionConsumer) resumeWithRetry(
 	ctx context.Context,
 	partition projection.TopicPartition,
 	offsetRange projectionOffsetRange,
+	advance bool,
 ) (int64, bool) {
+	refusal, failure := "refusing seek", "projection checkpoint load failed; retrying"
+	if advance {
+		refusal, failure = "refusing readiness and seek", "projection checkpoint initialization failed; retrying"
+	}
 	for {
 		checkpoint, found, err := c.store.LoadCheckpoint(
 			ctx,
@@ -594,19 +535,28 @@ func (c *ProjectionConsumer) loadCheckpointWithRetry(
 			partition.Partition,
 		)
 		nextOffset := checkpoint.NextOffset
+		var resumeOffset int64
 		if err == nil {
-			resumeOffset, policyErr := projectionCheckpointResumeOffset(checkpoint, found, offsetRange)
-			if policyErr == nil {
-				return resumeOffset, true
-			}
-			err = policyErr
+			resumeOffset, err = projectionCheckpointResumeOffset(checkpoint, found, offsetRange)
+		}
+		if err == nil && advance && (!found || resumeOffset != nextOffset) {
+			err = c.store.AdvanceCheckpoint(ctx, projection.Checkpoint{
+				ConsumerGroup: c.groupID,
+				Topic:         partition.Topic,
+				Partition:     partition.Partition,
+				TopicID:       offsetRange.TopicID,
+				NextOffset:    resumeOffset,
+			})
+		}
+		if err == nil {
+			return resumeOffset, true
 		}
 		if ctx.Err() != nil {
 			return 0, false
 		}
 		if errors.Is(err, projection.ErrTopicGenerationMismatch) {
 			slog.Error(
-				"projection topic generation changed; refusing seek",
+				"projection topic generation changed; "+refusal,
 				"topic", partition.Topic,
 				"partition", partition.Partition,
 				"checkpointTopicId", checkpoint.TopicID,
@@ -615,22 +565,24 @@ func (c *ProjectionConsumer) loadCheckpointWithRetry(
 			)
 		} else if errors.Is(err, ErrProjectionCheckpointAheadOfTopic) {
 			slog.Error(
-				"projection checkpoint is ahead of Kafka; refusing seek",
+				"projection checkpoint is ahead of Kafka; "+refusal,
 				"topic", partition.Topic,
 				"partition", partition.Partition,
 				"checkpoint", nextOffset,
 				"topicEnd", offsetRange.End,
+				"action", "rebuild projection tables and shared checkpoints together; do not reset offsets alone",
 			)
 		} else if errors.Is(err, ErrProjectionCheckpointBehindTopic) {
 			slog.Error(
-				"projection checkpoint is behind Kafka retention; refusing seek",
+				"projection checkpoint is behind Kafka retention; "+refusal,
 				"topic", partition.Topic,
 				"partition", partition.Partition,
 				"checkpoint", nextOffset,
 				"topicStart", offsetRange.First,
+				"action", "rebuild the projection and reset its shared checkpoint together",
 			)
 		} else {
-			slog.Error("projection checkpoint load failed; retrying", "err", err)
+			slog.Error(failure, "topic", partition.Topic, "partition", partition.Partition, "err", err)
 		}
 		if !waitForRetry(ctx) {
 			return 0, false
