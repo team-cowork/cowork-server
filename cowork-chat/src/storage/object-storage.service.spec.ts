@@ -18,15 +18,24 @@ const withRateLimiter = (service: ObjectStorageService) => Object.assign<ObjectS
 const mockedGetSignedUrl = jest.mocked(getSignedUrl);
 
 // 환경 변수 이름은 배포 설정이 정한다.
-const publicApiBaseUrlKey = 'PUBLIC_API_BASE_URL';
+const env = {
+	endpoint: 'S3_INTERNAL_ENDPOINT',
+	publicApiBaseUrl: 'PUBLIC_API_BASE_URL',
+	accessKey: 'S3_ACCESS_KEY',
+	secretKey: 'S3_SECRET_KEY',
+	bucket: 'S3_BUCKET',
+	maxFileSizeBytes: 'S3_CHAT_MAX_FILE_SIZE_BYTES',
+	uploadRateLimitWindowMs: 'S3_CHAT_UPLOAD_RATE_LIMIT_WINDOW_MS',
+	uploadRateLimitMaxRequests: 'S3_CHAT_UPLOAD_RATE_LIMIT_MAX_REQUESTS',
+} as const;
 
 const configService = (overrides: Record<string, string> = {}): ConfigService => ({
 	get: jest.fn((key: string) => ({
-		'object-storage.endpoint': 'https://storage.internal:9000',
-		[publicApiBaseUrlKey]: 'https://api.example.com',
-		'object-storage.accessKey': 'unit-test-access',
-		'object-storage.secretKey': 'unit-test-secret',
-		'object-storage.bucket': 'cowork-chat',
+		[env.endpoint]: 'https://storage.internal:9000',
+		[env.publicApiBaseUrl]: 'https://api.example.com',
+		[env.accessKey]: 'unit-test-access',
+		[env.secretKey]: 'unit-test-secret',
+		[env.bucket]: 'cowork-chat',
 		...overrides,
 	})[key]),
 }) as unknown as ConfigService;
@@ -92,7 +101,7 @@ describe('ObjectStorageService', () => {
 
 		it('허용 크기를 초과한 파일은 거부한다', async () => {
 			const service = withRateLimiter(new ObjectStorageService(s3Client as unknown as S3Client, configService({
-				'object-storage.chatMaxFileSizeBytes': '1024',
+				[env.maxFileSizeBytes]: '1024',
 			}), s3Client as unknown as S3Client, uploads as never));
 
 			await expect(service.createPresignedUpload({
@@ -107,8 +116,8 @@ describe('ObjectStorageService', () => {
 
 		it('Redis 한도 검사가 거부하면 429로 거부한다', async () => {
 			const service = withRateLimiter(new ObjectStorageService(s3Client as unknown as S3Client, configService({
-				'object-storage.chatUploadRateLimitMaxRequests': '2',
-				'object-storage.chatUploadRateLimitWindowMs': '60000',
+				[env.uploadRateLimitMaxRequests]: '2',
+				[env.uploadRateLimitWindowMs]: '60000',
 			}), s3Client as unknown as S3Client, uploads as never));
 			rateLimiter.tryAcquire.mockResolvedValueOnce(false);
 
@@ -193,7 +202,7 @@ describe('ObjectStorageService', () => {
 
 		it('실제 업로드 용량이 허용 한도를 넘으면 거부한다', async () => {
 			const service = withRateLimiter(new ObjectStorageService(s3Client as unknown as S3Client, configService({
-				'object-storage.chatMaxFileSizeBytes': '1024',
+				[env.maxFileSizeBytes]: '1024',
 			}), s3Client as unknown as S3Client, uploads as never));
 			s3Client.send
 				.mockResolvedValueOnce(Object.fromEntries([['ContentLength', 1025]]))

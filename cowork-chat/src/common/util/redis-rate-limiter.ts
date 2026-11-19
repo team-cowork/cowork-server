@@ -127,8 +127,8 @@ export class RedisRateLimiter implements OnModuleInit, OnModuleDestroy {
 	constructor(private readonly configService: ConfigService) {}
 
 	onModuleInit(): void {
-		const host = getRequiredConfig(this.configService, ['REDIS_HOST', 'redis.host']);
-		const port = Number(getOptionalConfig(this.configService, ['REDIS_PORT', 'redis.port']) ?? 6379);
+		const host = getRequiredConfig(this.configService, 'REDIS_HOST');
+		const port = Number(getOptionalConfig(this.configService, 'REDIS_PORT') ?? 6379);
 
 		this.client = new Redis({host, port, lazyConnect: true}) as RateLimiterRedis;
 		this.client.defineCommand('tryAcquireScript', {numberOfKeys: 1, lua: TRY_ACQUIRE_SCRIPT});

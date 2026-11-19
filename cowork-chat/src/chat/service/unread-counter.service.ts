@@ -147,8 +147,8 @@ export class UnreadCounterService implements OnModuleInit, OnModuleDestroy {
 	}
 
 	onModuleInit(): void {
-		const host = getRequiredConfig(this.configService, ['REDIS_HOST', 'redis.host']);
-		const port = Number(getOptionalConfig(this.configService, ['REDIS_PORT', 'redis.port']) ?? 6379);
+		const host = getRequiredConfig(this.configService, 'REDIS_HOST');
+		const port = Number(getOptionalConfig(this.configService, 'REDIS_PORT') ?? 6379);
 
 		this.client = new Redis({
 			host,
