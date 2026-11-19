@@ -364,7 +364,7 @@ export class ChannelMessageReadAccessService {
 
 	/**
      `channelIds` 중 사용자가 읽을 수는 있지만 음성 채널 로그(SYSTEM 메시지)는 볼 수 없는 음성 채널 ID를 구한다.
-     메시지 조회·검색·안읽음 수에서 이 채널의 SYSTEM 메시지를 뺄 때 쓴다.
+     메시지 조회와 안읽음 수에서 이 채널의 SYSTEM 메시지를 뺄 때 쓴다.
 
      @throws ServiceUnavailableException 권한 projection이 준비되지 않은 경우
      */
