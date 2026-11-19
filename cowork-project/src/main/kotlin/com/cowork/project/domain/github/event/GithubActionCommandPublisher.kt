@@ -22,12 +22,6 @@ class GithubActionCommandPublisher(private val kafkaTemplate: KafkaTemplate<Stri
     fun publishIssueCreate(command: GithubIssueCreateCommand) =
         send(Topics.GITHUB_ISSUE_CREATE, "${command.owner}/${command.repo}", command)
 
-    fun publishPullRequestMerge(command: GithubPullRequestActionCommand) =
-        send(Topics.GITHUB_PR_MERGE, "${command.owner}/${command.repo}", command)
-
-    fun publishPullRequestApprove(command: GithubPullRequestActionCommand) =
-        send(Topics.GITHUB_PR_APPROVE, "${command.owner}/${command.repo}", command)
-
     private fun send(topic: String, key: String, event: Any) {
         try {
             val result = kafkaTemplate.send(topic, key, event).get(SEND_TIMEOUT_SECONDS, TimeUnit.SECONDS)
