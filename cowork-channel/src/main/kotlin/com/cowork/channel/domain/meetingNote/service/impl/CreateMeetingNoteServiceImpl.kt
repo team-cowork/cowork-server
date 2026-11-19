@@ -35,16 +35,19 @@ class CreateMeetingNoteServiceImpl(
         meetingNoteContentSupport.requireJsonObject(request.content)
         val attachments = attachmentSupport.validate(request.attachments, channelId, userId)
         if (attachments.isNotEmpty()) meetingNoteAccessGuard.requireAttachmentPermission(channelId, userId)
-        val template = templateRepository.findById(request.templateId).orElseThrow { templateNotFoundException() }
-        if (template.channelId != channelId) {
-            throw templateNotFoundException()
+        val templateId = request.templateId
+        if (templateId != null) {
+            val template = templateRepository.findById(templateId).orElseThrow { templateNotFoundException() }
+            if (template.channelId != channelId) {
+                throw templateNotFoundException()
+            }
         }
         // 조회 직후 다른 요청이 템플릿을 삭제하면 FK가 저장을 막으므로 여기서 flush해 404로 응답한다.
         val note = try {
             meetingNoteRepository.saveAndFlush(
                 MeetingNote(
                     channelId = channelId,
-                    templateId = request.templateId,
+                    templateId = templateId,
                     title = request.title,
                     content = request.content,
                     createdBy = userId,
@@ -52,6 +55,7 @@ class CreateMeetingNoteServiceImpl(
                 ),
             )
         } catch (e: DataIntegrityViolationException) {
+            if (templateId == null) throw e
             throw templateNotFoundException()
         }
         attachmentPublisher.publish(note)
