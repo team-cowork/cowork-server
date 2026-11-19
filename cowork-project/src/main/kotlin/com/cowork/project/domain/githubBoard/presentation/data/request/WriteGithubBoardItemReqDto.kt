@@ -6,6 +6,9 @@ import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Positive
 import jakarta.validation.constraints.Size
 
+// Draft 생성 시 추가하는 UUID 마커와 줄바꿈 68자를 확보한다.
+private const val CREATE_DRAFT_BODY_MAX_LENGTH = 65536 - 68
+
 @Schema(description = "필드 타입에 맞는 값을 하나만 지정합니다.")
 data class SetGithubBoardFieldReqDto(
     @param:Schema(title = "텍스트 값", example = "배포 준비", nullable = true)
@@ -25,8 +28,8 @@ data class CreateGithubBoardDraftReqDto(
     @field:Size(max = 256)
     @param:Schema(title = "Draft 제목", maxLength = 256, example = "배포 준비")
     val title: String,
-    @field:Size(max = 65536)
-    @param:Schema(title = "Draft 본문", maxLength = 65536, example = "배포 항목을 확인합니다.")
+    @field:Size(max = CREATE_DRAFT_BODY_MAX_LENGTH)
+    @param:Schema(title = "Draft 본문", maxLength = CREATE_DRAFT_BODY_MAX_LENGTH, example = "배포 항목을 확인합니다.")
     val body: String = "",
 )
 

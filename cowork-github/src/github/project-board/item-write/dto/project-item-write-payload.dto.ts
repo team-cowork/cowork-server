@@ -107,8 +107,9 @@ export class CreateDraftPayloadDto {
 	@maxLength(256)
 	title: string;
 
+	// Draft 생성 시 추가하는 UUID 마커와 줄바꿈 68자를 확보한다.
 	@isString()
-	@maxLength(65_536)
+	@maxLength(65_536 - 68)
 	body: string;
 }
 
