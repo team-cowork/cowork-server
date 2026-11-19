@@ -1,9 +1,21 @@
+import {Type as type} from 'class-transformer';
 import {
+	ArrayMaxSize as arrayMaxSize,
+	ArrayUnique as arrayUnique,
+	IsArray as isArray,
 	IsBoolean as isBoolean,
+	IsDateString as isDateString,
+	IsInt as isInt,
 	IsNotEmpty as isNotEmpty,
+	IsNumber as isNumber,
+	IsObject as isObject,
 	IsOptional as isOptional,
 	IsString as isString,
+	Matches as matches,
+	MaxLength as maxLength,
+	Min as min,
 	ValidateIf as validateIf,
+	ValidateNested as validateNested,
 } from 'class-validator';
 import {type Nullable} from '../../../common/nullable.js';
 
@@ -49,4 +61,87 @@ export class ReorderItemPayloadDto {
 	@isString()
 	@isNotEmpty()
 	afterItemId?: Nullable<string>;
+}
+
+export class FieldValueDto {
+	@isOptional()
+	@isString()
+	text?: string;
+
+	@isOptional()
+	@isNumber({allowNaN: false, allowInfinity: false})
+	number?: number;
+
+	@isOptional()
+	@matches(/^\d{4}-\d{2}-\d{2}$/v)
+	@isDateString({strict: true})
+	date?: string;
+
+	@isOptional()
+	@isString()
+	@isNotEmpty()
+	singleSelectOptionId?: string;
+
+	@isOptional()
+	@isString()
+	@isNotEmpty()
+	iterationId?: string;
+}
+
+export class ClearFieldPayloadDto {
+	@isString()
+	@isNotEmpty()
+	fieldId: string;
+}
+
+export class SetFieldPayloadDto extends ClearFieldPayloadDto {
+	@isObject()
+	@validateNested()
+	@type(() => FieldValueDto)
+	value: FieldValueDto;
+}
+
+export class CreateDraftPayloadDto {
+	@isString()
+	@matches(/\S/v)
+	@maxLength(256)
+	title: string;
+
+	@isString()
+	@maxLength(65_536)
+	body: string;
+}
+
+export class UpdateDraftPayloadDto {
+	@isOptional()
+	@isString()
+	@matches(/\S/v)
+	@maxLength(256)
+	title?: Nullable<string>;
+
+	@isOptional()
+	@isString()
+	@maxLength(65_536)
+	body?: Nullable<string>;
+}
+
+export class ConvertDraftPayloadDto {
+	@isString()
+	@matches(/^[\w\-.]+$/v)
+	repo: string;
+}
+
+export class AddItemPayloadDto extends ConvertDraftPayloadDto {
+	@isInt()
+	@min(1)
+	number: number;
+}
+
+export class SetAssigneesPayloadDto extends ConvertDraftPayloadDto {
+	@isArray()
+	@arrayMaxSize(10)
+	@arrayUnique((name: unknown) => typeof name === 'string' ? name.toLowerCase() : name)
+	@isString({each: true})
+	@matches(/^\S+$/v, {each: true})
+	assignees: string[];
 }

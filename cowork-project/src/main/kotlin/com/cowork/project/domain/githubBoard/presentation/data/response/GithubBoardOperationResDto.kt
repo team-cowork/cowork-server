@@ -1,30 +1,43 @@
 package com.cowork.project.domain.githubBoard.presentation.data.response
 
 import com.cowork.project.domain.githubBoard.entity.GithubProjectItemWriteOperation
+import com.cowork.project.domain.githubBoard.entity.GithubProjectItemWriteOperationStatus
+import com.cowork.project.domain.githubBoard.event.GithubProjectItemWriteCommandType
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.LocalDateTime
 
+@Schema(description = "보드 조회 결과는 GitHub 웹훅을 수신한 뒤 갱신됩니다.")
 data class GithubBoardOperationAcceptedResDto(
-    @field:Schema(description = "카드 이동 작업 ID", example = "0f8fad5b-d9cb-469f-a165-70867728950e")
+    @field:Schema(title = "작업 ID", format = "uuid", example = "0f8fad5b-d9cb-469f-a165-70867728950e")
     val operationId: String,
 )
 
 data class GithubBoardOperationResDto(
-    @field:Schema(description = "작업 ID", example = "0f8fad5b-d9cb-469f-a165-70867728950e")
+    @field:Schema(title = "작업 ID", format = "uuid", example = "0f8fad5b-d9cb-469f-a165-70867728950e")
     val operationId: String,
-    @field:Schema(description = "작업 종류", example = "MOVE_ITEM", allowableValues = ["MOVE_ITEM", "REORDER_ITEM"])
+    @field:Schema(title = "작업 종류", implementation = GithubProjectItemWriteCommandType::class, example = "CREATE_DRAFT")
     val commandType: String,
-    @field:Schema(description = "대상 GitHub Project item ID", nullable = true)
+    @field:Schema(
+        title = "카드 ID",
+        description = "생성과 추가 작업에서는 성공 후 반환합니다.",
+        example = "PVTI_lADOBk9Ru84AqHDWzgUcFQg",
+        nullable = true,
+    )
     val itemId: String?,
-    @field:Schema(description = "상태", example = "SUCCEEDED", allowableValues = ["PENDING", "SUCCEEDED", "FAILED"])
+    @field:Schema(title = "작업 상태", implementation = GithubProjectItemWriteOperationStatus::class, example = "SUCCEEDED")
     val status: String,
-    @field:Schema(description = "실패 코드. GitHub가 거부하면 HTTP 상태 코드", example = "404", nullable = true)
+    @field:Schema(
+        title = "실패 코드",
+        description = "GitHub가 요청을 거부하면 HTTP 상태 코드를 반환합니다.",
+        example = "404",
+        nullable = true,
+    )
     val errorCode: String?,
-    @field:Schema(description = "실패 사유", nullable = true)
+    @field:Schema(title = "실패 사유", nullable = true)
     val errorMessage: String?,
-    @field:Schema(description = "요청 시각")
+    @field:Schema(title = "요청 시각")
     val createdAt: LocalDateTime,
-    @field:Schema(description = "마지막 상태 변경 시각")
+    @field:Schema(title = "마지막 상태 변경 시각")
     val updatedAt: LocalDateTime,
 ) {
     companion object {

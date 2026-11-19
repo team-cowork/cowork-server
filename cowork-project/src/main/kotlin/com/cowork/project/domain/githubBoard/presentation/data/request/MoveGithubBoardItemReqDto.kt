@@ -3,16 +3,18 @@ package com.cowork.project.domain.githubBoard.presentation.data.request
 import io.swagger.v3.oas.annotations.media.Schema
 
 data class MoveGithubBoardItemReqDto(
-    @param:Schema(description = "카드를 옮길 Board 뷰 번호", example = "1", required = true)
+    @param:Schema(title = "보드 뷰 번호", example = "1", requiredMode = Schema.RequiredMode.REQUIRED)
     val viewNumber: Int,
     @param:Schema(
-        description = "대상 컬럼 ID. 옵션 ID 또는 iteration ID이며 null은 값 없는 컬럼",
+        title = "대상 컬럼 ID",
+        description = "선택 항목 ID 또는 반복 주기 ID를 지정합니다. null은 값이 없는 컬럼을 나타냅니다.",
         example = "98236657",
         nullable = true,
     )
     val columnId: String?,
     @param:Schema(
-        description = "대상 컬럼에서 바로 앞에 둘 카드 ID. null은 컬럼 맨 위",
+        title = "앞에 둘 카드 ID",
+        description = "대상 컬럼의 카드를 지정합니다. null이면 컬럼의 맨 위로 이동합니다.",
         example = "PVTI_lADOBk9Ru84AqHDWzgUcFQg",
         nullable = true,
     )
