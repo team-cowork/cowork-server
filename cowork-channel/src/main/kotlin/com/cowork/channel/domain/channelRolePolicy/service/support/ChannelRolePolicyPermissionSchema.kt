@@ -41,6 +41,7 @@ class ChannelRolePolicyPermissionSchema {
             "voice_speak",
             "screen_share",
             "live_broadcast",
+            "voice_log_read",
         )
     }
 }

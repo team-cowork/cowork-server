@@ -96,6 +96,7 @@ const mockChannelMessageReadAccess = {
 	requirePermission: jest.fn().mockResolvedValue(undefined),
 	requireReadableProjectChannelIds: jest.fn(),
 	requireReadableTeamChannelIds: jest.fn(),
+	requireVoiceLogHiddenChannelIds: jest.fn().mockResolvedValue(new Set()),
 	filterReadableChannelIds: jest.fn(),
 	filterReadableUsersByChannel: jest.fn(),
 	findReadableUsersByChannel: jest.fn(),
@@ -816,11 +817,11 @@ describe('ChatService', () => {
 			mockMessageRepository.findMessagesAround.mockResolvedValue([]);
 
 			await expect(service.getMessages({channelId: 1, userId: 42}, {around})).resolves.toEqual([]);
-			expect(mockMessageRepository.findMessagesAround).toHaveBeenCalledWith(1, around, {parentMessageId: undefined, threadId: undefined});
+			expect(mockMessageRepository.findMessagesAround).toHaveBeenCalledWith(1, around, {parentMessageId: undefined, threadId: undefined, shouldExcludeSystem: false});
 
 			mockMessageRepository.findByIdAndChannelId.mockResolvedValue(makeMockMessage({threadId: 7}));
 			await service.getMessages({channelId: 1, userId: 42}, {around});
-			expect(mockMessageRepository.findMessagesAround).toHaveBeenLastCalledWith(1, around, {parentMessageId: undefined, threadId: 7});
+			expect(mockMessageRepository.findMessagesAround).toHaveBeenLastCalledWith(1, around, {parentMessageId: undefined, threadId: 7, shouldExcludeSystem: false});
 		});
 
 		it('after 커서를 저장소로 전달한다', async () => {
@@ -828,7 +829,7 @@ describe('ChatService', () => {
 			mockMessageRepository.findMessages.mockResolvedValue([]);
 
 			await service.getMessages({channelId: 1, userId: 42}, {after});
-			expect(mockMessageRepository.findMessages).toHaveBeenCalledWith(1, undefined, {parentMessageId: undefined, threadId: undefined}, after);
+			expect(mockMessageRepository.findMessages).toHaveBeenCalledWith(1, undefined, {parentMessageId: undefined, threadId: undefined, shouldExcludeSystem: false}, after);
 		});
 
 		it('threadId를 저장소 조회 조건으로 전달한다', async () => {
@@ -836,7 +837,7 @@ describe('ChatService', () => {
 
 			await service.getMessages({channelId: 1, userId: 42}, {threadId: 7});
 
-			expect(mockMessageRepository.findMessages).toHaveBeenCalledWith(1, undefined, {parentMessageId: undefined, threadId: 7}, undefined);
+			expect(mockMessageRepository.findMessages).toHaveBeenCalledWith(1, undefined, {parentMessageId: undefined, threadId: 7, shouldExcludeSystem: false}, undefined);
 		});
 	});
 
@@ -1321,7 +1322,7 @@ describe('ChatService', () => {
 			await service.readChannel({channelId: 1, userId: 42}, messageId.toString());
 
 			expect(mockMessageRepository.existsInChannel).toHaveBeenCalledWith(messageId.toString(), 1);
-			expect(mockChannelReadService.advance).toHaveBeenCalledWith(1, 42, messageId);
+			expect(mockChannelReadService.advance).toHaveBeenCalledWith(1, 42, messageId, false);
 			expect(mockTo).toHaveBeenCalledWith('user:42');
 			expect(mockEmit).toHaveBeenCalledWith('channel:unread:updated', {channelId: 1, unreadCount: 3});
 		});
@@ -1359,8 +1360,8 @@ describe('ChatService', () => {
 
 			expect(mockChannelMessageReadAccess.requireReadableTeamChannelIds).toHaveBeenCalledWith(10, 42);
 			expect(mockMessageRepository.countUnreadForChannels).toHaveBeenCalledWith([
-				{channelId: 1, lastReadMessageId: oid1},
-				{channelId: 2, lastReadMessageId: oid2},
+				{channelId: 1, lastReadMessageId: oid1, shouldExcludeSystem: false},
+				{channelId: 2, lastReadMessageId: oid2, shouldExcludeSystem: false},
 			]);
 			expect(result).toEqual([
 				{channelId: 1, unreadCount: 5},
@@ -1403,7 +1404,7 @@ describe('ChatService', () => {
 			const result = await service.getTeamUnread(10, 42);
 
 			expect(mockMessageRepository.countUnreadForChannels).toHaveBeenCalledWith([
-				{channelId: 3, lastReadMessageId: null},
+				{channelId: 3, lastReadMessageId: null, shouldExcludeSystem: false},
 			]);
 			expect(result).toEqual([{channelId: 3, unreadCount: 10}]);
 		});

@@ -121,7 +121,16 @@ export type CreateMessageInput = {
 export type MessageListFilter = {
 	parentMessageId?: string;
 	threadId?: number;
+	/**
+    값이 true면 SYSTEM 메시지를 뺀다. 음성 채널 로그를 볼 수 없는 사용자에게 쓴다.
+    */
+	shouldExcludeSystem?: boolean;
 };
+
+/**
+ SYSTEM 메시지를 빼는 조건. 음성 채널 로그를 볼 수 없는 사용자의 조회·안읽음 수에 쓴다.
+ */
+const NOT_SYSTEM_MESSAGE = {type: {$ne: 'SYSTEM'}};
 
 /**
  알림 파이프라인에서 사용하는 메시지 타입.
@@ -323,7 +332,7 @@ export class MessageRepository {
 
 	private async aggregateMessages(
 		channelId: number,
-		{parentMessageId, threadId}: MessageListFilter,
+		{parentMessageId, threadId, shouldExcludeSystem}: MessageListFilter,
 		{idFilter, sortDirection, limit}: {idFilter?: Record<string, Types.ObjectId>; sortDirection: 1 | -1; limit: number},
 	): Promise<MessageRow[]> {
 		const query: Record<string, unknown> = {
@@ -333,6 +342,7 @@ export class MessageRepository {
 			threadId: threadId ?? null,
 			...(idFilter && {_id: idFilter}),
 			...(parentMessageId !== undefined && parentMessageId !== '' && {parentMessageId: new Types.ObjectId(parentMessageId)}),
+			...(shouldExcludeSystem === true && NOT_SYSTEM_MESSAGE),
 		};
 
 		const lookupStages = parentMessageId !== undefined && parentMessageId !== ''
@@ -345,7 +355,8 @@ export class MessageRepository {
 						foreignField: '_id',
 						as: 'mentionedMessage',
 						pipeline: [
-							{$match: {webhookDeleted: {$ne: true}, channelId}},
+							// 답장 미리보기로 숨긴 SYSTEM 메시지 내용이 드러나지 않게 같은 조건을 건다.
+							{$match: {webhookDeleted: {$ne: true}, channelId, ...(shouldExcludeSystem === true && NOT_SYSTEM_MESSAGE)}},
 							{
 								$project: {
 									_id: 1,
@@ -823,11 +834,17 @@ export class MessageRepository {
      `findMessages`와 동일한 `$lookup` 집계로 부모 메시지를 `mentionedMessage`에 조인합니다.
 
      @param channelId - 고정 메시지를 조회할 채널의 식별자
+     @param options - 조회 조건
+     @param options.shouldExcludeSystem - true면 SYSTEM 메시지를 뺀다
      @returns 고정된 {@link MessageRow} 배열 (최신순 정렬, 최대 100개)
      */
-	async findPinnedMessages(channelId: number): Promise<MessageRow[]> {
+	async findPinnedMessages(channelId: number, options: {shouldExcludeSystem?: boolean} = {}): Promise<MessageRow[]> {
 		return this.messageModel.aggregate([
-			{$match: {webhookDeleted: {$ne: true}, channelId, isPinned: true}},
+			{
+				$match: {
+					webhookDeleted: {$ne: true}, channelId, isPinned: true, ...(options.shouldExcludeSystem === true && NOT_SYSTEM_MESSAGE),
+				},
+			},
 			{$sort: {_id: -1}},
 			{$limit: MESSAGE_FETCH_LIMIT},
 			{
@@ -837,7 +854,7 @@ export class MessageRepository {
 					foreignField: '_id',
 					as: 'mentionedMessage',
 					pipeline: [
-						{$match: {webhookDeleted: {$ne: true}, channelId}},
+						{$match: {webhookDeleted: {$ne: true}, channelId, ...(options.shouldExcludeSystem === true && NOT_SYSTEM_MESSAGE)}},
 						{
 							$project: {
 								_id: 1,
@@ -1014,13 +1031,14 @@ export class MessageRepository {
 		return (await this.messageModel.exists({'attachments.objectKey': objectKey})) !== null;
 	}
 
-	async countUnread(channelId: number, afterId: Nullable<Types.ObjectId>): Promise<number> {
+	async countUnread(channelId: number, afterId: Nullable<Types.ObjectId>, shouldExcludeSystem = false): Promise<number> {
 		const filter: Record<string, unknown> = {
 			webhookDeleted: {$ne: true},
 			channelId,
 			// 채널 메시지 목록과 같은 기준으로 센다. 스레드 메시지는 채널 목록에 없으므로 채널 읽음 처리로 지울 수 없다.
 			threadId: null,
 			...(afterId && {_id: {$gt: afterId}}),
+			...(shouldExcludeSystem && NOT_SYSTEM_MESSAGE),
 		};
 
 		return this.messageModel.countDocuments(filter);
@@ -1060,16 +1078,17 @@ export class MessageRepository {
 	}
 
 	async countUnreadForChannels(
-		memberships: Array<{channelId: number; lastReadMessageId: Nullable<Types.ObjectId>}>,
+		memberships: Array<{channelId: number; lastReadMessageId: Nullable<Types.ObjectId>; shouldExcludeSystem?: boolean}>,
 	): Promise<Map<number, number>> {
 		if (memberships.length === 0) {
 			return new Map();
 		}
 
-		const orConditions = memberships.map(({channelId, lastReadMessageId}) => ({
+		const orConditions = memberships.map(({channelId, lastReadMessageId, shouldExcludeSystem}) => ({
 			channelId,
 			threadId: null,
 			...(lastReadMessageId && {_id: {$gt: lastReadMessageId}}),
+			...(shouldExcludeSystem === true && NOT_SYSTEM_MESSAGE),
 		}));
 		const results = await this.messageModel.aggregate<{_id: number; count: number}>([
 			{$match: {webhookDeleted: {$ne: true}, $or: orConditions}},

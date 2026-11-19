@@ -22,7 +22,7 @@ describe('UnreadCounterService.incrementIfPresent', () => {
 			['3', 'unread:applied-chunks:message-1', 86_400, 0],
 			['3', 'unread:applied-chunks:message-1', 86_400, 1],
 		]);
-		expect(calls.flatMap(call => call.slice(4))).toEqual(userIds.toReversed().map(id => `unread:${id}`));
+		expect(calls.flatMap(call => call.slice(4))).toEqual(userIds.toReversed().map(id => `unread:v2:${id}`));
 	});
 
 	it('eventId가 없으면 적용 기록 없이 증가한다', async () => {
@@ -30,7 +30,7 @@ describe('UnreadCounterService.incrementIfPresent', () => {
 
 		await service.incrementIfPresent(3, [7]);
 
-		expect(script).toHaveBeenCalledWith('3', '', 86_400, 0, 'unread:7');
+		expect(script).toHaveBeenCalledWith('3', '', 86_400, 0, 'unread:v2:7');
 	});
 });
 
@@ -48,7 +48,7 @@ describe('UnreadCounterService 정확한 값 기록', () => {
 
 		const applied = await service.set(3, 7, {count: 2, readCursor: 'aa'});
 
-		expect(script).toHaveBeenCalledWith('unread:7', '3', '3:cursor', 'aa', '2', 86_400, '1');
+		expect(script).toHaveBeenCalledWith('unread:v2:7', '3', '3:cursor', 'aa', '2', 86_400, '1');
 		expect(applied).toBe(true);
 	});
 
@@ -74,8 +74,8 @@ describe('UnreadCounterService 정확한 값 기록', () => {
 		]));
 
 		expect(script.mock.calls).toEqual([
-			['unread:7', '3', '3:cursor', '', '4', 86_400, '0'],
-			['unread:7', '5', '5:cursor', 'bb', '0', 86_400, '0'],
+			['unread:v2:7', '3', '3:cursor', '', '4', 86_400, '0'],
+			['unread:v2:7', '5', '5:cursor', 'bb', '0', 86_400, '0'],
 		]);
 	});
 });
