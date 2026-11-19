@@ -8,7 +8,7 @@ func Document() *openapi3.T {
 		OpenAPI: "3.2.1",
 		Info: &openapi3.Info{
 			Title:       "cowork Voice API",
-			Version:     "20261117.1",
+			Version:     "20261119.0",
 			Description: "음성 통화와 라이브 방송을 관리하고 LiveKit 접속 토큰을 발급합니다.",
 		},
 		Servers: openapi3.Servers{{URL: "/api/voice", Description: "Gateway"}},
