@@ -22,7 +22,8 @@ export class AttachmentDeletion {
 	@prop({required: true}) requestedAt!: Date;
 
 	/**
-    다음 처리 가능 시각. 워커가 점유할 때 앞으로 미뤄 다른 replica와 겹치지 않게 한다.
+    다음 처리 가능 시각. 워커가 점유할 때 앞으로 미뤄 배포 중 다른 프로세스와 겹치지 않게 하고, 처리 중에 프로세스가
+    죽으면 이 시각이 지난 뒤 다시 처리한다.
     */
 	@prop({required: true}) nextAttemptAt!: Date;
 

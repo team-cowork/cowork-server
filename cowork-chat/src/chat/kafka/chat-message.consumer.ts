@@ -11,6 +11,9 @@ import {getOptionalConfig, getKafkaClientConfig} from '../../common/config/confi
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {ChatMessageQuarantineService} from '../service/index.js';
 import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
+import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
+import {waitForProjectionReadiness} from '../../common/kafka/projection-readiness-wait.js';
+import {CHANNEL_PERMISSION_STREAMS, type ProjectionName} from '../../common/kafka/projection-streams.js';
 import {type Nullable} from '../../common/type/nullable.js';
 import {
 	ChatMessageContractError,
@@ -29,6 +32,11 @@ import {ChatMessageProcessor} from './chat-message.processor.js';
 const DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY = 3;
 
 /**
+ 메시지 처리에 필요한 projection. 전송 판정에는 채널 권한 stream이, 범위 재검증에는 `channel`과 `thread`가 필요하다.
+ */
+const CHAT_MESSAGE_REQUIRED_STREAMS: readonly ProjectionName[] = [...CHANNEL_PERMISSION_STREAMS, 'thread'];
+
+/**
 Kafka `chat.message.v2` record를 검증하고, poison record만 durable quarantine한다.
 */
 @injectable()
@@ -40,6 +48,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 		private readonly configService: ConfigService,
 		private readonly processor: ChatMessageProcessor,
 		private readonly quarantineService: ChatMessageQuarantineService,
+		private readonly projectionReadiness: ProjectionReadinessService,
 	) {}
 
 	/**
@@ -85,7 +94,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 		const partitionsConsumedConcurrently = this.resolveConcurrency();
 		void this.consumer.run({
 			partitionsConsumedConcurrently,
-			eachMessage: async ({topic, partition, message}) => this.processKafkaMessage(topic, partition, message),
+			eachMessage: async ({topic, partition, message, heartbeat}) => this.processKafkaMessage(topic, partition, message, heartbeat),
 		}).catch(async (error: unknown) => {
 			this.logger.error('chat.message Kafka consumer failed', error);
 			// 처리되지 않은 rejection으로 남겨 프로세스를 종료하고 재시작을 맡긴다.
@@ -101,8 +110,22 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 	/**
      반환하면 KafkaJS가 offset을 커밋할 수 있다. JSON/계약/범위 오류는 durable quarantine
      성공 뒤에만 반환하며, 저장소·Socket.IO·quarantine 오류는 반드시 전파한다.
+
+     권한 projection이 준비되지 않으면 브로드캐스트할 수 없으므로 처리 전에 준비를 기다린다.
+
+     @param topic - record의 토픽
+     @param partition - record의 파티션
+     @param message - 처리할 Kafka record
+     @param heartbeat - 오래 걸리는 준비 대기 동안 Kafka consumer heartbeat를 보내는 함수
      */
-	async processKafkaMessage(topic: string, partition: number, message: KafkaMessage): Promise<void> {
+	async processKafkaMessage(
+		topic: string,
+		partition: number,
+		message: KafkaMessage,
+		heartbeat: () => Promise<void> = async () => {/* Direct calls need no Kafka heartbeat. */},
+	): Promise<void> {
+		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
+		const receivedAt = Date.now();
 		const eventKey = message.key?.toString() ?? null;
 		const payload = message.value?.toString() ?? null;
 		try {
@@ -116,7 +139,9 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 			}
 
 			const event = validateChatMessageEvent(JSON.parse(payload) as unknown, eventKey);
-			await this.processor.process(event);
+			await waitForProjectionReadiness(this.projectionReadiness, heartbeat, CHAT_MESSAGE_REQUIRED_STREAMS);
+			// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다. receivedAt 인자를 지운다.
+			await this.processor.process(event, receivedAt);
 		} catch (error) {
 			const classification = classifyPoisonError(error);
 			if (!classification) {

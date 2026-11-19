@@ -100,7 +100,8 @@ class GithubSyncRequestScheduler(
     private val outboxWriter: OutboxWriter,
     private val snapshotLock: ProjectionSnapshotLock,
     @Value("\${github.sync.request-cooldown-ms:1800000}") private val requestCooldownMs: Long,
-    @Value("\${github.sync.stale-after-ms:604800000}") private val staleAfterMs: Long,
+    // 웹훅이 누락되거나 처리에 실패해도 새 repo·이슈·PR이 목록에 오래 빠지지 않도록 org와 repo는 1시간마다 다시 읽는다.
+    @Value("\${github.sync.stale-after-ms:3600000}") private val staleAfterMs: Long,
     // GitHub는 field와 view 설정 변경을 웹훅으로 알리지 않는다. Project는 짧은 주기로 다시 읽어 그 변경을 따라간다.
     @Value("\${github.sync.project-stale-after-ms:3600000}") private val projectStaleAfterMs: Long,
     @Value("\${github.sync.manual-cooldown-ms:60000}") private val manualCooldownMs: Long,

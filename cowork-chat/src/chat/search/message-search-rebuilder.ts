@@ -1,4 +1,3 @@
-import {randomUUID} from 'node:crypto';
 import {Injectable as injectable, Logger} from '@nestjs/common';
 import {Types} from 'mongoose';
 import {ElasticsearchService} from '../../search/elasticsearch.service.js';
@@ -42,10 +41,6 @@ const VERIFY_SAMPLE_SIZE = 20;
 */
 const VERIFY_MISSING_TOLERANCE_RATIO = 0.001;
 const VERIFY_MISSING_TOLERANCE_MINIMUM = 10;
-/**
-재구축 락이 이 시간보다 오래됐으면 락을 쥔 프로세스가 죽은 것으로 보고 다시 점유할 수 있다.
-*/
-const REBUILD_LOCK_STALE_THRESHOLD_MS = 30 * 60 * 1000;
 
 export type RebuildOptions = {
 	/**
@@ -97,6 +92,7 @@ type CatchUpWindow = {
 @injectable()
 export class MessageSearchRebuilder {
 	private readonly logger = new Logger(MessageSearchRebuilder.name);
+	private running = false;
 
 	constructor(
 		private readonly elasticsearchService: ElasticsearchService,
@@ -105,25 +101,23 @@ export class MessageSearchRebuilder {
 		private readonly stateRepository: MessageSearchIndexStateRepository,
 	) {}
 
-	private async rebuildInBackground(lockId: string, options: RebuildOptions): Promise<void> {
+	private async rebuildInBackground(options: RebuildOptions): Promise<void> {
 		try {
-			await this.rebuildLocked(lockId, options);
+			await this.rebuild(options);
 		} catch (error) {
 			this.logger.error('Search index rebuild stopped', error);
 		} finally {
-			await this.stateRepository.releaseRebuildLock(lockId).catch((error: unknown) => {
-				this.logger.error('Failed to release search index rebuild lock', error);
-			});
+			this.running = false;
 		}
 	}
 
-	private async rebuildLocked(lockId: string, options: RebuildOptions): Promise<RebuildResult> {
+	private async rebuild(options: RebuildOptions): Promise<RebuildResult> {
 		const {index, cursor, startedAt} = await this.resolveTargetIndex(options.resume === true);
 		await this.stateRepository.markRebuildStarted(index, startedAt, cursor?.toString() ?? null);
 
 		try {
-			const scanned = await this.scanAll(index, cursor, lockId);
-			const catchUp = await this.catchUp(index, new Date(startedAt.getTime() - CATCH_UP_SKEW_MS), CATCH_UP_ROUNDS, lockId);
+			const scanned = await this.scanAll(index, cursor);
+			const catchUp = await this.catchUp(index, new Date(startedAt.getTime() - CATCH_UP_SKEW_MS), CATCH_UP_ROUNDS);
 			// 승격 뒤 catch-up은 이미 alias가 바뀐 뒤라 미완료여도 되돌리지 않는다. 남은 변경은 색인 아웃박스가 반영한다.
 			if (!catchUp.completed) {
 				throw new MessageSearchRebuildError('search index rebuild catch-up did not drain within its rounds; the alias was not promoted');
@@ -131,11 +125,10 @@ export class MessageSearchRebuilder {
 
 			const verification = await this.verify(index);
 
-			await this.renewLock(lockId);
 			await this.elasticsearchService.promoteIndex(index);
 			this.logger.log(`Search alias promoted to ${index}`);
 
-			const postSwap = await this.catchUp(index, catchUp.watermark, 1, lockId);
+			const postSwap = await this.catchUp(index, catchUp.watermark, 1);
 			await this.stateRepository.markRebuildSucceeded(index, verification.documentCount);
 			await this.dropReplacedIndices(index);
 
@@ -161,7 +154,7 @@ export class MessageSearchRebuilder {
      않는 이전 재구축 index를 정리한 뒤 새 index를 만든다.
 
      재개 전에 그 index가 Elasticsearch에 실제로 존재하는지 확인한다. 실패한 재구축 뒤 운영자가
-     지웠거나 다른 replica의 {@link dropReplacedIndices}가 정리했다면, 존재하지 않는 index에
+     지웠거나 이후 재구축의 {@link dropReplacedIndices}가 정리했다면, 존재하지 않는 index에
      이어서 쓰는 순간 매핑 없는 index가 auto-create되어 `verify`가 잡아내지 못하는 상태로
      alias에 승격될 수 있다.
      */
@@ -225,14 +218,14 @@ export class MessageSearchRebuilder {
 	/**
     색인 대상 전체를 `_id` 커서로 순회하며 bulk 색인한다.
     */
-	private async scanAll(index: string, startCursor: Nullable<Types.ObjectId>, lockId: string): Promise<number> {
-		return this.scanFrom(index, startCursor, 0, lockId);
+	private async scanAll(index: string, startCursor: Nullable<Types.ObjectId>): Promise<number> {
+		return this.scanFrom(index, startCursor, 0);
 	}
 
 	/**
     한 페이지를 색인하고 커서를 저장한 뒤 다음 페이지로 넘어간다. 다음 페이지는 이전 페이지의 마지막 `_id`에 의존한다.
     */
-	private async scanFrom(index: string, cursor: Nullable<Types.ObjectId>, scanned: number, lockId: string): Promise<number> {
+	private async scanFrom(index: string, cursor: Nullable<Types.ObjectId>, scanned: number): Promise<number> {
 		const batch = await this.indexRepository.scanIndexScope(cursor, SCAN_BATCH_SIZE);
 		if (batch.length === 0) {
 			return scanned;
@@ -249,11 +242,9 @@ export class MessageSearchRebuilder {
 
 		const nextScanned = scanned + batch.length;
 		const nextCursor = batch.at(-1)!._id;
-		// 락을 잃은 재구축이 새 소유자의 재개 위치를 덮어쓰지 않도록 커서보다 락을 먼저 확인한다.
-		await this.renewLock(lockId);
 		await this.stateRepository.saveRebuildScanCursor(nextCursor.toString());
 		this.logger.log(`Search index rebuild scanned=${nextScanned} index=${index}`);
-		return this.scanFrom(index, nextCursor, nextScanned, lockId);
+		return this.scanFrom(index, nextCursor, nextScanned);
 	}
 
 	/**
@@ -266,8 +257,8 @@ export class MessageSearchRebuilder {
      기준점을 이 회차의 시작 시각으로 전진시키지 않는다. 전진시키면 아직 반영하지 못한 구간을
      건너뛰게 되므로, 같은 기준점으로 다음 회차를 다시 시도한다.
      */
-	private async catchUp(index: string, since: Date, rounds: number, lockId: string): Promise<CatchUpProgress> {
-		return this.catchUpRound({index, lockId}, {
+	private async catchUp(index: string, since: Date, rounds: number): Promise<CatchUpProgress> {
+		return this.catchUpRound(index, {
 			applied: 0, tombstones: 0, watermark: since, completed: false,
 		}, 0, rounds);
 	}
@@ -275,23 +266,22 @@ export class MessageSearchRebuilder {
 	/**
      회차는 순차로 실행한다. 다음 회차의 기준점은 이전 회차 결과에 따라 정해진다.
      */
-	private async catchUpRound(run: {index: string; lockId: string}, progress: CatchUpProgress, round: number, rounds: number): Promise<CatchUpProgress> {
+	private async catchUpRound(index: string, progress: CatchUpProgress, round: number, rounds: number): Promise<CatchUpProgress> {
 		if (round >= rounds) {
 			return progress;
 		}
 
-		await this.renewLock(run.lockId);
 		const roundStartedAt = new Date(Date.now() - CATCH_UP_SKEW_MS);
 		const [tombstoneResult, reindexResult] = await Promise.all([
-			this.replayTombstones(run.index, progress.watermark),
-			this.reindexUpdatedSince(run.index, progress.watermark),
+			this.replayTombstones(index, progress.watermark),
+			this.reindexUpdatedSince(index, progress.watermark),
 		]);
 		const applied = progress.applied + reindexResult.applied;
 		const tombstones = progress.tombstones + tombstoneResult.replayed;
 
 		if (!tombstoneResult.completed || !reindexResult.completed) {
 			this.logger.warn(`Search index rebuild catch-up round=${round + 1} did not drain within its time budget, retrying the same window`);
-			return this.catchUpRound(run, {
+			return this.catchUpRound(index, {
 				applied, tombstones, watermark: progress.watermark, completed: false,
 			}, round + 1, rounds);
 		}
@@ -304,7 +294,7 @@ export class MessageSearchRebuilder {
 		}
 
 		this.logger.log(`Search index rebuild catch-up round=${round + 1} reindexed=${reindexResult.applied} deleted=${tombstoneResult.replayed}`);
-		return this.catchUpRound(run, next, round + 1, rounds);
+		return this.catchUpRound(index, next, round + 1, rounds);
 	}
 
 	private async reindexUpdatedSince(index: string, since: Date): Promise<{applied: number; completed: boolean}> {
@@ -426,33 +416,30 @@ export class MessageSearchRebuilder {
 	}
 
 	/**
-     재구축이 아직 이 락을 쥐고 있음을 갱신한다. 락을 잃었으면(다른 replica가 오래된 락으로 보고 회수)
-     이 재구축은 중단한다. 회수한 쪽이 이 물리 index를 정리 대상으로 삼을 수 있기 때문이다.
+     이 프로세스에서 재구축이 실행 중인지 반환한다.
      */
-	private async renewLock(lockId: string): Promise<void> {
-		if (!await this.stateRepository.renewRebuildLock(lockId)) {
-			throw new MessageSearchRebuildError('search index rebuild lock was lost');
-		}
+	isRunning(): boolean {
+		return this.running;
 	}
 
 	/**
-     락을 점유한 뒤 재구축을 백그라운드로 실행한다. 이미 실행 중이면 `false`를 반환한다.
+     재구축을 백그라운드로 실행한다. 이미 실행 중이면 `false`를 반환한다.
 
      전체 스캔은 HTTP 요청 시간보다 길어 요청 안에서 기다리지 않는다. 결과와 실패는
      `message_search_index_state`에 기록되므로 상태 조회로 확인한다.
 
-     락은 replica 간에 재구축이 겹치지 않게 막는다. 새 재구축은 시작하자마자 alias가 가리키지 않는
-     관리 index를 전부 지우므로, 동시에 실행되면 뒤에 시작한 쪽이 앞선 재구축의 대상 index를 삭제해
-     버릴 수 있다. 관리자 전용 명령이라 빈도는 낮지만, 이미 있는 `message_search_index_state` 단일
-     도큐먼트에 실행 중 표시와 만료 시각을 두어 값싸게 막는다.
+     새 재구축은 시작하자마자 alias가 가리키지 않는 관리 index를 전부 지우므로, 동시에 실행되면 뒤에
+     시작한 쪽이 앞선 재구축의 대상 index를 삭제해 버릴 수 있다. 서비스는 단일 인스턴스로 운영하므로
+     프로세스 안의 실행 중 플래그로 겹침을 막는다. 프로세스가 재시작되면 플래그가 사라지므로 바로 다시
+     시작하거나 `resume`으로 이어갈 수 있다.
      */
-	async start(options: RebuildOptions = {}): Promise<boolean> {
-		const lockId = randomUUID();
-		if (!await this.stateRepository.tryAcquireRebuildLock(lockId, REBUILD_LOCK_STALE_THRESHOLD_MS)) {
+	start(options: RebuildOptions = {}): boolean {
+		if (this.running) {
 			return false;
 		}
 
-		void this.rebuildInBackground(lockId, options);
+		this.running = true;
+		void this.rebuildInBackground(options);
 		return true;
 	}
 }

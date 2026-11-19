@@ -15,7 +15,7 @@ data class TeamMemberResponse(
     val role: String,
     @field:Schema(description = "팀 닉네임. null이면 계정 닉네임 사용", example = "홍길동 / 프론트엔드")
     val nickname: String?,
-    @field:Schema(description = "부여된 역할")
+    @field:Schema(description = "명시적으로 부여된 역할")
     val roles: List<TeamRoleResponse> = emptyList(),
     @field:Schema(description = "가입 일시")
     val joinedAt: LocalDateTime,

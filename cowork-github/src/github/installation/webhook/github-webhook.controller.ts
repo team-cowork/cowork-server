@@ -314,8 +314,8 @@ export class GithubWebhookController {
      opened/synchronize/reopened나 base 브랜치 변경, 캐시가 없을 때만 다시 조회하고, 그 결과를 Redis에
      캐시해 다른 액션에서도 함께 실어 보낸다 — 이 토픽은 key로 compaction되므로, 파일 없는 이벤트만 남으면
      과거에 조회한 파일 목록이 영구히 사라질 수 있기 때문이다.
-     캐시를 다시 채우려던 조회가 실패하면 files 없이 보낸다. GitHub는 실패한 webhook을 자동으로 다시 보내지
-     않으므로, 파일 목록 때문에 closed 같은 상태 변화까지 잃지 않게 한다(consumer는 기존 파일 목록을 유지한다).
+     조회가 실패하면 어느 경로든 files 없이 보낸다. GitHub는 실패한 webhook을 자동으로 다시 보내지 않으므로,
+     파일 목록 때문에 opened나 closed 같은 상태 변화까지 잃지 않게 한다(consumer는 기존 파일 목록을 유지한다).
      */
 	private async resolvePullRequestFiles(parameters: {
 		owner: string;
@@ -325,23 +325,38 @@ export class GithubWebhookController {
 		isBaseChanged: boolean;
 	}): Promise<PullRequestFileState[] | undefined> {
 		const {owner, repo, number, action, isBaseChanged} = parameters;
-		if (isBaseChanged || PR_FILE_REFRESH_ACTIONS.has(action)) {
-			return this.fetchPullRequestFiles(owner, repo, number);
-		}
-
-		const cached = await this.redis.get(githubCacheKeys.pullRequestFiles(owner, repo, number));
-		if (cached !== null) {
-			return JSON.parse(cached) as PullRequestFileState[];
+		if (!isBaseChanged && !PR_FILE_REFRESH_ACTIONS.has(action)) {
+			const cached = await this.redis.get(githubCacheKeys.pullRequestFiles(owner, repo, number));
+			if (cached !== null) {
+				return JSON.parse(cached) as PullRequestFileState[];
+			}
 		}
 
 		try {
 			return await this.fetchPullRequestFiles(owner, repo, number);
 		} catch (error) {
 			this.logger.warn(
-				`Failed to refill pull request files, sending state without files [pr=${owner}/${repo}#${number}]`,
+				`Failed to fetch pull request files, sending state without files [pr=${owner}/${repo}#${number}]`,
 				error instanceof Error ? error.stack : String(error),
 			);
+			await this.evictPullRequestFiles(owner, repo, number);
 			return undefined;
+		}
+	}
+
+	/**
+     조회에 실패하면 이전 push의 파일 목록 캐시를 지운다. 남겨 두면 다음 push 전까지 labeled나 edited 같은
+     이벤트가 오래된 목록을 다시 싣는다. 지우면 다음 이벤트가 파일 목록을 다시 조회한다.
+     캐시 삭제가 실패해도 PR 상태는 보내야 하므로 경고만 남긴다.
+     */
+	private async evictPullRequestFiles(owner: string, repo: string, number: number): Promise<void> {
+		try {
+			await this.redis.del(githubCacheKeys.pullRequestFiles(owner, repo, number));
+		} catch (error) {
+			this.logger.warn(
+				`Failed to evict pull request files cache [pr=${owner}/${repo}#${number}]`,
+				error instanceof Error ? error.stack : String(error),
+			);
 		}
 	}
 

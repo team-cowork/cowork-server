@@ -5,7 +5,6 @@ import {BlockModule} from '../block/block.module.js';
 import {ObjectStorageModule} from '../storage/object-storage.module.js';
 import {SearchModule} from '../search/search.module.js';
 import {RedisRateLimiter} from '../common/util/redis-rate-limiter.js';
-import {SocketIoRedisConnection} from '../common/adapter/redis-io.adapter.js';
 import {ThrottleGuard} from '../common/guard/throttle.guard.js';
 import {MeetingNoteAttachmentController} from './meeting-note-attachment.controller.js';
 import {MeetingNoteAttachmentDownloadService} from './service/meeting-note-attachment-download.service.js';
@@ -63,6 +62,8 @@ import {
 	ChannelReadService,
 	SlowmodeService,
 	TagSpamService,
+	// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
+	ChatMessageLatencyMetricsService,
 	ChatMessageQuarantineService,
 } from './service/index.js';
 import {UnifiedSearchResolver} from './unified-search.resolver.js';
@@ -212,6 +213,8 @@ import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consume
 		ChatMessageScopeValidator,
 		ChatMessageQuarantineRepository,
 		ChatMessageQuarantineService,
+		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
+		ChatMessageLatencyMetricsService,
 		ChatMessageQuarantinePoller,
 		MessageSearchIndexRepository,
 		MessageSearchTombstoneRepository,
@@ -261,9 +264,8 @@ import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consume
 		TagSpamService,
 		UnifiedSearchResolver,
 		RedisRateLimiter,
-		SocketIoRedisConnection,
 		ThrottleGuard,
 	],
-	exports: [RedisRateLimiter, SocketIoRedisConnection, ChatMessageProducer],
+	exports: [RedisRateLimiter, ChatMessageProducer],
 })
 export class ChatModule {}

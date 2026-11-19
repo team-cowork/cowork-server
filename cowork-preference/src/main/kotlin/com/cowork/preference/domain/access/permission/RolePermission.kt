@@ -27,7 +27,7 @@ enum class RolePermission(
         PermissionKeys.CREATE_TEAM,
         RolePermissionGroup.TEAM,
         "팀 생성",
-        "새 팀을 만들 수 있습니다.",
+        "새 팀 생성 허용",
     ),
     DELETE_TEAM(
         PermissionKeys.DELETE_TEAM,
@@ -210,6 +210,14 @@ enum class RolePermission(
         RolePermissionGroup.VOICE_CHANNEL,
         "라이브 방송",
         "음성 채널에서 라이브 방송을 시작하고 진행할 수 있습니다.",
+        setOf(VOICE),
+    ),
+    VOICE_LOG_READ(
+        PermissionKeys.VOICE_LOG_READ,
+        RolePermissionGroup.VOICE_CHANNEL,
+        "음성 채널 로그 보기",
+        "음성 채널의 통화 시작·종료, 입장·퇴장, 라이브 시작·종료 기록을 볼 수 있습니다. 채널 보기 권한도 있어야 합니다. " +
+            "이 권한이 없으면 음성 채널의 시스템 메시지가 조회·실시간 수신과 안 읽은 메시지 수에서 빠집니다.",
         setOf(VOICE),
     ),
     MANAGE_PROJECTS(

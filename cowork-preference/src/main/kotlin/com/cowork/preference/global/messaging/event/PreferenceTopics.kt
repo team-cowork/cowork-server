@@ -19,21 +19,4 @@ object PreferenceTopics {
     const val TEXT_CHANNEL_SETTING_STATE_TOPIC = "preference.text-channel-setting.state.v1"
     const val WEBHOOK_STATE_TOPIC = "preference.webhook.state.v2"
     const val VOICE_CHANNEL_SETTING_STATE_TOPIC = "preference.voice-channel-setting.state.v1"
-    val OUTBOX_TOPICS = setOf(
-        ACCOUNT_ROLE_TOPIC,
-        PROJECT_ACCESS_STATE_TOPIC,
-        CHANNEL_NOTIFICATION_TOPIC,
-        TEAM_ROLE_TOPIC,
-        TEAM_ROLE_COMMAND_RESULT_TOPIC,
-        GITHUB_REPO_SETTING_STATE_TOPIC,
-        GITHUB_REPO_SETTING_RESULT_TOPIC,
-        CHANNEL_ROLE_POLICY_STATE_TOPIC,
-        CHANNEL_ROLE_POLICY_COMMAND_RESULT_TOPIC,
-        STATUS_CHANGED_TOPIC,
-        ACCOUNT_SETTING_STATE_TOPIC,
-        TEAM_SETTING_STATE_TOPIC,
-        TEXT_CHANNEL_SETTING_STATE_TOPIC,
-        WEBHOOK_STATE_TOPIC,
-        VOICE_CHANNEL_SETTING_STATE_TOPIC,
-    )
 }

@@ -22,8 +22,8 @@ export class AttachmentDeletionRepository {
 	}
 
 	/**
-     처리 시각이 된 의도를 최대 `batchSize`개 점유한다. `nextAttemptAt`을 `leaseMs` 뒤로 미뤄 다른 replica가
-     같은 의도를 처리하지 않게 하고, 실패한 의도는 점유가 끝나면 다시 처리된다.
+     처리 시각이 된 의도를 최대 `batchSize`개 점유한다. `nextAttemptAt`을 `leaseMs` 뒤로 미뤄 배포 중
+     다른 프로세스가 같은 의도를 처리하지 않게 하고, 실패하거나 처리 중에 프로세스가 죽은 의도는 점유가 끝나면 다시 처리된다.
      되읽기는 호출마다 발급한 `claimId`로 해 실제로 점유한 의도만 돌려준다.
      */
 	async claimDue(now: Date, leaseMs: number, batchSize: number): Promise<AttachmentDeletionRecord[]> {

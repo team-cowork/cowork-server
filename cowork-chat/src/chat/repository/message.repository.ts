@@ -15,6 +15,11 @@ import {type Nullable} from '../../common/type/nullable.js';
 const MESSAGE_FETCH_LIMIT = 100;
 
 /**
+MongoDB ObjectId의 24자리 16진수 문자열 형식
+*/
+const OBJECT_ID_PATTERN = /^[\da-f]{24}$/iv;
+
+/**
  메시지당 보관하는 최대 편집 이력 수.
  상한이 없으면 자주 수정되는 메시지의 문서가 무한정 커져 WiredTiger 문서 재배치(move)가
  반복되며 쓰기 지연이 누적된다. 최근 N개만 유지해 문서 크기를 상한선 안으로 고정한다.
@@ -62,6 +67,7 @@ export type FileAttachmentRow = {
 	fileSize: number;
 	objectKey?: string;
 	mimeType: string;
+	spoiler: boolean;
 	/**
     파일을 업로드한 메시지 작성자의 사용자 ID
     */
@@ -84,7 +90,7 @@ type FileAttachmentAggregateRow = {
 	authorId: number;
 	createdAt: Date;
 	attachmentIndex?: number;
-	attachment: {name: string; objectKey?: string; url?: string; size: number; mimeType: string};
+	attachment: {name: string; objectKey?: string; url?: string; size: number; mimeType: string; spoiler?: boolean};
 };
 
 /**
@@ -115,7 +121,16 @@ export type CreateMessageInput = {
 export type MessageListFilter = {
 	parentMessageId?: string;
 	threadId?: number;
+	/**
+    값이 true면 SYSTEM 메시지를 뺀다. 음성 채널 로그를 볼 수 없는 사용자에게 쓴다.
+    */
+	shouldExcludeSystem?: boolean;
 };
+
+/**
+ SYSTEM 메시지를 빼는 조건. 음성 채널 로그를 볼 수 없는 사용자의 조회·안읽음 수에 쓴다.
+ */
+const NOT_SYSTEM_MESSAGE = {type: {$ne: 'SYSTEM'}};
 
 /**
  알림 파이프라인에서 사용하는 메시지 타입.
@@ -149,7 +164,7 @@ export type MessageRow = {
 	webhook?: WebhookMessageAuthor;
 	content: string;
 	type: string;
-	attachments: Array<{name: string; objectKey?: string; url?: string; size: number; mimeType: string}>;
+	attachments: Array<{name: string; objectKey?: string; url?: string; size: number; mimeType: string; spoiler?: boolean}>;
 	parentMessageId: Nullable<Types.ObjectId>;
 	threadId: Nullable<number>;
 	isEdited: boolean;
@@ -164,6 +179,11 @@ export type MessageRow = {
     */
 	mentionedMessage: Nullable<MentionedMessageRow>;
 };
+
+/**
+검색 결과에 첨부를 붙이기 위해 원본 메시지에서 읽는 필드 집합
+*/
+export type MessageAttachmentsRow = Pick<MessageRow, '_id' | 'channelId' | 'attachments'>;
 
 /**
  신규 메시지 생성 직후 WebSocket으로 브로드캐스트할 때 사용하는 필드 집합.
@@ -195,10 +215,11 @@ export function toMessageBroadcastPayload(doc: MessageDocument): MessageBroadcas
 
 /**
 Never return persisted legacy object URLs to API or WebSocket clients.
+Messages stored before the spoiler field existed are returned as `spoiler: false`.
 */
-export function publicAttachments(attachments: MessageRow['attachments']): MessageRow['attachments'] {
-	return attachments.map(({name, size, mimeType, objectKey}) => ({
-		name, size, mimeType, objectKey,
+export function publicAttachments(attachments: MessageRow['attachments']): Array<MessageRow['attachments'][number] & {spoiler: boolean}> {
+	return attachments.map(({name, size, mimeType, objectKey, spoiler}) => ({
+		name, size, mimeType, objectKey, spoiler: spoiler ?? false,
 	}));
 }
 
@@ -311,7 +332,7 @@ export class MessageRepository {
 
 	private async aggregateMessages(
 		channelId: number,
-		{parentMessageId, threadId}: MessageListFilter,
+		{parentMessageId, threadId, shouldExcludeSystem}: MessageListFilter,
 		{idFilter, sortDirection, limit}: {idFilter?: Record<string, Types.ObjectId>; sortDirection: 1 | -1; limit: number},
 	): Promise<MessageRow[]> {
 		const query: Record<string, unknown> = {
@@ -321,6 +342,7 @@ export class MessageRepository {
 			threadId: threadId ?? null,
 			...(idFilter && {_id: idFilter}),
 			...(parentMessageId !== undefined && parentMessageId !== '' && {parentMessageId: new Types.ObjectId(parentMessageId)}),
+			...(shouldExcludeSystem === true && NOT_SYSTEM_MESSAGE),
 		};
 
 		const lookupStages = parentMessageId !== undefined && parentMessageId !== ''
@@ -333,7 +355,8 @@ export class MessageRepository {
 						foreignField: '_id',
 						as: 'mentionedMessage',
 						pipeline: [
-							{$match: {webhookDeleted: {$ne: true}, channelId}},
+							// 답장 미리보기로 숨긴 SYSTEM 메시지 내용이 드러나지 않게 같은 조건을 건다.
+							{$match: {webhookDeleted: {$ne: true}, channelId, ...(shouldExcludeSystem === true && NOT_SYSTEM_MESSAGE)}},
 							{
 								$project: {
 									_id: 1,
@@ -418,6 +441,23 @@ export class MessageRepository {
      */
 	async findById(messageId: string): Promise<Nullable<MessageDocument>> {
 		return this.messageModel.findOne({_id: messageId, webhookDeleted: {$ne: true}});
+	}
+
+	/**
+     검색 결과에 붙일 첨부를 메시지 ID로 한 번에 조회합니다. 검색 색인에는 첨부가 없으므로 원본 메시지에서 읽습니다.
+
+     @param messageIds - 조회할 메시지의 ObjectId 문자열 목록. 형식이 맞지 않는 값은 건너뜁니다
+     @returns 찾은 메시지의 `_id`, `channelId`, `attachments`. 없거나 웹훅 삭제된 메시지는 빠집니다
+     */
+	async findAttachmentsByIds(messageIds: string[]): Promise<MessageAttachmentsRow[]> {
+		const ids = messageIds.filter(id => OBJECT_ID_PATTERN.test(id));
+		if (ids.length === 0) {
+			return [];
+		}
+
+		return this.messageModel
+			.find({_id: {$in: ids}, webhookDeleted: {$ne: true}}, {channelId: 1, attachments: 1})
+			.lean<MessageAttachmentsRow[]>();
 	}
 
 	/**
@@ -696,6 +736,7 @@ export class MessageRepository {
 				fileSize: row.attachment.size,
 				objectKey: row.attachment.objectKey,
 				mimeType: row.attachment.mimeType,
+				spoiler: row.attachment.spoiler ?? false,
 				uploaderId: row.authorId,
 				uploadedAt: row.createdAt.toISOString(),
 				attachmentIndex,
@@ -715,8 +756,8 @@ export class MessageRepository {
 
      아웃박스(outbox) 패턴에서 알림 워커가 배치 전체를 한 번에 점유하기 위한 3단계 연산입니다:
      1. 후보 id를 `createdAt` 오름차순으로 최대 `batchSize`개 조회
-     2. `updateMany`로 여전히 `PENDING`인 후보만 `PROCESSING`으로 전환 (다른 워커 인스턴스가
-     그 사이 이미 점유한 문서는 필터 조건에서 자연스럽게 제외되어 중복 점유가 발생하지 않음)
+     2. `updateMany`로 여전히 `PENDING`인 후보만 `PROCESSING`으로 전환 (배포 중 종료를 기다리는
+     구 프로세스 등 다른 워커가 그 사이 이미 점유한 문서는 필터 조건에서 자연스럽게 제외되어 중복 점유가 발생하지 않음)
      3. 이번 호출에서 발급한 `notificationClaimId`로 실제 점유분만 조회
 
      3단계의 구분자로 점유 시각을 쓰면 두 워커가 같은 밀리초에 점유했을 때 서로의 점유분까지
@@ -793,11 +834,17 @@ export class MessageRepository {
      `findMessages`와 동일한 `$lookup` 집계로 부모 메시지를 `mentionedMessage`에 조인합니다.
 
      @param channelId - 고정 메시지를 조회할 채널의 식별자
+     @param options - 조회 조건
+     @param options.shouldExcludeSystem - true면 SYSTEM 메시지를 뺀다
      @returns 고정된 {@link MessageRow} 배열 (최신순 정렬, 최대 100개)
      */
-	async findPinnedMessages(channelId: number): Promise<MessageRow[]> {
+	async findPinnedMessages(channelId: number, options: {shouldExcludeSystem?: boolean} = {}): Promise<MessageRow[]> {
 		return this.messageModel.aggregate([
-			{$match: {webhookDeleted: {$ne: true}, channelId, isPinned: true}},
+			{
+				$match: {
+					webhookDeleted: {$ne: true}, channelId, isPinned: true, ...(options.shouldExcludeSystem === true && NOT_SYSTEM_MESSAGE),
+				},
+			},
 			{$sort: {_id: -1}},
 			{$limit: MESSAGE_FETCH_LIMIT},
 			{
@@ -807,7 +854,7 @@ export class MessageRepository {
 					foreignField: '_id',
 					as: 'mentionedMessage',
 					pipeline: [
-						{$match: {webhookDeleted: {$ne: true}, channelId}},
+						{$match: {webhookDeleted: {$ne: true}, channelId, ...(options.shouldExcludeSystem === true && NOT_SYSTEM_MESSAGE)}},
 						{
 							$project: {
 								_id: 1,
@@ -984,13 +1031,14 @@ export class MessageRepository {
 		return (await this.messageModel.exists({'attachments.objectKey': objectKey})) !== null;
 	}
 
-	async countUnread(channelId: number, afterId: Nullable<Types.ObjectId>): Promise<number> {
+	async countUnread(channelId: number, afterId: Nullable<Types.ObjectId>, shouldExcludeSystem = false): Promise<number> {
 		const filter: Record<string, unknown> = {
 			webhookDeleted: {$ne: true},
 			channelId,
 			// 채널 메시지 목록과 같은 기준으로 센다. 스레드 메시지는 채널 목록에 없으므로 채널 읽음 처리로 지울 수 없다.
 			threadId: null,
 			...(afterId && {_id: {$gt: afterId}}),
+			...(shouldExcludeSystem && NOT_SYSTEM_MESSAGE),
 		};
 
 		return this.messageModel.countDocuments(filter);
@@ -1030,16 +1078,17 @@ export class MessageRepository {
 	}
 
 	async countUnreadForChannels(
-		memberships: Array<{channelId: number; lastReadMessageId: Nullable<Types.ObjectId>}>,
+		memberships: Array<{channelId: number; lastReadMessageId: Nullable<Types.ObjectId>; shouldExcludeSystem?: boolean}>,
 	): Promise<Map<number, number>> {
 		if (memberships.length === 0) {
 			return new Map();
 		}
 
-		const orConditions = memberships.map(({channelId, lastReadMessageId}) => ({
+		const orConditions = memberships.map(({channelId, lastReadMessageId, shouldExcludeSystem}) => ({
 			channelId,
 			threadId: null,
 			...(lastReadMessageId && {_id: {$gt: lastReadMessageId}}),
+			...(shouldExcludeSystem === true && NOT_SYSTEM_MESSAGE),
 		}));
 		const results = await this.messageModel.aggregate<{_id: number; count: number}>([
 			{$match: {webhookDeleted: {$ne: true}, $or: orConditions}},

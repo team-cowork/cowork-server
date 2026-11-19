@@ -567,7 +567,7 @@ describe('ChannelMessageReadAccessService', () => {
 			const to = jest.fn().mockReturnValue({emit});
 			const io = {to};
 
-			await service.emitToReadableChannelUsers(io as never, 10, {event: 'message', payload: {value: 1}});
+			await expect(service.emitToReadableChannelUsers(io as never, 10, {event: 'message', payload: {value: 1}})).resolves.toBe(true);
 
 			expect(to).toHaveBeenCalledWith('chat:10');
 			expect(emit).toHaveBeenCalledWith('message', {value: 1});
@@ -578,7 +578,7 @@ describe('ChannelMessageReadAccessService', () => {
 			const emit = jest.fn();
 			const to = jest.fn().mockReturnValue({emit});
 
-			await service.emitToReadableChannelUsers({to} as never, 10, {event: 'message', payload: {value: 1}});
+			await expect(service.emitToReadableChannelUsers({to} as never, 10, {event: 'message', payload: {value: 1}})).resolves.toBe(false);
 
 			expect(to).not.toHaveBeenCalled();
 			expect(emit).not.toHaveBeenCalled();
@@ -620,7 +620,7 @@ describe('ChannelMessageReadAccessService', () => {
 			await service.emitToReadableChannelUsers(io as never, 10, {event: 'message', payload: {value: 1}});
 			projectionReadiness.areReady.mockReturnValue(true);
 			teamRoleRepository.findDefaultRolesByTeamIds.mockResolvedValue([]);
-			await service.emitToReadableChannelUsers(io as never, 10, {event: 'message', payload: {value: 2}});
+			await expect(service.emitToReadableChannelUsers(io as never, 10, {event: 'message', payload: {value: 2}})).resolves.toBe(false);
 			expect(emit).not.toHaveBeenCalled();
 
 			evict.mockImplementation(async () => 0);
@@ -630,6 +630,10 @@ describe('ChannelMessageReadAccessService', () => {
 
 			expect(evict).toHaveBeenCalledTimes(2);
 			expect(emit).toHaveBeenCalledTimes(1);
+		});
+
+		it('Socket.IO 서버가 없으면 전송하지 않았다고 알린다', async () => {
+			await expect(service.emitToReadableChannelUsers(undefined, 10, {event: 'message', payload: {value: 1}})).resolves.toBe(false);
 		});
 
 		it('보낸 사람의 socket은 제외한다', async () => {
@@ -664,6 +668,102 @@ describe('ChannelMessageReadAccessService', () => {
 			expect(teamMemberRepository.findByTeamIdsAndUserIds).toHaveBeenCalledWith([1], [2, 99]);
 			expect(active.emit).toHaveBeenCalledWith('project:updated', {projectId: 5});
 			expect(stale.emit).not.toHaveBeenCalled();
+		});
+	});
+
+	describe('voice channel logs', () => {
+		const voiceChannel = {
+			channelId: 30, teamId: 1, type: 'VOICE', isPrivate: false,
+		};
+		const textChannel = {
+			channelId: 10, teamId: 1, type: 'TEXT', isPrivate: false,
+		};
+		const findChannels = async (ids: number[]) => [voiceChannel, textChannel].filter(channel => ids.includes(channel.channelId));
+
+		beforeEach(() => {
+			channelRepository.findByIds.mockImplementation(findChannels);
+			dmParticipantRepository.findByChannelIdsAndUserIds.mockResolvedValue(new Map());
+			dmParticipantRepository.findByChannelIds.mockResolvedValue(new Map());
+			const members = [8, 9].map(userId => ({teamId: 1, userId, role: 'MEMBER'}));
+			teamMemberRepository.findByTeamIdsAndUserIds.mockResolvedValue(members);
+			teamMemberRepository.findByTeamIds.mockResolvedValue(members);
+			teamRoleRepository.findDefaultRolesByTeamIds.mockResolvedValue([{
+				teamId: 1, roleId: 1, priority: 0, isDefault: true,
+				permissions: Object.fromEntries([['message_read', true], ['voice_connect', true]]),
+			}]);
+			teamRoleRepository.findAssignmentsByTeamIdsAndAccountIds.mockResolvedValue([{teamId: 1, accountId: 8, roleId: 401}]);
+			teamRoleRepository.findRolesByIds.mockResolvedValue([{
+				teamId: 1, roleId: 401, priority: 10, permissions: Object.fromEntries([['voice_log_read', true]]),
+			}]);
+			policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([]);
+		});
+
+		it('voice_log_read가 없는 사용자에게만 음성 채널을 로그 숨김 채널로 돌려준다', async () => {
+			await expect(service.requireVoiceLogHiddenChannelIds(9, [30, 10])).resolves.toEqual(new Set([30]));
+			await expect(service.requireVoiceLogHiddenChannelIds(8, [30, 10])).resolves.toEqual(new Set());
+		});
+
+		it('음성 채널이 없으면 권한을 판정하지 않는다', async () => {
+			await expect(service.requireVoiceLogHiddenChannelIds(9, [10])).resolves.toEqual(new Set());
+			expect(teamMemberRepository.findByTeamIdsAndUserIds).not.toHaveBeenCalled();
+		});
+
+		it('채널별 역할 권한으로 기본 역할에 로그 읽기를 허용할 수 있다', async () => {
+			policyRepository.findByChannelIdsAndRoleIds.mockResolvedValue([{
+				teamId: 1, channelId: 30, roleId: 1, permissions: Object.fromEntries([['voice_log_read', true]]),
+			}]);
+
+			await expect(service.requireVoiceLogHiddenChannelIds(9, [30])).resolves.toEqual(new Set());
+		});
+
+		it('SYSTEM 메시지 수신자를 구할 때 음성 채널 로그를 볼 수 없는 사용자를 뺀다', async () => {
+			await expect(service.findReadableUsersByChannel([30], {voiceLogs: true})).resolves.toEqual(new Map([[30, [8]]]));
+			await expect(service.findReadableUsersByChannel([30])).resolves.toEqual(new Map([[30, [8, 9]]]));
+		});
+
+		it('텍스트 채널의 SYSTEM 메시지 수신자에는 voice_log_read를 요구하지 않는다', async () => {
+			await expect(service.findReadableUsersByChannel([10], {voiceLogs: true})).resolves.toEqual(new Map([[10, [8, 9]]]));
+		});
+
+		it('음성 채널 SYSTEM 메시지는 room 소켓 중 로그를 볼 수 있는 사용자에게만 보낸다', async () => {
+			const reader = {id: 'a', data: {userId: 8}, emit: jest.fn()};
+			const nonReader = {id: 'b', data: {userId: 9}, emit: jest.fn()};
+			const to = jest.fn();
+			const io = {in: jest.fn().mockReturnValue({fetchSockets: jest.fn().mockResolvedValue([reader, nonReader])}), to};
+			const payload = {type: 'SYSTEM', content: '음성 통화가 시작되었습니다.'};
+
+			await expect(service.emitToReadableChannelUsers(io as never, 30, {event: 'message', payload})).resolves.toBe(true);
+
+			expect(io.in).toHaveBeenCalledWith('chat:30');
+			expect(reader.emit).toHaveBeenCalledWith('message', payload);
+			expect(nonReader.emit).not.toHaveBeenCalled();
+			expect(to).not.toHaveBeenCalled();
+		});
+
+		it('음성 채널 SYSTEM 메시지 판정 중 projection이 닫히면 보내지 않고 false를 돌려준다', async () => {
+			const reader = {id: 'a', data: {userId: 8}, emit: jest.fn()};
+			const io = {in: jest.fn().mockReturnValue({fetchSockets: jest.fn().mockResolvedValue([reader])}), to: jest.fn()};
+			const payload = {type: 'SYSTEM', content: '음성 통화가 시작되었습니다.'};
+			teamRoleRepository.findRolesByIds.mockImplementation(async () => {
+				projectionReadiness.areReady.mockReturnValue(false);
+				return [{
+					teamId: 1, roleId: 401, priority: 10, permissions: Object.fromEntries([['voice_log_read', true]]),
+				}];
+			});
+
+			await expect(service.emitToReadableChannelUsers(io as never, 30, {event: 'message', payload})).resolves.toBe(false);
+
+			expect(reader.emit).not.toHaveBeenCalled();
+		});
+
+		it('음성 채널의 일반 메시지는 room에 그대로 보낸다', async () => {
+			const emit = jest.fn();
+			const io = {to: jest.fn().mockReturnValue({emit}), in: jest.fn()};
+
+			await service.emitToReadableChannelUsers(io as never, 30, {event: 'message', payload: {type: 'TEXT'}});
+
+			expect(io.to).toHaveBeenCalledWith('chat:30');
+			expect(io.in).not.toHaveBeenCalled();
 		});
 	});
 });

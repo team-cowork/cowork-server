@@ -31,6 +31,7 @@ enum class TeamRolePermission(val key: String) {
     VOICE_SPEAK("voice_speak"),
     SCREEN_SHARE("screen_share"),
     LIVE_BROADCAST("live_broadcast"),
+    VOICE_LOG_READ("voice_log_read"),
     MANAGE_PROJECTS("manage_projects"),
     PROJECT_READ("project_read"),
     PROJECT_WRITE("project_write"),

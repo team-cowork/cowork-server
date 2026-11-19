@@ -74,7 +74,9 @@ redis.call('EXPIRE', KEYS[1], ARGV[5])
 return 1
 `;
 
-const KEY_PREFIX = 'unread:';
+// 키 v2: 음성 채널 로그 권한이 없는 사용자의 안읽음 수에서 음성 채널 SYSTEM 메시지를 뺀다.
+// 이전 키에는 그 메시지 수가 들어 있으므로 키를 바꿔 한 번 다시 계산하게 한다. 이전 키는 TTL로 사라진다.
+const KEY_PREFIX = 'unread:v2:';
 const CURSOR_FIELD_SUFFIX = ':cursor';
 // 수신자별 set을 쓰던 이전 `unread:applied:` 키와 타입이 달라 접두사를 분리한다.
 const APPLIED_KEY_PREFIX = 'unread:applied-chunks:';

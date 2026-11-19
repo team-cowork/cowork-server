@@ -13,11 +13,12 @@ class ReactionResponseDto {
 	@apiProperty() myReaction!: boolean;
 }
 
-class AttachmentResponseDto {
+export class AttachmentResponseDto {
 	@apiProperty() name!: string;
 	@apiPropertyOptional() objectKey?: string;
 	@apiProperty() size!: number;
 	@apiProperty() mimeType!: string;
+	@apiProperty({description: '스포일러 표시 여부. 이 값이 없던 기존 메시지는 false', default: false}) spoiler!: boolean;
 }
 
 export class MentionedMessageDto {

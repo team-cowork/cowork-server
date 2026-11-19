@@ -1,5 +1,5 @@
 import {Types} from 'mongoose';
-import {ChatMessageProcessor} from './chat-message.processor.js';
+import {ChatMessageBroadcastSkippedError, ChatMessageProcessor} from './chat-message.processor.js';
 
 const event = {
 	contractVersion: 2 as const, eventType: 'MESSAGE_SENT' as const, teamId: 1, projectId: null,
@@ -22,13 +22,20 @@ describe('ChatMessageProcessor', () => {
 	const channelRead = {advance: jest.fn()};
 	const readAccess = {emitToReadableChannelUsers: jest.fn()};
 	const scope = {validate: jest.fn()};
+	// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
+	const latency = {record: jest.fn()};
 	let processor: ChatMessageProcessor;
 
 	beforeEach(() => {
 		jest.clearAllMocks();
 		channelRead.advance.mockResolvedValue(null);
 		messages.markBroadcasted.mockResolvedValue(undefined);
-		processor = new ChatMessageProcessor(messages as never, channelRead as never, readAccess as never, scope as never);
+		readAccess.emitToReadableChannelUsers.mockResolvedValue(true);
+		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다. Object.assign을 지우고 생성자 호출만 남긴다.
+		processor = Object.assign(
+			new ChatMessageProcessor(messages as never, channelRead as never, readAccess as never, scope as never),
+			{latencyMetrics: latency},
+		);
 		processor.setSocketServer({to: jest.fn()} as never);
 	});
 
@@ -71,6 +78,58 @@ describe('ChatMessageProcessor', () => {
 			await processor.process(event);
 
 			expect(messages.markBroadcasted).toHaveBeenCalledWith(saved._id);
+		});
+
+		it('보내지 못하면 전송 완료를 기록하지 않고 재전달되도록 던진다', async () => {
+			messages.createMessage.mockResolvedValue(storedMessage());
+			readAccess.emitToReadableChannelUsers.mockResolvedValue(false);
+
+			await expect(processor.process(event)).rejects.toBeInstanceOf(ChatMessageBroadcastSkippedError);
+			expect(messages.markBroadcasted).not.toHaveBeenCalled();
+		});
+
+		it('재전달로 다시 보내지 못해도 전송 완료를 기록하지 않는다', async () => {
+			messages.createMessage.mockRejectedValue(Object.assign(new Error('dup'), {code: 11_000}));
+			messages.findUnbroadcastedByClientMessageId.mockResolvedValue(storedMessage());
+			readAccess.emitToReadableChannelUsers.mockResolvedValue(false);
+
+			await expect(processor.process(event)).rejects.toBeInstanceOf(ChatMessageBroadcastSkippedError);
+			expect(messages.markBroadcasted).not.toHaveBeenCalled();
+		});
+
+		it('clientMessageId가 없으면 보내지 못해도 다시 저장되지 않도록 던지지 않는다', async () => {
+			messages.createMessage.mockResolvedValue(storedMessage({clientMessageId: undefined}));
+			readAccess.emitToReadableChannelUsers.mockResolvedValue(false);
+
+			await processor.process({...event, clientMessageId: undefined});
+
+			expect(messages.markBroadcasted).not.toHaveBeenCalled();
+		});
+
+		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다. 아래 세 테스트를 지운다.
+		it('consumer가 받은 시각을 주면 전송을 마친 뒤 구간별 지연을 모두 기록한다', async () => {
+			messages.createMessage.mockResolvedValue(storedMessage());
+
+			await processor.process(event, Date.now());
+
+			expect(latency.record.mock.calls.map(([stage]) => stage as string)).toEqual(['queue', 'validate_save', 'emit', 'total']);
+		});
+
+		it('보내지 못하면 emit과 total 지연을 기록하지 않는다', async () => {
+			messages.createMessage.mockResolvedValue(storedMessage());
+			readAccess.emitToReadableChannelUsers.mockResolvedValue(false);
+
+			await expect(processor.process(event, Date.now())).rejects.toBeInstanceOf(ChatMessageBroadcastSkippedError);
+
+			expect(latency.record.mock.calls.map(([stage]) => stage as string)).toEqual(['queue', 'validate_save']);
+		});
+
+		it('quarantine 재처리처럼 받은 시각이 없으면 지연을 기록하지 않는다', async () => {
+			messages.createMessage.mockResolvedValue(storedMessage());
+
+			await processor.process(event);
+
+			expect(latency.record).not.toHaveBeenCalled();
 		});
 
 		it('중복이 아닌 저장 오류는 재전달되도록 다시 던진다', async () => {

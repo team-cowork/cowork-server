@@ -231,6 +231,25 @@ export class PullRequestApiClient {
 		}
 	}
 
+	async closePullRequest(
+		owner: string,
+		repo: string,
+		prNumber: number,
+	): Promise<void> {
+		const token = await this.authService.getInstallationToken(owner);
+		try {
+			await firstValueFrom(
+				this.httpService.patch(
+					`${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}`,
+					{state: 'closed'},
+					{headers: this.authHeaders(token)},
+				),
+			);
+		} catch (error) {
+			this.handleGithubError(error);
+		}
+	}
+
 	async deleteBranch(
 		owner: string,
 		repo: string,

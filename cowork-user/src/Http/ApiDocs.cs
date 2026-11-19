@@ -67,7 +67,11 @@ public static class ApiDocs
                 if (attributes?.GetCustomAttributes(typeof(ExampleAttribute), false) is [ExampleAttribute example, ..])
                     schema.Examples = [JsonSerializer.SerializeToNode(example.Value)!];
                 if (attributes?.GetCustomAttributes(typeof(AllowedValuesAttribute), false) is [AllowedValuesAttribute allowed, ..])
+                {
                     schema.Enum = allowed.Values.Select(value => JsonSerializer.SerializeToNode(value)!).ToList();
+                    // A nullable property's enum must list null too, or JSON Schema rejects the null value.
+                    if (schema.Type?.HasFlag(JsonSchemaType.Null) == true) schema.Enum.Add(null!);
+                }
                 return Task.CompletedTask;
             });
             options.AddOperationTransformer((operation, context, _) =>
@@ -291,6 +295,10 @@ public sealed class UpdateProfileRequest
 
     [Description("생략하면 기존 역할을 유지하고 빈 배열이면 역할을 모두 해제합니다.")]
     public IReadOnlyList<string> Roles { get; init; } = [];
+
+    [Description("프로필 배경 색상 프리셋 키입니다. 생략하면 기존 값을 유지하고 null이면 기본 배경으로 되돌립니다.")]
+    [AllowedValues("RED", "BLUE", "GREEN", "AMBER", "PURPLE", "NEUTRAL"), Example("BLUE")]
+    public string? BannerColor { get; init; }
 }
 
 public sealed class UpdateStatusRequest

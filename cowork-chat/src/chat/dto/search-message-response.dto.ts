@@ -1,6 +1,6 @@
 import {ApiProperty as apiProperty, ApiPropertyOptional as apiPropertyOptional} from '@nestjs/swagger';
 import {type Nullable} from '../../common/type/nullable.js';
-import {WebhookAuthorResponseDto} from './message-response.dto.js';
+import {AttachmentResponseDto, WebhookAuthorResponseDto} from './message-response.dto.js';
 
 export class SearchMessageItemDto {
 	@apiProperty() messageId!: string;
@@ -11,6 +11,7 @@ export class SearchMessageItemDto {
 	@apiProperty({type: [String], description: '<em>키워드</em> 포함 snippet 배열'}) highlight!: string[];
 	@apiProperty({enum: ['TEXT', 'FILE', 'SYSTEM']}) type!: string;
 	@apiProperty() hasAttachments!: boolean;
+	@apiProperty({type: [AttachmentResponseDto], description: '원본 메시지의 첨부 목록. 원본을 찾지 못하면 빈 배열'}) attachments!: AttachmentResponseDto[];
 	@apiProperty() isPinned!: boolean;
 	@apiProperty() createdAt!: string;
 }
