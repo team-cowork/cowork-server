@@ -77,7 +77,8 @@ class MeetingNoteSummaryClient(
                 }
             },
         )
-        val response = if (groq.statusCode() == 429 && aiHubKey.isNotBlank()) {
+        val response = if (groqRateLimited(groq)) {
+            if (aiHubKey.isBlank()) throw rateLimited()
             post(
                 AI_HUB_URL,
                 aiHubKey,
@@ -95,12 +96,24 @@ class MeetingNoteSummaryClient(
         }
         when (response.statusCode()) {
             200 -> return parse(response.body())
-            429 -> throw ExpectedException("AI 서비스의 호출 한도를 초과했습니다.", HttpStatus.TOO_MANY_REQUESTS)
+            429 -> throw rateLimited()
             408, 504 -> throw timeout()
             401, 403 -> throw ExpectedException("AI 서비스 인증에 실패했습니다.", HttpStatus.BAD_GATEWAY)
             503 -> throw ExpectedException("AI 서비스가 일시적으로 혼잡합니다.", HttpStatus.SERVICE_UNAVAILABLE)
             else -> throw unavailable()
         }
+    }
+
+    private fun groqRateLimited(response: HttpResponse<ByteArray>): Boolean = when (response.statusCode()) {
+        429 -> true
+
+        413 -> try {
+            mapper.readTree(response.body()).at("/error/code").stringValue(null) == "rate_limit_exceeded"
+        } catch (_: JacksonException) {
+            false
+        }
+
+        else -> false
     }
 
     private fun post(url: URI, key: String, deadline: Long, body: Map<String, Any>): HttpResponse<ByteArray> {
@@ -140,6 +153,7 @@ class MeetingNoteSummaryClient(
         }
     }
 
+    private fun rateLimited() = ExpectedException("AI 서비스의 호출 한도를 초과했습니다.", HttpStatus.TOO_MANY_REQUESTS)
     private fun timeout() = ExpectedException("AI 서비스 응답 시간이 초과되었습니다.", HttpStatus.GATEWAY_TIMEOUT)
     private fun unavailable() = ExpectedException("AI 서비스 호출에 실패했습니다.", HttpStatus.BAD_GATEWAY)
     private fun invalidResponse() = ExpectedException("AI 요약 응답을 읽을 수 없습니다.", HttpStatus.BAD_GATEWAY)

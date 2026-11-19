@@ -92,15 +92,18 @@ class MeetingNoteSummaryClientTest :
                 }
             }
 
-            context("Groq가 429를 반환하면") {
-                it("각 서비스의 키와 남은 시간으로 AI Hub에 한 번 요청한다") {
-                    every { http.send(capture(requests), any<HttpResponse.BodyHandler<ByteArray>>()) } returnsMany
-                        listOf(response(429), response(200, successBody))
-                    client.summarize("출시", "회의 내용") shouldBe expected
-                    requests.map { it.uri().host } shouldBe listOf("api.groq.com", "jeb.https.gsmsv.site")
-                    requests.map { it.headers().firstValue("Authorization").get() } shouldBe
-                        listOf("Bearer groq-key", "Bearer hub-key")
-                    (requests.last().timeout().get() <= requests.first().timeout().get()) shouldBe true
+            val tokenLimit = """{"error":{"code":"rate_limit_exceeded"}}""".toByteArray()
+            for ((status, body) in listOf(429 to byteArrayOf(), 413 to tokenLimit)) {
+                context("Groq가 호출 제한을 ${status}로 반환하면") {
+                    it("각 서비스의 키와 남은 시간으로 AI Hub에 한 번 요청한다") {
+                        every { http.send(capture(requests), any<HttpResponse.BodyHandler<ByteArray>>()) } returnsMany
+                            listOf(response(status, body), response(200, successBody))
+                        client.summarize("출시", "회의 내용") shouldBe expected
+                        requests.map { it.uri().host } shouldBe listOf("api.groq.com", "jeb.https.gsmsv.site")
+                        requests.map { it.headers().firstValue("Authorization").get() } shouldBe
+                            listOf("Bearer groq-key", "Bearer hub-key")
+                        (requests.last().timeout().get() <= requests.first().timeout().get()) shouldBe true
+                    }
                 }
             }
 
@@ -152,14 +155,28 @@ class MeetingNoteSummaryClientTest :
                 }
             }
 
-            context("대체 키가 없으면") {
-                it("Groq의 호출 제한을 그대로 반환한다") {
-                    client = MeetingNoteSummaryClient(http, mapper, "groq-key", "model", "", "model")
-                    every { http.send(capture(requests), any<HttpResponse.BodyHandler<ByteArray>>()) } returns
-                        response(429)
-                    shouldThrow<ExpectedException> { client.summarize("", "회의") }.statusCode shouldBe
-                        HttpStatus.TOO_MANY_REQUESTS
-                    requests.size shouldBe 1
+            for ((status, body) in listOf(429 to byteArrayOf(), 413 to tokenLimit)) {
+                context("대체 키가 없고 Groq가 호출 제한을 ${status}로 반환하면") {
+                    it("Groq의 호출 제한을 그대로 반환한다") {
+                        client = MeetingNoteSummaryClient(http, mapper, "groq-key", "model", "", "model")
+                        every { http.send(capture(requests), any<HttpResponse.BodyHandler<ByteArray>>()) } returns
+                            response(status, body)
+                        shouldThrow<ExpectedException> { client.summarize("", "회의") }.statusCode shouldBe
+                            HttpStatus.TOO_MANY_REQUESTS
+                        requests.size shouldBe 1
+                    }
+                }
+            }
+
+            context("Groq의 413 응답이 토큰 한도 초과를 나타내지 않으면") {
+                for (body in listOf("""{"error":{"code":"request_too_large"}}""", """{"error":{}}""", "invalid", "")) {
+                    it("대체 호출 없이 제공자 오류로 처리한다 (본문: '$body')") {
+                        every { http.send(capture(requests), any<HttpResponse.BodyHandler<ByteArray>>()) } returns
+                            response(413, body.toByteArray())
+                        shouldThrow<ExpectedException> { client.summarize("", "회의") }.statusCode shouldBe
+                            HttpStatus.BAD_GATEWAY
+                        requests.size shouldBe 1
+                    }
                 }
             }
 
