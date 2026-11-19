@@ -16,8 +16,9 @@ class MeetingNote(
     @Column(name = "channel_id", nullable = false)
     val channelId: Long,
 
-    @Column(name = "template_id", nullable = false)
-    val templateId: Long,
+    /** 템플릿 없이 작성한 회의록이면 null이다. */
+    @Column(name = "template_id")
+    val templateId: Long?,
 
     @Column(nullable = false, length = 200)
     var title: String,
