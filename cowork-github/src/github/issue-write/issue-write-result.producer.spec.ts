@@ -1,47 +1,15 @@
-import {Test, type TestingModule} from '@nestjs/testing';
-import {Kafka} from 'kafkajs';
-import {AppConfigService} from '../../config/app-config.service.js';
+import type {KafkaProducerService} from '../../kafka/kafka-producer.service.js';
 import {type IssueWriteResultEvent} from './event/issue-write-result.event.js';
 import {IssueWriteCommandType} from './issue-write-command-type.js';
 import {IssueWriteResultProducer} from './issue-write-result.producer.js';
 
-jest.mock('kafkajs');
-
 describe('IssueWriteResultProducer', () => {
 	let producer: IssueWriteResultProducer;
 	let mockSend: jest.Mock;
-	let mockConnect: jest.Mock;
-	let mockDisconnect: jest.Mock;
 
-	beforeEach(async () => {
+	beforeEach(() => {
 		mockSend = jest.fn().mockResolvedValue(undefined);
-		mockConnect = jest.fn().mockResolvedValue(undefined);
-		mockDisconnect = jest.fn().mockResolvedValue(undefined);
-
-		(Kafka as unknown as jest.Mock).mockImplementation(() => ({
-			producer: () => ({
-				connect: mockConnect,
-				disconnect: mockDisconnect,
-				send: mockSend,
-			}),
-		}));
-
-		const module: TestingModule = await Test.createTestingModule({
-			providers: [
-				IssueWriteResultProducer,
-				{
-					provide: AppConfigService,
-					useValue: {kafkaBrokers: ['localhost:9092']},
-				},
-			],
-		}).compile();
-
-		producer = module.get<IssueWriteResultProducer>(IssueWriteResultProducer);
-		await producer.onModuleInit();
-	});
-
-	it('연결 시 kafka producer.connect를 호출한다', () => {
-		expect(mockConnect).toHaveBeenCalledTimes(1);
+		producer = new IssueWriteResultProducer({send: mockSend} as unknown as KafkaProducerService);
 	});
 
 	it('github.issue-write.result.v1 토픽에 operationId를 key로 발행한다', async () => {
@@ -57,15 +25,6 @@ describe('IssueWriteResultProducer', () => {
 
 		await producer.send(event);
 
-		expect(mockSend).toHaveBeenCalledWith({
-			topic: 'github.issue-write.result.v1',
-			messages: [{key: 'op-1', value: JSON.stringify(event)}],
-		});
-	});
-
-	it('모듈 종료 시 producer.disconnect를 호출한다', async () => {
-		await producer.onModuleDestroy();
-
-		expect(mockDisconnect).toHaveBeenCalledTimes(1);
+		expect(mockSend).toHaveBeenCalledWith('github.issue-write.result.v1', 'op-1', event);
 	});
 });

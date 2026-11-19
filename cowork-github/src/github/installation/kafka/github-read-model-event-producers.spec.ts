@@ -1,42 +1,19 @@
-import {Kafka} from 'kafkajs';
-import type {AppConfigService} from '../../../config/app-config.service.js';
+import type {KafkaProducerService} from '../../../kafka/kafka-producer.service.js';
 import {GithubReadModelEventProducers} from './github-read-model-event-producers.js';
 import {syncCompletedMarker} from './event/sync-completed.js';
-
-jest.mock('kafkajs');
 
 describe('GithubReadModelEventProducers', () => {
 	let producers: GithubReadModelEventProducers;
 	let mockSend: jest.Mock;
-	let mockConnect: jest.Mock;
-	let mockDisconnect: jest.Mock;
 
 	const sentMessage = (call = 0) => {
-		const [record] = mockSend.mock.calls[call] as [{topic: string; messages: Array<{key: string; value: string}>}];
-		const {topic} = record;
-		const [message] = record.messages;
-		return {topic, key: message.key, value: JSON.parse(message.value) as Record<string, unknown>};
+		const [topic, key, value] = mockSend.mock.calls[call] as [string, string, Record<string, unknown>];
+		return {topic, key, value};
 	};
 
-	beforeEach(async () => {
+	beforeEach(() => {
 		mockSend = jest.fn().mockResolvedValue(undefined);
-		mockConnect = jest.fn().mockResolvedValue(undefined);
-		mockDisconnect = jest.fn().mockResolvedValue(undefined);
-		(Kafka as unknown as jest.Mock).mockClear();
-		(Kafka as unknown as jest.Mock).mockImplementation(() => ({
-			producer: () => ({connect: mockConnect, disconnect: mockDisconnect, send: mockSend}),
-		}));
-
-		producers = new GithubReadModelEventProducers({kafkaClientConfig: {brokers: ['localhost:9092']}} as unknown as AppConfigService);
-		await producers.onModuleInit();
-	});
-
-	it('5개 state 토픽이 Kafka client 하나를 공유한다', async () => {
-		await producers.onModuleDestroy();
-
-		expect(Kafka).toHaveBeenCalledTimes(1);
-		expect(mockConnect).toHaveBeenCalledTimes(1);
-		expect(mockDisconnect).toHaveBeenCalledTimes(1);
+		producers = new GithubReadModelEventProducers({send: mockSend} as unknown as KafkaProducerService);
 	});
 
 	it('repo state는 정규화한 owner/repo를 key로 발행한다', async () => {
