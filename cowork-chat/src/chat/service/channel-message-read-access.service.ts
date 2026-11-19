@@ -23,7 +23,20 @@ export type ChannelReadAccessRequest = {
 };
 
 export type ChannelActionPermission = 'message_send' | 'thread_reply' | 'file_attach' | 'reaction_add' | 'message_pin' | 'message_manage' | 'slash_command_use' | 'github_issue_create';
-type AccessMode = 'MESSAGE_READ' | 'CHANNEL_METADATA' | ChannelActionPermission;
+/**
+ `VOICE_LOG_READ`는 음성 채널에서만 `voice_log_read`를 확인하고, 다른 채널에서는 항상 통과한다.
+ */
+type AccessMode = 'MESSAGE_READ' | 'CHANNEL_METADATA' | 'VOICE_LOG_READ' | ChannelActionPermission;
+
+const VOICE_LOG_READ_PERMISSION = 'voice_log_read';
+const VOICE_LOG_READ_MODES: AccessMode[] = ['MESSAGE_READ', 'VOICE_LOG_READ'];
+
+/**
+ 음성 채널의 SYSTEM 메시지는 음성 채널 로그다. 로그를 보려면 `voice_log_read`도 필요하다.
+ */
+function isSystemMessagePayload(payload: unknown): boolean {
+	return typeof payload === 'object' && payload !== null && (payload as {type?: unknown}).type === 'SYSTEM';
+}
 
 /**
 연결된 `Socket`과 `fetchSockets()`가 돌려주는 `RemoteSocket`에 공통인 room 조작 표면.
@@ -211,9 +224,9 @@ export class ChannelMessageReadAccessService {
 			const canUse = (permission: string) => hasChannelPermission(
 				applicable, channelPolicies, permission, (channel.isPrivate ?? true) && (permission === 'message_read' || permission === 'voice_connect'),
 			);
-			const isAllowed = canUse(visibilityPermission) && modes.every(mode => canUse(
-				mode === 'CHANNEL_METADATA' ? visibilityPermission : (mode === 'MESSAGE_READ' ? 'message_read' : mode),
-			));
+			const isAllowed = canUse(visibilityPermission) && modes.every(mode => (mode === 'VOICE_LOG_READ'
+				? channel.type !== 'VOICE' || canUse(VOICE_LOG_READ_PERMISSION)
+				: canUse(mode === 'CHANNEL_METADATA' ? visibilityPermission : (mode === 'MESSAGE_READ' ? 'message_read' : mode))));
 			result.set(accessKey(request.channelId, request.userId), isAllowed);
 		}
 
@@ -264,6 +277,39 @@ export class ChannelMessageReadAccessService {
 	private async findReadableProjectChannelIds(projectId: number, userId: number): Promise<number[]> {
 		const channelIds = await this.channelRepository.findIdsByProjectId(projectId);
 		return this.filterReadableChannelIds(userId, channelIds);
+	}
+
+	private async evaluateOrDeny(requests: ChannelReadAccessRequest[], modes: AccessMode[]): Promise<Map<string, boolean>> {
+		return await this.evaluate(requests, modes)
+			?? new Map(requests.map(({channelId, userId}) => [accessKey(channelId, userId), false]));
+	}
+
+	/**
+     음성 채널 로그(SYSTEM 메시지)를 room의 소켓 중 `voice_log_read`가 있는 사용자에게만 보낸다.
+     room 멤버십은 `message_read` 판정 결과일 뿐이므로 전송할 때마다 판정한다. 음성 이벤트는 드물어서 비용이 작다.
+     판정 전후로 readiness가 닫히면 보내지 않는다(fail-closed).
+     */
+	private async emitToVoiceLogReaders(
+		io: Server,
+		channelId: number,
+		{event, payload, excludedSocketId}: {event: string; payload: unknown; excludedSocketId?: string},
+	): Promise<void> {
+		const roomSockets = await io.in(`chat:${channelId}`).fetchSockets();
+		const sockets = roomSockets.filter(socket => socket.id !== excludedSocketId);
+		const userIds = [...new Set(sockets
+			.map(socket => this.socketUserId(socket))
+			.filter((userId): userId is number => userId !== null))];
+		const access = await this.evaluate(userIds.map(userId => ({channelId, userId})), VOICE_LOG_READ_MODES);
+		if (access === null || !this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
+			return;
+		}
+
+		for (const socket of sockets) {
+			const userId = this.socketUserId(socket);
+			if (userId !== null && access.get(accessKey(channelId, userId)) === true) {
+				socket.emit(event, payload);
+			}
+		}
 	}
 
 	requireProjectionsReady(): void {
@@ -317,6 +363,23 @@ export class ChannelMessageReadAccessService {
 	}
 
 	/**
+     `channelIds` 중 사용자가 읽을 수는 있지만 음성 채널 로그(SYSTEM 메시지)는 볼 수 없는 음성 채널 ID를 구한다.
+     메시지 조회와 안읽음 수에서 이 채널의 SYSTEM 메시지를 뺄 때 쓴다.
+
+     @throws ServiceUnavailableException 권한 projection이 준비되지 않은 경우
+     */
+	async requireVoiceLogHiddenChannelIds(userId: number, channelIds: number[]): Promise<Set<number>> {
+		const channels = await this.whileProjectionsReady(async () => this.channelRepository.findByIds([...new Set(channelIds)]));
+		const voiceChannelIds = channels.filter(channel => channel.type === 'VOICE').map(channel => channel.channelId);
+		if (voiceChannelIds.length === 0) {
+			return new Set();
+		}
+
+		const result = await this.requireAccess(voiceChannelIds.map(channelId => ({channelId, userId})), VOICE_LOG_READ_MODES);
+		return new Set(voiceChannelIds.filter(channelId => result.get(accessKey(channelId, userId)) !== true));
+	}
+
+	/**
      검색 범위로 쓸 팀 채널 ID를 구한다.
 
      권한 projection이 준비되지 않은 상태를 빈 목록으로 반환하면 일시 장애가 "검색 결과 없음"으로 보인다.
@@ -340,8 +403,12 @@ export class ChannelMessageReadAccessService {
 	/**
      `NotificationOutboxPoller`(푸시 알림 수신자 산정), `ChatService.saveSystemMessage`(미읽음
      카운터 증가 대상)에서도 쓰이므로 캐시를 타지 않는 {@link evaluateMany}를 그대로 사용한다.
+
+     @param channelIds - 수신자를 구할 채널 ID 목록
+     @param options - 판정 조건
+     @param options.voiceLogs - true면 음성 채널에서 `voice_log_read`가 없는 사용자를 뺀다. SYSTEM 메시지 수신자를 구할 때 쓴다
      */
-	async findReadableUsersByChannel(channelIds: number[]): Promise<Map<number, number[]>> {
+	async findReadableUsersByChannel(channelIds: number[], options: {voiceLogs?: boolean} = {}): Promise<Map<number, number[]>> {
 		const channels = await this.channelRepository.findByIds(channelIds);
 		const teamIds = [...new Set(channels.flatMap(channel => channel.teamId === null ? [] : [channel.teamId]))];
 		const [teamMembers, dmParticipants] = await Promise.all([
@@ -360,15 +427,16 @@ export class ChannelMessageReadAccessService {
 			channel.teamId === null
 				? (dmParticipants.get(channel.channelId) ?? []).map(participant => participant.userId)
 				: usersByTeam.get(channel.teamId) ?? [],
-		])));
+		])), options);
 	}
 
 	async filterReadableUsersByChannel(
 		usersByChannel: Map<number, number[]>,
+		{voiceLogs = false}: {voiceLogs?: boolean} = {},
 	): Promise<Map<number, number[]>> {
 		const requests = [...usersByChannel].flatMap(([channelId, userIds]) =>
 			[...new Set(userIds)].map(userId => ({channelId, userId})));
-		const result = await this.evaluateMany(requests);
+		const result = await this.evaluateOrDeny(requests, voiceLogs ? VOICE_LOG_READ_MODES : ['MESSAGE_READ']);
 		return new Map([...usersByChannel].map(([channelId, userIds]) => [
 			channelId,
 			[...new Set(userIds)].filter(userId => result.get(accessKey(channelId, userId)) === true),
@@ -505,6 +573,14 @@ export class ChannelMessageReadAccessService {
 			return false;
 		}
 
+		if (event === 'message' && isSystemMessagePayload(payload)) {
+			const [channel] = await this.channelRepository.findByIds([channelId]);
+			if (channel?.type === 'VOICE') {
+				await this.emitToVoiceLogReaders(io, channelId, message);
+				return;
+			}
+		}
+
 		// `chat:{channelId}` room의 멤버십 자체가 message_read 판정 결과다. 입장할 때 판정하고
 		// 권한 회수 시 room에서 제거하므로, 메시지마다 다시 평가하지 않는다. 그 덕분에 메시지마다
 		// room의 소켓 목록을 조회하고 판정하는 비용이 생기지 않는다.
@@ -585,8 +661,7 @@ export class ChannelMessageReadAccessService {
 	}
 
 	async evaluateMany(requests: ChannelReadAccessRequest[]): Promise<Map<string, boolean>> {
-		return await this.evaluate(requests, ['MESSAGE_READ'])
-			?? new Map(requests.map(({channelId, userId}) => [accessKey(channelId, userId), false]));
+		return this.evaluateOrDeny(requests, ['MESSAGE_READ']);
 	}
 
 	async evaluateVisibilityMany(requests: ChannelReadAccessRequest[]): Promise<Map<string, boolean>> {

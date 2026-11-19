@@ -35,6 +35,7 @@ object PermissionKeys {
     const val VOICE_SPEAK = "voice_speak"
     const val SCREEN_SHARE = "screen_share"
     const val LIVE_BROADCAST = "live_broadcast"
+    const val VOICE_LOG_READ = "voice_log_read"
 
     val TEAM_SCOPED: Set<String> = linkedSetOf(
         ADMINISTRATOR,
@@ -70,6 +71,7 @@ object PermissionKeys {
         VOICE_SPEAK,
         SCREEN_SHARE,
         LIVE_BROADCAST,
+        VOICE_LOG_READ,
     )
 
     const val PROJECT_READ = "project_read"

@@ -26,7 +26,7 @@ describe('ChannelReadService.advance', () => {
 		const unreadCount = await service.advance(1, 42, requestedId);
 
 		expect(readStateRepository.updateLastRead).toHaveBeenCalledWith(1, 42, requestedId);
-		expect(messageRepository.countUnread).toHaveBeenCalledWith(1, adoptedId);
+		expect(messageRepository.countUnread).toHaveBeenCalledWith(1, adoptedId, false);
 		expect(unreadCounterService.set).toHaveBeenCalledWith(1, 42, {count: 1, readCursor: adoptedId.toHexString()});
 		expect(unreadCount).toBe(1);
 	});
