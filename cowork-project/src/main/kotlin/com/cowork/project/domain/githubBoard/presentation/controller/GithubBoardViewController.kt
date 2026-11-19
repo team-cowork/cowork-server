@@ -54,7 +54,7 @@ private val ITEM_TYPES = setOf("ISSUE", "PULL_REQUEST", "DRAFT_ISSUE")
     ),
     ApiResponse(
         responseCode = "503",
-        description = "GitHub Project 동기화가 끝나지 않음",
+        description = "GitHub Project 동기화가 끝나지 않았거나, 프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음. 잠시 후 다시 시도할 수 있습니다.",
         content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
     ),
     ApiResponse(
