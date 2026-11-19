@@ -69,47 +69,6 @@ type projectionReadiness interface {
 	Set(bool)
 }
 
-type projectionProcessor interface {
-	ApplyChannelNotificationWithCheckpoint(
-		context.Context,
-		projection.ChannelNotificationEvent,
-		projection.Checkpoint,
-	) error
-	ApplyUserProfileWithCheckpoint(
-		context.Context,
-		projection.UserProfileEvent,
-		projection.Checkpoint,
-	) error
-	ApplyTeamLifecycleWithCheckpoint(
-		context.Context,
-		projection.TeamLifecycleEvent,
-		projection.Checkpoint,
-	) error
-	ApplyAccountSettingWithCheckpoint(
-		context.Context,
-		projection.AccountSettingEvent,
-		projection.Checkpoint,
-	) error
-	ApplyTeamSettingWithCheckpoint(
-		context.Context,
-		projection.TeamSettingEvent,
-		projection.Checkpoint,
-	) error
-	RecordSnapshotMarkerWithCheckpoint(
-		context.Context,
-		projection.Checkpoint,
-		projection.SnapshotMarkerReceipt,
-	) error
-	QuarantineWithCheckpoint(context.Context, projection.InvalidRecord) error
-	LoadCheckpoint(context.Context, string, string, int) (projection.CheckpointState, bool, error)
-	AdvanceCheckpoint(context.Context, projection.Checkpoint) error
-	LoadCheckpoints(
-		context.Context,
-		string,
-		[]projection.TopicPartition,
-	) (map[projection.TopicPartition]projection.CheckpointState, error)
-}
-
 type projectionOffsetRange struct {
 	First   int64
 	End     int64
@@ -371,7 +330,7 @@ type ProjectionConsumer struct {
 	groupID        string
 	topics         ProjectionTopics
 	group          *segkafka.ConsumerGroup
-	processor      projectionProcessor
+	store          projection.AtomicStore
 	snapshotter    projectionOffsetSnapshotter
 	readiness      projectionReadiness
 	closeOnce      sync.Once
@@ -384,7 +343,7 @@ func NewProjectionConsumer(
 	brokers string,
 	groupID string,
 	topics ProjectionTopics,
-	processor projectionProcessor,
+	store projection.AtomicStore,
 	readiness projectionReadiness,
 ) (*ProjectionConsumer, error) {
 	brokerList := splitBrokerList(brokers)
@@ -410,7 +369,7 @@ func NewProjectionConsumer(
 		groupID:     groupID,
 		topics:      topics,
 		group:       group,
-		processor:   processor,
+		store:       store,
 		snapshotter: snapshotter,
 		readiness:   readiness,
 	}, nil
@@ -498,7 +457,7 @@ func (c *ProjectionConsumer) initializeCheckpoints(
 ) bool {
 	for partition, offsetRange := range ranges {
 		for {
-			checkpoint, found, err := c.processor.LoadCheckpoint(
+			checkpoint, found, err := c.store.LoadCheckpoint(
 				ctx,
 				c.groupID,
 				partition.Topic,
@@ -512,7 +471,7 @@ func (c *ProjectionConsumer) initializeCheckpoints(
 				} else if found && resumeOffset == nextOffset {
 					break
 				} else {
-					err = c.processor.AdvanceCheckpoint(ctx, projection.Checkpoint{
+					err = c.store.AdvanceCheckpoint(ctx, projection.Checkpoint{
 						ConsumerGroup: c.groupID,
 						Topic:         partition.Topic,
 						Partition:     partition.Partition,
@@ -628,7 +587,7 @@ func (c *ProjectionConsumer) loadCheckpointWithRetry(
 	offsetRange projectionOffsetRange,
 ) (int64, bool) {
 	for {
-		checkpoint, found, err := c.processor.LoadCheckpoint(
+		checkpoint, found, err := c.store.LoadCheckpoint(
 			ctx,
 			c.groupID,
 			partition.Topic,
@@ -781,7 +740,7 @@ func (c *ProjectionConsumer) processWithRetry(
 				LatchStateGap: latchStateGap,
 			}
 			for {
-				if quarantineErr := c.processor.QuarantineWithCheckpoint(ctx, record); quarantineErr == nil {
+				if quarantineErr := c.store.QuarantineWithCheckpoint(ctx, record); quarantineErr == nil {
 					slog.Error(
 						"invalid projection event quarantined",
 						"topic", message.Topic,
@@ -826,7 +785,7 @@ func (c *ProjectionConsumer) invalidRecordAlreadyProcessed(
 	checkpoint projection.Checkpoint,
 	recordOffset int64,
 ) (bool, error) {
-	stored, found, err := c.processor.LoadCheckpoint(
+	stored, found, err := c.store.LoadCheckpoint(
 		ctx,
 		checkpoint.ConsumerGroup,
 		checkpoint.Topic,
@@ -860,7 +819,7 @@ func (c *ProjectionConsumer) handleWithCheckpoint(
 		return err
 	}
 	if isMarker {
-		return c.processor.RecordSnapshotMarkerWithCheckpoint(ctx, checkpoint, marker)
+		return c.store.RecordSnapshotMarkerWithCheckpoint(ctx, checkpoint, marker)
 	}
 
 	switch message.Topic {
@@ -872,7 +831,9 @@ func (c *ProjectionConsumer) handleWithCheckpoint(
 		if string(message.Key) != fmt.Sprintf("%d:%d", event.AccountID, event.ChannelID) {
 			return invalidKey(message.Topic, message.Key)
 		}
-		return c.processor.ApplyChannelNotificationWithCheckpoint(ctx, event, checkpoint)
+		return c.store.ApplyWithCheckpoint(ctx, checkpoint, func(store projection.Store) error {
+			return projection.NewService(store).ApplyChannelNotification(ctx, event)
+		})
 	case c.topics.UserProfile:
 		var event projection.UserProfileEvent
 		if err := json.Unmarshal(message.Value, &event); err != nil {
@@ -881,7 +842,9 @@ func (c *ProjectionConsumer) handleWithCheckpoint(
 		if string(message.Key) != fmt.Sprintf("%d", event.UserID) {
 			return invalidKey(message.Topic, message.Key)
 		}
-		return c.processor.ApplyUserProfileWithCheckpoint(ctx, event, checkpoint)
+		return c.store.ApplyWithCheckpoint(ctx, checkpoint, func(store projection.Store) error {
+			return projection.NewService(store).ApplyUserProfile(ctx, event)
+		})
 	case c.topics.TeamLifecycle:
 		var event projection.TeamLifecycleEvent
 		if err := json.Unmarshal(message.Value, &event); err != nil {
@@ -890,7 +853,9 @@ func (c *ProjectionConsumer) handleWithCheckpoint(
 		if string(message.Key) != fmt.Sprintf("%d", event.TeamID) {
 			return invalidKey(message.Topic, message.Key)
 		}
-		return c.processor.ApplyTeamLifecycleWithCheckpoint(ctx, event, checkpoint)
+		return c.store.ApplyWithCheckpoint(ctx, checkpoint, func(store projection.Store) error {
+			return projection.NewService(store).ApplyTeamLifecycle(ctx, event)
+		})
 	case c.topics.AccountSetting:
 		var event projection.AccountSettingEvent
 		if err := json.Unmarshal(message.Value, &event); err != nil {
@@ -899,7 +864,9 @@ func (c *ProjectionConsumer) handleWithCheckpoint(
 		if string(message.Key) != fmt.Sprintf("%d", event.AccountID) {
 			return invalidKey(message.Topic, message.Key)
 		}
-		return c.processor.ApplyAccountSettingWithCheckpoint(ctx, event, checkpoint)
+		return c.store.ApplyWithCheckpoint(ctx, checkpoint, func(store projection.Store) error {
+			return projection.NewService(store).ApplyAccountSetting(ctx, event)
+		})
 	case c.topics.TeamSetting:
 		var event projection.TeamSettingEvent
 		if err := json.Unmarshal(message.Value, &event); err != nil {
@@ -908,7 +875,9 @@ func (c *ProjectionConsumer) handleWithCheckpoint(
 		if string(message.Key) != fmt.Sprintf("%d", event.TeamID) {
 			return invalidKey(message.Topic, message.Key)
 		}
-		return c.processor.ApplyTeamSettingWithCheckpoint(ctx, event, checkpoint)
+		return c.store.ApplyWithCheckpoint(ctx, checkpoint, func(store projection.Store) error {
+			return projection.NewService(store).ApplyTeamSetting(ctx, event)
+		})
 	default:
 		return fmt.Errorf("%w: unsupported topic %q", projection.ErrInvalidEvent, message.Topic)
 	}
@@ -943,7 +912,7 @@ func (c *ProjectionConsumer) monitorBarrier(
 			for partition := range currentRanges {
 				partitions = append(partitions, partition)
 			}
-			checkpoints, err := c.processor.LoadCheckpoints(ctx, c.groupID, partitions)
+			checkpoints, err := c.store.LoadCheckpoints(ctx, c.groupID, partitions)
 			c.publishReadiness(
 				readinessEpoch,
 				err == nil && projectionBarrierComplete(currentRanges, checkpoints),
