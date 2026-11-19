@@ -40,6 +40,10 @@ class SensitiveRequestLoggingFilter : OncePerRequestFilter() {
 
     companion object {
         // application.yml의 sdk.logging.not-logging-urls와 같은 패턴을 유지한다.
-        private val SENSITIVE_PATHS = listOf("/channels/*/accounts/**", "/channels/oauth/callback/**")
+        private val SENSITIVE_PATHS = listOf(
+            "/channels/*/accounts/**",
+            "/channels/oauth/callback/**",
+            "/channels/*/meeting-notes/summary",
+        )
     }
 }

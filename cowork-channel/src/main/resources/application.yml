@@ -69,6 +69,7 @@ sdk:
     - /swagger-ui/**
     - /channels/*/accounts/**
     - /channels/oauth/callback/**
+    - /channels/*/meeting-notes/summary
     enabled: true
   response:
     enabled: false
