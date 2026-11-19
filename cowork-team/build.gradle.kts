@@ -51,7 +51,15 @@ configurations.matching { it.name.startsWith("ktlint") }.configureEach {
     }
 }
 
+val architecture = sourceSets.create("architecture")
+
 dependencies {
+    add(architecture.implementationConfigurationName, libs.spring.modulith.core)
+    constraints {
+        add(architecture.implementationConfigurationName, libs.archunit) {
+            because("Spring Modulith needs a Java 27 compatible class file reader")
+        }
+    }
     // Spring APIs require UnknownNullability from the pinned annotations version.
     compileOnly(libs.jetbrains.annotations)
 
@@ -73,12 +81,6 @@ dependencies {
     implementation(libs.awspring.cloud.s3)
     implementation(libs.logstash.logback.encoder)
     testImplementation(libs.spring.boot.starter.test)
-    testImplementation(libs.spring.modulith.core)
-    constraints {
-        testImplementation(libs.archunit) {
-            because("Spring Modulith needs a Java 27 compatible class file reader")
-        }
-    }
     testImplementation(libs.mockk)
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.assertions.core)
@@ -90,4 +92,17 @@ tasks.named("jar") {
 
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
+}
+
+val checkTeamModuleBoundaries = tasks.register<JavaExec>("checkTeamModuleBoundaries") {
+    group = "verification"
+    description = "Check dependencies between the team invite and member modules"
+    classpath = architecture.runtimeClasspath + sourceSets.main.get().runtimeClasspath
+    mainClass.set("com.cowork.team.architecture.CheckTeamModuleBoundariesKt")
+    javaLauncher.set(javaToolchains.launcherFor(java.toolchain))
+    systemProperty("spring.profiles.active", "verification")
+}
+
+tasks.check {
+    dependsOn(checkTeamModuleBoundaries)
 }
