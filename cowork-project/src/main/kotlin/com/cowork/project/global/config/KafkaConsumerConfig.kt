@@ -59,7 +59,8 @@ class KafkaConsumerConfig(
         return factory
     }
 
-    private fun durableResultListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, String> {
+    @Bean
+    fun durableResultListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, String> {
         val props = kafkaProperties.buildConsumerProperties().toMutableMap<String, Any>()
         props[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
         props[ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
@@ -101,15 +102,6 @@ class KafkaConsumerConfig(
     fun githubRepoSettingStateListenerContainerFactory() = projectionListenerContainerFactory(streams.githubRepoSetting)
 
     @Bean
-    fun githubRepoSettingResultListenerContainerFactory() = durableResultListenerContainerFactory()
-
-    @Bean
-    fun chatGithubIssueCommandListenerContainerFactory() = durableResultListenerContainerFactory()
-
-    @Bean
-    fun githubIssueWriteResultListenerContainerFactory() = durableResultListenerContainerFactory()
-
-    @Bean
     fun githubRepoStateListenerContainerFactory() = projectionListenerContainerFactory(streams.githubRepoState)
 
     @Bean
@@ -132,7 +124,4 @@ class KafkaConsumerConfig(
     @Bean
     fun githubProjectItemStateListenerContainerFactory() =
         projectionListenerContainerFactory(streams.githubProjectItemState)
-
-    @Bean
-    fun githubProjectItemWriteResultListenerContainerFactory() = durableResultListenerContainerFactory()
 }
