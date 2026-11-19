@@ -87,8 +87,8 @@ export class ChatMessageProcessor {
 	/**
      메시지를 재검증하고 저장한 뒤 채널에 브로드캐스트한다.
 
-     @param event - 처리할 메시지 이벤트
-     @param receivedAt - consumer가 record를 받은 시각(밀리초). 주면 구간별 지연을 기록한다. quarantine 재처리는 주지 않는다
+     `receivedAt`(consumer가 record를 받은 시각, 밀리초)을 주면 구간별 지연을 기록한다. quarantine 재처리는 주지 않는다.
+
      @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다. receivedAt 인자를 지운다.
      */
 	async process(event: ChatMessageEvent, receivedAt?: number): Promise<void> {

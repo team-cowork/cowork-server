@@ -9,9 +9,7 @@ const PROJECTION_WAIT_RECHECK_INTERVAL_MS = 250;
  초기 projection 적재가 Kafka session timeout보다 길어져도 consumer가 재조정되지 않도록
  준비 상태를 기다리는 동안 주기적으로 heartbeat를 전송한다.
 
- @param readiness - projection 준비 상태
- @param heartbeat - 기다리는 동안 Kafka consumer heartbeat를 보내는 함수
- @param streams - 기다릴 stream. 주지 않으면 모든 stream을 기다린다
+ `streams`를 주지 않으면 모든 stream을 기다린다.
  */
 export async function waitForProjectionReadiness(
 	readiness: ProjectionReadinessService,

@@ -37,11 +37,6 @@ export class ProjectMessageController {
      프로젝트에 속한 채널 중 요청자가 접근 가능한 채널에서 메시지를 전문 검색한다.
      nori 형태소 분석과 fuzzy matching이 적용되며, 결과는 최신순으로 정렬된다.
      `channelId` 파라미터로 검색 범위를 특정 채널로 좁힐 수 있다.
-
-     @param projectId - 검색 대상 프로젝트 ID
-     @param dto - 검색 조건 (키워드, 채널, 작성자, 타입, 파일 포함 여부, 커서, 페이지 크기)
-     @param userId - Gateway가 주입한 요청자 ID
-     @returns 검색 결과 메시지 목록과 다음 페이지 커서
      */
 	@httpGet('messages/search')
 	@apiOperation({

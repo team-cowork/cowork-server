@@ -204,10 +204,6 @@ export class ChatService {
      DM 메시지 전송 가능 여부를 검사한다.
      수신자가 발신자를 차단했으면 `ForbiddenException`을 던지고,
      전송 가능하면 양쪽 멤버의 숨김(isHidden) 상태를 해제해 대화 목록에 다시 노출시킨다.
-
-     @param channelId - DM 채널 ID
-     @param senderId - 발신자 사용자 ID
-     @throws ForbiddenException 수신자가 발신자를 차단한 경우
      */
 	private async verifyDmSendable(channelId: number, senderId: number): Promise<void> {
 		const members = await this.dmParticipantRepository.findByChannelId(channelId);
@@ -231,9 +227,9 @@ export class ChatService {
      캐시 미스가 발생한 채널만 MongoDB 집계(`countUnreadForChannels`)로 재계산해 캐시를 채운다.
      Redis 오류 시에는 전체를 MongoDB로 폴백하므로 캐시 유무와 무관하게 항상 정확한 값을 반환한다.
 
-     @param userId - 조회할 사용자 ID
-     @param channelIds - 읽기 권한이 있는 채널 ID 목록 (팀 unread, DM 목록에서 공유)
-     @param hiddenSystemChannelIds - SYSTEM 메시지를 세지 않을 채널. 음성 채널 로그를 볼 수 없는 채널이다
+     `channelIds`는 읽기 권한이 있는 채널 ID 목록이며, 팀 unread와 DM 목록이 함께 쓴다.
+     `hiddenSystemChannelIds`는 음성 채널 로그를 볼 수 없어 SYSTEM 메시지를 세지 않을 채널이다.
+
      @returns channelId → 안읽음 수 매핑
      */
 	private async getUnreadCounts(
@@ -273,10 +269,6 @@ export class ChatService {
 	/**
      `MessageRow`를 응답 DTO 형태로 변환한다.
      `reactions`의 `myReaction` 필드는 요청자가 해당 이모지로 반응했는지 여부다.
-
-     @param row - DB에서 조회한 메시지 row
-     @param userId - 응답을 받을 요청자 ID
-     @returns 응답 형태의 메시지 객체
      */
 	private toMessageResponse(row: MessageRow, userId: number) {
 		return {
@@ -294,8 +286,6 @@ export class ChatService {
      Base64 인코딩된 fileId에서 messageId를 추출한다.
      fileId는 `{ messageId: string }` 형태의 JSON을 base64로 인코딩한 값이다.
 
-     @param fileId - base64 인코딩된 파일 식별자
-     @returns 추출된 messageId (MongoDB ObjectId 문자열)
      @throws BadRequestException fileId 형식이 유효하지 않은 경우
      */
 	private decodeFileId(fileId: string): string {
@@ -316,9 +306,6 @@ export class ChatService {
 	/**
      채널 접근, 메시지 소속과 작업별 소유권·역할 권한을 검증한다.
 
-     @param ctx - 메시지·사용자·역할 컨텍스트
-     @param action - 검증할 메시지 작업
-     @returns 검증을 통과한 메시지 도큐먼트
      @throws ForbiddenException 멤버가 아니거나, 다른 채널의 메시지이거나, 소유권 없는 경우
      @throws NotFoundException 메시지가 존재하지 않는 경우
      */
@@ -362,9 +349,8 @@ export class ChatService {
 	/**
      음성 채널 로그(SYSTEM 메시지)를 볼 수 없는 사용자에게는 그 메시지가 없는 것처럼 다룬다.
 
-     @param channelId - 메시지가 있는 채널
-     @param userId - 요청한 사용자
-     @param message - 채널 소속을 확인한 메시지. 없으면 `channelId`에서 `messageId`를 찾는다
+     `message`는 채널 소속을 확인한 메시지다. 주지 않으면 `channelId`에서 `messageId`를 찾는다.
+
      @throws NotFoundException 사용자가 볼 수 없는 음성 채널 로그인 경우
      */
 	private async requireVisibleMessage(
@@ -423,8 +409,8 @@ export class ChatService {
      업로더 ID 목록에 대한 표시 이름을 로컬 사용자 프로필과 팀 멤버 projection에서 조회한다.
      `SYSTEM_AUTHOR_ID(0)` 이하이면 projection 조회 없이 'System'으로 처리한다.
 
-     @param items - uploaderId 필드를 포함하는 아이템 배열
-     @param teamId - 팀 닉네임을 적용할 팀 ID. 팀에 속하지 않은 채널이면 null
+     `teamId`의 팀 닉네임을 적용한다. 팀에 속하지 않은 채널이면 `teamId`는 null이다.
+
      @returns uploaderId → 표시 이름 매핑
      */
 	private async loadUploaderNames(
@@ -446,7 +432,6 @@ export class ChatService {
 	/**
      보관된 채널은 읽기 전용이다. 쓰기 요청은 권한 검사를 통과한 뒤 이 검사로 거부한다.
 
-     @param channelId - 채널 ID
      @throws ConflictException 보관된 채널인 경우
      */
 	private async requireWritableChannel(channelId: number): Promise<void> {
@@ -468,9 +453,6 @@ export class ChatService {
 
 	/**
      검색 색인에는 첨부가 없으므로 원본 메시지의 첨부를 한 번에 조회해 검색 결과에 붙인다.
-
-     @param hits - Elasticsearch 검색 결과
-     @returns 각 결과에 `attachments`를 붙인 검색 결과
      */
 	private async withSearchHitAttachments(hits: SearchHit[]): Promise<SearchHitWithAttachments[]> {
 		if (hits.length === 0) {
@@ -525,9 +507,8 @@ export class ChatService {
      검증 결과는 `project.chat-github-issue.result` 토픽으로 비동기 응답되며,
      거부된 경우에만 `ChatGithubIssueResultConsumer`가 거부 시스템 메시지를 렌더링한다.
 
-     @param ctx - 채널·사용자 컨텍스트
-     @param dto - GitHub 이슈 생성 정보 (projectId, title, body)
-     @param idempotencyKey - 클라이언트 재시도 키 (선택). 같은 사용자·키의 재시도는 같은 커맨드 ID가 된다.
+     같은 사용자가 같은 `idempotencyKey`로 재시도하면 같은 커맨드 ID가 된다.
+
      @throws ForbiddenException 채널 권한이 없는 경우
      @throws BadRequestException 재시도 키 길이가 올바르지 않은 경우
      */
@@ -551,13 +532,6 @@ export class ChatService {
 		});
 	}
 
-	/**
-     사용자의 채널 읽기 권한을 확인한다.
-
-     @param channelId - 확인할 채널 ID
-     @param userId - 확인할 사용자 ID
-     @returns 권한이 있으면 `true`, 없으면 `false`
-     */
 	async canReadChannel(channelId: number, userId: number): Promise<boolean> {
 		return this.channelMessageReadAccess.canReadChannel(channelId, userId);
 	}
@@ -579,13 +553,6 @@ export class ChatService {
 		return this.channelMessageReadAccess.evictUnauthorizedRooms(sockets);
 	}
 
-	/**
-     채널 읽기 권한을 검증한다. 권한이 없으면 `ForbiddenException`을 던진다.
-
-     @param channelId - 채널 ID
-     @param userId - 사용자 ID
-     @throws ForbiddenException 권한이 없는 경우
-     */
 	async requireChannelRead(channelId: number, userId: number): Promise<void> {
 		await this.channelMessageReadAccess.requireCanRead(channelId, userId);
 	}
@@ -594,9 +561,6 @@ export class ChatService {
      채널 읽기 권한을 검증하고 해당 채널의 팀 ID를 반환한다.
      GitHub 이슈 생성 시 채널-팀 소속 검증에 사용한다.
 
-     @param channelId - 채널 ID
-     @param userId - 사용자 ID
-     @returns 채널이 속한 팀 ID
      @throws ForbiddenException 권한이 없는 경우
      */
 	async requireReadAndGetTeamId(channelId: number, userId: number): Promise<number> {
@@ -613,10 +577,6 @@ export class ChatService {
 	/**
      오브젝트 스토리지 presigned 업로드 URL을 생성한다.
      반환된 `uploadUrl`에 PUT 요청 시 `headers`를 함께 전송해야 한다.
-
-     @param ctx - 채널·사용자 컨텍스트
-     @param dto - 파일명, MIME 타입, 크기
-     @returns presigned URL, 임시 objectKey, 만료 시간, 필수 헤더
      */
 	async createFileUploadUrl(
 		ctx: ChannelUserContext,
@@ -635,10 +595,6 @@ export class ChatService {
 
 	/**
      클라이언트가 업로드한 파일을 오브젝트 스토리지에서 검증하고 변경 불가능한 최종 object key를 반환한다.
-
-     @param ctx - 채널·사용자 컨텍스트
-     @param dto - 검증할 objectKey
-     @returns 최종 objectKey와 서버가 확인한 파일 메타데이터
      */
 	async confirmFileUpload(ctx: ChannelUserContext, dto: ConfirmFileUploadRequestDto): Promise<ConfirmedAttachment> {
 		await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'file_attach');
@@ -650,11 +606,6 @@ export class ChatService {
      FILE_SHARE 채널의 첨부파일 목록을 커서 기반 페이지네이션으로 조회한다.
      FILE_SHARE 채널이 아니면 `BadRequestException`을 던진다.
      업로더 이름은 Kafka로 동기화된 팀 멤버와 사용자 프로필 projection에서 일괄 조회한다.
-
-     @param ctx - 채널·사용자 컨텍스트
-     @param query - 커서, 페이지 크기
-     @returns 파일 목록과 다음 페이지 커서
-     @throws BadRequestException FILE_SHARE 채널이 아닌 경우
      */
 	async getFileList(ctx: ChannelUserContext, query: FileListQueryDto): Promise<FileListResponseDto> {
 		await this.requireChannelRead(ctx.channelId, ctx.userId);
@@ -689,9 +640,6 @@ export class ChatService {
 	/**
      파일이 포함된 메시지를 삭제한다. 오브젝트는 {@link deleteMessageAndAttachments}가 남긴 삭제 의도로 워커가 지운다.
 
-     @param ctx - 채널·사용자·역할 컨텍스트
-     @param fileId - base64 인코딩된 파일 식별자
-     @returns 삭제된 채널 ID와 메시지 ID
      @throws BadRequestException fileId 디코딩 실패
      @throws NotFoundException 메시지가 존재하지 않는 경우
      @throws ForbiddenException 본인 파일이 아니고 message_manage 권한도 없는 경우
@@ -718,9 +666,6 @@ export class ChatService {
 	/**
      메시지를 Kafka `chat.message.v2` 토픽으로 발행한다.
      실제 저장과 Socket.IO 브로드캐스트는 `ChatMessageConsumer`가 처리한다.
-
-     @param ctx - 채널·사용자·역할 컨텍스트
-     @param dto - 메시지 내용, 타입, 첨부파일 등
      */
 	async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
 		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
@@ -800,7 +745,6 @@ export class ChatService {
      내 DM 대화 목록을 조회한다. 숨긴(isHidden) 대화는 제외되며,
      마지막 메시지 시각 내림차순으로 정렬된다.
 
-     @param userId - 조회할 사용자 ID
      @returns 채널 ID, 상대 사용자 ID, 안읽음 수, 마지막 메시지 요약 목록
      */
 	async getMyDms(userId: number) {
@@ -841,8 +785,6 @@ export class ChatService {
      DM 대화를 목록에서 숨긴다 (Discord의 "닫기").
      상대방이 메시지를 보내면 자동으로 다시 노출된다.
 
-     @param channelId - 숨길 DM 채널 ID
-     @param userId - 요청 사용자 ID
      @throws ForbiddenException DM 채널 권한이 없는 경우
      */
 	async hideDm(channelId: number, userId: number): Promise<void> {
@@ -857,11 +799,6 @@ export class ChatService {
 	/**
      슬래시 커맨드를 처리한다. 현재 `github.issue.create`만 지원한다.
      지원하지 않는 커맨드는 `BadRequestException`을 던진다.
-
-     @param ctx - 채널·사용자 컨텍스트
-     @param dto - 커맨드 종류와 payload
-     @param idempotencyKey - 클라이언트 재시도 키 (선택)
-     @throws BadRequestException 지원하지 않는 커맨드인 경우
      */
 	async handleSlashCommand(ctx: ChannelUserContext, dto: SlashCommandDto, idempotencyKey?: string): Promise<void> {
 		if (dto.command !== SlashCommand.GITHUB_ISSUE_CREATE) {
@@ -877,8 +814,9 @@ export class ChatService {
 
      `before`, `after`, `around` 커서는 하나만 지정할 수 있다.
 
-     @param ctx - 채널·사용자 컨텍스트
-     @param query - `before`(이전), `after`(이후), `around`(기준 메시지 포함 앞뒤), `parentMessageId`(답장만), `threadId`(그 스레드 메시지만. 없으면 채널 메시지만. `around`에서 없으면 기준 메시지의 스레드를 따른다)
+     `query.parentMessageId`가 있으면 답장만, `query.threadId`가 있으면 그 스레드 메시지만 조회한다.
+     `threadId`가 없으면 채널 메시지만 조회하고, `around`에서는 기준 메시지의 스레드를 따른다.
+
      @returns 최대 100개의 메시지 배열 (최신순)
      @throws BadRequestException 커서를 2개 이상 지정한 경우
      @throws NotFoundException `around` 메시지가 채널에 없는 경우
@@ -913,10 +851,6 @@ export class ChatService {
      요청자가 접근 가능한 채널로 검색 범위를 자동으로 제한한다.
      `dto.channelId`가 있으면 해당 채널 접근 권한도 검증한다.
 
-     @param projectId - 검색 대상 프로젝트 ID
-     @param dto - 검색 조건 (키워드, 채널, 작성자, 타입, 파일 포함 여부, 커서, 페이지 크기)
-     @param ctx - 사용자 컨텍스트
-     @returns 검색 결과와 다음 페이지 커서
      @throws ForbiddenException 프로젝트 멤버가 아니거나 채널 접근 권한이 없는 경우
      @throws ServiceUnavailableException 권한 projection이 준비되지 않은 경우
      */
@@ -1015,10 +949,6 @@ export class ChatService {
      본문 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
      성공 시 `chat:{channelId}` 룸에 `message:edited` 이벤트를 emit한다.
      본인 메시지만 수정할 수 있다.
-
-     @param ctx - 메시지·사용자·역할 컨텍스트
-     @param dto - 새 메시지 내용
-     @returns 수정된 메시지 도큐먼트
      */
 	async editMessage(ctx: MessageUserRoleContext, dto: EditMessageDto) {
 		const message = await this.findAndVerifyMessage(ctx, 'edit');
@@ -1053,9 +983,6 @@ export class ChatService {
      색인 대상 메시지는 삭제 tombstone을 먼저 기록한 뒤 삭제하므로 검색 색인에서도 반드시 제거된다.
      성공 시 `chat:{channelId}` 룸에 `message:deleted` 이벤트를 emit한다.
      message_manage 권한으로 타인 메시지를 삭제할 수 있다.
-
-     @param ctx - 메시지·사용자·역할 컨텍스트
-     @returns 삭제된 채널 ID와 메시지 ID
      */
 	async deleteMessage(ctx: MessageUserRoleContext) {
 		const message = await this.findAndVerifyMessage(ctx, 'delete');
@@ -1069,10 +996,6 @@ export class ChatService {
      고정 상태 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
      성공 시 `chat:{channelId}` 룸에 `message:pinned` 이벤트를 emit한다.
      message_pin 권한을 검사한다.
-
-     @param ctx - 메시지·사용자·역할 컨텍스트
-     @returns 업데이트된 메시지 도큐먼트
-     @throws BadRequestException 이미 고정된 메시지인 경우
      */
 	async pinMessage(ctx: MessageUserRoleContext) {
 		const message = await this.findAndVerifyMessage(ctx, 'pin');
@@ -1098,9 +1021,6 @@ export class ChatService {
      고정 상태 변경과 검색 색인 의도를 하나의 원자적 갱신으로 기록한다.
      성공 시 `chat:{channelId}` 룸에 `message:unpinned` 이벤트를 emit한다.
      message_pin 권한을 검사한다.
-
-     @param ctx - 메시지·사용자·역할 컨텍스트
-     @throws BadRequestException 고정되지 않은 메시지인 경우
      */
 	async unpinMessage(ctx: MessageUserRoleContext) {
 		const message = await this.findAndVerifyMessage(ctx, 'pin');
@@ -1124,9 +1044,6 @@ export class ChatService {
      이미 같은 이모지로 반응한 경우 무시한다(이벤트 emit 안 함).
      성공 시 `chat:{channelId}` 룸에 `message:reaction:added` 이벤트를 emit한다.
 
-     @param ctx - 채널·사용자 컨텍스트
-     @param messageId - 대상 메시지의 MongoDB ObjectId
-     @param emoji - 추가할 이모지
      @throws NotFoundException 메시지가 존재하지 않는 경우
      */
 	async addReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
@@ -1159,9 +1076,6 @@ export class ChatService {
      반응이 없었던 경우 무시한다(이벤트 emit 안 함).
      성공 시 `chat:{channelId}` 룸에 `message:reaction:removed` 이벤트를 emit한다.
 
-     @param ctx - 채널·사용자 컨텍스트
-     @param messageId - 대상 메시지의 MongoDB ObjectId
-     @param emoji - 제거할 이모지
      @throws NotFoundException 메시지가 존재하지 않는 경우
      */
 	async removeReaction(ctx: ChannelUserContext, messageId: string, emoji: string): Promise<void> {
@@ -1189,13 +1103,6 @@ export class ChatService {
 		);
 	}
 
-	/**
-     채널에 고정된 메시지를 최신순으로 최대 100개 조회한다.
-
-     @param ctx - 채널·사용자 컨텍스트
-     @param lastReadMessageId - 마지막으로 읽은 메시지의 MongoDB ObjectId
-     @returns 고정 메시지 배열 (reactions는 나의 반응 여부 포함)
-     */
 	async readChannel(ctx: ChannelUserContext, lastReadMessageId: string): Promise<void> {
 		await this.requireChannelRead(ctx.channelId, ctx.userId);
 		// `$max`로 저장되어 되돌릴 수 없으므로, 다른 채널이나 존재하지 않는 ID가 읽음 위치를 고정하지 못하게 한다.
@@ -1241,10 +1148,8 @@ export class ChatService {
      시스템 메시지를 직접 저장한다. GitHub 이슈 결과 등 서비스 내부에서 생성하는 알림에 사용한다.
      `authorId`는 0(`SYSTEM_AUTHOR_ID`)으로 고정된다.
 
-     @param teamId - 팀 ID
-     @param channelId - 채널 ID
-     @param content - 메시지 내용
-     @param clientMessageId - 중복 저장을 막는 결정적인 멱등성 키. 이미 저장된 키면 저장을 건너뛴다
+     `clientMessageId`는 중복 저장을 막는 결정적인 멱등성 키다. 이미 저장된 키면 저장을 건너뛴다.
+
      @returns 저장된 메시지 도큐먼트. 삭제되었거나 범위가 맞지 않는 채널, 이미 저장된 메시지면 `null`
      */
 	async saveSystemMessage(

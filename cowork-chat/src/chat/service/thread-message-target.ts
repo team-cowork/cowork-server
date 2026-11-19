@@ -19,10 +19,9 @@ export function sendPermission(threadId: number | undefined): ChannelActionPermi
  - 스레드는 같은 채널의 확정된(`ACTIVE`) 스레드여야 하고 보관되지 않아야 한다.
  - 답장 원본은 보내는 메시지와 같은 곳에 있어야 한다. 채널 메시지는 채널 메시지에, 스레드 메시지는 같은 스레드의 메시지에만 답장한다.
 
- @param channelId - 메시지를 보낼 채널
- @param threadId - 메시지를 보낼 스레드. 채널 메시지이면 `undefined`
- @param thread - `threadId`로 찾은 스레드 projection. 없으면 `null`
- @param parent - 답장 원본 메시지. 답장이 아니면 `undefined`
+ `threadId`는 채널 메시지이면 `undefined`다. `thread`는 `threadId`로 찾은 스레드 projection이며, 없으면 `null`이다.
+ `parent`는 답장 원본 메시지이며, 답장이 아니면 `undefined`다.
+
  @returns 문제가 없으면 `null`
  */
 export function checkThreadTarget(

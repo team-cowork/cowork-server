@@ -42,7 +42,6 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
      연결 중인 경우 기존 `connectPromise`를 재사용하여 중복 연결 시도를 방지한다(싱글턴 패턴).
      연결에 실패하면 `connectPromise`를 초기화하여 이후 재시도를 허용한다.
 
-     @returns 연결 완료 후 이행되는 Promise
      @throws {Error} Kafka 브로커 연결 실패 시
      */
 	private async ensureConnected(): Promise<void> {
@@ -112,10 +111,6 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
      메시지 키는 `channelId`로 설정되어 같은 채널의 메시지가 동일 파티션에 순서대로 전달된다.
      발행 전 {@link ensureConnected}를 호출하여 연결을 보장한다.
 
-     @param channelId - 메시지가 속한 채널 ID (파티션 키로 사용됨)
-     @param dto - 클라이언트로부터 수신한 메시지 전송 DTO
-     @param authorId - 메시지 작성자의 사용자 ID
-     @param authorRole - 메시지 작성자의 역할
      @throws {Error} Kafka 연결 또는 메시지 발행 실패 시
      */
 	async sendMessage(channelId: number, dto: MessageSendInput, authorId: number, authorRole: string): Promise<void> {

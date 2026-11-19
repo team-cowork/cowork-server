@@ -338,9 +338,8 @@ export class ObjectStorageService {
      타 채널·타 사용자 경로를 메시지 attachments에 삽입하는 것을 차단한다.
      실제 객체 존재 여부와 업로드 완료 이력은 이 검사로 증명되지 않는다.
 
-     @param fileUrl - 검증할 첨부파일 URL
-     @param channelId - 메시지가 속한 채널 ID
-     @param userId - 업로더(메시지 작성자) ID
+     `userId`는 업로더(메시지 작성자) ID다.
+
      @throws BadRequestException URL이 `chat-files/{channelId}/{userId}/` prefix를 벗어난 경우
      */
 	assertOwnedAttachmentUrl(fileUrl: string, channelId: number, userId: number): void {

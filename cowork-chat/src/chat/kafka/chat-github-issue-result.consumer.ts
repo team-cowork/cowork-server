@@ -50,8 +50,7 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
      Socket.IO `chat:{channelId}` 룸에 `message` 이벤트를 브로드캐스트한다.
      `ACCEPTED`는 디버그 로그만 남기고 아무 동작도 하지 않는다.
 
-     @param event - Kafka에서 수신한 권한 검증 결과 이벤트
-     @param source - 이벤트의 Kafka 메시지 위치. 시스템 메시지 멱등성 키를 만드는 데 사용한다
+     `source`(Kafka 메시지 위치)로 시스템 메시지 멱등성 키를 만든다.
      */
 	private async handleResultEvent(event: ChatGithubIssueCreateResult, source: KafkaMessageSource): Promise<void> {
 		if (event.status !== 'REJECTED') {
@@ -78,9 +77,6 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
      거부 결과를 사용자에게 표시할 메시지 문자열로 포맷한다.
 
      `❌ 이슈 생성 실패: {error.message}` 형식으로 반환한다.
-
-     @param event - 포맷할 결과 이벤트
-     @returns 포맷된 시스템 메시지 문자열
      */
 	private formatRejectionMessage(event: ChatGithubIssueCreateResult): string {
 		return `❌ 이슈 생성 실패: ${event.error?.message ?? '알 수 없는 오류'}`;
@@ -91,8 +87,6 @@ export class ChatGithubIssueResultConsumer implements OnModuleInit, OnModuleDest
 
      `ChatGateway`의 `afterInit` 훅에서 호출되어야 하며,
      이 메서드가 호출되기 전에 수신된 결과는 Socket.IO 브로드캐스트 없이 저장만 된다.
-
-     @param io - Socket.IO 서버 인스턴스
      */
 	setSocketServer(io: Server) {
 		this.broadcaster.setSocketServer(io);

@@ -110,8 +110,7 @@ export function formatVoiceDuration(durationSeconds: number): string {
 /**
  음성 이벤트로 시스템 메시지 내용을 만든다. 메시지로 남기지 않는 이벤트는 `null`이다.
 
- @param event - 검증된 음성 이벤트
- @param displayName - {@link voiceEventUserId} 사용자의 표시 이름. 찾지 못했으면 `null`
+ `displayName`은 {@link voiceEventUserId} 사용자의 표시 이름이다. 찾지 못했으면 `null`이다.
  */
 export function voiceEventMessage(event: VoiceEvent, displayName: Nullable<string>): Nullable<string> {
 	const name = displayName ?? UNKNOWN_USER_NAME;
@@ -177,9 +176,8 @@ export class VoiceEventConsumer implements OnModuleInit, OnModuleDestroy {
 	/**
      음성 이벤트를 SYSTEM 메시지로 저장하고 채널에 브로드캐스트한다.
 
-     @param payload - Kafka에서 수신한 JSON 페이로드
-     @param source - 이벤트의 Kafka 메시지 위치. 잘못된 페이로드를 로그에 남기는 데 사용한다
-     @param heartbeat - 오래 걸리는 준비 대기 동안 Kafka consumer heartbeat를 보내는 함수
+     `source`(Kafka 메시지 위치)는 잘못된 페이로드를 로그에 남기는 데 사용한다.
+     오래 걸리는 준비 대기 동안 `heartbeat`로 Kafka consumer heartbeat를 보낸다.
      */
 	private async handleVoiceEvent(payload: unknown, source: KafkaMessageSource, heartbeat: () => Promise<void>): Promise<void> {
 		const event = parseVoiceEvent(payload);

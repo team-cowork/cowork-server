@@ -9,14 +9,8 @@ import {Message, MessageDocument, type WebhookMessageAuthor} from '../schema/ind
 import {isSearchIndexed} from '../search/message-index-scope.js';
 import {type Nullable} from '../../common/type/nullable.js';
 
-/**
-한 번에 조회하는 최대 메시지 수
-*/
 const MESSAGE_FETCH_LIMIT = 100;
 
-/**
-MongoDB ObjectId의 24자리 16진수 문자열 형식
-*/
 const OBJECT_ID_PATTERN = /^[\da-f]{24}$/iv;
 
 /**
@@ -26,8 +20,7 @@ const OBJECT_ID_PATTERN = /^[\da-f]{24}$/iv;
  `content`는 최대 25,000자(≈25KB)라 이력 20건 기준 문서 크기 상한은 약 500KB다.
 
  이 상한은 이후 수정에서만 적용된다. 이미 20건을 넘겨 비대해진 기존 문서는 다음 수정이
- 한 번 더 일어나야 잘리며, 그 전까지 별도 일괄 정리(backfill)는 이 변경 범위에 포함하지
- 않는다 — 신규 증가만 막는 것이 목적이다.
+ 한 번 더 일어나야 잘린다.
  */
 const MAX_EDIT_HISTORY_ENTRIES = 20;
 
@@ -43,9 +36,6 @@ const MESSAGE_ROW_PROJECTION: PipelineStage.Project = {
 	},
 };
 
-/**
-한 번에 조회하는 최대 파일 첨부 항목 수
-*/
 const FILE_ATTACHMENT_LIMIT = 100;
 
 /**
@@ -59,9 +49,6 @@ export type FileAttachmentRow = {
     커서 기반 페이지네이션에 사용되는 base64 인코딩 커서 값
     */
 	fileId: string;
-	/**
-    첨부 파일이 속한 메시지의 ObjectId 문자열
-    */
 	messageId: string;
 	fileName: string;
 	fileSize: number;
@@ -197,8 +184,7 @@ export type MessageBroadcastPayload = Omit<MessageRow, 'mentionedMessage'>;
  `notificationStatus`, `searchIndexStatus` 등 아웃박스 처리용 내부 필드는 클라이언트가 쓰지 않으므로
  제외합니다. `findMessages`의 {@link MESSAGE_ROW_PROJECTION}과 `mentionedMessage`를 제외한
  나머지 필드 집합을 유지해 REST 응답과 WebSocket 브로드캐스트의 메시지 형태를 맞춥니다.
- `mentionedMessage`(스레드 부모 메시지 요약)는 `$lookup` 조인 결과라 여기서는 채우지 않으며,
- 이는 기존 `saved.toObject()` 방식에서도 마찬가지였던 동작이라 회귀가 아닙니다.
+ `mentionedMessage`(스레드 부모 메시지 요약)는 `$lookup` 조인 결과라 여기서는 채우지 않습니다.
  */
 export function toMessageBroadcastPayload(doc: MessageDocument): MessageBroadcastPayload {
 	const {
@@ -223,9 +209,6 @@ export function publicAttachments(attachments: MessageRow['attachments']): Array
 	}));
 }
 
-/**
-`addReaction` / `removeReaction` 내부에서 reactions 배열만 추출하기 위한 타입
-*/
 type ReactionDoc = {reactions: Array<{emoji: string; userIds: number[]}>};
 
 /**
@@ -246,8 +229,6 @@ export class MessageRepository {
      `(createdAt, _id, attachmentIndex)` 복합 커서를 사용하여
      커서 이전의 항목만 반환하는 `$or` 조건을 구성합니다.
 
-     @param before - base64 인코딩된 커서 문자열
-     @returns MongoDB `$match` 조건 객체
      @throws BadRequestException 커서가 유효하지 않은 경우. 첫 페이지로 대체하면 같은 항목을 반복해 받게 된다
      */
 	private buildFileCursorMatch(before: string): Record<string, unknown> {
@@ -277,9 +258,6 @@ export class MessageRepository {
 
      커서 구성 요소: `{ uploadedAt: ISO8601, messageId: ObjectId 문자열, attachmentIndex: number }`
      이를 JSON 직렬화 후 base64 인코딩하여 클라이언트에 불투명(opaque) 커서로 전달합니다.
-
-     @param row - 집계 결과의 단일 행 (`_id`, `createdAt`, `attachmentIndex` 필드 필요)
-     @returns base64 인코딩된 커서 문자열. `row`가 falsy이면 `null`
      */
 	private encodeFileCursor(row: FileAttachmentAggregateRow | undefined): Nullable<string> {
 		if (!row) {
@@ -298,9 +276,6 @@ export class MessageRepository {
 
      파싱 실패, 타입 불일치, 잘못된 날짜 형식, 유효하지 않은 ObjectId 등
      모든 유효하지 않은 입력에 대해 예외를 던지지 않고 `null`을 반환합니다.
-
-     @param before - base64 인코딩된 커서 문자열
-     @returns 파싱된 커서 객체 `{ uploadedAt, messageId, attachmentIndex }`. 유효하지 않으면 `null`
      */
 	private decodeFileCursor(before: string): Nullable<{uploadedAt: string; messageId: string; attachmentIndex: number}> {
 		try {
@@ -398,11 +373,8 @@ export class MessageRepository {
      `after`가 주어지면 해당 ObjectId보다 큰(이후) 메시지 중 가장 가까운 100개를 조회합니다.
      반환 순서는 `before`와 같은 최신순입니다.
 
-     @param channelId - 조회할 채널의 식별자
-     @param before - 이 ObjectId 문자열보다 이전 메시지를 조회하는 커서. 생략 시 최신부터 조회
-     @param filter - `threadId`가 있으면 그 스레드의 메시지만, 없으면 스레드에 속하지 않은 메시지만 조회. `parentMessageId`는 그 메시지에 단 답장만 조회
-     @param after - 이 ObjectId 문자열보다 이후 메시지를 조회하는 커서. `before`와 함께 쓰지 않습니다
-     @returns 배열 (최신순 정렬, 최대 100개)
+     `filter.threadId`가 있으면 그 스레드의 메시지만, 없으면 스레드에 속하지 않은 메시지만 조회합니다.
+     `filter.parentMessageId`가 있으면 그 메시지에 단 답장만 조회합니다. `after`는 `before`와 함께 쓰지 않습니다.
      */
 	async findMessages(channelId: number, before?: string, filter: MessageListFilter = {}, after?: string): Promise<MessageRow[]> {
 		if (after !== undefined && after !== '') {
@@ -417,11 +389,6 @@ export class MessageRepository {
 	/**
      기준 메시지를 포함해 그 앞뒤 메시지를 최신순으로 조회합니다.
      기준 메시지와 이전 메시지 최대 50개, 이후 메시지 최대 50개를 반환합니다.
-
-     @param channelId - 조회할 채널의 식별자
-     @param messageId - 기준 메시지의 ObjectId 문자열
-     @param filter - {@link findMessages}와 같은 스레드·답장 조건
-     @returns 배열 (최신순 정렬, 최대 100개)
      */
 	async findMessagesAround(channelId: number, messageId: string, filter: MessageListFilter = {}): Promise<MessageRow[]> {
 		const id = new Types.ObjectId(messageId);
@@ -433,12 +400,6 @@ export class MessageRepository {
 		return [...newer.toReversed(), ...older];
 	}
 
-	/**
-     ObjectId로 메시지 도큐먼트를 조회합니다.
-
-     @param messageId - 조회할 메시지의 ObjectId 문자열
-     @returns Mongoose 도큐먼트. 존재하지 않으면 `null`
-     */
 	async findById(messageId: string): Promise<Nullable<MessageDocument>> {
 		return this.messageModel.findOne({_id: messageId, webhookDeleted: {$ne: true}});
 	}
@@ -480,21 +441,11 @@ export class MessageRepository {
 
      채널 귀속 검증이 필요한 경우(예: 권한 확인)에 사용하며,
      다른 채널의 메시지가 우연히 반환되는 것을 방지합니다.
-
-     @param messageId - 조회할 메시지의 ObjectId 문자열
-     @param channelId - 메시지가 속해야 하는 채널의 식별자
-     @returns Mongoose 도큐먼트. 존재하지 않거나 채널이 불일치하면 `null`
      */
 	async findByIdAndChannelId(messageId: string, channelId: number): Promise<Nullable<MessageDocument>> {
 		return this.messageModel.findOne({_id: messageId, channelId, webhookDeleted: {$ne: true}});
 	}
 
-	/**
-     특정 메시지를 삭제합니다.
-
-     @param messageId - 삭제할 메시지의 ObjectId 문자열
-     @returns Mongoose `deleteOne` 결과 객체
-     */
 	async deleteById(messageId: string) {
 		// Keep the unique delivery key atomically with deletion; a retry must never recreate a deleted message.
 		const retained = await this.messageModel.updateOne(
@@ -518,9 +469,6 @@ export class MessageRepository {
 
      색인 대상 메시지는 같은 쓰기에서 검색 색인 아웃박스를 `PENDING`으로 열어두므로,
      Elasticsearch 쓰기가 실패해도 색인 의도가 유실되지 않습니다.
-
-     @param input - 생성할 메시지의 필드 값 ({@link CreateMessageInput})
-     @returns 생성된 Mongoose 도큐먼트
      */
 	async createMessage(input: CreateMessageInput) {
 		const isIndexed = isSearchIndexed(input);
@@ -538,11 +486,6 @@ export class MessageRepository {
      도큐먼트를 읽어와 `save()`하는 대신 단일 갱신을 사용하므로 동시 수정이 서로의
      색인 버전을 덮어쓰지 않습니다. 삭제가 예약된(`DELETING`) 메시지는 수정 대상에서 제외합니다.
      `editHistory`는 최근 {@link MAX_EDIT_HISTORY_ENTRIES}개만 보관하며 그보다 오래된 이력은 버립니다.
-
-     @param messageId - 수정할 메시지 ID
-     @param content - 변경할 본문
-     @param isIndexed - 검색 색인 대상 메시지인지 여부
-     @returns 수정된 도큐먼트. 메시지가 없거나 삭제 중이면 `null`
      */
 	async applyEdit(messageId: string, content: string, isIndexed: boolean): Promise<Nullable<MessageDocument>> {
 		const now = new Date();
@@ -575,9 +518,6 @@ export class MessageRepository {
 	/**
      메시지 고정 상태를 원자적으로 바꾸고 색인 아웃박스 의도를 같은 쓰기에 남깁니다.
 
-     @param messageId - 수정할 메시지 ID
-     @param isPinned - 고정 여부
-     @param isIndexed - 검색 색인 대상 메시지인지 여부
      @returns 갱신된 도큐먼트. 메시지가 없거나 삭제 중이면 `null`
      */
 	async setPinned(messageId: string, isPinned: boolean, isIndexed: boolean): Promise<Nullable<MessageDocument>> {
@@ -629,14 +569,7 @@ export class MessageRepository {
      `clientMessageId`는 호출자가 넘긴 결정적인 키로 저장하여, 같은 이벤트가 다시 전달되면
      유니크 인덱스가 중복 저장을 막습니다(중복 키 오류 11000).
 
-     @param message - 게시할 시스템 메시지
-     @param message.teamId - 시스템 메시지를 게시할 팀의 식별자
-     @param message.channelId - 시스템 메시지를 게시할 채널의 식별자
-     @param message.content - 시스템 메시지 본문
-     @param message.projectId - 채널이 속한 프로젝트 ID. 없으면 `null`
-     @param message.authorId - 시스템 행위자로 기록할 사용자 ID (예: 채널 생성자)
-     @param message.clientMessageId - 중복 저장을 막는 멱등성 키
-     @returns 생성된 Mongoose 도큐먼트
+     `authorId`에는 시스템 행위자로 기록할 사용자 ID(예: 채널 생성자)를 넘깁니다.
      */
 	async createSystemMessage(
 		message: {
@@ -676,9 +609,6 @@ export class MessageRepository {
      `limit`는 1 이상 {@link FILE_ATTACHMENT_LIMIT} 이하로 클램핑됩니다.
      내부적으로 `limit + 1`개를 조회하여 다음 페이지 존재 여부를 판별합니다.
 
-     @param channelId - 파일 목록을 조회할 채널의 식별자
-     @param before - 이 커서 이전 항목을 조회하는 base64 인코딩 커서. 생략 시 처음부터 조회
-     @param limit - 한 페이지에 반환할 최대 항목 수
      @returns `items`: {@link FileAttachmentRow} 배열, `nextCursor`: 다음 페이지 커서 (마지막 페이지이면 `null`)
      */
 	async findFileAttachments(
@@ -767,7 +697,6 @@ export class MessageRepository {
      단일 문서씩 `findOneAndUpdate`를 반복하는 방식 대비, 배치 크기와 무관하게 왕복 횟수가
      고정(3회)되어 폴링 사이클의 DB 왕복 지연을 줄입니다.
 
-     @param batchSize - 이번 사이클에서 점유할 최대 메시지 수
      @returns 이번 호출에서 `PROCESSING`으로 전환된 {@link NotificationMessage} 배열 (`createdAt` 오름차순)
      */
 	async findPendingAndMarkProcessing(batchSize: number): Promise<NotificationMessage[]> {
@@ -811,9 +740,6 @@ export class MessageRepository {
 
      폴러 프로세스가 크래시하면 메시지가 PROCESSING에 영구 stuck될 수 있습니다.
      폴러는 PENDING만 조회하므로 이 회수 없이는 해당 메시지의 알림이 영구 유실됩니다.
-
-     @param staleThresholdMs - PROCESSING을 stale로 판단하는 경과 시간 (밀리초)
-     @returns 회수된 메시지 수
      */
 	async reclaimStaleProcessing(staleThresholdMs: number): Promise<number> {
 		const staleBeforeDate = new Date(Date.now() - staleThresholdMs);
@@ -832,11 +758,6 @@ export class MessageRepository {
      채널의 고정 메시지 목록을 최신순으로 최대 100개 조회합니다.
 
      `findMessages`와 동일한 `$lookup` 집계로 부모 메시지를 `mentionedMessage`에 조인합니다.
-
-     @param channelId - 고정 메시지를 조회할 채널의 식별자
-     @param options - 조회 조건
-     @param options.shouldExcludeSystem - true면 SYSTEM 메시지를 뺀다
-     @returns 고정된 {@link MessageRow} 배열 (최신순 정렬, 최대 100개)
      */
 	async findPinnedMessages(channelId: number, options: {shouldExcludeSystem?: boolean} = {}): Promise<MessageRow[]> {
 		return this.messageModel.aggregate([
@@ -882,7 +803,6 @@ export class MessageRepository {
 
      스레드 알림 발송 시 부모 메시지 작성자를 효율적으로 조회하기 위해 사용합니다.
 
-     @param parents - 조회할 채널과 부모 메시지 ID 쌍
      @returns `channelId:parentMessageId`를 키, `{ authorId }` 객체를 값으로 하는 Map
      */
 	async findParentAuthorsByChannel(
@@ -910,10 +830,8 @@ export class MessageRepository {
      `returnDocument: 'before'`로 업데이트 이전 상태를 반환받아, 추가 조회 없이 "이미 반응했는지"와 "추가 후 카운트"를
      같은 요청 안에서 계산합니다.
 
-     @param channelId - 메시지가 속한 채널의 식별자 (채널 귀속 검증용)
-     @param messageId - 반응을 추가할 메시지의 ObjectId 문자열
-     @param emoji - 추가할 이모지 문자열
-     @param userId - 반응하는 사용자의 식별자
+     `channelId`는 메시지의 채널 귀속을 검증하는 데 사용합니다.
+
      @returns
      - `number (≥ 0)`: 반응 추가 후 해당 이모지의 총 반응 수
      - `-1`: 이미 동일 이모지로 반응한 경우
@@ -975,10 +893,8 @@ export class MessageRepository {
      `$pull`로 `userIds`에서 해당 사용자를 제거한 후, `userIds`가 빈 배열이 되면
      해당 reaction 항목 자체를 `$pull`로 삭제하여 불필요한 빈 항목을 정리합니다.
 
-     @param channelId - 메시지가 속한 채널의 식별자 (채널 귀속 검증용)
-     @param messageId - 반응을 제거할 메시지의 ObjectId 문자열
-     @param emoji - 제거할 이모지 문자열
-     @param userId - 반응을 취소하는 사용자의 식별자
+     `channelId`는 메시지의 채널 귀속을 검증하는 데 사용합니다.
+
      @returns
      - `number (≥ 0)`: 반응 제거 후 해당 이모지의 남은 반응 수
      - `-1`: 해당 이모지로 반응한 기록이 없는 경우
@@ -1114,13 +1030,9 @@ export class MessageRepository {
      `nextAttemptAt`을 기록한 메시지는 그 시각 전에는 다시 점유되지 않습니다.
      재시도 정보 없이 상태만 변경하려면 해당 인수를 생략합니다.
 
-     @param messageId - 업데이트할 메시지의 ObjectId
-     @param notificationClaimId - 이 처리를 시작한 {@link findPendingAndMarkProcessing} 호출이 발급한 점유 식별자
-     @param notificationStatus - 새로운 알림 상태 (`'PENDING'` | `'PROCESSING'` | `'SENT'` | `'FAILED'`)
-     @param retry - 재시도 정보. 생략 시 현재 값을 유지
-     @param retry.retryCount - 업데이트할 재시도 횟수
-     @param retry.nextAttemptAt - 다음 시도 가능 시각. 생략 시 현재 값을 유지
-     @returns Mongoose `updateOne` 결과 객체
+     `notificationClaimId`는 이 처리를 시작한 {@link findPendingAndMarkProcessing} 호출이 발급한 점유 식별자입니다.
+     `notificationStatus`는 `'PENDING'` | `'PROCESSING'` | `'SENT'` | `'FAILED'` 중 하나입니다.
+     `retry` 또는 `retry.nextAttemptAt`을 생략하면 해당 값은 현재 값을 유지합니다.
      */
 	updateNotificationStatus(
 		messageId: Types.ObjectId,
