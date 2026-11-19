@@ -6,6 +6,7 @@ import com.cowork.team.global.consumer.TeamGithubRenamedPayload
 import com.cowork.team.global.projection.ProjectionAssignmentCoordinator
 import com.cowork.team.global.projection.ProjectionCheckpointStore
 import com.cowork.team.global.projection.ProjectionReadinessState
+import com.cowork.team.global.projection.ProjectionStream
 import com.cowork.team.global.projection.ProjectionStreams
 import com.cowork.team.global.projection.ProjectionTopicGenerationRegistry
 import com.cowork.team.global.projection.ProjectionTopicIdentityProvider
@@ -89,12 +90,22 @@ class KafkaConsumerConfig(
     }
 
     private fun projectionListenerContainerFactory(
-        rebalanceListener: ProjectionAssignmentCoordinator,
+        stream: ProjectionStream,
     ): ConcurrentKafkaListenerContainerFactory<String, String> {
         val factory = ConcurrentKafkaListenerContainerFactory<String, String>()
         factory.setConsumerFactory(stringConsumerFactory())
         factory.setCommonErrorHandler(DefaultErrorHandler(KafkaConsumerRetryPolicy.stateProjectionBackOff()))
-        factory.containerProperties.setConsumerRebalanceListener(rebalanceListener)
+        factory.containerProperties.setConsumerRebalanceListener(
+            ProjectionAssignmentCoordinator(
+                stream,
+                checkpointStore,
+                readinessState,
+                topicIdentityProvider,
+                topicGenerations,
+                assignmentRetryBackoffMs,
+                assignmentRetryTimeoutMs,
+            ),
+        )
         return factory
     }
 
@@ -140,43 +151,13 @@ class KafkaConsumerConfig(
         )
 
     @Bean
-    fun preferenceTeamRoleChangedListenerContainerFactory() = projectionListenerContainerFactory(
-        ProjectionAssignmentCoordinator(
-            streams.teamRole,
-            checkpointStore,
-            readinessState,
-            topicIdentityProvider,
-            topicGenerations,
-            assignmentRetryBackoffMs,
-            assignmentRetryTimeoutMs,
-        ),
-    )
+    fun preferenceTeamRoleChangedListenerContainerFactory() = projectionListenerContainerFactory(streams.teamRole)
 
     @Bean
-    fun accountRolePolicyListenerContainerFactory() = projectionListenerContainerFactory(
-        ProjectionAssignmentCoordinator(
-            streams.accountRole,
-            checkpointStore,
-            readinessState,
-            topicIdentityProvider,
-            topicGenerations,
-            assignmentRetryBackoffMs,
-            assignmentRetryTimeoutMs,
-        ),
-    )
+    fun accountRolePolicyListenerContainerFactory() = projectionListenerContainerFactory(streams.accountRole)
 
     @Bean
-    fun preferenceTeamSettingListenerContainerFactory() = projectionListenerContainerFactory(
-        ProjectionAssignmentCoordinator(
-            streams.teamSetting,
-            checkpointStore,
-            readinessState,
-            topicIdentityProvider,
-            topicGenerations,
-            assignmentRetryBackoffMs,
-            assignmentRetryTimeoutMs,
-        ),
-    )
+    fun preferenceTeamSettingListenerContainerFactory() = projectionListenerContainerFactory(streams.teamSetting)
 
     @Bean
     fun teamRoleCommandResultListenerContainerFactory() = durableResultListenerContainerFactory()
