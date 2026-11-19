@@ -1,12 +1,11 @@
 import {HttpService} from '@nestjs/axios';
 import {Injectable as injectable} from '@nestjs/common';
-import {AxiosError} from 'axios';
 import {firstValueFrom} from 'rxjs';
 import {githubField} from '../github-field.js';
 import {GithubAuthService} from '../auth/github-auth.service.js';
-import {GITHUB_API, GITHUB_HEADERS} from '../constants.js';
+import {GITHUB_API, githubAuthHeaders} from '../constants.js';
 import {CreateIssueDto} from '../dto/create-issue.dto.js';
-import {GithubClientError} from '../github.errors.js';
+import {rethrowGithubError} from '../github.errors.js';
 
 export type CreatedIssue = {
 	number: number;
@@ -37,26 +36,6 @@ export class GithubApiClient {
 		private readonly authService: GithubAuthService,
 	) {}
 
-	private authHeaders(token: string) {
-		return {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${token}`};
-	}
-
-	private handleGithubError(error: unknown): never {
-		if (
-			error instanceof AxiosError
-			&& error.response
-			&& error.response.status < 500
-			&& error.response.status !== 429
-		) {
-			throw new GithubClientError(
-				(error.response.data as {message?: string})?.message ?? error.message,
-				error.response.status,
-			);
-		}
-
-		throw error;
-	}
-
 	async createIssue(dto: CreateIssueDto): Promise<CreatedIssue> {
 		const token = await this.authService.getInstallationToken(dto.owner);
 		try {
@@ -69,12 +48,12 @@ export class GithubApiClient {
 						labels: dto.labels,
 						assignees: dto.assignees,
 					},
-					{headers: this.authHeaders(token)},
+					{headers: githubAuthHeaders(token)},
 				),
 			);
 			return {number: data.number, [githubField.htmlUrl]: data.html_url};
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -90,7 +69,7 @@ export class GithubApiClient {
 					`${GITHUB_API}/search/issues`,
 					{
 						params: {q: query},
-						headers: this.authHeaders(token),
+						headers: githubAuthHeaders(token),
 					},
 				),
 			);
@@ -101,7 +80,7 @@ export class GithubApiClient {
 				labels: (item.labels ?? []).map(l => ({name: l.name})),
 			}));
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -116,11 +95,11 @@ export class GithubApiClient {
 				this.httpService.post(
 					`${GITHUB_API}/repos/${dto.owner}/${dto.repo}/issues/${issueNumber}/labels`,
 					{labels},
-					{headers: this.authHeaders(token)},
+					{headers: githubAuthHeaders(token)},
 				),
 			);
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -130,12 +109,12 @@ export class GithubApiClient {
 			const {data} = await firstValueFrom(
 				this.httpService.get<GithubLabel[]>(
 					`${GITHUB_API}/repos/${dto.owner}/${dto.repo}/labels`,
-					{params: {[githubField.perPage]: 100}, headers: this.authHeaders(token)},
+					{params: {[githubField.perPage]: 100}, headers: githubAuthHeaders(token)},
 				),
 			);
 			return data.map(label => label.name);
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -149,11 +128,11 @@ export class GithubApiClient {
 				this.httpService.post(
 					`${GITHUB_API}/repos/${dto.owner}/${dto.repo}/labels`,
 					label,
-					{headers: this.authHeaders(token)},
+					{headers: githubAuthHeaders(token)},
 				),
 			);
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 }
