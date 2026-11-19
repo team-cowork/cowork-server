@@ -9,6 +9,14 @@ Mongoose 문서 타입. HydratedDocument로 래핑되어 _id, save() 등 Mongoos
 export type MessageDocument = HydratedDocument<Message>;
 
 /**
+ Mongoose의 `required`는 빈 문자열도 값이 없는 것으로 보고 거부한다. 첨부파일만 보내는 메시지는
+ 본문이 빈 문자열이므로, 본문이 문자열이 아닐 때만 필수 검사를 적용한다.
+ */
+function isContentMissing(this: {content?: unknown}): boolean {
+	return typeof this.content !== 'string';
+}
+
+/**
  메시지에 첨부된 파일 정보를 나타내는 서브도큐먼트 스키마.
 
  `_id: false` 옵션으로 서브도큐먼트 자체에는 `_id`가 생성되지 않습니다.
@@ -57,7 +65,7 @@ class EditHistory {
 	/**
     편집 이전의 메시지 내용
     */
-	@prop({required: true}) content!: string;
+	@prop({type: String, required: isContentMissing}) content!: string;
 
 	/**
     편집이 발생한 시각
@@ -142,9 +150,9 @@ export class Message {
 
 	/**
      메시지 본문. 최대 25,000자까지 허용됩니다.
-     `FILE` 타입 메시지의 경우 파일 설명 텍스트가 저장됩니다.
+     `FILE` 타입 메시지의 경우 파일 설명 텍스트가 저장되며, 첨부파일만 보낸 메시지는 빈 문자열입니다.
      */
-	@prop({required: true, maxlength: 25_000}) content!: string;
+	@prop({type: String, required: isContentMissing, maxlength: 25_000}) content!: string;
 
 	/**
      메시지 유형.
