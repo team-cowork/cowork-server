@@ -3,9 +3,11 @@ package com.cowork.project.domain.github.presentation.controller
 import com.cowork.project.domain.github.presentation.data.request.CreateGithubCommentReqDto
 import com.cowork.project.domain.github.presentation.data.request.UpdateGithubCommentReqDto
 import com.cowork.project.domain.github.presentation.data.response.GithubCommentResDto
+import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestActionResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestFileResDto
 import com.cowork.project.domain.github.presentation.data.response.GithubPullRequestResDto
 import com.cowork.project.domain.github.service.ApprovePullRequestService
+import com.cowork.project.domain.github.service.ClosePullRequestService
 import com.cowork.project.domain.github.service.CreateGithubCommentService
 import com.cowork.project.domain.github.service.DeleteGithubCommentService
 import com.cowork.project.domain.github.service.GithubCommentParentType
@@ -36,7 +38,7 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "GitHub PR", description = "프로젝트에 연결된 GitHub 저장소의 PR 조회/머지/승인 API")
+@Tag(name = "GitHub PR", description = "프로젝트에 연결된 GitHub 저장소의 PR 조회/머지/승인/닫기 API")
 @ApiResponses(
     ApiResponse(
         responseCode = "401",
@@ -66,6 +68,7 @@ class GithubPullRequestController(
     private val listPullRequestFilesService: ListPullRequestFilesService,
     private val mergePullRequestService: MergePullRequestService,
     private val approvePullRequestService: ApprovePullRequestService,
+    private val closePullRequestService: ClosePullRequestService,
     private val listGithubCommentsService: ListGithubCommentsService,
     private val createGithubCommentService: CreateGithubCommentService,
     private val updateGithubCommentService: UpdateGithubCommentService,
@@ -207,12 +210,12 @@ class GithubPullRequestController(
     ): List<GithubPullRequestFileResDto> = listPullRequestFilesService.execute(userId, projectId, repoId, prNumber)
 
     @Operation(
-        summary = "PR 병합 요청",
-        description = "커밋을 하나로 합쳐 병합하는 squash 방식을 사용합니다. 이 응답으로는 병합 성공 여부를 확인할 수 없습니다.",
+        summary = "PR 병합",
+        description = "커밋을 하나로 합쳐 병합하는 squash 방식을 사용합니다. GitHub에 병합이 반영된 뒤 응답합니다.",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
-        ApiResponse(responseCode = "202", description = "요청 접수 (응답 본문 없음)", content = [Content()]),
+        ApiResponse(responseCode = "200", description = "GitHub 반영 성공"),
         ApiResponse(
             responseCode = "400",
             description = "잘못된 저장소 URL 또는 연결된 GitHub 계정 없음",
@@ -230,7 +233,7 @@ class GithubPullRequestController(
         ),
         ApiResponse(
             responseCode = "403",
-            description = "프로젝트 수정 권한 없음",
+            description = "프로젝트 수정 권한 없음 또는 GitHub 저장소 쓰기 권한 없음",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -245,7 +248,7 @@ class GithubPullRequestController(
         ),
         ApiResponse(
             responseCode = "404",
-            description = "프로젝트 또는 등록된 저장소 없음",
+            description = "프로젝트, 등록된 저장소 또는 PR 없음",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -253,6 +256,36 @@ class GithubPullRequestController(
                     examples = [
                         ExampleObject(
                             value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "409",
+            description = "이미 병합되었거나 닫힌 PR, 또는 충돌 등으로 병합할 수 없는 PR",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"409 CONFLICT","code":409,"message":"요청을 처리할 수 없는 상태입니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "502",
+            description = "GitHub 연동 오류",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"502 BAD_GATEWAY","code":502,"message":"요청을 처리할 수 없습니다."}""",
                         ),
                     ],
                 ),
@@ -260,21 +293,21 @@ class GithubPullRequestController(
         ),
     )
     @PostMapping("/merge")
-    @ResponseStatus(HttpStatus.ACCEPTED)
     fun merge(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
         @PathVariable repoId: Long,
         @PathVariable prNumber: Int,
-    ) = mergePullRequestService.execute(userId, projectId, repoId, prNumber)
+    ): GithubPullRequestActionResDto = mergePullRequestService.execute(userId, projectId, repoId, prNumber)
 
     @Operation(
-        summary = "PR 승인 요청",
-        description = "승인 요청을 접수합니다. 본인 PR 승인 등 GitHub에서 거부한 요청의 결과는 이 응답에 포함되지 않습니다.",
+        summary = "PR 승인",
+        description = "GitHub에 승인 리뷰가 반영된 뒤 응답합니다. 승인은 GitHub App 설치 토큰으로 남기므로 " +
+            "GitHub에는 요청한 사용자가 아니라 GitHub App 봇이 승인한 것으로 기록됩니다.",
         security = [SecurityRequirement(name = "BearerAuth")],
     )
     @ApiResponses(
-        ApiResponse(responseCode = "202", description = "요청 접수 (응답 본문 없음)", content = [Content()]),
+        ApiResponse(responseCode = "200", description = "GitHub 반영 성공"),
         ApiResponse(
             responseCode = "400",
             description = "잘못된 저장소 URL 또는 연결된 GitHub 계정 없음",
@@ -292,7 +325,7 @@ class GithubPullRequestController(
         ),
         ApiResponse(
             responseCode = "403",
-            description = "프로젝트 수정 권한 없음",
+            description = "프로젝트 수정 권한 없음, GitHub 저장소 쓰기 권한 없음 또는 본인이 작성한 PR",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -307,7 +340,7 @@ class GithubPullRequestController(
         ),
         ApiResponse(
             responseCode = "404",
-            description = "프로젝트 또는 등록된 저장소 없음",
+            description = "프로젝트, 등록된 저장소 또는 PR 없음",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -320,15 +353,135 @@ class GithubPullRequestController(
                 ),
             ],
         ),
+        ApiResponse(
+            responseCode = "409",
+            description = "이미 병합되었거나 닫힌 PR",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"409 CONFLICT","code":409,"message":"요청을 처리할 수 없는 상태입니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "502",
+            description = "GitHub 연동 오류",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"502 BAD_GATEWAY","code":502,"message":"요청을 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PostMapping("/approve")
-    @ResponseStatus(HttpStatus.ACCEPTED)
     fun approve(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable projectId: Long,
         @PathVariable repoId: Long,
         @PathVariable prNumber: Int,
-    ) = approvePullRequestService.execute(userId, projectId, repoId, prNumber)
+    ): GithubPullRequestActionResDto = approvePullRequestService.execute(userId, projectId, repoId, prNumber)
+
+    @Operation(
+        summary = "PR 닫기",
+        description = "PR을 병합하지 않고 닫습니다. GitHub에 반영된 뒤 응답합니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "GitHub 반영 성공"),
+        ApiResponse(
+            responseCode = "400",
+            description = "잘못된 저장소 URL 또는 연결된 GitHub 계정 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "403",
+            description = "프로젝트 수정 권한 없음 또는 GitHub 저장소 쓰기 권한 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "404",
+            description = "프로젝트, 등록된 저장소 또는 PR 없음",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "409",
+            description = "이미 병합되었거나 닫힌 PR",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"409 CONFLICT","code":409,"message":"요청을 처리할 수 없는 상태입니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "502",
+            description = "GitHub 연동 오류",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"502 BAD_GATEWAY","code":502,"message":"요청을 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+    )
+    @PostMapping("/close")
+    fun close(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable projectId: Long,
+        @PathVariable repoId: Long,
+        @PathVariable prNumber: Int,
+    ): GithubPullRequestActionResDto = closePullRequestService.execute(userId, projectId, repoId, prNumber)
 
     @Operation(summary = "PR 댓글 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(

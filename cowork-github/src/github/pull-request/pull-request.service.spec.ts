@@ -14,6 +14,7 @@ describe('PullRequestService', () => {
 		getCollaboratorPermission: jest.Mock;
 		mergePullRequest: jest.Mock;
 		approvePullRequest: jest.Mock;
+		closePullRequest: jest.Mock;
 		deleteBranch: jest.Mock;
 	};
 
@@ -40,6 +41,7 @@ describe('PullRequestService', () => {
 			getCollaboratorPermission: jest.fn(),
 			mergePullRequest: jest.fn(),
 			approvePullRequest: jest.fn(),
+			closePullRequest: jest.fn(),
 			deleteBranch: jest.fn(),
 		};
 
@@ -219,12 +221,23 @@ describe('PullRequestService', () => {
 			requesterGithubUsername: 'octocat',
 		};
 
-		it('이미 머지된 PR은 권한 검증 없이 idempotent 응답을 반환한다', async () => {
-			apiClient.getPullRequest.mockResolvedValue({...basePr, merged: true});
+		it('이미 머지된 PR은 권한 검증 없이 409를 던진다', async () => {
+			apiClient.getPullRequest.mockResolvedValue({...basePr, state: 'closed', merged: true});
 
-			const result = await service.mergePullRequest(parameters);
+			await expect(
+				service.mergePullRequest(parameters),
+			).rejects.toMatchObject({statusCode: 409, message: '이미 머지된 PR입니다.'});
+			expect(apiClient.getCollaboratorPermission).not.toHaveBeenCalled();
+			expect(apiClient.mergePullRequest).not.toHaveBeenCalled();
+		});
 
-			expect(result.alreadyMerged).toBe(true);
+		it('머지 없이 닫힌 PR은 권한 검증 없이 409를 던진다', async () => {
+			apiClient.getPullRequest.mockResolvedValue({...basePr, state: 'closed'});
+
+			await expect(service.mergePullRequest(parameters)).rejects.toMatchObject({
+				statusCode: 409,
+				message: '닫힌 PR은 머지할 수 없습니다.',
+			});
 			expect(apiClient.getCollaboratorPermission).not.toHaveBeenCalled();
 			expect(apiClient.mergePullRequest).not.toHaveBeenCalled();
 		});
@@ -327,6 +340,16 @@ describe('PullRequestService', () => {
 			requesterGithubUsername: 'octocat',
 		};
 
+		it('닫히거나 머지된 PR이면 GitHub 호출 없이 409를 던진다', async () => {
+			apiClient.getPullRequest.mockResolvedValue({...basePr, state: 'closed', merged: true});
+
+			await expect(service.approvePullRequest(parameters)).rejects.toMatchObject({
+				statusCode: 409,
+			});
+			expect(apiClient.getCollaboratorPermission).not.toHaveBeenCalled();
+			expect(apiClient.approvePullRequest).not.toHaveBeenCalled();
+		});
+
 		it('PR 작성자 본인이면 GitHub 호출 없이 403을 던진다', async () => {
 			apiClient.getPullRequest.mockResolvedValue({
 				...basePr,
@@ -374,6 +397,64 @@ describe('PullRequestService', () => {
 
 			expect(result.prUrl).toBe(basePr.html_url);
 			expect(apiClient.approvePullRequest).toHaveBeenCalledWith(
+				'my-org',
+				'my-repo',
+				1,
+			);
+		});
+	});
+	describe('closePullRequest', () => {
+		const parameters = {
+			owner: 'my-org',
+			repo: 'my-repo',
+			prNumber: 1,
+			requesterGithubUsername: 'octocat',
+		};
+
+		it('이미 머지된 PR이면 GitHub 호출 없이 409를 던진다', async () => {
+			apiClient.getPullRequest.mockResolvedValue({...basePr, state: 'closed', merged: true});
+
+			await expect(service.closePullRequest(parameters)).rejects.toMatchObject({
+				statusCode: 409,
+				message: '이미 머지된 PR입니다.',
+			});
+			expect(apiClient.getCollaboratorPermission).not.toHaveBeenCalled();
+			expect(apiClient.closePullRequest).not.toHaveBeenCalled();
+		});
+
+		it('이미 닫힌 PR이면 GitHub 호출 없이 409를 던진다', async () => {
+			apiClient.getPullRequest.mockResolvedValue({...basePr, state: 'closed'});
+
+			await expect(service.closePullRequest(parameters)).rejects.toMatchObject({
+				statusCode: 409,
+				message: '이미 닫힌 PR입니다.',
+			});
+			expect(apiClient.closePullRequest).not.toHaveBeenCalled();
+		});
+
+		it('쓰기 권한이 없으면 403을 던진다', async () => {
+			apiClient.getPullRequest.mockResolvedValue(basePr);
+			apiClient.getCollaboratorPermission.mockResolvedValue({
+				permission: 'read',
+			});
+
+			await expect(service.closePullRequest(parameters)).rejects.toMatchObject({
+				statusCode: 403,
+			});
+			expect(apiClient.closePullRequest).not.toHaveBeenCalled();
+		});
+
+		it('열린 PR이고 쓰기 권한이 있으면 닫는다', async () => {
+			apiClient.getPullRequest.mockResolvedValue(basePr);
+			apiClient.getCollaboratorPermission.mockResolvedValue({
+				permission: 'maintain',
+			});
+			apiClient.closePullRequest.mockResolvedValue(undefined);
+
+			const result = await service.closePullRequest(parameters);
+
+			expect(result).toEqual({prUrl: basePr.html_url, prNumber: 1});
+			expect(apiClient.closePullRequest).toHaveBeenCalledWith(
 				'my-org',
 				'my-repo',
 				1,
