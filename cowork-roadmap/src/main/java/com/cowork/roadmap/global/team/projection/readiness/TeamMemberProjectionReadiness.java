@@ -1,5 +1,8 @@
 package com.cowork.roadmap.global.team.projection.readiness;
 
+import static com.cowork.roadmap.global.team.consumer.TeamMemberEventConsumer.GROUP_ID;
+import static com.cowork.roadmap.global.team.consumer.TeamMemberEventConsumer.TOPIC;
+
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -17,9 +20,6 @@ import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.kafka.listener.ConsumerAwareRebalanceListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
-
-import static com.cowork.roadmap.global.team.consumer.TeamMemberEventConsumer.GROUP_ID;
-import static com.cowork.roadmap.global.team.consumer.TeamMemberEventConsumer.TOPIC;
 
 import com.cowork.roadmap.global.team.projection.model.ProjectionBarrier;
 import com.cowork.roadmap.global.team.projection.model.ProjectionCheckpoint;

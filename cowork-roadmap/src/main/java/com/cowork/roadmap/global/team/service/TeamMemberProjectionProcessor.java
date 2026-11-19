@@ -1,10 +1,10 @@
 package com.cowork.roadmap.global.team.service;
 
+import static com.cowork.roadmap.global.team.consumer.TeamMemberEventConsumer.GROUP_ID;
+
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-
-import static com.cowork.roadmap.global.team.consumer.TeamMemberEventConsumer.GROUP_ID;
 
 import com.cowork.roadmap.global.team.event.TeamMemberEvent;
 import com.cowork.roadmap.global.team.projection.topic.ProjectionTopicGenerationRegistry;
