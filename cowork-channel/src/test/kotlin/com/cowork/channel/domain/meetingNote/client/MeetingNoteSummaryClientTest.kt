@@ -15,6 +15,9 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.net.http.HttpTimeoutException
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class MeetingNoteSummaryClientTest :
     DescribeSpec({
@@ -48,6 +51,37 @@ class MeetingNoteSummaryClientTest :
 
         describe("MeetingNoteSummaryClient 클래스의 summarize 메서드는") {
             val successBody = completion(mapper.writeValueAsString(expected))
+
+            context("외부 응답을 기다리는 요청이 10건이면") {
+                it("추가 요청을 즉시 거부하고 외부 호출이 실패한 뒤에는 다시 요약한다") {
+                    val inFlight = CountDownLatch(10)
+                    val finish = CountDownLatch(1)
+                    every { http.send(any(), any<HttpResponse.BodyHandler<ByteArray>>()) } answers {
+                        inFlight.countDown()
+                        check(finish.await(10, TimeUnit.SECONDS))
+                        throw HttpTimeoutException("timeout")
+                    }
+                    Executors.newVirtualThreadPerTaskExecutor().use { executor ->
+                        val calls = List(10) {
+                            executor.submit<HttpStatus> {
+                                shouldThrow<ExpectedException> { client.summarize("", "회의") }.statusCode
+                            }
+                        }
+                        try {
+                            inFlight.await(10, TimeUnit.SECONDS) shouldBe true
+                            shouldThrow<ExpectedException> { client.summarize("", "회의") }.statusCode shouldBe
+                                HttpStatus.SERVICE_UNAVAILABLE
+                        } finally {
+                            finish.countDown()
+                        }
+                        calls.forEach { it.get(10, TimeUnit.SECONDS) shouldBe HttpStatus.GATEWAY_TIMEOUT }
+                    }
+
+                    every { http.send(any(), any<HttpResponse.BodyHandler<ByteArray>>()) } returns
+                        response(200, successBody)
+                    client.summarize("", "회의") shouldBe expected
+                }
+            }
 
             context("Groq가 성공하면") {
                 it("한 번만 요청하고 구조화된 응답을 반환한다") {

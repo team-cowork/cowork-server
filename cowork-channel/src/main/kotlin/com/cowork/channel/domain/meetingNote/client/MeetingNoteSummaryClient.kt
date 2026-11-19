@@ -16,6 +16,7 @@ import java.net.http.HttpResponse
 import java.net.http.HttpResponse.BodyHandlers
 import java.net.http.HttpTimeoutException
 import java.time.Duration
+import java.util.concurrent.Semaphore
 
 @Component
 class MeetingNoteSummaryClient(
@@ -28,6 +29,7 @@ class MeetingNoteSummaryClient(
 ) {
     data class Summary(val summary: String, val decisions: List<String>, val actionItems: List<ActionItem>)
 
+    private val permits = Semaphore(10)
     private val converter = BeanOutputConverter(Summary::class.java, mapper)
     private val instructions = """
         회의록의 핵심을 한국어 2~4문장으로 summary에 정리하십시오. decisions는 결정 사항, actionItems는 할 일입니다.
@@ -41,6 +43,17 @@ class MeetingNoteSummaryClient(
         if (groqKey.isBlank()) {
             throw ExpectedException("회의록 요약 서비스가 설정되지 않았습니다.", HttpStatus.SERVICE_UNAVAILABLE)
         }
+        if (!permits.tryAcquire()) {
+            throw ExpectedException("회의록 요약 요청이 많습니다. 잠시 후 다시 시도해 주십시오.", HttpStatus.SERVICE_UNAVAILABLE)
+        }
+        return try {
+            requestSummary(title, content)
+        } finally {
+            permits.release()
+        }
+    }
+
+    private fun requestSummary(title: String, content: String): Summary {
         val messages = listOf(
             mapOf("role" to "system", "content" to instructions),
             mapOf("role" to "user", "content" to "제목: $title\n\n$content"),
