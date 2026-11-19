@@ -314,10 +314,10 @@ func (r *DeliveryRepository) ReclaimStale(ctx context.Context, staleThreshold ti
 // PurgeTerminal deletes terminal rows older than olderThan, repeating in purgeBatchSize
 // chunks within this call until the backlog is caught up (a chunk shorter than
 // purgeBatchSize) or ctx is cancelled. tb_notification_delivery_retry gets one row per
-// recipient installation per message, so a single fixed-size chunk per call (previously the
-// whole behavior) could fall permanently behind once message volume grew past what one
-// chunk clears per worker tick; looping here keeps each individual DELETE's lock
-// duration bounded by purgeBatchSize while still draining any accumulated backlog.
+// recipient installation per message, so a single fixed-size chunk per call could fall
+// permanently behind once message volume grew past what one chunk clears per worker tick;
+// looping here keeps each individual DELETE's lock duration bounded by purgeBatchSize
+// while still draining any accumulated backlog.
 func (r *DeliveryRepository) PurgeTerminal(ctx context.Context, olderThan time.Time) (int64, error) {
 	terminal := []string{
 		string(delivery.StatusSuccess),
