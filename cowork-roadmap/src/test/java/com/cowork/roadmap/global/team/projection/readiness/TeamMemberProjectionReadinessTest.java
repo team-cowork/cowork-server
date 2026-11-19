@@ -209,8 +209,6 @@ class TeamMemberProjectionReadinessTest {
         return new TeamMemberProjectionReadiness(checkpoints,
                 topicIdentity,
                 topicGeneration,
-                GROUP,
-                TOPIC,
                 retryBackoffMs,
                 retryTimeoutMs);
     }

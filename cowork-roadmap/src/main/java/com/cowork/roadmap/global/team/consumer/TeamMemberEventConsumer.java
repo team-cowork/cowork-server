@@ -16,10 +16,13 @@ import tools.jackson.databind.ObjectMapper;
 @RequiredArgsConstructor
 public class TeamMemberEventConsumer {
 
+    public static final String TOPIC = "team.member.event";
+    public static final String GROUP_ID = "cowork-roadmap.team-member";
+
     private final ObjectMapper objectMapper;
     private final TeamMemberProjectionProcessor processor;
 
-    @KafkaListener(topics = "${KAFKA_TOPIC_TEAM_MEMBER:team.member.event}", groupId = "${KAFKA_GROUP_ID_TEAM_MEMBER:cowork-roadmap.team-member}", containerFactory = "teamMemberListenerContainerFactory")
+    @KafkaListener(topics = TOPIC, groupId = GROUP_ID, containerFactory = "teamMemberListenerContainerFactory")
     public void consume(ConsumerRecord<String, String> record) {
         if (ProjectionSnapshotCompletion.isReserved(record)) {
             String violation = ProjectionSnapshotCompletion.violation(objectMapper, record);

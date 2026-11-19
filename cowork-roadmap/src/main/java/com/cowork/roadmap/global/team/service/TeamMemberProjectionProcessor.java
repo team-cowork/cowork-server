@@ -1,9 +1,10 @@
 package com.cowork.roadmap.global.team.service;
 
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
+
+import static com.cowork.roadmap.global.team.consumer.TeamMemberEventConsumer.GROUP_ID;
 
 import com.cowork.roadmap.global.team.event.TeamMemberEvent;
 import com.cowork.roadmap.global.team.projection.topic.ProjectionTopicGenerationRegistry;
@@ -15,16 +16,13 @@ public class TeamMemberProjectionProcessor {
     private final TeamMemberProjectionHandler handler;
     private final ProjectionCheckpointRepository checkpoints;
     private final ProjectionTopicGenerationRegistry topicGeneration;
-    private final String consumerGroup;
 
     public TeamMemberProjectionProcessor(TeamMemberProjectionHandler handler,
             ProjectionCheckpointRepository checkpoints,
-            ProjectionTopicGenerationRegistry topicGeneration,
-            @Value("${KAFKA_GROUP_ID_TEAM_MEMBER:cowork-roadmap.team-member}") String consumerGroup) {
+            ProjectionTopicGenerationRegistry topicGeneration) {
         this.handler = handler;
         this.checkpoints = checkpoints;
         this.topicGeneration = topicGeneration;
-        this.consumerGroup = consumerGroup;
     }
 
     @Transactional
@@ -36,25 +34,25 @@ public class TeamMemberProjectionProcessor {
     @Transactional
     public void discard(ConsumerRecord<String, String> record, String reason) {
         String topicId = topicGeneration.requireTopicId();
-        checkpoints.quarantine(consumerGroup, record, reason);
-        checkpoints.markInvalidRecord(consumerGroup, record.topic(), record.partition(), record.offset(), topicId);
-        checkpoints.advance(consumerGroup, record.topic(), record.partition(), record.offset() + 1, topicId);
+        checkpoints.quarantine(GROUP_ID, record, reason);
+        checkpoints.markInvalidRecord(GROUP_ID, record.topic(), record.partition(), record.offset(), topicId);
+        checkpoints.advance(GROUP_ID, record.topic(), record.partition(), record.offset() + 1, topicId);
     }
 
     @Transactional
     public void completeSnapshot(ConsumerRecord<String, String> record, String snapshotId) {
         String topicId = topicGeneration.requireTopicId();
-        checkpoints.markSnapshotCompleted(consumerGroup,
+        checkpoints.markSnapshotCompleted(GROUP_ID,
                 record.topic(),
                 record.partition(),
                 record.offset(),
                 topicId,
                 snapshotId);
-        checkpoints.advance(consumerGroup, record.topic(), record.partition(), record.offset() + 1, topicId);
+        checkpoints.advance(GROUP_ID, record.topic(), record.partition(), record.offset() + 1, topicId);
     }
 
     private void advance(ConsumerRecord<String, String> record) {
-        checkpoints.advance(consumerGroup,
+        checkpoints.advance(GROUP_ID,
                 record.topic(),
                 record.partition(),
                 record.offset() + 1,

@@ -18,6 +18,9 @@ import org.springframework.kafka.listener.ConsumerAwareRebalanceListener;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import static com.cowork.roadmap.global.team.consumer.TeamMemberEventConsumer.GROUP_ID;
+import static com.cowork.roadmap.global.team.consumer.TeamMemberEventConsumer.TOPIC;
+
 import com.cowork.roadmap.global.team.projection.model.ProjectionBarrier;
 import com.cowork.roadmap.global.team.projection.model.ProjectionCheckpoint;
 import com.cowork.roadmap.global.team.projection.model.ProjectionPartitionRange;
@@ -46,8 +49,6 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     private final ProjectionCheckpointRepository checkpoints;
     private final ProjectionTopicIdentityProvider topicIdentity;
     private final ProjectionTopicGenerationRegistry topicGeneration;
-    private final String consumerGroup;
-    private final String topic;
     private final long assignmentRetryBackoffMs;
     private final long assignmentRetryTimeoutMs;
 
@@ -65,15 +66,11 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     public TeamMemberProjectionReadiness(ProjectionCheckpointRepository checkpoints,
             ProjectionTopicIdentityProvider topicIdentity,
             ProjectionTopicGenerationRegistry topicGeneration,
-            @Value("${KAFKA_GROUP_ID_TEAM_MEMBER:cowork-roadmap.team-member}") String consumerGroup,
-            @Value("${KAFKA_TOPIC_TEAM_MEMBER:team.member.event}") String topic,
             @Value("${projection.readiness.assignment-retry-backoff-ms:1000}") long assignmentRetryBackoffMs,
             @Value("${projection.readiness.assignment-retry-timeout-ms:60000}") long assignmentRetryTimeoutMs) {
         this.checkpoints = checkpoints;
         this.topicIdentity = topicIdentity;
         this.topicGeneration = topicGeneration;
-        this.consumerGroup = consumerGroup;
-        this.topic = topic;
         this.assignmentRetryBackoffMs = Math.max(0L, assignmentRetryBackoffMs);
         this.assignmentRetryTimeoutMs = Math.max(0L, assignmentRetryTimeoutMs);
     }
@@ -111,13 +108,13 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     }
 
     private void initializeAssignment(Consumer<?, ?> consumer, Collection<TopicPartition> partitions) {
-        String topicId = topicIdentity.topicId(topic);
-        List<TopicPartition> allPartitions = consumer.partitionsFor(topic)
+        String topicId = topicIdentity.topicId(TOPIC);
+        List<TopicPartition> allPartitions = consumer.partitionsFor(TOPIC)
                 .stream()
-                .map(info -> new TopicPartition(topic, info.partition()))
+                .map(info -> new TopicPartition(TOPIC, info.partition()))
                 .toList();
         if (allPartitions.isEmpty()) {
-            throw new IllegalStateException("Kafka topic has no partitions: " + topic);
+            throw new IllegalStateException("Kafka topic has no partitions: " + TOPIC);
         }
         Map<TopicPartition, Long> beginnings = consumer.beginningOffsets(allPartitions);
         Map<TopicPartition, Long> ends = consumer.endOffsets(allPartitions);
@@ -127,13 +124,13 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
                         ends.get(partition)))
                 .toList();
         Set<Integer> assignedPartitions = partitions.stream()
-                .filter(partition -> topic.equals(partition.topic()))
+                .filter(partition -> TOPIC.equals(partition.topic()))
                 .map(TopicPartition::partition)
                 .collect(Collectors.toSet());
         Map<Integer, Long> seekOffsets = checkpoints
-                .initializeAssignment(consumerGroup, topic, topicId, ranges, assignedPartitions);
+                .initializeAssignment(GROUP_ID, TOPIC, topicId, ranges, assignedPartitions);
         partitions.stream()
-                .filter(partition -> topic.equals(partition.topic()))
+                .filter(partition -> TOPIC.equals(partition.topic()))
                 .forEach(partition -> consumer.seek(partition, requireSeekOffset(seekOffsets, partition.partition())));
         topicGeneration.markAssigned(topicId);
         initialized = true;
@@ -192,11 +189,11 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
             return false;
         }
         try {
-            Map<Integer, ProjectionBarrier> barriers = checkpoints.findBarriers(consumerGroup, topic);
-            Map<Integer, ProjectionCheckpoint> stored = checkpoints.findByTopic(consumerGroup, topic);
+            Map<Integer, ProjectionBarrier> barriers = checkpoints.findBarriers(GROUP_ID, TOPIC);
+            Map<Integer, ProjectionCheckpoint> stored = checkpoints.findByTopic(GROUP_ID, TOPIC);
             // Observe the broker last so an append concurrent with the durable reads cannot
             // leave readiness open against an older high-watermark.
-            ProjectionTopicState broker = topicIdentity.topicState(topic);
+            ProjectionTopicState broker = topicIdentity.topicState(TOPIC);
             return ProjectionCatchUpPolicy
                     .isReady(broker.ranges().keySet(), broker.topicId(), barriers, stored, broker.ranges());
         } catch (RuntimeException exception) {
@@ -221,7 +218,7 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     private long requireSeekOffset(Map<Integer, Long> seekOffsets, int partition) {
         Long offset = seekOffsets.get(partition);
         if (offset == null) {
-            throw new IllegalStateException("Kafka projection seek offset is missing: " + topic + "-" + partition);
+            throw new IllegalStateException("Kafka projection seek offset is missing: " + TOPIC + "-" + partition);
         }
         return offset;
     }
