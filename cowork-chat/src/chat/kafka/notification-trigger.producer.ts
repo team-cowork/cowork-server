@@ -126,7 +126,6 @@ export class NotificationTriggerProducer implements OnModuleInit, OnModuleDestro
      `notification.trigger` 토픽으로 이벤트를 발행한다.
      브로커에 아직 연결되지 않은 경우 연결 완료 후 발행한다.
 
-     @param event 발행할 알림 트리거 이벤트
      @throws 브로커 연결 또는 메시지 전송 실패 시 에러를 던진다
      */
 	async send(event: NotificationTriggerEvent): Promise<void> {

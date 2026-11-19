@@ -34,7 +34,6 @@ export class ChatGithubIssueCommandProducer implements OnModuleInit, OnModuleDes
      연결 중인 경우 기존 `connectPromise`를 재사용하여 중복 연결 시도를 방지한다(싱글턴 패턴).
      연결에 실패하면 `connectPromise`를 초기화하여 이후 재시도를 허용한다.
 
-     @returns 연결 완료 후 이행되는 Promise
      @throws {Error} Kafka 브로커 연결 실패 시
      */
 	private async ensureConnected(): Promise<void> {
@@ -94,7 +93,6 @@ export class ChatGithubIssueCommandProducer implements OnModuleInit, OnModuleDes
      메시지 키는 `channelId`로 설정되어 같은 채널의 이슈 요청이 동일 파티션에 순서대로 전달된다.
      발행 전 {@link ensureConnected}를 호출하여 연결을 보장한다.
 
-     @param command - 발행할 GitHub 이슈 생성 커맨드
      @throws {Error} Kafka 연결 또는 메시지 발행 실패 시
      */
 	async send(command: ChatGithubIssueCreateCommand): Promise<void> {

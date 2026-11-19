@@ -61,9 +61,8 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
      서로 다른 팀이 같은 레포를 연결할 수 있으므로, 알림 채널이 설정된 대상 전부(0개 이상)에
      `summary`를 SYSTEM 메시지로 저장하고 각 채널에 Socket.IO로 브로드캐스트한다.
 
-     @param event - Kafka에서 수신한 GitHub 저장소 활동 이벤트
-     @param source - 이벤트의 Kafka 메시지 위치. 채널별 시스템 메시지 멱등성 키를 만드는 데 사용한다
-     @param heartbeat - 오래 걸리는 준비 대기 동안 Kafka consumer heartbeat를 보내는 함수
+     `source`(Kafka 메시지 위치)로 채널별 시스템 메시지 멱등성 키를 만든다.
+     오래 걸리는 준비 대기 동안 `heartbeat`로 Kafka consumer heartbeat를 보낸다.
      */
 	private async handleRepoEvent(event: GithubRepoEvent, source: KafkaMessageSource, heartbeat: () => Promise<void> = async () => {/* Direct calls need no Kafka heartbeat. */}): Promise<void> {
 		const summary = this.sanitizeSummary(event.summary);
@@ -108,9 +107,6 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
      Socket.IO를 통해 특정 채널의 클라이언트에게 메시지를 브로드캐스트한다.
 
      Socket.IO 서버가 주입되지 않은 경우 (`io`가 `undefined`) 경고 로그를 남기고 무시된다.
-
-     @param channelId - 브로드캐스트 대상 채널 ID
-     @param message - 전송할 메시지 객체
      */
 	private async notifyClient(channelId: number, message: unknown): Promise<void> {
 		if (!this.io) {
@@ -126,8 +122,6 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
 
      `ChatGateway`의 `afterInit` 훅에서 호출되어야 하며,
      이 메서드가 호출되기 전에 수신된 이벤트는 Socket.IO 브로드캐스트 없이 저장만 된다.
-
-     @param io - Socket.IO 서버 인스턴스
      */
 	setSocketServer(io: Server) {
 		this.io = io;

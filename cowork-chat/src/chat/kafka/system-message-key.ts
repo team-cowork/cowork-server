@@ -18,8 +18,6 @@ export const SYSTEM_MESSAGE_KEY_PREFIX = 'system:';
  같은 메시지가 다시 전달되어도 채널마다 같은 키가 나오므로, `clientMessageId` 유니크 인덱스가
  중복 저장을 막는다. 사용자 메시지의 UUID 키와 겹치지 않도록 `system:` 접두사를 붙인다.
 
- @param message - Kafka 메시지 위치
- @param channelId - 시스템 메시지를 저장할 채널 ID
  @returns `system:{topic}:{partition}:{offset}:{channelId}` 형식의 키
  */
 export function systemMessageKey(
@@ -35,8 +33,6 @@ export function systemMessageKey(
  `cowork-voice` outbox는 전송 후 완료 표시 전에 장애가 나면 같은 페이로드를 새 offset에 다시 발행한다.
  `event_id`는 재발행해도 바뀌지 않으므로, offset 대신 이 값으로 키를 만들어 중복 저장을 막는다.
 
- @param eventId - `cowork-voice` outbox 메시지 ID
- @param channelId - 시스템 메시지를 저장할 채널 ID
  @returns `system:voice:{eventId}:{channelId}` 형식의 키
  */
 export function voiceSystemMessageKey(eventId: string, channelId: number): string {

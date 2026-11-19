@@ -23,8 +23,6 @@ const LATENCY_BUCKETS_SECONDS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.
 
  `occurredAt`은 다른 인스턴스의 시계로 찍히므로 시계 차이로 끝 시각이 앞설 수 있다. 그때는 0으로 본다.
 
- @param startMs - 시작 시각(밀리초)
- @param endMs - 끝 시각(밀리초)
  @returns 경과 시간(초). 음수나 숫자가 아니면 0
  */
 export function elapsedSeconds(startMs: number, endMs: number): number {
@@ -50,13 +48,6 @@ export class ChatMessageLatencyMetricsService {
 			});
 	}
 
-	/**
-     구간 하나의 지연을 기록한다.
-
-     @param stage - 잰 구간
-     @param startMs - 구간 시작 시각(밀리초)
-     @param endMs - 구간 끝 시각(밀리초)
-     */
 	record(stage: ChatMessageLatencyStage, startMs: number, endMs: number): void {
 		this.latency.observe({stage}, elapsedSeconds(startMs, endMs));
 	}
