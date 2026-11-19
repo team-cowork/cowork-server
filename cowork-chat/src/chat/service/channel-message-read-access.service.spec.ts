@@ -732,12 +732,28 @@ describe('ChannelMessageReadAccessService', () => {
 			const io = {in: jest.fn().mockReturnValue({fetchSockets: jest.fn().mockResolvedValue([reader, nonReader])}), to};
 			const payload = {type: 'SYSTEM', content: '음성 통화가 시작되었습니다.'};
 
-			await service.emitToReadableChannelUsers(io as never, 30, {event: 'message', payload});
+			await expect(service.emitToReadableChannelUsers(io as never, 30, {event: 'message', payload})).resolves.toBe(true);
 
 			expect(io.in).toHaveBeenCalledWith('chat:30');
 			expect(reader.emit).toHaveBeenCalledWith('message', payload);
 			expect(nonReader.emit).not.toHaveBeenCalled();
 			expect(to).not.toHaveBeenCalled();
+		});
+
+		it('음성 채널 SYSTEM 메시지 판정 중 projection이 닫히면 보내지 않고 false를 돌려준다', async () => {
+			const reader = {id: 'a', data: {userId: 8}, emit: jest.fn()};
+			const io = {in: jest.fn().mockReturnValue({fetchSockets: jest.fn().mockResolvedValue([reader])}), to: jest.fn()};
+			const payload = {type: 'SYSTEM', content: '음성 통화가 시작되었습니다.'};
+			teamRoleRepository.findRolesByIds.mockImplementation(async () => {
+				projectionReadiness.areReady.mockReturnValue(false);
+				return [{
+					teamId: 1, roleId: 401, priority: 10, permissions: Object.fromEntries([['voice_log_read', true]]),
+				}];
+			});
+
+			await expect(service.emitToReadableChannelUsers(io as never, 30, {event: 'message', payload})).resolves.toBe(false);
+
+			expect(reader.emit).not.toHaveBeenCalled();
 		});
 
 		it('음성 채널의 일반 메시지는 room에 그대로 보낸다', async () => {

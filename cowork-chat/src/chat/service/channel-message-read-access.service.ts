@@ -293,7 +293,7 @@ export class ChannelMessageReadAccessService {
 		io: Server,
 		channelId: number,
 		{event, payload, excludedSocketId}: {event: string; payload: unknown; excludedSocketId?: string},
-	): Promise<void> {
+	): Promise<boolean> {
 		const roomSockets = await io.in(`chat:${channelId}`).fetchSockets();
 		const sockets = roomSockets.filter(socket => socket.id !== excludedSocketId);
 		const userIds = [...new Set(sockets
@@ -301,7 +301,7 @@ export class ChannelMessageReadAccessService {
 			.filter((userId): userId is number => userId !== null))];
 		const access = await this.evaluate(userIds.map(userId => ({channelId, userId})), VOICE_LOG_READ_MODES);
 		if (access === null || !this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
-			return;
+			return false;
 		}
 
 		for (const socket of sockets) {
@@ -310,6 +310,8 @@ export class ChannelMessageReadAccessService {
 				socket.emit(event, payload);
 			}
 		}
+
+		return true;
 	}
 
 	requireProjectionsReady(): void {
@@ -576,8 +578,7 @@ export class ChannelMessageReadAccessService {
 		if (event === 'message' && isSystemMessagePayload(payload)) {
 			const [channel] = await this.channelRepository.findByIds([channelId]);
 			if (channel?.type === 'VOICE') {
-				await this.emitToVoiceLogReaders(io, channelId, message);
-				return;
+				return this.emitToVoiceLogReaders(io, channelId, message);
 			}
 		}
 
