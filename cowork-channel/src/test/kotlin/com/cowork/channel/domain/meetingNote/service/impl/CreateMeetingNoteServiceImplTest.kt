@@ -142,5 +142,28 @@ class CreateMeetingNoteServiceImplTest :
                     saved.captured.createdBy shouldBe 20L
                 }
             }
+
+            context("templateId가 null이면") {
+                val noTemplate = request.copy(templateId = null, content = "{\"본문\":\"# 안건\\n- 첫째\"}")
+
+                it("템플릿을 조회하지 않고 템플릿 없는 회의록을 생성한다") {
+                    val saved = slot<MeetingNote>()
+                    every { noteRepository.saveAndFlush(capture(saved)) } answers { saved.captured }
+
+                    val result = service.createNote(20L, 1L, noTemplate)
+
+                    result.templateId shouldBe null
+                    saved.captured.templateId shouldBe null
+                    saved.captured.channelId shouldBe 1L
+                    verify(exactly = 0) { templateRepository.findById(any()) }
+                }
+
+                it("저장 중 무결성 위반이 나면 템플릿 404로 바꾸지 않고 그대로 던진다") {
+                    every { noteRepository.saveAndFlush(any()) } throws
+                        DataIntegrityViolationException("fk_tb_meeting_notes_channel")
+
+                    shouldThrow<DataIntegrityViolationException> { service.createNote(20L, 1L, noTemplate) }
+                }
+            }
         }
     })
