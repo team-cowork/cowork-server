@@ -1,16 +1,11 @@
 package com.cowork.preference.domain.teamrole.service
 
-import com.cowork.preference.domain.access.permission.PermissionKeys
 import com.cowork.preference.domain.access.projection.team.model.TeamMemberEvent
 import com.cowork.preference.domain.channelrole.event.ChannelRolePolicyEvents
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
-import com.cowork.preference.domain.projectrole.repository.ProjectAccessStateRepository
 import com.cowork.preference.domain.teamrole.event.TeamRoleEvents
 import com.cowork.preference.domain.teamrole.model.AccountTeamRole
-import com.cowork.preference.domain.teamrole.model.TeamRoleDefinition
-import com.cowork.preference.domain.teamrole.model.TeamRolePermissions
 import com.cowork.preference.domain.teamrole.repository.TeamRoleRepository
-import com.cowork.preference.global.coroutine.runCatchingCancellable
 import com.cowork.preference.global.messaging.event.PreferenceEvent
 import com.cowork.preference.global.outbox.PreferenceOutboxRepository
 import io.vertx.sqlclient.SqlClient
@@ -21,7 +16,6 @@ class TeamRoleService(
     private val repository: TeamRoleRepository,
     private val outboxRepository: PreferenceOutboxRepository,
     private val channelRolePolicyRepository: ChannelRolePolicyRepository,
-    private val projectAccess: ProjectAccessStateRepository,
 ) {
 
     internal suspend fun ensureDefaultRole(client: SqlClient, teamId: Long): Boolean {
@@ -67,209 +61,6 @@ class TeamRoleService(
             client,
             TeamRoleEvents.assignmentUpserted(assignment, requireNotNull(assignment.updatedAt).toInstant()),
         )
-    }
-
-    private val colorPattern = Regex("^#[0-9A-Fa-f]{6}$")
-
-    suspend fun createRole(
-        teamId: Long,
-        name: String,
-        colorHex: String,
-        priority: Int,
-        mentionable: Boolean,
-        permissions: Map<String, Boolean>,
-    ): Result<TeamRoleDefinition> {
-        if (permissions[PermissionKeys.TRANSFER_TEAM_OWNERSHIP] ==
-            true
-        ) {
-            return Result.failure(IllegalArgumentException("소유권 이양 권한은 소유자 정책에서만 부여됩니다."))
-        }
-        if (priority == Int.MAX_VALUE) return Result.failure(IllegalArgumentException("최상위 우선순위는 소유자 정책에 예약되어 있습니다."))
-        if (name == "@everyone") return Result.failure(IllegalArgumentException("기본 역할 이름은 사용할 수 없습니다."))
-        validateName(name).onFailure { return Result.failure(it) }
-        validateColor(colorHex).onFailure { return Result.failure(it) }
-        if (repository.findRoleByName(teamId, name) != null) {
-            return Result.failure(IllegalStateException("Role '$name' already exists"))
-        }
-        val role = outboxRepository.inTransaction { connection ->
-            val persisted = repository.insertRole(
-                connection,
-                teamId,
-                name,
-                colorHex,
-                priority,
-                mentionable,
-                TeamRolePermissions.canonicalize(permissions),
-            )
-            outboxRepository.enqueue(
-                connection,
-                TeamRoleEvents.roleUpserted(
-                    persisted,
-                    requireNotNull(persisted.updatedAt ?: persisted.createdAt).toInstant(),
-                ),
-            )
-            persisted
-        }
-        return Result.success(role)
-    }
-
-    suspend fun updateRole(
-        teamId: Long,
-        roleId: Long,
-        name: String?,
-        colorHex: String?,
-        priority: Int?,
-        mentionable: Boolean?,
-        permissions: Map<String, Boolean>?,
-    ): Result<TeamRoleDefinition> {
-        if (priority == Int.MAX_VALUE) return Result.failure(IllegalArgumentException("최상위 우선순위는 소유자 정책에 예약되어 있습니다."))
-        val existing = repository.findRole(teamId, roleId)
-            ?: return Result.failure(NoSuchElementException("Role '$roleId' not found"))
-        if (existing.permissions[PermissionKeys.TRANSFER_TEAM_OWNERSHIP] == true ||
-            permissions?.get(PermissionKeys.TRANSFER_TEAM_OWNERSHIP) == true
-        ) {
-            return Result.failure(IllegalArgumentException("소유자 정책은 소유권 이양으로만 변경할 수 있습니다."))
-        }
-        if (existing.isDefault && (
-                (name != null && name != existing.name) ||
-                    (priority != null && priority != existing.priority)
-                )
-        ) {
-            return Result.failure(IllegalArgumentException("기본 역할의 이름과 우선순위는 변경할 수 없습니다."))
-        }
-        val nextName = name ?: existing.name
-        if (!existing.isDefault && nextName == "@everyone" && nextName != existing.name) {
-            return Result.failure(IllegalArgumentException("기본 역할 이름은 사용할 수 없습니다."))
-        }
-        val nextColorHex = colorHex ?: existing.colorHex
-        validateName(nextName).onFailure { return Result.failure(it) }
-        validateColor(nextColorHex).onFailure { return Result.failure(it) }
-        if (repository.findRoleByNameExceptId(teamId, nextName, roleId) != null) {
-            return Result.failure(IllegalStateException("Role '$nextName' already exists"))
-        }
-
-        val role = outboxRepository.inTransaction { connection ->
-            val persisted = repository.updateRole(
-                client = connection,
-                roleId = roleId,
-                name = nextName,
-                colorHex = nextColorHex,
-                priority = priority ?: existing.priority,
-                mentionable = mentionable ?: existing.mentionable,
-                permissions = permissions?.let { TeamRolePermissions.merge(existing.permissions, it) }
-                    ?: existing.permissions,
-            )
-            outboxRepository.enqueue(
-                connection,
-                TeamRoleEvents.roleUpserted(
-                    persisted,
-                    requireNotNull(persisted.updatedAt ?: persisted.createdAt).toInstant(),
-                ),
-            )
-            val projectPermissionsChanged = (PermissionKeys.PROJECT_SCOPED + PermissionKeys.ADMINISTRATOR).any {
-                (existing.permissions[it] == true) != (persisted.permissions[it] == true)
-            }
-            if (projectPermissionsChanged) {
-                projectAccess.refreshTeam(connection, teamId)
-            }
-            persisted
-        }
-        return Result.success(role)
-    }
-
-    suspend fun deleteRole(teamId: Long, roleId: Long): Result<Unit> {
-        val existing = repository.findRole(teamId, roleId)
-        if (existing?.permissions?.get(PermissionKeys.TRANSFER_TEAM_OWNERSHIP) ==
-            true
-        ) {
-            return Result.failure(IllegalArgumentException("소유자 정책은 삭제할 수 없습니다."))
-        }
-        if (existing?.isDefault == true) return Result.failure(IllegalArgumentException("기본 역할은 삭제할 수 없습니다."))
-        if (existing == null) {
-            return runCatchingCancellable {
-                outboxRepository.inTransaction { connection ->
-                    val tombstone = repository.deleteRoleWithTombstone(
-                        connection,
-                        teamId,
-                        roleId,
-                        Instant.now(),
-                    )
-                    outboxRepository.enqueue(
-                        connection,
-                        TeamRoleEvents.roleDeleted(teamId, roleId, tombstone.stateOccurredAt),
-                    )
-                }
-            }
-                .fold(
-                    onSuccess = { Result.failure(NoSuchElementException("Role '$roleId' not found")) },
-                    onFailure = { Result.failure(it) },
-                )
-        }
-        val occurredAt = Instant.now()
-
-        return runCatchingCancellable {
-            outboxRepository.inTransaction { connection ->
-                val assignments = repository.findMemberRoles(connection, teamId).filter { it.roleId == roleId }
-                val policyEvents = deleteChannelRolePoliciesForRole(connection, teamId, roleId)
-                val assignmentTombstones = assignments.map { assignment ->
-                    repository.deleteAssignment(
-                        connection,
-                        assignment.accountId,
-                        assignment.teamId,
-                        assignment.roleId,
-                        occurredAt,
-                    )
-                }
-                val roleTombstone = repository.deleteRoleWithTombstone(connection, teamId, roleId, occurredAt)
-                outboxRepository.enqueueAll(
-                    connection,
-                    buildList {
-                        addAll(policyEvents)
-                        assignmentTombstones.mapTo(this) { tombstone ->
-                            TeamRoleEvents.assignmentDeleted(
-                                AccountTeamRole(tombstone.accountId, tombstone.teamId, tombstone.roleId),
-                                tombstone.stateOccurredAt,
-                            )
-                        }
-                        add(TeamRoleEvents.roleDeleted(teamId, roleId, roleTombstone.stateOccurredAt))
-                    },
-                )
-                projectAccess.refreshTeam(connection, teamId)
-            }
-        }
-    }
-
-    suspend fun assignRole(
-        accountId: Long,
-        teamId: Long,
-        roleId: Long,
-        sourceMembershipVersion: Instant,
-    ): Result<TeamRoleDefinition> {
-        val existing = repository.findRole(teamId, roleId)
-            ?: return Result.failure(NoSuchElementException("Role '$roleId' not found"))
-        if (existing.permissions[PermissionKeys.TRANSFER_TEAM_OWNERSHIP] ==
-            true
-        ) {
-            return Result.failure(IllegalArgumentException("소유자 정책은 소유권 이양으로만 변경할 수 있습니다."))
-        }
-        if (existing.isDefault) return Result.failure(IllegalArgumentException("기본 역할은 자동으로 적용됩니다."))
-        val role = outboxRepository.inTransaction { connection ->
-            val persistedRole = repository.assignRole(
-                connection,
-                accountId,
-                teamId,
-                roleId,
-                sourceMembershipVersion,
-            )
-            val assignment = requireNotNull(repository.findAssignment(connection, accountId, teamId, roleId))
-            outboxRepository.enqueue(
-                connection,
-                TeamRoleEvents.assignmentUpserted(assignment, requireNotNull(assignment.updatedAt).toInstant()),
-            )
-            projectAccess.refreshTeam(connection, teamId, accountId)
-            persistedRole
-        }
-        return Result.success(role)
     }
 
     internal suspend fun removeMemberRolesAtOrBefore(
@@ -362,11 +153,6 @@ class TeamRoleService(
         )
     }
 
-    private suspend fun deleteChannelRolePoliciesForRole(client: SqlClient, teamId: Long, roleId: Long) =
-        channelRolePolicyRepository.findPoliciesByRole(client, teamId, roleId).map { policy ->
-            deleteChannelRolePolicy(client, policy.teamId, policy.channelId, policy.roleId)
-        }
-
     private suspend fun deleteChannelRolePoliciesForTeam(client: SqlClient, teamId: Long) =
         channelRolePolicyRepository.findPoliciesByTeam(client, teamId).map { policy ->
             deleteChannelRolePolicy(client, policy.teamId, policy.channelId, policy.roleId)
@@ -387,18 +173,6 @@ class TeamRoleService(
             occurredAt = tombstone.stateOccurredAt,
             snapshot = false,
         )
-    }
-
-    private fun validateName(name: String): Result<Unit> = if (name.isBlank() || name.length > 50) {
-        Result.failure(IllegalArgumentException("Role name must be 1 to 50 characters"))
-    } else {
-        Result.success(Unit)
-    }
-
-    private fun validateColor(colorHex: String): Result<Unit> = if (!colorPattern.matches(colorHex)) {
-        Result.failure(IllegalArgumentException("Role color must be #RRGGBB"))
-    } else {
-        Result.success(Unit)
     }
 
     private fun nextProjectionVersion(versions: Sequence<Instant>): Instant = requireNotNull(versions.maxOrNull())
