@@ -486,6 +486,8 @@ export class MessageRepository {
      도큐먼트를 읽어와 `save()`하는 대신 단일 갱신을 사용하므로 동시 수정이 서로의
      색인 버전을 덮어쓰지 않습니다. 삭제가 예약된(`DELETING`) 메시지는 수정 대상에서 제외합니다.
      `editHistory`는 최근 {@link MAX_EDIT_HISTORY_ENTRIES}개만 보관하며 그보다 오래된 이력은 버립니다.
+
+     @returns 수정된 도큐먼트. 메시지가 없거나 삭제 중이면 `null`
      */
 	async applyEdit(messageId: string, content: string, isIndexed: boolean): Promise<Nullable<MessageDocument>> {
 		const now = new Date();
