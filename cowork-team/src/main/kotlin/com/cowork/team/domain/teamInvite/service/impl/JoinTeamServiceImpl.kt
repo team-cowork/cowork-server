@@ -1,8 +1,8 @@
 package com.cowork.team.domain.teamInvite.service.impl
 
+import com.cowork.team.domain.teamInvite.presentation.data.response.JoinTeamResponse
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
 import com.cowork.team.domain.teamInvite.service.JoinTeamService
-import com.cowork.team.domain.teamMember.JoinTeamResponse
 import com.cowork.team.domain.teamMember.RegisterTeamMemberService
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -24,6 +24,7 @@ class JoinTeamServiceImpl(
             throw ExpectedException("만료된 초대 링크입니다.", HttpStatus.GONE)
         }
 
-        return registerTeamMemberService.execute(invite.team.id, userId)
+        val member = registerTeamMemberService.execute(invite.team.id, userId)
+        return JoinTeamResponse.of(member)
     }
 }

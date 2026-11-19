@@ -2,9 +2,10 @@ package com.cowork.team.domain.teamInvite.service.impl
 
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.teamInvite.entity.TeamInvite
+import com.cowork.team.domain.teamInvite.presentation.data.response.JoinTeamResponse
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
-import com.cowork.team.domain.teamMember.JoinTeamResponse
 import com.cowork.team.domain.teamMember.RegisterTeamMemberService
+import com.cowork.team.domain.teamMember.RegisteredTeamMember
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -32,11 +33,13 @@ class JoinTeamServiceImplTest :
         describe("JoinTeamServiceImpl 클래스의 execute 메서드는") {
             context("초대 코드가 유효하면") {
                 it("초대 대상 팀에 멤버를 등록하고 가입 결과를 반환한다") {
-                    val response = JoinTeamResponse(1L, 99L, "MEMBER", LocalDateTime.now(), false, null)
+                    val joinedAt = LocalDateTime.now()
+                    val member = RegisteredTeamMember(1L, 99L, "MEMBER", joinedAt, true, "이름 / 역할")
                     every { inviteRepository.findActiveByInviteCode("valid") } returns invite(team)
-                    every { registerMember.execute(1L, 99L) } returns response
+                    every { registerMember.execute(1L, 99L) } returns member
 
-                    service.execute(99L, "valid") shouldBe response
+                    service.execute(99L, "valid") shouldBe
+                        JoinTeamResponse(1L, 99L, "MEMBER", joinedAt, true, "이름 / 역할")
                 }
             }
 
