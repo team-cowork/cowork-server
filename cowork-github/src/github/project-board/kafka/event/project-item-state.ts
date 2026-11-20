@@ -18,6 +18,7 @@ export type ProjectItemLabelState = {
 
 export type ProjectItemContentState = {
 	title: string;
+	body?: string;
 	number: Nullable<number>;
 	state: Nullable<string>;
 	url: Nullable<string>;

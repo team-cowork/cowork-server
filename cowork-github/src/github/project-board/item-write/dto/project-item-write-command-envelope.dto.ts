@@ -10,6 +10,7 @@ import {
 	IsUUID as isUuid,
 } from 'class-validator';
 import {ProjectItemWriteCommandType} from '../project-item-write-topics.js';
+import {type Nullable} from '../../../common/nullable.js';
 
 // Cowork-project가 github.project-item-write.command.v1로 발행하는 Project item 쓰기 커맨드 봉투.
 // payload는 commandType마다 모양이 달라 컨트롤러가 별도 DTO로 검증한다.
@@ -39,7 +40,7 @@ export class ProjectItemWriteCommandEnvelopeDto {
 	@isOptional()
 	@isString()
 	@isNotEmpty()
-	itemId?: string;
+	itemId?: Nullable<string>;
 
 	@isNumber()
 	requestedBy: number;

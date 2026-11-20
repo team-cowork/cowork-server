@@ -15,7 +15,9 @@ RUN --mount=type=cache,id=cowork-user-nuget,target=/root/.nuget/packages,sharing
 
 
 FROM builder AS verification
-RUN apt-get update && apt-get install -y --no-install-recommends python3 \
+RUN sed -i 's|http://|https://|g' /etc/apt/sources.list.d/ubuntu.sources \
+    && apt-get -o Acquire::Retries=3 update \
+    && apt-get -o Acquire::Retries=3 install -y --no-install-recommends python3 \
     && rm -rf /var/lib/apt/lists/*
 COPY cowork-user/test test
 COPY deploy/ci/verification /ci
@@ -31,10 +33,7 @@ WORKDIR /app
 ENV JAVA_HOME=/opt/java/openjdk PATH="/flyway:/opt/java/openjdk/bin:${PATH}"
 COPY --from=flyway /opt/java/openjdk /opt/java/openjdk
 COPY --from=flyway /flyway /flyway
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends wget \
-    && rm -rf /var/lib/apt/lists/* \
-    && groupadd -r -g 10001 cowork \
+RUN groupadd -r -g 10001 cowork \
     && useradd -r -u 10001 -g cowork cowork \
     && mkdir -p /var/log/cowork/user \
     && chown -R cowork:cowork /var/log/cowork

@@ -57,6 +57,7 @@ export type GraphqlProjectItemContent = {
 	id?: string;
 	number?: number;
 	title?: string;
+	body?: string;
 	state?: string;
 	isDraft?: boolean;
 	url?: string;
@@ -208,6 +209,7 @@ export const toFieldValueState = (value: GraphqlProjectItemFieldValue): ProjectI
 
 const toContentState = (content: GraphqlProjectItemContent): ProjectItemContentState => ({
 	title: content.title ?? '',
+	...(content.body !== undefined && {body: content.body.replace(/\n\n<!-- cowork-project-draft:[\d\-a-f]{36} -->$/iv, '')}),
 	number: content.number ?? null,
 	state: content.state ?? null,
 	url: content.url ?? null,

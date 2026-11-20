@@ -9,8 +9,11 @@ import com.cowork.project.domain.githubBoard.service.QueryGithubBoardOperationSe
 import com.cowork.project.domain.githubBoard.service.ReorderGithubBoardItemService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.links.Link
+import io.swagger.v3.oas.annotations.links.LinkParameter
 import io.swagger.v3.oas.annotations.media.Content
 import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.media.SchemaProperty
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
 import io.swagger.v3.oas.annotations.security.SecurityRequirement
@@ -26,31 +29,31 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import team.themoment.sdk.response.CommonApiResponse
 
-@Tag(name = "GitHub 보드", description = "프로젝트에 연결한 GitHub Project(v2) 보드 API")
+@Tag(name = "GitHub 보드")
 @ApiResponses(
     ApiResponse(
         responseCode = "401",
-        description = "액세스 토큰이 없거나 유효하지 않음",
+        description = "인증이 필요합니다.",
         content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
     ),
     ApiResponse(
         responseCode = "404",
-        description = "프로젝트, 연결, 뷰, 카드 또는 작업 없음",
+        description = "요청한 리소스를 찾을 수 없습니다.",
         content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
     ),
     ApiResponse(
         responseCode = "409",
-        description = "GitHub App에 Projects 권한 없음 또는 정렬이 있는 뷰에서 순서 변경",
+        description = "GitHub App의 Projects 권한이 없거나 뷰 정렬로 순서 변경이 제한됩니다.",
         content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
     ),
     ApiResponse(
         responseCode = "503",
-        description = "GitHub Project 동기화가 끝나지 않았거나, 프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음. 잠시 후 다시 시도할 수 있습니다.",
+        description = "GitHub 데이터 동기화가 완료되지 않았거나, 프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않았습니다. 잠시 후 다시 시도할 수 있습니다.",
         content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
     ),
     ApiResponse(
         responseCode = "default",
-        description = "기타 오류",
+        description = "요청을 처리하지 못했습니다.",
         content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
     ),
 )
@@ -62,20 +65,46 @@ class GithubBoardItemController(
     private val queryGithubBoardOperationService: QueryGithubBoardOperationService,
 ) {
 
-    @Operation(summary = "카드 컬럼 이동 요청", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(
+        summary = "카드 컬럼 이동",
+        description = "정렬을 설정한 뷰에서는 컬럼 값만 변경합니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
     @ApiResponses(
         ApiResponse(
             responseCode = "202",
-            description = "요청 접수. 결과는 작업 조회 API로 확인. 정렬이 있는 뷰는 컬럼 값만 변경",
+            description = "작업을 접수했습니다.",
+            content = [
+                Content(
+                    schema = Schema(allOf = [CommonApiResponse::class]),
+                    schemaProperties = [
+                        SchemaProperty(
+                            name = "data",
+                            schema = Schema(implementation = GithubBoardOperationAcceptedResDto::class),
+                        ),
+                    ],
+                ),
+            ],
+            links = [
+                Link(
+                    name = "작업 결과 조회",
+                    operationId = "getGithubBoardOperation",
+                    parameters = [
+                        LinkParameter(name = "projectId", expression = "\$request.path.projectId"),
+                        LinkParameter(name = "boardId", expression = "\$request.path.boardId"),
+                        LinkParameter(name = "operationId", expression = "\$response.body#/data/operationId"),
+                    ],
+                ),
+            ],
         ),
         ApiResponse(
             responseCode = "400",
-            description = "Board 뷰가 아니거나 없는 컬럼, 또는 기준 카드가 대상 컬럼에 없음",
+            description = "보드 뷰가 아니거나 대상 컬럼 또는 기준 카드가 올바르지 않습니다.",
             content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
         ),
         ApiResponse(
             responseCode = "403",
-            description = "GitHub 보드 수정 권한 없음",
+            description = "보드 수정 권한이 없습니다.",
             content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
         ),
     )
@@ -90,17 +119,42 @@ class GithubBoardItemController(
     ): GithubBoardOperationAcceptedResDto =
         moveGithubBoardItemService.execute(userId, projectId, boardId, itemId, request)
 
-    @Operation(summary = "카드 순서 변경 요청", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(summary = "카드 순서 변경", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
-        ApiResponse(responseCode = "202", description = "요청 접수. 결과는 작업 조회 API로 확인"),
+        ApiResponse(
+            responseCode = "202",
+            description = "작업을 접수했습니다.",
+            content = [
+                Content(
+                    schema = Schema(allOf = [CommonApiResponse::class]),
+                    schemaProperties = [
+                        SchemaProperty(
+                            name = "data",
+                            schema = Schema(implementation = GithubBoardOperationAcceptedResDto::class),
+                        ),
+                    ],
+                ),
+            ],
+            links = [
+                Link(
+                    name = "작업 결과 조회",
+                    operationId = "getGithubBoardOperation",
+                    parameters = [
+                        LinkParameter(name = "projectId", expression = "\$request.path.projectId"),
+                        LinkParameter(name = "boardId", expression = "\$request.path.boardId"),
+                        LinkParameter(name = "operationId", expression = "\$response.body#/data/operationId"),
+                    ],
+                ),
+            ],
+        ),
         ApiResponse(
             responseCode = "400",
-            description = "Board 뷰가 아님, 기준 카드가 같은 컬럼에 없음 또는 컬럼에 다른 카드 없음",
+            description = "보드 뷰가 아니거나 같은 컬럼에서 순서를 변경할 수 없습니다.",
             content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
         ),
         ApiResponse(
             responseCode = "403",
-            description = "GitHub 보드 수정 권한 없음",
+            description = "보드 수정 권한이 없습니다.",
             content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
         ),
     )
@@ -115,12 +169,30 @@ class GithubBoardItemController(
     ): GithubBoardOperationAcceptedResDto =
         reorderGithubBoardItemService.execute(userId, projectId, boardId, itemId, request)
 
-    @Operation(summary = "카드 이동 작업 조회", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(
+        summary = "카드 쓰기 작업 조회",
+        operationId = "getGithubBoardOperation",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
     @ApiResponses(
-        ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(
+            responseCode = "200",
+            description = "작업을 조회했습니다.",
+            content = [
+                Content(
+                    schema = Schema(allOf = [CommonApiResponse::class]),
+                    schemaProperties = [
+                        SchemaProperty(
+                            name = "data",
+                            schema = Schema(implementation = GithubBoardOperationResDto::class),
+                        ),
+                    ],
+                ),
+            ],
+        ),
         ApiResponse(
             responseCode = "403",
-            description = "GitHub 보드 보기 권한 없음",
+            description = "보드 조회 권한이 없습니다.",
             content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
         ),
     )
