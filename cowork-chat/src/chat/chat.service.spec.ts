@@ -363,7 +363,7 @@ describe('ChatService', () => {
 	});
 
 	describe('sendMessage', () => {
-		const ctx = {channelId: 1, userId: 42, userRole: 'USER'};
+		const ctx = {channelId: 1, userId: 42};
 
 		it('팀 채널 메시지는 채널 범위의 teamId로 발행한다', async () => {
 			mockDmParticipantRepository.findMembership.mockResolvedValue({teamId: 100, channelType: 'TEXT'});
@@ -374,7 +374,6 @@ describe('ChatService', () => {
 				1,
 				expect.objectContaining({teamId: 100, content: 'hi'}),
 				42,
-				'USER',
 			);
 		});
 
@@ -441,7 +440,7 @@ describe('ChatService', () => {
 			await service.sendMessage(ctx, {content: 'hi'});
 
 			expect(mockChatMessageProducer.sendMessage).toHaveBeenCalledWith(
-				1, expect.objectContaining({teamId: 100, projectId: 200}), 42, 'USER',
+				1, expect.objectContaining({teamId: 100, projectId: 200}), 42,
 			);
 		});
 
@@ -480,7 +479,7 @@ describe('ChatService', () => {
 
 			expect(mockThreadProjectionRepository.findActive).toHaveBeenCalledWith(7);
 			expect(mockChannelMessageReadAccess.requirePermissions).toHaveBeenCalledWith(1, 42, ['thread_reply']);
-			expect(mockChatMessageProducer.sendMessage).toHaveBeenCalledWith(1, expect.objectContaining({threadId: 7}), ctx.userId, ctx.userRole);
+			expect(mockChatMessageProducer.sendMessage).toHaveBeenCalledWith(1, expect.objectContaining({threadId: 7}), ctx.userId);
 		});
 
 		it('thread_reply 권한이 없으면 스레드 메시지를 발행하지 않는다', async () => {
@@ -553,7 +552,6 @@ describe('ChatService', () => {
 				1,
 				expect.objectContaining({parentMessageId: mockMessageId}),
 				ctx.userId,
-				ctx.userRole,
 			);
 		});
 
@@ -640,7 +638,6 @@ describe('ChatService', () => {
 				1,
 				expect.objectContaining({teamId: null, projectId: null, content: 'hi'}),
 				42,
-				'USER',
 			);
 		});
 	});
@@ -895,7 +892,7 @@ describe('ChatService', () => {
 
 	describe('deleteFile', () => {
 		const fileId = Buffer.from(JSON.stringify({messageId: mockMessageId})).toString('base64url');
-		const ctx = {channelId: 1, userId: 42, userRole: 'MEMBER'};
+		const ctx = {channelId: 1, userId: 42};
 
 		it('변조된 fileId는 저장소를 조회하기 전에 거부한다', async () => {
 			await expect(service.deleteFile(ctx, 'not-a-file-id')).rejects.toBeInstanceOf(BadRequestException);
@@ -1006,7 +1003,7 @@ describe('ChatService', () => {
 
 	describe('editMessage', () => {
 		const ctx = (overrides = {}) => ({
-			channelId: 1, messageId: mockMessageId, userId: 42, userRole: 'MEMBER', ...overrides,
+			channelId: 1, messageId: mockMessageId, userId: 42, ...overrides,
 		});
 
 		it('본인 메시지를 수정하면 색인 대상 여부와 함께 원자적 수정을 요청한다', async () => {
@@ -1062,12 +1059,12 @@ describe('ChatService', () => {
 			).rejects.toThrow(ForbiddenException);
 		});
 
-		it('전역 ADMIN도 타인 메시지를 수정할 수 없다', async () => {
+		it('다른 사용자가 작성한 메시지 수정을 거부한다', async () => {
 			const message = makeMockMessage({authorId: 100});
 			mockDmParticipantRepository.exists.mockResolvedValue(true);
 			mockMessageRepository.findById.mockResolvedValue(message);
 
-			await expect(service.editMessage(ctx({userRole: 'ADMIN'}), {content: '관리자 수정'}))
+			await expect(service.editMessage(ctx(), {content: '관리자 수정'}))
 				.rejects.toThrow(ForbiddenException);
 			expect(mockMessageRepository.applyEdit).not.toHaveBeenCalled();
 		});
@@ -1097,7 +1094,7 @@ describe('ChatService', () => {
 
 	describe('deleteMessage', () => {
 		const ctx = (overrides = {}) => ({
-			channelId: 1, messageId: mockMessageId, userId: 42, userRole: 'MEMBER', ...overrides,
+			channelId: 1, messageId: mockMessageId, userId: 42, ...overrides,
 		});
 
 		it('본인 메시지를 삭제한다', async () => {
@@ -1164,7 +1161,7 @@ describe('ChatService', () => {
 		mockMessageRepository.findById.mockResolvedValue(makeMockMessage());
 		mockChannelMessageReadAccess.requirePermission.mockRejectedValueOnce(new ForbiddenException());
 		await expect(service[action]({
-			channelId: 1, messageId: mockMessageId, userId: 42, userRole: 'ADMIN',
+			channelId: 1, messageId: mockMessageId, userId: 42,
 		})).rejects.toThrow(ForbiddenException);
 		expect(mockChannelMessageReadAccess.requirePermission).toHaveBeenCalledWith(1, 42, 'message_pin');
 		expect(mockMessageRepository.setPinned).not.toHaveBeenCalled();
@@ -1179,7 +1176,6 @@ describe('ChatService', () => {
 				channelId: 1,
 				messageId: mockMessageId,
 				userId: 42,
-				userRole: 'MEMBER',
 			})).rejects.toBeInstanceOf(BadRequestException);
 			expect(mockMessageRepository.setPinned).not.toHaveBeenCalled();
 		});
@@ -1194,7 +1190,6 @@ describe('ChatService', () => {
 				channelId: 1,
 				messageId: mockMessageId,
 				userId: 42,
-				userRole: 'MEMBER',
 			})).rejects.toBeInstanceOf(BadRequestException);
 			expect(mockMessageRepository.setPinned).not.toHaveBeenCalled();
 		});

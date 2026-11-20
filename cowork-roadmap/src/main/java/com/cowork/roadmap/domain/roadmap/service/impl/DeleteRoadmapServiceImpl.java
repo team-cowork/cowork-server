@@ -20,9 +20,9 @@ public class DeleteRoadmapServiceImpl implements DeleteRoadmapService {
 
     @Override
     @Transactional
-    public void execute(Long userId, String userRole, Long roadmapId) {
+    public void execute(Long userId, Long roadmapId) {
         var roadmap = lookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
-        accessGuard.requireMutable(roadmap, userId, userRole);
+        accessGuard.requireMutable(roadmap, userId);
         roadmapRepository.delete(roadmap);
     }
 }

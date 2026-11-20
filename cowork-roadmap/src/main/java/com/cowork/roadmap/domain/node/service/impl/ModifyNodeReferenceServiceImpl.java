@@ -25,11 +25,11 @@ public class ModifyNodeReferenceServiceImpl implements ModifyNodeReferenceServic
 
     @Override
     @Transactional
-    public NodeReferenceResDto execute(Long userId, String userRole, Long referenceId, NodeReferenceReqDto request) {
+    public NodeReferenceResDto execute(Long userId, Long referenceId, NodeReferenceReqDto request) {
         var ref = nodeLookupSupport.findReferenceOrThrow(referenceId);
         var node = nodeLookupSupport.findNodeOrThrow(ref.getNodeId());
         var roadmap = roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId());
-        accessGuard.requireMutable(roadmap, userId, userRole);
+        accessGuard.requireMutable(roadmap, userId);
         RoadmapNodeReference updated = ref.toBuilder().title(request.title()).url(request.url()).build();
         updated.prepareUpdateFrom(ref);
         return NodeReferenceResDto.from(referenceRepository.saveAndFlush(updated));

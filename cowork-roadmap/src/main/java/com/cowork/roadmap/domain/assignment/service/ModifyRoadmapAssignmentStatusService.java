@@ -5,5 +5,5 @@ import com.cowork.roadmap.domain.assignment.presentation.data.response.Assignmen
 
 public interface ModifyRoadmapAssignmentStatusService {
 
-    AssignmentResDto execute(Long userId, String userRole, Long assignmentId, UpdateAssignmentStatusReqDto request);
+    AssignmentResDto execute(Long userId, Long assignmentId, UpdateAssignmentStatusReqDto request);
 }

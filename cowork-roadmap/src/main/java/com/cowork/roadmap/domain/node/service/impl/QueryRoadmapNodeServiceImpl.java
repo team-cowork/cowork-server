@@ -21,10 +21,10 @@ public class QueryRoadmapNodeServiceImpl implements QueryRoadmapNodeService {
 
     @Override
     @Transactional(readOnly = true)
-    public NodeResDto execute(Long userId, String userRole, Long nodeId) {
+    public NodeResDto execute(Long userId, Long nodeId) {
         var node = nodeLookupSupport.findNodeOrThrow(nodeId);
         var roadmap = roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId());
-        accessGuard.requireReadable(roadmap, userId, userRole);
+        accessGuard.requireReadable(roadmap, userId);
         return NodeResDto.of(node, nodeLookupSupport.loadReferences(nodeId));
     }
 }

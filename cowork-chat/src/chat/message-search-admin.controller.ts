@@ -15,8 +15,7 @@ import {
 	getSchemaPath,
 } from '@nestjs/swagger';
 import {ApiResponseMetadataDto} from '../common/dto/api-response-metadata.dto.js';
-import {UserRole} from '../common/enum/user-role.enum.js';
-import {requireRoles} from '../common/guard/roles.decorator.js';
+import {requirePermission} from '../common/guard/account-permission.decorator.js';
 import {MessageSearchStatusDto} from './dto/admin-response.dto.js';
 import {MessageSearchAdminService} from './search/index.js';
 import {StartMessageSearchRebuildDto} from './dto/index.js';
@@ -35,20 +34,7 @@ import {StartMessageSearchRebuildDto} from './dto/index.js';
 		],
 	},
 })
-@apiResponse({
-	status: 403,
-	description: 'ADMIN 권한 필요',
-	schema: {
-		allOf: [
-			{$ref: getSchemaPath(ApiResponseMetadataDto)},
-			{
-				type: 'object',
-				properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-			},
-		],
-	},
-})
-@requireRoles(UserRole.ADMIN)
+@requirePermission('manage_chat_search_index')
 @apiExtraModels(ApiResponseMetadataDto, MessageSearchStatusDto)
 @apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})

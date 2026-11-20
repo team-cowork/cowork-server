@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -41,7 +40,7 @@ class DeleteRoadmapServiceTest {
         Roadmap roadmap = roadmap(10L);
         when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap));
 
-        deleteRoadmapService.execute(1L, "ADMIN", 10L);
+        deleteRoadmapService.execute(1L, 10L);
 
         verify(roadmapRepository).delete(roadmap);
     }
@@ -50,8 +49,7 @@ class DeleteRoadmapServiceTest {
     void deleteRoadmap_roadmapNotFound_failsWithNotFound() {
         when(roadmapRepository.findByIdForUpdate(99L)).thenReturn(Optional.empty());
 
-        ExpectedException error = assertThrows(ExpectedException.class,
-                () -> deleteRoadmapService.execute(1L, "ADMIN", 99L));
+        ExpectedException error = assertThrows(ExpectedException.class, () -> deleteRoadmapService.execute(1L, 99L));
         assertTrue(error.getStatusCode() == HttpStatus.NOT_FOUND);
 
         verify(roadmapRepository, never()).delete(any());
@@ -62,10 +60,9 @@ class DeleteRoadmapServiceTest {
         Roadmap roadmap = roadmap(10L);
         when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap));
         doThrow(new ExpectedException("권한 없음", HttpStatus.FORBIDDEN)).when(accessGuard)
-                .requireMutable(any(), anyLong(), anyString());
+                .requireMutable(any(), anyLong());
 
-        ExpectedException error = assertThrows(ExpectedException.class,
-                () -> deleteRoadmapService.execute(2L, "MEMBER", 10L));
+        ExpectedException error = assertThrows(ExpectedException.class, () -> deleteRoadmapService.execute(2L, 10L));
         assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
 
         verify(roadmapRepository, never()).delete(any());
@@ -76,7 +73,7 @@ class DeleteRoadmapServiceTest {
         Roadmap roadmap = Roadmap.builder().id(10L).scope(RoadmapScope.TEAM.name()).ownerTeamId(5L).build();
         when(roadmapRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(roadmap));
 
-        deleteRoadmapService.execute(1L, "MEMBER", 10L);
+        deleteRoadmapService.execute(1L, 10L);
         verify(roadmapRepository).delete(roadmap);
     }
 

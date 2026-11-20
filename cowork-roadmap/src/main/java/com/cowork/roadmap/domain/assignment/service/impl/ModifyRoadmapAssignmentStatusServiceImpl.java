@@ -18,19 +18,14 @@ import team.themoment.sdk.exception.ExpectedException;
 @RequiredArgsConstructor
 public class ModifyRoadmapAssignmentStatusServiceImpl implements ModifyRoadmapAssignmentStatusService {
 
-    private static final String ROLE_ADMIN = "ADMIN";
-
     private final RoadmapAssignmentRepository assignmentRepository;
     private final RoadmapAccessGuard accessGuard;
 
     @Override
     @Transactional
-    public AssignmentResDto execute(Long userId,
-            String userRole,
-            Long assignmentId,
-            UpdateAssignmentStatusReqDto request) {
+    public AssignmentResDto execute(Long userId, Long assignmentId, UpdateAssignmentStatusReqDto request) {
         RoadmapAssignment assignment = findAssignmentOrThrow(assignmentId);
-        if (!ROLE_ADMIN.equals(userRole)) {
+        if (!accessGuard.accountAllows(userId, "update_team_assignment_status")) {
             boolean related = userId.equals(assignment.getAssigneeUserId())
                     || userId.equals(assignment.getAssignedBy());
             if (!related) {

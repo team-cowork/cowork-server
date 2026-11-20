@@ -25,10 +25,7 @@ import {
 } from '@nestjs/swagger';
 import {ApiResponseMetadataDto} from '../common/dto/api-response-metadata.dto.js';
 import {
-	type CurrentUser,
-	currentUser,
 	currentUserId,
-	currentUserRole,
 } from '../common/decorator/user.decorator.js';
 import {throttle} from '../common/decorator/throttle.decorator.js';
 import {SafePositiveIntPipe} from '../common/pipe/safe-positive-int.pipe.js';
@@ -60,7 +57,7 @@ import {EMOJI_REGEX} from './util/index.js';
  채널 채팅 REST 컨트롤러.
 
  `channels/:channelId` 경로 하위에서 메시지 CRUD, 파일 업로드, 고정, 이모지 반응을 처리한다.
- 모든 엔드포인트는 Gateway가 주입한 `X-User-Id` / `X-User-Role` 헤더로 사용자를 식별한다.
+ 모든 엔드포인트는 Gateway가 주입한 `X-User-Id` 헤더로 사용자를 식별한다.
  */
 @apiTags('Chat')
 @apiExtraModels(
@@ -368,13 +365,12 @@ export class ChatController {
 	}
 
 	/**
-     메시지를 Kafka `chat.message.v2` 토픽으로 비동기 발행한다.
+     메시지를 Kafka `chat.message.event.v3` 토픽으로 비동기 발행한다.
      실제 저장과 Socket.IO 브로드캐스트는 `ChatMessageConsumer`가 처리한다.
 
      @param channelId - 채널 ID
      @param dto - 메시지 내용, 타입, 첨부파일, 답장 대상 등
      @param userId - Gateway가 주입한 요청자 ID
-     @param userRole - Gateway가 주입한 요청자 역할
      @returns `{ queued: true }` — 큐 등록 여부만 반환, 저장 완료를 보장하지 않음
      */
 	@httpPost('messages')
@@ -439,9 +435,8 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: SendMessageDto,
 		@currentUserId() userId: number,
-		@currentUserRole() userRole: string,
 	): Promise<SendMessageResponseDto> {
-		await this.chatService.sendMessage({channelId, userId, userRole}, dto);
+		await this.chatService.sendMessage({channelId, userId}, dto);
 		return {queued: true};
 	}
 
@@ -643,7 +638,7 @@ export class ChatController {
      @param channelId - 채널 ID
      @param messageId - 수정할 메시지의 MongoDB ObjectId
      @param dto - 새 메시지 내용
-     @param user - Gateway가 주입한 요청자 ID와 역할
+     @param userId - Gateway가 주입한 요청자 ID
      @returns 수정된 메시지 도큐먼트
      */
 	@httpPatch('messages/:messageId')
@@ -711,10 +706,10 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@requestBody() dto: EditMessageDto,
-		@currentUser() user: CurrentUser,
+		@currentUserId() userId: number,
 	) {
 		return this.chatService.editMessage({
-			channelId, messageId, userId: user.userId, userRole: user.userRole,
+			channelId, messageId, userId,
 		}, dto);
 	}
 
@@ -727,7 +722,6 @@ export class ChatController {
      @param channelId - 채널 ID
      @param fileId - base64 인코딩된 파일 식별자 (messageId를 포함한 JSON)
      @param userId - Gateway가 주입한 요청자 ID
-     @param userRole - Gateway가 주입한 요청자 역할
      @returns 삭제된 채널 ID와 메시지 ID
      */
 	@httpDelete('files/:fileId')
@@ -795,9 +789,8 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('fileId') fileId: string,
 		@currentUserId() userId: number,
-		@currentUserRole() userRole: string,
 	): Promise<DeleteMessageResponseDto> {
-		return this.chatService.deleteFile({channelId, userId, userRole}, fileId);
+		return this.chatService.deleteFile({channelId, userId}, fileId);
 	}
 
 	/**
@@ -808,7 +801,6 @@ export class ChatController {
      @param channelId - 채널 ID
      @param messageId - 삭제할 메시지의 MongoDB ObjectId
      @param userId - Gateway가 주입한 요청자 ID
-     @param userRole - Gateway가 주입한 요청자 역할
      @returns 삭제된 채널 ID와 메시지 ID
      */
 	@httpDelete('messages/:messageId')
@@ -876,10 +868,9 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@currentUserId() userId: number,
-		@currentUserRole() userRole: string,
 	) {
 		return this.chatService.deleteMessage({
-			channelId, messageId, userId, userRole,
+			channelId, messageId, userId,
 		});
 	}
 
@@ -891,7 +882,6 @@ export class ChatController {
      @param channelId - 채널 ID
      @param messageId - 고정할 메시지의 MongoDB ObjectId
      @param userId - Gateway가 주입한 요청자 ID
-     @param userRole - Gateway가 주입한 요청자 역할
      @returns 업데이트된 메시지 도큐먼트
      */
 	@httpPost('pins/:messageId')
@@ -960,10 +950,9 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@currentUserId() userId: number,
-		@currentUserRole() userRole: string,
 	) {
 		return this.chatService.pinMessage({
-			channelId, messageId, userId, userRole,
+			channelId, messageId, userId,
 		});
 	}
 
@@ -975,7 +964,6 @@ export class ChatController {
      @param channelId - 채널 ID
      @param messageId - 고정 해제할 메시지의 MongoDB ObjectId
      @param userId - Gateway가 주입한 요청자 ID
-     @param userRole - Gateway가 주입한 요청자 역할
      */
 	@httpDelete('pins/:messageId')
 	@httpCode(HttpStatus.NO_CONTENT)
@@ -1025,10 +1013,9 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@currentUserId() userId: number,
-		@currentUserRole() userRole: string,
 	) {
 		await this.chatService.unpinMessage({
-			channelId, messageId, userId, userRole,
+			channelId, messageId, userId,
 		});
 	}
 

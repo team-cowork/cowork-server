@@ -11,20 +11,6 @@ import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 
 class AccountRoleRepository(private val outbox: PreferenceOutboxRepository) {
-    // TODO(2026-11-17T06:59:44Z): Remove migrateLegacyPolicy after all legacy platform administrators have policy
-    // assignments.
-    // Bind legacy identity once; revoking a policy must survive later requests with the same token.
-    suspend fun migrateLegacyPolicy(client: SqlClient, accountId: Long, legacyAdministrator: Boolean) {
-        val first = client.preparedQuery(
-            "INSERT INTO tb_account_policy_migrations (account_id) VALUES ($1) ON CONFLICT DO NOTHING RETURNING account_id",
-        ).execute(Tuple.of(accountId)).coAwait().firstOrNull() != null
-        if (!first || !legacyAdministrator) return
-        val role = client.query(
-            "SELECT id FROM tb_account_role_definitions WHERE bootstrap_policy AND NOT deleted FOR SHARE",
-        ).execute().coAwait().firstOrNull() ?: return
-        assign(client, role.getLong("id"), accountId, false)
-    }
-
     suspend fun assignments(client: SqlClient, accountId: Long): List<Long> = client.preparedQuery(
         "SELECT r.id FROM tb_account_role_definitions r WHERE NOT r.deleted AND NOT r.is_default AND EXISTS (" +
             "SELECT 1 FROM tb_account_role_assignments a WHERE a.role_id = r.id AND a.account_id = $1 AND NOT a.deleted) ORDER BY r.id",
@@ -56,6 +42,10 @@ class AccountRoleRepository(private val outbox: PreferenceOutboxRepository) {
                 "WHERE id = $1 AND NOT deleted AND (NOT is_default OR name = $2) RETURNING *",
         ).execute(Tuple.of(id, name, permissions)).coAwait().firstOrNull()
             ?: throw IllegalArgumentException("역할을 찾을 수 없거나 기본 역할 이름을 변경할 수 없습니다.")
+        val grantsOperations = AccountRolePolicy.operationalActions.any { permissions.getBoolean(it) == true }
+        require(!row.getBoolean("is_default") || !grantsOperations) {
+            "기본 역할에는 운영 권한을 부여할 수 없습니다."
+        }
         outbox.enqueue(client, roleEvent(row))
         return roleJson(row)
     }
@@ -76,11 +66,6 @@ class AccountRoleRepository(private val outbox: PreferenceOutboxRepository) {
             "SELECT id FROM tb_account_role_definitions WHERE id = $1 AND NOT deleted AND NOT is_default FOR SHARE",
         ).execute(Tuple.of(roleId)).coAwait().firstOrNull()
         require(role != null) { "직접 부여할 수 있는 역할을 찾을 수 없습니다." }
-        // TODO(2026-11-17T06:59:44Z): Remove this fence after legacy-token migration is retired.
-        // Explicit policy management must prevent a later first request from restoring a legacy grant.
-        client.preparedQuery(
-            "INSERT INTO tb_account_policy_migrations (account_id) VALUES ($1) ON CONFLICT DO NOTHING",
-        ).execute(Tuple.of(accountId)).coAwait()
         val row = client.preparedQuery(
             "INSERT INTO tb_account_role_assignments (account_id, role_id, deleted) VALUES ($1, $2, $3) " +
                 "ON CONFLICT (account_id, role_id) DO UPDATE SET deleted = EXCLUDED.deleted, " +

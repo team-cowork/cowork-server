@@ -38,11 +38,11 @@ class ModifyRoadmapAssignmentStatusServiceTest {
             accessGuard);
 
     @Test
-    void updateStatus_byUnrelatedNonAdmin_isForbidden() {
+    void updateStatus_byUnrelatedUserWithoutPolicy_isForbidden() {
         when(assignmentRepository.findById(5L)).thenReturn(Optional.of(assignment(5L, 100L, 200L)));
 
         ExpectedException error = assertThrows(ExpectedException.class,
-                () -> modifyRoadmapAssignmentStatusService.execute(999L, "MEMBER", 5L, status(AssignmentStatus.DONE)));
+                () -> modifyRoadmapAssignmentStatusService.execute(999L, 5L, status(AssignmentStatus.DONE)));
         assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
         verify(accessGuard, never()).requireTeamMember(anyLong(), anyLong());
     }
@@ -53,7 +53,7 @@ class ModifyRoadmapAssignmentStatusServiceTest {
         when(assignmentRepository.findById(5L)).thenReturn(Optional.of(assignment));
         when(assignmentRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        var response = modifyRoadmapAssignmentStatusService.execute(100L, "MEMBER", 5L, status(AssignmentStatus.DONE));
+        var response = modifyRoadmapAssignmentStatusService.execute(100L, 5L, status(AssignmentStatus.DONE));
         assertThat(response.status()).isEqualTo(AssignmentStatus.DONE.name());
         verify(accessGuard).requireTeamMember(5L, 100L);
     }
@@ -65,17 +65,18 @@ class ModifyRoadmapAssignmentStatusServiceTest {
                 .requireTeamMember(anyLong(), anyLong());
 
         ExpectedException error = assertThrows(ExpectedException.class,
-                () -> modifyRoadmapAssignmentStatusService.execute(200L, "MEMBER", 5L, status(AssignmentStatus.DONE)));
+                () -> modifyRoadmapAssignmentStatusService.execute(200L, 5L, status(AssignmentStatus.DONE)));
         assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
         verify(assignmentRepository, never()).saveAndFlush(any());
     }
 
     @Test
-    void updateStatus_byAdmin_updatesWithoutTeamCheck() {
+    void updateStatus_withAccountPermission_updatesWithoutTeamCheck() {
         when(assignmentRepository.findById(5L)).thenReturn(Optional.of(assignment(5L, 100L, 200L)));
         when(assignmentRepository.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        var response = modifyRoadmapAssignmentStatusService.execute(999L, "ADMIN", 5L, status(AssignmentStatus.DONE));
+        when(accessGuard.accountAllows(999L, "update_team_assignment_status")).thenReturn(true);
+        var response = modifyRoadmapAssignmentStatusService.execute(999L, 5L, status(AssignmentStatus.DONE));
         assertThat(response.status()).isEqualTo(AssignmentStatus.DONE.name());
         verify(accessGuard, never()).requireTeamMember(anyLong(), anyLong());
     }

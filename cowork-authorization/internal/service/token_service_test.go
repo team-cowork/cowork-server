@@ -25,18 +25,18 @@ func TestGenerateAccessTokenEncodesClaimsAndIsVerifiableWithConfiguredSecret(t *
 		name    string
 		userID  int64
 		email   string
-		role    string
 		gsmRole string
 	}{
-		{name: "member", userID: 7, email: "user@example.com", role: "MEMBER", gsmRole: "GENERAL_STUDENT"},
-		{name: "admin", userID: 42, email: "admin@example.com", role: "ADMIN", gsmRole: "STUDENT_COUNCIL"},
+		{name: "student", userID: 7, email: "user@example.com", gsmRole: "GENERAL_STUDENT"},
+		{name: "student council", userID: 42, email: "admin@example.com", gsmRole: "STUDENT_COUNCIL"},
+		{name: "no student information", userID: 51, email: "user@example.org", gsmRole: ""},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
 			svc := newUnitTokenService(30*time.Minute, 24*time.Hour)
-			signed, err := svc.GenerateAccessToken(test.userID, test.email, test.role, test.gsmRole)
+			signed, err := svc.GenerateAccessToken(test.userID, test.email, test.gsmRole)
 			if err != nil {
 				t.Fatalf("GenerateAccessToken() error = %v", err)
 			}
@@ -53,12 +53,13 @@ func TestGenerateAccessTokenEncodesClaimsAndIsVerifiableWithConfiguredSecret(t *
 				t.Fatalf("parse signed access token: valid=%v err=%v", token != nil && token.Valid, err)
 			}
 
+			assertTokenRoles(t, signed, test.gsmRole)
 			wantSubject := fmt.Sprintf("%d", test.userID)
 			if claims.Subject != wantSubject {
 				t.Errorf("Subject = %q, want %q", claims.Subject, wantSubject)
 			}
-			if claims.Email != test.email || claims.Role != test.role || claims.GsmRole != test.gsmRole {
-				t.Errorf("claims = %+v, want email=%q role=%q gsmRole=%q", claims, test.email, test.role, test.gsmRole)
+			if claims.Email != test.email || claims.GsmRole != test.gsmRole {
+				t.Errorf("claims = %+v, want email=%q gsmRole=%q", claims, test.email, test.gsmRole)
 			}
 			if claims.ExpiresAt == nil || claims.IssuedAt == nil {
 				t.Fatal("claims missing IssuedAt/ExpiresAt")
@@ -74,7 +75,7 @@ func TestGenerateAccessTokenRejectsWrongSigningSecret(t *testing.T) {
 	t.Parallel()
 
 	svc := newUnitTokenService(time.Minute, time.Hour)
-	signed, err := svc.GenerateAccessToken(1, "user@example.com", "MEMBER", "GENERAL_STUDENT")
+	signed, err := svc.GenerateAccessToken(1, "user@example.com", "GENERAL_STUDENT")
 	if err != nil {
 		t.Fatalf("GenerateAccessToken() error = %v", err)
 	}
@@ -142,5 +143,19 @@ func TestHashTokenIsDeterministicAndSensitiveToInput(t *testing.T) {
 				t.Errorf("HashToken(%q) == HashToken(%q) = %v, want %v", test.a, test.b, got, test.want)
 			}
 		})
+	}
+}
+
+func assertTokenRoles(t *testing.T, signed, gsmRole string) {
+	t.Helper()
+	claims := jwt.MapClaims{}
+	if _, _, err := jwt.NewParser().ParseUnverified(signed, claims); err != nil {
+		t.Fatal(err)
+	}
+	if claims["gsm_role"] != gsmRole {
+		t.Fatalf("gsm_role = %v, want %q", claims["gsm_role"], gsmRole)
+	}
+	if _, exists := claims["role"]; exists {
+		t.Fatal("access token contains a platform role")
 	}
 }

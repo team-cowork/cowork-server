@@ -155,6 +155,8 @@ Applet uses Scala 3 and Play on Java 25, the newest Java that Play 3.0 supports.
 ## Security
 
 - Inject secrets through environment variables, Vault, or configured secret providers. Follow the [configuration rules](.claude/rules/config.md); non-Spring runtimes do not all resolve `${VAR}` placeholders. Never commit credentials to work around unresolved placeholders.
-- Gateway validates access JWTs, with the Chat WebSocket exception in the [security rules](.claude/rules/security.md).
+- Gateway validates access JWTs for HTTP requests and Chat WebSocket handshakes. Services identify the requester by `X-User-Id`. Roadmap and Chat evaluate synchronized Preference policies on each protected request. See the [security rules](.claude/rules/security.md).
+- Before the platform-role cutover, verify that operators have explicit Preference account-role assignments. Update policy consumers before publishing the new keys.
+- To preserve pending Chat messages, pause sends and let the current Chat version drain `chat.message.v2` and finish required quarantine retries before applying the new Kafka policy. Resume sends when the `chat.message.event.v3` consumer is ready.
 - Use derived repository queries or bound parameters in JPA, JDBC, and Vert.x SQL. Never interpolate request values into SQL/JPQL.
 - Run `bun audit` in both `cowork-chat` and `cowork-github`; use `bun audit --production` to check only runtime dependencies.

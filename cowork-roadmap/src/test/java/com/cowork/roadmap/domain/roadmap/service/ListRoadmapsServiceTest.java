@@ -33,10 +33,10 @@ class ListRoadmapsServiceTest {
         Roadmap readable = projectRoadmap(1L, 5L);
         Roadmap foreign = projectRoadmap(2L, 6L);
         when(roadmapRepository.findListByOwnerProjectId(100L, null)).thenReturn(List.of(foreign, readable));
-        when(accessGuard.canReadTeam(5L, 1L, "MEMBER")).thenReturn(true);
-        when(accessGuard.canReadTeam(6L, 1L, "MEMBER")).thenReturn(false);
+        when(accessGuard.canReadTeam(5L, 1L)).thenReturn(true);
+        when(accessGuard.canReadTeam(6L, 1L)).thenReturn(false);
 
-        List<RoadmapResDto> result = listRoadmapsService.execute(1L, "MEMBER", null, null, null, 100L);
+        List<RoadmapResDto> result = listRoadmapsService.execute(1L, null, null, null, 100L);
 
         assertEquals(1, result.size());
         assertEquals(1L, result.get(0).id());
@@ -46,11 +46,11 @@ class ListRoadmapsServiceTest {
     void listByTeam_withCategory_filtersByCategory() {
         when(roadmapRepository.findListByOwnerTeamId(5L, "Flutter")).thenReturn(List.of(teamRoadmap(1L, "Flutter")));
 
-        List<RoadmapResDto> result = listRoadmapsService.execute(1L, "MEMBER", null, "Flutter", 5L, null);
+        List<RoadmapResDto> result = listRoadmapsService.execute(1L, null, "Flutter", 5L, null);
 
         assertEquals(1, result.size());
         assertEquals(1L, result.get(0).id());
-        verify(accessGuard).requireTeamReadable(5L, 1L, "MEMBER");
+        verify(accessGuard).requireTeamReadable(5L, 1L);
     }
 
     @Test
@@ -58,7 +58,7 @@ class ListRoadmapsServiceTest {
         when(roadmapRepository.findListByOwnerTeamId(5L, null))
                 .thenReturn(List.of(teamRoadmap(2L, "Server"), teamRoadmap(1L, "Flutter")));
 
-        List<RoadmapResDto> result = listRoadmapsService.execute(1L, "MEMBER", null, null, 5L, null);
+        List<RoadmapResDto> result = listRoadmapsService.execute(1L, null, null, 5L, null);
 
         assertEquals(2, result.size());
     }
@@ -68,7 +68,7 @@ class ListRoadmapsServiceTest {
         when(roadmapRepository.findListByOwnerTeamId(5L, null))
                 .thenReturn(List.of(teamRoadmap(2L, "Server"), teamRoadmap(1L, "Flutter")));
 
-        List<RoadmapResDto> result = listRoadmapsService.execute(1L, "MEMBER", null, " ", 5L, null);
+        List<RoadmapResDto> result = listRoadmapsService.execute(1L, null, " ", 5L, null);
 
         assertEquals(2, result.size());
     }
@@ -76,9 +76,9 @@ class ListRoadmapsServiceTest {
     @Test
     void listByProject_withCategory_filtersByCategory() {
         when(roadmapRepository.findListByOwnerProjectId(100L, "Flutter")).thenReturn(List.of(projectRoadmap(1L, 5L)));
-        when(accessGuard.canReadTeam(5L, 1L, "MEMBER")).thenReturn(true);
+        when(accessGuard.canReadTeam(5L, 1L)).thenReturn(true);
 
-        List<RoadmapResDto> result = listRoadmapsService.execute(1L, "MEMBER", null, "Flutter", null, 100L);
+        List<RoadmapResDto> result = listRoadmapsService.execute(1L, null, "Flutter", null, 100L);
 
         assertEquals(1, result.size());
         assertEquals(1L, result.get(0).id());
@@ -89,7 +89,7 @@ class ListRoadmapsServiceTest {
         when(roadmapRepository.findListByScope(RoadmapScope.GLOBAL.name(), null))
                 .thenReturn(List.of(Roadmap.builder().id(1L).scope(RoadmapScope.GLOBAL.name()).build()));
 
-        List<RoadmapResDto> result = listRoadmapsService.execute(1L, "MEMBER", null, "", null, null);
+        List<RoadmapResDto> result = listRoadmapsService.execute(1L, null, "", null, null);
 
         assertEquals(1, result.size());
     }
@@ -97,7 +97,7 @@ class ListRoadmapsServiceTest {
     @Test
     void listByTeam_withMismatchedScope_throwsBadRequest() {
         assertThrows(ExpectedException.class,
-                () -> listRoadmapsService.execute(1L, "MEMBER", RoadmapScope.GLOBAL, null, 5L, null));
+                () -> listRoadmapsService.execute(1L, RoadmapScope.GLOBAL, null, 5L, null));
 
         verifyNoInteractions(roadmapRepository);
     }
@@ -105,7 +105,7 @@ class ListRoadmapsServiceTest {
     @Test
     void listByProject_withMismatchedScope_throwsBadRequest() {
         assertThrows(ExpectedException.class,
-                () -> listRoadmapsService.execute(1L, "MEMBER", RoadmapScope.TEAM, null, null, 100L));
+                () -> listRoadmapsService.execute(1L, RoadmapScope.TEAM, null, null, 100L));
 
         verifyNoInteractions(roadmapRepository);
     }
@@ -114,7 +114,7 @@ class ListRoadmapsServiceTest {
     void listByTeam_withMatchingScope_returnsRoadmaps() {
         when(roadmapRepository.findListByOwnerTeamId(any(), any())).thenReturn(List.of(teamRoadmap(1L, "Flutter")));
 
-        List<RoadmapResDto> result = listRoadmapsService.execute(1L, "MEMBER", RoadmapScope.TEAM, null, 5L, null);
+        List<RoadmapResDto> result = listRoadmapsService.execute(1L, RoadmapScope.TEAM, null, 5L, null);
 
         assertEquals(1, result.size());
     }

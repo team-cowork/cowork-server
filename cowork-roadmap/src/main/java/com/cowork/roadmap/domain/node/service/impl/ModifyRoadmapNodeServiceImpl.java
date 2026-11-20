@@ -32,10 +32,10 @@ public class ModifyRoadmapNodeServiceImpl implements ModifyRoadmapNodeService {
      */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public NodeResDto execute(Long userId, String userRole, Long nodeId, UpdateNodeReqDto request) {
+    public NodeResDto execute(Long userId, Long nodeId, UpdateNodeReqDto request) {
         Long roadmapId = nodeLookupSupport.findRoadmapIdByNodeOrThrow(nodeId);
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
-        accessGuard.requireMutable(roadmap, userId, userRole);
+        accessGuard.requireMutable(roadmap, userId);
         if (request.title() != null && request.title().isBlank()) {
             throw new ExpectedException("노드 제목은 공백일 수 없습니다.", HttpStatus.BAD_REQUEST);
         }
