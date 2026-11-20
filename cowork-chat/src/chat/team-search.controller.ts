@@ -13,9 +13,9 @@ import {SearchTeamMessagesDto, SearchMessagesResponseDto} from './dto/index.js';
 
 @apiTags('Search')
 @apiExtraModels(ApiResponseMetadataDto, SearchMessagesResponseDto)
-@apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
+@apiEnvelopeResponse(401, '액세스 토큰이 없거나 유효하지 않음')
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
-@apiResponse({status: 429, description: '요청 한도 초과', type: ApiResponseMetadataDto})
+@apiEnvelopeResponse(429, '요청 한도 초과')
 @controller('search')
 export class TeamSearchController {
 	constructor(private readonly chatService: ChatService) {}

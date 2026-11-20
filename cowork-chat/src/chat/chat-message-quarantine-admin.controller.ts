@@ -27,9 +27,9 @@ import {ChatMessageQuarantineRecordIdDto, FindChatMessageQuarantineRecordsDto} f
 @apiEnvelopeResponse(403, 'ADMIN 권한 필요')
 @requireRoles(UserRole.ADMIN)
 @apiExtraModels(ApiResponseMetadataDto, QuarantineRecordDto)
-@apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
+@apiEnvelopeResponse(401, '액세스 토큰이 없거나 유효하지 않음')
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
-@apiResponse({status: 429, description: '요청 한도 초과', type: ApiResponseMetadataDto})
+@apiEnvelopeResponse(429, '요청 한도 초과')
 @controller('admin/message-quarantine')
 export class ChatMessageQuarantineAdminController {
 	constructor(private readonly quarantineService: ChatMessageQuarantineService) {}
