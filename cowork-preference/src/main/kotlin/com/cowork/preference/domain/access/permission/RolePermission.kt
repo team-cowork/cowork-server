@@ -4,6 +4,7 @@ import com.cowork.preference.domain.access.permission.RolePermissionChannelType.
 import com.cowork.preference.domain.access.permission.RolePermissionChannelType.VOICE
 import io.vertx.core.json.JsonArray
 import io.vertx.core.json.JsonObject
+import java.util.Locale
 
 /**
  * 역할 권한 카탈로그. PermissionKeys의 권한을 화면에 보여줄 제목·설명과 연결한다.
@@ -275,24 +276,42 @@ enum class RolePermission(
     ;
 
     companion object {
-        fun catalog(): JsonArray = JsonArray(
-            RolePermissionGroup.entries.map { group ->
-                JsonObject()
-                    .put("key", group.name)
-                    .put("title", group.title)
-                    .put(
-                        "permissions",
-                        JsonArray(
-                            entries.filter { it.group == group }.map { permission ->
-                                JsonObject()
-                                    .put("key", permission.key)
-                                    .put("title", permission.title)
-                                    .put("description", permission.description)
-                                    .put("channelTypes", JsonArray(permission.channelTypes.map { it.name }))
-                            },
-                        ),
-                    )
-            },
-        )
+        /**
+         * 그룹별 권한 카탈로그를 만든다. [query]는 앞뒤 공백을 지우고 대소문자를 무시해 그룹 제목, 권한 제목·설명·키와 비교하며,
+         * 그룹 제목이 일치하면 그 그룹의 권한을 모두 넣는다. [channelType]이 있으면 그 채널에 적용되는 권한만 남긴다.
+         * 일치하는 권한이 없는 그룹은 뺀다.
+         */
+        fun catalog(query: String? = null, channelType: RolePermissionChannelType? = null): JsonArray {
+            val term = query?.trim()?.lowercase(Locale.ROOT)?.takeIf { it.isNotEmpty() }
+            return JsonArray(
+                RolePermissionGroup.entries.mapNotNull { group ->
+                    val groupMatched = term == null || group.title.lowercase(Locale.ROOT).contains(term)
+                    val permissions = entries.filter { permission ->
+                        permission.group == group &&
+                            (groupMatched || (term != null && permission.matches(term))) &&
+                            (channelType == null || channelType in permission.channelTypes)
+                    }
+                    if (permissions.isEmpty()) return@mapNotNull null
+                    JsonObject()
+                        .put("key", group.name)
+                        .put("title", group.title)
+                        .put(
+                            "permissions",
+                            JsonArray(
+                                permissions.map { permission ->
+                                    JsonObject()
+                                        .put("key", permission.key)
+                                        .put("title", permission.title)
+                                        .put("description", permission.description)
+                                        .put("channelTypes", JsonArray(permission.channelTypes.map { it.name }))
+                                },
+                            ),
+                        )
+                },
+            )
+        }
+
+        private fun RolePermission.matches(term: String): Boolean =
+            listOf(title, description, key).any { it.lowercase(Locale.ROOT).contains(term) }
     }
 }

@@ -3,6 +3,7 @@ package com.cowork.preference.domain.setting.presentation
 import com.cowork.preference.domain.access.exception.ArchivedChannelException
 import com.cowork.preference.domain.access.exception.ResourceAccessDeniedException
 import com.cowork.preference.domain.access.permission.RolePermission
+import com.cowork.preference.domain.access.permission.RolePermissionChannelType
 import com.cowork.preference.domain.access.presentation.auditAuthorizationFailure
 import com.cowork.preference.domain.access.presentation.authorizationStatus
 import com.cowork.preference.domain.access.service.AccountOwnershipGuard
@@ -43,8 +44,15 @@ class PreferenceHandler(
             ctx.response().setStatusCode(400).end(errorBody("Missing or invalid requester headers"))
             return
         }
+        val channelTypeParam: String? = ctx.queryParams().get("channelType")
+        val channelType = RolePermissionChannelType.entries.firstOrNull { it.name == channelTypeParam }
+        if (channelTypeParam != null && channelType == null) {
+            ctx.response().setStatusCode(400).end(errorBody("Invalid channelType"))
+            return
+        }
+        val query: String? = ctx.queryParams().get("query")
         ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json")
-            .end(RolePermission.catalog().encode())
+            .end(RolePermission.catalog(query, channelType).encode())
     }
 
     fun getSettings(resourceType: ResourceType): (RoutingContext) -> Unit = handler@{ ctx ->
