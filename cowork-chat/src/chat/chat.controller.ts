@@ -74,11 +74,11 @@ import {EMOJI_REGEX} from './util/index.js';
 	MessageResponseDto,
 	DeleteMessageResponseDto,
 )
-@apiResponse({status: 400, description: '요청 값이 올바르지 않음', type: ApiResponseMetadataDto})
-@apiResponse({status: 503, description: '권한 정보 동기화 중', type: ApiResponseMetadataDto})
-@apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
+@apiEnvelopeResponse(400, '요청 값이 올바르지 않음')
+@apiEnvelopeResponse(503, '권한 정보 동기화 중')
+@apiEnvelopeResponse(401, '액세스 토큰이 없거나 유효하지 않음')
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
-@apiResponse({status: 429, description: '요청 한도 초과', type: ApiResponseMetadataDto})
+@apiEnvelopeResponse(429, '요청 한도 초과')
 @controller('channels/:channelId')
 export class ChatController {
 	constructor(
@@ -111,8 +111,8 @@ export class ChatController {
 	@apiOperation({summary: '첨부파일 업로드 URL 발급'})
 	@apiEnvelopeResponse(201, '요청 처리 성공', CreateFileUploadUrlResponseDto)
 	@apiEnvelopeResponse(403, '메시지 읽기 또는 file_attach 권한 없음')
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
-	@apiResponse({status: 413, description: '파일 크기 초과', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
+	@apiEnvelopeResponse(413, '파일 크기 초과')
 	async createFileUploadUrl(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: CreateFileUploadUrlRequestDto,
@@ -178,8 +178,8 @@ export class ChatController {
 	@apiEnvelopeResponse(201, '요청 처리 성공', SendMessageResponseDto)
 	@apiEnvelopeResponse(403, '메시지 읽기/작성 권한 없음, 답글의 thread_reply 또는 첨부의 file_attach 권한 없음, DM 수신자가 차단함')
 	@apiEnvelopeResponse(429, '메시지 전송 요청이 너무 많음')
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
-	@apiResponse({status: 404, description: '채널 또는 답장 대상 메시지 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
+	@apiEnvelopeResponse(404, '채널 또는 답장 대상 메시지 없음')
 	async sendMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: SendMessageDto,
@@ -205,7 +205,7 @@ export class ChatController {
 	@apiEnvelopeResponse(201, '요청 처리 성공', SlashCommandResponseDto)
 	@apiEnvelopeResponse(400, '지원하지 않는 커맨드 또는 유효하지 않은 payload')
 	@apiEnvelopeResponse(403, '메시지 읽기, slash_command_use 또는 github_issue_create 권한 없음')
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	async createSlashCommand(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: SlashCommandDto,
@@ -255,7 +255,7 @@ export class ChatController {
 	@apiEnvelopeResponse(400, '잘못된 메시지 ID')
 	@apiEnvelopeResponse(403, '채널 멤버 아님 또는 본인 메시지 아님')
 	@apiEnvelopeResponse(404, '메시지 없음')
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	async editMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -279,7 +279,7 @@ export class ChatController {
 	@apiEnvelopeResponse(400, '유효하지 않은 fileId')
 	@apiEnvelopeResponse(403, '채널 멤버 아님 또는 권한 없음')
 	@apiEnvelopeResponse(404, '파일(메시지)을 찾을 수 없음')
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	async deleteFile(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('fileId') fileId: string,
@@ -300,7 +300,7 @@ export class ChatController {
 	@apiEnvelopeResponse(400, '잘못된 메시지 ID')
 	@apiEnvelopeResponse(403, '메시지 읽기 권한 없음 또는 타인 메시지의 message_manage 권한 없음')
 	@apiEnvelopeResponse(404, '메시지 없음')
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	async deleteMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -324,7 +324,7 @@ export class ChatController {
 	@apiEnvelopeResponse(400, '잘못된 메시지 ID 또는 이미 고정된 메시지')
 	@apiEnvelopeResponse(403, '채널 멤버 아님 또는 권한 없음')
 	@apiEnvelopeResponse(404, '메시지 없음')
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	async pinMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -348,7 +348,7 @@ export class ChatController {
 	@apiEnvelopeResponse(400, '잘못된 메시지 ID 또는 고정되지 않은 메시지')
 	@apiEnvelopeResponse(403, '채널 멤버 아님 또는 권한 없음')
 	@apiEnvelopeResponse(404, '메시지 없음')
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	async unpinMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -373,7 +373,7 @@ export class ChatController {
 	@apiEnvelopeResponse(400, '잘못된 메시지 ID 또는 유효하지 않은 이모지')
 	@apiEnvelopeResponse(403, '메시지 읽기 또는 reaction_add 권한 없음')
 	@apiEnvelopeResponse(404, '메시지 없음')
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	async addReaction(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -396,7 +396,7 @@ export class ChatController {
 	@apiEnvelopeResponse(400, '잘못된 메시지 ID 또는 유효하지 않은 이모지')
 	@apiEnvelopeResponse(403, '채널 멤버 아님')
 	@apiEnvelopeResponse(404, '메시지 없음')
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	async removeReaction(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
