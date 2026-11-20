@@ -192,7 +192,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      Handshake 단계에서 인증 정보를 확인해 `client.data`에 설정한다.
      실패하면 연결을 수락하지 않으므로 클라이언트는 `connect` 없이 `connect_error`만 받는다.
 
-     @param client - handshake 중인 Socket.IO 소켓
      @returns 인증 실패 시 `connect_error`로 전달할 오류
      */
 	private authenticate(client: ChatSocket): Error | undefined {
@@ -278,8 +277,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 	/**
      Socket.IO 서버 초기화 후 호출된다.
      Kafka 컨슈머에 Socket.IO `Server` 인스턴스를 주입해 룸 브로드캐스트를 활성화한다.
-
-     @param server - 초기화된 Socket.IO 서버 인스턴스
      */
 	afterInit(server: Server) {
 		server.use((socket: ChatSocket, next) => {
@@ -326,8 +323,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
 	/**
      Handshake 미들웨어에서 인증된 소켓을 개인 room에 넣는다.
-
-     @param client - 인증을 마친 Socket.IO 소켓
      */
 	async handleConnection(client: ChatSocket) {
 		const {userId} = client.data;
@@ -344,11 +339,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 		this.logger.log(`Connected: ${client.id} (userId=${userId})`);
 	}
 
-	/**
-     클라이언트 연결 해제 시 호출된다.
-
-     @param client - 연결 해제된 Socket.IO 소켓
-     */
 	handleDisconnect(client: ChatSocket) {
 		this.logger.log(`Disconnected: ${client.id}`);
 	}
@@ -357,8 +347,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      `join` 이벤트 핸들러. 채널 멤버십을 확인한 뒤 `chat:{channelId}` 룸에 참여한다.
      멤버가 아니면 `error` 이벤트를 emit하고 룸에 참여하지 않는다.
 
-     @param client - 요청한 소켓 (data.userId가 설정되어 있어야 함)
-     @param payload - 참여할 채널 ID
+     `client`는 `data.userId`가 설정된 소켓이어야 한다.
      */
 	@subscribeMessage('join')
 	async handleJoin(@connectedSocket() client: ChatSocket, @messageBody() payload: JoinChannelDto) {
@@ -395,9 +384,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
 	/**
      `leave` 이벤트 핸들러. `chat:{channelId}` 룸에서 나간다.
-
-     @param client - 요청한 소켓
-     @param payload - 나갈 채널 ID
      */
 	@subscribeMessage('leave')
 	handleLeave(@connectedSocket() client: ChatSocket, @messageBody() payload: JoinChannelDto) {

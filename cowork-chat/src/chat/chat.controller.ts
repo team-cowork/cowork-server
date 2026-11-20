@@ -156,11 +156,6 @@ export class ChatController {
 	/**
      채팅 첨부파일을 업로드하기 위한 오브젝트 스토리지 presigned URL을 발급한다.
      반환된 `uploadUrl`에 PUT 요청을 보낼 때 `headers`를 함께 전송해야 한다.
-
-     @param channelId - 업로드 대상 채널 ID
-     @param dto - 파일명, MIME 타입, 크기
-     @param userId - Gateway가 주입한 요청자 ID
-     @returns presigned URL, 임시 objectKey, 만료 시간(초), 필수 헤더
      */
 	@httpPost('files/presigned-url')
 	@httpCode(HttpStatus.CREATED)
@@ -210,11 +205,6 @@ export class ChatController {
 	/**
      클라이언트가 presigned URL로 파일 업로드를 완료한 후 오브젝트 스토리지에서 실제 업로드 여부를 검증한다.
      파일이 아직 업로드되지 않았으면 409, 크기 제한 초과이면 413을 반환한다.
-
-     @param channelId - 채널 ID
-     @param dto - 검증할 objectKey
-     @param userId - Gateway가 주입한 요청자 ID
-     @returns 최종 objectKey와 서버가 확인한 파일 메타데이터
      */
 	@httpPost('files/confirm')
 	@httpCode(HttpStatus.OK)
@@ -301,11 +291,6 @@ export class ChatController {
 	/**
      FILE_SHARE 뷰 타입 채널의 첨부파일 목록을 커서 기반 페이지네이션으로 조회한다.
      FILE_SHARE 채널이 아니면 400을 반환한다.
-
-     @param channelId - 채널 ID
-     @param query - 커서(`before`), 페이지 크기(`limit`, 기본 20, 최대 100)
-     @param userId - Gateway가 주입한 요청자 ID
-     @returns 파일 목록과 다음 페이지 커서
      */
 	@httpGet('files')
 	@apiOperation({summary: 'FILE_SHARE 채널 파일 목록 조회'})
@@ -367,11 +352,6 @@ export class ChatController {
 	/**
      메시지를 Kafka `chat.message.event.v3` 토픽으로 비동기 발행한다.
      실제 저장과 Socket.IO 브로드캐스트는 `ChatMessageConsumer`가 처리한다.
-
-     @param channelId - 채널 ID
-     @param dto - 메시지 내용, 타입, 첨부파일, 답장 대상 등
-     @param userId - Gateway가 주입한 요청자 ID
-     @returns `{ queued: true }` — 큐 등록 여부만 반환, 저장 완료를 보장하지 않음
      */
 	@httpPost('messages')
 	@httpCode(HttpStatus.CREATED)
@@ -444,12 +424,6 @@ export class ChatController {
      슬래시 커맨드를 Kafka로 비동기 발행한다.
      현재 지원 커맨드: `github.issue.create`.
      지원하지 않는 커맨드는 400을 반환한다.
-
-     @param channelId - 채널 ID
-     @param dto - 커맨드 종류와 커맨드별 payload
-     @param userId - Gateway가 주입한 요청자 ID
-     @param idempotencyKey - 재시도 중복 방지 키 (`Idempotency-Key` 헤더, 선택)
-     @returns `{ queued: true }`
      */
 	@httpPost('slash-commands')
 	@httpCode(HttpStatus.CREATED)
@@ -514,16 +488,6 @@ export class ChatController {
 		return {queued: true};
 	}
 
-	/**
-     채널 메시지를 최신순으로 커서 기반 페이지네이션 조회한다.
-     `before`에 이전 응답의 마지막 `_id`를 전달해 이전 메시지를 가져온다.
-     한 번에 최대 100개를 반환한다.
-
-     @param channelId - 채널 ID
-     @param dto - 마지막으로 읽은 메시지 ID
-     @param userId - Gateway가 주입한 요청자 ID
-     @returns 메시지 배열 (reactions는 나의 반응 여부 포함)
-     */
 	@httpPost('read')
 	@httpCode(HttpStatus.NO_CONTENT)
 	@apiOperation({summary: '채널 읽음 상태 변경'})
@@ -634,12 +598,6 @@ export class ChatController {
      메시지 내용을 수정한다. 내용이 동일하면 DB 업데이트 없이 현재 값을 반환한다.
      수정 성공 시 `chat:{channelId}` 룸에 `message:edited` 이벤트를 브로드캐스트한다.
      ADMIN은 타인 메시지도 수정할 수 있다.
-
-     @param channelId - 채널 ID
-     @param messageId - 수정할 메시지의 MongoDB ObjectId
-     @param dto - 새 메시지 내용
-     @param userId - Gateway가 주입한 요청자 ID
-     @returns 수정된 메시지 도큐먼트
      */
 	@httpPatch('messages/:messageId')
 	@apiOperation({summary: '메시지 수정'})
@@ -718,11 +676,6 @@ export class ChatController {
      오브젝트 스토리지 삭제 실패는 경고 로그만 남기고 메시지 삭제는 계속 진행한다.
      삭제 성공 시 `chat:{channelId}` 룸에 `message:deleted` 이벤트를 브로드캐스트한다.
      ADMIN은 타인 파일도 삭제할 수 있다.
-
-     @param channelId - 채널 ID
-     @param fileId - base64 인코딩된 파일 식별자 (messageId를 포함한 JSON)
-     @param userId - Gateway가 주입한 요청자 ID
-     @returns 삭제된 채널 ID와 메시지 ID
      */
 	@httpDelete('files/:fileId')
 	@apiOperation({summary: '첨부파일 삭제', description: '파일이 포함된 메시지 전체를 삭제합니다.'})
@@ -797,11 +750,6 @@ export class ChatController {
      메시지를 삭제한다.
      삭제 성공 시 `chat:{channelId}` 룸에 `message:deleted` 이벤트를 브로드캐스트한다.
      ADMIN은 타인 메시지도 삭제할 수 있다.
-
-     @param channelId - 채널 ID
-     @param messageId - 삭제할 메시지의 MongoDB ObjectId
-     @param userId - Gateway가 주입한 요청자 ID
-     @returns 삭제된 채널 ID와 메시지 ID
      */
 	@httpDelete('messages/:messageId')
 	@apiOperation({summary: '메시지 삭제'})
@@ -878,11 +826,6 @@ export class ChatController {
      메시지를 고정한다. 이미 고정된 메시지이면 400을 반환한다.
      고정 성공 시 `chat:{channelId}` 룸에 `message:pinned` 이벤트를 브로드캐스트한다.
      ADMIN은 타인 메시지도 고정할 수 있다.
-
-     @param channelId - 채널 ID
-     @param messageId - 고정할 메시지의 MongoDB ObjectId
-     @param userId - Gateway가 주입한 요청자 ID
-     @returns 업데이트된 메시지 도큐먼트
      */
 	@httpPost('pins/:messageId')
 	@httpCode(HttpStatus.OK)
@@ -960,10 +903,6 @@ export class ChatController {
      메시지 고정을 해제한다. 고정되지 않은 메시지이면 400을 반환한다.
      해제 성공 시 `chat:{channelId}` 룸에 `message:unpinned` 이벤트를 브로드캐스트한다.
      ADMIN은 타인 메시지도 고정 해제할 수 있다.
-
-     @param channelId - 채널 ID
-     @param messageId - 고정 해제할 메시지의 MongoDB ObjectId
-     @param userId - Gateway가 주입한 요청자 ID
      */
 	@httpDelete('pins/:messageId')
 	@httpCode(HttpStatus.NO_CONTENT)
@@ -1024,11 +963,6 @@ export class ChatController {
      이미 같은 이모지로 반응한 경우 무시한다(중복 반응 허용하지 않음).
      추가 성공 시 `chat:{channelId}` 룸에 `message:reaction:added` 이벤트를 브로드캐스트한다.
      `emoji`는 단일 RGI 이모지여야 한다.
-
-     @param channelId - 채널 ID
-     @param messageId - 반응을 추가할 메시지의 MongoDB ObjectId
-     @param dto - 이모지 문자
-     @param userId - Gateway가 주입한 요청자 ID
      */
 	@httpPost('messages/:messageId/reactions')
 	@httpCode(HttpStatus.OK)
@@ -1088,12 +1022,6 @@ export class ChatController {
      반응이 없었던 경우 무시한다.
      제거 성공 시 `chat:{channelId}` 룸에 `message:reaction:removed` 이벤트를 브로드캐스트한다.
      URL 경로의 `emoji` 파라미터는 단일 RGI 이모지여야 한다.
-
-     @param channelId - 채널 ID
-     @param messageId - 반응을 제거할 메시지의 MongoDB ObjectId
-     @param emoji - URL 디코딩된 이모지 문자
-     @param userId - Gateway가 주입한 요청자 ID
-     @throws BadRequestException `emoji`가 유효한 이모지 형식이 아닐 때
      */
 	@httpDelete('messages/:messageId/reactions/:emoji')
 	@httpCode(HttpStatus.OK)
@@ -1154,10 +1082,6 @@ export class ChatController {
 
 	/**
      채널에 고정된 메시지 목록을 최신순으로 최대 100개 조회한다.
-
-     @param channelId - 채널 ID
-     @param userId - Gateway가 주입한 요청자 ID
-     @returns 고정 메시지 배열 (reactions는 나의 반응 여부 포함)
      */
 	@httpGet('pins')
 	@apiOperation({summary: '채널 고정 메시지 목록 조회'})
