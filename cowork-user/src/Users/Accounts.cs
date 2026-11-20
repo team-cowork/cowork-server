@@ -32,7 +32,7 @@ public static partial class Accounts
         public long Id { get; init; }
         public string Name { get; init; } = "";
         public string Email { get; init; } = "";
-        public string Sex { get; init; } = "";
+        public string? Sex { get; init; }
         public string? Github { get; init; }
         public string? AccountDescription { get; init; }
         public string? StudentRole { get; init; }
@@ -50,14 +50,18 @@ public static partial class Accounts
         public string? BannerColor { get; init; }
     }
 
-    const string ProfileSelect = """
-        SELECT a.id, a.name, a.email, a.sex, a.github, a.description AS account_description,
-               a.student_role, a.student_number, a.major, a.specialty, a.status, a.custom_status,
-               a.status_message, a.status_expires_at, p.id AS profile_id, p.profile_image_key,
-               p.nickname, p.description, p.banner_color
+    const string ProfileFrom = """
         FROM tb_profiles p
         JOIN tb_accounts a ON a.id = p.account_id
+        LEFT JOIN tb_gsm_student_info s ON s.account_id = a.id
         """;
+
+    const string ProfileSelect = """
+        SELECT a.id, a.name, a.email, s.sex, a.github, a.description AS account_description,
+               s.student_role, s.student_number, s.major, s.specialty, a.status, a.custom_status,
+               a.status_message, a.status_expires_at, p.id AS profile_id, p.profile_image_key,
+               p.nickname, p.description, p.banner_color
+        """ + " " + ProfileFrom;
 
     public static async Task<UserResponse> GetUserProfileAsync(long userId)
     {
@@ -459,8 +463,12 @@ public static partial class Accounts
     /// </summary>
     public static async Task<bool> ApplyIdentityCommandAsync(MySqlConnection connection, MySqlTransaction transaction, IdentityCommandContract.Command command)
     {
-        var existing = await connection.QuerySingleOrDefaultAsync<long?>(
-            "SELECT id FROM tb_accounts WHERE id = @UserId FOR UPDATE", new { command.UserId }, transaction);
+        var (accountId, identityOwner) = await connection.QuerySingleAsync<(long?, long?)>("""
+            SELECT (SELECT id FROM tb_accounts WHERE id = @UserId FOR UPDATE),
+                   (SELECT account_id FROM tb_account_identities
+                    WHERE provider = 'DATAGSM' AND provider_subject = @subject FOR UPDATE)
+            """, new { command.UserId, subject = command.UserId.ToString(CultureInfo.InvariantCulture) }, transaction);
+        if (!CanApplyDataGsmIdentity(accountId, identityOwner)) return false;
 
         var parameters = new
         {
@@ -478,7 +486,7 @@ public static partial class Accounts
 
         try
         {
-            if (existing is null)
+            if (accountId is null)
             {
                 await connection.ExecuteAsync("""
                     INSERT INTO tb_accounts
@@ -504,6 +512,8 @@ public static partial class Accounts
             return false;
         }
 
+        await connection.ExecuteAsync("CALL sync_legacy_datagsm_accounts(@userId)", new { command.UserId }, transaction);
+
         var profileId = await connection.QuerySingleOrDefaultAsync<long?>(
             "SELECT id FROM tb_profiles WHERE account_id = @UserId FOR UPDATE", new { command.UserId }, transaction);
         if (profileId is null)
@@ -517,6 +527,11 @@ public static partial class Accounts
         await ProfileEventPublisher.EnqueueCurrentUpsertAsync(connection, transaction, command.UserId);
         return true;
     }
+
+    // V2 commands use the provider number as the Cowork ID. An occupied ID
+    // can only be updated by the DataGSM identity already bound to it.
+    internal static bool CanApplyDataGsmIdentity(long? existingAccountId, long? identityOwner) =>
+        existingAccountId == identityOwner;
 
     static string? NullIfBlank(string? value) => value is null || value.Trim() == "" ? null : value;
 
@@ -539,7 +554,7 @@ public static partial class Accounts
         return await App.TransactionAsync(async (connection, transaction) =>
         {
             var account = await connection.QueryAsync<(long Id, DateTime? DatagsmUpdatedAt)>(
-                "SELECT id, datagsm_updated_at FROM tb_accounts WHERE datagsm_student_id = @studentId FOR UPDATE",
+                "SELECT account_id, datagsm_updated_at FROM tb_gsm_student_info WHERE datagsm_student_id = @studentId FOR UPDATE",
                 new { studentId }, transaction).FirstOrNullAsync();
             if (account is null) return StudentEventResult.AccountNotFound;
             if (!StudentEventNewer(account.Value.DatagsmUpdatedAt is { } current ? Iso8601.AsUtc(current) : null, occurredAt))
@@ -582,6 +597,7 @@ public static partial class Accounts
                 throw errors;
             }
 
+            await connection.ExecuteAsync("CALL sync_legacy_datagsm_accounts(@id)", new { account.Value.Id }, transaction);
             await ProfileEventPublisher.EnqueueCurrentUpsertAsync(connection, transaction, account.Value.Id);
             return StudentEventResult.Updated;
         });
@@ -600,7 +616,7 @@ public static partial class Accounts
         var (where, parameters) = SearchFilter(query, userIds);
         await using var connection = await App.OpenAsync();
         var totalCount = await connection.ExecuteScalarAsync<long>(
-            $"SELECT COUNT(DISTINCT p.id) FROM tb_profiles p JOIN tb_accounts a ON a.id = p.account_id {where}", parameters);
+            $"SELECT COUNT(DISTINCT p.id) {ProfileFrom} {where}", parameters);
 
         parameters.Add("limit", pageSize + 1);
         parameters.Add("offset", (long)(page - 1) * pageSize);
@@ -663,8 +679,8 @@ public static partial class Accounts
 
         Like("a.name", "name");
         Like("p.nickname", "nickname");
-        Equal("a.major", "major");
-        Equal("a.student_role", "student_role");
+        Equal("s.major", "major");
+        Equal("s.student_role", "student_role");
         Equal("a.status", "status");
         Equal("a.custom_status", "custom_status");
         if (query.GetValueOrDefault("role") is { Length: > 0 } role)
@@ -707,7 +723,7 @@ public static partial class Accounts
         {
             "name" => $"a.name {direction}",
             "nickname" => $"p.nickname {direction}",
-            "major" => $"a.major {direction}",
+            "major" => $"s.major {direction}",
             _ => $"p.account_id {direction}",
         };
     }

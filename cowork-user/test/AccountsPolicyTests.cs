@@ -9,6 +9,16 @@ public class AccountsPolicyTests
     static JsonElement Json(string json) => JsonDocument.Parse(json).RootElement;
 
     [Fact]
+    public void DataGsm_v2_login_requires_the_same_provider_identity_to_update_an_existing_account()
+    {
+        Assert.True(Accounts.CanApplyDataGsmIdentity(null, null));
+        Assert.True(Accounts.CanApplyDataGsmIdentity(7, 7));
+        Assert.False(Accounts.CanApplyDataGsmIdentity(7, null));
+        Assert.False(Accounts.CanApplyDataGsmIdentity(7, 42));
+        Assert.False(Accounts.CanApplyDataGsmIdentity(null, 42));
+    }
+
+    [Fact]
     public void ParseIntCsv_keeps_only_positive_integers()
     {
         Assert.Equal([1, 2, 3], Accounts.ParseIntCsv("1,2,3"));
