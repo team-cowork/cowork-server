@@ -22,10 +22,12 @@ TEMPLATE_SERVICES = {
 
 
 def job_files():
-    files = [(path, path.read_text()) for path in NOMAD.rglob("*.nomad.hcl") if SERVICE not in path.name]
+    """Return (job path, job text, file to edit); template jobs point at their template file."""
+    files = [(path, path.read_text(), path) for path in NOMAD.rglob("*.nomad.hcl") if SERVICE not in path.name]
     for template, services in TEMPLATE_SERVICES.items():
         text = (NOMAD / template).read_text()
-        files += [(NOMAD / template.replace(SERVICE, service), text.replace(SERVICE, service)) for service in services]
+        files += [(NOMAD / template.replace(SERVICE, service), text.replace(SERVICE, service), NOMAD / template)
+                  for service in services]
     return sorted(files)
 
 
@@ -111,7 +113,8 @@ def render_jobs(manifest=None, vault_mount="secret", gateway_host_port=21000, *,
     specs = {}
     stages = {stage: {} for stage in ("data", "apps", "edge")}
     with tempfile.TemporaryDirectory(prefix="cowork-nomad-") as directory:
-        for path, text in job_files():
+        for path, text, source in job_files():
+            origin = source.relative_to(ROOT)
             values = job_inputs(path, text, manifest, vault_mount, gateway_host_port)
             variables = Path(directory) / "inputs.hcl"
             variables.write_text("\n".join(f"{key} = {json.dumps(hcl_value(value))}"
@@ -121,14 +124,15 @@ def render_jobs(manifest=None, vault_mount="secret", gateway_host_port=21000, *,
             if validate:
                 formatted = subprocess.run([nomad, "fmt", "-check", str(jobspec)], capture_output=True, text=True)
                 if formatted.returncode:
-                    raise ValueError(f"Run nomad fmt on {path.relative_to(ROOT)}: {formatted.stderr or formatted.stdout}")
+                    output = (formatted.stderr or formatted.stdout).replace(str(jobspec), str(origin))
+                    raise ValueError(f"Run nomad fmt on {origin}: {output}")
                 command = [nomad, "job", "validate", "-address=http://127.0.0.1:1"]
             else:
                 command = [nomad, "job", "run", "-output"]
             result = subprocess.run([*command, f"-var-file={variables}", str(jobspec)],
                                     capture_output=True, text=True)
             if result.returncode:
-                raise ValueError(f"{path.relative_to(ROOT)}: {result.stderr or result.stdout}")
+                raise ValueError(f"{origin}: " + (result.stderr or result.stdout).replace(str(jobspec), str(origin)))
             name = path.name.removesuffix(".nomad.hcl")
             job_id = "cowork-" + name
             stage = path.relative_to(NOMAD).parts[0]
@@ -144,10 +148,12 @@ def render_jobs(manifest=None, vault_mount="secret", gateway_host_port=21000, *,
                 payload = json.loads(result.stdout)
                 job = payload.get("Job", payload)
                 if job["ID"] != job_id or job_id in specs:
-                    raise ValueError(f"Nomad job ID must match its unique filename: {path.relative_to(ROOT)}")
+                    raise ValueError(f"Nomad job ID must match its unique filename: {origin}")
                 specs[job_id] = job
     # Template jobs render only the services in TEMPLATE_SERVICES, so a catalog job without one must fail here.
     declared = set(re.findall(r'^\s*"(cowork-[^"]+)"\s*:\s*"nomad/', CATALOG.read_text(), re.MULTILINE))
+    if not declared:
+        raise ValueError(f"No Nomad jobs found in catalog: {CATALOG.relative_to(ROOT)}")
     missing = declared - {job_id for jobs in stages.values() for job_id in jobs}
     if missing:
         raise ValueError("Catalog jobs without a rendered Nomad job: " + ", ".join(sorted(missing)))
