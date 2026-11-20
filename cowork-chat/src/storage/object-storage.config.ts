@@ -21,44 +21,28 @@ export type ObjectStorageConfig = {
 };
 
 export function buildObjectStorageConfig(configService: ConfigService): ObjectStorageConfig {
-	const internalEndpoint = getRequiredConfig(configService, [
-		'object-storage.endpoint',
-		'S3_ENDPOINT',
-		'S3_INTERNAL_ENDPOINT',
-	]);
+	const internalEndpoint = getRequiredConfig(configService, 'S3_INTERNAL_ENDPOINT');
 	const publicApiBaseUrl = getRequiredConfig(configService, 'PUBLIC_API_BASE_URL').replace(/\/$/v, '');
 	const profile = getOptionalConfig(configService, 'APP_CONFIG_PROFILE') ?? 'local';
 	const isProduction = profile === 'prod';
 	validateEndpoint(internalEndpoint, false);
 	validateEndpoint(publicApiBaseUrl, isProduction);
-	const accessKey = getRequiredConfig(configService, ['object-storage.accessKey', 'S3_ACCESS_KEY']);
-	const secretKey = getRequiredConfig(configService, ['object-storage.secretKey', 'S3_SECRET_KEY']);
-	const bucket = getRequiredConfig(configService, ['object-storage.bucket', 'S3_BUCKET']);
+	const accessKey = getRequiredConfig(configService, 'S3_ACCESS_KEY');
+	const secretKey = getRequiredConfig(configService, 'S3_SECRET_KEY');
+	const bucket = getRequiredConfig(configService, 'S3_BUCKET');
 
 	return {
 		internalEndpoint,
 		publicApiBaseUrl,
-		region: getOptionalConfig(configService, ['object-storage.region', 'S3_REGION']) ?? 'us-east-1',
+		region: getOptionalConfig(configService, 'S3_REGION') ?? 'us-east-1',
 		accessKey,
 		secretKey,
 		bucket,
 		publicBaseUrl: `${publicApiBaseUrl}/api/storage/${bucket}`,
-		presignedPutExpirySeconds: Number(getOptionalConfig(
-			configService,
-			['object-storage.presignedPutExpirySeconds', 'S3_PRESIGNED_PUT_EXPIRY_SECONDS'],
-		) ?? DEFAULT_PRESIGNED_PUT_EXPIRY_SECONDS),
-		maxFileSizeBytes: Number(getOptionalConfig(
-			configService,
-			['object-storage.chatMaxFileSizeBytes', 'S3_CHAT_MAX_FILE_SIZE_BYTES'],
-		) ?? DEFAULT_MAX_FILE_SIZE_BYTES),
-		uploadRateLimitWindowMs: Number(getOptionalConfig(
-			configService,
-			['object-storage.chatUploadRateLimitWindowMs', 'S3_CHAT_UPLOAD_RATE_LIMIT_WINDOW_MS'],
-		) ?? DEFAULT_UPLOAD_RATE_LIMIT_WINDOW_MS),
-		uploadRateLimitMaxRequests: Number(getOptionalConfig(
-			configService,
-			['object-storage.chatUploadRateLimitMaxRequests', 'S3_CHAT_UPLOAD_RATE_LIMIT_MAX_REQUESTS'],
-		) ?? DEFAULT_UPLOAD_RATE_LIMIT_MAX_REQUESTS),
+		presignedPutExpirySeconds: Number(getOptionalConfig(configService, 'S3_PRESIGNED_PUT_EXPIRY_SECONDS') ?? DEFAULT_PRESIGNED_PUT_EXPIRY_SECONDS),
+		maxFileSizeBytes: Number(getOptionalConfig(configService, 'S3_CHAT_MAX_FILE_SIZE_BYTES') ?? DEFAULT_MAX_FILE_SIZE_BYTES),
+		uploadRateLimitWindowMs: Number(getOptionalConfig(configService, 'S3_CHAT_UPLOAD_RATE_LIMIT_WINDOW_MS') ?? DEFAULT_UPLOAD_RATE_LIMIT_WINDOW_MS),
+		uploadRateLimitMaxRequests: Number(getOptionalConfig(configService, 'S3_CHAT_UPLOAD_RATE_LIMIT_MAX_REQUESTS') ?? DEFAULT_UPLOAD_RATE_LIMIT_MAX_REQUESTS),
 	};
 }
 

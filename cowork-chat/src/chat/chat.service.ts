@@ -522,7 +522,7 @@ export class ChatService {
      또는 팀 OWNER·ADMIN) 검증과 프로젝트-채널 팀 경계 검증, 실제 `github.issue.create` 발행은
      project 서비스가 `ChatGithubIssueCommandProcessor`에서 수행한다.
      검증 결과는 `project.chat-github-issue.result` 토픽으로 비동기 응답되며,
-     거부된 경우에만 `ChatGithubIssueResultConsumer`가 거부 시스템 메시지를 렌더링한다.
+     거부된 경우에만 `GithubIssueResultConsumer`가 거부 시스템 메시지를 렌더링한다.
 
      @param ctx - 채널·사용자 컨텍스트
      @param dto - GitHub 이슈 생성 정보 (projectId, title, body)

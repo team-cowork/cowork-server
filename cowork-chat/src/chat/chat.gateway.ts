@@ -27,7 +27,6 @@ import {type ForwardReference} from '../common/type/forward-reference.js';
 import {ChatService} from './chat.service.js';
 import {ChatMessageConsumer} from './kafka/chat-message.consumer.js';
 import {GithubIssueResultConsumer} from './kafka/github-issue-result.consumer.js';
-import {ChatGithubIssueResultConsumer} from './kafka/chat-github-issue-result.consumer.js';
 import {GithubRepoEventConsumer} from './kafka/github-repo-event.consumer.js';
 import {VoiceEventConsumer} from './kafka/voice-event.consumer.js';
 import {ChannelEventConsumer} from './kafka/channel-event.consumer.js';
@@ -93,9 +92,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
 	@inject(forwardRef(() => GithubIssueResultConsumer))
 	private readonly githubIssueResultConsumer!: ForwardReference<GithubIssueResultConsumer>;
-
-	@inject(forwardRef(() => ChatGithubIssueResultConsumer))
-	private readonly chatGithubIssueResultConsumer!: ForwardReference<ChatGithubIssueResultConsumer>;
 
 	@inject(forwardRef(() => GithubRepoEventConsumer))
 	private readonly githubRepoEventConsumer!: ForwardReference<GithubRepoEventConsumer>;
@@ -306,7 +302,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 		});
 		this.consumer.setSocketServer(server);
 		this.githubIssueResultConsumer.setSocketServer(server);
-		this.chatGithubIssueResultConsumer.setSocketServer(server);
 		this.githubRepoEventConsumer.setSocketServer(server);
 		this.voiceEventConsumer.setSocketServer(server);
 		this.channelEventConsumer.setSocketServer(server);

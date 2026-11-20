@@ -1,26 +1,20 @@
-import process from 'node:process';
 import {readFileSync} from 'node:fs';
 import {Logger} from '@nestjs/common';
 import {type ConfigService} from '@nestjs/config';
 import {type KafkaConfig, logLevel, type SASLOptions} from 'kafkajs';
 
-type ConfigKey = string | string[];
-
-function normalizeKeys(keys: ConfigKey): string[] {
-	return Array.isArray(keys) ? keys : [keys];
-}
-
-export function getRequiredConfig(configService: ConfigService, keys: ConfigKey): string {
-	const value = getConfigValue(configService, keys);
-	if (value !== undefined) {
-		return value;
+export function getRequiredConfig(configService: ConfigService, key: string): string {
+	const value = getOptionalConfig(configService, key);
+	if (value === undefined) {
+		throw new Error(`Required configuration is missing: ${key}`);
 	}
 
-	throw new Error(`Required configuration is missing: ${normalizeKeys(keys).join(' or ')}`);
+	return value;
 }
 
-export function getOptionalConfig(configService: ConfigService, keys: ConfigKey): string | undefined {
-	return getConfigValue(configService, keys);
+export function getOptionalConfig(configService: ConfigService, key: string): string | undefined {
+	const value = configService.get<string>(key);
+	return value === '' ? undefined : value;
 }
 
 export function getMongoDbUri(configService: ConfigService): string {
@@ -37,14 +31,14 @@ export function getMongoDbUri(configService: ConfigService): string {
 	return `mongodb://${username}:${password}@${host}:${port}/${database}?authSource=admin`;
 }
 
-export function getRequiredCsvConfig(configService: ConfigService, keys: ConfigKey): string[] {
-	const values = getRequiredConfig(configService, keys)
+export function getRequiredCsvConfig(configService: ConfigService, key: string): string[] {
+	const values = getRequiredConfig(configService, key)
 		.split(',')
 		.map(value => value.trim())
 		.filter(Boolean);
 
 	if (values.length === 0) {
-		throw new Error(`Required CSV configuration is empty: ${normalizeKeys(keys).join(' or ')}`);
+		throw new Error(`Required CSV configuration is empty: ${key}`);
 	}
 
 	return values;
@@ -113,15 +107,4 @@ export function getKafkaClientConfig(configService: ConfigService): KafkaConfig 
 	}
 
 	return config;
-}
-
-function getConfigValue(configService: ConfigService, keys: ConfigKey): string | undefined {
-	for (const key of normalizeKeys(keys)) {
-		const value = configService.get<string>(key) ?? process.env[key];
-		if (value !== undefined && value !== '') {
-			return value;
-		}
-	}
-
-	return undefined;
 }

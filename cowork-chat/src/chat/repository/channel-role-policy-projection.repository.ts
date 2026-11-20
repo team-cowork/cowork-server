@@ -136,12 +136,4 @@ export class ChannelRolePolicyProjectionRepository {
 			},
 		).lean<ChannelRolePolicyPermissionsView[]>();
 	}
-
-	async findChannelIdsByRole(teamId: number, roleId: number): Promise<number[]> {
-		return this.model.distinct('channelId', {teamId, roleId, deleted: {$ne: true}});
-	}
-
-	async findChannelIdsByTeam(teamId: number): Promise<number[]> {
-		return this.model.distinct('channelId', {teamId, deleted: {$ne: true}});
-	}
 }
