@@ -10,8 +10,8 @@ import java.time.Instant
 
 @Service
 class UpdateGithubIssueLabelsServiceImpl(
-    private val repoAccessResolver: GithubRepoAccessResolver,
-    private val commandPublisher: GithubIssueWriteCommandPublisher,
+    private val githubRepoAccessResolver: GithubRepoAccessResolver,
+    private val githubIssueWriteCommandPublisher: GithubIssueWriteCommandPublisher,
 ) : UpdateGithubIssueLabelsService {
 
     @Transactional
@@ -22,8 +22,8 @@ class UpdateGithubIssueLabelsServiceImpl(
         issueNumber: Int,
         request: UpdateGithubIssueLabelsReqDto,
     ) {
-        val repo = repoAccessResolver.resolveForModify(userId, projectId, repoId)
-        commandPublisher.publishReplaceLabels(
+        val repo = githubRepoAccessResolver.resolveForModify(userId, projectId, repoId)
+        githubIssueWriteCommandPublisher.publishReplaceLabels(
             owner = repo.owner,
             repo = repo.repo,
             repoId = repoId,

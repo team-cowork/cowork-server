@@ -19,9 +19,9 @@ class ProjectLifecycleHandler(
     private val projectRepository: ProjectRepository,
     private val teamMembershipRepository: TeamMembershipRepository,
     private val projectEventPublisher: ProjectEventPublisher,
-    private val repoDeletionSupport: ProjectGithubRepoDeletionSupport,
-    private val memberFences: TeamRoleMemberTombstoneRepository,
-    private val boardLifecycleSupport: ProjectGithubBoardLifecycleSupport,
+    private val projectGithubRepoDeletionSupport: ProjectGithubRepoDeletionSupport,
+    private val teamRoleMemberTombstoneRepository: TeamRoleMemberTombstoneRepository,
+    private val projectGithubBoardLifecycleSupport: ProjectGithubBoardLifecycleSupport,
 ) {
     private val log = LoggerFactory.getLogger(ProjectLifecycleHandler::class.java)
 
@@ -61,8 +61,8 @@ class ProjectLifecycleHandler(
             log.info("TEAM_DELETED 처리: 대상 프로젝트 없음 [teamId={}]", teamId)
             return
         }
-        repoDeletionSupport.deleteByProjectIds(projects.map { it.id }, version)
-        boardLifecycleSupport.deleteByProjectIds(projects.map { it.id })
+        projectGithubRepoDeletionSupport.deleteByProjectIds(projects.map { it.id }, version)
+        projectGithubBoardLifecycleSupport.deleteByProjectIds(projects.map { it.id })
         projects.forEach { projectEventPublisher.publishDeleted(it, version) }
         projectRepository.deleteAll(projects)
         log.info("TEAM_DELETED 처리 완료 [teamId={}, deletedProjects={}]", teamId, projects.size)
@@ -78,9 +78,9 @@ class ProjectLifecycleHandler(
     ) {
         val version = occurredAt.toProjectionPrecision()
         val fenceKey = TeamRoleMemberTombstone.key(teamId, targetUserId)
-        val fence = memberFences.findById(fenceKey).orElse(null)
+        val fence = teamRoleMemberTombstoneRepository.findById(fenceKey).orElse(null)
         if (fence == null || version.isAfter(fence.sourceOccurredAt)) {
-            memberFences.save(TeamRoleMemberTombstone(fenceKey, teamId, targetUserId, version))
+            teamRoleMemberTombstoneRepository.save(TeamRoleMemberTombstone(fenceKey, teamId, targetUserId, version))
         }
         val membership = teamMembershipRepository.findStateByTeamIdAndUserIdForUpdate(teamId, targetUserId)
             ?: TeamMembership(

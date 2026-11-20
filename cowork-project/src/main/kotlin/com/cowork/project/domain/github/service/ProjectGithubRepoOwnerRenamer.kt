@@ -15,14 +15,14 @@ import java.util.Locale
  */
 @Component
 class ProjectGithubRepoOwnerRenamer(
-    private val repoLinkRepository: ProjectGithubRepoRepository,
-    private val repoEventPublisher: ProjectGithubRepoEventPublisher,
+    private val projectGithubRepoRepository: ProjectGithubRepoRepository,
+    private val projectGithubRepoEventPublisher: ProjectGithubRepoEventPublisher,
 ) {
     private val log = LoggerFactory.getLogger(ProjectGithubRepoOwnerRenamer::class.java)
 
     @Transactional(propagation = Propagation.MANDATORY)
     fun rename(teamId: Long, previousOwner: String, newOwner: String) {
-        val repoLinks = repoLinkRepository.findAllByTeamIdForUpdate(teamId)
+        val repoLinks = projectGithubRepoRepository.findAllByTeamIdForUpdate(teamId)
         // 유니크 제약 (team_id, github_repo_url)은 대소문자를 구분하지 않으므로 소문자로 비교한다.
         val takenUrls = repoLinks.mapTo(HashSet()) { it.githubRepoUrl.lowercase(Locale.ROOT) }
         val occurredAt = Instant.now()
@@ -38,8 +38,8 @@ class ProjectGithubRepoOwnerRenamer(
                 return@forEach
             }
             repoLink.githubRepoUrl = renamedUrl
-            repoLinkRepository.save(repoLink)
-            repoEventPublisher.publishUpsert(repoLink, occurredAt)
+            projectGithubRepoRepository.save(repoLink)
+            projectGithubRepoEventPublisher.publishUpsert(repoLink, occurredAt)
         }
     }
 

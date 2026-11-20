@@ -19,10 +19,10 @@ import team.themoment.sdk.exception.ExpectedException
 @Service
 class AddProjectGithubBoardServiceImpl(
     private val projectAccessGuard: ProjectAccessGuard,
-    private val accessResolver: GithubBoardAccessResolver,
-    private val boardRepository: ProjectGithubBoardRepository,
-    private val projectionRepository: GithubProjectProjectionRepository,
-    private val syncScheduler: GithubSyncRequestScheduler,
+    private val githubBoardAccessResolver: GithubBoardAccessResolver,
+    private val projectGithubBoardRepository: ProjectGithubBoardRepository,
+    private val githubProjectProjectionRepository: GithubProjectProjectionRepository,
+    private val githubSyncRequestScheduler: GithubSyncRequestScheduler,
 ) : AddProjectGithubBoardService {
 
     @Transactional
@@ -34,8 +34,13 @@ class AddProjectGithubBoardServiceImpl(
         val project = projectAccessGuard.findProjectForUpdateOrThrow(projectId)
         projectAccessGuard.requireGithubManager(project, userId)
         val ref = GithubBoardUrlParser.parse(request.url)
-        accessResolver.requireTeamOrg(project.teamId, ref.owner)
-        if (boardRepository.existsByProjectIdAndOwnerLoginAndProjectNumber(projectId, ref.owner, ref.projectNumber)) {
+        githubBoardAccessResolver.requireTeamOrg(project.teamId, ref.owner)
+        if (projectGithubBoardRepository.existsByProjectIdAndOwnerLoginAndProjectNumber(
+                projectId,
+                ref.owner,
+                ref.projectNumber,
+            )
+        ) {
             throw duplicated()
         }
         val board = ProjectGithubBoard(
@@ -47,12 +52,15 @@ class AddProjectGithubBoardServiceImpl(
         )
         // 동시에 같은 Project를 연결하면 위 검사만으로는 막지 못하므로 유니크 제약 위반을 409로 바꾼다.
         val saved = try {
-            boardRepository.saveAndFlush(board)
+            projectGithubBoardRepository.saveAndFlush(board)
         } catch (_: DataIntegrityViolationException) {
             throw duplicated()
         }
-        syncScheduler.requestProjectSync(ref.owner, ref.projectNumber, force = false)
-        return ProjectGithubBoardResDto.of(saved, projectionRepository.findById(saved.projectionId).orElse(null))
+        githubSyncRequestScheduler.requestProjectSync(ref.owner, ref.projectNumber, force = false)
+        return ProjectGithubBoardResDto.of(
+            saved,
+            githubProjectProjectionRepository.findById(saved.projectionId).orElse(null),
+        )
     }
 
     private fun duplicated() = ExpectedException("이미 이 프로젝트에 연결된 GitHub Project입니다.", HttpStatus.CONFLICT)

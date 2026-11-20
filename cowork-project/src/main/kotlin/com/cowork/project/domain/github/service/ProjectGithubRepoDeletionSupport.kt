@@ -10,20 +10,20 @@ import java.time.Instant
 
 @Component
 class ProjectGithubRepoDeletionSupport(
-    private val repository: ProjectGithubRepoRepository,
-    private val eventPublisher: ProjectGithubRepoEventPublisher,
-    private val settingCommandPublisher: GithubRepoSettingCommandPublisher,
+    private val projectGithubRepoRepository: ProjectGithubRepoRepository,
+    private val projectGithubRepoEventPublisher: ProjectGithubRepoEventPublisher,
+    private val githubRepoSettingCommandPublisher: GithubRepoSettingCommandPublisher,
 ) {
     @Transactional(propagation = Propagation.MANDATORY)
     fun deleteByProjectIds(projectIds: Collection<Long>, occurredAt: Instant) {
         if (projectIds.isEmpty()) return
-        val repoLinks = repository.findAllByProjectIdInForUpdate(projectIds.distinct())
+        val repoLinks = projectGithubRepoRepository.findAllByProjectIdInForUpdate(projectIds.distinct())
         if (repoLinks.isEmpty()) return
 
-        repository.deleteAll(repoLinks)
+        projectGithubRepoRepository.deleteAll(repoLinks)
         repoLinks.forEach {
-            eventPublisher.publishDelete(it, occurredAt)
-            settingCommandPublisher.publishDelete(it.id, requestedBy = null, occurredAt)
+            projectGithubRepoEventPublisher.publishDelete(it, occurredAt)
+            githubRepoSettingCommandPublisher.publishDelete(it.id, requestedBy = null, occurredAt)
         }
     }
 }

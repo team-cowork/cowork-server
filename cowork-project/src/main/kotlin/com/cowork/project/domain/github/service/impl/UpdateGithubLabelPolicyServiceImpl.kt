@@ -20,8 +20,8 @@ import java.util.UUID
 
 @Service
 class UpdateGithubLabelPolicyServiceImpl(
-    private val repoAccessResolver: GithubRepoAccessResolver,
-    private val submissionRepository: GithubRepoSettingOperationSubmissionRepository,
+    private val githubRepoAccessResolver: GithubRepoAccessResolver,
+    private val githubRepoSettingOperationSubmissionRepository: GithubRepoSettingOperationSubmissionRepository,
     private val outboxWriter: OutboxWriter,
 ) : UpdateGithubLabelPolicyService {
 
@@ -35,7 +35,7 @@ class UpdateGithubLabelPolicyServiceImpl(
     ): GithubLabelPolicyOperationAcceptedResDto {
         val normalizedKey = normalizeIdempotencyKey(idempotencyKey)
         val operationId = UUID.randomUUID().toString()
-        val insertion = submissionRepository.insertPendingOrGet(
+        val insertion = githubRepoSettingOperationSubmissionRepository.insertPendingOrGet(
             operationId = operationId,
             idempotencyKey = normalizedKey,
             projectId = projectId,
@@ -58,7 +58,7 @@ class UpdateGithubLabelPolicyServiceImpl(
             }
         }
 
-        repoAccessResolver.resolveForManageForUpdate(userId, projectId, repoId)
+        githubRepoAccessResolver.resolveForManageForUpdate(userId, projectId, repoId)
         val command = UpdateGithubRepoSettingCommand(
             operationId = operationId,
             idempotencyKey = normalizedKey,

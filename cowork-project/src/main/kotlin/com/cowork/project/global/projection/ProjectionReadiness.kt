@@ -22,46 +22,46 @@ import java.util.concurrent.TimeUnit
 
 @Component
 class ProjectionReadinessState(
-    private val checkpointStore: ProjectionCheckpointStore,
-    private val streams: ProjectionStreams,
+    private val projectionCheckpointStore: ProjectionCheckpointStore,
+    private val projectionStreams: ProjectionStreams,
 ) {
     private val log = LoggerFactory.getLogger(ProjectionReadinessState::class.java)
     private val assignedStreams = ConcurrentHashMap.newKeySet<ProjectionStream>()
     private val initializingStreams = ConcurrentHashMap.newKeySet<ProjectionStream>().apply {
-        addAll(streams.required)
+        addAll(projectionStreams.required)
     }
 
     @Volatile
     private var ready = false
 
     fun markInitializing(stream: ProjectionStream) {
-        if (stream !in streams.required) return
+        if (stream !in projectionStreams.required) return
         initializingStreams.add(stream)
         ready = false
     }
 
     fun markInitialized(stream: ProjectionStream, locallyAssigned: Boolean) {
-        if (stream !in streams.required) return
+        if (stream !in projectionStreams.required) return
         initializingStreams.remove(stream)
         if (locallyAssigned) assignedStreams.add(stream) else assignedStreams.remove(stream)
         refresh()
     }
 
     fun markRevoked(stream: ProjectionStream) {
-        if (stream !in streams.required) return
+        if (stream !in projectionStreams.required) return
         assignedStreams.remove(stream)
         refresh()
     }
 
     fun markNotReady(stream: ProjectionStream) {
-        if (stream in streams.required) ready = false
+        if (stream in projectionStreams.required) ready = false
     }
 
     fun refresh(): Boolean {
         ready = if (initializingStreams.isNotEmpty()) {
             false
         } else {
-            runCatching { checkpointStore.isCaughtUp(streams.required) }
+            runCatching { projectionCheckpointStore.isCaughtUp(projectionStreams.required) }
                 .onFailure { log.warn("Kafka projection readiness 조회 실패", it) }
                 .getOrDefault(false)
         }
@@ -69,11 +69,11 @@ class ProjectionReadinessState(
     }
 
     fun areCurrent(requiredStreams: Set<ProjectionStream>): Boolean {
-        require(streams.required.containsAll(requiredStreams)) {
+        require(projectionStreams.required.containsAll(requiredStreams)) {
             "Snapshot readiness can only depend on configured projection streams"
         }
         if (requiredStreams.any(initializingStreams::contains)) return false
-        return runCatching { checkpointStore.isCaughtUp(requiredStreams) }
+        return runCatching { projectionCheckpointStore.isCaughtUp(requiredStreams) }
             .onFailure { log.warn("Kafka projection subset readiness 조회 실패", it) }
             .getOrDefault(false)
     }
@@ -82,7 +82,7 @@ class ProjectionReadinessState(
 
     fun assignedCount(): Int = assignedStreams.size
 
-    fun requiredCount(): Int = streams.required.size
+    fun requiredCount(): Int = projectionStreams.required.size
 
     fun initializingCount(): Int = initializingStreams.size
 }
@@ -203,26 +203,27 @@ class ProjectionAssignmentCoordinator(
 }
 
 @Component("projectionReadiness")
-class ProjectionReadinessHealthIndicator(private val readinessState: ProjectionReadinessState) : HealthIndicator {
-    override fun health(): Health = if (readinessState.refresh()) {
+class ProjectionReadinessHealthIndicator(private val projectionReadinessState: ProjectionReadinessState) :
+    HealthIndicator {
+    override fun health(): Health = if (projectionReadinessState.refresh()) {
         Health.up().build()
     } else {
         Health.outOfService()
-            .withDetail("localAssignedStreams", readinessState.assignedCount())
-            .withDetail("initializingStreams", readinessState.initializingCount())
-            .withDetail("requiredStreams", readinessState.requiredCount())
+            .withDetail("localAssignedStreams", projectionReadinessState.assignedCount())
+            .withDetail("initializingStreams", projectionReadinessState.initializingCount())
+            .withDetail("requiredStreams", projectionReadinessState.requiredCount())
             .build()
     }
 }
 
 @Component
 class ProjectionReadinessAvailability(
-    private val readinessState: ProjectionReadinessState,
+    private val projectionReadinessState: ProjectionReadinessState,
     private val applicationContext: ApplicationContext,
 ) {
     @Scheduled(fixedDelayString = "\${projection.readiness.poll-interval-ms:1000}")
     fun refreshAvailability() {
-        val state = if (readinessState.refresh()) {
+        val state = if (projectionReadinessState.refresh()) {
             ReadinessState.ACCEPTING_TRAFFIC
         } else {
             ReadinessState.REFUSING_TRAFFIC
@@ -232,22 +233,22 @@ class ProjectionReadinessAvailability(
 
     @EventListener
     fun preserveFailClosedReadiness(event: AvailabilityChangeEvent<*>) {
-        if (event.state == ReadinessState.ACCEPTING_TRAFFIC && !readinessState.isReady()) {
+        if (event.state == ReadinessState.ACCEPTING_TRAFFIC && !projectionReadinessState.isReady()) {
             AvailabilityChangeEvent.publish(applicationContext, ReadinessState.REFUSING_TRAFFIC)
         }
     }
 }
 
 @Component
-class ProjectionReadinessGate(private val readinessState: ProjectionReadinessState) {
+class ProjectionReadinessGate(private val projectionReadinessState: ProjectionReadinessState) {
     fun requireReady() {
-        if (!readinessState.isReady()) {
+        if (!projectionReadinessState.isReady()) {
             throw notReady()
         }
     }
 
     fun requireCurrent() {
-        if (!readinessState.refresh()) throw notReady()
+        if (!projectionReadinessState.refresh()) throw notReady()
     }
 
     private fun notReady() = ExpectedException(

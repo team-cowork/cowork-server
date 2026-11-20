@@ -7,13 +7,16 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.logging.logger.logger
 
 @Component
-class GithubProjectItemWriteResultHandler(private val operationRepository: GithubProjectItemWriteOperationRepository) {
+class GithubProjectItemWriteResultHandler(
+    private val githubProjectItemWriteOperationRepository: GithubProjectItemWriteOperationRepository,
+) {
     /** 결과를 작업 원장에 반영한다. 이미 끝난 작업에 다시 온 결과는 무시하고 false를 돌려준다. */
     @Transactional
     fun apply(result: GithubProjectItemWriteResult): Boolean {
-        val operation = requireNotNull(operationRepository.findByIdForUpdate(result.operationId)) {
-            "Unknown GitHub project item write operation: ${result.operationId}"
-        }
+        val operation =
+            requireNotNull(githubProjectItemWriteOperationRepository.findByIdForUpdate(result.operationId)) {
+                "Unknown GitHub project item write operation: ${result.operationId}"
+            }
         require(operation.idempotencyKey == result.idempotencyKey) { "idempotencyKey가 작업과 일치하지 않습니다." }
         require(operation.commandType.name == result.commandType) { "commandType이 작업과 일치하지 않습니다." }
         val applied = when (result.status) {
@@ -33,7 +36,7 @@ class GithubProjectItemWriteResultHandler(private val operationRepository: Githu
             )
             return false
         }
-        operationRepository.save(operation)
+        githubProjectItemWriteOperationRepository.save(operation)
         return true
     }
 }

@@ -9,13 +9,13 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class ListGithubCommentsServiceImpl(
-    private val repoAccessResolver: GithubRepoAccessResolver,
-    private val commentReader: GithubIssueCommentReader,
+    private val githubRepoAccessResolver: GithubRepoAccessResolver,
+    private val githubIssueCommentReader: GithubIssueCommentReader,
 ) : ListGithubCommentsService {
 
     @Transactional(readOnly = true)
     override fun execute(userId: Long, projectId: Long, repoId: Long, number: Int): List<GithubCommentResDto> {
-        val repo = repoAccessResolver.resolveForRead(userId, projectId, repoId)
-        return commentReader.listComments(repo.owner, repo.repo, number)
+        val repo = githubRepoAccessResolver.resolveForRead(userId, projectId, repoId)
+        return githubIssueCommentReader.listComments(repo.owner, repo.repo, number)
     }
 }

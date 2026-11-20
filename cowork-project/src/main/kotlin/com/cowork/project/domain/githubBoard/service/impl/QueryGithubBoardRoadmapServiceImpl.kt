@@ -19,9 +19,9 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class QueryGithubBoardRoadmapServiceImpl(
-    private val accessResolver: GithubBoardAccessResolver,
-    private val boardReader: GithubBoardReader,
-    private val itemFilter: GithubBoardItemFilter,
+    private val githubBoardAccessResolver: GithubBoardAccessResolver,
+    private val githubBoardReader: GithubBoardReader,
+    private val githubBoardItemFilter: GithubBoardItemFilter,
 ) : QueryGithubBoardRoadmapService {
 
     @Transactional(readOnly = true)
@@ -34,11 +34,11 @@ class QueryGithubBoardRoadmapServiceImpl(
         startFieldId: String?,
         endFieldId: String?,
     ): GithubBoardRoadmapResDto {
-        val link = accessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.READ)
-        val board = boardReader.read(link)
+        val link = githubBoardAccessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.READ)
+        val board = githubBoardReader.read(link)
         val view = GithubBoardRoadmapBuilder.requireRoadmapView(board, viewNumber)
         val fields = GithubBoardRoadmapBuilder.selectFields(board, startFieldId, endFieldId)
-        val result = itemFilter.apply(board, view, query, userId)
+        val result = githubBoardItemFilter.apply(board, view, query, userId)
         val roadmap = GithubBoardRoadmapBuilder.build(board, view, result.items, fields)
         return GithubBoardRoadmapResDto(
             view = GithubBoardViewResDto.of(view),

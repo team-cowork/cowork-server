@@ -12,15 +12,15 @@ import java.time.Instant
 
 @Component
 class GithubRepoPreferenceProjectionHandler(
-    private val repository: GithubRepoPreferenceProjectionRepository,
-    private val operationRepository: GithubRepoSettingOperationRepository,
+    private val githubRepoPreferenceProjectionRepository: GithubRepoPreferenceProjectionRepository,
+    private val githubRepoSettingOperationRepository: GithubRepoSettingOperationRepository,
 ) {
     @Transactional(propagation = Propagation.MANDATORY)
     fun apply(repoId: Long, labelAutoApply: Boolean, deleted: Boolean, occurredAt: Instant) {
         val version = occurredAt.toProjectionPrecision()
-        val projection = repository.findByIdForUpdate(repoId)
+        val projection = githubRepoPreferenceProjectionRepository.findByIdForUpdate(repoId)
         val accepted = if (projection == null) {
-            repository.save(
+            githubRepoPreferenceProjectionRepository.save(
                 GithubRepoPreferenceProjection(
                     repoId = repoId,
                     labelAutoApply = labelAutoApply,
@@ -31,15 +31,15 @@ class GithubRepoPreferenceProjectionHandler(
             true
         } else {
             projection.apply(labelAutoApply, deleted, version).also { applied ->
-                if (applied) repository.save(projection)
+                if (applied) githubRepoPreferenceProjectionRepository.save(projection)
             }
         }
         if (!accepted) return
 
-        operationRepository.findAllByRepoIdAndStatusForUpdate(
+        githubRepoSettingOperationRepository.findAllByRepoIdAndStatusForUpdate(
             repoId,
             GithubRepoSettingOperationStatus.PROCESSING,
         ).filter { it.completeIfObserved(labelAutoApply, deleted, version) }
-            .forEach(operationRepository::save)
+            .forEach(githubRepoSettingOperationRepository::save)
     }
 }

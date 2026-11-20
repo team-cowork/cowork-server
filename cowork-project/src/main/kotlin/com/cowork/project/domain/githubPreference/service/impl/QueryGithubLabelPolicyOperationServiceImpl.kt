@@ -11,8 +11,8 @@ import team.themoment.sdk.exception.ExpectedException
 
 @Service
 class QueryGithubLabelPolicyOperationServiceImpl(
-    private val repoAccessResolver: GithubRepoAccessResolver,
-    private val operationRepository: GithubRepoSettingOperationRepository,
+    private val githubRepoAccessResolver: GithubRepoAccessResolver,
+    private val githubRepoSettingOperationRepository: GithubRepoSettingOperationRepository,
 ) : QueryGithubLabelPolicyOperationService {
     @Transactional(readOnly = true)
     override fun execute(
@@ -21,9 +21,10 @@ class QueryGithubLabelPolicyOperationServiceImpl(
         repoId: Long,
         operationId: String,
     ): GithubLabelPolicyOperationResDto {
-        repoAccessResolver.resolveForRead(userId, projectId, repoId)
-        val operation = operationRepository.findByOperationIdAndProjectIdAndRepoId(operationId, projectId, repoId)
-            ?: throw ExpectedException("설정 변경 작업을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+        githubRepoAccessResolver.resolveForRead(userId, projectId, repoId)
+        val operation =
+            githubRepoSettingOperationRepository.findByOperationIdAndProjectIdAndRepoId(operationId, projectId, repoId)
+                ?: throw ExpectedException("설정 변경 작업을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         return GithubLabelPolicyOperationResDto.of(operation)
     }
 }

@@ -15,17 +15,18 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 @Component
 class ProjectGithubRepoProjectionSnapshotPublisher(
-    private val repository: ProjectGithubRepoRepository,
-    private val tombstoneRepository: ProjectGithubRepoEventTombstoneRepository,
-    private val eventPublisher: ProjectGithubRepoEventPublisher,
-    private val completionPublisher: ProjectionSnapshotCompletionPublisher,
-    private val projectionReadiness: ProjectionReadinessState,
-    private val snapshotLock: ProjectionSnapshotLock,
-    streams: ProjectionStreams,
-    transactionManager: PlatformTransactionManager,
+    private val projectGithubRepoRepository: ProjectGithubRepoRepository,
+    private val projectGithubRepoEventTombstoneRepository: ProjectGithubRepoEventTombstoneRepository,
+    private val projectGithubRepoEventPublisher: ProjectGithubRepoEventPublisher,
+    private val projectionSnapshotCompletionPublisher: ProjectionSnapshotCompletionPublisher,
+    private val projectionReadinessState: ProjectionReadinessState,
+    private val projectionSnapshotLock: ProjectionSnapshotLock,
+    projectionStreams: ProjectionStreams,
+    platformTransactionManager: PlatformTransactionManager,
 ) {
-    private val transaction = TransactionTemplate(transactionManager)
-    private val requiredUpstream = setOf(streams.teamMember, streams.teamLifecycle, streams.channelState)
+    private val transaction = TransactionTemplate(platformTransactionManager)
+    private val requiredUpstream =
+        setOf(projectionStreams.teamMember, projectionStreams.teamLifecycle, projectionStreams.channelState)
     private val initialSnapshotPublished = AtomicBoolean(false)
     private val snapshotPublishing = AtomicBoolean(false)
 
@@ -44,11 +45,11 @@ class ProjectGithubRepoProjectionSnapshotPublisher(
     private fun publishSnapshotIfReady(markInitialCompleted: Boolean) {
         if (!snapshotPublishing.compareAndSet(false, true)) return
         try {
-            snapshotLock.tryRun(SNAPSHOT_LOCK_NAME) {
-                if (!projectionReadiness.areCurrent(requiredUpstream)) return@tryRun
+            projectionSnapshotLock.tryRun(SNAPSHOT_LOCK_NAME) {
+                if (!projectionReadinessState.areCurrent(requiredUpstream)) return@tryRun
                 publishAllSnapshots()
-                if (!projectionReadiness.areCurrent(requiredUpstream)) return@tryRun
-                completionPublisher.publishCompleted(setOf(PROJECT_GITHUB_REPO_EVENT_TOPIC))
+                if (!projectionReadinessState.areCurrent(requiredUpstream)) return@tryRun
+                projectionSnapshotCompletionPublisher.publishCompleted(setOf(PROJECT_GITHUB_REPO_EVENT_TOPIC))
                 if (markInitialCompleted) initialSnapshotPublished.set(true)
             }
         } finally {
@@ -60,8 +61,8 @@ class ProjectGithubRepoProjectionSnapshotPublisher(
         var afterId = 0L
         while (true) {
             val nextAfterId = transaction.execute {
-                val repoLinks = repository.findSnapshotBatch(afterId, PageRequest.of(0, PAGE_SIZE))
-                repoLinks.forEach(eventPublisher::publishSnapshot)
+                val repoLinks = projectGithubRepoRepository.findSnapshotBatch(afterId, PageRequest.of(0, PAGE_SIZE))
+                repoLinks.forEach(projectGithubRepoEventPublisher::publishSnapshot)
                 repoLinks.lastOrNull()?.id
             } ?: break
             afterId = nextAfterId
@@ -73,8 +74,11 @@ class ProjectGithubRepoProjectionSnapshotPublisher(
         var afterRepoId = 0L
         while (true) {
             val nextAfterRepoId = transaction.execute {
-                val tombstones = tombstoneRepository.findSnapshotBatch(afterRepoId, PageRequest.of(0, PAGE_SIZE))
-                tombstones.forEach(eventPublisher::publishSnapshot)
+                val tombstones = projectGithubRepoEventTombstoneRepository.findSnapshotBatch(
+                    afterRepoId,
+                    PageRequest.of(0, PAGE_SIZE),
+                )
+                tombstones.forEach(projectGithubRepoEventPublisher::publishSnapshot)
                 tombstones.lastOrNull()?.repoId
             } ?: break
             afterRepoId = nextAfterRepoId

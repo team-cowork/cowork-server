@@ -17,16 +17,16 @@ import team.themoment.sdk.exception.ExpectedException
  */
 @Component
 class GithubPullRequestReader(
-    private val repository: GithubPullRequestProjectionRepository,
-    private val syncMarkers: GithubSyncMarkers,
+    private val githubPullRequestProjectionRepository: GithubPullRequestProjectionRepository,
+    private val githubSyncMarkers: GithubSyncMarkers,
 ) {
     fun listPullRequests(owner: String, repo: String, state: String): List<GithubPullRequestSummaryResDto> {
-        syncMarkers.requireSynced(GithubSyncStream.PULL_REQUEST, owner, repo)
+        githubSyncMarkers.requireSynced(GithubSyncStream.PULL_REQUEST, owner, repo)
         // GitHub API 응답(생성일 내림차순, per_page=100)과 같은 순서·건수를 DB 조회에서 유지한다.
         val pullRequests = if (state == "all") {
-            repository.findTop100ByOwnerAndRepoOrderByNumberDesc(owner, repo)
+            githubPullRequestProjectionRepository.findTop100ByOwnerAndRepoOrderByNumberDesc(owner, repo)
         } else {
-            repository.findTop100ByOwnerAndRepoAndStateOrderByNumberDesc(owner, repo, state)
+            githubPullRequestProjectionRepository.findTop100ByOwnerAndRepoAndStateOrderByNumberDesc(owner, repo, state)
         }
         return pullRequests.map { it.toSummaryResDto() }
     }
@@ -47,8 +47,8 @@ class GithubPullRequestReader(
 
     /** 동기화가 끝나지 않았으면 503, PR이 없으면 404를 던진다. */
     fun findPullRequest(owner: String, repo: String, number: Int): GithubPullRequestProjection {
-        syncMarkers.requireSynced(GithubSyncStream.PULL_REQUEST, owner, repo)
-        return repository.findByOwnerAndRepoAndNumber(owner, repo, number)
+        githubSyncMarkers.requireSynced(GithubSyncStream.PULL_REQUEST, owner, repo)
+        return githubPullRequestProjectionRepository.findByOwnerAndRepoAndNumber(owner, repo, number)
             ?: throw ExpectedException("PR을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
     }
 

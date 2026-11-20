@@ -9,13 +9,13 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class QueryGithubLabelPolicyServiceImpl(
-    private val repoAccessResolver: GithubRepoAccessResolver,
-    private val labelPolicyReader: GithubLabelPolicyReader,
+    private val githubRepoAccessResolver: GithubRepoAccessResolver,
+    private val githubLabelPolicyReader: GithubLabelPolicyReader,
 ) : QueryGithubLabelPolicyService {
 
     @Transactional(readOnly = true)
     override fun execute(userId: Long, projectId: Long, repoId: Long): GithubLabelPolicyResDto {
-        repoAccessResolver.resolveForRead(userId, projectId, repoId)
-        return GithubLabelPolicyResDto(autoApply = labelPolicyReader.readAutoApply(repoId))
+        githubRepoAccessResolver.resolveForRead(userId, projectId, repoId)
+        return GithubLabelPolicyResDto(autoApply = githubLabelPolicyReader.readAutoApply(repoId))
     }
 }

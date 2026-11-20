@@ -9,14 +9,14 @@ import java.time.Instant
 
 @Service
 class DeleteGithubCommentServiceImpl(
-    private val authorizationSupport: GithubCommentAuthorizationSupport,
-    private val commandPublisher: GithubIssueWriteCommandPublisher,
+    private val githubCommentAuthorizationSupport: GithubCommentAuthorizationSupport,
+    private val githubIssueWriteCommandPublisher: GithubIssueWriteCommandPublisher,
 ) : DeleteGithubCommentService {
 
     @Transactional
     override fun execute(userId: Long, projectId: Long, repoId: Long, commentId: Long) {
-        val repo = authorizationSupport.authorize(userId, projectId, repoId, commentId)
-        commandPublisher.publishDeleteComment(
+        val repo = githubCommentAuthorizationSupport.authorize(userId, projectId, repoId, commentId)
+        githubIssueWriteCommandPublisher.publishDeleteComment(
             owner = repo.owner,
             repo = repo.repo,
             repoId = repoId,

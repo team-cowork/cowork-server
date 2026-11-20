@@ -11,17 +11,17 @@ import org.springframework.stereotype.Service
 
 @Service
 class MergePullRequestServiceImpl(
-    private val repoAccessResolver: GithubRepoAccessResolver,
-    private val usernameResolver: GithubUsernameResolver,
-    private val callExecutor: GithubAppCallExecutor,
+    private val githubRepoAccessResolver: GithubRepoAccessResolver,
+    private val githubUsernameResolver: GithubUsernameResolver,
+    private val githubAppCallExecutor: GithubAppCallExecutor,
     private val githubAppClient: GithubAppClient,
 ) : MergePullRequestService {
 
     // GitHub 응답(read-timeout 10초)을 기다리는 동안 DB 커넥션을 잡지 않도록 서비스 트랜잭션을 두지 않는다.
     override fun execute(userId: Long, projectId: Long, repoId: Long, prNumber: Int): GithubPullRequestActionResDto {
-        val repo = repoAccessResolver.resolveForModify(userId, projectId, repoId)
-        val request = GithubPullRequestActionRequest(usernameResolver.resolve(userId))
-        val result = callExecutor.execute {
+        val repo = githubRepoAccessResolver.resolveForModify(userId, projectId, repoId)
+        val request = GithubPullRequestActionRequest(githubUsernameResolver.resolve(userId))
+        val result = githubAppCallExecutor.execute {
             githubAppClient.mergePullRequest(repo.owner, repo.repo, prNumber, request)
         }
         return GithubPullRequestActionResDto.of(result)

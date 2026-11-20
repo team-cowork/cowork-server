@@ -16,14 +16,14 @@ import org.springframework.transaction.support.TransactionTemplate
  */
 @Component
 class GithubCommentParentAuthorNotifier(
-    private val issueReader: GithubIssueReader,
-    private val pullRequestReader: GithubPullRequestReader,
-    private val profileReader: UserProfileProjectionReader,
-    private val notificationPublisher: GithubCommentNotificationPublisher,
-    transactionManager: PlatformTransactionManager,
+    private val githubIssueReader: GithubIssueReader,
+    private val githubPullRequestReader: GithubPullRequestReader,
+    private val userProfileProjectionReader: UserProfileProjectionReader,
+    private val githubCommentNotificationPublisher: GithubCommentNotificationPublisher,
+    platformTransactionManager: PlatformTransactionManager,
 ) {
     private val logger = LoggerFactory.getLogger(GithubCommentParentAuthorNotifier::class.java)
-    private val transaction = TransactionTemplate(transactionManager)
+    private val transaction = TransactionTemplate(platformTransactionManager)
 
     fun notify(
         owner: String,
@@ -36,14 +36,14 @@ class GithubCommentParentAuthorNotifier(
     ) {
         runCatching {
             val parentAuthorGithubUsername = when (parentType) {
-                GithubCommentParentType.ISSUE -> issueReader.findAuthor(owner, repo, number)
-                GithubCommentParentType.PULL_REQUEST -> pullRequestReader.findAuthor(owner, repo, number)
+                GithubCommentParentType.ISSUE -> githubIssueReader.findAuthor(owner, repo, number)
+                GithubCommentParentType.PULL_REQUEST -> githubPullRequestReader.findAuthor(owner, repo, number)
             }
             if (parentAuthorGithubUsername == commentAuthor) return
 
-            val targetUserId = profileReader.resolveUniqueUserId(parentAuthorGithubUsername)
+            val targetUserId = userProfileProjectionReader.resolveUniqueUserId(parentAuthorGithubUsername)
             transaction.executeWithoutResult {
-                notificationPublisher.publishCommentCreated(
+                githubCommentNotificationPublisher.publishCommentCreated(
                     targetUserId = targetUserId,
                     data = mapOf(
                         "repo" to "$owner/$repo",

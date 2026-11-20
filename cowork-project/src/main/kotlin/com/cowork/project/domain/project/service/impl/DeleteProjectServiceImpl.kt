@@ -15,8 +15,8 @@ class DeleteProjectServiceImpl(
     private val projectRepository: ProjectRepository,
     private val projectEventPublisher: ProjectEventPublisher,
     private val projectAccessGuard: ProjectAccessGuard,
-    private val repoDeletionSupport: ProjectGithubRepoDeletionSupport,
-    private val boardLifecycleSupport: ProjectGithubBoardLifecycleSupport,
+    private val projectGithubRepoDeletionSupport: ProjectGithubRepoDeletionSupport,
+    private val projectGithubBoardLifecycleSupport: ProjectGithubBoardLifecycleSupport,
 ) : DeleteProjectService {
 
     @Transactional
@@ -24,8 +24,8 @@ class DeleteProjectServiceImpl(
         val project = projectAccessGuard.findProjectForUpdateOrThrow(projectId)
         projectAccessGuard.requireProjectOwner(project, userId)
         val occurredAt = Instant.now()
-        repoDeletionSupport.deleteByProjectIds(listOf(projectId), occurredAt)
-        boardLifecycleSupport.deleteByProjectIds(listOf(projectId))
+        projectGithubRepoDeletionSupport.deleteByProjectIds(listOf(projectId), occurredAt)
+        projectGithubBoardLifecycleSupport.deleteByProjectIds(listOf(projectId))
         projectEventPublisher.publishDeleted(project, occurredAt)
         projectRepository.delete(project)
     }

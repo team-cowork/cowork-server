@@ -12,7 +12,7 @@ import java.util.UUID
 
 @Component
 class GithubProjectItemWriteResultConsumer(
-    private val handler: GithubProjectItemWriteResultHandler,
+    private val githubProjectItemWriteResultHandler: GithubProjectItemWriteResultHandler,
     private val objectMapper: ObjectMapper,
 ) {
     @KafkaListener(
@@ -25,7 +25,7 @@ class GithubProjectItemWriteResultConsumer(
             requireNotNull(objectMapper.readValue(record.value(), GithubProjectItemWriteResult::class.java))
         }.getOrElse { throw IllegalArgumentException("GitHub Project 카드 쓰기 result JSON이 유효하지 않습니다.", it) }
         validate(result)
-        handler.apply(result)
+        githubProjectItemWriteResultHandler.apply(result)
     }
 
     internal fun validate(result: GithubProjectItemWriteResult) {

@@ -37,7 +37,7 @@ import java.util.UUID
  */
 @Component
 class GithubIssueWriteCommandPublisher(
-    private val operationRepository: GithubIssueWriteOperationRepository,
+    private val githubIssueWriteOperationRepository: GithubIssueWriteOperationRepository,
     private val outboxWriter: OutboxWriter,
 ) {
 
@@ -160,10 +160,10 @@ class GithubIssueWriteCommandPublisher(
         payload: Any,
     ): String {
         val operationId = UUID.nameUUIDFromBytes(idempotencyKey.toByteArray(UTF_8)).toString()
-        if (operationRepository.existsById(operationId)) return operationId
+        if (githubIssueWriteOperationRepository.existsById(operationId)) return operationId
 
         try {
-            operationRepository.save(
+            githubIssueWriteOperationRepository.save(
                 GithubIssueWriteOperation(
                     operationId = operationId,
                     idempotencyKey = idempotencyKey,

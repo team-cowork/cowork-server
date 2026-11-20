@@ -8,15 +8,15 @@ import team.themoment.sdk.exception.ExpectedException
 
 @Component
 class UserProfileProjectionReader(
-    private val repository: UserProfileProjectionRepository,
-    private val readinessGate: ProjectionReadinessGate,
+    private val userProfileProjectionRepository: UserProfileProjectionRepository,
+    private val projectionReadinessGate: ProjectionReadinessGate,
 ) {
     fun resolveGithubId(userId: Long): String {
-        readinessGate.requireReady()
-        var profile = repository.findById(userId).orElse(null)
+        projectionReadinessGate.requireReady()
+        var profile = userProfileProjectionRepository.findById(userId).orElse(null)
         if (profile == null) {
-            readinessGate.requireCurrent()
-            profile = repository.findById(userId).orElseThrow(::profileNotFound)
+            projectionReadinessGate.requireCurrent()
+            profile = userProfileProjectionRepository.findById(userId).orElseThrow(::profileNotFound)
         }
         if (profile.deleted) {
             throw profileNotFound()
@@ -29,11 +29,11 @@ class UserProfileProjectionReader(
     }
 
     fun resolveUniqueUserId(githubId: String): Long {
-        readinessGate.requireReady()
-        var matches = repository.findAllByGithubIdAndDeletedFalse(githubId)
+        projectionReadinessGate.requireReady()
+        var matches = userProfileProjectionRepository.findAllByGithubIdAndDeletedFalse(githubId)
         if (matches.isEmpty()) {
-            readinessGate.requireCurrent()
-            matches = repository.findAllByGithubIdAndDeletedFalse(githubId)
+            projectionReadinessGate.requireCurrent()
+            matches = userProfileProjectionRepository.findAllByGithubIdAndDeletedFalse(githubId)
             if (matches.isEmpty()) throw profileNotFound()
         }
         if (matches.size != 1) throw profileSynchronizing()

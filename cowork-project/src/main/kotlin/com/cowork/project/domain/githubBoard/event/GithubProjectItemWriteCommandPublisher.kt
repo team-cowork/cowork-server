@@ -25,7 +25,7 @@ data class GithubProjectItemTarget(
  */
 @Component
 class GithubProjectItemWriteCommandPublisher(
-    private val operationRepository: GithubProjectItemWriteOperationRepository,
+    private val githubProjectItemWriteOperationRepository: GithubProjectItemWriteOperationRepository,
     private val outboxWriter: OutboxWriter,
 ) {
     @Transactional(propagation = Propagation.MANDATORY)
@@ -39,7 +39,7 @@ class GithubProjectItemWriteCommandPublisher(
         val idempotencyKey =
             "github-project-item-write:$commandType:${target.boardId}:${target.itemId}:$requestedBy:${UUID.randomUUID()}"
         val operationId = UUID.nameUUIDFromBytes(idempotencyKey.toByteArray(UTF_8)).toString()
-        operationRepository.save(
+        githubProjectItemWriteOperationRepository.save(
             GithubProjectItemWriteOperation(
                 operationId = operationId,
                 idempotencyKey = idempotencyKey,

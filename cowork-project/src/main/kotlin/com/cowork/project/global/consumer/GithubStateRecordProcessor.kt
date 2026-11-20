@@ -19,8 +19,8 @@ import tools.jackson.databind.ObjectMapper
  */
 @Component
 class GithubStateRecordProcessor(
-    private val processor: ProjectionRecordProcessor,
-    private val syncMarkers: GithubSyncMarkers,
+    private val projectionRecordProcessor: ProjectionRecordProcessor,
+    private val githubSyncMarkers: GithubSyncMarkers,
     private val objectMapper: ObjectMapper,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -44,12 +44,12 @@ class GithubStateRecordProcessor(
             return quarantine(stream, syncStream, record, node, null, "owner가 필요합니다.")
         }
 
-        if (syncMarkers.isMarker(node)) {
+        if (githubSyncMarkers.isMarker(node)) {
             val marker = runCatching { objectMapper.treeToValue(node, GithubSyncCompletedMarker::class.java) }
                 .getOrElse {
                     return quarantine(stream, syncStream, record, node, null, "완료 마커 역직렬화 실패: ${it.message}")
                 }
-            processor.applyRecord(stream, record) { syncMarkers.record(syncStream, marker) }
+            projectionRecordProcessor.applyRecord(stream, record) { githubSyncMarkers.record(syncStream, marker) }
             return
         }
 
@@ -59,7 +59,7 @@ class GithubStateRecordProcessor(
         }
         val event = runCatching { objectMapper.treeToValue(node, type) }
             .getOrElse { return quarantine(stream, syncStream, record, node, scope, "state 역직렬화 실패: ${it.message}") }
-        processor.applyRecord(stream, record) { apply(event) }
+        projectionRecordProcessor.applyRecord(stream, record) { apply(event) }
     }
 
     private fun quarantine(
@@ -77,8 +77,8 @@ class GithubStateRecordProcessor(
             record.offset(),
             reason,
         )
-        syncMarkers.invalidate(syncStream, node?.text("owner"), scope)
-        processor.quarantineRecord(stream, record, reason)
+        githubSyncMarkers.invalidate(syncStream, node?.text("owner"), scope)
+        projectionRecordProcessor.quarantineRecord(stream, record, reason)
     }
 
     internal fun JsonNode.text(field: String): String? = path(field).takeIf { it.isTextual }?.asString()?.takeIf {

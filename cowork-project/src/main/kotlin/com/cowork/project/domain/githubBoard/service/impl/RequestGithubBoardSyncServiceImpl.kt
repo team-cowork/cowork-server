@@ -9,13 +9,13 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class RequestGithubBoardSyncServiceImpl(
-    private val accessResolver: GithubBoardAccessResolver,
-    private val syncScheduler: GithubSyncRequestScheduler,
+    private val githubBoardAccessResolver: GithubBoardAccessResolver,
+    private val githubSyncRequestScheduler: GithubSyncRequestScheduler,
 ) : RequestGithubBoardSyncService {
 
     @Transactional
     override fun execute(userId: Long, projectId: Long, boardId: Long) {
-        val board = accessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.WRITE)
-        syncScheduler.requestProjectSync(board.ownerLogin, board.projectNumber, force = true)
+        val board = githubBoardAccessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.WRITE)
+        githubSyncRequestScheduler.requestProjectSync(board.ownerLogin, board.projectNumber, force = true)
     }
 }

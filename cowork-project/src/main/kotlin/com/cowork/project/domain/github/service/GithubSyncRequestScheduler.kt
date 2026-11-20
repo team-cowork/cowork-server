@@ -90,13 +90,13 @@ data class GithubSyncTarget(
 class GithubSyncRequestScheduler(
     private val projectGithubRepoRepository: ProjectGithubRepoRepository,
     private val projectGithubBoardRepository: ProjectGithubBoardRepository,
-    private val repoProjectionRepository: GithubRepoProjectionRepository,
-    private val installationRepository: TeamGithubInstallationRepository,
-    private val markerRepository: GithubSyncMarkerRepository,
-    private val requestRepository: GithubSyncRequestRepository,
-    private val publisher: GithubSyncCommandPublisher,
+    private val githubRepoProjectionRepository: GithubRepoProjectionRepository,
+    private val teamGithubInstallationRepository: TeamGithubInstallationRepository,
+    private val githubSyncMarkerRepository: GithubSyncMarkerRepository,
+    private val githubSyncRequestRepository: GithubSyncRequestRepository,
+    private val githubSyncCommandPublisher: GithubSyncCommandPublisher,
     private val outboxWriter: OutboxWriter,
-    private val snapshotLock: ProjectionSnapshotLock,
+    private val projectionSnapshotLock: ProjectionSnapshotLock,
     @Value("\${github.sync.request-cooldown-ms:1800000}") private val requestCooldownMs: Long,
     // 웹훅 누락이나 웹훅이 없는 Project field·view 변경도 따라가도록 org, repo, Project를 1시간마다 다시 읽는다.
     @Value("\${github.sync.stale-after-ms:3600000}") private val staleAfterMs: Long,
@@ -110,12 +110,12 @@ class GithubSyncRequestScheduler(
         fixedDelayString = "\${github.sync.request-interval-ms:60000}",
     )
     fun requestSyncs() {
-        snapshotLock.tryRun(LOCK_NAME) {
+        projectionSnapshotLock.tryRun(LOCK_NAME) {
             val now = Instant.now()
             val targets = targets()
-            val markers = markerRepository.findAllById(targets.flatMap { it.markerIds })
+            val markers = githubSyncMarkerRepository.findAllById(targets.flatMap { it.markerIds })
                 .associate { it.id to it.completedAt }
-            val requests = requestRepository.findAllById(targets.map { it.requestId })
+            val requests = githubSyncRequestRepository.findAllById(targets.map { it.requestId })
                 .associate { it.id to it.requestedAt }
             targets
                 .filter { needsRequest(it.markerIds.map(markers::get), requests[it.requestId], now) }
@@ -130,13 +130,13 @@ class GithubSyncRequestScheduler(
     fun requestRepositorySync(ref: GithubRepoRef) {
         val now = Instant.now()
         val target = repositoryTarget(ref)
-        val markers = markerRepository.findAllById(target.markerIds).associate { it.id to it.completedAt }
-        val lastRequestedAt = requestRepository.findById(target.requestId).map { it.requestedAt }.orElse(null)
+        val markers = githubSyncMarkerRepository.findAllById(target.markerIds).associate { it.id to it.completedAt }
+        val lastRequestedAt = githubSyncRequestRepository.findById(target.requestId).map { it.requestedAt }.orElse(null)
         if (!needsRequest(target.markerIds.map(markers::get), lastRequestedAt, now)) return
 
         val command = target.toCommand(now)
         outboxWriter.enqueue(GITHUB_SYNC_COMMAND_TOPIC, command.key, command)
-        requestRepository.upsert(target.requestId, now)
+        githubSyncRequestRepository.upsert(target.requestId, now)
     }
 
     /**
@@ -147,18 +147,18 @@ class GithubSyncRequestScheduler(
     fun requestProjectSync(owner: String, projectNumber: Int, force: Boolean): Boolean {
         val now = Instant.now()
         val target = GithubSyncTarget.project(owner, projectNumber)
-        val lastRequestedAt = requestRepository.findById(target.requestId).map { it.requestedAt }.orElse(null)
+        val lastRequestedAt = githubSyncRequestRepository.findById(target.requestId).map { it.requestedAt }.orElse(null)
         val requested = if (force) {
             lastRequestedAt == null || !lastRequestedAt.isAfter(now.minusMillis(manualCooldownMs))
         } else {
-            val markers = markerRepository.findAllById(target.markerIds).associate { it.id to it.completedAt }
+            val markers = githubSyncMarkerRepository.findAllById(target.markerIds).associate { it.id to it.completedAt }
             needsRequest(target.markerIds.map(markers::get), lastRequestedAt, now)
         }
         if (!requested) return false
 
         val command = target.toCommand(now)
         outboxWriter.enqueue(GITHUB_SYNC_COMMAND_TOPIC, command.key, command)
-        requestRepository.upsert(target.requestId, now)
+        githubSyncRequestRepository.upsert(target.requestId, now)
         return true
     }
 
@@ -171,7 +171,7 @@ class GithubSyncRequestScheduler(
     // owner/repo는 `project.github-repo.event`와 같은 규칙으로 소문자로 맞춘다. 연결 URL의 대소문자가 서로
     // 다르거나 GitHub 정식 이름과 달라도 같은 대상·마커로 판단해야 같은 repo를 반복 요청하지 않는다.
     private fun targets(): List<GithubSyncTarget> {
-        val installations = installationRepository.findAll()
+        val installations = teamGithubInstallationRepository.findAll()
         val orgByTeamId = installations.associate { it.teamId to it.orgLogin.lowercase(Locale.ROOT) }
         val orgs = installations
             .map { GithubSyncTarget(it.orgLogin.lowercase(Locale.ROOT), null, it.installationId) }
@@ -195,7 +195,7 @@ class GithubSyncRequestScheduler(
     // 그다음 주기부터 다시 동기화 대상이 된다. projection이 아직 없는 repo는 상태를 모르므로 요청한다.
     private fun List<GithubSyncTarget>.excludingRemovedRepos(): List<GithubSyncTarget> {
         if (isEmpty()) return this
-        val removedIds = repoProjectionRepository.findAllById(mapNotNull { it.repoProjectionId })
+        val removedIds = githubRepoProjectionRepository.findAllById(mapNotNull { it.repoProjectionId })
             .filter { it.deleted }
             .mapTo(HashSet()) { it.id }
         return filterNot { it.repoProjectionId in removedIds }
@@ -206,8 +206,8 @@ class GithubSyncRequestScheduler(
 
     private fun request(target: GithubSyncTarget, now: Instant) {
         try {
-            publisher.publish(target.toCommand(now))
-            requestRepository.save(GithubSyncRequest(target.requestId, now))
+            githubSyncCommandPublisher.publish(target.toCommand(now))
+            githubSyncRequestRepository.save(GithubSyncRequest(target.requestId, now))
         } catch (ex: Exception) {
             log.warn("Failed to request GitHub sync [target={}]", target.requestId, ex)
         }

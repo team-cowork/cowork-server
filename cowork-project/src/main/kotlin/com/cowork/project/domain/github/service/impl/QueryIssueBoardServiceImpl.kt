@@ -9,13 +9,13 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class QueryIssueBoardServiceImpl(
-    private val repoAccessResolver: GithubRepoAccessResolver,
-    private val issueReader: GithubIssueReader,
+    private val githubRepoAccessResolver: GithubRepoAccessResolver,
+    private val githubIssueReader: GithubIssueReader,
 ) : QueryIssueBoardService {
 
     @Transactional(readOnly = true)
     override fun execute(userId: Long, projectId: Long, repoId: Long): List<GithubIssueResDto> {
-        val repo = repoAccessResolver.resolveForRead(userId, projectId, repoId)
-        return issueReader.listIssues(repo.owner, repo.repo, "open")
+        val repo = githubRepoAccessResolver.resolveForRead(userId, projectId, repoId)
+        return githubIssueReader.listIssues(repo.owner, repo.repo, "open")
     }
 }

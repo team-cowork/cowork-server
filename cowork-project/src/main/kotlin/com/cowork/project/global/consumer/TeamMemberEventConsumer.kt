@@ -12,10 +12,10 @@ import java.time.Instant
 
 @Component
 class TeamMemberEventConsumer(
-    private val handler: ProjectLifecycleHandler,
+    private val projectLifecycleHandler: ProjectLifecycleHandler,
     private val objectMapper: ObjectMapper,
-    private val processor: ProjectionRecordProcessor,
-    private val streams: ProjectionStreams,
+    private val projectionRecordProcessor: ProjectionRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
 ) {
     private val log = LoggerFactory.getLogger(TeamMemberEventConsumer::class.java)
 
@@ -25,7 +25,7 @@ class TeamMemberEventConsumer(
         containerFactory = "teamMemberEventListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        if (processor.processControlRecord(streams.teamMember, record)) return
+        if (projectionRecordProcessor.processControlRecord(projectionStreams.teamMember, record)) return
         val payload = runCatching {
             requireNotNull(objectMapper.readValue(record.value(), TeamMemberEventPayload::class.java)) {
                 "top-level null은 허용되지 않습니다."
@@ -62,9 +62,9 @@ class TeamMemberEventConsumer(
         }
         val eventOccurredAt = requireNotNull(occurredAt)
 
-        processor.applyRecord(streams.teamMember, record) {
+        projectionRecordProcessor.applyRecord(projectionStreams.teamMember, record) {
             when (payload.eventType) {
-                "UPSERT" -> handler.onMemberUpsert(
+                "UPSERT" -> projectLifecycleHandler.onMemberUpsert(
                     payload.teamId,
                     payload.userId,
                     payload.role,
@@ -72,7 +72,7 @@ class TeamMemberEventConsumer(
                     authorizationVersion,
                 )
 
-                "DELETE" -> handler.onMemberRemovedFromTeam(
+                "DELETE" -> projectLifecycleHandler.onMemberRemovedFromTeam(
                     payload.teamId,
                     payload.userId,
                     payload.role,
@@ -90,6 +90,6 @@ class TeamMemberEventConsumer(
             record.offset(),
             reason,
         )
-        processor.quarantineRecord(streams.teamMember, record, reason)
+        projectionRecordProcessor.quarantineRecord(projectionStreams.teamMember, record, reason)
     }
 }

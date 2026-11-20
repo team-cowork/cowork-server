@@ -13,17 +13,21 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class QueryProjectGithubBoardsServiceImpl(
     private val projectAccessGuard: ProjectAccessGuard,
-    private val accessResolver: GithubBoardAccessResolver,
-    private val boardRepository: ProjectGithubBoardRepository,
-    private val projectionRepository: GithubProjectProjectionRepository,
+    private val githubBoardAccessResolver: GithubBoardAccessResolver,
+    private val projectGithubBoardRepository: ProjectGithubBoardRepository,
+    private val githubProjectProjectionRepository: GithubProjectProjectionRepository,
 ) : QueryProjectGithubBoardsService {
 
     @Transactional(readOnly = true)
     override fun execute(userId: Long, projectId: Long): List<ProjectGithubBoardResDto> {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
-        accessResolver.requireBoardAccess(project, userId, GithubBoardAccess.READ)
-        val boards = boardRepository.findAllByProjectIdOrderByIdAsc(projectId)
-        val projections = projectionRepository.findAllById(boards.map { it.projectionId }).associateBy { it.id }
+        githubBoardAccessResolver.requireBoardAccess(project, userId, GithubBoardAccess.READ)
+        val boards = projectGithubBoardRepository.findAllByProjectIdOrderByIdAsc(projectId)
+        val projections = githubProjectProjectionRepository.findAllById(
+            boards.map {
+                it.projectionId
+            },
+        ).associateBy { it.id }
         return boards.map { ProjectGithubBoardResDto.of(it, projections[it.projectionId]) }
     }
 }

@@ -16,9 +16,9 @@ import tools.jackson.databind.ObjectMapper
 
 @Component
 class GithubProjectStateConsumer(
-    private val repository: GithubProjectProjectionRepository,
-    private val processor: GithubStateRecordProcessor,
-    private val streams: ProjectionStreams,
+    private val githubProjectProjectionRepository: GithubProjectProjectionRepository,
+    private val githubStateRecordProcessor: GithubStateRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
     private val objectMapper: ObjectMapper,
 ) {
     @KafkaListener(
@@ -27,8 +27,8 @@ class GithubProjectStateConsumer(
         containerFactory = "githubProjectStateListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        processor.process(
-            streams.githubProjectState,
+        githubStateRecordProcessor.process(
+            projectionStreams.githubProjectState,
             GithubSyncStream.PROJECT,
             record,
             GithubProjectStateEvent::class.java,
@@ -38,7 +38,7 @@ class GithubProjectStateConsumer(
 
     private fun apply(event: GithubProjectStateEvent) {
         val id = GithubProjectProjection.id(event.owner, event.projectNumber)
-        val projection = repository.findById(id).orElseGet {
+        val projection = githubProjectProjectionRepository.findById(id).orElseGet {
             GithubProjectProjection(id = id, owner = event.owner.lowercase(), projectNumber = event.projectNumber)
         }
         if (!projection.accepts(event.sourceOccurredAt, event.deleted)) return
@@ -53,7 +53,7 @@ class GithubProjectStateConsumer(
         projection.itemIdsJson = objectMapper.writeValueAsString(event.itemIds)
         projection.deleted = event.deleted
         projection.sourceOccurredAt = event.sourceOccurredAt.toProjectionPrecision()
-        repository.save(projection)
+        githubProjectProjectionRepository.save(projection)
     }
 
     private companion object {

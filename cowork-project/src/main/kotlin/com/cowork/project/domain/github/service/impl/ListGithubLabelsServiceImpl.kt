@@ -9,13 +9,13 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class ListGithubLabelsServiceImpl(
-    private val repoAccessResolver: GithubRepoAccessResolver,
-    private val labelReader: GithubLabelReader,
+    private val githubRepoAccessResolver: GithubRepoAccessResolver,
+    private val githubLabelReader: GithubLabelReader,
 ) : ListGithubLabelsService {
 
     @Transactional(readOnly = true)
     override fun execute(userId: Long, projectId: Long, repoId: Long): List<GithubLabelResDto> {
-        val repo = repoAccessResolver.resolveForRead(userId, projectId, repoId)
-        return labelReader.listLabels(repo.owner, repo.repo)
+        val repo = githubRepoAccessResolver.resolveForRead(userId, projectId, repoId)
+        return githubLabelReader.listLabels(repo.owner, repo.repo)
     }
 }

@@ -14,10 +14,10 @@ import java.time.Instant
 
 @Component
 class GithubRepoStateConsumer(
-    private val repository: GithubRepoProjectionRepository,
-    private val syncMarkers: GithubSyncMarkers,
-    private val processor: GithubStateRecordProcessor,
-    private val streams: ProjectionStreams,
+    private val githubRepoProjectionRepository: GithubRepoProjectionRepository,
+    private val githubSyncMarkers: GithubSyncMarkers,
+    private val githubStateRecordProcessor: GithubStateRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
 ) {
     @KafkaListener(
         topics = [GITHUB_REPO_STATE_TOPIC],
@@ -25,14 +25,14 @@ class GithubRepoStateConsumer(
         containerFactory = "githubRepoStateListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        processor.process(
-            streams.githubRepoState,
+        githubStateRecordProcessor.process(
+            projectionStreams.githubRepoState,
             GithubSyncStream.REPO,
             record,
             GithubRepoStateEvent::class.java,
         ) { event ->
             val id = GithubRepoProjection.id(event.owner, event.repo)
-            val projection = repository.findById(id).orElseGet {
+            val projection = githubRepoProjectionRepository.findById(id).orElseGet {
                 GithubRepoProjection(
                     id = id,
                     installationId = event.installationId,
@@ -45,8 +45,8 @@ class GithubRepoStateConsumer(
                 )
             }
             if (projection.apply(event)) {
-                repository.save(projection)
-                if (event.deleted) syncMarkers.clearRepo(event.owner, event.repo)
+                githubRepoProjectionRepository.save(projection)
+                if (event.deleted) githubSyncMarkers.clearRepo(event.owner, event.repo)
             }
         }
     }

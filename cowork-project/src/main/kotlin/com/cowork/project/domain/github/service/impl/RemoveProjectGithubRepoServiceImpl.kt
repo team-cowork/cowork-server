@@ -15,8 +15,8 @@ import java.time.Instant
 class RemoveProjectGithubRepoServiceImpl(
     private val projectGithubRepoRepository: ProjectGithubRepoRepository,
     private val projectAccessGuard: ProjectAccessGuard,
-    private val repoEventPublisher: ProjectGithubRepoEventPublisher,
-    private val settingCommandPublisher: GithubRepoSettingCommandPublisher,
+    private val projectGithubRepoEventPublisher: ProjectGithubRepoEventPublisher,
+    private val githubRepoSettingCommandPublisher: GithubRepoSettingCommandPublisher,
 ) : RemoveProjectGithubRepoService {
 
     @Transactional
@@ -29,7 +29,7 @@ class RemoveProjectGithubRepoServiceImpl(
 
         projectGithubRepoRepository.delete(repoLink)
         val occurredAt = Instant.now()
-        repoEventPublisher.publishDelete(repoLink, occurredAt)
-        settingCommandPublisher.publishDelete(repoLink.id, userId, occurredAt)
+        projectGithubRepoEventPublisher.publishDelete(repoLink, occurredAt)
+        githubRepoSettingCommandPublisher.publishDelete(repoLink.id, userId, occurredAt)
     }
 }

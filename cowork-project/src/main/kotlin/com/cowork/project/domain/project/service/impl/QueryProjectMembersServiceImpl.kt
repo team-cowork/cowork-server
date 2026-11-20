@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class QueryProjectMembersServiceImpl(
-    private val teamMembers: TeamMembershipRepository,
+    private val teamMembershipRepository: TeamMembershipRepository,
     private val projectAccessGuard: ProjectAccessGuard,
 ) : QueryProjectMembersService {
 
@@ -17,7 +17,7 @@ class QueryProjectMembersServiceImpl(
     override fun execute(userId: Long, projectId: Long): List<ProjectAccessUserResponse> {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         projectAccessGuard.requireProjectReader(project, userId)
-        val members = teamMembers.findAllByTeamIdAndActiveTrue(project.teamId)
+        val members = teamMembershipRepository.findAllByTeamIdAndActiveTrue(project.teamId)
         val permissions = projectAccessGuard.permissionsForUsers(project, members)
         return members.filter { permissions[it.userId]?.read == true }
             .map { ProjectAccessUserResponse(projectId, it.userId, permissions.getValue(it.userId).write) }

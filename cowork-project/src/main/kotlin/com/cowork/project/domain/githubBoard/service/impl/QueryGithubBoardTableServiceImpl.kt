@@ -18,9 +18,9 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class QueryGithubBoardTableServiceImpl(
-    private val accessResolver: GithubBoardAccessResolver,
-    private val boardReader: GithubBoardReader,
-    private val itemFilter: GithubBoardItemFilter,
+    private val githubBoardAccessResolver: GithubBoardAccessResolver,
+    private val githubBoardReader: GithubBoardReader,
+    private val githubBoardItemFilter: GithubBoardItemFilter,
 ) : QueryGithubBoardTableService {
 
     @Transactional(readOnly = true)
@@ -31,10 +31,10 @@ class QueryGithubBoardTableServiceImpl(
         viewNumber: Int,
         query: GithubBoardItemQuery,
     ): GithubBoardTableResDto {
-        val link = accessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.READ)
-        val board = boardReader.read(link)
+        val link = githubBoardAccessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.READ)
+        val board = githubBoardReader.read(link)
         val view = GithubBoardTableBuilder.requireTableView(board, viewNumber)
-        val result = itemFilter.apply(board, view, query, userId)
+        val result = githubBoardItemFilter.apply(board, view, query, userId)
         val table = GithubBoardTableBuilder.build(board, view, result.items)
         return GithubBoardTableResDto(
             view = GithubBoardViewResDto.of(view),

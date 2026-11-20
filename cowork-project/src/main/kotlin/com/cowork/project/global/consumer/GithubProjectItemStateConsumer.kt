@@ -21,9 +21,9 @@ import tools.jackson.databind.ObjectMapper
  */
 @Component
 class GithubProjectItemStateConsumer(
-    private val repository: GithubProjectItemProjectionRepository,
-    private val processor: GithubStateRecordProcessor,
-    private val streams: ProjectionStreams,
+    private val githubProjectItemProjectionRepository: GithubProjectItemProjectionRepository,
+    private val githubStateRecordProcessor: GithubStateRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
     private val objectMapper: ObjectMapper,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -34,8 +34,8 @@ class GithubProjectItemStateConsumer(
         containerFactory = "githubProjectItemStateListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        processor.process(
-            streams.githubProjectItemState,
+        githubStateRecordProcessor.process(
+            projectionStreams.githubProjectItemState,
             GithubSyncStream.PROJECT_ITEM,
             record,
             GithubProjectItemStateEvent::class.java,
@@ -49,13 +49,13 @@ class GithubProjectItemStateConsumer(
             log.warn("Skip GitHub project item state without item or project id [owner={}]", event.owner)
             return
         }
-        val projection = repository.findById(event.itemId).orElse(null)
+        val projection = githubProjectItemProjectionRepository.findById(event.itemId).orElse(null)
         if (projection != null && !projection.accepts(event.sourceOccurredAt, event.deleted)) return
 
         val payload = objectMapper.writeValueAsString(event)
         val version = event.sourceOccurredAt.toProjectionPrecision()
         if (projection == null) {
-            repository.save(
+            githubProjectItemProjectionRepository.save(
                 GithubProjectItemProjection(
                     id = event.itemId,
                     projectNodeId = event.projectNodeId,
@@ -74,7 +74,7 @@ class GithubProjectItemStateConsumer(
         projection.archived = event.archived
         projection.deleted = event.deleted
         projection.sourceOccurredAt = version
-        repository.save(projection)
+        githubProjectItemProjectionRepository.save(projection)
     }
 
     private companion object {

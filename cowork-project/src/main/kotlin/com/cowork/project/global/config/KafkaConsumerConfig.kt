@@ -27,11 +27,11 @@ import org.springframework.util.backoff.BackOff
 class KafkaConsumerConfig(
     private val kafkaProperties: KafkaProperties,
     private val kafkaTemplate: KafkaTemplate<String, Any>,
-    private val checkpointStore: ProjectionCheckpointStore,
-    private val readinessState: ProjectionReadinessState,
-    private val streams: ProjectionStreams,
-    private val topicIdentityProvider: ProjectionTopicIdentityProvider,
-    private val topicGenerations: ProjectionTopicGenerationRegistry,
+    private val projectionCheckpointStore: ProjectionCheckpointStore,
+    private val projectionReadinessState: ProjectionReadinessState,
+    private val projectionStreams: ProjectionStreams,
+    private val projectionTopicIdentityProvider: ProjectionTopicIdentityProvider,
+    private val projectionTopicGenerationRegistry: ProjectionTopicGenerationRegistry,
     @Value("\${projection.readiness.assignment-retry-backoff-ms:1000}") private val assignmentRetryBackoffMs: Long,
     @Value("\${projection.readiness.assignment-retry-timeout-ms:60000}") private val assignmentRetryTimeoutMs: Long,
 ) {
@@ -48,10 +48,10 @@ class KafkaConsumerConfig(
         factory.containerProperties.setConsumerRebalanceListener(
             ProjectionAssignmentCoordinator(
                 stream,
-                checkpointStore,
-                readinessState,
-                topicIdentityProvider,
-                topicGenerations,
+                projectionCheckpointStore,
+                projectionReadinessState,
+                projectionTopicIdentityProvider,
+                projectionTopicGenerationRegistry,
                 assignmentRetryBackoffMs,
                 assignmentRetryTimeoutMs,
             ),
@@ -81,47 +81,53 @@ class KafkaConsumerConfig(
     }
 
     @Bean
-    fun preferenceTeamRoleChangedListenerContainerFactory() = projectionListenerContainerFactory(streams.teamRole)
+    fun preferenceTeamRoleChangedListenerContainerFactory() =
+        projectionListenerContainerFactory(projectionStreams.teamRole)
 
     @Bean
-    fun projectAccessListenerContainerFactory() = projectionListenerContainerFactory(streams.projectAccess)
+    fun projectAccessListenerContainerFactory() = projectionListenerContainerFactory(projectionStreams.projectAccess)
 
     @Bean
-    fun channelStateListenerContainerFactory() = projectionListenerContainerFactory(streams.channelState)
+    fun channelStateListenerContainerFactory() = projectionListenerContainerFactory(projectionStreams.channelState)
 
     @Bean
-    fun teamLifecycleListenerContainerFactory() = projectionListenerContainerFactory(streams.teamLifecycle)
+    fun teamLifecycleListenerContainerFactory() = projectionListenerContainerFactory(projectionStreams.teamLifecycle)
 
     @Bean
-    fun teamMemberEventListenerContainerFactory() = projectionListenerContainerFactory(streams.teamMember)
+    fun teamMemberEventListenerContainerFactory() = projectionListenerContainerFactory(projectionStreams.teamMember)
 
     @Bean
-    fun userProfileListenerContainerFactory() = projectionListenerContainerFactory(streams.userProfile)
+    fun userProfileListenerContainerFactory() = projectionListenerContainerFactory(projectionStreams.userProfile)
 
     @Bean
-    fun githubRepoSettingStateListenerContainerFactory() = projectionListenerContainerFactory(streams.githubRepoSetting)
+    fun githubRepoSettingStateListenerContainerFactory() =
+        projectionListenerContainerFactory(projectionStreams.githubRepoSetting)
 
     @Bean
-    fun githubRepoStateListenerContainerFactory() = projectionListenerContainerFactory(streams.githubRepoState)
+    fun githubRepoStateListenerContainerFactory() =
+        projectionListenerContainerFactory(projectionStreams.githubRepoState)
 
     @Bean
-    fun githubIssueStateListenerContainerFactory() = projectionListenerContainerFactory(streams.githubIssueState)
+    fun githubIssueStateListenerContainerFactory() =
+        projectionListenerContainerFactory(projectionStreams.githubIssueState)
 
     @Bean
     fun githubPullRequestStateListenerContainerFactory() =
-        projectionListenerContainerFactory(streams.githubPullRequestState)
+        projectionListenerContainerFactory(projectionStreams.githubPullRequestState)
 
     @Bean
-    fun githubLabelStateListenerContainerFactory() = projectionListenerContainerFactory(streams.githubLabelState)
+    fun githubLabelStateListenerContainerFactory() =
+        projectionListenerContainerFactory(projectionStreams.githubLabelState)
 
     @Bean
     fun githubIssueCommentStateListenerContainerFactory() =
-        projectionListenerContainerFactory(streams.githubIssueCommentState)
+        projectionListenerContainerFactory(projectionStreams.githubIssueCommentState)
 
     @Bean
-    fun githubProjectStateListenerContainerFactory() = projectionListenerContainerFactory(streams.githubProjectState)
+    fun githubProjectStateListenerContainerFactory() =
+        projectionListenerContainerFactory(projectionStreams.githubProjectState)
 
     @Bean
     fun githubProjectItemStateListenerContainerFactory() =
-        projectionListenerContainerFactory(streams.githubProjectItemState)
+        projectionListenerContainerFactory(projectionStreams.githubProjectItemState)
 }
