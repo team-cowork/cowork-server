@@ -19,6 +19,16 @@ public class AccountsPolicyTests
     }
 
     [Fact]
+    public void Login_claims_only_change_for_a_newer_command()
+    {
+        var last = DateTime.UnixEpoch.AddHours(1);
+        Assert.True(Accounts.CanApplyLoginCommand(null, last));
+        Assert.False(Accounts.CanApplyLoginCommand(last, last.AddSeconds(-1)));
+        Assert.False(Accounts.CanApplyLoginCommand(last, last));
+        Assert.True(Accounts.CanApplyLoginCommand(last, last.AddSeconds(1)));
+    }
+
+    [Fact]
     public void ParseIntCsv_keeps_only_positive_integers()
     {
         Assert.Equal([1, 2, 3], Accounts.ParseIntCsv("1,2,3"));

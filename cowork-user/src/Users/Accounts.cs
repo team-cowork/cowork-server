@@ -461,15 +461,20 @@ public static partial class Accounts
 
     public static async Task<SessionIdentity?> ApplyIdentityCommandAsync(MySqlConnection connection, MySqlTransaction transaction, IdentityCommandContract.Command command)
     {
-        var id = await connection.QuerySingleOrDefaultAsync<long?>("""
-            SELECT account_id FROM tb_account_identities WHERE provider = @Provider AND provider_subject = @Subject FOR UPDATE
-            """, new { command.Provider, command.Subject }, transaction);
+        var binding = await connection.QueryAsync<(long Id, DateTime? LastCommandAt)>("""
+            SELECT account_id, last_login_command_at FROM tb_account_identities
+            WHERE provider = @Provider AND provider_subject = @Subject FOR UPDATE
+            """, new { command.Provider, command.Subject }, transaction).FirstOrNullAsync();
+        var id = binding?.Id;
         if (!command.IsProviderCommand)
         {
             var requested = await connection.QuerySingleOrDefaultAsync<long?>(
                 "SELECT id FROM tb_accounts WHERE id = @UserId FOR UPDATE", new { command.UserId }, transaction);
             if (!CanApplyDataGsmIdentity(requested, id)) return null;
         }
+
+        if (binding is { } existing && !CanApplyLoginCommand(existing.LastCommandAt, command.OccurredAt))
+            return await ReadSessionIdentityAsync(connection, transaction, existing.Id);
 
         // Keep the inbox's FAILED result, but roll back every account mutation on a unique-key collision.
         await transaction.SaveAsync("identity_write");
@@ -512,12 +517,13 @@ public static partial class Accounts
             }
 
             var userId = id!.Value;
+            await connection.ExecuteAsync("""
+                UPDATE tb_account_identities SET last_login_command_at = @OccurredAt
+                WHERE account_id = @userId AND provider = @Provider
+                """, new { userId, command.Provider, command.OccurredAt }, transaction);
             await PresenceProjection.ApplyLatestToAccountAsync(connection, transaction, userId);
             await ProfileEventPublisher.EnqueueCurrentUpsertAsync(connection, transaction, userId);
-            return await connection.QuerySingleAsync<SessionIdentity>("""
-                SELECT a.id AS UserId, a.email AS Email, COALESCE(s.student_role, '') AS GsmRole
-                FROM tb_accounts a LEFT JOIN tb_gsm_student_info s ON s.account_id = a.id WHERE a.id = @userId
-                """, new { userId }, transaction);
+            return await ReadSessionIdentityAsync(connection, transaction, userId);
         }
         catch (MySqlException error) when (error.ErrorCode == MySqlErrorCode.DuplicateKeyEntry)
         {
@@ -525,6 +531,15 @@ public static partial class Accounts
             return null;
         }
     }
+
+    internal static bool CanApplyLoginCommand(DateTime? lastCommandAt, DateTime occurredAt) =>
+        lastCommandAt is null || occurredAt > lastCommandAt.Value;
+
+    static Task<SessionIdentity> ReadSessionIdentityAsync(MySqlConnection connection, MySqlTransaction transaction, long userId) =>
+        connection.QuerySingleAsync<SessionIdentity>("""
+            SELECT a.id AS UserId, a.email AS Email, COALESCE(s.student_role, '') AS GsmRole
+            FROM tb_accounts a LEFT JOIN tb_gsm_student_info s ON s.account_id = a.id WHERE a.id = @userId FOR SHARE
+            """, new { userId }, transaction);
 
     // V2 commands use the provider number as the Cowork ID. An occupied ID
     // can only be updated by the DataGSM identity already bound to it.
@@ -551,10 +566,18 @@ public static partial class Accounts
 
         return await App.TransactionAsync(async (connection, transaction) =>
         {
-            var account = await connection.QueryAsync<(long Id, DateTime? DatagsmUpdatedAt)>(
-                "SELECT account_id, datagsm_updated_at FROM tb_gsm_student_info WHERE datagsm_student_id = @studentId FOR UPDATE",
-                new { studentId }, transaction).FirstOrNullAsync();
-            if (account is null) return StudentEventResult.AccountNotFound;
+            // Look up the student without locking it, then lock the account before the student, as profile writes do.
+            var accountId = await connection.QuerySingleOrDefaultAsync<long?>("""
+                SELECT id FROM tb_accounts
+                WHERE id = (SELECT account_id FROM tb_gsm_student_info WHERE datagsm_student_id = @studentId)
+                FOR UPDATE
+                """, new { studentId }, transaction);
+            if (accountId is null) return StudentEventResult.AccountNotFound;
+            var account = await connection.QueryAsync<(long Id, DateTime? DatagsmUpdatedAt)>("""
+                SELECT account_id, datagsm_updated_at FROM tb_gsm_student_info
+                WHERE account_id = @accountId AND datagsm_student_id = @studentId FOR UPDATE
+                """, new { accountId, studentId }, transaction).FirstOrNullAsync();
+            if (account is null) throw new InvalidOperationException("Student identity changed while locking its account");
             if (!StudentEventNewer(account.Value.DatagsmUpdatedAt is { } current ? Iso8601.AsUtc(current) : null, occurredAt))
                 return StudentEventResult.Stale;
 

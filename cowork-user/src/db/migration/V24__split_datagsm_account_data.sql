@@ -12,6 +12,7 @@ CREATE TABLE tb_account_identities
     account_id       BIGINT NOT NULL,
     provider         VARCHAR(16)  CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     provider_subject VARCHAR(255) COLLATE utf8mb4_0900_bin NOT NULL,
+    last_login_command_at DATETIME(6) NULL,
     PRIMARY KEY (provider, provider_subject),
     UNIQUE KEY uq_tb_account_identities_account_id_provider (account_id, provider),
     CONSTRAINT fk_tb_account_identities_account FOREIGN KEY (account_id) REFERENCES tb_accounts (id) ON DELETE CASCADE
