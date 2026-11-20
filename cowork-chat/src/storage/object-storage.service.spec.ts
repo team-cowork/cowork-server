@@ -147,6 +147,12 @@ describe('ObjectStorageService', () => {
 			await expect(service.createPresignedDownload(objectKey, 1, 42, 'file.png')).rejects.toBeInstanceOf(BadRequestException);
 			expect(mockedGetSignedUrl).not.toHaveBeenCalled();
 		});
+
+		it('공개 저장소 주소가 아닌 파일 URL은 거부한다', () => {
+			const service = new ObjectStorageService(s3Client as unknown as S3Client, configService(), s3Client as unknown as S3Client, uploads as never);
+			expect(() => service.extractObjectKey('https://attacker.example/chat-files/1/42/file.png')).toThrow(BadRequestException);
+			expect(service.extractObjectKey('https://api.example.com/api/storage/cowork-chat/chat-files/1/42/file.png')).toBe('chat-files/1/42/file.png');
+		});
 	});
 
 	describe('removeObject', () => {
