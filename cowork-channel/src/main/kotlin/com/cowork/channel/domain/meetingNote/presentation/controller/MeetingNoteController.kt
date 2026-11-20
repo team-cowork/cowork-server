@@ -25,6 +25,7 @@ import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
+import io.swagger.v3.oas.annotations.parameters.RequestBody as SwaggerRequestBody
 
 @Tag(name = "회의록", description = "채널의 회의록을 작성하고 조회, 수정, 삭제합니다.")
 @ApiResponses(
@@ -184,7 +185,11 @@ class MeetingNoteController(
         @PathVariable noteId: Long,
     ): MeetingNoteResponse = getMeetingNoteService.getNote(userId, channelId, noteId)
 
-    @Operation(summary = "회의록 작성", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(
+        summary = "회의록 작성",
+        description = "템플릿 ID를 생략하거나 null로 보내면 자유 양식으로 작성합니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
     @ApiResponses(
         ApiResponse(
             responseCode = "409",
@@ -288,7 +293,34 @@ class MeetingNoteController(
     fun createNote(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-        @Valid @RequestBody request: CreateMeetingNoteRequest,
+        @SwaggerRequestBody(
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CreateMeetingNoteRequest::class),
+                    examples = [
+                        ExampleObject(
+                            name = "템플릿 없이 작성",
+                            value = """{
+                                "templateId": null,
+                                "title": "주간 회의",
+                                "content": "{\"본문\":\"# 이번 주 안건\"}"
+                            }""",
+                        ),
+                        ExampleObject(
+                            name = "템플릿으로 작성",
+                            value = """{
+                                "templateId": 7,
+                                "title": "주간 회의",
+                                "content": "{\"안건\":\"배포 일정\",\"결정사항\":\"금요일 배포\"}"
+                            }""",
+                        ),
+                    ],
+                ),
+            ],
+        )
+        @Valid
+        @RequestBody request: CreateMeetingNoteRequest,
     ): MeetingNoteResponse = createMeetingNoteService.createNote(userId, channelId, request)
 
     @Operation(summary = "회의록 수정", security = [SecurityRequirement(name = "BearerAuth")])
