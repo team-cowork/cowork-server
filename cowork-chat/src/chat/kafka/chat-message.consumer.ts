@@ -37,7 +37,7 @@ const DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY = 3;
 const CHAT_MESSAGE_REQUIRED_STREAMS: readonly ProjectionName[] = [...CHANNEL_PERMISSION_STREAMS, 'thread'];
 
 /**
-Kafka `chat.message.v2` record를 검증하고, poison record만 durable quarantine한다.
+Kafka `chat.message.event.v3` record를 검증하고, poison record만 durable quarantine한다.
 */
 @injectable()
 export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {

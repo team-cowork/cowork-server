@@ -3,13 +3,13 @@
   "info": {
     "title": "cowork Chat WebSocket API",
     "version": "20261119.1",
-    "description": "Socket.IO /chat 네임스페이스의 실시간 이벤트 명세. 메시지 작성은 WebSocket 이벤트가 아니라 REST API와 chat.message.v2 Kafka 흐름을 사용합니다."
+    "description": "Socket.IO /chat 네임스페이스의 실시간 이벤트 명세. 메시지 작성은 WebSocket 이벤트가 아니라 REST API와 chat.message.event.v3 Kafka 흐름을 사용합니다."
   },
   "servers": {
     "gateway": {
       "url": "{host}/ws/chat",
       "protocol": "ws",
-      "description": "Gateway WebSocket 진입점",
+      "description": "브라우저는 cowork_ws_token 쿠키를 사용합니다. 네이티브 앱은 Authorization 헤더에 Bearer 토큰을 보낼 수 있습니다. Gateway가 연결 시 토큰을 검증하고 사용자 ID를 Chat에 전달합니다.",
       "variables": {
         "host": {
           "default": "localhost:8080"

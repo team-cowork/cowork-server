@@ -7,6 +7,7 @@
 - 채널 생성·조회·수정·삭제, 순서 변경과 멤버 관리
 - 텍스트 채널 보관·복원과 보관 채널 조회. 보관된 채널은 읽기 전용
 - 메시지 thread, 회의록과 템플릿 관리
+- 회의록 AI 요약. Groq로 핵심 요약·결정 사항·할 일을 생성하고, Groq 호출 한도 초과 시 AI Hub로 한 번 재시도
 - 기존 웹훅 데이터를 Kafka로 cowork-preference에 이관
 - 공유 계정·암호화된 credential과 외부 계정 OAuth 연결
 - 채널별 역할 권한 정책 조회·변경 요청
@@ -56,3 +57,7 @@
 | `GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET`                                                 | Google OAuth client secret |
 | `FACEBOOK_ACCOUNT_SHARE_CLIENT_ID`                                                   | Facebook OAuth client ID  |
 | `FACEBOOK_ACCOUNT_SHARE_CLIENT_SECRET`                                               | Facebook OAuth client secret |
+| `GROQ_API_KEY`                                                                       | 회의록 분석용 Groq API 키 |
+| `GROQ_MODEL`                                                                         | Groq 모델. 기본값 `openai/gpt-oss-120b` |
+| `AI_HUB_API_KEY`                                                                     | Groq 한도 초과 시 사용할 AI Hub 키. LLM 권한 필요 |
+| `AI_HUB_MODEL`                                                                       | AI Hub 요약 모델. 기본값 `flash-next` |

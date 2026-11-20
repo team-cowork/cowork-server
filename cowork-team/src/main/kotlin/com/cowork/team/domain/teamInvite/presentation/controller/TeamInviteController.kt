@@ -1,8 +1,8 @@
 package com.cowork.team.domain.teamInvite.presentation.controller
 
-import com.cowork.team.domain.team.presentation.data.response.JoinTeamResponse
 import com.cowork.team.domain.teamInvite.presentation.data.request.CreateInviteRequest
 import com.cowork.team.domain.teamInvite.presentation.data.response.InviteResponse
+import com.cowork.team.domain.teamInvite.presentation.data.response.JoinTeamResponse
 import com.cowork.team.domain.teamInvite.service.CreateInviteService
 import com.cowork.team.domain.teamInvite.service.DeleteInviteService
 import com.cowork.team.domain.teamInvite.service.JoinTeamService

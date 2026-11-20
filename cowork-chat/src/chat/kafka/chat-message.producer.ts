@@ -16,14 +16,14 @@ export class ChatMessageProducer extends LazyKafkaProducer {
 		super(configService, {
 			clientId: 'cowork-chat',
 			label: 'Kafka producer',
-			startupRetryLabel: 'Kafka producer startup: chat.message.v2',
+			startupRetryLabel: 'Kafka producer startup: chat.message.event.v3',
 		});
 	}
 
 	/**
      같은 채널의 메시지가 순서대로 전달되도록 `channelId`를 키로 쓴다.
      */
-	async sendMessage(channelId: number, dto: MessageSendInput, authorId: number, authorRole: string): Promise<void> {
+	async sendMessage(channelId: number, dto: MessageSendInput, authorId: number): Promise<void> {
 		const event: ChatMessageEvent = {
 			contractVersion: CHAT_MESSAGE_CONTRACT_VERSION,
 			eventType: 'MESSAGE_SENT',
@@ -31,7 +31,6 @@ export class ChatMessageProducer extends LazyKafkaProducer {
 			projectId: dto.projectId ?? null,
 			channelId,
 			authorId,
-			authorRole,
 			content: dto.content,
 			type: dto.type ?? 'TEXT',
 			attachments: dto.attachments,

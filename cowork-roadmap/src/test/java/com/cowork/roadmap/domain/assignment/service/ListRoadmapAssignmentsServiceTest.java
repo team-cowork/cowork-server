@@ -20,7 +20,8 @@ import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.repository.RoadmapRepository;
 import com.cowork.roadmap.domain.roadmap.service.RoadmapAccessGuard;
 import com.cowork.roadmap.domain.roadmap.service.support.RoadmapLookupSupport;
-import com.cowork.roadmap.global.team.projection.readiness.TeamMemberProjectionReadiness;
+import com.cowork.roadmap.global.team.projection.readiness.ProjectionReadiness;
+import com.cowork.roadmap.global.team.repository.RoadmapPolicyRepository;
 import com.cowork.roadmap.global.team.repository.TeamMemberProjectionRepository;
 
 import team.themoment.sdk.exception.ExpectedException;
@@ -30,9 +31,10 @@ class ListRoadmapAssignmentsServiceTest {
     private final RoadmapRepository roadmaps = mock(RoadmapRepository.class);
     private final RoadmapAssignmentRepository assignments = mock(RoadmapAssignmentRepository.class);
     private final TeamMemberProjectionRepository memberships = mock(TeamMemberProjectionRepository.class);
-    private final TeamMemberProjectionReadiness readiness = mock(TeamMemberProjectionReadiness.class);
+    private final RoadmapPolicyRepository policies = mock(RoadmapPolicyRepository.class);
+    private final ProjectionReadiness readiness = mock(ProjectionReadiness.class);
     private final ListRoadmapAssignmentsService service = new ListRoadmapAssignmentsServiceImpl(assignments,
-            new RoadmapAccessGuard(memberships, readiness),
+            new RoadmapAccessGuard(memberships, policies, readiness, readiness, readiness),
             new RoadmapLookupSupport(roadmaps));
 
     ListRoadmapAssignmentsServiceTest() {
@@ -47,19 +49,19 @@ class ListRoadmapAssignmentsServiceTest {
         when(memberships.findActiveRole(10L, 7L)).thenReturn(Optional.of("MEMBER"));
         when(memberships.findActiveRole(20L, 7L)).thenReturn(Optional.empty());
 
-        assertThat(service.execute(7L, "MEMBER", 1L)).singleElement()
-                .matches(assignment -> assignment.teamId().equals(10L));
+        assertThat(service.execute(7L, 1L)).singleElement().matches(assignment -> assignment.teamId().equals(10L));
     }
 
     @Test
-    void platformAdmin_canInspectLegacyAssignments() {
-        assertThat(service.execute(7L, "ADMIN", 1L)).hasSize(2);
+    void crossTeamReadPolicy_canInspectLegacyAssignments() {
+        when(policies.allows(0, 7, "read_all_team_roadmaps")).thenReturn(true);
+        assertThat(service.execute(7L, 1L)).hasSize(2);
     }
 
     @Test
     void unavailableMembership_doesNotGrantAccess() {
         when(readiness.isReady()).thenReturn(false);
-        ExpectedException error = assertThrows(ExpectedException.class, () -> service.execute(7L, "MEMBER", 1L));
+        ExpectedException error = assertThrows(ExpectedException.class, () -> service.execute(7L, 1L));
         assertTrue(error.getStatusCode() == HttpStatus.SERVICE_UNAVAILABLE);
     }
 

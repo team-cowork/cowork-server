@@ -16,7 +16,7 @@ export type ChatMessageEvent = {
 	/**
     Producer와 consumer가 공유하는 이벤트 계약 버전
     */
-	contractVersion: 2;
+	contractVersion: 3;
 	/**
     Kafka 라우팅용 이벤트 종류 식별자
     */
@@ -31,7 +31,6 @@ export type ChatMessageEvent = {
 	projectId?: Nullable<number>;
 	channelId: number;
 	authorId: number;
-	authorRole: string;
 	content: string;
 	/**
     메시지 렌더링 타입 (예: TEXT, FILE, SYSTEM)
@@ -43,7 +42,7 @@ export type ChatMessageEvent = {
     */
 	parentMessageId?: string;
 	/**
-    메시지가 속한 스레드 ID; 채널 메시지는 undefined. 이 필드가 없던 이전 이벤트도 채널 메시지로 처리한다.
+    메시지가 속한 스레드 ID. 채널 메시지에는 이 필드가 없다.
     */
 	threadId?: number;
 	/**

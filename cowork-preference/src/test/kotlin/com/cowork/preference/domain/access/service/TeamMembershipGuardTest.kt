@@ -21,8 +21,8 @@ import kotlinx.coroutines.runBlocking
 import java.time.Instant
 
 private const val TEAM_ID = 42L
-private val MEMBER = RequesterContext(userId = 100L, role = "MEMBER")
-private val GLOBAL_ADMIN = RequesterContext(userId = 999L, role = "ADMIN")
+private val MEMBER = RequesterContext(userId = 100L)
+private val OUTSIDER = RequesterContext(userId = 999L)
 private val GENERAL_KEYS = setOf("tag_spam_block")
 private val NICKNAME_FORMAT_KEYS = setOf("nickname_format_enforced", "nickname_format_example")
 
@@ -77,13 +77,13 @@ class TeamMembershipGuardTest :
 
         describe("TeamMembershipGuard 클래스의") {
             describe("requireMember 메서드는") {
-                context("전역 ADMIN이면") {
+                context("다른 팀 사용자가 요청하면") {
                     it("활성 팀 멤버가 아니면 거부한다") {
                         fixture.stubReadiness(true)
-                        coEvery { fixture.memberRepository.findForRead(any(), TEAM_ID, GLOBAL_ADMIN.userId) } returns
+                        coEvery { fixture.memberRepository.findForRead(any(), TEAM_ID, OUTSIDER.userId) } returns
                             null
                         shouldThrow<TeamMembershipDeniedException> {
-                            runBlocking { fixture.guard.requireMember(TEAM_ID, GLOBAL_ADMIN) }
+                            runBlocking { fixture.guard.requireMember(TEAM_ID, OUTSIDER) }
                         }
                     }
                 }
@@ -133,13 +133,13 @@ class TeamMembershipGuardTest :
             }
 
             describe("requireSettingsManager 메서드는") {
-                context("전역 ADMIN이면") {
+                context("다른 팀 사용자가 요청하면") {
                     it("활성 팀 멤버가 아니면 설정 관리를 거부한다") {
                         fixture.stubReadiness(true)
-                        coEvery { fixture.memberRepository.findForRead(any(), TEAM_ID, GLOBAL_ADMIN.userId) } returns
+                        coEvery { fixture.memberRepository.findForRead(any(), TEAM_ID, OUTSIDER.userId) } returns
                             null
                         shouldThrow<TeamMembershipDeniedException> {
-                            runBlocking { fixture.guard.requireSettingsManager(TEAM_ID, GLOBAL_ADMIN, GENERAL_KEYS) }
+                            runBlocking { fixture.guard.requireSettingsManager(TEAM_ID, OUTSIDER, GENERAL_KEYS) }
                         }
                     }
                 }

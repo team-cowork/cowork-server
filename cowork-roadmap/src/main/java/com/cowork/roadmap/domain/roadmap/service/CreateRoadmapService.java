@@ -5,5 +5,5 @@ import com.cowork.roadmap.domain.roadmap.presentation.data.response.RoadmapResDt
 
 public interface CreateRoadmapService {
 
-    RoadmapResDto execute(Long userId, String userRole, CreateRoadmapReqDto request);
+    RoadmapResDto execute(Long userId, CreateRoadmapReqDto request);
 }

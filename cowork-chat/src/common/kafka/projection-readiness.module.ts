@@ -34,6 +34,9 @@ import {
 } from '../../chat/schema/text-channel-setting-projection.schema.js';
 import {TeamSettingProjection, teamSettingProjectionSchema} from '../../chat/schema/team-setting-projection.schema.js';
 import {UserProfileProjection, userProfileProjectionSchema} from '../../chat/schema/user-profile-projection.schema.js';
+import {AccountPolicy, accountPolicySchema} from './account-policy.schema.js';
+import {AccountPolicyService} from './account-policy.service.js';
+import {AccountPolicyConsumer} from './account-policy.consumer.js';
 import {ProjectionAdminController} from './projection-admin.controller.js';
 import {ProjectionMetricsService} from './projection-metrics.service.js';
 import {ProjectionDatasetRepository} from './projection-dataset.repository.js';
@@ -50,6 +53,7 @@ import {ProjectionCheckpoint, projectionCheckpointSchema} from './projection-che
 @nestModule({
 	imports: [
 		MongooseModule.forFeature([
+			{name: AccountPolicy.name, schema: accountPolicySchema},
 			{name: MeetingNoteAttachmentProjection.name, schema: meetingNoteAttachmentProjectionSchema},
 			{name: ThreadProjection.name, schema: threadProjectionSchema},
 			{name: ProjectionCheckpoint.name, schema: projectionCheckpointSchema},
@@ -73,11 +77,13 @@ import {ProjectionCheckpoint, projectionCheckpointSchema} from './projection-che
 	],
 	controllers: [ProjectionAdminController],
 	providers: [
+		AccountPolicyConsumer,
+		AccountPolicyService,
 		ProjectionCheckpointRepository,
 		ProjectionDatasetRepository,
 		ProjectionMetricsService,
 		ProjectionReadinessService,
 	],
-	exports: [ProjectionReadinessService],
+	exports: [ProjectionReadinessService, AccountPolicyService],
 })
 export class ProjectionReadinessModule {}

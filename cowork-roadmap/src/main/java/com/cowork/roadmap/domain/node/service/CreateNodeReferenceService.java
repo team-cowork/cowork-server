@@ -5,5 +5,5 @@ import com.cowork.roadmap.domain.node.presentation.data.response.NodeReferenceRe
 
 public interface CreateNodeReferenceService {
 
-    NodeReferenceResDto execute(Long userId, String userRole, Long nodeId, NodeReferenceReqDto request);
+    NodeReferenceResDto execute(Long userId, Long nodeId, NodeReferenceReqDto request);
 }

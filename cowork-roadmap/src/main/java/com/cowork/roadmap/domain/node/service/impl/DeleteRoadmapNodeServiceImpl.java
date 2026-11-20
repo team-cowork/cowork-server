@@ -36,10 +36,10 @@ public class DeleteRoadmapNodeServiceImpl implements DeleteRoadmapNodeService {
 
     @Override
     @Transactional
-    public void execute(Long userId, String userRole, Long nodeId) {
+    public void execute(Long userId, Long nodeId) {
         Long roadmapId = nodeLookupSupport.findRoadmapIdByNodeOrThrow(nodeId);
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
-        accessGuard.requireMutable(roadmap, userId, userRole);
+        accessGuard.requireMutable(roadmap, userId);
         List<NodeParentProjection> all = nodeRepository.findParentsByRoadmapId(roadmapId);
         deleteSubtree(roadmapId, collectSubtreeIds(nodeId, all));
     }

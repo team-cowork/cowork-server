@@ -37,7 +37,7 @@ class ProjectRoleServiceTest {
     private val projectId = 3L
     private val roleName = "Reviewer"
     private val permissions = JsonObject().put("write", true)
-    private val requester = RequesterContext(217L, "MEMBER")
+    private val requester = RequesterContext(217L)
     private val targetId = 218L
     private val teamId = 5L
     private lateinit var repository: ProjectRoleRepository

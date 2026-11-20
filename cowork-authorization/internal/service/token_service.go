@@ -15,7 +15,6 @@ import (
 type Claims struct {
 	jwt.RegisteredClaims
 	Email   string `json:"email"`
-	Role    string `json:"role"`
 	GsmRole string `json:"gsm_role"`
 }
 
@@ -27,7 +26,7 @@ func NewTokenService(cfg *config.AppConfig) *TokenService {
 	return &TokenService{cfg: cfg}
 }
 
-func (s *TokenService) GenerateAccessToken(userID int64, email, role, gsmRole string) (string, error) {
+func (s *TokenService) GenerateAccessToken(userID int64, email, gsmRole string) (string, error) {
 	now := time.Now()
 	claims := Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -36,7 +35,6 @@ func (s *TokenService) GenerateAccessToken(userID int64, email, role, gsmRole st
 			ExpiresAt: jwt.NewNumericDate(now.Add(s.cfg.JWTAccessExpire)),
 		},
 		Email:   email,
-		Role:    role,
 		GsmRole: gsmRole,
 	}
 

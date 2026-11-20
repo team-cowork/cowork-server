@@ -4,7 +4,19 @@ package com.cowork.preference.domain.accountrole
 object AccountRolePolicy {
     const val CREATE_TEAM = "create_team"
     const val MANAGE_ROLES = "manage_account_roles"
-    val actions = setOf(CREATE_TEAM, MANAGE_ROLES)
+    val operationalActions = setOf(
+        "manage_global_roadmaps",
+        "read_all_team_roadmaps",
+        "create_team_assignments",
+        "update_team_assignment_status",
+        "delete_team_assignments",
+        "manage_chat_search_index",
+        "manage_chat_message_quarantine",
+        "view_chat_projections",
+        "rebuild_chat_projections",
+    )
+
+    val actions = operationalActions + setOf(CREATE_TEAM, MANAGE_ROLES)
 
     fun allows(policies: List<Map<String, Boolean>>, action: String): Boolean =
         action in actions && policies.any { it[action] == true }

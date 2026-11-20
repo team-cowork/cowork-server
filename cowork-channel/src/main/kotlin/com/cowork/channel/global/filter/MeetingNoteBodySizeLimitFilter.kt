@@ -25,21 +25,19 @@ import java.nio.charset.StandardCharsets
 
 /**
  * 호스트 프록시가 요청을 버퍼링하지 않아 chunked 요청은 Gateway의 `RequestSize`를 거치지 않는다.
- * 회의록 생성·수정 요청은 본문을 [MAX_BODY_BYTES]까지만 읽고, 그보다 크면 Jackson에 넘기기 전에 413으로 거부한다.
+ * 회의록 생성·수정·요약 요청은 본문을 [MAX_BODY_BYTES]까지만 읽고, 그보다 크면 Jackson에 넘기기 전에 413으로 거부한다.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 class MeetingNoteBodySizeLimitFilter : OncePerRequestFilter() {
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
-        val pattern =
-            when (request.method) {
-                HttpMethod.POST.name() -> CREATE_PATH
-                HttpMethod.PATCH.name() -> UPDATE_PATH
-                else -> return true
-            }
-        // Spring MVC처럼 디코딩하고 `;` 경로 파라미터를 뗀 경로로 비교해야 인코딩된 경로로 우회할 수 없다.
+        // MVC와 같은 방식으로 경로를 디코딩하고 경로 파라미터를 제거한다.
         val path = RequestPath.parse(request.requestURI, request.contextPath).pathWithinApplication()
-        return !pattern.matches(path)
+        return when (request.method) {
+            HttpMethod.POST.name() -> !CREATE_PATH.matches(path) && !SUMMARY_PATH.matches(path)
+            HttpMethod.PATCH.name() -> !UPDATE_PATH.matches(path)
+            else -> true
+        }
     }
 
     override fun doFilterInternal(
@@ -99,6 +97,9 @@ class MeetingNoteBodySizeLimitFilter : OncePerRequestFilter() {
         val MAX_BODY_BYTES: Long = DataSize.ofMegabytes(1).toBytes()
 
         private val CREATE_PATH = PathPatternParser.defaultInstance.parse("/channels/{channelId}/meeting-notes")
+        private val SUMMARY_PATH = PathPatternParser.defaultInstance.parse(
+            "/channels/{channelId}/meeting-notes/summary",
+        )
         private val UPDATE_PATH = PathPatternParser.defaultInstance.parse(
             "/channels/{channelId}/meeting-notes/{noteId}",
         )

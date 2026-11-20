@@ -40,7 +40,7 @@ class CreateRoadmapServiceTest {
             CreateRoadmapReqDto request = request(RoadmapScope.TEAM, null, null);
 
             ExpectedException error = assertThrows(ExpectedException.class,
-                    () -> createRoadmapService.execute(1L, "MEMBER", request));
+                    () -> createRoadmapService.execute(1L, request));
             assertTrue(error.getStatusCode() == HttpStatus.BAD_REQUEST);
         }
 
@@ -49,7 +49,7 @@ class CreateRoadmapServiceTest {
             CreateRoadmapReqDto request = request(RoadmapScope.PROJECT, 5L, 9L);
 
             ExpectedException error = assertThrows(ExpectedException.class,
-                    () -> createRoadmapService.execute(1L, "MEMBER", request));
+                    () -> createRoadmapService.execute(1L, request));
             assertTrue(error.getStatusCode() == HttpStatus.BAD_REQUEST);
             verify(roadmapRepository, never()).saveAndFlush(any(Roadmap.class));
         }
@@ -61,13 +61,13 @@ class CreateRoadmapServiceTest {
             when(roadmapRepository.saveAndFlush(any(Roadmap.class)))
                     .thenAnswer(invocation -> invocation.getArgument(0));
 
-            var response = createRoadmapService.execute(1L, "MEMBER", request);
+            var response = createRoadmapService.execute(1L, request);
             assertEquals("title", response.title());
             assertEquals(RoadmapScope.TEAM.name(), response.scope());
             assertEquals(5L, response.ownerTeamId());
             assertNull(response.ownerProjectId());
             assertEquals(1L, response.createdBy());
-            verify(accessGuard).requireCreatable(1L, "MEMBER", RoadmapScope.TEAM, 5L);
+            verify(accessGuard).requireCreatable(1L, RoadmapScope.TEAM, 5L);
         }
     }
 

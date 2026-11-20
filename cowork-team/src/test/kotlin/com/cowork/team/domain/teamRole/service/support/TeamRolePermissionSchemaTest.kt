@@ -1,5 +1,6 @@
 package com.cowork.team.domain.teamRole.service.support
 
+import com.cowork.team.global.policy.PermissionKeys
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -15,9 +16,9 @@ class TeamRolePermissionSchemaTest :
                 it("누락된 권한을 false로 채운 전체 권한을 반환한다") {
                     val permissions = schema.canonicalize(mapOf("message_send" to true))
 
-                    permissions.keys shouldBe TeamRolePermission.KEYS
+                    permissions.keys shouldBe PermissionKeys.ROLE_SCOPED
                     permissions["message_send"] shouldBe true
-                    permissions[TeamRolePermission.MANAGE_ROLES.key] shouldBe false
+                    permissions[PermissionKeys.MANAGE_ROLES] shouldBe false
                 }
             }
 

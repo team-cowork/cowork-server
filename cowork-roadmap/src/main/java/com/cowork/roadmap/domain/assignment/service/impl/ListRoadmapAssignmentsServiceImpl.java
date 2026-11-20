@@ -25,14 +25,14 @@ public class ListRoadmapAssignmentsServiceImpl implements ListRoadmapAssignments
 
     @Override
     @Transactional(readOnly = true)
-    public List<AssignmentResDto> execute(Long userId, String userRole, Long roadmapId) {
+    public List<AssignmentResDto> execute(Long userId, Long roadmapId) {
         var roadmap = roadmapLookupSupport.findRoadmapOrThrow(roadmapId);
-        accessGuard.requireReadable(roadmap, userId, userRole);
+        accessGuard.requireReadable(roadmap, userId);
         Map<Long, Boolean> readableTeams = new HashMap<>();
         return assignmentRepository.findByRoadmapIdOrderByIdDesc(roadmapId)
                 .stream()
                 .filter(assignment -> readableTeams.computeIfAbsent(assignment.getTeamId(),
-                        teamId -> accessGuard.canReadTeam(teamId, userId, userRole)))
+                        teamId -> accessGuard.canReadTeam(teamId, userId)))
                 .map(AssignmentResDto::from)
                 .toList();
     }
