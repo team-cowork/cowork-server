@@ -25,10 +25,9 @@ import {ProjectionReadinessService} from './projection-readiness.service.js';
  서버에 직접 호출하면 `X-User-Role: ADMIN`과 양의 정수 `X-User-Id`를 함께 보내야 한다.
  */
 @apiTags('Projection Admin')
-@apiExtraModels(ProjectionStreamStatusDto)
 @apiEnvelopeResponse(403, 'ADMIN 권한 필요')
 @requireRoles(UserRole.ADMIN)
-@apiExtraModels(ApiResponseMetadataDto, ProjectionDatasetDto)
+@apiExtraModels(ApiResponseMetadataDto, ProjectionDatasetDto, ProjectionStreamStatusDto)
 @apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
 @apiResponse({status: 429, description: '요청 한도 초과', type: ApiResponseMetadataDto})
