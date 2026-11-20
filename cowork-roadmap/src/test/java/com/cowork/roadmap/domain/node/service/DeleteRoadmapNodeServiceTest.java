@@ -61,7 +61,7 @@ class DeleteRoadmapNodeServiceTest {
         prepareTree();
         when(assignmentRepository.countByRoadmapIdAndNodeIdIn(anyLong(), any())).thenReturn(0L);
 
-        deleteRoadmapNodeService.execute(1L, "ADMIN", 1L);
+        deleteRoadmapNodeService.execute(1L, 1L);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Iterable<Long>> captor = ArgumentCaptor.forClass(Iterable.class);
@@ -78,7 +78,7 @@ class DeleteRoadmapNodeServiceTest {
         when(nodeRepository.findParentsByRoadmapId(10L)).thenReturn(nodes);
         when(assignmentRepository.countByRoadmapIdAndNodeIdIn(anyLong(), any())).thenReturn(0L);
 
-        deleteRoadmapNodeService.execute(1L, "ADMIN", 1L);
+        deleteRoadmapNodeService.execute(1L, 1L);
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<Collection<Long>> countCaptor = ArgumentCaptor.forClass(Collection.class);
@@ -99,8 +99,7 @@ class DeleteRoadmapNodeServiceTest {
         prepareTree();
         when(assignmentRepository.countByRoadmapIdAndNodeIdIn(anyLong(), any())).thenReturn(2L);
 
-        ExpectedException error = assertThrows(ExpectedException.class,
-                () -> deleteRoadmapNodeService.execute(1L, "ADMIN", 1L));
+        ExpectedException error = assertThrows(ExpectedException.class, () -> deleteRoadmapNodeService.execute(1L, 1L));
         assertTrue(error.getStatusCode() == HttpStatus.CONFLICT && error.getMessage().contains("2건"));
 
         verify(nodeRepository, never()).deleteAllByIdInBatch(any());

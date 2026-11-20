@@ -16,8 +16,8 @@ import org.springframework.transaction.annotation.Transactional
 class UpdateTeamRoleServiceImpl(
     private val teamRoleAccessGuard: TeamRoleAccessGuard,
     private val teamRoleLookupSupport: TeamRoleLookupSupport,
-    private val commandSubmission: TeamRoleCommandSubmission,
-    private val permissionSchema: TeamRolePermissionSchema,
+    private val teamRoleCommandSubmission: TeamRoleCommandSubmission,
+    private val teamRolePermissionSchema: TeamRolePermissionSchema,
 ) : UpdateTeamRoleService {
     @Transactional
     override fun execute(
@@ -26,20 +26,20 @@ class UpdateTeamRoleServiceImpl(
         roleId: Long,
         idempotencyKey: String,
         request: UpdateTeamRoleRequest,
-    ): TeamRoleOperationResponse = commandSubmission.submit(
+    ): TeamRoleOperationResponse = teamRoleCommandSubmission.submit(
         idempotencyKey = idempotencyKey,
         commandType = TeamRoleCommandType.UPDATE,
         teamId = teamId,
         actorId = actorId,
         roleId = roleId,
-        role = TeamRoleCommandRoleInput.update(request, request.permissions?.let(permissionSchema::validate)),
+        role = TeamRoleCommandRoleInput.update(request, request.permissions?.let(teamRolePermissionSchema::validate)),
     ) {
         teamRoleAccessGuard.lockTeamOrThrow(teamId)
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
         val role = teamRoleLookupSupport.findRoleOrThrow(teamId, roleId)
         teamRoleAccessGuard.requireGrantablePermissions(
             actor,
-            request.permissions?.let(permissionSchema::validate).orEmpty().filter { (key, allowed) ->
+            request.permissions?.let(teamRolePermissionSchema::validate).orEmpty().filter { (key, allowed) ->
                 allowed &&
                     role.permissions[key] != true
             },

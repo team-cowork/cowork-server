@@ -8,7 +8,6 @@ import io.jsonwebtoken.security.Keys
 import io.jsonwebtoken.security.SignatureException
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
-import io.kotest.matchers.maps.shouldContain
 import io.kotest.matchers.shouldBe
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import java.nio.charset.StandardCharsets
@@ -24,22 +23,20 @@ class JwtAuthenticationSupportTest :
 
         fun tokenFor(
             subject: String,
-            role: String? = "ADMIN",
             secret: String = SECRET,
             expiration: Date? = Date.from(Instant.now().plusSeconds(3600)),
         ): String {
             val builder = Jwts.builder().subject(subject)
-            if (role != null) builder.claim("role", role)
             if (expiration != null) builder.expiration(expiration)
             return builder.signWith(signingKey(secret)).compact()
         }
 
         describe("JwtAuthenticationSupport 클래스의") {
             describe("parse 메서드는") {
-                context("서명이 유효하고 role 클레임을 포함한 토큰이 주어진 경우") {
-                    it("subject를 principal로, role을 ROLE_ 권한으로 매핑한 Authentication을 반환한다") {
+                context("서명이 유효한 액세스 토큰이 주어진 경우") {
+                    it("subject로 사용자를 인증하고 플랫폼 권한을 부여하지 않는다") {
                         // Given
-                        val token = tokenFor(subject = "42", role = "ADMIN")
+                        val token = tokenFor(subject = "42")
 
                         // When
                         val result = support.parse(token)
@@ -47,35 +44,8 @@ class JwtAuthenticationSupportTest :
                         // Then
                         result.name shouldBe "42"
                         result.isAuthenticated shouldBe true
-                        result.authorities.map { it.authority } shouldBe listOf("ROLE_ADMIN")
+                        result.authorities.isEmpty() shouldBe true
                         (result as UsernamePasswordAuthenticationToken).credentials shouldBe token
-                    }
-
-                    it("details에 userId와 role을 함께 담는다") {
-                        // Given
-                        val token = tokenFor(subject = "7", role = "MEMBER")
-
-                        // When
-                        val result = support.parse(token)
-
-                        // Then
-                        @Suppress("UNCHECKED_CAST")
-                        val details = result.details as Map<String, String>
-                        details shouldContain ("userId" to "7")
-                        details shouldContain ("role" to "MEMBER")
-                    }
-                }
-
-                context("role 클레임이 없는 토큰이 주어진 경우") {
-                    it("role을 USER로 기본값 처리한다") {
-                        // Given
-                        val token = tokenFor(subject = "1", role = null)
-
-                        // When
-                        val result = support.parse(token)
-
-                        // Then
-                        result.authorities.map { it.authority } shouldBe listOf("ROLE_USER")
                     }
                 }
 
@@ -90,19 +60,6 @@ class JwtAuthenticationSupportTest :
 
                         // Then
                         details["expiresAt"] shouldBe expiresAt.toString()
-                    }
-                }
-
-                context("role 클레임이 이미 ROLE_ 접두사를 포함하는 경우") {
-                    it("접두사를 중복으로 붙이지 않는다") {
-                        // Given
-                        val token = tokenFor(subject = "1", role = "ROLE_ADMIN")
-
-                        // When
-                        val result = support.parse(token)
-
-                        // Then
-                        result.authorities.map { it.authority } shouldBe listOf("ROLE_ADMIN")
                     }
                 }
 

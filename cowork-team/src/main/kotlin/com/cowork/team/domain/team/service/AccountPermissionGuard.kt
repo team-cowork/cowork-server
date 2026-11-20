@@ -11,13 +11,14 @@ import team.themoment.sdk.exception.ExpectedException
 
 @Service
 class AccountPermissionGuard(
-    private val accounts: AccountPolicyProjection,
-    private val readiness: ProjectionReadinessGate,
+    private val accountPolicyProjection: AccountPolicyProjection,
+    private val projectionReadinessGate: ProjectionReadinessGate,
 ) {
     @Transactional(readOnly = true)
     fun requireCreateTeam(accountId: Long) {
-        readiness.requireReady()
-        val policies = accounts.findAccountPolicies(accountId) + accounts.findTeamPolicies(accountId)
+        projectionReadinessGate.requireReady()
+        val policies =
+            accountPolicyProjection.findAccountPolicies(accountId) + accountPolicyProjection.findTeamPolicies(accountId)
         if (!RolePolicy.allows(policies, PermissionKeys.CREATE_TEAM)) {
             throw ExpectedException("팀을 생성할 권한이 없습니다.", HttpStatus.FORBIDDEN)
         }

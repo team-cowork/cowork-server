@@ -4,5 +4,5 @@ import com.cowork.roadmap.domain.node.presentation.data.response.NodeResDto;
 
 public interface QueryRoadmapNodeService {
 
-    NodeResDto execute(Long userId, String userRole, Long nodeId);
+    NodeResDto execute(Long userId, Long nodeId);
 }

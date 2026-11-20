@@ -230,9 +230,7 @@ type stubLiveKitRoom struct {
 	createErr        error
 	tokenErr         error
 	removeErr        error
-	listErr          error
 	deleteErr        error
-	participants     []LiveKitParticipant
 	createdRoomName  string
 	deletedRoomName  string
 	tokenUserID      int64
@@ -261,13 +259,6 @@ func (s *stubLiveKitRoom) GenerateToken(userID int64, roomName string, speak, sc
 
 func (s *stubLiveKitRoom) RemoveParticipant(_ context.Context, _, _ string) error {
 	return s.removeErr
-}
-
-func (s *stubLiveKitRoom) ListParticipants(_ context.Context, _ string) ([]LiveKitParticipant, error) {
-	if s.listErr != nil {
-		return nil, s.listErr
-	}
-	return s.participants, nil
 }
 
 func (s *stubLiveKitRoom) DeleteRoom(_ context.Context, roomName string) error {

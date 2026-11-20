@@ -4,7 +4,7 @@ import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.teamInvite.entity.TeamInvite
 import com.cowork.team.domain.teamInvite.presentation.data.response.JoinTeamResponse
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
-import com.cowork.team.domain.teamMember.RegisterTeamMemberService
+import com.cowork.team.domain.teamMember.CreateTeamMemberService
 import com.cowork.team.domain.teamMember.RegisteredTeamMember
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
@@ -19,15 +19,15 @@ import java.time.LocalDateTime
 class JoinTeamServiceImplTest :
     DescribeSpec({
         lateinit var inviteRepository: TeamInviteRepository
-        lateinit var registerMember: RegisterTeamMemberService
+        lateinit var createMember: CreateTeamMemberService
         lateinit var service: JoinTeamServiceImpl
 
         val team = Team(id = 1L, name = "team", description = null, iconUrl = null, ownerId = 10L)
 
         beforeEach {
             inviteRepository = mockk()
-            registerMember = mockk()
-            service = JoinTeamServiceImpl(inviteRepository, registerMember)
+            createMember = mockk()
+            service = JoinTeamServiceImpl(inviteRepository, createMember)
         }
 
         describe("JoinTeamServiceImpl 클래스의 execute 메서드는") {
@@ -36,7 +36,7 @@ class JoinTeamServiceImplTest :
                     val joinedAt = LocalDateTime.now()
                     val member = RegisteredTeamMember(1L, 99L, "MEMBER", joinedAt, true, "이름 / 역할")
                     every { inviteRepository.findActiveByInviteCode("valid") } returns invite(team)
-                    every { registerMember.execute(1L, 99L) } returns member
+                    every { createMember.execute(1L, 99L) } returns member
 
                     service.execute(99L, "valid") shouldBe
                         JoinTeamResponse(1L, 99L, "MEMBER", joinedAt, true, "이름 / 역할")
@@ -51,7 +51,7 @@ class JoinTeamServiceImplTest :
                     val error = shouldThrow<ExpectedException> { service.execute(99L, "expired") }
 
                     error.statusCode shouldBe HttpStatus.GONE
-                    verify(exactly = 0) { registerMember.execute(any(), any()) }
+                    verify(exactly = 0) { createMember.execute(any(), any()) }
                 }
             }
 
@@ -62,7 +62,7 @@ class JoinTeamServiceImplTest :
                     val error = shouldThrow<ExpectedException> { service.execute(99L, "invalid") }
 
                     error.statusCode shouldBe HttpStatus.NOT_FOUND
-                    verify(exactly = 0) { registerMember.execute(any(), any()) }
+                    verify(exactly = 0) { createMember.execute(any(), any()) }
                 }
             }
         }

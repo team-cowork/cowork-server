@@ -3,7 +3,6 @@ package livekit
 import (
 	"context"
 
-	livekitproto "github.com/livekit/protocol/livekit"
 	lksdk "github.com/livekit/server-sdk-go/v2"
 
 	"github.com/cowork/cowork-voice/internal/domain/liveroom"
@@ -41,29 +40,6 @@ func (l *liveKitLiveRoomService) RemoveParticipant(ctx context.Context, roomName
 	return RemoveParticipant(ctx, l.client, roomName, identity)
 }
 
-func (l *liveKitLiveRoomService) ListParticipants(ctx context.Context, roomName string) ([]liveroom.LiveKitParticipant, error) {
-	participants, err := ListParticipants(ctx, l.client, roomName)
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]liveroom.LiveKitParticipant, 0, len(participants))
-	for _, p := range participants {
-		if p == nil {
-			continue
-		}
-		result = append(result, fromProtoLiveParticipant(p))
-	}
-	return result, nil
-}
-
 func (l *liveKitLiveRoomService) DeleteRoom(ctx context.Context, roomName string) error {
 	return DeleteRoom(ctx, l.client, roomName)
-}
-
-func fromProtoLiveParticipant(p *livekitproto.ParticipantInfo) liveroom.LiveKitParticipant {
-	return liveroom.LiveKitParticipant{
-		Identity: p.Identity,
-		JoinedAt: p.JoinedAt,
-	}
 }

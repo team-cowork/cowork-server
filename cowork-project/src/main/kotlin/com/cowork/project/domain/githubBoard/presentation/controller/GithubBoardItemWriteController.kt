@@ -68,7 +68,10 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody as SwaggerRequestBod
     ApiResponse(responseCode = "403", description = "보드 수정 권한이 없거나 허용된 저장소가 아닙니다."),
     ApiResponse(responseCode = "404", description = "요청한 리소스를 찾을 수 없습니다."),
     ApiResponse(responseCode = "409", description = "GitHub App의 Projects 권한이 필요합니다."),
-    ApiResponse(responseCode = "503", description = "GitHub 데이터 동기화가 완료되지 않았습니다."),
+    ApiResponse(
+        responseCode = "503",
+        description = "GitHub 데이터 동기화가 완료되지 않았거나, 프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않았습니다.",
+    ),
 )
 @RestController
 @RequestMapping("/projects/{projectId}/github-boards/{boardId}")

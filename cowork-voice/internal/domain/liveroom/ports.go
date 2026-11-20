@@ -39,18 +39,12 @@ type ConnectPermissionChecker interface {
 	RequireConnect(ctx context.Context, channelID, userID int64) (permission.Access, error)
 }
 
-type LiveKitParticipant struct {
-	Identity string
-	JoinedAt int64
-}
-
 type LiveKitRoom interface {
 	CreateRoomIfNotExists(ctx context.Context, roomName string) error
 	// GenerateToken restricts publishing to the currently allowed media sources.
 	// Only the host publishes microphone and screen; screenShare also grants camera to any participant.
 	GenerateToken(userID int64, roomName string, speak, screenShare, host bool) (string, error)
 	RemoveParticipant(ctx context.Context, roomName, identity string) error
-	ListParticipants(ctx context.Context, roomName string) ([]LiveKitParticipant, error)
 	// DeleteRoom 메서드는 방을 삭제해 전원을 퇴장시킨다(호스트 종료 시 사용). 없는 방이면 무시한다.
 	DeleteRoom(ctx context.Context, roomName string) error
 }

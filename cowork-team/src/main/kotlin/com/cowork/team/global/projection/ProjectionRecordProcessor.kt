@@ -9,10 +9,10 @@ import java.util.UUID
 
 @Component
 class ProjectionRecordProcessor(
-    private val checkpointStore: ProjectionCheckpointStore,
+    private val projectionCheckpointStore: ProjectionCheckpointStore,
     private val objectMapper: ObjectMapper,
-    private val topicGenerations: ProjectionTopicGenerationRegistry,
-    private val readinessState: ProjectionReadinessState,
+    private val projectionTopicGenerationRegistry: ProjectionTopicGenerationRegistry,
+    private val projectionReadinessState: ProjectionReadinessState,
 ) {
 
     @Transactional
@@ -24,7 +24,7 @@ class ProjectionRecordProcessor(
         if (violation != null) {
             quarantineAndLatch(stream, record, violation, topicId)
         } else {
-            checkpointStore.markSnapshotCompleted(
+            projectionCheckpointStore.markSnapshotCompleted(
                 stream,
                 record.partition(),
                 record.offset(),
@@ -32,20 +32,20 @@ class ProjectionRecordProcessor(
                 snapshotId(record),
             )
         }
-        checkpointStore.advance(stream, record.partition(), record.offset() + 1)
+        projectionCheckpointStore.advance(stream, record.partition(), record.offset() + 1)
         return true
     }
 
     @Transactional
     fun applyRecord(stream: ProjectionStream, record: ConsumerRecord<String, String>, applyProjection: () -> Unit) {
         applyProjection()
-        checkpointStore.advance(stream, record.partition(), record.offset() + 1)
+        projectionCheckpointStore.advance(stream, record.partition(), record.offset() + 1)
     }
 
     @Transactional
     fun quarantineRecord(stream: ProjectionStream, record: ConsumerRecord<String, String>, reason: String) {
         quarantineAndLatch(stream, record, reason, requireTopicId(stream))
-        checkpointStore.advance(stream, record.partition(), record.offset() + 1)
+        projectionCheckpointStore.advance(stream, record.partition(), record.offset() + 1)
     }
 
     private fun quarantineAndLatch(
@@ -54,17 +54,18 @@ class ProjectionRecordProcessor(
         reason: String,
         topicId: String,
     ) {
-        readinessState.markNotReady(stream)
-        checkpointStore.quarantineAndLatch(stream, record, reason, topicId)
+        projectionReadinessState.markNotReady(stream)
+        projectionCheckpointStore.quarantineAndLatch(stream, record, reason, topicId)
     }
 
     /** completion marker 계약 검증을 통과한 record에만 사용한다. */
     private fun snapshotId(record: ConsumerRecord<String, String>): String =
         objectMapper.readTree(record.value()).path("snapshotId").asString()
 
-    private fun requireTopicId(stream: ProjectionStream): String = checkNotNull(topicGenerations.topicId(stream)) {
-        "Kafka projection topic generation이 assignment 전에 초기화되지 않았습니다: ${stream.topic}"
-    }
+    private fun requireTopicId(stream: ProjectionStream): String =
+        checkNotNull(projectionTopicGenerationRegistry.topicId(stream)) {
+            "Kafka projection topic generation이 assignment 전에 초기화되지 않았습니다: ${stream.topic}"
+        }
 
     private fun snapshotCompletionViolation(
         stream: ProjectionStream,

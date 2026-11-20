@@ -25,10 +25,7 @@ import {
 } from '@nestjs/swagger';
 import {ApiResponseMetadataDto, apiEnvelopeResponse} from '../common/dto/api-response-metadata.dto.js';
 import {
-	type CurrentUser,
-	currentUser,
 	currentUserId,
-	currentUserRole,
 } from '../common/decorator/user.decorator.js';
 import {throttle} from '../common/decorator/throttle.decorator.js';
 import {SafePositiveIntPipe} from '../common/pipe/safe-positive-int.pipe.js';
@@ -60,7 +57,7 @@ import {EMOJI_REGEX} from './util/index.js';
  채널 채팅 REST 컨트롤러.
 
  `channels/:channelId` 경로 하위에서 메시지 CRUD, 파일 업로드, 고정, 이모지 반응을 처리한다.
- 모든 엔드포인트는 Gateway가 주입한 `X-User-Id` / `X-User-Role` 헤더로 사용자를 식별한다.
+ 모든 엔드포인트는 Gateway가 주입한 `X-User-Id` 헤더로 사용자를 식별한다.
  */
 @apiTags('Chat')
 @apiExtraModels(
@@ -161,7 +158,7 @@ export class ChatController {
 	}
 
 	/**
-     메시지를 Kafka `chat.message.v2` 토픽으로 비동기 발행한다.
+     메시지를 Kafka `chat.message.event.v3` 토픽으로 비동기 발행한다.
      실제 저장과 Socket.IO 브로드캐스트는 `ChatMessageConsumer`가 처리한다.
      */
 	@httpPost('messages')
@@ -184,9 +181,8 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: SendMessageDto,
 		@currentUserId() userId: number,
-		@currentUserRole() userRole: string,
 	): Promise<SendMessageResponseDto> {
-		await this.chatService.sendMessage({channelId, userId, userRole}, dto);
+		await this.chatService.sendMessage({channelId, userId}, dto);
 		return {queued: true};
 	}
 
@@ -260,10 +256,10 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@requestBody() dto: EditMessageDto,
-		@currentUser() user: CurrentUser,
+		@currentUserId() userId: number,
 	) {
 		return this.chatService.editMessage({
-			channelId, messageId, userId: user.userId, userRole: user.userRole,
+			channelId, messageId, userId,
 		}, dto);
 	}
 
@@ -284,9 +280,8 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('fileId') fileId: string,
 		@currentUserId() userId: number,
-		@currentUserRole() userRole: string,
 	): Promise<DeleteMessageResponseDto> {
-		return this.chatService.deleteFile({channelId, userId, userRole}, fileId);
+		return this.chatService.deleteFile({channelId, userId}, fileId);
 	}
 
 	/**
@@ -305,10 +300,9 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@currentUserId() userId: number,
-		@currentUserRole() userRole: string,
 	) {
 		return this.chatService.deleteMessage({
-			channelId, messageId, userId, userRole,
+			channelId, messageId, userId,
 		});
 	}
 
@@ -329,10 +323,9 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@currentUserId() userId: number,
-		@currentUserRole() userRole: string,
 	) {
 		return this.chatService.pinMessage({
-			channelId, messageId, userId, userRole,
+			channelId, messageId, userId,
 		});
 	}
 
@@ -353,10 +346,9 @@ export class ChatController {
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
 		@currentUserId() userId: number,
-		@currentUserRole() userRole: string,
 	) {
 		await this.chatService.unpinMessage({
-			channelId, messageId, userId, userRole,
+			channelId, messageId, userId,
 		});
 	}
 

@@ -6,7 +6,6 @@ import com.cowork.project.domain.project.service.ReorderTeamProjectsService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.Content
-import io.swagger.v3.oas.annotations.media.ExampleObject
 import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
@@ -25,17 +24,7 @@ import team.themoment.sdk.response.CommonApiResponse
     ApiResponse(
         responseCode = "401",
         description = "액세스 토큰이 없거나 유효하지 않음",
-        content = [
-            Content(
-                mediaType = "application/json",
-                schema = Schema(implementation = CommonApiResponse::class),
-                examples = [
-                    ExampleObject(
-                        value = """{"status":"401 UNAUTHORIZED","code":401,"message":"Unauthorized"}""",
-                    ),
-                ],
-            ),
-        ],
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
     ),
     ApiResponse(
         responseCode = "default",
@@ -58,30 +47,14 @@ class TeamProjectController(private val reorderTeamProjectsService: ReorderTeamP
             responseCode = "400",
             description = "유효하지 않은 프로젝트 순서",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
         ApiResponse(
             responseCode = "403",
             description = "팀 멤버가 아니거나 재정렬 권한이 없음",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
     )

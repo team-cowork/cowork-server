@@ -1,5 +1,4 @@
 import {UnauthorizedException} from '@nestjs/common';
-import {UserRole} from '../enum/user-role.enum.js';
 import {isSafePositiveInteger} from './safe-integer.util.js';
 
 export const requestContextUtil = {
@@ -16,11 +15,5 @@ export const requestContextUtil = {
 		}
 
 		return id;
-	},
-
-	getUserRole(headers: Record<string, string | string[] | undefined>): string {
-		const raw = headers['x-user-role'];
-		const value = Array.isArray(raw) ? raw[0] : raw;
-		return value ?? UserRole.USER;
 	},
 };

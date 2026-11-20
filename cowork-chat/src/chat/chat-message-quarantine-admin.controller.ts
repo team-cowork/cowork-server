@@ -16,16 +16,14 @@ import {
 	getSchemaPath,
 } from '@nestjs/swagger';
 import {ApiResponseMetadataDto, apiEnvelopeResponse} from '../common/dto/api-response-metadata.dto.js';
-import {UserRole} from '../common/enum/user-role.enum.js';
-import {requireRoles} from '../common/guard/roles.decorator.js';
+import {requirePermission} from '../common/guard/account-permission.decorator.js';
 import {QuarantineRecordDto} from './dto/admin-response.dto.js';
 import {ChatMessageQuarantineService} from './service/index.js';
 import {ChatMessageQuarantineRecordIdDto, FindChatMessageQuarantineRecordsDto} from './dto/index.js';
 
 @apiTags('Chat Admin')
 @apiEnvelopeResponse(400, '레코드 ID 또는 상태 값이 올바르지 않음')
-@apiEnvelopeResponse(403, 'ADMIN 권한 필요')
-@requireRoles(UserRole.ADMIN)
+@requirePermission('manage_chat_message_quarantine')
 @apiExtraModels(ApiResponseMetadataDto, QuarantineRecordDto)
 @apiEnvelopeResponse(401, '액세스 토큰이 없거나 유효하지 않음')
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})

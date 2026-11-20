@@ -6,7 +6,8 @@ paths:
 
 # Security
 
-- Validate Cowork access JWTs at Gateway. Downstream HTTP handlers use its `X-User-Id` and `X-User-Role` headers and enforce resource-level authorization. Gateway also validates the cookie-based access JWT on the `/ws/chat` WebSocket handshake and injects the same headers there, so Chat validates no access JWT itself, on WebSocket or HTTP routes.
+- Gateway validates the access JWT for HTTP and the cookie-based access JWT for the `/ws/chat` WebSocket handshake. It strips external identity and role headers and forwards the authenticated subject as `X-User-Id`.
+- Roadmap and Chat evaluate the requester's current Preference policies from their local Kafka projections. Require a synchronized account policy for global operations. Check team management in the resource's own team and retain active membership requirements. Chat projection status and rebuild each require a separate account permission.
 - Gateway owns HTTP CORS; Chat owns WebSocket CORS.
 - Public application APIs enter through Gateway. Keep raw backend listeners inside Nomad allocation networks and expose only declared Consul mesh connections. Preserve explicitly configured ingress for signed external webhooks and LiveKit media.
 - Keep external HTTPS termination and existing VM addresses unchanged unless the user authorizes infrastructure changes. Restrict host ingress to the declared proxy and inventory peers.

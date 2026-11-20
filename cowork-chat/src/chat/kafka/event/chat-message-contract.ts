@@ -2,8 +2,8 @@ import {Types} from 'mongoose';
 import {type Nullable} from '../../../common/type/nullable.js';
 import {type ChatMessageEvent} from './chat-message.event.js';
 
-export const CHAT_MESSAGE_TOPIC = 'chat.message.v2';
-export const CHAT_MESSAGE_CONTRACT_VERSION = 2 as const;
+export const CHAT_MESSAGE_TOPIC = 'chat.message.event.v3';
+export const CHAT_MESSAGE_CONTRACT_VERSION = 3 as const;
 export const CHAT_MESSAGE_MAX_CONTENT_LENGTH = 25_000;
 
 export class ChatMessageContractError extends Error {
@@ -18,7 +18,6 @@ export class ChatMessageContractError extends Error {
 
 /**
  Kafka의 untrusted payload를 ChatMessageEvent로 검증·정규화한다.
- object key를 사용하는 v2만 허용한다. 구 토픽의 URL 기반 레코드는 혼합하지 않는다.
  */
 export function validateChatMessageEvent(payload: unknown, eventKey: Nullable<string>): ChatMessageEvent {
 	if (!isRecord(payload)) {
@@ -42,9 +41,6 @@ export function validateChatMessageEvent(payload: unknown, eventKey: Nullable<st
 	const authorId = positiveSafeInteger(payload.authorId, 'AUTHOR_ID');
 	const teamId = nullablePositiveSafeInteger(payload.teamId, 'TEAM_ID');
 	const projectId = nullablePositiveSafeInteger(payload.projectId, 'PROJECT_ID');
-	if (typeof payload.authorRole !== 'string' || payload.authorRole.length === 0) {
-		throw contractError('INVALID_AUTHOR_ROLE', 'authorRole must be a non-empty string');
-	}
 
 	if (typeof payload.content !== 'string' || payload.content.length > CHAT_MESSAGE_MAX_CONTENT_LENGTH) {
 		throw contractError('INVALID_CONTENT', 'content must be a string up to 25000 characters');
@@ -56,7 +52,6 @@ export function validateChatMessageEvent(payload: unknown, eventKey: Nullable<st
 
 	const attachments = validateAttachments(payload.attachments);
 	const parentMessageId = optionalObjectId(payload.parentMessageId, 'PARENT_MESSAGE_ID');
-	// 이 필드가 없던 이전 이벤트는 채널 메시지다.
 	const threadId = nullablePositiveSafeInteger(payload.threadId, 'THREAD_ID') ?? undefined;
 	const clientMessageId = optionalString(payload.clientMessageId, 'CLIENT_MESSAGE_ID');
 	if (typeof payload.occurredAt !== 'string' || !isRfc3339(payload.occurredAt)) {
@@ -64,13 +59,12 @@ export function validateChatMessageEvent(payload: unknown, eventKey: Nullable<st
 	}
 
 	return {
-		contractVersion: CHAT_MESSAGE_CONTRACT_VERSION,
+		contractVersion,
 		eventType: 'MESSAGE_SENT',
 		teamId,
 		projectId,
 		channelId,
 		authorId,
-		authorRole: payload.authorRole,
 		content: payload.content,
 		type: payload.type,
 		attachments,

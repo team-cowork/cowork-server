@@ -9,5 +9,3 @@ spring:
           # Gateway RequestSize는 Content-Length가 없는 chunked 요청을 막지 못하므로 파싱 중에도 1MB에서 중단한다.
           max-document-length: 1048576
 
-KAFKA_TOPIC_TEAM_MEMBER: team.member.event
-KAFKA_GROUP_ID_TEAM_MEMBER: cowork-roadmap.team-member

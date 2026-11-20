@@ -9,7 +9,7 @@ import team.themoment.sdk.logging.logger.logger
 @Repository
 class ProjectionCheckpointStore(
     private val jdbcTemplate: JdbcTemplate,
-    private val topicIdentityProvider: ProjectionTopicIdentityProvider,
+    private val projectionTopicIdentityProvider: ProjectionTopicIdentityProvider,
 ) {
 
     @Transactional
@@ -213,7 +213,11 @@ class ProjectionCheckpointStore(
     fun isCaughtUp(requiredStreams: Set<ProjectionStream>): Boolean {
         val barriers = requiredStreams.associateWith(::findBarriers)
         val checkpoints = requiredStreams.associateWith(::findCheckpoints)
-        val topicStates = topicIdentityProvider.topicStates(requiredStreams.mapTo(mutableSetOf()) { it.topic })
+        val topicStates = projectionTopicIdentityProvider.topicStates(
+            requiredStreams.mapTo(mutableSetOf()) {
+                it.topic
+            },
+        )
         return ProjectionCatchUpPolicy.isReady(requiredStreams, barriers, checkpoints) &&
             ProjectionCatchUpPolicy.matchesBrokerState(requiredStreams, barriers, checkpoints, topicStates)
     }

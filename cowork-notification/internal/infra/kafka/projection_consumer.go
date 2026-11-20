@@ -69,47 +69,6 @@ type projectionReadiness interface {
 	Set(bool)
 }
 
-type projectionProcessor interface {
-	ApplyChannelNotificationWithCheckpoint(
-		context.Context,
-		projection.ChannelNotificationEvent,
-		projection.Checkpoint,
-	) error
-	ApplyUserProfileWithCheckpoint(
-		context.Context,
-		projection.UserProfileEvent,
-		projection.Checkpoint,
-	) error
-	ApplyTeamLifecycleWithCheckpoint(
-		context.Context,
-		projection.TeamLifecycleEvent,
-		projection.Checkpoint,
-	) error
-	ApplyAccountSettingWithCheckpoint(
-		context.Context,
-		projection.AccountSettingEvent,
-		projection.Checkpoint,
-	) error
-	ApplyTeamSettingWithCheckpoint(
-		context.Context,
-		projection.TeamSettingEvent,
-		projection.Checkpoint,
-	) error
-	RecordSnapshotMarkerWithCheckpoint(
-		context.Context,
-		projection.Checkpoint,
-		projection.SnapshotMarkerReceipt,
-	) error
-	QuarantineWithCheckpoint(context.Context, projection.InvalidRecord) error
-	LoadCheckpoint(context.Context, string, string, int) (projection.CheckpointState, bool, error)
-	AdvanceCheckpoint(context.Context, projection.Checkpoint) error
-	LoadCheckpoints(
-		context.Context,
-		string,
-		[]projection.TopicPartition,
-	) (map[projection.TopicPartition]projection.CheckpointState, error)
-}
-
 type projectionOffsetRange struct {
 	First   int64
 	End     int64
@@ -371,7 +330,7 @@ type ProjectionConsumer struct {
 	groupID        string
 	topics         ProjectionTopics
 	group          *segkafka.ConsumerGroup
-	processor      projectionProcessor
+	store          projection.AtomicStore
 	snapshotter    projectionOffsetSnapshotter
 	readiness      projectionReadiness
 	closeOnce      sync.Once
@@ -384,7 +343,7 @@ func NewProjectionConsumer(
 	brokers string,
 	groupID string,
 	topics ProjectionTopics,
-	processor projectionProcessor,
+	store projection.AtomicStore,
 	readiness projectionReadiness,
 ) (*ProjectionConsumer, error) {
 	brokerList := splitBrokerList(brokers)
@@ -410,7 +369,7 @@ func NewProjectionConsumer(
 		groupID:     groupID,
 		topics:      topics,
 		group:       group,
-		processor:   processor,
+		store:       store,
 		snapshotter: snapshotter,
 		readiness:   readiness,
 	}, nil
@@ -497,74 +456,8 @@ func (c *ProjectionConsumer) initializeCheckpoints(
 	ranges map[projection.TopicPartition]projectionOffsetRange,
 ) bool {
 	for partition, offsetRange := range ranges {
-		for {
-			checkpoint, found, err := c.processor.LoadCheckpoint(
-				ctx,
-				c.groupID,
-				partition.Topic,
-				partition.Partition,
-			)
-			nextOffset := checkpoint.NextOffset
-			if err == nil {
-				resumeOffset, policyErr := projectionCheckpointResumeOffset(checkpoint, found, offsetRange)
-				if policyErr != nil {
-					err = policyErr
-				} else if found && resumeOffset == nextOffset {
-					break
-				} else {
-					err = c.processor.AdvanceCheckpoint(ctx, projection.Checkpoint{
-						ConsumerGroup: c.groupID,
-						Topic:         partition.Topic,
-						Partition:     partition.Partition,
-						TopicID:       offsetRange.TopicID,
-						NextOffset:    resumeOffset,
-					})
-				}
-			}
-			if err == nil {
-				break
-			}
-			if ctx.Err() != nil {
-				return false
-			}
-			if errors.Is(err, projection.ErrTopicGenerationMismatch) {
-				slog.Error(
-					"projection topic generation changed; refusing readiness and seek",
-					"topic", partition.Topic,
-					"partition", partition.Partition,
-					"checkpointTopicId", checkpoint.TopicID,
-					"brokerTopicId", offsetRange.TopicID,
-					"action", "rebuild projection tables and shared checkpoints together; do not reset offsets alone",
-				)
-			} else if errors.Is(err, ErrProjectionCheckpointAheadOfTopic) {
-				slog.Error(
-					"projection checkpoint is ahead of Kafka; refusing readiness and seek",
-					"topic", partition.Topic,
-					"partition", partition.Partition,
-					"checkpoint", nextOffset,
-					"topicEnd", offsetRange.End,
-					"action", "rebuild projection tables and shared checkpoints together; do not reset offsets alone",
-				)
-			} else if errors.Is(err, ErrProjectionCheckpointBehindTopic) {
-				slog.Error(
-					"projection checkpoint is behind Kafka retention; refusing readiness and seek",
-					"topic", partition.Topic,
-					"partition", partition.Partition,
-					"checkpoint", nextOffset,
-					"topicStart", offsetRange.First,
-					"action", "rebuild the projection and reset its shared checkpoint together",
-				)
-			} else {
-				slog.Error(
-					"projection checkpoint initialization failed; retrying",
-					"topic", partition.Topic,
-					"partition", partition.Partition,
-					"err", err,
-				)
-			}
-			if !waitForRetry(ctx) {
-				return false
-			}
+		if _, ok := c.resumeWithRetry(ctx, partition, offsetRange, true); !ok {
+			return false
 		}
 	}
 	return true
@@ -575,7 +468,7 @@ func (c *ProjectionConsumer) consumePartition(
 	partition projection.TopicPartition,
 	offsetRange projectionOffsetRange,
 ) {
-	nextOffset, ok := c.loadCheckpointWithRetry(ctx, partition, offsetRange)
+	nextOffset, ok := c.resumeWithRetry(ctx, partition, offsetRange, false)
 	if !ok {
 		return
 	}
@@ -622,32 +515,48 @@ func (c *ProjectionConsumer) consumePartition(
 	}
 }
 
-func (c *ProjectionConsumer) loadCheckpointWithRetry(
+// resumeWithRetry loads the partition checkpoint and returns its resume offset, retrying
+// until the checkpoint is valid. With advance, it also stores the resume offset when it differs.
+func (c *ProjectionConsumer) resumeWithRetry(
 	ctx context.Context,
 	partition projection.TopicPartition,
 	offsetRange projectionOffsetRange,
+	advance bool,
 ) (int64, bool) {
+	refusal, failure := "refusing seek", "projection checkpoint load failed; retrying"
+	if advance {
+		refusal, failure = "refusing readiness and seek", "projection checkpoint initialization failed; retrying"
+	}
 	for {
-		checkpoint, found, err := c.processor.LoadCheckpoint(
+		checkpoint, found, err := c.store.LoadCheckpoint(
 			ctx,
 			c.groupID,
 			partition.Topic,
 			partition.Partition,
 		)
 		nextOffset := checkpoint.NextOffset
+		var resumeOffset int64
 		if err == nil {
-			resumeOffset, policyErr := projectionCheckpointResumeOffset(checkpoint, found, offsetRange)
-			if policyErr == nil {
-				return resumeOffset, true
-			}
-			err = policyErr
+			resumeOffset, err = projectionCheckpointResumeOffset(checkpoint, found, offsetRange)
+		}
+		if err == nil && advance && (!found || resumeOffset != nextOffset) {
+			err = c.store.AdvanceCheckpoint(ctx, projection.Checkpoint{
+				ConsumerGroup: c.groupID,
+				Topic:         partition.Topic,
+				Partition:     partition.Partition,
+				TopicID:       offsetRange.TopicID,
+				NextOffset:    resumeOffset,
+			})
+		}
+		if err == nil {
+			return resumeOffset, true
 		}
 		if ctx.Err() != nil {
 			return 0, false
 		}
 		if errors.Is(err, projection.ErrTopicGenerationMismatch) {
 			slog.Error(
-				"projection topic generation changed; refusing seek",
+				"projection topic generation changed; "+refusal,
 				"topic", partition.Topic,
 				"partition", partition.Partition,
 				"checkpointTopicId", checkpoint.TopicID,
@@ -656,22 +565,24 @@ func (c *ProjectionConsumer) loadCheckpointWithRetry(
 			)
 		} else if errors.Is(err, ErrProjectionCheckpointAheadOfTopic) {
 			slog.Error(
-				"projection checkpoint is ahead of Kafka; refusing seek",
+				"projection checkpoint is ahead of Kafka; "+refusal,
 				"topic", partition.Topic,
 				"partition", partition.Partition,
 				"checkpoint", nextOffset,
 				"topicEnd", offsetRange.End,
+				"action", "rebuild projection tables and shared checkpoints together; do not reset offsets alone",
 			)
 		} else if errors.Is(err, ErrProjectionCheckpointBehindTopic) {
 			slog.Error(
-				"projection checkpoint is behind Kafka retention; refusing seek",
+				"projection checkpoint is behind Kafka retention; "+refusal,
 				"topic", partition.Topic,
 				"partition", partition.Partition,
 				"checkpoint", nextOffset,
 				"topicStart", offsetRange.First,
+				"action", "rebuild the projection and reset its shared checkpoint together",
 			)
 		} else {
-			slog.Error("projection checkpoint load failed; retrying", "err", err)
+			slog.Error(failure, "topic", partition.Topic, "partition", partition.Partition, "err", err)
 		}
 		if !waitForRetry(ctx) {
 			return 0, false
@@ -781,7 +692,7 @@ func (c *ProjectionConsumer) processWithRetry(
 				LatchStateGap: latchStateGap,
 			}
 			for {
-				if quarantineErr := c.processor.QuarantineWithCheckpoint(ctx, record); quarantineErr == nil {
+				if quarantineErr := c.store.QuarantineWithCheckpoint(ctx, record); quarantineErr == nil {
 					slog.Error(
 						"invalid projection event quarantined",
 						"topic", message.Topic,
@@ -826,7 +737,7 @@ func (c *ProjectionConsumer) invalidRecordAlreadyProcessed(
 	checkpoint projection.Checkpoint,
 	recordOffset int64,
 ) (bool, error) {
-	stored, found, err := c.processor.LoadCheckpoint(
+	stored, found, err := c.store.LoadCheckpoint(
 		ctx,
 		checkpoint.ConsumerGroup,
 		checkpoint.Topic,
@@ -860,7 +771,7 @@ func (c *ProjectionConsumer) handleWithCheckpoint(
 		return err
 	}
 	if isMarker {
-		return c.processor.RecordSnapshotMarkerWithCheckpoint(ctx, checkpoint, marker)
+		return c.store.RecordSnapshotMarkerWithCheckpoint(ctx, checkpoint, marker)
 	}
 
 	switch message.Topic {
@@ -872,7 +783,9 @@ func (c *ProjectionConsumer) handleWithCheckpoint(
 		if string(message.Key) != fmt.Sprintf("%d:%d", event.AccountID, event.ChannelID) {
 			return invalidKey(message.Topic, message.Key)
 		}
-		return c.processor.ApplyChannelNotificationWithCheckpoint(ctx, event, checkpoint)
+		return c.store.ApplyWithCheckpoint(ctx, checkpoint, func(store projection.Store) error {
+			return projection.NewService(store).ApplyChannelNotification(ctx, event)
+		})
 	case c.topics.UserProfile:
 		var event projection.UserProfileEvent
 		if err := json.Unmarshal(message.Value, &event); err != nil {
@@ -881,7 +794,9 @@ func (c *ProjectionConsumer) handleWithCheckpoint(
 		if string(message.Key) != fmt.Sprintf("%d", event.UserID) {
 			return invalidKey(message.Topic, message.Key)
 		}
-		return c.processor.ApplyUserProfileWithCheckpoint(ctx, event, checkpoint)
+		return c.store.ApplyWithCheckpoint(ctx, checkpoint, func(store projection.Store) error {
+			return projection.NewService(store).ApplyUserProfile(ctx, event)
+		})
 	case c.topics.TeamLifecycle:
 		var event projection.TeamLifecycleEvent
 		if err := json.Unmarshal(message.Value, &event); err != nil {
@@ -890,7 +805,9 @@ func (c *ProjectionConsumer) handleWithCheckpoint(
 		if string(message.Key) != fmt.Sprintf("%d", event.TeamID) {
 			return invalidKey(message.Topic, message.Key)
 		}
-		return c.processor.ApplyTeamLifecycleWithCheckpoint(ctx, event, checkpoint)
+		return c.store.ApplyWithCheckpoint(ctx, checkpoint, func(store projection.Store) error {
+			return projection.NewService(store).ApplyTeamLifecycle(ctx, event)
+		})
 	case c.topics.AccountSetting:
 		var event projection.AccountSettingEvent
 		if err := json.Unmarshal(message.Value, &event); err != nil {
@@ -899,7 +816,9 @@ func (c *ProjectionConsumer) handleWithCheckpoint(
 		if string(message.Key) != fmt.Sprintf("%d", event.AccountID) {
 			return invalidKey(message.Topic, message.Key)
 		}
-		return c.processor.ApplyAccountSettingWithCheckpoint(ctx, event, checkpoint)
+		return c.store.ApplyWithCheckpoint(ctx, checkpoint, func(store projection.Store) error {
+			return projection.NewService(store).ApplyAccountSetting(ctx, event)
+		})
 	case c.topics.TeamSetting:
 		var event projection.TeamSettingEvent
 		if err := json.Unmarshal(message.Value, &event); err != nil {
@@ -908,7 +827,9 @@ func (c *ProjectionConsumer) handleWithCheckpoint(
 		if string(message.Key) != fmt.Sprintf("%d", event.TeamID) {
 			return invalidKey(message.Topic, message.Key)
 		}
-		return c.processor.ApplyTeamSettingWithCheckpoint(ctx, event, checkpoint)
+		return c.store.ApplyWithCheckpoint(ctx, checkpoint, func(store projection.Store) error {
+			return projection.NewService(store).ApplyTeamSetting(ctx, event)
+		})
 	default:
 		return fmt.Errorf("%w: unsupported topic %q", projection.ErrInvalidEvent, message.Topic)
 	}
@@ -943,7 +864,7 @@ func (c *ProjectionConsumer) monitorBarrier(
 			for partition := range currentRanges {
 				partitions = append(partitions, partition)
 			}
-			checkpoints, err := c.processor.LoadCheckpoints(ctx, c.groupID, partitions)
+			checkpoints, err := c.store.LoadCheckpoints(ctx, c.groupID, partitions)
 			c.publishReadiness(
 				readinessEpoch,
 				err == nil && projectionBarrierComplete(currentRanges, checkpoints),

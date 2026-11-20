@@ -13,8 +13,7 @@ import {
 	getSchemaPath,
 } from '@nestjs/swagger';
 import {ApiResponseMetadataDto, apiEnvelopeResponse} from '../dto/api-response-metadata.dto.js';
-import {UserRole} from '../enum/user-role.enum.js';
-import {requireRoles} from '../guard/roles.decorator.js';
+import {requirePermission} from '../guard/account-permission.decorator.js';
 import {ProjectionDatasetDto, ProjectionStreamStatusDto} from './dto/projection-status.dto.js';
 import {RequestProjectionRebuildDto} from './dto/request-projection-rebuild.dto.js';
 import {ProjectionReadinessService} from './projection-readiness.service.js';
@@ -22,11 +21,10 @@ import {ProjectionReadinessService} from './projection-readiness.service.js';
 /**
  전역 prefix가 붙어 서버 직접 호출 경로는 `/chat/admin/projections`이고, Gateway 경유 경로는 `/api/chat/chat/admin/projections`이다.
  `main.ts`가 `/chat/admin/` 경로를 projection readiness 검사에서 제외하므로 `REBUILD_REQUIRED`로 준비되지 않은 상태에서도 호출할 수 있다.
- 서버에 직접 호출하면 `X-User-Role: ADMIN`과 양의 정수 `X-User-Id`를 함께 보내야 한다.
+ 계정 정책 동기화가 완료되어야 운영 권한을 확인할 수 있다.
  */
 @apiTags('Projection Admin')
-@apiEnvelopeResponse(403, 'ADMIN 권한 필요')
-@requireRoles(UserRole.ADMIN)
+@requirePermission('view_chat_projections')
 @apiExtraModels(ApiResponseMetadataDto, ProjectionDatasetDto, ProjectionStreamStatusDto)
 @apiEnvelopeResponse(401, '액세스 토큰이 없거나 유효하지 않음')
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
@@ -42,6 +40,7 @@ export class ProjectionAdminController {
 		return this.readiness.getDetailedStatus();
 	}
 
+	@requirePermission('rebuild_chat_projections')
 	@httpPost(':stream/rebuild')
 	@apiOperation({summary: '스트림 재구축 요청'})
 	@apiEnvelopeResponse(201, '재구축 요청을 반영한 상태', ProjectionDatasetDto)

@@ -25,8 +25,7 @@ import java.time.Instant
 private const val CHANNEL_ID = 11L
 private const val TEAM_ID = 42L
 private const val USER_ID = 100L
-private val REQUESTER = RequesterContext(userId = USER_ID, role = "MEMBER")
-private val GLOBAL_ADMIN = RequesterContext(userId = USER_ID, role = "ADMIN")
+private val REQUESTER = RequesterContext(userId = USER_ID)
 private val VERSION = Instant.parse("2026-10-13T01:00:00Z")
 
 private class ChannelGuardFixture {
@@ -324,14 +323,14 @@ class ChannelAccessGuardTest :
                     }
                 }
 
-                context("전역 ADMIN이어도 팀 OWNER·ADMIN이 아니면") {
-                    it("소유 서비스와 같이 우회 없이 거부한다") {
+                context("팀 관리 권한이 없으면") {
+                    it("권한 요청을 거부한다") {
                         fixture.ready()
                         fixture.channel()
                         fixture.teamMember(found = false)
 
                         shouldThrow<ResourceAccessDeniedException> {
-                            runBlocking { fixture.guard.requireSettingsManager(CHANNEL_ID, GLOBAL_ADMIN) }
+                            runBlocking { fixture.guard.requireSettingsManager(CHANNEL_ID, REQUESTER) }
                         }
                     }
                 }

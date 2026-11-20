@@ -6,16 +6,16 @@ import {
 } from '@nestjs/common';
 import {Reflector} from '@nestjs/core';
 import {Request} from 'express';
-import {UserRole} from '../enum/user-role.enum.js';
+import {AccountPolicyService, type ChatAccountPermission} from '../kafka/account-policy.service.js';
 import {requestContextUtil} from '../util/request-context.util.js';
 import {PUBLIC_METADATA_KEY} from './public.decorator.js';
-import {ROLES_KEY} from './roles.decorator.js';
+import {ACCOUNT_PERMISSION} from './account-permission.decorator.js';
 
 @injectable()
 export class AuthGuard implements CanActivate {
-	constructor(private readonly reflector: Reflector) {}
+	constructor(private readonly reflector: Reflector, private readonly policies: AccountPolicyService) {}
 
-	canActivate(context: ExecutionContext): boolean {
+	async canActivate(context: ExecutionContext): Promise<boolean> {
 		if (context.getType() !== 'http') {
 			return true;
 		}
@@ -34,18 +34,17 @@ export class AuthGuard implements CanActivate {
 			return true;
 		}
 
-		requestContextUtil.getUserId(request.headers);
+		const userId = requestContextUtil.getUserId(request.headers);
 
-		const requiredRoles = this.reflector.getAllAndOverride<UserRole[] | undefined>(ROLES_KEY, [
+		const permission = this.reflector.getAllAndOverride<ChatAccountPermission | undefined>(ACCOUNT_PERMISSION, [
 			context.getHandler(),
 			context.getClass(),
 		]);
-		if (!requiredRoles || requiredRoles.length === 0) {
+		if (permission === undefined) {
 			return true;
 		}
 
-		const userRole = request.headers['x-user-role'] as string | undefined;
-		if (!requiredRoles.includes(userRole as UserRole)) {
+		if (!await this.policies.allows(userId, permission)) {
 			throw new ForbiddenException('접근 권한이 없습니다');
 		}
 

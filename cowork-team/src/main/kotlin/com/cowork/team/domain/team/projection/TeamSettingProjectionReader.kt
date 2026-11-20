@@ -11,7 +11,7 @@ data class NicknameFormatGuide(val enforced: Boolean, val example: String?) {
 
 @Component
 class TeamSettingProjectionReader(
-    private val repository: TeamSettingProjectionRepository,
+    private val teamSettingProjectionRepository: TeamSettingProjectionRepository,
     private val projectionReadinessState: ProjectionReadinessState,
 ) {
     /**
@@ -20,7 +20,8 @@ class TeamSettingProjectionReader(
      */
     fun getNicknameFormat(teamId: Long): NicknameFormatGuide {
         if (!projectionReadinessState.isReady()) return NicknameFormatGuide.DISABLED
-        val setting = repository.findById(teamId).orElse(null) ?: return NicknameFormatGuide.DISABLED
+        val setting =
+            teamSettingProjectionRepository.findById(teamId).orElse(null) ?: return NicknameFormatGuide.DISABLED
         return NicknameFormatGuide(
             enforced = setting.nicknameFormatEnforced,
             example = setting.nicknameFormatExample,

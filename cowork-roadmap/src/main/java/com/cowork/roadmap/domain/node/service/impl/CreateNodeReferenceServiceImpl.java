@@ -30,10 +30,10 @@ public class CreateNodeReferenceServiceImpl implements CreateNodeReferenceServic
      */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public NodeReferenceResDto execute(Long userId, String userRole, Long nodeId, NodeReferenceReqDto request) {
+    public NodeReferenceResDto execute(Long userId, Long nodeId, NodeReferenceReqDto request) {
         Long roadmapId = nodeLookupSupport.findRoadmapIdByNodeOrThrow(nodeId);
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
-        accessGuard.requireMutable(roadmap, userId, userRole);
+        accessGuard.requireMutable(roadmap, userId);
         nodeLookupSupport.findNodeOrThrow(nodeId);
         Long position = referenceRepository.findNextPosition(nodeId);
         RoadmapNodeReference ref = RoadmapNodeReference.builder()

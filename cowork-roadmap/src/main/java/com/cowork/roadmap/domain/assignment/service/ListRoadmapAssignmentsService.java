@@ -6,5 +6,5 @@ import com.cowork.roadmap.domain.assignment.presentation.data.response.Assignmen
 
 public interface ListRoadmapAssignmentsService {
 
-    List<AssignmentResDto> execute(Long userId, String userRole, Long roadmapId);
+    List<AssignmentResDto> execute(Long userId, Long roadmapId);
 }

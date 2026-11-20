@@ -432,86 +432,15 @@ func (c *Consumer) snapshotWithRetry(ctx context.Context) (map[TopicPartition]Of
 
 func (c *Consumer) initializeCheckpoints(ctx context.Context, ranges map[TopicPartition]OffsetRange) bool {
 	for partition, offsetRange := range ranges {
-		for {
-			checkpoint, found, err := c.checkpoints.Load(
-				ctx,
-				c.groupID,
-				partition.Topic,
-				partition.Partition,
-			)
-			nextOffset := checkpoint.NextOffset
-			if err == nil {
-				policyErr := checkpointGenerationError(checkpoint, found, offsetRange)
-				resumeOffset := int64(0)
-				if policyErr == nil {
-					resumeOffset, policyErr = checkpointResumeOffset(nextOffset, found, offsetRange)
-				}
-				if policyErr != nil {
-					err = policyErr
-				} else if found && resumeOffset == nextOffset {
-					break
-				} else {
-					err = c.checkpoints.Advance(
-						ctx,
-						c.groupID,
-						partition.Topic,
-						partition.Partition,
-						offsetRange.TopicID,
-						resumeOffset,
-					)
-				}
-			}
-			if err == nil {
-				break
-			}
-			if ctx.Err() != nil {
-				return false
-			}
-			if errors.Is(err, ErrTopicGenerationMismatch) {
-				slog.Error(
-					"channel permission topic generation changed; refusing readiness and seek",
-					"topic", partition.Topic,
-					"partition", partition.Partition,
-					"checkpointTopicId", checkpoint.TopicID,
-					"brokerTopicId", offsetRange.TopicID,
-					"action", "rebuild the projection and reset its shared checkpoint together",
-				)
-			} else if errors.Is(err, ErrCheckpointAheadOfTopic) {
-				slog.Error(
-					"channel permission checkpoint is ahead of Kafka; refusing readiness and seek",
-					"topic", partition.Topic,
-					"partition", partition.Partition,
-					"checkpoint", nextOffset,
-					"topicEnd", offsetRange.End,
-					"action", "verify topic recreation and reset the shared projection checkpoint",
-				)
-			} else if errors.Is(err, ErrCheckpointBehindTopic) {
-				slog.Error(
-					"channel permission checkpoint is behind Kafka retention; refusing readiness and seek",
-					"topic", partition.Topic,
-					"partition", partition.Partition,
-					"checkpoint", nextOffset,
-					"topicStart", offsetRange.First,
-					"action", "rebuild the projection and reset its shared checkpoint together",
-				)
-			} else {
-				slog.Error(
-					"channel permission checkpoint initialization failed; retrying",
-					"topic", partition.Topic,
-					"partition", partition.Partition,
-					"err", err,
-				)
-			}
-			if !waitForRetry(ctx) {
-				return false
-			}
+		if _, ok := c.resumeWithRetry(ctx, partition, offsetRange, true); !ok {
+			return false
 		}
 	}
 	return true
 }
 
 func (c *Consumer) consumePartition(ctx context.Context, partition TopicPartition, offsetRange OffsetRange) {
-	nextOffset, ok := c.loadCheckpointWithRetry(ctx, partition, offsetRange)
+	nextOffset, ok := c.resumeWithRetry(ctx, partition, offsetRange, false)
 	if !ok {
 		return
 	}
@@ -558,11 +487,18 @@ func (c *Consumer) consumePartition(ctx context.Context, partition TopicPartitio
 	}
 }
 
-func (c *Consumer) loadCheckpointWithRetry(
+// resumeWithRetry loads the partition checkpoint and returns its resume offset, retrying
+// until the checkpoint is valid. With advance, it also stores the resume offset when it differs.
+func (c *Consumer) resumeWithRetry(
 	ctx context.Context,
 	partition TopicPartition,
 	offsetRange OffsetRange,
+	advance bool,
 ) (int64, bool) {
+	refusal, failure := "refusing seek", "channel permission checkpoint load failed; retrying"
+	if advance {
+		refusal, failure = "refusing readiness and seek", "channel permission checkpoint initialization failed; retrying"
+	}
 	for {
 		checkpoint, found, err := c.checkpoints.Load(
 			ctx,
@@ -571,23 +507,32 @@ func (c *Consumer) loadCheckpointWithRetry(
 			partition.Partition,
 		)
 		nextOffset := checkpoint.NextOffset
+		var resumeOffset int64
 		if err == nil {
-			policyErr := checkpointGenerationError(checkpoint, found, offsetRange)
-			resumeOffset := int64(0)
-			if policyErr == nil {
-				resumeOffset, policyErr = checkpointResumeOffset(nextOffset, found, offsetRange)
-			}
-			if policyErr == nil {
-				return resumeOffset, true
-			}
-			err = policyErr
+			err = checkpointGenerationError(checkpoint, found, offsetRange)
+		}
+		if err == nil {
+			resumeOffset, err = checkpointResumeOffset(nextOffset, found, offsetRange)
+		}
+		if err == nil && advance && (!found || resumeOffset != nextOffset) {
+			err = c.checkpoints.Advance(
+				ctx,
+				c.groupID,
+				partition.Topic,
+				partition.Partition,
+				offsetRange.TopicID,
+				resumeOffset,
+			)
+		}
+		if err == nil {
+			return resumeOffset, true
 		}
 		if ctx.Err() != nil {
 			return 0, false
 		}
 		if errors.Is(err, ErrTopicGenerationMismatch) {
 			slog.Error(
-				"channel permission topic generation changed; refusing seek",
+				"channel permission topic generation changed; "+refusal,
 				"topic", partition.Topic,
 				"partition", partition.Partition,
 				"checkpointTopicId", checkpoint.TopicID,
@@ -596,22 +541,24 @@ func (c *Consumer) loadCheckpointWithRetry(
 			)
 		} else if errors.Is(err, ErrCheckpointAheadOfTopic) {
 			slog.Error(
-				"channel permission checkpoint is ahead of Kafka; refusing seek",
+				"channel permission checkpoint is ahead of Kafka; "+refusal,
 				"topic", partition.Topic,
 				"partition", partition.Partition,
 				"checkpoint", nextOffset,
 				"topicEnd", offsetRange.End,
+				"action", "verify topic recreation and reset the shared projection checkpoint",
 			)
 		} else if errors.Is(err, ErrCheckpointBehindTopic) {
 			slog.Error(
-				"channel permission checkpoint is behind Kafka retention; refusing seek",
+				"channel permission checkpoint is behind Kafka retention; "+refusal,
 				"topic", partition.Topic,
 				"partition", partition.Partition,
 				"checkpoint", nextOffset,
 				"topicStart", offsetRange.First,
+				"action", "rebuild the projection and reset its shared checkpoint together",
 			)
 		} else {
-			slog.Error("channel permission checkpoint load failed; retrying", "err", err)
+			slog.Error(failure, "topic", partition.Topic, "partition", partition.Partition, "err", err)
 		}
 		if !waitForRetry(ctx) {
 			return 0, false

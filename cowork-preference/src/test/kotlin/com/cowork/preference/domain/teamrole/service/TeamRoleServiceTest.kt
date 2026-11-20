@@ -2,7 +2,6 @@ package com.cowork.preference.domain.teamrole.service
 
 import com.cowork.preference.domain.access.permission.PermissionKeys
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
-import com.cowork.preference.domain.projectrole.repository.ProjectAccessStateRepository
 import com.cowork.preference.domain.teamrole.model.AccountTeamRole
 import com.cowork.preference.domain.teamrole.model.TeamRoleAssignmentState
 import com.cowork.preference.domain.teamrole.model.TeamRoleDefinition
@@ -17,7 +16,6 @@ import io.mockk.slot
 import io.vertx.sqlclient.SqlConnection
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -44,142 +42,11 @@ class TeamRoleServiceTest {
                 repository,
                 outboxRepository,
                 mockk<ChannelRolePolicyRepository>(relaxed = true),
-                mockk<ProjectAccessStateRepository>(relaxed = true),
             )
-    }
-
-    @Nested
-    inner class CreateRole {
-
-        @Test
-        fun `이름이나 색상이 유효하지 않으면 역할을 저장하지 않는다`() = runBlocking {
-            val blankName = service.createRole(teamId, " ", "#123ABC", 10, true, emptyMap())
-            val invalidColor = service.createRole(teamId, "Backend", "blue", 10, true, emptyMap())
-
-            assertTrue(blankName.exceptionOrNull() is IllegalArgumentException)
-            assertTrue(invalidColor.exceptionOrNull() is IllegalArgumentException)
-            coVerify(exactly = 0) { repository.insertRole(any(), any(), any(), any(), any(), any(), any()) }
-        }
-
-        @Test
-        fun `같은 이름의 역할이 있으면 중복 역할을 거부한다`() = runBlocking {
-            coEvery { repository.findRoleByName(teamId, "Backend") } returns role()
-
-            val result = service.createRole(teamId, "Backend", "#123ABC", 10, true, emptyMap())
-
-            assertTrue(result.exceptionOrNull() is IllegalStateException)
-            coVerify(exactly = 0) { repository.insertRole(any(), any(), any(), any(), any(), any(), any()) }
-        }
-
-        @Test
-        fun `유효하고 중복되지 않은 역할이면 새 역할을 반환한다`() = runBlocking {
-            val persisted = role()
-            coEvery { repository.findRoleByName(teamId, persisted.name) } returns null
-            coEvery { outboxRepository.inTransaction<TeamRoleDefinition>(any()) } coAnswers {
-                firstArg<suspend (SqlConnection) -> TeamRoleDefinition>().invoke(connection)
-            }
-            coEvery {
-                repository.insertRole(
-                    connection,
-                    teamId,
-                    persisted.name,
-                    persisted.colorHex,
-                    persisted.priority,
-                    persisted.mentionable,
-                    persisted.permissions,
-                )
-            } returns persisted
-
-            val result = service.createRole(
-                teamId,
-                persisted.name,
-                persisted.colorHex,
-                persisted.priority,
-                persisted.mentionable,
-                persisted.permissions,
-            )
-
-            assertEquals(persisted, result.getOrThrow())
-        }
-    }
-
-    @Nested
-    inner class UpdateRole {
-
-        @Test
-        fun `일반 역할을 기본 역할의 예약 이름으로 변경할 수 없다`() = runBlocking {
-            coEvery { repository.findRole(teamId, roleId) } returns role()
-
-            val result = service.updateRole(teamId, roleId, "@everyone", null, null, null, null)
-
-            assertTrue(result.exceptionOrNull() is IllegalArgumentException)
-            coVerify(exactly = 0) { repository.updateRole(any(), any(), any(), any(), any(), any(), any()) }
-        }
-
-        @Test
-        fun `기존에 예약 이름을 가진 사용자 역할은 이름을 유지한 채 수정할 수 있다`() = runBlocking {
-            val existing = role("@everyone")
-            val updated = existing.copy(colorHex = "#000000")
-            coEvery { repository.findRole(teamId, roleId) } returns existing
-            coEvery { repository.findRoleByNameExceptId(teamId, "@everyone", roleId) } returns null
-            coEvery { outboxRepository.inTransaction<TeamRoleDefinition>(any()) } coAnswers {
-                firstArg<suspend (SqlConnection) -> TeamRoleDefinition>().invoke(connection)
-            }
-            coEvery { repository.updateRole(any(), any(), any(), any(), any(), any(), any()) } returns updated
-
-            val result = service.updateRole(teamId, roleId, "@everyone", "#000000", null, null, null)
-
-            assertEquals(updated, result.getOrThrow())
-        }
-
-        @Test
-        fun `대상 역할이 없으면 not found 실패를 반환한다`() = runBlocking {
-            coEvery { repository.findRole(teamId, roleId) } returns null
-
-            val result = service.updateRole(teamId, roleId, null, null, null, null, null)
-
-            assertTrue(result.exceptionOrNull() is NoSuchElementException)
-        }
-
-        @Test
-        fun `변경할 이름이 다른 역할과 중복되면 변경을 거부한다`() = runBlocking {
-            coEvery { repository.findRole(teamId, roleId) } returns role()
-            coEvery { repository.findRoleByNameExceptId(teamId, "Frontend", roleId) } returns role("Frontend")
-
-            val result = service.updateRole(teamId, roleId, "Frontend", null, null, null, null)
-
-            assertTrue(result.exceptionOrNull() is IllegalStateException)
-            coVerify(exactly = 0) { repository.updateRole(any(), any(), any(), any(), any(), any(), any()) }
-        }
-    }
-
-    @Nested
-    inner class AssignRole {
-
-        @Test
-        fun `대상 역할이 없으면 멤버에게 할당하지 않는다`() = runBlocking {
-            coEvery { repository.findRole(teamId, roleId) } returns null
-
-            val result = service.assignRole(11L, teamId, roleId, Instant.parse("2026-08-30T01:00:00Z"))
-
-            assertTrue(result.exceptionOrNull() is NoSuchElementException)
-            coVerify(exactly = 0) { repository.assignRole(any(), any(), any(), any(), any()) }
-        }
     }
 
     @Nested
     inner class DefaultRole {
-        @Test
-        fun `기본 역할의 삭제 직접 할당 이름과 우선순위 변경을 거부한다`() = runBlocking {
-            coEvery { repository.findRole(teamId, roleId) } returns role("@everyone").copy(isDefault = true)
-            assertTrue(service.deleteRole(teamId, roleId).isFailure)
-            assertTrue(service.assignRole(11L, teamId, roleId, Instant.now()).isFailure)
-            assertTrue(service.updateRole(teamId, roleId, "changed", null, null, null, null).isFailure)
-            assertTrue(service.updateRole(teamId, roleId, null, null, 20, null, null).isFailure)
-            coVerify(exactly = 0) { repository.updateRole(any(), any(), any(), any(), any(), any(), any()) }
-            coVerify(exactly = 0) { repository.assignRole(any(), any(), any(), any(), any()) }
-        }
-
         @Test
         fun `생성된 기본 역할은 같은 트랜잭션의 outbox에 기록하고 이미 있으면 다시 기록하지 않는다`() = runBlocking {
             val defaultRole = role(

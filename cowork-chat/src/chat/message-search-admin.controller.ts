@@ -14,16 +14,14 @@ import {
 	ApiExtraModels as apiExtraModels,
 } from '@nestjs/swagger';
 import {ApiResponseMetadataDto, apiEnvelopeResponse} from '../common/dto/api-response-metadata.dto.js';
-import {UserRole} from '../common/enum/user-role.enum.js';
-import {requireRoles} from '../common/guard/roles.decorator.js';
+import {requirePermission} from '../common/guard/account-permission.decorator.js';
 import {MessageSearchStatusDto} from './dto/admin-response.dto.js';
 import {MessageSearchAdminService} from './search/index.js';
 import {StartMessageSearchRebuildDto} from './dto/index.js';
 
 @apiTags('Chat Admin')
 @apiEnvelopeResponse(400, '요청 값이 올바르지 않음')
-@apiEnvelopeResponse(403, 'ADMIN 권한 필요')
-@requireRoles(UserRole.ADMIN)
+@requirePermission('manage_chat_search_index')
 @apiExtraModels(ApiResponseMetadataDto, MessageSearchStatusDto)
 @apiEnvelopeResponse(401, '액세스 토큰이 없거나 유효하지 않음')
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
