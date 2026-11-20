@@ -42,7 +42,7 @@ class DevOriginCredentialFilter(
             request.method == HttpMethod.POST && request.path.pathWithinApplication().value() == DEV_SIGNIN_PATH
         val requiresLoopbackCredential = loopbackOrigin != null && !isSameOrigin(loopbackOrigin, request.uri)
         val queryCredential = request.queryParams[CREDENTIAL_QUERY]
-        val provided = if (devSignIn && request.headers.containsHeader(CREDENTIAL_HEADER)) {
+        val provided = if (devSignIn) {
             request.headers[CREDENTIAL_HEADER]?.singleOrNull()?.takeIf { queryCredential == null }
         } else {
             queryCredential?.singleOrNull()

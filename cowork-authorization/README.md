@@ -5,6 +5,7 @@
 DataGSM 로그인과 인증 토큰·로그인 세션을 관리합니다.
 
 - OAuth2 PKCE·OIDC 로그인과 cowork JWT 발급/갱신/로그아웃
+- 고정 개발 계정 로그인. 클라이언트는 Gateway에 `X-Dev-Credential` 헤더를 보내고 요청 본문에 `id`와 `password`를 보냅니다.
 - 사용자 계정·프로필 소유 서비스인 cowork-user에 로그인 정보 동기화 요청
 - DataGSM 사용자 변경 웹훅의 원자 접수·outbox 전달, Redis 대기열 소비와 온라인·오프라인 상태 발행
 

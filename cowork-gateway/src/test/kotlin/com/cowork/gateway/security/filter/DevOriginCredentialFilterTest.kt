@@ -54,15 +54,18 @@ class DevOriginCredentialFilterTest :
                     }
                 }
 
-                it("쿼리 자격증명을 지우고 검증 결과만 전달한다") {
-                    val (chain, captured) = forwardingChain()
-                    val exchange = MockServerWebExchange.from(
-                        MockServerHttpRequest.post("/api/authorization/auth/dev-signin?dev_credential=secret"),
-                    )
-                    filter.filter(exchange, chain).block()
-                    captured.captured.request.uri.rawQuery shouldBe null
-                    captured.captured.request.headers.getFirst("X-Dev-Credential") shouldBe null
-                    captured.captured.request.headers.getFirst("X-Cowork-Dev-Signin-Verified") shouldBe "true"
+                it("개발 로그인 URL에 자격증명을 넣으면 헤더 사용 여부와 관계없이 거부한다") {
+                    for (header in listOf(null, "secret")) {
+                        val request = MockServerHttpRequest.post(
+                            "/api/authorization/auth/dev-signin?dev_credential=secret",
+                        )
+                        if (header != null) request.header("X-Dev-Credential", header)
+                        val exchange = MockServerWebExchange.from(request)
+                        val chain = mockk<WebFilterChain>()
+                        filter.filter(exchange, chain).block()
+                        exchange.response.statusCode shouldBe HttpStatus.FORBIDDEN
+                        verify(exactly = 0) { chain.filter(any()) }
+                    }
                 }
 
                 it("허용된 localhost가 헤더로 보낸 자격증명을 받는다") {
