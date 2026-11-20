@@ -19,16 +19,16 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner
 import team.themoment.sdk.exception.ExpectedException
 import java.util.function.Consumer
 
-class S3ServiceTest :
+class TeamIconStorageTest :
     DescribeSpec({
         val publicApiBaseUrl = "https://api.example.com"
         val publicBaseUrl = "$publicApiBaseUrl/api/storage/team-icons"
-        lateinit var service: S3Service
+        lateinit var service: TeamIconStorage
         lateinit var client: S3Client
 
         beforeEach {
             client = mockk()
-            service = S3Service(
+            service = TeamIconStorage(
                 mockk<S3Template>(relaxed = true),
                 mockk<S3Presigner>(relaxed = true),
                 client,
@@ -39,7 +39,7 @@ class S3ServiceTest :
             )
         }
 
-        describe("S3Service 클래스의") {
+        describe("TeamIconStorage 클래스의") {
             describe("validateContentType 메서드는") {
                 context("허용 목록에 없는 파일 형식이면") {
                     it("BAD_REQUEST로 거부한다") {

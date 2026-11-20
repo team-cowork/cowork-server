@@ -18,13 +18,13 @@ import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 import java.time.LocalDateTime
 
-class RegisterTeamMemberServiceImplTest :
+class CreateTeamMemberServiceImplTest :
     DescribeSpec({
         lateinit var teamRepository: TeamRepository
         lateinit var memberRepository: TeamMemberRepository
         lateinit var publisher: TeamMemberEventPublisher
         lateinit var settingReader: TeamSettingProjectionReader
-        lateinit var service: RegisterTeamMemberServiceImpl
+        lateinit var service: CreateTeamMemberServiceImpl
 
         val team = Team(id = 1L, name = "team", description = null, iconUrl = null, ownerId = 10L)
 
@@ -33,7 +33,7 @@ class RegisterTeamMemberServiceImplTest :
             memberRepository = mockk()
             settingReader = mockk()
             publisher = mockk(relaxed = true)
-            service = RegisterTeamMemberServiceImpl(
+            service = CreateTeamMemberServiceImpl(
                 teamRepository,
                 memberRepository,
                 publisher,
@@ -42,7 +42,7 @@ class RegisterTeamMemberServiceImplTest :
             every { settingReader.getNicknameFormat(1L) } returns NicknameFormatGuide(enforced = false, example = null)
         }
 
-        describe("RegisterTeamMemberServiceImpl 클래스의 execute 메서드는") {
+        describe("CreateTeamMemberServiceImpl 클래스의 execute 메서드는") {
             context("아직 팀원이 아니면") {
                 it("MEMBER 역할로 팀에 가입시킨다") {
                     val joinedAt = LocalDateTime.now()

@@ -11,37 +11,40 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-class TeamIconOwnershipService(private val uploads: TeamIconUploadRepository, private val storage: S3Service) {
+class TeamIconOwnershipManager(
+    private val teamIconUploadRepository: TeamIconUploadRepository,
+    private val teamIconStorage: TeamIconStorage,
+) {
     @Transactional
     fun issue(userId: Long, contentType: String): IconPresignedUrlResponse {
-        storage.validateContentType(contentType)
-        val objectKey = storage.buildObjectKey(contentType)
+        teamIconStorage.validateContentType(contentType)
+        val objectKey = teamIconStorage.buildObjectKey(contentType)
         val uploadKey = "team-icon-uploads/$userId/${objectKey.substringAfterLast('/')}"
-        val uploadUrl = storage.generatePutPresignedUrl(uploadKey, contentType)
-        uploads.save(TeamIconUpload(objectKey, uploadKey, userId, contentType))
+        val uploadUrl = teamIconStorage.generatePutPresignedUrl(uploadKey, contentType)
+        teamIconUploadRepository.save(TeamIconUpload(objectKey, uploadKey, userId, contentType))
         return IconPresignedUrlResponse(uploadUrl = uploadUrl, objectKey = uploadKey)
     }
 
     @Transactional
     fun confirm(userId: Long, uploadKey: String): String {
-        val upload = uploads.findByUploadKeyForUpdate(uploadKey)
+        val upload = teamIconUploadRepository.findByUploadKeyForUpdate(uploadKey)
             ?: throw ExpectedException("발급된 아이콘 업로드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         if (upload.uploadedBy != userId || upload.retired) {
             throw ExpectedException("아이콘 업로드를 확인할 권한이 없습니다.", HttpStatus.FORBIDDEN)
         }
         if (!upload.confirmed) {
-            storage.finalizeUpload(upload.uploadKey, upload.objectKey, upload.contentType)
+            teamIconStorage.finalizeUpload(upload.uploadKey, upload.objectKey, upload.contentType)
             upload.confirmed = true
         }
-        return storage.buildPublicUrl(upload.objectKey)
+        return teamIconStorage.buildPublicUrl(upload.objectKey)
     }
 
     /** 호출 서비스가 팀 변경 권한을 검사하고 팀 행을 잠근 뒤 호출한다. */
     @Transactional
     fun replace(userId: Long, team: Team, iconUrl: String) {
         if (team.iconUrl == iconUrl) return
-        val key = storage.extractObjectKey(iconUrl)
-        val upload = uploads.findByObjectKeyForUpdate(key)
+        val key = teamIconStorage.extractObjectKey(iconUrl)
+        val upload = teamIconUploadRepository.findByObjectKeyForUpdate(key)
             ?: throw ExpectedException("확인된 아이콘 업로드가 필요합니다.", HttpStatus.BAD_REQUEST)
         if (!upload.confirmed || upload.retired) {
             throw ExpectedException("사용할 수 없는 아이콘입니다.", HttpStatus.BAD_REQUEST)
@@ -67,10 +70,10 @@ class TeamIconOwnershipService(private val uploads: TeamIconUploadRepository, pr
 
     private fun retireOwnedObject(teamId: Long, iconUrl: String) {
         // 기존 URL은 소유권 기록을 만들지 않는다. 소유권이 증명된 객체만 삭제한다.
-        val key = storage.managedObjectKeyOrNull(iconUrl) ?: return
-        val upload = uploads.findByObjectKeyForUpdate(key) ?: return
+        val key = teamIconStorage.managedObjectKeyOrNull(iconUrl) ?: return
+        val upload = teamIconUploadRepository.findByObjectKeyForUpdate(key) ?: return
         if (upload.teamId != teamId || !upload.confirmed || upload.retired) return
         upload.retired = true
-        afterCommit { storage.deleteObject(key) }
+        afterCommit { teamIconStorage.deleteObject(key) }
     }
 }

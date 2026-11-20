@@ -21,12 +21,12 @@ import io.mockk.verify
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 
-class RemoveTeamMemberServiceImplTest :
+class DeleteTeamMemberServiceImplTest :
     DescribeSpec({
         lateinit var teamRepository: TeamRepository
         lateinit var memberRepository: TeamMemberRepository
         lateinit var roleReader: TeamRoleProjectionReader
-        lateinit var service: RemoveTeamMemberServiceImpl
+        lateinit var service: DeleteTeamMemberServiceImpl
 
         val team = Team(id = 1L, name = "team", description = null, iconUrl = null, ownerId = 10L)
 
@@ -34,7 +34,7 @@ class RemoveTeamMemberServiceImplTest :
             teamRepository = mockk()
             memberRepository = mockk()
             roleReader = mockk(relaxed = true)
-            service = RemoveTeamMemberServiceImpl(
+            service = DeleteTeamMemberServiceImpl(
                 teamRepository,
                 memberRepository,
                 mockk<TeamEventPublisher>(relaxed = true),
@@ -60,7 +60,7 @@ class RemoveTeamMemberServiceImplTest :
             isDefault = false,
         )
 
-        describe("RemoveTeamMemberServiceImpl 클래스의 execute 메서드는") {
+        describe("DeleteTeamMemberServiceImpl 클래스의 execute 메서드는") {
             context("일반 멤버가 다른 멤버를 제거하려 하면") {
                 it("FORBIDDEN으로 거부한다") {
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 20L) } returns

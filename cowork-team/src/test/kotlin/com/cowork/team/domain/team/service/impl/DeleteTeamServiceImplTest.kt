@@ -5,7 +5,7 @@ import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.TeamAccessGuard
-import com.cowork.team.domain.team.service.TeamIconOwnershipService
+import com.cowork.team.domain.team.service.TeamIconOwnershipManager
 import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
@@ -26,7 +26,7 @@ class DeleteTeamServiceImplTest :
     DescribeSpec({
         lateinit var teamRepository: TeamRepository
         lateinit var memberRepository: TeamMemberRepository
-        lateinit var iconOwnership: TeamIconOwnershipService
+        lateinit var iconOwnership: TeamIconOwnershipManager
         lateinit var service: DeleteTeamServiceImpl
 
         val team = Team(id = 10L, name = "team", description = null, iconUrl = null, ownerId = 1L)

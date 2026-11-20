@@ -9,8 +9,8 @@ import tools.jackson.module.kotlin.readValue
 
 @Component
 class TeamRoleProjectionReader(
-    private val roleRepository: TeamRoleProjectionRepository,
-    private val assignmentRepository: TeamRoleAssignmentProjectionRepository,
+    private val teamRoleProjectionRepository: TeamRoleProjectionRepository,
+    private val teamRoleAssignmentProjectionRepository: TeamRoleAssignmentProjectionRepository,
     private val objectMapper: ObjectMapper,
     private val projectionReadinessGate: ProjectionReadinessGate,
 ) {
@@ -21,7 +21,7 @@ class TeamRoleProjectionReader(
 
     fun getMemberRoles(teamId: Long, accountId: Long): List<TeamRoleResponse> {
         projectionReadinessGate.requireReady()
-        val roleIds = assignmentRepository.findAllByTeamIdAndAccountId(teamId, accountId)
+        val roleIds = teamRoleAssignmentProjectionRepository.findAllByTeamIdAndAccountId(teamId, accountId)
             .asSequence()
             .filterNot { it.deleted }
             .map { it.roleId }
@@ -31,20 +31,22 @@ class TeamRoleProjectionReader(
 
     fun getMemberRoleAssignments(teamId: Long): List<TeamMemberRoleAssignmentResponse> {
         projectionReadinessGate.requireReady()
-        return assignmentRepository.findAllByTeamIdAndDeletedFalse(teamId).map {
+        return teamRoleAssignmentProjectionRepository.findAllByTeamIdAndDeletedFalse(teamId).map {
             TeamMemberRoleAssignmentResponse(accountId = it.accountId, teamId = it.teamId, roleId = it.roleId)
         }
     }
 
     fun findRole(teamId: Long, roleId: Long): TeamRoleResponse? {
         projectionReadinessGate.requireReady()
-        return roleRepository.findById(roleId).orElse(null)
+        return teamRoleProjectionRepository.findById(roleId).orElse(null)
             ?.takeIf { it.teamId == teamId && !it.deleted }
             ?.let(::toResponse)
     }
 
     private fun findRoles(teamId: Long): List<TeamRoleResponse> =
-        roleRepository.findAllByTeamIdAndDeletedFalseOrderByPriorityDescRoleIdAsc(teamId).map(::toResponse)
+        teamRoleProjectionRepository.findAllByTeamIdAndDeletedFalseOrderByPriorityDescRoleIdAsc(
+            teamId,
+        ).map(::toResponse)
 
     private fun toResponse(role: TeamRoleProjection): TeamRoleResponse = TeamRoleResponse(
         id = role.roleId,

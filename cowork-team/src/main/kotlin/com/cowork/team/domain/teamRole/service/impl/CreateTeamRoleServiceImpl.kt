@@ -16,8 +16,8 @@ import team.themoment.sdk.exception.ExpectedException
 @Service
 class CreateTeamRoleServiceImpl(
     private val teamRoleAccessGuard: TeamRoleAccessGuard,
-    private val commandSubmission: TeamRoleCommandSubmission,
-    private val permissionSchema: TeamRolePermissionSchema,
+    private val teamRoleCommandSubmission: TeamRoleCommandSubmission,
+    private val teamRolePermissionSchema: TeamRolePermissionSchema,
 ) : CreateTeamRoleService {
     @Transactional
     override fun execute(
@@ -25,12 +25,12 @@ class CreateTeamRoleServiceImpl(
         teamId: Long,
         idempotencyKey: String,
         request: CreateTeamRoleRequest,
-    ): TeamRoleOperationResponse = commandSubmission.submit(
+    ): TeamRoleOperationResponse = teamRoleCommandSubmission.submit(
         idempotencyKey = idempotencyKey,
         commandType = TeamRoleCommandType.CREATE,
         teamId = teamId,
         actorId = actorId,
-        role = TeamRoleCommandRoleInput.create(request, permissionSchema.canonicalize(request.permissions)),
+        role = TeamRoleCommandRoleInput.create(request, teamRolePermissionSchema.canonicalize(request.permissions)),
     ) {
         if (request.priority == Int.MAX_VALUE) {
             throw ExpectedException("최상위 우선순위는 소유자 정책에 예약되어 있습니다.", HttpStatus.BAD_REQUEST)
@@ -40,7 +40,10 @@ class CreateTeamRoleServiceImpl(
         }
         teamRoleAccessGuard.lockTeamOrThrow(teamId)
         val actor = teamRoleAccessGuard.requireManageRoles(teamId, actorId)
-        teamRoleAccessGuard.requireGrantablePermissions(actor, permissionSchema.canonicalize(request.permissions))
+        teamRoleAccessGuard.requireGrantablePermissions(
+            actor,
+            teamRolePermissionSchema.canonicalize(request.permissions),
+        )
         if (!actor.administrator &&
             request.priority >= actor.maxPriority
         ) {

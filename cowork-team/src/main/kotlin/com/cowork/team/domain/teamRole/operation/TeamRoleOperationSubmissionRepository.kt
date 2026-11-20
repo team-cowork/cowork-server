@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional
 @Repository
 class TeamRoleOperationSubmissionRepository(
     private val jdbcTemplate: JdbcTemplate,
-    private val operationRepository: TeamRoleCommandOperationRepository,
+    private val teamRoleCommandOperationRepository: TeamRoleCommandOperationRepository,
 ) {
     @Transactional(propagation = Propagation.MANDATORY)
     fun insertPendingOrGet(
@@ -33,8 +33,9 @@ class TeamRoleOperationSubmissionRepository(
             )
         } catch (exception: DuplicateKeyException) {
             // Duplicate INSERT holds a shared lock; replay must not upgrade it to a write lock.
-            val existing = operationRepository.findByActorAndIdempotencyKeyForShare(actorId, idempotencyKey)
-                ?: throw exception
+            val existing =
+                teamRoleCommandOperationRepository.findByActorAndIdempotencyKeyForShare(actorId, idempotencyKey)
+                    ?: throw exception
             return InsertResult.Existing(existing)
         }
         return InsertResult.Inserted

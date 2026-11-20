@@ -6,20 +6,20 @@ import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamMember.service.RemoveTeamMemberService
+import com.cowork.team.domain.teamMember.service.DeleteTeamMemberService
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-class RemoveTeamMemberServiceImpl(
+class DeleteTeamMemberServiceImpl(
     private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
     private val teamEventPublisher: TeamEventPublisher,
     private val teamMemberEventPublisher: TeamMemberEventPublisher,
-    private val permissions: TeamPermissionGuard,
-) : RemoveTeamMemberService {
+    private val teamPermissionGuard: TeamPermissionGuard,
+) : DeleteTeamMemberService {
 
     @Transactional
     override fun execute(actorId: Long, teamId: Long, targetUserId: Long) {
@@ -30,7 +30,7 @@ class RemoveTeamMemberServiceImpl(
             ?: throw ExpectedException("팀 멤버가 아닙니다.", HttpStatus.FORBIDDEN)
 
         val isSelf = actorId == targetUserId
-        if (!isSelf) permissions.requirePermission(teamId, actorId, "kick_members")
+        if (!isSelf) teamPermissionGuard.requirePermission(teamId, actorId, "kick_members")
 
         val targetMember = if (isSelf) {
             actorMember
@@ -42,7 +42,7 @@ class RemoveTeamMemberServiceImpl(
         if (targetMember.team.ownerId == targetMember.userId) {
             throw ExpectedException("소유권을 이양하기 전에는 소유자가 팀을 탈퇴하거나 제거될 수 없습니다.", HttpStatus.FORBIDDEN)
         }
-        if (!isSelf) permissions.requireLowerMemberPriority(teamId, actorMember, targetMember)
+        if (!isSelf) teamPermissionGuard.requireLowerMemberPriority(teamId, actorMember, targetMember)
 
         teamMemberEventPublisher.publishDelete(targetMember)
         teamMemberRepository.delete(targetMember)

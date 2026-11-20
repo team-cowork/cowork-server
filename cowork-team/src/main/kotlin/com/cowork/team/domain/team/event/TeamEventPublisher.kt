@@ -15,7 +15,7 @@ import java.time.Instant
 @Transactional(propagation = Propagation.MANDATORY)
 class TeamEventPublisher(
     private val teamRepository: TeamRepository,
-    private val stateRepository: TeamEventStateRepository,
+    private val teamEventStateRepository: TeamEventStateRepository,
     private val entityManager: EntityManager,
     private val outboxWriter: OutboxWriter,
 ) {
@@ -52,14 +52,14 @@ class TeamEventPublisher(
         val lockedTeam = checkNotNull(teamRepository.findByIdForUpdate(team.id)) {
             "Team row must exist while publishing its state mutation: ${team.id}"
         }
-        val existingState = stateRepository.findByTeamIdForUpdate(lockedTeam.id)
+        val existingState = teamEventStateRepository.findByTeamIdForUpdate(lockedTeam.id)
         val state = existingState ?: TeamEventState.create(lockedTeam, actorUserId, deleted, requestedAt)
         val version = if (existingState == null) {
             state.stateOccurredAt
         } else {
             state.apply(lockedTeam, actorUserId, deleted, requestedAt)
         }
-        stateRepository.save(state)
+        teamEventStateRepository.save(state)
         entityManager.flush()
         check((eventType == "TEAM_DELETED") == state.deleted) {
             "Team lifecycle event type must match its persisted deletion state"

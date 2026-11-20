@@ -37,11 +37,11 @@ import org.springframework.util.backoff.BackOff
 @EnableKafka
 class KafkaConsumerConfig(
     private val kafkaProperties: KafkaProperties,
-    private val checkpointStore: ProjectionCheckpointStore,
-    private val readinessState: ProjectionReadinessState,
-    private val streams: ProjectionStreams,
-    private val topicIdentityProvider: ProjectionTopicIdentityProvider,
-    private val topicGenerations: ProjectionTopicGenerationRegistry,
+    private val projectionCheckpointStore: ProjectionCheckpointStore,
+    private val projectionReadinessState: ProjectionReadinessState,
+    private val projectionStreams: ProjectionStreams,
+    private val projectionTopicIdentityProvider: ProjectionTopicIdentityProvider,
+    private val projectionTopicGenerationRegistry: ProjectionTopicGenerationRegistry,
     @Value($$"${projection.readiness.assignment-retry-backoff-ms:1000}") private val assignmentRetryBackoffMs: Long,
     @Value($$"${projection.readiness.assignment-retry-timeout-ms:60000}") private val assignmentRetryTimeoutMs: Long,
 ) {
@@ -98,10 +98,10 @@ class KafkaConsumerConfig(
         factory.containerProperties.setConsumerRebalanceListener(
             ProjectionAssignmentCoordinator(
                 stream,
-                checkpointStore,
-                readinessState,
-                topicIdentityProvider,
-                topicGenerations,
+                projectionCheckpointStore,
+                projectionReadinessState,
+                projectionTopicIdentityProvider,
+                projectionTopicGenerationRegistry,
                 assignmentRetryBackoffMs,
                 assignmentRetryTimeoutMs,
             ),
@@ -151,13 +151,15 @@ class KafkaConsumerConfig(
         )
 
     @Bean
-    fun preferenceTeamRoleChangedListenerContainerFactory() = projectionListenerContainerFactory(streams.teamRole)
+    fun preferenceTeamRoleChangedListenerContainerFactory() =
+        projectionListenerContainerFactory(projectionStreams.teamRole)
 
     @Bean
-    fun accountRolePolicyListenerContainerFactory() = projectionListenerContainerFactory(streams.accountRole)
+    fun accountRolePolicyListenerContainerFactory() = projectionListenerContainerFactory(projectionStreams.accountRole)
 
     @Bean
-    fun preferenceTeamSettingListenerContainerFactory() = projectionListenerContainerFactory(streams.teamSetting)
+    fun preferenceTeamSettingListenerContainerFactory() =
+        projectionListenerContainerFactory(projectionStreams.teamSetting)
 
     @Bean
     fun teamRoleCommandResultListenerContainerFactory() = durableResultListenerContainerFactory()
