@@ -10,20 +10,18 @@ import com.cowork.project.domain.githubBoard.event.GITHUB_PROJECT_STATE_TOPIC
 import com.cowork.project.global.consumer.Topics
 import org.springframework.stereotype.Component
 
-private const val TEAM_MEMBER_EVENT_TOPIC = "team.member.event"
-
 @Component
 class ProjectionStreams {
     val teamRole =
-        ProjectionStream("cowork-project.team-role-projection", "preference.team-role.state.v2", "cowork-preference")
+        ProjectionStream("cowork-project.team-role-projection", ProjectionTopics.TEAM_ROLE_STATE, "cowork-preference")
     val projectAccess =
-        ProjectionStream("cowork-project.project-access", "preference.project-access.state.v1", "cowork-preference")
+        ProjectionStream("cowork-project.project-access", ProjectionTopics.PROJECT_ACCESS_STATE, "cowork-preference")
     val channelState = ProjectionStream(
         "cowork-project.channel-state",
         ProjectionTopics.CHANNEL_STATE,
         "cowork-channel",
     )
-    val teamMember = ProjectionStream("cowork-project.team-member", TEAM_MEMBER_EVENT_TOPIC, "cowork-team")
+    val teamMember = ProjectionStream("cowork-project.team-member", ProjectionTopics.TEAM_MEMBER_EVENT, "cowork-team")
     val teamLifecycle = ProjectionStream("cowork-project.team-lifecycle", Topics.TEAM_LIFECYCLE, "cowork-team")
     val userProfile = ProjectionStream(
         "cowork-project.user-profile",

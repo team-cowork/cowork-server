@@ -63,8 +63,7 @@ class GithubSyncRequestSchedulerProjectTest :
                 outboxWriter = outboxWriter,
                 snapshotLock = snapshotLock,
                 requestCooldownMs = Duration.ofMinutes(30).toMillis(),
-                staleAfterMs = Duration.ofDays(7).toMillis(),
-                projectStaleAfterMs = Duration.ofHours(1).toMillis(),
+                staleAfterMs = Duration.ofHours(1).toMillis(),
                 manualCooldownMs = Duration.ofMinutes(1).toMillis(),
             )
         }

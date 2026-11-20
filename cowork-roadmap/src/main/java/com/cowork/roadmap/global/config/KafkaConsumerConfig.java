@@ -25,8 +25,10 @@ import com.cowork.roadmap.global.team.repository.ProjectionCheckpointRepository;
 @EnableKafka
 public class KafkaConsumerConfig {
 
+    public static final String TEAM_MEMBER_TOPIC = "team.member.event";
     public static final String ACCOUNT_POLICY_TOPIC = "preference.account-role.state.v1";
     public static final String TEAM_POLICY_TOPIC = "preference.team-role.state.v2";
+    public static final String TEAM_MEMBER_GROUP = "cowork-roadmap.team-member";
     public static final String ACCOUNT_POLICY_GROUP = "cowork-roadmap.account-role.v1";
     public static final String TEAM_POLICY_GROUP = "cowork-roadmap.team-role.v2";
 
@@ -37,10 +39,8 @@ public class KafkaConsumerConfig {
 
     @Bean
     ProjectionReadiness teamMemberProjectionReadiness(ProjectionCheckpointRepository checkpoints,
-            ProjectionTopicIdentityProvider broker,
-            @Value("${KAFKA_GROUP_ID_TEAM_MEMBER:cowork-roadmap.team-member}") String group,
-            @Value("${KAFKA_TOPIC_TEAM_MEMBER:team.member.event}") String topic) {
-        return readiness(checkpoints, broker, group, topic);
+            ProjectionTopicIdentityProvider broker) {
+        return readiness(checkpoints, broker, TEAM_MEMBER_GROUP, TEAM_MEMBER_TOPIC);
     }
 
     @Bean

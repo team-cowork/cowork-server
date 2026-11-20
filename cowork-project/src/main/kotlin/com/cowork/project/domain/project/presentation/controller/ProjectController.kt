@@ -15,7 +15,6 @@ import com.cowork.project.domain.project.service.UpdateProjectService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.Content
-import io.swagger.v3.oas.annotations.media.ExampleObject
 import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.media.SchemaProperty
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -36,17 +35,7 @@ import team.themoment.sdk.response.CommonApiResponse
     ApiResponse(
         responseCode = "401",
         description = "액세스 토큰이 없거나 유효하지 않음",
-        content = [
-            Content(
-                mediaType = "application/json",
-                schema = Schema(implementation = CommonApiResponse::class),
-                examples = [
-                    ExampleObject(
-                        value = """{"status":"401 UNAUTHORIZED","code":401,"message":"Unauthorized"}""",
-                    ),
-                ],
-            ),
-        ],
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
     ),
     ApiResponse(
         responseCode = "default",
@@ -92,60 +81,28 @@ class ProjectController(
             responseCode = "400",
             description = "프로젝트 이름이 비어 있거나 100자를 초과함",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
         ApiResponse(
             responseCode = "403",
             description = "권한 없음",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
         ApiResponse(
             responseCode = "409",
             description = "다른 요청과 프로젝트 순서가 충돌함. 다시 시도할 수 있습니다.",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"409 CONFLICT","code":409,"message":"현재 상태에서는 요청을 처리할 수 없습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
         ApiResponse(
             responseCode = "503",
             description = "비공개 프로젝트의 초기 권한 정보가 아직 준비되지 않음",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"503 SERVICE_UNAVAILABLE","code":503,"message":"일시적으로 처리할 수 없습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
     )
@@ -162,30 +119,14 @@ class ProjectController(
             responseCode = "403",
             description = "프로젝트 읽기 권한 없음",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
         ApiResponse(
             responseCode = "404",
             description = "프로젝트 없음",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
         ApiResponse(
@@ -195,11 +136,6 @@ class ProjectController(
                 Content(
                     mediaType = "application/json",
                     schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"503 SERVICE_UNAVAILABLE","code":503,"message":"일시적으로 처리할 수 없습니다."}""",
-                        ),
-                    ],
                 ),
             ],
         ),
@@ -217,45 +153,21 @@ class ProjectController(
             responseCode = "400",
             description = "프로젝트 이름이 비어 있거나 100자를 초과함",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
         ApiResponse(
             responseCode = "403",
             description = "권한 없음",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
         ApiResponse(
             responseCode = "404",
             description = "프로젝트 없음",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
         ApiResponse(
@@ -265,11 +177,6 @@ class ProjectController(
                 Content(
                     mediaType = "application/json",
                     schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"503 SERVICE_UNAVAILABLE","code":503,"message":"일시적으로 처리할 수 없습니다."}""",
-                        ),
-                    ],
                 ),
             ],
         ),
@@ -288,30 +195,14 @@ class ProjectController(
             responseCode = "403",
             description = "권한 없음",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
         ApiResponse(
             responseCode = "404",
             description = "프로젝트 없음",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
         ApiResponse(
@@ -321,11 +212,6 @@ class ProjectController(
                 Content(
                     mediaType = "application/json",
                     schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"503 SERVICE_UNAVAILABLE","code":503,"message":"일시적으로 처리할 수 없습니다."}""",
-                        ),
-                    ],
                 ),
             ],
         ),
@@ -346,15 +232,7 @@ class ProjectController(
             responseCode = "400",
             description = "지원하지 않는 정렬 기준 (허용: position, id, name, createdAt, updatedAt)",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
     )
@@ -373,15 +251,7 @@ class ProjectController(
             responseCode = "400",
             description = "지원하지 않는 정렬 기준 (허용: position, id, name, createdAt, updatedAt)",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"400 BAD_REQUEST","code":400,"message":"요청 값이 올바르지 않습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
     )
@@ -398,30 +268,14 @@ class ProjectController(
             responseCode = "403",
             description = "프로젝트 읽기 권한 없음",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"403 FORBIDDEN","code":403,"message":"요청을 수행할 권한이 없습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
         ApiResponse(
             responseCode = "404",
             description = "프로젝트 없음",
             content = [
-                Content(
-                    mediaType = "application/json",
-                    schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
-                        ),
-                    ],
-                ),
+                Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
         ),
         ApiResponse(
@@ -431,11 +285,6 @@ class ProjectController(
                 Content(
                     mediaType = "application/json",
                     schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"503 SERVICE_UNAVAILABLE","code":503,"message":"일시적으로 처리할 수 없습니다."}""",
-                        ),
-                    ],
                 ),
             ],
         ),
