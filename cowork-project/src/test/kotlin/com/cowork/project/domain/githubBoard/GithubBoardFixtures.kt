@@ -43,12 +43,16 @@ object GithubBoardFixtures {
         filter: String? = null,
         columnFieldIds: List<String> = listOf(status.id),
         sortBy: List<GithubProjectViewSort> = emptyList(),
+        groupFieldIds: List<String> = emptyList(),
+        visibleFieldIds: List<String> = emptyList(),
     ) = GithubProjectView(
         id = "PVTV_$number",
         number = number,
         name = "View $number",
         layout = layout,
         filter = filter,
+        visibleFieldIds = visibleFieldIds,
+        groupByFieldIds = groupFieldIds,
         verticalGroupByFieldIds = columnFieldIds,
         sortBy = sortBy,
     )
@@ -65,6 +69,7 @@ object GithubBoardFixtures {
         iteration: String? = null,
         points: Double? = null,
         due: String? = null,
+        milestone: String? = null,
     ) = GithubProjectItemStateEvent(
         owner = "my-org",
         projectNodeId = "PVT_1",
@@ -78,6 +83,7 @@ object GithubBoardFixtures {
             repository = repository,
             assignees = assignees,
             labels = labels.map { GithubProjectItemLabel(it, "000000") },
+            milestone = milestone,
             draft = type == "DRAFT_ISSUE",
         ),
         fieldValues = listOfNotNull(
