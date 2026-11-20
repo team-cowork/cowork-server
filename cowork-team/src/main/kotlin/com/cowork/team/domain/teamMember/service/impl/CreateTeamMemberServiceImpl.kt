@@ -3,7 +3,7 @@ package com.cowork.team.domain.teamMember.service.impl
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.projection.TeamSettingProjectionReader
 import com.cowork.team.domain.team.repository.TeamRepository
-import com.cowork.team.domain.teamMember.RegisterTeamMemberService
+import com.cowork.team.domain.teamMember.CreateTeamMemberService
 import com.cowork.team.domain.teamMember.RegisteredTeamMember
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
@@ -13,12 +13,12 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-class RegisterTeamMemberServiceImpl(
+class CreateTeamMemberServiceImpl(
     private val teamRepository: TeamRepository,
     private val teamMemberRepository: TeamMemberRepository,
     private val teamMemberEventPublisher: TeamMemberEventPublisher,
     private val teamSettingProjectionReader: TeamSettingProjectionReader,
-) : RegisterTeamMemberService {
+) : CreateTeamMemberService {
 
     @Transactional
     override fun execute(teamId: Long, userId: Long): RegisteredTeamMember {

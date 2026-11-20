@@ -12,14 +12,14 @@ import io.mockk.verify
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 
-class TeamIconOwnershipServiceTest :
+class TeamIconOwnershipManagerTest :
     DescribeSpec({
         val key = "team-icons/12345678-1234-1234-1234-123456789012.png"
         val uploadKey = "team-icon-uploads/7/12345678-1234-1234-1234-123456789012.png"
         val iconUrl = "https://storage.example.com/bucket/$key"
         lateinit var uploads: TeamIconUploadRepository
-        lateinit var storage: S3Service
-        lateinit var service: TeamIconOwnershipService
+        lateinit var storage: TeamIconStorage
+        lateinit var service: TeamIconOwnershipManager
         lateinit var upload: TeamIconUpload
 
         fun team(id: Long = 10L, icon: String? = null) = Team(id, "team", null, icon, 7L)
@@ -33,7 +33,7 @@ class TeamIconOwnershipServiceTest :
             every { storage.buildPublicUrl(key) } returns iconUrl
             every { uploads.findByObjectKeyForUpdate(key) } returns upload
             every { uploads.findByUploadKeyForUpdate(uploadKey) } returns upload
-            service = TeamIconOwnershipService(uploads, storage)
+            service = TeamIconOwnershipManager(uploads, storage)
         }
 
         describe("아이콘 업로드 확인은") {

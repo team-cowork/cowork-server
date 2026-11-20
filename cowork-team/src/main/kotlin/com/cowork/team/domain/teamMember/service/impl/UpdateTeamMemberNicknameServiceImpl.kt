@@ -5,7 +5,7 @@ import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamMember.presentation.data.request.ChangeNicknameRequest
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamMember.service.ChangeTeamMemberNicknameService
+import com.cowork.team.domain.teamMember.service.UpdateTeamMemberNicknameService
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
 import com.cowork.team.domain.teamRole.service.ManageRoleContext
 import com.cowork.team.domain.teamRole.service.TeamRoleAccessGuard
@@ -16,13 +16,13 @@ import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
 
 @Service
-class ChangeTeamMemberNicknameServiceImpl(
+class UpdateTeamMemberNicknameServiceImpl(
     private val teamMemberRepository: TeamMemberRepository,
     private val teamMemberEventPublisher: TeamMemberEventPublisher,
     private val teamAccessGuard: TeamAccessGuard,
     private val teamRoleAccessGuard: TeamRoleAccessGuard,
     private val teamRoleProjectionReader: TeamRoleProjectionReader,
-) : ChangeTeamMemberNicknameService {
+) : UpdateTeamMemberNicknameService {
 
     @Transactional
     override fun execute(actorId: Long, teamId: Long, targetUserId: Long, request: ChangeNicknameRequest) {
