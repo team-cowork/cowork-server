@@ -1,6 +1,8 @@
 [versions]
 java = "27"
 spring-boot = "4.1.2"
+spring-modulith = "2.1.2"
+archunit = "1.5.1"
 spring-cloud = "2025.1.4"
 kotlin = "2.5.0-RC"
 awspring-cloud = "4.2.2"
@@ -20,6 +22,8 @@ spring-boot-starter-actuator = { module = "org.springframework.boot:spring-boot-
 spring-boot-starter-data-jpa = { module = "org.springframework.boot:spring-boot-starter-data-jpa" }
 spring-boot-starter-validation = { module = "org.springframework.boot:spring-boot-starter-validation" }
 spring-boot-starter-test = { module = "org.springframework.boot:spring-boot-starter-test" }
+spring-modulith-core = { module = "org.springframework.modulith:spring-modulith-core", version.ref = "spring-modulith" }
+archunit = { module = "com.tngtech.archunit:archunit", version.ref = "archunit" }
 spring-cloud-dependencies = { module = "org.springframework.cloud:spring-cloud-dependencies", version.ref = "spring-cloud" }
 spring-boot-starter-kafka = { module = "org.springframework.boot:spring-boot-starter-kafka" }
 jackson-module-kotlin = { module = "tools.jackson.module:jackson-module-kotlin" }

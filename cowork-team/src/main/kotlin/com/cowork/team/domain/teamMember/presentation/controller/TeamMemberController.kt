@@ -1,7 +1,7 @@
 package com.cowork.team.domain.teamMember.presentation.controller
 
-import com.cowork.team.domain.teamInvite.presentation.data.request.InviteMembersRequest
 import com.cowork.team.domain.teamMember.presentation.data.request.ChangeNicknameRequest
+import com.cowork.team.domain.teamMember.presentation.data.request.InviteMembersRequest
 import com.cowork.team.domain.teamMember.presentation.data.response.TeamMemberResponse
 import com.cowork.team.domain.teamMember.service.ChangeTeamMemberNicknameService
 import com.cowork.team.domain.teamMember.service.InviteTeamMembersService
@@ -138,7 +138,7 @@ class TeamMemberController(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @RequestBody request: InviteMembersRequest,
-    ): List<TeamMemberResponse> = inviteTeamMembersService.execute(userId, teamId, request)
+    ): List<TeamMemberResponse> = inviteTeamMembersService.execute(userId, teamId, request.userIds)
 
     @Operation(summary = "멤버 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
