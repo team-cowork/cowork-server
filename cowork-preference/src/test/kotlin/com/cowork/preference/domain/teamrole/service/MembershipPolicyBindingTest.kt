@@ -34,7 +34,7 @@ class MembershipPolicyBindingTest :
         beforeEach {
             repository = mockk()
             outbox = mockk(relaxed = true)
-            service = TeamRoleService(repository, outbox, mockk(), mockk())
+            service = TeamRoleService(repository, outbox, mockk())
             coEvery { repository.ensureManagedPolicy(client, 3L, any()) } returns null
             coEvery { repository.findManagedPolicy(client, 3L, true) } returns owner
             coEvery { repository.findManagedPolicy(client, 3L, false) } returns admin
