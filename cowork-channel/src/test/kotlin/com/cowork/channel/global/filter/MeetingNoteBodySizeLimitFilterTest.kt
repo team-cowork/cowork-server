@@ -40,9 +40,10 @@ class MeetingNoteBodySizeLimitFilterTest :
             }
         }
 
-        describe("회의록 생성·수정 요청") {
+        describe("회의록 생성·수정·요약 요청") {
             listOf(
                 "POST" to "/channels/1/meeting-notes",
+                "POST" to "/channels/1/meeting-notes/summary",
                 "PATCH" to "/channels/1/meeting-notes/2",
                 "POST" to "/channels/1/meeting%2Dnotes",
                 "POST" to "/channels/1/meeting-notes;x=y",

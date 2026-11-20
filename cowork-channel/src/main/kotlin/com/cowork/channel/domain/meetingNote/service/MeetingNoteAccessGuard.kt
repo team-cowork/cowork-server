@@ -4,6 +4,7 @@ import com.cowork.channel.domain.channel.service.ChannelAccessGuard
 import com.cowork.channel.domain.channel.service.support.ChannelPermissionSupport
 import com.cowork.channel.domain.channelRolePolicy.service.ChannelMessageReadPolicyEvaluator
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 @Service
 class MeetingNoteAccessGuard(
@@ -17,6 +18,7 @@ class MeetingNoteAccessGuard(
         evaluator.requirePermission(teamId, userId, channel, "file_attach")
     }
 
+    @Transactional(readOnly = true)
     fun requireChannelAccess(channelId: Long, userId: Long) {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         channelAccessGuard.requireTeamChannel(channel)

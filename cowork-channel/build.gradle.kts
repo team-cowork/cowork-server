@@ -57,6 +57,7 @@ dependencies {
     // JitPack is sometimes down, so keep this team-owned library optional; callers fall back to the standard library.
     runtimeOnly(megaMethod.incoming.artifactView { isLenient = true }.files)
 
+    implementation(libs.spring.ai.model)
     implementation(libs.spring.boot.starter.web)
     implementation(libs.spring.boot.starter.validation)
     implementation(libs.spring.boot.starter.restclient)
