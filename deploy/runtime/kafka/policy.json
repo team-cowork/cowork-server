@@ -91,7 +91,7 @@
         "segment.ms": "3600000"
       }
     },
-    "chat.message.v2": {
+    "chat.message.event.v3": {
       "partitions": 1,
       "config": {
         "cleanup.policy": "delete",
@@ -535,7 +535,7 @@
         "channel.event.v2",
         "project.event.v2",
         "project.github-repo.event",
-        "chat.message.v2",
+        "chat.message.event.v3",
         "github.issue.create",
         "github.issue.result",
         "github.repo.event",
@@ -554,7 +554,8 @@
         "channel.thread.state.v1",
         "chat.thread-parent.command.v1",
         "chat.thread-parent.result.v1",
-        "chat.thread-parent.command.v1-dlt"
+        "chat.thread-parent.command.v1-dlt",
+        "preference.account-role.state.v1"
       ]
     },
     "cowork-github": {
