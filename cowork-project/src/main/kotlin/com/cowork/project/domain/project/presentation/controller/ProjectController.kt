@@ -188,6 +188,21 @@ class ProjectController(
                 ),
             ],
         ),
+        ApiResponse(
+            responseCode = "503",
+            description = "프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음.",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"503 SERVICE_UNAVAILABLE","code":503,"message":"일시적으로 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @GetMapping("/{projectId}")
     fun getProject(
@@ -243,6 +258,21 @@ class ProjectController(
                 ),
             ],
         ),
+        ApiResponse(
+            responseCode = "503",
+            description = "프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음.",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"503 SERVICE_UNAVAILABLE","code":503,"message":"일시적으로 처리할 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
     )
     @PatchMapping("/{projectId}")
     fun updateProject(
@@ -279,6 +309,21 @@ class ProjectController(
                     examples = [
                         ExampleObject(
                             value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "503",
+            description = "프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음.",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"503 SERVICE_UNAVAILABLE","code":503,"message":"일시적으로 처리할 수 없습니다."}""",
                         ),
                     ],
                 ),
@@ -374,6 +419,21 @@ class ProjectController(
                     examples = [
                         ExampleObject(
                             value = """{"status":"404 NOT_FOUND","code":404,"message":"요청한 대상을 찾을 수 없습니다."}""",
+                        ),
+                    ],
+                ),
+            ],
+        ),
+        ApiResponse(
+            responseCode = "503",
+            description = "프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음.",
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CommonApiResponse::class),
+                    examples = [
+                        ExampleObject(
+                            value = """{"status":"503 SERVICE_UNAVAILABLE","code":503,"message":"일시적으로 처리할 수 없습니다."}""",
                         ),
                     ],
                 ),
