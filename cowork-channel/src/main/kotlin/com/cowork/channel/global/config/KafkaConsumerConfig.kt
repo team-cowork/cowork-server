@@ -32,12 +32,12 @@ import java.nio.charset.StandardCharsets
 class KafkaConsumerConfig(
     private val kafkaProperties: KafkaProperties,
     @Qualifier(CHANNEL_ROLE_POLICY_RESULT_DLT_TEMPLATE_BEAN)
-    private val channelRolePolicyResultDltKafkaTemplate: KafkaTemplate<String, String>,
-    private val checkpointStore: ProjectionCheckpointStore,
-    private val readinessState: ProjectionReadinessState,
-    private val streams: ProjectionStreams,
-    private val topicIdentityProvider: ProjectionTopicIdentityProvider,
-    private val topicGenerations: ProjectionTopicGenerationRegistry,
+    private val kafkaTemplate: KafkaTemplate<String, String>,
+    private val projectionCheckpointStore: ProjectionCheckpointStore,
+    private val projectionReadinessState: ProjectionReadinessState,
+    private val projectionStreams: ProjectionStreams,
+    private val projectionTopicIdentityProvider: ProjectionTopicIdentityProvider,
+    private val projectionTopicGenerationRegistry: ProjectionTopicGenerationRegistry,
     @Value($$"${projection.readiness.assignment-retry-backoff-ms:1000}") private val assignmentRetryBackoffMs: Long,
     @Value($$"${projection.readiness.assignment-retry-timeout-ms:60000}") private val assignmentRetryTimeoutMs: Long,
 ) {
@@ -58,10 +58,10 @@ class KafkaConsumerConfig(
         factory.containerProperties.setConsumerRebalanceListener(
             ProjectionAssignmentCoordinator(
                 stream,
-                checkpointStore,
-                readinessState,
-                topicIdentityProvider,
-                topicGenerations,
+                projectionCheckpointStore,
+                projectionReadinessState,
+                projectionTopicIdentityProvider,
+                projectionTopicGenerationRegistry,
                 assignmentRetryBackoffMs,
                 assignmentRetryTimeoutMs,
             ),
@@ -70,29 +70,30 @@ class KafkaConsumerConfig(
     }
 
     @Bean
-    fun projectEventListenerContainerFactory() = listenerContainerFactory(streams.project)
+    fun projectEventListenerContainerFactory() = listenerContainerFactory(projectionStreams.project)
 
     @Bean
-    fun teamMemberEventListenerContainerFactory() = listenerContainerFactory(streams.teamMember)
+    fun teamMemberEventListenerContainerFactory() = listenerContainerFactory(projectionStreams.teamMember)
 
     @Bean
-    fun teamLifecycleListenerContainerFactory() = listenerContainerFactory(streams.teamLifecycle)
+    fun teamLifecycleListenerContainerFactory() = listenerContainerFactory(projectionStreams.teamLifecycle)
 
     @Bean
-    fun preferenceTeamRoleChangedListenerContainerFactory() = listenerContainerFactory(streams.teamRole)
+    fun preferenceTeamRoleChangedListenerContainerFactory() = listenerContainerFactory(projectionStreams.teamRole)
 
     @Bean
-    fun channelRolePolicyChangedListenerContainerFactory() = listenerContainerFactory(streams.channelRolePolicy)
+    fun channelRolePolicyChangedListenerContainerFactory() =
+        listenerContainerFactory(projectionStreams.channelRolePolicy)
 
     @Bean
-    fun projectAccessStateListenerContainerFactory() = listenerContainerFactory(streams.projectAccess)
+    fun projectAccessStateListenerContainerFactory() = listenerContainerFactory(projectionStreams.projectAccess)
 
     @Bean
     fun channelRolePolicyCommandResultListenerContainerFactory() =
         ConcurrentKafkaListenerContainerFactory<String, String>().apply {
             setConsumerFactory(consumerFactory())
             setCommonErrorHandler(
-                ChannelRolePolicyCommandResultErrorHandler.create(channelRolePolicyResultDltKafkaTemplate),
+                ChannelRolePolicyCommandResultErrorHandler.create(kafkaTemplate),
             )
         }
 
@@ -101,7 +102,7 @@ class KafkaConsumerConfig(
         setConsumerFactory(consumerFactory())
         setCommonErrorHandler(
             ChannelRolePolicyCommandResultErrorHandler.create(
-                channelRolePolicyResultDltKafkaTemplate,
+                kafkaTemplate,
                 ThreadParentContract.RESULT_TOPIC,
                 ThreadParentContract.RESULT_DLT_TOPIC,
             ),

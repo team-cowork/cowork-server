@@ -58,9 +58,9 @@ import team.themoment.sdk.response.CommonApiResponse
 @RestController
 @RequestMapping("/channels/{channelId}/role-policies/{roleId}")
 class ChannelRolePolicyController(
-    private val upsertService: UpsertChannelRolePolicyService,
-    private val deleteService: DeleteChannelRolePolicyService,
-    private val queryOperationService: QueryChannelRolePolicyOperationService,
+    private val upsertChannelRolePolicyService: UpsertChannelRolePolicyService,
+    private val deleteChannelRolePolicyService: DeleteChannelRolePolicyService,
+    private val queryChannelRolePolicyOperationService: QueryChannelRolePolicyOperationService,
 ) {
     @Operation(summary = "채널 역할 정책 설정", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -157,7 +157,7 @@ class ChannelRolePolicyController(
         @PathVariable channelId: Long,
         @PathVariable roleId: Long,
         @RequestBody request: UpsertChannelRolePolicyRequest,
-    ): ChannelRolePolicyOperationResponse = upsertService.execute(
+    ): ChannelRolePolicyOperationResponse = upsertChannelRolePolicyService.execute(
         actorId,
         channelId,
         roleId,
@@ -244,7 +244,8 @@ class ChannelRolePolicyController(
         @RequestHeader("Idempotency-Key") idempotencyKey: String,
         @PathVariable channelId: Long,
         @PathVariable roleId: Long,
-    ): ChannelRolePolicyOperationResponse = deleteService.execute(actorId, channelId, roleId, idempotencyKey)
+    ): ChannelRolePolicyOperationResponse =
+        deleteChannelRolePolicyService.execute(actorId, channelId, roleId, idempotencyKey)
 
     @Operation(
         summary = "채널 역할 정책 비동기 작업 상태 조회",
@@ -275,5 +276,6 @@ class ChannelRolePolicyController(
         @PathVariable channelId: Long,
         @PathVariable roleId: Long,
         @PathVariable operationId: String,
-    ): ChannelRolePolicyOperationResponse = queryOperationService.execute(actorId, channelId, roleId, operationId)
+    ): ChannelRolePolicyOperationResponse =
+        queryChannelRolePolicyOperationService.execute(actorId, channelId, roleId, operationId)
 }

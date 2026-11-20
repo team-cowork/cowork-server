@@ -15,32 +15,32 @@ import org.springframework.transaction.support.TransactionTemplate
 
 @Component
 class ThreadSnapshotPublisher(
-    private val states: ThreadStateRepository,
-    private val publisher: ThreadStatePublisher,
-    private val completion: ProjectionSnapshotCompletionPublisher,
-    private val lock: ProjectionSnapshotLock,
-    private val readinessState: ProjectionReadinessState,
-    private val streams: ProjectionStreams,
-    transactionManager: PlatformTransactionManager,
+    private val threadStateRepository: ThreadStateRepository,
+    private val threadStatePublisher: ThreadStatePublisher,
+    private val projectionSnapshotCompletionPublisher: ProjectionSnapshotCompletionPublisher,
+    private val projectionSnapshotLock: ProjectionSnapshotLock,
+    private val projectionReadinessState: ProjectionReadinessState,
+    private val projectionStreams: ProjectionStreams,
+    platformTransactionManager: PlatformTransactionManager,
 ) {
-    private val transaction = TransactionTemplate(transactionManager)
+    private val transaction = TransactionTemplate(platformTransactionManager)
 
     @EventListener(ApplicationReadyEvent::class)
     @Scheduled(initialDelay = 60_000, fixedDelay = 300_000)
     fun publishAll() {
-        lock.tryRun("publishThreadStateSnapshots") {
+        projectionSnapshotLock.tryRun("publishThreadStateSnapshots") {
             // 팀 삭제가 채널과 스레드를 지우므로, 그 upstream을 따라잡은 뒤에만 전체 상태를 낸다.
-            if (!readinessState.isCaughtUp(streams.channelStateUpstream)) return@tryRun
+            if (!projectionReadinessState.isCaughtUp(projectionStreams.channelStateUpstream)) return@tryRun
             var afterId = 0L
             while (true) {
                 afterId = transaction.execute {
-                    val batch = states.findSnapshotBatch(afterId, PageRequest.of(0, 500))
-                    batch.forEach(publisher::enqueue)
+                    val batch = threadStateRepository.findSnapshotBatch(afterId, PageRequest.of(0, 500))
+                    batch.forEach(threadStatePublisher::enqueue)
                     batch.lastOrNull()?.threadId
                 } ?: break
             }
-            if (!readinessState.isCaughtUp(streams.channelStateUpstream)) return@tryRun
-            completion.publishCompleted(setOf(ThreadStatePublisher.TOPIC))
+            if (!projectionReadinessState.isCaughtUp(projectionStreams.channelStateUpstream)) return@tryRun
+            projectionSnapshotCompletionPublisher.publishCompleted(setOf(ThreadStatePublisher.TOPIC))
         }
     }
 }

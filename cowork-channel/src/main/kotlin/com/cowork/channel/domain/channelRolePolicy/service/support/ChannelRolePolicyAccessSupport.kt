@@ -10,13 +10,13 @@ import team.themoment.sdk.exception.ExpectedException
 
 @Component
 class ChannelRolePolicyAccessSupport(
-    private val roleRepository: TeamRoleProjectionRepository,
-    private val policyRepository: ChannelRolePolicyProjectionRepository,
+    private val teamRoleProjectionRepository: TeamRoleProjectionRepository,
+    private val channelRolePolicyProjectionRepository: ChannelRolePolicyProjectionRepository,
     private val projectionReadinessGate: ProjectionReadinessGate,
 ) {
     fun requireRole(teamId: Long, roleId: Long) {
         projectionReadinessGate.requireReady()
-        val role = roleRepository.findById(roleId).orElse(null)
+        val role = teamRoleProjectionRepository.findById(roleId).orElse(null)
         if (role == null || role.teamId != teamId || role.deleted) {
             throw ExpectedException("팀 역할을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         }
@@ -25,7 +25,7 @@ class ChannelRolePolicyAccessSupport(
     fun requirePolicy(teamId: Long, channelId: Long, roleId: Long) {
         projectionReadinessGate.requireReady()
         val key = ChannelRolePolicyProjection.key(teamId, channelId, roleId)
-        val policy = policyRepository.findById(key).orElse(null)
+        val policy = channelRolePolicyProjectionRepository.findById(key).orElse(null)
         if (policy == null || policy.deleted) {
             throw ExpectedException("채널 역할 정책을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         }

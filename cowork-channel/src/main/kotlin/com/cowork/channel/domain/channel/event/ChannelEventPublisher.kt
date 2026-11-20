@@ -16,7 +16,7 @@ import java.time.Instant
 @Transactional(propagation = Propagation.MANDATORY)
 class ChannelEventPublisher(
     private val channelRepository: ChannelRepository,
-    private val stateRepository: ChannelEventStateRepository,
+    private val channelEventStateRepository: ChannelEventStateRepository,
     private val entityManager: EntityManager,
     private val outboxWriter: OutboxWriter,
     private val objectMapper: ObjectMapper,
@@ -52,7 +52,7 @@ class ChannelEventPublisher(
         val lockedChannel = checkNotNull(channelRepository.findByIdForUpdate(channel.id)) {
             "Channel row must exist while publishing its state mutation: ${channel.id}"
         }
-        val existingState = stateRepository.findByChannelIdForUpdate(lockedChannel.id)
+        val existingState = channelEventStateRepository.findByChannelIdForUpdate(lockedChannel.id)
         check(existingState == null || initialRolePolicySeed == null) {
             "Initial channel role policies must only be attached to the first channel state"
         }
@@ -67,7 +67,7 @@ class ChannelEventPublisher(
         } else {
             state.apply(lockedChannel, deleted, requestedAt)
         }
-        stateRepository.save(state)
+        channelEventStateRepository.save(state)
         entityManager.flush()
         enqueue(eventType, state, snapshot = false)
         return version

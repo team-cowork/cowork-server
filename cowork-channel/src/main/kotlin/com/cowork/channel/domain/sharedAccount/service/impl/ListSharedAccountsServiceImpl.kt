@@ -17,7 +17,7 @@ class ListSharedAccountsServiceImpl(
     private val channelAccessGuard: ChannelAccessGuard,
     private val teamPermissionService: TeamPermissionService,
     private val sharedAccountAccessGuard: SharedAccountAccessGuard,
-    private val lookupSupport: SharedAccountLookupSupport,
+    private val sharedAccountLookupSupport: SharedAccountLookupSupport,
 ) : ListSharedAccountsService {
 
     override fun listAccounts(userId: Long, channelId: Long): List<SharedAccountResponse> {
@@ -25,6 +25,6 @@ class ListSharedAccountsServiceImpl(
         sharedAccountAccessGuard.requireAccountShareChannel(channel)
         teamPermissionService.requireChannelAccess(channel, userId)
         return sharedAccountRepository.findAllByChannelIdOrderByCreatedAtAscIdAsc(channelId)
-            .map { lookupSupport.toResponse(it, listOnly = true) }
+            .map { sharedAccountLookupSupport.toResponse(it, listOnly = true) }
     }
 }

@@ -15,9 +15,9 @@ import java.time.Instant
 
 @Component
 class ProjectAccessStateConsumer(
-    private val repository: ProjectAccessProjectionRepository,
-    private val processor: ProjectionRecordProcessor,
-    private val streams: ProjectionStreams,
+    private val projectAccessProjectionRepository: ProjectAccessProjectionRepository,
+    private val projectionRecordProcessor: ProjectionRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
     private val objectMapper: ObjectMapper,
 ) {
 
@@ -27,8 +27,8 @@ class ProjectAccessStateConsumer(
         containerFactory = "projectAccessStateListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        val stream = streams.projectAccess
-        if (processor.processControlRecord(stream, record)) return
+        val stream = projectionStreams.projectAccess
+        if (projectionRecordProcessor.processControlRecord(stream, record)) return
         val event = runCatching { parse(record) }.getOrElse {
             logger().warn(
                 "Quarantine invalid project access state [partition={}, offset={}, reason={}]",
@@ -36,15 +36,15 @@ class ProjectAccessStateConsumer(
                 record.offset(),
                 it.message,
             )
-            processor.quarantineRecord(stream, record, "project access state 계약 위반: ${it.message}")
+            projectionRecordProcessor.quarantineRecord(stream, record, "project access state 계약 위반: ${it.message}")
             return
         }
-        processor.applyRecord(stream, record) {
-            val existing = repository.findById(event.accessKey).orElse(null)
+        projectionRecordProcessor.applyRecord(stream, record) {
+            val existing = projectAccessProjectionRepository.findById(event.accessKey).orElse(null)
             if (existing == null) {
-                repository.save(event)
+                projectAccessProjectionRepository.save(event)
             } else if (existing.merge(event)) {
-                repository.save(existing)
+                projectAccessProjectionRepository.save(existing)
             }
         }
     }

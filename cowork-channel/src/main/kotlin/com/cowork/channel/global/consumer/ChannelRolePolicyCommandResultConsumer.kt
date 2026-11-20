@@ -18,8 +18,8 @@ import java.util.UUID
 
 @Component
 class ChannelRolePolicyCommandResultConsumer(
-    private val operationRepository: ChannelRolePolicyCommandOperationRepository,
-    private val finalizer: ChannelRolePolicyOperationProjectionFinalizer,
+    private val channelRolePolicyCommandOperationRepository: ChannelRolePolicyCommandOperationRepository,
+    private val channelRolePolicyOperationProjectionFinalizer: ChannelRolePolicyOperationProjectionFinalizer,
     private val objectMapper: ObjectMapper,
 ) {
     @KafkaListener(
@@ -56,9 +56,10 @@ class ChannelRolePolicyCommandResultConsumer(
             "channel role policy command result는 terminal 상태여야 합니다."
         }
 
-        val operation = requireNotNull(operationRepository.findByIdForUpdate(result.operationId)) {
-            "channel role policy result에 대응하는 operation이 없습니다: ${result.operationId}"
-        }
+        val operation =
+            requireNotNull(channelRolePolicyCommandOperationRepository.findByIdForUpdate(result.operationId)) {
+                "channel role policy result에 대응하는 operation이 없습니다: ${result.operationId}"
+            }
         require(operation.teamId == result.teamId) { "result teamId가 일치하지 않습니다." }
         require(operation.channelId == result.channelId) { "result channelId가 일치하지 않습니다." }
         require(operation.roleId == result.roleId) { "result roleId가 일치하지 않습니다." }
@@ -116,7 +117,7 @@ class ChannelRolePolicyCommandResultConsumer(
             require(result.permissions == null) { "DELETE result에는 permissions가 없어야 합니다." }
         }
         operation.markProcessing(result.permissions?.let(objectMapper::writeValueAsString), expectation)
-        finalizer.tryFinalize(operation)
+        channelRolePolicyOperationProjectionFinalizer.tryFinalize(operation)
     }
 
     private companion object {

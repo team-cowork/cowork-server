@@ -12,13 +12,13 @@ import org.springframework.transaction.annotation.Transactional
 class ListTeamChannelsServiceImpl(
     private val channelRepository: ChannelRepository,
     private val teamPermissionService: TeamPermissionService,
-    private val messageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
+    private val channelMessageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
 ) : ListTeamChannelsService {
 
     @Transactional(readOnly = true)
     override fun execute(userId: Long, teamId: Long): List<Channel> {
         teamPermissionService.requireTeamMember(teamId, userId)
         val structurallyVisible = channelRepository.findActiveByTeamIdOrderByPositionAscIdAsc(teamId)
-        return messageReadPolicyEvaluator.filterReadable(teamId, userId, structurallyVisible)
+        return channelMessageReadPolicyEvaluator.filterReadable(teamId, userId, structurallyVisible)
     }
 }

@@ -26,7 +26,7 @@ class CreateSharedAccountServiceImpl(
     private val teamPermissionService: TeamPermissionService,
     private val credentialEncryptionService: CredentialEncryptionService,
     private val sharedAccountAccessGuard: SharedAccountAccessGuard,
-    private val lookupSupport: SharedAccountLookupSupport,
+    private val sharedAccountLookupSupport: SharedAccountLookupSupport,
 ) : CreateSharedAccountService {
 
     override fun createAccount(
@@ -61,6 +61,6 @@ class CreateSharedAccountServiceImpl(
         } catch (e: DataIntegrityViolationException) {
             throw e.toSharedAccountConflict()
         }
-        return lookupSupport.toResponse(account)
+        return sharedAccountLookupSupport.toResponse(account)
     }
 }

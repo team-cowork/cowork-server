@@ -12,22 +12,22 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class ActivateMeetingNoteTemplateServiceImpl(
-    private val templateRepository: MeetingNoteTemplateRepository,
-    private val sectionRepository: TemplateSectionRepository,
+    private val meetingNoteTemplateRepository: MeetingNoteTemplateRepository,
+    private val templateSectionRepository: TemplateSectionRepository,
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
-    private val lookupSupport: MeetingNoteTemplateLookupSupport,
+    private val meetingNoteTemplateLookupSupport: MeetingNoteTemplateLookupSupport,
 ) : ActivateMeetingNoteTemplateService {
 
     @Transactional
     override fun activateTemplate(userId: Long, channelId: Long, templateId: Long): MeetingNoteTemplateResponse {
         meetingNoteAccessGuard.requireChannelAccessForUpdate(channelId, userId)
-        val template = lookupSupport.findTemplateOrThrow(templateId)
-        lookupSupport.requireTemplateOwnership(template, channelId)
-        templateRepository.findAllByChannelIdAndIsActiveTrue(channelId)
+        val template = meetingNoteTemplateLookupSupport.findTemplateOrThrow(templateId)
+        meetingNoteTemplateLookupSupport.requireTemplateOwnership(template, channelId)
+        meetingNoteTemplateRepository.findAllByChannelIdAndIsActiveTrue(channelId)
             .filter { it.id != templateId }
             .forEach { it.deactivate() }
         template.activate()
-        val sections = sectionRepository.findAllByTemplateIdOrderByIdAsc(templateId)
+        val sections = templateSectionRepository.findAllByTemplateIdOrderByIdAsc(templateId)
             .map { TemplateSectionResponse.of(it) }
         return MeetingNoteTemplateResponse.of(template, sections)
     }

@@ -15,13 +15,15 @@ class GetSharedAccountServiceImpl(
     private val channelAccessGuard: ChannelAccessGuard,
     private val teamPermissionService: TeamPermissionService,
     private val sharedAccountAccessGuard: SharedAccountAccessGuard,
-    private val lookupSupport: SharedAccountLookupSupport,
+    private val sharedAccountLookupSupport: SharedAccountLookupSupport,
 ) : GetSharedAccountService {
 
     override fun getAccount(userId: Long, channelId: Long, accountId: Long): SharedAccountResponse {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         sharedAccountAccessGuard.requireAccountShareChannel(channel)
         teamPermissionService.requireChannelAccess(channel, userId)
-        return lookupSupport.toResponse(lookupSupport.findAccountOrThrow(accountId, channelId))
+        return sharedAccountLookupSupport.toResponse(
+            sharedAccountLookupSupport.findAccountOrThrow(accountId, channelId),
+        )
     }
 }

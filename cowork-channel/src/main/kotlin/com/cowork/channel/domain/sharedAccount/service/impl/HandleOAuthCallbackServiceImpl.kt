@@ -35,11 +35,11 @@ class HandleOAuthCallbackServiceImpl(
     private val teamPermissionService: TeamPermissionService,
     private val oAuthStateSupport: OAuthStateSupport,
     private val oAuthIdentityResolver: OAuthIdentityResolver,
-    transactionManager: PlatformTransactionManager,
+    platformTransactionManager: PlatformTransactionManager,
 ) : HandleOAuthCallbackService {
 
-    private val readTransaction = TransactionTemplate(transactionManager).apply { isReadOnly = true }
-    private val writeTransaction = TransactionTemplate(transactionManager)
+    private val readTransaction = TransactionTemplate(platformTransactionManager).apply { isReadOnly = true }
+    private val writeTransaction = TransactionTemplate(platformTransactionManager)
 
     override fun handleCallback(providerName: String, code: String, state: String): SharedAccount {
         val provider = runCatching { AccountProvider.valueOf(providerName.uppercase()) }.getOrElse {

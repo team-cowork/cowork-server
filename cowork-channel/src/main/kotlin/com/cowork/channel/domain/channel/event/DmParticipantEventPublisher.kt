@@ -14,8 +14,8 @@ import java.time.Instant
 @Component
 class DmParticipantEventPublisher(
     private val channelRepository: ChannelRepository,
-    private val memberRepository: DmParticipantRepository,
-    private val stateRepository: DmParticipantEventStateRepository,
+    private val dmParticipantRepository: DmParticipantRepository,
+    private val dmParticipantEventStateRepository: DmParticipantEventStateRepository,
     private val entityManager: EntityManager,
     private val outboxWriter: OutboxWriter,
 ) {
@@ -53,18 +53,18 @@ class DmParticipantEventPublisher(
             "Channel row must exist while publishing its participant state mutation: $channelId"
         }
         check(channel.teamId == null && channel.type.name == "DM") { "Only DM participation has stored participants" }
-        val member = memberRepository.findByChannelIdAndUserIdForUpdate(channelId, userId)
+        val member = dmParticipantRepository.findByChannelIdAndUserIdForUpdate(channelId, userId)
         check(eventType == DmParticipantEventType.LEAVE || member != null) {
             "DM participant row must exist while publishing a JOIN mutation: $channelId:$userId"
         }
-        val existingState = stateRepository.findByKeyForUpdate(channelId, userId)
+        val existingState = dmParticipantEventStateRepository.findByKeyForUpdate(channelId, userId)
         val state = existingState ?: DmParticipantEventState.create(channel, userId, role, deleted, requestedAt)
         val version = if (existingState == null) {
             state.stateOccurredAt
         } else {
             state.apply(channel, role, deleted, requestedAt)
         }
-        stateRepository.save(state)
+        dmParticipantEventStateRepository.save(state)
         entityManager.flush()
         check(
             (eventType == DmParticipantEventType.LEAVE) == state.deleted,

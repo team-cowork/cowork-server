@@ -48,7 +48,7 @@ import team.themoment.sdk.response.CommonApiResponse
 )
 @RestController
 @RequestMapping("/channels/{channelId}/role-policies")
-class ChannelRolePolicyQueryController(private val queryService: QueryChannelRolePoliciesService) {
+class ChannelRolePolicyQueryController(private val queryChannelRolePoliciesService: QueryChannelRolePoliciesService) {
     @Operation(
         summary = "채널 역할 정책 목록 조회",
         description = "역할 우선순위 내림차순으로 반환합니다. 우선순위가 같으면 역할 ID 오름차순으로 정렬합니다.",
@@ -106,5 +106,5 @@ class ChannelRolePolicyQueryController(private val queryService: QueryChannelRol
     fun getPolicies(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") actorId: Long,
         @PathVariable channelId: Long,
-    ): List<ChannelRolePolicyResponse> = queryService.execute(actorId, channelId)
+    ): List<ChannelRolePolicyResponse> = queryChannelRolePoliciesService.execute(actorId, channelId)
 }

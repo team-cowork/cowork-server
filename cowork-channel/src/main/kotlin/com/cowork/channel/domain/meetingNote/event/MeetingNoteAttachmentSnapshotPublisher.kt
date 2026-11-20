@@ -15,31 +15,31 @@ import org.springframework.transaction.support.TransactionTemplate
 
 @Component
 class MeetingNoteAttachmentSnapshotPublisher(
-    private val states: MeetingNoteAttachmentStateRepository,
-    private val publisher: MeetingNoteAttachmentPublisher,
-    private val completion: ProjectionSnapshotCompletionPublisher,
-    private val lock: ProjectionSnapshotLock,
-    private val readinessState: ProjectionReadinessState,
-    private val streams: ProjectionStreams,
-    transactionManager: PlatformTransactionManager,
+    private val meetingNoteAttachmentStateRepository: MeetingNoteAttachmentStateRepository,
+    private val meetingNoteAttachmentPublisher: MeetingNoteAttachmentPublisher,
+    private val projectionSnapshotCompletionPublisher: ProjectionSnapshotCompletionPublisher,
+    private val projectionSnapshotLock: ProjectionSnapshotLock,
+    private val projectionReadinessState: ProjectionReadinessState,
+    private val projectionStreams: ProjectionStreams,
+    platformTransactionManager: PlatformTransactionManager,
 ) {
-    private val transaction = TransactionTemplate(transactionManager)
+    private val transaction = TransactionTemplate(platformTransactionManager)
 
     @EventListener(ApplicationReadyEvent::class)
     @Scheduled(initialDelay = 60_000, fixedDelay = 300_000)
     fun publishAll() {
-        lock.tryRun("publishMeetingNoteAttachmentSnapshots") {
-            if (!readinessState.isCaughtUp(streams.channelStateUpstream)) return@tryRun
+        projectionSnapshotLock.tryRun("publishMeetingNoteAttachmentSnapshots") {
+            if (!projectionReadinessState.isCaughtUp(projectionStreams.channelStateUpstream)) return@tryRun
             var afterId = 0L
             while (true) {
                 afterId = transaction.execute {
-                    val batch = states.findSnapshotBatch(afterId, PageRequest.of(0, 500))
-                    batch.forEach(publisher::enqueue)
+                    val batch = meetingNoteAttachmentStateRepository.findSnapshotBatch(afterId, PageRequest.of(0, 500))
+                    batch.forEach(meetingNoteAttachmentPublisher::enqueue)
                     batch.lastOrNull()?.noteId
                 } ?: break
             }
-            if (!readinessState.isCaughtUp(streams.channelStateUpstream)) return@tryRun
-            completion.publishCompleted(setOf(MeetingNoteAttachmentPublisher.TOPIC))
+            if (!projectionReadinessState.isCaughtUp(projectionStreams.channelStateUpstream)) return@tryRun
+            projectionSnapshotCompletionPublisher.publishCompleted(setOf(MeetingNoteAttachmentPublisher.TOPIC))
         }
     }
 }

@@ -15,9 +15,9 @@ import team.themoment.sdk.exception.ExpectedException
 
 @Service
 class QueryChannelRolePolicyOperationServiceImpl(
-    private val operationRepository: ChannelRolePolicyCommandOperationRepository,
-    private val operationMapper: ChannelRolePolicyOperationMapper,
-    private val finalizer: ChannelRolePolicyOperationProjectionFinalizer,
+    private val channelRolePolicyCommandOperationRepository: ChannelRolePolicyCommandOperationRepository,
+    private val channelRolePolicyOperationMapper: ChannelRolePolicyOperationMapper,
+    private val channelRolePolicyOperationProjectionFinalizer: ChannelRolePolicyOperationProjectionFinalizer,
     private val channelAccessGuard: ChannelAccessGuard,
     private val teamPermissionService: TeamPermissionService,
     private val channelPermissionSupport: ChannelPermissionSupport,
@@ -29,7 +29,7 @@ class QueryChannelRolePolicyOperationServiceImpl(
         roleId: Long,
         operationId: String,
     ): ChannelRolePolicyOperationResponse {
-        val operation = operationRepository.findByIdForUpdate(operationId)
+        val operation = channelRolePolicyCommandOperationRepository.findByIdForUpdate(operationId)
             ?.takeIf {
                 it.actorId == actorId &&
                     it.channelId == channelId &&
@@ -43,7 +43,7 @@ class QueryChannelRolePolicyOperationServiceImpl(
         }
         teamPermissionService.requireTeamMember(teamId, actorId)
         channelPermissionSupport.requireRolePolicyAccess(channel, actorId)
-        finalizer.tryFinalize(operation)
-        return operationMapper.toResponse(operation)
+        channelRolePolicyOperationProjectionFinalizer.tryFinalize(operation)
+        return channelRolePolicyOperationMapper.toResponse(operation)
     }
 }

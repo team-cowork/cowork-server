@@ -16,9 +16,9 @@ import org.springframework.transaction.annotation.Transactional
 class UpsertChannelRolePolicyServiceImpl(
     private val channelAccessGuard: ChannelAccessGuard,
     private val channelPermissionSupport: ChannelPermissionSupport,
-    private val policyAccessSupport: ChannelRolePolicyAccessSupport,
-    private val permissionSchema: ChannelRolePolicyPermissionSchema,
-    private val commandSubmission: ChannelRolePolicyCommandSubmission,
+    private val channelRolePolicyAccessSupport: ChannelRolePolicyAccessSupport,
+    private val channelRolePolicyPermissionSchema: ChannelRolePolicyPermissionSchema,
+    private val channelRolePolicyCommandSubmission: ChannelRolePolicyCommandSubmission,
 ) : UpsertChannelRolePolicyService {
     @Transactional
     override fun execute(
@@ -28,10 +28,10 @@ class UpsertChannelRolePolicyServiceImpl(
         idempotencyKey: String,
         request: UpsertChannelRolePolicyRequest,
     ): ChannelRolePolicyOperationResponse {
-        val permissions = permissionSchema.normalize(request.permissions)
+        val permissions = channelRolePolicyPermissionSchema.normalize(request.permissions)
         val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
         val teamId = channelAccessGuard.requireTeamChannel(channel)
-        return commandSubmission.submit(
+        return channelRolePolicyCommandSubmission.submit(
             idempotencyKey = idempotencyKey,
             commandType = ChannelRolePolicyCommandType.UPSERT,
             teamId = teamId,
@@ -41,7 +41,7 @@ class UpsertChannelRolePolicyServiceImpl(
             permissions = permissions,
         ) {
             channelPermissionSupport.requireRolePolicyManager(channel, actorId, roleId, permissions)
-            policyAccessSupport.requireRole(teamId, roleId)
+            channelRolePolicyAccessSupport.requireRole(teamId, roleId)
         }
     }
 }

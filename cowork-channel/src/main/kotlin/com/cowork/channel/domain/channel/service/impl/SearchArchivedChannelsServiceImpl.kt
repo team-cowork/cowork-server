@@ -20,7 +20,7 @@ import java.util.Base64
 class SearchArchivedChannelsServiceImpl(
     private val channelRepository: ChannelRepository,
     private val teamPermissionService: TeamPermissionService,
-    private val messageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
+    private val channelMessageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
 ) : SearchArchivedChannelsService {
 
     /** 권한 필터 전에 조회한 마지막 행으로 커서를 만들어, 읽을 수 없는 채널이 많아도 다음 페이지로 진행한다. */
@@ -50,7 +50,7 @@ class SearchArchivedChannelsServiceImpl(
         )
         val nextCursor = archived.takeIf { it.size == size }?.last()
             ?.let { encode(CursorPosition(checkNotNull(it.archivedAt), it.id)) }
-        val readable = messageReadPolicyEvaluator.filterReadable(teamId, userId, archived)
+        val readable = channelMessageReadPolicyEvaluator.filterReadable(teamId, userId, archived)
         return ArchivedChannelPageResponse(readable.map(ChannelResponse::of), nextCursor)
     }
 

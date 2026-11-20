@@ -10,17 +10,17 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 @Transactional
 class DeleteTemplateSectionServiceImpl(
-    private val sectionRepository: TemplateSectionRepository,
+    private val templateSectionRepository: TemplateSectionRepository,
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
-    private val lookupSupport: MeetingNoteTemplateLookupSupport,
+    private val meetingNoteTemplateLookupSupport: MeetingNoteTemplateLookupSupport,
 ) : DeleteTemplateSectionService {
 
     override fun deleteSection(userId: Long, channelId: Long, templateId: Long, sectionId: Long) {
         meetingNoteAccessGuard.requireWritableChannelAccess(channelId, userId)
-        val template = lookupSupport.findTemplateOrThrow(templateId)
-        lookupSupport.requireTemplateOwnership(template, channelId)
-        val section = lookupSupport.findSectionOrThrow(sectionId)
-        lookupSupport.requireSectionOwnership(section, templateId)
-        sectionRepository.delete(section)
+        val template = meetingNoteTemplateLookupSupport.findTemplateOrThrow(templateId)
+        meetingNoteTemplateLookupSupport.requireTemplateOwnership(template, channelId)
+        val section = meetingNoteTemplateLookupSupport.findSectionOrThrow(sectionId)
+        meetingNoteTemplateLookupSupport.requireSectionOwnership(section, templateId)
+        templateSectionRepository.delete(section)
     }
 }
