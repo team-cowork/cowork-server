@@ -13,9 +13,10 @@ import org.springframework.web.util.pattern.PathPattern
 import org.springframework.web.util.pattern.PathPatternParser
 
 @Component
-class GatewayRequestObservationConvention(properties: GatewayProperties) : DefaultServerRequestObservationConvention() {
+class GatewayRequestObservationConvention(gatewayProperties: GatewayProperties) :
+    DefaultServerRequestObservationConvention() {
     // Security and CORS can finish before routing; classify only against configured, bounded patterns.
-    private val pathPatterns = properties.routes
+    private val pathPatterns = gatewayProperties.routes
         .filter { it.isEnabled }
         .flatMap { it.predicates }
         .filter { it.name == "Path" }

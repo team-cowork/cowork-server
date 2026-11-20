@@ -24,12 +24,12 @@ import java.security.MessageDigest
 @Component
 @EnableConfigurationProperties(DevOriginProperties::class)
 class DevOriginCredentialFilter(
-    properties: DevOriginProperties,
+    devOriginProperties: DevOriginProperties,
     private val globalCorsProperties: GlobalCorsProperties,
 ) : WebFilter,
     Ordered {
 
-    private val expected = properties.credential.toByteArray(Charsets.UTF_8)
+    private val expected = devOriginProperties.credential.toByteArray(Charsets.UTF_8)
 
     override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE + 1
 

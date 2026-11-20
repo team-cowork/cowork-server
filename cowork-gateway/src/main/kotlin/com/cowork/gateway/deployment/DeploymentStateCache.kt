@@ -24,10 +24,10 @@ internal class DeploymentConfiguration
 
 @Component
 class DeploymentStateCache(
-    private val redis: ReactiveStringRedisTemplate,
+    private val reactiveStringRedisTemplate: ReactiveStringRedisTemplate,
     private val objectMapper: ObjectMapper,
     private val meterRegistry: MeterRegistry,
-    properties: DeploymentProperties,
+    deploymentProperties: DeploymentProperties,
 ) {
     private val confirmed = AtomicReference<Map<String, DeploymentState>?>(null)
     private val failing = AtomicBoolean(false)
@@ -37,7 +37,7 @@ class DeploymentStateCache(
             if (it.get() == null) 0.0 else 1.0
         }.description("Whether this Gateway has synchronized deployment state at least once")
             .register(meterRegistry)
-        properties.destinations.keys.forEach { service ->
+        deploymentProperties.destinations.keys.forEach { service ->
             Gauge.builder("gateway.deployment.state", confirmed) {
                 val snapshot = it.get()
                 when {
@@ -57,7 +57,7 @@ class DeploymentStateCache(
     @Scheduled(fixedDelay = 1000, initialDelay = 0)
     fun refresh() {
         try {
-            val rows = redis.opsForHash<String, String>().entries(REDIS_KEY)
+            val rows = reactiveStringRedisTemplate.opsForHash<String, String>().entries(REDIS_KEY)
                 .collectMap({ it.key }, { it.value })
                 .block(Duration.ofSeconds(3)) ?: return
             val previous = confirmed.get()
@@ -92,8 +92,8 @@ class DeploymentStateCache(
 }
 
 @Component("deploymentState")
-class DeploymentStateHealthIndicator(private val cache: DeploymentStateCache) : ReactiveHealthIndicator {
+class DeploymentStateHealthIndicator(private val deploymentStateCache: DeploymentStateCache) : ReactiveHealthIndicator {
     override fun health(): Mono<Health> = Mono.just(
-        if (cache.snapshot() == null) Health.down().build() else Health.up().build(),
+        if (deploymentStateCache.snapshot() == null) Health.down().build() else Health.up().build(),
     )
 }

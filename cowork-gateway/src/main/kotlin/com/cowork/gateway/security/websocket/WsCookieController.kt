@@ -29,7 +29,7 @@ import team.themoment.sdk.response.CommonApiResponse
 )
 @RestController
 @RequestMapping("/api/auth/ws-cookie")
-class WsCookieController(private val service: WsCookieService) {
+class WsCookieController(private val wsCookieService: WsCookieService) {
     @Operation(
         summary = "WebSocket 인증 쿠키 설정",
         description = "소켓 연결 전과 액세스 토큰 갱신 후 브라우저에서 credentials: include로 직접 호출합니다. " +
@@ -67,7 +67,7 @@ class WsCookieController(private val service: WsCookieService) {
     )
     @PostMapping
     fun create(@Parameter(hidden = true) authentication: Authentication): ResponseEntity<Void> {
-        val cookie = service.createCookie(authentication)
+        val cookie = wsCookieService.createCookie(authentication)
             ?: return ResponseEntity.status(HttpStatus.UNAUTHORIZED).cacheControl(CacheControl.noStore()).build()
         return respond(cookie)
     }
@@ -94,7 +94,7 @@ class WsCookieController(private val service: WsCookieService) {
         ],
     )
     @DeleteMapping
-    fun delete(): ResponseEntity<Void> = respond(service.clearCookie())
+    fun delete(): ResponseEntity<Void> = respond(wsCookieService.clearCookie())
 
     private fun respond(cookie: ResponseCookie): ResponseEntity<Void> = ResponseEntity.noContent()
         .header(HttpHeaders.SET_COOKIE, cookie.toString())

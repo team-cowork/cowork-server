@@ -18,9 +18,11 @@ import tools.jackson.databind.ObjectMapper
 
 @Component
 @Order(-2)
-class ApiExceptionHandler(private val objectMapper: ObjectMapper, properties: ApiResponseWrapperProperties) :
-    WebExceptionHandler {
-    private val policy = ApiResponseWrappingPolicy(properties)
+class ApiExceptionHandler(
+    private val objectMapper: ObjectMapper,
+    apiResponseWrapperProperties: ApiResponseWrapperProperties,
+) : WebExceptionHandler {
+    private val policy = ApiResponseWrappingPolicy(apiResponseWrapperProperties)
 
     override fun handle(exchange: ServerWebExchange, exception: Throwable): Mono<Void> {
         val path = exchange.request.uri.path

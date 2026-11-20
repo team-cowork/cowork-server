@@ -26,8 +26,8 @@ import org.springframework.web.util.pattern.PathPatternParser
 @EnableWebFluxSecurity
 @EnableConfigurationProperties(JwtProperties::class, WsProperties::class)
 class SecurityConfig(
-    private val jwtConverter: JwtServerAuthenticationConverter,
-    private val jwtAuthManager: JwtReactiveAuthenticationManager,
+    private val jwtServerAuthenticationConverter: JwtServerAuthenticationConverter,
+    private val jwtReactiveAuthenticationManager: JwtReactiveAuthenticationManager,
     private val jwtAuthenticationSupport: JwtAuthenticationSupport,
     private val wsProperties: WsProperties,
     private val globalCorsProperties: GlobalCorsProperties,
@@ -43,7 +43,7 @@ class SecurityConfig(
     @Bean
     @Order(1)
     fun wsSecurityWebFilterChain(http: ServerHttpSecurity): SecurityWebFilterChain {
-        val jwtFilter = AuthenticationWebFilter(jwtAuthManager).apply {
+        val jwtFilter = AuthenticationWebFilter(jwtReactiveAuthenticationManager).apply {
             setServerAuthenticationConverter(WsJwtServerAuthenticationConverter(jwtAuthenticationSupport))
             setSecurityContextRepository(NoOpServerSecurityContextRepository.getInstance())
         }
@@ -67,8 +67,8 @@ class SecurityConfig(
             PathPatternParser().apply { isCaseSensitive = false }.parse("/api/chat/chat/webhooks/**"),
             HttpMethod.POST,
         )
-        val jwtFilter = AuthenticationWebFilter(jwtAuthManager).apply {
-            setServerAuthenticationConverter(jwtConverter)
+        val jwtFilter = AuthenticationWebFilter(jwtReactiveAuthenticationManager).apply {
+            setServerAuthenticationConverter(jwtServerAuthenticationConverter)
             setSecurityContextRepository(NoOpServerSecurityContextRepository.getInstance())
         }
 

@@ -51,7 +51,7 @@ import java.time.Duration
 )
 @RestController
 @RequestMapping("/api/legal")
-class LegalDocumentController(private val catalog: LegalDocumentCatalog) {
+class LegalDocumentController(private val legalDocumentCatalog: LegalDocumentCatalog) {
 
     @Operation(summary = "서비스 라이선스 조회")
     @GetMapping("/license")
@@ -82,6 +82,6 @@ class LegalDocumentController(private val catalog: LegalDocumentCatalog) {
         return ResponseEntity.ok()
             .contentType(format.contentType)
             .cacheControl(CacheControl.maxAge(Duration.ofHours(1)).cachePublic())
-            .body(catalog.get(type, format))
+            .body(legalDocumentCatalog.get(type, format))
     }
 }
