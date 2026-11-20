@@ -15,7 +15,7 @@ func schemas() openapi3.Schemas {
 		"github_com_cowork_authorization_internal_apidoc.Success-internal_handler_LoginStartResponse":                        successSchema(schemaRef("internal_handler.LoginStartResponse")),
 		"github_com_cowork_authorization_internal_apidoc.Success-internal_handler_WebhookReceipt":                            successSchema(schemaRef("internal_handler.WebhookReceipt")),
 		"github_com_cowork_authorization_internal_service.TokenPair": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
-			"access_token":  &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}}},
+			"access_token":  &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}, Format: "jwt", Description: "로그인과 갱신으로 발급하는 액세스 JWT입니다. sub는 사용자 ID이고 gsm_role은 DataGSM 학생 역할입니다. 플랫폼 role 클레임은 발급 대상에서 제외합니다."}},
 			"expires_in":    &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"integer"}}},
 			"refresh_token": &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}}},
 			"token_type":    &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}}},
