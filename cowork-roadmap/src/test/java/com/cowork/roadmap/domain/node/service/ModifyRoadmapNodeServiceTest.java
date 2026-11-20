@@ -42,7 +42,6 @@ import team.themoment.sdk.exception.ExpectedException;
 class ModifyRoadmapNodeServiceTest {
 
     private static final Long USER_ID = 7L;
-    private static final String USER_ROLE = "ADMIN";
     private static final Long NODE_ID = 5L;
     private static final Long ROADMAP_ID = 10L;
 
@@ -76,7 +75,7 @@ class ModifyRoadmapNodeServiceTest {
 
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
-                        () -> modifyRoadmapNodeService.execute(USER_ID, USER_ROLE, 99L, request));
+                        () -> modifyRoadmapNodeService.execute(USER_ID, 99L, request));
 
                 // then
                 assertThat(error.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
@@ -97,7 +96,7 @@ class ModifyRoadmapNodeServiceTest {
 
                 // when
                 NodeResDto response = modifyRoadmapNodeService
-                        .execute(USER_ID, USER_ROLE, NODE_ID, new UpdateNodeReqDto("새제목", null, null, null));
+                        .execute(USER_ID, NODE_ID, new UpdateNodeReqDto("새제목", null, null, null));
 
                 // then
                 assertThat(response.title()).isEqualTo("새제목");
@@ -119,8 +118,7 @@ class ModifyRoadmapNodeServiceTest {
                 ArgumentCaptor<RoadmapNode> savedCaptor = givenSaveCaptured();
 
                 // when
-                modifyRoadmapNodeService
-                        .execute(USER_ID, USER_ROLE, NODE_ID, new UpdateNodeReqDto("새제목", null, null, null));
+                modifyRoadmapNodeService.execute(USER_ID, NODE_ID, new UpdateNodeReqDto("새제목", null, null, null));
 
                 // then
                 assertThat(savedCaptor.getValue().getPosition()).isEqualTo(3);
@@ -146,7 +144,7 @@ class ModifyRoadmapNodeServiceTest {
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
                         () -> modifyRoadmapNodeService
-                                .execute(USER_ID, USER_ROLE, NODE_ID, new UpdateNodeReqDto(title, null, null, null)));
+                                .execute(USER_ID, NODE_ID, new UpdateNodeReqDto(title, null, null, null)));
 
                 // then
                 assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -172,7 +170,7 @@ class ModifyRoadmapNodeServiceTest {
 
                 // when
                 NodeResDto response = modifyRoadmapNodeService
-                        .execute(USER_ID, USER_ROLE, NODE_ID, new UpdateNodeReqDto(title, null, null, null));
+                        .execute(USER_ID, NODE_ID, new UpdateNodeReqDto(title, null, null, null));
 
                 // then
                 assertThat(response.title()).isEqualTo(title);
@@ -192,7 +190,7 @@ class ModifyRoadmapNodeServiceTest {
 
                 // when
                 NodeResDto response = modifyRoadmapNodeService
-                        .execute(USER_ID, USER_ROLE, NODE_ID, new UpdateNodeReqDto(null, "새내용", null, null));
+                        .execute(USER_ID, NODE_ID, new UpdateNodeReqDto(null, "새내용", null, null));
 
                 // then
                 assertThat(response.title()).isEqualTo("원제목");
@@ -213,8 +211,7 @@ class ModifyRoadmapNodeServiceTest {
                 ArgumentCaptor<RoadmapNode> savedCaptor = givenSaveCaptured();
 
                 // when
-                modifyRoadmapNodeService
-                        .execute(USER_ID, USER_ROLE, NODE_ID, new UpdateNodeReqDto(null, null, sourceUrl, null));
+                modifyRoadmapNodeService.execute(USER_ID, NODE_ID, new UpdateNodeReqDto(null, null, sourceUrl, null));
 
                 // then
                 assertThat(savedCaptor.getValue().getSourceUrl()).isNull();
@@ -233,8 +230,7 @@ class ModifyRoadmapNodeServiceTest {
                 ArgumentCaptor<RoadmapNode> savedCaptor = givenSaveCaptured();
 
                 // when
-                modifyRoadmapNodeService
-                        .execute(USER_ID, USER_ROLE, NODE_ID, new UpdateNodeReqDto("새제목", null, null, null));
+                modifyRoadmapNodeService.execute(USER_ID, NODE_ID, new UpdateNodeReqDto("새제목", null, null, null));
 
                 // then
                 assertThat(savedCaptor.getValue().getSourceUrl()).isEqualTo("https://example.com");

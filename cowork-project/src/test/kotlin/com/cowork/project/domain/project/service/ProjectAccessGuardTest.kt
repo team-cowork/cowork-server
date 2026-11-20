@@ -314,6 +314,58 @@ class ProjectAccessGuardTest :
                 guard.canRead(project, 20L) shouldBe false
                 guard.canWrite(project, 20L) shouldBe false
             }
+            it("활성 멤버의 권한 행이 아직 없으면 거부 대신 동기화 대기 503을 반환한다") {
+                guard.canRead(project, 20L) shouldBe false
+                listOf<(Project, Long) -> Unit>(
+                    guard::requireProjectReader,
+                    guard::requireProjectModifier,
+                    guard::requireBoardReader,
+                    guard::requireBoardModifier,
+                    guard::requireProjectManager,
+                ).forEach { check ->
+                    shouldThrow<ExpectedException> { check(project, 20L) }
+                        .statusCode shouldBe HttpStatus.SERVICE_UNAVAILABLE
+                }
+            }
+            it("권한 버전이 바뀐 뒤 새 권한 행이 오기 전에는 동기화 대기 503을 반환한다") {
+                every { access.findById("3:20") } returns Optional.of(
+                    ProjectAccessProjection(
+                        "3:20",
+                        3L,
+                        20L,
+                        true,
+                        true,
+                        Instant.now(),
+                        sourceAuthorizationVersion = currentVersion.minusSeconds(1),
+                    ),
+                )
+                guard.canRead(project, 20L) shouldBe false
+                shouldThrow<ExpectedException> { guard.requireProjectReader(project, 20L) }
+                    .statusCode shouldBe HttpStatus.SERVICE_UNAVAILABLE
+            }
+            it("현재 버전의 권한 행이 거부하면 403을 반환한다") {
+                every { access.findById("3:20") } returns Optional.of(
+                    ProjectAccessProjection(
+                        "3:20",
+                        3L,
+                        20L,
+                        true,
+                        false,
+                        Instant.now(),
+                        sourceAuthorizationVersion = currentVersion,
+                    ),
+                )
+                guard.requireProjectReader(project, 20L)
+                shouldThrow<ExpectedException> { guard.requireProjectModifier(project, 20L) }
+                    .statusCode shouldBe HttpStatus.FORBIDDEN
+                shouldThrow<ExpectedException> { guard.requireProjectManager(project, 20L) }
+                    .statusCode shouldBe HttpStatus.FORBIDDEN
+            }
+            it("팀 멤버가 아니면 권한 행이 없어도 403을 반환한다") {
+                every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns null
+                shouldThrow<ExpectedException> { guard.requireProjectReader(project, 20L) }
+                    .statusCode shouldBe HttpStatus.FORBIDDEN
+            }
             it("탈퇴한 사용자에게 남은 권한으로 접근하지 않는다") {
                 every { members.findActiveByTeamIdAndUserId(1L, 20L) } returns null
                 guard.canRead(project, 20L) shouldBe false

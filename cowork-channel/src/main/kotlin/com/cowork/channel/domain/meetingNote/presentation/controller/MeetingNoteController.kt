@@ -1,12 +1,15 @@
 package com.cowork.channel.domain.meetingNote.presentation.controller
 
 import com.cowork.channel.domain.meetingNote.presentation.data.request.CreateMeetingNoteRequest
+import com.cowork.channel.domain.meetingNote.presentation.data.request.SummarizeMeetingNoteRequest
 import com.cowork.channel.domain.meetingNote.presentation.data.request.UpdateMeetingNoteRequest
 import com.cowork.channel.domain.meetingNote.presentation.data.response.MeetingNoteResponse
+import com.cowork.channel.domain.meetingNote.presentation.data.response.MeetingNoteSummaryResponse
 import com.cowork.channel.domain.meetingNote.service.CreateMeetingNoteService
 import com.cowork.channel.domain.meetingNote.service.DeleteMeetingNoteService
 import com.cowork.channel.domain.meetingNote.service.GetMeetingNoteService
 import com.cowork.channel.domain.meetingNote.service.ListMeetingNotesService
+import com.cowork.channel.domain.meetingNote.service.SummarizeMeetingNoteService
 import com.cowork.channel.domain.meetingNote.service.UpdateMeetingNoteService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -22,6 +25,7 @@ import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
+import io.swagger.v3.oas.annotations.parameters.RequestBody as SwaggerRequestBody
 
 @Tag(name = "회의록", description = "채널의 회의록을 작성하고 조회, 수정, 삭제합니다.")
 @ApiResponses(
@@ -59,12 +63,31 @@ import team.themoment.sdk.response.CommonApiResponse
 @RestController
 @RequestMapping("/channels/{channelId}/meeting-notes")
 class MeetingNoteController(
+    private val summarizeMeetingNoteService: SummarizeMeetingNoteService,
     private val listMeetingNotesService: ListMeetingNotesService,
     private val getMeetingNoteService: GetMeetingNoteService,
     private val createMeetingNoteService: CreateMeetingNoteService,
     private val updateMeetingNoteService: UpdateMeetingNoteService,
     private val deleteMeetingNoteService: DeleteMeetingNoteService,
 ) {
+
+    @Operation(summary = "회의록 AI 요약", security = [SecurityRequirement(name = "BearerAuth")])
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "핵심 요약, 결정 사항과 할 일 반환"),
+        ApiResponse(responseCode = "400", description = "빈 본문, 잘못된 제목 또는 DM 채널"),
+        ApiResponse(responseCode = "403", description = "팀 또는 채널 접근 권한 없음"),
+        ApiResponse(responseCode = "404", description = "채널 없음"),
+        ApiResponse(responseCode = "413", description = "요청 본문이 1MB를 초과함"),
+        ApiResponse(responseCode = "502", description = "AI 서비스 인증 실패, 호출 실패 또는 잘못된 응답"),
+        ApiResponse(responseCode = "503", description = "권한 정보 동기화 중 또는 AI 서비스 사용 불가"),
+        ApiResponse(responseCode = "504", description = "AI 응답 시간 초과"),
+    )
+    @PostMapping("/summary")
+    fun summarizeNote(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable channelId: Long,
+        @Valid @RequestBody request: SummarizeMeetingNoteRequest,
+    ): MeetingNoteSummaryResponse = summarizeMeetingNoteService.execute(userId, channelId, request)
 
     @Operation(summary = "회의록 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
     @ApiResponses(
@@ -162,7 +185,11 @@ class MeetingNoteController(
         @PathVariable noteId: Long,
     ): MeetingNoteResponse = getMeetingNoteService.getNote(userId, channelId, noteId)
 
-    @Operation(summary = "회의록 작성", security = [SecurityRequirement(name = "BearerAuth")])
+    @Operation(
+        summary = "회의록 작성",
+        description = "템플릿 ID를 생략하거나 null로 보내면 자유 양식으로 작성합니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
     @ApiResponses(
         ApiResponse(
             responseCode = "409",
@@ -266,7 +293,34 @@ class MeetingNoteController(
     fun createNote(
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable channelId: Long,
-        @Valid @RequestBody request: CreateMeetingNoteRequest,
+        @SwaggerRequestBody(
+            content = [
+                Content(
+                    mediaType = "application/json",
+                    schema = Schema(implementation = CreateMeetingNoteRequest::class),
+                    examples = [
+                        ExampleObject(
+                            name = "템플릿 없이 작성",
+                            value = """{
+                                "templateId": null,
+                                "title": "주간 회의",
+                                "content": "{\"본문\":\"# 이번 주 안건\"}"
+                            }""",
+                        ),
+                        ExampleObject(
+                            name = "템플릿으로 작성",
+                            value = """{
+                                "templateId": 7,
+                                "title": "주간 회의",
+                                "content": "{\"안건\":\"배포 일정\",\"결정사항\":\"금요일 배포\"}"
+                            }""",
+                        ),
+                    ],
+                ),
+            ],
+        )
+        @Valid
+        @RequestBody request: CreateMeetingNoteRequest,
     ): MeetingNoteResponse = createMeetingNoteService.createNote(userId, channelId, request)
 
     @Operation(summary = "회의록 수정", security = [SecurityRequirement(name = "BearerAuth")])

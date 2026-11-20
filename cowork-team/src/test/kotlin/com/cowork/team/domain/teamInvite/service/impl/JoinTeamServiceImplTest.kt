@@ -1,14 +1,11 @@
 package com.cowork.team.domain.teamInvite.service.impl
 
 import com.cowork.team.domain.team.entity.Team
-import com.cowork.team.domain.team.event.TeamMemberEventPublisher
-import com.cowork.team.domain.team.projection.NicknameFormatGuide
-import com.cowork.team.domain.team.projection.TeamSettingProjectionReader
-import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.teamInvite.entity.TeamInvite
+import com.cowork.team.domain.teamInvite.presentation.data.response.JoinTeamResponse
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
-import com.cowork.team.domain.teamMember.entity.TeamMember
-import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
+import com.cowork.team.domain.teamMember.RegisterTeamMemberService
+import com.cowork.team.domain.teamMember.RegisteredTeamMember
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -22,62 +19,27 @@ import java.time.LocalDateTime
 class JoinTeamServiceImplTest :
     DescribeSpec({
         lateinit var inviteRepository: TeamInviteRepository
-        lateinit var teamRepository: TeamRepository
-        lateinit var memberRepository: TeamMemberRepository
-        lateinit var settingReader: TeamSettingProjectionReader
+        lateinit var registerMember: RegisterTeamMemberService
         lateinit var service: JoinTeamServiceImpl
 
         val team = Team(id = 1L, name = "team", description = null, iconUrl = null, ownerId = 10L)
 
         beforeEach {
             inviteRepository = mockk()
-            teamRepository = mockk()
-            memberRepository = mockk()
-            settingReader = mockk()
-            service = JoinTeamServiceImpl(
-                inviteRepository,
-                teamRepository,
-                memberRepository,
-                mockk<TeamMemberEventPublisher>(relaxed = true),
-                settingReader,
-            )
-            every { settingReader.getNicknameFormat(1L) } returns NicknameFormatGuide(enforced = false, example = null)
+            registerMember = mockk()
+            service = JoinTeamServiceImpl(inviteRepository, registerMember)
         }
 
         describe("JoinTeamServiceImpl 클래스의 execute 메서드는") {
-            context("초대 코드가 유효하고 아직 팀원이 아니면") {
-                it("MEMBER 역할로 팀에 가입시킨다") {
+            context("초대 코드가 유효하면") {
+                it("초대 대상 팀에 멤버를 등록하고 가입 결과를 반환한다") {
                     val joinedAt = LocalDateTime.now()
-                    val member = TeamMember(team = team, userId = 99L).also { it.joinedAt = joinedAt }
+                    val member = RegisteredTeamMember(1L, 99L, "MEMBER", joinedAt, true, "이름 / 역할")
                     every { inviteRepository.findActiveByInviteCode("valid") } returns invite(team)
-                    every { teamRepository.findByIdForUpdate(1L) } returns team
-                    every { memberRepository.existsByTeamIdAndUserId(1L, 99L) } returns false
-                    every { memberRepository.save(any()) } returns member
+                    every { registerMember.execute(1L, 99L) } returns member
 
-                    val result = service.execute(99L, "valid")
-
-                    result.teamId shouldBe 1L
-                    result.userId shouldBe 99L
-                    result.role shouldBe "MEMBER"
-                    result.joinedAt shouldBe joinedAt
-                    result.nicknameFormatEnforced shouldBe false
-                }
-            }
-
-            context("닉네임 형식 안내가 켜진 팀에 가입하면") {
-                it("가입 응답에 닉네임 형식 예시를 포함한다") {
-                    val member = TeamMember(team = team, userId = 99L).also { it.joinedAt = LocalDateTime.now() }
-                    every { inviteRepository.findActiveByInviteCode("valid") } returns invite(team)
-                    every { teamRepository.findByIdForUpdate(1L) } returns team
-                    every { memberRepository.existsByTeamIdAndUserId(1L, 99L) } returns false
-                    every { memberRepository.save(any()) } returns member
-                    every { settingReader.getNicknameFormat(1L) } returns
-                        NicknameFormatGuide(enforced = true, example = "홍길동 / 프론트엔드")
-
-                    val result = service.execute(99L, "valid")
-
-                    result.nicknameFormatEnforced shouldBe true
-                    result.nicknameFormatExample shouldBe "홍길동 / 프론트엔드"
+                    service.execute(99L, "valid") shouldBe
+                        JoinTeamResponse(1L, 99L, "MEMBER", joinedAt, true, "이름 / 역할")
                 }
             }
 
@@ -89,20 +51,7 @@ class JoinTeamServiceImplTest :
                     val error = shouldThrow<ExpectedException> { service.execute(99L, "expired") }
 
                     error.statusCode shouldBe HttpStatus.GONE
-                    verify(exactly = 0) { memberRepository.save(any()) }
-                }
-            }
-
-            context("이미 팀 멤버이면") {
-                it("CONFLICT로 중복 가입을 거부한다") {
-                    every { inviteRepository.findActiveByInviteCode("valid") } returns invite(team)
-                    every { teamRepository.findByIdForUpdate(1L) } returns team
-                    every { memberRepository.existsByTeamIdAndUserId(1L, 99L) } returns true
-
-                    val error = shouldThrow<ExpectedException> { service.execute(99L, "valid") }
-
-                    error.statusCode shouldBe HttpStatus.CONFLICT
-                    verify(exactly = 0) { memberRepository.save(any()) }
+                    verify(exactly = 0) { registerMember.execute(any(), any()) }
                 }
             }
 
@@ -113,7 +62,7 @@ class JoinTeamServiceImplTest :
                     val error = shouldThrow<ExpectedException> { service.execute(99L, "invalid") }
 
                     error.statusCode shouldBe HttpStatus.NOT_FOUND
-                    verify(exactly = 0) { memberRepository.save(any()) }
+                    verify(exactly = 0) { registerMember.execute(any(), any()) }
                 }
             }
         }

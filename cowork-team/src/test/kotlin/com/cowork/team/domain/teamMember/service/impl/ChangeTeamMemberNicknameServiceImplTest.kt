@@ -12,7 +12,7 @@ import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
 import com.cowork.team.domain.teamRole.service.TeamRoleAccessGuard
-import com.cowork.team.domain.teamRole.service.support.TeamRolePermission
+import com.cowork.team.global.policy.PermissionKeys
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -208,7 +208,7 @@ class ChangeTeamMemberNicknameServiceImplTest :
             colorHex = "#123ABC",
             priority = priority,
             mentionable = true,
-            permissions = mapOf(TeamRolePermission.MANAGE_NICKNAMES.key to manageNicknames),
+            permissions = mapOf(PermissionKeys.MANAGE_NICKNAMES to manageNicknames),
             createdAt = null,
             updatedAt = null,
             isDefault = false,

@@ -1,5 +1,6 @@
-package com.cowork.team.domain.team.presentation.data.response
+package com.cowork.team.domain.teamInvite.presentation.data.response
 
+import com.cowork.team.domain.teamMember.RegisteredTeamMember
 import io.swagger.v3.oas.annotations.media.Schema
 import java.time.LocalDateTime
 
@@ -16,4 +17,15 @@ data class JoinTeamResponse(
     val nicknameFormatEnforced: Boolean,
     @field:Schema(description = "닉네임 형식 안내에 보여 줄 예시", example = "홍길동 / 프론트엔드")
     val nicknameFormatExample: String?,
-)
+) {
+    companion object {
+        fun of(member: RegisteredTeamMember): JoinTeamResponse = JoinTeamResponse(
+            teamId = member.teamId,
+            userId = member.userId,
+            role = member.role,
+            joinedAt = member.joinedAt,
+            nicknameFormatEnforced = member.nicknameFormatEnforced,
+            nicknameFormatExample = member.nicknameFormatExample,
+        )
+    }
+}

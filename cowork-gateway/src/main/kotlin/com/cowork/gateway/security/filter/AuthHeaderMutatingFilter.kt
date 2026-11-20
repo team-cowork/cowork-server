@@ -21,16 +21,13 @@ class AuthHeaderMutatingFilter :
             .mapNotNull { it.authentication }
             .filter { it.isAuthenticated }
             .flatMap { auth ->
-                @Suppress("UNCHECKED_CAST")
-                val details = auth.details as? Map<String, String>
-                val userId = details?.get("userId") ?: auth.name
-                val role = details?.get("role") ?: auth.authorities.firstOrNull()?.authority ?: ""
+                val userId = auth.name
                 val teamId = exchange.request.headers.getFirst("X-Team-Id") ?: ""
 
                 val mutatedRequest = exchange.request.mutate()
                     .headers { h ->
                         h.set("X-User-Id", userId)
-                        h.set("X-User-Role", role)
+                        h.remove("X-User-Role")
                     }
                     .build()
 

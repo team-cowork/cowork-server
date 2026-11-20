@@ -18,18 +18,17 @@ class AccountRoleServiceTest :
         val outbox = mockk<PreferenceOutboxRepository>()
         val connection = mockk<SqlConnection>()
         val service = AccountRoleService(mockk(), repository, outbox)
-        val requester = RequesterContext(7L, "MEMBER")
+        val requester = RequesterContext(7L)
         beforeEach {
             coEvery { outbox.inTransaction<JsonObject>(any()) } coAnswers {
                 firstArg<suspend (SqlConnection) -> JsonObject>().invoke(connection)
             }
-            coEvery { repository.migrateLegacyPolicy(connection, 7L, any()) } returns Unit
             coEvery { repository.policies(connection, 7L) } returns emptyList()
         }
 
-        it("ADMIN 토큰도 이관 후 실제 정책이 회수되면 역할을 관리할 수 없다") {
+        it("관리 권한이 회수되면 역할을 관리할 수 없다") {
             shouldThrow<ResourceAccessDeniedException> {
-                service.save(requester.copy(role = "ADMIN"), null, "themoment-admin", JsonObject())
+                service.save(requester, null, "themoment-admin", JsonObject())
             }
             coVerify(exactly = 0) { repository.create(any(), any(), any()) }
         }

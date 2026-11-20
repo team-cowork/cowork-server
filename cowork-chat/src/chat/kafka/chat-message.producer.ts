@@ -18,7 +18,7 @@ export type MessageSendInput = Pick<SendMessageDto, 'content' | 'type' | 'parent
 	& MessageScope & {attachments?: ConfirmedAttachment[]};
 
 /**
- 채팅 메시지 이벤트를 Kafka `chat.message.v2` 토픽으로 발행하는 프로듀서.
+ 채팅 메시지 이벤트를 Kafka `chat.message.event.v3` 토픽으로 발행하는 프로듀서.
 
  지연 연결 패턴(Lazy Connect)**:
  `onModuleInit`에서 연결을 시작하지만 실패해도 모듈 초기화는 정상 완료된다.
@@ -82,7 +82,7 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
 			...getKafkaClientConfig(this.configService),
 		});
 		this.producer = kafka.producer({idempotent: true});
-		void connectWithRetry(this.logger, 'Kafka producer startup: chat.message.v2', async () => this.ensureConnected())
+		void connectWithRetry(this.logger, 'Kafka producer startup: chat.message.event.v3', async () => this.ensureConnected())
 			.catch((error: unknown) => {
 				this.logger.error(`Kafka producer bootstrap connect failed: ${this.formatError(error)}`);
 			});
@@ -107,7 +107,7 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
 	}
 
 	/**
-     채팅 메시지 이벤트를 Kafka `chat.message.v2` 토픽으로 발행한다.
+     채팅 메시지 이벤트를 Kafka `chat.message.event.v3` 토픽으로 발행한다.
 
      메시지 키는 `channelId`로 설정되어 같은 채널의 메시지가 동일 파티션에 순서대로 전달된다.
      발행 전 {@link ensureConnected}를 호출하여 연결을 보장한다.
@@ -115,10 +115,9 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
      @param channelId - 메시지가 속한 채널 ID (파티션 키로 사용됨)
      @param dto - 클라이언트로부터 수신한 메시지 전송 DTO
      @param authorId - 메시지 작성자의 사용자 ID
-     @param authorRole - 메시지 작성자의 역할
      @throws {Error} Kafka 연결 또는 메시지 발행 실패 시
      */
-	async sendMessage(channelId: number, dto: MessageSendInput, authorId: number, authorRole: string): Promise<void> {
+	async sendMessage(channelId: number, dto: MessageSendInput, authorId: number): Promise<void> {
 		await this.ensureConnected();
 		const event: ChatMessageEvent = {
 			contractVersion: CHAT_MESSAGE_CONTRACT_VERSION,
@@ -127,7 +126,6 @@ export class ChatMessageProducer implements OnModuleInit, OnModuleDestroy {
 			projectId: dto.projectId ?? null,
 			channelId,
 			authorId,
-			authorRole,
 			content: dto.content,
 			type: dto.type ?? 'TEXT',
 			attachments: dto.attachments,

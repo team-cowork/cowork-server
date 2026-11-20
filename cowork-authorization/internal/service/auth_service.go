@@ -97,8 +97,7 @@ func (s *AuthService) issueUserSession(ctx context.Context, userInfo *oauth.User
 	}
 
 	st := userInfo.Student
-	platformRole, err := PlatformRoleFromDataGSM(userInfo.Role)
-	if err != nil {
+	if err := validateDataGSMAccountRole(userInfo.Role); err != nil {
 		return nil, err
 	}
 	operationID, err := domain.NewUUID()
@@ -149,7 +148,6 @@ func (s *AuthService) issueUserSession(ctx context.Context, userInfo *oauth.User
 		ctx,
 		command,
 		userInfo.Email,
-		platformRole,
 		string(st.Role),
 		"",
 	)
@@ -182,7 +180,6 @@ func (s *AuthService) RefreshTokens(ctx context.Context, rawRefreshToken string)
 	accessToken, err := s.tokenSvc.GenerateAccessToken(
 		source.UserID,
 		source.Email,
-		source.PlatformRole,
 		source.GsmRole,
 	)
 	if err != nil {
@@ -217,11 +214,10 @@ func (s *AuthService) issueNewSession(
 	ctx context.Context,
 	userID int64,
 	email string,
-	role string,
 	gsmRole string,
 	deviceInfo string,
 ) (*TokenPair, error) {
-	accessToken, err := s.tokenSvc.GenerateAccessToken(userID, email, role, gsmRole)
+	accessToken, err := s.tokenSvc.GenerateAccessToken(userID, email, gsmRole)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}
@@ -233,12 +229,11 @@ func (s *AuthService) issueNewSession(
 
 	occurredAt := s.now().UTC().Truncate(time.Microsecond)
 	rt := &domain.RefreshToken{
-		UserID:       userID,
-		TokenHash:    refreshHash,
-		Email:        email,
-		GsmRole:      gsmRole,
-		PlatformRole: role,
-		ExpiresAt:    occurredAt.Add(s.tokenSvc.RefreshExpire()),
+		UserID:    userID,
+		TokenHash: refreshHash,
+		Email:     email,
+		GsmRole:   gsmRole,
+		ExpiresAt: occurredAt.Add(s.tokenSvc.RefreshExpire()),
 	}
 	if deviceInfo != "" {
 		rt.DeviceInfo = &deviceInfo
@@ -260,7 +255,6 @@ func (s *AuthService) commitIdentityAndIssueSession(
 	ctx context.Context,
 	command domain.UserIdentityCommand,
 	email string,
-	role string,
 	gsmRole string,
 	deviceInfo string,
 ) (*TokenPair, error) {
@@ -268,20 +262,19 @@ func (s *AuthService) commitIdentityAndIssueSession(
 	if err != nil {
 		return nil, fmt.Errorf("failed to commit user identity: %w", err)
 	}
-	pair, err := s.issueNewSession(ctx, userID, email, role, gsmRole, deviceInfo)
+	pair, err := s.issueNewSession(ctx, userID, email, gsmRole, deviceInfo)
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to issue session: %v", ErrAuthenticationUnavailable, err)
 	}
 	return pair, nil
 }
 
-// PlatformRoleFromDataGSM does not grant Cowork administration from a provider account role.
-func PlatformRoleFromDataGSM(providerRole string) (string, error) {
+func validateDataGSMAccountRole(providerRole string) error {
 	switch providerRole {
 	case "ADMIN", "USER":
-		return "MEMBER", nil
+		return nil
 	default:
-		return "", fmt.Errorf("unsupported DataGSM account role")
+		return fmt.Errorf("unsupported DataGSM account role")
 	}
 }
 

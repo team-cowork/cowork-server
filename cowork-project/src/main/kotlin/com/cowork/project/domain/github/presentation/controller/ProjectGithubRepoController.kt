@@ -45,6 +45,11 @@ import team.themoment.sdk.response.CommonApiResponse
         content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
     ),
     ApiResponse(
+        responseCode = "503",
+        description = "프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음.",
+        content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
+    ),
+    ApiResponse(
         responseCode = "default",
         description = "기타 오류",
         content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
@@ -203,7 +208,7 @@ class ProjectGithubRepoController(
         ),
         ApiResponse(
             responseCode = "503",
-            description = "채널 정보 동기화 중",
+            description = "채널 정보 동기화 중이거나, 프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음.",
             content = [
                 Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],
@@ -268,7 +273,7 @@ class ProjectGithubRepoController(
         ),
         ApiResponse(
             responseCode = "503",
-            description = "설정 동기화 중",
+            description = "설정 동기화 중이거나, 프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음.",
             content = [
                 Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class)),
             ],

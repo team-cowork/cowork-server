@@ -5,5 +5,5 @@ import com.cowork.roadmap.domain.node.presentation.data.response.NodeResDto;
 
 public interface ModifyRoadmapNodeService {
 
-    NodeResDto execute(Long userId, String userRole, Long nodeId, UpdateNodeReqDto request);
+    NodeResDto execute(Long userId, Long nodeId, UpdateNodeReqDto request);
 }

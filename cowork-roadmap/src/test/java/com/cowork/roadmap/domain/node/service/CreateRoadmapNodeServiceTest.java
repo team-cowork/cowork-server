@@ -54,7 +54,7 @@ class CreateRoadmapNodeServiceTest {
 
         CreateNodeReqDto request = new CreateNodeReqDto(null, "제목", "내용", null, null);
 
-        var response = createRoadmapNodeService.execute(7L, "ADMIN", 10L, request);
+        var response = createRoadmapNodeService.execute(7L, 10L, request);
         assertThat(response.position()).isEqualTo(2);
         assertThat(response.parentId()).isNull();
         assertThat(response.references()).isEmpty();
@@ -74,7 +74,7 @@ class CreateRoadmapNodeServiceTest {
 
         CreateNodeReqDto request = new CreateNodeReqDto(50L, "제목", null, null, null);
 
-        var response = createRoadmapNodeService.execute(7L, "ADMIN", 10L, request);
+        var response = createRoadmapNodeService.execute(7L, 10L, request);
         assertThat(response.position()).isEqualTo(1);
         assertThat(response.parentId()).isEqualTo(50L);
 
@@ -94,7 +94,7 @@ class CreateRoadmapNodeServiceTest {
         CreateNodeReqDto request = new CreateNodeReqDto(99L, "제목", null, null, null);
 
         ExpectedException error = assertThrows(ExpectedException.class,
-                () -> createRoadmapNodeService.execute(7L, "ADMIN", 10L, request));
+                () -> createRoadmapNodeService.execute(7L, 10L, request));
         assertTrue(error.getStatusCode() == HttpStatus.NOT_FOUND);
     }
 
@@ -109,7 +109,7 @@ class CreateRoadmapNodeServiceTest {
         CreateNodeReqDto request = new CreateNodeReqDto(50L, "제목", null, null, null);
 
         ExpectedException error = assertThrows(ExpectedException.class,
-                () -> createRoadmapNodeService.execute(7L, "ADMIN", 10L, request));
+                () -> createRoadmapNodeService.execute(7L, 10L, request));
         assertTrue(error.getStatusCode() == HttpStatus.BAD_REQUEST);
     }
 
@@ -121,8 +121,7 @@ class CreateRoadmapNodeServiceTest {
         when(nodeRepository.saveAndFlush(any()))
                 .thenAnswer(invocation -> simulateSaved(invocation.getArgument(0), 102L));
 
-        var response = createRoadmapNodeService
-                .execute(7L, "ADMIN", 10L, new CreateNodeReqDto(null, "제목", null, null, null));
+        var response = createRoadmapNodeService.execute(7L, 10L, new CreateNodeReqDto(null, "제목", null, null, null));
 
         assertThat(response.id()).isEqualTo(102L);
     }
@@ -135,7 +134,7 @@ class CreateRoadmapNodeServiceTest {
         CreateNodeReqDto request = new CreateNodeReqDto(null, "제목", null, null, null);
 
         ExpectedException error = assertThrows(ExpectedException.class,
-                () -> createRoadmapNodeService.execute(7L, "ADMIN", 10L, request));
+                () -> createRoadmapNodeService.execute(7L, 10L, request));
         assertTrue(error.getStatusCode() == HttpStatus.BAD_REQUEST);
         verify(nodeRepository, never()).saveAndFlush(any());
     }
@@ -148,7 +147,7 @@ class CreateRoadmapNodeServiceTest {
                 .thenAnswer(invocation -> simulateSaved(invocation.getArgument(0), 103L));
 
         var response = createRoadmapNodeService
-                .execute(7L, "ADMIN", 10L, new CreateNodeReqDto(parentId, "제목", null, null, null));
+                .execute(7L, 10L, new CreateNodeReqDto(parentId, "제목", null, null, null));
 
         assertThat(response.parentId()).isEqualTo(parentId);
     }
@@ -160,8 +159,7 @@ class CreateRoadmapNodeServiceTest {
         when(nodeRepository.saveAndFlush(any()))
                 .thenAnswer(invocation -> simulateSaved(invocation.getArgument(0), 103L));
 
-        var response = createRoadmapNodeService
-                .execute(7L, "ADMIN", 10L, new CreateNodeReqDto(null, "제목", null, " ", null));
+        var response = createRoadmapNodeService.execute(7L, 10L, new CreateNodeReqDto(null, "제목", null, " ", null));
 
         assertThat(response.sourceUrl()).isNull();
     }
@@ -173,7 +171,7 @@ class CreateRoadmapNodeServiceTest {
         CreateNodeReqDto request = new CreateNodeReqDto(parentId, "제목", null, null, null);
 
         ExpectedException error = assertThrows(ExpectedException.class,
-                () -> createRoadmapNodeService.execute(7L, "ADMIN", 10L, request));
+                () -> createRoadmapNodeService.execute(7L, 10L, request));
         assertTrue(error.getStatusCode() == HttpStatus.BAD_REQUEST);
         verify(nodeRepository, never()).saveAndFlush(any());
     }

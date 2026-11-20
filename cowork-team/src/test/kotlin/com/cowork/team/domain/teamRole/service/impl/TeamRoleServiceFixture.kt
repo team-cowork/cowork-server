@@ -12,7 +12,7 @@ import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleRespon
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
 import com.cowork.team.domain.teamRole.service.TeamRoleAccessGuard
 import com.cowork.team.domain.teamRole.service.support.TeamRoleLookupSupport
-import com.cowork.team.domain.teamRole.service.support.TeamRolePermission
+import com.cowork.team.global.policy.PermissionKeys
 import io.mockk.every
 import io.mockk.mockk
 
@@ -56,7 +56,7 @@ class TeamRoleServiceFixture {
 
     fun givenCustomManager(
         priority: Int = MANAGER_PRIORITY,
-        permissions: Map<String, Boolean> = mapOf(TeamRolePermission.MANAGE_ROLES.key to true),
+        permissions: Map<String, Boolean> = mapOf(PermissionKeys.MANAGE_ROLES to true),
     ) {
         every { memberRepository.findByTeamIdAndUserId(TEAM_ID, MANAGER_ID) } returns
             TeamMember(team = team, userId = MANAGER_ID)

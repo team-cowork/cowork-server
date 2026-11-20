@@ -1,8 +1,5 @@
 package com.cowork.roadmap.global.team.projection.readiness;
 
-import static com.cowork.roadmap.global.team.consumer.TeamMemberEventConsumer.GROUP_ID;
-import static com.cowork.roadmap.global.team.consumer.TeamMemberEventConsumer.TOPIC;
-
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -14,12 +11,10 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.WakeupException;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.kafka.listener.ConsumerAwareRebalanceListener;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 
 import com.cowork.roadmap.global.team.projection.model.ProjectionBarrier;
 import com.cowork.roadmap.global.team.projection.model.ProjectionCheckpoint;
@@ -43,12 +38,13 @@ import lombok.extern.slf4j.Slf4j;
  * caller's snapshot.
  */
 @Slf4j
-@Component
-public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceListener, HealthIndicator {
+public class ProjectionReadiness implements ConsumerAwareRebalanceListener, HealthIndicator {
 
     private final ProjectionCheckpointRepository checkpoints;
     private final ProjectionTopicIdentityProvider topicIdentity;
     private final ProjectionTopicGenerationRegistry topicGeneration;
+    private final String consumerGroup;
+    private final String topic;
     private final long assignmentRetryBackoffMs;
     private final long assignmentRetryTimeoutMs;
 
@@ -63,16 +59,32 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     // failure of a run.
     private int consecutiveAssignmentFailures;
 
-    public TeamMemberProjectionReadiness(ProjectionCheckpointRepository checkpoints,
+    public ProjectionReadiness(ProjectionCheckpointRepository checkpoints,
             ProjectionTopicIdentityProvider topicIdentity,
             ProjectionTopicGenerationRegistry topicGeneration,
-            @Value("${projection.readiness.assignment-retry-backoff-ms:1000}") long assignmentRetryBackoffMs,
-            @Value("${projection.readiness.assignment-retry-timeout-ms:60000}") long assignmentRetryTimeoutMs) {
+            String consumerGroup,
+            String topic,
+            long assignmentRetryBackoffMs,
+            long assignmentRetryTimeoutMs) {
         this.checkpoints = checkpoints;
         this.topicIdentity = topicIdentity;
         this.topicGeneration = topicGeneration;
+        this.consumerGroup = consumerGroup;
+        this.topic = topic;
         this.assignmentRetryBackoffMs = Math.max(0L, assignmentRetryBackoffMs);
         this.assignmentRetryTimeoutMs = Math.max(0L, assignmentRetryTimeoutMs);
+    }
+
+    public String topic() {
+        return topic;
+    }
+
+    public String group() {
+        return consumerGroup;
+    }
+
+    public String topicId() {
+        return topicGeneration.requireTopicId();
     }
 
     @Override
@@ -108,13 +120,13 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     }
 
     private void initializeAssignment(Consumer<?, ?> consumer, Collection<TopicPartition> partitions) {
-        String topicId = topicIdentity.topicId(TOPIC);
-        List<TopicPartition> allPartitions = consumer.partitionsFor(TOPIC)
+        String topicId = topicIdentity.topicId(topic);
+        List<TopicPartition> allPartitions = consumer.partitionsFor(topic)
                 .stream()
-                .map(info -> new TopicPartition(TOPIC, info.partition()))
+                .map(info -> new TopicPartition(topic, info.partition()))
                 .toList();
         if (allPartitions.isEmpty()) {
-            throw new IllegalStateException("Kafka topic has no partitions: " + TOPIC);
+            throw new IllegalStateException("Kafka topic has no partitions: " + topic);
         }
         Map<TopicPartition, Long> beginnings = consumer.beginningOffsets(allPartitions);
         Map<TopicPartition, Long> ends = consumer.endOffsets(allPartitions);
@@ -124,13 +136,13 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
                         ends.get(partition)))
                 .toList();
         Set<Integer> assignedPartitions = partitions.stream()
-                .filter(partition -> TOPIC.equals(partition.topic()))
+                .filter(partition -> topic.equals(partition.topic()))
                 .map(TopicPartition::partition)
                 .collect(Collectors.toSet());
         Map<Integer, Long> seekOffsets = checkpoints
-                .initializeAssignment(GROUP_ID, TOPIC, topicId, ranges, assignedPartitions);
+                .initializeAssignment(consumerGroup, topic, topicId, ranges, assignedPartitions);
         partitions.stream()
-                .filter(partition -> TOPIC.equals(partition.topic()))
+                .filter(partition -> topic.equals(partition.topic()))
                 .forEach(partition -> consumer.seek(partition, requireSeekOffset(seekOffsets, partition.partition())));
         topicGeneration.markAssigned(topicId);
         initialized = true;
@@ -140,22 +152,22 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     private void logAssignmentFailure(RuntimeException exception) {
         consecutiveAssignmentFailures++;
         if (consecutiveAssignmentFailures == 1) {
-            log.warn("Failed to initialize team member projection assignment", exception);
+            log.warn("Failed to initialize projection assignment", exception);
         } else {
-            log.warn("Failed to initialize team member projection assignment again, failure {}: {}",
+            log.warn("Failed to initialize projection assignment again, failure {}: {}",
                     consecutiveAssignmentFailures,
                     exception.toString());
         }
     }
 
     private void requestRebalance(Consumer<?, ?> consumer) {
-        log.warn("Requesting a rebalance to retry team member projection assignment");
+        log.warn("Requesting a rebalance to retry projection assignment");
         // The container only logs listener failures, so without a new rebalance the
         // assignment would stay uninitialized until restart. This depends on the
         // classic
         // group protocol: with group.protocol=consumer, enforceRebalance only logs a
         // warning.
-        consumer.enforceRebalance("team member projection assignment initialization failed");
+        consumer.enforceRebalance("projection assignment initialization failed");
     }
 
     @Override
@@ -189,15 +201,15 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
             return false;
         }
         try {
-            Map<Integer, ProjectionBarrier> barriers = checkpoints.findBarriers(GROUP_ID, TOPIC);
-            Map<Integer, ProjectionCheckpoint> stored = checkpoints.findByTopic(GROUP_ID, TOPIC);
+            Map<Integer, ProjectionBarrier> barriers = checkpoints.findBarriers(consumerGroup, topic);
+            Map<Integer, ProjectionCheckpoint> stored = checkpoints.findByTopic(consumerGroup, topic);
             // Observe the broker last so an append concurrent with the durable reads cannot
             // leave readiness open against an older high-watermark.
-            ProjectionTopicState broker = topicIdentity.topicState(TOPIC);
+            ProjectionTopicState broker = topicIdentity.topicState(topic);
             return ProjectionCatchUpPolicy
                     .isReady(broker.ranges().keySet(), broker.topicId(), barriers, stored, broker.ranges());
         } catch (RuntimeException exception) {
-            log.warn("Failed to evaluate team member projection readiness", exception);
+            log.warn("Failed to evaluate projection readiness", exception);
             return false;
         }
     }
@@ -218,7 +230,7 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     private long requireSeekOffset(Map<Integer, Long> seekOffsets, int partition) {
         Long offset = seekOffsets.get(partition);
         if (offset == null) {
-            throw new IllegalStateException("Kafka projection seek offset is missing: " + TOPIC + "-" + partition);
+            throw new IllegalStateException("Kafka projection seek offset is missing: " + topic + "-" + partition);
         }
         return offset;
     }

@@ -16,20 +16,18 @@ import team.themoment.sdk.exception.ExpectedException;
 @RequiredArgsConstructor
 public class DeleteRoadmapAssignmentServiceImpl implements DeleteRoadmapAssignmentService {
 
-    private static final String ROLE_ADMIN = "ADMIN";
-
     private final RoadmapAssignmentRepository assignmentRepository;
     private final RoadmapAccessGuard accessGuard;
 
     @Override
     @Transactional
-    public void execute(Long userId, String userRole, Long assignmentId) {
+    public void execute(Long userId, Long assignmentId) {
         RoadmapAssignment assignment = findAssignmentOrThrow(assignmentId);
-        if (!ROLE_ADMIN.equals(userRole)) {
+        if (!accessGuard.accountAllows(userId, "delete_team_assignments")) {
             if (userId.equals(assignment.getAssignedBy())) {
                 accessGuard.requireTeamMember(assignment.getTeamId(), userId);
             } else {
-                accessGuard.requireTeamManagerOrAdmin(userId, userRole, assignment.getTeamId());
+                accessGuard.requireTeamManager(userId, assignment.getTeamId());
             }
         }
         assignmentRepository.delete(assignment);

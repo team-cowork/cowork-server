@@ -22,11 +22,11 @@ public class DeleteNodeReferenceServiceImpl implements DeleteNodeReferenceServic
 
     @Override
     @Transactional
-    public void execute(Long userId, String userRole, Long referenceId) {
+    public void execute(Long userId, Long referenceId) {
         var ref = nodeLookupSupport.findReferenceOrThrow(referenceId);
         var node = nodeLookupSupport.findNodeOrThrow(ref.getNodeId());
         var roadmap = roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId());
-        accessGuard.requireMutable(roadmap, userId, userRole);
+        accessGuard.requireMutable(roadmap, userId);
         referenceRepository.delete(ref);
     }
 }

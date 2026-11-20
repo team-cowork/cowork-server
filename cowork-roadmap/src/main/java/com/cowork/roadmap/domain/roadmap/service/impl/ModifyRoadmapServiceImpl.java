@@ -26,9 +26,9 @@ public class ModifyRoadmapServiceImpl implements ModifyRoadmapService {
     /** 저장이 요청에 없는 필드까지 전체 행을 덮어쓰므로 로드맵 행을 잠근 뒤 최신 값을 읽어 동시 수정이 유실되지 않게 한다. */
     @Override
     @Transactional
-    public RoadmapResDto execute(Long userId, String userRole, Long roadmapId, UpdateRoadmapReqDto request) {
+    public RoadmapResDto execute(Long userId, Long roadmapId, UpdateRoadmapReqDto request) {
         Roadmap roadmap = lookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
-        accessGuard.requireMutable(roadmap, userId, userRole);
+        accessGuard.requireMutable(roadmap, userId);
         if (request.title() != null && request.title().isBlank()) {
             throw new ExpectedException("로드맵 제목은 공백일 수 없습니다.", HttpStatus.BAD_REQUEST);
         }

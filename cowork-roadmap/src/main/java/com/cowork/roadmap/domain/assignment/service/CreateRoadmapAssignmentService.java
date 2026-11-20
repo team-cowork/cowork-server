@@ -5,5 +5,5 @@ import com.cowork.roadmap.domain.assignment.presentation.data.response.Assignmen
 
 public interface CreateRoadmapAssignmentService {
 
-    AssignmentResDto execute(Long userId, String userRole, CreateAssignmentReqDto request);
+    AssignmentResDto execute(Long userId, CreateAssignmentReqDto request);
 }

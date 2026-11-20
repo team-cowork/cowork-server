@@ -25,12 +25,7 @@ public class ListRoadmapsServiceImpl implements ListRoadmapsService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<RoadmapResDto> execute(Long userId,
-            String userRole,
-            RoadmapScope scope,
-            String category,
-            Long teamId,
-            Long projectId) {
+    public List<RoadmapResDto> execute(Long userId, RoadmapScope scope, String category, Long teamId, Long projectId) {
         if (teamId != null && projectId != null) {
             throw new ExpectedException("teamId와 projectId는 동시에 지정할 수 없습니다.", HttpStatus.BAD_REQUEST);
         }
@@ -39,7 +34,7 @@ public class ListRoadmapsServiceImpl implements ListRoadmapsService {
         String categoryFilter = category == null || category.isBlank() ? null : category;
         if (teamId != null) {
             requireScope(scope, RoadmapScope.TEAM, "teamId");
-            accessGuard.requireTeamReadable(teamId, userId, userRole);
+            accessGuard.requireTeamReadable(teamId, userId);
             return roadmapRepository.findListByOwnerTeamId(teamId, categoryFilter)
                     .stream()
                     .map(RoadmapResDto::from)
@@ -49,7 +44,7 @@ public class ListRoadmapsServiceImpl implements ListRoadmapsService {
             requireScope(scope, RoadmapScope.PROJECT, "projectId");
             return roadmapRepository.findListByOwnerProjectId(projectId, categoryFilter)
                     .stream()
-                    .filter(roadmap -> accessGuard.canReadTeam(roadmap.getOwnerTeamId(), userId, userRole))
+                    .filter(roadmap -> accessGuard.canReadTeam(roadmap.getOwnerTeamId(), userId))
                     .map(RoadmapResDto::from)
                     .toList();
         }

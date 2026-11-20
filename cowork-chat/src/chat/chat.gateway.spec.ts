@@ -127,11 +127,11 @@ describe('ChatGateway', () => {
 			});
 		};
 
-		it('Gateway가 주입한 X-User-Id/X-User-Role 헤더로 연결한다', async () => {
-			const client = mockSocket({'x-user-id': '7', 'x-user-role': 'ADMIN'});
+		it('Gateway가 주입한 X-User-Id 헤더로 연결한다', async () => {
+			const client = mockSocket({'x-user-id': '7'});
 			expect(await handshake(client)).toBeUndefined();
 			expect(client.data.userId).toBe(7);
-			expect(client.data.userRole).toBe('ADMIN');
+			expect(client.data).not.toHaveProperty('userRole');
 		});
 
 		it('X-User-Id 헤더가 유효하지 않으면 connect_error로 거절한다', async () => {

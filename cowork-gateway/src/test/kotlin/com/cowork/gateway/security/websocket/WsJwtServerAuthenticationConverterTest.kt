@@ -1,7 +1,10 @@
 package com.cowork.gateway.security.websocket
 
+import com.cowork.gateway.security.config.JwtProperties
 import com.cowork.gateway.security.jwt.JwtAuthenticationSupport
+import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.MalformedJwtException
+import io.jsonwebtoken.security.Keys
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -10,6 +13,8 @@ import org.springframework.http.HttpCookie
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest
 import org.springframework.mock.web.server.MockServerWebExchange
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+import java.time.Instant
+import java.util.Date
 
 class WsJwtServerAuthenticationConverterTest :
     DescribeSpec({
@@ -40,10 +45,15 @@ class WsJwtServerAuthenticationConverterTest :
 
             context("헤더 없이 웹소켓 쿠키만 있으면") {
                 it("쿠키 토큰으로 인증한다") {
-                    val authentication = UsernamePasswordAuthenticationToken("7", "cookie.token.value", emptyList())
-                    every { support.parse("cookie.token.value") } returns authentication
-
-                    converter.convert(exchange(cookie = "cookie.token.value")).block() shouldBe authentication
+                    val secret = "websocket-unit-test-secret-key-for-roleless-tokens"
+                    val token = Jwts.builder().subject("7").expiration(Date.from(Instant.now().plusSeconds(60)))
+                        .signWith(Keys.hmacShaKeyFor(secret.toByteArray())).compact()
+                    val cookieConverter =
+                        WsJwtServerAuthenticationConverter(JwtAuthenticationSupport(JwtProperties(secret)))
+                    val auth = cookieConverter.convert(exchange(cookie = token)).block()!!
+                    auth.name shouldBe "7"
+                    auth.isAuthenticated shouldBe true
+                    auth.authorities.isEmpty() shouldBe true
                 }
             }
 

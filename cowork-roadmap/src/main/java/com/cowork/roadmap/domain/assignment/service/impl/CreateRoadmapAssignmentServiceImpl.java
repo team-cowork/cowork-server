@@ -30,7 +30,7 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
 
     @Override
     @Transactional
-    public AssignmentResDto execute(Long userId, String userRole, CreateAssignmentReqDto request) {
+    public AssignmentResDto execute(Long userId, CreateAssignmentReqDto request) {
         if (request.scope() == RoadmapScope.GLOBAL) {
             throw new ExpectedException("과제 할당 범위는 TEAM이어야 합니다.", HttpStatus.BAD_REQUEST);
         }
@@ -41,8 +41,8 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
         }
         Roadmap roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(request.roadmapId());
         validateAssignmentRoadmap(roadmap);
-        accessGuard.requireReadable(roadmap, userId, userRole);
-        accessGuard.requireTeamManagerOrAdmin(userId, userRole, request.teamId());
+        accessGuard.requireReadable(roadmap, userId);
+        accessGuard.requireAssignmentCreation(userId, request.teamId());
         validateNodeBelongsToRoadmap(request.nodeId(), request.roadmapId());
         validateAssignmentTeam(roadmap, request.teamId());
         accessGuard.requireAssignableMember(request.teamId(), request.assigneeUserId());

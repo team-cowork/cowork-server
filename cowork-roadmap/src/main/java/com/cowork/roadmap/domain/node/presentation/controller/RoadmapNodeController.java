@@ -45,7 +45,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import team.themoment.sdk.response.CommonApiResponse;
 
-@Tag(name = "로드맵 노드", description = "로드맵 노드(문서)와 관련 자료 구성 API")
+@Tag(name = "로드맵 노드", description = "노드와 관련 자료는 소속 로드맵의 조회 및 변경 권한을 따릅니다. 글로벌 로드맵은 로그인한 사용자가 조회할 수 있습니다. 다른 팀의 로드맵을 조회하려면 계정 권한 `read_all_team_roadmaps`가 필요합니다. 글로벌 로드맵에는 계정 권한 `manage_global_roadmaps`가 필요합니다. 팀 또는 프로젝트 로드맵은 소유 팀의 활성 멤버 중 생성자 또는 팀 관리 권한을 가진 사용자가 변경할 수 있습니다.")
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "액세스 토큰이 없거나 유효하지 않음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"401 UNAUTHORIZED\",\"code\":401,\"message\":\"Unauthorized\"}"))),
         @ApiResponse(description = "기타 오류", content = @Content(schema = @Schema(implementation = CommonApiResponse.class)))})
@@ -75,14 +75,13 @@ public class RoadmapNodeController {
             @ApiResponse(responseCode = "400", description = "잘못된 요청 값 또는 다른 로드맵의 상위 노드", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"400 BAD_REQUEST\",\"code\":400,\"message\":\"요청 값이 올바르지 않습니다.\"}"))),
             @ApiResponse(responseCode = "403", description = "요청한 작업을 수행할 권한이 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "404", description = "노드 또는 로드맵 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"404 NOT_FOUND\",\"code\":404,\"message\":\"요청한 대상을 찾을 수 없습니다.\"}"))),
-            @ApiResponse(responseCode = "503", description = "팀 멤버 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"요청을 처리할 준비가 되지 않았습니다.\"}")))})
+            @ApiResponse(responseCode = "503", description = "권한 판정에 필요한 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"권한 정보를 동기화하는 중입니다.\"}")))})
     @PostMapping("/{roadmapId}/nodes")
     public ResponseEntity<NodeResDto> createNode(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
-            @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long roadmapId,
             @Valid @RequestBody CreateNodeReqDto request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(createRoadmapNodeService.execute(userId, userRole, roadmapId, request));
+                .body(createRoadmapNodeService.execute(userId, roadmapId, request));
     }
 
     @Operation(summary = "형제 노드 순서 변경")
@@ -90,13 +89,12 @@ public class RoadmapNodeController {
             @ApiResponse(responseCode = "400", description = "orderedNodeIds에 같은 부모의 자식이 빠졌거나 중복됨", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"400 BAD_REQUEST\",\"code\":400,\"message\":\"요청 값이 올바르지 않습니다.\"}"))),
             @ApiResponse(responseCode = "403", description = "요청한 작업을 수행할 권한이 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "404", description = "노드 또는 로드맵 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"404 NOT_FOUND\",\"code\":404,\"message\":\"요청한 대상을 찾을 수 없습니다.\"}"))),
-            @ApiResponse(responseCode = "503", description = "팀 멤버 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"요청을 처리할 준비가 되지 않았습니다.\"}")))})
+            @ApiResponse(responseCode = "503", description = "권한 판정에 필요한 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"권한 정보를 동기화하는 중입니다.\"}")))})
     @PutMapping("/{roadmapId}/nodes/reorder")
     public ResponseEntity<Void> reorderNodes(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
-            @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long roadmapId,
             @Valid @RequestBody ReorderNodesReqDto request) {
-        reorderRoadmapNodesService.execute(userId, userRole, roadmapId, request);
+        reorderRoadmapNodesService.execute(userId, roadmapId, request);
         return ResponseEntity.noContent().build();
     }
 
@@ -110,12 +108,11 @@ public class RoadmapNodeController {
                             @SchemaProperty(name = "data", schema = @Schema(implementation = NodeResDto.class))})),
             @ApiResponse(responseCode = "403", description = "요청한 작업을 수행할 권한이 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "404", description = "노드 또는 로드맵 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"404 NOT_FOUND\",\"code\":404,\"message\":\"요청한 대상을 찾을 수 없습니다.\"}"))),
-            @ApiResponse(responseCode = "503", description = "팀 멤버 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"요청을 처리할 준비가 되지 않았습니다.\"}")))})
+            @ApiResponse(responseCode = "503", description = "권한 판정에 필요한 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"권한 정보를 동기화하는 중입니다.\"}")))})
     @GetMapping("/nodes/{nodeId}")
     public NodeResDto getNode(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
-            @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long nodeId) {
-        return queryRoadmapNodeService.execute(userId, userRole, nodeId);
+        return queryRoadmapNodeService.execute(userId, nodeId);
     }
 
     @Operation(summary = "노드 수정", description = "필드를 생략하거나 null을 보내면 기존 값을 유지합니다.")
@@ -129,13 +126,12 @@ public class RoadmapNodeController {
             @ApiResponse(responseCode = "400", description = "제목이 빈 문자열이거나 공백만 있음, 길이 초과", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"400 BAD_REQUEST\",\"code\":400,\"message\":\"요청 값이 올바르지 않습니다.\"}"))),
             @ApiResponse(responseCode = "403", description = "로드맵 수정 권한 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "404", description = "노드 또는 로드맵 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"404 NOT_FOUND\",\"code\":404,\"message\":\"요청한 대상을 찾을 수 없습니다.\"}"))),
-            @ApiResponse(responseCode = "503", description = "팀 멤버 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"요청을 처리할 준비가 되지 않았습니다.\"}")))})
+            @ApiResponse(responseCode = "503", description = "권한 판정에 필요한 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"권한 정보를 동기화하는 중입니다.\"}")))})
     @PatchMapping("/nodes/{nodeId}")
     public NodeResDto updateNode(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
-            @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long nodeId,
             @Valid @RequestBody UpdateNodeReqDto request) {
-        return modifyRoadmapNodeService.execute(userId, userRole, nodeId, request);
+        return modifyRoadmapNodeService.execute(userId, nodeId, request);
     }
 
     @Operation(summary = "노드 삭제", description = "하위 노드도 함께 삭제합니다. 연결된 과제는 먼저 삭제해야 합니다.")
@@ -143,12 +139,11 @@ public class RoadmapNodeController {
             @ApiResponse(responseCode = "403", description = "요청한 작업을 수행할 권한이 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "404", description = "노드 또는 로드맵 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"404 NOT_FOUND\",\"code\":404,\"message\":\"요청한 대상을 찾을 수 없습니다.\"}"))),
             @ApiResponse(responseCode = "409", description = "삭제할 노드나 하위 노드에 과제가 연결되어 있음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"409 CONFLICT\",\"code\":409,\"message\":\"현재 상태에서는 요청을 처리할 수 없습니다.\"}"))),
-            @ApiResponse(responseCode = "503", description = "팀 멤버 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"요청을 처리할 준비가 되지 않았습니다.\"}")))})
+            @ApiResponse(responseCode = "503", description = "권한 판정에 필요한 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"권한 정보를 동기화하는 중입니다.\"}")))})
     @DeleteMapping("/nodes/{nodeId}")
     public ResponseEntity<Void> deleteNode(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
-            @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long nodeId) {
-        deleteRoadmapNodeService.execute(userId, userRole, nodeId);
+        deleteRoadmapNodeService.execute(userId, nodeId);
         return ResponseEntity.noContent().build();
     }
 
@@ -162,12 +157,11 @@ public class RoadmapNodeController {
                             @SchemaProperty(name = "data", array = @ArraySchema(schema = @Schema(implementation = NodeReferenceResDto.class)))})),
             @ApiResponse(responseCode = "403", description = "요청한 작업을 수행할 권한이 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "404", description = "노드 또는 로드맵 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"404 NOT_FOUND\",\"code\":404,\"message\":\"요청한 대상을 찾을 수 없습니다.\"}"))),
-            @ApiResponse(responseCode = "503", description = "팀 멤버 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"요청을 처리할 준비가 되지 않았습니다.\"}")))})
+            @ApiResponse(responseCode = "503", description = "권한 판정에 필요한 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"권한 정보를 동기화하는 중입니다.\"}")))})
     @GetMapping("/nodes/{nodeId}/references")
     public List<NodeReferenceResDto> listReferences(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
-            @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long nodeId) {
-        return listNodeReferencesService.execute(userId, userRole, nodeId);
+        return listNodeReferencesService.execute(userId, nodeId);
     }
 
     @Operation(summary = "노드 관련 자료 추가")
@@ -181,15 +175,14 @@ public class RoadmapNodeController {
             @ApiResponse(responseCode = "400", description = "요청 값이 올바르지 않음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"400 BAD_REQUEST\",\"code\":400,\"message\":\"요청 값이 올바르지 않습니다.\"}"))),
             @ApiResponse(responseCode = "403", description = "요청한 작업을 수행할 권한이 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "404", description = "노드 또는 로드맵 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"404 NOT_FOUND\",\"code\":404,\"message\":\"요청한 대상을 찾을 수 없습니다.\"}"))),
-            @ApiResponse(responseCode = "503", description = "팀 멤버 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"요청을 처리할 준비가 되지 않았습니다.\"}")))})
+            @ApiResponse(responseCode = "503", description = "권한 판정에 필요한 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"권한 정보를 동기화하는 중입니다.\"}")))})
     @PostMapping("/nodes/{nodeId}/references")
     public ResponseEntity<NodeReferenceResDto> addReference(
             @Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
-            @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long nodeId,
             @Valid @RequestBody NodeReferenceReqDto request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(createNodeReferenceService.execute(userId, userRole, nodeId, request));
+                .body(createNodeReferenceService.execute(userId, nodeId, request));
     }
 
     @Operation(summary = "관련 자료 수정")
@@ -203,25 +196,23 @@ public class RoadmapNodeController {
             @ApiResponse(responseCode = "400", description = "요청 값이 올바르지 않음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"400 BAD_REQUEST\",\"code\":400,\"message\":\"요청 값이 올바르지 않습니다.\"}"))),
             @ApiResponse(responseCode = "403", description = "요청한 작업을 수행할 권한이 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "404", description = "관련 자료 또는 로드맵 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"404 NOT_FOUND\",\"code\":404,\"message\":\"요청한 대상을 찾을 수 없습니다.\"}"))),
-            @ApiResponse(responseCode = "503", description = "팀 멤버 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"요청을 처리할 준비가 되지 않았습니다.\"}")))})
+            @ApiResponse(responseCode = "503", description = "권한 판정에 필요한 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"권한 정보를 동기화하는 중입니다.\"}")))})
     @PatchMapping("/references/{referenceId}")
     public NodeReferenceResDto updateReference(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
-            @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long referenceId,
             @Valid @RequestBody NodeReferenceReqDto request) {
-        return modifyNodeReferenceService.execute(userId, userRole, referenceId, request);
+        return modifyNodeReferenceService.execute(userId, referenceId, request);
     }
 
     @Operation(summary = "관련 자료 삭제")
     @ApiResponses({@ApiResponse(responseCode = "204", description = "응답 본문 없음", content = @Content),
             @ApiResponse(responseCode = "403", description = "요청한 작업을 수행할 권한이 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "404", description = "관련 자료 또는 로드맵 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"404 NOT_FOUND\",\"code\":404,\"message\":\"요청한 대상을 찾을 수 없습니다.\"}"))),
-            @ApiResponse(responseCode = "503", description = "팀 멤버 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"요청을 처리할 준비가 되지 않았습니다.\"}")))})
+            @ApiResponse(responseCode = "503", description = "권한 판정에 필요한 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"권한 정보를 동기화하는 중입니다.\"}")))})
     @DeleteMapping("/references/{referenceId}")
     public ResponseEntity<Void> deleteReference(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
-            @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long referenceId) {
-        deleteNodeReferenceService.execute(userId, userRole, referenceId);
+        deleteNodeReferenceService.execute(userId, referenceId);
         return ResponseEntity.noContent().build();
     }
 }

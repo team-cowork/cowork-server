@@ -87,12 +87,11 @@ func (r *RefreshTokenRepository) RotateSession(
 		}
 
 		replacement := &domain.RefreshToken{
-			UserID:       source.UserID,
-			TokenHash:    newHash,
-			DeviceInfo:   source.DeviceInfo,
-			Email:        source.Email,
-			GsmRole:      source.GsmRole,
-			PlatformRole: source.PlatformRole,
+			UserID:     source.UserID,
+			TokenHash:  newHash,
+			DeviceInfo: source.DeviceInfo,
+			Email:      source.Email,
+			GsmRole:    source.GsmRole,
 			// Keep the absolute session lifetime fixed at login so roles are re-read by then.
 			ExpiresAt: source.ExpiresAt,
 		}
