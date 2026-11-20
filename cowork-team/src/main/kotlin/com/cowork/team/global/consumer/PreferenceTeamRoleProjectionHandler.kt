@@ -14,9 +14,9 @@ import tools.jackson.databind.ObjectMapper
 
 @Component
 class PreferenceTeamRoleProjectionHandler(
-    private val roleRepository: TeamRoleProjectionRepository,
-    private val assignmentRepository: TeamRoleAssignmentProjectionRepository,
-    private val memberTombstoneRepository: TeamRoleMemberTombstoneRepository,
+    private val teamRoleProjectionRepository: TeamRoleProjectionRepository,
+    private val teamRoleAssignmentProjectionRepository: TeamRoleAssignmentProjectionRepository,
+    private val teamRoleMemberTombstoneRepository: TeamRoleMemberTombstoneRepository,
     private val objectMapper: ObjectMapper,
 ) {
 
@@ -35,7 +35,7 @@ class PreferenceTeamRoleProjectionHandler(
 
     private fun upsertRole(event: PreferenceTeamRoleChangedEvent) {
         val roleId = requireNotNull(event.roleId)
-        val existing = roleRepository.findById(roleId).orElse(null)
+        val existing = teamRoleProjectionRepository.findById(roleId).orElse(null)
         val existingVersion = existing?.sourceOccurredAt?.toProjectionPrecision()
         if (existingVersion?.isAfter(event.occurredAt) == true ||
             (existingVersion == event.occurredAt && existing.deleted)
@@ -57,12 +57,12 @@ class PreferenceTeamRoleProjectionHandler(
             occurredAt = event.occurredAt,
             isDefault = requireNotNull(event.isDefault),
         )
-        roleRepository.save(role)
+        teamRoleProjectionRepository.save(role)
     }
 
     private fun deleteRole(event: PreferenceTeamRoleChangedEvent) {
         val roleId = requireNotNull(event.roleId)
-        val existing = roleRepository.findById(roleId).orElse(null)
+        val existing = teamRoleProjectionRepository.findById(roleId).orElse(null)
         if (existing?.sourceOccurredAt?.toProjectionPrecision()?.isAfter(event.occurredAt) == true) return
         val role = existing ?: TeamRoleProjection(
             roleId = roleId,
@@ -72,19 +72,19 @@ class PreferenceTeamRoleProjectionHandler(
             sourceOccurredAt = event.occurredAt,
         )
         role.markDeleted(event.occurredAt)
-        roleRepository.save(role)
-        assignmentRepository.findAllByTeamIdAndRoleId(event.teamId, roleId)
+        teamRoleProjectionRepository.save(role)
+        teamRoleAssignmentProjectionRepository.findAllByTeamIdAndRoleId(event.teamId, roleId)
             .filterNot { it.sourceOccurredAt.toProjectionPrecision().isAfter(event.occurredAt) }
             .forEach {
                 it.markDeleted(event.occurredAt)
-                assignmentRepository.save(it)
+                teamRoleAssignmentProjectionRepository.save(it)
             }
     }
 
     private fun upsertAssignment(event: PreferenceTeamRoleChangedEvent) {
         val accountId = requireNotNull(event.accountId)
         val roleId = requireNotNull(event.roleId)
-        val memberTombstone = memberTombstoneRepository.findById(
+        val memberTombstone = teamRoleMemberTombstoneRepository.findById(
             TeamRoleMemberTombstone.key(event.teamId, accountId),
         ).orElse(null)
         if (memberTombstone != null &&
@@ -94,7 +94,7 @@ class PreferenceTeamRoleProjectionHandler(
         }
 
         val key = TeamRoleAssignmentProjection.key(event.teamId, accountId, roleId)
-        val existing = assignmentRepository.findById(key).orElse(null)
+        val existing = teamRoleAssignmentProjectionRepository.findById(key).orElse(null)
         val existingVersion = existing?.sourceOccurredAt?.toProjectionPrecision()
         if (existingVersion?.isAfter(event.occurredAt) == true ||
             (existingVersion == event.occurredAt && existing.deleted)
@@ -109,14 +109,14 @@ class PreferenceTeamRoleProjectionHandler(
             sourceOccurredAt = event.occurredAt,
         )
         assignment.markPresent(event.occurredAt)
-        assignmentRepository.save(assignment)
+        teamRoleAssignmentProjectionRepository.save(assignment)
     }
 
     private fun deleteAssignment(event: PreferenceTeamRoleChangedEvent) {
         val accountId = requireNotNull(event.accountId)
         val roleId = requireNotNull(event.roleId)
         val key = TeamRoleAssignmentProjection.key(event.teamId, accountId, roleId)
-        val existing = assignmentRepository.findById(key).orElse(null)
+        val existing = teamRoleAssignmentProjectionRepository.findById(key).orElse(null)
         if (existing?.sourceOccurredAt?.toProjectionPrecision()?.isAfter(event.occurredAt) == true) return
         val assignment = existing ?: TeamRoleAssignmentProjection(
             projectionKey = key,
@@ -127,13 +127,13 @@ class PreferenceTeamRoleProjectionHandler(
             sourceOccurredAt = event.occurredAt,
         )
         assignment.markDeleted(event.occurredAt)
-        assignmentRepository.save(assignment)
+        teamRoleAssignmentProjectionRepository.save(assignment)
     }
 
     private fun deleteMemberAssignments(event: PreferenceTeamRoleChangedEvent) {
         val accountId = requireNotNull(event.accountId)
         val key = TeamRoleMemberTombstone.key(event.teamId, accountId)
-        val existingTombstone = memberTombstoneRepository.findById(key).orElse(null)
+        val existingTombstone = teamRoleMemberTombstoneRepository.findById(key).orElse(null)
         if (existingTombstone?.sourceOccurredAt?.toProjectionPrecision()?.isAfter(event.occurredAt) == true) return
         val tombstone = existingTombstone ?: TeamRoleMemberTombstone(
             projectionKey = key,
@@ -142,12 +142,12 @@ class PreferenceTeamRoleProjectionHandler(
             sourceOccurredAt = event.occurredAt,
         )
         tombstone.sourceOccurredAt = event.occurredAt
-        memberTombstoneRepository.save(tombstone)
-        assignmentRepository.findAllByTeamIdAndAccountId(event.teamId, accountId)
+        teamRoleMemberTombstoneRepository.save(tombstone)
+        teamRoleAssignmentProjectionRepository.findAllByTeamIdAndAccountId(event.teamId, accountId)
             .filterNot { it.sourceOccurredAt.toProjectionPrecision().isAfter(event.occurredAt) }
             .forEach {
                 it.markDeleted(event.occurredAt)
-                assignmentRepository.save(it)
+                teamRoleAssignmentProjectionRepository.save(it)
             }
     }
 }

@@ -10,10 +10,10 @@ import tools.jackson.databind.ObjectMapper
 
 @Component
 class PreferenceTeamSettingConsumer(
-    private val handler: PreferenceTeamSettingProjectionHandler,
+    private val preferenceTeamSettingProjectionHandler: PreferenceTeamSettingProjectionHandler,
     private val objectMapper: ObjectMapper,
-    private val processor: ProjectionRecordProcessor,
-    private val streams: ProjectionStreams,
+    private val projectionRecordProcessor: ProjectionRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
 ) {
 
     @KafkaListener(
@@ -22,7 +22,7 @@ class PreferenceTeamSettingConsumer(
         containerFactory = "preferenceTeamSettingListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        if (processor.processControlRecord(streams.teamSetting, record)) return
+        if (projectionRecordProcessor.processControlRecord(projectionStreams.teamSetting, record)) return
         val event = runCatching { objectMapper.readValue(record.value(), PreferenceTeamSettingEvent::class.java) }
             .getOrElse {
                 quarantine(record, "preference team-setting JSON 역직렬화 실패: ${it.message}")
@@ -33,7 +33,9 @@ class PreferenceTeamSettingConsumer(
             quarantine(record, reason)
             return
         }
-        processor.applyRecord(streams.teamSetting, record) { handler.handle(event) }
+        projectionRecordProcessor.applyRecord(projectionStreams.teamSetting, record) {
+            preferenceTeamSettingProjectionHandler.handle(event)
+        }
     }
 
     private fun contractViolation(event: PreferenceTeamSettingEvent, key: String?): String? = when {
@@ -51,7 +53,7 @@ class PreferenceTeamSettingConsumer(
             record.offset(),
             reason,
         )
-        processor.quarantineRecord(streams.teamSetting, record, reason)
+        projectionRecordProcessor.quarantineRecord(projectionStreams.teamSetting, record, reason)
     }
 
     companion object {

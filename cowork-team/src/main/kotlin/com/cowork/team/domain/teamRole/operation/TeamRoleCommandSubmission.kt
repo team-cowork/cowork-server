@@ -14,10 +14,10 @@ import java.util.UUID
 
 @Component
 class TeamRoleCommandSubmission(
-    private val submissionRepository: TeamRoleOperationSubmissionRepository,
-    private val memberStateRepository: TeamMemberEventStateRepository,
+    private val teamRoleOperationSubmissionRepository: TeamRoleOperationSubmissionRepository,
+    private val teamMemberEventStateRepository: TeamMemberEventStateRepository,
     private val outboxWriter: OutboxWriter,
-    private val operationMapper: TeamRoleOperationMapper,
+    private val teamRoleOperationMapper: TeamRoleOperationMapper,
     private val objectMapper: ObjectMapper,
 ) {
     fun submit(
@@ -33,7 +33,7 @@ class TeamRoleCommandSubmission(
         val normalizedKey = normalizeIdempotencyKey(idempotencyKey)
         val requestHash = requestHash(commandType, teamId, actorId, targetAccountId, roleId, role)
         val operationId = UUID.randomUUID().toString()
-        val insertion = submissionRepository.insertPendingOrGet(
+        val insertion = teamRoleOperationSubmissionRepository.insertPendingOrGet(
             operationId = operationId,
             idempotencyKey = normalizedKey,
             teamId = teamId,
@@ -52,7 +52,7 @@ class TeamRoleCommandSubmission(
                         HttpStatus.CONFLICT,
                     )
                 }
-                return operationMapper.toResponse(operation)
+                return teamRoleOperationMapper.toResponse(operation)
             }
         }
 
@@ -112,7 +112,7 @@ class TeamRoleCommandSubmission(
     }
 
     private fun activeMemberVersion(teamId: Long, accountId: Long): Instant {
-        val state = memberStateRepository.findByKeyForUpdate(teamId, accountId)
+        val state = teamMemberEventStateRepository.findByKeyForUpdate(teamId, accountId)
             ?: throw ExpectedException("해당 멤버 상태를 찾을 수 없습니다.", HttpStatus.CONFLICT)
         if (state.deleted) {
             throw ExpectedException("해당 멤버를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)

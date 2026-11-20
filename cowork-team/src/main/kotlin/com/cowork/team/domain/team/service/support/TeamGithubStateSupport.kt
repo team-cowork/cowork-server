@@ -12,10 +12,13 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
 @Component
-class TeamGithubStateSupport(private val properties: TeamGithubProperties, private val objectMapper: ObjectMapper) {
+class TeamGithubStateSupport(
+    private val teamGithubProperties: TeamGithubProperties,
+    private val objectMapper: ObjectMapper,
+) {
 
     init {
-        require(properties.stateSecret.isNotBlank()) { "team-github.state-secret must not be empty" }
+        require(teamGithubProperties.stateSecret.isNotBlank()) { "team-github.state-secret must not be empty" }
     }
 
     // state = base64url(json_payload).base64url(hmac-sha256)
@@ -65,7 +68,7 @@ class TeamGithubStateSupport(private val properties: TeamGithubProperties, priva
 
     private fun hmacSign(data: String): String {
         val mac = Mac.getInstance("HmacSHA256")
-        mac.init(SecretKeySpec(properties.stateSecret.toByteArray(Charsets.UTF_8), "HmacSHA256"))
+        mac.init(SecretKeySpec(teamGithubProperties.stateSecret.toByteArray(Charsets.UTF_8), "HmacSHA256"))
         val hash = mac.doFinal(data.toByteArray(Charsets.UTF_8))
         return Base64.getUrlEncoder().withoutPadding().encodeToString(hash)
     }

@@ -16,8 +16,8 @@ import java.time.Instant
 @Transactional(propagation = Propagation.MANDATORY)
 class TeamMemberEventPublisher(
     private val teamRepository: TeamRepository,
-    private val memberRepository: TeamMemberRepository,
-    private val stateRepository: TeamMemberEventStateRepository,
+    private val teamMemberRepository: TeamMemberRepository,
+    private val teamMemberEventStateRepository: TeamMemberEventStateRepository,
     private val entityManager: EntityManager,
     private val outboxWriter: OutboxWriter,
 ) {
@@ -36,17 +36,17 @@ class TeamMemberEventPublisher(
         val team = checkNotNull(teamRepository.findByIdForUpdate(member.team.id)) {
             "Team row must exist while publishing its member state mutation: ${member.team.id}"
         }
-        val lockedMember = checkNotNull(memberRepository.findByTeamIdAndUserIdForUpdate(team.id, member.userId)) {
+        val lockedMember = checkNotNull(teamMemberRepository.findByTeamIdAndUserIdForUpdate(team.id, member.userId)) {
             "Team member row must exist while publishing its state mutation: ${team.id}:${member.userId}"
         }
-        val existingState = stateRepository.findByKeyForUpdate(team.id, lockedMember.userId)
+        val existingState = teamMemberEventStateRepository.findByKeyForUpdate(team.id, lockedMember.userId)
         val state = existingState ?: TeamMemberEventState.create(team, lockedMember, deleted, occurredAt)
         val version = if (existingState == null) {
             state.stateOccurredAt
         } else {
             state.apply(team, lockedMember, deleted, occurredAt)
         }
-        stateRepository.save(state)
+        teamMemberEventStateRepository.save(state)
         entityManager.flush()
         enqueue(state, snapshot = false)
         return version

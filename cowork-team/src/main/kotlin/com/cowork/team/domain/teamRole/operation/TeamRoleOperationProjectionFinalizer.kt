@@ -13,20 +13,21 @@ import java.time.Instant
 
 @Component
 class TeamRoleOperationProjectionFinalizer(
-    private val operationRepository: TeamRoleCommandOperationRepository,
-    private val roleRepository: TeamRoleProjectionRepository,
-    private val assignmentRepository: TeamRoleAssignmentProjectionRepository,
+    private val teamRoleCommandOperationRepository: TeamRoleCommandOperationRepository,
+    private val teamRoleProjectionRepository: TeamRoleProjectionRepository,
+    private val teamRoleAssignmentProjectionRepository: TeamRoleAssignmentProjectionRepository,
     private val objectMapper: ObjectMapper,
 ) {
     @Scheduled(fixedDelayString = $$"${team-role.operation-finalizer-delay-ms:1000}")
     @Transactional
     fun finalizeVisibleOperations() {
         val status = TeamRoleOperationStatus.PROCESSING
-        val throughOperationId = operationRepository.findTopByStatusOrderByOperationIdDesc(status)?.operationId
-            ?: return
+        val throughOperationId =
+            teamRoleCommandOperationRepository.findTopByStatusOrderByOperationIdDesc(status)?.operationId
+                ?: return
         var afterOperationId = ""
         do {
-            val batch = operationRepository.findStatusBatch(
+            val batch = teamRoleCommandOperationRepository.findStatusBatch(
                 status,
                 afterOperationId,
                 throughOperationId,
@@ -45,14 +46,14 @@ class TeamRoleOperationProjectionFinalizer(
         val expectedDeleted = operation.expectedProjectionDeleted ?: return false
         val visible = when {
             key.startsWith("role:") -> key.substringAfterLast(':').toLongOrNull()?.let { roleId ->
-                roleRepository.findById(roleId).orElse(null)?.let { projection ->
+                teamRoleProjectionRepository.findById(roleId).orElse(null)?.let { projection ->
                     roleProjectionMatches(operation, projection, occurredAt, expectedDeleted)
                 }
             } == true
 
             key.startsWith("assignment:") -> {
                 val projectionKey = key.removePrefix("assignment:")
-                assignmentRepository.findById(projectionKey).orElse(null)?.let { projection ->
+                teamRoleAssignmentProjectionRepository.findById(projectionKey).orElse(null)?.let { projection ->
                     if (projection.teamId != operation.teamId) {
                         false
                     } else {

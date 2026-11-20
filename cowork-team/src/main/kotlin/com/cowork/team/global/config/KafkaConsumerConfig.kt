@@ -36,11 +36,11 @@ import org.springframework.util.backoff.BackOff
 @EnableKafka
 class KafkaConsumerConfig(
     private val kafkaProperties: KafkaProperties,
-    private val checkpointStore: ProjectionCheckpointStore,
-    private val readinessState: ProjectionReadinessState,
-    private val streams: ProjectionStreams,
-    private val topicIdentityProvider: ProjectionTopicIdentityProvider,
-    private val topicGenerations: ProjectionTopicGenerationRegistry,
+    private val projectionCheckpointStore: ProjectionCheckpointStore,
+    private val projectionReadinessState: ProjectionReadinessState,
+    private val projectionStreams: ProjectionStreams,
+    private val projectionTopicIdentityProvider: ProjectionTopicIdentityProvider,
+    private val projectionTopicGenerationRegistry: ProjectionTopicGenerationRegistry,
     @Value($$"${projection.readiness.assignment-retry-backoff-ms:1000}") private val assignmentRetryBackoffMs: Long,
     @Value($$"${projection.readiness.assignment-retry-timeout-ms:60000}") private val assignmentRetryTimeoutMs: Long,
 ) {
@@ -142,11 +142,11 @@ class KafkaConsumerConfig(
     @Bean
     fun preferenceTeamRoleChangedListenerContainerFactory() = projectionListenerContainerFactory(
         ProjectionAssignmentCoordinator(
-            streams.teamRole,
-            checkpointStore,
-            readinessState,
-            topicIdentityProvider,
-            topicGenerations,
+            projectionStreams.teamRole,
+            projectionCheckpointStore,
+            projectionReadinessState,
+            projectionTopicIdentityProvider,
+            projectionTopicGenerationRegistry,
             assignmentRetryBackoffMs,
             assignmentRetryTimeoutMs,
         ),
@@ -155,11 +155,11 @@ class KafkaConsumerConfig(
     @Bean
     fun accountRolePolicyListenerContainerFactory() = projectionListenerContainerFactory(
         ProjectionAssignmentCoordinator(
-            streams.accountRole,
-            checkpointStore,
-            readinessState,
-            topicIdentityProvider,
-            topicGenerations,
+            projectionStreams.accountRole,
+            projectionCheckpointStore,
+            projectionReadinessState,
+            projectionTopicIdentityProvider,
+            projectionTopicGenerationRegistry,
             assignmentRetryBackoffMs,
             assignmentRetryTimeoutMs,
         ),
@@ -168,11 +168,11 @@ class KafkaConsumerConfig(
     @Bean
     fun preferenceTeamSettingListenerContainerFactory() = projectionListenerContainerFactory(
         ProjectionAssignmentCoordinator(
-            streams.teamSetting,
-            checkpointStore,
-            readinessState,
-            topicIdentityProvider,
-            topicGenerations,
+            projectionStreams.teamSetting,
+            projectionCheckpointStore,
+            projectionReadinessState,
+            projectionTopicIdentityProvider,
+            projectionTopicGenerationRegistry,
             assignmentRetryBackoffMs,
             assignmentRetryTimeoutMs,
         ),
