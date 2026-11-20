@@ -21,7 +21,7 @@ class ChannelRolePolicyCommandConsumer(
     bootstrapServers,
     groupId,
     PreferenceTopics.CHANNEL_ROLE_POLICY_COMMAND_TOPIC,
-    "Channel role policy command",
+    "channel role policy command",
     "channel role policy command",
     scope,
 ) {

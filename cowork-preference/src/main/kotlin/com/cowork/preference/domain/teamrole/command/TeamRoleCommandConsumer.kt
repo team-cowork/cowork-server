@@ -21,7 +21,7 @@ class TeamRoleCommandConsumer(
     bootstrapServers,
     groupId,
     PreferenceTopics.TEAM_ROLE_COMMAND_TOPIC,
-    "Preference team-role command",
+    "preference team-role command",
     "team-role command",
     scope,
 ) {

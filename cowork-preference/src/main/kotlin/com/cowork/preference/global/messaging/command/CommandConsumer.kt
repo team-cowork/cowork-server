@@ -27,7 +27,7 @@ abstract class CommandConsumer<C, E>(
     bootstrapServers: String,
     private val groupId: String,
     private val topic: String,
-    /** Log prefix for consumer events, such as "Channel role policy command". */
+    /** Consumer name in consumer event logs, such as "channel role policy command". */
     private val label: String,
     /** Command name in rejection and quarantine logs, such as "channel role policy command". */
     private val recordLabel: String,
@@ -56,7 +56,7 @@ abstract class CommandConsumer<C, E>(
     protected abstract suspend fun quarantine(record: CommandQuarantineRecord)
 
     fun start() {
-        consumer.exceptionHandler { logger().error("$label consumer failure", it) }
+        consumer.exceptionHandler { logger().error("Failed $label consumer", it) }
         consumer.batchHandler { records ->
             consumer.pause()
             scope.launch(vertx.dispatcher()) {
@@ -70,7 +70,7 @@ abstract class CommandConsumer<C, E>(
         }
         scope.launch(vertx.dispatcher()) {
             retry("subscribe") { consumer.subscribe(topic).coAwait() }
-            this@CommandConsumer.logger().info("$label consumer subscribed topic={} group={}", topic, groupId)
+            this@CommandConsumer.logger().info("Subscribed $label consumer topic={} group={}", topic, groupId)
         }
     }
 
@@ -134,10 +134,10 @@ abstract class CommandConsumer<C, E>(
                 throw error
             } catch (error: Throwable) {
                 if (record == null) {
-                    logger().error("$label consumer {} failed; retrying", operation, error)
+                    logger().error("Failed $label consumer {}; retrying", operation, error)
                 } else {
                     logger().error(
-                        "$label $operation failed; retrying topic={} partition={} offset={}",
+                        "Failed $label $operation; retrying topic={} partition={} offset={}",
                         record.topic(),
                         record.partition(),
                         record.offset(),
@@ -147,7 +147,7 @@ abstract class CommandConsumer<C, E>(
                 delay(RETRY_DELAY)
             }
         }
-        throw CancellationException("$label consumer stopped")
+        throw CancellationException("Stopped $label consumer")
     }
 
     private companion object {
