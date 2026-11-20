@@ -7,7 +7,7 @@ import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
-import com.cowork.team.domain.teamRole.service.support.TeamRolePermission
+import com.cowork.team.global.policy.PermissionKeys
 import com.cowork.team.support.policyRole
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
@@ -51,8 +51,8 @@ class TeamRoleAccessGuardTest :
                     every { memberRepository.findByTeamIdAndUserId(1L, 20L) } returns
                         TeamMember(team = team, userId = 20L)
                     every { roleReader.getMemberRoles(1L, 20L) } returns listOf(
-                        role(priority = 5, permissions = mapOf(TeamRolePermission.MANAGE_ROLES.key to true)),
-                        role(priority = 9, permissions = mapOf(TeamRolePermission.MANAGE_ROLES.key to true)),
+                        role(priority = 5, permissions = mapOf(PermissionKeys.MANAGE_ROLES to true)),
+                        role(priority = 9, permissions = mapOf(PermissionKeys.MANAGE_ROLES to true)),
                     )
 
                     val context = guard.requireManageRoles(1L, 20L)
@@ -79,7 +79,7 @@ class TeamRoleAccessGuardTest :
                 it("FORBIDDEN으로 거부한다") {
                     val actor = ManageRoleContext(
                         TeamMember(team = team, userId = 20L),
-                        listOf(role(priority = 10, permissions = mapOf(TeamRolePermission.MANAGE_ROLES.key to true))),
+                        listOf(role(priority = 10, permissions = mapOf(PermissionKeys.MANAGE_ROLES to true))),
                     )
 
                     val error = shouldThrow<ExpectedException> {
