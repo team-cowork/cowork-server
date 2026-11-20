@@ -17,7 +17,7 @@ class GithubRepoSettingResultConsumer(
     @KafkaListener(
         topics = [GITHUB_REPO_SETTING_RESULT_TOPIC],
         groupId = "cowork-project.github-repo-setting-result",
-        containerFactory = "durableResultListenerContainerFactory",
+        containerFactory = "durableListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
         val payload = runCatching {

@@ -17,7 +17,7 @@ class ChatGithubIssueCommandConsumer(
     @KafkaListener(
         topics = [CHAT_GITHUB_ISSUE_COMMAND_TOPIC],
         groupId = "cowork-project.chat-github-issue-command",
-        containerFactory = "durableResultListenerContainerFactory",
+        containerFactory = "durableListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
         val command = runCatching {

@@ -60,7 +60,7 @@ class KafkaConsumerConfig(
     }
 
     @Bean
-    fun durableResultListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, String> {
+    fun durableListenerContainerFactory(): ConcurrentKafkaListenerContainerFactory<String, String> {
         val props = kafkaProperties.buildConsumerProperties().toMutableMap<String, Any>()
         props[ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
         props[ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG] = StringDeserializer::class.java
