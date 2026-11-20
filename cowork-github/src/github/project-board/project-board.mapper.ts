@@ -33,7 +33,8 @@ export type GraphqlProjectView = {
 	name: string;
 	layout: string;
 	filter?: Nullable<string>;
-	fields?: Nullable<Connection<FieldRef>>;
+	// `fields`는 Project field 위치 순서다. Table 뷰에 저장한 열 순서는 `configuration.visibleFields`만 준다.
+	configuration?: Nullable<{visibleFields?: Nullable<Connection<FieldRef>>}>;
 	groupByFields?: Nullable<Connection<FieldRef>>;
 	verticalGroupByFields?: Nullable<Connection<FieldRef>>;
 	sortByFields?: Nullable<Connection<{direction: string; field?: FieldRef}>>;
@@ -126,7 +127,7 @@ export const toViewState = (view: GraphqlProjectView): ProjectViewState => ({
 	name: view.name,
 	layout: view.layout,
 	filter: view.filter === undefined || view.filter === '' ? null : view.filter,
-	visibleFieldIds: fieldIds(view.fields),
+	visibleFieldIds: fieldIds(view.configuration?.visibleFields),
 	groupByFieldIds: fieldIds(view.groupByFields),
 	verticalGroupByFieldIds: fieldIds(view.verticalGroupByFields),
 	sortBy: presentNodes(view.sortByFields)

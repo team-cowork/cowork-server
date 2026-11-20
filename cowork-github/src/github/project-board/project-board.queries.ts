@@ -30,7 +30,7 @@ fragment ProjectFields on ProjectV2 {
 			name
 			layout
 			filter
-			fields(first: 50) { nodes { ${fieldCommon} } }
+			configuration { visibleFields(first: 50) { nodes { ${fieldCommon} } } }
 			groupByFields(first: 5) { nodes { ${fieldCommon} } }
 			verticalGroupByFields(first: 5) { nodes { ${fieldCommon} } }
 			sortByFields(first: 5) { nodes { direction field { ${fieldCommon} } } }
