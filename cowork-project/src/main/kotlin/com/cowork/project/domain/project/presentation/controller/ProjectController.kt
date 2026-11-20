@@ -136,11 +136,6 @@ class ProjectController(
                 Content(
                     mediaType = "application/json",
                     schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"503 SERVICE_UNAVAILABLE","code":503,"message":"일시적으로 처리할 수 없습니다."}""",
-                        ),
-                    ],
                 ),
             ],
         ),
@@ -182,11 +177,6 @@ class ProjectController(
                 Content(
                     mediaType = "application/json",
                     schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"503 SERVICE_UNAVAILABLE","code":503,"message":"일시적으로 처리할 수 없습니다."}""",
-                        ),
-                    ],
                 ),
             ],
         ),
@@ -222,11 +212,6 @@ class ProjectController(
                 Content(
                     mediaType = "application/json",
                     schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"503 SERVICE_UNAVAILABLE","code":503,"message":"일시적으로 처리할 수 없습니다."}""",
-                        ),
-                    ],
                 ),
             ],
         ),
@@ -300,11 +285,6 @@ class ProjectController(
                 Content(
                     mediaType = "application/json",
                     schema = Schema(implementation = CommonApiResponse::class),
-                    examples = [
-                        ExampleObject(
-                            value = """{"status":"503 SERVICE_UNAVAILABLE","code":503,"message":"일시적으로 처리할 수 없습니다."}""",
-                        ),
-                    ],
                 ),
             ],
         ),
