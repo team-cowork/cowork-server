@@ -23,7 +23,7 @@ import {
 	ApiExtraModels as apiExtraModels,
 	getSchemaPath,
 } from '@nestjs/swagger';
-import {ApiResponseMetadataDto} from '../common/dto/api-response-metadata.dto.js';
+import {ApiResponseMetadataDto, apiEnvelopeResponse} from '../common/dto/api-response-metadata.dto.js';
 import {
 	currentUserId,
 } from '../common/decorator/user.decorator.js';
@@ -71,11 +71,11 @@ import {EMOJI_REGEX} from './util/index.js';
 	MessageResponseDto,
 	DeleteMessageResponseDto,
 )
-@apiResponse({status: 400, description: '요청 값이 올바르지 않음', type: ApiResponseMetadataDto})
-@apiResponse({status: 503, description: '권한 정보 동기화 중', type: ApiResponseMetadataDto})
-@apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
+@apiEnvelopeResponse(400, '요청 값이 올바르지 않음')
+@apiEnvelopeResponse(503, '권한 정보 동기화 중')
+@apiEnvelopeResponse(401, '액세스 토큰이 없거나 유효하지 않음')
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
-@apiResponse({status: 429, description: '요청 한도 초과', type: ApiResponseMetadataDto})
+@apiEnvelopeResponse(429, '요청 한도 초과')
 @controller('channels/:channelId')
 export class ChatController {
 	constructor(
@@ -86,64 +86,10 @@ export class ChatController {
 	@httpGet('messages/:messageId/attachments/:attachmentIndex/download-url')
 	@responseHeader('Cache-Control', 'private, no-store')
 	@apiOperation({summary: '첨부파일 다운로드 URL 발급', description: 'URL은 60초 동안 유효합니다.'})
-	@apiResponse({
-		status: 200,
-		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {$ref: getSchemaPath(AttachmentDownloadResponseDto)},
-					},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '메시지 읽기 권한 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 404,
-		description: '메시지 또는 첨부파일 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['404 NOT_FOUND']}, code: {type: 'integer', enum: [404]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 503,
-		description: '권한 정보 동기화 중',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['503 SERVICE_UNAVAILABLE']}, code: {type: 'integer', enum: [503]}},
-				},
-			],
-		},
-	})
+	@apiEnvelopeResponse(200, '요청 처리 성공', AttachmentDownloadResponseDto)
+	@apiEnvelopeResponse(403, '메시지 읽기 권한 없음')
+	@apiEnvelopeResponse(404, '메시지 또는 첨부파일 없음')
+	@apiEnvelopeResponse(503, '권한 정보 동기화 중')
 	async getAttachmentDownloadUrl(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -160,40 +106,10 @@ export class ChatController {
 	@httpPost('files/presigned-url')
 	@httpCode(HttpStatus.CREATED)
 	@apiOperation({summary: '첨부파일 업로드 URL 발급'})
-	@apiResponse({
-		status: 201,
-		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['201 CREATED']},
-						code: {type: 'integer', enum: [201]},
-						message: {type: 'string', example: 'Created'},
-						data: {$ref: getSchemaPath(CreateFileUploadUrlResponseDto)},
-					},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '메시지 읽기 또는 file_attach 권한 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
-	@apiResponse({status: 413, description: '파일 크기 초과', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(201, '요청 처리 성공', CreateFileUploadUrlResponseDto)
+	@apiEnvelopeResponse(403, '메시지 읽기 또는 file_attach 권한 없음')
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
+	@apiEnvelopeResponse(413, '파일 크기 초과')
 	async createFileUploadUrl(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: CreateFileUploadUrlRequestDto,
@@ -209,77 +125,11 @@ export class ChatController {
 	@httpPost('files/confirm')
 	@httpCode(HttpStatus.OK)
 	@apiOperation({summary: '첨부파일 업로드 확인'})
-	@apiResponse({
-		status: 200,
-		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {$ref: getSchemaPath(ConfirmFileUploadResponseDto)},
-					},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 400,
-		description: '업로드 경로, 파일 크기 또는 형식 불일치',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '메시지 읽기 또는 file_attach 권한 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 409,
-		description: '파일 업로드 미완료/변경 또는 보관된 채널',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['409 CONFLICT']}, code: {type: 'integer', enum: [409]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 413,
-		description: '파일 크기 초과',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['413 CONTENT_TOO_LARGE']}, code: {type: 'integer', enum: [413]}},
-				},
-			],
-		},
-	})
+	@apiEnvelopeResponse(200, '요청 처리 성공', ConfirmFileUploadResponseDto)
+	@apiEnvelopeResponse(400, '업로드 경로, 파일 크기 또는 형식 불일치')
+	@apiEnvelopeResponse(403, '메시지 읽기 또는 file_attach 권한 없음')
+	@apiEnvelopeResponse(409, '파일 업로드 미완료/변경 또는 보관된 채널')
+	@apiEnvelopeResponse(413, '파일 크기 초과')
 	async confirmFileUpload(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: ConfirmFileUploadRequestDto,
@@ -296,51 +146,9 @@ export class ChatController {
 	@apiOperation({summary: 'FILE_SHARE 채널 파일 목록 조회'})
 	@apiQuery({name: 'before', required: false, description: '커서: 이전 응답의 nextCursor 값'})
 	@apiQuery({name: 'limit', required: false, description: '페이지 크기 (기본 20, 최대 100)'})
-	@apiResponse({
-		status: 200,
-		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {$ref: getSchemaPath(FileListResponseDto)},
-					},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 400,
-		description: 'FILE_SHARE 채널이 아님 또는 잘못된 커서/파라미터',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '채널 멤버 아님',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
+	@apiEnvelopeResponse(200, '요청 처리 성공', FileListResponseDto)
+	@apiEnvelopeResponse(400, 'FILE_SHARE 채널이 아님 또는 잘못된 커서/파라미터')
+	@apiEnvelopeResponse(403, '채널 멤버 아님')
 	async getFiles(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestQuery() query: FileListQueryDto,
@@ -364,53 +172,11 @@ export class ChatController {
 		message: '짧은 시간에 메시지 전송 요청이 너무 많습니다. 잠시 후 다시 시도하십시오.',
 	})
 	@apiOperation({summary: '메시지 전송 요청', description: 'queued가 true이면 요청을 접수한 상태입니다. 메시지는 비동기로 처리합니다.'})
-	@apiResponse({
-		status: 201,
-		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['201 CREATED']},
-						code: {type: 'integer', enum: [201]},
-						message: {type: 'string', example: 'Created'},
-						data: {$ref: getSchemaPath(SendMessageResponseDto)},
-					},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '메시지 읽기/작성 권한 없음, 답글의 thread_reply 또는 첨부의 file_attach 권한 없음, DM 수신자가 차단함',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 429,
-		description: '메시지 전송 요청이 너무 많음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['429 TOO_MANY_REQUESTS']}, code: {type: 'integer', enum: [429]}},
-				},
-			],
-		},
-	})
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
-	@apiResponse({status: 404, description: '채널 또는 답장 대상 메시지 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(201, '요청 처리 성공', SendMessageResponseDto)
+	@apiEnvelopeResponse(403, '메시지 읽기/작성 권한 없음, 답글의 thread_reply 또는 첨부의 file_attach 권한 없음, DM 수신자가 차단함')
+	@apiEnvelopeResponse(429, '메시지 전송 요청이 너무 많음')
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
+	@apiEnvelopeResponse(404, '채널 또는 답장 대상 메시지 없음')
 	async sendMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: SendMessageDto,
@@ -432,52 +198,10 @@ export class ChatController {
 		description: 'github.issue.create 명령을 지원합니다. 응답은 명령 접수만 확인합니다.',
 	})
 	@apiHeader({name: 'Idempotency-Key', required: false, description: '재시도 중복 방지 키, 최대 200자'})
-	@apiResponse({
-		status: 201,
-		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['201 CREATED']},
-						code: {type: 'integer', enum: [201]},
-						message: {type: 'string', example: 'Created'},
-						data: {$ref: getSchemaPath(SlashCommandResponseDto)},
-					},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 400,
-		description: '지원하지 않는 커맨드 또는 유효하지 않은 payload',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '메시지 읽기, slash_command_use 또는 github_issue_create 권한 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(201, '요청 처리 성공', SlashCommandResponseDto)
+	@apiEnvelopeResponse(400, '지원하지 않는 커맨드 또는 유효하지 않은 payload')
+	@apiEnvelopeResponse(403, '메시지 읽기, slash_command_use 또는 github_issue_create 권한 없음')
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	async createSlashCommand(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: SlashCommandDto,
@@ -492,32 +216,8 @@ export class ChatController {
 	@httpCode(HttpStatus.NO_CONTENT)
 	@apiOperation({summary: '채널 읽음 상태 변경'})
 	@apiResponse({status: 204, description: '요청 처리 성공 (응답 본문 없음)'})
-	@apiResponse({
-		status: 400,
-		description: '유효하지 않은 메시지 ID',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '채널 멤버 아님',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
+	@apiEnvelopeResponse(400, '유효하지 않은 메시지 ID')
+	@apiEnvelopeResponse(403, '채널 멤버 아님')
 	async readChannel(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestBody() dto: ReadChannelDto,
@@ -528,64 +228,10 @@ export class ChatController {
 
 	@httpGet('messages')
 	@apiOperation({summary: '채널 메시지 목록 조회'})
-	@apiResponse({
-		status: 200,
-		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {type: 'array', items: {$ref: getSchemaPath(MessageResponseDto)}},
-					},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 400,
-		description: '잘못된 조회 조건 또는 before, after, around 중 2개 이상 지정',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '채널 멤버 아님',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 404,
-		description: 'around 메시지가 채널에 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['404 NOT_FOUND']}, code: {type: 'integer', enum: [404]}},
-				},
-			],
-		},
-	})
+	@apiEnvelopeResponse(200, '요청 처리 성공', {type: 'array', items: {$ref: getSchemaPath(MessageResponseDto)}})
+	@apiEnvelopeResponse(400, '잘못된 조회 조건 또는 before, after, around 중 2개 이상 지정')
+	@apiEnvelopeResponse(403, '채널 멤버 아님')
+	@apiEnvelopeResponse(404, 'around 메시지가 채널에 없음')
 	async getMessages(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestQuery() query: GetMessagesDto,
@@ -601,65 +247,11 @@ export class ChatController {
      */
 	@httpPatch('messages/:messageId')
 	@apiOperation({summary: '메시지 수정'})
-	@apiResponse({
-		status: 200,
-		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {$ref: getSchemaPath(MessageResponseDto)},
-					},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 400,
-		description: '잘못된 메시지 ID',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '채널 멤버 아님 또는 본인 메시지 아님',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 404,
-		description: '메시지 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['404 NOT_FOUND']}, code: {type: 'integer', enum: [404]}},
-				},
-			],
-		},
-	})
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(200, '요청 처리 성공', MessageResponseDto)
+	@apiEnvelopeResponse(400, '잘못된 메시지 ID')
+	@apiEnvelopeResponse(403, '채널 멤버 아님 또는 본인 메시지 아님')
+	@apiEnvelopeResponse(404, '메시지 없음')
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	async editMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -679,65 +271,11 @@ export class ChatController {
      */
 	@httpDelete('files/:fileId')
 	@apiOperation({summary: '첨부파일 삭제', description: '파일이 포함된 메시지 전체를 삭제합니다.'})
-	@apiResponse({
-		status: 200,
-		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {$ref: getSchemaPath(DeleteMessageResponseDto)},
-					},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 400,
-		description: '유효하지 않은 fileId',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '채널 멤버 아님 또는 권한 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 404,
-		description: '파일(메시지)을 찾을 수 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['404 NOT_FOUND']}, code: {type: 'integer', enum: [404]}},
-				},
-			],
-		},
-	})
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(200, '요청 처리 성공', DeleteMessageResponseDto)
+	@apiEnvelopeResponse(400, '유효하지 않은 fileId')
+	@apiEnvelopeResponse(403, '채널 멤버 아님 또는 권한 없음')
+	@apiEnvelopeResponse(404, '파일(메시지)을 찾을 수 없음')
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	async deleteFile(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('fileId') fileId: string,
@@ -753,65 +291,11 @@ export class ChatController {
      */
 	@httpDelete('messages/:messageId')
 	@apiOperation({summary: '메시지 삭제'})
-	@apiResponse({
-		status: 200,
-		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {$ref: getSchemaPath(DeleteMessageResponseDto)},
-					},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 400,
-		description: '잘못된 메시지 ID',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '메시지 읽기 권한 없음 또는 타인 메시지의 message_manage 권한 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 404,
-		description: '메시지 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['404 NOT_FOUND']}, code: {type: 'integer', enum: [404]}},
-				},
-			],
-		},
-	})
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(200, '요청 처리 성공', DeleteMessageResponseDto)
+	@apiEnvelopeResponse(400, '잘못된 메시지 ID')
+	@apiEnvelopeResponse(403, '메시지 읽기 권한 없음 또는 타인 메시지의 message_manage 권한 없음')
+	@apiEnvelopeResponse(404, '메시지 없음')
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	async deleteMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -830,65 +314,11 @@ export class ChatController {
 	@httpPost('pins/:messageId')
 	@httpCode(HttpStatus.OK)
 	@apiOperation({summary: '메시지 고정'})
-	@apiResponse({
-		status: 200,
-		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {$ref: getSchemaPath(MessageResponseDto)},
-					},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 400,
-		description: '잘못된 메시지 ID 또는 이미 고정된 메시지',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '채널 멤버 아님 또는 권한 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 404,
-		description: '메시지 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['404 NOT_FOUND']}, code: {type: 'integer', enum: [404]}},
-				},
-			],
-		},
-	})
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(200, '요청 처리 성공', MessageResponseDto)
+	@apiEnvelopeResponse(400, '잘못된 메시지 ID 또는 이미 고정된 메시지')
+	@apiEnvelopeResponse(403, '채널 멤버 아님 또는 권한 없음')
+	@apiEnvelopeResponse(404, '메시지 없음')
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	async pinMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -908,46 +338,10 @@ export class ChatController {
 	@httpCode(HttpStatus.NO_CONTENT)
 	@apiOperation({summary: '메시지 고정 해제'})
 	@apiResponse({status: 204, description: '요청 처리 성공 (응답 본문 없음)'})
-	@apiResponse({
-		status: 400,
-		description: '잘못된 메시지 ID 또는 고정되지 않은 메시지',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '채널 멤버 아님 또는 권한 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 404,
-		description: '메시지 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['404 NOT_FOUND']}, code: {type: 'integer', enum: [404]}},
-				},
-			],
-		},
-	})
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(400, '잘못된 메시지 ID 또는 고정되지 않은 메시지')
+	@apiEnvelopeResponse(403, '채널 멤버 아님 또는 권한 없음')
+	@apiEnvelopeResponse(404, '메시지 없음')
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	async unpinMessage(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -968,46 +362,10 @@ export class ChatController {
 	@httpCode(HttpStatus.OK)
 	@apiOperation({summary: '메시지 이모지 반응 추가'})
 	@apiResponse({status: 200, description: '반응 변경 성공 (응답 본문 없음)'})
-	@apiResponse({
-		status: 400,
-		description: '잘못된 메시지 ID 또는 유효하지 않은 이모지',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '메시지 읽기 또는 reaction_add 권한 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 404,
-		description: '메시지 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['404 NOT_FOUND']}, code: {type: 'integer', enum: [404]}},
-				},
-			],
-		},
-	})
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(400, '잘못된 메시지 ID 또는 유효하지 않은 이모지')
+	@apiEnvelopeResponse(403, '메시지 읽기 또는 reaction_add 권한 없음')
+	@apiEnvelopeResponse(404, '메시지 없음')
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	async addReaction(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -1027,46 +385,10 @@ export class ChatController {
 	@httpCode(HttpStatus.OK)
 	@apiOperation({summary: '메시지 이모지 반응 제거'})
 	@apiResponse({status: 200, description: '반응 변경 성공 (응답 본문 없음)'})
-	@apiResponse({
-		status: 400,
-		description: '잘못된 메시지 ID 또는 유효하지 않은 이모지',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '채널 멤버 아님',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 404,
-		description: '메시지 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['404 NOT_FOUND']}, code: {type: 'integer', enum: [404]}},
-				},
-			],
-		},
-	})
-	@apiResponse({status: 409, description: '보관된 채널은 변경할 수 없음', type: ApiResponseMetadataDto})
+	@apiEnvelopeResponse(400, '잘못된 메시지 ID 또는 유효하지 않은 이모지')
+	@apiEnvelopeResponse(403, '채널 멤버 아님')
+	@apiEnvelopeResponse(404, '메시지 없음')
+	@apiEnvelopeResponse(409, '보관된 채널은 변경할 수 없음')
 	async removeReaction(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@requestParameter('messageId', ObjectIdPipe) messageId: string,
@@ -1085,38 +407,8 @@ export class ChatController {
      */
 	@httpGet('pins')
 	@apiOperation({summary: '채널 고정 메시지 목록 조회'})
-	@apiResponse({
-		status: 200,
-		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {type: 'array', items: {$ref: getSchemaPath(MessageResponseDto)}},
-					},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '채널 멤버 아님',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
+	@apiEnvelopeResponse(200, '요청 처리 성공', {type: 'array', items: {$ref: getSchemaPath(MessageResponseDto)}})
+	@apiEnvelopeResponse(403, '채널 멤버 아님')
 	async getPinnedMessages(
 		@requestParameter('channelId', SafePositiveIntPipe) channelId: number,
 		@currentUserId() userId: number,

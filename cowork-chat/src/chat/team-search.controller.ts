@@ -5,18 +5,17 @@ import {
 	ApiResponse as apiResponse,
 	ApiTags as apiTags,
 	ApiExtraModels as apiExtraModels,
-	getSchemaPath,
 } from '@nestjs/swagger';
-import {ApiResponseMetadataDto} from '../common/dto/api-response-metadata.dto.js';
+import {ApiResponseMetadataDto, apiEnvelopeResponse} from '../common/dto/api-response-metadata.dto.js';
 import {currentUserId} from '../common/decorator/user.decorator.js';
 import {ChatService} from './chat.service.js';
 import {SearchTeamMessagesDto, SearchMessagesResponseDto} from './dto/index.js';
 
 @apiTags('Search')
 @apiExtraModels(ApiResponseMetadataDto, SearchMessagesResponseDto)
-@apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
+@apiEnvelopeResponse(401, '액세스 토큰이 없거나 유효하지 않음')
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})
-@apiResponse({status: 429, description: '요청 한도 초과', type: ApiResponseMetadataDto})
+@apiEnvelopeResponse(429, '요청 한도 초과')
 @controller('search')
 export class TeamSearchController {
 	constructor(private readonly chatService: ChatService) {}
@@ -40,64 +39,10 @@ export class TeamSearchController {
 	})
 	@apiQuery({name: 'before', description: '커서: 이전 응답의 nextCursor 값', required: false})
 	@apiQuery({name: 'limit', description: '페이지 크기 (기본 50, 최대 100)', required: false})
-	@apiResponse({
-		status: 200,
-		description: '요청 처리 성공',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					required: ['data'],
-					properties: {
-						status: {type: 'string', enum: ['200 OK']},
-						code: {type: 'integer', enum: [200]},
-						message: {type: 'string', example: 'OK'},
-						data: {$ref: getSchemaPath(SearchMessagesResponseDto)},
-					},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 400,
-		description: '검색 조건 또는 커서 형식 오류',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['400 BAD_REQUEST']}, code: {type: 'integer', enum: [400]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 503,
-		description: '검색 색인 또는 권한 정보를 사용할 수 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['503 SERVICE_UNAVAILABLE']}, code: {type: 'integer', enum: [503]}},
-				},
-			],
-		},
-	})
-	@apiResponse({
-		status: 403,
-		description: '팀 멤버 아님 또는 채널 접근 권한 없음',
-		schema: {
-			allOf: [
-				{$ref: getSchemaPath(ApiResponseMetadataDto)},
-				{
-					type: 'object',
-					properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-				},
-			],
-		},
-	})
+	@apiEnvelopeResponse(200, '요청 처리 성공', SearchMessagesResponseDto)
+	@apiEnvelopeResponse(400, '검색 조건 또는 커서 형식 오류')
+	@apiEnvelopeResponse(503, '검색 색인 또는 권한 정보를 사용할 수 없음')
+	@apiEnvelopeResponse(403, '팀 멤버 아님 또는 채널 접근 권한 없음')
 	async searchTeamMessages(
 		@requestQuery() dto: SearchTeamMessagesDto,
 		@currentUserId() userId: number,
