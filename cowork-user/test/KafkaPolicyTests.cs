@@ -197,6 +197,22 @@ public class ContractTests
         Assert.Equal("0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11", IdentityCommandContract.CorrelationOperationId(Json(IdentityCommand)));
     }
 
+    [Fact]
+    public void Provider_command_uses_verified_account_subject_and_a_separate_student_identifier()
+    {
+        const string payload = """
+            {"schemaVersion":3,"commandType":"UPSERT","operationId":"0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11",
+             "idempotencyKey":"login:7","provider":"DATAGSM","providerSubject":"7","name":"Kim","email":"kim@example.org",
+             "student":{"sex":"MAN","role":"GENERAL_STUDENT","grade":2,"classNumber":1,"studentNumberInClass":5,
+             "major":null,"githubId":null,"dataGSMStudentId":42},"occurredAt":"2026-10-18T01:00:00.12Z"}
+            """;
+        var command = IdentityCommandContract.ParseProvider(Json(payload), "DATAGSM:7")!;
+        Assert.Equal("7", command.Subject);
+        Assert.Equal(42, command.DatagsmStudentId);
+        Assert.Null(IdentityCommandContract.ParseProvider(Json(payload), "DATAGSM:42"));
+        Assert.Null(IdentityCommandContract.ParseProvider(Json(payload.Replace("\"dataGSMStudentId\":42", "\"dataGSMStudentId\":null")), "DATAGSM:7"));
+    }
+
     const string StudentUpdated = """
         {"event_type":"student.updated","event_id":"e-1","event_index":0,"occurred_at":"2026-05-01T00:00:00Z",
          "email":"kim@gsm.hs.kr","name":"김코워크","sex":"MAN","student_role":"GENERAL_STUDENT","student_number":2105,

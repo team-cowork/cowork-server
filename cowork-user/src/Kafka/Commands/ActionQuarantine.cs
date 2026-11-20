@@ -9,7 +9,7 @@ public static class ActionQuarantine
     const string IdentityErrorCode = "INVALID_USER_IDENTITY_COMMAND";
     const string IdentityErrorMessage = "cowork-user rejected an invalid identity command";
 
-    public static async Task QuarantineAsync(string consumerGroup, KafkaRecord record, string reason, string? operationId = null, string? resultTopic = null)
+    public static async Task QuarantineAsync(string consumerGroup, KafkaRecord record, string reason, string? operationId = null, string? resultTopic = null, int resultVersion = 1)
     {
         try
         {
@@ -39,7 +39,7 @@ public static class ActionQuarantine
                 if (resolutions[0] is not null) return 0;
 
                 // The FAILED result is published once per quarantined record.
-                var payload = IdentityCommand.ResultPayload(operationId, "FAILED", null, IdentityErrorCode, IdentityErrorMessage);
+                var payload = IdentityCommand.ResultPayload(operationId, "FAILED", null, IdentityErrorCode, IdentityErrorMessage, resultVersion);
                 await IdentityCommand.EnqueueResultAsync(connection, transaction, resultTopic, operationId, payload);
                 var updated = await connection.ExecuteAsync("""
                     UPDATE tb_kafka_action_quarantine

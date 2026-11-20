@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -14,8 +15,7 @@ import (
 var ErrIdentityResultRejected = errors.New("identity command result permanently rejected")
 
 const (
-	UserIdentitySchemaVersion        = 1
-	UserIdentityCommandSchemaVersion = 2
+	UserIdentityCommandSchemaVersion = 3
 	UserIdentityCommandUpsert        = "UPSERT"
 	UserIdentityPending              = "PENDING"
 	UserIdentitySucceeded            = "SUCCEEDED"
@@ -29,23 +29,33 @@ const (
 // UserIdentityCommand is the durable owner command that replaces the former synchronous HTTP upsert.
 // Authorization submits it; cowork-user commits the owned account/profile state.
 type UserIdentityCommand struct {
-	SchemaVersion        int       `json:"schemaVersion"`
-	OperationID          string    `json:"operationId"`
-	IdempotencyKey       string    `json:"idempotencyKey"`
-	CommandType          string    `json:"commandType"`
-	UserID               int64     `json:"userId"`
-	Name                 string    `json:"name"`
-	Email                string    `json:"email"`
-	Sex                  string    `json:"sex"`
-	Grade                *int8     `json:"grade"`
-	ClassNumber          *int8     `json:"classNumber"`
-	StudentNumberInClass *int8     `json:"studentNumberInClass"`
-	Major                *string   `json:"major"`
-	Role                 string    `json:"role"`
-	GithubID             *string   `json:"githubId"`
-	DataGSMStudentID     *int64    `json:"dataGSMStudentId"`
-	RequestedBy          int64     `json:"requestedBy"`
-	OccurredAt           time.Time `json:"occurredAt"`
+	SchemaVersion   int              `json:"schemaVersion"`
+	OperationID     string           `json:"operationId"`
+	IdempotencyKey  string           `json:"idempotencyKey"`
+	CommandType     string           `json:"commandType"`
+	Provider        string           `json:"provider"`
+	ProviderSubject string           `json:"providerSubject"`
+	Name            string           `json:"name"`
+	Email           string           `json:"email"`
+	Student         *StudentIdentity `json:"student"`
+	OccurredAt      time.Time        `json:"occurredAt"`
+}
+
+type StudentIdentity struct {
+	Sex                  string  `json:"sex"`
+	Grade                *int8   `json:"grade"`
+	ClassNumber          *int8   `json:"classNumber"`
+	StudentNumberInClass *int8   `json:"studentNumberInClass"`
+	Major                *string `json:"major"`
+	Role                 string  `json:"role"`
+	GithubID             *string `json:"githubId"`
+	DataGSMStudentID     *int64  `json:"dataGSMStudentId"`
+}
+
+type SessionIdentity struct {
+	UserID  int64
+	Email   string
+	GsmRole string
 }
 
 type UserIdentityCommandError struct {
@@ -58,6 +68,8 @@ type UserIdentityCommandResult struct {
 	OperationID   string                    `json:"operationId"`
 	Status        string                    `json:"status"`
 	UserID        *int64                    `json:"userId,omitempty"`
+	Email         *string                   `json:"email,omitempty"`
+	GsmRole       *string                   `json:"gsmRole,omitempty"`
 	Error         *UserIdentityCommandError `json:"error,omitempty"`
 	OccurredAt    time.Time                 `json:"occurredAt"`
 }
@@ -65,7 +77,9 @@ type UserIdentityCommandResult struct {
 type UserIdentityOperation struct {
 	OperationID    string     `gorm:"column:operation_id;primaryKey"`
 	IdempotencyKey string     `gorm:"column:idempotency_key;not null"`
-	UserID         int64      `gorm:"column:user_id;not null"`
+	LegacyUserID   *int64     `gorm:"column:user_id"`
+	ResultEmail    *string    `gorm:"column:result_email"`
+	ResultGsmRole  *string    `gorm:"column:result_gsm_role"`
 	RequestHash    string     `gorm:"column:request_hash;not null"`
 	Status         string     `gorm:"column:status;not null"`
 	ResultUserID   *int64     `gorm:"column:result_user_id"`
@@ -100,7 +114,7 @@ func NewUUID() (string, error) {
 
 func ValidateUserIdentityCommand(command UserIdentityCommand) error {
 	if command.SchemaVersion != UserIdentityCommandSchemaVersion {
-		return fmt.Errorf("command schemaVersion must be 2")
+		return fmt.Errorf("command schemaVersion must be 3")
 	}
 	if !ValidUUID(command.OperationID) {
 		return fmt.Errorf("operationId must be a canonical UUID")
@@ -112,34 +126,18 @@ func ValidateUserIdentityCommand(command UserIdentityCommand) error {
 	if command.CommandType != UserIdentityCommandUpsert {
 		return fmt.Errorf("commandType must be UPSERT")
 	}
-	if command.UserID <= 0 || command.RequestedBy != command.UserID {
-		return fmt.Errorf("userId and requestedBy must be the same positive value")
+	if !validText(command.Name, 50) || !validText(command.Email, 255) {
+		return errors.New("invalid account profile")
 	}
-	for _, field := range []struct {
-		name  string
-		value string
-		max   int
-	}{
-		{name: "name", value: command.Name, max: 50},
-		{name: "email", value: command.Email, max: 255},
-		{name: "sex", value: command.Sex, max: 10},
-		{name: "role", value: command.Role, max: 50},
-	} {
-		if strings.TrimSpace(field.value) == "" {
-			return fmt.Errorf("%s must not be blank", field.name)
-		}
-		if utf8.RuneCountInString(field.value) > field.max {
-			return fmt.Errorf("%s exceeds %d characters", field.name, field.max)
-		}
+	if command.Provider != "DATAGSM" {
+		return errors.New("unsupported identity provider")
 	}
-	if command.Major != nil && utf8.RuneCountInString(*command.Major) > 50 {
-		return fmt.Errorf("major exceeds 50 characters")
-	}
-	if command.GithubID != nil && utf8.RuneCountInString(*command.GithubID) > 100 {
-		return fmt.Errorf("githubId exceeds 100 characters")
-	}
-	if command.DataGSMStudentID != nil && *command.DataGSMStudentID <= 0 {
-		return fmt.Errorf("dataGSMStudentId must be positive")
+	id, err := strconv.ParseInt(command.ProviderSubject, 10, 64)
+	st := command.Student
+	if err != nil || id <= 0 || strconv.FormatInt(id, 10) != command.ProviderSubject || st == nil ||
+		st.DataGSMStudentID == nil || *st.DataGSMStudentID <= 0 || !validText(st.Sex, 10) || !validText(st.Role, 50) ||
+		(st.Major != nil && utf8.RuneCountInString(*st.Major) > 50) || (st.GithubID != nil && utf8.RuneCountInString(*st.GithubID) > 100) {
+		return errors.New("invalid DataGSM identity")
 	}
 	if command.OccurredAt.IsZero() {
 		return fmt.Errorf("occurredAt must not be zero")
@@ -147,15 +145,27 @@ func ValidateUserIdentityCommand(command UserIdentityCommand) error {
 	return nil
 }
 
+func validText(value string, max int) bool {
+	return strings.TrimSpace(value) != "" && utf8.RuneCountInString(value) <= max
+}
+
 func ValidateUserIdentityCommandResult(result UserIdentityCommandResult) error {
-	if result.SchemaVersion != UserIdentitySchemaVersion {
-		return fmt.Errorf("schemaVersion must be 1")
+	if result.SchemaVersion != 1 && result.SchemaVersion != 2 {
+		return fmt.Errorf("unsupported result schemaVersion")
 	}
 	if !ValidUUID(result.OperationID) {
 		return fmt.Errorf("operationId must be a canonical UUID")
 	}
 	if result.OccurredAt.IsZero() {
 		return fmt.Errorf("occurredAt must not be zero")
+	}
+	needsClaims := result.SchemaVersion == 2 && result.Status == UserIdentitySucceeded
+	if needsClaims {
+		if result.Email == nil || !validText(*result.Email, 255) || result.GsmRole == nil || utf8.RuneCountInString(*result.GsmRole) > 50 {
+			return errors.New("missing or invalid committed session claims")
+		}
+	} else if result.Email != nil || result.GsmRole != nil {
+		return errors.New("unexpected session claims")
 	}
 	switch result.Status {
 	case UserIdentitySucceeded:

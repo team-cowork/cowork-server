@@ -457,75 +457,73 @@ public static partial class Accounts
         await ObjectStorage.DeleteObjectAsync(profile.ImageKey);
     }
 
-    /// <summary>
-    /// Applies an authorization login command to the account and profile inside the caller's
-    /// transaction. Returns false when a unique constraint rejects the identity.
-    /// </summary>
-    public static async Task<bool> ApplyIdentityCommandAsync(MySqlConnection connection, MySqlTransaction transaction, IdentityCommandContract.Command command)
+    public sealed record SessionIdentity(long UserId, string Email, string GsmRole);
+
+    public static async Task<SessionIdentity?> ApplyIdentityCommandAsync(MySqlConnection connection, MySqlTransaction transaction, IdentityCommandContract.Command command)
     {
-        var (accountId, identityOwner) = await connection.QuerySingleAsync<(long?, long?)>("""
-            SELECT (SELECT id FROM tb_accounts WHERE id = @UserId FOR UPDATE),
-                   (SELECT account_id FROM tb_account_identities
-                    WHERE provider = 'DATAGSM' AND provider_subject = @subject FOR UPDATE)
-            """, new { command.UserId, subject = command.UserId.ToString(CultureInfo.InvariantCulture) }, transaction);
-        if (!CanApplyDataGsmIdentity(accountId, identityOwner)) return false;
-
-        var parameters = new
+        var id = await connection.QuerySingleOrDefaultAsync<long?>("""
+            SELECT account_id FROM tb_account_identities WHERE provider = @Provider AND provider_subject = @Subject FOR UPDATE
+            """, new { command.Provider, command.Subject }, transaction);
+        if (!command.IsProviderCommand)
         {
-            command.UserId,
-            command.Name,
-            command.Email,
-            command.Sex,
-            github = NullIfBlank(command.GithubId),
-            command.Role,
-            studentNumber = StudentNumber(command.Grade, command.ClassNumber, command.StudentNumberInClass),
-            command.DatagsmStudentId,
-            command.Major,
-            command.RequestedBy,
-        };
+            var requested = await connection.QuerySingleOrDefaultAsync<long?>(
+                "SELECT id FROM tb_accounts WHERE id = @UserId FOR UPDATE", new { command.UserId }, transaction);
+            if (!CanApplyDataGsmIdentity(requested, id)) return null;
+        }
 
+        // Keep the inbox's FAILED result, but roll back every account mutation on a unique-key collision.
+        await transaction.SaveAsync("identity_write");
         try
         {
-            if (accountId is null)
+            var isNew = id is null;
+            if (isNew)
             {
+                id = await connection.ExecuteScalarAsync<long>("""
+                    INSERT INTO tb_accounts (id, name, email, github, presence_updated_at)
+                    VALUES (@requested, @Name, @Email, @github, '1970-01-01 00:00:00');
+                    SELECT COALESCE(@requested, LAST_INSERT_ID());
+                    """, new { requested = command.IsProviderCommand ? (long?)null : command.UserId,
+                        command.Name, command.Email, github = NullIfBlank(command.GithubId) }, transaction);
                 await connection.ExecuteAsync("""
-                    INSERT INTO tb_accounts
-                        (id, name, email, sex, github, student_role, student_number, datagsm_student_id, major,
-                         status, presence_updated_at, created_by, last_modified_by, created_at, updated_at)
-                    VALUES (@UserId, @Name, @Email, @Sex, @github, @Role, @studentNumber, @DatagsmStudentId, @Major,
-                            'offline', '1970-01-01 00:00:00.000000', @RequestedBy, @RequestedBy, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))
-                    """, parameters, transaction);
+                    INSERT INTO tb_account_identities (account_id, provider, provider_subject) VALUES (@id, @Provider, @Subject);
+                    INSERT INTO tb_profiles (account_id) VALUES (@id);
+                    UPDATE tb_accounts SET created_by = @id, last_modified_by = @id WHERE id = @id;
+                    """, new { id, command.Provider, command.Subject }, transaction);
             }
-            else
+
+            if (command.Provider == "DATAGSM")
             {
-                await connection.ExecuteAsync("""
-                    UPDATE tb_accounts
-                    SET name = @Name, email = @Email, sex = @Sex, github = @github, student_role = @Role,
-                        student_number = @studentNumber, datagsm_student_id = @DatagsmStudentId, major = @Major,
-                        last_modified_by = @RequestedBy, updated_at = UTC_TIMESTAMP(6)
-                    WHERE id = @UserId
-                    """, parameters, transaction);
+                var parameters = new { id, command.Name, command.Email, github = NullIfBlank(command.GithubId),
+                    command.DatagsmStudentId, command.Sex, command.Role, command.Major,
+                    studentNumber = StudentNumber(command.Grade, command.ClassNumber, command.StudentNumberInClass) };
+                if (isNew)
+                    await connection.ExecuteAsync("""
+                        INSERT INTO tb_gsm_student_info (account_id, datagsm_student_id, sex, student_role, major, student_number)
+                        VALUES (@id, @DatagsmStudentId, @Sex, @Role, @Major, @studentNumber)
+                        """, parameters, transaction);
+                else
+                    await connection.ExecuteAsync("""
+                        UPDATE tb_accounts a JOIN tb_gsm_student_info s ON s.account_id = a.id
+                        SET a.name = @Name, a.email = @Email, a.github = @github, a.last_modified_by = @id, a.updated_at = UTC_TIMESTAMP(6),
+                            s.sex = @Sex, s.student_role = @Role, s.student_number = @studentNumber,
+                            s.datagsm_student_id = COALESCE(@DatagsmStudentId, s.datagsm_student_id), s.major = @Major
+                        WHERE a.id = @id
+                        """, parameters, transaction);
             }
+
+            var userId = id!.Value;
+            await PresenceProjection.ApplyLatestToAccountAsync(connection, transaction, userId);
+            await ProfileEventPublisher.EnqueueCurrentUpsertAsync(connection, transaction, userId);
+            return await connection.QuerySingleAsync<SessionIdentity>("""
+                SELECT a.id AS UserId, a.email AS Email, COALESCE(s.student_role, '') AS GsmRole
+                FROM tb_accounts a LEFT JOIN tb_gsm_student_info s ON s.account_id = a.id WHERE a.id = @userId
+                """, new { userId }, transaction);
         }
         catch (MySqlException error) when (error.ErrorCode == MySqlErrorCode.DuplicateKeyEntry)
         {
-            return false;
+            await transaction.RollbackAsync("identity_write");
+            return null;
         }
-
-        await connection.ExecuteAsync("CALL sync_legacy_datagsm_accounts(@userId)", new { command.UserId }, transaction);
-
-        var profileId = await connection.QuerySingleOrDefaultAsync<long?>(
-            "SELECT id FROM tb_profiles WHERE account_id = @UserId FOR UPDATE", new { command.UserId }, transaction);
-        if (profileId is null)
-        {
-            await connection.ExecuteAsync(
-                "INSERT INTO tb_profiles (account_id, created_at, updated_at) VALUES (@UserId, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))",
-                new { command.UserId }, transaction);
-        }
-
-        await PresenceProjection.ApplyLatestToAccountAsync(connection, transaction, command.UserId);
-        await ProfileEventPublisher.EnqueueCurrentUpsertAsync(connection, transaction, command.UserId);
-        return true;
     }
 
     // V2 commands use the provider number as the Cowork ID. An occupied ID
@@ -571,11 +569,11 @@ public static partial class Accounts
             try
             {
                 await connection.ExecuteAsync("""
-                    UPDATE tb_accounts
-                    SET name = @name, email = @email, sex = @sex, github = @github, student_role = @studentRole,
-                        student_number = @studentNumber, major = @major, specialty = @specialty,
-                        datagsm_updated_at = @occurredAt, updated_at = UTC_TIMESTAMP(6)
-                    WHERE id = @id
+                    UPDATE tb_accounts a JOIN tb_gsm_student_info s ON s.account_id = a.id
+                    SET a.name = @name, a.email = @email, s.sex = @sex, a.github = @github, s.student_role = @studentRole,
+                        s.student_number = @studentNumber, s.major = @major, s.specialty = @specialty,
+                        s.datagsm_updated_at = @occurredAt, a.updated_at = UTC_TIMESTAMP(6)
+                    WHERE a.id = @id
                     """, new
                 {
                     name = Field("name"),
@@ -597,7 +595,6 @@ public static partial class Accounts
                 throw errors;
             }
 
-            await connection.ExecuteAsync("CALL sync_legacy_datagsm_accounts(@id)", new { account.Value.Id }, transaction);
             await ProfileEventPublisher.EnqueueCurrentUpsertAsync(connection, transaction, account.Value.Id);
             return StudentEventResult.Updated;
         });

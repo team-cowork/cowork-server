@@ -369,8 +369,11 @@ func TestStudentLoginAllowsNullableProfile(t *testing.T) {
 			svc := NewAuthService(cfg, identity, store, NewTokenService(cfg), nil)
 			pair, err := svc.issueUserSession(context.Background(), info)
 			if tc.valid {
-				if err != nil || pair == nil || identity.command.Major != nil || identity.command.Grade != nil || identity.command.SchemaVersion != domain.UserIdentityCommandSchemaVersion {
+				if err != nil || pair == nil || identity.command.Student.Major != nil || identity.command.Student.Grade != nil || identity.command.SchemaVersion != domain.UserIdentityCommandSchemaVersion {
 					t.Fatalf("pair=%+v err=%v command=%+v", pair, err, identity.command)
+				}
+				if store.createdToken.UserID != 99 || store.createdToken.Email != "committed@example.com" || store.createdToken.GsmRole != "GENERAL_STUDENT" {
+					t.Fatal("session did not use the committed account claims")
 				}
 			} else if err == nil || identity.calls != 0 || store.createdToken != nil {
 				t.Fatal("ineligible user received a session")

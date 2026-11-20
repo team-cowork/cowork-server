@@ -94,7 +94,7 @@ func main() {
 	tokenSvc := service.NewTokenService(cfg)
 	identityCoordinator := service.NewUserIdentityCoordinator(
 		identityOperationRepo,
-		cfg.KafkaTopicUserIdentityCommand,
+		config.ProviderCommandTopic,
 		cfg.KafkaIdentityCommandTimeout,
 	)
 	loginAttempts := redisinfra.NewLoginAttemptStore(net.JoinHostPort(cfg.RedisHost, cfg.RedisPort))
@@ -111,12 +111,15 @@ func main() {
 		cfg.KafkaTopicUserPresence,
 		kafkaProducer,
 	)
+	providerResults := kafkainfra.NewIdentityResultConsumer(cfg.KafkaSecurity, cfg.KafkaBootstrapServers,
+		config.ProviderResultTopic, config.ProviderResultGroup, config.ProviderResultTopic+"-dlt", 2, identityOperationRepo, kafkaProducer)
 	identityResultConsumer := kafkainfra.NewIdentityResultConsumer(
 		cfg.KafkaSecurity,
 		cfg.KafkaBootstrapServers,
 		cfg.KafkaTopicUserIdentityCommandResult,
 		cfg.KafkaGroupIDUserIdentityResult,
 		cfg.KafkaTopicUserIdentityResultDLT,
+		1,
 		identityOperationRepo,
 		kafkaProducer,
 	)
@@ -131,6 +134,8 @@ func main() {
 		defer close(snapshotBarrierDone)
 		snapshotBarrierPublisher.Run(outboxCtx)
 	}()
+	providerResultDone := make(chan struct{})
+	go func() { defer close(providerResultDone); providerResults.Run(outboxCtx) }()
 	identityResultDone := make(chan struct{})
 	go func() {
 		defer close(identityResultDone)
@@ -252,6 +257,10 @@ func main() {
 	case <-time.After(5 * time.Second):
 		log.Println("authorization identity result consumer did not stop within 5 seconds")
 	}
+	if err := providerResults.Close(); err != nil {
+		log.Printf("failed to close provider result reader: %v", err)
+	}
+	<-providerResultDone
 	if err := kafkaProducer.Close(); err != nil {
 		log.Printf("failed to close Kafka producer: %v", err)
 	}

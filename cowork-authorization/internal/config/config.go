@@ -12,6 +12,9 @@ import (
 )
 
 const (
+	ProviderCommandTopic          = "user.identity.command.v3"
+	ProviderResultTopic           = "user.identity.result.v2"
+	ProviderResultGroup           = "cowork-authorization.user-identity-result.v2"
 	defaultJWTAccessExpire        = "30m"
 	defaultJWTRefreshExpire       = "2160h"
 	defaultIdentityCommandTimeout = "5s"
@@ -33,7 +36,6 @@ type AppConfig struct {
 
 	KafkaBootstrapServers               string
 	KafkaTopicUserSync                  string
-	KafkaTopicUserIdentityCommand       string
 	KafkaTopicUserIdentityCommandResult string
 	KafkaTopicUserIdentityResultDLT     string
 	KafkaGroupIDUserIdentityResult      string
@@ -73,7 +75,6 @@ func Load() (*AppConfig, error) {
 		RedisPort:                           os.Getenv("REDIS_PORT"),
 		KafkaBootstrapServers:               os.Getenv("KAFKA_BOOTSTRAP_SERVERS"),
 		KafkaTopicUserSync:                  getEnvOrDefault("KAFKA_TOPIC_USER_SYNC", "user.data.sync"),
-		KafkaTopicUserIdentityCommand:       getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND", "user.identity.command.v2"),
 		KafkaTopicUserIdentityCommandResult: getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT", "user.identity.command-result"),
 		KafkaTopicUserIdentityResultDLT:     getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT_DLT", "user.identity.command-result-dlt"),
 		KafkaGroupIDUserIdentityResult:      getEnvOrDefault("KAFKA_GROUP_ID_USER_IDENTITY_COMMAND_RESULT", "cowork-authorization.user-identity-command-result"),

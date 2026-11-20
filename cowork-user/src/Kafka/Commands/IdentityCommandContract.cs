@@ -18,8 +18,12 @@ public static class IdentityCommandContract
     public sealed record Command(
         string OperationId, string IdempotencyKey, long UserId, string Name, string Email, string Sex,
         long? Grade, long? ClassNumber, long? StudentNumberInClass, string? Major, string Role, string? GithubId,
-        long? DatagsmStudentId, long RequestedBy, DateTime OccurredAt, int OccurredAtPrecision
-        );
+        long? DatagsmStudentId, long RequestedBy, DateTime OccurredAt, int OccurredAtPrecision, string Provider = "DATAGSM", string? ProviderSubject = null
+        )
+    {
+        public bool IsProviderCommand => ProviderSubject is not null;
+        public string Subject => ProviderSubject ?? UserId.ToString(CultureInfo.InvariantCulture);
+    }
 
     /// <summary>The only command schema version accepted from the identity command topic.</summary>
     public const int CommandSchemaVersion = 2;
@@ -55,6 +59,41 @@ public static class IdentityCommandContract
             payload.Get("grade").Integer(), payload.Get("classNumber").Integer(), payload.Get("studentNumberInClass").Integer(),
             payload.GetString("major"), payload.GetString("role")!, payload.GetString("githubId"),
             payload.Get("dataGSMStudentId").Integer(), userId.Value, occurredAt, precision);
+    }
+
+    static readonly HashSet<string> ProviderKeys =
+        ["schemaVersion", "commandType", "operationId", "idempotencyKey", "provider", "providerSubject", "name", "email", "student", "occurredAt"];
+    static readonly HashSet<string> StudentKeys =
+        ["sex", "role", "grade", "classNumber", "studentNumberInClass", "major", "githubId", "dataGSMStudentId"];
+
+    public static Command? ParseProvider(JsonElement payload, string? key)
+    {
+        var provider = payload.GetString("provider");
+        var subject = payload.GetString("providerSubject");
+        var operation = CorrelationOperationId(payload);
+        if (!ContractFields.ExactKeys(payload, ProviderKeys) || payload.Get("schemaVersion").Integer() != 3
+            || payload.GetString("commandType") != "UPSERT" || operation is null
+            || !ContractFields.RequiredString(payload.Get("idempotencyKey"), MaxIdempotencyKeyLength)
+            || !ContractFields.RequiredString(payload.Get("name"), 50) || !ContractFields.RequiredString(payload.Get("email"), 255)
+            || subject is null || key != provider + ":" + subject
+            || !Iso8601.TryParse(payload.GetString("occurredAt"), out var at, out var precision)) return null;
+
+        var command = new Command(operation, payload.GetString("idempotencyKey")!, 0, payload.GetString("name")!,
+            payload.GetString("email")!, "", null, null, null, null, "", null, null, 0, at, precision, provider!, subject);
+        if (provider != "DATAGSM" || !long.TryParse(subject, NumberStyles.None, CultureInfo.InvariantCulture, out var number)
+            || number <= 0 || subject != number.ToString(CultureInfo.InvariantCulture)
+            || payload.Get("student") is not { ValueKind: JsonValueKind.Object } student
+            || !ContractFields.ExactKeys(student, StudentKeys) || student.Get("dataGSMStudentId").Integer() is not > 0
+            || !ContractFields.RequiredString(student.Get("sex"), 10) || !ContractFields.RequiredString(student.Get("role"), 50)
+            || !ContractFields.OptionalInteger(student.Get("grade")) || !ContractFields.OptionalInteger(student.Get("classNumber"))
+            || !ContractFields.OptionalInteger(student.Get("studentNumberInClass")) || !ContractFields.OptionalString(student.Get("major"), 50)
+            || !ContractFields.OptionalString(student.Get("githubId"), 100)) return null;
+        return command with
+        {
+            Sex = student.GetString("sex")!, Role = student.GetString("role")!, Grade = student.Get("grade").Integer(),
+            ClassNumber = student.Get("classNumber").Integer(), StudentNumberInClass = student.Get("studentNumberInClass").Integer(),
+            Major = student.GetString("major"), GithubId = student.GetString("githubId"), DatagsmStudentId = student.Get("dataGSMStudentId").Integer()
+        };
     }
 
     /// <summary>A canonical lowercase UUID operationId usable for result correlation.</summary>

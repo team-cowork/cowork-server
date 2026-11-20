@@ -84,10 +84,10 @@ type fakeIdentityCoordinator struct {
 func (f *fakeIdentityCoordinator) EnsureUser(
 	_ context.Context,
 	command domain.UserIdentityCommand,
-) (int64, error) {
+) (*domain.SessionIdentity, error) {
 	f.calls++
 	f.command = command
-	return f.userID, f.err
+	return &domain.SessionIdentity{UserID: f.userID, Email: "committed@example.com", GsmRole: "GENERAL_STUDENT"}, f.err
 }
 
 func newUnitAuthService(store RefreshTokenStore, now time.Time) *AuthService {
@@ -144,10 +144,7 @@ func TestCommitIdentityAndIssueSession_WhenIdentityIsRejected_DoesNotIssueTokens
 
 	pair, err := service.commitIdentityAndIssueSession(
 		context.Background(),
-		domain.UserIdentityCommand{UserID: 7},
-		"user@example.com",
-		"STUDENT",
-		"",
+		domain.UserIdentityCommand{},
 	)
 	if err == nil || pair != nil {
 		t.Fatalf("commitIdentityAndIssueSession() = %+v, %v; want failure", pair, err)
