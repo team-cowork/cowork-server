@@ -48,7 +48,7 @@ import team.themoment.sdk.response.CommonApiResponse
     ),
     ApiResponse(
         responseCode = "503",
-        description = "GitHub 데이터 동기화가 완료되지 않았거나, 프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않았습니다. 잠시 후 다시 시도할 수 있습니다.",
+        description = "GitHub 데이터 동기화가 완료되지 않았거나, 프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않았습니다.",
         content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
     ),
     ApiResponse(

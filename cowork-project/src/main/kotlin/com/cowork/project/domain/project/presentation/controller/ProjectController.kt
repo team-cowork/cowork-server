@@ -190,7 +190,7 @@ class ProjectController(
         ),
         ApiResponse(
             responseCode = "503",
-            description = "프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음. 잠시 후 다시 시도할 수 있습니다.",
+            description = "프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음.",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -260,7 +260,7 @@ class ProjectController(
         ),
         ApiResponse(
             responseCode = "503",
-            description = "프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음. 잠시 후 다시 시도할 수 있습니다.",
+            description = "프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음.",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -316,7 +316,7 @@ class ProjectController(
         ),
         ApiResponse(
             responseCode = "503",
-            description = "프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음. 잠시 후 다시 시도할 수 있습니다.",
+            description = "프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음.",
             content = [
                 Content(
                     mediaType = "application/json",
@@ -426,7 +426,7 @@ class ProjectController(
         ),
         ApiResponse(
             responseCode = "503",
-            description = "프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음. 잠시 후 다시 시도할 수 있습니다.",
+            description = "프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음.",
             content = [
                 Content(
                     mediaType = "application/json",
