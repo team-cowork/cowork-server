@@ -170,10 +170,6 @@ func (p *Projection) requireProjectedConnect(ctx context.Context, channelID, use
 		MaxParticipants: setting.MaxParticipants, Bitrate: setting.Bitrate,
 	}, nil
 }
-func canConnect(ch State, userID int64, states []State) bool {
-	return permissionsFor(ch, userID, states)["voice_connect"]
-}
-
 func permissionsFor(ch State, userID int64, states []State) map[string]bool {
 	var member *State
 	var fence int64

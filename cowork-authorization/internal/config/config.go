@@ -85,18 +85,11 @@ func Load() (*AppConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg.DBDSN, err = mysqlDSN("")
+	cfg.DBDSN, err = mysqlDSN()
 	if err != nil {
 		return nil, err
 	}
-	if cfg.DBDSN != "" {
-		cfg.DBDSN, err = normalizeMySQLDSNUTC(cfg.DBDSN)
-		if err != nil {
-			return nil, err
-		}
-	}
 	for name, value := range map[string]string{
-		"DB_DSN":                  cfg.DBDSN,
 		"JWT_SECRET":              cfg.JWTSecret,
 		"DATAGSM_CLIENT_ID":       cfg.DataGSMClientID,
 		"DATAGSM_WEBHOOK_SECRET":  cfg.DataGSMWebhookSecret,
@@ -143,38 +136,11 @@ func getEnvOrDefault(key, fallback string) string {
 	return fallback
 }
 
-// normalizeMySQLDSNUTC makes DATETIME(6) session and presence versions
-// deterministic on both developer hosts and production containers. loc controls
-// go-sql-driver encoding/scanning while time_zone controls MySQL defaults and
-// comparisons such as CURRENT_TIMESTAMP.
-func normalizeMySQLDSNUTC(dsn string) (string, error) {
-	cfg, err := mysqlDriver.ParseDSN(dsn)
-	if err != nil {
-		return "", fmt.Errorf("invalid DB_DSN: %w", err)
-	}
-	cfg.ParseTime = true
-	cfg.Loc = time.UTC
-	if cfg.Params == nil {
-		cfg.Params = make(map[string]string)
-	}
-	cfg.Params["time_zone"] = "'+00:00'"
-	return cfg.FormatDSN(), nil
-}
-
-// Individual database inputs define one connection and take precedence over a stored DSN.
-func mysqlDSN(fallback string) (string, error) {
-	keys := []string{"DB_HOST", "DB_PORT", "DB_NAME", "DB_USERNAME", "DB_PASSWORD"}
-	configured := false
-	for _, key := range keys {
-		if _, present := os.LookupEnv(key); present {
-			configured = true
-			break
-		}
-	}
-	if !configured {
-		return getEnvOrDefault("DB_DSN", fallback), nil
-	}
-	for _, key := range keys {
+// mysqlDSN uses UTC so DATETIME(6) session and presence versions are deterministic on
+// developer hosts and production containers. loc controls go-sql-driver encoding/scanning
+// while time_zone controls MySQL defaults and comparisons such as CURRENT_TIMESTAMP.
+func mysqlDSN() (string, error) {
+	for _, key := range []string{"DB_HOST", "DB_PORT", "DB_NAME", "DB_USERNAME", "DB_PASSWORD"} {
 		if os.Getenv(key) == "" {
 			return "", fmt.Errorf("required configuration %q is not set", key)
 		}
@@ -186,7 +152,10 @@ func mysqlDSN(fallback string) (string, error) {
 	cfg.Addr = net.JoinHostPort(os.Getenv("DB_HOST"), os.Getenv("DB_PORT"))
 	cfg.DBName = os.Getenv("DB_NAME")
 	cfg.ParseTime = true
-	cfg.Loc = time.Local
-	cfg.Params = map[string]string{"charset": "utf8mb4"}
+	cfg.Loc = time.UTC
+	cfg.Params = map[string]string{"time_zone": "'+00:00'"}
+	if err := cfg.Apply(mysqlDriver.Charset("utf8mb4", "")); err != nil {
+		return "", err
+	}
 	return cfg.FormatDSN(), nil
 }

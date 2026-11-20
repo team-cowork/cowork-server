@@ -48,8 +48,8 @@ func TestVoiceConnectPermission(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := canConnect(ch, 217, test.states); got != test.want {
-				t.Fatalf("canConnect = %t, want %t", got, test.want)
+			if got := permissionsFor(ch, 217, test.states)["voice_connect"]; got != test.want {
+				t.Fatalf("voice_connect = %t, want %t", got, test.want)
 			}
 		})
 	}
@@ -59,8 +59,8 @@ func TestVoiceConnectPermission(t *testing.T) {
 				{Kind: "assignment", TeamID: 3, UserID: 217, RoleID: 20, Version: 2},
 				{Kind: "role", TeamID: 3, RoleID: 20, Priority: priority, Permissions: map[string]bool{"voice_connect": false}},
 			}
-			if got := canConnect(ch, 217, states); got != true {
-				t.Errorf("deny priority %d: canConnect = %t", priority, got)
+			if got := permissionsFor(ch, 217, states)["voice_connect"]; got != true {
+				t.Errorf("deny priority %d: voice_connect = %t", priority, got)
 			}
 		}
 	})
@@ -74,20 +74,20 @@ func TestPrivateVoiceConnectPermission(t *testing.T) {
 		{Kind: "assignment", TeamID: 3, UserID: 217, RoleID: 10, Version: 2},
 		{Kind: "role", TeamID: 3, RoleID: 10, Priority: 10, Permissions: map[string]bool{"voice_connect": true}},
 	}
-	if canConnect(ch, 217, states) {
+	if permissionsFor(ch, 217, states)["voice_connect"] {
 		t.Fatal("private channel inherited a team role permission")
 	}
 	ch.IsPrivate = nil
-	if canConnect(ch, 217, states) {
+	if permissionsFor(ch, 217, states)["voice_connect"] {
 		t.Fatal("unknown visibility inherited a team role permission")
 	}
 	ch.IsPrivate = &private
 	states = append(states, State{Kind: "policy", TeamID: 3, ChannelID: 12, RoleID: 10, Permissions: map[string]bool{"voice_connect": true}})
-	if canConnect(ch, 217, states) {
+	if permissionsFor(ch, 217, states)["voice_connect"] {
 		t.Fatal("another channel's permission granted access")
 	}
 	states = append(states, State{Kind: "policy", TeamID: 3, ChannelID: 11, RoleID: 10, Permissions: map[string]bool{"voice_connect": true}})
-	if !canConnect(ch, 217, states) {
+	if !permissionsFor(ch, 217, states)["voice_connect"] {
 		t.Fatal("explicit voice_connect permission did not grant access")
 	}
 }
@@ -117,16 +117,16 @@ func TestDefaultRoleAndChannelOverwrites(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := canConnect(ch, 217, tt.states); got != tt.want {
-				t.Fatalf("canConnect=%v, want %v", got, tt.want)
+			if got := permissionsFor(ch, 217, tt.states)["voice_connect"]; got != tt.want {
+				t.Fatalf("voice_connect=%v, want %v", got, tt.want)
 			}
 		})
 	}
 	ch.IsPrivate = &private
-	if canConnect(ch, 217, []State{member, everyone}) {
+	if permissionsFor(ch, 217, []State{member, everyone})["voice_connect"] {
 		t.Fatal("default role exposed private channel")
 	}
-	if !canConnect(ch, 217, []State{member, everyone, custom, assignment, allowCustom}) {
+	if !permissionsFor(ch, 217, []State{member, everyone, custom, assignment, allowCustom})["voice_connect"] {
 		t.Fatal("explicit private access denied")
 	}
 }
