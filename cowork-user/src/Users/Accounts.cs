@@ -463,8 +463,8 @@ public static partial class Accounts
     {
         var binding = await connection.QueryAsync<(long Id, DateTime? LastCommandAt)>("""
             SELECT account_id, last_login_command_at FROM tb_account_identities
-            WHERE provider = @Provider AND provider_subject = @Subject FOR UPDATE
-            """, new { command.Provider, command.Subject }, transaction).FirstOrNullAsync();
+            WHERE provider = @Provider AND provider_subject = @ProviderSubject FOR UPDATE
+            """, new { command.Provider, command.ProviderSubject }, transaction).FirstOrNullAsync();
         var id = binding?.Id;
         if (!command.IsProviderCommand)
         {
@@ -487,13 +487,13 @@ public static partial class Accounts
                     INSERT INTO tb_accounts (id, name, email, github, presence_updated_at)
                     VALUES (@requested, @Name, @Email, @github, '1970-01-01 00:00:00');
                     SELECT COALESCE(@requested, LAST_INSERT_ID());
-                    """, new { requested = command.IsProviderCommand ? (long?)null : command.UserId,
+                    """, new { requested = command.UserId,
                         command.Name, command.Email, github = NullIfBlank(command.GithubId) }, transaction);
                 await connection.ExecuteAsync("""
-                    INSERT INTO tb_account_identities (account_id, provider, provider_subject) VALUES (@id, @Provider, @Subject);
+                    INSERT INTO tb_account_identities (account_id, provider, provider_subject) VALUES (@id, @Provider, @ProviderSubject);
                     INSERT INTO tb_profiles (account_id) VALUES (@id);
                     UPDATE tb_accounts SET created_by = @id, last_modified_by = @id WHERE id = @id;
-                    """, new { id, command.Provider, command.Subject }, transaction);
+                    """, new { id, command.Provider, command.ProviderSubject }, transaction);
             }
 
             if (command.Provider == "DATAGSM")

@@ -16,13 +16,11 @@ public static class IdentityCommandContract
     ];
 
     public sealed record Command(
-        string OperationId, string IdempotencyKey, long UserId, string Name, string Email, string Sex,
+        string OperationId, string IdempotencyKey, long? UserId, string Name, string Email, string Sex,
         long? Grade, long? ClassNumber, long? StudentNumberInClass, string? Major, string Role, string? GithubId,
-        long? DatagsmStudentId, long RequestedBy, DateTime OccurredAt, int OccurredAtPrecision, string Provider = "DATAGSM", string? ProviderSubject = null
-        )
+        long? DatagsmStudentId, long? RequestedBy, DateTime OccurredAt, int OccurredAtPrecision, string Provider, string ProviderSubject)
     {
-        public bool IsProviderCommand => ProviderSubject is not null;
-        public string Subject => ProviderSubject ?? UserId.ToString(CultureInfo.InvariantCulture);
+        public bool IsProviderCommand => UserId is null;
     }
 
     /// <summary>The only command schema version accepted from the identity command topic.</summary>
@@ -58,7 +56,7 @@ public static class IdentityCommandContract
             payload.GetString("name")!, payload.GetString("email")!, payload.GetString("sex")!,
             payload.Get("grade").Integer(), payload.Get("classNumber").Integer(), payload.Get("studentNumberInClass").Integer(),
             payload.GetString("major"), payload.GetString("role")!, payload.GetString("githubId"),
-            payload.Get("dataGSMStudentId").Integer(), userId.Value, occurredAt, precision);
+            payload.Get("dataGSMStudentId").Integer(), userId.Value, occurredAt, precision, "DATAGSM", key!);
     }
 
     static readonly HashSet<string> ProviderKeys =
@@ -78,8 +76,8 @@ public static class IdentityCommandContract
             || subject is null || key != provider + ":" + subject
             || !Iso8601.TryParse(payload.GetString("occurredAt"), out var at, out var precision)) return null;
 
-        var command = new Command(operation, payload.GetString("idempotencyKey")!, 0, payload.GetString("name")!,
-            payload.GetString("email")!, "", null, null, null, null, "", null, null, 0, at, precision, provider!, subject);
+        var command = new Command(operation, payload.GetString("idempotencyKey")!, null, payload.GetString("name")!,
+            payload.GetString("email")!, "", null, null, null, null, "", null, null, null, at, precision, provider!, subject);
         if (provider == "DEV")
             return subject is ("dev-1" or "dev-2" or "dev-3" or "dev-4") && payload.Get("student") is { ValueKind: JsonValueKind.Null }
                 ? command : null;
