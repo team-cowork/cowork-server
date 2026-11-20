@@ -7,6 +7,7 @@ import com.cowork.project.domain.githubBoard.event.GithubProjectView
 import java.util.Locale
 
 const val BOARD_LAYOUT = "BOARD_LAYOUT"
+const val TABLE_LAYOUT = "TABLE_LAYOUT"
 
 /** 조회 한 번에 쓰는 GitHub Project 상태. `items`는 GitHub의 위치 순서이며 보관된 item과 삭제된 item은 없다. */
 data class GithubBoard(

@@ -3,9 +3,11 @@ package com.cowork.project.domain.githubBoard.presentation.controller
 import com.cowork.project.domain.githubBoard.model.GithubBoardItemQuery
 import com.cowork.project.domain.githubBoard.presentation.data.response.GithubBoardItemsResDto
 import com.cowork.project.domain.githubBoard.presentation.data.response.GithubBoardKanbanResDto
+import com.cowork.project.domain.githubBoard.presentation.data.response.GithubBoardTableResDto
 import com.cowork.project.domain.githubBoard.presentation.data.response.GithubBoardViewResDto
 import com.cowork.project.domain.githubBoard.service.QueryGithubBoardItemsService
 import com.cowork.project.domain.githubBoard.service.QueryGithubBoardKanbanService
+import com.cowork.project.domain.githubBoard.service.QueryGithubBoardTableService
 import com.cowork.project.domain.githubBoard.service.QueryGithubBoardViewsService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -69,6 +71,7 @@ class GithubBoardViewController(
     private val queryGithubBoardViewsService: QueryGithubBoardViewsService,
     private val queryGithubBoardKanbanService: QueryGithubBoardKanbanService,
     private val queryGithubBoardItemsService: QueryGithubBoardItemsService,
+    private val queryGithubBoardTableService: QueryGithubBoardTableService,
 ) {
 
     @Operation(summary = "GitHub Project 뷰 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
@@ -153,6 +156,52 @@ class GithubBoardViewController(
         )
         @RequestParam params: MultiValueMap<String, String>,
     ): GithubBoardItemsResDto = queryGithubBoardItemsService.execute(
+        userId,
+        projectId,
+        boardId,
+        viewNumber,
+        toQuery(assignee, repo, type, q, ignoreViewFilter, params),
+    )
+
+    @Operation(
+        summary = "테이블 조회",
+        description = "Table 뷰에 저장된 표시 field, 정렬, 그룹으로 카드를 돌려줍니다. " +
+            "filter는 칸반 조회와 같은 규칙으로 적용합니다. " +
+            "셀 값은 PUT 또는 DELETE /projects/{projectId}/github-boards/{boardId}/items/{itemId}/fields/{fieldId}로 바꿉니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(
+            responseCode = "400",
+            description = "Table 뷰가 아님, 없는 field 조건 또는 잘못된 type",
+            content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
+        ),
+    )
+    @GetMapping("/{viewNumber}/table")
+    fun getTable(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable projectId: Long,
+        @PathVariable boardId: Long,
+        @PathVariable viewNumber: Int,
+        @Parameter(description = "담당자 GitHub 사용자 이름. 쉼표로 구분하며 me는 요청자", example = "me")
+        @RequestParam(required = false) assignee: String?,
+        @Parameter(description = "저장소. owner/repo 또는 repo 이름", example = "my-org/app")
+        @RequestParam(required = false) repo: String?,
+        @Parameter(description = "item 종류", schema = Schema(allowableValues = ["ISSUE", "PULL_REQUEST", "DRAFT_ISSUE"]))
+        @RequestParam(required = false) type: String?,
+        @Parameter(description = "제목 부분 일치 검색어", example = "로그인")
+        @RequestParam(required = false) q: String?,
+        @Parameter(description = "true면 뷰 filter 미적용", example = "false")
+        @RequestParam(defaultValue = "false") ignoreViewFilter: Boolean,
+        @Parameter(
+            name = "field[이름]",
+            `in` = ParameterIn.QUERY,
+            description = "Project field 조건. 쉼표로 구분한 값 중 하나와 일치",
+            example = "field[Status]=Todo,In Progress",
+        )
+        @RequestParam params: MultiValueMap<String, String>,
+    ): GithubBoardTableResDto = queryGithubBoardTableService.execute(
         userId,
         projectId,
         boardId,
