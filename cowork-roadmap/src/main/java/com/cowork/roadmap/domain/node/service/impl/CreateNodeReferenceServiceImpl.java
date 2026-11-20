@@ -19,10 +19,10 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class CreateNodeReferenceServiceImpl implements CreateNodeReferenceService {
 
-    private final RoadmapNodeReferenceRepository referenceRepository;
-    private final RoadmapAccessGuard accessGuard;
+    private final RoadmapNodeReferenceRepository roadmapNodeReferenceRepository;
+    private final RoadmapAccessGuard roadmapAccessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
-    private final RoadmapNodeLookupSupport nodeLookupSupport;
+    private final RoadmapNodeLookupSupport roadmapNodeLookupSupport;
 
     /**
      * 로드맵 잠금 전에 노드를 읽으므로 READ COMMITTED로 실행해, 잠금을 기다리는 동안 커밋된 참고 자료·노드 삭제를 잠금 이후
@@ -31,17 +31,17 @@ public class CreateNodeReferenceServiceImpl implements CreateNodeReferenceServic
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public NodeReferenceResDto execute(Long userId, Long nodeId, NodeReferenceReqDto request) {
-        Long roadmapId = nodeLookupSupport.findRoadmapIdByNodeOrThrow(nodeId);
+        Long roadmapId = roadmapNodeLookupSupport.findRoadmapIdByNodeOrThrow(nodeId);
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
-        accessGuard.requireMutable(roadmap, userId);
-        nodeLookupSupport.findNodeOrThrow(nodeId);
-        Long position = referenceRepository.findNextPosition(nodeId);
+        roadmapAccessGuard.requireMutable(roadmap, userId);
+        roadmapNodeLookupSupport.findNodeOrThrow(nodeId);
+        Long position = roadmapNodeReferenceRepository.findNextPosition(nodeId);
         RoadmapNodeReference ref = RoadmapNodeReference.builder()
                 .nodeId(nodeId)
                 .title(request.title())
                 .url(request.url())
                 .position(position.intValue())
                 .build();
-        return NodeReferenceResDto.from(referenceRepository.saveAndFlush(ref));
+        return NodeReferenceResDto.from(roadmapNodeReferenceRepository.saveAndFlush(ref));
     }
 }

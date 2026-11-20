@@ -16,25 +16,25 @@ import team.themoment.sdk.exception.ExpectedException;
 @RequiredArgsConstructor
 public class DeleteRoadmapAssignmentServiceImpl implements DeleteRoadmapAssignmentService {
 
-    private final RoadmapAssignmentRepository assignmentRepository;
-    private final RoadmapAccessGuard accessGuard;
+    private final RoadmapAssignmentRepository roadmapAssignmentRepository;
+    private final RoadmapAccessGuard roadmapAccessGuard;
 
     @Override
     @Transactional
     public void execute(Long userId, Long assignmentId) {
         RoadmapAssignment assignment = findAssignmentOrThrow(assignmentId);
-        if (!accessGuard.accountAllows(userId, "delete_team_assignments")) {
+        if (!roadmapAccessGuard.accountAllows(userId, "delete_team_assignments")) {
             if (userId.equals(assignment.getAssignedBy())) {
-                accessGuard.requireTeamMember(assignment.getTeamId(), userId);
+                roadmapAccessGuard.requireTeamMember(assignment.getTeamId(), userId);
             } else {
-                accessGuard.requireTeamManager(userId, assignment.getTeamId());
+                roadmapAccessGuard.requireTeamManager(userId, assignment.getTeamId());
             }
         }
-        assignmentRepository.delete(assignment);
+        roadmapAssignmentRepository.delete(assignment);
     }
 
     private RoadmapAssignment findAssignmentOrThrow(Long assignmentId) {
-        return assignmentRepository.findById(assignmentId)
+        return roadmapAssignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new ExpectedException("과제를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
     }
 }

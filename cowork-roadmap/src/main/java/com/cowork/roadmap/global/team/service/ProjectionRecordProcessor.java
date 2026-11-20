@@ -18,31 +18,31 @@ import com.cowork.roadmap.global.team.repository.RoadmapPolicyRepository;
 @Component
 public class ProjectionRecordProcessor {
 
-    private final TeamMemberProjectionHandler handler;
-    private final ProjectionCheckpointRepository checkpoints;
-    private final RoadmapPolicyRepository policies;
+    private final TeamMemberProjectionHandler teamMemberProjectionHandler;
+    private final ProjectionCheckpointRepository projectionCheckpointRepository;
+    private final RoadmapPolicyRepository roadmapPolicyRepository;
     private final Map<String, ProjectionReadiness> streams;
 
-    public ProjectionRecordProcessor(TeamMemberProjectionHandler handler,
-            RoadmapPolicyRepository policies,
-            ProjectionCheckpointRepository checkpoints,
+    public ProjectionRecordProcessor(TeamMemberProjectionHandler teamMemberProjectionHandler,
+            RoadmapPolicyRepository roadmapPolicyRepository,
+            ProjectionCheckpointRepository projectionCheckpointRepository,
             List<ProjectionReadiness> streams) {
-        this.handler = handler;
-        this.policies = policies;
-        this.checkpoints = checkpoints;
+        this.teamMemberProjectionHandler = teamMemberProjectionHandler;
+        this.roadmapPolicyRepository = roadmapPolicyRepository;
+        this.projectionCheckpointRepository = projectionCheckpointRepository;
         this.streams = streams.stream()
                 .collect(Collectors.toUnmodifiableMap(ProjectionReadiness::topic, Function.identity()));
     }
 
     @Transactional
     public void applyPolicy(ConsumerRecord<String, String> record, RolePolicyState policy) {
-        policies.apply(record.key(), policy);
+        roadmapPolicyRepository.apply(record.key(), policy);
         advance(record);
     }
 
     @Transactional
     public void apply(ConsumerRecord<String, String> record, TeamMemberEvent event) {
-        handler.apply(event);
+        teamMemberProjectionHandler.apply(event);
         advance(record);
     }
 
@@ -50,22 +50,26 @@ public class ProjectionRecordProcessor {
     public void discard(ConsumerRecord<String, String> record, String reason) {
         ProjectionReadiness stream = streams.get(record.topic());
         String topicId = stream.topicId();
-        checkpoints.quarantine(stream.group(), record, reason);
-        checkpoints.markInvalidRecord(stream.group(), record.topic(), record.partition(), record.offset(), topicId);
-        checkpoints.advance(stream.group(), record.topic(), record.partition(), record.offset() + 1, topicId);
+        projectionCheckpointRepository.quarantine(stream.group(), record, reason);
+        projectionCheckpointRepository
+                .markInvalidRecord(stream.group(), record.topic(), record.partition(), record.offset(), topicId);
+        projectionCheckpointRepository
+                .advance(stream.group(), record.topic(), record.partition(), record.offset() + 1, topicId);
     }
 
     @Transactional
     public void completeSnapshot(ConsumerRecord<String, String> record, String snapshotId) {
         ProjectionReadiness stream = streams.get(record.topic());
         String topicId = stream.topicId();
-        checkpoints.markSnapshotCompleted(stream
+        projectionCheckpointRepository.markSnapshotCompleted(stream
                 .group(), record.topic(), record.partition(), record.offset(), topicId, snapshotId);
-        checkpoints.advance(stream.group(), record.topic(), record.partition(), record.offset() + 1, topicId);
+        projectionCheckpointRepository
+                .advance(stream.group(), record.topic(), record.partition(), record.offset() + 1, topicId);
     }
 
     private void advance(ConsumerRecord<String, String> record) {
         ProjectionReadiness stream = streams.get(record.topic());
-        checkpoints.advance(stream.group(), record.topic(), record.partition(), record.offset() + 1, stream.topicId());
+        projectionCheckpointRepository
+                .advance(stream.group(), record.topic(), record.partition(), record.offset() + 1, stream.topicId());
     }
 }

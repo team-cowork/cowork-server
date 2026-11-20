@@ -21,10 +21,10 @@ import team.themoment.sdk.exception.ExpectedException;
 @RequiredArgsConstructor
 public class ModifyRoadmapNodeServiceImpl implements ModifyRoadmapNodeService {
 
-    private final RoadmapNodeRepository nodeRepository;
-    private final RoadmapAccessGuard accessGuard;
+    private final RoadmapNodeRepository roadmapNodeRepository;
+    private final RoadmapAccessGuard roadmapAccessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
-    private final RoadmapNodeLookupSupport nodeLookupSupport;
+    private final RoadmapNodeLookupSupport roadmapNodeLookupSupport;
 
     /**
      * 저장이 position까지 전체 행을 덮어쓰므로 재정렬과 같은 로드맵 잠금 아래에서 노드를 다시 읽어 수정한다. 잠금 전에 노드를 읽으므로
@@ -33,13 +33,13 @@ public class ModifyRoadmapNodeServiceImpl implements ModifyRoadmapNodeService {
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public NodeResDto execute(Long userId, Long nodeId, UpdateNodeReqDto request) {
-        Long roadmapId = nodeLookupSupport.findRoadmapIdByNodeOrThrow(nodeId);
+        Long roadmapId = roadmapNodeLookupSupport.findRoadmapIdByNodeOrThrow(nodeId);
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
-        accessGuard.requireMutable(roadmap, userId);
+        roadmapAccessGuard.requireMutable(roadmap, userId);
         if (request.title() != null && request.title().isBlank()) {
             throw new ExpectedException("노드 제목은 공백일 수 없습니다.", HttpStatus.BAD_REQUEST);
         }
-        RoadmapNode node = nodeLookupSupport.findNodeOrThrow(nodeId);
+        RoadmapNode node = roadmapNodeLookupSupport.findNodeOrThrow(nodeId);
         RoadmapNode updated = node.toBuilder()
                 .title(request.title() != null ? request.title() : node.getTitle())
                 .content(request.content() != null ? request.content() : node.getContent())
@@ -48,8 +48,8 @@ public class ModifyRoadmapNodeServiceImpl implements ModifyRoadmapNodeService {
                 .build();
         updated.prepareUpdateFrom(node);
         updated.setLastModifiedBy(userId);
-        RoadmapNode saved = nodeRepository.saveAndFlush(updated);
-        return NodeResDto.of(saved, nodeLookupSupport.loadReferences(saved.getId()));
+        RoadmapNode saved = roadmapNodeRepository.saveAndFlush(updated);
+        return NodeResDto.of(saved, roadmapNodeLookupSupport.loadReferences(saved.getId()));
     }
 
     private static String blankToNull(String value) {

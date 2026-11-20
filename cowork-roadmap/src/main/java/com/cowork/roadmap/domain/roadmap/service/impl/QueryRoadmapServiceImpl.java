@@ -14,14 +14,14 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class QueryRoadmapServiceImpl implements QueryRoadmapService {
 
-    private final RoadmapAccessGuard accessGuard;
-    private final RoadmapLookupSupport lookupSupport;
+    private final RoadmapAccessGuard roadmapAccessGuard;
+    private final RoadmapLookupSupport roadmapLookupSupport;
 
     @Override
     @Transactional(readOnly = true)
     public RoadmapResDto execute(Long userId, Long roadmapId) {
-        var roadmap = lookupSupport.findRoadmapOrThrow(roadmapId);
-        accessGuard.requireReadable(roadmap, userId);
+        var roadmap = roadmapLookupSupport.findRoadmapOrThrow(roadmapId);
+        roadmapAccessGuard.requireReadable(roadmap, userId);
         return RoadmapResDto.from(roadmap);
     }
 }

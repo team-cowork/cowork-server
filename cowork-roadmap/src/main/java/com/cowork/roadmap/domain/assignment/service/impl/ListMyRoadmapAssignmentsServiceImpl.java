@@ -15,12 +15,12 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ListMyRoadmapAssignmentsServiceImpl implements ListMyRoadmapAssignmentsService {
 
-    private final RoadmapAssignmentRepository assignmentRepository;
+    private final RoadmapAssignmentRepository roadmapAssignmentRepository;
 
     @Override
     @Transactional(readOnly = true)
     public List<AssignmentResDto> execute(Long userId) {
-        return assignmentRepository.findByAssigneeUserIdOrderByIdDesc(userId)
+        return roadmapAssignmentRepository.findByAssigneeUserIdOrderByIdDesc(userId)
                 .stream()
                 .map(AssignmentResDto::from)
                 .toList();

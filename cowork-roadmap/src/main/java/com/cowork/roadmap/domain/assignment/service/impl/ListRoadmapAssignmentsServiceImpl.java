@@ -19,20 +19,20 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ListRoadmapAssignmentsServiceImpl implements ListRoadmapAssignmentsService {
 
-    private final RoadmapAssignmentRepository assignmentRepository;
-    private final RoadmapAccessGuard accessGuard;
+    private final RoadmapAssignmentRepository roadmapAssignmentRepository;
+    private final RoadmapAccessGuard roadmapAccessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
 
     @Override
     @Transactional(readOnly = true)
     public List<AssignmentResDto> execute(Long userId, Long roadmapId) {
         var roadmap = roadmapLookupSupport.findRoadmapOrThrow(roadmapId);
-        accessGuard.requireReadable(roadmap, userId);
+        roadmapAccessGuard.requireReadable(roadmap, userId);
         Map<Long, Boolean> readableTeams = new HashMap<>();
-        return assignmentRepository.findByRoadmapIdOrderByIdDesc(roadmapId)
+        return roadmapAssignmentRepository.findByRoadmapIdOrderByIdDesc(roadmapId)
                 .stream()
                 .filter(assignment -> readableTeams.computeIfAbsent(assignment.getTeamId(),
-                        teamId -> accessGuard.canReadTeam(teamId, userId)))
+                        teamId -> roadmapAccessGuard.canReadTeam(teamId, userId)))
                 .map(AssignmentResDto::from)
                 .toList();
     }
