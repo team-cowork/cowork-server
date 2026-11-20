@@ -13,7 +13,7 @@ import {
 	ApiTags as apiTags,
 	ApiExtraModels as apiExtraModels,
 } from '@nestjs/swagger';
-import {ApiResponseMetadataDto, apiResponseEnvelope} from '../common/dto/api-response-metadata.dto.js';
+import {ApiResponseMetadataDto, apiEnvelopeResponse} from '../common/dto/api-response-metadata.dto.js';
 import {UserRole} from '../common/enum/user-role.enum.js';
 import {requireRoles} from '../common/guard/roles.decorator.js';
 import {MessageSearchStatusDto} from './dto/admin-response.dto.js';
@@ -21,16 +21,8 @@ import {MessageSearchAdminService} from './search/index.js';
 import {StartMessageSearchRebuildDto} from './dto/index.js';
 
 @apiTags('Chat Admin')
-@apiResponse({
-	status: 400,
-	description: '요청 값이 올바르지 않음',
-	schema: apiResponseEnvelope(400),
-})
-@apiResponse({
-	status: 403,
-	description: 'ADMIN 권한 필요',
-	schema: apiResponseEnvelope(403),
-})
+@apiEnvelopeResponse(400, '요청 값이 올바르지 않음')
+@apiEnvelopeResponse(403, 'ADMIN 권한 필요')
 @requireRoles(UserRole.ADMIN)
 @apiExtraModels(ApiResponseMetadataDto, MessageSearchStatusDto)
 @apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
@@ -42,11 +34,7 @@ export class MessageSearchAdminController {
 
 	@httpGet()
 	@apiOperation({summary: '메시지 검색 색인 상태 조회'})
-	@apiResponse({
-		status: 200,
-		description: '색인 상태와 최근 재구축 결과',
-		schema: apiResponseEnvelope(200, MessageSearchStatusDto),
-	})
+	@apiEnvelopeResponse(200, '색인 상태와 최근 재구축 결과', MessageSearchStatusDto)
 	async status() {
 		return this.messageSearchAdminService.status();
 	}
@@ -54,11 +42,7 @@ export class MessageSearchAdminController {
 	@httpPost('retry-failed')
 	@httpCode(HttpStatus.OK)
 	@apiOperation({summary: '실패한 색인 및 삭제 작업 재시도'})
-	@apiResponse({
-		status: 200,
-		description: '요청 처리 성공',
-		schema: apiResponseEnvelope(200, {type: 'object', properties: {messages: {type: 'integer'}, tombstones: {type: 'integer'}}}),
-	})
+	@apiEnvelopeResponse(200, '요청 처리 성공', {type: 'object', properties: {messages: {type: 'integer'}, tombstones: {type: 'integer'}}})
 	async retryFailed() {
 		return this.messageSearchAdminService.retryFailed();
 	}
@@ -67,11 +51,7 @@ export class MessageSearchAdminController {
 	@httpCode(HttpStatus.ACCEPTED)
 	@apiOperation({summary: '검색 색인 재구축 요청', description: '색인 상태 조회에서 진행 상황을 확인할 수 있습니다.'})
 	@apiResponse({status: 202, description: '응답 본문 없음'})
-	@apiResponse({
-		status: 409,
-		description: '현재 상태에서는 요청을 처리할 수 없음',
-		schema: apiResponseEnvelope(409),
-	})
+	@apiEnvelopeResponse(409, '현재 상태에서는 요청을 처리할 수 없음')
 	async rebuild(@requestBody() body: StartMessageSearchRebuildDto): Promise<void> {
 		if (!await this.messageSearchAdminService.startRebuild(body.resume === true)) {
 			throw new ConflictException('Another search index rebuild is already running');

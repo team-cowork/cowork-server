@@ -12,7 +12,7 @@ import {
 	ApiTags as apiTags,
 	getSchemaPath,
 } from '@nestjs/swagger';
-import {ApiResponseMetadataDto, apiResponseEnvelope} from '../dto/api-response-metadata.dto.js';
+import {ApiResponseMetadataDto, apiEnvelopeResponse} from '../dto/api-response-metadata.dto.js';
 import {UserRole} from '../enum/user-role.enum.js';
 import {requireRoles} from '../guard/roles.decorator.js';
 import {ProjectionDatasetDto, ProjectionStreamStatusDto} from './dto/projection-status.dto.js';
@@ -26,11 +26,7 @@ import {ProjectionReadinessService} from './projection-readiness.service.js';
  */
 @apiTags('Projection Admin')
 @apiExtraModels(ProjectionStreamStatusDto)
-@apiResponse({
-	status: 403,
-	description: 'ADMIN 권한 필요',
-	schema: apiResponseEnvelope(403),
-})
+@apiEnvelopeResponse(403, 'ADMIN 권한 필요')
 @requireRoles(UserRole.ADMIN)
 @apiExtraModels(ApiResponseMetadataDto, ProjectionDatasetDto)
 @apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
@@ -42,27 +38,15 @@ export class ProjectionAdminController {
 
 	@httpGet()
 	@apiOperation({summary: '스트림별 동기화 상태 조회'})
-	@apiResponse({
-		status: 200,
-		description: '스트림 이름별 동기화 상태',
-		schema: apiResponseEnvelope(200, {type: 'object', additionalProperties: {$ref: getSchemaPath(ProjectionStreamStatusDto)}}),
-	})
+	@apiEnvelopeResponse(200, '스트림 이름별 동기화 상태', {type: 'object', additionalProperties: {$ref: getSchemaPath(ProjectionStreamStatusDto)}})
 	status() {
 		return this.readiness.getDetailedStatus();
 	}
 
 	@httpPost(':stream/rebuild')
 	@apiOperation({summary: '스트림 재구축 요청'})
-	@apiResponse({
-		status: 201,
-		description: '재구축 요청을 반영한 상태',
-		schema: apiResponseEnvelope(201, ProjectionDatasetDto),
-	})
-	@apiResponse({
-		status: 400,
-		description: '스트림이 없거나 재구축 사유가 올바르지 않음',
-		schema: apiResponseEnvelope(400),
-	})
+	@apiEnvelopeResponse(201, '재구축 요청을 반영한 상태', ProjectionDatasetDto)
+	@apiEnvelopeResponse(400, '스트림이 없거나 재구축 사유가 올바르지 않음')
 	async rebuild(@requestParameter('stream') stream: string, @requestBody() body: RequestProjectionRebuildDto) {
 		return this.readiness.requestRebuild(stream, body.reason);
 	}

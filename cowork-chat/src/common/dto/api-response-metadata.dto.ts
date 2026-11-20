@@ -1,6 +1,7 @@
 import {type Type} from '@nestjs/common';
 import {
 	ApiProperty as apiProperty,
+	ApiResponse as apiResponse,
 	getSchemaPath,
 	type ReferenceObject,
 	type SchemaObject,
@@ -32,10 +33,20 @@ const statusNames = {
 
 const successMessages = {200: 'OK', 201: 'Created'} as const;
 
+type SuccessCode = keyof typeof successMessages;
+type ErrorCode = Exclude<keyof typeof statusNames, SuccessCode>;
+type EnvelopeData = Type | SchemaObject | ReferenceObject;
+
 /**
-Builds the Gateway response envelope schema. A success response passes its data schema, or a DTO class for a `$ref`.
+Documents one Gateway response envelope. A success response passes its data schema, or a DTO class for a `$ref`. An error response passes no data.
 */
-export function apiResponseEnvelope(code: keyof typeof statusNames, data?: Type | SchemaObject | ReferenceObject): SchemaObject {
+export function apiEnvelopeResponse(code: SuccessCode, description: string, data: EnvelopeData): MethodDecorator & ClassDecorator;
+export function apiEnvelopeResponse(code: ErrorCode, description: string): MethodDecorator & ClassDecorator;
+export function apiEnvelopeResponse(code: SuccessCode | ErrorCode, description: string, data?: EnvelopeData): MethodDecorator & ClassDecorator {
+	return apiResponse({status: code, description, schema: envelopeSchema(code, data)});
+}
+
+function envelopeSchema(code: SuccessCode | ErrorCode, data?: EnvelopeData): SchemaObject {
 	const properties: Record<string, SchemaObject | ReferenceObject> = {
 		status: {type: 'string', enum: [`${code} ${statusNames[code]}`]},
 		code: {type: 'integer', enum: [code]},
@@ -44,7 +55,7 @@ export function apiResponseEnvelope(code: keyof typeof statusNames, data?: Type 
 		return {allOf: [{$ref: getSchemaPath(ApiResponseMetadataDto)}, {type: 'object', properties}]};
 	}
 
-	properties.message = {type: 'string', example: successMessages[code as keyof typeof successMessages]};
+	properties.message = {type: 'string', example: successMessages[code as SuccessCode]};
 	properties.data = typeof data === 'function' ? {$ref: getSchemaPath(data)} : data;
 	return {allOf: [{$ref: getSchemaPath(ApiResponseMetadataDto)}, {type: 'object', required: ['data'], properties}]};
 }

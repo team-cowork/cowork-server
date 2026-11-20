@@ -11,7 +11,7 @@ import {
 	ApiTags as apiTags,
 	ApiExtraModels as apiExtraModels,
 } from '@nestjs/swagger';
-import {ApiResponseMetadataDto, apiResponseEnvelope} from '../common/dto/api-response-metadata.dto.js';
+import {ApiResponseMetadataDto, apiEnvelopeResponse} from '../common/dto/api-response-metadata.dto.js';
 import {currentUserId} from '../common/decorator/user.decorator.js';
 import {SafePositiveIntPipe} from '../common/pipe/safe-positive-int.pipe.js';
 import {ChatService} from './chat.service.js';
@@ -52,26 +52,10 @@ export class ProjectMessageController {
 	@apiQuery({name: 'hasFile', description: '첨부파일 포함 메시지만 조회 (true/false)', required: false})
 	@apiQuery({name: 'before', description: '커서: 이전 응답의 nextCursor 값', required: false})
 	@apiQuery({name: 'limit', description: '페이지 크기 (기본 50, 최대 100)', required: false})
-	@apiResponse({
-		status: 200,
-		description: '요청 처리 성공',
-		schema: apiResponseEnvelope(200, SearchMessagesResponseDto),
-	})
-	@apiResponse({
-		status: 400,
-		description: '검색 조건 또는 커서 형식 오류',
-		schema: apiResponseEnvelope(400),
-	})
-	@apiResponse({
-		status: 503,
-		description: '검색 색인 또는 권한 정보를 사용할 수 없음',
-		schema: apiResponseEnvelope(503),
-	})
-	@apiResponse({
-		status: 403,
-		description: '프로젝트 멤버 아님 또는 채널 접근 권한 없음',
-		schema: apiResponseEnvelope(403),
-	})
+	@apiEnvelopeResponse(200, '요청 처리 성공', SearchMessagesResponseDto)
+	@apiEnvelopeResponse(400, '검색 조건 또는 커서 형식 오류')
+	@apiEnvelopeResponse(503, '검색 색인 또는 권한 정보를 사용할 수 없음')
+	@apiEnvelopeResponse(403, '프로젝트 멤버 아님 또는 채널 접근 권한 없음')
 	async searchMessages(
 		@requestParameter('projectId', SafePositiveIntPipe) projectId: number,
 		@requestQuery() dto: SearchMessagesDto,
