@@ -19,9 +19,9 @@ public class QueryRoadmapServiceImpl implements QueryRoadmapService {
 
     @Override
     @Transactional(readOnly = true)
-    public RoadmapResDto execute(Long userId, String userRole, Long roadmapId) {
+    public RoadmapResDto execute(Long userId, Long roadmapId) {
         var roadmap = lookupSupport.findRoadmapOrThrow(roadmapId);
-        accessGuard.requireReadable(roadmap, userId, userRole);
+        accessGuard.requireReadable(roadmap, userId);
         return RoadmapResDto.from(roadmap);
     }
 }

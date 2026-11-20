@@ -64,7 +64,7 @@ class CreateNodeReferenceServiceTest {
 
         NodeReferenceReqDto request = new NodeReferenceReqDto("자료", "https://example.com");
 
-        var response = createNodeReferenceService.execute(7L, "ADMIN", 5L, request);
+        var response = createNodeReferenceService.execute(7L, 5L, request);
         assertThat(response.position()).isEqualTo(3);
         assertThat(response.title()).isEqualTo("자료");
     }
@@ -76,7 +76,7 @@ class CreateNodeReferenceServiceTest {
         NodeReferenceReqDto request = new NodeReferenceReqDto("자료", "https://example.com");
 
         ExpectedException error = assertThrows(ExpectedException.class,
-                () -> createNodeReferenceService.execute(7L, "ADMIN", 99L, request));
+                () -> createNodeReferenceService.execute(7L, 99L, request));
         assertTrue(error.getStatusCode() == HttpStatus.NOT_FOUND);
     }
 

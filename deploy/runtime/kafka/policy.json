@@ -667,7 +667,9 @@
     "cowork-roadmap": {
       "topics": [
         "team.member.event",
-        "team.member.event-dlt"
+        "team.member.event-dlt",
+        "preference.account-role.state.v1",
+        "preference.team-role.state.v2"
       ]
     },
     "cowork-team": {

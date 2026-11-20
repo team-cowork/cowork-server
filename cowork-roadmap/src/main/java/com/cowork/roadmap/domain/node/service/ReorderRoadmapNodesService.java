@@ -4,5 +4,5 @@ import com.cowork.roadmap.domain.node.presentation.data.request.ReorderNodesReqD
 
 public interface ReorderRoadmapNodesService {
 
-    void execute(Long userId, String userRole, Long roadmapId, ReorderNodesReqDto request);
+    void execute(Long userId, Long roadmapId, ReorderNodesReqDto request);
 }
