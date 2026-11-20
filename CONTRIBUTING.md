@@ -66,6 +66,7 @@ Gateway reads error bodies up to `gateway.response-wrapper.max-error-body-size` 
 ## Injection and Kotlin style
 
 - Use constructor injection for dependencies and configuration values, or a configuration properties object. Kotlin dependencies use constructor `private val` properties. Java roadmap services use final fields with `@RequiredArgsConstructor` or an explicit constructor. Avoid field-injected `@Autowired` and `@Value`.
+- All Spring modules follow the [JVM naming rule](.claude/rules/jvm-conventions.md) for injected dependencies, for example `s3Client` for `S3Client` in both Kotlin and Java.
 - Prefer `val` for references that are not reassigned. JPA entities may use `var` for mutable persisted state.
 - Use nullable types for valid absence. For a missing required resource, throw the appropriate business exception; avoid `Optional.get()` and `!!`. Use `requireNotNull` only for internal invariants, such as persisted audit timestamps.
 - Declare public API return types, infer local variable types, and omit `Unit` return types.
