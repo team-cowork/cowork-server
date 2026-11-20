@@ -3,10 +3,10 @@ package com.cowork.team.domain.teamMember.presentation.controller
 import com.cowork.team.domain.teamMember.presentation.data.request.ChangeNicknameRequest
 import com.cowork.team.domain.teamMember.presentation.data.request.InviteMembersRequest
 import com.cowork.team.domain.teamMember.presentation.data.response.TeamMemberResponse
-import com.cowork.team.domain.teamMember.service.ChangeTeamMemberNicknameService
+import com.cowork.team.domain.teamMember.service.DeleteTeamMemberService
 import com.cowork.team.domain.teamMember.service.InviteTeamMembersService
 import com.cowork.team.domain.teamMember.service.QueryTeamMembersService
-import com.cowork.team.domain.teamMember.service.RemoveTeamMemberService
+import com.cowork.team.domain.teamMember.service.UpdateTeamMemberNicknameService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.ArraySchema
@@ -55,8 +55,8 @@ import team.themoment.sdk.response.CommonApiResponse
 class TeamMemberController(
     private val inviteTeamMembersService: InviteTeamMembersService,
     private val queryTeamMembersService: QueryTeamMembersService,
-    private val changeTeamMemberNicknameService: ChangeTeamMemberNicknameService,
-    private val removeTeamMemberService: RemoveTeamMemberService,
+    private val updateTeamMemberNicknameService: UpdateTeamMemberNicknameService,
+    private val deleteTeamMemberService: DeleteTeamMemberService,
 ) {
 
     @Operation(summary = "멤버 초대", security = [SecurityRequirement(name = "BearerAuth")])
@@ -226,7 +226,7 @@ class TeamMemberController(
         @PathVariable targetUserId: Long,
         @RequestBody request: ChangeNicknameRequest,
     ) {
-        changeTeamMemberNicknameService.execute(userId, teamId, targetUserId, request)
+        updateTeamMemberNicknameService.execute(userId, teamId, targetUserId, request)
     }
 
     @Operation(summary = "팀 멤버 추방 또는 탈퇴", security = [SecurityRequirement(name = "BearerAuth")])
@@ -270,6 +270,6 @@ class TeamMemberController(
         @PathVariable teamId: Long,
         @PathVariable targetUserId: Long,
     ) {
-        removeTeamMemberService.execute(userId, teamId, targetUserId)
+        deleteTeamMemberService.execute(userId, teamId, targetUserId)
     }
 }

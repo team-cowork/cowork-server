@@ -34,12 +34,6 @@ export class ProjectGithubRepoProjectionRepository {
 		private readonly model: Model<ProjectGithubRepoProjection>,
 	) {}
 
-	async findAllByProjectId(projectId: number): Promise<ProjectGithubRepoProjectionView[]> {
-		return this.model.find({projectId, deleted: {$ne: true}})
-			.sort({repoId: 1})
-			.lean<ProjectGithubRepoProjectionView[]>();
-	}
-
 	async findWebhookTargets(owner: string, repo: string): Promise<ProjectGithubRepoProjectionView[]> {
 		return this.model.find({
 			owner: owner.toLowerCase(),

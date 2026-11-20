@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import com.cowork.roadmap.global.team.event.TeamMemberEvent;
-import com.cowork.roadmap.global.team.service.TeamMemberProjectionProcessor;
+import com.cowork.roadmap.global.team.service.ProjectionRecordProcessor;
 
 import tools.jackson.databind.json.JsonMapper;
 
@@ -34,7 +34,7 @@ class TeamMemberEventConsumerTest {
     private static final String MARKER_KEY = ProjectionSnapshotCompletion.KEY_PREFIX + 0;
     private static final String SNAPSHOT_ID = "8f14e45f-ceea-467a-9575-6b5d1c1a2b3c";
 
-    private final TeamMemberProjectionProcessor processor = mock(TeamMemberProjectionProcessor.class);
+    private final ProjectionRecordProcessor processor = mock(ProjectionRecordProcessor.class);
     private final TeamMemberEventConsumer consumer = new TeamMemberEventConsumer(JsonMapper.builder().build(),
             processor);
 

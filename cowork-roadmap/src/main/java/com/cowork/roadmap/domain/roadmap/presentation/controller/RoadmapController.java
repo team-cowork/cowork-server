@@ -57,7 +57,7 @@ public class RoadmapController {
     private final ModifyRoadmapService modifyRoadmapService;
     private final DeleteRoadmapService deleteRoadmapService;
 
-    @Operation(summary = "로드맵 생성")
+    @Operation(summary = "로드맵 생성", description = "글로벌 로드맵을 생성하려면 `manage_global_roadmaps`가 필요합니다. 팀 로드맵은 소유 팀의 활성 멤버 중 `manage_team` 또는 `administrator` 권한을 가진 사용자가 생성할 수 있습니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "생성 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
@@ -67,16 +67,15 @@ public class RoadmapController {
                             @SchemaProperty(name = "data", schema = @Schema(implementation = RoadmapResDto.class))})),
             @ApiResponse(responseCode = "400", description = "요청 값이 잘못되었거나 소유 팀 또는 프로젝트 ID가 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"400 BAD_REQUEST\",\"code\":400,\"message\":\"요청 값이 올바르지 않습니다.\"}"))),
             @ApiResponse(responseCode = "403", description = "요청한 작업을 수행할 권한이 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
-            @ApiResponse(responseCode = "503", description = "팀 멤버 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"요청을 처리할 준비가 되지 않았습니다.\"}")))})
+            @ApiResponse(responseCode = "503", description = "권한 판정에 필요한 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"권한 정보를 동기화하는 중입니다.\"}")))})
     @PostMapping
     public ResponseEntity<RoadmapResDto> createRoadmap(
             @Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
-            @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @Valid @RequestBody CreateRoadmapReqDto request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(createRoadmapService.execute(userId, userRole, request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(createRoadmapService.execute(userId, request));
     }
 
-    @Operation(summary = "로드맵 목록 조회", description = "팀 로드맵은 teamId로, 프로젝트 로드맵은 projectId로 조회합니다. 두 값을 동시에 지정할 수 없습니다. 둘 다 생략하면 scope를 사용하며 기본값은 GLOBAL입니다.")
+    @Operation(summary = "로드맵 목록 조회", description = "팀 로드맵은 teamId로, 프로젝트 로드맵은 projectId로 조회합니다. 두 값을 동시에 지정할 수 없습니다. 둘 다 생략하면 scope를 사용하며 기본값은 GLOBAL입니다. 다른 팀의 로드맵을 조회하려면 `read_all_team_roadmaps`가 필요합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
@@ -86,16 +85,15 @@ public class RoadmapController {
                             @SchemaProperty(name = "data", array = @ArraySchema(schema = @Schema(implementation = RoadmapResDto.class)))})),
             @ApiResponse(responseCode = "400", description = "teamId와 projectId를 함께 지정했거나 조회 범위에 필요한 ID가 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"400 BAD_REQUEST\",\"code\":400,\"message\":\"요청 값이 올바르지 않습니다.\"}"))),
             @ApiResponse(responseCode = "403", description = "요청한 작업을 수행할 권한이 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
-            @ApiResponse(responseCode = "503", description = "팀 멤버 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"요청을 처리할 준비가 되지 않았습니다.\"}")))})
+            @ApiResponse(responseCode = "503", description = "권한 판정에 필요한 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"권한 정보를 동기화하는 중입니다.\"}")))})
     @GetMapping
     public List<RoadmapResDto> listRoadmaps(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
-            @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @Valid @ModelAttribute QueryRoadmapReqDto request) {
         return listRoadmapsService
-                .execute(userId, userRole, request.scope(), request.category(), request.teamId(), request.projectId());
+                .execute(userId, request.scope(), request.category(), request.teamId(), request.projectId());
     }
 
-    @Operation(summary = "로드맵 기본 정보 조회")
+    @Operation(summary = "로드맵 기본 정보 조회", description = "글로벌 로드맵은 로그인한 사용자가 조회할 수 있습니다. 다른 팀의 로드맵을 조회하려면 계정 권한 `read_all_team_roadmaps`가 필요합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
@@ -105,15 +103,14 @@ public class RoadmapController {
                             @SchemaProperty(name = "data", schema = @Schema(implementation = RoadmapResDto.class))})),
             @ApiResponse(responseCode = "403", description = "요청한 작업을 수행할 권한이 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "404", description = "로드맵 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"404 NOT_FOUND\",\"code\":404,\"message\":\"요청한 대상을 찾을 수 없습니다.\"}"))),
-            @ApiResponse(responseCode = "503", description = "팀 멤버 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"요청을 처리할 준비가 되지 않았습니다.\"}")))})
+            @ApiResponse(responseCode = "503", description = "권한 판정에 필요한 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"권한 정보를 동기화하는 중입니다.\"}")))})
     @GetMapping("/{roadmapId}")
     public RoadmapResDto getRoadmap(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
-            @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long roadmapId) {
-        return queryRoadmapService.execute(userId, userRole, roadmapId);
+        return queryRoadmapService.execute(userId, roadmapId);
     }
 
-    @Operation(summary = "로드맵 트리 조회", description = "본문을 제외한 노드 정보와 관련 자료를 계층 구조로 반환합니다. 노드 본문은 GET /roadmaps/nodes/{nodeId}로 조회합니다.")
+    @Operation(summary = "로드맵 트리 조회", description = "본문을 제외한 노드 정보와 관련 자료를 계층 구조로 반환합니다. 노드 본문은 GET /roadmaps/nodes/{nodeId}로 조회합니다. 글로벌 로드맵은 로그인한 사용자가 조회할 수 있습니다. 다른 팀의 로드맵을 조회하려면 계정 권한 `read_all_team_roadmaps`가 필요합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "조회 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
@@ -123,15 +120,14 @@ public class RoadmapController {
                             @SchemaProperty(name = "data", schema = @Schema(implementation = RoadmapTreeResDto.class))})),
             @ApiResponse(responseCode = "403", description = "요청한 작업을 수행할 권한이 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "404", description = "로드맵 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"404 NOT_FOUND\",\"code\":404,\"message\":\"요청한 대상을 찾을 수 없습니다.\"}"))),
-            @ApiResponse(responseCode = "503", description = "팀 멤버 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"요청을 처리할 준비가 되지 않았습니다.\"}")))})
+            @ApiResponse(responseCode = "503", description = "권한 판정에 필요한 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"권한 정보를 동기화하는 중입니다.\"}")))})
     @GetMapping("/{roadmapId}/tree")
     public RoadmapTreeResDto getRoadmapTree(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
-            @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long roadmapId) {
-        return queryRoadmapTreeService.execute(userId, userRole, roadmapId);
+        return queryRoadmapTreeService.execute(userId, roadmapId);
     }
 
-    @Operation(summary = "로드맵 수정", description = "필드를 생략하거나 null을 보내면 기존 값을 유지합니다.")
+    @Operation(summary = "로드맵 수정", description = "필드를 생략하거나 null을 보내면 기존 값을 유지합니다. 글로벌 로드맵에는 계정 권한 `manage_global_roadmaps`가 필요합니다. 팀 또는 프로젝트 로드맵은 소유 팀의 활성 멤버 중 생성자 또는 팀 관리 권한을 가진 사용자가 변경할 수 있습니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "수정 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
@@ -142,25 +138,23 @@ public class RoadmapController {
             @ApiResponse(responseCode = "400", description = "제목 또는 종류가 빈 문자열이거나 공백만 있음, 길이 초과", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"400 BAD_REQUEST\",\"code\":400,\"message\":\"요청 값이 올바르지 않습니다.\"}"))),
             @ApiResponse(responseCode = "403", description = "로드맵 수정 권한 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "404", description = "로드맵 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"404 NOT_FOUND\",\"code\":404,\"message\":\"요청한 대상을 찾을 수 없습니다.\"}"))),
-            @ApiResponse(responseCode = "503", description = "팀 멤버 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"요청을 처리할 준비가 되지 않았습니다.\"}")))})
+            @ApiResponse(responseCode = "503", description = "권한 판정에 필요한 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"권한 정보를 동기화하는 중입니다.\"}")))})
     @PatchMapping("/{roadmapId}")
     public RoadmapResDto updateRoadmap(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
-            @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long roadmapId,
             @Valid @RequestBody UpdateRoadmapReqDto request) {
-        return modifyRoadmapService.execute(userId, userRole, roadmapId, request);
+        return modifyRoadmapService.execute(userId, roadmapId, request);
     }
 
-    @Operation(summary = "로드맵 삭제")
+    @Operation(summary = "로드맵 삭제", description = "글로벌 로드맵에는 계정 권한 `manage_global_roadmaps`가 필요합니다. 팀 또는 프로젝트 로드맵은 소유 팀의 활성 멤버 중 생성자 또는 팀 관리 권한을 가진 사용자가 변경할 수 있습니다.")
     @ApiResponses({@ApiResponse(responseCode = "204", description = "응답 본문 없음", content = @Content),
             @ApiResponse(responseCode = "403", description = "요청한 작업을 수행할 권한이 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "404", description = "로드맵 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"404 NOT_FOUND\",\"code\":404,\"message\":\"요청한 대상을 찾을 수 없습니다.\"}"))),
-            @ApiResponse(responseCode = "503", description = "팀 멤버 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"요청을 처리할 준비가 되지 않았습니다.\"}")))})
+            @ApiResponse(responseCode = "503", description = "권한 판정에 필요한 정보 동기화 중", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"503 SERVICE_UNAVAILABLE\",\"code\":503,\"message\":\"권한 정보를 동기화하는 중입니다.\"}")))})
     @DeleteMapping("/{roadmapId}")
     public ResponseEntity<Void> deleteRoadmap(@Parameter(hidden = true) @RequestHeader("X-User-Id") Long userId,
-            @Parameter(hidden = true) @RequestHeader("X-User-Role") String userRole,
             @PathVariable Long roadmapId) {
-        deleteRoadmapService.execute(userId, userRole, roadmapId);
+        deleteRoadmapService.execute(userId, roadmapId);
         return ResponseEntity.noContent().build();
     }
 }

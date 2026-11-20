@@ -49,7 +49,7 @@ class ReorderRoadmapNodesServiceTest {
 
         for (List<Long> ids : List.of(List.of(1L), List.of(1L, 2L, 3L), List.of(1L, 1L))) {
             ExpectedException error = assertThrows(ExpectedException.class,
-                    () -> service.execute(7L, "MEMBER", 10L, new ReorderNodesReqDto(null, ids)));
+                    () -> service.execute(7L, 10L, new ReorderNodesReqDto(null, ids)));
             assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         }
 
@@ -60,11 +60,11 @@ class ReorderRoadmapNodesServiceTest {
     void childOrder_readsOnlyRequestedParentAfterLockingAndCheckingAccess() {
         Roadmap roadmap = prepareNodes(5L, List.of(node(1L, 0), node(2L, 1)));
 
-        service.execute(7L, "MEMBER", 10L, new ReorderNodesReqDto(5L, List.of(2L, 1L)));
+        service.execute(7L, 10L, new ReorderNodesReqDto(5L, List.of(2L, 1L)));
 
         var order = inOrder(roadmapRepository, accessGuard, nodeRepository);
         order.verify(roadmapRepository).findByIdForUpdate(10L);
-        order.verify(accessGuard).requireMutable(roadmap, 7L, "MEMBER");
+        order.verify(accessGuard).requireMutable(roadmap, 7L);
         order.verify(nodeRepository).findSiblingPositions(10L, 5L);
     }
 
@@ -74,7 +74,7 @@ class ReorderRoadmapNodesServiceTest {
         List<Update> updates = captureUpdates();
         Instant before = Instant.now();
 
-        service.execute(7L, "MEMBER", 10L, new ReorderNodesReqDto(null, List.of(3L, 2L, 1L)));
+        service.execute(7L, 10L, new ReorderNodesReqDto(null, List.of(3L, 2L, 1L)));
 
         assertThat(updates).extracting(Update::nodeId).containsExactly(3L, 1L, 3L, 1L);
         assertThat(updates).extracting(Update::position).containsExactly(-1, -3, 0, 2);
@@ -90,7 +90,7 @@ class ReorderRoadmapNodesServiceTest {
     void unchangedOrder_doesNotUpdatePositionsOrAuditFields() {
         prepareNodes(null, List.of(node(1L, 0), node(2L, 1), node(3L, 2)));
 
-        service.execute(7L, "MEMBER", 10L, new ReorderNodesReqDto(null, List.of(1L, 2L, 3L)));
+        service.execute(7L, 10L, new ReorderNodesReqDto(null, List.of(1L, 2L, 3L)));
 
         verify(nodeRepository, never()).updatePosition(anyLong(), anyLong(), anyInt(), anyLong(), any());
     }
@@ -100,7 +100,7 @@ class ReorderRoadmapNodesServiceTest {
         prepareNodes(null, List.of(node(1L, 2), node(2L, 7)));
         List<Update> updates = captureUpdates();
 
-        service.execute(7L, "MEMBER", 10L, new ReorderNodesReqDto(null, List.of(1L, 2L)));
+        service.execute(7L, 10L, new ReorderNodesReqDto(null, List.of(1L, 2L)));
 
         assertThat(updates).extracting(Update::position).containsExactly(-1, -2, 0, 1);
     }

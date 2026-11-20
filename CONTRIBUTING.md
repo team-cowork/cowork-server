@@ -66,6 +66,7 @@ Gateway reads error bodies up to `gateway.response-wrapper.max-error-body-size` 
 ## Injection and Kotlin style
 
 - Use constructor injection for dependencies and configuration values, or a configuration properties object. Kotlin dependencies use constructor `private val` properties. Java roadmap services use final fields with `@RequiredArgsConstructor` or an explicit constructor. Avoid field-injected `@Autowired` and `@Value`.
+- All Spring modules follow the [JVM naming rule](.claude/rules/jvm-conventions.md) for injected dependencies, for example `s3Client` for `S3Client` in both Kotlin and Java.
 - Prefer `val` for references that are not reassigned. JPA entities may use `var` for mutable persisted state.
 - Use nullable types for valid absence. For a missing required resource, throw the appropriate business exception; avoid `Optional.get()` and `!!`. Use `requireNotNull` only for internal invariants, such as persisted audit timestamps.
 - Declare public API return types, infer local variable types, and omit `Unit` return types.
@@ -155,6 +156,8 @@ Applet uses Scala 3 and Play on Java 25, the newest Java that Play 3.0 supports.
 ## Security
 
 - Inject secrets through environment variables, Vault, or configured secret providers. Follow the [configuration rules](.claude/rules/config.md); non-Spring runtimes do not all resolve `${VAR}` placeholders. Never commit credentials to work around unresolved placeholders.
-- Gateway validates access JWTs, with the Chat WebSocket exception in the [security rules](.claude/rules/security.md).
+- Gateway validates access JWTs for HTTP requests and Chat WebSocket handshakes. Services identify the requester by `X-User-Id`. Roadmap and Chat evaluate synchronized Preference policies on each protected request. See the [security rules](.claude/rules/security.md).
+- Before the platform-role cutover, verify that operators have explicit Preference account-role assignments. Update policy consumers before publishing the new keys.
+- To preserve pending Chat messages, pause sends and let the current Chat version drain `chat.message.v2` and finish required quarantine retries before applying the new Kafka policy. Resume sends when the `chat.message.event.v3` consumer is ready.
 - Use derived repository queries or bound parameters in JPA, JDBC, and Vert.x SQL. Never interpolate request values into SQL/JPQL.
 - Run `bun audit` in both `cowork-chat` and `cowork-github`; use `bun audit --production` to check only runtime dependencies.

@@ -47,12 +47,12 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
 		LoggerModule.forRootAsync({
 			inject: [ConfigService],
 			useFactory(configService: ConfigService) {
-				const isLoggerEnabled = (configService.get<string>('CHAT_LOGGER_ENABLED') ?? process.env.CHAT_LOGGER_ENABLED) !== 'false';
+				const isLoggerEnabled = getOptionalConfig(configService, 'CHAT_LOGGER_ENABLED') !== 'false';
 				if (!isLoggerEnabled) {
 					return {pinoHttp: {level: 'silent'}, renameContext: 'module'};
 				}
-				const logDir = configService.get<string>('COWORK_CHAT_LOG_DIR') ?? process.env.COWORK_CHAT_LOG_DIR;
-				const nodeEnv = configService.get<string>('NODE_ENV') ?? process.env.NODE_ENV;
+				const logDir = configService.get<string>('COWORK_CHAT_LOG_DIR');
+				const nodeEnv = configService.get<string>('NODE_ENV');
 				const level = nodeEnv === 'production' ? 'info' : 'debug';
 				// 운영 수집기는 Docker stdout을 읽으므로 stdout은 항상 쓴다. 파일은 로그 디렉터리를 지정한 로컬 이미지에서만 함께 쓴다.
 				const createLogStream = () => {

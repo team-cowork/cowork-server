@@ -22,13 +22,13 @@ import io.mockk.verify
 import org.springframework.http.HttpStatus
 import team.themoment.sdk.exception.ExpectedException
 
-class ChangeTeamMemberNicknameServiceImplTest :
+class UpdateTeamMemberNicknameServiceImplTest :
     DescribeSpec({
         lateinit var teamRepository: TeamRepository
         lateinit var memberRepository: TeamMemberRepository
         lateinit var roleReader: TeamRoleProjectionReader
         lateinit var eventPublisher: TeamMemberEventPublisher
-        lateinit var service: ChangeTeamMemberNicknameServiceImpl
+        lateinit var service: UpdateTeamMemberNicknameServiceImpl
 
         val team = Team(id = 5L, name = "team", description = null, iconUrl = null, ownerId = 1L)
 
@@ -37,7 +37,7 @@ class ChangeTeamMemberNicknameServiceImplTest :
             memberRepository = mockk()
             roleReader = mockk()
             eventPublisher = mockk(relaxed = true)
-            service = ChangeTeamMemberNicknameServiceImpl(
+            service = UpdateTeamMemberNicknameServiceImpl(
                 memberRepository,
                 eventPublisher,
                 TeamAccessGuard(
@@ -59,7 +59,7 @@ class ChangeTeamMemberNicknameServiceImplTest :
             every { memberRepository.findByTeamIdAndUserIdForUpdate(5L, member.userId) } returns member
         }
 
-        describe("ChangeTeamMemberNicknameServiceImpl 클래스의 execute 메서드는") {
+        describe("UpdateTeamMemberNicknameServiceImpl 클래스의 execute 메서드는") {
             context("멤버가 자신의 닉네임을 바꾸면") {
                 it("앞뒤 공백을 제거해 저장하고 멤버 상태를 발행한다") {
                     val member = TeamMember(team = team, userId = 7L)

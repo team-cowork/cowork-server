@@ -82,7 +82,7 @@ describe('ChatService voice channel logs', () => {
 		});
 		messageRepository.findByIdAndChannelId.mockResolvedValue(systemMessage);
 
-		await expect(service.sendMessage({channelId: 30, userId: 42, userRole: 'USER'}, {content: '답장', parentMessageId: messageId}))
+		await expect(service.sendMessage({channelId: 30, userId: 42}, {content: '답장', parentMessageId: messageId}))
 			.rejects.toThrow(NotFoundException);
 	});
 

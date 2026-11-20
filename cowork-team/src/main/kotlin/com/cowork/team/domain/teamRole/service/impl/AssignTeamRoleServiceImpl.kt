@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional
 class AssignTeamRoleServiceImpl(
     private val teamRoleAccessGuard: TeamRoleAccessGuard,
     private val teamRoleLookupSupport: TeamRoleLookupSupport,
-    private val commandSubmission: TeamRoleCommandSubmission,
+    private val teamRoleCommandSubmission: TeamRoleCommandSubmission,
 ) : AssignTeamRoleService {
     @Transactional
     override fun execute(
@@ -22,7 +22,7 @@ class AssignTeamRoleServiceImpl(
         targetUserId: Long,
         roleId: Long,
         idempotencyKey: String,
-    ): TeamRoleOperationResponse = commandSubmission.submit(
+    ): TeamRoleOperationResponse = teamRoleCommandSubmission.submit(
         idempotencyKey,
         TeamRoleCommandType.ASSIGN,
         teamId,

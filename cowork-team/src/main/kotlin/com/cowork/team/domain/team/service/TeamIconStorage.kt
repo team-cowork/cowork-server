@@ -18,7 +18,7 @@ import java.time.Duration
 import java.util.UUID
 
 @Service
-class S3Service(
+class TeamIconStorage(
     private val s3Template: S3Template,
     private val s3Presigner: S3Presigner,
     private val s3Client: S3Client,

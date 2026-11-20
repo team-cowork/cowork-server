@@ -26,11 +26,6 @@ interface ProjectRepository :
     @Query("SELECT p FROM Project p WHERE p.id > :afterId ORDER BY p.id")
     fun findSnapshotBatch(@Param("afterId") afterId: Long, pageable: Pageable): List<Project>
 
-    fun findAllByTeamId(teamId: Long): List<Project>
-
-    @Query("SELECT p.id FROM Project p WHERE p.teamId = :teamId")
-    fun findIdsByTeamId(@Param("teamId") teamId: Long): List<Long>
-
     @Query(
         "SELECT p FROM Project p JOIN TeamMembership m ON m.teamId = p.teamId " +
             "WHERE p.teamId = :teamId AND m.userId = :userId AND m.active = true " +

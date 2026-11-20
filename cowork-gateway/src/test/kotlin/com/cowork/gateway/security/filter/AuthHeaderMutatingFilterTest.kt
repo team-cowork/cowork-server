@@ -9,7 +9,6 @@ import org.springframework.cloud.gateway.filter.GatewayFilterChain
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest
 import org.springframework.mock.web.server.MockServerWebExchange
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
-import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.ReactiveSecurityContextHolder
 import org.springframework.web.server.ServerWebExchange
 import reactor.core.publisher.Mono
@@ -44,18 +43,14 @@ class AuthHeaderMutatingFilterTest :
                     val forwarded = slot<ServerWebExchange>()
                     val chain = mockk<GatewayFilterChain>()
                     every { chain.filter(capture(forwarded)) } returns Mono.empty()
-                    val authentication = UsernamePasswordAuthenticationToken(
-                        "fallback",
-                        "token",
-                        listOf(SimpleGrantedAuthority("ROLE_MEMBER")),
-                    ).also { it.details = mapOf("userId" to "42", "role" to "ADMIN") }
+                    val authentication = UsernamePasswordAuthenticationToken("42", "token", emptyList())
 
                     filter.filter(spoofedExchange(), chain)
                         .contextWrite(ReactiveSecurityContextHolder.withAuthentication(authentication))
                         .block()
 
                     forwarded.captured.request.headers.getFirst("X-User-Id") shouldBe "42"
-                    forwarded.captured.request.headers.getFirst("X-User-Role") shouldBe "ADMIN"
+                    forwarded.captured.request.headers.getFirst("X-User-Role") shouldBe null
                 }
             }
         }

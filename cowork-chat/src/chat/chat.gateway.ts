@@ -18,7 +18,6 @@ import {
 import {ConfigService} from '@nestjs/config';
 import {Server, Socket, DefaultEventsMap} from 'socket.io';
 import {DmParticipantConsumer} from '../dm/dm-participant.consumer.js';
-import {UserRole} from '../common/enum/user-role.enum.js';
 import {getOptionalConfig} from '../common/config/config.util.js';
 import {RedisRateLimiter} from '../common/util/redis-rate-limiter.js';
 import {GlobalExceptionFilter} from '../common/filter/global-exception.filter.js';
@@ -28,7 +27,6 @@ import {type ForwardReference} from '../common/type/forward-reference.js';
 import {ChatService} from './chat.service.js';
 import {ChatMessageConsumer} from './kafka/chat-message.consumer.js';
 import {GithubIssueResultConsumer} from './kafka/github-issue-result.consumer.js';
-import {ChatGithubIssueResultConsumer} from './kafka/chat-github-issue-result.consumer.js';
 import {GithubRepoEventConsumer} from './kafka/github-repo-event.consumer.js';
 import {VoiceEventConsumer} from './kafka/voice-event.consumer.js';
 import {ChannelEventConsumer} from './kafka/channel-event.consumer.js';
@@ -47,7 +45,6 @@ const LOCAL_ROOM_SWEEP_INTERVAL_MS = 30_000;
 
 export type ChatSocketData = {
 	userId: number;
-	userRole: string;
 };
 
 export type ChatSocket = Socket<DefaultEventsMap, DefaultEventsMap, DefaultEventsMap, ChatSocketData>;
@@ -55,7 +52,7 @@ export type ChatSocket = Socket<DefaultEventsMap, DefaultEventsMap, DefaultEvent
 /**
  `/chat` 네임스페이스의 WebSocket 게이트웨이.
 
- 연결 시 Gateway가 주입한 `X-User-Id`/`X-User-Role` 헤더를 사용하고,
+ 연결 시 Gateway가 주입한 `X-User-Id` 헤더를 사용하고,
  헤더가 없으면 연결을 거절한다. 인증된 연결의 사용자 정보를 `client.data`에 저장한다.
  인증은 handshake 미들웨어에서 하므로 실패하면 `connect` 없이 `connect_error`만 전달된다.
  `afterInit`에서 Socket.IO `Server` 인스턴스를 Kafka 컨슈머에 주입해
@@ -95,9 +92,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
 	@inject(forwardRef(() => GithubIssueResultConsumer))
 	private readonly githubIssueResultConsumer!: ForwardReference<GithubIssueResultConsumer>;
-
-	@inject(forwardRef(() => ChatGithubIssueResultConsumer))
-	private readonly chatGithubIssueResultConsumer!: ForwardReference<ChatGithubIssueResultConsumer>;
 
 	@inject(forwardRef(() => GithubRepoEventConsumer))
 	private readonly githubRepoEventConsumer!: ForwardReference<GithubRepoEventConsumer>;
@@ -202,9 +196,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
      */
 	private authenticate(client: ChatSocket): Error | undefined {
 		try {
-			const {userId, userRole} = this.resolveIdentity(client);
-			client.data.userId = userId;
-			client.data.userRole = userRole;
+			client.data.userId = this.resolveIdentity(client);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : '인증 실패';
 			this.logger.warn(`Auth failed, rejecting connection: ${client.id} - ${message}`);
@@ -215,9 +207,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 	}
 
 	/**
-     Gateway가 주입한 `X-User-Id`/`X-User-Role` 헤더로 사용자 정보를 확인한다.
+     Gateway가 주입한 `X-User-Id` 헤더로 사용자 정보를 확인한다.
      */
-	private resolveIdentity(client: ChatSocket): {userId: number; userRole: string} {
+	private resolveIdentity(client: ChatSocket): number {
 		const rawUserId = client.handshake.headers['x-user-id'];
 		const headerUserId = Array.isArray(rawUserId) ? rawUserId[0] : rawUserId;
 		if (typeof headerUserId === 'string') {
@@ -226,10 +218,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 				throw new Error('X-User-Id 헤더가 유효하지 않습니다');
 			}
 
-			const rawUserRole = client.handshake.headers['x-user-role'];
-			const headerUserRole = Array.isArray(rawUserRole) ? rawUserRole[0] : rawUserRole;
-			const userRole = typeof headerUserRole === 'string' && headerUserRole !== '' ? headerUserRole : UserRole.USER;
-			return {userId, userRole};
+			return userId;
 		}
 
 		throw new Error('인증 정보가 전달되지 않았습니다');
@@ -310,7 +299,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 		});
 		this.consumer.setSocketServer(server);
 		this.githubIssueResultConsumer.setSocketServer(server);
-		this.chatGithubIssueResultConsumer.setSocketServer(server);
 		this.githubRepoEventConsumer.setSocketServer(server);
 		this.voiceEventConsumer.setSocketServer(server);
 		this.channelEventConsumer.setSocketServer(server);

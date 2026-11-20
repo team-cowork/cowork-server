@@ -7,7 +7,9 @@ import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
 
 @Component
-class PreferenceTeamSettingProjectionHandler(private val repository: TeamSettingProjectionRepository) {
+class PreferenceTeamSettingProjectionHandler(
+    private val teamSettingProjectionRepository: TeamSettingProjectionRepository,
+) {
 
     /**
      * Preference snapshot은 저장된 version을 그대로 다시 보내면서 새로 추가된 필드를 채울 수 있으므로
@@ -16,7 +18,7 @@ class PreferenceTeamSettingProjectionHandler(private val repository: TeamSetting
     @Transactional
     fun handle(event: PreferenceTeamSettingEvent) {
         val occurredAt = event.occurredAt.toProjectionPrecision()
-        val existing = repository.findById(event.teamId).orElse(null)
+        val existing = teamSettingProjectionRepository.findById(event.teamId).orElse(null)
         if (existing?.sourceOccurredAt?.toProjectionPrecision()?.isAfter(occurredAt) == true) return
 
         val example = event.nicknameFormatExample?.takeIf { it.isNotBlank() }
@@ -26,6 +28,6 @@ class PreferenceTeamSettingProjectionHandler(private val repository: TeamSetting
             nicknameFormatExample = example,
             occurredAt = occurredAt,
         )
-        repository.save(setting)
+        teamSettingProjectionRepository.save(setting)
     }
 }

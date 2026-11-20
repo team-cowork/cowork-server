@@ -17,6 +17,19 @@ class AccountRolePolicyEventTest :
             event.isDefault shouldBe true
             event.validKey("role:3") shouldBe true
             event.validKey("role:4") shouldBe false
+            event.copy(
+                permissions = mapOf(
+                    "manage_global_roadmaps" to true,
+                    "read_all_team_roadmaps" to true,
+                    "create_team_assignments" to true,
+                    "update_team_assignment_status" to true,
+                    "delete_team_assignments" to true,
+                    "manage_chat_search_index" to true,
+                    "manage_chat_message_quarantine" to true,
+                    "view_chat_projections" to true,
+                    "rebuild_chat_projections" to true,
+                ),
+            ).validKey("role:3") shouldBe true
             event.copy(permissions = mapOf("unknown" to true)).validKey("role:3") shouldBe false
         }
 

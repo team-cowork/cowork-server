@@ -11,8 +11,8 @@ internal class TeamKafkaSender(
     private val kafkaTemplate: KafkaTemplate<String, Any>,
     private val objectMapper: ObjectMapper,
     private val meterRegistry: MeterRegistry,
-    private val settings: OutboxRelaySettings,
-    private val store: TeamOutboxStore,
+    private val outboxRelaySettings: OutboxRelaySettings,
+    private val teamOutboxStore: TeamOutboxStore,
 ) {
     private val publishTimer =
         Timer
@@ -25,7 +25,7 @@ internal class TeamKafkaSender(
             try {
                 deserializePayload(record.payload)
             } catch (exception: Exception) {
-                store.finalizeFailure(record, FailureType.PAYLOAD, exception, retryable = false)
+                teamOutboxStore.finalizeFailure(record, FailureType.PAYLOAD, exception, retryable = false)
                 return true
             }
 
@@ -35,15 +35,15 @@ internal class TeamKafkaSender(
                 record.partition?.let { partition ->
                     kafkaTemplate.send(record.topic, partition, record.eventKey, payload)
                 } ?: kafkaTemplate.send(record.topic, record.eventKey, payload)
-            sendResult.get(settings.sendTimeoutMs, TimeUnit.MILLISECONDS)
-            store.finalizeSuccess(record)
+            sendResult.get(outboxRelaySettings.sendTimeoutMs, TimeUnit.MILLISECONDS)
+            teamOutboxStore.finalizeSuccess(record)
             true
         } catch (exception: InterruptedException) {
             Thread.currentThread().interrupt()
-            store.releaseClaim(record.id)
+            teamOutboxStore.releaseClaim(record.id)
             false
         } catch (exception: Exception) {
-            store.finalizeFailure(record, FailureType.KAFKA_PUBLISH, exception, retryable = true)
+            teamOutboxStore.finalizeFailure(record, FailureType.KAFKA_PUBLISH, exception, retryable = true)
             true
         } finally {
             sample.stop(publishTimer)

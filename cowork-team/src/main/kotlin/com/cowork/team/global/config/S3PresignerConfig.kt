@@ -12,15 +12,15 @@ import software.amazon.awssdk.services.s3.presigner.S3Presigner
 import java.net.URI
 
 @Configuration
-class S3PresignerConfig(private val env: Environment) {
+class S3PresignerConfig(private val environment: Environment) {
 
     @Bean
     @Primary
     fun s3Presigner(): S3Presigner {
-        val apiEndpoint = env.getRequired("object-storage.public-api-base-url")
-        val region = env.getRequiredProperty("spring.cloud.aws.region.static")
-        val accessKey = env.getRequiredProperty("spring.cloud.aws.credentials.access-key")
-        val secretKey = env.getRequiredProperty("spring.cloud.aws.credentials.secret-key")
+        val apiEndpoint = environment.getRequired("object-storage.public-api-base-url")
+        val region = environment.getRequiredProperty("spring.cloud.aws.region.static")
+        val accessKey = environment.getRequiredProperty("spring.cloud.aws.credentials.access-key")
+        val secretKey = environment.getRequiredProperty("spring.cloud.aws.credentials.secret-key")
         val endpoint = URI.create(apiEndpoint)
         require(
             endpoint.scheme in setOf("http", "https") && !endpoint.host.isNullOrBlank() &&
@@ -30,7 +30,7 @@ class S3PresignerConfig(private val env: Environment) {
             "Public API endpoint must be an HTTP(S) origin"
         }
         require(accessKey.isNotBlank() && secretKey.isNotBlank()) { "S3 service credentials are required" }
-        if ("prod" in env.activeProfiles) {
+        if ("prod" in environment.activeProfiles) {
             require(endpoint.scheme == "https" && endpoint.host !in setOf("localhost", "127.0.0.1", "[::1]")) {
                 "Production API endpoint requires HTTPS and a non-local host"
             }

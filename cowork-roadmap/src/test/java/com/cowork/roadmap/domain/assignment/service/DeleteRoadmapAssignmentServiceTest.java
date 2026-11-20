@@ -4,7 +4,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -41,11 +40,11 @@ class DeleteRoadmapAssignmentServiceTest {
         RoadmapAssignment assignment = assignment(5L, 200L);
         when(assignmentRepository.findById(5L)).thenReturn(Optional.of(assignment));
 
-        deleteRoadmapAssignmentService.execute(200L, "MEMBER", 5L);
+        deleteRoadmapAssignmentService.execute(200L, 5L);
 
         verify(accessGuard).requireTeamMember(assignment.getTeamId(), 200L);
         verify(assignmentRepository).delete(assignment);
-        verify(accessGuard, never()).requireTeamManagerOrAdmin(anyLong(), anyString(), anyLong());
+        verify(accessGuard, never()).requireTeamManager(anyLong(), anyLong());
     }
 
     @Test
@@ -56,21 +55,22 @@ class DeleteRoadmapAssignmentServiceTest {
                 .requireTeamMember(anyLong(), anyLong());
 
         ExpectedException error = assertThrows(ExpectedException.class,
-                () -> deleteRoadmapAssignmentService.execute(200L, "MEMBER", 5L));
+                () -> deleteRoadmapAssignmentService.execute(200L, 5L));
         assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
 
         verify(assignmentRepository, never()).delete(any());
     }
 
     @Test
-    void deleteAssignment_byAdmin_deletesWithoutTeamCheck() {
+    void deleteAssignment_withAccountPermission_deletesWithoutTeamCheck() {
         RoadmapAssignment assignment = assignment(5L, 200L);
         when(assignmentRepository.findById(5L)).thenReturn(Optional.of(assignment));
 
-        deleteRoadmapAssignmentService.execute(999L, "ADMIN", 5L);
+        when(accessGuard.accountAllows(999L, "delete_team_assignments")).thenReturn(true);
+        deleteRoadmapAssignmentService.execute(999L, 5L);
 
         verify(assignmentRepository).delete(assignment);
-        verify(accessGuard, never()).requireTeamManagerOrAdmin(anyLong(), anyString(), anyLong());
+        verify(accessGuard, never()).requireTeamManager(anyLong(), anyLong());
         verify(accessGuard, never()).requireTeamMember(anyLong(), anyLong());
     }
 
@@ -79,9 +79,9 @@ class DeleteRoadmapAssignmentServiceTest {
         RoadmapAssignment assignment = assignment(5L, 200L);
         when(assignmentRepository.findById(5L)).thenReturn(Optional.of(assignment));
 
-        deleteRoadmapAssignmentService.execute(999L, "MEMBER", 5L);
+        deleteRoadmapAssignmentService.execute(999L, 5L);
 
-        verify(accessGuard).requireTeamManagerOrAdmin(999L, "MEMBER", assignment.getTeamId());
+        verify(accessGuard).requireTeamManager(999L, assignment.getTeamId());
         verify(assignmentRepository).delete(assignment);
     }
 
@@ -90,10 +90,10 @@ class DeleteRoadmapAssignmentServiceTest {
         RoadmapAssignment assignment = assignment(5L, 200L);
         when(assignmentRepository.findById(5L)).thenReturn(Optional.of(assignment));
         doThrow(new ExpectedException("권한 없음", HttpStatus.FORBIDDEN)).when(accessGuard)
-                .requireTeamManagerOrAdmin(anyLong(), anyString(), anyLong());
+                .requireTeamManager(anyLong(), anyLong());
 
         ExpectedException error = assertThrows(ExpectedException.class,
-                () -> deleteRoadmapAssignmentService.execute(999L, "MEMBER", 5L));
+                () -> deleteRoadmapAssignmentService.execute(999L, 5L));
         assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
 
         verify(assignmentRepository, never()).delete(any());
@@ -104,7 +104,7 @@ class DeleteRoadmapAssignmentServiceTest {
         when(assignmentRepository.findById(99L)).thenReturn(Optional.empty());
 
         ExpectedException error = assertThrows(ExpectedException.class,
-                () -> deleteRoadmapAssignmentService.execute(1L, "ADMIN", 99L));
+                () -> deleteRoadmapAssignmentService.execute(1L, 99L));
         assertTrue(error.getStatusCode() == HttpStatus.NOT_FOUND);
     }
 

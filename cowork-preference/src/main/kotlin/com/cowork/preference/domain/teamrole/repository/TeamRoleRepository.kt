@@ -9,14 +9,13 @@ import com.cowork.preference.domain.teamrole.model.TeamRolePermissions
 import com.cowork.preference.domain.teamrole.model.TeamRoleState
 import com.cowork.preference.global.outbox.PreferenceOutboxOrdering
 import io.vertx.kotlin.coroutines.coAwait
-import io.vertx.sqlclient.Pool
 import io.vertx.sqlclient.Row
 import io.vertx.sqlclient.SqlClient
 import io.vertx.sqlclient.Tuple
 import java.time.Instant
 import java.time.ZoneOffset
 
-class TeamRoleRepository(private val pool: Pool) {
+class TeamRoleRepository {
 
     /** Callers hold [PreferenceOutboxOrdering] together with lifecycle cleanup and the emitted role state. */
     internal suspend fun ensureDefaultRole(client: SqlClient, teamId: Long): TeamRoleDefinition? {
@@ -104,8 +103,6 @@ class TeamRoleRepository(private val pool: Pool) {
         return rows.map { it.toTeamRoleDefinition() }
     }
 
-    suspend fun findRole(teamId: Long, roleId: Long): TeamRoleDefinition? = findRole(pool, teamId, roleId)
-
     internal suspend fun findRole(client: SqlClient, teamId: Long, roleId: Long): TeamRoleDefinition? {
         val rows = client.preparedQuery(
             """
@@ -117,8 +114,6 @@ class TeamRoleRepository(private val pool: Pool) {
         return rows.firstOrNull()?.toTeamRoleDefinition()
     }
 
-    suspend fun findRoleByName(teamId: Long, name: String): TeamRoleDefinition? = findRoleByName(pool, teamId, name)
-
     internal suspend fun findRoleByName(client: SqlClient, teamId: Long, name: String): TeamRoleDefinition? {
         val rows = client.preparedQuery(
             """
@@ -129,9 +124,6 @@ class TeamRoleRepository(private val pool: Pool) {
         ).execute(Tuple.of(teamId, name)).coAwait()
         return rows.firstOrNull()?.toTeamRoleDefinition()
     }
-
-    suspend fun findRoleByNameExceptId(teamId: Long, name: String, roleId: Long): TeamRoleDefinition? =
-        findRoleByNameExceptId(pool, teamId, name, roleId)
 
     internal suspend fun findRoleByNameExceptId(
         client: SqlClient,

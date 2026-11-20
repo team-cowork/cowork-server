@@ -1318,7 +1318,24 @@
     },
     "schemas": {
       "AccountRole": {"type": "object","required": ["id","name","permissions","isDefault"],"properties": {"id": {"type": "integer","format": "int64"},"name": {"type": "string"},"isDefault": {"type": "boolean"},"permissions": {"$ref": "#/components/schemas/AccountRolePermissions"}}},
-      "AccountRolePermissions": {"type": "object","additionalProperties": false,"properties": {"create_team": {"type": "boolean", "default": false},"manage_account_roles": {"type": "boolean", "default": false}}},
+      "AccountRolePermissions": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "로드맵과 채팅 운영 권한은 기본 역할에 부여할 수 없습니다.",
+        "properties": {
+          "create_team": {"type": "boolean", "default": false, "description": "팀 생성"},
+          "manage_account_roles": {"type": "boolean", "default": false, "description": "계정 역할 관리"},
+          "manage_global_roadmaps": {"type": "boolean", "default": false, "description": "글로벌 로드맵과 노드 관리"},
+          "read_all_team_roadmaps": {"type": "boolean", "default": false, "description": "다른 팀의 로드맵과 과제 열람"},
+          "create_team_assignments": {"type": "boolean", "default": false, "description": "팀 과제 출제"},
+          "update_team_assignment_status": {"type": "boolean", "default": false, "description": "팀 과제 상태 변경"},
+          "delete_team_assignments": {"type": "boolean", "default": false, "description": "팀 과제 삭제"},
+          "manage_chat_search_index": {"type": "boolean", "default": false, "description": "채팅 검색 색인 관리"},
+          "manage_chat_message_quarantine": {"type": "boolean", "default": false, "description": "채팅 메시지 격리 관리"},
+          "view_chat_projections": {"type": "boolean", "default": false, "description": "채팅 Kafka 투영 상태 조회"},
+          "rebuild_chat_projections": {"type": "boolean", "default": false, "description": "채팅 Kafka 투영 재구축"}
+        }
+      },
       "AccountRoleRequest": {"type": "object","required": ["name","permissions"],"properties": {"name": {"type": "string","minLength": 1,"maxLength": 50},"permissions": {"$ref": "#/components/schemas/AccountRolePermissions"}}},
       "Webhook": {
         "type": "object",

@@ -23,10 +23,10 @@ public class ListNodeReferencesServiceImpl implements ListNodeReferencesService 
 
     @Override
     @Transactional(readOnly = true)
-    public List<NodeReferenceResDto> execute(Long userId, String userRole, Long nodeId) {
+    public List<NodeReferenceResDto> execute(Long userId, Long nodeId) {
         var node = nodeLookupSupport.findNodeOrThrow(nodeId);
         var roadmap = roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId());
-        accessGuard.requireReadable(roadmap, userId, userRole);
+        accessGuard.requireReadable(roadmap, userId);
         return nodeLookupSupport.loadReferences(nodeId);
     }
 }

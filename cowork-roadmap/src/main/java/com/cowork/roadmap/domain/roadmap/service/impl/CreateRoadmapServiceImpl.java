@@ -24,7 +24,7 @@ public class CreateRoadmapServiceImpl implements CreateRoadmapService {
 
     @Override
     @Transactional
-    public RoadmapResDto execute(Long userId, String userRole, CreateRoadmapReqDto request) {
+    public RoadmapResDto execute(Long userId, CreateRoadmapReqDto request) {
         RoadmapScope scope = request.scope();
         // shortcut: 프로젝트 투영이 없어 ownerProjectId의 소속 팀을 확인할 수 없으므로 PROJECT 생성을 막는다. 투영을
         // 추가하면 팀 일치 검증으로 바꾼다.
@@ -34,7 +34,7 @@ public class CreateRoadmapServiceImpl implements CreateRoadmapService {
         if (scope == RoadmapScope.TEAM && request.ownerTeamId() == null) {
             throw new ExpectedException("TEAM 로드맵에는 ownerTeamId가 필요합니다.", HttpStatus.BAD_REQUEST);
         }
-        accessGuard.requireCreatable(userId, userRole, scope, request.ownerTeamId());
+        accessGuard.requireCreatable(userId, scope, request.ownerTeamId());
         Roadmap roadmap = Roadmap.builder()
                 .title(request.title())
                 .description(request.description())

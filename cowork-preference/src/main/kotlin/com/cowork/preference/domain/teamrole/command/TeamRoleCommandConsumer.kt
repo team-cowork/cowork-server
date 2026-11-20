@@ -3,197 +3,39 @@ package com.cowork.preference.domain.teamrole.command
 import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommand
 import com.cowork.preference.domain.teamrole.command.model.TeamRoleCommandEnvelope
 import com.cowork.preference.domain.teamrole.command.repository.TeamRoleCommandInboxRepository
-import com.cowork.preference.global.config.kafkaClientProperties
-import com.cowork.preference.global.logging.logger
-import com.cowork.preference.global.messaging.command.model.CommandDecision
+import com.cowork.preference.global.messaging.command.CommandConsumer
 import com.cowork.preference.global.messaging.command.model.CommandQuarantineRecord
 import com.cowork.preference.global.messaging.event.PreferenceTopics
-import io.vertx.core.Future
 import io.vertx.core.Vertx
-import io.vertx.kafka.client.consumer.KafkaConsumer
-import io.vertx.kafka.client.consumer.KafkaConsumerRecord
-import io.vertx.kafka.client.consumer.KafkaConsumerRecords
-import io.vertx.kotlin.coroutines.coAwait
-import io.vertx.kotlin.coroutines.dispatcher
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.seconds
 
 class TeamRoleCommandConsumer(
-    private val vertx: Vertx,
+    vertx: Vertx,
     bootstrapServers: String,
-    private val groupId: String,
+    groupId: String,
     private val processor: TeamRoleCommandProcessor,
     private val inboxRepository: TeamRoleCommandInboxRepository,
-    private val scope: CoroutineScope,
+    scope: CoroutineScope,
+) : CommandConsumer<TeamRoleCommand, TeamRoleCommandEnvelope>(
+    vertx,
+    bootstrapServers,
+    groupId,
+    PreferenceTopics.TEAM_ROLE_COMMAND_TOPIC,
+    "preference team-role command",
+    "team-role command",
+    scope,
 ) {
-    private var closed = false
-    private val consumer = KafkaConsumer.create<String, String>(
-        vertx,
-        kafkaClientProperties() + mapOf(
-            "bootstrap.servers" to bootstrapServers,
-            "key.deserializer" to "org.apache.kafka.common.serialization.StringDeserializer",
-            "value.deserializer" to "org.apache.kafka.common.serialization.StringDeserializer",
-            "group.id" to groupId,
-            "auto.offset.reset" to "earliest",
-            "enable.auto.commit" to "false",
-            "isolation.level" to "read_committed",
-        ),
-    )
+    override fun parse(key: String?, value: String?) = TeamRoleCommandParser.parse(key, value)
 
-    fun start() {
-        consumer.exceptionHandler { logger().error("preference team-role command consumer failure", it) }
-        consumer.batchHandler { records ->
-            consumer.pause()
-            scope.launch(vertx.dispatcher()) {
-                try {
-                    process(records)
-                    consumer.commit().coAwait()
-                } finally {
-                    if (!closed) consumer.resume()
-                }
-            }
-        }
-        scope.launch(vertx.dispatcher()) {
-            retry("subscribe") { consumer.subscribe(PreferenceTopics.TEAM_ROLE_COMMAND_TOPIC).coAwait() }
-            this@TeamRoleCommandConsumer.logger().info(
-                "Preference team-role command consumer subscribed topic={} group={}",
-                PreferenceTopics.TEAM_ROLE_COMMAND_TOPIC,
-                groupId,
-            )
-        }
-    }
+    override suspend fun applyCommand(command: TeamRoleCommand) = processor.process(command)
 
-    fun close(): Future<Void> {
-        closed = true
-        return consumer.close()
-    }
-
-    private suspend fun process(records: KafkaConsumerRecords<String, String>) {
-        for (index in 0 until records.size()) {
-            val record = records.recordAt(index)
-            when (val decision = TeamRoleCommandParser.parse(record.key(), record.value())) {
-                is CommandDecision.Apply -> processWithRetry(record, decision.command)
-                is CommandDecision.Reject -> rejectWithRetry(record, decision)
-                is CommandDecision.Quarantine -> quarantineWithRetry(record, decision.reason)
-            }
-        }
-    }
-
-    private suspend fun processWithRetry(record: KafkaConsumerRecord<String, String>, command: TeamRoleCommand) {
-        while (!closed) {
-            try {
-                processor.process(command)
-                return
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Throwable) {
-                logger().error(
-                    "Preference team-role command apply failed; retrying topic={} partition={} offset={}",
-                    record.topic(),
-                    record.partition(),
-                    record.offset(),
-                    error,
-                )
-                delay(RETRY_DELAY)
-            }
-        }
-        throw CancellationException("preference team-role command consumer stopped")
-    }
-
-    private suspend fun rejectWithRetry(
-        record: KafkaConsumerRecord<String, String>,
-        rejection: CommandDecision.Reject<TeamRoleCommandEnvelope>,
-    ) {
-        while (!closed) {
-            try {
-                processor.rejectInvalid(
-                    rejection.envelope,
-                    quarantineRecord(record, rejection.reason),
-                    rejection.reason,
-                )
-                logger().error(
-                    "Rejected invalid team-role command topic={} partition={} offset={} reason={}",
-                    record.topic(),
-                    record.partition(),
-                    record.offset(),
-                    rejection.reason,
-                )
-                return
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Throwable) {
-                logger().error(
-                    "Preference team-role command rejection failed; retrying topic={} partition={} offset={}",
-                    record.topic(),
-                    record.partition(),
-                    record.offset(),
-                    error,
-                )
-                delay(RETRY_DELAY)
-            }
-        }
-        throw CancellationException("preference team-role command consumer stopped")
-    }
-
-    private suspend fun quarantineWithRetry(record: KafkaConsumerRecord<String, String>, reason: String) {
-        while (!closed) {
-            try {
-                inboxRepository.quarantine(quarantineRecord(record, reason))
-                logger().error(
-                    "Quarantined invalid team-role command topic={} partition={} offset={} reason={}",
-                    record.topic(),
-                    record.partition(),
-                    record.offset(),
-                    reason,
-                )
-                return
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Throwable) {
-                logger().error(
-                    "Preference team-role command quarantine failed; retrying topic={} partition={} offset={}",
-                    record.topic(),
-                    record.partition(),
-                    record.offset(),
-                    error,
-                )
-                delay(RETRY_DELAY)
-            }
-        }
-        throw CancellationException("preference team-role command consumer stopped")
-    }
-
-    private fun quarantineRecord(
-        record: KafkaConsumerRecord<String, String>,
+    override suspend fun rejectInvalid(
+        envelope: TeamRoleCommandEnvelope,
+        record: CommandQuarantineRecord,
         reason: String,
-    ): CommandQuarantineRecord = CommandQuarantineRecord(
-        topic = record.topic(),
-        partition = record.partition(),
-        offset = record.offset(),
-        key = record.key(),
-        payload = record.value(),
-        reason = reason,
-    )
+    ) = processor.rejectInvalid(envelope, record, reason)
 
-    private suspend fun <T> retry(operation: String, block: suspend () -> T): T {
-        while (!closed) {
-            try {
-                return block()
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Throwable) {
-                logger().error("Preference team-role command consumer {} failed; retrying", operation, error)
-                delay(RETRY_DELAY)
-            }
-        }
-        throw CancellationException("preference team-role command consumer stopped")
-    }
-
-    private companion object {
-        val RETRY_DELAY: Duration = 1.seconds
+    override suspend fun quarantine(record: CommandQuarantineRecord) {
+        inboxRepository.quarantine(record)
     }
 }

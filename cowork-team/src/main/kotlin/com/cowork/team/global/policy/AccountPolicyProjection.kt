@@ -8,9 +8,9 @@ import tools.jackson.module.kotlin.readValue
 import java.sql.Timestamp
 
 @Repository
-class AccountPolicyProjection(private val jdbc: JdbcTemplate, private val mapper: ObjectMapper) {
+class AccountPolicyProjection(private val jdbcTemplate: JdbcTemplate, private val objectMapper: ObjectMapper) {
     fun apply(key: String, event: AccountRolePolicyEvent) {
-        jdbc.update(
+        jdbcTemplate.update(
             """
             INSERT INTO tb_account_policy_projections
                 (policy_key, record_type, role_id, account_id, is_default, permissions_json, deleted, source_occurred_at)
@@ -23,11 +23,14 @@ class AccountPolicyProjection(private val jdbc: JdbcTemplate, private val mapper
                 source_occurred_at = GREATEST(source_occurred_at, VALUES(source_occurred_at))
             """.trimIndent(),
             key, event.eventType, event.roleId, event.accountId, event.isDefault == true,
-            mapper.writeValueAsString(event.permissions.orEmpty()), event.deleted, Timestamp.from(event.occurredAt),
+            objectMapper.writeValueAsString(
+                event.permissions.orEmpty(),
+            ),
+            event.deleted, Timestamp.from(event.occurredAt),
         )
     }
 
-    fun findAccountPolicies(accountId: Long): List<Map<String, Boolean>> = jdbc.query(
+    fun findAccountPolicies(accountId: Long): List<Map<String, Boolean>> = jdbcTemplate.query(
         """
             SELECT r.permissions_json FROM tb_account_policy_projections r
             WHERE r.record_type = 'ROLE' AND NOT r.deleted AND (r.is_default OR EXISTS (
@@ -35,11 +38,11 @@ class AccountPolicyProjection(private val jdbc: JdbcTemplate, private val mapper
                 WHERE a.record_type = 'ASSIGNMENT' AND a.account_id = ? AND a.role_id = r.role_id AND NOT a.deleted
             ))
         """.trimIndent(),
-        { row, _ -> mapper.readValue<Map<String, Boolean>>(row.getString("permissions_json")) },
+        { row, _ -> objectMapper.readValue<Map<String, Boolean>>(row.getString("permissions_json")) },
         accountId,
     )
 
-    fun findTeamPolicies(accountId: Long): List<Map<String, Boolean>> = jdbc.query(
+    fun findTeamPolicies(accountId: Long): List<Map<String, Boolean>> = jdbcTemplate.query(
         """
             SELECT r.permissions_json FROM tb_team_role_projections r
             JOIN tb_team_members m ON m.team_id = r.team_id AND m.user_id = ?
@@ -53,7 +56,7 @@ class AccountPolicyProjection(private val jdbc: JdbcTemplate, private val mapper
                   )
             ))
         """.trimIndent(),
-        { row, _ -> mapper.readValue<Map<String, Boolean>>(row.getString("permissions_json")) },
+        { row, _ -> objectMapper.readValue<Map<String, Boolean>>(row.getString("permissions_json")) },
         accountId,
     )
 

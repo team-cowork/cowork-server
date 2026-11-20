@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController
 
 @RestController
 @Tag(name = "팀")
-class TeamOwnershipController(private val transfer: TransferTeamOwnershipService) {
+class TeamOwnershipController(private val transferTeamOwnershipService: TransferTeamOwnershipService) {
     @PutMapping("/teams/{teamId}/ownership")
     @Operation(
         summary = "팀 소유권 이양",
@@ -36,5 +36,5 @@ class TeamOwnershipController(private val transfer: TransferTeamOwnershipService
         @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
         @PathVariable teamId: Long,
         @Valid @RequestBody request: TransferTeamOwnershipRequest,
-    ): TeamResponse = transfer.execute(userId, teamId, request.targetUserId)
+    ): TeamResponse = transferTeamOwnershipService.execute(userId, teamId, request.targetUserId)
 }

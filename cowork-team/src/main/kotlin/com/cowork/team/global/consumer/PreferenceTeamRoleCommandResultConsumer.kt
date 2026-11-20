@@ -16,8 +16,8 @@ import java.util.UUID
 
 @Component
 class PreferenceTeamRoleCommandResultConsumer(
-    private val operationRepository: TeamRoleCommandOperationRepository,
-    private val finalizer: TeamRoleOperationProjectionFinalizer,
+    private val teamRoleCommandOperationRepository: TeamRoleCommandOperationRepository,
+    private val teamRoleOperationProjectionFinalizer: TeamRoleOperationProjectionFinalizer,
     private val objectMapper: ObjectMapper,
 ) {
     @KafkaListener(
@@ -47,7 +47,7 @@ class PreferenceTeamRoleCommandResultConsumer(
             "팀 역할 command result는 terminal 상태여야 합니다."
         }
 
-        val operation = requireNotNull(operationRepository.findByIdForUpdate(result.operationId)) {
+        val operation = requireNotNull(teamRoleCommandOperationRepository.findByIdForUpdate(result.operationId)) {
             "팀 역할 command result에 대응하는 operation이 없습니다: ${result.operationId}"
         }
         require(operation.teamId == result.teamId) { "팀 역할 command result의 teamId가 일치하지 않습니다." }
@@ -94,7 +94,7 @@ class PreferenceTeamRoleCommandResultConsumer(
                     operation.resultRoleJson = resultRoleJson
                 }
                 operation.markProcessing(resultRoleJson, expectation)
-                finalizer.tryFinalize(operation)
+                teamRoleOperationProjectionFinalizer.tryFinalize(operation)
             }
 
             TeamRoleOperationStatus.PENDING, TeamRoleOperationStatus.PROCESSING ->

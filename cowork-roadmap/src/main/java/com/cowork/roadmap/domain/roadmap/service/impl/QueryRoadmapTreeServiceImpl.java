@@ -34,9 +34,9 @@ public class QueryRoadmapTreeServiceImpl implements QueryRoadmapTreeService {
 
     @Override
     @Transactional(readOnly = true)
-    public RoadmapTreeResDto execute(Long userId, String userRole, Long roadmapId) {
+    public RoadmapTreeResDto execute(Long userId, Long roadmapId) {
         var roadmap = lookupSupport.findRoadmapOrThrow(roadmapId);
-        accessGuard.requireReadable(roadmap, userId, userRole);
+        accessGuard.requireReadable(roadmap, userId);
         List<NodeTreeProjection> nodes = nodeRepository.findTreeByRoadmapId(roadmapId);
         if (nodes.isEmpty()) {
             return new RoadmapTreeResDto(RoadmapResDto.from(roadmap), List.of());

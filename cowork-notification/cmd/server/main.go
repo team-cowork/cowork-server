@@ -19,7 +19,6 @@ import (
 	"github.com/cowork/cowork-notification/internal/config"
 	"github.com/cowork/cowork-notification/internal/domain/delivery"
 	installationdomain "github.com/cowork/cowork-notification/internal/domain/installation"
-	"github.com/cowork/cowork-notification/internal/domain/projection"
 	"github.com/cowork/cowork-notification/internal/health"
 	"github.com/cowork/cowork-notification/internal/infra/fcm"
 	kafkainfra "github.com/cowork/cowork-notification/internal/infra/kafka"
@@ -83,7 +82,6 @@ func main() {
 	deliveryRepo := sqliteinfra.NewDeliveryRepository(db)
 	eventInbox := sqliteinfra.NewEventInboxRepository(db)
 	projectionRepo := sqliteinfra.NewProjectionRepository(db)
-	projectionService := projection.NewService(projectionRepo)
 	svc := installationdomain.NewService(repo, fcmSender, projectionRepo, deliveryRepo)
 	handler := installationdomain.NewHandler(svc)
 	deliveryWorker := delivery.NewWorker(deliveryRepo, repo, repo, fcmSender, eventInbox)
@@ -113,7 +111,7 @@ func main() {
 			AccountSetting:      cfg.KafkaTopicAccountSetting,
 			TeamSetting:         cfg.KafkaTopicTeamSetting,
 		},
-		projectionService,
+		projectionRepo,
 		projectionReadiness,
 	)
 	if err != nil {

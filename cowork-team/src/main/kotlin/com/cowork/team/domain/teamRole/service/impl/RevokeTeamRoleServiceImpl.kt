@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional
 class RevokeTeamRoleServiceImpl(
     private val teamRoleAccessGuard: TeamRoleAccessGuard,
     private val teamRoleLookupSupport: TeamRoleLookupSupport,
-    private val commandSubmission: TeamRoleCommandSubmission,
+    private val teamRoleCommandSubmission: TeamRoleCommandSubmission,
 ) : RevokeTeamRoleService {
     @Transactional
     override fun execute(
@@ -22,7 +22,7 @@ class RevokeTeamRoleServiceImpl(
         targetUserId: Long,
         roleId: Long,
         idempotencyKey: String,
-    ): TeamRoleOperationResponse = commandSubmission.submit(
+    ): TeamRoleOperationResponse = teamRoleCommandSubmission.submit(
         idempotencyKey,
         TeamRoleCommandType.REVOKE,
         teamId,

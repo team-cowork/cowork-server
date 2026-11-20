@@ -3,7 +3,7 @@ package com.cowork.team.domain.team.service.impl
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.service.TeamAccessGuard
-import com.cowork.team.domain.team.service.TeamIconOwnershipService
+import com.cowork.team.domain.team.service.TeamIconOwnershipManager
 import com.cowork.team.domain.teamMember.entity.TeamMember
 import com.cowork.team.domain.teamRole.entity.TeamRole
 import io.kotest.assertions.throwables.shouldThrow
@@ -17,7 +17,7 @@ import team.themoment.sdk.exception.ExpectedException
 
 class DeleteTeamIconServiceImplTest :
     DescribeSpec({
-        lateinit var iconOwnership: TeamIconOwnershipService
+        lateinit var iconOwnership: TeamIconOwnershipManager
         lateinit var accessGuard: TeamAccessGuard
         lateinit var publisher: TeamEventPublisher
         lateinit var service: DeleteTeamIconServiceImpl

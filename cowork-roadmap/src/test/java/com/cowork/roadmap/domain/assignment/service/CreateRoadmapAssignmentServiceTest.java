@@ -16,8 +16,6 @@ import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InOrder;
 import org.springframework.http.HttpStatus;
 
@@ -76,7 +74,7 @@ class CreateRoadmapAssignmentServiceTest {
 
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
-                        () -> createRoadmapAssignmentService.execute(REQUESTER_ID, "ADMIN", request));
+                        () -> createRoadmapAssignmentService.execute(REQUESTER_ID, request));
 
                 // then
                 assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -88,27 +86,25 @@ class CreateRoadmapAssignmentServiceTest {
         class Context_with_global_roadmap {
 
             @Test
-            @DisplayName("요청자 역할, 할당 범위, 노드 지정과 관계없이 BAD_REQUEST 예외를 던지고 저장하지 않는다")
+            @DisplayName("할당 범위, 노드 지정과 관계없이 BAD_REQUEST 예외를 던지고 저장하지 않는다")
             void it_rejects_every_combination() {
                 // given
                 Roadmap roadmap = Roadmap.builder().id(ROADMAP_ID).scope(RoadmapScope.GLOBAL.name()).build();
                 given(roadmapRepository.findByIdForUpdate(ROADMAP_ID)).willReturn(Optional.of(roadmap));
                 given(nodeRepository.findById(NODE_ID)).willReturn(Optional.of(node(NODE_ID, ROADMAP_ID)));
 
-                for (String role : new String[]{"ADMIN", "MEMBER"}) {
-                    for (RoadmapScope scope : new RoadmapScope[]{RoadmapScope.TEAM, RoadmapScope.PROJECT}) {
-                        for (Long nodeId : new Long[]{null, NODE_ID}) {
-                            CreateAssignmentReqDto request = request(scope,
-                                    scope == RoadmapScope.PROJECT ? PROJECT_ID : null,
-                                    nodeId);
+                for (RoadmapScope scope : new RoadmapScope[]{RoadmapScope.TEAM, RoadmapScope.PROJECT}) {
+                    for (Long nodeId : new Long[]{null, NODE_ID}) {
+                        CreateAssignmentReqDto request = request(scope,
+                                scope == RoadmapScope.PROJECT ? PROJECT_ID : null,
+                                nodeId);
 
-                            // when
-                            ExpectedException error = assertThrows(ExpectedException.class,
-                                    () -> createRoadmapAssignmentService.execute(REQUESTER_ID, role, request));
+                        // when
+                        ExpectedException error = assertThrows(ExpectedException.class,
+                                () -> createRoadmapAssignmentService.execute(REQUESTER_ID, request));
 
-                            // then
-                            assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
-                        }
+                        // then
+                        assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
                     }
                 }
                 then(assignmentRepository).should(never()).saveAndFlush(any());
@@ -127,7 +123,7 @@ class CreateRoadmapAssignmentServiceTest {
 
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
-                        () -> createRoadmapAssignmentService.execute(REQUESTER_ID, "ADMIN", request));
+                        () -> createRoadmapAssignmentService.execute(REQUESTER_ID, request));
 
                 // then
                 assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -147,8 +143,8 @@ class CreateRoadmapAssignmentServiceTest {
 
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
-                        () -> createRoadmapAssignmentService
-                                .execute(REQUESTER_ID, "MEMBER", request(RoadmapScope.TEAM, null, NODE_ID)));
+                        () -> createRoadmapAssignmentService.execute(REQUESTER_ID,
+                                request(RoadmapScope.TEAM, null, NODE_ID)));
 
                 // then
                 assertThat(error.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
@@ -168,8 +164,8 @@ class CreateRoadmapAssignmentServiceTest {
 
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
-                        () -> createRoadmapAssignmentService
-                                .execute(REQUESTER_ID, "MEMBER", request(RoadmapScope.TEAM, null, NODE_ID)));
+                        () -> createRoadmapAssignmentService.execute(REQUESTER_ID,
+                                request(RoadmapScope.TEAM, null, NODE_ID)));
 
                 // then
                 assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -180,10 +176,9 @@ class CreateRoadmapAssignmentServiceTest {
         @DisplayName("과제 팀이 로드맵 소유 팀과 다르면")
         class Context_with_team_other_than_roadmap_owner {
 
-            @ParameterizedTest
-            @ValueSource(strings = {"ADMIN", "MEMBER"})
+            @Test
             @DisplayName("BAD_REQUEST 예외를 던지고 저장하지 않는다")
-            void it_fails_with_bad_request_before_save(String role) {
+            void it_fails_with_bad_request_before_save() {
                 // given
                 givenTeamRoadmap();
                 CreateAssignmentReqDto request = new CreateAssignmentReqDto(ROADMAP_ID,
@@ -196,7 +191,7 @@ class CreateRoadmapAssignmentServiceTest {
 
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
-                        () -> createRoadmapAssignmentService.execute(REQUESTER_ID, role, request));
+                        () -> createRoadmapAssignmentService.execute(REQUESTER_ID, request));
 
                 // then
                 assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -209,10 +204,9 @@ class CreateRoadmapAssignmentServiceTest {
         @DisplayName("담당자가 팀의 활성 멤버가 아니면")
         class Context_with_non_member_assignee {
 
-            @ParameterizedTest
-            @ValueSource(strings = {"ADMIN", "MEMBER"})
-            @DisplayName("요청자가 ADMIN이어도 BAD_REQUEST 예외를 던지고 저장하지 않는다")
-            void it_fails_with_bad_request_before_save(String role) {
+            @Test
+            @DisplayName("BAD_REQUEST 예외를 던지고 저장하지 않는다")
+            void it_fails_with_bad_request_before_save() {
                 // given
                 givenTeamRoadmap();
                 willThrow(new ExpectedException("과제 담당자는 팀의 활성 멤버여야 합니다.", HttpStatus.BAD_REQUEST)).given(accessGuard)
@@ -220,8 +214,8 @@ class CreateRoadmapAssignmentServiceTest {
 
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
-                        () -> createRoadmapAssignmentService
-                                .execute(REQUESTER_ID, role, request(RoadmapScope.TEAM, null, null)));
+                        () -> createRoadmapAssignmentService.execute(REQUESTER_ID,
+                                request(RoadmapScope.TEAM, null, null)));
 
                 // then
                 assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -244,8 +238,8 @@ class CreateRoadmapAssignmentServiceTest {
 
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
-                        () -> createRoadmapAssignmentService
-                                .execute(REQUESTER_ID, "ADMIN", request(RoadmapScope.TEAM, null, null)));
+                        () -> createRoadmapAssignmentService.execute(REQUESTER_ID,
+                                request(RoadmapScope.TEAM, null, null)));
 
                 // then
                 assertThat(error.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
@@ -268,8 +262,8 @@ class CreateRoadmapAssignmentServiceTest {
 
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
-                        () -> createRoadmapAssignmentService
-                                .execute(REQUESTER_ID, "MEMBER", request(RoadmapScope.TEAM, null, NODE_ID)));
+                        () -> createRoadmapAssignmentService.execute(REQUESTER_ID,
+                                request(RoadmapScope.TEAM, null, NODE_ID)));
 
                 // then
                 assertThat(error.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
@@ -286,8 +280,8 @@ class CreateRoadmapAssignmentServiceTest {
 
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
-                        () -> createRoadmapAssignmentService
-                                .execute(REQUESTER_ID, "MEMBER", request(RoadmapScope.TEAM, null, null)));
+                        () -> createRoadmapAssignmentService.execute(REQUESTER_ID,
+                                request(RoadmapScope.TEAM, null, null)));
 
                 // then
                 assertThat(error.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
@@ -309,8 +303,8 @@ class CreateRoadmapAssignmentServiceTest {
                         .willAnswer(invocation -> invocation.getArgument(0));
 
                 // when
-                AssignmentResDto response = createRoadmapAssignmentService
-                        .execute(REQUESTER_ID, "MEMBER", request(RoadmapScope.TEAM, PROJECT_ID, NODE_ID));
+                AssignmentResDto response = createRoadmapAssignmentService.execute(REQUESTER_ID,
+                        request(RoadmapScope.TEAM, PROJECT_ID, NODE_ID));
 
                 // then
                 assertThat(response.roadmapId()).isEqualTo(ROADMAP_ID);
@@ -324,8 +318,8 @@ class CreateRoadmapAssignmentServiceTest {
 
                 InOrder order = inOrder(roadmapRepository, nodeRepository, accessGuard, assignmentRepository);
                 order.verify(roadmapRepository).findByIdForUpdate(ROADMAP_ID);
-                order.verify(accessGuard).requireReadable(any(Roadmap.class), any(), any());
-                order.verify(accessGuard).requireTeamManagerOrAdmin(REQUESTER_ID, "MEMBER", OWNER_TEAM_ID);
+                order.verify(accessGuard).requireReadable(any(Roadmap.class), any());
+                order.verify(accessGuard).requireAssignmentCreation(REQUESTER_ID, OWNER_TEAM_ID);
                 order.verify(nodeRepository).findById(NODE_ID);
                 order.verify(accessGuard).requireAssignableMember(OWNER_TEAM_ID, ASSIGNEE_ID);
                 order.verify(assignmentRepository)

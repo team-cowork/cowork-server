@@ -50,7 +50,7 @@ class QueryRoadmapTreeServiceTest {
         when(nodeRepository.findTreeByRoadmapId(10L)).thenReturn(List.of(root1, child, root2));
         when(referenceRepository.findByNodeIdInOrderByNodeIdAscPositionAsc(any())).thenReturn(List.of(ref));
 
-        var tree = queryRoadmapTreeService.execute(1L, "ADMIN", 10L);
+        var tree = queryRoadmapTreeService.execute(1L, 10L);
         assertThat(tree.nodes()).hasSize(2);
         assertThat(tree.nodes().getFirst().title()).isEqualTo("root1");
         assertThat(tree.nodes().getFirst().sourceUrl()).isEqualTo("https://example.com/source");
@@ -79,7 +79,7 @@ class QueryRoadmapTreeServiceTest {
     }
 
     private int returnedDepth() {
-        var tree = queryRoadmapTreeService.execute(1L, "ADMIN", 10L);
+        var tree = queryRoadmapTreeService.execute(1L, 10L);
         int depth = 0;
         for (var level = tree.nodes(); !level.isEmpty(); level = level.getFirst().children()) {
             depth++;

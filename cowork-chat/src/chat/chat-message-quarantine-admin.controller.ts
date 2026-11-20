@@ -16,8 +16,7 @@ import {
 	getSchemaPath,
 } from '@nestjs/swagger';
 import {ApiResponseMetadataDto} from '../common/dto/api-response-metadata.dto.js';
-import {UserRole} from '../common/enum/user-role.enum.js';
-import {requireRoles} from '../common/guard/roles.decorator.js';
+import {requirePermission} from '../common/guard/account-permission.decorator.js';
 import {QuarantineRecordDto} from './dto/admin-response.dto.js';
 import {ChatMessageQuarantineService} from './service/index.js';
 import {ChatMessageQuarantineRecordIdDto, FindChatMessageQuarantineRecordsDto} from './dto/index.js';
@@ -36,20 +35,7 @@ import {ChatMessageQuarantineRecordIdDto, FindChatMessageQuarantineRecordsDto} f
 		],
 	},
 })
-@apiResponse({
-	status: 403,
-	description: 'ADMIN 권한 필요',
-	schema: {
-		allOf: [
-			{$ref: getSchemaPath(ApiResponseMetadataDto)},
-			{
-				type: 'object',
-				properties: {status: {type: 'string', enum: ['403 FORBIDDEN']}, code: {type: 'integer', enum: [403]}},
-			},
-		],
-	},
-})
-@requireRoles(UserRole.ADMIN)
+@requirePermission('manage_chat_message_quarantine')
 @apiExtraModels(ApiResponseMetadataDto, QuarantineRecordDto)
 @apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
 @apiResponse({status: 'default', description: '기타 오류', type: ApiResponseMetadataDto})

@@ -80,10 +80,6 @@ func (s KafkaSecurity) Dialer() *kafka.Dialer {
 	return &kafka.Dialer{Timeout: 10 * time.Second, DualStack: true, TLS: s.tls, SASLMechanism: s.sasl}
 }
 
-func (s KafkaSecurity) Transport() *kafka.Transport {
-	return &kafka.Transport{TLS: s.tls, SASL: s.sasl}
-}
-
 func (s KafkaSecurity) FranzOptions() []kgo.Opt {
 	var options []kgo.Opt
 	if s.tls != nil {
