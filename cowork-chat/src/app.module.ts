@@ -47,7 +47,7 @@ const EXCLUDED_AUTO_LOGGING_PATHS = new Set([METRICS_PATH, HEALTH_PATH, HEALTH_R
 		LoggerModule.forRootAsync({
 			inject: [ConfigService],
 			useFactory(configService: ConfigService) {
-				const isLoggerEnabled = (configService.get<string>('CHAT_LOGGER_ENABLED')) !== 'false';
+				const isLoggerEnabled = getOptionalConfig(configService, 'CHAT_LOGGER_ENABLED') !== 'false';
 				if (!isLoggerEnabled) {
 					return {pinoHttp: {level: 'silent'}, renameContext: 'module'};
 				}
