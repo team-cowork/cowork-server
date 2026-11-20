@@ -40,8 +40,13 @@ class DevOriginCredentialFilterTest :
         describe("DevOriginCredentialFilter 클래스의 filter 메서드는") {
             context("고정 개발 계정 로그인 요청이면") {
                 it("HTTP, HTTPS 및 Origin이 없는 요청에도 개발 자격증명을 요구한다") {
-                    for (origin in listOf("https://host", "http://host", null)) {
-                        val request = MockServerHttpRequest.post("https://host/api/authorization/auth/dev-login")
+                    for ((scheme, origin) in listOf(
+                        "https" to "https://host",
+                        "http" to "http://host",
+                        "https" to null,
+                    )) {
+                        val request = MockServerHttpRequest.post("$scheme://host/api/authorization/auth/dev-signin")
+                            .header("X-Cowork-Dev-Signin-Verified", "true")
                         if (origin != null) request.header("Origin", origin)
                         val exchange = MockServerWebExchange.from(request)
                         filter.filter(exchange, mockk()).block()
@@ -49,24 +54,51 @@ class DevOriginCredentialFilterTest :
                     }
                 }
 
-                it("검증한 자격증명을 헤더로 전달하고 query에서 제거한다") {
+                it("쿼리 자격증명을 지우고 검증 결과만 전달한다") {
                     val (chain, captured) = forwardingChain()
                     val exchange = MockServerWebExchange.from(
-                        MockServerHttpRequest.post("/api/authorization/auth/dev-login?dev_credential=secret"),
+                        MockServerHttpRequest.post("/api/authorization/auth/dev-signin?dev_credential=secret"),
                     )
                     filter.filter(exchange, chain).block()
                     captured.captured.request.uri.rawQuery shouldBe null
-                    captured.captured.request.headers.getFirst("X-Dev-Credential") shouldBe "secret"
+                    captured.captured.request.headers.getFirst("X-Dev-Credential") shouldBe null
+                    captured.captured.request.headers.getFirst("X-Cowork-Dev-Signin-Verified") shouldBe "true"
                 }
 
                 it("허용된 localhost가 헤더로 보낸 자격증명을 받는다") {
                     val (chain, captured) = forwardingChain()
                     val exchange = MockServerWebExchange.from(
-                        MockServerHttpRequest.post("/api/authorization/auth/dev-login")
-                            .header("Origin", "http://localhost:3000").header("X-Dev-Credential", "secret"),
+                        MockServerHttpRequest.post("/api/authorization/auth/dev-signin")
+                            .header("Origin", "http://localhost:3000")
+                            .header("X-Dev-Credential", "secret")
+                            .header("X-Cowork-Dev-Signin-Verified", "client"),
                     )
                     filter.filter(exchange, chain).block()
-                    captured.captured.request.headers.getFirst("X-Dev-Credential") shouldBe "secret"
+                    captured.captured.request.headers.getFirst("X-Dev-Credential") shouldBe null
+                    captured.captured.request.headers["X-Cowork-Dev-Signin-Verified"] shouldBe listOf("true")
+                }
+
+                it("틀린 개발 자격증명을 보내면 전달하지 않는다") {
+                    val chain = mockk<WebFilterChain>()
+                    val exchange = MockServerWebExchange.from(
+                        MockServerHttpRequest.post("/api/authorization/auth/dev-signin")
+                            .header("X-Dev-Credential", "invalid"),
+                    )
+                    filter.filter(exchange, chain).block()
+                    exchange.response.statusCode shouldBe HttpStatus.FORBIDDEN
+                    verify(exactly = 0) { chain.filter(any()) }
+                }
+            }
+
+            context("다른 경로에 외부 검증 헤더를 보내면") {
+                it("검증 헤더를 지우고 전달한다") {
+                    val (chain, captured) = forwardingChain()
+                    val exchange = MockServerWebExchange.from(
+                        MockServerHttpRequest.post("/api/authorization/auth/refresh")
+                            .header("X-Cowork-Dev-Signin-Verified", "true"),
+                    )
+                    filter.filter(exchange, chain).block()
+                    captured.captured.request.headers.getFirst("X-Cowork-Dev-Signin-Verified") shouldBe null
                 }
             }
 

@@ -34,8 +34,7 @@ DataGSM 로그인과 인증 토큰·로그인 세션을 관리합니다.
 | `DB_NAME`                                                     | MySQL 데이터베이스 이름                                                                                   |
 | `DB_USERNAME`                                                 | MySQL 사용자명                                                                                        |
 | `DB_PASSWORD`                                                 | MySQL 비밀번호                                                                                        |
-| `DEV_LOGIN_ACCOUNTS` | 개발 계정 JSON 객체. 키 `dev-1`부터 `dev-4`까지 각각에 문자열 `id`, `password`를 설정합니다. 키를 유지하면 자격증명을 바꿔도 계정이 유지됩니다. |
-| `DEV_ORIGIN_CREDENTIAL` | 개발 계정 사용 시 Gateway와 공유하는 자격증명. 개발 로그인 요청의 `X-Dev-Credential` 헤더로 전달합니다. |
+| `DEV_SIGNIN_ACCOUNTS` | 개발 계정 JSON 객체. 키 `dev-1`부터 `dev-4`까지 각각에 문자열 `id`, `password`를 설정합니다. 키를 유지하면 자격증명을 바꿔도 계정이 유지됩니다. |
 | `DATAGSM_CLIENT_ID`                                           | OAuth client ID                                                                                                                               |
 | `DATAGSM_REDIRECT_URIS`                                       | 필수. DataGSM에 등록된 웹·모바일·데스크탑 콜백 URL을 쉼표로 구분한 허용 목록. |
 | `DATAGSM_AUTHORIZATION_BASE_URL`                              | 선택. 기본값 `https://oauth.authorization.datagsm.kr` |

@@ -100,7 +100,7 @@ class SecurityConfig(
                     .pathMatchers(HttpMethod.DELETE, "/api/auth/ws-cookie").permitAll()
                     .pathMatchers(
                         HttpMethod.POST,
-                        DevOriginCredentialFilter.DEV_LOGIN_PATH,
+                        DevOriginCredentialFilter.DEV_SIGNIN_PATH,
                         "/api/authorization/auth/authorize",
                         "/api/authorization/auth/callback",
                         "/api/authorization/auth/refresh",

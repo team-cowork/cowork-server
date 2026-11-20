@@ -4,17 +4,20 @@ import "github.com/getkin/kin-openapi/openapi3"
 
 func paths() *openapi3.Paths {
 	paths := openapi3.NewPaths()
-	paths.Set("/auth/dev-login", &openapi3.PathItem{Post: &openapi3.Operation{
+	paths.Set("/auth/dev-signin", &openapi3.PathItem{Post: &openapi3.Operation{
 		Summary: "고정 개발 계정 로그인", Tags: []string{"auth"},
-		Description: "개발 자격증명과 계정의 아이디 및 비밀번호를 확인한 후 토큰을 발급합니다.",
-		Parameters:  openapi3.Parameters{{Value: openapi3.NewHeaderParameter("X-Dev-Credential").WithRequired(true).WithSchema(openapi3.NewStringSchema())}},
+		Description: "개발 자격증명은 헤더와 쿼리 중 한 곳에만 전달합니다. Gateway가 자격증명을 검증하면 계정의 아이디와 비밀번호로 토큰을 발급합니다.",
+		Parameters: openapi3.Parameters{
+			{Value: openapi3.NewHeaderParameter("X-Dev-Credential").WithSchema(openapi3.NewStringSchema())},
+			{Value: openapi3.NewQueryParameter("dev_credential").WithSchema(openapi3.NewStringSchema())},
+		},
 		RequestBody: &openapi3.RequestBodyRef{Value: openapi3.NewRequestBody().WithRequired(true).WithJSONSchema(
 			openapi3.NewObjectSchema().WithProperty("id", openapi3.NewStringSchema()).WithProperty("password", &openapi3.Schema{Type: &openapi3.Types{"string"}, Format: "password", WriteOnly: true}).WithRequired([]string{"id", "password"}))},
 		Responses: openapi3.NewResponses(
 			openapi3.WithName("200", cookieResponse("토큰 발급 완료", "github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_TokenPair", "WebSocket 인증 쿠키")),
 			openapi3.WithName("400", jsonResponse("잘못된 요청", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("401", jsonResponse("아이디 또는 비밀번호 오류", "github_com_cowork_authorization_internal_apidoc.Error")),
-			openapi3.WithName("403", jsonResponse("개발 자격증명 오류", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("403", openapi3.NewResponse().WithDescription("개발 자격증명 오류")),
 			openapi3.WithName("415", jsonResponse("지원하지 않는 본문 형식", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("503", jsonResponse("인증 서비스 사용 불가", "github_com_cowork_authorization_internal_apidoc.Error")),

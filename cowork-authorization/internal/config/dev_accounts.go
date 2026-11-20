@@ -28,7 +28,7 @@ func ParseDevAccounts(raw string) (DevAccounts, error) {
 		Password string `json:"password"`
 	}
 	if json.Unmarshal([]byte(raw), &values) != nil || len(values) != 4 {
-		return DevAccounts{}, errors.New("DEV_LOGIN_ACCOUNTS must contain dev-1 through dev-4")
+		return DevAccounts{}, errors.New("DEV_SIGNIN_ACCOUNTS must contain dev-1 through dev-4")
 	}
 	var accounts DevAccounts
 	seen := map[string]bool{}
@@ -36,7 +36,7 @@ func ParseDevAccounts(raw string) (DevAccounts, error) {
 		subject := fmt.Sprintf("dev-%d", i)
 		value := values[subject]
 		if strings.TrimSpace(value.ID) == "" || strings.TrimSpace(value.Password) == "" || seen[value.ID] {
-			return DevAccounts{}, errors.New("DEV_LOGIN_ACCOUNTS requires distinct IDs and nonempty passwords in all four slots")
+			return DevAccounts{}, errors.New("DEV_SIGNIN_ACCOUNTS requires distinct IDs and nonempty passwords in all four slots")
 		}
 		seen[value.ID] = true
 		accounts.slots = append(accounts.slots, devSlot{subject, sha256.Sum256([]byte(value.ID)), sha256.Sum256([]byte(value.Password))})

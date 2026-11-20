@@ -264,23 +264,27 @@ func TestValidateDataGSMAccountRole_AccordingToProviderRole(t *testing.T) {
 	}
 }
 
-func TestDevLoginRequiresBothCredentialChecksBeforeIssuingSession(t *testing.T) {
+func TestDevSignInChecksAccountCredentialsBeforeIssuingSession(t *testing.T) {
 	accounts, err := config.ParseDevAccounts(`{"dev-1":{"id":"user1","password":"pw1"},"dev-2":{"id":"user2","password":"pw2"},"dev-3":{"id":"user3","password":"pw3"},"dev-4":{"id":"user4","password":"pw4"}}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
-		credential, pw string
-		wantErr        error
+		id, pw  string
+		wantErr error
 	}{
-		{"", "pw1", ErrDeveloperCredential}, {"wrong", "pw1", ErrDeveloperCredential}, {"shared", "wrong", ErrAuthenticationRejected}, {"shared", "pw1", nil},
+		{"", "pw1", ErrAuthenticationRejected},
+		{"unknown", "pw1", ErrAuthenticationRejected},
+		{"user1", "", ErrAuthenticationRejected},
+		{"user1", "wrong", ErrAuthenticationRejected},
+		{"user1", "pw1", nil},
 	} {
 		store := &fakeRefreshTokenStore{}
 		svc := newUnitAuthService(store, time.Now())
-		svc.cfg.DevAccounts, svc.cfg.DevOriginCredential = accounts, "shared"
+		svc.cfg.DevAccounts = accounts
 		identity := &fakeIdentityCoordinator{userID: 25}
 		svc.identity = identity
-		pair, err := svc.DevLogin(context.Background(), tc.credential, "user1", tc.pw)
+		pair, err := svc.DevSignIn(context.Background(), tc.id, tc.pw)
 		if !errors.Is(err, tc.wantErr) {
 			t.Fatalf("unexpected result %v", err)
 		}
@@ -289,7 +293,7 @@ func TestDevLoginRequiresBothCredentialChecksBeforeIssuingSession(t *testing.T) 
 				t.Fatal("invalid credentials issued a session")
 			}
 		} else if pair == nil || identity.command.Provider != "DEV" || identity.command.ProviderSubject != "dev-1" || identity.command.Student != nil {
-			t.Fatal("developer login did not submit the fixed nonstudent identity")
+			t.Fatal("developer sign-in did not submit the fixed nonstudent identity")
 		}
 	}
 }

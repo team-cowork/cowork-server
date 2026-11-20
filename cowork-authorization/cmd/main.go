@@ -171,9 +171,9 @@ func main() {
 	router.GET("/v3/api-docs", gin.WrapH(swaggerHandler))
 	router.GET("/swagger/*any", gin.WrapH(swaggerHandler))
 
+	router.POST("/internal/dev-signin", authHandler.DevSignIn)
 	auth := router.Group("/auth")
 	{
-		auth.POST("/dev-login", authHandler.DevLogin)
 		auth.POST("/authorize", authHandler.Authorize)
 		auth.POST("/callback", authHandler.Callback)
 		auth.POST("/refresh", authHandler.Refresh)

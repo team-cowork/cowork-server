@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"crypto/subtle"
 	"errors"
 	"fmt"
 	"net/url"
@@ -15,8 +14,6 @@ import (
 	"github.com/cowork/authorization/internal/config"
 	"github.com/cowork/authorization/internal/domain"
 )
-
-var ErrDeveloperCredential = errors.New("invalid developer credential")
 
 var ErrAuthenticationUnavailable = errors.New("authentication temporarily unavailable")
 
@@ -145,10 +142,7 @@ func (s *AuthService) loginWithIdentity(ctx context.Context, provider, subject, 
 	return s.commitIdentityAndIssueSession(ctx, command)
 }
 
-func (s *AuthService) DevLogin(ctx context.Context, credential, id, password string) (*TokenPair, error) {
-	if credential == "" || subtle.ConstantTimeCompare([]byte(credential), []byte(s.cfg.DevOriginCredential)) != 1 {
-		return nil, ErrDeveloperCredential
-	}
+func (s *AuthService) DevSignIn(ctx context.Context, id, password string) (*TokenPair, error) {
 	slot, ok := s.cfg.DevAccounts.Authenticate(id, password)
 	if !ok {
 		return nil, ErrAuthenticationRejected

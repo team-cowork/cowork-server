@@ -69,8 +69,12 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	c.JSON(http.StatusOK, pair)
 }
 
-func (h *AuthHandler) DevLogin(c *gin.Context) {
+func (h *AuthHandler) DevSignIn(c *gin.Context) {
 	c.Header("Cache-Control", "no-store")
+	if c.GetHeader("X-Cowork-Dev-Signin-Verified") != "true" {
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
 	if c.ContentType() != "application/json" {
 		c.JSON(http.StatusUnsupportedMediaType, gin.H{"error": "application/json is required"})
 		return
@@ -81,14 +85,10 @@ func (h *AuthHandler) DevLogin(c *gin.Context) {
 		Password string `json:"password" binding:"required"`
 	}
 	if c.ShouldBindJSON(&req) != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid login request"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid signin request"})
 		return
 	}
-	pair, err := h.authSvc.DevLogin(c.Request.Context(), c.GetHeader("X-Dev-Credential"), req.ID, req.Password)
-	if errors.Is(err, service.ErrDeveloperCredential) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "invalid developer credential"})
-		return
-	}
+	pair, err := h.authSvc.DevSignIn(c.Request.Context(), req.ID, req.Password)
 	if err != nil {
 		loginError(c, err)
 		return

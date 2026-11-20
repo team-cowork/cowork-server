@@ -3,7 +3,7 @@ map $http_upgrade $cowork_connection_upgrade {
     '' close;
 }
 
-# Query parameters can carry the loopback / dev-login credential.
+# Query parameters can carry the loopback / dev-signin credential.
 log_format cowork_gateway '$remote_addr - $remote_user [$time_local] "$request_method $uri $server_protocol" '
                           '$status $body_bytes_sent "$http_user_agent"';
 

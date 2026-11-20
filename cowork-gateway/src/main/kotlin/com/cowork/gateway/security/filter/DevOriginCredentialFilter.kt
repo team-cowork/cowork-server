@@ -18,8 +18,8 @@ import java.net.URLDecoder
 import java.security.MessageDigest
 
 /**
- * loopback HTTP origin 요청은 `dev_credential` query가 약정한 값과 같아야 통과한다.
- * 브라우저 WebSocket은 커스텀 헤더를 보낼 수 없어 query로 통일했고, 저장소 서명 검증을 깨지 않도록 원문에서 항상 제거한다.
+ * 개발 계정 로그인과 교차 출처 loopback HTTP 요청의 개발 자격증명을 검사한다.
+ * 자격증명을 제거한 뒤 개발 계정 로그인에만 Gateway의 검증 결과를 붙인다.
  */
 @Component
 @EnableConfigurationProperties(DevOriginProperties::class)
@@ -38,16 +38,16 @@ class DevOriginCredentialFilter(
         val origin = request.headers.origin
         val loopbackOrigin = origin?.let { runCatching { URI(it) }.getOrNull() }?.takeIf(::isLoopbackHttp)
 
-        val devLogin =
-            request.method == HttpMethod.POST && request.path.pathWithinApplication().value() == DEV_LOGIN_PATH
+        val devSignIn =
+            request.method == HttpMethod.POST && request.path.pathWithinApplication().value() == DEV_SIGNIN_PATH
         val requiresLoopbackCredential = loopbackOrigin != null && !isSameOrigin(loopbackOrigin, request.uri)
         val queryCredential = request.queryParams[CREDENTIAL_QUERY]
-        val provided = if (devLogin && request.headers.containsHeader(CREDENTIAL_HEADER)) {
+        val provided = if (devSignIn && request.headers.containsHeader(CREDENTIAL_HEADER)) {
             request.headers[CREDENTIAL_HEADER]?.singleOrNull()?.takeIf { queryCredential == null }
         } else {
             queryCredential?.singleOrNull()
         }
-        if (devLogin || (request.method != HttpMethod.OPTIONS && requiresLoopbackCredential)) {
+        if (devSignIn || (request.method != HttpMethod.OPTIONS && requiresLoopbackCredential)) {
             if (provided == null || !MessageDigest.isEqual(provided.toByteArray(Charsets.UTF_8), expected)) {
                 logger().warn("Reject request without a valid developer credential")
                 if (origin != null) exposeRejection(exchange, origin)
@@ -56,14 +56,17 @@ class DevOriginCredentialFilter(
             }
         }
 
-        if (!devLogin && request.uri.rawQuery == null && !request.headers.containsHeader(CREDENTIAL_HEADER)) {
+        if (request.uri.rawQuery == null &&
+            !request.headers.containsHeader(CREDENTIAL_HEADER) &&
+            !request.headers.containsHeader(VERIFIED_HEADER)
+        ) {
             return chain.filter(exchange)
         }
         val builder = request.mutate()
-        if (devLogin) {
-            builder.headers { it.set(CREDENTIAL_HEADER, provided!!) }
-        } else if (request.headers.containsHeader(CREDENTIAL_HEADER)) {
-            builder.headers { it.remove(CREDENTIAL_HEADER) }
+        builder.headers {
+            it.remove(CREDENTIAL_HEADER)
+            it.remove(VERIFIED_HEADER)
+            if (devSignIn) it.set(VERIFIED_HEADER, "true")
         }
         val rawQuery = request.uri.rawQuery
         if (rawQuery != null) {
@@ -106,8 +109,9 @@ class DevOriginCredentialFilter(
     }
 
     companion object {
-        const val DEV_LOGIN_PATH = "/api/authorization/auth/dev-login"
+        const val DEV_SIGNIN_PATH = "/api/authorization/auth/dev-signin"
         private const val CREDENTIAL_HEADER = "X-Dev-Credential"
+        private const val VERIFIED_HEADER = "X-Cowork-Dev-Signin-Verified"
         const val CREDENTIAL_QUERY = "dev_credential"
         private val LOOPBACK_HOSTS = setOf("localhost", "127.0.0.1")
     }
