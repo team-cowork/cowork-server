@@ -173,6 +173,7 @@ func main() {
 
 	auth := router.Group("/auth")
 	{
+		auth.POST("/dev-login", authHandler.DevLogin)
 		auth.POST("/authorize", authHandler.Authorize)
 		auth.POST("/callback", authHandler.Callback)
 		auth.POST("/refresh", authHandler.Refresh)

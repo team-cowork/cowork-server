@@ -38,27 +38,43 @@ class DevOriginCredentialFilter(
         val origin = request.headers.origin
         val loopbackOrigin = origin?.let { runCatching { URI(it) }.getOrNull() }?.takeIf(::isLoopbackHttp)
 
-        if (request.method != HttpMethod.OPTIONS && loopbackOrigin != null &&
-            !isSameOrigin(loopbackOrigin, request.uri)
-        ) {
-            val provided = request.queryParams.getFirst(CREDENTIAL_QUERY)
+        val devLogin =
+            request.method == HttpMethod.POST && request.path.pathWithinApplication().value() == DEV_LOGIN_PATH
+        val requiresLoopbackCredential = loopbackOrigin != null && !isSameOrigin(loopbackOrigin, request.uri)
+        val queryCredential = request.queryParams[CREDENTIAL_QUERY]
+        val provided = if (devLogin && request.headers.containsHeader(CREDENTIAL_HEADER)) {
+            request.headers[CREDENTIAL_HEADER]?.singleOrNull()?.takeIf { queryCredential == null }
+        } else {
+            queryCredential?.singleOrNull()
+        }
+        if (devLogin || (request.method != HttpMethod.OPTIONS && requiresLoopbackCredential)) {
             if (provided == null || !MessageDigest.isEqual(provided.toByteArray(Charsets.UTF_8), expected)) {
-                logger().warn("Reject loopback origin request without a valid developer credential")
-                exposeRejection(exchange, origin)
+                logger().warn("Reject request without a valid developer credential")
+                if (origin != null) exposeRejection(exchange, origin)
                 exchange.response.statusCode = HttpStatus.FORBIDDEN
                 return exchange.response.setComplete()
             }
         }
 
-        val rawQuery = request.uri.rawQuery ?: return chain.filter(exchange)
-        val params = rawQuery.split('&')
-        val kept = params.filterNot { paramName(it) == CREDENTIAL_QUERY }
-        if (kept.size == params.size) {
+        if (!devLogin && request.uri.rawQuery == null && !request.headers.containsHeader(CREDENTIAL_HEADER)) {
             return chain.filter(exchange)
         }
-        val base = request.uri.toString().substringBefore('?')
-        val stripped = URI.create(if (kept.isEmpty()) base else "$base?${kept.joinToString("&")}")
-        return chain.filter(exchange.mutate().request(request.mutate().uri(stripped).build()).build())
+        val builder = request.mutate()
+        if (devLogin) {
+            builder.headers { it.set(CREDENTIAL_HEADER, provided!!) }
+        } else if (request.headers.containsHeader(CREDENTIAL_HEADER)) {
+            builder.headers { it.remove(CREDENTIAL_HEADER) }
+        }
+        val rawQuery = request.uri.rawQuery
+        if (rawQuery != null) {
+            val params = rawQuery.split('&')
+            val kept = params.filterNot { paramName(it) == CREDENTIAL_QUERY }
+            if (kept.size != params.size) {
+                val base = request.uri.toString().substringBefore('?')
+                builder.uri(URI.create(if (kept.isEmpty()) base else "$base?${kept.joinToString("&")}"))
+            }
+        }
+        return chain.filter(exchange.mutate().request(builder.build()).build())
     }
 
     private fun isLoopbackHttp(origin: URI): Boolean = origin.scheme == "http" && origin.host in LOOPBACK_HOSTS
@@ -90,6 +106,8 @@ class DevOriginCredentialFilter(
     }
 
     companion object {
+        const val DEV_LOGIN_PATH = "/api/authorization/auth/dev-login"
+        private const val CREDENTIAL_HEADER = "X-Dev-Credential"
         const val CREDENTIAL_QUERY = "dev_credential"
         private val LOOPBACK_HOSTS = setOf("localhost", "127.0.0.1")
     }

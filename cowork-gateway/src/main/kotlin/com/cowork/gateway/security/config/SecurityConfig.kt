@@ -1,5 +1,6 @@
 package com.cowork.gateway.security.config
 
+import com.cowork.gateway.security.filter.DevOriginCredentialFilter
 import com.cowork.gateway.security.jwt.JwtAuthenticationSupport
 import com.cowork.gateway.security.jwt.JwtReactiveAuthenticationManager
 import com.cowork.gateway.security.jwt.JwtServerAuthenticationConverter
@@ -99,6 +100,7 @@ class SecurityConfig(
                     .pathMatchers(HttpMethod.DELETE, "/api/auth/ws-cookie").permitAll()
                     .pathMatchers(
                         HttpMethod.POST,
+                        DevOriginCredentialFilter.DEV_LOGIN_PATH,
                         "/api/authorization/auth/authorize",
                         "/api/authorization/auth/callback",
                         "/api/authorization/auth/refresh",

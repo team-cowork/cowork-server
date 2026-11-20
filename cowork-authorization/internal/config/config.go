@@ -21,8 +21,10 @@ const (
 )
 
 type AppConfig struct {
-	KafkaSecurity KafkaSecurity
-	Port          string
+	DevAccounts         DevAccounts
+	DevOriginCredential string
+	KafkaSecurity       KafkaSecurity
+	Port                string
 
 	DBDSN string
 
@@ -81,6 +83,14 @@ func Load() (*AppConfig, error) {
 		KafkaIdentityCommandTimeout:         identityCommandTimeout,
 		KafkaTopicUserPresence:              getEnvOrDefault("KAFKA_TOPIC_USER_PRESENCE", "user.presence.event"),
 		JWTSecret:                           os.Getenv("JWT_SECRET"), JWTAccessExpire: accessExpire, JWTRefreshExpire: refreshExpire,
+	}
+	cfg.DevAccounts, err = ParseDevAccounts(os.Getenv("DEV_LOGIN_ACCOUNTS"))
+	if err != nil {
+		return nil, err
+	}
+	cfg.DevOriginCredential = os.Getenv("DEV_ORIGIN_CREDENTIAL")
+	if len(cfg.DevAccounts.slots) > 0 && strings.TrimSpace(cfg.DevOriginCredential) == "" {
+		return nil, fmt.Errorf("DEV_ORIGIN_CREDENTIAL is required for configured dev accounts")
 	}
 	cfg.DataGSMRedirectURIs, err = parseRedirectURIs(os.Getenv("DATAGSM_REDIRECT_URIS"))
 	if err != nil {

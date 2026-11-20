@@ -80,6 +80,9 @@ public static class IdentityCommandContract
 
         var command = new Command(operation, payload.GetString("idempotencyKey")!, 0, payload.GetString("name")!,
             payload.GetString("email")!, "", null, null, null, null, "", null, null, 0, at, precision, provider!, subject);
+        if (provider == "DEV")
+            return subject is ("dev-1" or "dev-2" or "dev-3" or "dev-4") && payload.Get("student") is { ValueKind: JsonValueKind.Null }
+                ? command : null;
         if (provider != "DATAGSM" || !long.TryParse(subject, NumberStyles.None, CultureInfo.InvariantCulture, out var number)
             || number <= 0 || subject != number.ToString(CultureInfo.InvariantCulture)
             || payload.Get("student") is not { ValueKind: JsonValueKind.Object } student

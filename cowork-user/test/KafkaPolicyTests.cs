@@ -197,6 +197,19 @@ public class ContractTests
         Assert.Equal("0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11", IdentityCommandContract.CorrelationOperationId(Json(IdentityCommand)));
     }
 
+    [Fact]
+    public void Developer_identity_requires_a_known_slot_and_has_no_student_information()
+    {
+        const string dev = """
+            {"schemaVersion":3,"commandType":"UPSERT","operationId":"0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11",
+             "idempotencyKey":"operation","provider":"DEV","providerSubject":"dev-2","name":"Developer","email":"dev-2@dev.cowork.invalid",
+             "student":null,"occurredAt":"2026-10-18T01:00:00.12Z"}
+            """;
+        Assert.Equal("dev-2", IdentityCommandContract.ParseProvider(Json(dev), "DEV:dev-2")!.Subject);
+        Assert.Null(IdentityCommandContract.ParseProvider(Json(dev.Replace("dev-2", "dev-5")), "DEV:dev-5"));
+        Assert.Null(IdentityCommandContract.ParseProvider(Json(dev.Replace("null", "{}")), "DEV:dev-2"));
+    }
+
     const string StudentUpdated = """
         {"event_type":"student.updated","event_id":"e-1","event_index":0,"occurred_at":"2026-05-01T00:00:00Z",
          "email":"kim@gsm.hs.kr","name":"김코워크","sex":"MAN","student_role":"GENERAL_STUDENT","student_number":2105,

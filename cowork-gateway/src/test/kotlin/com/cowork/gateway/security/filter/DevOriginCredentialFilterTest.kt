@@ -38,6 +38,38 @@ class DevOriginCredentialFilterTest :
         }
 
         describe("DevOriginCredentialFilter 클래스의 filter 메서드는") {
+            context("고정 개발 계정 로그인 요청이면") {
+                it("HTTP, HTTPS 및 Origin이 없는 요청에도 개발 자격증명을 요구한다") {
+                    for (origin in listOf("https://host", "http://host", null)) {
+                        val request = MockServerHttpRequest.post("https://host/api/authorization/auth/dev-login")
+                        if (origin != null) request.header("Origin", origin)
+                        val exchange = MockServerWebExchange.from(request)
+                        filter.filter(exchange, mockk()).block()
+                        exchange.response.statusCode shouldBe HttpStatus.FORBIDDEN
+                    }
+                }
+
+                it("검증한 자격증명을 헤더로 전달하고 query에서 제거한다") {
+                    val (chain, captured) = forwardingChain()
+                    val exchange = MockServerWebExchange.from(
+                        MockServerHttpRequest.post("/api/authorization/auth/dev-login?dev_credential=secret"),
+                    )
+                    filter.filter(exchange, chain).block()
+                    captured.captured.request.uri.rawQuery shouldBe null
+                    captured.captured.request.headers.getFirst("X-Dev-Credential") shouldBe "secret"
+                }
+
+                it("허용된 localhost가 헤더로 보낸 자격증명을 받는다") {
+                    val (chain, captured) = forwardingChain()
+                    val exchange = MockServerWebExchange.from(
+                        MockServerHttpRequest.post("/api/authorization/auth/dev-login")
+                            .header("Origin", "http://localhost:3000").header("X-Dev-Credential", "secret"),
+                    )
+                    filter.filter(exchange, chain).block()
+                    captured.captured.request.headers.getFirst("X-Dev-Credential") shouldBe "secret"
+                }
+            }
+
             context("CORS 허용 origin의 요청에 자격증명이 없으면") {
                 it("브라우저가 읽을 수 있는 FORBIDDEN으로 거부한다") {
                     val chain = mockk<WebFilterChain>()

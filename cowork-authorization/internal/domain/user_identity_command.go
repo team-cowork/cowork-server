@@ -129,6 +129,15 @@ func ValidateUserIdentityCommand(command UserIdentityCommand) error {
 	if !validText(command.Name, 50) || !validText(command.Email, 255) {
 		return errors.New("invalid account profile")
 	}
+	if command.OccurredAt.IsZero() {
+		return errors.New("occurredAt must not be zero")
+	}
+	if command.Provider == "DEV" && command.Student == nil {
+		switch command.ProviderSubject {
+		case "dev-1", "dev-2", "dev-3", "dev-4":
+			return nil
+		}
+	}
 	if command.Provider != "DATAGSM" {
 		return errors.New("unsupported identity provider")
 	}
@@ -138,9 +147,6 @@ func ValidateUserIdentityCommand(command UserIdentityCommand) error {
 		st.DataGSMStudentID == nil || *st.DataGSMStudentID <= 0 || !validText(st.Sex, 10) || !validText(st.Role, 50) ||
 		(st.Major != nil && utf8.RuneCountInString(*st.Major) > 50) || (st.GithubID != nil && utf8.RuneCountInString(*st.GithubID) > 100) {
 		return errors.New("invalid DataGSM identity")
-	}
-	if command.OccurredAt.IsZero() {
-		return fmt.Errorf("occurredAt must not be zero")
 	}
 	return nil
 }

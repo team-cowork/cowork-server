@@ -161,7 +161,7 @@ spring:
         - id: authorization-token
           uri: ${COWORK_AUTHORIZATION_URL}
           predicates:
-            - Path=/api/authorization/auth/authorize, /api/authorization/auth/callback, /api/authorization/auth/refresh
+            - Path=/api/authorization/auth/dev-login, /api/authorization/auth/authorize, /api/authorization/auth/callback, /api/authorization/auth/refresh
             - Method=POST
           filters:
             - StripPrefix=2
