@@ -15,7 +15,7 @@ import {
 	ApiExtraModels as apiExtraModels,
 	getSchemaPath,
 } from '@nestjs/swagger';
-import {ApiResponseMetadataDto, apiResponseEnvelope} from '../common/dto/api-response-metadata.dto.js';
+import {ApiResponseMetadataDto, apiEnvelopeResponse} from '../common/dto/api-response-metadata.dto.js';
 import {UserRole} from '../common/enum/user-role.enum.js';
 import {requireRoles} from '../common/guard/roles.decorator.js';
 import {QuarantineRecordDto} from './dto/admin-response.dto.js';
@@ -23,16 +23,8 @@ import {ChatMessageQuarantineService} from './service/index.js';
 import {ChatMessageQuarantineRecordIdDto, FindChatMessageQuarantineRecordsDto} from './dto/index.js';
 
 @apiTags('Chat Admin')
-@apiResponse({
-	status: 400,
-	description: '레코드 ID 또는 상태 값이 올바르지 않음',
-	schema: apiResponseEnvelope(400),
-})
-@apiResponse({
-	status: 403,
-	description: 'ADMIN 권한 필요',
-	schema: apiResponseEnvelope(403),
-})
+@apiEnvelopeResponse(400, '레코드 ID 또는 상태 값이 올바르지 않음')
+@apiEnvelopeResponse(403, 'ADMIN 권한 필요')
 @requireRoles(UserRole.ADMIN)
 @apiExtraModels(ApiResponseMetadataDto, QuarantineRecordDto)
 @apiResponse({status: 401, description: '액세스 토큰이 없거나 유효하지 않음', type: ApiResponseMetadataDto})
@@ -44,10 +36,10 @@ export class ChatMessageQuarantineAdminController {
 
 	@httpGet()
 	@apiOperation({summary: '격리된 메시지의 상태 및 원인별 건수 조회'})
-	@apiResponse({
-		status: 200,
-		description: '요청 처리 성공',
-		schema: apiResponseEnvelope(200, {
+	@apiEnvelopeResponse(
+		200,
+		'요청 처리 성공',
+		{
 			type: 'array',
 			items: {
 				type: 'object',
@@ -58,19 +50,15 @@ export class ChatMessageQuarantineAdminController {
 					count: {type: 'integer'},
 				},
 			},
-		}),
-	})
+		},
+	)
 	async summary() {
 		return this.quarantineService.summary();
 	}
 
 	@httpGet('records')
 	@apiOperation({summary: '최근 격리 레코드 조회', description: '최근 관측 순서로 최대 100건을 반환합니다. payload와 eventKey는 반환하지 않습니다.'})
-	@apiResponse({
-		status: 200,
-		description: '최근 격리 레코드 목록',
-		schema: apiResponseEnvelope(200, {type: 'array', items: {$ref: getSchemaPath(QuarantineRecordDto)}}),
-	})
+	@apiEnvelopeResponse(200, '최근 격리 레코드 목록', {type: 'array', items: {$ref: getSchemaPath(QuarantineRecordDto)}})
 	async records(@requestQuery() query: FindChatMessageQuarantineRecordsDto) {
 		return this.quarantineService.findRecent(query.status);
 	}
@@ -79,11 +67,7 @@ export class ChatMessageQuarantineAdminController {
 	@httpCode(HttpStatus.NO_CONTENT)
 	@apiOperation({summary: '격리 레코드 재처리 요청'})
 	@apiResponse({status: 204, description: '응답 본문 없음'})
-	@apiResponse({
-		status: 409,
-		description: '현재 상태에서는 요청을 처리할 수 없음',
-		schema: apiResponseEnvelope(409),
-	})
+	@apiEnvelopeResponse(409, '현재 상태에서는 요청을 처리할 수 없음')
 	async reprocess(@requestParameter() path: ChatMessageQuarantineRecordIdDto): Promise<void> {
 		if (!await this.quarantineService.requestReprocess(path.id)) {
 			throw new ConflictException('Quarantine record cannot be reprocessed in its current state');
@@ -94,11 +78,7 @@ export class ChatMessageQuarantineAdminController {
 	@httpCode(HttpStatus.NO_CONTENT)
 	@apiOperation({summary: '격리 레코드 폐기'})
 	@apiResponse({status: 204, description: '응답 본문 없음'})
-	@apiResponse({
-		status: 409,
-		description: '현재 상태에서는 요청을 처리할 수 없음',
-		schema: apiResponseEnvelope(409),
-	})
+	@apiEnvelopeResponse(409, '현재 상태에서는 요청을 처리할 수 없음')
 	async discard(@requestParameter() path: ChatMessageQuarantineRecordIdDto): Promise<void> {
 		if (!await this.quarantineService.discard(path.id)) {
 			throw new ConflictException('Quarantine record cannot be discarded in its current state');
