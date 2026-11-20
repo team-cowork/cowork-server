@@ -12,7 +12,6 @@ final class ProjectionSnapshotCompletion {
 
     private static final String EVENT_TYPE = "PROJECTION_SNAPSHOT_COMPLETED";
     static final String KEY_PREFIX = "__cowork_projection_snapshot_complete__:";
-    private static final String EXPECTED_SOURCE = "cowork-team";
 
     private ProjectionSnapshotCompletion() {
     }
@@ -21,7 +20,7 @@ final class ProjectionSnapshotCompletion {
         return record.key() != null && record.key().startsWith(KEY_PREFIX);
     }
 
-    static String violation(ObjectMapper objectMapper, ConsumerRecord<String, String> record) {
+    static String violation(ObjectMapper objectMapper, ConsumerRecord<String, String> record, String expectedSource) {
         if (!(KEY_PREFIX + record.partition()).equals(record.key())) {
             return "projection snapshot marker key does not match its partition";
         }
@@ -50,8 +49,8 @@ final class ProjectionSnapshotCompletion {
         } catch (Exception exception) {
             return "projection snapshot marker occurredAt is invalid";
         }
-        if (!EXPECTED_SOURCE.equals(payload.path("source").asText())) {
-            return "projection snapshot marker source does not match the expected producer: " + EXPECTED_SOURCE;
+        if (!expectedSource.equals(payload.path("source").asText())) {
+            return "projection snapshot marker source does not match the expected producer: " + expectedSource;
         }
         return null;
     }

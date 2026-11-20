@@ -14,7 +14,8 @@ import org.springframework.http.HttpStatus;
 
 import com.cowork.roadmap.domain.roadmap.entity.Roadmap;
 import com.cowork.roadmap.domain.roadmap.entity.RoadmapScope;
-import com.cowork.roadmap.global.team.projection.readiness.TeamMemberProjectionReadiness;
+import com.cowork.roadmap.global.team.projection.readiness.ProjectionReadiness;
+import com.cowork.roadmap.global.team.repository.RoadmapPolicyRepository;
 import com.cowork.roadmap.global.team.repository.TeamMemberProjectionRepository;
 
 import team.themoment.sdk.exception.ExpectedException;
@@ -22,8 +23,13 @@ import team.themoment.sdk.exception.ExpectedException;
 class RoadmapAccessGuardTest {
 
     private final TeamMemberProjectionRepository teamMemberships = mock(TeamMemberProjectionRepository.class);
-    private final TeamMemberProjectionReadiness projectionReadiness = mock(TeamMemberProjectionReadiness.class);
-    private final RoadmapAccessGuard accessGuard = new RoadmapAccessGuard(teamMemberships, projectionReadiness);
+    private final RoadmapPolicyRepository policies = mock(RoadmapPolicyRepository.class);
+    private final ProjectionReadiness projectionReadiness = mock(ProjectionReadiness.class);
+    private final RoadmapAccessGuard accessGuard = new RoadmapAccessGuard(teamMemberships,
+            policies,
+            projectionReadiness,
+            projectionReadiness,
+            projectionReadiness);
 
     RoadmapAccessGuardTest() {
         when(projectionReadiness.isReady()).thenReturn(true);
@@ -33,20 +39,22 @@ class RoadmapAccessGuardTest {
     class RequireMutable {
 
         @Test
-        void globalScopeByNonAdmin_isForbidden() {
+        void globalScopeWithoutPolicy_isForbidden() {
             Roadmap roadmap = roadmap(RoadmapScope.GLOBAL, 1L, null);
 
             ExpectedException error = assertThrows(ExpectedException.class,
-                    () -> accessGuard.requireMutable(roadmap, 1L, "MEMBER"));
+                    () -> accessGuard.requireMutable(roadmap, 1L));
             assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
             verifyNoInteractions(teamMemberships);
         }
 
         @Test
-        void globalScopeByAdmin_succeeds() {
+        void globalPolicyGrantAndRevocation_applyToSameUser() {
             Roadmap roadmap = roadmap(RoadmapScope.GLOBAL, 1L, null);
 
-            accessGuard.requireMutable(roadmap, 1L, "ADMIN");
+            when(policies.allows(0, 1, "manage_global_roadmaps")).thenReturn(true, false);
+            accessGuard.requireMutable(roadmap, 1L);
+            assertThrows(ExpectedException.class, () -> accessGuard.requireMutable(roadmap, 1L));
             verifyNoInteractions(teamMemberships);
         }
 
@@ -55,7 +63,7 @@ class RoadmapAccessGuardTest {
             Roadmap roadmap = roadmap(RoadmapScope.TEAM, 7L, 99L);
             when(teamMemberships.findActiveRole(99L, 7L)).thenReturn(Optional.of("MEMBER"));
 
-            accessGuard.requireMutable(roadmap, 7L, "MEMBER");
+            accessGuard.requireMutable(roadmap, 7L);
         }
 
         @Test
@@ -64,16 +72,17 @@ class RoadmapAccessGuardTest {
             when(teamMemberships.findActiveRole(99L, 7L)).thenReturn(Optional.empty());
 
             ExpectedException error = assertThrows(ExpectedException.class,
-                    () -> accessGuard.requireMutable(roadmap, 7L, "MEMBER"));
+                    () -> accessGuard.requireMutable(roadmap, 7L));
             assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
         }
 
         @Test
-        void customScopeByTeamAdmin_succeeds() {
+        void customScopeByActiveManager_succeeds() {
             Roadmap roadmap = roadmap(RoadmapScope.TEAM, 7L, 99L);
-            when(teamMemberships.findActiveRole(99L, 8L)).thenReturn(Optional.of("ADMIN"));
+            when(teamMemberships.findActiveRole(99L, 8L)).thenReturn(Optional.of("MEMBER"));
+            when(policies.allows(99, 8, "manage_team")).thenReturn(true);
 
-            accessGuard.requireMutable(roadmap, 8L, "MEMBER");
+            accessGuard.requireMutable(roadmap, 8L);
         }
 
         @Test
@@ -82,7 +91,7 @@ class RoadmapAccessGuardTest {
             when(projectionReadiness.isReady()).thenReturn(false);
 
             ExpectedException error = assertThrows(ExpectedException.class,
-                    () -> accessGuard.requireMutable(roadmap, 7L, "MEMBER"));
+                    () -> accessGuard.requireMutable(roadmap, 7L));
             assertTrue(error.getStatusCode() == HttpStatus.SERVICE_UNAVAILABLE);
             verifyNoInteractions(teamMemberships);
         }
@@ -93,9 +102,30 @@ class RoadmapAccessGuardTest {
             when(teamMemberships.findActiveRole(99L, 8L)).thenReturn(Optional.of("MEMBER"));
 
             ExpectedException error = assertThrows(ExpectedException.class,
-                    () -> accessGuard.requireMutable(roadmap, 8L, "MEMBER"));
+                    () -> accessGuard.requireMutable(roadmap, 8L));
             assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
         }
+    }
+
+    @Test
+    void managementGrantIsScopedToTheRoadmapOwnerTeam() {
+        when(teamMemberships.findActiveRole(10L, 7L)).thenReturn(Optional.of("MEMBER"));
+        when(teamMemberships.findActiveRole(20L, 7L)).thenReturn(Optional.of("ADMIN"));
+        when(policies.allows(10, 7, "manage_team")).thenReturn(true);
+
+        accessGuard.requireCreatable(7L, RoadmapScope.TEAM, 10L);
+        var error = assertThrows(ExpectedException.class,
+                () -> accessGuard.requireCreatable(7L, RoadmapScope.TEAM, 20L));
+        assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void staleAccountPolicyRejectsGlobalManagementBeforeReadingGrants() {
+        when(projectionReadiness.isReady()).thenReturn(false);
+        var error = assertThrows(ExpectedException.class,
+                () -> accessGuard.requireCreatable(7L, RoadmapScope.GLOBAL, null));
+        assertTrue(error.getStatusCode() == HttpStatus.SERVICE_UNAVAILABLE);
+        verifyNoInteractions(policies);
     }
 
     @Nested
@@ -171,8 +201,9 @@ class RoadmapAccessGuardTest {
         @Test
         void teamScopeByOwner_succeeds() {
             when(teamMemberships.findActiveRole(99L, 7L)).thenReturn(Optional.of("OWNER"));
+            when(policies.allows(99, 7, "administrator")).thenReturn(true);
 
-            accessGuard.requireCreatable(7L, "MEMBER", RoadmapScope.TEAM, 99L);
+            accessGuard.requireCreatable(7L, RoadmapScope.TEAM, 99L);
         }
     }
 
@@ -183,7 +214,7 @@ class RoadmapAccessGuardTest {
         void globalScope_succeeds() {
             Roadmap roadmap = roadmap(RoadmapScope.GLOBAL, 1L, null);
 
-            accessGuard.requireReadable(roadmap, 123L, "MEMBER");
+            accessGuard.requireReadable(roadmap, 123L);
         }
 
         @Test
@@ -191,7 +222,7 @@ class RoadmapAccessGuardTest {
             Roadmap roadmap = roadmap(RoadmapScope.TEAM, 1L, 99L);
             when(teamMemberships.findActiveRole(99L, 123L)).thenReturn(Optional.of("MEMBER"));
 
-            accessGuard.requireReadable(roadmap, 123L, "MEMBER");
+            accessGuard.requireReadable(roadmap, 123L);
         }
 
         @Test
@@ -200,7 +231,7 @@ class RoadmapAccessGuardTest {
             when(teamMemberships.findActiveRole(99L, 123L)).thenReturn(Optional.empty());
 
             ExpectedException error = assertThrows(ExpectedException.class,
-                    () -> accessGuard.requireReadable(roadmap, 123L, "MEMBER"));
+                    () -> accessGuard.requireReadable(roadmap, 123L));
             assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
         }
     }

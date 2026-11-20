@@ -7,10 +7,5 @@ import com.cowork.roadmap.domain.roadmap.presentation.data.response.RoadmapResDt
 
 public interface ListRoadmapsService {
 
-    List<RoadmapResDto> execute(Long userId,
-            String userRole,
-            RoadmapScope scope,
-            String category,
-            Long teamId,
-            Long projectId);
+    List<RoadmapResDto> execute(Long userId, RoadmapScope scope, String category, Long teamId, Long projectId);
 }

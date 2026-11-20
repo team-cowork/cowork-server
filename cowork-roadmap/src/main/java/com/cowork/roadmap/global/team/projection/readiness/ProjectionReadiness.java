@@ -11,12 +11,10 @@ import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.errors.InterruptException;
 import org.apache.kafka.common.errors.WakeupException;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.health.contributor.Health;
 import org.springframework.boot.health.contributor.HealthIndicator;
 import org.springframework.kafka.listener.ConsumerAwareRebalanceListener;
 import org.springframework.scheduling.annotation.Scheduled;
-import org.springframework.stereotype.Component;
 
 import com.cowork.roadmap.global.team.projection.model.ProjectionBarrier;
 import com.cowork.roadmap.global.team.projection.model.ProjectionCheckpoint;
@@ -40,8 +38,7 @@ import lombok.extern.slf4j.Slf4j;
  * caller's snapshot.
  */
 @Slf4j
-@Component
-public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceListener, HealthIndicator {
+public class ProjectionReadiness implements ConsumerAwareRebalanceListener, HealthIndicator {
 
     private final ProjectionCheckpointRepository checkpoints;
     private final ProjectionTopicIdentityProvider topicIdentity;
@@ -62,13 +59,13 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     // failure of a run.
     private int consecutiveAssignmentFailures;
 
-    public TeamMemberProjectionReadiness(ProjectionCheckpointRepository checkpoints,
+    public ProjectionReadiness(ProjectionCheckpointRepository checkpoints,
             ProjectionTopicIdentityProvider topicIdentity,
             ProjectionTopicGenerationRegistry topicGeneration,
-            @Value("${KAFKA_GROUP_ID_TEAM_MEMBER:cowork-roadmap.team-member}") String consumerGroup,
-            @Value("${KAFKA_TOPIC_TEAM_MEMBER:team.member.event}") String topic,
-            @Value("${projection.readiness.assignment-retry-backoff-ms:1000}") long assignmentRetryBackoffMs,
-            @Value("${projection.readiness.assignment-retry-timeout-ms:60000}") long assignmentRetryTimeoutMs) {
+            String consumerGroup,
+            String topic,
+            long assignmentRetryBackoffMs,
+            long assignmentRetryTimeoutMs) {
         this.checkpoints = checkpoints;
         this.topicIdentity = topicIdentity;
         this.topicGeneration = topicGeneration;
@@ -76,6 +73,18 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
         this.topic = topic;
         this.assignmentRetryBackoffMs = Math.max(0L, assignmentRetryBackoffMs);
         this.assignmentRetryTimeoutMs = Math.max(0L, assignmentRetryTimeoutMs);
+    }
+
+    public String topic() {
+        return topic;
+    }
+
+    public String group() {
+        return consumerGroup;
+    }
+
+    public String topicId() {
+        return topicGeneration.requireTopicId();
     }
 
     @Override
@@ -143,22 +152,22 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
     private void logAssignmentFailure(RuntimeException exception) {
         consecutiveAssignmentFailures++;
         if (consecutiveAssignmentFailures == 1) {
-            log.warn("Failed to initialize team member projection assignment", exception);
+            log.warn("Failed to initialize projection assignment", exception);
         } else {
-            log.warn("Failed to initialize team member projection assignment again, failure {}: {}",
+            log.warn("Failed to initialize projection assignment again, failure {}: {}",
                     consecutiveAssignmentFailures,
                     exception.toString());
         }
     }
 
     private void requestRebalance(Consumer<?, ?> consumer) {
-        log.warn("Requesting a rebalance to retry team member projection assignment");
+        log.warn("Requesting a rebalance to retry projection assignment");
         // The container only logs listener failures, so without a new rebalance the
         // assignment would stay uninitialized until restart. This depends on the
         // classic
         // group protocol: with group.protocol=consumer, enforceRebalance only logs a
         // warning.
-        consumer.enforceRebalance("team member projection assignment initialization failed");
+        consumer.enforceRebalance("projection assignment initialization failed");
     }
 
     @Override
@@ -200,7 +209,7 @@ public class TeamMemberProjectionReadiness implements ConsumerAwareRebalanceList
             return ProjectionCatchUpPolicy
                     .isReady(broker.ranges().keySet(), broker.topicId(), barriers, stored, broker.ranges());
         } catch (RuntimeException exception) {
-            log.warn("Failed to evaluate team member projection readiness", exception);
+            log.warn("Failed to evaluate projection readiness", exception);
             return false;
         }
     }

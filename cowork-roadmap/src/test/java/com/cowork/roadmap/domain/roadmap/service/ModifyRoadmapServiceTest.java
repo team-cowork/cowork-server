@@ -36,7 +36,6 @@ import team.themoment.sdk.exception.ExpectedException;
 class ModifyRoadmapServiceTest {
 
     private static final Long USER_ID = 7L;
-    private static final String USER_ROLE = "ADMIN";
     private static final Long ROADMAP_ID = 10L;
 
     private final RoadmapRepository roadmapRepository = mock(RoadmapRepository.class);
@@ -64,7 +63,7 @@ class ModifyRoadmapServiceTest {
 
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
-                        () -> modifyRoadmapService.execute(USER_ID, USER_ROLE, 99L, request));
+                        () -> modifyRoadmapService.execute(USER_ID, 99L, request));
 
                 // then
                 assertThat(error.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
@@ -85,7 +84,7 @@ class ModifyRoadmapServiceTest {
 
                 // when
                 RoadmapResDto response = modifyRoadmapService
-                        .execute(USER_ID, USER_ROLE, ROADMAP_ID, new UpdateRoadmapReqDto("새제목", null, null));
+                        .execute(USER_ID, ROADMAP_ID, new UpdateRoadmapReqDto("새제목", null, null));
 
                 // then
                 assertThat(response.title()).isEqualTo("새제목");
@@ -116,7 +115,7 @@ class ModifyRoadmapServiceTest {
 
                 // when
                 RoadmapResDto response = modifyRoadmapService
-                        .execute(USER_ID, USER_ROLE, ROADMAP_ID, new UpdateRoadmapReqDto(null, null, null));
+                        .execute(USER_ID, ROADMAP_ID, new UpdateRoadmapReqDto(null, null, null));
 
                 // then
                 Roadmap saved = savedCaptor.getValue();
@@ -146,7 +145,7 @@ class ModifyRoadmapServiceTest {
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
                         () -> modifyRoadmapService
-                                .execute(USER_ID, USER_ROLE, ROADMAP_ID, new UpdateRoadmapReqDto(title, null, null)));
+                                .execute(USER_ID, ROADMAP_ID, new UpdateRoadmapReqDto(title, null, null)));
 
                 // then
                 assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -167,10 +166,8 @@ class ModifyRoadmapServiceTest {
 
                 // when
                 ExpectedException error = assertThrows(ExpectedException.class,
-                        () -> modifyRoadmapService.execute(USER_ID,
-                                USER_ROLE,
-                                ROADMAP_ID,
-                                new UpdateRoadmapReqDto("새제목", null, category)));
+                        () -> modifyRoadmapService
+                                .execute(USER_ID, ROADMAP_ID, new UpdateRoadmapReqDto("새제목", null, category)));
 
                 // then
                 assertThat(error.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
@@ -196,7 +193,7 @@ class ModifyRoadmapServiceTest {
 
                 // when
                 RoadmapResDto response = modifyRoadmapService
-                        .execute(USER_ID, USER_ROLE, ROADMAP_ID, new UpdateRoadmapReqDto(title, null, null));
+                        .execute(USER_ID, ROADMAP_ID, new UpdateRoadmapReqDto(title, null, null));
 
                 // then
                 assertThat(response.title()).isEqualTo(title);
@@ -221,7 +218,7 @@ class ModifyRoadmapServiceTest {
 
                 // when
                 RoadmapResDto response = modifyRoadmapService
-                        .execute(USER_ID, USER_ROLE, ROADMAP_ID, new UpdateRoadmapReqDto(null, null, category));
+                        .execute(USER_ID, ROADMAP_ID, new UpdateRoadmapReqDto(null, null, category));
 
                 // then
                 assertThat(response.title()).isEqualTo("원제목");

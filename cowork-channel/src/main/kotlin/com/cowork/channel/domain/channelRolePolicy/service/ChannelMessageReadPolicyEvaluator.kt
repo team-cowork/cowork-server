@@ -9,9 +9,9 @@ import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleAssignment
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleMemberTombstone
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleMemberTombstoneRepository
 import com.cowork.channel.domain.channelRolePolicy.projection.TeamRoleProjectionRepository
-import com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyPermissionSchema
 import com.cowork.channel.domain.membership.entity.TeamMembership
 import com.cowork.channel.domain.membership.repository.TeamMembershipRepository
+import com.cowork.channel.global.policy.PermissionKeys
 import com.cowork.channel.global.policy.RolePolicy
 import com.cowork.channel.global.projection.ProjectionReadinessGate
 import org.springframework.http.HttpStatus
@@ -257,7 +257,7 @@ class ChannelMessageReadPolicyEvaluator(
         val policies = loadPolicies(teamId, setOf(channel.id), roles.keys + targetRoleId)[channel.id].orEmpty()
         val currentOverwrite = policies[targetRoleId].orEmpty()
         val targetBase = permissions(target.permissionsJson)
-        val granted = ChannelRolePolicyPermissionSchema.KEYS.filter { key ->
+        val granted = PermissionKeys.CHANNEL_SCOPED.filter { key ->
             overwrite?.get(key) ?: (currentOverwrite[key] == false || (overwrite == null && targetBase[key] == true))
         }
         if (granted.any { !isAllowed(channel, roleIds, roles, policies, it) }) {

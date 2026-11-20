@@ -19,6 +19,7 @@ import {TextChannelSettingProjection} from '../../chat/schema/text-channel-setti
 import {TeamSettingProjection} from '../../chat/schema/team-setting-projection.schema.js';
 import {UserProfileProjection} from '../../chat/schema/user-profile-projection.schema.js';
 import {type Nullable} from '../type/nullable.js';
+import {AccountPolicy} from './account-policy.schema.js';
 import {
 	ProjectionDataset,
 	ProjectionDatasetPartitionOffset,
@@ -27,6 +28,7 @@ import {
 } from './projection-dataset.schema.js';
 
 export type ProjectionStreamName =
+	| 'accountPolicy'
 	| 'meetingNoteAttachment'
 	| 'thread'
 	| 'channel'
@@ -70,6 +72,9 @@ type ProjectionDatasetStream = {
 export class ProjectionDatasetRepository {
 	@injectModel(ProjectionDataset.name)
 	private readonly datasets!: Model<ProjectionDataset>;
+
+	@injectModel(AccountPolicy.name)
+	private readonly accountPolicy!: Model<AccountPolicy>;
 
 	@injectModel(MeetingNoteAttachmentProjection.name)
 	private readonly meetingNoteAttachment!: Model<MeetingNoteAttachmentProjection>;
@@ -122,6 +127,7 @@ export class ProjectionDatasetRepository {
 	private get projectionModels(): Record<ProjectionStreamName, Array<Model<unknown>>> {
 		// 컬렉션마다 문서 타입이 달라 공통 연산(count·exists)용 `Model<unknown>`으로 넓힌다.
 		const models = {
+			accountPolicy: [this.accountPolicy],
 			meetingNoteAttachment: [this.meetingNoteAttachment],
 			thread: [this.thread],
 			channel: [this.channel],

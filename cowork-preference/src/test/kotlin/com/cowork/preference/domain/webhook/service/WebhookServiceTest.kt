@@ -40,7 +40,7 @@ class WebhookServiceTest {
     private val connection = mockk<SqlConnection>()
     private val secrets = WebhookSecrets(Base64.getEncoder().encodeToString(ByteArray(32) { 7 }))
     private val urlSigner = WebhookUrlSigner("CwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCwsLCws=")
-    private val requester = RequesterContext(3, "MEMBER")
+    private val requester = RequesterContext(3)
     private val now = Instant.parse("2026-10-25T10:00:00Z")
     private val executionId = UUID.fromString("5b30857f-0bfa-48b5-ac0b-5c64e28078d1")
     private val nextExecutionId = UUID.fromString("6cf6eda2-99a4-4f45-9bc9-14292c607df0")

@@ -104,29 +104,40 @@ class ProjectAccessGuard(
         member.authorizationVersion != null && access.sourceAuthorizationVersion == member.authorizationVersion
 
     fun requireProjectReader(project: Project, userId: Long) {
-        if (!canRead(project, userId)) throw ExpectedException("프로젝트 읽기 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        requireAccess(project, userId, "프로젝트 읽기 권한이 없습니다.") { it.read }
     }
 
     fun requireProjectModifier(project: Project, userId: Long) {
-        if (!canWrite(project, userId)) throw ExpectedException("프로젝트 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        requireAccess(project, userId, "프로젝트 수정 권한이 없습니다.") { it.write }
     }
 
     fun requireBoardReader(project: Project, userId: Long) {
-        if (!permissionsForUser(project, userId).boardRead) {
-            throw ExpectedException("GitHub 보드 보기 권한이 없습니다.", HttpStatus.FORBIDDEN)
-        }
+        requireAccess(project, userId, "GitHub 보드 보기 권한이 없습니다.") { it.boardRead }
     }
 
     fun requireBoardModifier(project: Project, userId: Long) {
-        if (!permissionsForUser(project, userId).boardWrite) {
-            throw ExpectedException("GitHub 보드 수정 권한이 없습니다.", HttpStatus.FORBIDDEN)
-        }
+        requireAccess(project, userId, "GitHub 보드 수정 권한이 없습니다.") { it.boardWrite }
     }
 
     fun requireProjectManager(project: Project, userId: Long) {
-        if (!permissionsForUser(project, userId).manage) {
-            throw ExpectedException("프로젝트 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
+        requireAccess(project, userId, "프로젝트 관리 권한이 없습니다.") { it.manage }
+    }
+
+    /**
+     * preference는 프로젝트 권한을 다시 계산할 때 팀 멤버마다 권한 행을 발행한다. 따라서 활성 멤버의 권한 행이 없거나
+     * 현재 권한 버전과 다르면 거부가 아니라 전파 지연이다. 프로젝트 생성이나 역할 변경 직후의 요청이 이 경우에 해당하며,
+     * 권한을 미리 주지 않고 재시도할 수 있는 503으로 구분한다.
+     */
+    private fun requireAccess(project: Project, userId: Long, denial: String, granted: (Permissions) -> Boolean) {
+        projectionReadinessGate.requireReady()
+        val member = teamMembershipRepository.findActiveByTeamIdAndUserId(project.teamId, userId)
+            ?: throw ExpectedException(denial, HttpStatus.FORBIDDEN)
+        val access = accessRepository.findById("${project.id}:$userId").orElse(null)
+        if (granted(permissions(member, access))) return
+        if (access == null || !hasCurrentAuthorization(member, access)) {
+            throw ExpectedException(ACCESS_SYNC_PENDING_MESSAGE, HttpStatus.SERVICE_UNAVAILABLE)
         }
+        throw ExpectedException(denial, HttpStatus.FORBIDDEN)
     }
 
     fun requirePrivateTransitionAccess(project: Project, userId: Long) {
@@ -177,5 +188,9 @@ class ProjectAccessGuard(
             throw ExpectedException("팀 관리 권한이 없습니다.", HttpStatus.FORBIDDEN)
         }
         return member
+    }
+
+    private companion object {
+        const val ACCESS_SYNC_PENDING_MESSAGE = "프로젝트 권한 정보를 동기화하고 있습니다. 잠시 후 다시 시도해 주세요."
     }
 }

@@ -2,9 +2,6 @@ package com.cowork.roadmap.global.team.projection.topic;
 
 import java.util.concurrent.atomic.AtomicReference;
 
-import org.springframework.stereotype.Component;
-
-@Component
 public class ProjectionTopicGenerationRegistry {
 
     private final AtomicReference<String> topicId = new AtomicReference<>();

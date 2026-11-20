@@ -52,7 +52,7 @@ class DeleteNodeReferenceServiceTest {
         when(nodeRepository.findById(5L)).thenReturn(Optional.of(node(5L, 10L)));
         when(roadmapRepository.findById(10L)).thenReturn(Optional.of(roadmap(10L)));
 
-        deleteNodeReferenceService.execute(7L, "ADMIN", 100L);
+        deleteNodeReferenceService.execute(7L, 100L);
 
         verify(referenceRepository).delete(ref);
     }
@@ -62,7 +62,7 @@ class DeleteNodeReferenceServiceTest {
         when(referenceRepository.findById(99L)).thenReturn(Optional.empty());
 
         ExpectedException error = assertThrows(ExpectedException.class,
-                () -> deleteNodeReferenceService.execute(7L, "ADMIN", 99L));
+                () -> deleteNodeReferenceService.execute(7L, 99L));
         assertTrue(error.getStatusCode() == HttpStatus.NOT_FOUND);
 
         verify(referenceRepository, never()).delete(any());

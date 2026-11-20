@@ -29,8 +29,7 @@ import java.time.Instant
 private const val PROJECT_ID = 7L
 private const val TEAM_ID = 42L
 private const val TARGET_ID = 200L
-private val MEMBER = RequesterContext(userId = 100L, role = "MEMBER")
-private val GLOBAL_ADMIN = RequesterContext(userId = 100L, role = "ADMIN")
+private val MEMBER = RequesterContext(userId = 100L)
 private val VERSION = Instant.parse("2026-10-13T01:00:00Z")
 
 private class ProjectGuardFixture {
@@ -294,14 +293,14 @@ class ProjectAccessGuardTest :
                     }
                 }
 
-                context("전역 ADMIN이어도 팀 멤버가 아니면") {
-                    it("소유 서비스와 같이 우회 없이 거부한다") {
+                context("팀 멤버가 아니면") {
+                    it("권한 요청을 거부한다") {
                         fixture.stubReadiness(true)
                         fixture.stubProject()
                         fixture.stubTeamMember(found = false)
 
                         shouldThrow<ResourceAccessDeniedException> {
-                            runBlocking { fixture.guard.requireMember(PROJECT_ID, GLOBAL_ADMIN) }
+                            runBlocking { fixture.guard.requireMember(PROJECT_ID, MEMBER) }
                         }
                     }
                 }

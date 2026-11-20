@@ -27,9 +27,9 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
 
     @Override
     @Transactional
-    public NodeResDto execute(Long userId, String userRole, Long roadmapId, CreateNodeReqDto request) {
+    public NodeResDto execute(Long userId, Long roadmapId, CreateNodeReqDto request) {
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
-        accessGuard.requireMutable(roadmap, userId, userRole);
+        accessGuard.requireMutable(roadmap, userId);
         validateNodeCount(roadmapId);
         validateParent(roadmapId, request.parentId());
         int position = nextPosition(roadmapId, request.parentId());

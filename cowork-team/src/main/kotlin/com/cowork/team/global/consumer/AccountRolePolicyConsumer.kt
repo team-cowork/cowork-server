@@ -11,6 +11,20 @@ import org.springframework.stereotype.Component
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 
+private val accountActions = setOf(
+    "create_team",
+    "manage_account_roles",
+    "manage_global_roadmaps",
+    "read_all_team_roadmaps",
+    "create_team_assignments",
+    "update_team_assignment_status",
+    "delete_team_assignments",
+    "manage_chat_search_index",
+    "manage_chat_message_quarantine",
+    "view_chat_projections",
+    "rebuild_chat_projections",
+)
+
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class AccountRolePolicyEvent(
     val eventType: String,
@@ -25,7 +39,7 @@ data class AccountRolePolicyEvent(
     fun validKey(key: String?): Boolean = roleId > 0 && when (eventType) {
         "ROLE" ->
             key == "role:$roleId" && isDefault != null && permissions != null &&
-                permissions.keys.all { it in setOf("create_team", "manage_account_roles") }
+                permissions.keys.all { it in accountActions }
 
         "ASSIGNMENT" -> accountId != null && accountId > 0 && key == "assignment:$accountId:$roleId"
 

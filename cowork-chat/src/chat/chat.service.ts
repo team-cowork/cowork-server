@@ -36,8 +36,7 @@ import {
 	FileListResponseDto,
 	GetMessagesDto,
 	ChannelUserContext,
-	ChannelUserRoleContext,
-	MessageUserRoleContext,
+	MessageUserContext,
 	UserContext,
 } from './dto/index.js';
 import {ChatMessageProducer} from './kafka/chat-message.producer.js';
@@ -323,7 +322,7 @@ export class ChatService {
      @throws NotFoundException 메시지가 존재하지 않는 경우
      */
 	private async findAndVerifyMessage(
-		ctx: MessageUserRoleContext,
+		ctx: MessageUserContext,
 		action: 'edit' | 'delete' | 'pin',
 	): Promise<MessageDocument> {
 		await this.requireChannelRead(ctx.channelId, ctx.userId);
@@ -696,7 +695,7 @@ export class ChatService {
      @throws NotFoundException 메시지가 존재하지 않는 경우
      @throws ForbiddenException 본인 파일이 아니고 message_manage 권한도 없는 경우
      */
-	async deleteFile(ctx: ChannelUserRoleContext, fileId: string): Promise<{channelId: number; messageId: string}> {
+	async deleteFile(ctx: ChannelUserContext, fileId: string): Promise<{channelId: number; messageId: string}> {
 		const messageId = this.decodeFileId(fileId);
 		await this.requireChannelRead(ctx.channelId, ctx.userId);
 
@@ -716,13 +715,13 @@ export class ChatService {
 	}
 
 	/**
-     메시지를 Kafka `chat.message.v2` 토픽으로 발행한다.
+     메시지를 Kafka `chat.message.event.v3` 토픽으로 발행한다.
      실제 저장과 Socket.IO 브로드캐스트는 `ChatMessageConsumer`가 처리한다.
 
      @param ctx - 채널·사용자·역할 컨텍스트
      @param dto - 메시지 내용, 타입, 첨부파일 등
      */
-	async sendMessage(ctx: ChannelUserRoleContext, dto: SendMessageDto): Promise<void> {
+	async sendMessage(ctx: ChannelUserContext, dto: SendMessageDto): Promise<void> {
 		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
 		const acceptStartedAt = performance.now();
 		// 첨부파일만 보내는 메시지는 본문이 비어도 되지만, 그 밖의 메시지는 공백만으로 저장될 수 없다.
@@ -784,7 +783,7 @@ export class ChatService {
 				parentMessageId,
 				threadId,
 				clientMessageId,
-			}, ctx.userId, ctx.userRole);
+			}, ctx.userId);
 			// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
 			this.latencyMetrics.record('accept', acceptStartedAt, performance.now());
 		} catch (error) {
@@ -1020,7 +1019,7 @@ export class ChatService {
      @param dto - 새 메시지 내용
      @returns 수정된 메시지 도큐먼트
      */
-	async editMessage(ctx: MessageUserRoleContext, dto: EditMessageDto) {
+	async editMessage(ctx: MessageUserContext, dto: EditMessageDto) {
 		const message = await this.findAndVerifyMessage(ctx, 'edit');
 		// 전송에서 막은 공백 메시지를 수정으로 만들 수 없게 한다.
 		if (dto.content.trim() === '' && message.attachments.length === 0) {
@@ -1057,7 +1056,7 @@ export class ChatService {
      @param ctx - 메시지·사용자·역할 컨텍스트
      @returns 삭제된 채널 ID와 메시지 ID
      */
-	async deleteMessage(ctx: MessageUserRoleContext) {
+	async deleteMessage(ctx: MessageUserContext) {
 		const message = await this.findAndVerifyMessage(ctx, 'delete');
 
 		await this.deleteMessageAndAttachments(message, ctx.messageId, ctx.channelId);
@@ -1074,7 +1073,7 @@ export class ChatService {
      @returns 업데이트된 메시지 도큐먼트
      @throws BadRequestException 이미 고정된 메시지인 경우
      */
-	async pinMessage(ctx: MessageUserRoleContext) {
+	async pinMessage(ctx: MessageUserContext) {
 		const message = await this.findAndVerifyMessage(ctx, 'pin');
 		if (message.isPinned) {
 			throw new BadRequestException('이미 고정된 메시지입니다');
@@ -1102,7 +1101,7 @@ export class ChatService {
      @param ctx - 메시지·사용자·역할 컨텍스트
      @throws BadRequestException 고정되지 않은 메시지인 경우
      */
-	async unpinMessage(ctx: MessageUserRoleContext) {
+	async unpinMessage(ctx: MessageUserContext) {
 		const message = await this.findAndVerifyMessage(ctx, 'pin');
 		if (!message.isPinned) {
 			throw new BadRequestException('고정되지 않은 메시지입니다');

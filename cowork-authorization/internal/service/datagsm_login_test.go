@@ -369,7 +369,7 @@ func TestStudentLoginAllowsNullableProfile(t *testing.T) {
 			svc := NewAuthService(cfg, identity, store, NewTokenService(cfg), nil)
 			pair, err := svc.issueUserSession(context.Background(), info)
 			if tc.valid {
-				if err != nil || pair == nil || identity.command.Major != nil || identity.command.Grade != nil || identity.command.SchemaVersion != domain.UserIdentityCommandSchemaVersion || store.createdToken.PlatformRole != "MEMBER" {
+				if err != nil || pair == nil || identity.command.Major != nil || identity.command.Grade != nil || identity.command.SchemaVersion != domain.UserIdentityCommandSchemaVersion {
 					t.Fatalf("pair=%+v err=%v command=%+v", pair, err, identity.command)
 				}
 			} else if err == nil || identity.calls != 0 || store.createdToken != nil {
