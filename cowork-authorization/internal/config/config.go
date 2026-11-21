@@ -12,12 +12,16 @@ import (
 )
 
 const (
+	ProviderCommandTopic          = "user.identity.command.v3"
+	ProviderResultTopic           = "user.identity.result.v2"
+	ProviderResultGroup           = "cowork-authorization.user-identity-result.v2"
 	defaultJWTAccessExpire        = "30m"
 	defaultJWTRefreshExpire       = "2160h"
 	defaultIdentityCommandTimeout = "5s"
 )
 
 type AppConfig struct {
+	DevAccounts   DevAccounts
 	KafkaSecurity KafkaSecurity
 	Port          string
 
@@ -33,7 +37,6 @@ type AppConfig struct {
 
 	KafkaBootstrapServers               string
 	KafkaTopicUserSync                  string
-	KafkaTopicUserIdentityCommand       string
 	KafkaTopicUserIdentityCommandResult string
 	KafkaTopicUserIdentityResultDLT     string
 	KafkaGroupIDUserIdentityResult      string
@@ -73,13 +76,16 @@ func Load() (*AppConfig, error) {
 		RedisPort:                           os.Getenv("REDIS_PORT"),
 		KafkaBootstrapServers:               os.Getenv("KAFKA_BOOTSTRAP_SERVERS"),
 		KafkaTopicUserSync:                  getEnvOrDefault("KAFKA_TOPIC_USER_SYNC", "user.data.sync"),
-		KafkaTopicUserIdentityCommand:       getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND", "user.identity.command.v2"),
 		KafkaTopicUserIdentityCommandResult: getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT", "user.identity.command-result"),
 		KafkaTopicUserIdentityResultDLT:     getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT_DLT", "user.identity.command-result-dlt"),
 		KafkaGroupIDUserIdentityResult:      getEnvOrDefault("KAFKA_GROUP_ID_USER_IDENTITY_COMMAND_RESULT", "cowork-authorization.user-identity-command-result"),
 		KafkaIdentityCommandTimeout:         identityCommandTimeout,
 		KafkaTopicUserPresence:              getEnvOrDefault("KAFKA_TOPIC_USER_PRESENCE", "user.presence.event"),
 		JWTSecret:                           os.Getenv("JWT_SECRET"), JWTAccessExpire: accessExpire, JWTRefreshExpire: refreshExpire,
+	}
+	cfg.DevAccounts, err = ParseDevAccounts(os.Getenv("DEV_SIGNIN_ACCOUNTS"))
+	if err != nil {
+		return nil, err
 	}
 	cfg.DataGSMRedirectURIs, err = parseRedirectURIs(os.Getenv("DATAGSM_REDIRECT_URIS"))
 	if err != nil {

@@ -4,6 +4,10 @@ namespace CoworkUser.Config;
 
 public sealed record AppConfig
 {
+    public const string ProviderCommandTopic = "user.identity.command.v3";
+    public const string ProviderCommandGroup = "cowork-user.user-identity-command.v3";
+    public const string ProviderResultTopic = "user.identity.result.v2";
+
     public required int Port { get; init; }
     public required KafkaSecurity KafkaSecurity { get; init; }
     public required string ConnectionString { get; init; }

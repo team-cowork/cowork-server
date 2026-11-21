@@ -222,6 +222,7 @@ jobs:
           GH_SECRET_DB_MONITORING_PASSWORD: ${{ contains(matrix.secret_names, 'DB_MONITORING_PASSWORD') && secrets.DB_MONITORING_PASSWORD || '' }}
           GH_SECRET_DB_PASSWORD: ${{ contains(matrix.secret_names, 'DB_PASSWORD') && secrets.DB_PASSWORD || '' }}
           GH_SECRET_DEV_ORIGIN_CREDENTIAL: ${{ contains(matrix.secret_names, 'DEV_ORIGIN_CREDENTIAL') && secrets.DEV_ORIGIN_CREDENTIAL || '' }}
+          GH_SECRET_DEV_SIGNIN_ACCOUNTS: ${{ contains(matrix.secret_names, 'DEV_SIGNIN_ACCOUNTS') && secrets.DEV_SIGNIN_ACCOUNTS || '' }}
           GH_SECRET_DISCORD_MONITORING_ALERT_WEBHOOK_URL: ${{ contains(matrix.secret_names, 'DISCORD_MONITORING_ALERT_WEBHOOK_URL') && secrets.DISCORD_MONITORING_ALERT_WEBHOOK_URL || '' }}
           GH_SECRET_ELASTICSEARCH_ADMIN_PASSWORD: ${{ contains(matrix.secret_names, 'ELASTICSEARCH_ADMIN_PASSWORD') && secrets.ELASTICSEARCH_ADMIN_PASSWORD || '' }}
           GH_SECRET_ELASTICSEARCH_URL: ${{ contains(matrix.secret_names, 'ELASTICSEARCH_URL') && secrets.ELASTICSEARCH_URL || '' }}

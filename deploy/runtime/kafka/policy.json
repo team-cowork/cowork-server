@@ -489,6 +489,27 @@
         "cleanup.policy": "compact",
         "segment.ms": "3600000"
       }
+    },
+    "user.identity.command.v3": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "user.identity.result.v2": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "user.identity.result.v2-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
     }
   },
   "principals": {
@@ -501,7 +522,10 @@
         "user.identity.command-result",
         "user.identity.command-result-dlt",
         "user.presence.event",
-        "user.identity.command.v2"
+        "user.identity.command.v2",
+        "user.identity.command.v3",
+        "user.identity.result.v2",
+        "user.identity.result.v2-dlt"
       ]
     },
     "cowork-channel": {
@@ -703,7 +727,9 @@
         "user.presence.event",
         "team.member.event",
         "team.member.event-dlt",
-        "user.identity.command.v2"
+        "user.identity.command.v2",
+        "user.identity.command.v3",
+        "user.identity.result.v2"
       ]
     },
     "cowork-voice": {

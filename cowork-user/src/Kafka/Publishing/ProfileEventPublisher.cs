@@ -13,8 +13,9 @@ public static class ProfileEventPublisher
     public static async Task EnqueueCurrentUpsertAsync(MySqlConnection connection, MySqlTransaction transaction, long userId)
     {
         var account = await connection.QuerySingleAsync<(long Id, string Name, string? Github, DateTime UpdatedAt, DateTime? DatagsmUpdatedAt, ulong Version, DateTime? OccurredAt)>("""
-            SELECT id, name, github, updated_at, datagsm_updated_at, profile_event_version, profile_event_occurred_at
-            FROM tb_accounts WHERE id = @userId FOR UPDATE
+            SELECT a.id, a.name, a.github, a.updated_at, s.datagsm_updated_at, a.profile_event_version, a.profile_event_occurred_at
+            FROM tb_accounts a LEFT JOIN tb_gsm_student_info s ON s.account_id = a.id
+            WHERE a.id = @userId FOR UPDATE
             """, new { userId }, transaction);
         var profile = await connection.QuerySingleAsync<(string? Nickname, DateTime UpdatedAt)>(
             "SELECT nickname, updated_at FROM tb_profiles WHERE account_id = @userId FOR UPDATE", new { userId }, transaction);

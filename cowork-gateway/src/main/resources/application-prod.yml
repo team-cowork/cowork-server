@@ -161,10 +161,11 @@ spring:
         - id: authorization-token
           uri: ${COWORK_AUTHORIZATION_URL}
           predicates:
-            - Path=/api/authorization/auth/authorize, /api/authorization/auth/callback, /api/authorization/auth/refresh
+            - Path=/api/authorization/auth/dev-signin, /api/authorization/auth/authorize, /api/authorization/auth/callback, /api/authorization/auth/refresh
             - Method=POST
           filters:
             - StripPrefix=2
+            - RewritePath=^/auth/dev-signin$, /internal/dev-signin
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 50

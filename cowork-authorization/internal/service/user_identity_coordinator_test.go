@@ -49,7 +49,8 @@ func identityOperation(status string, resultUserID *int64, errorCode *string) *d
 		OperationID:  "operation-1",
 		Status:       status,
 		ResultUserID: resultUserID,
-		ErrorCode:    errorCode,
+		ResultEmail:  stringPointer("cowork@example.com"), ResultGsmRole: stringPointer(""),
+		ErrorCode: errorCode,
 	}
 }
 
@@ -90,10 +91,10 @@ func TestUserIdentityCoordinatorEnsureUser(t *testing.T) {
 			wantMinFinds: 2,
 		},
 		{
-			name:            "succeeded지만 사용자 ID가 다르면 거부한다",
-			findResults:     []findResult{{operation: identityOperation(domain.UserIdentitySucceeded, int64Pointer(requestedUserID+1), nil)}},
-			waitTimeout:     time.Second,
-			wantErrContains: "did not prove the requested owner commit",
+			name:        "소유자가 발급한 사용자 ID를 반환한다",
+			findResults: []findResult{{operation: identityOperation(domain.UserIdentitySucceeded, int64Pointer(requestedUserID+1), nil)}},
+			waitTimeout: time.Second,
+			wantUserID:  requestedUserID + 1,
 		},
 		{
 			name:            "succeeded지만 사용자 ID가 없으면 거부한다",
@@ -154,7 +155,7 @@ func TestUserIdentityCoordinatorEnsureUser(t *testing.T) {
 			coordinator := NewUserIdentityCoordinator(store, "user-identity-command", tt.waitTimeout)
 			coordinator.pollInterval = time.Millisecond
 
-			userID, err := coordinator.EnsureUser(context.Background(), domain.UserIdentityCommand{UserID: requestedUserID})
+			userID, err := coordinator.EnsureUser(context.Background(), domain.UserIdentityCommand{ProviderSubject: "24"})
 
 			if store.submitTopic != "user-identity-command" {
 				t.Fatalf("submit topic = %q, want user-identity-command", store.submitTopic)
@@ -163,8 +164,8 @@ func TestUserIdentityCoordinatorEnsureUser(t *testing.T) {
 				if err != nil {
 					t.Fatalf("EnsureUser() error = %v", err)
 				}
-				if userID != tt.wantUserID {
-					t.Fatalf("EnsureUser() userID = %d, want %d", userID, tt.wantUserID)
+				if userID == nil || userID.UserID != tt.wantUserID || userID.Email != "cowork@example.com" {
+					t.Fatalf("EnsureUser() userID = %v, want %d", userID, tt.wantUserID)
 				}
 				if store.findCalls < tt.wantMinFinds {
 					t.Fatalf("Find calls = %d, want at least %d", store.findCalls, tt.wantMinFinds)
@@ -174,8 +175,8 @@ func TestUserIdentityCoordinatorEnsureUser(t *testing.T) {
 			if err == nil {
 				t.Fatalf("EnsureUser() error = nil, want error containing %q", tt.wantErrContains)
 			}
-			if userID != 0 {
-				t.Fatalf("EnsureUser() userID = %d, want 0 on error", userID)
+			if userID != nil {
+				t.Fatalf("EnsureUser() userID = %v, want 0 on error", userID)
 			}
 			if !strings.Contains(err.Error(), tt.wantErrContains) {
 				t.Fatalf("EnsureUser() error = %v, want containing %q", err, tt.wantErrContains)
