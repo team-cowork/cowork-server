@@ -88,11 +88,11 @@ class ProjectionReadinessState(
 }
 
 class ProjectionAssignmentCoordinator(
-    private val stream: ProjectionStream,
-    private val checkpointStore: ProjectionCheckpointStore,
-    private val readinessState: ProjectionReadinessState,
-    private val topicIdentityProvider: ProjectionTopicIdentityProvider,
-    private val topicGenerations: ProjectionTopicGenerationRegistry,
+    private val projectionStream: ProjectionStream,
+    private val projectionCheckpointStore: ProjectionCheckpointStore,
+    private val projectionReadinessState: ProjectionReadinessState,
+    private val projectionTopicIdentityProvider: ProjectionTopicIdentityProvider,
+    private val projectionTopicGenerationRegistry: ProjectionTopicGenerationRegistry,
     private val retryBackoffMs: Long,
     private val retryTimeoutMs: Long,
 ) : ConsumerAwareRebalanceListener {
@@ -102,7 +102,7 @@ class ProjectionAssignmentCoordinator(
     private var consecutiveFailures = 0
 
     override fun onPartitionsAssigned(consumer: Consumer<*, *>, partitions: Collection<TopicPartition>) {
-        readinessState.markInitializing(stream)
+        projectionReadinessState.markInitializing(projectionStream)
         // Retry inside the callback first: a rebalance would also take every healthy member out of readiness.
         // Keep the timeout well below max.poll.interval.ms, because one attempt can block for the client API timeout.
         val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(retryTimeoutMs)
@@ -139,10 +139,10 @@ class ProjectionAssignmentCoordinator(
     }
 
     private fun initializeAssignment(consumer: Consumer<*, *>, partitions: Collection<TopicPartition>) {
-        val topicId = topicIdentityProvider.topicId(stream.topic)
-        val allPartitions = consumer.partitionsFor(stream.topic, CONSUMER_API_TIMEOUT)
-            .map { TopicPartition(stream.topic, it.partition()) }
-        check(allPartitions.isNotEmpty()) { "Kafka topic has no partitions: ${stream.topic}" }
+        val topicId = projectionTopicIdentityProvider.topicId(projectionStream.topic)
+        val allPartitions = consumer.partitionsFor(projectionStream.topic, CONSUMER_API_TIMEOUT)
+            .map { TopicPartition(projectionStream.topic, it.partition()) }
+        check(allPartitions.isNotEmpty()) { "Kafka topic has no partitions: ${projectionStream.topic}" }
         val beginningOffsets = consumer.beginningOffsets(allPartitions, CONSUMER_API_TIMEOUT)
         val endOffsets = consumer.endOffsets(allPartitions, CONSUMER_API_TIMEOUT)
         val ranges = allPartitions.map { partition ->
@@ -152,9 +152,9 @@ class ProjectionAssignmentCoordinator(
                 endOffset = requireNotNull(endOffsets[partition]),
             )
         }
-        val assignedPartitions = partitions.filter { it.topic() == stream.topic }
-        val seekOffsets = checkpointStore.initializeAssignment(
-            stream,
+        val assignedPartitions = partitions.filter { it.topic() == projectionStream.topic }
+        val seekOffsets = projectionCheckpointStore.initializeAssignment(
+            projectionStream,
             topicId,
             ranges,
             assignedPartitions.mapTo(mutableSetOf()) { it.partition() },
@@ -162,18 +162,18 @@ class ProjectionAssignmentCoordinator(
         assignedPartitions.forEach { partition ->
             consumer.seek(partition, requireNotNull(seekOffsets[partition.partition()]))
         }
-        topicGenerations.markAssigned(stream, topicId)
-        readinessState.markInitialized(stream, assignedPartitions.isNotEmpty())
+        projectionTopicGenerationRegistry.markAssigned(projectionStream, topicId)
+        projectionReadinessState.markInitialized(projectionStream, assignedPartitions.isNotEmpty())
     }
 
     private fun logFailure(exception: Exception) {
         consecutiveFailures++
         if (consecutiveFailures == 1) {
-            log.warn("Failed to initialize projection assignment for {}", stream.topic, exception)
+            log.warn("Failed to initialize projection assignment for {}", projectionStream.topic, exception)
         } else {
             log.warn(
                 "Failed to initialize projection assignment for {} again, failure {}: {}",
-                stream.topic,
+                projectionStream.topic,
                 consecutiveFailures,
                 exception.toString(),
             )
@@ -181,18 +181,18 @@ class ProjectionAssignmentCoordinator(
     }
 
     private fun requestRebalance(consumer: Consumer<*, *>) {
-        log.warn("Requesting a rebalance to retry projection assignment for {}", stream.topic)
+        log.warn("Requesting a rebalance to retry projection assignment for {}", projectionStream.topic)
         // Log the next failure with its stack trace, because its cause can differ after the rebalance.
         consecutiveFailures = 0
         // The container only logs listener failures, so without a new rebalance the stream would stay
         // initializing until restart. This depends on the classic group protocol: with group.protocol=consumer,
         // enforceRebalance only logs a warning.
-        consumer.enforceRebalance("projection assignment initialization failed: ${stream.topic}")
+        consumer.enforceRebalance("projection assignment initialization failed: ${projectionStream.topic}")
     }
 
     override fun onPartitionsRevokedBeforeCommit(consumer: Consumer<*, *>, partitions: Collection<TopicPartition>) {
-        topicGenerations.markRevoked(stream)
-        readinessState.markRevoked(stream)
+        projectionTopicGenerationRegistry.markRevoked(projectionStream)
+        projectionReadinessState.markRevoked(projectionStream)
     }
 
     private companion object {
