@@ -143,13 +143,10 @@ export class ProjectItemWriteCommandController {
 		await this.api.updatePosition({...target, afterId: payload.afterItemId ?? null});
 	}
 
-	/**
-     커밋해도 되면 true다. GitHub 서버 오류는 던져서 같은 커맨드를 다시 받는다.
-     */
-	private async processMessage(data: unknown): Promise<boolean> {
+	private async processMessage(data: unknown): Promise<void> {
 		if (data === null || typeof data !== 'object') {
 			this.logger.error('Invalid project item write payload type, skipping message');
-			return true;
+			return;
 		}
 
 		const envelope = plainToInstance(ProjectItemWriteCommandEnvelopeDto, data);
@@ -159,7 +156,7 @@ export class ProjectItemWriteCommandController {
 			this.logger.error('Invalid project item write envelope, skipping message', {
 				errors: envelopeErrors.map(error => error.toString()),
 			});
-			return true;
+			return;
 		}
 
 		const handler = this.handlers[envelope.commandType];
@@ -167,7 +164,7 @@ export class ProjectItemWriteCommandController {
 		const hasItem = typeof envelope.itemId === 'string' && envelope.itemId.length > 0;
 		if (payload === undefined || (handler.createsItem === true ? hasItem : !hasItem)) {
 			await this.resultProducer.send(this.result(envelope, {code: 'INVALID_PAYLOAD', message: '잘못된 커맨드 페이로드입니다.'}));
-			return true;
+			return;
 		}
 
 		try {
@@ -175,7 +172,6 @@ export class ProjectItemWriteCommandController {
 				{owner: envelope.owner, projectNodeId: envelope.projectNodeId, itemId: envelope.itemId}, payload, envelope.operationId,
 			);
 			await this.resultProducer.send(this.result(envelope, undefined, result));
-			return true;
 		} catch (error) {
 			if (error instanceof GithubClientError) {
 				this.logger.warn('GitHub rejected project item write', {
@@ -188,7 +184,7 @@ export class ProjectItemWriteCommandController {
 					code: error.statusCode.toString(),
 					message: error.message.slice(0, 500),
 				}));
-				return true;
+				return;
 			}
 
 			this.logger.error('GitHub server error, project item write will be redelivered', {
@@ -216,8 +212,7 @@ export class ProjectItemWriteCommandController {
 		@messagePayload() data: unknown,
 		@messageContext() context: KafkaContext,
 	): Promise<void> {
-		if (await withGithubRateLimitRetry(context, async () => this.processMessage(data))) {
-			await this.commitOffset(context);
-		}
+		await withGithubRateLimitRetry(context, async () => this.processMessage(data));
+		await this.commitOffset(context);
 	}
 }

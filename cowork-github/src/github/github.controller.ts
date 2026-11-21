@@ -23,10 +23,10 @@ export class GithubController {
 		private readonly issueResultProducer: IssueResultProducer,
 	) {}
 
-	private async processMessage(data: unknown): Promise<boolean> {
+	private async processMessage(data: unknown): Promise<void> {
 		if (data === null || typeof data !== 'object') {
 			this.logger.error('Invalid payload type, skipping message');
-			return true;
+			return;
 		}
 
 		const dto = plainToInstance(CreateIssueDto, data);
@@ -45,7 +45,7 @@ export class GithubController {
 				});
 			}
 
-			return true;
+			return;
 		}
 
 		try {
@@ -66,8 +66,6 @@ export class GithubController {
 					});
 				});
 			}
-
-			return true;
 		} catch (error) {
 			if (error instanceof GithubClientError) {
 				this.logger.error('GitHub client error, skipping message', {
@@ -86,7 +84,7 @@ export class GithubController {
 					});
 				}
 
-				return true;
+				return;
 			}
 
 			this.logger.error('GitHub server error, message will be redelivered', {
@@ -116,9 +114,7 @@ export class GithubController {
 		@messagePayload() data: unknown,
 		@messageContext() context: KafkaContext,
 	): Promise<void> {
-		const shouldCommit = await withGithubRateLimitRetry(context, async () => this.processMessage(data));
-		if (shouldCommit) {
-			await this.commitOffset(context);
-		}
+		await withGithubRateLimitRetry(context, async () => this.processMessage(data));
+		await this.commitOffset(context);
 	}
 }

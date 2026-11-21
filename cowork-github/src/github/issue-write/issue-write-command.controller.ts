@@ -41,10 +41,10 @@ export class IssueWriteCommandController {
 		private readonly commentHistory: CreateCommentHistory,
 	) {}
 
-	private async processMessage(data: unknown): Promise<boolean> {
+	private async processMessage(data: unknown): Promise<void> {
 		if (data === null || typeof data !== 'object') {
 			this.logger.error('Invalid payload type, skipping message');
-			return true;
+			return;
 		}
 
 		const envelope = plainToInstance(IssueWriteCommandEnvelopeDto, data);
@@ -56,7 +56,7 @@ export class IssueWriteCommandController {
 			this.logger.error('Invalid envelope, skipping message', {
 				errors: envelopeErrors.map(error => error.toString()),
 			});
-			return true;
+			return;
 		}
 
 		const payloadResult = await this.validatePayload(envelope);
@@ -73,22 +73,21 @@ export class IssueWriteCommandController {
 					'잘못된 커맨드 페이로드입니다.',
 				),
 			);
-			return true;
+			return;
 		}
 
 		try {
 			if (envelope.commandType === IssueWriteCommandType.CREATE_COMMENT) {
 				await this.processCreateComment(envelope, payloadResult.payload as CreateCommentPayloadDto);
-				return true;
+				return;
 			}
 
 			const result = await this.dispatch(envelope, payloadResult.payload);
 			await this.resultProducer.send(this.buildSuccessResult(envelope, result));
-			return true;
 		} catch (error) {
 			if (error instanceof GithubClientError) {
 				await this.resultProducer.send(this.buildClientFailureResult(envelope, error));
-				return true;
+				return;
 			}
 
 			this.logger.error('GitHub server error, message will be redelivered', {
@@ -347,9 +346,7 @@ export class IssueWriteCommandController {
 		@messagePayload() data: unknown,
 		@messageContext() context: KafkaContext,
 	): Promise<void> {
-		const shouldCommit = await withGithubRateLimitRetry(context, async () => this.processMessage(data));
-		if (shouldCommit) {
-			await this.commitOffset(context);
-		}
+		await withGithubRateLimitRetry(context, async () => this.processMessage(data));
+		await this.commitOffset(context);
 	}
 }
