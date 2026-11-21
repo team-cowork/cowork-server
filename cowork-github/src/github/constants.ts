@@ -9,6 +9,8 @@ export const GITHUB_HEADERS = {
 	'X-GitHub-Api-Version': '2022-11-28',
 } as const;
 
+export const githubAuthHeaders = (token: string) => ({...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${token}`});
+
 // Installation access tokens expire after one hour; refresh them five minutes early.
 export const DEFAULT_GITHUB_TOKEN_CACHE_TTL_SECONDS = 3300;
 export const DEFAULT_GITHUB_INSTALLATION_CACHE_TTL_SECONDS = 86_400;

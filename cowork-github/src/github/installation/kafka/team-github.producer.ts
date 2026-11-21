@@ -1,11 +1,5 @@
-import {
-	Injectable as injectable,
-	Logger,
-	OnModuleDestroy,
-	OnModuleInit,
-} from '@nestjs/common';
-import {Kafka, Producer} from 'kafkajs';
-import {AppConfigService} from '../../../config/app-config.service.js';
+import {Injectable as injectable} from '@nestjs/common';
+import {KafkaProducerService} from '../../../kafka/kafka-producer.service.js';
 import {
 	TeamGithubConnectedEvent,
 	TeamGithubDisconnectedEvent,
@@ -18,38 +12,13 @@ export type TeamGithubTopic =
 	| 'team.github.disconnected';
 
 @injectable()
-export class TeamGithubProducer implements OnModuleInit, OnModuleDestroy {
-	private readonly logger = new Logger(TeamGithubProducer.name);
-	private producer!: Producer;
-
-	constructor(private readonly config: AppConfigService) {}
-
-	async onModuleInit() {
-		const kafka = new Kafka({
-			clientId: 'cowork-github',
-			...this.config.kafkaClientConfig,
-		});
-		this.producer = kafka.producer();
-		await this.producer.connect();
-		this.logger.log('Kafka team-github producer connected');
-	}
-
-	async onModuleDestroy() {
-		await this.producer.disconnect();
-	}
+export class TeamGithubProducer {
+	constructor(private readonly kafka: KafkaProducerService) {}
 
 	async send(
 		topic: TeamGithubTopic,
 		event: TeamGithubConnectedEvent | TeamGithubRenamedEvent | TeamGithubDisconnectedEvent,
 	): Promise<void> {
-		await this.producer.send({
-			topic,
-			messages: [
-				{
-					key: event.installationId.toString(),
-					value: JSON.stringify(event),
-				},
-			],
-		});
+		await this.kafka.send(topic, event.installationId.toString(), event);
 	}
 }

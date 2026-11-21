@@ -1,6 +1,7 @@
 import {HttpModule} from '@nestjs/axios';
 import {Module as nestModule} from '@nestjs/common';
 import {AppConfigService} from '../../config/app-config.service.js';
+import {KafkaProducerModule} from '../../kafka/kafka-producer.module.js';
 import {GithubAuthModule} from '../auth/github-auth.module.js';
 import {GithubGraphqlClient} from '../client/github-graphql.client.js';
 import {ProjectDraftHistory} from './item-write/project-draft-history.js';
@@ -13,7 +14,7 @@ import {ProjectBoardSyncService} from './project-board-sync.service.js';
 import {ProjectBoardWebhookHandler} from './project-board-webhook.handler.js';
 
 @nestModule({
-	imports: [HttpModule, GithubAuthModule],
+	imports: [HttpModule, GithubAuthModule, KafkaProducerModule],
 	providers: [
 		AppConfigService,
 		GithubGraphqlClient,

@@ -1,6 +1,7 @@
 import {HttpModule} from '@nestjs/axios';
 import {Module as nestModule} from '@nestjs/common';
 import {AppConfigService} from '../../config/app-config.service.js';
+import {KafkaProducerModule} from '../../kafka/kafka-producer.module.js';
 import {GithubAuthModule} from '../auth/github-auth.module.js';
 import {IssueHttpModule} from '../issue-http/issue-http.module.js';
 import {LabelHttpModule} from '../label-http/label-http.module.js';
@@ -20,6 +21,7 @@ import {GithubWebhookController} from './webhook/github-webhook.controller.js';
 	imports: [
 		HttpModule,
 		GithubAuthModule,
+		KafkaProducerModule,
 		IssueHttpModule,
 		PullRequestModule,
 		LabelHttpModule,

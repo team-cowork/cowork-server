@@ -1,16 +1,15 @@
 import {HttpService} from '@nestjs/axios';
 import {Injectable as injectable} from '@nestjs/common';
-import {AxiosError} from 'axios';
 import {firstValueFrom} from 'rxjs';
 import {type Nullable} from '../../common/nullable.js';
 import {githubField} from '../../github-field.js';
 import {GithubAuthService} from '../../auth/github-auth.service.js';
 import {
 	GITHUB_API,
-	GITHUB_HEADERS,
+	githubAuthHeaders,
 	GITHUB_PR_MERGE_METHOD,
 } from '../../constants.js';
-import {GithubClientError} from '../../github.errors.js';
+import {rethrowGithubError} from '../../github.errors.js';
 
 export type PullRequestRef = {
 	ref: string;
@@ -69,26 +68,6 @@ export class PullRequestApiClient {
 		private readonly authService: GithubAuthService,
 	) {}
 
-	private authHeaders(token: string) {
-		return {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${token}`};
-	}
-
-	private handleGithubError(error: unknown): never {
-		if (
-			error instanceof AxiosError
-			&& error.response
-			&& error.response.status < 500
-			&& error.response.status !== 429
-		) {
-			throw new GithubClientError(
-				(error.response.data as {message?: string})?.message ?? error.message,
-				error.response.status,
-			);
-		}
-
-		throw error;
-	}
-
 	async getPullRequest(
 		owner: string,
 		repo: string,
@@ -99,12 +78,12 @@ export class PullRequestApiClient {
 			const {data} = await firstValueFrom(
 				this.httpService.get<PullRequestDetail>(
 					`${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}`,
-					{headers: this.authHeaders(token)},
+					{headers: githubAuthHeaders(token)},
 				),
 			);
 			return data;
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -120,7 +99,7 @@ export class PullRequestApiClient {
 				this.httpService.get<GithubPullRequestListItem[]>(
 					`${GITHUB_API}/repos/${owner}/${repo}/pulls`,
 					{
-						headers: this.authHeaders(token),
+						headers: githubAuthHeaders(token),
 						params: {
 							state,
 							[githubField.perPage]: 100,
@@ -132,7 +111,7 @@ export class PullRequestApiClient {
 			);
 			return data;
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -146,12 +125,12 @@ export class PullRequestApiClient {
 			const {data} = await firstValueFrom(
 				this.httpService.get<PullRequestFile[]>(
 					`${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}/files`,
-					{params: {[githubField.perPage]: 100}, headers: this.authHeaders(token)},
+					{params: {[githubField.perPage]: 100}, headers: githubAuthHeaders(token)},
 				),
 			);
 			return data;
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -165,12 +144,12 @@ export class PullRequestApiClient {
 			const {data} = await firstValueFrom(
 				this.httpService.get<PullRequestReview[]>(
 					`${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}/reviews`,
-					{params: {[githubField.perPage]: 100}, headers: this.authHeaders(token)},
+					{params: {[githubField.perPage]: 100}, headers: githubAuthHeaders(token)},
 				),
 			);
 			return data;
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -184,12 +163,12 @@ export class PullRequestApiClient {
 			const {data} = await firstValueFrom(
 				this.httpService.get<CollaboratorPermission>(
 					`${GITHUB_API}/repos/${owner}/${repo}/collaborators/${username}/permission`,
-					{headers: this.authHeaders(token)},
+					{headers: githubAuthHeaders(token)},
 				),
 			);
 			return data;
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -204,11 +183,11 @@ export class PullRequestApiClient {
 				this.httpService.put(
 					`${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}/merge`,
 					{[githubField.mergeMethod]: GITHUB_PR_MERGE_METHOD},
-					{headers: this.authHeaders(token)},
+					{headers: githubAuthHeaders(token)},
 				),
 			);
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -223,11 +202,11 @@ export class PullRequestApiClient {
 				this.httpService.post(
 					`${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}/reviews`,
 					{event: 'APPROVE'},
-					{headers: this.authHeaders(token)},
+					{headers: githubAuthHeaders(token)},
 				),
 			);
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -242,11 +221,11 @@ export class PullRequestApiClient {
 				this.httpService.patch(
 					`${GITHUB_API}/repos/${owner}/${repo}/pulls/${prNumber}`,
 					{state: 'closed'},
-					{headers: this.authHeaders(token)},
+					{headers: githubAuthHeaders(token)},
 				),
 			);
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -260,11 +239,11 @@ export class PullRequestApiClient {
 			await firstValueFrom(
 				this.httpService.delete(
 					`${GITHUB_API}/repos/${owner}/${repo}/git/refs/heads/${branch}`,
-					{headers: this.authHeaders(token)},
+					{headers: githubAuthHeaders(token)},
 				),
 			);
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 }
