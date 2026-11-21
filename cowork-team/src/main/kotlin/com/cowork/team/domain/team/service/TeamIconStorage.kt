@@ -130,10 +130,6 @@ class TeamIconStorage(
 
     fun buildPublicUrl(objectKey: String): String = "${objectStorageProperties.publicBaseUrl.trimEnd('/')}/$objectKey"
 
-    fun validateIconUrl(iconUrl: String) {
-        extractObjectKey(iconUrl)
-    }
-
     fun managedObjectKeyOrNull(iconUrl: String): String? {
         val prefix = "${objectStorageProperties.publicBaseUrl.trimEnd('/')}/"
         if (!iconUrl.startsWith(prefix)) return null
