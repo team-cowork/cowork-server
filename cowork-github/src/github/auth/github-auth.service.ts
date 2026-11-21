@@ -13,7 +13,7 @@ import {
 	REDIS_CLIENT,
 } from '../constants.js';
 import {githubCacheKeys} from '../github.cache.js';
-import {rethrowGithubError} from '../github.errors.js';
+import {requestGithub} from '../github-rate-limit.js';
 
 const EVICT_INSTALLATION_SCRIPT = `
 if redis.call('GET', KEYS[1]) == ARGV[1] then
@@ -39,17 +39,17 @@ export class GithubAuthService {
 			return Number(cachedInRedis);
 		}
 
-		const jwt = this.generateJwt();
-		const {data} = await this.requestGithub<{id: number}>(async () =>
-			firstValueFrom(
+		const {data} = await requestGithub(async () => {
+			const jwt = this.generateJwt();
+			return firstValueFrom(
 				this.httpService.get<{id: number}>(
 					`${GITHUB_API}/orgs/${owner}/installation`,
 					{
 						headers: githubAuthHeaders(jwt),
 					},
 				),
-			),
-		);
+			);
+		});
 		const installationId = data.id;
 
 		// NX: 조회 중에 설치 이벤트가 기록한 새 매핑을 이전 조회 결과로 덮지 않는다.
@@ -74,19 +74,9 @@ export class GithubAuthService {
 		);
 	}
 
-	private async requestGithub<T>(
-		request: () => Promise<{data: T}>,
-	): Promise<{data: T}> {
-		try {
-			return await request();
-		} catch (error) {
-			rethrowGithubError(error);
-		}
-	}
-
 	// GitHub는 잘못되거나 만료된 code에도 200으로 응답하고 본문에 error만 담으므로, 토큰이 없으면 undefined를 돌려준다.
 	private async exchangeUserCode(code: string): Promise<string | undefined> {
-		const {data} = await this.requestGithub<Record<string, string | undefined>>(async () =>
+		const {data} = await requestGithub(async () =>
 			firstValueFrom(
 				this.httpService.post<Record<string, string | undefined>>(
 					GITHUB_OAUTH_ACCESS_TOKEN_URL,
@@ -117,16 +107,16 @@ export class GithubAuthService {
 			return cached;
 		}
 
-		const jwt = this.generateJwt();
-		const {data} = await this.requestGithub<{token: string}>(async () =>
-			firstValueFrom(
+		const {data} = await requestGithub(async () => {
+			const jwt = this.generateJwt();
+			return firstValueFrom(
 				this.httpService.post<{token: string}>(
 					`${GITHUB_API}/app/installations/${installationId}/access_tokens`,
 					{},
 					{headers: githubAuthHeaders(jwt)},
 				),
-			),
-		);
+			);
+		});
 
 		await this.redis.set(
 			cacheKey,
@@ -141,16 +131,15 @@ export class GithubAuthService {
 	}
 
 	async getInstallationAccountLogin(installationId: number): Promise<string> {
-		const jwt = this.generateJwt();
-		const {data} = await this.requestGithub<{account: {login: string}}>(
-			async () =>
-				firstValueFrom(
-					this.httpService.get<{account: {login: string}}>(
-						`${GITHUB_API}/app/installations/${installationId}`,
-						{headers: githubAuthHeaders(jwt)},
-					),
+		const {data} = await requestGithub(async () => {
+			const jwt = this.generateJwt();
+			return firstValueFrom(
+				this.httpService.get<{account: {login: string}}>(
+					`${GITHUB_API}/app/installations/${installationId}`,
+					{headers: githubAuthHeaders(jwt)},
 				),
-		);
+			);
+		});
 		return data.account.login;
 	}
 
@@ -164,7 +153,7 @@ export class GithubAuthService {
 		const headers = githubAuthHeaders(userToken);
 		for (let page = 1; ; page++) {
 			// eslint-disable-next-line no-await-in-loop -- 다음 페이지가 필요한지는 이전 응답으로만 알 수 있다.
-			const {data} = await this.requestGithub<{installations: Array<{id: number}>}>(async () =>
+			const {data} = await requestGithub(async () =>
 				firstValueFrom(
 					this.httpService.get<{installations: Array<{id: number}>}>(
 						`${GITHUB_API}/user/installations`,

@@ -8,6 +8,7 @@ import {
 } from '@nestjs/microservices';
 import {plainToInstance} from 'class-transformer';
 import {validate} from 'class-validator';
+import {withGithubRateLimitRetry} from '../github-rate-limit.js';
 import {GithubClientError} from '../github.errors.js';
 import {IssueHttpService} from '../issue-http/issue-http.service.js';
 import {LabelHttpService} from '../label-http/label-http.service.js';
@@ -340,7 +341,7 @@ export class IssueWriteCommandController {
 		@messagePayload() data: unknown,
 		@messageContext() context: KafkaContext,
 	): Promise<void> {
-		const shouldCommit = await this.processMessage(data);
+		const shouldCommit = await withGithubRateLimitRetry(context, async () => this.processMessage(data));
 		if (shouldCommit) {
 			await this.commitOffset(context);
 		}

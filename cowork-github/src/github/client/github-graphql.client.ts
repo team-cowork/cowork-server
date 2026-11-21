@@ -3,7 +3,8 @@ import {Injectable as injectable} from '@nestjs/common';
 import {firstValueFrom} from 'rxjs';
 import {GithubAuthService} from '../auth/github-auth.service.js';
 import {GITHUB_API, githubAuthHeaders} from '../constants.js';
-import {GithubClientError, rethrowGithubError} from '../github.errors.js';
+import {requestGithub} from '../github-rate-limit.js';
+import {GithubClientError} from '../github.errors.js';
 
 type GraphqlError = {type?: string; message?: string};
 
@@ -46,20 +47,16 @@ export class GithubGraphqlClient {
 	) {}
 
 	async request<T>(owner: string, query: string, variables: Record<string, unknown>): Promise<T> {
-		const token = await this.authService.getInstallationToken(owner);
-		let body: GraphqlResponse<T>;
-		try {
-			const response = await firstValueFrom(
+		const {data: body} = await requestGithub(async () => {
+			const token = await this.authService.getInstallationToken(owner);
+			return firstValueFrom(
 				this.httpService.post<GraphqlResponse<T>>(
 					`${GITHUB_API}/graphql`,
 					{query, variables},
 					{headers: githubAuthHeaders(token)},
 				),
 			);
-			body = response.data;
-		} catch (error) {
-			rethrowGithubError(error);
-		}
+		});
 
 		if (body.errors !== undefined && body.errors.length > 0) {
 			// RATE_LIMITED 같은 일시적인 오류는 일반 오류로 던져 호출자가 재시도하게 한다.
