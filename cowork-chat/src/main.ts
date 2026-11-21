@@ -8,7 +8,7 @@ import {Logger, ValidationPipe} from '@nestjs/common';
 import {DocumentBuilder, SwaggerModule} from '@nestjs/swagger';
 import {type NextFunction, type Request, type Response} from 'express';
 import {Logger as PinoLogger} from 'nestjs-pino';
-import {Gauge} from 'prom-client';
+import {Gauge, register} from 'prom-client';
 import {createChatApiDocument} from './common/config/swagger.js';
 import {GlobalExceptionFilter} from './common/filter/global-exception.filter.js';
 import {
@@ -76,13 +76,14 @@ async function bootstrap() {
 		// Nodejs_heap_size_total_bytes는 bun에서 의미 없는 값을 반환한다. bun:jsc의 heapStats()가
 		// 돌려주는 JavaScriptCore 힙 크기를 대신 내보낸다.
 		const {heapStats} = await import('bun:jsc');
-		const bunHeapSizeGauge = new Gauge({
+		register.registerMetric(new Gauge({
 			name: 'cowork_bun_heap_size_bytes',
 			help: 'JavaScriptCore heap size in bytes.',
+			registers: [],
 			collect() {
 				this.set(heapStats().heapSize);
 			},
-		});
+		}));
 	}
 
 	// Consul metrics metadata, AuthGuard, projection 미들웨어가 접두사 없는 /metrics를 사용한다.
