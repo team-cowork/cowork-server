@@ -8,7 +8,7 @@ import com.cowork.channel.domain.channelRolePolicy.operation.ChannelRolePolicyCo
 import com.cowork.channel.domain.channelRolePolicy.operation.ChannelRolePolicyOperationProjectionFinalizer
 import com.cowork.channel.domain.channelRolePolicy.operation.ChannelRolePolicyOperationStatus
 import com.cowork.channel.domain.channelRolePolicy.projection.ChannelRolePolicyProjection
-import com.cowork.channel.domain.channelRolePolicy.service.support.ChannelRolePolicyPermissionSchema
+import com.cowork.channel.global.policy.PermissionKeys
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
@@ -107,7 +107,7 @@ class ChannelRolePolicyCommandResultConsumer(
             val permissions: Map<String, Boolean?>? = result.permissions
             require(
                 !permissions.isNullOrEmpty() &&
-                    permissions.keys.all { it in ChannelRolePolicyPermissionSchema.KEYS } &&
+                    permissions.keys.all { it in PermissionKeys.CHANNEL_SCOPED } &&
                     permissions.values.none { it == null },
             ) {
                 "UPSERT result permissions에는 지원하는 boolean 권한이 하나 이상 필요합니다."

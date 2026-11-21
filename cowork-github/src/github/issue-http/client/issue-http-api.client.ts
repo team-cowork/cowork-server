@@ -1,12 +1,11 @@
 import {HttpService} from '@nestjs/axios';
 import {Injectable as injectable} from '@nestjs/common';
-import {AxiosError} from 'axios';
 import {firstValueFrom} from 'rxjs';
 import {type Nullable} from '../../common/nullable.js';
 import {githubField} from '../../github-field.js';
 import {GithubAuthService} from '../../auth/github-auth.service.js';
-import {GITHUB_API, GITHUB_HEADERS} from '../../constants.js';
-import {GithubClientError} from '../../github.errors.js';
+import {GITHUB_API, githubAuthHeaders} from '../../constants.js';
+import {rethrowGithubError} from '../../github.errors.js';
 
 export type IssueDetail = {
 	number: number;
@@ -38,26 +37,6 @@ export class IssueHttpApiClient {
 		private readonly authService: GithubAuthService,
 	) {}
 
-	private authHeaders(token: string) {
-		return {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${token}`};
-	}
-
-	private handleGithubError(error: unknown): never {
-		if (
-			error instanceof AxiosError
-			&& error.response
-			&& error.response.status < 500
-			&& error.response.status !== 429
-		) {
-			throw new GithubClientError(
-				(error.response.data as {message?: string})?.message ?? error.message,
-				error.response.status,
-			);
-		}
-
-		throw error;
-	}
-
 	// MVP: per_page=100 단일 페이지만 조회. 100개 초과 이슈 페이지네이션은 후속 과제.
 	async listIssues(
 		owner: string,
@@ -70,7 +49,7 @@ export class IssueHttpApiClient {
 				this.httpService.get<IssueDetail[]>(
 					`${GITHUB_API}/repos/${owner}/${repo}/issues`,
 					{
-						headers: this.authHeaders(token),
+						headers: githubAuthHeaders(token),
 						params: {
 							state,
 							[githubField.perPage]: 100,
@@ -82,7 +61,7 @@ export class IssueHttpApiClient {
 			);
 			return data;
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -97,12 +76,12 @@ export class IssueHttpApiClient {
 			const {data} = await firstValueFrom(
 				this.httpService.get<GithubComment[]>(
 					`${GITHUB_API}/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
-					{params: {[githubField.perPage]: 100, ...(since !== undefined && {since})}, headers: this.authHeaders(token)},
+					{params: {[githubField.perPage]: 100, ...(since !== undefined && {since})}, headers: githubAuthHeaders(token)},
 				),
 			);
 			return data;
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -118,12 +97,12 @@ export class IssueHttpApiClient {
 				this.httpService.post<GithubComment>(
 					`${GITHUB_API}/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
 					{body},
-					{headers: this.authHeaders(token)},
+					{headers: githubAuthHeaders(token)},
 				),
 			);
 			return data;
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -137,12 +116,12 @@ export class IssueHttpApiClient {
 			const {data} = await firstValueFrom(
 				this.httpService.get<GithubComment>(
 					`${GITHUB_API}/repos/${owner}/${repo}/issues/comments/${commentId}`,
-					{headers: this.authHeaders(token)},
+					{headers: githubAuthHeaders(token)},
 				),
 			);
 			return data;
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -158,12 +137,12 @@ export class IssueHttpApiClient {
 				this.httpService.patch<GithubComment>(
 					`${GITHUB_API}/repos/${owner}/${repo}/issues/comments/${commentId}`,
 					{body},
-					{headers: this.authHeaders(token)},
+					{headers: githubAuthHeaders(token)},
 				),
 			);
 			return data;
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 
@@ -177,11 +156,11 @@ export class IssueHttpApiClient {
 			await firstValueFrom(
 				this.httpService.delete(
 					`${GITHUB_API}/repos/${owner}/${repo}/issues/comments/${commentId}`,
-					{headers: this.authHeaders(token)},
+					{headers: githubAuthHeaders(token)},
 				),
 			);
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 }

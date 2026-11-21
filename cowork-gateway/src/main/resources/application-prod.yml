@@ -161,10 +161,11 @@ spring:
         - id: authorization-token
           uri: ${COWORK_AUTHORIZATION_URL}
           predicates:
-            - Path=/api/authorization/auth/authorize, /api/authorization/auth/callback, /api/authorization/auth/refresh
+            - Path=/api/authorization/auth/dev-signin, /api/authorization/auth/authorize, /api/authorization/auth/callback, /api/authorization/auth/refresh
             - Method=POST
           filters:
             - StripPrefix=2
+            - RewritePath=^/auth/dev-signin$, /internal/dev-signin
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 50
@@ -606,6 +607,26 @@ spring:
               args:
                 name: appletCB
                 fallbackUri: forward:/fallback
+
+        # 사용자당 최대 10회 버스트, 이후 6초마다 1회분 충전. Groq 호출과 AI Hub 대체 호출은 30초를 공유한다.
+        - id: meeting-note-summary
+          uri: ${COWORK_CHANNEL_URL}
+          predicates:
+            - Path=/api/channel/channels/*/meeting-notes/summary
+            - Method=POST
+          metadata:
+            response-timeout: 32000
+          filters:
+            - StripPrefix=2
+            - name: RequestSize
+              args:
+                maxSize: 1MB
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 1
+                redis-rate-limiter.burstCapacity: 60
+                redis-rate-limiter.requestedTokens: 6
+                key-resolver: "#{@userKeyResolver}"
 
         # 회의록 본문 상한(100,000자)을 모두 \uXXXX로 escape해도 들어가는 크기. channel-service보다 먼저 선언해야 한다.
         - id: meeting-note-service

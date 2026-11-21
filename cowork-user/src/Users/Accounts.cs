@@ -32,7 +32,7 @@ public static partial class Accounts
         public long Id { get; init; }
         public string Name { get; init; } = "";
         public string Email { get; init; } = "";
-        public string Sex { get; init; } = "";
+        public string? Sex { get; init; }
         public string? Github { get; init; }
         public string? AccountDescription { get; init; }
         public string? StudentRole { get; init; }
@@ -50,14 +50,18 @@ public static partial class Accounts
         public string? BannerColor { get; init; }
     }
 
-    const string ProfileSelect = """
-        SELECT a.id, a.name, a.email, a.sex, a.github, a.description AS account_description,
-               a.student_role, a.student_number, a.major, a.specialty, a.status, a.custom_status,
-               a.status_message, a.status_expires_at, p.id AS profile_id, p.profile_image_key,
-               p.nickname, p.description, p.banner_color
+    const string ProfileFrom = """
         FROM tb_profiles p
         JOIN tb_accounts a ON a.id = p.account_id
+        LEFT JOIN tb_gsm_student_info s ON s.account_id = a.id
         """;
+
+    const string ProfileSelect = """
+        SELECT a.id, a.name, a.email, s.sex, a.github, a.description AS account_description,
+               s.student_role, s.student_number, s.major, s.specialty, a.status, a.custom_status,
+               a.status_message, a.status_expires_at, p.id AS profile_id, p.profile_image_key,
+               p.nickname, p.description, p.banner_color
+        """ + " " + ProfileFrom;
 
     public static async Task<UserResponse> GetUserProfileAsync(long userId)
     {
@@ -453,70 +457,94 @@ public static partial class Accounts
         await ObjectStorage.DeleteObjectAsync(profile.ImageKey);
     }
 
-    /// <summary>
-    /// Applies an authorization login command to the account and profile inside the caller's
-    /// transaction. Returns false when a unique constraint rejects the identity.
-    /// </summary>
-    public static async Task<bool> ApplyIdentityCommandAsync(MySqlConnection connection, MySqlTransaction transaction, IdentityCommandContract.Command command)
+    public sealed record SessionIdentity(long UserId, string Email, string GsmRole);
+
+    public static async Task<SessionIdentity?> ApplyIdentityCommandAsync(MySqlConnection connection, MySqlTransaction transaction, IdentityCommandContract.Command command)
     {
-        var existing = await connection.QuerySingleOrDefaultAsync<long?>(
-            "SELECT id FROM tb_accounts WHERE id = @UserId FOR UPDATE", new { command.UserId }, transaction);
-
-        var parameters = new
+        var binding = await connection.QueryAsync<(long Id, DateTime? LastCommandAt)>("""
+            SELECT account_id, last_login_command_at FROM tb_account_identities
+            WHERE provider = @Provider AND provider_subject = @ProviderSubject FOR UPDATE
+            """, new { command.Provider, command.ProviderSubject }, transaction).FirstOrNullAsync();
+        var id = binding?.Id;
+        if (!command.IsProviderCommand)
         {
-            command.UserId,
-            command.Name,
-            command.Email,
-            command.Sex,
-            github = NullIfBlank(command.GithubId),
-            command.Role,
-            studentNumber = StudentNumber(command.Grade, command.ClassNumber, command.StudentNumberInClass),
-            command.DatagsmStudentId,
-            command.Major,
-            command.RequestedBy,
-        };
+            var requested = await connection.QuerySingleOrDefaultAsync<long?>(
+                "SELECT id FROM tb_accounts WHERE id = @UserId FOR UPDATE", new { command.UserId }, transaction);
+            if (!CanApplyDataGsmIdentity(requested, id)) return null;
+        }
 
+        if (binding is { } existing && !CanApplyLoginCommand(existing.LastCommandAt, command.OccurredAt))
+            return await ReadSessionIdentityAsync(connection, transaction, existing.Id);
+
+        // Keep the inbox's FAILED result, but roll back every account mutation on a unique-key collision.
+        await transaction.SaveAsync("identity_write");
         try
         {
-            if (existing is null)
+            var isNew = id is null;
+            if (isNew)
             {
+                id = await connection.ExecuteScalarAsync<long>("""
+                    INSERT INTO tb_accounts (id, name, email, github, presence_updated_at)
+                    VALUES (@requested, @Name, @Email, @github, '1970-01-01 00:00:00');
+                    SELECT COALESCE(@requested, LAST_INSERT_ID());
+                    """, new { requested = command.UserId,
+                        command.Name, command.Email, github = NullIfBlank(command.GithubId) }, transaction);
                 await connection.ExecuteAsync("""
-                    INSERT INTO tb_accounts
-                        (id, name, email, sex, github, student_role, student_number, datagsm_student_id, major,
-                         status, presence_updated_at, created_by, last_modified_by, created_at, updated_at)
-                    VALUES (@UserId, @Name, @Email, @Sex, @github, @Role, @studentNumber, @DatagsmStudentId, @Major,
-                            'offline', '1970-01-01 00:00:00.000000', @RequestedBy, @RequestedBy, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))
-                    """, parameters, transaction);
+                    INSERT INTO tb_account_identities (account_id, provider, provider_subject) VALUES (@id, @Provider, @ProviderSubject);
+                    INSERT INTO tb_profiles (account_id) VALUES (@id);
+                    UPDATE tb_accounts SET created_by = @id, last_modified_by = @id WHERE id = @id;
+                    """, new { id, command.Provider, command.ProviderSubject }, transaction);
             }
-            else
+
+            if (command.Provider == "DATAGSM")
             {
-                await connection.ExecuteAsync("""
-                    UPDATE tb_accounts
-                    SET name = @Name, email = @Email, sex = @Sex, github = @github, student_role = @Role,
-                        student_number = @studentNumber, datagsm_student_id = @DatagsmStudentId, major = @Major,
-                        last_modified_by = @RequestedBy, updated_at = UTC_TIMESTAMP(6)
-                    WHERE id = @UserId
-                    """, parameters, transaction);
+                var parameters = new { id, command.Name, command.Email, github = NullIfBlank(command.GithubId),
+                    command.DatagsmStudentId, command.Sex, command.Role, command.Major,
+                    studentNumber = StudentNumber(command.Grade, command.ClassNumber, command.StudentNumberInClass) };
+                if (isNew)
+                    await connection.ExecuteAsync("""
+                        INSERT INTO tb_gsm_student_info (account_id, datagsm_student_id, sex, student_role, major, student_number)
+                        VALUES (@id, @DatagsmStudentId, @Sex, @Role, @Major, @studentNumber)
+                        """, parameters, transaction);
+                else
+                    await connection.ExecuteAsync("""
+                        UPDATE tb_accounts a JOIN tb_gsm_student_info s ON s.account_id = a.id
+                        SET a.name = @Name, a.email = @Email, a.github = @github, a.last_modified_by = @id, a.updated_at = UTC_TIMESTAMP(6),
+                            s.sex = @Sex, s.student_role = @Role, s.student_number = @studentNumber,
+                            s.datagsm_student_id = COALESCE(@DatagsmStudentId, s.datagsm_student_id), s.major = @Major
+                        WHERE a.id = @id
+                        """, parameters, transaction);
             }
+
+            var userId = id!.Value;
+            await connection.ExecuteAsync("""
+                UPDATE tb_account_identities SET last_login_command_at = @OccurredAt
+                WHERE account_id = @userId AND provider = @Provider
+                """, new { userId, command.Provider, command.OccurredAt }, transaction);
+            await PresenceProjection.ApplyLatestToAccountAsync(connection, transaction, userId);
+            await ProfileEventPublisher.EnqueueCurrentUpsertAsync(connection, transaction, userId);
+            return await ReadSessionIdentityAsync(connection, transaction, userId);
         }
         catch (MySqlException error) when (error.ErrorCode == MySqlErrorCode.DuplicateKeyEntry)
         {
-            return false;
+            await transaction.RollbackAsync("identity_write");
+            return null;
         }
-
-        var profileId = await connection.QuerySingleOrDefaultAsync<long?>(
-            "SELECT id FROM tb_profiles WHERE account_id = @UserId FOR UPDATE", new { command.UserId }, transaction);
-        if (profileId is null)
-        {
-            await connection.ExecuteAsync(
-                "INSERT INTO tb_profiles (account_id, created_at, updated_at) VALUES (@UserId, UTC_TIMESTAMP(6), UTC_TIMESTAMP(6))",
-                new { command.UserId }, transaction);
-        }
-
-        await PresenceProjection.ApplyLatestToAccountAsync(connection, transaction, command.UserId);
-        await ProfileEventPublisher.EnqueueCurrentUpsertAsync(connection, transaction, command.UserId);
-        return true;
     }
+
+    internal static bool CanApplyLoginCommand(DateTime? lastCommandAt, DateTime occurredAt) =>
+        lastCommandAt is null || occurredAt > lastCommandAt.Value;
+
+    static Task<SessionIdentity> ReadSessionIdentityAsync(MySqlConnection connection, MySqlTransaction transaction, long userId) =>
+        connection.QuerySingleAsync<SessionIdentity>("""
+            SELECT a.id AS UserId, a.email AS Email, COALESCE(s.student_role, '') AS GsmRole
+            FROM tb_accounts a LEFT JOIN tb_gsm_student_info s ON s.account_id = a.id WHERE a.id = @userId FOR SHARE
+            """, new { userId }, transaction);
+
+    // V2 commands use the provider number as the Cowork ID. An occupied ID
+    // can only be updated by the DataGSM identity already bound to it.
+    internal static bool CanApplyDataGsmIdentity(long? existingAccountId, long? identityOwner) =>
+        existingAccountId == identityOwner;
 
     static string? NullIfBlank(string? value) => value is null || value.Trim() == "" ? null : value;
 
@@ -538,10 +566,18 @@ public static partial class Accounts
 
         return await App.TransactionAsync(async (connection, transaction) =>
         {
-            var account = await connection.QueryAsync<(long Id, DateTime? DatagsmUpdatedAt)>(
-                "SELECT id, datagsm_updated_at FROM tb_accounts WHERE datagsm_student_id = @studentId FOR UPDATE",
-                new { studentId }, transaction).FirstOrNullAsync();
-            if (account is null) return StudentEventResult.AccountNotFound;
+            // Look up the student without locking it, then lock the account before the student, as profile writes do.
+            var accountId = await connection.QuerySingleOrDefaultAsync<long?>("""
+                SELECT id FROM tb_accounts
+                WHERE id = (SELECT account_id FROM tb_gsm_student_info WHERE datagsm_student_id = @studentId)
+                FOR UPDATE
+                """, new { studentId }, transaction);
+            if (accountId is null) return StudentEventResult.AccountNotFound;
+            var account = await connection.QueryAsync<(long Id, DateTime? DatagsmUpdatedAt)>("""
+                SELECT account_id, datagsm_updated_at FROM tb_gsm_student_info
+                WHERE account_id = @accountId AND datagsm_student_id = @studentId FOR UPDATE
+                """, new { accountId, studentId }, transaction).FirstOrNullAsync();
+            if (account is null) throw new InvalidOperationException("Student identity changed while locking its account");
             if (!StudentEventNewer(account.Value.DatagsmUpdatedAt is { } current ? Iso8601.AsUtc(current) : null, occurredAt))
                 return StudentEventResult.Stale;
 
@@ -556,11 +592,11 @@ public static partial class Accounts
             try
             {
                 await connection.ExecuteAsync("""
-                    UPDATE tb_accounts
-                    SET name = @name, email = @email, sex = @sex, github = @github, student_role = @studentRole,
-                        student_number = @studentNumber, major = @major, specialty = @specialty,
-                        datagsm_updated_at = @occurredAt, updated_at = UTC_TIMESTAMP(6)
-                    WHERE id = @id
+                    UPDATE tb_accounts a JOIN tb_gsm_student_info s ON s.account_id = a.id
+                    SET a.name = @name, a.email = @email, s.sex = @sex, a.github = @github, s.student_role = @studentRole,
+                        s.student_number = @studentNumber, s.major = @major, s.specialty = @specialty,
+                        s.datagsm_updated_at = @occurredAt, a.updated_at = UTC_TIMESTAMP(6)
+                    WHERE a.id = @id
                     """, new
                 {
                     name = Field("name"),
@@ -600,7 +636,7 @@ public static partial class Accounts
         var (where, parameters) = SearchFilter(query, userIds);
         await using var connection = await App.OpenAsync();
         var totalCount = await connection.ExecuteScalarAsync<long>(
-            $"SELECT COUNT(DISTINCT p.id) FROM tb_profiles p JOIN tb_accounts a ON a.id = p.account_id {where}", parameters);
+            $"SELECT COUNT(DISTINCT p.id) {ProfileFrom} {where}", parameters);
 
         parameters.Add("limit", pageSize + 1);
         parameters.Add("offset", (long)(page - 1) * pageSize);
@@ -663,8 +699,8 @@ public static partial class Accounts
 
         Like("a.name", "name");
         Like("p.nickname", "nickname");
-        Equal("a.major", "major");
-        Equal("a.student_role", "student_role");
+        Equal("s.major", "major");
+        Equal("s.student_role", "student_role");
         Equal("a.status", "status");
         Equal("a.custom_status", "custom_status");
         if (query.GetValueOrDefault("role") is { Length: > 0 } role)
@@ -707,7 +743,7 @@ public static partial class Accounts
         {
             "name" => $"a.name {direction}",
             "nickname" => $"p.nickname {direction}",
-            "major" => $"a.major {direction}",
+            "major" => $"s.major {direction}",
             _ => $"p.account_id {direction}",
         };
     }

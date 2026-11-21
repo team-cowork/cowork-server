@@ -18,12 +18,12 @@ class GithubProjectItemWriteResultConsumer(
     @KafkaListener(
         topics = [GITHUB_PROJECT_ITEM_WRITE_RESULT_TOPIC],
         groupId = "cowork-project.github-project-item-write-result",
-        containerFactory = "githubProjectItemWriteResultListenerContainerFactory",
+        containerFactory = "durableListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
         val result = runCatching {
             requireNotNull(objectMapper.readValue(record.value(), GithubProjectItemWriteResult::class.java))
-        }.getOrElse { throw IllegalArgumentException("GitHub Project 카드 이동 result JSON이 유효하지 않습니다.", it) }
+        }.getOrElse { throw IllegalArgumentException("GitHub Project 카드 쓰기 result JSON이 유효하지 않습니다.", it) }
         validate(result)
         handler.apply(result)
     }
@@ -38,7 +38,15 @@ class GithubProjectItemWriteResultConsumer(
             "지원하지 않는 commandType입니다: ${result.commandType}"
         }
         when (result.status) {
-            "SUCCEEDED" -> require(result.error == null) { "SUCCEEDED에는 error를 포함할 수 없습니다." }
+            "SUCCEEDED" -> {
+                require(result.error == null) { "SUCCEEDED에는 error를 포함할 수 없습니다." }
+                val itemId = result.result?.get("itemId")
+                if (itemId != null || result.commandType in setOf("CREATE_DRAFT", "ADD_ITEM")) {
+                    require(itemId is String && itemId.isNotBlank() && itemId.length <= 100) {
+                        "result.itemId가 유효하지 않습니다."
+                    }
+                }
+            }
 
             "FAILED" -> {
                 val error = requireNotNull(result.error) { "FAILED에는 error가 필요합니다." }

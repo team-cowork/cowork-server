@@ -1,11 +1,9 @@
 import {HttpService} from '@nestjs/axios';
 import {Injectable as injectable} from '@nestjs/common';
-import {AxiosError} from 'axios';
 import {firstValueFrom} from 'rxjs';
 import {GithubAuthService} from '../auth/github-auth.service.js';
-import {GITHUB_API, GITHUB_HEADERS} from '../constants.js';
-import {githubField} from '../github-field.js';
-import {GithubClientError} from '../github.errors.js';
+import {GITHUB_API, githubAuthHeaders} from '../constants.js';
+import {GithubClientError, rethrowGithubError} from '../github.errors.js';
 
 type GraphqlError = {type?: string; message?: string};
 
@@ -55,24 +53,12 @@ export class GithubGraphqlClient {
 				this.httpService.post<GraphqlResponse<T>>(
 					`${GITHUB_API}/graphql`,
 					{query, variables},
-					{headers: {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${token}`}},
+					{headers: githubAuthHeaders(token)},
 				),
 			);
 			body = response.data;
 		} catch (error) {
-			if (
-				error instanceof AxiosError
-				&& error.response
-				&& error.response.status < 500
-				&& error.response.status !== 429
-			) {
-				throw new GithubClientError(
-					(error.response.data as {message?: string})?.message ?? error.message,
-					error.response.status,
-				);
-			}
-
-			throw error;
+			rethrowGithubError(error);
 		}
 
 		if (body.errors !== undefined && body.errors.length > 0) {

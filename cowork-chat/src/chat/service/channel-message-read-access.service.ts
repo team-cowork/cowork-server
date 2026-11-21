@@ -406,9 +406,7 @@ export class ChannelMessageReadAccessService {
      `NotificationOutboxPoller`(푸시 알림 수신자 산정), `ChatService.saveSystemMessage`(미읽음
      카운터 증가 대상)에서도 쓰이므로 캐시를 타지 않는 {@link evaluateMany}를 그대로 사용한다.
 
-     @param channelIds - 수신자를 구할 채널 ID 목록
-     @param options - 판정 조건
-     @param options.voiceLogs - true면 음성 채널에서 `voice_log_read`가 없는 사용자를 뺀다. SYSTEM 메시지 수신자를 구할 때 쓴다
+     `options.voiceLogs`가 true면 음성 채널에서 `voice_log_read`가 없는 사용자를 뺀다. SYSTEM 메시지 수신자를 구할 때 쓴다.
      */
 	async findReadableUsersByChannel(channelIds: number[], options: {voiceLogs?: boolean} = {}): Promise<Map<number, number[]>> {
 		const channels = await this.channelRepository.findByIds(channelIds);
@@ -534,9 +532,8 @@ export class ChannelMessageReadAccessService {
      {@link canReadChannel}로 판정하고, 권한이 회수되면 {@link evictUnauthorizedSockets}가
      room에서 제거한다. 그래서 메시지마다 다시 평가하지 않는다.
 
-     이전에는 `fetchSockets()`로 room의 소켓을 모아 판정한 뒤 소켓 ID 목록을 대상으로 지정했다.
-     그 방식은 메시지마다 room의 모든 소켓을 모아 판정하므로 접속자 수에 비례해 비용이 늘고,
-     메시지 1건의 처리 시간을 그만큼 점유했다.
+     `fetchSockets()`로 메시지마다 room의 모든 소켓을 모아 판정하면 접속자 수에 비례해 비용이 늘고,
+     메시지 1건의 처리 시간을 그만큼 점유한다.
 
      projection readiness가 닫혀 있는 동안은 전송하지 않는다(fail-closed). 다시 열린 뒤 첫 전송 전에는
      로컬 room을 한 번 재검증해, 닫혀 있는 동안 버려진 회수가 room 멤버십으로 남지 않게 한다.
@@ -563,7 +560,7 @@ export class ChannelMessageReadAccessService {
 		}
 
 		// 채팅방(room) 멤버십은 projection 기준의 판정 결과이므로, projection이 catch-up 중이면 그 판정을 믿을 수 없다.
-		// 이전에는 이 구간의 평가가 전부 거부로 떨어져 아무에게도 전달되지 않았다(fail-closed). 같은 성질을 유지한다.
+		// 그래서 이 구간에서는 아무에게도 전달하지 않는다(fail-closed).
 		if (!this.projectionReadiness.areReady(CHANNEL_PERMISSION_STREAMS)) {
 			this.needsRoomSweepAfterReadinessGap = true;
 			return false;

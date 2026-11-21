@@ -4,17 +4,26 @@ import {getSignedUrl} from '@aws-sdk/s3-request-presigner';
 import {createClient} from './object-storage.module.js';
 
 // 환경 변수 이름은 배포 설정이 정한다.
-const publicApiBaseUrlKey = 'PUBLIC_API_BASE_URL';
+const env = {
+	endpoint: 'S3_INTERNAL_ENDPOINT',
+	publicApiBaseUrl: 'PUBLIC_API_BASE_URL',
+	accessKey: 'S3_ACCESS_KEY',
+	secretKey: 'S3_SECRET_KEY',
+	bucket: 'S3_BUCKET',
+	maxFileSizeBytes: 'S3_CHAT_MAX_FILE_SIZE_BYTES',
+	uploadRateLimitWindowMs: 'S3_CHAT_UPLOAD_RATE_LIMIT_WINDOW_MS',
+	uploadRateLimitMaxRequests: 'S3_CHAT_UPLOAD_RATE_LIMIT_MAX_REQUESTS',
+} as const;
 // AWS S3 API가 정한 PascalCase 입력 필드 이름이다.
 const s3Field = {bucket: 'Bucket', key: 'Key'} as const;
 
 const configService = {
 	get: jest.fn((key: string) => ({
-		'object-storage.endpoint': 'https://storage.internal:9000',
-		[publicApiBaseUrlKey]: 'https://api.example.com',
-		'object-storage.accessKey': 'unit-test-access',
-		'object-storage.secretKey': 'unit-test-secret',
-		'object-storage.bucket': 'cowork-chat',
+		[env.endpoint]: 'https://storage.internal:9000',
+		[env.publicApiBaseUrl]: 'https://api.example.com',
+		[env.accessKey]: 'unit-test-access',
+		[env.secretKey]: 'unit-test-secret',
+		[env.bucket]: 'cowork-chat',
 	})[key]),
 } as unknown as ConfigService;
 

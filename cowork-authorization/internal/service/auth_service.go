@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/tmp-it-play/datagsm-sdk-go/oauth"
@@ -46,7 +47,7 @@ type RefreshTokenStore interface {
 }
 
 type IdentityCommitCoordinator interface {
-	EnsureUser(context.Context, domain.UserIdentityCommand) (int64, error)
+	EnsureUser(context.Context, domain.UserIdentityCommand) (*domain.SessionIdentity, error)
 }
 
 type AuthService struct {
@@ -97,13 +98,8 @@ func (s *AuthService) issueUserSession(ctx context.Context, userInfo *oauth.User
 	}
 
 	st := userInfo.Student
-	platformRole, err := PlatformRoleFromDataGSM(userInfo.Role)
-	if err != nil {
+	if err := validateDataGSMAccountRole(userInfo.Role); err != nil {
 		return nil, err
-	}
-	operationID, err := domain.NewUUID()
-	if err != nil {
-		return nil, fmt.Errorf("failed to create user identity operation: %w", err)
 	}
 	grade, err := studentInteger(st.Grade)
 	if err != nil {
@@ -123,36 +119,35 @@ func (s *AuthService) issueUserSession(ctx context.Context, userInfo *oauth.User
 		major = &value
 	}
 	studentID := st.ID
+	student := &domain.StudentIdentity{
+		Sex: string(st.Sex), Grade: grade, ClassNumber: classNumber, StudentNumberInClass: studentNumberInClass,
+		Major: major, Role: string(st.Role), GithubID: st.GitHubID, DataGSMStudentID: &studentID,
+	}
+	return s.loginWithIdentity(ctx, "DATAGSM", strconv.FormatInt(userInfo.ID, 10), st.Name, userInfo.Email, student)
+}
+
+func (s *AuthService) loginWithIdentity(ctx context.Context, provider, subject, name, email string, student *domain.StudentIdentity) (*TokenPair, error) {
+	operationID, err := domain.NewUUID()
+	if err != nil {
+		return nil, fmt.Errorf("%w: generate login operation", ErrAuthenticationUnavailable)
+	}
 	command := domain.UserIdentityCommand{
-		SchemaVersion:        domain.UserIdentityCommandSchemaVersion,
-		OperationID:          operationID,
-		IdempotencyKey:       operationID,
-		CommandType:          domain.UserIdentityCommandUpsert,
-		UserID:               userInfo.ID,
-		Name:                 st.Name,
-		Email:                userInfo.Email,
-		Sex:                  string(st.Sex),
-		Grade:                grade,
-		ClassNumber:          classNumber,
-		StudentNumberInClass: studentNumberInClass,
-		Major:                major,
-		Role:                 string(st.Role),
-		GithubID:             st.GitHubID,
-		DataGSMStudentID:     &studentID,
-		RequestedBy:          userInfo.ID,
-		OccurredAt:           s.now().UTC().Truncate(time.Microsecond),
+		SchemaVersion: domain.UserIdentityCommandSchemaVersion, OperationID: operationID, IdempotencyKey: operationID,
+		CommandType: domain.UserIdentityCommandUpsert, Provider: provider, ProviderSubject: subject, Name: name, Email: email,
+		Student: student, OccurredAt: s.now().UTC().Truncate(time.Microsecond),
 	}
 	if err := domain.ValidateUserIdentityCommand(command); err != nil {
 		return nil, ErrAuthenticationRejected
 	}
-	return s.commitIdentityAndIssueSession(
-		ctx,
-		command,
-		userInfo.Email,
-		platformRole,
-		string(st.Role),
-		"",
-	)
+	return s.commitIdentityAndIssueSession(ctx, command)
+}
+
+func (s *AuthService) DevSignIn(ctx context.Context, id, password string) (*TokenPair, error) {
+	slot, ok := s.cfg.DevAccounts.Authenticate(id, password)
+	if !ok {
+		return nil, ErrAuthenticationRejected
+	}
+	return s.loginWithIdentity(ctx, "DEV", slot, "개발 계정 "+slot[4:], slot+"@dev.cowork.invalid", nil)
 }
 
 func (s *AuthService) RefreshTokens(ctx context.Context, rawRefreshToken string) (*TokenPair, error) {
@@ -182,7 +177,6 @@ func (s *AuthService) RefreshTokens(ctx context.Context, rawRefreshToken string)
 	accessToken, err := s.tokenSvc.GenerateAccessToken(
 		source.UserID,
 		source.Email,
-		source.PlatformRole,
 		source.GsmRole,
 	)
 	if err != nil {
@@ -217,11 +211,10 @@ func (s *AuthService) issueNewSession(
 	ctx context.Context,
 	userID int64,
 	email string,
-	role string,
 	gsmRole string,
 	deviceInfo string,
 ) (*TokenPair, error) {
-	accessToken, err := s.tokenSvc.GenerateAccessToken(userID, email, role, gsmRole)
+	accessToken, err := s.tokenSvc.GenerateAccessToken(userID, email, gsmRole)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate access token: %w", err)
 	}
@@ -233,12 +226,11 @@ func (s *AuthService) issueNewSession(
 
 	occurredAt := s.now().UTC().Truncate(time.Microsecond)
 	rt := &domain.RefreshToken{
-		UserID:       userID,
-		TokenHash:    refreshHash,
-		Email:        email,
-		GsmRole:      gsmRole,
-		PlatformRole: role,
-		ExpiresAt:    occurredAt.Add(s.tokenSvc.RefreshExpire()),
+		UserID:    userID,
+		TokenHash: refreshHash,
+		Email:     email,
+		GsmRole:   gsmRole,
+		ExpiresAt: occurredAt.Add(s.tokenSvc.RefreshExpire()),
 	}
 	if deviceInfo != "" {
 		rt.DeviceInfo = &deviceInfo
@@ -259,29 +251,24 @@ func (s *AuthService) issueNewSession(
 func (s *AuthService) commitIdentityAndIssueSession(
 	ctx context.Context,
 	command domain.UserIdentityCommand,
-	email string,
-	role string,
-	gsmRole string,
-	deviceInfo string,
 ) (*TokenPair, error) {
-	userID, err := s.identity.EnsureUser(ctx, command)
+	identity, err := s.identity.EnsureUser(ctx, command)
 	if err != nil {
 		return nil, fmt.Errorf("failed to commit user identity: %w", err)
 	}
-	pair, err := s.issueNewSession(ctx, userID, email, role, gsmRole, deviceInfo)
+	pair, err := s.issueNewSession(ctx, identity.UserID, identity.Email, identity.GsmRole, "")
 	if err != nil {
 		return nil, fmt.Errorf("%w: failed to issue session: %v", ErrAuthenticationUnavailable, err)
 	}
 	return pair, nil
 }
 
-// PlatformRoleFromDataGSM does not grant Cowork administration from a provider account role.
-func PlatformRoleFromDataGSM(providerRole string) (string, error) {
+func validateDataGSMAccountRole(providerRole string) error {
 	switch providerRole {
 	case "ADMIN", "USER":
-		return "MEMBER", nil
+		return nil
 	default:
-		return "", fmt.Errorf("unsupported DataGSM account role")
+		return fmt.Errorf("unsupported DataGSM account role")
 	}
 }
 

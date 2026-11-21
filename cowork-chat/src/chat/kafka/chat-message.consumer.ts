@@ -37,7 +37,7 @@ const DEFAULT_PARTITIONS_CONSUMED_CONCURRENTLY = 3;
 const CHAT_MESSAGE_REQUIRED_STREAMS: readonly ProjectionName[] = [...CHANNEL_PERMISSION_STREAMS, 'thread'];
 
 /**
-Kafka `chat.message.v2` record를 검증하고, poison record만 durable quarantine한다.
+Kafka `chat.message.event.v3` record를 검증하고, poison record만 durable quarantine한다.
 */
 @injectable()
 export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
@@ -113,10 +113,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 
      권한 projection이 준비되지 않으면 브로드캐스트할 수 없으므로 처리 전에 준비를 기다린다.
 
-     @param topic - record의 토픽
-     @param partition - record의 파티션
-     @param message - 처리할 Kafka record
-     @param heartbeat - 오래 걸리는 준비 대기 동안 Kafka consumer heartbeat를 보내는 함수
+     오래 걸리는 준비 대기 동안 `heartbeat`로 Kafka consumer heartbeat를 보낸다.
      */
 	async processKafkaMessage(
 		topic: string,

@@ -7,8 +7,8 @@ import com.cowork.team.domain.teamRole.service.impl.TeamRoleServiceFixture.Compa
 import com.cowork.team.domain.teamRole.service.impl.TeamRoleServiceFixture.Companion.ROLE_ID
 import com.cowork.team.domain.teamRole.service.impl.TeamRoleServiceFixture.Companion.TEAM_ID
 import com.cowork.team.domain.teamRole.service.impl.TeamRoleServiceFixture.Companion.role
-import com.cowork.team.domain.teamRole.service.support.TeamRolePermission
 import com.cowork.team.domain.teamRole.service.support.TeamRolePermissionSchema
+import com.cowork.team.global.policy.PermissionKeys
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -84,7 +84,7 @@ class UpdateTeamRoleServiceImplTest :
                     fixture.givenRole(role())
 
                     val error = shouldThrow<ExpectedException> {
-                        update(UpdateTeamRoleRequest(permissions = mapOf(TeamRolePermission.MANAGE_TEAM.key to true)))
+                        update(UpdateTeamRoleRequest(permissions = mapOf(PermissionKeys.MANAGE_TEAM to true)))
                     }
 
                     error.statusCode shouldBe HttpStatus.FORBIDDEN
@@ -95,10 +95,10 @@ class UpdateTeamRoleServiceImplTest :
             context("역할에 이미 켜진 권한을 관리자에게 없는 상태로 다시 보내면") {
                 it("새로 부여하는 권한이 아니므로 접수한다") {
                     fixture.givenCustomManager()
-                    fixture.givenRole(role(permissions = mapOf(TeamRolePermission.MANAGE_TEAM.key to true)))
+                    fixture.givenRole(role(permissions = mapOf(PermissionKeys.MANAGE_TEAM to true)))
 
                     update(
-                        UpdateTeamRoleRequest(permissions = mapOf(TeamRolePermission.MANAGE_TEAM.key to true)),
+                        UpdateTeamRoleRequest(permissions = mapOf(PermissionKeys.MANAGE_TEAM to true)),
                     ) shouldBe fixture.accepted
                 }
             }
@@ -106,10 +106,10 @@ class UpdateTeamRoleServiceImplTest :
             context("관리자에게 없는 권한을 끄면") {
                 it("접수한다") {
                     fixture.givenCustomManager()
-                    fixture.givenRole(role(permissions = mapOf(TeamRolePermission.MANAGE_TEAM.key to true)))
+                    fixture.givenRole(role(permissions = mapOf(PermissionKeys.MANAGE_TEAM to true)))
 
                     update(
-                        UpdateTeamRoleRequest(permissions = mapOf(TeamRolePermission.MANAGE_TEAM.key to false)),
+                        UpdateTeamRoleRequest(permissions = mapOf(PermissionKeys.MANAGE_TEAM to false)),
                     ) shouldBe fixture.accepted
                 }
             }

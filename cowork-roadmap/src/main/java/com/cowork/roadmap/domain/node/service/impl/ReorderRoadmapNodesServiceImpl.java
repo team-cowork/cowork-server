@@ -31,9 +31,9 @@ public class ReorderRoadmapNodesServiceImpl implements ReorderRoadmapNodesServic
 
     @Override
     @Transactional
-    public void execute(Long userId, String userRole, Long roadmapId, ReorderNodesReqDto request) {
+    public void execute(Long userId, Long roadmapId, ReorderNodesReqDto request) {
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
-        accessGuard.requireMutable(roadmap, userId, userRole);
+        accessGuard.requireMutable(roadmap, userId);
         List<NodePositionProjection> siblings = nodeRepository.findSiblingPositions(roadmapId, request.parentId());
         Set<Long> siblingIds = new HashSet<>();
         siblings.forEach(node -> siblingIds.add(node.getId()));

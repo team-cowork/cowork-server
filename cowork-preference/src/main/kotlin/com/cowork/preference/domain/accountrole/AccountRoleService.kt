@@ -16,9 +16,6 @@ class AccountRoleService(
 
     suspend fun assignments(requester: RequesterContext, accountId: Long = requester.userId): List<Long> =
         outbox.inTransaction { connection ->
-            // TODO(2026-11-17T06:59:44Z): Remove this legacy-token migration call after all platform administrators
-            // are migrated.
-            repository.migrateLegacyPolicy(connection, requester.userId, requester.isGlobalAdmin)
             if (accountId != requester.userId &&
                 !AccountRolePolicy.allows(
                     repository.policies(connection, requester.userId),
@@ -72,9 +69,6 @@ class AccountRoleService(
         requester: RequesterContext,
         action: suspend (SqlConnection, List<Map<String, Boolean>>) -> T,
     ): T = outbox.inTransaction { connection ->
-        // TODO(2026-11-17T06:59:44Z): Remove this legacy-token migration call after all platform administrators are
-        // migrated.
-        repository.migrateLegacyPolicy(connection, requester.userId, requester.isGlobalAdmin)
         val policies = repository.policies(connection, requester.userId)
         if (!AccountRolePolicy.allows(policies, AccountRolePolicy.MANAGE_ROLES)) {
             throw ResourceAccessDeniedException("계정 역할을 관리할 권한이 없습니다.")

@@ -22,6 +22,7 @@
     "environment": "Prod-CD(authorization)",
     "secret_bindings": {
       "JWT_SECRET": "JWT_SECRET",
+      "DEV_SIGNIN_ACCOUNTS": "DEV_SIGNIN_ACCOUNTS",
       "DATAGSM_WEBHOOK_SECRET": "DATAGSM_WEBHOOK_SECRET",
       "DB_PASSWORD": "DB_PASSWORD"
     },
@@ -30,7 +31,7 @@
       "DB_MONITORING_PASSWORD": "DB_MONITORING_PASSWORD",
       "DB_PASSWORD": "DB_PASSWORD"
     },
-    "optional_secrets": [],
+    "optional_secrets": ["DEV_SIGNIN_ACCOUNTS"],
     "immutable_secrets": [
       "DB_ADMIN_PASSWORD"
     ],
@@ -186,14 +187,19 @@
       "COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET": "COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_SECRET",
       "GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET": "GOOGLE_ACCOUNT_SHARE_CLIENT_SECRET",
       "JIRA_ACCOUNT_SHARE_CLIENT_SECRET": "JIRA_ACCOUNT_SHARE_CLIENT_SECRET",
-      "NOTION_ACCOUNT_SHARE_CLIENT_SECRET": "NOTION_ACCOUNT_SHARE_CLIENT_SECRET"
+      "NOTION_ACCOUNT_SHARE_CLIENT_SECRET": "NOTION_ACCOUNT_SHARE_CLIENT_SECRET",
+      "AI_HUB_API_KEY": "AI_HUB_API_KEY",
+      "GROQ_API_KEY": "GROQ_API_KEY"
     },
     "data_secret_bindings": {
       "DB_ADMIN_PASSWORD": "DB_ADMIN_PASSWORD",
       "DB_MONITORING_PASSWORD": "DB_MONITORING_PASSWORD",
       "DB_PASSWORD": "DB_PASSWORD"
     },
-    "optional_secrets": [],
+    "optional_secrets": [
+      "AI_HUB_API_KEY",
+      "GROQ_API_KEY"
+    ],
     "immutable_secrets": [
       "ACCOUNT_CREDENTIAL_ENCRYPTION_KEY",
       "DB_ADMIN_PASSWORD"
@@ -208,9 +214,14 @@
       "GOOGLE_ACCOUNT_SHARE_CLIENT_ID": "GOOGLE_ACCOUNT_SHARE_CLIENT_ID",
       "FACEBOOK_ACCOUNT_SHARE_CLIENT_ID": "FACEBOOK_ACCOUNT_SHARE_CLIENT_ID",
       "DB_NAME": "DB_NAME",
-      "DB_USERNAME": "DB_USERNAME"
+      "DB_USERNAME": "DB_USERNAME",
+      "AI_HUB_MODEL": "AI_HUB_MODEL",
+      "GROQ_MODEL": "GROQ_MODEL"
     },
-    "optional_variables": [],
+    "optional_variables": [
+      "AI_HUB_MODEL",
+      "GROQ_MODEL"
+    ],
     "data_variable_bindings": {
       "DB_NAME": "DB_NAME",
       "DB_USERNAME": "DB_USERNAME"

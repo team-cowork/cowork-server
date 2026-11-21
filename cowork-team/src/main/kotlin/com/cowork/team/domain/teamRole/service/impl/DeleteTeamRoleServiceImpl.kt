@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional
 class DeleteTeamRoleServiceImpl(
     private val teamRoleAccessGuard: TeamRoleAccessGuard,
     private val teamRoleLookupSupport: TeamRoleLookupSupport,
-    private val commandSubmission: TeamRoleCommandSubmission,
+    private val teamRoleCommandSubmission: TeamRoleCommandSubmission,
 ) : DeleteTeamRoleService {
     @Transactional
     override fun execute(
@@ -21,7 +21,7 @@ class DeleteTeamRoleServiceImpl(
         teamId: Long,
         roleId: Long,
         idempotencyKey: String,
-    ): TeamRoleOperationResponse = commandSubmission.submit(
+    ): TeamRoleOperationResponse = teamRoleCommandSubmission.submit(
         idempotencyKey,
         TeamRoleCommandType.DELETE,
         teamId,

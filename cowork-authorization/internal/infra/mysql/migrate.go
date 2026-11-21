@@ -95,12 +95,6 @@ func Migrate(ctx context.Context, db *gorm.DB, dsn string) error {
 }
 
 func resolveMigrationDir() (string, error) {
-	if configured := strings.TrimSpace(os.Getenv("DB_MIGRATION_DIR")); configured != "" {
-		if isDirectory(configured) {
-			return configured, nil
-		}
-		return "", fmt.Errorf("configured DB_MIGRATION_DIR is not a directory: %s", configured)
-	}
 	for _, candidate := range []string{containerMigrationDir, localMigrationDir} {
 		if isDirectory(candidate) {
 			return candidate, nil
@@ -120,10 +114,6 @@ func isDirectory(path string) bool {
 
 func migrateLocked(ctx context.Context, db *gorm.DB, migrations []migration, dbName string) error {
 	if err := ensureHistoryTable(ctx, db); err != nil {
-		return err
-	}
-
-	if err := baselineLegacySchema(ctx, db, migrations); err != nil {
 		return err
 	}
 
@@ -240,116 +230,6 @@ func loadMigrations(dir string) ([]migration, error) {
 	return migrations, nil
 }
 
-func baselineLegacySchema(ctx context.Context, db *gorm.DB, migrations []migration) error {
-	count, err := historyCount(ctx, db)
-	if err != nil || count > 0 {
-		return err
-	}
-
-	hasRefreshTokens, err := tableExists(ctx, db, "tb_refresh_tokens")
-	if err != nil || !hasRefreshTokens {
-		return err
-	}
-
-	hasUsers, err := tableExists(ctx, db, "tb_users")
-	if err != nil {
-		return err
-	}
-	hasOauth2, err := tableExists(ctx, db, "tb_oauth2_connections")
-	if err != nil {
-		return err
-	}
-	hasEmailColumn, err := columnExists(ctx, db, "tb_refresh_tokens", "email")
-	if err != nil {
-		return err
-	}
-	hasGsmRoleColumn, err := columnExists(ctx, db, "tb_refresh_tokens", "gsm_role")
-	if err != nil {
-		return err
-	}
-
-	if hasUsers || hasOauth2 || !hasEmailColumn || !hasGsmRoleColumn {
-		return nil
-	}
-
-	baselineVersions := map[string]bool{"1": true, "2": true}
-	hasProcessedEvents, err := tableExists(ctx, db, "tb_processed_events")
-	if err != nil {
-		return err
-	}
-	if hasProcessedEvents {
-		baselineVersions["3"] = true
-	}
-	hasKafkaOutbox, err := tableExists(ctx, db, "tb_kafka_outbox")
-	if err != nil {
-		return err
-	}
-	if hasKafkaOutbox {
-		baselineVersions["4"] = true
-		hasPartitionID, err := columnExists(ctx, db, "tb_kafka_outbox", "partition_id")
-		if err != nil {
-			return err
-		}
-		if hasPartitionID {
-			baselineVersions["5"] = true
-		}
-	}
-	hasPresenceStates, err := tableExists(ctx, db, "tb_user_presence_states")
-	if err != nil {
-		return err
-	}
-	if hasPresenceStates {
-		complete, _, err := migrationSchemaComplete(ctx, db, 6)
-		if err != nil {
-			return err
-		}
-		if complete {
-			baselineVersions["6"] = true
-		}
-	}
-	hasPlatformRole, err := columnExists(ctx, db, "tb_refresh_tokens", "platform_role")
-	if err != nil {
-		return err
-	}
-	if hasPlatformRole {
-		baselineVersions["7"] = true
-	}
-
-	return insertBaselineRows(ctx, db, migrations, baselineVersions)
-}
-
-func insertBaselineRows(
-	ctx context.Context,
-	db *gorm.DB,
-	migrations []migration,
-	baselineVersions map[string]bool,
-) error {
-	tx := db.WithContext(ctx).Begin()
-	if tx.Error != nil {
-		return tx.Error
-	}
-
-	installedRank := 0
-	for _, m := range migrations {
-		if !baselineVersions[m.versionText] {
-			continue
-		}
-		installedRank++
-		if err := tx.Exec(
-			`INSERT INTO flyway_schema_history
-				(installed_rank, version, description, type, script, installed_by, installed_on, execution_time, success)
-			 VALUES
-				(?, ?, ?, 'SQL', ?, USER(), ?, 0, TRUE)`,
-			installedRank, m.versionText, m.description, m.script, time.Now(),
-		).Error; err != nil {
-			tx.Rollback()
-			return err
-		}
-	}
-
-	return tx.Commit().Error
-}
-
 func appliedVersions(ctx context.Context, db *gorm.DB) (map[string]bool, error) {
 	rows, err := db.WithContext(ctx).Raw(
 		`SELECT version FROM flyway_schema_history WHERE success = TRUE AND version IS NOT NULL`,
@@ -370,12 +250,6 @@ func appliedVersions(ctx context.Context, db *gorm.DB) (map[string]bool, error) 
 		}
 	}
 	return result, rows.Err()
-}
-
-func historyCount(ctx context.Context, db *gorm.DB) (int64, error) {
-	var count int64
-	err := db.WithContext(ctx).Raw(`SELECT COUNT(*) FROM flyway_schema_history`).Scan(&count).Error
-	return count, err
 }
 
 func tableExists(ctx context.Context, db *gorm.DB, table string) (bool, error) {
@@ -493,6 +367,8 @@ func migrationExpectations(version int) ([]tableExpectation, bool) {
 			{name: "tb_kafka_outbox", columns: []string{"source_event_id", "source_event_index"}},
 			{name: "tb_processed_events", absent: true},
 		}, true
+	case 11:
+		return []tableExpectation{{name: "tb_user_identity_operations", columns: []string{"result_email", "result_gsm_role"}}}, true
 	case 10:
 		return []tableExpectation{
 			{name: "tb_refresh_tokens", columns: []string{"user_id", "token_hash", "expires_at"}},

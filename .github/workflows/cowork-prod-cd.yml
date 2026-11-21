@@ -184,6 +184,8 @@ jobs:
           SERVICE: ${{ matrix.service }}
           VAULT_ADDR: ${{ vars.VAULT_ADDR }}
           VAULT_KV_MOUNT: ${{ vars.VAULT_KV_MOUNT || 'secret' }}
+          GH_VARIABLE_AI_HUB_MODEL: ${{ contains(matrix.variable_names, 'AI_HUB_MODEL') && vars.AI_HUB_MODEL || '' }}
+          GH_VARIABLE_GROQ_MODEL: ${{ contains(matrix.variable_names, 'GROQ_MODEL') && vars.GROQ_MODEL || '' }}
           GH_VARIABLE_COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID: ${{ contains(matrix.variable_names, 'COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID') && vars.COWORK_GITHUB_ACCOUNT_SHARE_CLIENT_ID || '' }}
           GH_VARIABLE_COWORK_GITHUB_APP_CLIENT_ID: ${{ contains(matrix.variable_names, 'COWORK_GITHUB_APP_CLIENT_ID') && vars.COWORK_GITHUB_APP_CLIENT_ID || '' }}
           GH_VARIABLE_COWORK_GITHUB_APP_ID: ${{ contains(matrix.variable_names, 'COWORK_GITHUB_APP_ID') && vars.COWORK_GITHUB_APP_ID || '' }}
@@ -205,6 +207,8 @@ jobs:
           GH_VARIABLE_PUBLIC_WEB_ORIGINS: ${{ contains(matrix.variable_names, 'PUBLIC_WEB_ORIGINS') && vars.PUBLIC_WEB_ORIGINS || '' }}
           GH_VARIABLE_S3_BUCKET: ${{ contains(matrix.variable_names, 'S3_BUCKET') && vars.S3_BUCKET || '' }}
           GH_VARIABLE_S3_REGION: ${{ contains(matrix.variable_names, 'S3_REGION') && vars.S3_REGION || '' }}
+          GH_SECRET_AI_HUB_API_KEY: ${{ contains(matrix.secret_names, 'AI_HUB_API_KEY') && secrets.AI_HUB_API_KEY || '' }}
+          GH_SECRET_GROQ_API_KEY: ${{ contains(matrix.secret_names, 'GROQ_API_KEY') && secrets.GROQ_API_KEY || '' }}
           GH_SECRET_ACCOUNT_CREDENTIAL_ENCRYPTION_KEY: ${{ contains(matrix.secret_names, 'ACCOUNT_CREDENTIAL_ENCRYPTION_KEY') && secrets.ACCOUNT_CREDENTIAL_ENCRYPTION_KEY || '' }}
           GH_SECRET_ACCOUNT_SHARE_OAUTH_STATE_SECRET: ${{ contains(matrix.secret_names, 'ACCOUNT_SHARE_OAUTH_STATE_SECRET') && secrets.ACCOUNT_SHARE_OAUTH_STATE_SECRET || '' }}
           GH_SECRET_APPLET_SECRET_KEY: ${{ contains(matrix.secret_names, 'APPLET_SECRET_KEY') && secrets.APPLET_SECRET_KEY || '' }}
@@ -218,6 +222,7 @@ jobs:
           GH_SECRET_DB_MONITORING_PASSWORD: ${{ contains(matrix.secret_names, 'DB_MONITORING_PASSWORD') && secrets.DB_MONITORING_PASSWORD || '' }}
           GH_SECRET_DB_PASSWORD: ${{ contains(matrix.secret_names, 'DB_PASSWORD') && secrets.DB_PASSWORD || '' }}
           GH_SECRET_DEV_ORIGIN_CREDENTIAL: ${{ contains(matrix.secret_names, 'DEV_ORIGIN_CREDENTIAL') && secrets.DEV_ORIGIN_CREDENTIAL || '' }}
+          GH_SECRET_DEV_SIGNIN_ACCOUNTS: ${{ contains(matrix.secret_names, 'DEV_SIGNIN_ACCOUNTS') && secrets.DEV_SIGNIN_ACCOUNTS || '' }}
           GH_SECRET_DISCORD_MONITORING_ALERT_WEBHOOK_URL: ${{ contains(matrix.secret_names, 'DISCORD_MONITORING_ALERT_WEBHOOK_URL') && secrets.DISCORD_MONITORING_ALERT_WEBHOOK_URL || '' }}
           GH_SECRET_ELASTICSEARCH_ADMIN_PASSWORD: ${{ contains(matrix.secret_names, 'ELASTICSEARCH_ADMIN_PASSWORD') && secrets.ELASTICSEARCH_ADMIN_PASSWORD || '' }}
           GH_SECRET_ELASTICSEARCH_URL: ${{ contains(matrix.secret_names, 'ELASTICSEARCH_URL') && secrets.ELASTICSEARCH_URL || '' }}

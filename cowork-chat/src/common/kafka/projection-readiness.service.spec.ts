@@ -1,4 +1,5 @@
-import {isSuspiciousDocumentCountDrop, ProjectionReadinessService} from './projection-readiness.service.js';
+import {ProjectionReadinessService} from './projection-readiness.service.js';
+import {isSuspiciousDocumentCountDrop} from './projection-offsets.js';
 
 describe('파일 정리용 동기화 판정', () => {
 	it('알려진 지연은 API의 읽기 유예와 관계없이 정리를 막는다', () => {

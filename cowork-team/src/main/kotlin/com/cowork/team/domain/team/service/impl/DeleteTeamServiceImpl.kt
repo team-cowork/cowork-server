@@ -5,7 +5,7 @@ import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.domain.team.service.DeleteTeamService
 import com.cowork.team.domain.team.service.TeamAccessGuard
-import com.cowork.team.domain.team.service.TeamIconOwnershipService
+import com.cowork.team.domain.team.service.TeamIconOwnershipManager
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -21,7 +21,7 @@ class DeleteTeamServiceImpl(
     private val teamEventPublisher: TeamEventPublisher,
     private val teamMemberEventPublisher: TeamMemberEventPublisher,
     private val teamAccessGuard: TeamAccessGuard,
-    private val iconOwnership: TeamIconOwnershipService,
+    private val teamIconOwnershipManager: TeamIconOwnershipManager,
 ) : DeleteTeamService {
 
     @Transactional
@@ -34,7 +34,7 @@ class DeleteTeamServiceImpl(
         members.forEach { teamMemberEventPublisher.publishDelete(it, occurredAt) }
         teamEventPublisher.publishDeleted(team, userId, occurredAt)
         teamMemberRepository.deleteAll(members)
-        iconOwnership.clear(team)
+        teamIconOwnershipManager.clear(team)
         teamRepository.delete(team)
     }
 }

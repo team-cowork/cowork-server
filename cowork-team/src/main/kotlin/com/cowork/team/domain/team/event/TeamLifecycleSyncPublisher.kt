@@ -14,37 +14,37 @@ import org.springframework.transaction.support.TransactionTemplate
 
 @Component
 class TeamLifecycleSyncPublisher(
-    private val teamStateRepository: TeamEventStateRepository,
-    private val memberStateRepository: TeamMemberEventStateRepository,
+    private val teamEventStateRepository: TeamEventStateRepository,
+    private val teamMemberEventStateRepository: TeamMemberEventStateRepository,
     private val teamEventPublisher: TeamEventPublisher,
     private val teamMemberEventPublisher: TeamMemberEventPublisher,
-    private val completionPublisher: ProjectionSnapshotCompletionPublisher,
-    private val snapshotLock: ProjectionSnapshotLock,
-    transactionManager: PlatformTransactionManager,
+    private val projectionSnapshotCompletionPublisher: ProjectionSnapshotCompletionPublisher,
+    private val projectionSnapshotLock: ProjectionSnapshotLock,
+    platformTransactionManager: PlatformTransactionManager,
 ) {
-    private val transaction = TransactionTemplate(transactionManager)
+    private val transaction = TransactionTemplate(platformTransactionManager)
 
     @EventListener(ApplicationReadyEvent::class)
     fun publishAllSnapshots() {
-        snapshotLock.tryRun(SNAPSHOT_LOCK_NAME) { publishAllInTransactions() }
+        projectionSnapshotLock.tryRun(SNAPSHOT_LOCK_NAME) { publishAllInTransactions() }
     }
 
     @Scheduled(initialDelay = 30_000, fixedDelay = 300_000)
     fun republishAllSnapshots() {
-        snapshotLock.tryRun(SNAPSHOT_LOCK_NAME) { publishAllInTransactions() }
+        projectionSnapshotLock.tryRun(SNAPSHOT_LOCK_NAME) { publishAllInTransactions() }
     }
 
     private fun publishAllInTransactions() {
         publishTeamStates()
         publishMemberStates()
-        completionPublisher.publishCompleted(SNAPSHOT_TOPICS)
+        projectionSnapshotCompletionPublisher.publishCompleted(SNAPSHOT_TOPICS)
     }
 
     private fun publishTeamStates() {
         var afterId = 0L
         while (true) {
             val nextAfterId = transaction.execute {
-                val states = teamStateRepository.findSnapshotBatch(afterId, PageRequest.of(0, PAGE_SIZE))
+                val states = teamEventStateRepository.findSnapshotBatch(afterId, PageRequest.of(0, PAGE_SIZE))
                 states.forEach(teamEventPublisher::publishSnapshot)
                 states.lastOrNull()?.teamId
             } ?: break
@@ -57,7 +57,7 @@ class TeamLifecycleSyncPublisher(
         var afterUserId = 0L
         while (true) {
             val nextCursor = transaction.execute {
-                val states = memberStateRepository.findSnapshotBatch(
+                val states = teamMemberEventStateRepository.findSnapshotBatch(
                     afterTeamId,
                     afterUserId,
                     PageRequest.of(0, PAGE_SIZE),

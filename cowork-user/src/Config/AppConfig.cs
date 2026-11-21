@@ -4,6 +4,10 @@ namespace CoworkUser.Config;
 
 public sealed record AppConfig
 {
+    public const string ProviderCommandTopic = "user.identity.command.v3";
+    public const string ProviderCommandGroup = "cowork-user.user-identity-command.v3";
+    public const string ProviderResultTopic = "user.identity.result.v2";
+
     public required int Port { get; init; }
     public required KafkaSecurity KafkaSecurity { get; init; }
     public required string ConnectionString { get; init; }
@@ -42,43 +46,34 @@ public sealed record AppConfig
 
     static AppConfig Build()
     {
-        string Lookup(string fallback, params string[] keys) =>
-            keys.Select(Environment.GetEnvironmentVariable).FirstOrDefault(v => !string.IsNullOrEmpty(v))
-            ?? fallback;
-
-        var port = int.Parse(Lookup("8082", "PORT", "SERVER_PORT", "server_port"));
-
-        if (Lookup("true", "KAFKA_ENABLED") != "true")
-            throw new InvalidOperationException("KAFKA_ENABLED=false is unsupported because owner commands and projections require Kafka");
-
         return new AppConfig
         {
-            Port = port,
+            Port = int.Parse(Optional("PORT", "8082")),
             KafkaSecurity = CoworkUser.Config.KafkaSecurity.Load(),
-            ConnectionString = DatabaseConnectionString(Lookup),
+            ConnectionString = DatabaseConnectionString(),
             ConfigProfile = Required("APP_CONFIG_PROFILE"),
             KafkaBootstrapServers = Required("KAFKA_BOOTSTRAP_SERVERS"),
-            KafkaTopic = Lookup("user.data.sync", "KAFKA_TOPIC_USER_SYNC", "kafka_topic"),
-            KafkaGroupId = Lookup("cowork-user", "KAFKA_GROUP_ID", "kafka_group_id"),
-            KafkaIdentityCommandTopic = Lookup("user.identity.command.v2", "KAFKA_TOPIC_USER_IDENTITY_COMMAND", "kafka_identity_command_topic"),
-            KafkaIdentityCommandGroupId = Lookup("cowork-user.user-identity-command.v2", "KAFKA_GROUP_ID_USER_IDENTITY_COMMAND", "kafka_identity_command_group_id"),
-            KafkaIdentityCommandResultTopic = Lookup("user.identity.command-result", "KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT", "kafka_identity_command_result_topic"),
-            KafkaTeamMemberTopic = Lookup("team.member.event", "KAFKA_TOPIC_TEAM_MEMBER", "kafka_team_member_topic"),
-            KafkaTeamMemberGroupId = Lookup("cowork-user.team-member", "KAFKA_GROUP_ID_TEAM_MEMBER", "kafka_team_member_group_id"),
-            KafkaPresenceTopic = Lookup("user.presence.event", "KAFKA_TOPIC_USER_PRESENCE", "kafka_presence_topic"),
-            KafkaPresenceGroupId = Lookup("cowork-user.user-presence", "KAFKA_GROUP_ID_USER_PRESENCE", "kafka_presence_group_id"),
-            KafkaProfileTopic = Lookup("user.profile.event.v2", "KAFKA_TOPIC_USER_PROFILE", "kafka_profile_topic"),
-            KafkaProfileSnapshotIntervalMs = int.Parse(Lookup("300000", "KAFKA_PROFILE_SNAPSHOT_INTERVAL_MS", "kafka_profile_snapshot_interval_ms")),
+            KafkaTopic = Optional("KAFKA_TOPIC_USER_SYNC", "user.data.sync"),
+            KafkaGroupId = Optional("KAFKA_GROUP_ID", "cowork-user"),
+            KafkaIdentityCommandTopic = Optional("KAFKA_TOPIC_USER_IDENTITY_COMMAND", "user.identity.command.v2"),
+            KafkaIdentityCommandGroupId = Optional("KAFKA_GROUP_ID_USER_IDENTITY_COMMAND", "cowork-user.user-identity-command.v2"),
+            KafkaIdentityCommandResultTopic = Optional("KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT", "user.identity.command-result"),
+            KafkaTeamMemberTopic = Optional("KAFKA_TOPIC_TEAM_MEMBER", "team.member.event"),
+            KafkaTeamMemberGroupId = Optional("KAFKA_GROUP_ID_TEAM_MEMBER", "cowork-user.team-member"),
+            KafkaPresenceTopic = Optional("KAFKA_TOPIC_USER_PRESENCE", "user.presence.event"),
+            KafkaPresenceGroupId = Optional("KAFKA_GROUP_ID_USER_PRESENCE", "cowork-user.user-presence"),
+            KafkaProfileTopic = Optional("KAFKA_TOPIC_USER_PROFILE", "user.profile.event.v2"),
+            KafkaProfileSnapshotIntervalMs = int.Parse(Optional("KAFKA_PROFILE_SNAPSHOT_INTERVAL_MS", "300000")),
             S3Region = Required("S3_REGION"),
             S3InternalEndpoint = Required("S3_INTERNAL_ENDPOINT"),
             PublicApiBaseUrl = Required("PUBLIC_API_BASE_URL"),
             S3AccessKey = Required("S3_ACCESS_KEY"),
             S3SecretKey = Required("S3_SECRET_KEY"),
             S3Bucket = Required("S3_BUCKET"),
-            S3PathStyle = Lookup("true", "S3_PATH_STYLE_ACCESS_ENABLED", "s3_path_style_access_enabled") == "true",
-            PresignedPutExpiryMinutes = int.Parse(Lookup("5", "S3_PRESIGNED_PUT_EXPIRY_MINUTES", "s3_presigned_put_expiry_minutes")),
-            PresignedGetExpiryMinutes = int.Parse(Lookup("15", "S3_PRESIGNED_GET_EXPIRY_MINUTES", "s3_presigned_get_expiry_minutes")),
-            MaxFileSizeBytes = long.Parse(Lookup("5242880", "S3_MAX_FILE_SIZE_BYTES", "s3_max_file_size_bytes")),
+            S3PathStyle = Optional("S3_PATH_STYLE_ACCESS_ENABLED", "true") == "true",
+            PresignedPutExpiryMinutes = int.Parse(Optional("S3_PRESIGNED_PUT_EXPIRY_MINUTES", "5")),
+            PresignedGetExpiryMinutes = int.Parse(Optional("S3_PRESIGNED_GET_EXPIRY_MINUTES", "15")),
+            MaxFileSizeBytes = long.Parse(Optional("S3_MAX_FILE_SIZE_BYTES", "5242880")),
             RedisHost = Required("REDIS_HOST"),
             RedisPort = int.Parse(Required("REDIS_PORT")),
         };
@@ -86,6 +81,9 @@ public sealed record AppConfig
 
     static string Required(string key) =>
         NonEmpty(Environment.GetEnvironmentVariable(key)) ?? throw new InvalidOperationException($"{key} is required for cowork-user configuration");
+
+    static string Optional(string key, string fallback) =>
+        NonEmpty(Environment.GetEnvironmentVariable(key)) ?? fallback;
 
     static string? NonEmpty(string? value) => string.IsNullOrEmpty(value) ? null : value;
 
@@ -104,7 +102,7 @@ public sealed record AppConfig
         }
     }
 
-    static string DatabaseConnectionString(Func<string, string[], string> lookup)
+    static string DatabaseConnectionString()
     {
         return new MySqlConnectionStringBuilder
         {
@@ -113,7 +111,7 @@ public sealed record AppConfig
             Database = Required("DB_NAME"),
             UserID = Required("DB_USERNAME"),
             Password = Required("DB_PASSWORD"),
-            MaximumPoolSize = PositiveInteger(lookup("10", ["DB_POOL_SIZE", "db_pool_size"]), "DB_POOL_SIZE"),
+            MaximumPoolSize = PositiveInteger(Optional("DB_POOL_SIZE", "10"), "DB_POOL_SIZE"),
             CharacterSet = "utf8mb4",
             // CHAR(36) columns such as operation_id hold UUID text; the default would hand them back as Guid.
             GuidFormat = MySqlGuidFormat.None,

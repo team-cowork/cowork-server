@@ -12,16 +12,16 @@ import team.themoment.sdk.exception.ExpectedException
 
 @Service
 class QueryTeamRoleOperationServiceImpl(
-    private val operationRepository: TeamRoleCommandOperationRepository,
-    private val operationMapper: TeamRoleOperationMapper,
-    private val finalizer: TeamRoleOperationProjectionFinalizer,
+    private val teamRoleCommandOperationRepository: TeamRoleCommandOperationRepository,
+    private val teamRoleOperationMapper: TeamRoleOperationMapper,
+    private val teamRoleOperationProjectionFinalizer: TeamRoleOperationProjectionFinalizer,
 ) : QueryTeamRoleOperationService {
     @Transactional
     override fun execute(actorId: Long, teamId: Long, operationId: String): TeamRoleOperationResponse {
-        val operation = operationRepository.findByIdForUpdate(operationId)
+        val operation = teamRoleCommandOperationRepository.findByIdForUpdate(operationId)
             ?.takeIf { it.teamId == teamId && it.actorId == actorId }
             ?: throw ExpectedException("팀 역할 작업을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
-        finalizer.tryFinalize(operation)
-        return operationMapper.toResponse(operation)
+        teamRoleOperationProjectionFinalizer.tryFinalize(operation)
+        return teamRoleOperationMapper.toResponse(operation)
     }
 }

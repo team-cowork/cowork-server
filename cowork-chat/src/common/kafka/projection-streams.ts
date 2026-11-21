@@ -21,6 +21,13 @@ const sourceGeneration = (name: string): string => (
 );
 
 export const PROJECTION_STREAMS = {
+	accountPolicy: {
+		name: 'accountPolicy',
+		topic: 'preference.account-role.state.v1',
+		groupId: 'cowork-chat-account-role-v1-projection',
+		expectedSource: 'cowork-preference',
+		sourceGeneration: sourceGeneration('ACCOUNT_POLICY'),
+	},
 	meetingNoteAttachment: {
 		name: 'meetingNoteAttachment',
 		topic: 'channel.meeting-note-attachments.state.v1',

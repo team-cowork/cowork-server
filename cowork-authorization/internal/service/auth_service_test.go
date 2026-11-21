@@ -84,10 +84,10 @@ type fakeIdentityCoordinator struct {
 func (f *fakeIdentityCoordinator) EnsureUser(
 	_ context.Context,
 	command domain.UserIdentityCommand,
-) (int64, error) {
+) (*domain.SessionIdentity, error) {
 	f.calls++
 	f.command = command
-	return f.userID, f.err
+	return &domain.SessionIdentity{UserID: f.userID, Email: "committed@example.com", GsmRole: "GENERAL_STUDENT"}, f.err
 }
 
 func newUnitAuthService(store RefreshTokenStore, now time.Time) *AuthService {
@@ -113,7 +113,6 @@ func TestIssueNewSession_WhenIdentityIsValid_IssuesAndStoresAHashedSession(t *te
 		context.Background(),
 		7,
 		"user@example.com",
-		"MEMBER",
 		"STUDENT",
 		"device",
 	)
@@ -123,14 +122,15 @@ func TestIssueNewSession_WhenIdentityIsValid_IssuesAndStoresAHashedSession(t *te
 	if pair.AccessToken == "" || pair.RefreshToken == "" {
 		t.Fatal("issued token pair is empty")
 	}
+	assertTokenRoles(t, pair.AccessToken, "STUDENT")
 	if store.createdToken == nil || store.createdToken.UserID != 7 {
 		t.Fatalf("created token = %+v", store.createdToken)
 	}
 	if store.createdToken.TokenHash == "" || store.createdToken.TokenHash == pair.RefreshToken {
 		t.Fatal("refresh token must be stored only as a non-empty hash")
 	}
-	if store.createdToken.PlatformRole != "MEMBER" || store.createdToken.GsmRole != "STUDENT" {
-		t.Fatalf("stored roles = %q/%q", store.createdToken.PlatformRole, store.createdToken.GsmRole)
+	if store.createdToken.GsmRole != "STUDENT" {
+		t.Fatalf("stored student role = %q", store.createdToken.GsmRole)
 	}
 }
 
@@ -144,11 +144,7 @@ func TestCommitIdentityAndIssueSession_WhenIdentityIsRejected_DoesNotIssueTokens
 
 	pair, err := service.commitIdentityAndIssueSession(
 		context.Background(),
-		domain.UserIdentityCommand{UserID: 7},
-		"user@example.com",
-		"MEMBER",
-		"STUDENT",
-		"",
+		domain.UserIdentityCommand{},
 	)
 	if err == nil || pair != nil {
 		t.Fatalf("commitIdentityAndIssueSession() = %+v, %v; want failure", pair, err)
@@ -165,17 +161,17 @@ func TestRefreshTokens_AccordingToSessionState(t *testing.T) {
 	t.Run("an active refresh session returns a replacement pair", func(t *testing.T) {
 		t.Parallel()
 		store := &fakeRefreshTokenStore{rotationSource: &domain.RefreshToken{
-			UserID:       7,
-			Email:        "user@example.com",
-			GsmRole:      "STUDENT",
-			PlatformRole: "ADMIN",
-			ExpiresAt:    now.Add(time.Hour),
+			UserID:    7,
+			Email:     "user@example.com",
+			GsmRole:   "STUDENT",
+			ExpiresAt: now.Add(time.Hour),
 		}}
 
 		pair, err := newUnitAuthService(store, now).RefreshTokens(context.Background(), "refresh-token")
 		if err != nil || pair == nil || pair.AccessToken == "" || pair.RefreshToken == "" {
 			t.Fatalf("RefreshTokens() = %+v, %v", pair, err)
 		}
+		assertTokenRoles(t, pair.AccessToken, "STUDENT")
 	})
 
 	tests := []struct {
@@ -245,26 +241,59 @@ func TestLogout_AccordingToTokenOwnership(t *testing.T) {
 	}
 }
 
-func TestPlatformRoleFromDataGSM_AccordingToProviderRole(t *testing.T) {
+func TestValidateDataGSMAccountRole_AccordingToProviderRole(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		providerRole string
-		want         string
 		wantError    bool
 	}{
-		{providerRole: "ADMIN", want: "MEMBER"},
-		{providerRole: "USER", want: "MEMBER"},
+		{providerRole: "ADMIN"},
+		{providerRole: "USER"},
 		{providerRole: "", wantError: true},
 		{providerRole: "SUPER_ADMIN", wantError: true},
 	}
 	for _, test := range tests {
 		t.Run(test.providerRole, func(t *testing.T) {
 			t.Parallel()
-			got, err := PlatformRoleFromDataGSM(test.providerRole)
-			if (err != nil) != test.wantError || got != test.want {
-				t.Fatalf("PlatformRoleFromDataGSM(%q) = %q, %v", test.providerRole, got, err)
+			err := validateDataGSMAccountRole(test.providerRole)
+			if (err != nil) != test.wantError {
+				t.Fatalf("validateDataGSMAccountRole(%q) = %v", test.providerRole, err)
 			}
 		})
+	}
+}
+
+func TestDevSignInChecksAccountCredentialsBeforeIssuingSession(t *testing.T) {
+	accounts, err := config.ParseDevAccounts(`{"dev-1":{"id":"user1","password":"pw1"},"dev-2":{"id":"user2","password":"pw2"},"dev-3":{"id":"user3","password":"pw3"},"dev-4":{"id":"user4","password":"pw4"}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		id, pw  string
+		wantErr error
+	}{
+		{"", "pw1", ErrAuthenticationRejected},
+		{"unknown", "pw1", ErrAuthenticationRejected},
+		{"user1", "", ErrAuthenticationRejected},
+		{"user1", "wrong", ErrAuthenticationRejected},
+		{"user1", "pw1", nil},
+	} {
+		store := &fakeRefreshTokenStore{}
+		svc := newUnitAuthService(store, time.Now())
+		svc.cfg.DevAccounts = accounts
+		identity := &fakeIdentityCoordinator{userID: 25}
+		svc.identity = identity
+		pair, err := svc.DevSignIn(context.Background(), tc.id, tc.pw)
+		if !errors.Is(err, tc.wantErr) {
+			t.Fatalf("unexpected result %v", err)
+		}
+		if tc.wantErr != nil {
+			if identity.calls != 0 || pair != nil || store.createdToken != nil {
+				t.Fatal("invalid credentials issued a session")
+			}
+		} else if pair == nil || identity.command.Provider != "DEV" || identity.command.ProviderSubject != "dev-1" || identity.command.Student != nil {
+			t.Fatal("developer sign-in did not submit the fixed nonstudent identity")
+		}
 	}
 }

@@ -91,7 +91,7 @@
         "segment.ms": "3600000"
       }
     },
-    "chat.message.v2": {
+    "chat.message.event.v3": {
       "partitions": 1,
       "config": {
         "cleanup.policy": "delete",
@@ -489,6 +489,27 @@
         "cleanup.policy": "compact",
         "segment.ms": "3600000"
       }
+    },
+    "user.identity.command.v3": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "user.identity.result.v2": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
+    },
+    "user.identity.result.v2-dlt": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "delete",
+        "retention.ms": "604800000"
+      }
     }
   },
   "principals": {
@@ -501,7 +522,10 @@
         "user.identity.command-result",
         "user.identity.command-result-dlt",
         "user.presence.event",
-        "user.identity.command.v2"
+        "user.identity.command.v2",
+        "user.identity.command.v3",
+        "user.identity.result.v2",
+        "user.identity.result.v2-dlt"
       ]
     },
     "cowork-channel": {
@@ -535,7 +559,7 @@
         "channel.event.v2",
         "project.event.v2",
         "project.github-repo.event",
-        "chat.message.v2",
+        "chat.message.event.v3",
         "github.issue.create",
         "github.issue.result",
         "github.repo.event",
@@ -554,7 +578,8 @@
         "channel.thread.state.v1",
         "chat.thread-parent.command.v1",
         "chat.thread-parent.result.v1",
-        "chat.thread-parent.command.v1-dlt"
+        "chat.thread-parent.command.v1-dlt",
+        "preference.account-role.state.v1"
       ]
     },
     "cowork-github": {
@@ -667,7 +692,9 @@
     "cowork-roadmap": {
       "topics": [
         "team.member.event",
-        "team.member.event-dlt"
+        "team.member.event-dlt",
+        "preference.account-role.state.v1",
+        "preference.team-role.state.v2"
       ]
     },
     "cowork-team": {
@@ -700,7 +727,9 @@
         "user.presence.event",
         "team.member.event",
         "team.member.event-dlt",
-        "user.identity.command.v2"
+        "user.identity.command.v2",
+        "user.identity.command.v3",
+        "user.identity.result.v2"
       ]
     },
     "cowork-voice": {

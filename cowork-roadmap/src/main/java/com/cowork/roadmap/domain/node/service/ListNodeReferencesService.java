@@ -6,5 +6,5 @@ import com.cowork.roadmap.domain.node.presentation.data.response.NodeReferenceRe
 
 public interface ListNodeReferencesService {
 
-    List<NodeReferenceResDto> execute(Long userId, String userRole, Long nodeId);
+    List<NodeReferenceResDto> execute(Long userId, Long nodeId);
 }

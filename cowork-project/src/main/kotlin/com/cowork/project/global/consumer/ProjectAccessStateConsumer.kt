@@ -4,6 +4,7 @@ import com.cowork.project.domain.project.entity.ProjectAccessProjection
 import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import com.cowork.project.global.projection.ProjectionRecordProcessor
 import com.cowork.project.global.projection.ProjectionStreams
+import com.cowork.project.global.projection.ProjectionTopics
 import com.cowork.project.global.projection.toProjectionPrecision
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.springframework.kafka.annotation.KafkaListener
@@ -19,7 +20,7 @@ class ProjectAccessStateConsumer(
     private val mapper: ObjectMapper,
 ) {
     @KafkaListener(
-        topics = ["preference.project-access.state.v1"],
+        topics = [ProjectionTopics.PROJECT_ACCESS_STATE],
         groupId = "cowork-project.project-access",
         containerFactory = "projectAccessListenerContainerFactory",
     )

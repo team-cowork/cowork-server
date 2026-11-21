@@ -30,7 +30,7 @@ fragment ProjectFields on ProjectV2 {
 			name
 			layout
 			filter
-			fields(first: 50) { nodes { ${fieldCommon} } }
+			configuration { visibleFields(first: 50) { nodes { ${fieldCommon} } } }
 			groupByFields(first: 5) { nodes { ${fieldCommon} } }
 			verticalGroupByFields(first: 5) { nodes { ${fieldCommon} } }
 			sortByFields(first: 5) { nodes { direction field { ${fieldCommon} } } }
@@ -47,7 +47,7 @@ fragment ProjectItemFields on ProjectV2Item {
 	project { id number owner { __typename ... on Organization { login } } }
 	content {
 		__typename
-		... on DraftIssue { id title updatedAt assignees(first: 20) { nodes { login } } }
+		... on DraftIssue { id title body updatedAt assignees(first: 20) { nodes { login } } }
 		... on Issue {
 			id number title state url updatedAt
 			repository { nameWithOwner }
@@ -146,4 +146,46 @@ mutation UpdateItemPosition($projectId: ID!, $itemId: ID!, $afterId: ID) {
 	updateProjectV2ItemPosition(input: {projectId: $projectId, itemId: $itemId, afterId: $afterId }) {
 		clientMutationId
 	}
+}`;
+
+export const PROJECT_REPOSITORY_QUERY = `
+query ProjectRepository($owner: String!, $repo: String!, $number: Int!, $includeContent: Boolean!) {
+	repository(owner: $owner, name: $repo) {
+		id nameWithOwner owner { __typename login }
+		issueOrPullRequest(number: $number) @include(if: $includeContent) {
+			__typename ... on Issue { id } ... on PullRequest { id }
+		}
+	}
+}`;
+
+export const ADD_DRAFT_MUTATION = `
+mutation AddDraft($projectId: ID!, $title: String!, $body: String!) {
+	addProjectV2DraftIssue(input: {projectId: $projectId, title: $title, body: $body }) {
+		projectItem { id }
+	}
+}`;
+
+export const UPDATE_DRAFT_MUTATION = `
+mutation UpdateDraft($input: UpdateProjectV2DraftIssueInput!) {
+	updateProjectV2DraftIssue(input: $input) { clientMutationId }
+}`;
+
+export const ADD_ITEM_MUTATION = `
+mutation AddItem($projectId: ID!, $contentId: ID!) {
+	addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId }) { item { id } }
+}`;
+
+export const DELETE_ITEM_MUTATION = `
+mutation DeleteItem($projectId: ID!, $itemId: ID!) {
+	deleteProjectV2Item(input: {projectId: $projectId, itemId: $itemId }) { deletedItemId }
+}`;
+
+export const CONVERT_DRAFT_MUTATION = `
+mutation ConvertDraft($itemId: ID!, $repositoryId: ID!) {
+	convertProjectV2DraftIssueItemToIssue(input: {itemId: $itemId, repositoryId: $repositoryId }) { clientMutationId }
+}`;
+
+export const REPLACE_ISSUE_ASSIGNEES_MUTATION = `
+mutation ReplaceIssueAssignees($issueId: ID!, $assignees: [String!]!) {
+	replaceActorsForAssignable(input: {assignableId: $issueId, actorLogins: $assignees }) { clientMutationId }
 }`;

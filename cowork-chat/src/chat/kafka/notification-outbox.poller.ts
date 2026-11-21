@@ -193,12 +193,9 @@ export class NotificationOutboxPoller implements OnModuleInit, OnModuleDestroy {
      단, 메시지 작성자 본인이거나 읽기 권한이 있는 사용자가 아닌 경우는 제외된다.
 
      캐시 활용**:
-     - `recipientCache`: 배치 시작 시 {@link poll}에서 일괄 채워지며, 읽기 권한이 있는 사용자 조회에 사용된다.
-     - `parentCache`: 배치 시작 시 {@link poll}에서 일괄 채워지며, 부모 메시지 작성자 조회에 사용된다.
+     - `recipientCache`: 채널 ID를 키로 하는 배치 범위 캐시. 배치 시작 시 {@link poll}에서 일괄 채워지며, 읽기 권한이 있는 사용자 조회에 사용된다.
+     - `parentCache`: 부모 메시지 ID를 키로 하는 배치 범위 캐시. 배치 시작 시 {@link poll}에서 일괄 채워지며, 부모 메시지 작성자 조회에 사용된다.
 
-     @param message - 처리할 알림 대상 메시지
-     @param recipientCache - 채널 ID를 키로 하는 읽기 권한이 있는 사용자 목록 캐시 (배치 범위 내 공유)
-     @param parentCache - 부모 메시지 ID를 키로 하는 작성자 정보 캐시 (배치 범위 내 공유)
      @throws {Error} 읽기 권한이 있는 사용자 조회 또는 알림 트리거 발행 실패 시
      */
 	private async processMessage(

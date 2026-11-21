@@ -2,14 +2,13 @@ package com.cowork.project.global.consumer
 
 import com.cowork.project.global.projection.ProjectionRecordProcessor
 import com.cowork.project.global.projection.ProjectionStreams
+import com.cowork.project.global.projection.ProjectionTopics
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.slf4j.LoggerFactory
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
-
-private const val TEAM_MEMBER_EVENT_TOPIC = "team.member.event"
 
 @Component
 class TeamMemberEventConsumer(
@@ -21,7 +20,7 @@ class TeamMemberEventConsumer(
     private val log = LoggerFactory.getLogger(TeamMemberEventConsumer::class.java)
 
     @KafkaListener(
-        topics = [TEAM_MEMBER_EVENT_TOPIC],
+        topics = [ProjectionTopics.TEAM_MEMBER_EVENT],
         groupId = "cowork-project.team-member",
         containerFactory = "teamMemberEventListenerContainerFactory",
     )

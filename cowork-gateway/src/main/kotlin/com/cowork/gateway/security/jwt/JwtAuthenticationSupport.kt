@@ -5,7 +5,6 @@ import io.jsonwebtoken.Jwts
 import io.jsonwebtoken.security.Keys
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.Authentication
-import org.springframework.security.core.GrantedAuthority
 import org.springframework.stereotype.Component
 import java.nio.charset.StandardCharsets
 
@@ -28,20 +27,8 @@ class JwtAuthenticationSupport(private val jwtProperties: JwtProperties) {
             .parseSignedClaims(token)
             .payload
 
-        val userId = claims.subject
-        val role = claims.get("role", String::class.java) ?: "USER"
-        val authorities = listOf(RoleGrantedAuthority(role))
-
-        val auth = UsernamePasswordAuthenticationToken(userId, token, authorities)
-        auth.details = buildMap {
-            put("userId", userId)
-            put("role", role)
-            claims.expiration?.let { put("expiresAt", it.toInstant().epochSecond.toString()) }
-        }
+        val auth = UsernamePasswordAuthenticationToken(claims.subject, token, emptyList())
+        auth.details = claims.expiration?.let { mapOf("expiresAt" to it.toInstant().epochSecond.toString()) }
         return auth
-    }
-
-    private class RoleGrantedAuthority(private val role: String) : GrantedAuthority {
-        override fun getAuthority(): String = if (role.startsWith("ROLE_")) role else "ROLE_$role"
     }
 }

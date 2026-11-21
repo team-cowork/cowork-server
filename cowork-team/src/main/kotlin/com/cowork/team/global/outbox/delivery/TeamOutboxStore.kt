@@ -15,7 +15,7 @@ import kotlin.math.min
 internal class TeamOutboxStore(
     private val dataSource: DataSource,
     private val meterRegistry: MeterRegistry,
-    private val settings: OutboxRelaySettings,
+    private val outboxRelaySettings: OutboxRelaySettings,
     private val claimOwner: String,
 ) {
     private val serviceName = "cowork-team"
@@ -95,7 +95,7 @@ internal class TeamOutboxStore(
     private fun claim(connection: Connection, id: Long) {
         connection.prepareStatement(CLAIM_SQL).use { statement ->
             statement.setString(1, claimOwner)
-            statement.setLong(2, settings.claimLeaseMs * MICROS_PER_MILLISECOND)
+            statement.setLong(2, outboxRelaySettings.claimLeaseMs * MICROS_PER_MILLISECOND)
             statement.setLong(3, id)
             check(statement.executeUpdate() == 1) { "Kafka outbox row was not claimed." }
         }
@@ -117,7 +117,7 @@ internal class TeamOutboxStore(
 
     fun finalizeFailure(record: OutboxRecord, failureType: FailureType, exception: Exception, retryable: Boolean) {
         val attempts = record.attempts + 1
-        val quarantine = !retryable || attempts >= settings.maxAttempts
+        val quarantine = !retryable || attempts >= outboxRelaySettings.maxAttempts
         val updated =
             dataSource.connection.use { connection ->
                 val sql = if (quarantine) QUARANTINE_SQL else RETRY_SQL
@@ -210,13 +210,13 @@ internal class TeamOutboxStore(
     }
 
     private fun retryDelayMillis(attempts: Int): Long {
-        var delay = settings.backoffInitialMs
+        var delay = outboxRelaySettings.backoffInitialMs
         repeat(attempts - 1) {
             delay =
-                if (delay >= settings.backoffMaxMs / 2) {
-                    settings.backoffMaxMs
+                if (delay >= outboxRelaySettings.backoffMaxMs / 2) {
+                    outboxRelaySettings.backoffMaxMs
                 } else {
-                    min(settings.backoffMaxMs, delay * 2)
+                    min(outboxRelaySettings.backoffMaxMs, delay * 2)
                 }
         }
         val jitter = delay / JITTER_DIVISOR

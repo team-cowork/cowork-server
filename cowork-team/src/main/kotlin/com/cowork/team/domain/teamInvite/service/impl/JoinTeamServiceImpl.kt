@@ -1,13 +1,9 @@
 package com.cowork.team.domain.teamInvite.service.impl
 
-import com.cowork.team.domain.team.event.TeamMemberEventPublisher
-import com.cowork.team.domain.team.presentation.data.response.JoinTeamResponse
-import com.cowork.team.domain.team.projection.TeamSettingProjectionReader
-import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.teamInvite.presentation.data.response.JoinTeamResponse
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
 import com.cowork.team.domain.teamInvite.service.JoinTeamService
-import com.cowork.team.domain.teamMember.entity.TeamMember
-import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
+import com.cowork.team.domain.teamMember.CreateTeamMemberService
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -16,10 +12,7 @@ import team.themoment.sdk.exception.ExpectedException
 @Service
 class JoinTeamServiceImpl(
     private val teamInviteRepository: TeamInviteRepository,
-    private val teamRepository: TeamRepository,
-    private val teamMemberRepository: TeamMemberRepository,
-    private val teamMemberEventPublisher: TeamMemberEventPublisher,
-    private val teamSettingProjectionReader: TeamSettingProjectionReader,
+    private val createTeamMemberService: CreateTeamMemberService,
 ) : JoinTeamService {
 
     @Transactional
@@ -31,25 +24,7 @@ class JoinTeamServiceImpl(
             throw ExpectedException("만료된 초대 링크입니다.", HttpStatus.GONE)
         }
 
-        val teamId = invite.team.id
-        val team = teamRepository.findByIdForUpdate(teamId)
-            ?: throw ExpectedException("팀을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
-        if (teamMemberRepository.existsByTeamIdAndUserId(teamId, userId)) {
-            throw ExpectedException("이미 팀 멤버입니다.", HttpStatus.CONFLICT)
-        }
-
-        val nicknameFormat = teamSettingProjectionReader.getNicknameFormat(teamId)
-
-        val member = teamMemberRepository.save(TeamMember(team = team, userId = userId))
-        teamMemberEventPublisher.publishUpsert(member)
-
-        return JoinTeamResponse(
-            teamId = teamId,
-            userId = userId,
-            role = member.role.name,
-            joinedAt = requireNotNull(member.joinedAt),
-            nicknameFormatEnforced = nicknameFormat.enforced,
-            nicknameFormatExample = nicknameFormat.example,
-        )
+        val member = createTeamMemberService.execute(invite.team.id, userId)
+        return JoinTeamResponse.of(member)
     }
 }

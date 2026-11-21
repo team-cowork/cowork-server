@@ -33,8 +33,6 @@ data class GithubSyncTarget(
     val installationId: Long?,
     val projectNumber: Int? = null,
 ) {
-    val isProject: Boolean get() = projectNumber != null
-
     val requestId: String
         get() = when {
             projectNumber != null -> "PROJECT:$owner#$projectNumber"
@@ -100,10 +98,8 @@ class GithubSyncRequestScheduler(
     private val outboxWriter: OutboxWriter,
     private val snapshotLock: ProjectionSnapshotLock,
     @Value("\${github.sync.request-cooldown-ms:1800000}") private val requestCooldownMs: Long,
-    // 웹훅이 누락되거나 처리에 실패해도 새 repo·이슈·PR이 목록에 오래 빠지지 않도록 org와 repo는 1시간마다 다시 읽는다.
+    // 웹훅 누락이나 웹훅이 없는 Project field·view 변경도 따라가도록 org, repo, Project를 1시간마다 다시 읽는다.
     @Value("\${github.sync.stale-after-ms:3600000}") private val staleAfterMs: Long,
-    // GitHub는 field와 view 설정 변경을 웹훅으로 알리지 않는다. Project는 짧은 주기로 다시 읽어 그 변경을 따라간다.
-    @Value("\${github.sync.project-stale-after-ms:3600000}") private val projectStaleAfterMs: Long,
     @Value("\${github.sync.manual-cooldown-ms:60000}") private val manualCooldownMs: Long,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -122,7 +118,7 @@ class GithubSyncRequestScheduler(
             val requests = requestRepository.findAllById(targets.map { it.requestId })
                 .associate { it.id to it.requestedAt }
             targets
-                .filter { needsRequest(it.markerIds.map(markers::get), requests[it.requestId], now, staleAfter(it)) }
+                .filter { needsRequest(it.markerIds.map(markers::get), requests[it.requestId], now) }
                 .forEach { request(it, now) }
         }
     }
@@ -156,7 +152,7 @@ class GithubSyncRequestScheduler(
             lastRequestedAt == null || !lastRequestedAt.isAfter(now.minusMillis(manualCooldownMs))
         } else {
             val markers = markerRepository.findAllById(target.markerIds).associate { it.id to it.completedAt }
-            needsRequest(target.markerIds.map(markers::get), lastRequestedAt, now, projectStaleAfterMs)
+            needsRequest(target.markerIds.map(markers::get), lastRequestedAt, now)
         }
         if (!requested) return false
 
@@ -166,18 +162,11 @@ class GithubSyncRequestScheduler(
         return true
     }
 
-    internal fun needsRequest(
-        markerCompletedAts: List<Instant?>,
-        lastRequestedAt: Instant?,
-        now: Instant,
-        staleAfterMs: Long = this.staleAfterMs,
-    ): Boolean {
+    internal fun needsRequest(markerCompletedAts: List<Instant?>, lastRequestedAt: Instant?, now: Instant): Boolean {
         if (lastRequestedAt != null && lastRequestedAt.isAfter(now.minusMillis(requestCooldownMs))) return false
         val staleBefore = now.minusMillis(staleAfterMs)
         return markerCompletedAts.any { it == null || it.isBefore(staleBefore) }
     }
-
-    private fun staleAfter(target: GithubSyncTarget): Long = if (target.isProject) projectStaleAfterMs else staleAfterMs
 
     // owner/repo는 `project.github-repo.event`와 같은 규칙으로 소문자로 맞춘다. 연결 URL의 대소문자가 서로
     // 다르거나 GitHub 정식 이름과 달라도 같은 대상·마커로 판단해야 같은 repo를 반복 요청하지 않는다.

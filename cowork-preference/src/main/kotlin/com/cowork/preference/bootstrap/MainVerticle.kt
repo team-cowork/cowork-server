@@ -122,7 +122,7 @@ class MainVerticle : AbstractVerticle() {
         val webhookRepository = WebhookRepository()
         val notifRepo = NotificationRepository(pool)
         val roleRepo = ProjectRoleRepository(pool)
-        val teamRoleRepo = TeamRoleRepository(pool)
+        val teamRoleRepo = TeamRoleRepository()
         val channelRolePolicyRepo = ChannelRolePolicyRepository()
         val teamMemberProjectionRepo = TeamMemberProjectionRepository()
         val channelLifecycleProjectionRepo = ChannelLifecycleProjectionRepository()
@@ -163,7 +163,7 @@ class MainVerticle : AbstractVerticle() {
             outboxRepository,
             projectionReadiness,
         )
-        val teamRoleService = TeamRoleService(teamRoleRepo, outboxRepository, channelRolePolicyRepo, projectAccessRepo)
+        val teamRoleService = TeamRoleService(teamRoleRepo, outboxRepository, channelRolePolicyRepo)
         val channelLifecycleService = ChannelLifecycleService(
             projectionRepository = channelLifecycleProjectionRepo,
             policyRepository = channelRolePolicyRepo,

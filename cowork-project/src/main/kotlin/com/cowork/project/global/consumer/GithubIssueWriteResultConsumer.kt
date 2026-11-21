@@ -20,7 +20,7 @@ class GithubIssueWriteResultConsumer(
     @KafkaListener(
         topics = [GITHUB_ISSUE_WRITE_RESULT_TOPIC],
         groupId = "cowork-project.github-issue-write-result",
-        containerFactory = "githubIssueWriteResultListenerContainerFactory",
+        containerFactory = "durableListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
         val payload = runCatching {

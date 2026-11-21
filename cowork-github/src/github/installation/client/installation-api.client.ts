@@ -1,11 +1,10 @@
 import {HttpService} from '@nestjs/axios';
 import {Injectable as injectable} from '@nestjs/common';
-import {AxiosError} from 'axios';
 import {firstValueFrom} from 'rxjs';
 import {githubField} from '../../github-field.js';
 import {GithubAuthService} from '../../auth/github-auth.service.js';
-import {GITHUB_API, GITHUB_HEADERS} from '../../constants.js';
-import {GithubClientError} from '../../github.errors.js';
+import {GITHUB_API, githubAuthHeaders} from '../../constants.js';
+import {rethrowGithubError} from '../../github.errors.js';
 
 export type GithubRepoSummary = {
 	name: string;
@@ -33,26 +32,6 @@ export class InstallationApiClient {
 		private readonly authService: GithubAuthService,
 	) {}
 
-	private authHeaders(token: string) {
-		return {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${token}`};
-	}
-
-	private handleGithubError(error: unknown): never {
-		if (
-			error instanceof AxiosError
-			&& error.response
-			&& error.response.status < 500
-			&& error.response.status !== 429
-		) {
-			throw new GithubClientError(
-				(error.response.data as {message?: string})?.message ?? error.message,
-				error.response.status,
-			);
-		}
-
-		throw error;
-	}
-
 	async listRepositories(owner: string): Promise<GithubRepoSummary[]> {
 		const token = await this.authService.getInstallationToken(owner);
 		try {
@@ -61,7 +40,7 @@ export class InstallationApiClient {
 					`${GITHUB_API}/installation/repositories`,
 					{
 						params: {[githubField.perPage]: 100},
-						headers: this.authHeaders(token),
+						headers: githubAuthHeaders(token),
 					},
 				),
 			);
@@ -72,7 +51,7 @@ export class InstallationApiClient {
 				htmlUrl: repo.html_url,
 			}));
 		} catch (error) {
-			this.handleGithubError(error);
+			rethrowGithubError(error);
 		}
 	}
 }

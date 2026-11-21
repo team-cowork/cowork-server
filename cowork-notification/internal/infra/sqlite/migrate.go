@@ -68,8 +68,7 @@ func Migrate(ctx context.Context, db *gorm.DB) error {
 }
 
 func resolveMigrationDir() (string, error) {
-	candidates := migrationDirCandidates(os.Getenv("DB_MIGRATION_DIR"))
-	return firstExistingMigrationDir(candidates, func(candidate string) (bool, error) {
+	return firstExistingMigrationDir([]string{containerMigrationDir, localMigrationDir}, func(candidate string) (bool, error) {
 		info, err := os.Stat(candidate)
 		if err != nil {
 			return false, err
@@ -92,14 +91,6 @@ func firstExistingMigrationDir(
 		}
 	}
 	return "", fmt.Errorf("migration directory not found; checked %s", strings.Join(candidates, ", "))
-}
-
-func migrationDirCandidates(override string) []string {
-	candidates := make([]string, 0, 3)
-	if override = strings.TrimSpace(override); override != "" {
-		candidates = append(candidates, override)
-	}
-	return append(candidates, containerMigrationDir, localMigrationDir)
 }
 
 func recordMigration(tx *gorm.DB, m migration) error {

@@ -21,10 +21,8 @@ export class ChannelReadService {
 	/**
      읽음 위치를 `messageId`까지 전진시키고, DB가 채택한 위치 기준의 안읽음 수를 캐시에 기록한다.
 
-     @param channelId - 읽음 위치를 옮길 채널
-     @param userId - 읽은 사용자
-     @param messageId - 새 읽음 위치
-     @param shouldExcludeSystem - true면 SYSTEM 메시지를 세지 않는다. 음성 채널 로그를 볼 수 없는 사용자에게 쓴다
+     `shouldExcludeSystem`이 true면 SYSTEM 메시지를 세지 않는다. 음성 채널 로그를 볼 수 없는 사용자에게 쓴다.
+
      @returns 전송할 안읽음 수. 더 최신 읽음 위치로 계산한 값이 이미 기록되어 이 값이 오래되었으면 `null`
      */
 	async advance(channelId: number, userId: number, messageId: Types.ObjectId, shouldExcludeSystem = false): Promise<Nullable<number>> {

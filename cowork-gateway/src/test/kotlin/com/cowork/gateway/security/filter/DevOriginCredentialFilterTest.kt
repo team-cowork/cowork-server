@@ -38,6 +38,73 @@ class DevOriginCredentialFilterTest :
         }
 
         describe("DevOriginCredentialFilter 클래스의 filter 메서드는") {
+            context("고정 개발 계정 로그인 요청이면") {
+                it("HTTP, HTTPS 및 Origin이 없는 요청에도 개발 자격증명을 요구한다") {
+                    for ((scheme, origin) in listOf(
+                        "https" to "https://host",
+                        "http" to "http://host",
+                        "https" to null,
+                    )) {
+                        val request = MockServerHttpRequest.post("$scheme://host/api/authorization/auth/dev-signin")
+                            .header("X-Cowork-Dev-Signin-Verified", "true")
+                        if (origin != null) request.header("Origin", origin)
+                        val exchange = MockServerWebExchange.from(request)
+                        filter.filter(exchange, mockk()).block()
+                        exchange.response.statusCode shouldBe HttpStatus.FORBIDDEN
+                    }
+                }
+
+                it("개발 로그인 URL에 자격증명을 넣으면 헤더 사용 여부와 관계없이 거부한다") {
+                    for (header in listOf(null, "secret")) {
+                        val request = MockServerHttpRequest.post(
+                            "/api/authorization/auth/dev-signin?dev_credential=secret",
+                        )
+                        if (header != null) request.header("X-Dev-Credential", header)
+                        val exchange = MockServerWebExchange.from(request)
+                        val chain = mockk<WebFilterChain>()
+                        filter.filter(exchange, chain).block()
+                        exchange.response.statusCode shouldBe HttpStatus.FORBIDDEN
+                        verify(exactly = 0) { chain.filter(any()) }
+                    }
+                }
+
+                it("허용된 localhost가 헤더로 보낸 자격증명을 받는다") {
+                    val (chain, captured) = forwardingChain()
+                    val exchange = MockServerWebExchange.from(
+                        MockServerHttpRequest.post("/api/authorization/auth/dev-signin")
+                            .header("Origin", "http://localhost:3000")
+                            .header("X-Dev-Credential", "secret")
+                            .header("X-Cowork-Dev-Signin-Verified", "client"),
+                    )
+                    filter.filter(exchange, chain).block()
+                    captured.captured.request.headers.getFirst("X-Dev-Credential") shouldBe null
+                    captured.captured.request.headers["X-Cowork-Dev-Signin-Verified"] shouldBe listOf("true")
+                }
+
+                it("틀린 개발 자격증명을 보내면 전달하지 않는다") {
+                    val chain = mockk<WebFilterChain>()
+                    val exchange = MockServerWebExchange.from(
+                        MockServerHttpRequest.post("/api/authorization/auth/dev-signin")
+                            .header("X-Dev-Credential", "invalid"),
+                    )
+                    filter.filter(exchange, chain).block()
+                    exchange.response.statusCode shouldBe HttpStatus.FORBIDDEN
+                    verify(exactly = 0) { chain.filter(any()) }
+                }
+            }
+
+            context("다른 경로에 외부 검증 헤더를 보내면") {
+                it("검증 헤더를 지우고 전달한다") {
+                    val (chain, captured) = forwardingChain()
+                    val exchange = MockServerWebExchange.from(
+                        MockServerHttpRequest.post("/api/authorization/auth/refresh")
+                            .header("X-Cowork-Dev-Signin-Verified", "true"),
+                    )
+                    filter.filter(exchange, chain).block()
+                    captured.captured.request.headers.getFirst("X-Cowork-Dev-Signin-Verified") shouldBe null
+                }
+            }
+
             context("CORS 허용 origin의 요청에 자격증명이 없으면") {
                 it("브라우저가 읽을 수 있는 FORBIDDEN으로 거부한다") {
                     val chain = mockk<WebFilterChain>()

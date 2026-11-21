@@ -54,7 +54,7 @@ func (r *UserIdentityOperationRepository) Submit(
 			First(&existing).Error
 		switch {
 		case err == nil:
-			if existing.UserID != command.UserID || existing.RequestHash != requestHash {
+			if existing.RequestHash != requestHash {
 				return ErrIdentityCommandConflict
 			}
 			operationID = existing.OperationID
@@ -66,9 +66,9 @@ func (r *UserIdentityOperationRepository) Submit(
 		operation := domain.UserIdentityOperation{
 			OperationID:    command.OperationID,
 			IdempotencyKey: command.IdempotencyKey,
-			UserID:         command.UserID,
-			RequestHash:    requestHash,
-			Status:         domain.UserIdentityPending,
+
+			RequestHash: requestHash,
+			Status:      domain.UserIdentityPending,
 		}
 		if err := tx.Create(&operation).Error; err != nil {
 			return err
@@ -76,7 +76,7 @@ func (r *UserIdentityOperationRepository) Submit(
 		return tx.Exec(
 			`INSERT INTO tb_kafka_outbox (topic, event_key, payload) VALUES (?, ?, ?)`,
 			topic,
-			fmt.Sprintf("%d", command.UserID),
+			command.Provider+":"+command.ProviderSubject,
 			payload,
 		).Error
 	})
@@ -125,6 +125,9 @@ func (r *UserIdentityOperationRepository) ApplyResult(
 			}
 			return err
 		}
+		if (operation.LegacyUserID != nil) != (result.SchemaVersion == 1) {
+			return ErrIdentityResultConflict
+		}
 		if operation.ResultHash != nil {
 			if *operation.ResultHash == resultHash {
 				return nil
@@ -142,10 +145,12 @@ func (r *UserIdentityOperationRepository) ApplyResult(
 			"completed_at": completedAt,
 		}
 		if result.Status == domain.UserIdentitySucceeded {
-			if result.UserID == nil || *result.UserID != operation.UserID {
+			if operation.LegacyUserID != nil && *result.UserID != *operation.LegacyUserID {
 				return ErrIdentityResultUserID
 			}
 			updates["result_user_id"] = *result.UserID
+			updates["result_email"] = result.Email
+			updates["result_gsm_role"] = result.GsmRole
 			updates["error_code"] = nil
 			updates["error_message"] = nil
 		} else {

@@ -4,8 +4,9 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import com.cowork.roadmap.global.config.KafkaConsumerConfig;
 import com.cowork.roadmap.global.team.event.TeamMemberEvent;
-import com.cowork.roadmap.global.team.service.TeamMemberProjectionProcessor;
+import com.cowork.roadmap.global.team.service.ProjectionRecordProcessor;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,12 +18,12 @@ import tools.jackson.databind.ObjectMapper;
 public class TeamMemberEventConsumer {
 
     private final ObjectMapper objectMapper;
-    private final TeamMemberProjectionProcessor processor;
+    private final ProjectionRecordProcessor processor;
 
-    @KafkaListener(topics = "${KAFKA_TOPIC_TEAM_MEMBER:team.member.event}", groupId = "${KAFKA_GROUP_ID_TEAM_MEMBER:cowork-roadmap.team-member}", containerFactory = "teamMemberListenerContainerFactory")
+    @KafkaListener(topics = KafkaConsumerConfig.TEAM_MEMBER_TOPIC, groupId = KafkaConsumerConfig.TEAM_MEMBER_GROUP, containerFactory = "teamMemberListenerContainerFactory")
     public void consume(ConsumerRecord<String, String> record) {
         if (ProjectionSnapshotCompletion.isReserved(record)) {
-            String violation = ProjectionSnapshotCompletion.violation(objectMapper, record);
+            String violation = ProjectionSnapshotCompletion.violation(objectMapper, record, "cowork-team");
             if (violation == null) {
                 processor.completeSnapshot(record, ProjectionSnapshotCompletion.snapshotId(objectMapper, record));
             } else {

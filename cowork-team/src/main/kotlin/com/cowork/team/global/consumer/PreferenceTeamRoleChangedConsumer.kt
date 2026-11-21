@@ -11,10 +11,10 @@ import tools.jackson.databind.ObjectMapper
 
 @Component
 class PreferenceTeamRoleChangedConsumer(
-    private val handler: PreferenceTeamRoleProjectionHandler,
+    private val preferenceTeamRoleProjectionHandler: PreferenceTeamRoleProjectionHandler,
     private val objectMapper: ObjectMapper,
-    private val processor: ProjectionRecordProcessor,
-    private val streams: ProjectionStreams,
+    private val projectionRecordProcessor: ProjectionRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
 ) {
 
     @KafkaListener(
@@ -23,7 +23,7 @@ class PreferenceTeamRoleChangedConsumer(
         containerFactory = "preferenceTeamRoleChangedListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        if (processor.processControlRecord(streams.teamRole, record)) return
+        if (projectionRecordProcessor.processControlRecord(projectionStreams.teamRole, record)) return
         val event = runCatching { objectMapper.readValue(record.value(), PreferenceTeamRoleChangedEvent::class.java) }
             .getOrElse {
                 quarantine(record, "preference team-role JSON 역직렬화 실패: ${it.message}")
@@ -34,7 +34,9 @@ class PreferenceTeamRoleChangedConsumer(
             quarantine(record, reason)
             return
         }
-        processor.applyRecord(streams.teamRole, record) { handler.handle(event) }
+        projectionRecordProcessor.applyRecord(projectionStreams.teamRole, record) {
+            preferenceTeamRoleProjectionHandler.handle(event)
+        }
     }
 
     private fun contractViolation(event: PreferenceTeamRoleChangedEvent, key: String?): String? {
@@ -91,6 +93,6 @@ class PreferenceTeamRoleChangedConsumer(
             record.offset(),
             reason,
         )
-        processor.quarantineRecord(streams.teamRole, record, reason)
+        projectionRecordProcessor.quarantineRecord(projectionStreams.teamRole, record, reason)
     }
 }

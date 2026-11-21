@@ -3,9 +3,13 @@ package com.cowork.project.domain.githubBoard.presentation.controller
 import com.cowork.project.domain.githubBoard.model.GithubBoardItemQuery
 import com.cowork.project.domain.githubBoard.presentation.data.response.GithubBoardItemsResDto
 import com.cowork.project.domain.githubBoard.presentation.data.response.GithubBoardKanbanResDto
+import com.cowork.project.domain.githubBoard.presentation.data.response.GithubBoardRoadmapResDto
+import com.cowork.project.domain.githubBoard.presentation.data.response.GithubBoardTableResDto
 import com.cowork.project.domain.githubBoard.presentation.data.response.GithubBoardViewResDto
 import com.cowork.project.domain.githubBoard.service.QueryGithubBoardItemsService
 import com.cowork.project.domain.githubBoard.service.QueryGithubBoardKanbanService
+import com.cowork.project.domain.githubBoard.service.QueryGithubBoardRoadmapService
+import com.cowork.project.domain.githubBoard.service.QueryGithubBoardTableService
 import com.cowork.project.domain.githubBoard.service.QueryGithubBoardViewsService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
@@ -54,7 +58,7 @@ private val ITEM_TYPES = setOf("ISSUE", "PULL_REQUEST", "DRAFT_ISSUE")
     ),
     ApiResponse(
         responseCode = "503",
-        description = "GitHub Project 동기화가 끝나지 않음",
+        description = "GitHub Project 동기화가 끝나지 않았거나, 프로젝트 생성이나 권한 변경 직후 권한 정보가 아직 동기화되지 않음.",
         content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
     ),
     ApiResponse(
@@ -69,6 +73,8 @@ class GithubBoardViewController(
     private val queryGithubBoardViewsService: QueryGithubBoardViewsService,
     private val queryGithubBoardKanbanService: QueryGithubBoardKanbanService,
     private val queryGithubBoardItemsService: QueryGithubBoardItemsService,
+    private val queryGithubBoardTableService: QueryGithubBoardTableService,
+    private val queryGithubBoardRoadmapService: QueryGithubBoardRoadmapService,
 ) {
 
     @Operation(summary = "GitHub Project 뷰 목록 조회", security = [SecurityRequirement(name = "BearerAuth")])
@@ -158,6 +164,110 @@ class GithubBoardViewController(
         boardId,
         viewNumber,
         toQuery(assignee, repo, type, q, ignoreViewFilter, params),
+    )
+
+    @Operation(
+        summary = "테이블 조회",
+        description = "Table 뷰에 저장된 표시 field, 정렬, 그룹으로 카드를 돌려줍니다. " +
+            "filter는 칸반 조회와 같은 규칙으로 적용합니다. " +
+            "셀 값은 PUT 또는 DELETE /projects/{projectId}/github-boards/{boardId}/items/{itemId}/fields/{fieldId}로 바꿉니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(
+            responseCode = "400",
+            description = "Table 뷰가 아님, 없는 field 조건 또는 잘못된 type",
+            content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
+        ),
+    )
+    @GetMapping("/{viewNumber}/table")
+    fun getTable(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable projectId: Long,
+        @PathVariable boardId: Long,
+        @PathVariable viewNumber: Int,
+        @Parameter(description = "담당자 GitHub 사용자 이름. 쉼표로 구분하며 me는 요청자", example = "me")
+        @RequestParam(required = false) assignee: String?,
+        @Parameter(description = "저장소. owner/repo 또는 repo 이름", example = "my-org/app")
+        @RequestParam(required = false) repo: String?,
+        @Parameter(description = "item 종류", schema = Schema(allowableValues = ["ISSUE", "PULL_REQUEST", "DRAFT_ISSUE"]))
+        @RequestParam(required = false) type: String?,
+        @Parameter(description = "제목 부분 일치 검색어", example = "로그인")
+        @RequestParam(required = false) q: String?,
+        @Parameter(description = "true면 뷰 filter 미적용", example = "false")
+        @RequestParam(defaultValue = "false") ignoreViewFilter: Boolean,
+        @Parameter(
+            name = "field[이름]",
+            `in` = ParameterIn.QUERY,
+            description = "Project field 조건. 쉼표로 구분한 값 중 하나와 일치",
+            example = "field[Status]=Todo,In Progress",
+        )
+        @RequestParam params: MultiValueMap<String, String>,
+    ): GithubBoardTableResDto = queryGithubBoardTableService.execute(
+        userId,
+        projectId,
+        boardId,
+        viewNumber,
+        toQuery(assignee, repo, type, q, ignoreViewFilter, params),
+    )
+
+    @Operation(
+        summary = "로드맵 조회",
+        description = "Roadmap 뷰의 카드를 그룹별 타임라인 구간으로 돌려줍니다. " +
+            "GitHub API는 뷰에 저장한 시작 field, 종료 field, 날짜 단위를 주지 않으므로 서버 기본 규칙을 쓰며 " +
+            "startFieldId와 endFieldId로 바꿀 수 있습니다. filter는 칸반 조회와 같은 규칙으로 적용합니다. " +
+            "일정은 PUT 또는 DELETE /projects/{projectId}/github-boards/{boardId}/items/{itemId}/fields/{fieldId}로 바꿉니다.",
+        security = [SecurityRequirement(name = "BearerAuth")],
+    )
+    @ApiResponses(
+        ApiResponse(responseCode = "200", description = "조회 성공"),
+        ApiResponse(
+            responseCode = "400",
+            description = "Roadmap 뷰가 아님, date 또는 iteration이 아닌 시작 field나 종료 field, 없는 field 조건 또는 잘못된 type",
+            content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
+        ),
+        ApiResponse(
+            responseCode = "409",
+            description = "GitHub App에 Projects 권한이 없음 또는 Project에 date나 iteration field가 없음",
+            content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
+        ),
+    )
+    @GetMapping("/{viewNumber}/roadmap")
+    fun getRoadmap(
+        @Parameter(hidden = true) @RequestHeader("X-User-Id") userId: Long,
+        @PathVariable projectId: Long,
+        @PathVariable boardId: Long,
+        @PathVariable viewNumber: Int,
+        @Parameter(description = "구간 시작일을 정하는 date 또는 iteration field ID. 없으면 서버 기본 규칙")
+        @RequestParam(required = false) startFieldId: String?,
+        @Parameter(description = "구간 종료일을 정하는 date 또는 iteration field ID. 없으면 서버 기본 규칙")
+        @RequestParam(required = false) endFieldId: String?,
+        @Parameter(description = "담당자 GitHub 사용자 이름. 쉼표로 구분하며 me는 요청자", example = "me")
+        @RequestParam(required = false) assignee: String?,
+        @Parameter(description = "저장소. owner/repo 또는 repo 이름", example = "my-org/app")
+        @RequestParam(required = false) repo: String?,
+        @Parameter(description = "item 종류", schema = Schema(allowableValues = ["ISSUE", "PULL_REQUEST", "DRAFT_ISSUE"]))
+        @RequestParam(required = false) type: String?,
+        @Parameter(description = "제목 부분 일치 검색어", example = "로그인")
+        @RequestParam(required = false) q: String?,
+        @Parameter(description = "true면 뷰 filter 미적용", example = "false")
+        @RequestParam(defaultValue = "false") ignoreViewFilter: Boolean,
+        @Parameter(
+            name = "field[이름]",
+            `in` = ParameterIn.QUERY,
+            description = "Project field 조건. 쉼표로 구분한 값 중 하나와 일치",
+            example = "field[Status]=Todo,In Progress",
+        )
+        @RequestParam params: MultiValueMap<String, String>,
+    ): GithubBoardRoadmapResDto = queryGithubBoardRoadmapService.execute(
+        userId,
+        projectId,
+        boardId,
+        viewNumber,
+        toQuery(assignee, repo, type, q, ignoreViewFilter, params),
+        startFieldId?.trim()?.takeIf { it.isNotEmpty() },
+        endFieldId?.trim()?.takeIf { it.isNotEmpty() },
     )
 
     private fun toQuery(

@@ -33,7 +33,8 @@ export type GraphqlProjectView = {
 	name: string;
 	layout: string;
 	filter?: Nullable<string>;
-	fields?: Nullable<Connection<FieldRef>>;
+	// `fields`는 Project field 위치 순서다. Table 뷰에 저장한 열 순서는 `configuration.visibleFields`만 준다.
+	configuration?: Nullable<{visibleFields?: Nullable<Connection<FieldRef>>}>;
 	groupByFields?: Nullable<Connection<FieldRef>>;
 	verticalGroupByFields?: Nullable<Connection<FieldRef>>;
 	sortByFields?: Nullable<Connection<{direction: string; field?: FieldRef}>>;
@@ -57,6 +58,7 @@ export type GraphqlProjectItemContent = {
 	id?: string;
 	number?: number;
 	title?: string;
+	body?: string;
 	state?: string;
 	isDraft?: boolean;
 	url?: string;
@@ -125,7 +127,7 @@ export const toViewState = (view: GraphqlProjectView): ProjectViewState => ({
 	name: view.name,
 	layout: view.layout,
 	filter: view.filter === undefined || view.filter === '' ? null : view.filter,
-	visibleFieldIds: fieldIds(view.fields),
+	visibleFieldIds: fieldIds(view.configuration?.visibleFields),
 	groupByFieldIds: fieldIds(view.groupByFields),
 	verticalGroupByFieldIds: fieldIds(view.verticalGroupByFields),
 	sortBy: presentNodes(view.sortByFields)
@@ -208,6 +210,7 @@ export const toFieldValueState = (value: GraphqlProjectItemFieldValue): ProjectI
 
 const toContentState = (content: GraphqlProjectItemContent): ProjectItemContentState => ({
 	title: content.title ?? '',
+	...(content.body !== undefined && {body: content.body.replace(/\n\n<!-- cowork-project-draft:[\d\-a-f]{36} -->$/iv, '')}),
 	number: content.number ?? null,
 	state: content.state ?? null,
 	url: content.url ?? null,
