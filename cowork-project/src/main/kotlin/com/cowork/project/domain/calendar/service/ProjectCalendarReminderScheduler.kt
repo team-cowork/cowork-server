@@ -59,7 +59,7 @@ class ProjectCalendarReminderScheduler(
         candidates.forEach { event ->
             CalendarReminderPolicy.due(event.series(), event.reminders, after, now).forEach { due ->
                 val alreadySent = projectCalendarReminderDeliveryRepository
-                    .existsByEventIdAndOriginalStartAtAndStartAtAndMinutesBefore(
+                    .existsByEventIdAndOriginalStartAtAndStartAtAndMinutesBeforeEquals(
                         event.id,
                         due.occurrence.originalStartAt,
                         due.occurrence.startAt,
