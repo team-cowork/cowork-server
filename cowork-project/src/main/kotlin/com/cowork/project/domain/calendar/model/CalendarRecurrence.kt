@@ -177,8 +177,10 @@ object CalendarSeriesSplitter {
         val head: CalendarRecurrence,
         /** 새 시리즈에 줄 규칙. 원본의 종료 조건을 남은 발생분에 맞춘다. */
         val tail: CalendarRecurrence,
-        /** 원본에 남길 예외. 끊는 시각 이후의 예외는 버린다. */
+        /** 원본에 남길 예외. 끊는 시각 이전의 예외만 남긴다. */
         val headExceptions: List<CalendarOccurrenceException>,
+        /** 끊는 시각보다 뒤의 예외. 끊는 발생분은 이번 수정이 정하므로 넣지 않는다. */
+        val tailExceptions: List<CalendarOccurrenceException>,
     )
 
     /**
@@ -198,6 +200,11 @@ object CalendarSeriesSplitter {
             recurrence.copy(until = occurrenceStartAt.minus(1, ChronoUnit.MICROS))
         }
         val tail = recurrence.copy(count = recurrence.count?.let { it - before })
-        return Split(head, tail, series.exceptions.filter { it.originalStartAt.isBefore(occurrenceStartAt) })
+        return Split(
+            head,
+            tail,
+            headExceptions = series.exceptions.filter { it.originalStartAt.isBefore(occurrenceStartAt) },
+            tailExceptions = series.exceptions.filter { it.originalStartAt.isAfter(occurrenceStartAt) },
+        )
     }
 }

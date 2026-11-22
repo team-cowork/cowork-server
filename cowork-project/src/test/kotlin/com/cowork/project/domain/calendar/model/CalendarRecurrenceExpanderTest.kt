@@ -188,20 +188,22 @@ class CalendarRecurrenceExpanderTest :
         }
 
         describe("이후 모두 범위로 나누기") {
-            it("COUNT 규칙은 앞과 뒤의 발생 수로 나누고 뒤쪽 예외는 버린다") {
-                val keep = CalendarOccurrenceException(at("2026-12-01T09:00"), title = "첫 회의")
-                val drop = CalendarOccurrenceException(at("2026-12-04T09:00"), cancelled = true)
+            it("COUNT 규칙은 앞과 뒤의 발생 수로 나누고 끊는 발생분을 뺀 예외를 앞뒤로 나눈다") {
+                val head = CalendarOccurrenceException(at("2026-12-01T09:00"), title = "첫 회의")
+                val edited = CalendarOccurrenceException(at("2026-12-03T09:00"), title = "옛 제목")
+                val tail = CalendarOccurrenceException(at("2026-12-04T09:00"), cancelled = true)
                 val event = series(
                     "2026-12-01T09:00",
                     CalendarRecurrence(RecurrenceFrequency.DAILY, count = 5),
-                    listOf(keep, drop),
+                    listOf(head, edited, tail),
                 )
 
                 val split = CalendarSeriesSplitter.split(event, at("2026-12-03T09:00"))!!
 
                 split.head.count shouldBe 2
                 split.tail.count shouldBe 3
-                split.headExceptions shouldBe listOf(keep)
+                split.headExceptions shouldBe listOf(head)
+                split.tailExceptions shouldBe listOf(tail)
             }
 
             it("UNTIL이나 끝이 없는 규칙은 앞쪽을 나누는 시각 직전에 끝낸다") {

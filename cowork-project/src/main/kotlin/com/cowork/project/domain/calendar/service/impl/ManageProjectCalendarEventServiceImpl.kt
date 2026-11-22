@@ -77,6 +77,7 @@ class ManageProjectCalendarEventServiceImpl(
             CalendarEditScope.FOLLOWING -> {
                 val originalStartAt = requireOccurrence(event, occurrenceStartAt)
                 val originalRecurrence = event.recurrence
+                val originalTimeZone = event.timeZone
                 val split = CalendarSeriesSplitter.split(event.series(), originalStartAt)
                 if (split == null) {
                     applyAll(event, input)
@@ -87,7 +88,12 @@ class ManageProjectCalendarEventServiceImpl(
                     publish(event)
                     // 규칙을 바꾸지 않았다면 남은 발생 수를 이어받아 전체 발생 수가 그대로 남게 한다.
                     val tailRecurrence = if (input.recurrence == originalRecurrence) split.tail else input.recurrence
-                    return save(project, event.createdBy, input.copy(recurrence = tailRecurrence))
+                    // 발생분 위치가 그대로면 예외가 가리키던 발생분도 새 시리즈에 그대로 있으므로 예외를 넘긴다.
+                    val occurrencesKept = input.startAt == originalStartAt &&
+                        input.timeZone == originalTimeZone &&
+                        input.recurrence == originalRecurrence
+                    val tailExceptions = if (occurrencesKept) split.tailExceptions else emptyList()
+                    return save(project, event.createdBy, input.copy(recurrence = tailRecurrence), tailExceptions)
                 }
             }
         }
@@ -127,7 +133,12 @@ class ManageProjectCalendarEventServiceImpl(
         publish(event)
     }
 
-    private fun save(project: Project, createdBy: Long, input: EventInput): ProjectCalendarEventResDto {
+    private fun save(
+        project: Project,
+        createdBy: Long,
+        input: EventInput,
+        exceptions: List<CalendarOccurrenceException> = emptyList(),
+    ): ProjectCalendarEventResDto {
         val event = ProjectCalendarEvent(
             projectId = project.id,
             teamId = project.teamId,
@@ -142,6 +153,10 @@ class ManageProjectCalendarEventServiceImpl(
             rangeStartAt = input.startAt,
         )
         applyAll(event, input)
+        if (exceptions.isNotEmpty()) {
+            event.replaceExceptions(exceptions)
+            event.refreshRange()
+        }
         return publish(projectCalendarEventRepository.save(event))
     }
 
