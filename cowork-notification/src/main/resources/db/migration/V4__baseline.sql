@@ -1,4 +1,5 @@
--- AUTOINCREMENT가 삭제된 id의 재사용을 막아 installation_id가 delivery retry의 소유 세대로 유지된다.
+-- V1~V4 마이그레이션을 하나로 합친 기준 스키마입니다 (SQLite).
+
 CREATE TABLE tb_device_installation
 (
     id         INTEGER  NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -8,7 +9,9 @@ CREATE TABLE tb_device_installation
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL
 );
+
 CREATE UNIQUE INDEX uq_tb_device_installation_fid ON tb_device_installation (fid);
+
 CREATE INDEX idx_tb_device_installation_account_id ON tb_device_installation (account_id);
 
 CREATE TABLE tb_notification_delivery_retry
@@ -28,24 +31,15 @@ CREATE TABLE tb_notification_delivery_retry
     created_at       DATETIME NOT NULL,
     updated_at       DATETIME NOT NULL
 );
+
 CREATE UNIQUE INDEX uq_tb_notification_delivery_retry_event_installation
     ON tb_notification_delivery_retry (event_id, installation_id);
+
 CREATE INDEX idx_tb_notification_delivery_retry_status_next_attempt
     ON tb_notification_delivery_retry (status, next_attempt_at);
+
 CREATE INDEX idx_tb_notification_delivery_retry_status_updated_at
     ON tb_notification_delivery_retry (status, updated_at);
-
-CREATE TABLE tb_channel_notification_preferences
-(
-    account_id           INTEGER  NOT NULL, -- cowork-user의 tb_accounts.id
-    channel_id           INTEGER  NOT NULL, -- cowork-channel의 채널 ID
-    notification_enabled BOOLEAN  NOT NULL DEFAULT TRUE,
-    source_updated_at    DATETIME NOT NULL,
-    updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (account_id, channel_id)
-);
-CREATE INDEX idx_tb_channel_notification_preferences_channel_account
-    ON tb_channel_notification_preferences (channel_id, account_id);
 
 CREATE TABLE tb_user_profile_projections
 (
@@ -83,6 +77,7 @@ CREATE TABLE tb_projection_checkpoints
     updated_at                DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (consumer_group, topic_name, partition_id)
 );
+
 CREATE INDEX idx_tb_projection_checkpoints_topic_partition
     ON tb_projection_checkpoints (topic_name, partition_id);
 
@@ -99,4 +94,49 @@ CREATE TABLE tb_projection_dead_letters
     created_at     DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (consumer_group, topic_name, partition_id, message_offset)
 );
+
 CREATE INDEX idx_tb_projection_dead_letters_created_at ON tb_projection_dead_letters (created_at);
+
+CREATE TABLE tb_channel_notification_preferences
+(
+    account_id         INTEGER  NOT NULL, -- cowork-user의 tb_accounts.id
+    channel_id         INTEGER  NOT NULL, -- cowork-channel의 채널 ID
+    notification_level TEXT     NOT NULL, -- ALL | MENTIONS | NONE
+    muted_until        DATETIME NULL,
+    source_updated_at  DATETIME NOT NULL,
+    updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (account_id, channel_id)
+);
+
+CREATE INDEX idx_tb_channel_notification_preferences_channel_account
+    ON tb_channel_notification_preferences (channel_id, account_id);
+
+CREATE TABLE tb_account_notification_settings
+(
+    account_id         INTEGER  NOT NULL PRIMARY KEY, -- cowork-user의 tb_accounts.id
+    notification_level TEXT     NULL,                 -- ALL | MENTIONS | NONE
+    status             TEXT     NULL,                 -- ONLINE | DO_NOT_DISTURB
+    status_expires_at  DATETIME NULL,
+    timezone           TEXT     NULL,                 -- IANA time zone
+    dnd_enabled        BOOLEAN  NOT NULL DEFAULT FALSE,
+    dnd_start_minute   INTEGER  NULL,                 -- timezone 기준 자정부터 지난 분
+    dnd_end_minute     INTEGER  NULL,
+    source_updated_at  DATETIME NOT NULL,
+    updated_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE tb_team_notification_settings
+(
+    team_id                    INTEGER  NOT NULL PRIMARY KEY, -- cowork-team의 tb_teams.id
+    default_notification_level TEXT     NULL,                 -- ALL | MENTIONS | NONE
+    source_updated_at          DATETIME NOT NULL,
+    updated_at                 DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE tb_notification_event_inbox
+(
+    event_id     TEXT     NOT NULL PRIMARY KEY, -- 알림 트리거 이벤트의 안정적 식별자 (notification.trigger의 eventId)
+    completed_at DATETIME NOT NULL
+);
+
+CREATE INDEX idx_tb_notification_event_inbox_completed_at ON tb_notification_event_inbox (completed_at);
