@@ -92,7 +92,7 @@ async function bootstrap() {
 	app.useGlobalFilters(new GlobalExceptionFilter());
 	app.useStaticAssets(join(import.meta.dirname, '..', 'public'));
 
-	const document = createChatApiDocument(app, new DocumentBuilder().setVersion('20261121.0'));
+	const document = createChatApiDocument(app, new DocumentBuilder().setVersion('20261122.0'));
 
 	SwaggerModule.setup('api', app, document, {jsonDocumentUrl: 'v3/api-docs'});
 

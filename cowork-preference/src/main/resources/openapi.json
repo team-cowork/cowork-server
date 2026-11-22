@@ -3,7 +3,7 @@
   "info": {
     "title": "cowork Preference API",
     "description": "전역 역할, 프로젝트 역할, 리소스 설정과 웹훅 관리",
-    "version": "20261121.0"
+    "version": "20261122.0"
   },
   "servers": [{"url": "/api/preference", "description": "Gateway"}],
   "security": [{"BearerAuth": []}],

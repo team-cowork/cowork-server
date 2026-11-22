@@ -13,7 +13,7 @@ import org.springframework.context.annotation.Configuration
     info = Info(
         title = "cowork Project API",
         description = "프로젝트 정보와 순서, GitHub 저장소·이슈·PR 연동을 관리합니다.",
-        version = "20261121.0",
+        version = "20261122.0",
     ),
     servers = [Server(url = "/api/project", description = "Gateway")],
     security = [SecurityRequirement(name = "BearerAuth")],

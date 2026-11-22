@@ -8,7 +8,7 @@ func Document() *openapi3.T {
 		OpenAPI: "3.2.1",
 		Info: &openapi3.Info{
 			Title:       "cowork Notification API",
-			Version:     "20261121.0",
+			Version:     "20261122.0",
 			Description: "Firebase 설치를 계정에 연결하고 실시간 알림을 제공합니다.",
 		},
 		Servers: openapi3.Servers{{URL: "/api/notification", Description: "Gateway"}},
