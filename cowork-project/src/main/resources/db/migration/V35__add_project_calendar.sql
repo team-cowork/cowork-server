@@ -5,7 +5,7 @@ CREATE TABLE tb_project_calendar_categories
     team_id    BIGINT      NOT NULL COMMENT 'tb_projects.team_id 비정규화',
     name       VARCHAR(50) NOT NULL,
     color_hex  VARCHAR(7)  NOT NULL COMMENT '#RRGGBB',
-    created_by BIGINT      NOT NULL COMMENT 'cowork-user의 account id',
+    created_by BIGINT      NOT NULL COMMENT 'cowork-user.tb_accounts.id',
     created_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
     updated_at DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
     PRIMARY KEY (id),
@@ -17,7 +17,7 @@ CREATE TABLE tb_project_calendar_events
     id                   BIGINT        NOT NULL AUTO_INCREMENT,
     project_id           BIGINT        NOT NULL COMMENT 'tb_projects.id',
     team_id              BIGINT        NOT NULL COMMENT 'tb_projects.team_id 비정규화',
-    created_by           BIGINT        NOT NULL COMMENT 'cowork-user의 account id',
+    created_by           BIGINT        NOT NULL COMMENT 'cowork-user.tb_accounts.id',
     title                VARCHAR(200)  NOT NULL,
     description          VARCHAR(2000) DEFAULT NULL,
     start_at             DATETIME(6)   NOT NULL COMMENT '첫 발생분 시작 시각',
@@ -46,7 +46,7 @@ CREATE TABLE tb_project_calendar_events
 CREATE TABLE tb_project_calendar_event_attendees
 (
     event_id BIGINT NOT NULL COMMENT 'tb_project_calendar_events.id',
-    user_id  BIGINT NOT NULL COMMENT 'cowork-user의 account id',
+    user_id  BIGINT NOT NULL COMMENT 'cowork-user.tb_accounts.id',
     PRIMARY KEY (event_id, user_id),
     CONSTRAINT fk_tb_project_calendar_event_attendees_event
         FOREIGN KEY (event_id) REFERENCES tb_project_calendar_events (id) ON DELETE CASCADE
