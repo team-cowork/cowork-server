@@ -66,7 +66,8 @@ class ManageProjectCalendarEventServiceImpl(
                     CalendarOccurrenceException(
                         originalStartAt,
                         title = input.title,
-                        description = input.description,
+                        // 예외의 null은 원본 설명을 따르므로 비운 설명은 빈 문자열로 남긴다.
+                        description = input.description.orEmpty(),
                         startAt = input.startAt,
                         endAt = input.endAt,
                     ),
