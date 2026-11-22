@@ -9,7 +9,7 @@ import {
 import {plainToInstance} from 'class-transformer';
 import {validate} from 'class-validator';
 import {withGithubRateLimitRetry} from '../github-rate-limit.js';
-import {GithubClientError} from '../github.errors.js';
+import {GithubClientError, GithubRateLimitError} from '../github.errors.js';
 import {IssueHttpService} from '../issue-http/issue-http.service.js';
 import {LabelHttpService} from '../label-http/label-http.service.js';
 import {CreateCommentPayloadDto} from './dto/create-comment-payload.dto.js';
@@ -141,7 +141,13 @@ export class IssueWriteCommandController {
 
 		let event: IssueWriteResultEvent;
 		if (record.state === 'RECEIVED') {
-			event = await this.resolveCreateComment(envelope, payload, record.receivedAt, !claimed);
+			event = await this.resolveCreateComment(envelope, payload, record.receivedAt, !claimed).catch(async (error: unknown) => {
+				if (claimed && error instanceof GithubRateLimitError) {
+					await this.commentHistory.markRetryable(envelope.operationId, record);
+				}
+
+				throw error;
+			});
 			await this.commentHistory.save(envelope.operationId, {...record, state: 'COMPLETED', event});
 		} else {
 			({event} = record);

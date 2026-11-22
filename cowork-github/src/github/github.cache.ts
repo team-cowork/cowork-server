@@ -3,6 +3,14 @@ export const PULL_REQUEST_FILES_TTL_SECONDS = 7 * 24 * 60 * 60;
 // 명령 토픽 보존(7일)에 활성 세그먼트가 닫히기까지의 최대 7일을 더해, 재전달될 수 있는 동안 이력을 남긴다.
 export const CREATE_COMMENT_HISTORY_TTL_SECONDS = 14 * 24 * 60 * 60;
 
+export const SET_GITHUB_CACHE_VALUE_IF_MATCHES = `
+if redis.call('GET', KEYS[1]) ~= ARGV[1] then
+    return 0
+end
+redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+return 1
+`;
+
 export const githubCacheKeys = {
 	// GitHub login은 대소문자를 구분하지 않아, 설치 이벤트와 API 호출의 owner 표기가 달라도 같은 키를 쓴다.
 	installation: (owner: string): string => `github:installation:${owner.toLowerCase()}`,

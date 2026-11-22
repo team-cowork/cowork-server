@@ -1,6 +1,6 @@
 import {createHash} from 'node:crypto';
 import {Injectable as injectable} from '@nestjs/common';
-import {GithubClientError} from '../../github.errors.js';
+import {GithubClientError, GithubRateLimitError} from '../../github.errors.js';
 import {type Nullable} from '../../common/nullable.js';
 import {ProjectBoardApiService, type ProjectFieldValueInput, type ProjectRepository} from '../project-board-api.service.js';
 import {type GraphqlProject, type GraphqlProjectItem, organizationLogin} from '../project-board.mapper.js';
@@ -129,7 +129,14 @@ export class ProjectItemEditorService {
 		try {
 			let itemId: string;
 			if (claimed) {
-				itemId = await this.api.createDraft(target.owner, target.projectNodeId, payload.title, `${payload.body}\n\n${draftMarker(operationId)}`);
+				itemId = await this.api.createDraft(target.owner, target.projectNodeId, payload.title, `${payload.body}\n\n${draftMarker(operationId)}`)
+					.catch(async (error: unknown) => {
+						if (error instanceof GithubRateLimitError) {
+							await this.history.markRetryable(operationId, record);
+						}
+
+						throw error;
+					});
 			} else {
 				const items = await this.api.listItems(target.owner, target.projectNodeId);
 				const found = items.find(item => item.content?.body?.includes(draftMarker(operationId)) === true);

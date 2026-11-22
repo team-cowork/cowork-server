@@ -1,3 +1,4 @@
+import {GithubRateLimitError} from '../../github.errors.js';
 import type {ProjectBoardApiService} from '../project-board-api.service.js';
 import type {GraphqlProject, GraphqlProjectItem} from '../project-board.mapper.js';
 import type {ProjectDraftHistory} from './project-draft-history.js';
@@ -32,8 +33,8 @@ const issue: GraphqlProjectItem = {
 
 describe('ProjectItemEditorService', () => {
 	let api: Record<'getProjectByNode' | 'getItem' | 'getRepository' | 'updateFieldValue' | 'clearFieldValue'
-		| 'createDraft' | 'updateDraft' | 'addItem' | 'removeItem' | 'convertDraft' | 'setAssignees', jest.Mock>;
-	let history: {claim: jest.Mock; save: jest.Mock};
+		| 'createDraft' | 'listItems' | 'updateDraft' | 'addItem' | 'removeItem' | 'convertDraft' | 'setAssignees', jest.Mock>;
+	let history: {claim: jest.Mock; save: jest.Mock; markRetryable: jest.Mock};
 	let service: ProjectItemEditorService;
 
 	beforeEach(() => {
@@ -45,10 +46,10 @@ describe('ProjectItemEditorService', () => {
 				issueOrPullRequest: {__typename: 'Issue', id: 'I_2'},
 			}),
 			updateFieldValue: jest.fn(), clearFieldValue: jest.fn(), createDraft: jest.fn().mockResolvedValue('PVTI_NEW'),
-			updateDraft: jest.fn(), addItem: jest.fn().mockResolvedValue('PVTI_NEW'), removeItem: jest.fn(),
+			listItems: jest.fn(), updateDraft: jest.fn(), addItem: jest.fn().mockResolvedValue('PVTI_NEW'), removeItem: jest.fn(),
 			convertDraft: jest.fn(), setAssignees: jest.fn(),
 		};
-		history = {claim: jest.fn(), save: jest.fn()};
+		history = {claim: jest.fn(), save: jest.fn(), markRetryable: jest.fn()};
 		service = new ProjectItemEditorService(api as unknown as ProjectBoardApiService, history as unknown as ProjectDraftHistory);
 	});
 
@@ -115,6 +116,40 @@ describe('ProjectItemEditorService', () => {
 	describe('createDraft', () => {
 		it('GitHub가 기존 이슈 추가로 해석하는 제목을 거부한다', async () => {
 			await expect(service.createDraft(target, {title: 'https://github.com/other/private/issues/1', body: ''}, 'op')).rejects.toMatchObject({statusCode: 400});
+			expect(api.createDraft).not.toHaveBeenCalled();
+		});
+
+		it('새 draft 생성이 호출 한도로 거절되면 재시도할 수 있게 한다', async () => {
+			history.claim.mockImplementation(async (_operationId: string, fingerprint: string) => ({
+				record: {fingerprint, claimId: 'claim'}, claimed: true,
+			}));
+			const throttled = new GithubRateLimitError('Secondary rate limit');
+			api.createDraft.mockRejectedValueOnce(throttled);
+
+			await expect(service.createDraft(target, {title: 'Title', body: 'Body'}, 'op')).rejects.toBe(throttled);
+			expect(history.markRetryable).toHaveBeenCalledWith('op', expect.objectContaining({claimId: 'claim'}));
+			expect(history.save).not.toHaveBeenCalled();
+		});
+
+		it('새 draft의 생성 결과가 불명확하면 재시도 표시를 하지 않는다', async () => {
+			history.claim.mockImplementation(async (_operationId: string, fingerprint: string) => ({
+				record: {fingerprint, claimId: 'claim'}, claimed: true,
+			}));
+			api.createDraft.mockRejectedValueOnce(new Error('Connection lost'));
+
+			await expect(service.createDraft(target, {title: 'Title', body: 'Body'}, 'op')).rejects.toThrow('Connection lost');
+			expect(history.markRetryable).not.toHaveBeenCalled();
+		});
+
+		it('이전 draft 확인이 호출 한도로 거절되면 기존 이력을 보존한다', async () => {
+			history.claim.mockImplementation(async (_operationId: string, fingerprint: string) => ({
+				record: {fingerprint}, claimed: false,
+			}));
+			const throttled = new GithubRateLimitError('Secondary rate limit');
+			api.listItems.mockRejectedValueOnce(throttled);
+
+			await expect(service.createDraft(target, {title: 'Title', body: 'Body'}, 'op')).rejects.toBe(throttled);
+			expect(history.markRetryable).not.toHaveBeenCalled();
 			expect(api.createDraft).not.toHaveBeenCalled();
 		});
 	});

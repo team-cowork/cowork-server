@@ -1,7 +1,7 @@
 import {AsyncLocalStorage} from 'node:async_hooks';
 import {setTimeout as sleep} from 'node:timers/promises';
 import {type KafkaContext} from '@nestjs/microservices';
-import {GithubRateLimitError, toGithubError} from './github.errors.js';
+import {rethrowGithubError, toGithubRateLimitError} from './github.errors.js';
 
 const commands = new AsyncLocalStorage<KafkaContext>();
 const shutdown = new AbortController();
@@ -36,9 +36,13 @@ export async function requestGithub<T>(request: () => Promise<T>): Promise<T> {
 		try {
 			return await request();
 		} catch (error) {
-			const failure = toGithubError(error);
-			if (context === undefined || failure === error || !(failure instanceof GithubRateLimitError)) {
-				throw failure;
+			if (context === undefined) {
+				rethrowGithubError(error);
+			}
+
+			const failure = toGithubRateLimitError(error);
+			if (failure === undefined) {
+				rethrowGithubError(error);
 			}
 
 			const backoff = 2 ** (attempt - 1);
