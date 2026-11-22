@@ -21,9 +21,9 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import team.themoment.sdk.exception.ExpectedException
-import java.time.DateTimeException
 import java.time.Instant
 import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 
 @Service
 class ManageProjectCalendarEventServiceImpl(
@@ -179,10 +179,11 @@ class ManageProjectCalendarEventServiceImpl(
         if (event.recurrenceFrequency == null) CalendarEditScope.ALL else scope
 
     private fun requireOccurrence(event: ProjectCalendarEvent, occurrenceStartAt: Instant?): Instant {
-        if (occurrenceStartAt == null || !CalendarRecurrenceExpander.isOccurrence(event.series(), occurrenceStartAt)) {
+        val originalStartAt = occurrenceStartAt?.truncatedTo(ChronoUnit.MICROS)
+        if (originalStartAt == null || !CalendarRecurrenceExpander.isOccurrence(event.series(), originalStartAt)) {
             throw ExpectedException("반복 일정의 발생분 시작 시각이 올바르지 않습니다.", HttpStatus.BAD_REQUEST)
         }
-        return occurrenceStartAt
+        return originalStartAt
     }
 
     private data class EventInput(
@@ -203,21 +204,26 @@ class ManageProjectCalendarEventServiceImpl(
         request: SaveProjectCalendarEventReqDto,
         existingAttendees: Set<Long>,
     ): EventInput {
-        val startAt = requireNotNull(request.startAt)
-        val endAt = requireNotNull(request.endAt)
+        // DB는 마이크로초까지 저장하므로 응답과 발생분 시작 시각이 저장값과 같도록 미리 자른다.
+        val startAt = requireNotNull(request.startAt).truncatedTo(ChronoUnit.MICROS)
+        val endAt = requireNotNull(request.endAt).truncatedTo(ChronoUnit.MICROS)
         if (endAt.isBefore(startAt)) {
             throw ExpectedException("종료 시각은 시작 시각보다 앞설 수 없습니다.", HttpStatus.BAD_REQUEST)
         }
-        val timeZone = try {
-            ZoneId.of(request.timeZone).id
-        } catch (_: DateTimeException) {
-            throw ExpectedException("시간대가 올바르지 않습니다.", HttpStatus.BAD_REQUEST)
-        }
+        // `+09:00` 같은 오프셋은 일광 절약 시간을 따르지 못하므로 IANA 지역 ID만 받는다.
+        val timeZone = request.timeZone.takeIf { it in ZoneId.getAvailableZoneIds() }
+            ?: throw ExpectedException("시간대는 IANA 시간대여야 합니다.", HttpStatus.BAD_REQUEST)
         val reminders = CalendarReminderPolicy.normalize(request.reminderMinutes)
             ?: throw ExpectedException("리마인더는 0, 10, 30, 60, 1440분 전 중 최대 2개만 고를 수 있습니다.", HttpStatus.BAD_REQUEST)
         val recurrence = request.recurrence?.let {
             try {
-                CalendarRecurrence(requireNotNull(it.frequency), it.interval, it.byDay, it.until, it.count)
+                CalendarRecurrence(
+                    requireNotNull(it.frequency),
+                    it.interval,
+                    it.byDay,
+                    it.until?.truncatedTo(ChronoUnit.MICROS),
+                    it.count,
+                )
             } catch (_: IllegalArgumentException) {
                 throw ExpectedException("반복 규칙이 올바르지 않습니다.", HttpStatus.BAD_REQUEST)
             }
