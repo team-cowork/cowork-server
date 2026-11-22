@@ -16,13 +16,13 @@ enum class GithubBoardAccess { READ, WRITE }
 @Component
 class GithubBoardAccessResolver(
     private val projectAccessGuard: ProjectAccessGuard,
-    private val boardRepository: ProjectGithubBoardRepository,
-    private val installationRepository: TeamGithubInstallationRepository,
+    private val projectGithubBoardRepository: ProjectGithubBoardRepository,
+    private val teamGithubInstallationRepository: TeamGithubInstallationRepository,
 ) {
     fun resolve(userId: Long, projectId: Long, boardId: Long, access: GithubBoardAccess): ProjectGithubBoard {
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         requireBoardAccess(project, userId, access)
-        val board = boardRepository.findByIdAndProjectId(boardId, projectId)
+        val board = projectGithubBoardRepository.findByIdAndProjectId(boardId, projectId)
             ?: throw ExpectedException("연결된 GitHub Project를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         requireTeamOrg(project.teamId, board.ownerLogin)
         return board
@@ -40,7 +40,7 @@ class GithubBoardAccessResolver(
      * 다른 팀 조직의 토큰으로 그 Project를 읽고 쓰게 된다.
      */
     fun requireTeamOrg(teamId: Long, owner: String) {
-        val orgLogin = installationRepository.findByIdOrNull(teamId)?.orgLogin
+        val orgLogin = teamGithubInstallationRepository.findByIdOrNull(teamId)?.orgLogin
         if (!owner.equals(orgLogin, ignoreCase = true)) {
             throw ExpectedException("팀에 연결된 GitHub 조직의 Project만 사용할 수 있습니다.", HttpStatus.FORBIDDEN)
         }

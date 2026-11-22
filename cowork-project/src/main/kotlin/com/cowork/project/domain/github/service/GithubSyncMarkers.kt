@@ -19,24 +19,24 @@ import java.util.Locale
  */
 @Component
 class GithubSyncMarkers(
-    private val repository: GithubSyncMarkerRepository,
-    private val repoProjectionRepository: GithubRepoProjectionRepository,
+    private val githubSyncMarkerRepository: GithubSyncMarkerRepository,
+    private val githubRepoProjectionRepository: GithubRepoProjectionRepository,
 ) {
     fun isMarker(node: JsonNode): Boolean = node.path("recordType").asString() == SYNC_COMPLETED
 
     /** 완료 마커를 기록한다. 같은 대상의 더 오래된 마커는 완료 시각을 되돌리지 않는다. consumer 트랜잭션 안에서 호출한다. */
     fun record(stream: GithubSyncStream, marker: GithubSyncCompletedMarker) {
         val id = GithubSyncMarker.id(stream, marker.owner, marker.scope)
-        val existing = repository.findById(id).orElse(null)
+        val existing = githubSyncMarkerRepository.findById(id).orElse(null)
         when {
-            existing == null -> repository.save(GithubSyncMarker(id, marker.completedAt))
+            existing == null -> githubSyncMarkerRepository.save(GithubSyncMarker(id, marker.completedAt))
             marker.completedAt.isAfter(existing.completedAt) -> existing.completedAt = marker.completedAt
         }
     }
 
     /** 설치 범위에서 빠지거나 삭제된 repo의 projection을 더 이상 완전한 목록으로 믿지 않도록 repo 단위 마커를 지운다. */
     fun clearRepo(owner: String, repo: String) {
-        repository.deleteAllById(GithubSyncTarget(owner, repo, null).markerIds)
+        githubSyncMarkerRepository.deleteAllById(GithubSyncTarget(owner, repo, null).markerIds)
     }
 
     /**
@@ -45,19 +45,19 @@ class GithubSyncMarkers(
      */
     fun invalidate(stream: GithubSyncStream, owner: String?, repo: String?) {
         if (owner == null) {
-            repository.deleteByIdStartingWith("$stream:")
+            githubSyncMarkerRepository.deleteByIdStartingWith("$stream:")
             return
         }
         val ownerMarkerId = GithubSyncMarker.id(stream, owner, null)
         when {
-            stream == GithubSyncStream.REPO -> repository.deleteById(ownerMarkerId)
-            repo == null -> repository.deleteByIdStartingWith("$ownerMarkerId/")
-            else -> repository.deleteById(GithubSyncMarker.id(stream, owner, repo))
+            stream == GithubSyncStream.REPO -> githubSyncMarkerRepository.deleteById(ownerMarkerId)
+            repo == null -> githubSyncMarkerRepository.deleteByIdStartingWith("$ownerMarkerId/")
+            else -> githubSyncMarkerRepository.deleteById(GithubSyncMarker.id(stream, owner, repo))
         }
     }
 
     fun requireSynced(stream: GithubSyncStream, owner: String, repo: String? = null) {
-        if (repository.existsById(GithubSyncMarker.id(stream, owner, repo))) return
+        if (githubSyncMarkerRepository.existsById(GithubSyncMarker.id(stream, owner, repo))) return
         if (repo != null && isRemovedRepo(owner, repo)) {
             throw ExpectedException("GitHub에서 삭제되었거나 앱 설치 범위에서 빠진 저장소입니다.", HttpStatus.NOT_FOUND)
         }
@@ -66,7 +66,7 @@ class GithubSyncMarkers(
 
     private fun isRemovedRepo(owner: String, repo: String): Boolean {
         val id = GithubRepoProjection.id(owner.lowercase(Locale.ROOT), repo.lowercase(Locale.ROOT))
-        return repoProjectionRepository.findById(id).map { it.deleted }.orElse(false)
+        return githubRepoProjectionRepository.findById(id).map { it.deleted }.orElse(false)
     }
 
     private companion object {

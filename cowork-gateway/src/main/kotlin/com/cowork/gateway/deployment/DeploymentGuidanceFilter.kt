@@ -17,21 +17,21 @@ import tools.jackson.databind.ObjectMapper
 
 @Component
 class DeploymentGuidanceFilter(
-    properties: DeploymentProperties,
-    private val states: DeploymentStateCache,
-    private val inflight: DeploymentInflight,
+    deploymentProperties: DeploymentProperties,
+    private val deploymentStateCache: DeploymentStateCache,
+    private val deploymentInflight: DeploymentInflight,
     private val objectMapper: ObjectMapper,
     private val meterRegistry: MeterRegistry,
 ) : GlobalFilter,
     Ordered {
-    private val routes = DeploymentRouteMatcher(properties.destinations)
+    private val routes = DeploymentRouteMatcher(deploymentProperties.destinations)
 
     override fun getOrder(): Int = -1000
 
     override fun filter(exchange: ServerWebExchange, chain: GatewayFilterChain): Mono<Void> {
         val route = exchange.getAttribute<Route>(GATEWAY_ROUTE_ATTR)
         val service = route?.let { routes.serviceFor(it.uri) }
-        val snapshot = states.snapshot()
+        val snapshot = deploymentStateCache.snapshot()
         if (service != null && snapshot == null) {
             return respond(
                 exchange,
@@ -49,8 +49,8 @@ class DeploymentGuidanceFilter(
                 return chain.filter(exchange)
             }
             return Mono.defer {
-                inflight.enter(service)
-                Mono.defer { chain.filter(exchange) }.doFinally { inflight.leave(service) }
+                deploymentInflight.enter(service)
+                Mono.defer { chain.filter(exchange) }.doFinally { deploymentInflight.leave(service) }
             }
         }
 

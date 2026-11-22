@@ -20,7 +20,7 @@ import team.themoment.sdk.exception.ExpectedException;
 public class CreateRoadmapServiceImpl implements CreateRoadmapService {
 
     private final RoadmapRepository roadmapRepository;
-    private final RoadmapAccessGuard accessGuard;
+    private final RoadmapAccessGuard roadmapAccessGuard;
 
     @Override
     @Transactional
@@ -34,7 +34,7 @@ public class CreateRoadmapServiceImpl implements CreateRoadmapService {
         if (scope == RoadmapScope.TEAM && request.ownerTeamId() == null) {
             throw new ExpectedException("TEAM 로드맵에는 ownerTeamId가 필요합니다.", HttpStatus.BAD_REQUEST);
         }
-        accessGuard.requireCreatable(userId, scope, request.ownerTeamId());
+        roadmapAccessGuard.requireCreatable(userId, scope, request.ownerTeamId());
         Roadmap roadmap = Roadmap.builder()
                 .title(request.title())
                 .description(request.description())

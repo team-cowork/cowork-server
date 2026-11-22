@@ -10,7 +10,7 @@ import tools.jackson.databind.ObjectMapper
 @RestController
 @EnableConfigurationProperties(CoworkSwaggerUiProperties::class)
 class SwaggerUiController(
-    private val swaggerUiProperties: CoworkSwaggerUiProperties,
+    private val coworkSwaggerUiProperties: CoworkSwaggerUiProperties,
     private val objectMapper: ObjectMapper,
 ) {
 
@@ -19,8 +19,8 @@ class SwaggerUiController(
         produces = [MediaType.TEXT_HTML_VALUE],
     )
     fun swaggerUi(): String {
-        val urlsJson = objectMapper.writeValueAsString(swaggerUiProperties.urls.sortedBy { it.name })
-        val primaryNameJson = objectMapper.writeValueAsString(swaggerUiProperties.primaryName)
+        val urlsJson = objectMapper.writeValueAsString(coworkSwaggerUiProperties.urls.sortedBy { it.name })
+        val primaryNameJson = objectMapper.writeValueAsString(coworkSwaggerUiProperties.primaryName)
 
         return """
             <!doctype html>

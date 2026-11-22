@@ -10,8 +10,8 @@ import java.time.Instant
 
 @Service
 class UpdateGithubCommentServiceImpl(
-    private val authorizationSupport: GithubCommentAuthorizationSupport,
-    private val commandPublisher: GithubIssueWriteCommandPublisher,
+    private val githubCommentAuthorizationSupport: GithubCommentAuthorizationSupport,
+    private val githubIssueWriteCommandPublisher: GithubIssueWriteCommandPublisher,
 ) : UpdateGithubCommentService {
 
     @Transactional
@@ -22,8 +22,8 @@ class UpdateGithubCommentServiceImpl(
         commentId: Long,
         request: UpdateGithubCommentReqDto,
     ) {
-        val repo = authorizationSupport.authorize(userId, projectId, repoId, commentId)
-        commandPublisher.publishUpdateComment(
+        val repo = githubCommentAuthorizationSupport.authorize(userId, projectId, repoId, commentId)
+        githubIssueWriteCommandPublisher.publishUpdateComment(
             owner = repo.owner,
             repo = repo.repo,
             repoId = repoId,

@@ -9,20 +9,20 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class MeetingNoteAccessGuard(
     private val channelAccessGuard: ChannelAccessGuard,
-    private val permissions: ChannelPermissionSupport,
-    private val evaluator: ChannelMessageReadPolicyEvaluator,
+    private val channelPermissionSupport: ChannelPermissionSupport,
+    private val channelMessageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
 ) {
     fun requireAttachmentPermission(channelId: Long, userId: Long) {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         val teamId = channelAccessGuard.requireTeamChannel(channel)
-        evaluator.requirePermission(teamId, userId, channel, "file_attach")
+        channelMessageReadPolicyEvaluator.requirePermission(teamId, userId, channel, "file_attach")
     }
 
     @Transactional(readOnly = true)
     fun requireChannelAccess(channelId: Long, userId: Long) {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         channelAccessGuard.requireTeamChannel(channel)
-        permissions.requireChannelAccess(channel, userId)
+        channelPermissionSupport.requireChannelAccess(channel, userId)
     }
 
     /**
@@ -32,7 +32,7 @@ class MeetingNoteAccessGuard(
     fun requireChannelAccessForUpdate(channelId: Long, userId: Long) {
         val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
         channelAccessGuard.requireTeamChannel(channel)
-        permissions.requireChannelAccess(channel, userId)
+        channelPermissionSupport.requireChannelAccess(channel, userId)
         channelAccessGuard.requireNotArchived(channel)
     }
 
@@ -40,7 +40,7 @@ class MeetingNoteAccessGuard(
     fun requireWritableChannelAccess(channelId: Long, userId: Long) {
         val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
         channelAccessGuard.requireTeamChannel(channel)
-        permissions.requireChannelAccess(channel, userId)
+        channelPermissionSupport.requireChannelAccess(channel, userId)
         channelAccessGuard.requireNotArchived(channel)
     }
 }

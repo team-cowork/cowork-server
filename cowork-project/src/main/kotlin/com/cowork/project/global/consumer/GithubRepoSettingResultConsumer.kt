@@ -11,7 +11,7 @@ import java.util.UUID
 
 @Component
 class GithubRepoSettingResultConsumer(
-    private val handler: GithubRepoSettingResultHandler,
+    private val githubRepoSettingResultHandler: GithubRepoSettingResultHandler,
     private val objectMapper: ObjectMapper,
 ) {
     @KafkaListener(
@@ -24,7 +24,7 @@ class GithubRepoSettingResultConsumer(
             requireNotNull(objectMapper.readValue(record.value(), GithubRepoSettingResult::class.java))
         }.getOrElse { throw IllegalArgumentException("GitHub 저장소 설정 result JSON이 유효하지 않습니다.", it) }
         validate(record.key(), payload)
-        handler.apply(payload)
+        githubRepoSettingResultHandler.apply(payload)
     }
 
     internal fun validate(messageKey: String?, result: GithubRepoSettingResult) {

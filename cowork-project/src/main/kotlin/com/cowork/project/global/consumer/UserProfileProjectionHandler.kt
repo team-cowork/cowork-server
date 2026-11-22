@@ -9,13 +9,13 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
 @Component
-class UserProfileProjectionHandler(private val repository: UserProfileProjectionRepository) {
+class UserProfileProjectionHandler(private val userProfileProjectionRepository: UserProfileProjectionRepository) {
     @Transactional(propagation = Propagation.MANDATORY)
     fun apply(userId: Long, githubId: String?, deleted: Boolean, occurredAt: Instant) {
         val version = occurredAt.toProjectionPrecision()
-        val projection = repository.findByIdForUpdate(userId)
+        val projection = userProfileProjectionRepository.findByIdForUpdate(userId)
         if (projection == null) {
-            repository.save(
+            userProfileProjectionRepository.save(
                 UserProfileProjection(
                     userId = userId,
                     githubId = githubId,
@@ -27,7 +27,7 @@ class UserProfileProjectionHandler(private val repository: UserProfileProjection
         }
 
         if (projection.apply(githubId, deleted, version)) {
-            repository.save(projection)
+            userProfileProjectionRepository.save(projection)
         }
     }
 }

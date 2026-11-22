@@ -12,8 +12,8 @@ import team.themoment.sdk.exception.ExpectedException
 
 @Service
 class QueryGithubBoardOperationServiceImpl(
-    private val accessResolver: GithubBoardAccessResolver,
-    private val operationRepository: GithubProjectItemWriteOperationRepository,
+    private val githubBoardAccessResolver: GithubBoardAccessResolver,
+    private val githubProjectItemWriteOperationRepository: GithubProjectItemWriteOperationRepository,
 ) : QueryGithubBoardOperationService {
 
     @Transactional(readOnly = true)
@@ -23,8 +23,8 @@ class QueryGithubBoardOperationServiceImpl(
         boardId: Long,
         operationId: String,
     ): GithubBoardOperationResDto {
-        val link = accessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.READ)
-        val operation = operationRepository.findByOperationIdAndBoardId(operationId, link.id)
+        val link = githubBoardAccessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.READ)
+        val operation = githubProjectItemWriteOperationRepository.findByOperationIdAndBoardId(operationId, link.id)
             ?: throw ExpectedException("카드 이동 작업을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         return GithubBoardOperationResDto.of(operation)
     }

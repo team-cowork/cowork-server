@@ -15,10 +15,13 @@ import java.time.Instant
  * cowork-chat은 이 상태로 스레드 메시지 전송을 검증하고 채널 구성원에게 알린다.
  */
 @Component
-class ThreadStatePublisher(private val states: ThreadStateRepository, private val outbox: OutboxWriter) {
+class ThreadStatePublisher(
+    private val threadStateRepository: ThreadStateRepository,
+    private val outboxWriter: OutboxWriter,
+) {
     @Transactional(propagation = Propagation.MANDATORY)
     fun publish(thread: Thread, deleted: Boolean = false) {
-        val previous = states.findForUpdate(thread.id)
+        val previous = threadStateRepository.findForUpdate(thread.id)
         val version = nextChannelStateOccurredAt(previous?.stateOccurredAt, Instant.now())
         val state = previous ?: ThreadState(
             threadId = thread.id,
@@ -34,14 +37,14 @@ class ThreadStatePublisher(private val states: ThreadStateRepository, private va
         state.archived = thread.isArchived
         state.deleted = deleted
         state.stateOccurredAt = version
-        states.save(state)
+        threadStateRepository.save(state)
         enqueue(state)
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
     fun deleteChannels(channelIds: Collection<Long>) {
         if (channelIds.isEmpty()) return
-        states.findActiveByChannelIdsForUpdate(channelIds).forEach {
+        threadStateRepository.findActiveByChannelIdsForUpdate(channelIds).forEach {
             it.deleted = true
             it.stateOccurredAt = nextChannelStateOccurredAt(it.stateOccurredAt, Instant.now())
             enqueue(it)
@@ -49,7 +52,7 @@ class ThreadStatePublisher(private val states: ThreadStateRepository, private va
     }
 
     fun enqueue(state: ThreadState) {
-        outbox.enqueue(
+        outboxWriter.enqueue(
             TOPIC,
             state.threadId.toString(),
             mapOf(

@@ -11,7 +11,7 @@ import java.util.UUID
 
 @Component
 class ChatGithubIssueCommandConsumer(
-    private val processor: ChatGithubIssueCommandProcessor,
+    private val chatGithubIssueCommandProcessor: ChatGithubIssueCommandProcessor,
     private val objectMapper: ObjectMapper,
 ) {
     @KafkaListener(
@@ -24,7 +24,7 @@ class ChatGithubIssueCommandConsumer(
             requireNotNull(objectMapper.readValue(record.value(), ChatGithubIssueCreateCommand::class.java))
         }.getOrElse { throw IllegalArgumentException("채팅발 GitHub 이슈 생성 command JSON이 유효하지 않습니다.", it) }
         validate(record.key(), command)
-        processor.process(command)
+        chatGithubIssueCommandProcessor.process(command)
     }
 
     internal fun validate(messageKey: String?, command: ChatGithubIssueCreateCommand) {

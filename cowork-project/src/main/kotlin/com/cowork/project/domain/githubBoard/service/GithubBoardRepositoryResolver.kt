@@ -10,9 +10,9 @@ import team.themoment.sdk.exception.ExpectedException
 
 /** 보드 수정 권한을 확인한 뒤 사용한다. 저장소 연결은 같은 프로젝트와 팀 조직에 속해야 한다. */
 @Component
-class GithubBoardRepositoryResolver(private val repository: ProjectGithubRepoRepository) {
+class GithubBoardRepositoryResolver(private val projectGithubRepoRepository: ProjectGithubRepoRepository) {
     fun resolve(board: ProjectGithubBoard, repoId: Long): GithubRepoRef {
-        val link = repository.findByIdAndProjectId(repoId, board.projectId)
+        val link = projectGithubRepoRepository.findByIdAndProjectId(repoId, board.projectId)
             ?: throw ExpectedException("등록된 저장소를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         return requireOwner(board, link.githubRepoUrl)
     }
@@ -21,7 +21,7 @@ class GithubBoardRepositoryResolver(private val repository: ProjectGithubRepoRep
         val ref = fullName?.let { GithubRepoUrlParser.parse("https://github.com/$it") }
             ?: throw ExpectedException("카드의 저장소를 확인할 수 없습니다.", HttpStatus.BAD_REQUEST)
         requireOwner(board, "https://github.com/${ref.owner}/${ref.repo}")
-        val linked = repository.findAllByProjectId(board.projectId).any { link ->
+        val linked = projectGithubRepoRepository.findAllByProjectId(board.projectId).any { link ->
             GithubRepoUrlParser.parse(link.githubRepoUrl)?.let {
                 it.owner.equals(ref.owner, ignoreCase = true) && it.repo.equals(ref.repo, ignoreCase = true)
             } == true

@@ -12,16 +12,16 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 @Transactional(readOnly = true)
 class GetMeetingNoteTemplateServiceImpl(
-    private val sectionRepository: TemplateSectionRepository,
+    private val templateSectionRepository: TemplateSectionRepository,
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
-    private val lookupSupport: MeetingNoteTemplateLookupSupport,
+    private val meetingNoteTemplateLookupSupport: MeetingNoteTemplateLookupSupport,
 ) : GetMeetingNoteTemplateService {
 
     override fun getTemplate(userId: Long, channelId: Long, templateId: Long): MeetingNoteTemplateResponse {
         meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
-        val template = lookupSupport.findTemplateOrThrow(templateId)
-        lookupSupport.requireTemplateOwnership(template, channelId)
-        val sections = sectionRepository.findAllByTemplateIdOrderByIdAsc(templateId)
+        val template = meetingNoteTemplateLookupSupport.findTemplateOrThrow(templateId)
+        meetingNoteTemplateLookupSupport.requireTemplateOwnership(template, channelId)
+        val sections = templateSectionRepository.findAllByTemplateIdOrderByIdAsc(templateId)
             .map { TemplateSectionResponse.of(it) }
         return MeetingNoteTemplateResponse.of(template, sections)
     }

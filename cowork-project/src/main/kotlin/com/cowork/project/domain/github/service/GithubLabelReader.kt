@@ -7,12 +7,12 @@ import org.springframework.stereotype.Component
 
 @Component
 class GithubLabelReader(
-    private val repository: GithubLabelProjectionRepository,
-    private val syncMarkers: GithubSyncMarkers,
+    private val githubLabelProjectionRepository: GithubLabelProjectionRepository,
+    private val githubSyncMarkers: GithubSyncMarkers,
 ) {
     fun listLabels(owner: String, repo: String): List<GithubLabelResDto> {
-        syncMarkers.requireSynced(GithubSyncStream.LABEL, owner, repo)
-        return repository.findByOwnerAndRepoAndDeletedFalse(owner, repo)
+        githubSyncMarkers.requireSynced(GithubSyncStream.LABEL, owner, repo)
+        return githubLabelProjectionRepository.findByOwnerAndRepoAndDeletedFalse(owner, repo)
             .map { GithubLabelResDto(name = it.name, color = it.color) }
     }
 }

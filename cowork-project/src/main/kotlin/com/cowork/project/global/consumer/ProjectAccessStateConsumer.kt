@@ -15,10 +15,10 @@ import java.time.Instant
 
 @Component
 class ProjectAccessStateConsumer(
-    private val repository: ProjectAccessProjectionRepository,
-    private val processor: ProjectionRecordProcessor,
-    private val streams: ProjectionStreams,
-    private val mapper: ObjectMapper,
+    private val projectAccessProjectionRepository: ProjectAccessProjectionRepository,
+    private val projectionRecordProcessor: ProjectionRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
+    private val objectMapper: ObjectMapper,
     private val projectReadableUserStatePublisher: ProjectReadableUserStatePublisher,
 ) {
     @KafkaListener(
@@ -27,10 +27,10 @@ class ProjectAccessStateConsumer(
         containerFactory = "projectAccessListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        val stream = streams.projectAccess
-        if (processor.processControlRecord(stream, record)) return
+        val stream = projectionStreams.projectAccess
+        if (projectionRecordProcessor.processControlRecord(stream, record)) return
         val parsed = runCatching {
-            val node = mapper.readTree(record.value())
+            val node = objectMapper.readTree(record.value())
             require(node.path("eventType").asString() == "UPSERT")
             require(node.path("projectId").isIntegralNumber && node.path("accountId").isIntegralNumber)
             val projectId = node.path("projectId").asLong()
@@ -70,13 +70,13 @@ class ProjectAccessStateConsumer(
             )
         }
         val event = parsed.getOrElse {
-            processor.quarantineRecord(stream, record, "Invalid project access state: ${it.message}")
+            projectionRecordProcessor.quarantineRecord(stream, record, "Invalid project access state: ${it.message}")
             return
         }
-        processor.applyRecord(stream, record) {
-            val existing = repository.findById(event.accessKey).orElse(null)
+        projectionRecordProcessor.applyRecord(stream, record) {
+            val existing = projectAccessProjectionRepository.findById(event.accessKey).orElse(null)
             if (existing == null || event.sourceOccurredAt.isAfter(existing.sourceOccurredAt)) {
-                repository.save(event)
+                projectAccessProjectionRepository.save(event)
             } else if (event.sourceOccurredAt == existing.sourceOccurredAt) {
                 // Replayed snapshots are idempotent; conflicting equal versions never restore access.
                 val sameMembership = existing.sourceMembershipVersion == event.sourceMembershipVersion
@@ -102,7 +102,7 @@ class ProjectAccessStateConsumer(
                     existing.canReadPrivate = canReadPrivate
                     existing.canBoardRead = canBoardRead
                     existing.canBoardWrite = canBoardWrite
-                    repository.save(existing)
+                    projectAccessProjectionRepository.save(existing)
                 }
             }
             projectReadableUserStatePublisher.refreshIfReady(listOf(event.projectId))

@@ -19,11 +19,11 @@ import team.themoment.sdk.exception.ExpectedException
 @Service
 class CreateMeetingNoteServiceImpl(
     private val meetingNoteRepository: MeetingNoteRepository,
-    private val templateRepository: MeetingNoteTemplateRepository,
+    private val meetingNoteTemplateRepository: MeetingNoteTemplateRepository,
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
     private val meetingNoteContentSupport: MeetingNoteContentSupport,
-    private val attachmentSupport: MeetingNoteAttachmentSupport,
-    private val attachmentPublisher: MeetingNoteAttachmentPublisher,
+    private val meetingNoteAttachmentSupport: MeetingNoteAttachmentSupport,
+    private val meetingNoteAttachmentPublisher: MeetingNoteAttachmentPublisher,
 ) : CreateMeetingNoteService {
 
     @Transactional
@@ -33,11 +33,13 @@ class CreateMeetingNoteServiceImpl(
         if (request.title.isBlank()) throw ExpectedException("회의록 제목은 공백일 수 없습니다.", HttpStatus.BAD_REQUEST)
         if (request.title.length > 200) throw ExpectedException("회의록 제목은 200자를 초과할 수 없습니다.", HttpStatus.BAD_REQUEST)
         meetingNoteContentSupport.requireJsonObject(request.content)
-        val attachments = attachmentSupport.validate(request.attachments, channelId, userId)
+        val attachments = meetingNoteAttachmentSupport.validate(request.attachments, channelId, userId)
         if (attachments.isNotEmpty()) meetingNoteAccessGuard.requireAttachmentPermission(channelId, userId)
         val templateId = request.templateId
         if (templateId != null) {
-            val template = templateRepository.findById(templateId).orElseThrow { templateNotFoundException() }
+            val template = meetingNoteTemplateRepository.findById(templateId).orElseThrow {
+                templateNotFoundException()
+            }
             if (template.channelId != channelId) {
                 throw templateNotFoundException()
             }
@@ -58,7 +60,7 @@ class CreateMeetingNoteServiceImpl(
             if (templateId == null) throw e
             throw templateNotFoundException()
         }
-        attachmentPublisher.publish(note)
+        meetingNoteAttachmentPublisher.publish(note)
         return MeetingNoteResponse.of(note)
     }
 

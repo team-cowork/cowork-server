@@ -11,21 +11,24 @@ import tools.jackson.module.kotlin.readValue
 
 @Component
 class TeamRolePermissionReader(
-    private val roles: TeamRoleProjectionRepository,
-    private val assignments: TeamRoleAssignmentProjectionRepository,
+    private val teamRoleProjectionRepository: TeamRoleProjectionRepository,
+    private val teamRoleAssignmentProjectionRepository: TeamRoleAssignmentProjectionRepository,
     private val objectMapper: ObjectMapper,
-    private val memberFences: TeamRoleMemberTombstoneRepository,
+    private val teamRoleMemberTombstoneRepository: TeamRoleMemberTombstoneRepository,
 ) {
     fun hasPermission(teamId: Long, userId: Long, permission: String): Boolean {
-        val defaults = roles.findAllByTeamIdAndIsDefaultTrueAndDeletedFalse(teamId)
-        val fence = memberFences.findById(TeamRoleMemberTombstone.key(teamId, userId)).orElse(null)
-        val assignedIds = assignments.findAllByTeamIdAndAccountIdAndDeletedFalse(teamId, userId)
+        val defaults = teamRoleProjectionRepository.findAllByTeamIdAndIsDefaultTrueAndDeletedFalse(teamId)
+        val fence = teamRoleMemberTombstoneRepository.findById(TeamRoleMemberTombstone.key(teamId, userId)).orElse(null)
+        val assignedIds = teamRoleAssignmentProjectionRepository.findAllByTeamIdAndAccountIdAndDeletedFalse(
+            teamId,
+            userId,
+        )
             .filter { fence == null || it.sourceOccurredAt.isAfter(fence.sourceOccurredAt) }
             .mapTo(mutableSetOf()) { it.roleId }
         val assigned = if (assignedIds.isEmpty()) {
             emptyList()
         } else {
-            roles.findAllByTeamIdAndRoleIdInAndDeletedFalse(
+            teamRoleProjectionRepository.findAllByTeamIdAndRoleIdInAndDeletedFalse(
                 teamId,
                 assignedIds,
             )

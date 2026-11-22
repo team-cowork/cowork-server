@@ -23,9 +23,9 @@ import team.themoment.sdk.exception.ExpectedException;
 @RequiredArgsConstructor
 public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignmentService {
 
-    private final RoadmapAssignmentRepository assignmentRepository;
-    private final RoadmapNodeRepository nodeRepository;
-    private final RoadmapAccessGuard accessGuard;
+    private final RoadmapAssignmentRepository roadmapAssignmentRepository;
+    private final RoadmapNodeRepository roadmapNodeRepository;
+    private final RoadmapAccessGuard roadmapAccessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
 
     @Override
@@ -41,11 +41,11 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
         }
         Roadmap roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(request.roadmapId());
         validateAssignmentRoadmap(roadmap);
-        accessGuard.requireReadable(roadmap, userId);
-        accessGuard.requireAssignmentCreation(userId, request.teamId());
+        roadmapAccessGuard.requireReadable(roadmap, userId);
+        roadmapAccessGuard.requireAssignmentCreation(userId, request.teamId());
         validateNodeBelongsToRoadmap(request.nodeId(), request.roadmapId());
         validateAssignmentTeam(roadmap, request.teamId());
-        accessGuard.requireAssignableMember(request.teamId(), request.assigneeUserId());
+        roadmapAccessGuard.requireAssignableMember(request.teamId(), request.assigneeUserId());
         validateNotAssigned(request);
         RoadmapAssignment assignment = RoadmapAssignment.builder()
                 .roadmapId(request.roadmapId())
@@ -57,7 +57,7 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
                 .status(AssignmentStatus.ASSIGNED.name())
                 .dueDate(request.dueDate())
                 .build();
-        return AssignmentResDto.from(assignmentRepository.saveAndFlush(assignment));
+        return AssignmentResDto.from(roadmapAssignmentRepository.saveAndFlush(assignment));
     }
 
     private void validateAssignmentRoadmap(Roadmap roadmap) {
@@ -79,7 +79,7 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
      */
     private void validateNotAssigned(CreateAssignmentReqDto request) {
         long nodeKey = request.nodeId() == null ? 0L : request.nodeId();
-        if (assignmentRepository.countByRoadmapIdAndNodeKeyAndAssigneeUserId(request.roadmapId(),
+        if (roadmapAssignmentRepository.countByRoadmapIdAndNodeKeyAndAssigneeUserId(request.roadmapId(),
                 nodeKey,
                 request.assigneeUserId()) > 0) {
             throw new ExpectedException("이미 같은 담당자에게 할당된 과제입니다.", HttpStatus.CONFLICT);
@@ -90,7 +90,7 @@ public class CreateRoadmapAssignmentServiceImpl implements CreateRoadmapAssignme
         if (nodeId == null) {
             return;
         }
-        var node = nodeRepository.findById(nodeId)
+        var node = roadmapNodeRepository.findById(nodeId)
                 .orElseThrow(() -> new ExpectedException("노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         if (!roadmapId.equals(node.getRoadmapId())) {
             throw new ExpectedException("노드가 해당 로드맵에 속하지 않습니다.", HttpStatus.BAD_REQUEST);

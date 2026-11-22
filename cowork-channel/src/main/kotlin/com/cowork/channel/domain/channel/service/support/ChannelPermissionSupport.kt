@@ -12,7 +12,7 @@ import team.themoment.sdk.exception.ExpectedException
 class ChannelPermissionSupport(
     private val dmParticipantRepository: DmParticipantRepository,
     private val teamPermissionService: TeamPermissionService,
-    private val messageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
+    private val channelMessageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
 ) {
 
     /** 팀 채널은 역할 권한, DM은 대화 참여자를 검사한다. */
@@ -22,7 +22,7 @@ class ChannelPermissionSupport(
             requireDmParticipant(channel.id, userId)
         } else {
             teamPermissionService.requireTeamMember(teamId, userId)
-            messageReadPolicyEvaluator.requireChannelAccess(teamId, userId, channel)
+            channelMessageReadPolicyEvaluator.requireChannelAccess(teamId, userId, channel)
         }
     }
 
@@ -34,22 +34,22 @@ class ChannelPermissionSupport(
 
     fun requireRolePolicyAccess(channel: Channel, userId: Long) {
         val teamId = channel.teamId ?: throw ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
-        messageReadPolicyEvaluator.requireTeamPermission(teamId, userId, "manage_roles")
-        messageReadPolicyEvaluator.requireChannelAccess(teamId, userId, channel)
+        channelMessageReadPolicyEvaluator.requireTeamPermission(teamId, userId, "manage_roles")
+        channelMessageReadPolicyEvaluator.requireChannelAccess(teamId, userId, channel)
     }
 
     fun requireRolePolicyManager(channel: Channel, userId: Long, roleId: Long, permissions: Map<String, Boolean>?) {
         val teamId = channel.teamId ?: throw ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
-        messageReadPolicyEvaluator.requireRolePolicyManagement(teamId, userId, channel, roleId, permissions)
+        channelMessageReadPolicyEvaluator.requireRolePolicyManagement(teamId, userId, channel, roleId, permissions)
     }
 
     fun requirePrivateTransitionAccess(channel: Channel, userId: Long) {
         val teamId = channel.teamId ?: throw ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
-        messageReadPolicyEvaluator.requirePrivateTransitionAccess(teamId, userId, channel)
+        channelMessageReadPolicyEvaluator.requirePrivateTransitionAccess(teamId, userId, channel)
     }
 
     fun requireChannelManager(channel: Channel, userId: Long) {
         val teamId = channel.teamId ?: throw ExpectedException("권한이 없습니다.", HttpStatus.FORBIDDEN)
-        messageReadPolicyEvaluator.requirePermission(teamId, userId, channel, "channel_manage")
+        channelMessageReadPolicyEvaluator.requirePermission(teamId, userId, channel, "channel_manage")
     }
 }

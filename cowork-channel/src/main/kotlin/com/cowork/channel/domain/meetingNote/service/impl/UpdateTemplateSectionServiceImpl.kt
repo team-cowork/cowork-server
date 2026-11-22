@@ -15,7 +15,7 @@ import org.springframework.transaction.annotation.Transactional
 class UpdateTemplateSectionServiceImpl(
     private val meetingNoteRepository: MeetingNoteRepository,
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
-    private val lookupSupport: MeetingNoteTemplateLookupSupport,
+    private val meetingNoteTemplateLookupSupport: MeetingNoteTemplateLookupSupport,
     private val meetingNoteContentSupport: MeetingNoteContentSupport,
 ) : UpdateTemplateSectionService {
 
@@ -27,17 +27,17 @@ class UpdateTemplateSectionServiceImpl(
         request: UpdateTemplateSectionRequest,
     ): TemplateSectionResponse {
         meetingNoteAccessGuard.requireChannelAccessForUpdate(channelId, userId)
-        val template = lookupSupport.findTemplateOrThrow(templateId)
-        lookupSupport.requireTemplateOwnership(template, channelId)
-        val section = lookupSupport.findSectionOrThrow(sectionId)
-        lookupSupport.requireSectionOwnership(section, templateId)
+        val template = meetingNoteTemplateLookupSupport.findTemplateOrThrow(templateId)
+        meetingNoteTemplateLookupSupport.requireTemplateOwnership(template, channelId)
+        val section = meetingNoteTemplateLookupSupport.findSectionOrThrow(sectionId)
+        meetingNoteTemplateLookupSupport.requireSectionOwnership(section, templateId)
         val previousTitle = section.title
         request.title?.takeIf { it != previousTitle }?.let {
-            lookupSupport.requireUniqueSectionTitle(templateId, it, excludeSectionId = sectionId)
+            meetingNoteTemplateLookupSupport.requireUniqueSectionTitle(templateId, it, excludeSectionId = sectionId)
         }
         section.update(
             title = request.title,
-            type = request.type?.let { lookupSupport.parseSectionType(it) },
+            type = request.type?.let { meetingNoteTemplateLookupSupport.parseSectionType(it) },
             placeholder = request.placeholder,
             isRequired = request.isRequired,
         )

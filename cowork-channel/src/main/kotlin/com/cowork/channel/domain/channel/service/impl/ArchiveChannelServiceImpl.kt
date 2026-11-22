@@ -15,14 +15,14 @@ import java.time.temporal.ChronoUnit
 @Service
 class ArchiveChannelServiceImpl(
     private val channelAccessGuard: ChannelAccessGuard,
-    private val archivePermissionSupport: ChannelArchivePermissionSupport,
+    private val channelArchivePermissionSupport: ChannelArchivePermissionSupport,
     private val channelEventPublisher: ChannelEventPublisher,
 ) : ArchiveChannelService {
 
     @Transactional
     override fun execute(userId: Long, channelId: Long): ChannelResponse {
         val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
-        archivePermissionSupport.requireArchivePermission(channel, userId)
+        channelArchivePermissionSupport.requireArchivePermission(channel, userId)
         if (channel.isArchived) {
             throw ExpectedException("이미 보관된 채널입니다.", HttpStatus.CONFLICT)
         }

@@ -17,7 +17,7 @@ class ReorderTeamChannelsServiceImpl(
     private val channelRepository: ChannelRepository,
     private val teamPermissionService: TeamPermissionService,
     private val channelEventPublisher: ChannelEventPublisher,
-    private val messageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
+    private val channelMessageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
 ) : ReorderTeamChannelsService {
 
     /** 채널 생성과 같은 팀 채널 행 잠금으로 직렬화하고, 생성과 같은 이유로 READ COMMITTED로 실행한다. */
@@ -35,7 +35,7 @@ class ReorderTeamChannelsServiceImpl(
 
         // 보관된 채널은 목록에 보이지 않으므로 숨겨진 채널처럼 위치를 유지한다.
         val lockedChannels = channelRepository.findAllByTeamIdForUpdateOrderByIdAsc(teamId).filterNot { it.isArchived }
-        val readableChannels = messageReadPolicyEvaluator
+        val readableChannels = channelMessageReadPolicyEvaluator
             .filterReadable(teamId, userId, lockedChannels)
             .sortedWith(compareBy({ it.position }, { it.id }))
         val readableChannelIds = readableChannels.mapTo(mutableSetOf()) { it.id }
@@ -48,7 +48,7 @@ class ReorderTeamChannelsServiceImpl(
         val movedChannels = orderedChannelIds.mapIndexedNotNull { index, channelId ->
             channelById.getValue(channelId).takeIf { it.position != visiblePositionSlots[index] }
         }
-        messageReadPolicyEvaluator.requireReorder(teamId, userId, movedChannels)
+        channelMessageReadPolicyEvaluator.requireReorder(teamId, userId, movedChannels)
         // (team_id, position) 유일성 제약이 행 단위로 검사되므로 이동할 채널을 음수 임시 position으로 먼저 비운다.
         movedChannels.forEachIndexed { index, channel -> channel.updatePosition(-1 - index) }
         channelRepository.flush()

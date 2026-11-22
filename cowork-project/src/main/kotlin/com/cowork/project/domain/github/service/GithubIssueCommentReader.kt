@@ -10,25 +10,25 @@ import team.themoment.sdk.exception.ExpectedException
 
 @Component
 class GithubIssueCommentReader(
-    private val repository: GithubIssueCommentProjectionRepository,
-    private val syncMarkers: GithubSyncMarkers,
+    private val githubIssueCommentProjectionRepository: GithubIssueCommentProjectionRepository,
+    private val githubSyncMarkers: GithubSyncMarkers,
 ) {
     fun listComments(owner: String, repo: String, number: Int): List<GithubCommentResDto> {
-        syncMarkers.requireSynced(GithubSyncStream.ISSUE_COMMENT, owner, repo)
-        val projections = repository.findByOwnerAndRepoAndParentNumberAndDeletedFalseOrderByGithubCreatedAtAsc(
-            owner,
-            repo,
-            number,
-        )
+        githubSyncMarkers.requireSynced(GithubSyncStream.ISSUE_COMMENT, owner, repo)
+        val projections = githubIssueCommentProjectionRepository
+            .findByOwnerAndRepoAndParentNumberAndDeletedFalseOrderByGithubCreatedAtAsc(owner, repo, number)
         // GitHub API 응답(생성일 오름차순, per_page=100)과 같은 순서·건수를 유지한다.
         return projections.take(LIST_LIMIT).map { it.toResDto() }
     }
 
     /** 댓글 작성자 확인(수정/삭제 권한 검사)을 위한 단건 조회. */
     fun findComment(owner: String, repo: String, commentId: Long): GithubCommentResDto {
-        syncMarkers.requireSynced(GithubSyncStream.ISSUE_COMMENT, owner, repo)
-        val projection = repository.findByOwnerAndRepoAndCommentId(owner, repo, commentId)?.takeUnless { it.deleted }
-            ?: throw ExpectedException("댓글을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+        githubSyncMarkers.requireSynced(GithubSyncStream.ISSUE_COMMENT, owner, repo)
+        val projection =
+            githubIssueCommentProjectionRepository.findByOwnerAndRepoAndCommentId(owner, repo, commentId)?.takeUnless {
+                it.deleted
+            }
+                ?: throw ExpectedException("댓글을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         return projection.toResDto()
     }
 

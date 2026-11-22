@@ -24,7 +24,7 @@ data class GithubBoardFilterResult(
 
 /** 칸반 조회와 item 조회가 함께 쓰는 filter. 뷰 filter와 구조화 파라미터를 AND로 적용하고 뷰 정렬을 따른다. */
 @Component
-class GithubBoardItemFilter(private val usernameResolver: GithubUsernameResolver) {
+class GithubBoardItemFilter(private val githubUsernameResolver: GithubUsernameResolver) {
     fun apply(
         board: GithubBoard,
         view: GithubProjectView,
@@ -64,6 +64,6 @@ class GithubBoardItemFilter(private val usernameResolver: GithubUsernameResolver
                     condition.values.any { it.equals("@me", true) }
             }
         if (!usesMe) return null
-        return runCatching { usernameResolver.resolve(userId) }.getOrNull()?.takeIf { it.isNotBlank() }
+        return runCatching { githubUsernameResolver.resolve(userId) }.getOrNull()?.takeIf { it.isNotBlank() }
     }
 }

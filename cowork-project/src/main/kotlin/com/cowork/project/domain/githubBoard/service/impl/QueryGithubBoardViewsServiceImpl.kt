@@ -10,13 +10,13 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class QueryGithubBoardViewsServiceImpl(
-    private val accessResolver: GithubBoardAccessResolver,
-    private val boardReader: GithubBoardReader,
+    private val githubBoardAccessResolver: GithubBoardAccessResolver,
+    private val githubBoardReader: GithubBoardReader,
 ) : QueryGithubBoardViewsService {
 
     @Transactional(readOnly = true)
     override fun execute(userId: Long, projectId: Long, boardId: Long): List<GithubBoardViewResDto> {
-        val link = accessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.READ)
-        return boardReader.read(link).views.sortedBy { it.number }.map { GithubBoardViewResDto.of(it) }
+        val link = githubBoardAccessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.READ)
+        return githubBoardReader.read(link).views.sortedBy { it.number }.map { GithubBoardViewResDto.of(it) }
     }
 }

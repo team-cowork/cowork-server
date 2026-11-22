@@ -27,22 +27,23 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class QueryRoadmapTreeServiceImpl implements QueryRoadmapTreeService {
 
-    private final RoadmapNodeRepository nodeRepository;
-    private final RoadmapNodeReferenceRepository referenceRepository;
-    private final RoadmapAccessGuard accessGuard;
-    private final RoadmapLookupSupport lookupSupport;
+    private final RoadmapNodeRepository roadmapNodeRepository;
+    private final RoadmapNodeReferenceRepository roadmapNodeReferenceRepository;
+    private final RoadmapAccessGuard roadmapAccessGuard;
+    private final RoadmapLookupSupport roadmapLookupSupport;
 
     @Override
     @Transactional(readOnly = true)
     public RoadmapTreeResDto execute(Long userId, Long roadmapId) {
-        var roadmap = lookupSupport.findRoadmapOrThrow(roadmapId);
-        accessGuard.requireReadable(roadmap, userId);
-        List<NodeTreeProjection> nodes = nodeRepository.findTreeByRoadmapId(roadmapId);
+        var roadmap = roadmapLookupSupport.findRoadmapOrThrow(roadmapId);
+        roadmapAccessGuard.requireReadable(roadmap, userId);
+        List<NodeTreeProjection> nodes = roadmapNodeRepository.findTreeByRoadmapId(roadmapId);
         if (nodes.isEmpty()) {
             return new RoadmapTreeResDto(RoadmapResDto.from(roadmap), List.of());
         }
         List<Long> nodeIds = nodes.stream().map(NodeTreeProjection::getId).toList();
-        List<RoadmapNodeReference> refs = referenceRepository.findByNodeIdInOrderByNodeIdAscPositionAsc(nodeIds);
+        List<RoadmapNodeReference> refs = roadmapNodeReferenceRepository
+                .findByNodeIdInOrderByNodeIdAscPositionAsc(nodeIds);
         return new RoadmapTreeResDto(RoadmapResDto.from(roadmap), assembleTree(nodes, refs));
     }
 

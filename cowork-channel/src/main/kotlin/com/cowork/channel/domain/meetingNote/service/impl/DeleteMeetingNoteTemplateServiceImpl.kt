@@ -13,17 +13,17 @@ import team.themoment.sdk.exception.ExpectedException
 
 @Service
 class DeleteMeetingNoteTemplateServiceImpl(
-    private val templateRepository: MeetingNoteTemplateRepository,
+    private val meetingNoteTemplateRepository: MeetingNoteTemplateRepository,
     private val meetingNoteRepository: MeetingNoteRepository,
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
-    private val lookupSupport: MeetingNoteTemplateLookupSupport,
+    private val meetingNoteTemplateLookupSupport: MeetingNoteTemplateLookupSupport,
 ) : DeleteMeetingNoteTemplateService {
 
     @Transactional
     override fun deleteTemplate(userId: Long, channelId: Long, templateId: Long) {
         meetingNoteAccessGuard.requireChannelAccessForUpdate(channelId, userId)
-        val template = lookupSupport.findTemplateOrThrow(templateId)
-        lookupSupport.requireTemplateOwnership(template, channelId)
+        val template = meetingNoteTemplateLookupSupport.findTemplateOrThrow(templateId)
+        meetingNoteTemplateLookupSupport.requireTemplateOwnership(template, channelId)
         if (template.isActive) {
             throw ExpectedException("활성 템플릿은 삭제할 수 없습니다. 다른 템플릿을 활성화한 후 삭제해 주세요.", HttpStatus.BAD_REQUEST)
         }
@@ -32,8 +32,8 @@ class DeleteMeetingNoteTemplateServiceImpl(
         }
         // 확인 직후 다른 요청이 같은 템플릿으로 회의록을 만들면 FK가 삭제를 막으므로 여기서 flush해 같은 400으로 응답한다.
         try {
-            templateRepository.delete(template)
-            templateRepository.flush()
+            meetingNoteTemplateRepository.delete(template)
+            meetingNoteTemplateRepository.flush()
         } catch (e: DataIntegrityViolationException) {
             throw templateInUseException()
         }

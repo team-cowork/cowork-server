@@ -15,10 +15,10 @@ import java.util.UUID
 
 @Component
 class ChannelRolePolicyCommandSubmission(
-    private val submissionRepository: ChannelRolePolicyOperationSubmissionRepository,
+    private val channelRolePolicyOperationSubmissionRepository: ChannelRolePolicyOperationSubmissionRepository,
     private val teamMembershipRepository: TeamMembershipRepository,
     private val outboxWriter: OutboxWriter,
-    private val operationMapper: ChannelRolePolicyOperationMapper,
+    private val channelRolePolicyOperationMapper: ChannelRolePolicyOperationMapper,
     private val objectMapper: ObjectMapper,
 ) {
     fun submit(
@@ -34,7 +34,7 @@ class ChannelRolePolicyCommandSubmission(
         val normalizedKey = normalizeIdempotencyKey(idempotencyKey)
         val requestHash = requestHash(commandType, teamId, channelId, roleId, actorId, permissions)
         val operationId = UUID.randomUUID().toString()
-        val insertion = submissionRepository.insertPendingOrGet(
+        val insertion = channelRolePolicyOperationSubmissionRepository.insertPendingOrGet(
             operationId = operationId,
             idempotencyKey = normalizedKey,
             teamId = teamId,
@@ -55,7 +55,7 @@ class ChannelRolePolicyCommandSubmission(
                         HttpStatus.CONFLICT,
                     )
                 }
-                return operationMapper.toResponse(operation)
+                return channelRolePolicyOperationMapper.toResponse(operation)
             }
         }
 

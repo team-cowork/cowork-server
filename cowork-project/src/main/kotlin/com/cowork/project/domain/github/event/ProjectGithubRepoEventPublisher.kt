@@ -17,18 +17,20 @@ const val PROJECT_GITHUB_REPO_EVENT_TOPIC = "project.github-repo.event"
 class ProjectGithubRepoEventPublisher(
     private val entityManager: EntityManager,
     private val outboxWriter: OutboxWriter,
-    private val tombstoneRepository: ProjectGithubRepoEventTombstoneRepository,
+    private val projectGithubRepoEventTombstoneRepository: ProjectGithubRepoEventTombstoneRepository,
 ) {
     fun publishUpsert(repoLink: ProjectGithubRepo, occurredAt: Instant = Instant.now()) =
         publishActive(repoLink, occurredAt)
 
     fun publishDelete(repoLink: ProjectGithubRepo, occurredAt: Instant = Instant.now()) {
-        val existing = tombstoneRepository.findByRepoIdForUpdate(repoLink.id)
+        val existing = projectGithubRepoEventTombstoneRepository.findByRepoIdForUpdate(repoLink.id)
         val currentVersion = maxOf(repoLink.stateOccurredAt, existing?.stateOccurredAt ?: Instant.EPOCH)
         val eventVersion = nextVersion(currentVersion, occurredAt)
         repoLink.stateOccurredAt = eventVersion
         val tombstone = existing?.also { it.replaceFrom(repoLink, eventVersion) }
-            ?: tombstoneRepository.save(ProjectGithubRepoEventTombstone.from(repoLink, eventVersion))
+            ?: projectGithubRepoEventTombstoneRepository.save(
+                ProjectGithubRepoEventTombstone.from(repoLink, eventVersion),
+            )
         publishTombstone(tombstone, snapshot = false)
     }
 
@@ -42,11 +44,11 @@ class ProjectGithubRepoEventPublisher(
     fun publishSnapshot(tombstone: ProjectGithubRepoEventTombstone) = publishTombstone(tombstone, snapshot = true)
 
     private fun publishActive(repoLink: ProjectGithubRepo, occurredAt: Instant) {
-        val tombstone = tombstoneRepository.findByRepoIdForUpdate(repoLink.id)
+        val tombstone = projectGithubRepoEventTombstoneRepository.findByRepoIdForUpdate(repoLink.id)
         val currentVersion = maxOf(repoLink.stateOccurredAt, tombstone?.stateOccurredAt ?: Instant.EPOCH)
         val eventVersion = nextVersion(currentVersion, occurredAt)
         repoLink.stateOccurredAt = eventVersion
-        tombstone?.let(tombstoneRepository::delete)
+        tombstone?.let(projectGithubRepoEventTombstoneRepository::delete)
         publish(ProjectGithubRepoEventType.UPSERT, repoLink, eventVersion, snapshot = false)
     }
 

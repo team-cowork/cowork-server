@@ -20,9 +20,9 @@ import java.time.Instant
 
 @Service
 class ReorderGithubBoardItemServiceImpl(
-    private val accessResolver: GithubBoardAccessResolver,
-    private val boardReader: GithubBoardReader,
-    private val commandPublisher: GithubProjectItemWriteCommandPublisher,
+    private val githubBoardAccessResolver: GithubBoardAccessResolver,
+    private val githubBoardReader: GithubBoardReader,
+    private val githubProjectItemWriteCommandPublisher: GithubProjectItemWriteCommandPublisher,
 ) : ReorderGithubBoardItemService {
 
     @Transactional
@@ -33,8 +33,8 @@ class ReorderGithubBoardItemServiceImpl(
         itemId: String,
         request: ReorderGithubBoardItemReqDto,
     ): GithubBoardOperationAcceptedResDto {
-        val link = accessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.WRITE)
-        val board = boardReader.read(link)
+        val link = githubBoardAccessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.WRITE)
+        val board = githubBoardReader.read(link)
         val view = GithubBoardKanbanBuilder.requireBoardView(board, request.viewNumber)
         if (view.sortBy.isNotEmpty()) {
             throw ExpectedException("정렬이 있는 뷰에서는 카드 순서를 바꿀 수 없습니다.", HttpStatus.CONFLICT)
@@ -51,7 +51,7 @@ class ReorderGithubBoardItemServiceImpl(
             throw ExpectedException("같은 컬럼에 다른 카드가 없어 순서를 바꿀 수 없습니다.", HttpStatus.BAD_REQUEST)
         }
         val target = GithubProjectItemTarget(link.id, link.projectId, link.ownerLogin, board.projectNodeId, itemId)
-        val operationId = commandPublisher.publish(
+        val operationId = githubProjectItemWriteCommandPublisher.publish(
             target,
             GithubProjectItemWriteCommandType.REORDER_ITEM,
             GithubReorderItemPayload(placement.afterId),

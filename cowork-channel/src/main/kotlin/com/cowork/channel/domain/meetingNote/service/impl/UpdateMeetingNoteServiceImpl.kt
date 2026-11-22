@@ -18,8 +18,8 @@ class UpdateMeetingNoteServiceImpl(
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
     private val meetingNoteLookupSupport: MeetingNoteLookupSupport,
     private val meetingNoteContentSupport: MeetingNoteContentSupport,
-    private val attachmentSupport: MeetingNoteAttachmentSupport,
-    private val attachmentPublisher: MeetingNoteAttachmentPublisher,
+    private val meetingNoteAttachmentSupport: MeetingNoteAttachmentSupport,
+    private val meetingNoteAttachmentPublisher: MeetingNoteAttachmentPublisher,
 ) : UpdateMeetingNoteService {
 
     @Transactional
@@ -37,7 +37,7 @@ class UpdateMeetingNoteServiceImpl(
         request.content?.let { meetingNoteContentSupport.requireJsonObject(it) }
         val note = meetingNoteLookupSupport.findNoteOrThrow(noteId, channelId)
         meetingNoteLookupSupport.requireNoteOwner(note, userId)
-        val attachments = request.attachments?.let { attachmentSupport.validate(it, channelId, userId) }
+        val attachments = request.attachments?.let { meetingNoteAttachmentSupport.validate(it, channelId, userId) }
         val existingKeys = note.attachments.map { it.objectKey }.toSet()
         if (attachments?.any { it.objectKey !in existingKeys } == true) {
             meetingNoteAccessGuard.requireAttachmentPermission(channelId, userId)
@@ -50,7 +50,7 @@ class UpdateMeetingNoteServiceImpl(
             return MeetingNoteResponse.of(note)
         }
         note.update(request.title, request.content, attachments)
-        attachmentPublisher.publish(note)
+        meetingNoteAttachmentPublisher.publish(note)
         return MeetingNoteResponse.of(note)
     }
 }

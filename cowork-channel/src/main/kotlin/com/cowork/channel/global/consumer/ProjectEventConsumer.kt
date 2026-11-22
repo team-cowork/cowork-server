@@ -10,10 +10,10 @@ import tools.jackson.databind.ObjectMapper
 
 @Component
 class ProjectEventConsumer(
-    private val handler: ProjectProjectionHandler,
+    private val projectProjectionHandler: ProjectProjectionHandler,
     private val objectMapper: ObjectMapper,
-    private val processor: ProjectionRecordProcessor,
-    private val streams: ProjectionStreams,
+    private val projectionRecordProcessor: ProjectionRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
 ) {
 
     @KafkaListener(
@@ -22,7 +22,7 @@ class ProjectEventConsumer(
         containerFactory = "projectEventListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        if (processor.processControlRecord(streams.project, record)) return
+        if (projectionRecordProcessor.processControlRecord(projectionStreams.project, record)) return
         val payload = runCatching {
             requireNotNull(objectMapper.readValue(record.value(), ProjectEventPayload::class.java)) {
                 "top-level null은 허용되지 않습니다."
@@ -37,7 +37,9 @@ class ProjectEventConsumer(
             quarantine(record, reason)
             return
         }
-        processor.applyRecord(streams.project, record) { handler.apply(payload) }
+        projectionRecordProcessor.applyRecord(projectionStreams.project, record) {
+            projectProjectionHandler.apply(payload)
+        }
     }
 
     private fun contractViolation(payload: ProjectEventPayload, key: String?): String? = when {
@@ -56,6 +58,6 @@ class ProjectEventConsumer(
             record.offset(),
             reason,
         )
-        processor.quarantineRecord(streams.project, record, reason)
+        projectionRecordProcessor.quarantineRecord(projectionStreams.project, record, reason)
     }
 }

@@ -17,11 +17,11 @@ import kotlin.math.ceil
  * 차단 응답에는 토큰 1회 요청분이 다시 채워지는 시간을 `Retry-After`로 더한다.
  */
 class ObservedRedisRateLimiter(
-    redisTemplate: ReactiveStringRedisTemplate,
-    script: RedisScript<List<Long>>,
+    reactiveStringRedisTemplate: ReactiveStringRedisTemplate,
+    redisScript: RedisScript<List<Long>>,
     configurationService: ConfigurationService,
     private val meterRegistry: MeterRegistry,
-) : RedisRateLimiter(redisTemplate, script, configurationService) {
+) : RedisRateLimiter(reactiveStringRedisTemplate, redisScript, configurationService) {
 
     override fun isAllowed(routeId: String, id: String): Mono<RateLimiter.Response> =
         super.isAllowed(routeId, id).map { response ->

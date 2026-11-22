@@ -17,7 +17,7 @@ class SetProjectGithubWebhookChannelServiceImpl(
     private val projectGithubRepoRepository: ProjectGithubRepoRepository,
     private val projectAccessGuard: ProjectAccessGuard,
     private val channelProjectionReader: ChannelProjectionReader,
-    private val repoEventPublisher: ProjectGithubRepoEventPublisher,
+    private val projectGithubRepoEventPublisher: ProjectGithubRepoEventPublisher,
 ) : SetProjectGithubWebhookChannelService {
 
     @Transactional
@@ -36,7 +36,7 @@ class SetProjectGithubWebhookChannelServiceImpl(
             ?: throw ExpectedException("등록된 저장소를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         repoLink.setWebhookChannel(request.channelId)
         val saved = projectGithubRepoRepository.save(repoLink)
-        repoEventPublisher.publishUpsert(saved)
+        projectGithubRepoEventPublisher.publishUpsert(saved)
         return ProjectGithubRepoResDto.of(saved)
     }
 }

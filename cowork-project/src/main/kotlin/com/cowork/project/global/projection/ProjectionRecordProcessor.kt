@@ -9,10 +9,10 @@ import java.util.UUID
 
 @Component
 class ProjectionRecordProcessor(
-    private val checkpointStore: ProjectionCheckpointStore,
+    private val projectionCheckpointStore: ProjectionCheckpointStore,
     private val objectMapper: ObjectMapper,
-    private val topicGenerations: ProjectionTopicGenerationRegistry,
-    private val readinessState: ProjectionReadinessState,
+    private val projectionTopicGenerationRegistry: ProjectionTopicGenerationRegistry,
+    private val projectionReadinessState: ProjectionReadinessState,
 ) {
 
     @Transactional
@@ -22,10 +22,10 @@ class ProjectionRecordProcessor(
         val topicId = requireTopicId(stream)
         val violation = snapshotCompletionViolation(stream, record)
         if (violation != null) {
-            checkpointStore.quarantine(stream, record, violation)
+            projectionCheckpointStore.quarantine(stream, record, violation)
             markStateGap(stream, record, topicId)
         } else {
-            checkpointStore.markSnapshotCompleted(
+            projectionCheckpointStore.markSnapshotCompleted(
                 stream,
                 record.partition(),
                 record.offset(),
@@ -33,34 +33,35 @@ class ProjectionRecordProcessor(
                 snapshotId(record),
             )
         }
-        checkpointStore.advance(stream, record.partition(), record.offset() + 1, topicId)
+        projectionCheckpointStore.advance(stream, record.partition(), record.offset() + 1, topicId)
         return true
     }
 
     @Transactional
     fun applyRecord(stream: ProjectionStream, record: ConsumerRecord<String, String>, applyProjection: () -> Unit) {
         applyProjection()
-        checkpointStore.advance(stream, record.partition(), record.offset() + 1, requireTopicId(stream))
+        projectionCheckpointStore.advance(stream, record.partition(), record.offset() + 1, requireTopicId(stream))
     }
 
     @Transactional
     fun quarantineRecord(stream: ProjectionStream, record: ConsumerRecord<String, String>, reason: String) {
         val topicId = requireTopicId(stream)
-        checkpointStore.quarantine(stream, record, reason)
+        projectionCheckpointStore.quarantine(stream, record, reason)
         markStateGap(stream, record, topicId)
-        checkpointStore.advance(stream, record.partition(), record.offset() + 1, topicId)
+        projectionCheckpointStore.advance(stream, record.partition(), record.offset() + 1, topicId)
     }
 
     private fun markStateGap(stream: ProjectionStream, record: ConsumerRecord<String, String>, topicId: String) {
         if (stream.expectedSource != null) {
-            readinessState.markNotReady(stream)
-            checkpointStore.markInvalidRecord(stream, record.partition(), record.offset(), topicId)
+            projectionReadinessState.markNotReady(stream)
+            projectionCheckpointStore.markInvalidRecord(stream, record.partition(), record.offset(), topicId)
         }
     }
 
-    private fun requireTopicId(stream: ProjectionStream): String = checkNotNull(topicGenerations.topicId(stream)) {
-        "Kafka projection topic generation이 assignment 전에 초기화되지 않았습니다: ${stream.topic}"
-    }
+    private fun requireTopicId(stream: ProjectionStream): String =
+        checkNotNull(projectionTopicGenerationRegistry.topicId(stream)) {
+            "Kafka projection topic generation이 assignment 전에 초기화되지 않았습니다: ${stream.topic}"
+        }
 
     private fun snapshotId(record: ConsumerRecord<String, String>): String =
         UUID.fromString(objectMapper.readTree(record.value()).path("snapshotId").asString()).toString()

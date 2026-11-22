@@ -13,7 +13,7 @@ class DeleteMeetingNoteServiceImpl(
     private val meetingNoteRepository: MeetingNoteRepository,
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
     private val meetingNoteLookupSupport: MeetingNoteLookupSupport,
-    private val attachmentPublisher: MeetingNoteAttachmentPublisher,
+    private val meetingNoteAttachmentPublisher: MeetingNoteAttachmentPublisher,
 ) : DeleteMeetingNoteService {
 
     @Transactional
@@ -21,7 +21,7 @@ class DeleteMeetingNoteServiceImpl(
         meetingNoteAccessGuard.requireWritableChannelAccess(channelId, userId)
         val note = meetingNoteLookupSupport.findNoteOrThrow(noteId, channelId)
         meetingNoteLookupSupport.requireNoteOwner(note, userId)
-        attachmentPublisher.publish(note, deleted = true)
+        meetingNoteAttachmentPublisher.publish(note, deleted = true)
         meetingNoteRepository.delete(note)
     }
 }

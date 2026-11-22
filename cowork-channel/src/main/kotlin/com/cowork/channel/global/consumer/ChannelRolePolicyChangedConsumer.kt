@@ -12,10 +12,10 @@ import tools.jackson.databind.ObjectMapper
 
 @Component
 class ChannelRolePolicyChangedConsumer(
-    private val handler: ChannelRolePolicyProjectionHandler,
+    private val channelRolePolicyProjectionHandler: ChannelRolePolicyProjectionHandler,
     private val objectMapper: ObjectMapper,
-    private val processor: ProjectionRecordProcessor,
-    private val streams: ProjectionStreams,
+    private val projectionRecordProcessor: ProjectionRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
 ) {
 
     @KafkaListener(
@@ -24,7 +24,7 @@ class ChannelRolePolicyChangedConsumer(
         containerFactory = "channelRolePolicyChangedListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        if (processor.processControlRecord(streams.channelRolePolicy, record)) return
+        if (projectionRecordProcessor.processControlRecord(projectionStreams.channelRolePolicy, record)) return
         val event = runCatching {
             requireNotNull(objectMapper.readValue(record.value(), ChannelRolePolicyChangedEvent::class.java))
         }.getOrElse {
@@ -36,7 +36,9 @@ class ChannelRolePolicyChangedConsumer(
             quarantine(record, reason)
             return
         }
-        processor.applyRecord(streams.channelRolePolicy, record) { handler.handle(event) }
+        projectionRecordProcessor.applyRecord(projectionStreams.channelRolePolicy, record) {
+            channelRolePolicyProjectionHandler.handle(event)
+        }
     }
 
     private fun contractViolation(event: ChannelRolePolicyChangedEvent, key: String?): String? {
@@ -67,6 +69,6 @@ class ChannelRolePolicyChangedConsumer(
             record.offset(),
             reason,
         )
-        processor.quarantineRecord(streams.channelRolePolicy, record, reason)
+        projectionRecordProcessor.quarantineRecord(projectionStreams.channelRolePolicy, record, reason)
     }
 }

@@ -18,7 +18,7 @@ class ListProjectChannelsServiceImpl(
     private val teamPermissionService: TeamPermissionService,
     private val projectProjectionRepository: ProjectProjectionRepository,
     private val projectionReadinessGate: ProjectionReadinessGate,
-    private val messageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
+    private val channelMessageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
 ) : ListProjectChannelsService {
 
     @Transactional(readOnly = true)
@@ -33,7 +33,7 @@ class ListProjectChannelsServiceImpl(
         val teamId = projection.teamId
         teamPermissionService.requireTeamMember(teamId, userId)
         val structurallyVisible = channelRepository.findActiveByProjectIdAndTeamIdOrderByIdAsc(projectId, teamId)
-        return messageReadPolicyEvaluator.filterReadable(teamId, userId, structurallyVisible).map {
+        return channelMessageReadPolicyEvaluator.filterReadable(teamId, userId, structurallyVisible).map {
             ChannelResponse.of(it)
         }
     }

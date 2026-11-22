@@ -17,8 +17,8 @@ import tools.jackson.databind.ObjectMapper;
 @Component
 @RequiredArgsConstructor
 public class PolicyEventConsumer {
-    private final ObjectMapper mapper;
-    private final ProjectionRecordProcessor processor;
+    private final ObjectMapper objectMapper;
+    private final ProjectionRecordProcessor projectionRecordProcessor;
 
     @KafkaListener(topics = KafkaConsumerConfig.ACCOUNT_POLICY_TOPIC, groupId = KafkaConsumerConfig.ACCOUNT_POLICY_GROUP, containerFactory = "accountPolicyListenerContainerFactory")
     public void consumeAccount(ConsumerRecord<String, String> record) {
@@ -32,21 +32,22 @@ public class PolicyEventConsumer {
 
     private void consume(ConsumerRecord<String, String> record, boolean teamScoped) {
         if (ProjectionSnapshotCompletion.isReserved(record)) {
-            String violation = ProjectionSnapshotCompletion.violation(mapper, record, "cowork-preference");
+            String violation = ProjectionSnapshotCompletion.violation(objectMapper, record, "cowork-preference");
             if (violation == null) {
-                processor.completeSnapshot(record, ProjectionSnapshotCompletion.snapshotId(mapper, record));
+                projectionRecordProcessor.completeSnapshot(record,
+                        ProjectionSnapshotCompletion.snapshotId(objectMapper, record));
             } else {
-                processor.discard(record, violation);
+                projectionRecordProcessor.discard(record, violation);
             }
             return;
         }
         RolePolicyState state;
         try {
-            state = RolePolicyState.parse(record.key(), mapper.readTree(record.value()), teamScoped);
+            state = RolePolicyState.parse(record.key(), objectMapper.readTree(record.value()), teamScoped);
         } catch (IllegalArgumentException | JacksonException | DateTimeException error) {
-            processor.discard(record, "Invalid role policy state");
+            projectionRecordProcessor.discard(record, "Invalid role policy state");
             return;
         }
-        processor.applyPolicy(record, state);
+        projectionRecordProcessor.applyPolicy(record, state);
     }
 }

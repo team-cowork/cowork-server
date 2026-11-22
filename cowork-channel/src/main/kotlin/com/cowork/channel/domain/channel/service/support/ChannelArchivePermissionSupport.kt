@@ -19,25 +19,29 @@ import team.themoment.sdk.exception.ExpectedException
 @Component
 class ChannelArchivePermissionSupport(
     private val channelAccessGuard: ChannelAccessGuard,
-    private val permissionEvaluator: ChannelMessageReadPolicyEvaluator,
-    private val projectAccessRepository: ProjectAccessProjectionRepository,
+    private val channelMessageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
+    private val projectAccessProjectionRepository: ProjectAccessProjectionRepository,
     private val projectionReadinessGate: ProjectionReadinessGate,
-    private val streams: ProjectionStreams,
+    private val projectionStreams: ProjectionStreams,
 ) {
     fun requireArchivePermission(channel: Channel, userId: Long) {
         val teamId = channelAccessGuard.requireTeamChannel(channel)
         if (channel.type != ChannelType.TEXT) {
             throw ExpectedException("텍스트 채널만 보관할 수 있습니다.", HttpStatus.BAD_REQUEST)
         }
-        permissionEvaluator.requireChannelAccess(teamId, userId, channel)
+        channelMessageReadPolicyEvaluator.requireChannelAccess(teamId, userId, channel)
         val projectId = channel.projectId
         if (projectId == null) {
-            permissionEvaluator.requireTeamPermission(teamId, userId, ARCHIVE_CHANNELS)
+            channelMessageReadPolicyEvaluator.requireTeamPermission(teamId, userId, ARCHIVE_CHANNELS)
             return
         }
-        permissionEvaluator.requireMemberPermission(teamId, userId, "프로젝트 채널 보관 권한이 없습니다.") { membership ->
-            projectionReadinessGate.requireCaughtUp(setOf(streams.projectAccess))
-            projectAccessRepository.findById(ProjectAccessProjection.key(projectId, userId)).orElse(null)
+        channelMessageReadPolicyEvaluator.requireMemberPermission(
+            teamId,
+            userId,
+            "프로젝트 채널 보관 권한이 없습니다.",
+        ) { membership ->
+            projectionReadinessGate.requireCaughtUp(setOf(projectionStreams.projectAccess))
+            projectAccessProjectionRepository.findById(ProjectAccessProjection.key(projectId, userId)).orElse(null)
                 ?.allowsChannelArchive(membership.authorizationVersion) == true
         }
     }

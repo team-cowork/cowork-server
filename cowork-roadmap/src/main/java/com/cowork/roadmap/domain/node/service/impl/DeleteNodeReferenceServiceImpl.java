@@ -15,18 +15,18 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class DeleteNodeReferenceServiceImpl implements DeleteNodeReferenceService {
 
-    private final RoadmapNodeReferenceRepository referenceRepository;
-    private final RoadmapAccessGuard accessGuard;
+    private final RoadmapNodeReferenceRepository roadmapNodeReferenceRepository;
+    private final RoadmapAccessGuard roadmapAccessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
-    private final RoadmapNodeLookupSupport nodeLookupSupport;
+    private final RoadmapNodeLookupSupport roadmapNodeLookupSupport;
 
     @Override
     @Transactional
     public void execute(Long userId, Long referenceId) {
-        var ref = nodeLookupSupport.findReferenceOrThrow(referenceId);
-        var node = nodeLookupSupport.findNodeOrThrow(ref.getNodeId());
+        var ref = roadmapNodeLookupSupport.findReferenceOrThrow(referenceId);
+        var node = roadmapNodeLookupSupport.findNodeOrThrow(ref.getNodeId());
         var roadmap = roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId());
-        accessGuard.requireMutable(roadmap, userId);
-        referenceRepository.delete(ref);
+        roadmapAccessGuard.requireMutable(roadmap, userId);
+        roadmapNodeReferenceRepository.delete(ref);
     }
 }

@@ -14,7 +14,7 @@ import team.themoment.sdk.exception.ExpectedException
 class QueryProjectGithubReposServiceImpl(
     private val projectAccessGuard: ProjectAccessGuard,
     private val teamGithubInstallationRepository: TeamGithubInstallationRepository,
-    private val repoReader: GithubRepoReader,
+    private val githubRepoReader: GithubRepoReader,
 ) : QueryProjectGithubReposService {
 
     @Transactional(readOnly = true)
@@ -26,6 +26,6 @@ class QueryProjectGithubReposServiceImpl(
             ExpectedException("팀이 GitHub 조직에 연결되어 있지 않습니다.", HttpStatus.BAD_REQUEST)
         }
 
-        return repoReader.listOrgRepos(installation.orgLogin)
+        return githubRepoReader.listOrgRepos(installation.orgLogin)
     }
 }

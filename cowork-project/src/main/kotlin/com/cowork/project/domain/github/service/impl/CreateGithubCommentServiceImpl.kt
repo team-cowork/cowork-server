@@ -17,9 +17,9 @@ import java.time.Instant
  */
 @Service
 class CreateGithubCommentServiceImpl(
-    private val repoAccessResolver: GithubRepoAccessResolver,
-    private val usernameResolver: GithubUsernameResolver,
-    private val commandPublisher: GithubIssueWriteCommandPublisher,
+    private val githubRepoAccessResolver: GithubRepoAccessResolver,
+    private val githubUsernameResolver: GithubUsernameResolver,
+    private val githubIssueWriteCommandPublisher: GithubIssueWriteCommandPublisher,
 ) : CreateGithubCommentService {
 
     @Transactional
@@ -31,10 +31,10 @@ class CreateGithubCommentServiceImpl(
         number: Int,
         request: CreateGithubCommentReqDto,
     ) {
-        val repo = repoAccessResolver.resolveForRead(userId, projectId, repoId)
-        val requesterGithubUsername = usernameResolver.resolve(userId)
+        val repo = githubRepoAccessResolver.resolveForRead(userId, projectId, repoId)
+        val requesterGithubUsername = githubUsernameResolver.resolve(userId)
 
-        commandPublisher.publishCreateComment(
+        githubIssueWriteCommandPublisher.publishCreateComment(
             owner = repo.owner,
             repo = repo.repo,
             repoId = repoId,

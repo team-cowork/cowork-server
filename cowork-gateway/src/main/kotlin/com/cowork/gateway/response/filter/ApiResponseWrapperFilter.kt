@@ -29,13 +29,13 @@ import tools.jackson.databind.ObjectMapper
 @Component
 class ApiResponseWrapperFilter(
     private val objectMapper: ObjectMapper,
-    properties: ApiResponseWrapperProperties,
-    private val metrics: ApiResponseWrapperMetrics,
+    apiResponseWrapperProperties: ApiResponseWrapperProperties,
+    private val apiResponseWrapperMetrics: ApiResponseWrapperMetrics,
 ) : WebFilter,
     Ordered {
 
-    private val policy = ApiResponseWrappingPolicy(properties)
-    private val maxErrorBodyBytes = properties.maxErrorBodyBytes()
+    private val policy = ApiResponseWrappingPolicy(apiResponseWrapperProperties)
+    private val maxErrorBodyBytes = apiResponseWrapperProperties.maxErrorBodyBytes()
 
     // Include authentication failures that finish before Gateway route filters run.
     override fun getOrder(): Int = Ordered.HIGHEST_PRECEDENCE
@@ -52,7 +52,7 @@ class ApiResponseWrapperFilter(
                     headers = headers,
                 )
                 if (decision != ApiResponseWrappingDecision.WRAP) {
-                    metrics.record(
+                    apiResponseWrapperMetrics.record(
                         exchange,
                         decision.toOutcome(),
                         sourceBytes = headers.contentLength.takeIf {
@@ -106,7 +106,7 @@ class ApiResponseWrapperFilter(
                         } else {
                             ApiResponseWrappingOutcome.WRAPPED
                         }
-                        metrics.record(
+                        apiResponseWrapperMetrics.record(
                             exchange,
                             terminalOutcome(signal, completed),
                             sourceBytes = sourceBytes,
@@ -146,7 +146,7 @@ class ApiResponseWrapperFilter(
                     }
                     .doOnDiscard(DataBuffer::class.java, DataBufferUtils::release)
                     .doFinally { signal ->
-                        metrics.record(
+                        apiResponseWrapperMetrics.record(
                             exchange,
                             terminalOutcome(signal, outcome),
                             // An oversized error records only the bytes received before cancellation.
@@ -167,7 +167,7 @@ class ApiResponseWrapperFilter(
                 if (!status.isError) return super.setComplete()
                 val bytes = errorBody(ByteArray(0), status)
                 updateHeaders(bytes.size.toLong())
-                metrics.record(
+                apiResponseWrapperMetrics.record(
                     exchange,
                     ApiResponseWrappingOutcome.WRAPPED,
                     sourceBytes = 0,
@@ -177,7 +177,7 @@ class ApiResponseWrapperFilter(
             }
 
             override fun writeAndFlushWith(body: Publisher<out Publisher<out DataBuffer>>): Mono<Void> {
-                metrics.record(exchange, ApiResponseWrappingOutcome.BYPASS_STREAMING)
+                apiResponseWrapperMetrics.record(exchange, ApiResponseWrappingOutcome.BYPASS_STREAMING)
                 return super.writeAndFlushWith(body)
             }
 

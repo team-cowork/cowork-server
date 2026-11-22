@@ -23,7 +23,7 @@ class CreateDmServiceImpl(
     private val channelRepository: ChannelRepository,
     private val dmParticipantRepository: DmParticipantRepository,
     private val channelEventPublisher: ChannelEventPublisher,
-    private val dmParticipantshipSyncPublisher: DmParticipantSyncPublisher,
+    private val dmParticipantSyncPublisher: DmParticipantSyncPublisher,
     private val transactionTemplate: TransactionTemplate,
 ) : CreateDmService {
 
@@ -64,7 +64,7 @@ class CreateDmServiceImpl(
             dmParticipantRepository.save(DmParticipant(channelId = channel.id, userId = memberId))
         }
         channelEventPublisher.publishCreated(channel)
-        dmParticipantshipSyncPublisher.publishChannelSnapshot(channel, members)
+        dmParticipantSyncPublisher.publishChannelSnapshot(channel, members)
         return ChannelResponse.of(channel)
     }
 

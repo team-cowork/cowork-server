@@ -20,7 +20,7 @@ class UpdateSharedAccountServiceImpl(
     private val channelAccessGuard: ChannelAccessGuard,
     private val credentialEncryptionService: CredentialEncryptionService,
     private val sharedAccountAccessGuard: SharedAccountAccessGuard,
-    private val lookupSupport: SharedAccountLookupSupport,
+    private val sharedAccountLookupSupport: SharedAccountLookupSupport,
 ) : UpdateSharedAccountService {
 
     override fun updateAccount(
@@ -31,8 +31,8 @@ class UpdateSharedAccountServiceImpl(
     ): SharedAccountResponse {
         val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
         sharedAccountAccessGuard.requireAccountShareChannel(channel)
-        val account = lookupSupport.findAccountOrThrow(accountId, channelId)
-        lookupSupport.requireAccountEditor(account, channel, userId)
+        val account = sharedAccountLookupSupport.findAccountOrThrow(accountId, channelId)
+        sharedAccountLookupSupport.requireAccountEditor(account, channel, userId)
         channelAccessGuard.requireNotArchived(channel)
 
         val encryptedCredential = request.credential?.let { credentialEncryptionService.encrypt(it) }
@@ -43,6 +43,6 @@ class UpdateSharedAccountServiceImpl(
         } catch (e: DataIntegrityViolationException) {
             throw e.toSharedAccountConflict()
         }
-        return lookupSupport.toResponse(account)
+        return sharedAccountLookupSupport.toResponse(account)
     }
 }

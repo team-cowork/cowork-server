@@ -9,18 +9,18 @@ import org.springframework.stereotype.Service
 
 @Service
 class SummarizeMeetingNoteServiceImpl(
-    private val accessGuard: MeetingNoteAccessGuard,
-    private val client: MeetingNoteSummaryClient,
+    private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
+    private val meetingNoteSummaryClient: MeetingNoteSummaryClient,
 ) : SummarizeMeetingNoteService {
     override fun execute(
         userId: Long,
         channelId: Long,
         request: SummarizeMeetingNoteRequest,
     ): MeetingNoteSummaryResponse {
-        accessGuard.requireChannelAccess(channelId, userId)
+        meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
         val content = request.content.trim()
         val excerpt = content.take(MAX_INPUT_LENGTH).trimEnd { it.isHighSurrogate() }
-        val (summary, decisions, actionItems) = client.summarize(request.title, excerpt)
+        val (summary, decisions, actionItems) = meetingNoteSummaryClient.summarize(request.title, excerpt)
         return MeetingNoteSummaryResponse(
             summary,
             decisions,

@@ -14,7 +14,7 @@ import team.themoment.sdk.exception.ExpectedException
 class TeamPermissionService(
     private val teamMembershipRepository: TeamMembershipRepository,
     private val projectionReadinessGate: ProjectionReadinessGate,
-    private val permissionEvaluator: ChannelMessageReadPolicyEvaluator,
+    private val channelMessageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
 ) {
 
     fun teamRoleOf(teamId: Long, userId: Long): String? {
@@ -26,16 +26,16 @@ class TeamPermissionService(
 
     fun requireChannelAccess(channel: Channel, userId: Long) {
         val teamId = channel.teamId ?: throw ExpectedException("팀 채널에서만 지원하는 기능입니다.", HttpStatus.BAD_REQUEST)
-        permissionEvaluator.requireChannelAccess(teamId, userId, channel)
+        channelMessageReadPolicyEvaluator.requireChannelAccess(teamId, userId, channel)
     }
 
     fun requireChannelPermission(channel: Channel, userId: Long, permission: String) {
         val teamId = channel.teamId ?: throw ExpectedException("팀 채널에서만 지원하는 기능입니다.", HttpStatus.BAD_REQUEST)
-        permissionEvaluator.requirePermission(teamId, userId, channel, permission)
+        channelMessageReadPolicyEvaluator.requirePermission(teamId, userId, channel, permission)
     }
 
     fun requirePermission(teamId: Long, userId: Long, permission: String) {
-        permissionEvaluator.requireTeamPermission(teamId, userId, permission)
+        channelMessageReadPolicyEvaluator.requireTeamPermission(teamId, userId, permission)
     }
 
     fun prepareInitialRolePolicySeed(
@@ -44,7 +44,7 @@ class TeamPermissionService(
         overwrites: List<InitialChannelRoleOverwrite>,
     ): InitialChannelRolePolicySeed? {
         val teamId = channel.teamId ?: throw ExpectedException("팀 채널에서만 지원하는 기능입니다.", HttpStatus.BAD_REQUEST)
-        return permissionEvaluator.prepareInitialRolePolicySeed(teamId, userId, channel, overwrites)
+        return channelMessageReadPolicyEvaluator.prepareInitialRolePolicySeed(teamId, userId, channel, overwrites)
     }
 
     fun requireTeamMember(teamId: Long, userId: Long) {

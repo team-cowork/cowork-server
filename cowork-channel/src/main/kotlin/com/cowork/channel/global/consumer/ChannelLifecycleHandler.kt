@@ -18,8 +18,8 @@ class ChannelLifecycleHandler(
     private val channelRepository: ChannelRepository,
     private val teamMembershipRepository: TeamMembershipRepository,
     private val channelEventPublisher: ChannelEventPublisher,
-    private val roleProjectionHandler: PreferenceTeamRoleProjectionHandler,
-    private val attachmentPublisher: MeetingNoteAttachmentPublisher,
+    private val preferenceTeamRoleProjectionHandler: PreferenceTeamRoleProjectionHandler,
+    private val meetingNoteAttachmentPublisher: MeetingNoteAttachmentPublisher,
     private val meetingNoteRepository: MeetingNoteRepository,
     private val threadStatePublisher: ThreadStatePublisher,
 ) {
@@ -62,7 +62,7 @@ class ChannelLifecycleHandler(
         }
         channels.forEach { channelEventPublisher.publishDeleted(it, version) }
         // 템플릿 CASCADE가 회의록보다 먼저 처리되면 템플릿 FK가 채널 삭제를 막으므로 회의록을 먼저 지운다.
-        attachmentPublisher.deleteChannels(channels.map { it.id })
+        meetingNoteAttachmentPublisher.deleteChannels(channels.map { it.id })
         // 스레드는 채널 FK CASCADE로 지워지므로, 삭제 이력을 먼저 상태 원장에 남긴다.
         threadStatePublisher.deleteChannels(channels.map { it.id })
         meetingNoteRepository.deleteAllByChannelIdIn(channels.map { it.id })
@@ -79,7 +79,7 @@ class ChannelLifecycleHandler(
         authorizationVersion: Instant? = null,
     ) {
         val version = occurredAt.toProjectionPrecision()
-        roleProjectionHandler.handle(
+        preferenceTeamRoleProjectionHandler.handle(
             PreferenceTeamRoleChangedEvent(
                 eventType = "MEMBER_ASSIGNMENTS_DELETED",
                 teamId = teamId,

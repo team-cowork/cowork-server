@@ -13,14 +13,14 @@ import team.themoment.sdk.exception.ExpectedException
 @Service
 class UnarchiveChannelServiceImpl(
     private val channelAccessGuard: ChannelAccessGuard,
-    private val archivePermissionSupport: ChannelArchivePermissionSupport,
+    private val channelArchivePermissionSupport: ChannelArchivePermissionSupport,
     private val channelEventPublisher: ChannelEventPublisher,
 ) : UnarchiveChannelService {
 
     @Transactional
     override fun execute(userId: Long, channelId: Long): ChannelResponse {
         val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
-        archivePermissionSupport.requireArchivePermission(channel, userId)
+        channelArchivePermissionSupport.requireArchivePermission(channel, userId)
         if (!channel.isArchived) {
             throw ExpectedException("보관된 채널이 아닙니다.", HttpStatus.CONFLICT)
         }

@@ -13,9 +13,9 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 @Transactional
 class UpdateMeetingNoteTemplateServiceImpl(
-    private val sectionRepository: TemplateSectionRepository,
+    private val templateSectionRepository: TemplateSectionRepository,
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
-    private val lookupSupport: MeetingNoteTemplateLookupSupport,
+    private val meetingNoteTemplateLookupSupport: MeetingNoteTemplateLookupSupport,
 ) : UpdateMeetingNoteTemplateService {
 
     override fun updateTemplate(
@@ -25,10 +25,10 @@ class UpdateMeetingNoteTemplateServiceImpl(
         request: UpdateMeetingNoteTemplateRequest,
     ): MeetingNoteTemplateResponse {
         meetingNoteAccessGuard.requireWritableChannelAccess(channelId, userId)
-        val template = lookupSupport.findTemplateOrThrow(templateId)
-        lookupSupport.requireTemplateOwnership(template, channelId)
+        val template = meetingNoteTemplateLookupSupport.findTemplateOrThrow(templateId)
+        meetingNoteTemplateLookupSupport.requireTemplateOwnership(template, channelId)
         template.updateName(request.name)
-        val sections = sectionRepository.findAllByTemplateIdOrderByIdAsc(templateId)
+        val sections = templateSectionRepository.findAllByTemplateIdOrderByIdAsc(templateId)
             .map { TemplateSectionResponse.of(it) }
         return MeetingNoteTemplateResponse.of(template, sections)
     }

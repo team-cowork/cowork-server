@@ -13,27 +13,27 @@ import java.time.Instant
 
 @Component
 class MeetingNoteAttachmentPublisher(
-    private val states: MeetingNoteAttachmentStateRepository,
-    private val outbox: OutboxWriter,
-    private val mapper: ObjectMapper,
+    private val meetingNoteAttachmentStateRepository: MeetingNoteAttachmentStateRepository,
+    private val outboxWriter: OutboxWriter,
+    private val objectMapper: ObjectMapper,
 ) {
     @Transactional(propagation = Propagation.MANDATORY)
     fun publish(note: MeetingNote, deleted: Boolean = false) {
-        val previous = states.findForUpdate(note.id)
+        val previous = meetingNoteAttachmentStateRepository.findForUpdate(note.id)
         val version = nextChannelStateOccurredAt(previous?.stateOccurredAt, Instant.now())
         val state =
             previous
                 ?: MeetingNoteAttachmentState(note.id, note.channelId, note.createdBy, "[]", stateOccurredAt = version)
-        state.attachmentsJson = if (deleted) "[]" else mapper.writeValueAsString(note.attachments)
+        state.attachmentsJson = if (deleted) "[]" else objectMapper.writeValueAsString(note.attachments)
         state.deleted = deleted
         state.stateOccurredAt = version
-        states.save(state)
+        meetingNoteAttachmentStateRepository.save(state)
         enqueue(state)
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
     fun deleteChannels(channelIds: Collection<Long>) {
-        states.findActiveByChannelIdsForUpdate(channelIds).forEach {
+        meetingNoteAttachmentStateRepository.findActiveByChannelIdsForUpdate(channelIds).forEach {
             it.deleted = true
             it.attachmentsJson = "[]"
             it.stateOccurredAt = nextChannelStateOccurredAt(it.stateOccurredAt, Instant.now())
@@ -42,14 +42,14 @@ class MeetingNoteAttachmentPublisher(
     }
 
     fun enqueue(state: MeetingNoteAttachmentState) {
-        outbox.enqueue(
+        outboxWriter.enqueue(
             TOPIC,
             state.noteId.toString(),
             mapOf(
                 "noteId" to state.noteId,
                 "channelId" to state.channelId,
                 "authorId" to state.authorId,
-                "attachments" to mapper.readTree(state.attachmentsJson),
+                "attachments" to objectMapper.readTree(state.attachmentsJson),
                 "deleted" to state.deleted,
                 "occurredAt" to state.stateOccurredAt,
             ),

@@ -12,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 @Transactional
 class CreateMeetingNoteTemplateServiceImpl(
-    private val templateRepository: MeetingNoteTemplateRepository,
+    private val meetingNoteTemplateRepository: MeetingNoteTemplateRepository,
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
 ) : CreateMeetingNoteTemplateService {
 
@@ -22,7 +22,7 @@ class CreateMeetingNoteTemplateServiceImpl(
         request: CreateMeetingNoteTemplateRequest,
     ): MeetingNoteTemplateResponse {
         meetingNoteAccessGuard.requireWritableChannelAccess(channelId, userId)
-        val template = templateRepository.save(
+        val template = meetingNoteTemplateRepository.save(
             MeetingNoteTemplate(
                 channelId = channelId,
                 name = request.name,

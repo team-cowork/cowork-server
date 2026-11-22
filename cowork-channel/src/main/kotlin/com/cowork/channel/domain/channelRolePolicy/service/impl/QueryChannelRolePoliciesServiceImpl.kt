@@ -19,8 +19,8 @@ class QueryChannelRolePoliciesServiceImpl(
     private val channelAccessGuard: ChannelAccessGuard,
     private val teamPermissionService: TeamPermissionService,
     private val channelPermissionSupport: ChannelPermissionSupport,
-    private val policyRepository: ChannelRolePolicyProjectionRepository,
-    private val roleRepository: TeamRoleProjectionRepository,
+    private val channelRolePolicyProjectionRepository: ChannelRolePolicyProjectionRepository,
+    private val teamRoleProjectionRepository: TeamRoleProjectionRepository,
     private val projectionReadinessGate: ProjectionReadinessGate,
     private val objectMapper: ObjectMapper,
 ) : QueryChannelRolePoliciesService {
@@ -31,9 +31,12 @@ class QueryChannelRolePoliciesServiceImpl(
         val teamId = channelAccessGuard.requireTeamChannel(channel)
         teamPermissionService.requireTeamMember(teamId, actorId)
         channelPermissionSupport.requireRolePolicyAccess(channel, actorId)
-        val policies = policyRepository.findAllByTeamIdAndChannelIdAndDeletedFalse(teamId, channelId)
+        val policies = channelRolePolicyProjectionRepository.findAllByTeamIdAndChannelIdAndDeletedFalse(
+            teamId,
+            channelId,
+        )
         if (policies.isEmpty()) return emptyList()
-        val rolesById = roleRepository
+        val rolesById = teamRoleProjectionRepository
             .findAllByTeamIdAndRoleIdInAndDeletedFalse(teamId, policies.mapTo(mutableSetOf()) { it.roleId })
             .associateBy { it.roleId }
         return policies.asSequence()

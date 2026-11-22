@@ -13,9 +13,9 @@ import java.time.Instant
 
 @Component
 class GithubPullRequestStateConsumer(
-    private val repository: GithubPullRequestProjectionRepository,
-    private val processor: GithubStateRecordProcessor,
-    private val streams: ProjectionStreams,
+    private val githubPullRequestProjectionRepository: GithubPullRequestProjectionRepository,
+    private val githubStateRecordProcessor: GithubStateRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
 ) {
     @KafkaListener(
         topics = [GITHUB_PULL_REQUEST_STATE_TOPIC],
@@ -23,14 +23,14 @@ class GithubPullRequestStateConsumer(
         containerFactory = "githubPullRequestStateListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        processor.process(
-            streams.githubPullRequestState,
+        githubStateRecordProcessor.process(
+            projectionStreams.githubPullRequestState,
             GithubSyncStream.PULL_REQUEST,
             record,
             GithubPullRequestStateEvent::class.java,
         ) { event ->
             val id = GithubPullRequestProjection.id(event.owner, event.repo, event.number)
-            val projection = repository.findById(id).orElseGet {
+            val projection = githubPullRequestProjectionRepository.findById(id).orElseGet {
                 GithubPullRequestProjection(
                     id = id,
                     owner = event.owner,
@@ -50,7 +50,7 @@ class GithubPullRequestStateConsumer(
                 )
             }
             if (projection.apply(event)) {
-                repository.save(projection)
+                githubPullRequestProjectionRepository.save(projection)
             }
         }
     }

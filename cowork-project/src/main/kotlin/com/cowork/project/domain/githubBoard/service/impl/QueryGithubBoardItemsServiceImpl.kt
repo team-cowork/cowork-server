@@ -16,9 +16,9 @@ import team.themoment.sdk.exception.ExpectedException
 
 @Service
 class QueryGithubBoardItemsServiceImpl(
-    private val accessResolver: GithubBoardAccessResolver,
-    private val boardReader: GithubBoardReader,
-    private val itemFilter: GithubBoardItemFilter,
+    private val githubBoardAccessResolver: GithubBoardAccessResolver,
+    private val githubBoardReader: GithubBoardReader,
+    private val githubBoardItemFilter: GithubBoardItemFilter,
 ) : QueryGithubBoardItemsService {
 
     @Transactional(readOnly = true)
@@ -29,11 +29,11 @@ class QueryGithubBoardItemsServiceImpl(
         viewNumber: Int,
         query: GithubBoardItemQuery,
     ): GithubBoardItemsResDto {
-        val link = accessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.READ)
-        val board = boardReader.read(link)
+        val link = githubBoardAccessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.READ)
+        val board = githubBoardReader.read(link)
         val view =
             board.view(viewNumber) ?: throw ExpectedException("GitHub Project 뷰를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
-        val result = itemFilter.apply(board, view, query, userId)
+        val result = githubBoardItemFilter.apply(board, view, query, userId)
         return GithubBoardItemsResDto(
             view = GithubBoardViewResDto.of(view),
             items = result.items.map { GithubBoardItemResDto.of(it, board) },

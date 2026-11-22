@@ -13,9 +13,9 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 @Transactional
 class AddTemplateSectionServiceImpl(
-    private val sectionRepository: TemplateSectionRepository,
+    private val templateSectionRepository: TemplateSectionRepository,
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
-    private val lookupSupport: MeetingNoteTemplateLookupSupport,
+    private val meetingNoteTemplateLookupSupport: MeetingNoteTemplateLookupSupport,
 ) : AddTemplateSectionService {
 
     override fun addSection(
@@ -25,14 +25,14 @@ class AddTemplateSectionServiceImpl(
         request: CreateTemplateSectionRequest,
     ): TemplateSectionResponse {
         meetingNoteAccessGuard.requireChannelAccessForUpdate(channelId, userId)
-        val template = lookupSupport.findTemplateOrThrow(templateId)
-        lookupSupport.requireTemplateOwnership(template, channelId)
-        lookupSupport.requireUniqueSectionTitle(templateId, request.title)
-        val section = sectionRepository.save(
+        val template = meetingNoteTemplateLookupSupport.findTemplateOrThrow(templateId)
+        meetingNoteTemplateLookupSupport.requireTemplateOwnership(template, channelId)
+        meetingNoteTemplateLookupSupport.requireUniqueSectionTitle(templateId, request.title)
+        val section = templateSectionRepository.save(
             TemplateSection(
                 templateId = templateId,
                 title = request.title,
-                type = lookupSupport.parseSectionType(request.type),
+                type = meetingNoteTemplateLookupSupport.parseSectionType(request.type),
                 placeholder = request.placeholder,
                 isRequired = request.isRequired,
             ),
