@@ -4,7 +4,7 @@ WORKDIR /workspace/cowork-chat
 COPY cowork-chat/package.json cowork-chat/bun.lock ./
 RUN --mount=type=cache,id=bun-chat-builder,target=/root/.bun/install/cache \
     bun install --frozen-lockfile
-COPY cowork-chat/tsconfig.json ./
+COPY cowork-chat/tsconfig.json cowork-chat/tsconfig.build.json ./
 COPY cowork-chat/src src
 RUN bun run build
 

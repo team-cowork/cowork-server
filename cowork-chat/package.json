@@ -12,11 +12,11 @@
   "scripts": {
     "start": "bun dist/main.js",
     "start:dev": "bun run build && bun run start",
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "test": "bun --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:watch": "bun run test -- --watch",
     "test:cov": "bun run test -- --coverage",
-    "lint": "xo",
+    "lint": "tsc --noEmit -p tsconfig.json && xo",
     "lint:fix": "bun run lint -- --fix",
     "lint:circular": "bunx --yes madge --circular --extensions ts src"
   },
