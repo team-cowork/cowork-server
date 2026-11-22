@@ -45,14 +45,15 @@ Then read `.agents/skills/write-issue/references/labels.md` and select **exactly
 Format: `[scope] description`.
 
 - Scope: one domain, following `.agents/skills/write-pr/references/commit-conventions.md`. When the work spans several domains, use `[global]`; for deployment or CI work, use `[ci/cd]`. Never join scopes (`[chat·notification]`).
-- Description: plain Korean that says what changes or what goes wrong, readable without knowing the code. End with a noun phrase (`중복 알림 차단`, `로그 수집 누락 감지`), never a verb ending such as `~하기`, `~한다`, or `~합니다`. Avoid identifiers unless no plain word exists. Max 50 characters, no emojis, no `·` or `—`.
+- Description: plain Korean that says what changes or what goes wrong, readable without knowing the code. End with a noun phrase (`중복 알림 차단`, `로그 수집 누락 감지`), never a verb ending such as `~하기`, `~한다`, or `~합니다`. Avoid identifiers unless no plain word exists; when one is necessary, wrap it in backticks. Max 50 characters, no emojis, no `·` or `—`.
+- The wording rules in Step 5 (HTTP status, Korean first) also apply to the title.
 
 ## Step 5 — Body
 
 Read the chosen template file and keep its headings and order. Leave out the `---` line under each heading. Replace every guidance line or paragraph under a heading with content, whether or not it starts with `>`. Do not add or rename sections. Leave out the frontmatter.
 
 `.github/ISSUE_TEMPLATE/ToDo.md`:
-- `## 개요`: start with the current state as fact, then why it is insufficient. Follow with `- [ ]` tasks written as actions (`~한다`), then `**완료 조건**:` written as resulting state (`~되어 있다`, `~하지 않는다`).
+- `## 개요`: start with the current state as fact, then why it is insufficient. Follow with tasks as a plain `-` list, written as actions (`~한다`), then `**완료 조건**:` written as resulting state (`~되어 있다`, `~하지 않는다`).
 - `## 기타 사항`: the source (PR, review, removed document), open decisions as an options table, and related issues. Write `없음` when there is nothing.
 
 `.github/ISSUE_TEMPLATE/Bug.md`: fill all four sections. Leave out secrets and personal data.
@@ -60,7 +61,10 @@ Read the chosen template file and keep its headings and order. Leave out the `--
 Writing style:
 - Plain declarative `~한다`. Never `~하세요` or `~해야 합니다`.
 - Never use `·` or `—`. Use a comma or split the sentence instead.
-- Backtick paths, config keys, endpoints, commands, and identifiers.
+- Code names: wrap every name that exists in code or configuration in backticks, with the exact spelling from the code. This covers paths, config keys, endpoints, commands, headers, tables, columns, and identifiers such as class, method, field, and enum constant names. Do not backtick general concepts; write them in Korean as described below.
+- HTTP status: describe a status by its standard reason phrase in plain text, not by its number. Write `Internal Server Error 응답이 반환된다`, not `500 응답`. Do not write the number next to the phrase. Only when the number itself is code, such as a literal in a test or a config value, quote that code in backticks as written.
+- Korean first: write general English words and concepts in Korean by meaning (e.g., retry → 재시도, fallback → 대체 처리, deprecated → 사용 중단 예정, edge case → 예외 상황). Do not transliterate a word into Hangul only to avoid English. Keep English only for code names in backticks, proper names of products, libraries, and services, common abbreviations without a settled Korean term (API, JWT, CI), and HTTP reason phrases. When the Korean term alone can be unclear, add the English term in parentheses once, at its first use.
+- No checkboxes: do not use `- [ ]` or `- [x]`. Use a plain `-` list or a numbered list.
 - Assert only what you verified. Write `아직 확인하지 않았다` for the rest.
 - Leave out manual production checks unless asked. An issue holds work to do, not routine verification.
 
