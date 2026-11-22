@@ -8,7 +8,7 @@ import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.Instant
 
-/** 발생분과 리마인더 값마다 한 번만 보내도록 남기는 발송 기록. */
+/** 발생분과 리마인더 값마다 한 번만 보내도록 남기는 발송 기록. 발생분을 옮기면 [startAt]이 달라져 새 시각으로 다시 보낸다. */
 @Entity
 @Table(name = "tb_project_calendar_reminder_deliveries")
 class ProjectCalendarReminderDelivery(
@@ -21,6 +21,9 @@ class ProjectCalendarReminderDelivery(
 
     @Column(name = "original_start_at", nullable = false)
     val originalStartAt: Instant,
+
+    @Column(name = "start_at", nullable = false)
+    val startAt: Instant,
 
     @Column(name = "minutes_before", nullable = false)
     val minutesBefore: Int,

@@ -71,10 +71,12 @@ CREATE TABLE tb_project_calendar_reminder_deliveries
     id                BIGINT      NOT NULL AUTO_INCREMENT,
     event_id          BIGINT      NOT NULL COMMENT 'tb_project_calendar_events.id',
     original_start_at DATETIME(6) NOT NULL COMMENT '알린 발생분의 원래 시작 시각',
+    start_at          DATETIME(6) NOT NULL COMMENT '알린 시점의 실제 시작 시각. 발생분을 옮기면 새 시각으로 다시 알린다',
     minutes_before    INT         NOT NULL,
     delivered_at      DATETIME(6) NOT NULL,
     PRIMARY KEY (id),
-    UNIQUE INDEX uq_tb_project_calendar_reminder_deliveries_occurrence (event_id, original_start_at, minutes_before),
+    UNIQUE INDEX uq_tb_project_calendar_reminder_deliveries_occurrence
+        (event_id, original_start_at, start_at, minutes_before),
     INDEX idx_tb_project_calendar_reminder_deliveries_delivered_at (delivered_at)
 ) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 

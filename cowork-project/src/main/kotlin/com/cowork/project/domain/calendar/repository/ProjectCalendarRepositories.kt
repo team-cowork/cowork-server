@@ -64,9 +64,10 @@ interface ProjectCalendarCategoryRepository : JpaRepository<ProjectCalendarCateg
 }
 
 interface ProjectCalendarReminderDeliveryRepository : JpaRepository<ProjectCalendarReminderDelivery, Long> {
-    fun existsByEventIdAndOriginalStartAtAndMinutesBefore(
+    fun existsByEventIdAndOriginalStartAtAndStartAtAndMinutesBefore(
         eventId: Long,
         originalStartAt: Instant,
+        startAt: Instant,
         minutesBefore: Int,
     ): Boolean
 

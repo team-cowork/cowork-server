@@ -59,9 +59,10 @@ class ProjectCalendarReminderScheduler(
         candidates.forEach { event ->
             CalendarReminderPolicy.due(event.series(), event.reminders, after, now).forEach { due ->
                 val alreadySent = projectCalendarReminderDeliveryRepository
-                    .existsByEventIdAndOriginalStartAtAndMinutesBefore(
+                    .existsByEventIdAndOriginalStartAtAndStartAtAndMinutesBefore(
                         event.id,
                         due.occurrence.originalStartAt,
+                        due.occurrence.startAt,
                         due.minutesBefore,
                     )
                 if (alreadySent) return@forEach
@@ -69,6 +70,7 @@ class ProjectCalendarReminderScheduler(
                     ProjectCalendarReminderDelivery(
                         eventId = event.id,
                         originalStartAt = due.occurrence.originalStartAt,
+                        startAt = due.occurrence.startAt,
                         minutesBefore = due.minutesBefore,
                         deliveredAt = now,
                     ),
@@ -82,8 +84,9 @@ class ProjectCalendarReminderScheduler(
                     projectReaders,
                 )
                 if (recipients.isEmpty()) return@forEach
-                val notificationId =
-                    "calendar-reminder:${event.id}:${due.occurrence.originalStartAt}:${due.minutesBefore}"
+                // 알림 서비스는 eventId로 중복을 거르므로 옮긴 발생분의 리마인더가 걸러지지 않게 실제 시작 시각도 넣는다.
+                val notificationId = "calendar-reminder:${event.id}:${due.occurrence.originalStartAt}:" +
+                    "${due.occurrence.startAt}:${due.minutesBefore}"
                 outboxWriter.enqueue(
                     NOTIFICATION_TOPIC,
                     notificationId,
