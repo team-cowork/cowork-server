@@ -731,7 +731,9 @@
         "preference.team-role.result.v2",
         "preference.team-role.result.v2-dlt",
         "preference.team-setting.state.v1",
-        "preference.account-role.state.v1"
+        "preference.account-role.state.v1",
+        "project.calendar-event.state.v1",
+        "project.readable-user.state.v1"
       ]
     },
     "cowork-user": {

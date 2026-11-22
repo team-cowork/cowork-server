@@ -1,5 +1,6 @@
 package com.cowork.team.domain.team.service.impl
 
+import com.cowork.team.domain.calendar.repository.TeamCalendarEventRepository
 import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
@@ -22,6 +23,7 @@ class DeleteTeamServiceImpl(
     private val teamMemberEventPublisher: TeamMemberEventPublisher,
     private val teamAccessGuard: TeamAccessGuard,
     private val teamIconOwnershipManager: TeamIconOwnershipManager,
+    private val teamCalendarEventRepository: TeamCalendarEventRepository,
 ) : DeleteTeamService {
 
     @Transactional
@@ -34,6 +36,7 @@ class DeleteTeamServiceImpl(
         members.forEach { teamMemberEventPublisher.publishDelete(it, occurredAt) }
         teamEventPublisher.publishDeleted(team, userId, occurredAt)
         teamMemberRepository.deleteAll(members)
+        teamCalendarEventRepository.deleteAll(teamCalendarEventRepository.findAllByTeamId(teamId))
         teamIconOwnershipManager.clear(team)
         teamRepository.delete(team)
     }

@@ -1,5 +1,6 @@
 package com.cowork.team.domain.team.service.impl
 
+import com.cowork.team.domain.calendar.repository.TeamCalendarEventRepository
 import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.event.TeamMemberEventPublisher
@@ -46,6 +47,7 @@ class DeleteTeamServiceImplTest :
                     TeamPermissionGuard(memberRepository, policyReader(10, mapOf(2L to mapOf("delete_team" to true)))),
                 ),
                 iconOwnership,
+                mockk<TeamCalendarEventRepository>(relaxed = true),
             )
         }
 
