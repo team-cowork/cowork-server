@@ -31,7 +31,16 @@ class ProjectMembershipLifecycleTest :
                 val members = mockk<TeamMembershipRepository>(relaxed = true)
                 every { members.findStateByTeamIdAndUserIdForUpdate(1L, 7L) } returns member
                 val handler =
-                    ProjectLifecycleHandler(mockk(), members, mockk(), mockk(), mockk(), mockk(relaxed = true))
+                    ProjectLifecycleHandler(
+                        mockk(),
+                        members,
+                        mockk(),
+                        mockk(),
+                        mockk(),
+                        mockk(relaxed = true),
+                        mockk(relaxed = true),
+                        mockk(relaxed = true),
+                    )
 
                 handler.onMemberUpsert(1L, 7L, "ADMIN", version, version.minusSeconds(1))
 
@@ -96,7 +105,17 @@ class ProjectMembershipLifecycleTest :
                 every { fences.findById("1:7") } returns Optional.empty()
                 every { fences.save(any()) } answers { firstArg() }
                 every { members.save(any()) } answers { firstArg() }
-                val handler = ProjectLifecycleHandler(projects, members, events, repos, fences, mockk(relaxed = true))
+                val handler =
+                    ProjectLifecycleHandler(
+                        projects,
+                        members,
+                        events,
+                        repos,
+                        fences,
+                        mockk(relaxed = true),
+                        mockk(relaxed = true),
+                        mockk(relaxed = true),
+                    )
 
                 handler.onMemberRemovedFromTeam(1L, 7L, "MEMBER", version)
 
@@ -115,7 +134,17 @@ class ProjectMembershipLifecycleTest :
                 every { fences.findById("1:7") } returns Optional.empty()
                 every { fences.save(any()) } answers { firstArg() }
                 every { members.save(any()) } answers { firstArg() }
-                val handler = ProjectLifecycleHandler(mockk(), members, mockk(), mockk(), fences, mockk(relaxed = true))
+                val handler =
+                    ProjectLifecycleHandler(
+                        mockk(),
+                        members,
+                        mockk(),
+                        mockk(),
+                        fences,
+                        mockk(relaxed = true),
+                        mockk(relaxed = true),
+                        mockk(relaxed = true),
+                    )
 
                 handler.onMemberRemovedFromTeam(1L, 7L, "MEMBER", version)
 

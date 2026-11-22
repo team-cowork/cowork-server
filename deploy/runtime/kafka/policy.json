@@ -91,6 +91,20 @@
         "segment.ms": "3600000"
       }
     },
+    "project.calendar-event.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
+    "project.readable-user.state.v1": {
+      "partitions": 1,
+      "config": {
+        "cleanup.policy": "compact",
+        "segment.ms": "3600000"
+      }
+    },
     "chat.message.event.v3": {
       "partitions": 1,
       "config": {
@@ -661,6 +675,8 @@
         "channel.event.v2",
         "project.event.v2",
         "project.github-repo.event",
+        "project.calendar-event.state.v1",
+        "project.readable-user.state.v1",
         "github.issue.create",
         "github.issue.result",
         "notification.trigger",

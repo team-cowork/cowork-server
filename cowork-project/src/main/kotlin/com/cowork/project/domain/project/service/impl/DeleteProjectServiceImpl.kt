@@ -1,5 +1,6 @@
 package com.cowork.project.domain.project.service.impl
 
+import com.cowork.project.domain.calendar.service.ProjectCalendarLifecycleSupport
 import com.cowork.project.domain.github.service.ProjectGithubRepoDeletionSupport
 import com.cowork.project.domain.githubBoard.service.ProjectGithubBoardLifecycleSupport
 import com.cowork.project.domain.project.event.ProjectEventPublisher
@@ -17,6 +18,7 @@ class DeleteProjectServiceImpl(
     private val projectAccessGuard: ProjectAccessGuard,
     private val repoDeletionSupport: ProjectGithubRepoDeletionSupport,
     private val boardLifecycleSupport: ProjectGithubBoardLifecycleSupport,
+    private val projectCalendarLifecycleSupport: ProjectCalendarLifecycleSupport,
 ) : DeleteProjectService {
 
     @Transactional
@@ -26,6 +28,7 @@ class DeleteProjectServiceImpl(
         val occurredAt = Instant.now()
         repoDeletionSupport.deleteByProjectIds(listOf(projectId), occurredAt)
         boardLifecycleSupport.deleteByProjectIds(listOf(projectId))
+        projectCalendarLifecycleSupport.deleteByProjects(listOf(project), occurredAt)
         projectEventPublisher.publishDeleted(project, occurredAt)
         projectRepository.delete(project)
     }
