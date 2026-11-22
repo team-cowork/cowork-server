@@ -7,7 +7,7 @@ enum class CalendarEditScope { THIS, FOLLOWING, ALL }
 
 enum class CalendarAction { UPDATE, DELETE }
 
-/** 일정과 카테고리 수정·삭제 권한 판정. 작성자는 팀 권한 없이 자기 것을 고친다. */
+/** 일정 수정·삭제 권한 판정. 작성자는 팀 권한 없이 자기 것을 고친다. */
 object CalendarPermissionPolicy {
     fun requiresTeamPermission(createdBy: Long, userId: Long): Boolean = createdBy != userId
 

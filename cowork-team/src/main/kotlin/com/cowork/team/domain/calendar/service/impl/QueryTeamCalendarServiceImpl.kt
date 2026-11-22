@@ -49,10 +49,10 @@ class QueryTeamCalendarServiceImpl(
         teamCalendarAccessGuard.requireMember(teamId, userId)
         projectionReadinessGate.requireCalendarReady()
         val readableProjectIds = projectCalendarProjectionStore.readableProjectIds(teamId, userId)
-        val projectIds = if (filter.projectIds.isEmpty()) {
-            readableProjectIds
-        } else {
-            readableProjectIds.intersect(filter.projectIds)
+        val projectIds = when {
+            filter.projectIds.isNotEmpty() -> readableProjectIds.intersect(filter.projectIds)
+            filter.teamOnly -> emptySet()
+            else -> readableProjectIds
         }
         val entries = teamCalendarEventRepository.findInRange(teamId, from, to).map(::toEntry) +
             projectCalendarProjectionStore.findEntries(teamId, projectIds, from, to)

@@ -243,6 +243,7 @@ class ProjectionReadinessGate(private val projectionReadinessState: ProjectionRe
             )
         }
     }
+
     fun requireCalendarReady() {
         if (!projectionReadinessState.isCalendarReady()) {
             throw ExpectedException("프로젝트 일정 동기화가 완료되지 않았습니다.", HttpStatus.SERVICE_UNAVAILABLE)

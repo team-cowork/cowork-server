@@ -115,9 +115,6 @@ class TeamCalendarEvent(
     fun series(): CalendarSeries =
         CalendarSeries(startAt, endAt, zone, recurrence, exceptions.map { (start, value) -> value.toModel(start) })
 
-    fun exceptionModels(): List<CalendarOccurrenceException> =
-        exceptions.entries.sortedBy { it.key }.map { (start, value) -> value.toModel(start) }
-
     fun applyRecurrence(recurrence: CalendarRecurrence?) {
         recurrenceFrequency = recurrence?.frequency
         recurrenceInterval = recurrence?.interval ?: 1
