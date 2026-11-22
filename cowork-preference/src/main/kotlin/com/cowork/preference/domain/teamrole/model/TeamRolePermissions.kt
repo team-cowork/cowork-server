@@ -14,6 +14,7 @@ object TeamRolePermissions {
             PermissionKeys.VOICE_CONNECT to true,
             PermissionKeys.PROJECT_READ to true,
             PermissionKeys.PROJECT_BOARD_READ to true,
+            PermissionKeys.CALENDAR_EVENT_CREATE to true,
         ),
     )
 

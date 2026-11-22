@@ -1,5 +1,6 @@
 package com.cowork.project.global.consumer
 
+import com.cowork.project.domain.calendar.event.ProjectReadableUserStatePublisher
 import com.cowork.project.domain.project.entity.ProjectAccessProjection
 import com.cowork.project.domain.project.repository.ProjectAccessProjectionRepository
 import com.cowork.project.global.projection.ProjectionRecordProcessor
@@ -18,6 +19,7 @@ class ProjectAccessStateConsumer(
     private val processor: ProjectionRecordProcessor,
     private val streams: ProjectionStreams,
     private val mapper: ObjectMapper,
+    private val projectReadableUserStatePublisher: ProjectReadableUserStatePublisher,
 ) {
     @KafkaListener(
         topics = [ProjectionTopics.PROJECT_ACCESS_STATE],
@@ -103,6 +105,7 @@ class ProjectAccessStateConsumer(
                     repository.save(existing)
                 }
             }
+            projectReadableUserStatePublisher.refreshIfReady(listOf(event.projectId))
         }
     }
 

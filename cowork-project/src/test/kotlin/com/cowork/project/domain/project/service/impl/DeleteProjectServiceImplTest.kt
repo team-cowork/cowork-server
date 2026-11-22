@@ -25,6 +25,7 @@ class DeleteProjectServiceImplTest {
             projectAccessGuard,
             repoDeletionSupport,
             mockk(relaxed = true),
+            mockk(relaxed = true),
         )
 
     @Nested

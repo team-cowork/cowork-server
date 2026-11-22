@@ -8,4 +8,5 @@ enum class RolePermissionGroup(val title: String) {
     TEXT_CHANNEL("텍스트 채널"),
     VOICE_CHANNEL("음성 채널"),
     PROJECT("프로젝트"),
+    CALENDAR("캘린더"),
 }

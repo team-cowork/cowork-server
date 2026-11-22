@@ -273,6 +273,24 @@ enum class RolePermission(
         "프로젝트에 연결된 GitHub Project 보드에서 카드를 다른 컬럼으로 옮기거나 순서를 바꿀 수 있습니다. " +
             "GitHub 보드 보기 권한이 있어야 사용할 수 있습니다. 프로젝트 역할로 프로젝트마다 허용하거나 거부할 수 있습니다.",
     ),
+    CALENDAR_EVENT_CREATE(
+        PermissionKeys.CALENDAR_EVENT_CREATE,
+        RolePermissionGroup.CALENDAR,
+        "일정 만들기",
+        "일정과 일정 카테고리를 만들 수 있습니다. 프로젝트 일정은 그 프로젝트를 볼 수 있어야 만들 수 있습니다.",
+    ),
+    CALENDAR_EVENT_UPDATE(
+        PermissionKeys.CALENDAR_EVENT_UPDATE,
+        RolePermissionGroup.CALENDAR,
+        "다른 사람의 일정 수정",
+        "다른 사람이 만든 일정과 일정 카테고리를 수정할 수 있습니다. 자기가 만든 일정은 이 권한 없이 수정할 수 있습니다.",
+    ),
+    CALENDAR_EVENT_DELETE(
+        PermissionKeys.CALENDAR_EVENT_DELETE,
+        RolePermissionGroup.CALENDAR,
+        "다른 사람의 일정 삭제",
+        "다른 사람이 만든 일정과 일정 카테고리를 삭제할 수 있습니다. 자기가 만든 일정은 이 권한 없이 삭제할 수 있습니다.",
+    ),
     ;
 
     companion object {
