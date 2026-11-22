@@ -34,6 +34,7 @@ class DataGsmWebhookIngressFilterTest :
                 states,
                 JsonMapper.builder().build(),
                 SimpleMeterRegistry(),
+                mockk(relaxed = true),
                 circuitBreakerFactory,
             )
         val body = "{\"id\":\"test\"}"
