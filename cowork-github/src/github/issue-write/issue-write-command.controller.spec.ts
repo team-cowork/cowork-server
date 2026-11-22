@@ -1,6 +1,6 @@
 import {Test, type TestingModule} from '@nestjs/testing';
 import {type KafkaContext} from '@nestjs/microservices';
-import {GithubClientError} from '../github.errors.js';
+import {GithubClientError, GithubRateLimitError} from '../github.errors.js';
 import {IssueHttpService} from '../issue-http/issue-http.service.js';
 import {LabelHttpService} from '../label-http/label-http.service.js';
 import {REDIS_CLIENT} from '../constants.js';
@@ -52,6 +52,15 @@ describe('IssueWriteCommandController', () => {
 				return 'OK';
 			}),
 			get: jest.fn(async (key: string) => redisStore.get(key) ?? null),
+			eval: jest.fn(async (_script: string, ...args: unknown[]) => {
+				const [, key, expected, next] = args as [number, string, string, string];
+				if (redisStore.get(key) !== expected) {
+					return 0;
+				}
+
+				redisStore.set(key, next);
+				return 1;
+			}),
 		};
 		labelHttpService = {replaceLabels: jest.fn()};
 		resultProducer = {send: jest.fn().mockResolvedValue(undefined)};
@@ -267,6 +276,44 @@ describe('IssueWriteCommandController', () => {
 				expect(resultProducer.send).toHaveBeenCalledWith(
 					expect.objectContaining({status: 'SUCCEEDED', result: comment}),
 				);
+			});
+
+			it('새 댓글 생성이 호출 한도로 거절되면 재전달에서 마커 확인 없이 댓글을 한 번 만든다', async () => {
+				const throttled = new GithubRateLimitError('You have exceeded a secondary rate limit.');
+				issueHttpService.createComment.mockRejectedValueOnce(throttled);
+
+				await expect(controller.handleCommand(message, ctx)).rejects.toBe(throttled);
+				expect(resultProducer.send).not.toHaveBeenCalled();
+				expect(commitOffsets).not.toHaveBeenCalled();
+
+				issueHttpService.createComment.mockResolvedValue(comment);
+				await controller.handleCommand(message, ctx);
+
+				expect(issueHttpService.findCommentByOperation).not.toHaveBeenCalled();
+				expect(issueHttpService.createComment).toHaveBeenCalledTimes(2);
+				expect(resultProducer.send).toHaveBeenCalledWith(
+					expect.objectContaining({status: 'SUCCEEDED', result: comment}),
+				);
+				expect(commitOffsets).toHaveBeenCalledTimes(1);
+			});
+
+			it('결과를 모를 때 마커 확인이 호출 한도로 거절되면 다음 재전달에서도 마커를 확인한다', async () => {
+				await loseFirstCreateResponse();
+				const throttled = new GithubRateLimitError('You have exceeded a secondary rate limit.');
+				issueHttpService.findCommentByOperation.mockRejectedValueOnce(throttled);
+
+				await expect(controller.handleCommand(message, ctx)).rejects.toBe(throttled);
+				expect(commitOffsets).not.toHaveBeenCalled();
+
+				issueHttpService.findCommentByOperation.mockResolvedValue(comment);
+				await controller.handleCommand(message, ctx);
+
+				expect(issueHttpService.findCommentByOperation).toHaveBeenCalledTimes(2);
+				expect(issueHttpService.createComment).toHaveBeenCalledTimes(1);
+				expect(resultProducer.send).toHaveBeenCalledWith(
+					expect.objectContaining({status: 'SUCCEEDED', result: comment}),
+				);
+				expect(commitOffsets).toHaveBeenCalledTimes(1);
 			});
 
 			it('결과를 모를 때 마커 유무를 확정하지 못하면 새 댓글 없이 RESULT_UNKNOWN으로 끝내고 이후 재전달도 만들지 않는다', async () => {
