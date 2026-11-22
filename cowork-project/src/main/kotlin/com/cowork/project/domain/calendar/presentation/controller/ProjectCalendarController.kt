@@ -193,6 +193,11 @@ class ProjectCalendarController(
     @ApiResponses(
         ApiResponse(responseCode = "201", description = "생성 성공"),
         ApiResponse(
+            responseCode = "400",
+            description = "이름 또는 색상 형식이 올바르지 않음",
+            content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
+        ),
+        ApiResponse(
             responseCode = "409",
             description = "같은 이름의 카테고리가 있음",
             content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
@@ -213,6 +218,11 @@ class ProjectCalendarController(
     )
     @ApiResponses(
         ApiResponse(responseCode = "200", description = "수정 성공"),
+        ApiResponse(
+            responseCode = "400",
+            description = "이름 또는 색상 형식이 올바르지 않음",
+            content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
+        ),
         ApiResponse(
             responseCode = "409",
             description = "같은 이름의 카테고리가 있음",
