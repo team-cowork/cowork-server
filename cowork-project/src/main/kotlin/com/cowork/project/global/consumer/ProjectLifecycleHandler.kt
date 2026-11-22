@@ -1,5 +1,7 @@
 package com.cowork.project.global.consumer
 
+import com.cowork.project.domain.calendar.event.ProjectReadableUserStatePublisher
+import com.cowork.project.domain.calendar.service.ProjectCalendarLifecycleSupport
 import com.cowork.project.domain.github.service.ProjectGithubRepoDeletionSupport
 import com.cowork.project.domain.githubBoard.service.ProjectGithubBoardLifecycleSupport
 import com.cowork.project.domain.membership.entity.TeamMembership
@@ -22,6 +24,8 @@ class ProjectLifecycleHandler(
     private val projectGithubRepoDeletionSupport: ProjectGithubRepoDeletionSupport,
     private val teamRoleMemberTombstoneRepository: TeamRoleMemberTombstoneRepository,
     private val projectGithubBoardLifecycleSupport: ProjectGithubBoardLifecycleSupport,
+    private val projectCalendarLifecycleSupport: ProjectCalendarLifecycleSupport,
+    private val projectReadableUserStatePublisher: ProjectReadableUserStatePublisher,
 ) {
     private val log = LoggerFactory.getLogger(ProjectLifecycleHandler::class.java)
 
@@ -45,6 +49,7 @@ class ProjectLifecycleHandler(
 
         membership.applyUpsert(role, version, authorizationVersion?.toProjectionPrecision())
         teamMembershipRepository.save(membership)
+        projectReadableUserStatePublisher.refreshTeamIfReady(teamId)
         log.info("team.member UPSERT 처리 [teamId={}, userId={}, role={}]", teamId, userId, role)
     }
 
@@ -63,6 +68,7 @@ class ProjectLifecycleHandler(
         }
         projectGithubRepoDeletionSupport.deleteByProjectIds(projects.map { it.id }, version)
         projectGithubBoardLifecycleSupport.deleteByProjectIds(projects.map { it.id })
+        projectCalendarLifecycleSupport.deleteByProjects(projects, version)
         projects.forEach { projectEventPublisher.publishDeleted(it, version) }
         projectRepository.deleteAll(projects)
         log.info("TEAM_DELETED 처리 완료 [teamId={}, deletedProjects={}]", teamId, projects.size)
@@ -94,6 +100,7 @@ class ProjectLifecycleHandler(
         if (existingVersion.isAfter(version)) return
         membership.markDeleted(version, authorizationVersion?.toProjectionPrecision())
         teamMembershipRepository.save(membership)
+        projectReadableUserStatePublisher.refreshTeamIfReady(teamId)
 
         log.info("Remove team membership [teamId={}, userId={}]", teamId, targetUserId)
     }

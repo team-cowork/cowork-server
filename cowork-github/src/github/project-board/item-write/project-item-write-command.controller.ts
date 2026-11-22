@@ -7,6 +7,7 @@ import {
 } from '@nestjs/microservices';
 import {plainToInstance} from 'class-transformer';
 import {validate} from 'class-validator';
+import {withGithubRateLimitRetry} from '../../github-rate-limit.js';
 import {GithubClientError} from '../../github.errors.js';
 import {ProjectBoardApiService} from '../project-board-api.service.js';
 import {ProjectItemWriteCommandEnvelopeDto} from './dto/project-item-write-command-envelope.dto.js';
@@ -215,7 +216,7 @@ export class ProjectItemWriteCommandController {
 		@messagePayload() data: unknown,
 		@messageContext() context: KafkaContext,
 	): Promise<void> {
-		if (await this.processMessage(data)) {
+		if (await withGithubRateLimitRetry(context, async () => this.processMessage(data))) {
 			await this.commitOffset(context);
 		}
 	}

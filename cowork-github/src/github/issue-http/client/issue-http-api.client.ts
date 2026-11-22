@@ -5,6 +5,7 @@ import {type Nullable} from '../../common/nullable.js';
 import {githubField} from '../../github-field.js';
 import {GithubAuthService} from '../../auth/github-auth.service.js';
 import {GITHUB_API, githubAuthHeaders} from '../../constants.js';
+import {requestGithub} from '../../github-rate-limit.js';
 import {rethrowGithubError} from '../../github.errors.js';
 
 export type IssueDetail = {
@@ -71,18 +72,16 @@ export class IssueHttpApiClient {
 		issueNumber: number,
 		since?: string,
 	): Promise<GithubComment[]> {
-		const token = await this.authService.getInstallationToken(owner);
-		try {
-			const {data} = await firstValueFrom(
+		const {data} = await requestGithub(async () => {
+			const token = await this.authService.getInstallationToken(owner);
+			return firstValueFrom(
 				this.httpService.get<GithubComment[]>(
 					`${GITHUB_API}/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
 					{params: {[githubField.perPage]: 100, ...(since !== undefined && {since})}, headers: githubAuthHeaders(token)},
 				),
 			);
-			return data;
-		} catch (error) {
-			rethrowGithubError(error);
-		}
+		});
+		return data;
 	}
 
 	async createComment(
@@ -91,19 +90,17 @@ export class IssueHttpApiClient {
 		issueNumber: number,
 		body: string,
 	): Promise<GithubComment> {
-		const token = await this.authService.getInstallationToken(owner);
-		try {
-			const {data} = await firstValueFrom(
+		const {data} = await requestGithub(async () => {
+			const token = await this.authService.getInstallationToken(owner);
+			return firstValueFrom(
 				this.httpService.post<GithubComment>(
 					`${GITHUB_API}/repos/${owner}/${repo}/issues/${issueNumber}/comments`,
 					{body},
 					{headers: githubAuthHeaders(token)},
 				),
 			);
-			return data;
-		} catch (error) {
-			rethrowGithubError(error);
-		}
+		});
+		return data;
 	}
 
 	async getComment(
@@ -111,18 +108,16 @@ export class IssueHttpApiClient {
 		repo: string,
 		commentId: number,
 	): Promise<GithubComment> {
-		const token = await this.authService.getInstallationToken(owner);
-		try {
-			const {data} = await firstValueFrom(
+		const {data} = await requestGithub(async () => {
+			const token = await this.authService.getInstallationToken(owner);
+			return firstValueFrom(
 				this.httpService.get<GithubComment>(
 					`${GITHUB_API}/repos/${owner}/${repo}/issues/comments/${commentId}`,
 					{headers: githubAuthHeaders(token)},
 				),
 			);
-			return data;
-		} catch (error) {
-			rethrowGithubError(error);
-		}
+		});
+		return data;
 	}
 
 	async updateComment(
@@ -131,19 +126,17 @@ export class IssueHttpApiClient {
 		commentId: number,
 		body: string,
 	): Promise<GithubComment> {
-		const token = await this.authService.getInstallationToken(owner);
-		try {
-			const {data} = await firstValueFrom(
+		const {data} = await requestGithub(async () => {
+			const token = await this.authService.getInstallationToken(owner);
+			return firstValueFrom(
 				this.httpService.patch<GithubComment>(
 					`${GITHUB_API}/repos/${owner}/${repo}/issues/comments/${commentId}`,
 					{body},
 					{headers: githubAuthHeaders(token)},
 				),
 			);
-			return data;
-		} catch (error) {
-			rethrowGithubError(error);
-		}
+		});
+		return data;
 	}
 
 	async deleteComment(
@@ -151,16 +144,14 @@ export class IssueHttpApiClient {
 		repo: string,
 		commentId: number,
 	): Promise<void> {
-		const token = await this.authService.getInstallationToken(owner);
-		try {
-			await firstValueFrom(
+		await requestGithub(async () => {
+			const token = await this.authService.getInstallationToken(owner);
+			return firstValueFrom(
 				this.httpService.delete(
 					`${GITHUB_API}/repos/${owner}/${repo}/issues/comments/${commentId}`,
 					{headers: githubAuthHeaders(token)},
 				),
 			);
-		} catch (error) {
-			rethrowGithubError(error);
-		}
+		});
 	}
 }

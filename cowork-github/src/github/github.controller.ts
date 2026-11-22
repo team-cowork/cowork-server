@@ -10,6 +10,7 @@ import {validate} from 'class-validator';
 import {isPresent} from './common/nullable.js';
 import {CreateIssueDto} from './dto/create-issue.dto.js';
 import {IssueService} from './issue/issue.service.js';
+import {withGithubRateLimitRetry} from './github-rate-limit.js';
 import {GithubClientError} from './github.errors.js';
 import {IssueResultProducer} from './kafka/issue-result.producer.js';
 
@@ -115,7 +116,7 @@ export class GithubController {
 		@messagePayload() data: unknown,
 		@messageContext() context: KafkaContext,
 	): Promise<void> {
-		const shouldCommit = await this.processMessage(data);
+		const shouldCommit = await withGithubRateLimitRetry(context, async () => this.processMessage(data));
 		if (shouldCommit) {
 			await this.commitOffset(context);
 		}

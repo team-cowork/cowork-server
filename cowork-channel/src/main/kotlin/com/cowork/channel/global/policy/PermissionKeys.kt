@@ -17,6 +17,9 @@ object PermissionKeys {
     const val MANAGE_NICKNAMES = "manage_nicknames"
     const val MANAGE_NICKNAME_FORMAT = "manage_nickname_format"
     const val ARCHIVE_CHANNELS = "archive_channels"
+    const val CALENDAR_EVENT_CREATE = "calendar_event_create"
+    const val CALENDAR_EVENT_UPDATE = "calendar_event_update"
+    const val CALENDAR_EVENT_DELETE = "calendar_event_delete"
 
     const val MESSAGE_READ = "message_read"
     const val MESSAGE_SEND = "message_send"
@@ -52,6 +55,9 @@ object PermissionKeys {
         MANAGE_NICKNAMES,
         MANAGE_NICKNAME_FORMAT,
         ARCHIVE_CHANNELS,
+        CALENDAR_EVENT_CREATE,
+        CALENDAR_EVENT_UPDATE,
+        CALENDAR_EVENT_DELETE,
     )
 
     val CHANNEL_SCOPED: Set<String> = linkedSetOf(
