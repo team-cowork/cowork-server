@@ -48,7 +48,7 @@ class ProjectCalendarEventPublisher(private val entityManager: EntityManager, pr
                     it.count,
                 )
             },
-            exceptions = event.exceptions.sortedBy { it.originalStartAt }.map {
+            exceptions = event.exceptionModels().map {
                 ProjectCalendarEventStatePayload.OccurrenceException(
                     it.originalStartAt,
                     it.cancelled,

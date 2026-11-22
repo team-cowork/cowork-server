@@ -17,6 +17,7 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
+import jakarta.persistence.MapKeyColumn
 import jakarta.persistence.Table
 import org.hibernate.annotations.BatchSize
 import java.time.DayOfWeek
@@ -97,10 +98,15 @@ class ProjectCalendarEvent(
     @Column(name = "user_id", nullable = false)
     var attendeeUserIds: MutableSet<Long> = linkedSetOf(),
 
+    /**
+     * 원래 시작 시각마다 예외는 하나다. 테이블 PK `(event_id, original_start_at)`와 같은 키로 매핑해
+     * 같은 발생분의 예외가 둘 생기지 않게 하고, 행을 고치거나 지울 때도 nullable 컬럼이 아니라 키로 찾게 한다.
+     */
     @ElementCollection(fetch = FetchType.EAGER)
     @BatchSize(size = 100)
     @CollectionTable(name = "tb_project_calendar_event_exceptions", joinColumns = [JoinColumn(name = "event_id")])
-    var exceptions: MutableSet<ProjectCalendarEventException> = linkedSetOf(),
+    @MapKeyColumn(name = "original_start_at")
+    var exceptions: MutableMap<Instant, ProjectCalendarEventException> = linkedMapOf(),
 ) {
     val zone: ZoneId get() = ZoneId.of(timeZone)
 
@@ -118,7 +124,11 @@ class ProjectCalendarEvent(
     val reminders: List<Int>
         get() = reminderMinutes.split(',').filter { it.isNotBlank() }.map(String::toInt)
 
-    fun series(): CalendarSeries = CalendarSeries(startAt, endAt, zone, recurrence, exceptions.map { it.toModel() })
+    fun series(): CalendarSeries =
+        CalendarSeries(startAt, endAt, zone, recurrence, exceptions.map { (start, value) -> value.toModel(start) })
+
+    fun exceptionModels(): List<CalendarOccurrenceException> =
+        exceptions.entries.sortedBy { it.key }.map { (start, value) -> value.toModel(start) }
 
     fun applyRecurrence(recurrence: CalendarRecurrence?) {
         recurrenceFrequency = recurrence?.frequency
@@ -134,12 +144,11 @@ class ProjectCalendarEvent(
 
     fun replaceExceptions(models: List<CalendarOccurrenceException>) {
         exceptions.clear()
-        models.mapTo(exceptions, ProjectCalendarEventException::from)
+        models.forEach(::putException)
     }
 
     fun putException(model: CalendarOccurrenceException) {
-        exceptions.removeIf { it.originalStartAt == model.originalStartAt }
-        exceptions += ProjectCalendarEventException.from(model)
+        exceptions[model.originalStartAt] = ProjectCalendarEventException.from(model)
     }
 
     /** 조회 후보를 좁히는 전체 기간을 원본과 예외로 다시 계산한다. 원본 필드를 바꾼 뒤에 부른다. */
@@ -150,11 +159,9 @@ class ProjectCalendarEvent(
     }
 }
 
+/** 발생분 하나의 예외 값. 원래 시작 시각은 [ProjectCalendarEvent.exceptions]의 키다. */
 @Embeddable
 class ProjectCalendarEventException(
-    @Column(name = "original_start_at", nullable = false)
-    var originalStartAt: Instant = Instant.EPOCH,
-
     @Column(nullable = false)
     var cancelled: Boolean = false,
 
@@ -170,16 +177,11 @@ class ProjectCalendarEventException(
     @Column(name = "end_at")
     var endAt: Instant? = null,
 ) {
-    fun toModel() = CalendarOccurrenceException(originalStartAt, cancelled, title, description, startAt, endAt)
-
-    override fun equals(other: Any?): Boolean =
-        other is ProjectCalendarEventException && other.originalStartAt == originalStartAt
-
-    override fun hashCode(): Int = originalStartAt.hashCode()
+    fun toModel(originalStartAt: Instant) =
+        CalendarOccurrenceException(originalStartAt, cancelled, title, description, startAt, endAt)
 
     companion object {
         fun from(model: CalendarOccurrenceException) = ProjectCalendarEventException(
-            model.originalStartAt,
             model.cancelled,
             model.title,
             model.description,
