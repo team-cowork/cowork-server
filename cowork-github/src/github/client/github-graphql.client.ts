@@ -4,7 +4,7 @@ import {firstValueFrom} from 'rxjs';
 import {GithubAuthService} from '../auth/github-auth.service.js';
 import {GITHUB_API, githubAuthHeaders} from '../constants.js';
 import {requestGithub} from '../github-rate-limit.js';
-import {GithubClientError} from '../github.errors.js';
+import {GithubClientError, GithubRateLimitError} from '../github.errors.js';
 
 type GraphqlError = {type?: string; message?: string};
 
@@ -36,6 +36,12 @@ export const toGraphqlClientError = (errors: GraphqlError[]): GithubClientError 
 	return undefined;
 };
 
+// GitHub는 GraphQL 기본 호출 한도도 HTTP 200과 RATE_LIMITED 오류로 돌려주며 대기 시간을 알려 주지 않는다.
+export const toGraphqlRateLimitError = (errors: GraphqlError[] | undefined): GithubRateLimitError | undefined => {
+	const limited = errors?.find(error => error.type === 'RATE_LIMITED');
+	return limited === undefined ? undefined : new GithubRateLimitError(limited.message ?? 'GitHub GraphQL rate limit exceeded');
+};
+
 /**
  GitHub GraphQL API를 설치 토큰으로 호출한다. Projects(v2)는 REST로 view 설정을 읽을 수 없어 GraphQL을 쓴다.
  */
@@ -56,10 +62,10 @@ export class GithubGraphqlClient {
 					{headers: githubAuthHeaders(token)},
 				),
 			);
-		});
+		}, ({data}) => toGraphqlRateLimitError(data.errors));
 
 		if (body.errors !== undefined && body.errors.length > 0) {
-			// RATE_LIMITED 같은 일시적인 오류는 일반 오류로 던져 호출자가 재시도하게 한다.
+			// Kafka 명령 밖에서 받은 RATE_LIMITED 같은 일시적인 오류는 일반 오류로 던져 호출자가 재시도하게 한다.
 			throw toGraphqlClientError(body.errors) ?? new Error(`GitHub GraphQL error: ${JSON.stringify(body.errors)}`);
 		}
 

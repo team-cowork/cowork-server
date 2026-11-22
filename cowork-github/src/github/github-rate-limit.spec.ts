@@ -79,6 +79,15 @@ describe('requestGithub', () => {
 			await expect(requestGithub(request)).rejects.toMatchObject({name: 'GithubClientError', statusCode: 403});
 			expect(request).toHaveBeenCalledTimes(1);
 		});
+
+		it('호출 한도를 알리는 성공 응답도 재시도하지 않고 그대로 돌려준다', async () => {
+			const request = jest.fn().mockResolvedValue('rate limited');
+			const toRateLimitError = jest.fn(() => new GithubRateLimitError('API rate limit exceeded'));
+
+			await expect(requestGithub(request, toRateLimitError)).resolves.toBe('rate limited');
+			expect(request).toHaveBeenCalledTimes(1);
+			expect(toRateLimitError).not.toHaveBeenCalled();
+		});
 	});
 
 	describe('Kafka 명령 안에서는', () => {
@@ -104,6 +113,19 @@ describe('requestGithub', () => {
 			expect(request).toHaveBeenCalledTimes(2);
 			expect(mockSleeps).toEqual([3000, 3000, 1000]);
 			expect(heartbeat).toHaveBeenCalledTimes(3);
+		});
+
+		it('성공 응답이 호출 한도를 알리면 기본 대기 시간 뒤 다시 요청한다', async () => {
+			const request = jest.fn()
+				.mockResolvedValueOnce('rate limited')
+				.mockResolvedValue('created');
+			const toRateLimitError = (response: string) =>
+				response === 'rate limited' ? new GithubRateLimitError('API rate limit exceeded') : undefined;
+
+			await expect(withGithubRateLimitRetry(kafkaContext(heartbeat), async () => requestGithub(request, toRateLimitError)))
+				.resolves.toBe('created');
+			expect(request).toHaveBeenCalledTimes(2);
+			expect(sum(mockSleeps)).toBe(60_000);
 		});
 
 		it('대기 시간을 알려 주지 않으면 1분부터 두 배씩 늘려 세 번까지 요청한다', async () => {
