@@ -161,10 +161,11 @@ spring:
         - id: authorization-token
           uri: ${COWORK_AUTHORIZATION_URL}
           predicates:
-            - Path=/api/authorization/auth/authorize, /api/authorization/auth/callback, /api/authorization/auth/refresh
+            - Path=/api/authorization/auth/dev-signin, /api/authorization/auth/authorize, /api/authorization/auth/callback, /api/authorization/auth/refresh
             - Method=POST
           filters:
             - StripPrefix=2
+            - RewritePath=^/auth/dev-signin$, /internal/dev-signin
             - name: RequestRateLimiter
               args:
                 redis-rate-limiter.replenishRate: 50
@@ -855,11 +856,22 @@ app:
     allowed-origins: "${PUBLIC_WEB_ORIGINS}"
 
 resilience4j:
-  circuitbreaker:
-    # 차단기는 이름별로 상태를 가지므로 대상 서비스마다 이름을 두고, 같은 서비스의 라우트는 상태를 공유한다.
-    # instances에 없는 이름은 아래 default 설정을 쓴다. 로그인(authorizationCB)은 시간 제한이 달라 별도 인스턴스를 쓴다.
+  bulkhead:
     configs:
       default:
+        # 같은 서비스로 동시에 보내는 요청 수다. 자리가 없으면 대기 없이 반환한다.
+        maxConcurrentCalls: 40
+      # 로그인과 DataGSM 대체 경로는 각각 최대 6초, 8초 동안 자리를 점유할 수 있다.
+      authorizationCB:
+        maxConcurrentCalls: 25
+      authorizationWebhookCB:
+        maxConcurrentCalls: 25
+  circuitbreaker:
+    configs:
+      default:
+        # Gateway에서 동시 호출을 거절하면 대상 서비스에는 요청이 도달하지 않는다.
+        ignoreExceptions:
+          - io.github.resilience4j.bulkhead.BulkheadFullException
         slidingWindowSize: 10
         failureRateThreshold: 50
         waitDurationInOpenState: 10s
@@ -867,11 +879,7 @@ resilience4j:
         automaticTransitionFromOpenToHalfOpenEnabled: true
     instances:
       authorizationCB:
-        slidingWindowSize: 10
-        failureRateThreshold: 50
-        waitDurationInOpenState: 10s
-        permittedNumberOfCallsInHalfOpenState: 3
-        automaticTransitionFromOpenToHalfOpenEnabled: true
+        baseConfig: default
   timelimiter:
     instances:
       # 로그인은 cowork-authorization이 사용자 신원 결과를 최대 5초(KAFKA_IDENTITY_COMMAND_TIMEOUT) 기다린다.

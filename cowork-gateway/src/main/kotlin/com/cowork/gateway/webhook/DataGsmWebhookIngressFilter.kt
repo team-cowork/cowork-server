@@ -1,6 +1,7 @@
 package com.cowork.gateway.webhook
 
 import com.cowork.gateway.deployment.DeploymentStateCache
+import com.cowork.gateway.metrics.CircuitBreakerFallbackMetrics
 import com.cowork.gateway.response.body.writeNoStoreJson
 import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreakerFactory
@@ -30,15 +31,20 @@ class DataGsmWebhookIngressFilter(
     private val deploymentStateCache: DeploymentStateCache,
     private val objectMapper: ObjectMapper,
     private val meterRegistry: MeterRegistry,
+    private val circuitBreakerFallbackMetrics: CircuitBreakerFallbackMetrics,
     reactiveCircuitBreakerFactory: ReactiveCircuitBreakerFactory<*, *>,
 ) : GlobalFilter,
     Ordered {
     private val circuitBreaker = reactiveCircuitBreakerFactory.create("authorizationWebhookCB")
 
+    init {
+        circuitBreakerFallbackMetrics.registerRoute(ROUTE_ID)
+    }
+
     override fun getOrder(): Int = -1100
 
     override fun filter(exchange: ServerWebExchange, chain: GatewayFilterChain): Mono<Void> {
-        if (exchange.getAttribute<Route>(GATEWAY_ROUTE_ATTR)?.id != "authorization-webhook") {
+        if (exchange.getAttribute<Route>(GATEWAY_ROUTE_ATTR)?.id != ROUTE_ID) {
             return chain.filter(exchange)
         }
         if (exchange.request.headers.contentLength > MAX_BODY_BYTES) {
@@ -97,6 +103,7 @@ class DataGsmWebhookIngressFilter(
                 meterRegistry.counter("gateway.datagsm.ingress", "outcome", outcome).increment()
             }
             .onErrorResume { error ->
+                circuitBreakerFallbackMetrics.record(ROUTE_ID, error)
                 logger().warn("Failed to reach DataGSM direct inbox fallback: {}", error.javaClass.simpleName)
                 if (exchange.response.isCommitted) {
                     Mono.empty()
@@ -129,6 +136,7 @@ class DataGsmWebhookIngressFilter(
     }
 
     private companion object {
+        const val ROUTE_ID = "authorization-webhook"
         const val MAX_BODY_BYTES = 1 shl 20
     }
 }

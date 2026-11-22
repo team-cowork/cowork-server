@@ -1,6 +1,5 @@
 import {HttpService} from '@nestjs/axios';
 import {Inject as inject, Injectable as injectable, Logger} from '@nestjs/common';
-import {AxiosError} from 'axios';
 import jsonwebtoken from 'jsonwebtoken';
 import type {Redis} from 'ioredis';
 import {firstValueFrom} from 'rxjs';
@@ -8,13 +7,13 @@ import {githubField} from '../github-field.js';
 import {AppConfigService} from '../../config/app-config.service.js';
 import {
 	GITHUB_API,
-	GITHUB_HEADERS,
+	githubAuthHeaders,
 	GITHUB_OAUTH_ACCESS_TOKEN_URL,
 	GITHUB_USER_INSTALLATIONS_PAGE_SIZE,
 	REDIS_CLIENT,
 } from '../constants.js';
 import {githubCacheKeys} from '../github.cache.js';
-import {GithubClientError} from '../github.errors.js';
+import {rethrowGithubError} from '../github.errors.js';
 
 const EVICT_INSTALLATION_SCRIPT = `
 if redis.call('GET', KEYS[1]) == ARGV[1] then
@@ -46,7 +45,7 @@ export class GithubAuthService {
 				this.httpService.get<{id: number}>(
 					`${GITHUB_API}/orgs/${owner}/installation`,
 					{
-						headers: {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${jwt}`},
+						headers: githubAuthHeaders(jwt),
 					},
 				),
 			),
@@ -81,20 +80,7 @@ export class GithubAuthService {
 		try {
 			return await request();
 		} catch (error) {
-			if (
-				error instanceof AxiosError
-				&& error.response
-				&& error.response.status < 500
-				&& error.response.status !== 429
-			) {
-				throw new GithubClientError(
-					(error.response.data as {message?: string})?.message
-					?? error.message,
-					error.response.status,
-				);
-			}
-
-			throw error;
+			rethrowGithubError(error);
 		}
 	}
 
@@ -137,7 +123,7 @@ export class GithubAuthService {
 				this.httpService.post<{token: string}>(
 					`${GITHUB_API}/app/installations/${installationId}/access_tokens`,
 					{},
-					{headers: {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${jwt}`}},
+					{headers: githubAuthHeaders(jwt)},
 				),
 			),
 		);
@@ -161,7 +147,7 @@ export class GithubAuthService {
 				firstValueFrom(
 					this.httpService.get<{account: {login: string}}>(
 						`${GITHUB_API}/app/installations/${installationId}`,
-						{headers: {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${jwt}`}},
+						{headers: githubAuthHeaders(jwt)},
 					),
 				),
 		);
@@ -175,7 +161,7 @@ export class GithubAuthService {
 			return false;
 		}
 
-		const headers = {...GITHUB_HEADERS, [githubField.authorization]: `Bearer ${userToken}`};
+		const headers = githubAuthHeaders(userToken);
 		for (let page = 1; ; page++) {
 			// eslint-disable-next-line no-await-in-loop -- 다음 페이지가 필요한지는 이전 응답으로만 알 수 있다.
 			const {data} = await this.requestGithub<{installations: Array<{id: number}>}>(async () =>

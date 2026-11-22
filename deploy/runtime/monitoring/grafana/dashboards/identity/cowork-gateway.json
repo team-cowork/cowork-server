@@ -33,7 +33,7 @@
           "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] }
         }
       },
-      "description": "애플리케이션 메트릭 수집 성공 여부입니다. 인스턴스 하나라도 수집에 실패하면 DOWN입니다."
+      "description": "인스턴스 하나라도 수집에 실패하면 DOWN입니다."
     },
     {
       "id": 100,
@@ -60,7 +60,7 @@
           "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] }
         }
       },
-      "description": "준비 상태 점검 결과입니다. 점검 대상이 없거나 결과가 누락되면 N/A입니다.",
+      "description": "점검 대상이나 결과가 없으면 N/A입니다.",
       "options": { "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "colorMode": "background", "graphMode": "none", "textMode": "auto", "orientation": "auto" }
     },
     {
@@ -89,7 +89,7 @@
           "thresholds": { "mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}] }
         }
       },
-      "description": "Envoy 프록시 포트의 TCP 연결 결과입니다. 프록시 등록이 없고 Nomad 지표를 수집할 수 있으면 DOWN입니다."
+      "description": "프록시 포트의 TCP 연결을 점검합니다. Nomad 지표는 수집되지만 프록시 등록이 없으면 DOWN입니다."
     },
     {
       "id": 101,
@@ -125,7 +125,7 @@
         }
       ],
       "fieldConfig": { "defaults": {"unit": "percent", "min": 0, "noValue": "N/A", "max": 100, "decimals": 1, "color": {"mode": "fixed", "fixedColor": "blue"}} },
-      "description": "요청이 발생한 구간의 5xx 비율입니다. 요청이 없거나 메트릭이 없으면 N/A로 표시합니다.",
+      "description": "요청이나 지표가 없으면 N/A입니다.",
       "options": { "reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": false}, "orientation": "auto", "colorMode": "value", "graphMode": "none", "textMode": "auto" }
     },
     {
@@ -154,11 +154,11 @@
           "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "green", "value": 1}]}
         }
       },
-      "description": "수집 대상 Gateway가 Redis의 배포 상태를 한 번 이상 확인했는지 표시합니다. 모두 확인하면 완료, 하나라도 확인 전이면 미완료이며 수집 실패나 지표 누락은 N/A입니다."
+      "description": "모든 인스턴스가 Redis에서 배포 상태를 한 번 이상 읽으면 완료입니다. 수집에 실패하거나 지표가 누락되면 N/A입니다."
     },
     {
       "id": 2,
-      "title": "초당 HTTP 요청 수 (req/s)",
+      "title": "경로별 HTTP 요청 수 (req/s)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
       "targets": [
@@ -216,7 +216,7 @@
       "fieldConfig": {
         "defaults": { "unit": "ms", "noValue": "N/A", "min": 0, "color": {"mode": "palette-classic"}, "custom": {"lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never"} }
       },
-      "description": "평균은 응답 시간 합계 증가량을 요청 수 증가량으로 나누어 계산합니다. P95/P99는 해당 서비스가 히스토그램 버킷을 제공할 때 표시됩니다.",
+      "description": "P95와 P99는 히스토그램 버킷이 있는 경로에 표시합니다.",
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
@@ -244,7 +244,7 @@
           "max": 100
         }
       },
-      "description": "요청이 발생한 구간의 5xx 비율입니다. 요청이 없거나 메트릭이 없으면 N/A로 표시합니다.",
+      "description": "요청이나 지표가 없으면 N/A입니다.",
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
@@ -343,13 +343,13 @@
     },
     {
       "id": 8,
-      "title": "요청 제한 차단 / 제한기 오류 (req/s)",
+      "title": "요청 한도 초과와 제한기 오류 (req/s)",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
       "targets": [
         {
           "expr": "sum by (route)(rate(gateway_ratelimit_events_total{service=\"gateway\",job=~\"cowork-.*\",outcome=\"rejected\"}[$__rate_interval]))",
-          "legendFormat": "차단 {{route}}",
+          "legendFormat": "한도 초과 {{route}}",
           "datasource": { "type": "prometheus", "uid": "${datasource}" },
           "refId": "A",
           "instant": false,
@@ -381,7 +381,7 @@
           "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
         }
       },
-      "description": "차단은 Gateway 요청 제한기가 반환한 429입니다. 제한기 오류는 Redis 호출 실패로 제한 없이 허용한 요청입니다. HTTP 429 전체에는 downstream이 반환한 429도 포함됩니다.",
+      "description": "Redis 호출에 실패하면 요청을 허용하고 제한기 오류로 집계합니다. 전체 429에는 백엔드 응답도 포함됩니다.",
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
@@ -408,7 +408,7 @@
           "custom": { "lineWidth": 2, "fillOpacity": 8, "spanNulls": false, "showPoints": "never" }
         }
       },
-      "description": "invalid는 잘못된 서명으로 반환한 403, unavailable은 서명 키 설정 오류로 반환한 503입니다.",
+      "description": "invalid는 서명 오류(403), unavailable은 서명 키 설정 오류(503)입니다.",
       "options": { "legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"} }
     },
     {
@@ -437,11 +437,11 @@
           "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "blue", "value": 1}, {"color": "orange", "value": 2}]}
         }
       },
-      "description": "Gateway가 마지막으로 확인한 서비스별 상태입니다. 인스턴스 간 상태가 다르면 복구 중, 배포 중, 정상 순으로 우선 표시합니다. 초기 동기화가 끝나지 않았거나 수집 실패·지표 누락이 있으면 N/A입니다."
+      "description": "인스턴스별 상태가 다르면 복구 중, 배포 중, 정상 순으로 표시합니다. 초기 동기화 전이거나 수집 실패 또는 지표 누락이 있으면 N/A입니다."
     },
     {
       "id": 10,
-      "title": "서비스별 배포 안내 응답 (req/s)",
+      "title": "서비스별 배포 안내 503 (req/s)",
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 41},
       "targets": [
@@ -464,7 +464,7 @@
         }
       },
       "options": {"legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
-      "description": "배포·복구 중이거나 초기 상태 확인 전인 요청에 반환한 초당 503 응답 수입니다. Gateway 인스턴스의 값을 대상 서비스와 응답 사유별로 합산합니다."
+      "description": "배포 중, 복구 중, 초기 상태 확인 전으로 나누어 집계합니다."
     },
     {
       "id": 11,
@@ -491,7 +491,7 @@
         }
       },
       "options": {"legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
-      "description": "Gateway 인스턴스의 웹훅 접수 결과를 결과별 초당 요청 수로 합산합니다. accepted는 Redis 영속화 확인 후 접수, direct_fallback은 Authorization 직접 접수 성공입니다."
+      "description": "accepted는 Redis 영속화 확인, direct_fallback은 Authorization 직접 접수 성공입니다."
     },
     {
       "id": 12,
@@ -518,7 +518,7 @@
         }
       },
       "options": {"legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
-      "description": "Gateway 인스턴스의 배포 상태 갱신 실패를 초당 횟수로 합산한 값입니다. 실패 이력이 없거나 지표가 없으면 N/A입니다."
+      "description": "실패 이력이나 지표가 없으면 N/A입니다."
     },
     {
       "id": 14,
@@ -545,7 +545,7 @@
         }
       },
       "options": {"legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
-      "description": "일반 JSON의 스트리밍 래핑, 예외 경로, 전송 실패, 클라이언트 취소를 구분합니다. 크기 초과로 성공 응답을 우회하지 않습니다."
+      "description": "래핑 대상인 성공 응답은 크기에 관계없이 스트리밍 처리합니다."
     },
     {
       "id": 15,
@@ -572,7 +572,7 @@
         }
       },
       "options": {"legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
-      "description": "정상 완료된 래핑 응답의 전체 원본 크기와 전송 크기입니다. 취소되거나 실패한 응답의 부분 크기는 제외합니다."
+      "description": "원본 크기와 래핑 후 전송 크기를 비교합니다. 취소되거나 실패한 응답은 제외합니다."
     },
     {
       "id": 16,
@@ -599,7 +599,7 @@
         }
       },
       "options": {"legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
-      "description": "HTTP 성공 상태 이후 전송 실패도 포함합니다. 오류 본문 한도 초과 시 원래 HTTP 상태의 공통 오류로 응답합니다."
+      "description": "성공 상태를 보낸 뒤의 전송 실패도 포함합니다. 오류 본문이 한도를 넘으면 원래 상태 코드로 공통 오류를 반환합니다."
     },
     {
       "id": 17,
@@ -634,7 +634,34 @@
         }
       },
       "options": {"legend": {"showLegend": true, "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull", "max"]}, "tooltip": {"mode": "multi", "sort": "desc"}},
-      "description": "JVM 힙 외 메모리와 canary 동시 실행을 확인하기 위한 Nomad 할당별 프로세스 RSS와 메모리 상한입니다."
+      "description": "RSS에는 JVM 힙 밖의 메모리도 포함됩니다. 카나리 배포 중에는 할당별로 비교합니다."
+    },
+    {
+      "id": 18,
+      "title": "라우트별 서킷 폴백 (req/s)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 71},
+      "targets": [
+        {
+          "expr": "sum by (route, reason) (rate(gateway_circuitbreaker_fallbacks_total{job=\"cowork-services\",service=\"gateway\"}[$__rate_interval])) > 0",
+          "legendFormat": "{{route}} / {{reason}}",
+          "datasource": {"type": "prometheus", "uid": "${datasource}"},
+          "refId": "A",
+          "instant": false,
+          "range": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "unit": "reqps", "custom": {"showPoints": "always", "spanNulls": false}
+        }
+      },
+      "transformations": [
+        {"id": "renameByRegex", "options": {"regex": "(.+) / bulkhead_full", "renamePattern": "$1 / 동시 요청 한도 초과"}},
+        {"id": "renameByRegex", "options": {"regex": "(.+) / circuit_rejected", "renamePattern": "$1 / 서킷 차단"}},
+        {"id": "renameByRegex", "options": {"regex": "(.+) / timeout", "renamePattern": "$1 / 시간 초과"}},
+        {"id": "renameByRegex", "options": {"regex": "(.+) / other", "renamePattern": "$1 / 기타 오류"}}
+      ]
     }
   ],
   "templating": {

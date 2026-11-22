@@ -367,6 +367,8 @@ func migrationExpectations(version int) ([]tableExpectation, bool) {
 			{name: "tb_kafka_outbox", columns: []string{"source_event_id", "source_event_index"}},
 			{name: "tb_processed_events", absent: true},
 		}, true
+	case 11:
+		return []tableExpectation{{name: "tb_user_identity_operations", columns: []string{"result_email", "result_gsm_role"}}}, true
 	case 10:
 		return []tableExpectation{
 			{name: "tb_refresh_tokens", columns: []string{"user_id", "token_hash", "expires_at"}},

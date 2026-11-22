@@ -20,13 +20,13 @@ variable "config_files" {
   type = map(string)
 }
 
-job "cowork-team-mysql" {
+job "cowork-__SERVICE__-mysql" {
   datacenters = ["gsm"]
   namespace   = "default"
   type        = "service"
   constraint {
     attribute = "${meta.cowork_vm}"
-    value     = "team"
+    value     = "__SERVICE__"
   }
   group "mysql" {
     count          = 1
@@ -58,11 +58,11 @@ job "cowork-team-mysql" {
     }
     volume "data" {
       type      = "host"
-      source    = "team-mysql"
+      source    = "__SERVICE__-mysql"
       read_only = false
     }
     service {
-      name         = "cowork-team-mysql"
+      name         = "cowork-__SERVICE__-mysql"
       provider     = "consul"
       port         = "3306"
       address_mode = "alloc"
@@ -94,7 +94,7 @@ job "cowork-team-mysql" {
       }
     }
     service {
-      name         = "cowork-team-mysql-metrics"
+      name         = "cowork-__SERVICE__-mysql-metrics"
       provider     = "consul"
       port         = "metrics"
       address_mode = "host"
@@ -104,7 +104,7 @@ job "cowork-team-mysql" {
         metrics_port    = "${NOMAD_HOST_PORT_metrics}"
         metrics_path    = "/metrics"
         metrics_service = "mysql"
-        module          = "team"
+        module          = "__SERVICE__"
       }
       identity {
         aud = ["consul.io"]
@@ -143,14 +143,14 @@ job "cowork-team-mysql" {
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-team-mysql"
+        role         = "cowork-__SERVICE__-mysql"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/team?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/__SERVICE__?version=${var.secret_version}" }}
 MYSQL_DATABASE={{ .Data.data.DB_NAME | toJSON }}
 MYSQL_ROOT_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
 {{ end }}
@@ -191,14 +191,14 @@ ENV
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-team-mysql"
+        role         = "cowork-__SERVICE__-mysql"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/team?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/__SERVICE__?version=${var.secret_version}" }}
 DB_NAME={{ .Data.data.DB_NAME | toJSON }}
 DB_USERNAME={{ .Data.data.DB_USERNAME | toJSON }}
 DB_ADMIN_PASSWORD={{ .Data.data.DB_ADMIN_PASSWORD | toJSON }}
@@ -240,14 +240,14 @@ ENV
         ttl  = "1h"
       }
       vault {
-        role         = "cowork-team-mysql"
+        role         = "cowork-__SERVICE__-mysql"
         env          = false
         disable_file = true
         change_mode  = "noop"
       }
       template {
         data                 = <<-ENV
-{{ with secret "${var.vault_mount}/data/nomad/data/team?version=${var.secret_version}" }}
+{{ with secret "${var.vault_mount}/data/nomad/data/__SERVICE__?version=${var.secret_version}" }}
 MYSQLD_EXPORTER_PASSWORD={{ .Data.data.DB_MONITORING_PASSWORD | toJSON }}
 {{ end }}
 ENV

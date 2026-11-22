@@ -364,13 +364,19 @@ func TestStudentLoginAllowsNullableProfile(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			info := eligibleUser()
 			tc.mutate(info)
-			identity := &fakeIdentityCoordinator{userID: 99}
+			identity := &fakeIdentityCoordinator{userID: 27}
 			store := &fakeRefreshTokenStore{}
 			svc := NewAuthService(cfg, identity, store, NewTokenService(cfg), nil)
 			pair, err := svc.issueUserSession(context.Background(), info)
 			if tc.valid {
-				if err != nil || pair == nil || identity.command.Major != nil || identity.command.Grade != nil || identity.command.SchemaVersion != domain.UserIdentityCommandSchemaVersion {
+				if err != nil || pair == nil || identity.command.Student.Major != nil || identity.command.Student.Grade != nil || identity.command.SchemaVersion != domain.UserIdentityCommandSchemaVersion {
 					t.Fatalf("pair=%+v err=%v command=%+v", pair, err, identity.command)
+				}
+				if identity.command.ProviderSubject != "99" || identity.command.Student.DataGSMStudentID == nil || *identity.command.Student.DataGSMStudentID != 501 {
+					t.Fatalf("expected provider account 99 and student 501: %+v", identity.command)
+				}
+				if store.createdToken.UserID != 27 || store.createdToken.Email != "committed@example.com" || store.createdToken.GsmRole != "GENERAL_STUDENT" {
+					t.Fatal("session did not use the committed account claims")
 				}
 			} else if err == nil || identity.calls != 0 || store.createdToken != nil {
 				t.Fatal("ineligible user received a session")

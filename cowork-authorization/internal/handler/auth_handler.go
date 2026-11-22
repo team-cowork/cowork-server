@@ -69,6 +69,34 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	c.JSON(http.StatusOK, pair)
 }
 
+func (h *AuthHandler) DevSignIn(c *gin.Context) {
+	c.Header("Cache-Control", "no-store")
+	if c.GetHeader("X-Cowork-Dev-Signin-Verified") != "true" {
+		c.AbortWithStatus(http.StatusForbidden)
+		return
+	}
+	if c.ContentType() != "application/json" {
+		c.JSON(http.StatusUnsupportedMediaType, gin.H{"error": "application/json is required"})
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 16<<10)
+	var req struct {
+		ID       string `json:"id" binding:"required"`
+		Password string `json:"password" binding:"required"`
+	}
+	if c.ShouldBindJSON(&req) != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid signin request"})
+		return
+	}
+	pair, err := h.authSvc.DevSignIn(c.Request.Context(), req.ID, req.Password)
+	if err != nil {
+		loginError(c, err)
+		return
+	}
+	setWsCookie(c, pair)
+	c.JSON(http.StatusOK, pair)
+}
+
 type LoginCallbackRequest struct {
 	State string `json:"state" binding:"required"`
 	Code  string `json:"code"`

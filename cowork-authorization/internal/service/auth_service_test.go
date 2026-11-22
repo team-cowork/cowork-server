@@ -84,10 +84,10 @@ type fakeIdentityCoordinator struct {
 func (f *fakeIdentityCoordinator) EnsureUser(
 	_ context.Context,
 	command domain.UserIdentityCommand,
-) (int64, error) {
+) (*domain.SessionIdentity, error) {
 	f.calls++
 	f.command = command
-	return f.userID, f.err
+	return &domain.SessionIdentity{UserID: f.userID, Email: "committed@example.com", GsmRole: "GENERAL_STUDENT"}, f.err
 }
 
 func newUnitAuthService(store RefreshTokenStore, now time.Time) *AuthService {
@@ -144,10 +144,7 @@ func TestCommitIdentityAndIssueSession_WhenIdentityIsRejected_DoesNotIssueTokens
 
 	pair, err := service.commitIdentityAndIssueSession(
 		context.Background(),
-		domain.UserIdentityCommand{UserID: 7},
-		"user@example.com",
-		"STUDENT",
-		"",
+		domain.UserIdentityCommand{},
 	)
 	if err == nil || pair != nil {
 		t.Fatalf("commitIdentityAndIssueSession() = %+v, %v; want failure", pair, err)
@@ -264,5 +261,39 @@ func TestValidateDataGSMAccountRole_AccordingToProviderRole(t *testing.T) {
 				t.Fatalf("validateDataGSMAccountRole(%q) = %v", test.providerRole, err)
 			}
 		})
+	}
+}
+
+func TestDevSignInChecksAccountCredentialsBeforeIssuingSession(t *testing.T) {
+	accounts, err := config.ParseDevAccounts(`{"dev-1":{"id":"user1","password":"pw1"},"dev-2":{"id":"user2","password":"pw2"},"dev-3":{"id":"user3","password":"pw3"},"dev-4":{"id":"user4","password":"pw4"}}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		id, pw  string
+		wantErr error
+	}{
+		{"", "pw1", ErrAuthenticationRejected},
+		{"unknown", "pw1", ErrAuthenticationRejected},
+		{"user1", "", ErrAuthenticationRejected},
+		{"user1", "wrong", ErrAuthenticationRejected},
+		{"user1", "pw1", nil},
+	} {
+		store := &fakeRefreshTokenStore{}
+		svc := newUnitAuthService(store, time.Now())
+		svc.cfg.DevAccounts = accounts
+		identity := &fakeIdentityCoordinator{userID: 25}
+		svc.identity = identity
+		pair, err := svc.DevSignIn(context.Background(), tc.id, tc.pw)
+		if !errors.Is(err, tc.wantErr) {
+			t.Fatalf("unexpected result %v", err)
+		}
+		if tc.wantErr != nil {
+			if identity.calls != 0 || pair != nil || store.createdToken != nil {
+				t.Fatal("invalid credentials issued a session")
+			}
+		} else if pair == nil || identity.command.Provider != "DEV" || identity.command.ProviderSubject != "dev-1" || identity.command.Student != nil {
+			t.Fatal("developer sign-in did not submit the fixed nonstudent identity")
+		}
 	}
 }
