@@ -126,7 +126,7 @@ data class ProjectCalendarOccurrenceResDto(
                 startAt = occurrence.startAt,
                 endAt = occurrence.endAt,
                 title = occurrence.title ?: event.title,
-                description = occurrence.description ?: event.description,
+                description = occurrence.resolveDescription(event.description),
                 allDay = event.allDay,
                 timeZone = event.timeZone,
                 recurring = event.recurrenceFrequency != null,
