@@ -101,3 +101,49 @@ func TestHandleRejectsEventWithoutEventID(t *testing.T) {
 		t.Fatalf("invalid event must be skipped so its offset is committed, got %v", err)
 	}
 }
+
+func TestBuildCalendarReminderUsesLeadAndEventTimeZone(t *testing.T) {
+	cases := []struct {
+		name string
+		data map[string]any
+		want string
+	}{
+		{
+			name: "minutes before in event time zone",
+			data: map[string]any{
+				"title": "회고", "startAt": "2026-12-01T01:00:00Z", "timeZone": "Asia/Seoul",
+				"allDay": false, "minutesBefore": float64(10),
+			},
+			want: "회고 일정이 10분 후에 시작합니다. 시작: 2026-12-01 10:00",
+		},
+		{
+			name: "one day before all-day event",
+			data: map[string]any{
+				"title": "배포", "startAt": "2026-12-01T15:00:00Z", "timeZone": "Asia/Seoul",
+				"allDay": true, "minutesBefore": float64(1440),
+			},
+			want: "배포 일정이 1일 후에 시작합니다. 시작: 2026-12-02",
+		},
+		{
+			name: "starts now with unknown zone falls back to KST",
+			data: map[string]any{
+				"title": "회의", "startAt": "2026-12-01T01:00:00Z", "timeZone": "Nowhere/City",
+				"minutesBefore": float64(0),
+			},
+			want: "회의 일정이 지금 시작합니다. 시작: 2026-12-01 10:00",
+		},
+		{
+			name: "hour lead without start time",
+			data: map[string]any{"title": "점검", "minutesBefore": float64(60)},
+			want: "점검 일정이 1시간 후에 시작합니다.",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			title, body, ok := buildCalendarReminder(NotificationTriggerEvent{Type: "CALENDAR_EVENT_REMINDER", Data: tc.data})
+			if !ok || title != "일정 알림" || body != tc.want {
+				t.Fatalf("got (%q, %q, %v), want body %q", title, body, ok, tc.want)
+			}
+		})
+	}
+}

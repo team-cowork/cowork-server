@@ -323,6 +323,8 @@ func (c *Consumer) buildMessage(ctx context.Context, event NotificationTriggerEv
 		return "태스크 할당", "새 태스크가 할당되었습니다.", true
 	case "GITHUB_COMMENT_CREATED":
 		return c.buildGithubComment(event)
+	case "CALENDAR_EVENT_REMINDER":
+		return buildCalendarReminder(event)
 	default:
 		return "알림", "", true
 	}
@@ -343,6 +345,48 @@ func (c *Consumer) buildGithubComment(event NotificationTriggerEvent) (title, bo
 	title = fmt.Sprintf("%s 댓글", parentLabel)
 	body = fmt.Sprintf("%s님이 %s #%d에 댓글을 남겼습니다: %s", commentAuthor, repo, number, truncate(commentBody, 100))
 	return title, body, true
+}
+
+// buildCalendarReminder는 cowork-project 일정 리마인더의 본문을 만든다. 시작 시각은 일정의 시간대로 보여준다.
+func buildCalendarReminder(event NotificationTriggerEvent) (title, body string, ok bool) {
+	eventTitle, _ := event.Data["title"].(string)
+	startAt, _ := event.Data["startAt"].(string)
+	timeZone, _ := event.Data["timeZone"].(string)
+	allDay, _ := event.Data["allDay"].(bool)
+	minutesBefore := extractInt64(event.Data, "minutesBefore")
+
+	var lead string
+	switch {
+	case minutesBefore <= 0:
+		lead = "지금 시작합니다"
+	case minutesBefore%1440 == 0:
+		lead = fmt.Sprintf("%d일 후에 시작합니다", minutesBefore/1440)
+	case minutesBefore%60 == 0:
+		lead = fmt.Sprintf("%d시간 후에 시작합니다", minutesBefore/60)
+	default:
+		lead = fmt.Sprintf("%d분 후에 시작합니다", minutesBefore)
+	}
+
+	body = fmt.Sprintf("%s 일정이 %s.", truncate(eventTitle, 100), lead)
+	if when := formatInZone(startAt, timeZone, allDay); when != "" {
+		body += " 시작: " + when
+	}
+	return "일정 알림", body, true
+}
+
+func formatInZone(iso, timeZone string, dateOnly bool) string {
+	t, err := time.Parse(time.RFC3339Nano, iso)
+	if err != nil {
+		return ""
+	}
+	location, err := time.LoadLocation(timeZone)
+	if err != nil || timeZone == "" {
+		location = time.FixedZone("KST", 9*60*60)
+	}
+	if dateOnly {
+		return t.In(location).Format("2006-01-02")
+	}
+	return t.In(location).Format("2006-01-02 15:04")
 }
 
 func (c *Consumer) buildChatMessage(ctx context.Context, event NotificationTriggerEvent) (title, body string, ok bool) {
