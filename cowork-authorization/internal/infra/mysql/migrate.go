@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,18 +24,6 @@ const (
 	migrationLockName           = "cowork-authorization-schema-migration"
 	migrationLockWaitSeconds    = 60
 	migrationLockReleaseTimeout = 5 * time.Second
-	presenceStateBackfillQuery  = `SELECT COUNT(*)
-		 FROM (
-		     SELECT user_id,
-		            SUM(expires_at > UTC_TIMESTAMP(6)) AS expected_active_sessions
-		     FROM tb_refresh_tokens
-		     GROUP BY user_id
-		 ) AS token_user
-		 LEFT JOIN tb_user_presence_states AS presence ON presence.user_id = token_user.user_id
-		 WHERE presence.user_id IS NULL
-		    OR presence.active_session_count <> token_user.expected_active_sessions
-		    OR presence.status <>
-		       IF(token_user.expected_active_sessions > 0, 'online', 'offline')`
 )
 
 type migration struct {
@@ -137,7 +124,7 @@ func migrateLocked(ctx context.Context, db *gorm.DB, migrations []migration, dbN
 
 		if !complete {
 			for _, stmt := range splitSQLStatements(m.contents) {
-				if err := db.WithContext(ctx).Exec(stmt).Error; err != nil && !isRecoverableMigrationError(err) && !isWebhookMigrationRetry(m.version, err) {
+				if err := db.WithContext(ctx).Exec(stmt).Error; err != nil && !isRecoverableMigrationError(err) {
 					return fmt.Errorf("failed to execute migration %s: %w", m.script, err)
 				}
 			}
@@ -274,108 +261,51 @@ func columnExists(ctx context.Context, db *gorm.DB, table, column string) (bool,
 type tableExpectation struct {
 	name    string
 	columns []string
-	absent  bool
 }
 
+// V11 is the squashed baseline of the former V1 to V11 migrations. It only
+// creates tables, and MySQL creates each table atomically, so the presence of
+// every table and column shows that the baseline completed.
 func migrationExpectations(version int) ([]tableExpectation, bool) {
-	switch version {
-	case 1:
-		return []tableExpectation{
-			{
-				name:    "tb_users",
-				columns: []string{"id", "email", "role", "is_active", "created_at", "updated_at"},
-			},
-			{
-				name: "tb_refresh_tokens",
-				columns: []string{
-					"id", "user_id", "token_hash", "device_info", "expires_at", "created_at",
-				},
-			},
-			{
-				name: "tb_oauth2_connections",
-				columns: []string{
-					"id", "user_id", "provider", "provider_user_id", "created_at",
-				},
-			},
-		}, true
-	case 2:
-		return []tableExpectation{
-			{
-				name: "tb_refresh_tokens",
-				columns: []string{
-					"id", "user_id", "token_hash", "email", "gsm_role", "device_info", "expires_at", "created_at",
-				},
-			},
-			{name: "tb_users", absent: true},
-			{name: "tb_oauth2_connections", absent: true},
-		}, true
-	case 3:
-		return []tableExpectation{
-			{name: "tb_processed_events", columns: []string{"event_id", "event_type", "created_at"}},
-		}, true
-	case 4:
-		return []tableExpectation{
-			{
-				name: "tb_kafka_outbox",
-				columns: []string{
-					"id", "topic", "event_key", "payload", "attempts", "last_error", "created_at",
-				},
-			},
-		}, true
-	case 5:
-		return []tableExpectation{
-			{
-				name: "tb_kafka_outbox",
-				columns: []string{
-					"id", "topic", "partition_id", "event_key", "payload", "attempts", "last_error", "created_at",
-				},
-			},
-		}, true
-	case 6:
-		return []tableExpectation{
-			{
-				name: "tb_user_presence_states",
-				columns: []string{
-					"user_id", "status", "active_session_count", "occurred_at", "created_at", "updated_at",
-				},
-			},
-		}, true
-	case 7:
-		return []tableExpectation{
-			{
-				name: "tb_refresh_tokens",
-				columns: []string{
-					"id", "user_id", "token_hash", "email", "gsm_role", "platform_role",
-					"device_info", "expires_at", "created_at",
-				},
-			},
-		}, true
-	case 8:
-		return []tableExpectation{
-			{
-				name: "tb_user_identity_operations",
-				columns: []string{
-					"operation_id", "idempotency_key", "user_id", "request_hash", "status",
-					"result_user_id", "error_code", "error_message", "result_hash",
-					"created_at", "updated_at", "completed_at",
-				},
-			},
-		}, true
-	case 9:
-		return []tableExpectation{
-			{name: "tb_webhook_inbox", columns: []string{"event_id", "event_type", "payload_hash", "message_count", "occurred_at", "accepted_at", "expires_at"}},
-			{name: "tb_kafka_outbox", columns: []string{"source_event_id", "source_event_index"}},
-			{name: "tb_processed_events", absent: true},
-		}, true
-	case 11:
-		return []tableExpectation{{name: "tb_user_identity_operations", columns: []string{"result_email", "result_gsm_role"}}}, true
-	case 10:
-		return []tableExpectation{
-			{name: "tb_refresh_tokens", columns: []string{"user_id", "token_hash", "expires_at"}},
-		}, true
-	default:
+	if version != 11 {
 		return nil, false
 	}
+	return []tableExpectation{
+		{
+			name: "tb_refresh_tokens",
+			columns: []string{
+				"id", "user_id", "token_hash", "email", "gsm_role", "platform_role",
+				"device_info", "expires_at", "created_at",
+			},
+		},
+		{
+			name: "tb_user_identity_operations",
+			columns: []string{
+				"operation_id", "idempotency_key", "user_id", "request_hash", "status",
+				"result_user_id", "error_code", "error_message", "result_hash",
+				"created_at", "updated_at", "completed_at", "result_email", "result_gsm_role",
+			},
+		},
+		{
+			name: "tb_user_presence_states",
+			columns: []string{
+				"user_id", "status", "active_session_count", "occurred_at", "created_at", "updated_at",
+			},
+		},
+		{
+			name: "tb_webhook_inbox",
+			columns: []string{
+				"event_id", "event_type", "payload_hash", "message_count", "occurred_at", "accepted_at", "expires_at",
+			},
+		},
+		{
+			name: "tb_kafka_outbox",
+			columns: []string{
+				"id", "topic", "partition_id", "event_key", "payload", "attempts", "last_error",
+				"created_at", "source_event_id", "source_event_index",
+			},
+		},
+	}, true
 }
 
 func migrationSchemaComplete(ctx context.Context, db *gorm.DB, version int) (bool, bool, error) {
@@ -386,139 +316,18 @@ func migrationSchemaComplete(ctx context.Context, db *gorm.DB, version int) (boo
 
 	for _, expectation := range expectations {
 		exists, err := tableExists(ctx, db, expectation.name)
-		if err != nil {
+		if err != nil || !exists {
 			return false, true, err
-		}
-		if expectation.absent {
-			if exists {
-				return false, true, nil
-			}
-			continue
-		}
-		if !exists {
-			return false, true, nil
 		}
 
 		for _, column := range expectation.columns {
 			exists, err := columnExists(ctx, db, expectation.name, column)
-			if err != nil {
+			if err != nil || !exists {
 				return false, true, err
 			}
-			if !exists {
-				return false, true, nil
-			}
 		}
-	}
-	if version == 6 {
-		complete, err := presenceStateBackfillComplete(ctx, db)
-		if err != nil {
-			return false, true, err
-		}
-		if !complete {
-			return false, true, nil
-		}
-	}
-
-	if version == 9 {
-		complete, err := webhookSchemaComplete(ctx, db)
-		return complete, true, err
-	}
-	if version == 10 {
-		complete, err := refreshTokenIndexSchemaComplete(ctx, db)
-		return complete, true, err
 	}
 	return true, true, nil
-}
-
-// V10 changes only a column type and indexes, so column presence alone cannot
-// tell whether it ran.
-func refreshTokenIndexSchemaComplete(ctx context.Context, db *gorm.DB) (bool, error) {
-	var hashColumns int64
-	if err := db.WithContext(ctx).Raw(
-		`SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE()
-		 AND table_name = 'tb_refresh_tokens' AND column_name = 'token_hash'
-		 AND data_type = 'char' AND character_maximum_length = 64
-		 AND character_set_name = 'ascii' AND collation_name = 'ascii_bin' AND is_nullable = 'NO'`,
-	).Scan(&hashColumns).Error; err != nil || hashColumns != 1 {
-		return false, err
-	}
-	composite, err := indexColumnsEqual(
-		ctx, db, "tb_refresh_tokens", "idx_tb_refresh_tokens_user_id_expires_at", "user_id", "expires_at",
-	)
-	if err != nil || !composite {
-		return false, err
-	}
-	// No expected columns: true only when the old single-column index is gone.
-	return indexColumnsEqual(ctx, db, "tb_refresh_tokens", "idx_tb_refresh_tokens_user_id")
-}
-
-func indexColumnsEqual(ctx context.Context, db *gorm.DB, table, index string, columns ...string) (bool, error) {
-	var actual []string
-	err := db.WithContext(ctx).Raw(
-		`SELECT column_name FROM information_schema.statistics
-		 WHERE table_schema = DATABASE() AND table_name = ? AND index_name = ?
-		 ORDER BY seq_in_index`,
-		table, index,
-	).Scan(&actual).Error
-	return slices.Equal(actual, columns), err
-}
-
-// Check constraints as well as columns before recording V9. MySQL DDL may have
-// committed only a prefix of the migration when a previous startup stopped.
-func webhookSchemaComplete(ctx context.Context, db *gorm.DB) (bool, error) {
-	checks := []struct {
-		query string
-		want  int64
-	}{
-		{`SELECT COUNT(*) FROM information_schema.columns WHERE table_schema = DATABASE()
-		 AND table_name IN ('tb_webhook_inbox', 'tb_kafka_outbox')
-		 AND ((column_name IN ('event_id', 'source_event_id') AND data_type = 'varbinary' AND character_maximum_length = 255)
-		 OR (table_name = 'tb_webhook_inbox' AND column_name = 'payload_hash' AND data_type = 'binary' AND character_maximum_length = 32))`, 3},
-		{`SELECT COUNT(*) FROM information_schema.table_constraints WHERE constraint_schema = DATABASE()
-		 AND table_name = 'tb_kafka_outbox' AND constraint_name = 'ck_tb_kafka_outbox_source_event'
-		 AND constraint_type = 'CHECK' AND enforced = 'YES'`, 1},
-		{`SELECT COUNT(*) FROM information_schema.referential_constraints AS r
-		 JOIN information_schema.key_column_usage AS k
-		 ON k.constraint_schema = r.constraint_schema AND k.constraint_name = r.constraint_name AND k.table_name = r.table_name
-		 WHERE r.constraint_schema = DATABASE() AND r.table_name = 'tb_kafka_outbox'
-		 AND r.constraint_name = 'fk_tb_kafka_outbox_webhook_inbox' AND r.delete_rule = 'RESTRICT'
-		 AND k.column_name = 'source_event_id' AND k.referenced_table_name = 'tb_webhook_inbox' AND k.referenced_column_name = 'event_id'`, 1},
-		{`SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE()
-		 AND table_name = 'tb_kafka_outbox' AND index_name = 'uq_tb_kafka_outbox_source_event' AND non_unique = 0
-		 AND ((seq_in_index = 1 AND column_name = 'source_event_id') OR (seq_in_index = 2 AND column_name = 'source_event_index'))`, 2},
-		{`SELECT COUNT(*) FROM information_schema.statistics WHERE table_schema = DATABASE()
-		 AND table_name = 'tb_webhook_inbox' AND index_name = 'idx_tb_webhook_inbox_expires_at'
-		 AND seq_in_index = 1 AND column_name = 'expires_at'`, 1},
-	}
-	for _, check := range checks {
-		var count int64
-		if err := db.WithContext(ctx).Raw(check.query).Scan(&count).Error; err != nil {
-			return false, err
-		}
-		if count != check.want {
-			return false, nil
-		}
-	}
-	return true, nil
-}
-
-func isWebhookMigrationRetry(version int, err error) bool {
-	var mysqlErr *mysqlDriver.MySQLError
-	if version != 9 || !errors.As(err, &mysqlErr) {
-		return false
-	}
-	switch mysqlErr.Number {
-	case 1061, 1826, 3822: // Existing index, foreign key, or check constraint; verify the final schema.
-		return true
-	default:
-		return false
-	}
-}
-
-func presenceStateBackfillComplete(ctx context.Context, db *gorm.DB) (bool, error) {
-	var mismatched int64
-	err := db.WithContext(ctx).Raw(presenceStateBackfillQuery).Scan(&mismatched).Error
-	return mismatched == 0, err
 }
 
 func isRecoverableMigrationError(err error) bool {
