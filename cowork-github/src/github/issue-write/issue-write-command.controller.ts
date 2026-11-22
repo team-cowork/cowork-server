@@ -8,7 +8,8 @@ import {
 } from '@nestjs/microservices';
 import {plainToInstance} from 'class-transformer';
 import {validate} from 'class-validator';
-import {GithubClientError} from '../github.errors.js';
+import {withGithubRateLimitRetry} from '../github-rate-limit.js';
+import {GithubClientError, GithubRateLimitError} from '../github.errors.js';
 import {IssueHttpService} from '../issue-http/issue-http.service.js';
 import {LabelHttpService} from '../label-http/label-http.service.js';
 import {CreateCommentPayloadDto} from './dto/create-comment-payload.dto.js';
@@ -140,7 +141,13 @@ export class IssueWriteCommandController {
 
 		let event: IssueWriteResultEvent;
 		if (record.state === 'RECEIVED') {
-			event = await this.resolveCreateComment(envelope, payload, record.receivedAt, !claimed);
+			event = await this.resolveCreateComment(envelope, payload, record.receivedAt, !claimed).catch(async (error: unknown) => {
+				if (claimed && error instanceof GithubRateLimitError) {
+					await this.commentHistory.markRetryable(envelope.operationId, record);
+				}
+
+				throw error;
+			});
 			await this.commentHistory.save(envelope.operationId, {...record, state: 'COMPLETED', event});
 		} else {
 			({event} = record);
@@ -340,7 +347,7 @@ export class IssueWriteCommandController {
 		@messagePayload() data: unknown,
 		@messageContext() context: KafkaContext,
 	): Promise<void> {
-		const shouldCommit = await this.processMessage(data);
+		const shouldCommit = await withGithubRateLimitRetry(context, async () => this.processMessage(data));
 		if (shouldCommit) {
 			await this.commitOffset(context);
 		}

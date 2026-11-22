@@ -5,7 +5,7 @@ import {githubField} from '../github-field.js';
 import {GithubAuthService} from '../auth/github-auth.service.js';
 import {GITHUB_API, githubAuthHeaders} from '../constants.js';
 import {CreateIssueDto} from '../dto/create-issue.dto.js';
-import {rethrowGithubError} from '../github.errors.js';
+import {requestGithub} from '../github-rate-limit.js';
 
 export type CreatedIssue = {
 	number: number;
@@ -37,9 +37,9 @@ export class GithubApiClient {
 	) {}
 
 	async createIssue(dto: CreateIssueDto): Promise<CreatedIssue> {
-		const token = await this.authService.getInstallationToken(dto.owner);
-		try {
-			const {data} = await firstValueFrom(
+		const {data} = await requestGithub(async () => {
+			const token = await this.authService.getInstallationToken(dto.owner);
+			return firstValueFrom(
 				this.httpService.post<CreatedIssue>(
 					`${GITHUB_API}/repos/${dto.owner}/${dto.repo}/issues`,
 					{
@@ -51,20 +51,18 @@ export class GithubApiClient {
 					{headers: githubAuthHeaders(token)},
 				),
 			);
-			return {number: data.number, [githubField.htmlUrl]: data.html_url};
-		} catch (error) {
-			rethrowGithubError(error);
-		}
+		});
+		return {number: data.number, [githubField.htmlUrl]: data.html_url};
 	}
 
 	async searchOpenIssuesByTitle(dto: CreateIssueDto): Promise<SearchedIssue[]> {
-		const token = await this.authService.getInstallationToken(dto.owner);
-		try {
-			const escapedTitle = dto.title
-				.replaceAll('\\', '\\\\')
-				.replaceAll('"', String.raw`\"`);
-			const query = `repo:${dto.owner}/${dto.repo} is:issue is:open in:title "${escapedTitle}"`;
-			const {data} = await firstValueFrom(
+		const escapedTitle = dto.title
+			.replaceAll('\\', '\\\\')
+			.replaceAll('"', String.raw`\"`);
+		const query = `repo:${dto.owner}/${dto.repo} is:issue is:open in:title "${escapedTitle}"`;
+		const {data} = await requestGithub(async () => {
+			const token = await this.authService.getInstallationToken(dto.owner);
+			return firstValueFrom(
 				this.httpService.get<{items: SearchedIssue[]}>(
 					`${GITHUB_API}/search/issues`,
 					{
@@ -73,15 +71,13 @@ export class GithubApiClient {
 					},
 				),
 			);
-			return data.items.map(item => ({
-				number: item.number,
-				[githubField.htmlUrl]: item.html_url,
-				title: item.title,
-				labels: (item.labels ?? []).map(l => ({name: l.name})),
-			}));
-		} catch (error) {
-			rethrowGithubError(error);
-		}
+		});
+		return data.items.map(item => ({
+			number: item.number,
+			[githubField.htmlUrl]: item.html_url,
+			title: item.title,
+			labels: (item.labels ?? []).map(l => ({name: l.name})),
+		}));
 	}
 
 	async addLabelsToIssue(
@@ -89,50 +85,44 @@ export class GithubApiClient {
 		issueNumber: number,
 		labels: string[],
 	): Promise<void> {
-		const token = await this.authService.getInstallationToken(dto.owner);
-		try {
-			await firstValueFrom(
+		await requestGithub(async () => {
+			const token = await this.authService.getInstallationToken(dto.owner);
+			return firstValueFrom(
 				this.httpService.post(
 					`${GITHUB_API}/repos/${dto.owner}/${dto.repo}/issues/${issueNumber}/labels`,
 					{labels},
 					{headers: githubAuthHeaders(token)},
 				),
 			);
-		} catch (error) {
-			rethrowGithubError(error);
-		}
+		});
 	}
 
 	async listLabels(dto: CreateIssueDto): Promise<string[]> {
-		const token = await this.authService.getInstallationToken(dto.owner);
-		try {
-			const {data} = await firstValueFrom(
+		const {data} = await requestGithub(async () => {
+			const token = await this.authService.getInstallationToken(dto.owner);
+			return firstValueFrom(
 				this.httpService.get<GithubLabel[]>(
 					`${GITHUB_API}/repos/${dto.owner}/${dto.repo}/labels`,
 					{params: {[githubField.perPage]: 100}, headers: githubAuthHeaders(token)},
 				),
 			);
-			return data.map(label => label.name);
-		} catch (error) {
-			rethrowGithubError(error);
-		}
+		});
+		return data.map(label => label.name);
 	}
 
 	async createLabel(
 		dto: CreateIssueDto,
 		label: CreateLabelPayload,
 	): Promise<void> {
-		const token = await this.authService.getInstallationToken(dto.owner);
-		try {
-			await firstValueFrom(
+		await requestGithub(async () => {
+			const token = await this.authService.getInstallationToken(dto.owner);
+			return firstValueFrom(
 				this.httpService.post(
 					`${GITHUB_API}/repos/${dto.owner}/${dto.repo}/labels`,
 					label,
 					{headers: githubAuthHeaders(token)},
 				),
 			);
-		} catch (error) {
-			rethrowGithubError(error);
-		}
+		});
 	}
 }
