@@ -38,7 +38,10 @@ data class CalendarRecurrence(
     }
 }
 
-/** 반복 일정의 발생분 하나에 대한 예외. [originalStartAt]은 규칙이 만든 원래 시작 시각이다. */
+/**
+ * 반복 일정의 발생분 하나에 대한 예외. [originalStartAt]은 규칙이 만든 원래 시작 시각이다.
+ * [description]이 `null`이면 원본 설명을 따르고, 빈 문자열이면 그 발생분의 설명을 비운다.
+ */
 data class CalendarOccurrenceException(
     val originalStartAt: Instant,
     val cancelled: Boolean = false,
@@ -63,14 +66,21 @@ data class CalendarSeries(
     val duration: Duration get() = Duration.between(startAt, endAt)
 }
 
-/** 조회 기간에 들어온 발생분. 예외로 바꾼 값이 있으면 [title]과 [description]에 담는다. */
+/**
+ * 조회 기간에 들어온 발생분. 예외로 바꾼 값이 있으면 [title]과 [description]에 담는다.
+ * [description]은 예외 값 그대로다. 응답할 설명은 [resolveDescription]으로 구한다.
+ */
 data class CalendarOccurrence(
     val originalStartAt: Instant,
     val startAt: Instant,
     val endAt: Instant,
     val title: String? = null,
     val description: String? = null,
-)
+) {
+    /** 예외 설명이 `null`이면 [original]을 쓰고, 빈 문자열이면 비운 설명이므로 `null`을 돌려준다. */
+    fun resolveDescription(original: String?): String? =
+        if (description == null) original else description.ifEmpty { null }
+}
 
 object CalendarRecurrenceExpander {
     /** 규칙 하나가 만들 수 있는 후보 발생분 수의 상한. 잘못된 규칙이 무한히 돌지 않게 막는다. */

@@ -132,7 +132,7 @@ data class TeamCalendarOccurrenceResDto(
                 startAt = occurrence.startAt,
                 endAt = occurrence.endAt,
                 title = occurrence.title ?: entry.title,
-                description = occurrence.description ?: entry.description,
+                description = occurrence.resolveDescription(entry.description),
                 allDay = entry.allDay,
                 timeZone = entry.timeZone,
                 recurring = entry.series.recurrence != null,

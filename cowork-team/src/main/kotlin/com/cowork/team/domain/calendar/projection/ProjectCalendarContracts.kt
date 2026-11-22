@@ -54,6 +54,7 @@ data class ProjectCalendarEventStatePayload(
         )
     }
 
+    /** [description]이 `null`이면 원본 설명을 따르고, 빈 문자열이면 그 발생분의 설명을 비운다. */
     data class OccurrenceException(
         val originalStartAt: Instant,
         val cancelled: Boolean,

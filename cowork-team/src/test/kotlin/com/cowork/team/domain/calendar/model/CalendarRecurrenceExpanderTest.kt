@@ -173,6 +173,33 @@ class CalendarRecurrenceExpanderTest :
             }
         }
 
+        describe("예외 설명") {
+            it("빈 문자열로 비운 발생분만 설명이 null이고 다른 발생분은 원본 설명을 따른다") {
+                val event = series(
+                    "2026-12-01T09:00",
+                    CalendarRecurrence(RecurrenceFrequency.DAILY, count = 3),
+                    listOf(
+                        CalendarOccurrenceException(at("2026-12-02T09:00"), description = ""),
+                        CalendarOccurrenceException(at("2026-12-03T09:00"), title = "제목만 바꿈"),
+                    ),
+                )
+
+                CalendarRecurrenceExpander.expand(event, at("2026-12-01T00:00"), at("2026-12-04T00:00"))
+                    .map { it.resolveDescription("원본 설명") } shouldBe listOf("원본 설명", null, "원본 설명")
+            }
+
+            it("예외에 설명을 적으면 원본 대신 그 설명을 쓴다") {
+                val event = series(
+                    "2026-12-01T09:00",
+                    CalendarRecurrence(RecurrenceFrequency.DAILY, count = 1),
+                    listOf(CalendarOccurrenceException(at("2026-12-01T09:00"), description = "바꾼 설명")),
+                )
+
+                CalendarRecurrenceExpander.expand(event, at("2026-12-01T00:00"), at("2026-12-02T00:00"))
+                    .single().resolveDescription("원본 설명") shouldBe "바꾼 설명"
+            }
+        }
+
         describe("반복 규칙 검증") {
             it("UNTIL과 COUNT를 함께 받지 않는다") {
                 shouldThrow<IllegalArgumentException> {
