@@ -15,14 +15,14 @@ import lombok.RequiredArgsConstructor;
 public class DeleteRoadmapServiceImpl implements DeleteRoadmapService {
 
     private final RoadmapRepository roadmapRepository;
-    private final RoadmapAccessGuard accessGuard;
-    private final RoadmapLookupSupport lookupSupport;
+    private final RoadmapAccessGuard roadmapAccessGuard;
+    private final RoadmapLookupSupport roadmapLookupSupport;
 
     @Override
     @Transactional
     public void execute(Long userId, Long roadmapId) {
-        var roadmap = lookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
-        accessGuard.requireMutable(roadmap, userId);
+        var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
+        roadmapAccessGuard.requireMutable(roadmap, userId);
         roadmapRepository.delete(roadmap);
     }
 }

@@ -10,10 +10,10 @@ import tools.jackson.databind.ObjectMapper
 
 @Component
 class TeamLifecycleConsumer(
-    private val handler: ChannelLifecycleHandler,
+    private val channelLifecycleHandler: ChannelLifecycleHandler,
     private val objectMapper: ObjectMapper,
-    private val processor: ProjectionRecordProcessor,
-    private val streams: ProjectionStreams,
+    private val projectionRecordProcessor: ProjectionRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
 ) {
 
     @KafkaListener(
@@ -22,7 +22,7 @@ class TeamLifecycleConsumer(
         containerFactory = "teamLifecycleListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        if (processor.processControlRecord(streams.teamLifecycle, record)) return
+        if (projectionRecordProcessor.processControlRecord(projectionStreams.teamLifecycle, record)) return
         val payload = runCatching {
             requireNotNull(objectMapper.readValue(record.value(), TeamLifecyclePayload::class.java)) {
                 "top-level null은 허용되지 않습니다."
@@ -52,9 +52,9 @@ class TeamLifecycleConsumer(
             quarantine(record, reason)
             return
         }
-        processor.applyRecord(streams.teamLifecycle, record) {
+        projectionRecordProcessor.applyRecord(projectionStreams.teamLifecycle, record) {
             if (payload.eventType == "TEAM_DELETED") {
-                handler.onTeamDeleted(payload.teamId, requireNotNull(payload.occurredAt))
+                channelLifecycleHandler.onTeamDeleted(payload.teamId, requireNotNull(payload.occurredAt))
             }
         }
     }
@@ -66,6 +66,6 @@ class TeamLifecycleConsumer(
             record.offset(),
             reason,
         )
-        processor.quarantineRecord(streams.teamLifecycle, record, reason)
+        projectionRecordProcessor.quarantineRecord(projectionStreams.teamLifecycle, record, reason)
     }
 }

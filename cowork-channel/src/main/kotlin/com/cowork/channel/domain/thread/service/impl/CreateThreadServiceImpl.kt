@@ -24,8 +24,8 @@ import team.themoment.sdk.exception.ExpectedException
 @Service
 class CreateThreadServiceImpl(
     private val threadRepository: ThreadRepository,
-    private val permissions: ChannelPermissionSupport,
-    private val evaluator: ChannelMessageReadPolicyEvaluator,
+    private val channelPermissionSupport: ChannelPermissionSupport,
+    private val channelMessageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
     private val channelAccessGuard: ChannelAccessGuard,
     private val threadStatePublisher: ThreadStatePublisher,
     private val outboxWriter: OutboxWriter,
@@ -38,9 +38,9 @@ class CreateThreadServiceImpl(
         }
         val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
         val teamId = channelAccessGuard.requireTeamChannel(channel)
-        permissions.requireChannelAccess(channel, userId)
+        channelPermissionSupport.requireChannelAccess(channel, userId)
         channelAccessGuard.requireNotArchived(channel)
-        evaluator.requirePermission(teamId, userId, channel, "thread_reply")
+        channelMessageReadPolicyEvaluator.requirePermission(teamId, userId, channel, "thread_reply")
         if (threadRepository.existsByParentMessageId(request.parentMessageId)) {
             throw ExpectedException("이미 스레드가 있는 메시지입니다.", HttpStatus.CONFLICT)
         }

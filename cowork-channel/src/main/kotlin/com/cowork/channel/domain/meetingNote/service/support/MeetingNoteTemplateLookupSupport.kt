@@ -11,12 +11,12 @@ import team.themoment.sdk.exception.ExpectedException
 
 @Component
 class MeetingNoteTemplateLookupSupport(
-    private val templateRepository: MeetingNoteTemplateRepository,
-    private val sectionRepository: TemplateSectionRepository,
+    private val meetingNoteTemplateRepository: MeetingNoteTemplateRepository,
+    private val templateSectionRepository: TemplateSectionRepository,
 ) {
 
     fun findTemplateOrThrow(templateId: Long): MeetingNoteTemplate =
-        templateRepository.findById(templateId).orElseThrow {
+        meetingNoteTemplateRepository.findById(templateId).orElseThrow {
             ExpectedException("템플릿을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         }
 
@@ -26,9 +26,10 @@ class MeetingNoteTemplateLookupSupport(
         }
     }
 
-    fun findSectionOrThrow(sectionId: Long): TemplateSection = sectionRepository.findById(sectionId).orElseThrow {
-        ExpectedException("섹션을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
-    }
+    fun findSectionOrThrow(sectionId: Long): TemplateSection =
+        templateSectionRepository.findById(sectionId).orElseThrow {
+            ExpectedException("섹션을 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
+        }
 
     fun requireSectionOwnership(section: TemplateSection, templateId: Long) {
         if (section.templateId != templateId) {
@@ -40,9 +41,9 @@ class MeetingNoteTemplateLookupSupport(
     // DB collation(utf8mb4_unicode_ci)이 대소문자와 끝 공백을 무시하므로, 수정 시에는 자기 자신을 빼고 비교한다.
     fun requireUniqueSectionTitle(templateId: Long, title: String, excludeSectionId: Long? = null) {
         val exists = if (excludeSectionId == null) {
-            sectionRepository.existsByTemplateIdAndTitle(templateId, title)
+            templateSectionRepository.existsByTemplateIdAndTitle(templateId, title)
         } else {
-            sectionRepository.existsByTemplateIdAndTitleAndIdNot(templateId, title, excludeSectionId)
+            templateSectionRepository.existsByTemplateIdAndTitleAndIdNot(templateId, title, excludeSectionId)
         }
         if (exists) {
             throw ExpectedException("같은 제목의 섹션이 이미 있습니다.", HttpStatus.CONFLICT)

@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional
 class SearchChannelsServiceImpl(
     private val channelRepository: ChannelRepository,
     private val teamPermissionService: TeamPermissionService,
-    private val messageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
+    private val channelMessageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
 ) : SearchChannelsService {
 
     @Transactional(readOnly = true)
@@ -21,7 +21,7 @@ class SearchChannelsServiceImpl(
         teamPermissionService.requireTeamMember(teamId, userId)
         if (q.isBlank()) return emptyList()
         val structurallyVisible = channelRepository.searchActiveByTeamIdAndName(teamId, LikePattern.escape(q))
-        return messageReadPolicyEvaluator.filterReadable(teamId, userId, structurallyVisible).map {
+        return channelMessageReadPolicyEvaluator.filterReadable(teamId, userId, structurallyVisible).map {
             ChannelResponse.of(it)
         }
     }

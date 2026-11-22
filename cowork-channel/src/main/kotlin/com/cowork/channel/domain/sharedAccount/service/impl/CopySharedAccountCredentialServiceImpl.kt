@@ -21,14 +21,14 @@ class CopySharedAccountCredentialServiceImpl(
     private val teamPermissionService: TeamPermissionService,
     private val credentialEncryptionService: CredentialEncryptionService,
     private val sharedAccountAccessGuard: SharedAccountAccessGuard,
-    private val lookupSupport: SharedAccountLookupSupport,
+    private val sharedAccountLookupSupport: SharedAccountLookupSupport,
 ) : CopySharedAccountCredentialService {
 
     override fun copyCredential(userId: Long, channelId: Long, accountId: Long): String {
         val channel = channelAccessGuard.findChannelOrThrow(channelId)
         sharedAccountAccessGuard.requireAccountShareChannel(channel)
         teamPermissionService.requireChannelAccess(channel, userId)
-        val account = lookupSupport.findAccountOrThrow(accountId, channelId)
+        val account = sharedAccountLookupSupport.findAccountOrThrow(accountId, channelId)
 
         if (account.credential == null) {
             throw ExpectedException("저장된 credential이 없습니다.", HttpStatus.NOT_FOUND)

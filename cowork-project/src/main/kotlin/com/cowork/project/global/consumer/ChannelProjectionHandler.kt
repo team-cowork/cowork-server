@@ -12,16 +12,16 @@ import java.time.Instant
 
 @Component
 class ChannelProjectionHandler(
-    private val channelRepository: ChannelProjectionRepository,
-    private val repoLinkRepository: ProjectGithubRepoRepository,
-    private val repoEventPublisher: ProjectGithubRepoEventPublisher,
+    private val channelProjectionRepository: ChannelProjectionRepository,
+    private val projectGithubRepoRepository: ProjectGithubRepoRepository,
+    private val projectGithubRepoEventPublisher: ProjectGithubRepoEventPublisher,
 ) {
     @Transactional(propagation = Propagation.MANDATORY)
     fun apply(channelId: Long, projectId: Long?, deleted: Boolean, occurredAt: Instant) {
         val version = occurredAt.toProjectionPrecision()
-        val projection = channelRepository.findByIdForUpdate(channelId)
+        val projection = channelProjectionRepository.findByIdForUpdate(channelId)
         val accepted = if (projection == null) {
-            channelRepository.save(
+            channelProjectionRepository.save(
                 ChannelProjection(
                     channelId = channelId,
                     projectId = projectId,
@@ -32,20 +32,20 @@ class ChannelProjectionHandler(
             true
         } else {
             projection.apply(projectId, deleted, version).also { applied ->
-                if (applied) channelRepository.save(projection)
+                if (applied) channelProjectionRepository.save(projection)
             }
         }
         if (!accepted) return
 
-        val danglingLinks = repoLinkRepository.findAllByGithubWebhookChannelIdForUpdate(channelId)
+        val danglingLinks = projectGithubRepoRepository.findAllByGithubWebhookChannelIdForUpdate(channelId)
             .filter { deleted || it.projectId != projectId }
         if (danglingLinks.isEmpty()) return
 
         val repoOccurredAt = Instant.now().toProjectionPrecision()
         danglingLinks.forEach { repoLink ->
             repoLink.clearWebhookChannel()
-            repoLinkRepository.save(repoLink)
-            repoEventPublisher.publishUpsert(repoLink, repoOccurredAt)
+            projectGithubRepoRepository.save(repoLink)
+            projectGithubRepoEventPublisher.publishUpsert(repoLink, repoOccurredAt)
         }
     }
 }

@@ -17,16 +17,16 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ListNodeReferencesServiceImpl implements ListNodeReferencesService {
 
-    private final RoadmapAccessGuard accessGuard;
+    private final RoadmapAccessGuard roadmapAccessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
-    private final RoadmapNodeLookupSupport nodeLookupSupport;
+    private final RoadmapNodeLookupSupport roadmapNodeLookupSupport;
 
     @Override
     @Transactional(readOnly = true)
     public List<NodeReferenceResDto> execute(Long userId, Long nodeId) {
-        var node = nodeLookupSupport.findNodeOrThrow(nodeId);
+        var node = roadmapNodeLookupSupport.findNodeOrThrow(nodeId);
         var roadmap = roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId());
-        accessGuard.requireReadable(roadmap, userId);
-        return nodeLookupSupport.loadReferences(nodeId);
+        roadmapAccessGuard.requireReadable(roadmap, userId);
+        return roadmapNodeLookupSupport.loadReferences(nodeId);
     }
 }

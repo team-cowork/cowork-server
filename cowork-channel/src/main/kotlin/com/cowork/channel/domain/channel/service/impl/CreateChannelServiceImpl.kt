@@ -25,7 +25,7 @@ class CreateChannelServiceImpl(
     private val teamPermissionService: TeamPermissionService,
     private val channelEventPublisher: ChannelEventPublisher,
     private val createDefaultMeetingNoteTemplateService: CreateDefaultMeetingNoteTemplateService,
-    private val permissionSchema: ChannelRolePolicyPermissionSchema,
+    private val channelRolePolicyPermissionSchema: ChannelRolePolicyPermissionSchema,
 ) : CreateChannelService {
 
     private fun parseType(value: String): ChannelType {
@@ -66,7 +66,7 @@ class CreateChannelServiceImpl(
             createdBy = userId,
         )
         val initialOverwrites = request.initialRoleOverwrites.map {
-            InitialChannelRoleOverwrite(it.roleId, permissionSchema.normalize(it.permissions))
+            InitialChannelRoleOverwrite(it.roleId, channelRolePolicyPermissionSchema.normalize(it.permissions))
         }
         val seed = if (proposedChannel.isPrivate || initialOverwrites.isNotEmpty()) {
             teamPermissionService.prepareInitialRolePolicySeed(proposedChannel, userId, initialOverwrites)

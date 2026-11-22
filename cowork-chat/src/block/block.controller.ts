@@ -9,7 +9,6 @@ import {
 } from '@nestjs/common';
 import {
 	ApiNoContentResponse as apiNoContentResponse,
-	ApiOkResponse as apiOkResponse,
 	ApiOperation as apiOperation,
 	ApiParam as apiParameter,
 	ApiTags as apiTags,

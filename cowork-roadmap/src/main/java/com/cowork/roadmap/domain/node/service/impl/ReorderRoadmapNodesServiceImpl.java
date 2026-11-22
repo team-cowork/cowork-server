@@ -25,16 +25,17 @@ import team.themoment.sdk.exception.ExpectedException;
 @RequiredArgsConstructor
 public class ReorderRoadmapNodesServiceImpl implements ReorderRoadmapNodesService {
 
-    private final RoadmapNodeRepository nodeRepository;
-    private final RoadmapAccessGuard accessGuard;
+    private final RoadmapNodeRepository roadmapNodeRepository;
+    private final RoadmapAccessGuard roadmapAccessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
 
     @Override
     @Transactional
     public void execute(Long userId, Long roadmapId, ReorderNodesReqDto request) {
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
-        accessGuard.requireMutable(roadmap, userId);
-        List<NodePositionProjection> siblings = nodeRepository.findSiblingPositions(roadmapId, request.parentId());
+        roadmapAccessGuard.requireMutable(roadmap, userId);
+        List<NodePositionProjection> siblings = roadmapNodeRepository.findSiblingPositions(roadmapId,
+                request.parentId());
         Set<Long> siblingIds = new HashSet<>();
         siblings.forEach(node -> siblingIds.add(node.getId()));
         Set<Long> requested = new HashSet<>(request.orderedNodeIds());
@@ -49,13 +50,13 @@ public class ReorderRoadmapNodesServiceImpl implements ReorderRoadmapNodesServic
         for (int i = 0; i < ordered.size(); i++) {
             Long nodeId = ordered.get(i);
             if (positions.get(nodeId) != i) {
-                nodeRepository.updatePosition(roadmapId, nodeId, -1 - i, userId, updatedAt);
+                roadmapNodeRepository.updatePosition(roadmapId, nodeId, -1 - i, userId, updatedAt);
             }
         }
         for (int i = 0; i < ordered.size(); i++) {
             Long nodeId = ordered.get(i);
             if (positions.get(nodeId) != i) {
-                nodeRepository.updatePosition(roadmapId, nodeId, i, userId, updatedAt);
+                roadmapNodeRepository.updatePosition(roadmapId, nodeId, i, userId, updatedAt);
             }
         }
     }

@@ -11,13 +11,11 @@ import {
 	ConsumerGroupJoinEvent,
 	ConsumerHeartbeatEvent,
 	Kafka,
-	PartitionOffset,
 } from 'kafkajs';
 import {type Nullable} from '../type/nullable.js';
 import {
 	ProjectionAssignmentLease,
 	ProjectionCheckpointFenceError,
-	ProjectionCheckpointOffset,
 	ProjectionCheckpointRepository,
 	SnapshotBarrierReceipt,
 } from './projection-checkpoint.repository.js';
@@ -26,7 +24,6 @@ import {
 	ProjectionDatasetState,
 	ProjectionStreamName,
 } from './projection-dataset.repository.js';
-import {ProjectionDatasetStatus, ProjectionRunMode} from './projection-dataset.schema.js';
 import {ProjectionMetricsService} from './projection-metrics.service.js';
 import {
 	compareOffsets,

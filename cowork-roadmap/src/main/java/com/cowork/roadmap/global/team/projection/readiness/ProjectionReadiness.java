@@ -40,9 +40,9 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class ProjectionReadiness implements ConsumerAwareRebalanceListener, HealthIndicator {
 
-    private final ProjectionCheckpointRepository checkpoints;
-    private final ProjectionTopicIdentityProvider topicIdentity;
-    private final ProjectionTopicGenerationRegistry topicGeneration;
+    private final ProjectionCheckpointRepository projectionCheckpointRepository;
+    private final ProjectionTopicIdentityProvider projectionTopicIdentityProvider;
+    private final ProjectionTopicGenerationRegistry projectionTopicGenerationRegistry;
     private final String consumerGroup;
     private final String topic;
     private final long assignmentRetryBackoffMs;
@@ -59,16 +59,16 @@ public class ProjectionReadiness implements ConsumerAwareRebalanceListener, Heal
     // failure of a run.
     private int consecutiveAssignmentFailures;
 
-    public ProjectionReadiness(ProjectionCheckpointRepository checkpoints,
-            ProjectionTopicIdentityProvider topicIdentity,
-            ProjectionTopicGenerationRegistry topicGeneration,
+    public ProjectionReadiness(ProjectionCheckpointRepository projectionCheckpointRepository,
+            ProjectionTopicIdentityProvider projectionTopicIdentityProvider,
+            ProjectionTopicGenerationRegistry projectionTopicGenerationRegistry,
             String consumerGroup,
             String topic,
             long assignmentRetryBackoffMs,
             long assignmentRetryTimeoutMs) {
-        this.checkpoints = checkpoints;
-        this.topicIdentity = topicIdentity;
-        this.topicGeneration = topicGeneration;
+        this.projectionCheckpointRepository = projectionCheckpointRepository;
+        this.projectionTopicIdentityProvider = projectionTopicIdentityProvider;
+        this.projectionTopicGenerationRegistry = projectionTopicGenerationRegistry;
         this.consumerGroup = consumerGroup;
         this.topic = topic;
         this.assignmentRetryBackoffMs = Math.max(0L, assignmentRetryBackoffMs);
@@ -84,7 +84,7 @@ public class ProjectionReadiness implements ConsumerAwareRebalanceListener, Heal
     }
 
     public String topicId() {
-        return topicGeneration.requireTopicId();
+        return projectionTopicGenerationRegistry.requireTopicId();
     }
 
     @Override
@@ -120,7 +120,7 @@ public class ProjectionReadiness implements ConsumerAwareRebalanceListener, Heal
     }
 
     private void initializeAssignment(Consumer<?, ?> consumer, Collection<TopicPartition> partitions) {
-        String topicId = topicIdentity.topicId(topic);
+        String topicId = projectionTopicIdentityProvider.topicId(topic);
         List<TopicPartition> allPartitions = consumer.partitionsFor(topic)
                 .stream()
                 .map(info -> new TopicPartition(topic, info.partition()))
@@ -139,12 +139,12 @@ public class ProjectionReadiness implements ConsumerAwareRebalanceListener, Heal
                 .filter(partition -> topic.equals(partition.topic()))
                 .map(TopicPartition::partition)
                 .collect(Collectors.toSet());
-        Map<Integer, Long> seekOffsets = checkpoints
+        Map<Integer, Long> seekOffsets = projectionCheckpointRepository
                 .initializeAssignment(consumerGroup, topic, topicId, ranges, assignedPartitions);
         partitions.stream()
                 .filter(partition -> topic.equals(partition.topic()))
                 .forEach(partition -> consumer.seek(partition, requireSeekOffset(seekOffsets, partition.partition())));
-        topicGeneration.markAssigned(topicId);
+        projectionTopicGenerationRegistry.markAssigned(topicId);
         initialized = true;
         refresh();
     }
@@ -173,7 +173,7 @@ public class ProjectionReadiness implements ConsumerAwareRebalanceListener, Heal
     @Override
     public void onPartitionsRevokedBeforeCommit(Consumer<?, ?> consumer, Collection<TopicPartition> partitions) {
         invalidate();
-        topicGeneration.markRevoked();
+        projectionTopicGenerationRegistry.markRevoked();
     }
 
     /** Returns the cached readiness without touching the database or the broker. */
@@ -201,11 +201,13 @@ public class ProjectionReadiness implements ConsumerAwareRebalanceListener, Heal
             return false;
         }
         try {
-            Map<Integer, ProjectionBarrier> barriers = checkpoints.findBarriers(consumerGroup, topic);
-            Map<Integer, ProjectionCheckpoint> stored = checkpoints.findByTopic(consumerGroup, topic);
+            Map<Integer, ProjectionBarrier> barriers = projectionCheckpointRepository.findBarriers(consumerGroup,
+                    topic);
+            Map<Integer, ProjectionCheckpoint> stored = projectionCheckpointRepository.findByTopic(consumerGroup,
+                    topic);
             // Observe the broker last so an append concurrent with the durable reads cannot
             // leave readiness open against an older high-watermark.
-            ProjectionTopicState broker = topicIdentity.topicState(topic);
+            ProjectionTopicState broker = projectionTopicIdentityProvider.topicState(topic);
             return ProjectionCatchUpPolicy
                     .isReady(broker.ranges().keySet(), broker.topicId(), barriers, stored, broker.ranges());
         } catch (RuntimeException exception) {

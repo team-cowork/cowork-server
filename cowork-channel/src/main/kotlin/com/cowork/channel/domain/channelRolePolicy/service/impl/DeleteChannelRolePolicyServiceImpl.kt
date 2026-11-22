@@ -14,8 +14,8 @@ import org.springframework.transaction.annotation.Transactional
 class DeleteChannelRolePolicyServiceImpl(
     private val channelAccessGuard: ChannelAccessGuard,
     private val channelPermissionSupport: ChannelPermissionSupport,
-    private val policyAccessSupport: ChannelRolePolicyAccessSupport,
-    private val commandSubmission: ChannelRolePolicyCommandSubmission,
+    private val channelRolePolicyAccessSupport: ChannelRolePolicyAccessSupport,
+    private val channelRolePolicyCommandSubmission: ChannelRolePolicyCommandSubmission,
 ) : DeleteChannelRolePolicyService {
     @Transactional
     override fun execute(
@@ -26,7 +26,7 @@ class DeleteChannelRolePolicyServiceImpl(
     ): ChannelRolePolicyOperationResponse {
         val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
         val teamId = channelAccessGuard.requireTeamChannel(channel)
-        return commandSubmission.submit(
+        return channelRolePolicyCommandSubmission.submit(
             idempotencyKey = idempotencyKey,
             commandType = ChannelRolePolicyCommandType.DELETE,
             teamId = teamId,
@@ -36,8 +36,8 @@ class DeleteChannelRolePolicyServiceImpl(
             permissions = null,
         ) {
             channelPermissionSupport.requireRolePolicyManager(channel, actorId, roleId, null)
-            policyAccessSupport.requireRole(teamId, roleId)
-            policyAccessSupport.requirePolicy(teamId, channelId, roleId)
+            channelRolePolicyAccessSupport.requireRole(teamId, roleId)
+            channelRolePolicyAccessSupport.requirePolicy(teamId, channelId, roleId)
         }
     }
 }

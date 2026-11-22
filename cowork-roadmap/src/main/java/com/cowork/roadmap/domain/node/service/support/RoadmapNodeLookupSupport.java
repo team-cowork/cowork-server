@@ -18,26 +18,26 @@ import team.themoment.sdk.exception.ExpectedException;
 @RequiredArgsConstructor
 public class RoadmapNodeLookupSupport {
 
-    private final RoadmapNodeRepository nodeRepository;
-    private final RoadmapNodeReferenceRepository referenceRepository;
+    private final RoadmapNodeRepository roadmapNodeRepository;
+    private final RoadmapNodeReferenceRepository roadmapNodeReferenceRepository;
 
     public Long findRoadmapIdByNodeOrThrow(Long nodeId) {
-        return nodeRepository.findRoadmapIdById(nodeId)
+        return roadmapNodeRepository.findRoadmapIdById(nodeId)
                 .orElseThrow(() -> new ExpectedException("노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
     }
 
     public RoadmapNode findNodeOrThrow(Long nodeId) {
-        return nodeRepository.findById(nodeId)
+        return roadmapNodeRepository.findById(nodeId)
                 .orElseThrow(() -> new ExpectedException("노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
     }
 
     public RoadmapNodeReference findReferenceOrThrow(Long referenceId) {
-        return referenceRepository.findById(referenceId)
+        return roadmapNodeReferenceRepository.findById(referenceId)
                 .orElseThrow(() -> new ExpectedException("관련 자료를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
     }
 
     public List<NodeReferenceResDto> loadReferences(Long nodeId) {
-        return referenceRepository.findByNodeIdOrderByPositionAsc(nodeId)
+        return roadmapNodeReferenceRepository.findByNodeIdOrderByPositionAsc(nodeId)
                 .stream()
                 .map(NodeReferenceResDto::from)
                 .toList();

@@ -15,16 +15,16 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class QueryRoadmapNodeServiceImpl implements QueryRoadmapNodeService {
 
-    private final RoadmapAccessGuard accessGuard;
+    private final RoadmapAccessGuard roadmapAccessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
-    private final RoadmapNodeLookupSupport nodeLookupSupport;
+    private final RoadmapNodeLookupSupport roadmapNodeLookupSupport;
 
     @Override
     @Transactional(readOnly = true)
     public NodeResDto execute(Long userId, Long nodeId) {
-        var node = nodeLookupSupport.findNodeOrThrow(nodeId);
+        var node = roadmapNodeLookupSupport.findNodeOrThrow(nodeId);
         var roadmap = roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId());
-        accessGuard.requireReadable(roadmap, userId);
-        return NodeResDto.of(node, nodeLookupSupport.loadReferences(nodeId));
+        roadmapAccessGuard.requireReadable(roadmap, userId);
+        return NodeResDto.of(node, roadmapNodeLookupSupport.loadReferences(nodeId));
     }
 }

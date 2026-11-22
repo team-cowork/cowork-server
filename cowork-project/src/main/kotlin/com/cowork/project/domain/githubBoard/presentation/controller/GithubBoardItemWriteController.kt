@@ -75,7 +75,7 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody as SwaggerRequestBod
 )
 @RestController
 @RequestMapping("/projects/{projectId}/github-boards/{boardId}")
-class GithubBoardItemWriteController(private val service: WriteGithubBoardItemService) {
+class GithubBoardItemWriteController(private val writeGithubBoardItemService: WriteGithubBoardItemService) {
 
     @Operation(
         summary = "카드 커스텀 필드 값 변경",
@@ -105,7 +105,8 @@ class GithubBoardItemWriteController(private val service: WriteGithubBoardItemSe
         @PathVariable itemId: String,
         @PathVariable fieldId: String,
         @Valid @RequestBody request: SetGithubBoardFieldReqDto,
-    ): GithubBoardOperationAcceptedResDto = service.setField(userId, projectId, boardId, itemId, fieldId, request)
+    ): GithubBoardOperationAcceptedResDto =
+        writeGithubBoardItemService.setField(userId, projectId, boardId, itemId, fieldId, request)
 
     @Operation(summary = "카드 커스텀 필드 값 비우기", security = [SecurityRequirement(name = "BearerAuth")])
     @DeleteMapping("/items/{itemId}/fields/{fieldId}")
@@ -116,7 +117,8 @@ class GithubBoardItemWriteController(private val service: WriteGithubBoardItemSe
         @PathVariable boardId: Long,
         @PathVariable itemId: String,
         @PathVariable fieldId: String,
-    ): GithubBoardOperationAcceptedResDto = service.clearField(userId, projectId, boardId, itemId, fieldId)
+    ): GithubBoardOperationAcceptedResDto =
+        writeGithubBoardItemService.clearField(userId, projectId, boardId, itemId, fieldId)
 
     @Operation(summary = "Draft 카드 생성", security = [SecurityRequirement(name = "BearerAuth")])
     @PostMapping("/drafts")
@@ -126,7 +128,7 @@ class GithubBoardItemWriteController(private val service: WriteGithubBoardItemSe
         @PathVariable projectId: Long,
         @PathVariable boardId: Long,
         @Valid @RequestBody request: CreateGithubBoardDraftReqDto,
-    ): GithubBoardOperationAcceptedResDto = service.createDraft(userId, projectId, boardId, request)
+    ): GithubBoardOperationAcceptedResDto = writeGithubBoardItemService.createDraft(userId, projectId, boardId, request)
 
     @Operation(
         summary = "Draft 카드 제목과 본문 수정",
@@ -153,7 +155,8 @@ class GithubBoardItemWriteController(private val service: WriteGithubBoardItemSe
         @PathVariable boardId: Long,
         @PathVariable itemId: String,
         @Valid @RequestBody request: UpdateGithubBoardDraftReqDto,
-    ): GithubBoardOperationAcceptedResDto = service.updateDraft(userId, projectId, boardId, itemId, request)
+    ): GithubBoardOperationAcceptedResDto =
+        writeGithubBoardItemService.updateDraft(userId, projectId, boardId, itemId, request)
 
     @Operation(summary = "연결된 저장소의 기존 이슈 또는 PR 추가", security = [SecurityRequirement(name = "BearerAuth")])
     @PostMapping("/items")
@@ -163,7 +166,7 @@ class GithubBoardItemWriteController(private val service: WriteGithubBoardItemSe
         @PathVariable projectId: Long,
         @PathVariable boardId: Long,
         @Valid @RequestBody request: AddGithubBoardItemReqDto,
-    ): GithubBoardOperationAcceptedResDto = service.addItem(userId, projectId, boardId, request)
+    ): GithubBoardOperationAcceptedResDto = writeGithubBoardItemService.addItem(userId, projectId, boardId, request)
 
     @Operation(
         summary = "카드 제거",
@@ -177,7 +180,7 @@ class GithubBoardItemWriteController(private val service: WriteGithubBoardItemSe
         @PathVariable projectId: Long,
         @PathVariable boardId: Long,
         @PathVariable itemId: String,
-    ): GithubBoardOperationAcceptedResDto = service.removeItem(userId, projectId, boardId, itemId)
+    ): GithubBoardOperationAcceptedResDto = writeGithubBoardItemService.removeItem(userId, projectId, boardId, itemId)
 
     @Operation(summary = "Draft 카드의 이슈 전환", security = [SecurityRequirement(name = "BearerAuth")])
     @PostMapping("/items/{itemId}/convert")
@@ -188,7 +191,8 @@ class GithubBoardItemWriteController(private val service: WriteGithubBoardItemSe
         @PathVariable boardId: Long,
         @PathVariable itemId: String,
         @Valid @RequestBody request: ConvertGithubBoardDraftReqDto,
-    ): GithubBoardOperationAcceptedResDto = service.convertDraft(userId, projectId, boardId, itemId, request)
+    ): GithubBoardOperationAcceptedResDto =
+        writeGithubBoardItemService.convertDraft(userId, projectId, boardId, itemId, request)
 
     @Operation(
         summary = "카드에 연결된 이슈의 담당자 변경",
@@ -214,5 +218,6 @@ class GithubBoardItemWriteController(private val service: WriteGithubBoardItemSe
         @PathVariable boardId: Long,
         @PathVariable itemId: String,
         @Valid @RequestBody request: SetGithubBoardAssigneesReqDto,
-    ): GithubBoardOperationAcceptedResDto = service.setAssignees(userId, projectId, boardId, itemId, request)
+    ): GithubBoardOperationAcceptedResDto =
+        writeGithubBoardItemService.setAssignees(userId, projectId, boardId, itemId, request)
 }

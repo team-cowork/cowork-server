@@ -12,10 +12,10 @@ import lombok.RequiredArgsConstructor;
 @Repository
 @RequiredArgsConstructor
 public class RoadmapPolicyRepository {
-    private final JdbcTemplate jdbc;
+    private final JdbcTemplate jdbcTemplate;
 
     public void apply(String key, RolePolicyState state) {
-        jdbc.update("""
+        jdbcTemplate.update("""
                 INSERT INTO tb_roadmap_role_policies
                   (policy_key, team_id, kind, role_id, account_id, is_default, permissions, deleted, source_version)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -38,7 +38,7 @@ public class RoadmapPolicyRepository {
     }
 
     public boolean allows(long teamId, long userId, String permission) {
-        return Boolean.TRUE.equals(jdbc.queryForObject(
+        return Boolean.TRUE.equals(jdbcTemplate.queryForObject(
                 """
                         SELECT EXISTS (
                             SELECT 1 FROM tb_roadmap_role_policies r

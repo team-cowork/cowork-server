@@ -11,10 +11,10 @@ import tools.jackson.databind.ObjectMapper
 
 @Component
 class UserProfileConsumer(
-    private val handler: UserProfileProjectionHandler,
+    private val userProfileProjectionHandler: UserProfileProjectionHandler,
     private val objectMapper: ObjectMapper,
-    private val processor: ProjectionRecordProcessor,
-    private val streams: ProjectionStreams,
+    private val projectionRecordProcessor: ProjectionRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
 ) {
     private val log = LoggerFactory.getLogger(UserProfileConsumer::class.java)
 
@@ -24,7 +24,7 @@ class UserProfileConsumer(
         containerFactory = "userProfileListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        if (processor.processControlRecord(streams.userProfile, record)) return
+        if (projectionRecordProcessor.processControlRecord(projectionStreams.userProfile, record)) return
         val payload = runCatching {
             requireNotNull(objectMapper.readValue(record.value(), UserProfilePayload::class.java)) {
                 "top-level null은 허용되지 않습니다."
@@ -54,8 +54,8 @@ class UserProfileConsumer(
             return
         }
 
-        processor.applyRecord(streams.userProfile, record) {
-            handler.apply(
+        projectionRecordProcessor.applyRecord(projectionStreams.userProfile, record) {
+            userProfileProjectionHandler.apply(
                 userId = payload.userId,
                 githubId = payload.githubId.takeUnless { payload.eventType == "DELETE" },
                 deleted = payload.eventType == "DELETE",
@@ -71,6 +71,6 @@ class UserProfileConsumer(
             record.offset(),
             reason,
         )
-        processor.quarantineRecord(streams.userProfile, record, reason)
+        projectionRecordProcessor.quarantineRecord(projectionStreams.userProfile, record, reason)
     }
 }

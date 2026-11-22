@@ -11,10 +11,10 @@ import tools.jackson.databind.ObjectMapper
 
 @Component
 class ChannelStateConsumer(
-    private val handler: ChannelProjectionHandler,
+    private val channelProjectionHandler: ChannelProjectionHandler,
     private val objectMapper: ObjectMapper,
-    private val processor: ProjectionRecordProcessor,
-    private val streams: ProjectionStreams,
+    private val projectionRecordProcessor: ProjectionRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
 ) {
     private val log = LoggerFactory.getLogger(ChannelStateConsumer::class.java)
 
@@ -24,7 +24,7 @@ class ChannelStateConsumer(
         containerFactory = "channelStateListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        if (processor.processControlRecord(streams.channelState, record)) return
+        if (projectionRecordProcessor.processControlRecord(projectionStreams.channelState, record)) return
         val payload = runCatching {
             requireNotNull(objectMapper.readValue(record.value(), ChannelStatePayload::class.java)) {
                 "top-level null은 허용되지 않습니다."
@@ -54,8 +54,8 @@ class ChannelStateConsumer(
             return
         }
 
-        processor.applyRecord(streams.channelState, record) {
-            handler.apply(
+        projectionRecordProcessor.applyRecord(projectionStreams.channelState, record) {
+            channelProjectionHandler.apply(
                 channelId = payload.channelId,
                 projectId = payload.projectId,
                 deleted = payload.eventType == "DELETED",
@@ -72,6 +72,6 @@ class ChannelStateConsumer(
             record.offset(),
             reason,
         )
-        processor.quarantineRecord(streams.channelState, record, reason)
+        projectionRecordProcessor.quarantineRecord(projectionStreams.channelState, record, reason)
     }
 }

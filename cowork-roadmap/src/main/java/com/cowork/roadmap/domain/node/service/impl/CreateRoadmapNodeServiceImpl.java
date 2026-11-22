@@ -21,15 +21,15 @@ import team.themoment.sdk.exception.ExpectedException;
 @RequiredArgsConstructor
 public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
 
-    private final RoadmapNodeRepository nodeRepository;
-    private final RoadmapAccessGuard accessGuard;
+    private final RoadmapNodeRepository roadmapNodeRepository;
+    private final RoadmapAccessGuard roadmapAccessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
 
     @Override
     @Transactional
     public NodeResDto execute(Long userId, Long roadmapId, CreateNodeReqDto request) {
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
-        accessGuard.requireMutable(roadmap, userId);
+        roadmapAccessGuard.requireMutable(roadmap, userId);
         validateNodeCount(roadmapId);
         validateParent(roadmapId, request.parentId());
         int position = nextPosition(roadmapId, request.parentId());
@@ -44,12 +44,12 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
                 .build();
         node.setCreatedBy(userId);
         node.setLastModifiedBy(userId);
-        return NodeResDto.of(nodeRepository.saveAndFlush(node), List.of());
+        return NodeResDto.of(roadmapNodeRepository.saveAndFlush(node), List.of());
     }
 
     /** 로드맵 행 잠금 아래에서 세므로 동시 생성도 상한을 넘지 않는다. */
     private void validateNodeCount(Long roadmapId) {
-        if (nodeRepository.countByRoadmapId(roadmapId) >= RoadmapNode.MAX_NODES_PER_ROADMAP) {
+        if (roadmapNodeRepository.countByRoadmapId(roadmapId) >= RoadmapNode.MAX_NODES_PER_ROADMAP) {
             throw new ExpectedException("로드맵 하나에는 노드를 최대 " + RoadmapNode.MAX_NODES_PER_ROADMAP + "개까지 만들 수 있습니다.",
                     HttpStatus.BAD_REQUEST);
         }
@@ -59,7 +59,7 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
         if (parentId == null) {
             return;
         }
-        RoadmapNode parent = nodeRepository.findById(parentId)
+        RoadmapNode parent = roadmapNodeRepository.findById(parentId)
                 .orElseThrow(() -> new ExpectedException("상위 노드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
         if (!roadmapId.equals(parent.getRoadmapId())) {
             throw new ExpectedException("상위 노드가 같은 로드맵에 속하지 않습니다.", HttpStatus.BAD_REQUEST);
@@ -72,7 +72,7 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
         // 상위 노드가 루트면 새 노드는 2단계이고, 상위 노드의 조상 하나마다 한 단계씩 깊어진다.
         int depth = 2;
         for (Long ancestorId = parent.getParentId(); ancestorId != null
-                && depth <= RoadmapNode.MAX_TREE_DEPTH; ancestorId = nodeRepository.findParentIdById(ancestorId)
+                && depth <= RoadmapNode.MAX_TREE_DEPTH; ancestorId = roadmapNodeRepository.findParentIdById(ancestorId)
                         .orElse(null)) {
             depth++;
         }
@@ -84,8 +84,8 @@ public class CreateRoadmapNodeServiceImpl implements CreateRoadmapNodeService {
 
     private Integer nextPosition(Long roadmapId, Long parentId) {
         Long next = parentId == null
-                ? nodeRepository.findNextRootPosition(roadmapId)
-                : nodeRepository.findNextChildPosition(roadmapId, parentId);
+                ? roadmapNodeRepository.findNextRootPosition(roadmapId)
+                : roadmapNodeRepository.findNextChildPosition(roadmapId, parentId);
         return next.intValue();
     }
 

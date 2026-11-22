@@ -56,6 +56,7 @@ dependencies {
     implementation(libs.spring.cloud.starter.gateway)
     implementation(libs.spring.boot.starter.webclient)
     implementation(libs.spring.cloud.starter.circuitbreaker.reactor.resilience4j)
+    implementation(libs.resilience4j.bulkhead)
     implementation(libs.spring.boot.starter.security)
     implementation(libs.spring.boot.starter.actuator)
     implementation(libs.micrometer.registry.prometheus)

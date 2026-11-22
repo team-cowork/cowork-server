@@ -29,13 +29,17 @@ Read `.agents/skills/write-pr/references/commit-conventions.md` for commit type 
 **Title** — Generate 3 options in the format `[scope] description`:
 - Scope: use one value from `allowedScopes` in `.github/workflows/cowork-stage-ci.yml` (`.github/workflows/cowork-prod-ci.yml` for PRs to `main`). Read the list before you write the title. Map a changed `cowork-<name>/` directory to `<name>`. Use `[global]` for several modules or repository-wide changes and `[ci/cd]` for build or deployment changes. Never shorten a value: use `[authorization]`, not `[auth]`. Do not use commit history to choose a scope.
 - Description: Korean, concise, no emojis, no colons, max 50 characters total
-- Wrap class names, method names, annotations, and technical terms in backticks (e.g., `@Transactional`, `StudentServiceImpl`)
 
 **Body** — Follow the `.github/PULL_REQUEST_TEMPLATE.md` structure:
 - Korean 합쇼체: `~하였습니다`, `~되었습니다`, `~추가하였습니다`
 - No emojis
 - Max 2500 characters
-- Wrap all proper nouns and technical identifiers in backticks: class names, method names, annotations, file names, field names, config keys, module names
+
+**Wording rules** — apply to the title and the body:
+- Code names: wrap every name that exists in code or configuration in backticks, with the exact spelling from the code. This covers class, method, field, annotation, enum constant, file, module, config key, endpoint path, header, table, column, and agent names (e.g., `@Transactional`, `QueryProjectServiceImpl`, `SKILL.md`). Do not backtick general concepts; write them in Korean as described below.
+- HTTP status: describe a status by its standard reason phrase in plain text, not by its number. Write `Not Found 응답을 반환하도록 수정하였습니다`, not `404 응답`. Do not write the number next to the phrase. Only when the number itself is code, such as a literal in a test or a config value, quote that code in backticks as written.
+- Korean first: write general English words and concepts in Korean by meaning (e.g., retry → 재시도, fallback → 대체 처리, deprecated → 사용 중단 예정, edge case → 예외 상황). Do not transliterate a word into Hangul only to avoid English. Keep English only for code names in backticks, proper names of products, libraries, and services, common abbreviations without a settled Korean term (API, JWT, CI), and HTTP reason phrases. When the Korean term alone can be unclear, add the English term in parentheses once, at its first use.
+- No checkboxes: do not use `- [ ]` or `- [x]`. Use a plain `-` list or a numbered list.
 
 ## Step 4 — Write Body & Show Preview
 

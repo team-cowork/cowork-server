@@ -12,20 +12,20 @@ import team.themoment.sdk.exception.ExpectedException
  */
 @Component
 class GithubCommentAuthorizationSupport(
-    private val repoAccessResolver: GithubRepoAccessResolver,
+    private val githubRepoAccessResolver: GithubRepoAccessResolver,
     private val projectAccessGuard: ProjectAccessGuard,
-    private val usernameResolver: GithubUsernameResolver,
-    private val commentReader: GithubIssueCommentReader,
+    private val githubUsernameResolver: GithubUsernameResolver,
+    private val githubIssueCommentReader: GithubIssueCommentReader,
 ) {
 
     fun authorize(userId: Long, projectId: Long, repoId: Long, commentId: Long): GithubRepoRef {
-        val repo = repoAccessResolver.resolveForRead(userId, projectId, repoId)
+        val repo = githubRepoAccessResolver.resolveForRead(userId, projectId, repoId)
         // 예외를 던지는 resolveForModify를 쓰면 바깥 트랜잭션이 rollback-only로 표시되므로 boolean으로 판단한다.
         val project = projectAccessGuard.findProjectOrThrow(projectId)
         if (projectAccessGuard.canWrite(project, userId)) return repo
 
-        val requesterGithubUsername = usernameResolver.resolve(userId)
-        val comment = commentReader.findComment(repo.owner, repo.repo, commentId)
+        val requesterGithubUsername = githubUsernameResolver.resolve(userId)
+        val comment = githubIssueCommentReader.findComment(repo.owner, repo.repo, commentId)
         if (comment.author != requesterGithubUsername) {
             throw ExpectedException("본인이 작성한 댓글만 수정/삭제할 수 있습니다.", HttpStatus.FORBIDDEN)
         }

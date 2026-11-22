@@ -9,17 +9,17 @@ import org.springframework.transaction.annotation.Transactional
 
 @Component
 class GithubRepoSettingResultHandler(
-    private val operationRepository: GithubRepoSettingOperationRepository,
-    private val preferenceRepository: GithubRepoPreferenceProjectionRepository,
+    private val githubRepoSettingOperationRepository: GithubRepoSettingOperationRepository,
+    private val githubRepoPreferenceProjectionRepository: GithubRepoPreferenceProjectionRepository,
 ) {
     @Transactional
     fun apply(result: GithubRepoSettingResult) {
         val observedState = if (result.status == "SUCCEEDED") {
-            preferenceRepository.findByIdForUpdate(result.repoId)
+            githubRepoPreferenceProjectionRepository.findByIdForUpdate(result.repoId)
         } else {
             null
         }
-        val operation = requireNotNull(operationRepository.findByIdForUpdate(result.operationId)) {
+        val operation = requireNotNull(githubRepoSettingOperationRepository.findByIdForUpdate(result.operationId)) {
             "알 수 없는 GitHub 저장소 설정 작업입니다: ${result.operationId}"
         }
         require(operation.idempotencyKey == result.idempotencyKey) { "idempotencyKey가 작업과 일치하지 않습니다." }
@@ -49,6 +49,6 @@ class GithubRepoSettingResultHandler(
 
             else -> error("지원하지 않는 GitHub 저장소 설정 결과 상태입니다: ${result.status}")
         }
-        operationRepository.save(operation)
+        githubRepoSettingOperationRepository.save(operation)
     }
 }

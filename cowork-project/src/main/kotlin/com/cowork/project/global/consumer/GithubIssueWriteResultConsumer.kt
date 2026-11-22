@@ -13,8 +13,8 @@ import java.util.UUID
 
 @Component
 class GithubIssueWriteResultConsumer(
-    private val handler: GithubIssueWriteResultHandler,
-    private val commentNotifier: GithubCommentParentAuthorNotifier,
+    private val githubIssueWriteResultHandler: GithubIssueWriteResultHandler,
+    private val githubCommentParentAuthorNotifier: GithubCommentParentAuthorNotifier,
     private val objectMapper: ObjectMapper,
 ) {
     @KafkaListener(
@@ -29,9 +29,9 @@ class GithubIssueWriteResultConsumer(
         validate(payload)
 
         // 원장 반영(짧은 트랜잭션)이 끝난 뒤에만, 트랜잭션 밖에서 부모 작성자 알림(GitHub 조회 + outbox 기록)을 수행한다.
-        val pendingNotification = handler.apply(payload)
+        val pendingNotification = githubIssueWriteResultHandler.apply(payload)
         if (pendingNotification != null) {
-            commentNotifier.notify(
+            githubCommentParentAuthorNotifier.notify(
                 owner = pendingNotification.owner,
                 repo = pendingNotification.repo,
                 parentType = pendingNotification.parentType,

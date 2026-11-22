@@ -18,11 +18,11 @@ import java.time.Instant
 /** team.lifecycle full state를 GitHub installation 로컬 projection에 반영한다. */
 @Component
 class TeamGithubInstallationProjectionHandler(
-    private val installationRepository: TeamGithubInstallationRepository,
-    private val stateRepository: TeamGithubInstallationEventStateRepository,
-    private val ownershipFenceRepository: TeamGithubInstallationOwnershipFenceRepository,
-    private val repoOwnerRenamer: ProjectGithubRepoOwnerRenamer,
-    private val boardLifecycleSupport: ProjectGithubBoardLifecycleSupport,
+    private val teamGithubInstallationRepository: TeamGithubInstallationRepository,
+    private val teamGithubInstallationEventStateRepository: TeamGithubInstallationEventStateRepository,
+    private val teamGithubInstallationOwnershipFenceRepository: TeamGithubInstallationOwnershipFenceRepository,
+    private val projectGithubRepoOwnerRenamer: ProjectGithubRepoOwnerRenamer,
+    private val projectGithubBoardLifecycleSupport: ProjectGithubBoardLifecycleSupport,
 ) {
     private val log = LoggerFactory.getLogger(TeamGithubInstallationProjectionHandler::class.java)
 
@@ -37,7 +37,7 @@ class TeamGithubInstallationProjectionHandler(
 
         val version = occurredAt.toProjectionPrecision()
         val incomingDeleted = teamDeleted || installationId == null
-        val state = stateRepository.findByTeamIdForUpdate(teamId)
+        val state = teamGithubInstallationEventStateRepository.findByTeamIdForUpdate(teamId)
         if (!shouldApplyTeamState(state, installationId, orgLogin, incomingDeleted, version)) return
 
         if (incomingDeleted) {
@@ -74,7 +74,7 @@ class TeamGithubInstallationProjectionHandler(
         version: Instant,
         state: TeamGithubInstallationEventState?,
     ) {
-        val active = installationRepository.findByTeamIdForUpdate(teamId)
+        val active = teamGithubInstallationRepository.findByTeamIdForUpdate(teamId)
         val retainedInstallationId = payloadInstallationId ?: state?.installationId ?: active?.installationId
         val retainedOrgLogin = payloadOrgLogin ?: state?.orgLogin ?: active?.orgLogin
         val installationIds = setOfNotNull(
@@ -84,7 +84,7 @@ class TeamGithubInstallationProjectionHandler(
         ).sorted()
 
         installationIds.forEach { releaseOwnershipIfCurrent(it, teamId, version) }
-        if (active != null) installationRepository.delete(active)
+        if (active != null) teamGithubInstallationRepository.delete(active)
 
         val target = state ?: TeamGithubInstallationEventState(
             teamId = teamId,
@@ -96,7 +96,7 @@ class TeamGithubInstallationProjectionHandler(
         if (state != null) {
             target.applyDeleted(retainedInstallationId, retainedOrgLogin, version)
         }
-        stateRepository.save(target)
+        teamGithubInstallationEventStateRepository.save(target)
         log.info("team.lifecycle GitHub installation 해제 반영 [teamId={}, version={}]", teamId, version)
     }
 
@@ -107,7 +107,7 @@ class TeamGithubInstallationProjectionHandler(
         version: Instant,
         state: TeamGithubInstallationEventState?,
     ) {
-        var fence = ownershipFenceRepository.findByInstallationIdForUpdate(installationId)
+        var fence = teamGithubInstallationOwnershipFenceRepository.findByInstallationIdForUpdate(installationId)
         if (fence != null) {
             val fenceVersion = fence.sourceOccurredAt.toProjectionPrecision()
             if (fenceVersion.isAfter(version)) {
@@ -125,9 +125,11 @@ class TeamGithubInstallationProjectionHandler(
             }
         }
 
-        val claimedInstallation = installationRepository.findByInstallationIdForUpdate(installationId)
+        val claimedInstallation = teamGithubInstallationRepository.findByInstallationIdForUpdate(installationId)
         if (claimedInstallation != null && claimedInstallation.teamId != teamId) {
-            val oldOwnerState = stateRepository.findByTeamIdForUpdate(claimedInstallation.teamId)
+            val oldOwnerState = teamGithubInstallationEventStateRepository.findByTeamIdForUpdate(
+                claimedInstallation.teamId,
+            )
             val oldOwnerVersion = oldOwnerState?.sourceOccurredAt?.toProjectionPrecision()
             if (oldOwnerVersion != null && oldOwnerVersion.isAfter(version)) {
                 repairNewerOwnerFence(claimedInstallation, oldOwnerState, oldOwnerVersion, fence)
@@ -140,22 +142,22 @@ class TeamGithubInstallationProjectionHandler(
                 )
             }
 
-            installationRepository.delete(claimedInstallation)
+            teamGithubInstallationRepository.delete(claimedInstallation)
             // Hibernate는 insert를 delete보다 먼저 flush할 수 있으므로 unique installation_id를
             // 새 owner에게 넘기기 전에 이전 active row 삭제를 확정한다.
-            installationRepository.flush()
+            teamGithubInstallationRepository.flush()
             fenceOldOwner(claimedInstallation, oldOwnerState, version)
         }
 
         val currentTeamInstallation = if (claimedInstallation?.teamId == teamId) {
             claimedInstallation
         } else {
-            installationRepository.findByTeamIdForUpdate(teamId)
+            teamGithubInstallationRepository.findByTeamIdForUpdate(teamId)
         }
         if (currentTeamInstallation != null && currentTeamInstallation.installationId != installationId) {
             releaseOwnershipIfCurrent(currentTeamInstallation.installationId, teamId, version)
-            installationRepository.delete(currentTeamInstallation)
-            installationRepository.flush()
+            teamGithubInstallationRepository.delete(currentTeamInstallation)
+            teamGithubInstallationRepository.flush()
         }
 
         val targetInstallation = currentTeamInstallation
@@ -164,10 +166,10 @@ class TeamGithubInstallationProjectionHandler(
         // 같은 설치의 orgLogin이 바뀌었으면 GitHub 조직 이름이 바뀐 것이다.
         val previousOrgLogin = targetInstallation.orgLogin
         targetInstallation.update(installationId, orgLogin)
-        installationRepository.save(targetInstallation)
+        teamGithubInstallationRepository.save(targetInstallation)
         if (previousOrgLogin != orgLogin) {
-            repoOwnerRenamer.rename(teamId, previousOrgLogin, orgLogin)
-            boardLifecycleSupport.renameOwner(teamId, previousOrgLogin, orgLogin)
+            projectGithubRepoOwnerRenamer.rename(teamId, previousOrgLogin, orgLogin)
+            projectGithubBoardLifecycleSupport.renameOwner(teamId, previousOrgLogin, orgLogin)
         }
 
         val targetState = state ?: TeamGithubInstallationEventState(
@@ -178,7 +180,7 @@ class TeamGithubInstallationProjectionHandler(
             sourceOccurredAt = version,
         )
         if (state != null) targetState.applyActive(installationId, orgLogin, version)
-        stateRepository.save(targetState)
+        teamGithubInstallationEventStateRepository.save(targetState)
 
         if (fence == null) {
             fence = TeamGithubInstallationOwnershipFence(
@@ -190,7 +192,7 @@ class TeamGithubInstallationProjectionHandler(
         } else {
             fence.activate(teamId, version)
         }
-        ownershipFenceRepository.save(fence)
+        teamGithubInstallationOwnershipFenceRepository.save(fence)
         log.info(
             "team.lifecycle GitHub installation 연결 반영 [teamId={}, installationId={}, version={}]",
             teamId,
@@ -206,10 +208,10 @@ class TeamGithubInstallationProjectionHandler(
         fenceVersion: Instant,
         state: TeamGithubInstallationEventState?,
     ) {
-        val active = installationRepository.findByTeamIdForUpdate(teamId)
+        val active = teamGithubInstallationRepository.findByTeamIdForUpdate(teamId)
         if (active != null) {
             releaseOwnershipIfCurrent(active.installationId, teamId, fenceVersion)
-            installationRepository.delete(active)
+            teamGithubInstallationRepository.delete(active)
         }
         val target = state ?: TeamGithubInstallationEventState(
             teamId = teamId,
@@ -219,7 +221,7 @@ class TeamGithubInstallationProjectionHandler(
             sourceOccurredAt = fenceVersion,
         )
         if (state != null) target.applyDeleted(installationId, orgLogin, fenceVersion)
-        stateRepository.save(target)
+        teamGithubInstallationEventStateRepository.save(target)
         log.warn(
             "더 최신 installation 소유권 때문에 team claim을 무시합니다 " +
                 "[teamId={}, installationId={}, fenceVersion={}]",
@@ -244,7 +246,7 @@ class TeamGithubInstallationProjectionHandler(
         if (state != null) {
             target.applyDeleted(installation.installationId, installation.orgLogin, version)
         }
-        stateRepository.save(target)
+        teamGithubInstallationEventStateRepository.save(target)
     }
 
     private fun repairNewerOwnerFence(
@@ -265,13 +267,13 @@ class TeamGithubInstallationProjectionHandler(
             sourceOccurredAt = version,
         )
         fence.activate(installation.teamId, version)
-        ownershipFenceRepository.save(fence)
+        teamGithubInstallationOwnershipFenceRepository.save(fence)
     }
 
     private fun releaseOwnershipIfCurrent(installationId: Long, teamId: Long, version: Instant) {
-        val fence = ownershipFenceRepository.findByInstallationIdForUpdate(installationId)
+        val fence = teamGithubInstallationOwnershipFenceRepository.findByInstallationIdForUpdate(installationId)
         if (fence == null) {
-            ownershipFenceRepository.save(
+            teamGithubInstallationOwnershipFenceRepository.save(
                 TeamGithubInstallationOwnershipFence(
                     installationId = installationId,
                     ownerTeamId = teamId,
@@ -285,6 +287,6 @@ class TeamGithubInstallationProjectionHandler(
         val currentVersion = fence.sourceOccurredAt.toProjectionPrecision()
         if (fence.ownerTeamId != teamId || currentVersion.isAfter(version)) return
         fence.deactivate(teamId, version)
-        ownershipFenceRepository.save(fence)
+        teamGithubInstallationOwnershipFenceRepository.save(fence)
     }
 }

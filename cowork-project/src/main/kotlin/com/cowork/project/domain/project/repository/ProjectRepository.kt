@@ -46,6 +46,19 @@ interface ProjectRepository :
     )
     fun countReadableUsers(@Param("projectId") projectId: Long): Long
 
+    /** [countReadableUsers]와 같은 기준으로 프로젝트를 읽을 수 있는 사용자 ID를 돌려준다. */
+    @Query(
+        "SELECT m.userId FROM Project p JOIN TeamMembership m ON m.teamId = p.teamId " +
+            "WHERE p.id = :projectId AND m.active = true " +
+            "AND EXISTS (" +
+            "SELECT a.accessKey FROM ProjectAccessProjection a WHERE a.projectId = p.id AND a.userId = m.userId " +
+            "AND a.canRead = true AND a.sourceAuthorizationVersion = m.authorizationVersion) " +
+            "ORDER BY m.userId",
+    )
+    fun findReadableUserIds(@Param("projectId") projectId: Long): List<Long>
+
+    fun findAllByTeamIdOrderByIdAsc(teamId: Long): List<Project>
+
     @Query(
         "SELECT p FROM Project p JOIN TeamMembership m ON m.teamId = p.teamId " +
             "WHERE m.userId = :userId AND m.active = true " +

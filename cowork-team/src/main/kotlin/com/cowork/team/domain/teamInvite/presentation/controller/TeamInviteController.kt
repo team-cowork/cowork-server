@@ -7,6 +7,7 @@ import com.cowork.team.domain.teamInvite.service.CreateInviteService
 import com.cowork.team.domain.teamInvite.service.DeleteInviteService
 import com.cowork.team.domain.teamInvite.service.JoinTeamService
 import com.cowork.team.domain.teamInvite.service.QueryInvitesService
+import com.cowork.team.global.openapi.TeamErrorResponses
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.media.Content
@@ -22,33 +23,7 @@ import org.springframework.web.bind.annotation.*
 import team.themoment.sdk.response.CommonApiResponse
 
 @Tag(name = "팀 초대", description = "팀 초대 링크 관리와 초대 코드를 통한 팀 가입")
-@ApiResponses(
-    ApiResponse(
-        responseCode = "429",
-        description = "요청 한도 초과",
-        content = [Content(mediaType = "application/json", schema = Schema(implementation = CommonApiResponse::class))],
-    ),
-    ApiResponse(
-        responseCode = "401",
-        description = "액세스 토큰이 없거나 유효하지 않음",
-        content = [
-            Content(
-                mediaType = "application/json",
-                schema = Schema(implementation = CommonApiResponse::class),
-                examples = [
-                    ExampleObject(
-                        value = """{"status":"401 UNAUTHORIZED","code":401,"message":"Unauthorized"}""",
-                    ),
-                ],
-            ),
-        ],
-    ),
-    ApiResponse(
-        responseCode = "default",
-        description = "기타 오류",
-        content = [Content(schema = Schema(implementation = CommonApiResponse::class))],
-    ),
-)
+@TeamErrorResponses
 @RestController
 @RequestMapping("/teams")
 class TeamInviteController(

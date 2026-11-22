@@ -11,7 +11,7 @@ import java.time.Instant
 class ProjectEventPublisher(
     private val entityManager: EntityManager,
     private val outboxWriter: OutboxWriter,
-    private val tombstoneRepository: ProjectEventTombstoneRepository,
+    private val projectEventTombstoneRepository: ProjectEventTombstoneRepository,
 ) {
     fun publishCreated(project: Project, occurredAt: Instant = Instant.now()) = publishActive(
         ProjectEventType.CREATED,
@@ -26,12 +26,12 @@ class ProjectEventPublisher(
     )
 
     fun publishDeleted(project: Project, occurredAt: Instant = Instant.now()) {
-        val tombstone = tombstoneRepository.findByProjectIdForUpdate(project.id)
+        val tombstone = projectEventTombstoneRepository.findByProjectIdForUpdate(project.id)
         val currentVersion = maxOf(project.stateOccurredAt, tombstone?.stateOccurredAt ?: Instant.EPOCH)
         val eventVersion = nextMonotonicStateVersion(currentVersion, occurredAt)
         project.stateOccurredAt = eventVersion
         if (tombstone == null) {
-            tombstoneRepository.save(ProjectEventTombstone.from(project, eventVersion))
+            projectEventTombstoneRepository.save(ProjectEventTombstone.from(project, eventVersion))
         } else {
             tombstone.replaceFrom(project, eventVersion)
         }
@@ -61,11 +61,11 @@ class ProjectEventPublisher(
     }
 
     private fun publishActive(eventType: ProjectEventType, project: Project, occurredAt: Instant) {
-        val tombstone = tombstoneRepository.findByProjectIdForUpdate(project.id)
+        val tombstone = projectEventTombstoneRepository.findByProjectIdForUpdate(project.id)
         val currentVersion = maxOf(project.stateOccurredAt, tombstone?.stateOccurredAt ?: Instant.EPOCH)
         val eventVersion = nextMonotonicStateVersion(currentVersion, occurredAt)
         project.stateOccurredAt = eventVersion
-        tombstone?.let(tombstoneRepository::delete)
+        tombstone?.let(projectEventTombstoneRepository::delete)
         publish(eventType, project, eventVersion)
     }
 

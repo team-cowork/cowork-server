@@ -12,8 +12,8 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class QueryChannelMembersServiceImpl(
-    private val teamMembers: TeamMembershipRepository,
-    private val evaluator: ChannelMessageReadPolicyEvaluator,
+    private val teamMembershipRepository: TeamMembershipRepository,
+    private val channelMessageReadPolicyEvaluator: ChannelMessageReadPolicyEvaluator,
     private val dmParticipantRepository: DmParticipantRepository,
     private val channelAccessGuard: ChannelAccessGuard,
     private val channelPermissionSupport: ChannelPermissionSupport,
@@ -25,8 +25,8 @@ class QueryChannelMembersServiceImpl(
         channelPermissionSupport.requireChannelAccess(channel, userId)
         val teamId = channel.teamId
             ?: return dmParticipantRepository.findByChannelId(channelId).map(ChannelAccessUserResponse::of)
-        val members = teamMembers.findAllByTeamIdAndActiveTrue(teamId)
-        val readableUserIds = evaluator.readableUserIds(channel, members)
+        val members = teamMembershipRepository.findAllByTeamIdAndActiveTrue(teamId)
+        val readableUserIds = channelMessageReadPolicyEvaluator.readableUserIds(channel, members)
         return members.filter { it.userId in readableUserIds }
             .map { ChannelAccessUserResponse(channelId, it.userId) }
     }

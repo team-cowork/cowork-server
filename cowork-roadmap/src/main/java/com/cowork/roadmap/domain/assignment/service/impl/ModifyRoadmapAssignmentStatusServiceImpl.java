@@ -18,28 +18,28 @@ import team.themoment.sdk.exception.ExpectedException;
 @RequiredArgsConstructor
 public class ModifyRoadmapAssignmentStatusServiceImpl implements ModifyRoadmapAssignmentStatusService {
 
-    private final RoadmapAssignmentRepository assignmentRepository;
-    private final RoadmapAccessGuard accessGuard;
+    private final RoadmapAssignmentRepository roadmapAssignmentRepository;
+    private final RoadmapAccessGuard roadmapAccessGuard;
 
     @Override
     @Transactional
     public AssignmentResDto execute(Long userId, Long assignmentId, UpdateAssignmentStatusReqDto request) {
         RoadmapAssignment assignment = findAssignmentOrThrow(assignmentId);
-        if (!accessGuard.accountAllows(userId, "update_team_assignment_status")) {
+        if (!roadmapAccessGuard.accountAllows(userId, "update_team_assignment_status")) {
             boolean related = userId.equals(assignment.getAssigneeUserId())
                     || userId.equals(assignment.getAssignedBy());
             if (!related) {
                 throw new ExpectedException("과제 상태를 변경할 권한이 없습니다.", HttpStatus.FORBIDDEN);
             }
-            accessGuard.requireTeamMember(assignment.getTeamId(), userId);
+            roadmapAccessGuard.requireTeamMember(assignment.getTeamId(), userId);
         }
         RoadmapAssignment updated = assignment.toBuilder().status(request.status().name()).build();
         updated.prepareUpdateFrom(assignment);
-        return AssignmentResDto.from(assignmentRepository.saveAndFlush(updated));
+        return AssignmentResDto.from(roadmapAssignmentRepository.saveAndFlush(updated));
     }
 
     private RoadmapAssignment findAssignmentOrThrow(Long assignmentId) {
-        return assignmentRepository.findById(assignmentId)
+        return roadmapAssignmentRepository.findById(assignmentId)
                 .orElseThrow(() -> new ExpectedException("과제를 찾을 수 없습니다.", HttpStatus.NOT_FOUND));
     }
 }

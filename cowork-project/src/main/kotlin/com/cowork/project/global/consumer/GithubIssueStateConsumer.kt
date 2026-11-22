@@ -13,9 +13,9 @@ import java.time.Instant
 
 @Component
 class GithubIssueStateConsumer(
-    private val repository: GithubIssueProjectionRepository,
-    private val processor: GithubStateRecordProcessor,
-    private val streams: ProjectionStreams,
+    private val githubIssueProjectionRepository: GithubIssueProjectionRepository,
+    private val githubStateRecordProcessor: GithubStateRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
 ) {
     @KafkaListener(
         topics = [GITHUB_ISSUE_STATE_TOPIC],
@@ -23,14 +23,14 @@ class GithubIssueStateConsumer(
         containerFactory = "githubIssueStateListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        processor.process(
-            streams.githubIssueState,
+        githubStateRecordProcessor.process(
+            projectionStreams.githubIssueState,
             GithubSyncStream.ISSUE,
             record,
             GithubIssueStateEvent::class.java,
         ) { event ->
             val id = GithubIssueProjection.id(event.owner, event.repo, event.number)
-            val projection = repository.findById(id).orElseGet {
+            val projection = githubIssueProjectionRepository.findById(id).orElseGet {
                 GithubIssueProjection(
                     id = id,
                     owner = event.owner,
@@ -46,7 +46,7 @@ class GithubIssueStateConsumer(
                 )
             }
             if (projection.apply(event)) {
-                repository.save(projection)
+                githubIssueProjectionRepository.save(projection)
             }
         }
     }

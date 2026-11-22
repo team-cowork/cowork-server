@@ -16,16 +16,16 @@ import java.util.concurrent.atomic.AtomicBoolean
 @Component
 class ProjectProjectionSnapshotPublisher(
     private val projectRepository: ProjectRepository,
-    private val projectTombstoneRepository: ProjectEventTombstoneRepository,
+    private val projectEventTombstoneRepository: ProjectEventTombstoneRepository,
     private val projectEventPublisher: ProjectEventPublisher,
-    private val completionPublisher: ProjectionSnapshotCompletionPublisher,
-    private val projectionReadiness: ProjectionReadinessState,
-    private val snapshotLock: ProjectionSnapshotLock,
-    private val streams: ProjectionStreams,
-    transactionManager: PlatformTransactionManager,
+    private val projectionSnapshotCompletionPublisher: ProjectionSnapshotCompletionPublisher,
+    private val projectionReadinessState: ProjectionReadinessState,
+    private val projectionSnapshotLock: ProjectionSnapshotLock,
+    private val projectionStreams: ProjectionStreams,
+    platformTransactionManager: PlatformTransactionManager,
 ) {
-    private val transaction = TransactionTemplate(transactionManager)
-    private val requiredUpstream = setOf(streams.teamMember, streams.teamLifecycle)
+    private val transaction = TransactionTemplate(platformTransactionManager)
+    private val requiredUpstream = setOf(projectionStreams.teamMember, projectionStreams.teamLifecycle)
     private val initialSnapshotPublished = AtomicBoolean(false)
     private val snapshotPublishing = AtomicBoolean(false)
 
@@ -44,11 +44,11 @@ class ProjectProjectionSnapshotPublisher(
     private fun publishSnapshotIfReady(markInitialCompleted: Boolean) {
         if (!snapshotPublishing.compareAndSet(false, true)) return
         try {
-            snapshotLock.tryRun(SNAPSHOT_LOCK_NAME) {
-                if (!projectionReadiness.areCurrent(requiredUpstream)) return@tryRun
+            projectionSnapshotLock.tryRun(SNAPSHOT_LOCK_NAME) {
+                if (!projectionReadinessState.areCurrent(requiredUpstream)) return@tryRun
                 publishAllInTransactions()
-                if (!projectionReadiness.areCurrent(requiredUpstream)) return@tryRun
-                completionPublisher.publishCompleted(setOf(ProjectEventPublisher.TOPIC))
+                if (!projectionReadinessState.areCurrent(requiredUpstream)) return@tryRun
+                projectionSnapshotCompletionPublisher.publishCompleted(setOf(ProjectEventPublisher.TOPIC))
                 if (markInitialCompleted) initialSnapshotPublished.set(true)
             }
         } finally {
@@ -75,7 +75,7 @@ class ProjectProjectionSnapshotPublisher(
         var afterProjectId = 0L
         while (true) {
             val nextAfterProjectId = transaction.execute {
-                val tombstones = projectTombstoneRepository.findSnapshotBatch(
+                val tombstones = projectEventTombstoneRepository.findSnapshotBatch(
                     afterProjectId,
                     PageRequest.of(0, PAGE_SIZE),
                 )

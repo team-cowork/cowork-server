@@ -20,8 +20,8 @@ import java.util.concurrent.Semaphore
 
 @Component
 class MeetingNoteSummaryClient(
-    private val http: HttpClient,
-    private val mapper: JsonMapper,
+    private val httpClient: HttpClient,
+    private val jsonMapper: JsonMapper,
     @Value("\${GROQ_API_KEY:}") private val groqKey: String,
     @Value("\${GROQ_MODEL:}") private val groqModel: String,
     @Value("\${AI_HUB_API_KEY:}") private val aiHubKey: String,
@@ -30,7 +30,7 @@ class MeetingNoteSummaryClient(
     data class Summary(val summary: String, val decisions: List<String>, val actionItems: List<ActionItem>)
 
     private val permits = Semaphore(10)
-    private val converter = BeanOutputConverter(Summary::class.java, mapper)
+    private val converter = BeanOutputConverter(Summary::class.java, jsonMapper)
     private val instructions = """
         회의록의 핵심을 한국어 2~4문장으로 summary에 정리하십시오. decisions는 결정 사항, actionItems는 할 일입니다.
         할 일마다 title에 작업명을, body에 명시된 배경·담당·기한을 쓰십시오. 세부 내용이 없으면 빈 문자열을 쓰십시오.
@@ -108,7 +108,7 @@ class MeetingNoteSummaryClient(
         429 -> true
 
         413 -> try {
-            mapper.readTree(response.body()).at("/error/code").stringValue(null) == "rate_limit_exceeded"
+            jsonMapper.readTree(response.body()).at("/error/code").stringValue(null) == "rate_limit_exceeded"
         } catch (_: JacksonException) {
             false
         }
@@ -122,10 +122,10 @@ class MeetingNoteSummaryClient(
         val request = HttpRequest.newBuilder(url).timeout(remaining)
             .header("Authorization", "Bearer $key")
             .header("Content-Type", "application/json")
-            .POST(HttpRequest.BodyPublishers.ofByteArray(mapper.writeValueAsBytes(body)))
+            .POST(HttpRequest.BodyPublishers.ofByteArray(jsonMapper.writeValueAsBytes(body)))
             .build()
         return try {
-            http.send(request, BodyHandlers.limiting(BodyHandlers.ofByteArray(), 1_048_576))
+            httpClient.send(request, BodyHandlers.limiting(BodyHandlers.ofByteArray(), 1_048_576))
         } catch (_: HttpTimeoutException) {
             throw timeout()
         } catch (_: IOException) {
@@ -138,7 +138,7 @@ class MeetingNoteSummaryClient(
 
     private fun parse(body: ByteArray): Summary {
         try {
-            val choice = mapper.readTree(body).path("choices").path(0)
+            val choice = jsonMapper.readTree(body).path("choices").path(0)
             if (choice.path("finish_reason").stringValue(null) != "stop") throw invalidResponse()
             val text = choice.path("message").path("content").stringValue(null) ?: throw invalidResponse()
             val result: Summary? = converter.convert(text)

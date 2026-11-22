@@ -9,14 +9,14 @@ import tools.jackson.databind.ObjectMapper
 
 @Component
 class ChannelRolePolicyProjectionHandler(
-    private val repository: ChannelRolePolicyProjectionRepository,
+    private val channelRolePolicyProjectionRepository: ChannelRolePolicyProjectionRepository,
     private val objectMapper: ObjectMapper,
 ) {
     @Transactional
     fun handle(sourceEvent: ChannelRolePolicyChangedEvent) {
         val event = sourceEvent.copy(occurredAt = sourceEvent.occurredAt.toProjectionPrecision())
         val key = ChannelRolePolicyProjection.key(event.teamId, event.channelId, event.roleId)
-        val existing = repository.findById(key).orElse(null)
+        val existing = channelRolePolicyProjectionRepository.findById(key).orElse(null)
         val existingVersion = existing?.sourceOccurredAt?.toProjectionPrecision()
         if (existingVersion?.isAfter(event.occurredAt) == true ||
             (existingVersion == event.occurredAt && existing.deleted)
@@ -46,6 +46,6 @@ class ChannelRolePolicyProjectionHandler(
 
             "DELETE" -> projection.markDeleted(event.occurredAt)
         }
-        repository.save(projection)
+        channelRolePolicyProjectionRepository.save(projection)
     }
 }

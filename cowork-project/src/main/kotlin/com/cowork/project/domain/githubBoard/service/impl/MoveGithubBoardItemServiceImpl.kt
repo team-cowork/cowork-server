@@ -25,9 +25,9 @@ import java.time.Instant
  */
 @Service
 class MoveGithubBoardItemServiceImpl(
-    private val accessResolver: GithubBoardAccessResolver,
-    private val boardReader: GithubBoardReader,
-    private val commandPublisher: GithubProjectItemWriteCommandPublisher,
+    private val githubBoardAccessResolver: GithubBoardAccessResolver,
+    private val githubBoardReader: GithubBoardReader,
+    private val githubProjectItemWriteCommandPublisher: GithubProjectItemWriteCommandPublisher,
 ) : MoveGithubBoardItemService {
 
     @Transactional
@@ -38,8 +38,8 @@ class MoveGithubBoardItemServiceImpl(
         itemId: String,
         request: MoveGithubBoardItemReqDto,
     ): GithubBoardOperationAcceptedResDto {
-        val link = accessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.WRITE)
-        val board = boardReader.read(link)
+        val link = githubBoardAccessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.WRITE)
+        val board = githubBoardReader.read(link)
         val view = GithubBoardKanbanBuilder.requireBoardView(board, request.viewNumber)
         val field = GithubBoardKanbanBuilder.columnField(board, view)
         board.item(itemId) ?: throw ExpectedException("보드에서 카드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
@@ -66,7 +66,7 @@ class MoveGithubBoardItemServiceImpl(
             afterItemId = (placement as? Placement.After)?.afterId,
         )
         val target = GithubProjectItemTarget(link.id, link.projectId, link.ownerLogin, board.projectNodeId, itemId)
-        val operationId = commandPublisher.publish(
+        val operationId = githubProjectItemWriteCommandPublisher.publish(
             target,
             GithubProjectItemWriteCommandType.MOVE_ITEM,
             payload,

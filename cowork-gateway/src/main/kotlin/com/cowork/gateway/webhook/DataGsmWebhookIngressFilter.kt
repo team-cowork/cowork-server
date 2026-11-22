@@ -1,6 +1,7 @@
 package com.cowork.gateway.webhook
 
 import com.cowork.gateway.deployment.DeploymentStateCache
+import com.cowork.gateway.metrics.CircuitBreakerFallbackMetrics
 import com.cowork.gateway.response.body.writeNoStoreJson
 import io.micrometer.core.instrument.MeterRegistry
 import org.springframework.cloud.client.circuitbreaker.ReactiveCircuitBreakerFactory
@@ -25,20 +26,25 @@ import tools.jackson.databind.ObjectMapper
 
 @Component
 class DataGsmWebhookIngressFilter(
-    private val verifier: DataGsmWebhookVerifier,
-    private val queue: DataGsmWebhookQueue,
-    private val states: DeploymentStateCache,
+    private val dataGsmWebhookVerifier: DataGsmWebhookVerifier,
+    private val dataGsmWebhookQueue: DataGsmWebhookQueue,
+    private val deploymentStateCache: DeploymentStateCache,
     private val objectMapper: ObjectMapper,
     private val meterRegistry: MeterRegistry,
-    circuitBreakerFactory: ReactiveCircuitBreakerFactory<*, *>,
+    private val circuitBreakerFallbackMetrics: CircuitBreakerFallbackMetrics,
+    reactiveCircuitBreakerFactory: ReactiveCircuitBreakerFactory<*, *>,
 ) : GlobalFilter,
     Ordered {
-    private val circuitBreaker = circuitBreakerFactory.create("authorizationWebhookCB")
+    private val circuitBreaker = reactiveCircuitBreakerFactory.create("authorizationWebhookCB")
+
+    init {
+        circuitBreakerFallbackMetrics.registerRoute(ROUTE_ID)
+    }
 
     override fun getOrder(): Int = -1100
 
     override fun filter(exchange: ServerWebExchange, chain: GatewayFilterChain): Mono<Void> {
-        if (exchange.getAttribute<Route>(GATEWAY_ROUTE_ATTR)?.id != "authorization-webhook") {
+        if (exchange.getAttribute<Route>(GATEWAY_ROUTE_ATTR)?.id != ROUTE_ID) {
             return chain.filter(exchange)
         }
         if (exchange.request.headers.contentLength > MAX_BODY_BYTES) {
@@ -52,13 +58,13 @@ class DataGsmWebhookIngressFilter(
             }
         }.defaultIfEmpty(ByteArray(0)).flatMap { body ->
             val signature = exchange.request.headers.getFirst("X-DataGSM-Signature")
-            if (!verifier.validSignature(body, signature)) {
+            if (!dataGsmWebhookVerifier.validSignature(body, signature)) {
                 return@flatMap respond(exchange, HttpStatus.UNAUTHORIZED, "invalid_signature")
             }
-            if (!verifier.validEnvelope(body)) {
+            if (!dataGsmWebhookVerifier.validEnvelope(body)) {
                 return@flatMap respond(exchange, HttpStatus.BAD_REQUEST, "invalid_payload")
             }
-            queue.accept(body, signature!!)
+            dataGsmWebhookQueue.accept(body, signature!!)
                 .onErrorResume { error ->
                     logger().warn("Failed to reach DataGSM durable queue: {}", error.javaClass.simpleName)
                     Mono.just(false)
@@ -76,7 +82,7 @@ class DataGsmWebhookIngressFilter(
     }
 
     private fun fallback(exchange: ServerWebExchange, chain: GatewayFilterChain, body: ByteArray): Mono<Void> {
-        if (states.snapshot()?.containsKey("cowork-authorization") != false) {
+        if (deploymentStateCache.snapshot()?.containsKey("cowork-authorization") != false) {
             return respond(exchange, HttpStatus.SERVICE_UNAVAILABLE, "temporarily_unavailable")
         }
         val replay = object : ServerHttpRequestDecorator(exchange.request) {
@@ -97,6 +103,7 @@ class DataGsmWebhookIngressFilter(
                 meterRegistry.counter("gateway.datagsm.ingress", "outcome", outcome).increment()
             }
             .onErrorResume { error ->
+                circuitBreakerFallbackMetrics.record(ROUTE_ID, error)
                 logger().warn("Failed to reach DataGSM direct inbox fallback: {}", error.javaClass.simpleName)
                 if (exchange.response.isCommitted) {
                     Mono.empty()
@@ -129,6 +136,7 @@ class DataGsmWebhookIngressFilter(
     }
 
     private companion object {
+        const val ROUTE_ID = "authorization-webhook"
         const val MAX_BODY_BYTES = 1 shl 20
     }
 }

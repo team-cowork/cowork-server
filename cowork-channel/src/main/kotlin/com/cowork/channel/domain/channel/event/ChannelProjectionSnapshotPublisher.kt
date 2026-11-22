@@ -16,42 +16,42 @@ import org.springframework.transaction.support.TransactionTemplate
 
 @Component
 class ChannelProjectionSnapshotPublisher(
-    private val channelStateRepository: ChannelEventStateRepository,
-    private val memberStateRepository: DmParticipantEventStateRepository,
+    private val channelEventStateRepository: ChannelEventStateRepository,
+    private val dmParticipantEventStateRepository: DmParticipantEventStateRepository,
     private val channelEventPublisher: ChannelEventPublisher,
     private val dmParticipantEventPublisher: DmParticipantEventPublisher,
-    private val readinessState: ProjectionReadinessState,
-    private val streams: ProjectionStreams,
-    private val completionPublisher: ProjectionSnapshotCompletionPublisher,
-    private val snapshotLock: ProjectionSnapshotLock,
-    transactionManager: PlatformTransactionManager,
+    private val projectionReadinessState: ProjectionReadinessState,
+    private val projectionStreams: ProjectionStreams,
+    private val projectionSnapshotCompletionPublisher: ProjectionSnapshotCompletionPublisher,
+    private val projectionSnapshotLock: ProjectionSnapshotLock,
+    platformTransactionManager: PlatformTransactionManager,
 ) {
-    private val transaction = TransactionTemplate(transactionManager)
+    private val transaction = TransactionTemplate(platformTransactionManager)
 
     @EventListener(ApplicationReadyEvent::class)
     fun publishAllSnapshots() {
-        snapshotLock.tryRun(SNAPSHOT_LOCK_NAME) { publishAllInTransactions() }
+        projectionSnapshotLock.tryRun(SNAPSHOT_LOCK_NAME) { publishAllInTransactions() }
     }
 
     @Scheduled(initialDelay = 60_000, fixedDelay = 300_000)
     fun republishAllSnapshots() {
-        snapshotLock.tryRun(SNAPSHOT_LOCK_NAME) { publishAllInTransactions() }
+        projectionSnapshotLock.tryRun(SNAPSHOT_LOCK_NAME) { publishAllInTransactions() }
     }
 
     private fun publishAllInTransactions() {
-        if (!readinessState.isCaughtUp(streams.channelStateUpstream)) return
+        if (!projectionReadinessState.isCaughtUp(projectionStreams.channelStateUpstream)) return
         publishChannelStates()
-        if (!readinessState.isCaughtUp(streams.channelStateUpstream)) return
-        completionPublisher.publishCompleted(setOf(ChannelEventPublisher.TOPIC))
+        if (!projectionReadinessState.isCaughtUp(projectionStreams.channelStateUpstream)) return
+        projectionSnapshotCompletionPublisher.publishCompleted(setOf(ChannelEventPublisher.TOPIC))
         publishDmParticipantStates()
-        completionPublisher.publishCompleted(setOf(DmParticipantEventPublisher.TOPIC))
+        projectionSnapshotCompletionPublisher.publishCompleted(setOf(DmParticipantEventPublisher.TOPIC))
     }
 
     private fun publishChannelStates() {
         var afterId = 0L
         while (true) {
             val nextAfterId = transaction.execute {
-                val states = channelStateRepository.findSnapshotBatch(afterId, PageRequest.of(0, PAGE_SIZE))
+                val states = channelEventStateRepository.findSnapshotBatch(afterId, PageRequest.of(0, PAGE_SIZE))
                 states.forEach(channelEventPublisher::publishSnapshot)
                 states.lastOrNull()?.channelId
             } ?: break
@@ -64,7 +64,7 @@ class ChannelProjectionSnapshotPublisher(
         var afterUserId = 0L
         while (true) {
             val nextCursor = transaction.execute {
-                val states = memberStateRepository.findSnapshotBatch(
+                val states = dmParticipantEventStateRepository.findSnapshotBatch(
                     afterChannelId,
                     afterUserId,
                     PageRequest.of(0, PAGE_SIZE),

@@ -23,22 +23,22 @@ import tools.jackson.databind.ObjectMapper
  */
 @Component
 class GithubBoardReader(
-    private val projectRepository: GithubProjectProjectionRepository,
-    private val itemRepository: GithubProjectItemProjectionRepository,
-    private val syncMarkers: GithubSyncMarkers,
+    private val githubProjectProjectionRepository: GithubProjectProjectionRepository,
+    private val githubProjectItemProjectionRepository: GithubProjectItemProjectionRepository,
+    private val githubSyncMarkers: GithubSyncMarkers,
     private val objectMapper: ObjectMapper,
 ) {
     fun read(board: ProjectGithubBoard): GithubBoard {
         val scope = GithubSyncMarker.projectScope(board.projectNumber)
-        syncMarkers.requireSynced(GithubSyncStream.PROJECT, board.ownerLogin, scope)
-        syncMarkers.requireSynced(GithubSyncStream.PROJECT_ITEM, board.ownerLogin, scope)
-        val projection = projectRepository.findById(board.projectionId).orElseThrow {
+        githubSyncMarkers.requireSynced(GithubSyncStream.PROJECT, board.ownerLogin, scope)
+        githubSyncMarkers.requireSynced(GithubSyncStream.PROJECT_ITEM, board.ownerLogin, scope)
+        val projection = githubProjectProjectionRepository.findById(board.projectionId).orElseThrow {
             ExpectedException("GitHub 데이터 동기화가 완료되지 않았습니다.", HttpStatus.SERVICE_UNAVAILABLE)
         }
         requireAvailable(projection)
         val nodeId = requireNotNull(projection.nodeId)
         val order = objectMapper.readValue(projection.itemIdsJson, STRING_LIST)
-        val itemsById = itemRepository.findAllByProjectNodeIdAndDeletedFalse(nodeId)
+        val itemsById = githubProjectItemProjectionRepository.findAllByProjectNodeIdAndDeletedFalse(nodeId)
             .filterNot { it.archived }
             .associate { it.id to it.payloadJson }
         return GithubBoard(

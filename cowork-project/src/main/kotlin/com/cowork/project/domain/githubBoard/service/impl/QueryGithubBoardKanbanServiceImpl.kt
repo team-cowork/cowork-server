@@ -17,9 +17,9 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class QueryGithubBoardKanbanServiceImpl(
-    private val accessResolver: GithubBoardAccessResolver,
-    private val boardReader: GithubBoardReader,
-    private val itemFilter: GithubBoardItemFilter,
+    private val githubBoardAccessResolver: GithubBoardAccessResolver,
+    private val githubBoardReader: GithubBoardReader,
+    private val githubBoardItemFilter: GithubBoardItemFilter,
 ) : QueryGithubBoardKanbanService {
 
     @Transactional(readOnly = true)
@@ -30,10 +30,10 @@ class QueryGithubBoardKanbanServiceImpl(
         viewNumber: Int,
         query: GithubBoardItemQuery,
     ): GithubBoardKanbanResDto {
-        val link = accessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.READ)
-        val board = boardReader.read(link)
+        val link = githubBoardAccessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.READ)
+        val board = githubBoardReader.read(link)
         val view = GithubBoardKanbanBuilder.requireBoardView(board, viewNumber)
-        val result = itemFilter.apply(board, view, query, userId)
+        val result = githubBoardItemFilter.apply(board, view, query, userId)
         val kanban = GithubBoardKanbanBuilder.build(board, view, result.items)
         return GithubBoardKanbanResDto(
             view = GithubBoardViewResDto.of(view),

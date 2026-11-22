@@ -18,7 +18,7 @@ class DeleteChannelServiceImpl(
     private val channelEventPublisher: ChannelEventPublisher,
     private val channelAccessGuard: ChannelAccessGuard,
     private val channelPermissionSupport: ChannelPermissionSupport,
-    private val attachmentPublisher: MeetingNoteAttachmentPublisher,
+    private val meetingNoteAttachmentPublisher: MeetingNoteAttachmentPublisher,
     private val meetingNoteRepository: MeetingNoteRepository,
     private val threadStatePublisher: ThreadStatePublisher,
 ) : DeleteChannelService {
@@ -30,7 +30,7 @@ class DeleteChannelServiceImpl(
         channelPermissionSupport.requireChannelManager(channel, userId)
         channelEventPublisher.publishDeleted(channel, Instant.now())
         // 템플릿 CASCADE가 회의록보다 먼저 처리되면 템플릿 FK가 채널 삭제를 막으므로 회의록을 먼저 지운다.
-        attachmentPublisher.deleteChannels(listOf(channel.id))
+        meetingNoteAttachmentPublisher.deleteChannels(listOf(channel.id))
         // 스레드는 채널 FK CASCADE로 지워지므로, 삭제 이력을 먼저 상태 원장에 남긴다.
         threadStatePublisher.deleteChannels(listOf(channel.id))
         meetingNoteRepository.deleteAllByChannelIdIn(listOf(channel.id))

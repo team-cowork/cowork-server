@@ -13,8 +13,8 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 @Transactional
 class CreateDefaultMeetingNoteTemplateServiceImpl(
-    private val templateRepository: MeetingNoteTemplateRepository,
-    private val sectionRepository: TemplateSectionRepository,
+    private val meetingNoteTemplateRepository: MeetingNoteTemplateRepository,
+    private val templateSectionRepository: TemplateSectionRepository,
 ) : CreateDefaultMeetingNoteTemplateService {
 
     private data class DefaultSectionDef(
@@ -34,7 +34,7 @@ class CreateDefaultMeetingNoteTemplateServiceImpl(
     )
 
     override fun createDefaultTemplate(channel: Channel) {
-        val template = templateRepository.save(
+        val template = meetingNoteTemplateRepository.save(
             MeetingNoteTemplate(
                 channelId = channel.id,
                 name = "${channel.name} - 회의록 템플릿",
@@ -42,7 +42,7 @@ class CreateDefaultMeetingNoteTemplateServiceImpl(
                 createdBy = channel.createdBy,
             ),
         )
-        sectionRepository.saveAll(
+        templateSectionRepository.saveAll(
             defaultSections.map { def ->
                 TemplateSection(
                     templateId = template.id,

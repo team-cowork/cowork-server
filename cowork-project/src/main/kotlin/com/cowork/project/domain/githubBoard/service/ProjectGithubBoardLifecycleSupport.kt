@@ -8,12 +8,12 @@ import java.util.Locale
 
 /** 프로젝트 삭제와 GitHub 조직 이름 변경을 보드 연결에 반영한다. */
 @Component
-class ProjectGithubBoardLifecycleSupport(private val boardRepository: ProjectGithubBoardRepository) {
+class ProjectGithubBoardLifecycleSupport(private val projectGithubBoardRepository: ProjectGithubBoardRepository) {
     @Transactional(propagation = Propagation.MANDATORY)
     fun deleteByProjectIds(projectIds: Collection<Long>) {
         if (projectIds.isEmpty()) return
-        val boards = boardRepository.findAllByProjectIdInForUpdate(projectIds.distinct())
-        if (boards.isNotEmpty()) boardRepository.deleteAll(boards)
+        val boards = projectGithubBoardRepository.findAllByProjectIdInForUpdate(projectIds.distinct())
+        if (boards.isNotEmpty()) projectGithubBoardRepository.deleteAll(boards)
     }
 
     /**
@@ -25,14 +25,14 @@ class ProjectGithubBoardLifecycleSupport(private val boardRepository: ProjectGit
         val previous = previousOwner.lowercase(Locale.ROOT)
         val renamed = newOwner.lowercase(Locale.ROOT)
         if (previous == renamed) return
-        val boards = boardRepository.findAllByTeamIdForUpdate(teamId)
+        val boards = projectGithubBoardRepository.findAllByTeamIdForUpdate(teamId)
         val taken = boards.filter { it.ownerLogin == renamed }.mapTo(HashSet()) { it.projectId to it.projectNumber }
         boards.filter { it.ownerLogin == previous }.forEach { board ->
             if (taken.add(board.projectId to board.projectNumber)) {
                 board.ownerLogin = renamed
-                boardRepository.save(board)
+                projectGithubBoardRepository.save(board)
             } else {
-                boardRepository.delete(board)
+                projectGithubBoardRepository.delete(board)
             }
         }
     }

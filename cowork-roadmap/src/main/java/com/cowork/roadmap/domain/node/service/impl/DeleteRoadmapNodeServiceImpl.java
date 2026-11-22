@@ -28,19 +28,19 @@ import team.themoment.sdk.exception.ExpectedException;
 @RequiredArgsConstructor
 public class DeleteRoadmapNodeServiceImpl implements DeleteRoadmapNodeService {
 
-    private final RoadmapNodeRepository nodeRepository;
-    private final RoadmapAssignmentRepository assignmentRepository;
-    private final RoadmapAccessGuard accessGuard;
+    private final RoadmapNodeRepository roadmapNodeRepository;
+    private final RoadmapAssignmentRepository roadmapAssignmentRepository;
+    private final RoadmapAccessGuard roadmapAccessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
-    private final RoadmapNodeLookupSupport nodeLookupSupport;
+    private final RoadmapNodeLookupSupport roadmapNodeLookupSupport;
 
     @Override
     @Transactional
     public void execute(Long userId, Long nodeId) {
-        Long roadmapId = nodeLookupSupport.findRoadmapIdByNodeOrThrow(nodeId);
+        Long roadmapId = roadmapNodeLookupSupport.findRoadmapIdByNodeOrThrow(nodeId);
         var roadmap = roadmapLookupSupport.findRoadmapForUpdateOrThrow(roadmapId);
-        accessGuard.requireMutable(roadmap, userId);
-        List<NodeParentProjection> all = nodeRepository.findParentsByRoadmapId(roadmapId);
+        roadmapAccessGuard.requireMutable(roadmap, userId);
+        List<NodeParentProjection> all = roadmapNodeRepository.findParentsByRoadmapId(roadmapId);
         deleteSubtree(roadmapId, collectSubtreeIds(nodeId, all));
     }
 
@@ -49,12 +49,12 @@ public class DeleteRoadmapNodeServiceImpl implements DeleteRoadmapNodeService {
      * 조회한 서브트리와 과제 수는 삭제 중에 바뀌지 않는다.
      */
     private void deleteSubtree(Long roadmapId, Set<Long> subtreeIds) {
-        long assignmentCount = assignmentRepository.countByRoadmapIdAndNodeIdIn(roadmapId, subtreeIds);
+        long assignmentCount = roadmapAssignmentRepository.countByRoadmapIdAndNodeIdIn(roadmapId, subtreeIds);
         if (assignmentCount > 0) {
             throw new ExpectedException("연결된 과제 " + assignmentCount + "건을 먼저 삭제해야 노드를 삭제할 수 있습니다.",
                     HttpStatus.CONFLICT);
         }
-        nodeRepository.deleteAllByIdInBatch(subtreeIds);
+        roadmapNodeRepository.deleteAllByIdInBatch(subtreeIds);
     }
 
     private Set<Long> collectSubtreeIds(Long rootId, List<NodeParentProjection> all) {

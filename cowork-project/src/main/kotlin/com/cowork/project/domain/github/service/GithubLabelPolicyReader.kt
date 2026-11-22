@@ -10,12 +10,12 @@ import org.springframework.stereotype.Component
  */
 @Component
 class GithubLabelPolicyReader(
-    private val repository: GithubRepoPreferenceProjectionRepository,
-    private val readinessGate: ProjectionReadinessGate,
+    private val githubRepoPreferenceProjectionRepository: GithubRepoPreferenceProjectionRepository,
+    private val projectionReadinessGate: ProjectionReadinessGate,
 ) {
     fun readAutoApply(repoId: Long): Boolean {
-        readinessGate.requireReady()
-        return repository.findById(repoId).orElse(null)
+        projectionReadinessGate.requireReady()
+        return githubRepoPreferenceProjectionRepository.findById(repoId).orElse(null)
             ?.takeUnless { it.deleted }
             ?.labelAutoApply
             ?: LABEL_AUTO_APPLY_DEFAULT

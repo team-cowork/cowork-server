@@ -14,7 +14,7 @@ import team.themoment.sdk.exception.ExpectedException
 class ClearProjectGithubWebhookChannelServiceImpl(
     private val projectGithubRepoRepository: ProjectGithubRepoRepository,
     private val projectAccessGuard: ProjectAccessGuard,
-    private val repoEventPublisher: ProjectGithubRepoEventPublisher,
+    private val projectGithubRepoEventPublisher: ProjectGithubRepoEventPublisher,
 ) : ClearProjectGithubWebhookChannelService {
 
     @Transactional
@@ -26,7 +26,7 @@ class ClearProjectGithubWebhookChannelServiceImpl(
 
         repoLink.clearWebhookChannel()
         val saved = projectGithubRepoRepository.save(repoLink)
-        repoEventPublisher.publishUpsert(saved)
+        projectGithubRepoEventPublisher.publishUpsert(saved)
         return ProjectGithubRepoResDto.of(saved)
     }
 }

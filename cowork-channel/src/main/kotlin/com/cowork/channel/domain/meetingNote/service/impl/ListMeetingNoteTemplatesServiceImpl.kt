@@ -12,16 +12,16 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 @Transactional(readOnly = true)
 class ListMeetingNoteTemplatesServiceImpl(
-    private val templateRepository: MeetingNoteTemplateRepository,
-    private val sectionRepository: TemplateSectionRepository,
+    private val meetingNoteTemplateRepository: MeetingNoteTemplateRepository,
+    private val templateSectionRepository: TemplateSectionRepository,
     private val meetingNoteAccessGuard: MeetingNoteAccessGuard,
 ) : ListMeetingNoteTemplatesService {
 
     override fun listTemplates(userId: Long, channelId: Long): List<MeetingNoteTemplateResponse> {
         meetingNoteAccessGuard.requireChannelAccess(channelId, userId)
-        val templates = templateRepository.findAllByChannelIdOrderByIdAsc(channelId)
+        val templates = meetingNoteTemplateRepository.findAllByChannelIdOrderByIdAsc(channelId)
         if (templates.isEmpty()) return emptyList()
-        val sectionsByTemplateId = sectionRepository
+        val sectionsByTemplateId = templateSectionRepository
             .findAllByTemplateIdInOrderByIdAsc(templates.map { it.id })
             .groupBy { it.templateId }
         return templates.map { template ->

@@ -31,17 +31,17 @@ import java.time.Instant
  */
 @Service
 class ChatGithubIssueCommandProcessor(
-    private val operationRepository: ChatGithubIssueCreateOperationRepository,
+    private val chatGithubIssueCreateOperationRepository: ChatGithubIssueCreateOperationRepository,
     private val projectAccessGuard: ProjectAccessGuard,
     private val projectGithubRepoRepository: ProjectGithubRepoRepository,
     private val outboxWriter: OutboxWriter,
-    private val repoAccessResolver: GithubRepoAccessResolver,
+    private val githubRepoAccessResolver: GithubRepoAccessResolver,
 ) {
     private val log = LoggerFactory.getLogger(ChatGithubIssueCommandProcessor::class.java)
 
     @Transactional
     fun process(command: ChatGithubIssueCreateCommand) {
-        if (operationRepository.existsById(command.operationId)) {
+        if (chatGithubIssueCreateOperationRepository.existsById(command.operationId)) {
             log.info("Chat GitHub issue command already processed operationId={}", command.operationId)
             return
         }
@@ -77,7 +77,7 @@ class ChatGithubIssueCommandProcessor(
 
             is Decision.Rejected -> operation.reject(decision.code, decision.message)
         }
-        operationRepository.save(operation)
+        chatGithubIssueCreateOperationRepository.save(operation)
 
         outboxWriter.enqueue(
             CHAT_GITHUB_ISSUE_RESULT_TOPIC,
@@ -124,7 +124,7 @@ class ChatGithubIssueCommandProcessor(
         val repo = GithubRepoUrlParser.parse(repos[0].githubRepoUrl)
             ?: return Decision.Rejected(GITHUB_REPO_URL_INVALID, "연결된 GitHub 저장소 URL이 올바르지 않습니다.")
         try {
-            repoAccessResolver.requireTeamOrgRepo(project.teamId, repo)
+            githubRepoAccessResolver.requireTeamOrgRepo(project.teamId, repo)
         } catch (ex: ExpectedException) {
             return Decision.Rejected(ex.statusCode.name, ex.message ?: "팀에 연결된 GitHub 조직의 저장소가 아닙니다.")
         }

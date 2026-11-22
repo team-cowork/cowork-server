@@ -1,12 +1,4 @@
 import {ForbiddenException, ServiceUnavailableException} from '@nestjs/common';
-import {type ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
-import {
-	type DmParticipantRepository,
-	type ChannelProjectionRepository,
-	type ChannelRolePolicyProjectionRepository,
-	type TeamMemberProjectionRepository,
-	type TeamRoleProjectionRepository,
-} from '../repository/index.js';
 import {ChannelMessageReadAccessService} from './channel-message-read-access.service.js';
 
 describe('ChannelMessageReadAccessService', () => {

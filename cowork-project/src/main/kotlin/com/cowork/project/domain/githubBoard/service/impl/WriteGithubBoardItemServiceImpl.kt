@@ -34,10 +34,10 @@ import java.util.Locale
 
 @Service
 class WriteGithubBoardItemServiceImpl(
-    private val accessResolver: GithubBoardAccessResolver,
-    private val boardReader: GithubBoardReader,
-    private val repositoryResolver: GithubBoardRepositoryResolver,
-    private val commandPublisher: GithubProjectItemWriteCommandPublisher,
+    private val githubBoardAccessResolver: GithubBoardAccessResolver,
+    private val githubBoardReader: GithubBoardReader,
+    private val githubBoardRepositoryResolver: GithubBoardRepositoryResolver,
+    private val githubProjectItemWriteCommandPublisher: GithubProjectItemWriteCommandPublisher,
 ) : WriteGithubBoardItemService {
     @Transactional
     override fun setField(
@@ -107,7 +107,7 @@ class WriteGithubBoardItemServiceImpl(
         request: AddGithubBoardItemReqDto,
     ): GithubBoardOperationAcceptedResDto =
         submit(userId, projectId, boardId, null, GithubProjectItemWriteCommandType.ADD_ITEM) { link, _ ->
-            val repo = repositoryResolver.resolve(link, request.repoId)
+            val repo = githubBoardRepositoryResolver.resolve(link, request.repoId)
             GithubAddItemPayload(repo.repo, request.number)
         }
 
@@ -132,7 +132,7 @@ class WriteGithubBoardItemServiceImpl(
     ): GithubBoardOperationAcceptedResDto =
         submit(userId, projectId, boardId, itemId, GithubProjectItemWriteCommandType.CONVERT_DRAFT) { link, board ->
             requireType(board, itemId, "DRAFT_ISSUE")
-            GithubConvertDraftPayload(repositoryResolver.resolve(link, request.repoId).repo)
+            GithubConvertDraftPayload(githubBoardRepositoryResolver.resolve(link, request.repoId).repo)
         }
 
     @Transactional
@@ -145,7 +145,7 @@ class WriteGithubBoardItemServiceImpl(
     ): GithubBoardOperationAcceptedResDto =
         submit(userId, projectId, boardId, itemId, GithubProjectItemWriteCommandType.SET_ASSIGNEES) { link, board ->
             val item = requireType(board, itemId, "ISSUE")
-            val repo = repositoryResolver.resolveContent(link, item.content?.repository)
+            val repo = githubBoardRepositoryResolver.resolveContent(link, item.content?.repository)
             val names = request.assignees
             if (names.size > 10 || names.any { it.isNullOrBlank() || it.any(Char::isWhitespace) } ||
                 names.map { it?.lowercase(Locale.ROOT) }.distinct().size != names.size
@@ -163,15 +163,15 @@ class WriteGithubBoardItemServiceImpl(
         type: GithubProjectItemWriteCommandType,
         payload: (ProjectGithubBoard, GithubBoard) -> Any,
     ): GithubBoardOperationAcceptedResDto {
-        val link = accessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.WRITE)
-        val board = boardReader.read(link)
+        val link = githubBoardAccessResolver.resolve(userId, projectId, boardId, GithubBoardAccess.WRITE)
+        val board = githubBoardReader.read(link)
         if (itemId != null && board.item(itemId) == null) {
             throw ExpectedException("보드에서 카드를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
         }
         val commandPayload = payload(link, board)
         val target = GithubProjectItemTarget(link.id, link.projectId, link.ownerLogin, board.projectNodeId, itemId)
         return GithubBoardOperationAcceptedResDto(
-            commandPublisher.publish(target, type, commandPayload, userId, Instant.now()),
+            githubProjectItemWriteCommandPublisher.publish(target, type, commandPayload, userId, Instant.now()),
         )
     }
 

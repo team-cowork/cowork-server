@@ -13,9 +13,9 @@ import java.time.Instant
 
 @Component
 class GithubLabelStateConsumer(
-    private val repository: GithubLabelProjectionRepository,
-    private val processor: GithubStateRecordProcessor,
-    private val streams: ProjectionStreams,
+    private val githubLabelProjectionRepository: GithubLabelProjectionRepository,
+    private val githubStateRecordProcessor: GithubStateRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
 ) {
     @KafkaListener(
         topics = [GITHUB_LABEL_STATE_TOPIC],
@@ -23,14 +23,14 @@ class GithubLabelStateConsumer(
         containerFactory = "githubLabelStateListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        processor.process(
-            streams.githubLabelState,
+        githubStateRecordProcessor.process(
+            projectionStreams.githubLabelState,
             GithubSyncStream.LABEL,
             record,
             GithubLabelStateEvent::class.java,
         ) { event ->
             val id = GithubLabelProjection.id(event.owner, event.repo, event.name)
-            val projection = repository.findById(id).orElseGet {
+            val projection = githubLabelProjectionRepository.findById(id).orElseGet {
                 GithubLabelProjection(
                     id = id,
                     owner = event.owner,
@@ -41,7 +41,7 @@ class GithubLabelStateConsumer(
                 )
             }
             if (projection.apply(event)) {
-                repository.save(projection)
+                githubLabelProjectionRepository.save(projection)
             }
         }
     }

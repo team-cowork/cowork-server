@@ -7,10 +7,10 @@ import org.springframework.http.HttpStatusCode
 import org.springframework.http.MediaType
 import org.springframework.util.AntPathMatcher
 
-internal class ApiResponseWrappingPolicy(private val properties: ApiResponseWrapperProperties) {
+internal class ApiResponseWrappingPolicy(private val apiResponseWrapperProperties: ApiResponseWrapperProperties) {
     private val matcher = AntPathMatcher()
 
-    fun excludesPath(path: String): Boolean = properties.skipPatterns.any { matcher.match(it, path) }
+    fun excludesPath(path: String): Boolean = apiResponseWrapperProperties.skipPatterns.any { matcher.match(it, path) }
 
     fun decide(
         path: String,

@@ -26,15 +26,15 @@ import team.themoment.sdk.logging.logger.logger
  */
 @Service
 class QueryPullRequestDetailServiceImpl(
-    private val repoAccessResolver: GithubRepoAccessResolver,
-    private val pullRequestReader: GithubPullRequestReader,
-    private val callExecutor: GithubAppCallExecutor,
+    private val githubRepoAccessResolver: GithubRepoAccessResolver,
+    private val githubPullRequestReader: GithubPullRequestReader,
+    private val githubAppCallExecutor: GithubAppCallExecutor,
     private val githubAppClient: GithubAppClient,
 ) : QueryPullRequestDetailService {
 
     override fun execute(userId: Long, projectId: Long, repoId: Long, prNumber: Int): GithubPullRequestResDto {
-        val repo = repoAccessResolver.resolveForRead(userId, projectId, repoId)
-        val pullRequest = pullRequestReader.findPullRequest(repo.owner, repo.repo, prNumber)
+        val repo = githubRepoAccessResolver.resolveForRead(userId, projectId, repoId)
+        val pullRequest = githubPullRequestReader.findPullRequest(repo.owner, repo.repo, prNumber)
         val liveStatus = if (pullRequest.isOpen()) findLiveStatus(repo, prNumber) else null
         return GithubPullRequestResDto(
             number = pullRequest.number,
@@ -54,7 +54,7 @@ class QueryPullRequestDetailServiceImpl(
     private fun GithubPullRequestProjection.isOpen() = state == OPEN_STATE && !merged
 
     private fun findLiveStatus(repo: GithubRepoRef, prNumber: Int): GithubPullRequestLiveStatus? = try {
-        callExecutor.execute { githubAppClient.getPullRequestLiveStatus(repo.owner, repo.repo, prNumber) }
+        githubAppCallExecutor.execute { githubAppClient.getPullRequestLiveStatus(repo.owner, repo.repo, prNumber) }
     } catch (e: ExpectedException) {
         logger().warn(
             "Failed to fetch live status for pull request {}/{}#{} with {}: {}",

@@ -13,8 +13,8 @@ import java.nio.charset.StandardCharsets
 import java.time.Duration
 
 @Component
-class DataGsmWebhookQueue(connectionFactory: LettuceConnectionFactory) {
-    private val client = connectionFactory.requiredNativeClient as RedisClient
+class DataGsmWebhookQueue(lettuceConnectionFactory: LettuceConnectionFactory) {
+    private val client = lettuceConnectionFactory.requiredNativeClient as RedisClient
 
     // A dedicated connection keeps XADD and WAITAOF on the same Redis client connection.
     fun accept(body: ByteArray, signature: String): Mono<Boolean> = Mono.usingWhen(

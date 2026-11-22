@@ -12,19 +12,20 @@ import java.time.Instant
 
 @Component
 class ChannelRolePolicyOperationProjectionFinalizer(
-    private val operationRepository: ChannelRolePolicyCommandOperationRepository,
-    private val policyRepository: ChannelRolePolicyProjectionRepository,
+    private val channelRolePolicyCommandOperationRepository: ChannelRolePolicyCommandOperationRepository,
+    private val channelRolePolicyProjectionRepository: ChannelRolePolicyProjectionRepository,
     private val objectMapper: ObjectMapper,
 ) {
     @Scheduled(fixedDelayString = $$"${channel-role-policy.operation-finalizer-delay-ms:1000}")
     @Transactional
     fun finalizeVisibleOperations() {
         val status = ChannelRolePolicyOperationStatus.PROCESSING
-        val throughOperationId = operationRepository.findTopByStatusOrderByOperationIdDesc(status)?.operationId
-            ?: return
+        val throughOperationId =
+            channelRolePolicyCommandOperationRepository.findTopByStatusOrderByOperationIdDesc(status)?.operationId
+                ?: return
         var afterOperationId = ""
         do {
-            val batch = operationRepository.findStatusBatch(
+            val batch = channelRolePolicyCommandOperationRepository.findStatusBatch(
                 status,
                 afterOperationId,
                 throughOperationId,
@@ -44,7 +45,7 @@ class ChannelRolePolicyOperationProjectionFinalizer(
         if (key != ChannelRolePolicyProjection.key(operation.teamId, operation.channelId, operation.roleId)) {
             return false
         }
-        val projection = policyRepository.findById(key).orElse(null) ?: return false
+        val projection = channelRolePolicyProjectionRepository.findById(key).orElse(null) ?: return false
         val visible = projection.teamId == operation.teamId &&
             projection.channelId == operation.channelId &&
             projection.roleId == operation.roleId &&

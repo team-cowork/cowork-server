@@ -13,10 +13,10 @@ import tools.jackson.databind.ObjectMapper
 
 @Component
 class GithubRepoSettingStateConsumer(
-    private val handler: GithubRepoPreferenceProjectionHandler,
+    private val githubRepoPreferenceProjectionHandler: GithubRepoPreferenceProjectionHandler,
     private val objectMapper: ObjectMapper,
-    private val processor: ProjectionRecordProcessor,
-    private val streams: ProjectionStreams,
+    private val projectionRecordProcessor: ProjectionRecordProcessor,
+    private val projectionStreams: ProjectionStreams,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -26,7 +26,7 @@ class GithubRepoSettingStateConsumer(
         containerFactory = "githubRepoSettingStateListenerContainerFactory",
     )
     fun consume(record: ConsumerRecord<String, String>) {
-        if (processor.processControlRecord(streams.githubRepoSetting, record)) return
+        if (projectionRecordProcessor.processControlRecord(projectionStreams.githubRepoSetting, record)) return
         val payload = runCatching {
             requireNotNull(objectMapper.readValue(record.value(), GithubRepoSettingState::class.java)) {
                 "top-level null은 허용되지 않습니다."
@@ -52,8 +52,8 @@ class GithubRepoSettingStateConsumer(
             return
         }
 
-        processor.applyRecord(streams.githubRepoSetting, record) {
-            handler.apply(
+        projectionRecordProcessor.applyRecord(projectionStreams.githubRepoSetting, record) {
+            githubRepoPreferenceProjectionHandler.apply(
                 repoId = payload.repoId,
                 labelAutoApply = payload.settings?.labelAutoApply ?: true,
                 deleted = payload.eventType == "DELETE",
@@ -69,6 +69,6 @@ class GithubRepoSettingStateConsumer(
             record.offset(),
             reason,
         )
-        processor.quarantineRecord(streams.githubRepoSetting, record, reason)
+        projectionRecordProcessor.quarantineRecord(projectionStreams.githubRepoSetting, record, reason)
     }
 }

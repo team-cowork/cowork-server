@@ -14,14 +14,14 @@ class DeleteSharedAccountServiceImpl(
     private val sharedAccountRepository: SharedAccountRepository,
     private val channelAccessGuard: ChannelAccessGuard,
     private val sharedAccountAccessGuard: SharedAccountAccessGuard,
-    private val lookupSupport: SharedAccountLookupSupport,
+    private val sharedAccountLookupSupport: SharedAccountLookupSupport,
 ) : DeleteSharedAccountService {
 
     override fun deleteAccount(userId: Long, channelId: Long, accountId: Long) {
         val channel = channelAccessGuard.findChannelForUpdateOrThrow(channelId)
         sharedAccountAccessGuard.requireAccountShareChannel(channel)
-        val account = lookupSupport.findAccountOrThrow(accountId, channelId)
-        lookupSupport.requireAccountEditor(account, channel, userId)
+        val account = sharedAccountLookupSupport.findAccountOrThrow(accountId, channelId)
+        sharedAccountLookupSupport.requireAccountEditor(account, channel, userId)
         channelAccessGuard.requireNotArchived(channel)
         sharedAccountRepository.delete(account)
     }

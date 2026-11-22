@@ -10,16 +10,16 @@ import team.themoment.sdk.exception.ExpectedException
 
 @Component
 class ChannelProjectionReader(
-    private val repository: ChannelProjectionRepository,
-    private val readinessGate: ProjectionReadinessGate,
+    private val channelProjectionRepository: ChannelProjectionRepository,
+    private val projectionReadinessGate: ProjectionReadinessGate,
 ) {
     @Transactional(propagation = Propagation.MANDATORY)
     fun requireProjectChannel(channelId: Long, projectId: Long) {
-        readinessGate.requireReady()
-        var channel = repository.findByIdForUpdate(channelId)
+        projectionReadinessGate.requireReady()
+        var channel = channelProjectionRepository.findByIdForUpdate(channelId)
         if (channel == null) {
-            readinessGate.requireCurrent()
-            channel = repository.findByIdForUpdate(channelId)
+            projectionReadinessGate.requireCurrent()
+            channel = channelProjectionRepository.findByIdForUpdate(channelId)
                 ?: throw ExpectedException("존재하지 않는 채널입니다.", HttpStatus.NOT_FOUND)
         }
         if (channel.deleted) {

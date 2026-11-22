@@ -13,12 +13,12 @@ import org.springframework.transaction.annotation.Transactional
 @Service
 class QueryMyProjectsServiceImpl(
     private val projectRepository: ProjectRepository,
-    private val readiness: ProjectionReadinessGate,
+    private val projectionReadinessGate: ProjectionReadinessGate,
 ) : QueryMyProjectsService {
 
     @Transactional(readOnly = true)
     override fun execute(userId: Long, pageable: Pageable): Page<ProjectResDto> {
-        readiness.requireReady()
+        projectionReadinessGate.requireReady()
         ProjectListSortPolicy.requireAllowed(pageable.sort)
         return projectRepository.findReadableByUserId(userId, pageable).map { ProjectResDto.of(it) }
     }

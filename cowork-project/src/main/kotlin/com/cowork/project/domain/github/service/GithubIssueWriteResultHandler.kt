@@ -23,7 +23,7 @@ data class PendingCommentCreatedNotification(
 
 @Component
 class GithubIssueWriteResultHandler(
-    private val operationRepository: GithubIssueWriteOperationRepository,
+    private val githubIssueWriteOperationRepository: GithubIssueWriteOperationRepository,
     private val objectMapper: ObjectMapper,
 ) {
     private val logger = LoggerFactory.getLogger(GithubIssueWriteResultHandler::class.java)
@@ -35,7 +35,7 @@ class GithubIssueWriteResultHandler(
      */
     @Transactional
     fun apply(result: GithubIssueWriteResult): PendingCommentCreatedNotification? {
-        val operation = requireNotNull(operationRepository.findByIdForUpdate(result.operationId)) {
+        val operation = requireNotNull(githubIssueWriteOperationRepository.findByIdForUpdate(result.operationId)) {
             "알 수 없는 GitHub 이슈 쓰기 작업입니다: ${result.operationId}"
         }
         require(operation.idempotencyKey == result.idempotencyKey) { "idempotencyKey가 작업과 일치하지 않습니다." }
@@ -50,7 +50,7 @@ class GithubIssueWriteResultHandler(
 
             else -> error("지원하지 않는 GitHub 이슈 쓰기 result 상태입니다: ${result.status}")
         }
-        operationRepository.save(operation)
+        githubIssueWriteOperationRepository.save(operation)
 
         if (!applied) {
             logger.info(

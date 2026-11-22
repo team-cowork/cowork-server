@@ -18,14 +18,15 @@ import tools.jackson.databind.ObjectMapper;
 public class TeamMemberEventConsumer {
 
     private final ObjectMapper objectMapper;
-    private final ProjectionRecordProcessor processor;
+    private final ProjectionRecordProcessor projectionRecordProcessor;
 
     @KafkaListener(topics = KafkaConsumerConfig.TEAM_MEMBER_TOPIC, groupId = KafkaConsumerConfig.TEAM_MEMBER_GROUP, containerFactory = "teamMemberListenerContainerFactory")
     public void consume(ConsumerRecord<String, String> record) {
         if (ProjectionSnapshotCompletion.isReserved(record)) {
             String violation = ProjectionSnapshotCompletion.violation(objectMapper, record, "cowork-team");
             if (violation == null) {
-                processor.completeSnapshot(record, ProjectionSnapshotCompletion.snapshotId(objectMapper, record));
+                projectionRecordProcessor.completeSnapshot(record,
+                        ProjectionSnapshotCompletion.snapshotId(objectMapper, record));
             } else {
                 log.error("Discarding invalid projection snapshot marker: {}", violation);
                 discard(record, violation);
@@ -56,7 +57,7 @@ public class TeamMemberEventConsumer {
         }
 
         try {
-            processor.apply(record, event);
+            projectionRecordProcessor.apply(record, event);
         } catch (IllegalArgumentException exception) {
             log.error("Discarding invalid team.member.event payload", exception);
             discard(record, exception.getMessage());
@@ -64,6 +65,6 @@ public class TeamMemberEventConsumer {
     }
 
     private void discard(ConsumerRecord<String, String> record, String reason) {
-        processor.discard(record, reason == null ? "invalid team.member.event" : reason);
+        projectionRecordProcessor.discard(record, reason == null ? "invalid team.member.event" : reason);
     }
 }

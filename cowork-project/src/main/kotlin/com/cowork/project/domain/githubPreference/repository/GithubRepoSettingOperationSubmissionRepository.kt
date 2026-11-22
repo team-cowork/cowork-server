@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional
 @Repository
 class GithubRepoSettingOperationSubmissionRepository(
     private val jdbcTemplate: JdbcTemplate,
-    private val operationRepository: GithubRepoSettingOperationRepository,
+    private val githubRepoSettingOperationRepository: GithubRepoSettingOperationRepository,
 ) {
     @Transactional(propagation = Propagation.MANDATORY)
     fun insertPendingOrGet(
@@ -34,8 +34,12 @@ class GithubRepoSettingOperationSubmissionRepository(
             )
         } catch (exception: DuplicateKeyException) {
             // Duplicate INSERT holds a shared lock; replay must not upgrade it to a write lock.
-            val existing = operationRepository.findByRequesterAndIdempotencyKeyForShare(requestedBy, idempotencyKey)
-                ?: throw exception
+            val existing =
+                githubRepoSettingOperationRepository.findByRequesterAndIdempotencyKeyForShare(
+                    requestedBy,
+                    idempotencyKey,
+                )
+                    ?: throw exception
             return InsertResult.Existing(existing)
         }
         return InsertResult.Inserted

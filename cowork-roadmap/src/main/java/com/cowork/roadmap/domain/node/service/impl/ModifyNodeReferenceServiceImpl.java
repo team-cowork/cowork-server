@@ -18,20 +18,20 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class ModifyNodeReferenceServiceImpl implements ModifyNodeReferenceService {
 
-    private final RoadmapNodeReferenceRepository referenceRepository;
-    private final RoadmapAccessGuard accessGuard;
+    private final RoadmapNodeReferenceRepository roadmapNodeReferenceRepository;
+    private final RoadmapAccessGuard roadmapAccessGuard;
     private final RoadmapLookupSupport roadmapLookupSupport;
-    private final RoadmapNodeLookupSupport nodeLookupSupport;
+    private final RoadmapNodeLookupSupport roadmapNodeLookupSupport;
 
     @Override
     @Transactional
     public NodeReferenceResDto execute(Long userId, Long referenceId, NodeReferenceReqDto request) {
-        var ref = nodeLookupSupport.findReferenceOrThrow(referenceId);
-        var node = nodeLookupSupport.findNodeOrThrow(ref.getNodeId());
+        var ref = roadmapNodeLookupSupport.findReferenceOrThrow(referenceId);
+        var node = roadmapNodeLookupSupport.findNodeOrThrow(ref.getNodeId());
         var roadmap = roadmapLookupSupport.findRoadmapOrThrow(node.getRoadmapId());
-        accessGuard.requireMutable(roadmap, userId);
+        roadmapAccessGuard.requireMutable(roadmap, userId);
         RoadmapNodeReference updated = ref.toBuilder().title(request.title()).url(request.url()).build();
         updated.prepareUpdateFrom(ref);
-        return NodeReferenceResDto.from(referenceRepository.saveAndFlush(updated));
+        return NodeReferenceResDto.from(roadmapNodeReferenceRepository.saveAndFlush(updated));
     }
 }

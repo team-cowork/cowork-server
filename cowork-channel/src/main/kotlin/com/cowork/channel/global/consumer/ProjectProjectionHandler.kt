@@ -9,7 +9,7 @@ import team.themoment.sdk.logging.logger.logger
 import java.time.Instant
 
 @Service
-class ProjectProjectionHandler(private val repository: ProjectProjectionRepository) {
+class ProjectProjectionHandler(private val projectProjectionRepository: ProjectProjectionRepository) {
 
     @Transactional
     fun apply(payload: ProjectEventPayload) {
@@ -25,7 +25,7 @@ class ProjectProjectionHandler(private val repository: ProjectProjectionReposito
     }
 
     private fun upsert(projectId: Long, teamId: Long, occurredAt: Instant) {
-        val projection = repository.findByIdForUpdate(projectId) ?: run {
+        val projection = projectProjectionRepository.findByIdForUpdate(projectId) ?: run {
             ProjectProjection(projectId = projectId, teamId = teamId, sourceOccurredAt = occurredAt)
         }
         val existingVersion = projection.sourceOccurredAt.toProjectionPrecision()
@@ -35,11 +35,11 @@ class ProjectProjectionHandler(private val repository: ProjectProjectionReposito
             return
         }
         projection.applyUpsert(teamId, occurredAt)
-        repository.save(projection)
+        projectProjectionRepository.save(projection)
     }
 
     private fun delete(projectId: Long, teamId: Long, occurredAt: Instant) {
-        val projection = repository.findByIdForUpdate(projectId) ?: run {
+        val projection = projectProjectionRepository.findByIdForUpdate(projectId) ?: run {
             ProjectProjection(
                 projectId = projectId,
                 teamId = teamId,
@@ -49,6 +49,6 @@ class ProjectProjectionHandler(private val repository: ProjectProjectionReposito
         }
         if (projection.sourceOccurredAt.toProjectionPrecision().isAfter(occurredAt)) return
         projection.markDeleted(occurredAt)
-        repository.save(projection)
+        projectProjectionRepository.save(projection)
     }
 }

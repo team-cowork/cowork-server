@@ -14,22 +14,22 @@ import team.themoment.sdk.exception.ExpectedException;
 
 @Component
 public class RoadmapAccessGuard {
-    private final TeamMemberProjectionRepository memberships;
-    private final RoadmapPolicyRepository policies;
-    private final ProjectionReadiness members;
-    private final ProjectionReadiness accounts;
-    private final ProjectionReadiness teams;
+    private final TeamMemberProjectionRepository teamMemberProjectionRepository;
+    private final RoadmapPolicyRepository roadmapPolicyRepository;
+    private final ProjectionReadiness teamMemberProjectionReadiness;
+    private final ProjectionReadiness accountPolicyReadiness;
+    private final ProjectionReadiness teamPolicyReadiness;
 
-    public RoadmapAccessGuard(TeamMemberProjectionRepository memberships,
-            RoadmapPolicyRepository policies,
-            @Qualifier("teamMemberProjectionReadiness") ProjectionReadiness members,
-            @Qualifier("accountPolicyReadiness") ProjectionReadiness accounts,
-            @Qualifier("teamPolicyReadiness") ProjectionReadiness teams) {
-        this.memberships = memberships;
-        this.policies = policies;
-        this.members = members;
-        this.accounts = accounts;
-        this.teams = teams;
+    public RoadmapAccessGuard(TeamMemberProjectionRepository teamMemberProjectionRepository,
+            RoadmapPolicyRepository roadmapPolicyRepository,
+            @Qualifier("teamMemberProjectionReadiness") ProjectionReadiness teamMemberProjectionReadiness,
+            @Qualifier("accountPolicyReadiness") ProjectionReadiness accountPolicyReadiness,
+            @Qualifier("teamPolicyReadiness") ProjectionReadiness teamPolicyReadiness) {
+        this.teamMemberProjectionRepository = teamMemberProjectionRepository;
+        this.roadmapPolicyRepository = roadmapPolicyRepository;
+        this.teamMemberProjectionReadiness = teamMemberProjectionReadiness;
+        this.accountPolicyReadiness = accountPolicyReadiness;
+        this.teamPolicyReadiness = teamPolicyReadiness;
     }
 
     public void requireCreatable(Long userId, RoadmapScope scope, Long ownerTeamId) {
@@ -73,8 +73,8 @@ public class RoadmapAccessGuard {
     }
 
     public boolean accountAllows(Long userId, String action) {
-        requireReady(accounts);
-        return policies.allows(0, userId, action);
+        requireReady(accountPolicyReadiness);
+        return roadmapPolicyRepository.allows(0, userId, action);
     }
 
     public void requireTeamMember(Long teamId, Long userId) {
@@ -91,8 +91,9 @@ public class RoadmapAccessGuard {
 
     public void requireTeamManager(Long userId, Long teamId) {
         requireTeamMember(teamId, userId);
-        requireReady(teams);
-        if (!policies.allows(teamId, userId, "administrator") && !policies.allows(teamId, userId, "manage_team")) {
+        requireReady(teamPolicyReadiness);
+        if (!roadmapPolicyRepository.allows(teamId, userId, "administrator")
+                && !roadmapPolicyRepository.allows(teamId, userId, "manage_team")) {
             throw new ExpectedException("팀 관리 권한이 필요합니다.", HttpStatus.FORBIDDEN);
         }
     }
@@ -104,11 +105,11 @@ public class RoadmapAccessGuard {
     }
 
     private boolean activeMember(Long teamId, Long userId) {
-        requireReady(members);
-        if (memberships.findActiveRole(teamId, userId).isPresent())
+        requireReady(teamMemberProjectionReadiness);
+        if (teamMemberProjectionRepository.findActiveRole(teamId, userId).isPresent())
             return true;
-        requireReady(members);
-        return memberships.findActiveRole(teamId, userId).isPresent();
+        requireReady(teamMemberProjectionReadiness);
+        return teamMemberProjectionRepository.findActiveRole(teamId, userId).isPresent();
     }
 
     private static void requireReady(ProjectionReadiness readiness) {

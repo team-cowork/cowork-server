@@ -46,6 +46,12 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  # 기본값 1개 스레드는 snapshot이나 GitHub 동기화가 길어지면 1분 주기 일정 리마인더를 늦춘다.
+  # 각 작업은 fixedDelay와 자체 잠금으로 자기 자신과 겹치지 않는다.
+  task:
+    scheduling:
+      pool:
+        size: 4
 management:
   endpoints:
     web:

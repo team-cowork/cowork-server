@@ -21,7 +21,7 @@ import team.themoment.sdk.exception.ExpectedException;
 public class ListRoadmapsServiceImpl implements ListRoadmapsService {
 
     private final RoadmapRepository roadmapRepository;
-    private final RoadmapAccessGuard accessGuard;
+    private final RoadmapAccessGuard roadmapAccessGuard;
 
     @Override
     @Transactional(readOnly = true)
@@ -34,7 +34,7 @@ public class ListRoadmapsServiceImpl implements ListRoadmapsService {
         String categoryFilter = category == null || category.isBlank() ? null : category;
         if (teamId != null) {
             requireScope(scope, RoadmapScope.TEAM, "teamId");
-            accessGuard.requireTeamReadable(teamId, userId);
+            roadmapAccessGuard.requireTeamReadable(teamId, userId);
             return roadmapRepository.findListByOwnerTeamId(teamId, categoryFilter)
                     .stream()
                     .map(RoadmapResDto::from)
@@ -44,7 +44,7 @@ public class ListRoadmapsServiceImpl implements ListRoadmapsService {
             requireScope(scope, RoadmapScope.PROJECT, "projectId");
             return roadmapRepository.findListByOwnerProjectId(projectId, categoryFilter)
                     .stream()
-                    .filter(roadmap -> accessGuard.canReadTeam(roadmap.getOwnerTeamId(), userId))
+                    .filter(roadmap -> roadmapAccessGuard.canReadTeam(roadmap.getOwnerTeamId(), userId))
                     .map(RoadmapResDto::from)
                     .toList();
         }

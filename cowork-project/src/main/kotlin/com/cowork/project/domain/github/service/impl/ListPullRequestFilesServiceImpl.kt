@@ -9,8 +9,8 @@ import org.springframework.transaction.annotation.Transactional
 
 @Service
 class ListPullRequestFilesServiceImpl(
-    private val repoAccessResolver: GithubRepoAccessResolver,
-    private val pullRequestReader: GithubPullRequestReader,
+    private val githubRepoAccessResolver: GithubRepoAccessResolver,
+    private val githubPullRequestReader: GithubPullRequestReader,
 ) : ListPullRequestFilesService {
 
     @Transactional(readOnly = true)
@@ -20,7 +20,7 @@ class ListPullRequestFilesServiceImpl(
         repoId: Long,
         prNumber: Int,
     ): List<GithubPullRequestFileResDto> {
-        val repo = repoAccessResolver.resolveForRead(userId, projectId, repoId)
-        return pullRequestReader.listFiles(repo.owner, repo.repo, prNumber)
+        val repo = githubRepoAccessResolver.resolveForRead(userId, projectId, repoId)
+        return githubPullRequestReader.listFiles(repo.owner, repo.repo, prNumber)
     }
 }
