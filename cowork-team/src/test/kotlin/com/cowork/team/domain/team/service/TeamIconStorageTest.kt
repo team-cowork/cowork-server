@@ -62,14 +62,14 @@ class TeamIconStorageTest :
                 }
             }
 
-            describe("validateIconUrl 메서드는") {
+            describe("extractObjectKey 메서드는") {
                 it("같은 공개 주소의 채팅 첨부나 프로필도 거부한다") {
                     listOf(
                         "chat-files/1/42/file.png",
                         "profiles/42/file.png",
                         "team-icons/../secret.png",
                     ).forEach { key ->
-                        shouldThrow<ExpectedException> { service.validateIconUrl("$publicBaseUrl/$key") }
+                        shouldThrow<ExpectedException> { service.extractObjectKey("$publicBaseUrl/$key") }
                             .statusCode shouldBe HttpStatus.BAD_REQUEST
                     }
                 }
@@ -77,7 +77,7 @@ class TeamIconStorageTest :
                 context("팀이 관리하는 공개 URL이 아니면") {
                     it("BAD_REQUEST로 거부한다") {
                         val error = shouldThrow<ExpectedException> {
-                            service.validateIconUrl("https://attacker.example/icon.png")
+                            service.extractObjectKey("https://attacker.example/icon.png")
                         }
 
                         error.statusCode shouldBe HttpStatus.BAD_REQUEST

@@ -3,6 +3,7 @@ package com.cowork.team.domain.team.presentation.controller
 import com.cowork.team.domain.team.presentation.data.request.TransferTeamOwnershipRequest
 import com.cowork.team.domain.team.presentation.data.response.TeamResponse
 import com.cowork.team.domain.team.service.TransferTeamOwnershipService
+import com.cowork.team.global.openapi.TeamErrorResponses
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
@@ -16,8 +17,9 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RestController
 
-@RestController
 @Tag(name = "팀")
+@TeamErrorResponses
+@RestController
 class TeamOwnershipController(private val transferTeamOwnershipService: TransferTeamOwnershipService) {
     @PutMapping("/teams/{teamId}/ownership")
     @Operation(
