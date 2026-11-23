@@ -939,6 +939,13 @@ export class MessageRepository {
 	}
 
 	/**
+    이 `clientMessageId`로 저장된 메시지가 있는지 확인합니다. `clientMessageId` 유니크 인덱스를 사용합니다.
+    */
+	async existsByClientMessageId(clientMessageId: string): Promise<boolean> {
+		return (await this.messageModel.exists({clientMessageId})) !== null;
+	}
+
+	/**
     업로드를 연결한 메시지가 이 객체를 첨부로 갖는지 확인합니다. `clientMessageId` 유니크 인덱스를 사용합니다.
     */
 	async referencesAttachment(clientMessageId: string, objectKey: string): Promise<boolean> {

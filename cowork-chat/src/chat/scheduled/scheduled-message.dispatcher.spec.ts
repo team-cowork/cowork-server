@@ -1,4 +1,4 @@
-import {ConflictException, ForbiddenException} from '@nestjs/common';
+import {ConflictException, ForbiddenException, ServiceUnavailableException} from '@nestjs/common';
 import {Types} from 'mongoose';
 import {type ClaimedScheduledMessage} from './scheduled-message.repository.js';
 import {ScheduledMessageDispatcher} from './scheduled-message.dispatcher.js';
@@ -41,7 +41,9 @@ describe('ScheduledMessageDispatcher', () => {
 		claimUnfinalized: jest.fn(),
 		markSent: jest.fn(),
 		markRetry: jest.fn(),
+		deferPublish: jest.fn(),
 		markFailed: jest.fn(),
+		markDelivered: jest.fn(),
 		markFinalized: jest.fn(),
 	};
 	const chatService = {requireSendable: jest.fn()};
@@ -54,6 +56,7 @@ describe('ScheduledMessageDispatcher', () => {
 	const attachmentDeletions = {record: jest.fn()};
 	const objectStorageService = {releaseUploads: jest.fn()};
 	const projectionReadiness = {isReady: jest.fn()};
+	const messages = {existsByClientMessageId: jest.fn()};
 	let dispatcher: ScheduledMessageDispatcher;
 
 	beforeEach(() => {
@@ -64,6 +67,7 @@ describe('ScheduledMessageDispatcher', () => {
 		channelProjectionRepository.findById.mockResolvedValue({channelId: 1});
 		chatService.requireSendable.mockResolvedValue({teamId: 10, projectId: null});
 		projectionReadiness.isReady.mockReturnValue(true);
+		messages.existsByClientMessageId.mockResolvedValue(false);
 		dispatcher = new ScheduledMessageDispatcher();
 		Object.assign(dispatcher, {
 			repository,
@@ -77,6 +81,7 @@ describe('ScheduledMessageDispatcher', () => {
 			attachmentDeletions,
 			objectStorageService,
 			projectionReadiness,
+			messages,
 		});
 	});
 
@@ -153,7 +158,7 @@ describe('ScheduledMessageDispatcher', () => {
 			expect(repository.markFailed).toHaveBeenCalledWith(expect.anything(), 'CHANNEL_ARCHIVED', expect.any(Date));
 		});
 
-		it('발행이 일시적으로 실패하면 예약을 되돌리고 전송 간격과 멘션 예약을 푼다', async () => {
+		it('발행이 실패하면 수정과 취소를 막도록 발송 중으로 둔 채 재시도를 미루고 전송 간격과 멘션 예약을 푼다', async () => {
 			const message = scheduled();
 			repository.claimDue.mockResolvedValueOnce([message]);
 			slowmodeService.reserve.mockResolvedValue('slowmode');
@@ -164,8 +169,20 @@ describe('ScheduledMessageDispatcher', () => {
 
 			expect(slowmodeService.release).toHaveBeenCalledWith('slowmode');
 			expect(tagSpamService.release).toHaveBeenCalledWith('tag-spam');
-			expect(repository.markRetry).toHaveBeenCalledWith(message._id, 'claim-1', expect.any(Date), 'kafka unavailable');
+			expect(repository.deferPublish).toHaveBeenCalledWith(message._id, 'claim-1', expect.any(Date), 'kafka unavailable');
+			expect(repository.markRetry).not.toHaveBeenCalled();
 			expect(repository.markFailed).not.toHaveBeenCalled();
+		});
+
+		it('발행 전 검사의 일시 오류는 작성자가 고칠 수 있게 대기 상태로 되돌린다', async () => {
+			const message = scheduled();
+			repository.claimDue.mockResolvedValueOnce([message]);
+			chatService.requireSendable.mockRejectedValue(new ServiceUnavailableException());
+
+			await dispatcher.runCycle(NOW);
+
+			expect(repository.markRetry).toHaveBeenCalledWith(message._id, 'claim-1', expect.any(Date), expect.any(String));
+			expect(repository.deferPublish).not.toHaveBeenCalled();
 		});
 
 		it('권한 projection이 준비되지 않았으면 예약을 점유하지 않는다', async () => {
@@ -214,6 +231,20 @@ describe('ScheduledMessageDispatcher', () => {
 			expect(repository.markFinalized).toHaveBeenCalledWith(message, expect.any(Date), expect.any(Date));
 			const [, finalizedAt, expiresAt] = repository.markFinalized.mock.calls[0] as [unknown, Date, Date];
 			expect(expiresAt).toEqual(finalizedAt);
+		});
+
+		it('실패나 취소로 바뀐 예약이 이미 저장되었으면 첨부를 회수하거나 알리지 않고 발송한 예약으로 바꾼다', async () => {
+			const message = scheduled({status: 'FAILED', failureReason: 'DM_BLOCKED', attachments: [attachment]});
+			repository.claimUnfinalized.mockResolvedValueOnce([message]);
+			messages.existsByClientMessageId.mockResolvedValue(true);
+
+			await dispatcher.runCycle(NOW);
+
+			expect(messages.existsByClientMessageId).toHaveBeenCalledWith('scheduled:client-1');
+			expect(repository.markDelivered).toHaveBeenCalledWith(message, expect.any(Date));
+			expect(attachmentDeletions.record).not.toHaveBeenCalled();
+			expect(notificationProducer.send).not.toHaveBeenCalled();
+			expect(repository.markFinalized).not.toHaveBeenCalled();
 		});
 
 		it('첨부 회수나 알림이 실패하면 끝났다고 기록하지 않아 점유가 끝난 뒤 다시 한다', async () => {

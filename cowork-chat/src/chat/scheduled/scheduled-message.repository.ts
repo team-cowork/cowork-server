@@ -121,12 +121,37 @@ export class ScheduledMessageRepository {
 	}
 
 	/**
-    일시 오류로 보내지 못한 예약을 대기 상태로 되돌린다. 작성자는 재시도 사이에 수정하거나 취소할 수 있다.
+    발행 전 검사에서 일시 오류가 난 예약을 대기 상태로 되돌린다. 작성자는 재시도 사이에 수정하거나 취소할 수 있다.
     */
 	async markRetry(id: Types.ObjectId, claimId: string, nextAttemptAt: Date, error: string): Promise<void> {
 		await this.model.updateOne(
 			{_id: id, claimId, status: 'DISPATCHING'},
 			{$set: {status: 'PENDING', nextAttemptAt, lastError: error}, $inc: {attempts: 1}},
+		);
+	}
+
+	/**
+    발행에서 오류가 난 예약을 발송 중 상태로 두고 재시도 시각만 미룬다. 브로커에는 기록되었을 수 있으므로
+    작성자가 수정하거나 취소하지 못하게 한다. 다시 발행해도 같은 `clientMessageId`라 한 번만 저장된다.
+    */
+	async deferPublish(id: Types.ObjectId, claimId: string, nextAttemptAt: Date, error: string): Promise<void> {
+		await this.model.updateOne(
+			{_id: id, claimId, status: 'DISPATCHING'},
+			{$set: {nextAttemptAt, lastError: error}, $inc: {attempts: 1}},
+		);
+	}
+
+	/**
+    실패하거나 취소한 예약이 실제로는 저장되었으면 발송한 예약으로 바꾼다. 점유 뒤 상태가 바뀌었으면 바꾸지 않는다.
+    */
+	async markDelivered({_id: id, claimId, status}: Pick<ClaimedScheduledMessage, '_id' | 'claimId' | 'status'>, expiresAt: Date): Promise<void> {
+		await this.model.updateOne(
+			{_id: id, claimId, status},
+			{
+				$set: {
+					status: 'SENT', failureReason: null, failedAt: null, lastError: null, expiresAt,
+				},
+			},
 		);
 	}
 

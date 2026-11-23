@@ -11,7 +11,7 @@ import {ObjectStorageService} from '../../storage/object-storage.service.js';
 import {ChatService} from '../chat.service.js';
 import {ChatMessageProducer} from '../kafka/chat-message.producer.js';
 import {NotificationTriggerProducer} from '../kafka/notification-trigger.producer.js';
-import {AttachmentDeletionRepository, ChannelProjectionRepository} from '../repository/index.js';
+import {AttachmentDeletionRepository, ChannelProjectionRepository, MessageRepository} from '../repository/index.js';
 import {
 	ChannelMessageReadAccessService,
 	SlowmodeService,
@@ -51,6 +51,7 @@ type ClaimBatch = (now: Date, leaseMs: number, batchSize: number) => Promise<Cla
  발송 시각이 된 예약 메시지를 일반 메시지와 같은 Kafka 경로로 발행하는 워커.
 
  발송할 때 채널 존재, 작성자의 권한, 채널 보관 여부, DM 차단을 다시 검사한다. 검사에 실패하면 예약을 FAILED로 바꾼다.
+ 발행 오류는 브로커에 기록되었을 수 있으므로 예약을 DISPATCHING으로 두고 다시 발행한다.
  실패하거나 취소한 예약은 후처리 단계에서 첨부를 회수 대상으로 넘기고, 실패면 `notification.trigger`로 작성자에게 알린다.
  후처리를 끝내야 완료 시각을 기록하므로, 중간에 실패하거나 프로세스가 죽어도 점유가 끝나면 다시 한다.
  */
@@ -93,6 +94,9 @@ export class ScheduledMessageDispatcher implements OnModuleInit, OnModuleDestroy
 	@inject()
 	private readonly projectionReadiness!: ProjectionReadinessService;
 
+	@inject()
+	private readonly messages!: MessageRepository;
+
 	private async publish(message: ClaimedScheduledMessage, scope: MessageScope): Promise<void> {
 		const {channelId, authorId, clientMessageId} = message;
 		const slowmodeReservation = await this.slowmodeService.reserve(channelId, scope.teamId, authorId, clientMessageId);
@@ -129,7 +133,8 @@ export class ScheduledMessageDispatcher implements OnModuleInit, OnModuleDestroy
 		}
 
 		this.logger.warn(`Scheduled message dispatch failed, will retry [scheduledMessageId=${message._id.toHexString()}, attempts=${message.attempts + 1}]`, error);
-		await this.repository.markRetry(message._id, message.claimId, outcome.nextAttemptAt, describeDispatchError(error));
+		const retry = [message._id, message.claimId, outcome.nextAttemptAt, describeDispatchError(error)] as const;
+		await (stage === 'PUBLISH' ? this.repository.deferPublish(...retry) : this.repository.markRetry(...retry));
 	}
 
 	private async dispatch(message: ClaimedScheduledMessage, now: Date): Promise<void> {
@@ -201,6 +206,12 @@ export class ScheduledMessageDispatcher implements OnModuleInit, OnModuleDestroy
 
 	private async finalize(message: ClaimedScheduledMessage, now: Date): Promise<void> {
 		try {
+			// 발행 결과를 모른 채 실패했거나, 발행 후 SENT 기록 전에 실패한 예약은 저장되었을 수 있다. 저장된 메시지의 첨부를 지우지 않는다.
+			if (await this.messages.existsByClientMessageId(message.clientMessageId)) {
+				await this.repository.markDelivered(message, new Date(now.getTime() + SENT_RETENTION_MS));
+				return;
+			}
+
 			await this.releaseAttachments(message);
 			if (message.status === 'FAILED') {
 				await this.notifyFailure(message, now);
