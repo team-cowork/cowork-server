@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.servlet.resource.NoResourceFoundException
 import team.themoment.sdk.exception.ExpectedException
+import org.springframework.web.ErrorResponse as SpringErrorResponse
 
 @RestControllerAdvice
 class GlobalExceptionHandler {
@@ -53,6 +54,14 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception::class)
     fun handleInternal(e: Exception): ResponseEntity<ErrorResponse> {
+        if (e is SpringErrorResponse) {
+            if (e.statusCode.is5xxServerError) {
+                log.error("Failed to process an HTTP request", e)
+            }
+            return ResponseEntity.status(e.statusCode)
+                .headers(e.headers)
+                .body(ErrorResponse("요청을 처리할 수 없습니다."))
+        }
         log.error("처리되지 않은 예외 발생", e)
         return ResponseEntity.internalServerError().body(ErrorResponse("서버 오류가 발생했습니다."))
     }
