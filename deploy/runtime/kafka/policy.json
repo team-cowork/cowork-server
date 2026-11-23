@@ -7,20 +7,6 @@
         "retention.ms": "604800000"
       }
     },
-    "user.identity.command-result": {
-      "partitions": 1,
-      "config": {
-        "cleanup.policy": "delete",
-        "retention.ms": "604800000"
-      }
-    },
-    "user.identity.command-result-dlt": {
-      "partitions": 1,
-      "config": {
-        "cleanup.policy": "delete",
-        "retention.ms": "604800000"
-      }
-    },
     "user.profile.event.v2": {
       "partitions": 1,
       "config": {
@@ -448,13 +434,6 @@
         "retention.ms": "604800000"
       }
     },
-    "user.identity.command.v2": {
-      "partitions": 1,
-      "config": {
-        "cleanup.policy": "delete",
-        "retention.ms": "604800000"
-      }
-    },
     "channel.meeting-note-attachments.state.v1": {
       "partitions": 1,
       "config": {
@@ -533,10 +512,7 @@
     "cowork-authorization": {
       "topics": [
         "user.data.sync",
-        "user.identity.command-result",
-        "user.identity.command-result-dlt",
         "user.presence.event",
-        "user.identity.command.v2",
         "user.identity.command.v3",
         "user.identity.result.v2",
         "user.identity.result.v2-dlt"
@@ -737,13 +713,10 @@
     "cowork-user": {
       "topics": [
         "user.data.sync",
-        "user.identity.command-result",
-        "user.identity.command-result-dlt",
         "user.profile.event.v2",
         "user.presence.event",
         "team.member.event",
         "team.member.event-dlt",
-        "user.identity.command.v2",
         "user.identity.command.v3",
         "user.identity.result.v2"
       ]
