@@ -54,11 +54,10 @@ class ProjectRoleHandler(
             ctx.response().setStatusCode(400).end(errorBody("Invalid JSON body"))
             return
         }
-        val roleName = runCatching { body.getString("roleName") }.getOrElse {
-            ctx.response().setStatusCode(400).end(errorBody("roleName은 문자열이어야 합니다."))
-            return
-        } ?: run {
-            ctx.response().setStatusCode(400).end(errorBody("roleName is required"))
+        val rawRoleName = body.getValue("roleName")
+        val roleName = rawRoleName as? String ?: run {
+            val message = if (rawRoleName == null) "roleName is required" else "roleName은 문자열이어야 합니다."
+            ctx.response().setStatusCode(400).end(errorBody(message))
             return
         }
         val permissions = runCatching { body.getJsonObject("permissions") ?: JsonObject() }.getOrNull() ?: run {
