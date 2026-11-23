@@ -49,8 +49,6 @@ import {
 	type ChannelActionPermission,
 	ChannelMessageReadAccessService,
 	ChannelReadService,
-	// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-	ChatMessageLatencyMetricsService,
 	SlowmodeService,
 	TagSpamService,
 	type TagSpamReservation,
@@ -194,10 +192,6 @@ export class ChatService {
 
 	@inject()
 	private readonly channelReadService!: ChannelReadService;
-
-	// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-	@inject()
-	private readonly latencyMetrics!: ChatMessageLatencyMetricsService;
 
 	/**
      DM 메시지 전송 가능 여부를 검사한다.
@@ -667,8 +661,6 @@ export class ChatService {
      실제 저장과 Socket.IO 브로드캐스트는 `ChatMessageConsumer`가 처리한다.
      */
 	async sendMessage(ctx: ChannelUserContext, dto: SendMessageDto): Promise<void> {
-		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-		const acceptStartedAt = performance.now();
 		// 첨부파일만 보내는 메시지는 본문이 비어도 되지만, 그 밖의 메시지는 공백만으로 저장될 수 없다.
 		const attachmentCount = dto.attachments?.length ?? 0;
 		if (attachmentCount === 0 && dto.content.trim() === '') {
@@ -729,8 +721,6 @@ export class ChatService {
 				threadId,
 				clientMessageId,
 			}, ctx.userId);
-			// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-			this.latencyMetrics.record('accept', acceptStartedAt, performance.now());
 		} catch (error) {
 			await Promise.all([
 				this.slowmodeService.release(slowmodeReservation),
