@@ -32,6 +32,10 @@ const (
 	teamLifecycleSnapshotSource = "cowork-team"
 )
 
+// projectionLagGrace keeps an already-ready projection ready while it catches up to
+// the high-watermark seen when the lag began, as Chat does.
+const projectionLagGrace = 30 * time.Second
+
 var snapshotIDPattern = regexp.MustCompile(
 	`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$`,
 )
@@ -841,10 +845,17 @@ func (c *ProjectionConsumer) monitorBarrier(
 ) {
 	ticker := time.NewTicker(barrierPollInterval)
 	defer ticker.Stop()
+	// wasReady is true only when the previous poll published ready in readyEpoch.
+	// A state gap changes the epoch, so it never inherits the lag grace.
+	wasReady := false
+	var readyEpoch uint64
+	var lagTargets map[projection.TopicPartition]projectionOffsetRange
+	var lagSince time.Time
 	for {
 		readinessEpoch := c.currentReadinessEpoch()
 		currentRanges, rangeErr := c.snapshotter.Snapshot(ctx, c.topics.all())
 		if rangeErr != nil {
+			wasReady, lagTargets = false, nil
 			c.readiness.Set(false)
 			if ctx.Err() == nil {
 				slog.Error("projection current high-watermark check failed; retrying", "err", rangeErr)
@@ -865,10 +876,32 @@ func (c *ProjectionConsumer) monitorBarrier(
 				partitions = append(partitions, partition)
 			}
 			checkpoints, err := c.store.LoadCheckpoints(ctx, c.groupID, partitions)
-			c.publishReadiness(
-				readinessEpoch,
-				err == nil && projectionBarrierComplete(currentRanges, checkpoints),
-			)
+			ready := false
+			now := time.Now()
+			switch {
+			case err != nil || !projectionCheckpointsValid(currentRanges, checkpoints):
+				lagTargets = nil
+			case projectionCheckpointsReached(currentRanges, checkpoints):
+				ready, lagTargets = true, nil
+			case !wasReady || readyEpoch != readinessEpoch:
+				lagTargets = nil
+			case lagTargets == nil || projectionCheckpointsReached(lagTargets, checkpoints):
+				// Continuous writes keep the current high-watermark ahead, so reaching the
+				// previous target counts as keeping up and starts a new grace window.
+				ready, lagTargets, lagSince = true, currentRanges, now
+			case now.Sub(lagSince) < projectionLagGrace:
+				ready = true
+			default:
+				lagTargets = nil
+				if ctx.Err() == nil {
+					slog.Warn(
+						"close projection readiness after lag grace expired",
+						"grace", projectionLagGrace,
+					)
+				}
+			}
+			wasReady = c.publishReadiness(readinessEpoch, ready)
+			readyEpoch = readinessEpoch
 			if err != nil && ctx.Err() == nil {
 				slog.Error("projection barrier check failed; retrying", "err", err)
 			}
@@ -895,13 +928,14 @@ func (c *ProjectionConsumer) currentReadinessEpoch() uint64 {
 	return c.readinessEpoch
 }
 
-func (c *ProjectionConsumer) publishReadiness(epoch uint64, ready bool) {
+func (c *ProjectionConsumer) publishReadiness(epoch uint64, ready bool) bool {
 	c.readinessMu.Lock()
 	defer c.readinessMu.Unlock()
 	if epoch != c.readinessEpoch {
 		ready = false
 	}
 	c.readiness.Set(ready)
+	return ready
 }
 
 func (c *ProjectionConsumer) Close() error {
@@ -915,18 +949,33 @@ func (c *ProjectionConsumer) Close() error {
 	return err
 }
 
-func projectionBarrierComplete(
+// projectionCheckpointsValid checks every barrier condition except lag:
+// a checkpoint may trail the high-watermark, but nothing else may be wrong.
+func projectionCheckpointsValid(
 	ranges map[projection.TopicPartition]projectionOffsetRange,
 	checkpoints map[projection.TopicPartition]projection.CheckpointState,
 ) bool {
 	for partition, offsetRange := range ranges {
 		checkpoint, found := checkpoints[partition]
 		if !found || offsetRange.TopicID == "" || checkpoint.TopicID != offsetRange.TopicID ||
-			checkpoint.NextOffset != offsetRange.End || checkpoint.InvalidRecordOffset != nil {
+			checkpoint.NextOffset > offsetRange.End || checkpoint.InvalidRecordOffset != nil {
 			return false
 		}
 		markerOffset := checkpoint.SnapshotCompletedOffset
 		if markerOffset == nil || *markerOffset < offsetRange.First || *markerOffset >= checkpoint.NextOffset {
+			return false
+		}
+	}
+	return true
+}
+
+func projectionCheckpointsReached(
+	targets map[projection.TopicPartition]projectionOffsetRange,
+	checkpoints map[projection.TopicPartition]projection.CheckpointState,
+) bool {
+	for partition, target := range targets {
+		checkpoint, found := checkpoints[partition]
+		if !found || checkpoint.NextOffset < target.End {
 			return false
 		}
 	}
