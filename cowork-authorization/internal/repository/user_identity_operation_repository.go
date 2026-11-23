@@ -18,7 +18,6 @@ var (
 	ErrIdentityCommandConflict = errors.New("identity command idempotency conflict")
 	ErrIdentityResultConflict  = fmt.Errorf("%w: conflicting result", domain.ErrIdentityResultRejected)
 	ErrIdentityResultUnknown   = fmt.Errorf("%w: unknown operation", domain.ErrIdentityResultRejected)
-	ErrIdentityResultUserID    = fmt.Errorf("%w: userId mismatch", domain.ErrIdentityResultRejected)
 )
 
 type UserIdentityOperationRepository struct {
@@ -125,7 +124,8 @@ func (r *UserIdentityOperationRepository) ApplyResult(
 			}
 			return err
 		}
-		if (operation.LegacyUserID != nil) != (result.SchemaVersion == 1) {
+		// Operations submitted with a retired command version can no longer receive a result.
+		if operation.LegacyUserID != nil {
 			return ErrIdentityResultConflict
 		}
 		if operation.ResultHash != nil {
@@ -145,9 +145,6 @@ func (r *UserIdentityOperationRepository) ApplyResult(
 			"completed_at": completedAt,
 		}
 		if result.Status == domain.UserIdentitySucceeded {
-			if operation.LegacyUserID != nil && *result.UserID != *operation.LegacyUserID {
-				return ErrIdentityResultUserID
-			}
 			updates["result_user_id"] = *result.UserID
 			updates["result_email"] = result.Email
 			updates["result_gsm_role"] = result.GsmRole
