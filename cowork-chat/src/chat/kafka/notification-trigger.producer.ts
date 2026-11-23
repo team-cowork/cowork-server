@@ -39,6 +39,10 @@ export type NotificationTriggerEvent = {
 		authorId: number;
 		content: string;
 		/**
+        예약 메시지 발송 실패 사유. `SCHEDULED_MESSAGE_FAILED` 알림에만 있다.
+        */
+		reason?: string;
+		/**
         이벤트 발생 시각 (ISO 8601, 서버 기준)
         */
 		occurredAt: string;
