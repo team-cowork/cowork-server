@@ -16,6 +16,7 @@ var ErrIdentityResultRejected = errors.New("identity command result permanently 
 
 const (
 	UserIdentityCommandSchemaVersion = 3
+	UserIdentityResultSchemaVersion  = 2
 	UserIdentityCommandUpsert        = "UPSERT"
 	UserIdentityPending              = "PENDING"
 	UserIdentitySucceeded            = "SUCCEEDED"
@@ -156,8 +157,8 @@ func validText(value string, max int) bool {
 }
 
 func ValidateUserIdentityCommandResult(result UserIdentityCommandResult) error {
-	if result.SchemaVersion != 1 && result.SchemaVersion != 2 {
-		return fmt.Errorf("unsupported result schemaVersion")
+	if result.SchemaVersion != UserIdentityResultSchemaVersion {
+		return fmt.Errorf("result schemaVersion must be 2")
 	}
 	if !ValidUUID(result.OperationID) {
 		return fmt.Errorf("operationId must be a canonical UUID")
@@ -165,8 +166,7 @@ func ValidateUserIdentityCommandResult(result UserIdentityCommandResult) error {
 	if result.OccurredAt.IsZero() {
 		return fmt.Errorf("occurredAt must not be zero")
 	}
-	needsClaims := result.SchemaVersion == 2 && result.Status == UserIdentitySucceeded
-	if needsClaims {
+	if result.Status == UserIdentitySucceeded {
 		if result.Email == nil || !validText(*result.Email, 255) || result.GsmRole == nil || utf8.RuneCountInString(*result.GsmRole) > 50 {
 			return errors.New("missing or invalid committed session claims")
 		}

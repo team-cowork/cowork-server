@@ -466,12 +466,6 @@ public static partial class Accounts
             WHERE provider = @Provider AND provider_subject = @ProviderSubject FOR UPDATE
             """, new { command.Provider, command.ProviderSubject }, transaction).FirstOrNullAsync();
         var id = binding?.Id;
-        if (!command.IsProviderCommand)
-        {
-            var requested = await connection.QuerySingleOrDefaultAsync<long?>(
-                "SELECT id FROM tb_accounts WHERE id = @UserId FOR UPDATE", new { command.UserId }, transaction);
-            if (!CanApplyDataGsmIdentity(requested, id)) return null;
-        }
 
         if (binding is { } existing && !CanApplyLoginCommand(existing.LastCommandAt, command.OccurredAt))
             return await ReadSessionIdentityAsync(connection, transaction, existing.Id);
@@ -484,11 +478,10 @@ public static partial class Accounts
             if (isNew)
             {
                 id = await connection.ExecuteScalarAsync<long>("""
-                    INSERT INTO tb_accounts (id, name, email, github, presence_updated_at)
-                    VALUES (@requested, @Name, @Email, @github, '1970-01-01 00:00:00');
-                    SELECT COALESCE(@requested, LAST_INSERT_ID());
-                    """, new { requested = command.UserId,
-                        command.Name, command.Email, github = NullIfBlank(command.GithubId) }, transaction);
+                    INSERT INTO tb_accounts (name, email, github, presence_updated_at)
+                    VALUES (@Name, @Email, @github, '1970-01-01 00:00:00');
+                    SELECT LAST_INSERT_ID();
+                    """, new { command.Name, command.Email, github = NullIfBlank(command.GithubId) }, transaction);
                 await connection.ExecuteAsync("""
                     INSERT INTO tb_account_identities (account_id, provider, provider_subject) VALUES (@id, @Provider, @ProviderSubject);
                     INSERT INTO tb_profiles (account_id) VALUES (@id);
@@ -540,11 +533,6 @@ public static partial class Accounts
             SELECT a.id AS UserId, a.email AS Email, COALESCE(s.student_role, '') AS GsmRole
             FROM tb_accounts a LEFT JOIN tb_gsm_student_info s ON s.account_id = a.id WHERE a.id = @userId FOR SHARE
             """, new { userId }, transaction);
-
-    // V2 commands use the provider number as the Cowork ID. An occupied ID
-    // can only be updated by the DataGSM identity already bound to it.
-    internal static bool CanApplyDataGsmIdentity(long? existingAccountId, long? identityOwner) =>
-        existingAccountId == identityOwner;
 
     static string? NullIfBlank(string? value) => value is null || value.Trim() == "" ? null : value;
 

@@ -15,6 +15,7 @@ const (
 	ProviderCommandTopic          = "user.identity.command.v3"
 	ProviderResultTopic           = "user.identity.result.v2"
 	ProviderResultGroup           = "cowork-authorization.user-identity-result.v2"
+	ProviderResultDLT             = ProviderResultTopic + "-dlt"
 	defaultJWTAccessExpire        = "30m"
 	defaultJWTRefreshExpire       = "2160h"
 	defaultIdentityCommandTimeout = "5s"
@@ -35,13 +36,10 @@ type AppConfig struct {
 	RedisHost               string
 	RedisPort               string
 
-	KafkaBootstrapServers               string
-	KafkaTopicUserSync                  string
-	KafkaTopicUserIdentityCommandResult string
-	KafkaTopicUserIdentityResultDLT     string
-	KafkaGroupIDUserIdentityResult      string
-	KafkaIdentityCommandTimeout         time.Duration
-	KafkaTopicUserPresence              string
+	KafkaBootstrapServers       string
+	KafkaTopicUserSync          string
+	KafkaIdentityCommandTimeout time.Duration
+	KafkaTopicUserPresence      string
 
 	JWTSecret        string
 	JWTAccessExpire  time.Duration
@@ -66,22 +64,19 @@ func Load() (*AppConfig, error) {
 		return nil, fmt.Errorf("invalid KAFKA_IDENTITY_COMMAND_TIMEOUT")
 	}
 	cfg := &AppConfig{
-		KafkaSecurity:                       security,
-		Port:                                getEnvOrDefault("PORT", "8081"),
-		DataGSMClientID:                     os.Getenv("DATAGSM_CLIENT_ID"),
-		DataGSMAuthorizationURL:             getEnvOrDefault("DATAGSM_AUTHORIZATION_BASE_URL", "https://oauth.authorization.datagsm.kr"),
-		DataGSMResourceURL:                  getEnvOrDefault("DATAGSM_RESOURCE_BASE_URL", "https://oauth.resource.datagsm.kr"),
-		DataGSMWebhookSecret:                os.Getenv("DATAGSM_WEBHOOK_SECRET"),
-		RedisHost:                           os.Getenv("REDIS_HOST"),
-		RedisPort:                           os.Getenv("REDIS_PORT"),
-		KafkaBootstrapServers:               os.Getenv("KAFKA_BOOTSTRAP_SERVERS"),
-		KafkaTopicUserSync:                  getEnvOrDefault("KAFKA_TOPIC_USER_SYNC", "user.data.sync"),
-		KafkaTopicUserIdentityCommandResult: getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT", "user.identity.command-result"),
-		KafkaTopicUserIdentityResultDLT:     getEnvOrDefault("KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT_DLT", "user.identity.command-result-dlt"),
-		KafkaGroupIDUserIdentityResult:      getEnvOrDefault("KAFKA_GROUP_ID_USER_IDENTITY_COMMAND_RESULT", "cowork-authorization.user-identity-command-result"),
-		KafkaIdentityCommandTimeout:         identityCommandTimeout,
-		KafkaTopicUserPresence:              getEnvOrDefault("KAFKA_TOPIC_USER_PRESENCE", "user.presence.event"),
-		JWTSecret:                           os.Getenv("JWT_SECRET"), JWTAccessExpire: accessExpire, JWTRefreshExpire: refreshExpire,
+		KafkaSecurity:               security,
+		Port:                        getEnvOrDefault("PORT", "8081"),
+		DataGSMClientID:             os.Getenv("DATAGSM_CLIENT_ID"),
+		DataGSMAuthorizationURL:     getEnvOrDefault("DATAGSM_AUTHORIZATION_BASE_URL", "https://oauth.authorization.datagsm.kr"),
+		DataGSMResourceURL:          getEnvOrDefault("DATAGSM_RESOURCE_BASE_URL", "https://oauth.resource.datagsm.kr"),
+		DataGSMWebhookSecret:        os.Getenv("DATAGSM_WEBHOOK_SECRET"),
+		RedisHost:                   os.Getenv("REDIS_HOST"),
+		RedisPort:                   os.Getenv("REDIS_PORT"),
+		KafkaBootstrapServers:       os.Getenv("KAFKA_BOOTSTRAP_SERVERS"),
+		KafkaTopicUserSync:          getEnvOrDefault("KAFKA_TOPIC_USER_SYNC", "user.data.sync"),
+		KafkaIdentityCommandTimeout: identityCommandTimeout,
+		KafkaTopicUserPresence:      getEnvOrDefault("KAFKA_TOPIC_USER_PRESENCE", "user.presence.event"),
+		JWTSecret:                   os.Getenv("JWT_SECRET"), JWTAccessExpire: accessExpire, JWTRefreshExpire: refreshExpire,
 	}
 	cfg.DevAccounts, err = ParseDevAccounts(os.Getenv("DEV_SIGNIN_ACCOUNTS"))
 	if err != nil {
