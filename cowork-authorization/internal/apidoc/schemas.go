@@ -15,7 +15,7 @@ func schemas() openapi3.Schemas {
 		"github_com_cowork_authorization_internal_apidoc.Success-internal_handler_LoginStartResponse":                        successSchema(schemaRef("internal_handler.LoginStartResponse")),
 		"github_com_cowork_authorization_internal_apidoc.Success-internal_handler_WebhookReceipt":                            successSchema(schemaRef("internal_handler.WebhookReceipt")),
 		"github_com_cowork_authorization_internal_service.TokenPair": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
-			"access_token":  &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}, Format: "jwt", Description: "로그인과 갱신으로 발급하는 액세스 JWT입니다. sub는 사용자 ID이고 gsm_role은 DataGSM 학생 역할입니다. 플랫폼 role 클레임은 발급 대상에서 제외합니다."}},
+			"access_token":  &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}, Format: "jwt", Description: "로그인과 갱신으로 발급하는 액세스 JWT입니다. sub는 사용자 ID이고 gsm_role은 DataGSM 학생 역할입니다. 학생 정보가 없는 계정의 gsm_role은 빈 문자열입니다. 플랫폼 role 클레임은 발급 대상에서 제외합니다."}},
 			"expires_in":    &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"integer"}}},
 			"refresh_token": &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}}},
 			"token_type":    &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}}},
@@ -30,8 +30,16 @@ func schemas() openapi3.Schemas {
 			Type:     &openapi3.Types{"object"}}},
 		"internal_handler.LoginStartRequest": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
 			"redirect_uri": &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}}},
+			"provider": &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}, Enum: []any{"DATAGSM", "GITHUB"}, Default: "DATAGSM",
+				Description: "GITHUB는 서버에 GitHub 로그인이 설정된 경우에만 사용할 수 있습니다."}},
 		},
 			Required: []string{"redirect_uri"},
+			Type:     &openapi3.Types{"object"}}},
+		"internal_handler.LinkStartRequest": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
+			"redirect_uri": &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}}},
+			"provider":     &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}, Enum: []any{"GITHUB"}}},
+		},
+			Required: []string{"provider", "redirect_uri"},
 			Type:     &openapi3.Types{"object"}}},
 		"internal_handler.LoginStartResponse": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
 			"authorization_url": &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}}},
