@@ -1,11 +1,9 @@
-// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다. Inject import를 지운다.
-import {Inject as inject, Injectable as injectable, Logger} from '@nestjs/common';
+import {Injectable as injectable, Logger} from '@nestjs/common';
 import {Types} from 'mongoose';
 import {Server} from 'socket.io';
 import {MessageRepository, toMessageBroadcastPayload} from '../repository/index.js';
 import {type MessageDocument} from '../schema/index.js';
-// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다. ChatMessageLatencyMetricsService import를 지운다.
-import {ChannelMessageReadAccessService, ChannelReadService, ChatMessageLatencyMetricsService} from '../service/index.js';
+import {ChannelMessageReadAccessService, ChannelReadService} from '../service/index.js';
 import {parseMentions} from '../util/index.js';
 import {ChatMessageEvent} from './event/chat-message.event.js';
 import {ChatMessageScopeValidator} from './chat-message-scope-validator.js';
@@ -31,10 +29,6 @@ export class ChatMessageProcessor {
 	private readonly logger = new Logger(ChatMessageProcessor.name);
 	private io?: Server;
 
-	// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-	@inject()
-	private readonly latencyMetrics!: ChatMessageLatencyMetricsService;
-
 	constructor(
 		private readonly messageRepository: MessageRepository,
 		private readonly channelReadService: ChannelReadService,
@@ -42,19 +36,10 @@ export class ChatMessageProcessor {
 		private readonly scopeValidator: ChatMessageScopeValidator,
 	) {}
 
-	// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다. isMeasured 인자를 지운다.
-	private async broadcast(event: ChatMessageEvent, saved: MessageDocument, isMeasured: boolean): Promise<void> {
+	private async broadcast(event: ChatMessageEvent, saved: MessageDocument): Promise<void> {
 		const messageId = saved._id.toString();
-		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-		const emitStartedAt = performance.now();
 		const wasSent = await this.channelMessageReadAccess.emitToReadableChannelUsers(this.io, event.channelId, {event: 'message', payload: toMessageBroadcastPayload(saved)});
 		if (wasSent) {
-			// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-			if (isMeasured) {
-				this.latencyMetrics.record('emit', emitStartedAt, performance.now());
-				this.latencyMetrics.record('total', Date.parse(event.occurredAt), Date.now());
-			}
-
 			// 기록이 실패해도 전송은 끝났으므로 다시 던지지 않는다. 다시 던지면 재전달로 같은 메시지를 한 번 더 보낸다.
 			await this.messageRepository.markBroadcasted(saved._id).catch((error: unknown) => {
 				this.logger.warn(`Failed to record message broadcast messageId=${messageId}: ${String(error)}`);
@@ -84,16 +69,7 @@ export class ChatMessageProcessor {
 		this.io = io;
 	}
 
-	/**
-     메시지를 재검증하고 저장한 뒤 채널에 브로드캐스트한다.
-
-     `receivedAt`(consumer가 record를 받은 시각, 밀리초)을 주면 구간별 지연을 기록한다. quarantine 재처리는 주지 않는다.
-
-     @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다. receivedAt 인자를 지운다.
-     */
-	async process(event: ChatMessageEvent, receivedAt?: number): Promise<void> {
-		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-		const processStartedAt = performance.now();
+	async process(event: ChatMessageEvent): Promise<void> {
 		await this.scopeValidator.validate(event);
 		const mentions = parseMentions(event.content);
 		this.logger.log(`message received channelId=${event.channelId} authorId=${event.authorId} type=${event.type} contentLength=${event.content.length}`);
@@ -135,13 +111,6 @@ export class ChatMessageProcessor {
 			saved = existing;
 		}
 
-		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다. 이 블록을 지우고 broadcast(event, saved)로 되돌린다.
-		const isMeasured = receivedAt !== undefined;
-		if (isMeasured) {
-			this.latencyMetrics.record('queue', Date.parse(event.occurredAt), receivedAt);
-			this.latencyMetrics.record('validate_save', processStartedAt, performance.now());
-		}
-
-		await this.broadcast(event, saved, isMeasured);
+		await this.broadcast(event, saved);
 	}
 }

@@ -61,8 +61,6 @@ import {
 	ChannelReadService,
 	SlowmodeService,
 	TagSpamService,
-	// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-	ChatMessageLatencyMetricsService,
 	ChatMessageQuarantineService,
 } from './service/index.js';
 import {UnifiedSearchResolver} from './unified-search.resolver.js';
@@ -212,8 +210,6 @@ import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consume
 		ChatMessageScopeValidator,
 		ChatMessageQuarantineRepository,
 		ChatMessageQuarantineService,
-		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-		ChatMessageLatencyMetricsService,
 		ChatMessageQuarantinePoller,
 		MessageSearchIndexRepository,
 		MessageSearchTombstoneRepository,

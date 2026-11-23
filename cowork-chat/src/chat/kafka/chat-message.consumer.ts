@@ -121,8 +121,6 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 		message: KafkaMessage,
 		heartbeat: () => Promise<void> = async () => {/* Direct calls need no Kafka heartbeat. */},
 	): Promise<void> {
-		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-		const receivedAt = Date.now();
 		const eventKey = message.key?.toString() ?? null;
 		const payload = message.value?.toString() ?? null;
 		try {
@@ -137,8 +135,7 @@ export class ChatMessageConsumer implements OnModuleInit, OnModuleDestroy {
 
 			const event = validateChatMessageEvent(JSON.parse(payload) as unknown, eventKey);
 			await waitForProjectionReadiness(this.projectionReadiness, heartbeat, CHAT_MESSAGE_REQUIRED_STREAMS);
-			// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다. receivedAt 인자를 지운다.
-			await this.processor.process(event, receivedAt);
+			await this.processor.process(event);
 		} catch (error) {
 			const classification = classifyPoisonError(error);
 			if (!classification) {
