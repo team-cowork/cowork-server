@@ -15,9 +15,6 @@ public sealed record AppConfig
     public required string KafkaBootstrapServers { get; init; }
     public required string KafkaTopic { get; init; }
     public required string KafkaGroupId { get; init; }
-    public required string KafkaIdentityCommandTopic { get; init; }
-    public required string KafkaIdentityCommandGroupId { get; init; }
-    public required string KafkaIdentityCommandResultTopic { get; init; }
     public required string KafkaTeamMemberTopic { get; init; }
     public required string KafkaTeamMemberGroupId { get; init; }
     public required string KafkaPresenceTopic { get; init; }
@@ -55,9 +52,6 @@ public sealed record AppConfig
             KafkaBootstrapServers = Required("KAFKA_BOOTSTRAP_SERVERS"),
             KafkaTopic = Optional("KAFKA_TOPIC_USER_SYNC", "user.data.sync"),
             KafkaGroupId = Optional("KAFKA_GROUP_ID", "cowork-user"),
-            KafkaIdentityCommandTopic = Optional("KAFKA_TOPIC_USER_IDENTITY_COMMAND", "user.identity.command.v2"),
-            KafkaIdentityCommandGroupId = Optional("KAFKA_GROUP_ID_USER_IDENTITY_COMMAND", "cowork-user.user-identity-command.v2"),
-            KafkaIdentityCommandResultTopic = Optional("KAFKA_TOPIC_USER_IDENTITY_COMMAND_RESULT", "user.identity.command-result"),
             KafkaTeamMemberTopic = Optional("KAFKA_TOPIC_TEAM_MEMBER", "team.member.event"),
             KafkaTeamMemberGroupId = Optional("KAFKA_GROUP_ID_TEAM_MEMBER", "cowork-user.team-member"),
             KafkaPresenceTopic = Optional("KAFKA_TOPIC_USER_PRESENCE", "user.presence.event"),
