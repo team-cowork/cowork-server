@@ -3,6 +3,7 @@ package com.cowork.team.global.exception
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.web.ErrorResponse
 import org.springframework.web.HttpRequestMethodNotSupportedException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingServletRequestParameterException
@@ -67,6 +68,15 @@ class AdditionalExceptionHandler {
 
     @ExceptionHandler(Exception::class)
     fun handleInternal(e: Exception): ResponseEntity<CommonApiResponse<Nothing>> {
+        val status = (e as? ErrorResponse)?.let { HttpStatus.resolve(it.statusCode.value()) }
+        if (e is ErrorResponse && status != null) {
+            if (status.is5xxServerError) {
+                logger().error("Failed to process an HTTP request", e)
+            }
+            return ResponseEntity.status(status)
+                .headers(e.headers)
+                .body(CommonApiResponse.error("요청을 처리할 수 없습니다.", status))
+        }
         logger().error("Caught unhandled exception", e)
         return ResponseEntity.internalServerError().body(
             CommonApiResponse.error("서버 오류가 발생했습니다.", HttpStatus.INTERNAL_SERVER_ERROR),
