@@ -115,6 +115,8 @@ describe('AttachmentCleanupPoller', () => {
 	const meetingNotes = {references: jest.fn()};
 	const readiness = {areReady: jest.fn(), isCaughtUp: jest.fn()};
 	const retentions = {claimDue: jest.fn(), remove: jest.fn()};
+	const scheduledReferences = new Set<string>();
+	const scheduledMessages = {referencesObject: async (objectKey: string) => scheduledReferences.has(objectKey)};
 
 	const messageId = new Types.ObjectId().toString();
 	const keyA = 'chat-files/1/42/a.png';
@@ -131,7 +133,10 @@ describe('AttachmentCleanupPoller', () => {
 		deletions = new FakeDeletions();
 		uploads = new FakeUploads();
 		poller = new AttachmentCleanupPoller(deletions as never, uploads as never, messages as never, storage as never);
-		Object.assign(poller, {meetingNotes, readiness, retentions});
+		Object.assign(poller, {
+			meetingNotes, readiness, retentions, scheduledMessages,
+		});
+		scheduledReferences.clear();
 		storage.objects.add(keyA);
 		storage.objects.add(keyB);
 	});
@@ -354,6 +359,44 @@ describe('AttachmentCleanupPoller', () => {
 
 			expect(storage.objects.size).toBe(2);
 			expect(uploads.rows.size).toBe(0);
+		});
+	});
+
+	describe('예약 메시지 첨부', () => {
+		const scheduledMessageId = new Types.ObjectId().toString();
+
+		it('대기 중인 예약이 참조하는 첨부는 업로드 기록이 회수되고 만료된 뒤에도 보관한다', async () => {
+			addUpload({clientMessageId: 'scheduled:client-1'});
+			scheduledReferences.add(keyA);
+
+			await poller.runCycle(at(UPLOAD_RECLAIM_AGE_MS + 1));
+			await poller.runCycle(at(100 * DAY_MS));
+
+			expect(storage.objects.has(keyA)).toBe(true);
+			expect(uploads.rows.size).toBe(0);
+		});
+
+		it('예약을 취소하면 업로드 기록이 없어도 남긴 삭제 의도로 첨부를 지운다', async () => {
+			addUpload({clientMessageId: 'scheduled:client-1'});
+			scheduledReferences.add(keyA);
+			await poller.runCycle(at(UPLOAD_RECLAIM_AGE_MS + 1));
+
+			scheduledReferences.delete(keyA);
+			deletions.record({messageId: scheduledMessageId, channelId: 1, objectKeys: [keyA]}, at(30 * DAY_MS));
+			await poller.runCycle(at(30 * DAY_MS));
+
+			expect(storage.objects.has(keyA)).toBe(false);
+			expect(deletions.rows.size).toBe(0);
+		});
+
+		it('삭제 의도가 있어도 예약이 참조하는 첨부는 지우지 않는다', async () => {
+			scheduledReferences.add(keyA);
+			deletions.record({messageId: scheduledMessageId, channelId: 1, objectKeys: [keyA, keyB]}, T0);
+
+			await poller.runCycle(T0);
+
+			expect(storage.objects.has(keyA)).toBe(true);
+			expect(storage.objects.has(keyB)).toBe(false);
 		});
 	});
 });
