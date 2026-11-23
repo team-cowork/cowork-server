@@ -2,7 +2,7 @@ package handler
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -60,7 +60,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	pair, err := h.authSvc.CompleteLogin(c.Request.Context(), session, callback)
 	if err != nil {
 		// Provider/DB errors can contain identity or unique-index values.
-		log.Printf("token exchange failed")
+		slog.Warn("token exchange failed")
 		loginError(c, err)
 		return
 	}
@@ -163,7 +163,7 @@ func (h *AuthHandler) LinkCallback(c *gin.Context) {
 	setLoginCookie(c, req.State, "", -1)
 	callback := url.Values{"state": {req.State}, "code": {req.Code}, "error": {req.Error}}
 	if err := h.authSvc.CompleteLink(c.Request.Context(), c.GetInt64(userIDKey), session, callback); err != nil {
-		log.Printf("login method link failed")
+		slog.Warn("login method link failed")
 		loginError(c, err)
 		return
 	}
@@ -230,7 +230,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 	pair, err := h.authSvc.RefreshTokens(c.Request.Context(), req.RefreshToken)
 	if err != nil {
-		log.Printf("refresh token rotation failed")
+		slog.Warn("refresh token rotation failed")
 		if errors.Is(err, service.ErrAuthenticationUnavailable) {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "authentication temporarily unavailable"})
 			return
@@ -254,7 +254,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 	userID := c.GetInt64(userIDKey)
 	if err := h.authSvc.Logout(c.Request.Context(), userID, req.RefreshToken); err != nil {
-		log.Printf("refresh token revocation failed")
+		slog.Warn("refresh token revocation failed")
 		if errors.Is(err, service.ErrAuthenticationUnavailable) {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "authentication temporarily unavailable"})
 			return
