@@ -47,6 +47,7 @@ import {
 	UserClient,
 	UnreadCounterService,
 	type ChannelActionPermission,
+	type MessageScope,
 	ChannelMessageReadAccessService,
 	ChannelReadService,
 	// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
@@ -202,9 +203,9 @@ export class ChatService {
 	/**
      DM 메시지 전송 가능 여부를 검사한다.
      수신자가 발신자를 차단했으면 `ForbiddenException`을 던지고,
-     전송 가능하면 양쪽 멤버의 숨김(isHidden) 상태를 해제해 대화 목록에 다시 노출시킨다.
+     전송 가능하고 `shouldReveal`이 참이면 양쪽 멤버의 숨김(isHidden) 상태를 해제해 대화 목록에 다시 노출시킨다.
      */
-	private async verifyDmSendable(channelId: number, senderId: number): Promise<void> {
+	private async verifyDmSendable(channelId: number, senderId: number, shouldReveal: boolean): Promise<void> {
 		const members = await this.dmParticipantRepository.findByChannelId(channelId);
 		const receiver = members.find(member => member.userId !== senderId);
 		if (!receiver) {
@@ -213,6 +214,10 @@ export class ChatService {
 
 		if (await this.blockService.isBlocked(receiver.userId, senderId)) {
 			throw new ForbiddenException('상대방이 회원님을 차단하여 메시지를 보낼 수 없습니다');
+		}
+
+		if (!shouldReveal) {
+			return;
 		}
 
 		await Promise.all([
@@ -663,25 +668,21 @@ export class ChatService {
 	}
 
 	/**
-     메시지를 Kafka `chat.message.event.v3` 토픽으로 발행한다.
-     실제 저장과 Socket.IO 브로드캐스트는 `ChatMessageConsumer`가 처리한다.
-     */
-	async sendMessage(ctx: ChannelUserContext, dto: SendMessageDto): Promise<void> {
-		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
-		const acceptStartedAt = performance.now();
-		// 첨부파일만 보내는 메시지는 본문이 비어도 되지만, 그 밖의 메시지는 공백만으로 저장될 수 없다.
-		const attachmentCount = dto.attachments?.length ?? 0;
-		if (attachmentCount === 0 && dto.content.trim() === '') {
-			throw new BadRequestException('메시지 내용을 입력하세요');
-		}
+     메시지를 보낼 수 있는지 검사하고 메시지 범위를 돌려준다. 즉시 전송, 예약 생성, 예약 발송이 같은 검사를 쓴다.
+     `revealDm`이 참이면 DM 대화를 양쪽 목록에 다시 노출한다. 실제로 보내지 않는 예약 생성에서는 거짓이다.
 
-		// `@isOptional`은 `null`도 통과시키므로, 빈 문자열과 `null`을 값이 없는 것으로 본다.
-		const parentMessageId = presentString(dto.parentMessageId);
-		const threadId = dto.threadId ?? undefined;
-		const requestedClientMessageId = presentString(dto.clientMessageId);
+     @throws ForbiddenException 권한이 없거나 DM 상대가 차단한 경우
+     @throws NotFoundException 채널, 답장 원본, 스레드가 없는 경우
+     @throws ConflictException 채널이나 스레드가 보관된 경우
+     @throws ServiceUnavailableException 채널 정보가 일치하지 않거나 projection이 준비되지 않은 경우
+     */
+	async requireSendable(
+		ctx: ChannelUserContext,
+		target: {parentMessageId?: string; threadId?: number; attachmentCount: number; revealDm: boolean},
+	): Promise<MessageScope> {
 		const permissions: ChannelActionPermission[] = [
-			sendPermission(threadId),
-			...(attachmentCount > 0 ? ['file_attach' as const] : []),
+			sendPermission(target.threadId),
+			...(target.attachmentCount > 0 ? ['file_attach' as const] : []),
 		];
 		await this.channelMessageReadAccess.requirePermissions(ctx.channelId, ctx.userId, permissions);
 		const channel = await this.channelProjectionRepository.findById(ctx.channelId);
@@ -698,10 +699,34 @@ export class ChatService {
 			throw new ServiceUnavailableException('채널 정보가 일치하지 않습니다');
 		}
 
-		await this.requireSendTarget(ctx, parentMessageId, threadId);
+		await this.requireSendTarget(ctx, target.parentMessageId, target.threadId);
 		if (channel.type === DM_CHANNEL_TYPE) {
-			await this.verifyDmSendable(ctx.channelId, ctx.userId);
+			await this.verifyDmSendable(ctx.channelId, ctx.userId, target.revealDm);
 		}
+
+		return scope;
+	}
+
+	/**
+     메시지를 Kafka `chat.message.event.v3` 토픽으로 발행한다.
+     실제 저장과 Socket.IO 브로드캐스트는 `ChatMessageConsumer`가 처리한다.
+     */
+	async sendMessage(ctx: ChannelUserContext, dto: SendMessageDto): Promise<void> {
+		// @todo 2026-11-18 KST 추가한 임시 지연 측정 코드다. 2026-12-02까지 제거한다.
+		const acceptStartedAt = performance.now();
+		// 첨부파일만 보내는 메시지는 본문이 비어도 되지만, 그 밖의 메시지는 공백만으로 저장될 수 없다.
+		const attachmentCount = dto.attachments?.length ?? 0;
+		if (attachmentCount === 0 && dto.content.trim() === '') {
+			throw new BadRequestException('메시지 내용을 입력하세요');
+		}
+
+		// `@isOptional`은 `null`도 통과시키므로, 빈 문자열과 `null`을 값이 없는 것으로 본다.
+		const parentMessageId = presentString(dto.parentMessageId);
+		const threadId = dto.threadId ?? undefined;
+		const requestedClientMessageId = presentString(dto.clientMessageId);
+		const scope = await this.requireSendable(ctx, {
+			parentMessageId, threadId, attachmentCount, revealDm: true,
+		});
 
 		if (requestedClientMessageId === undefined && attachmentCount > 0) {
 			throw new BadRequestException('첨부 메시지에는 재시도에 사용할 clientMessageId가 필요합니다');
