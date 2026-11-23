@@ -4,7 +4,7 @@ import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.entity.TeamIconUpload
 import com.cowork.team.domain.team.presentation.data.response.IconPresignedUrlResponse
 import com.cowork.team.domain.team.repository.TeamIconUploadRepository
-import com.cowork.team.global.support.afterCommit
+import com.cowork.team.global.afterCommit
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional

@@ -1,5 +1,8 @@
 package com.cowork.team.global.projection
 
+import org.springframework.modulith.NamedInterface
+
+@NamedInterface("projection", propagate = false)
 data class ProjectionStream(val consumerGroup: String, val topic: String, val expectedSource: String?)
 
 data class ProjectionCheckpoint(

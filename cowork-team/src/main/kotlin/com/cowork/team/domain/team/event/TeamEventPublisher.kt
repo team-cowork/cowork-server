@@ -5,6 +5,7 @@ import com.cowork.team.domain.team.entity.TeamEventState
 import com.cowork.team.domain.team.repository.TeamEventStateRepository
 import com.cowork.team.domain.team.repository.TeamRepository
 import com.cowork.team.global.outbox.OutboxWriter
+import com.cowork.team.global.outbox.Topics
 import jakarta.persistence.EntityManager
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
@@ -12,27 +13,25 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
 @Component
-@Transactional(propagation = Propagation.MANDATORY)
 class TeamEventPublisher(
     private val teamRepository: TeamRepository,
     private val teamEventStateRepository: TeamEventStateRepository,
     private val entityManager: EntityManager,
     private val outboxWriter: OutboxWriter,
 ) {
-    fun publishNotification(teamId: Long, event: NotificationTriggerEvent) {
-        entityManager.flush()
-        outboxWriter.enqueue(Topics.NOTIFICATION_TRIGGER, teamId.toString(), event)
-    }
-
+    @Transactional(propagation = Propagation.MANDATORY)
     fun publishCreated(team: Team, actorUserId: Long, requestedAt: Instant = Instant.now()): Instant =
         publishMutation("TEAM_CREATED", team, actorUserId, deleted = false, requestedAt = requestedAt)
 
+    @Transactional(propagation = Propagation.MANDATORY)
     fun publishUpdated(team: Team, actorUserId: Long, requestedAt: Instant = Instant.now()): Instant =
         publishMutation("TEAM_UPDATED", team, actorUserId, deleted = false, requestedAt = requestedAt)
 
+    @Transactional(propagation = Propagation.MANDATORY)
     fun publishDeleted(team: Team, actorUserId: Long, requestedAt: Instant = Instant.now()): Instant =
         publishMutation("TEAM_DELETED", team, actorUserId, deleted = true, requestedAt = requestedAt)
 
+    @Transactional(propagation = Propagation.MANDATORY)
     fun publishSnapshot(state: TeamEventState) {
         entityManager.flush()
         enqueue(

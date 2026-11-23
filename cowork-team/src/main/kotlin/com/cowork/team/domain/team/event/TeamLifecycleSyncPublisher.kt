@@ -1,7 +1,8 @@
 package com.cowork.team.domain.team.event
 
 import com.cowork.team.domain.team.repository.TeamEventStateRepository
-import com.cowork.team.domain.teamMember.repository.TeamMemberEventStateRepository
+import com.cowork.team.domain.teamMember.TeamMemberSnapshots
+import com.cowork.team.global.outbox.Topics
 import com.cowork.team.global.projection.ProjectionSnapshotCompletionPublisher
 import com.cowork.team.global.projection.ProjectionSnapshotLock
 import org.springframework.boot.context.event.ApplicationReadyEvent
@@ -15,9 +16,8 @@ import org.springframework.transaction.support.TransactionTemplate
 @Component
 class TeamLifecycleSyncPublisher(
     private val teamEventStateRepository: TeamEventStateRepository,
-    private val teamMemberEventStateRepository: TeamMemberEventStateRepository,
+    private val teamMemberSnapshots: TeamMemberSnapshots,
     private val teamEventPublisher: TeamEventPublisher,
-    private val teamMemberEventPublisher: TeamMemberEventPublisher,
     private val projectionSnapshotCompletionPublisher: ProjectionSnapshotCompletionPublisher,
     private val projectionSnapshotLock: ProjectionSnapshotLock,
     platformTransactionManager: PlatformTransactionManager,
@@ -57,13 +57,7 @@ class TeamLifecycleSyncPublisher(
         var afterUserId = 0L
         while (true) {
             val nextCursor = transaction.execute {
-                val states = teamMemberEventStateRepository.findSnapshotBatch(
-                    afterTeamId,
-                    afterUserId,
-                    PageRequest.of(0, PAGE_SIZE),
-                )
-                states.forEach(teamMemberEventPublisher::publishSnapshot)
-                states.lastOrNull()?.let { it.teamId to it.userId }
+                teamMemberSnapshots.publishBatch(afterTeamId, afterUserId, PAGE_SIZE)
             } ?: break
             afterTeamId = nextCursor.first
             afterUserId = nextCursor.second

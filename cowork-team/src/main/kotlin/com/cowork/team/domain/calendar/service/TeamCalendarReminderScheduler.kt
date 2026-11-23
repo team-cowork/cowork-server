@@ -6,9 +6,9 @@ import com.cowork.team.domain.calendar.model.CalendarReminderPolicy
 import com.cowork.team.domain.calendar.repository.TeamCalendarEventRepository
 import com.cowork.team.domain.calendar.repository.TeamCalendarReminderCursorRepository
 import com.cowork.team.domain.calendar.repository.TeamCalendarReminderDeliveryRepository
-import com.cowork.team.domain.team.event.NotificationTriggerEvent
-import com.cowork.team.domain.team.event.Topics
+import com.cowork.team.global.outbox.NotificationTriggerEvent
 import com.cowork.team.global.outbox.OutboxWriter
+import com.cowork.team.global.outbox.Topics
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.transaction.PlatformTransactionManager

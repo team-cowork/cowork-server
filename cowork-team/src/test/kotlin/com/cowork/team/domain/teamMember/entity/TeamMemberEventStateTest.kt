@@ -1,7 +1,6 @@
 package com.cowork.team.domain.teamMember.entity
 
-import com.cowork.team.domain.team.entity.Team
-import com.cowork.team.domain.teamRole.entity.TeamRole
+import com.cowork.team.domain.teamAccess.LockedTeam
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import java.time.Instant
@@ -9,13 +8,13 @@ import java.time.temporal.ChronoUnit
 
 class TeamMemberEventStateTest :
     DescribeSpec({
-        lateinit var team: Team
+        lateinit var team: LockedTeam
         lateinit var member: TeamMember
         val joinedAt = Instant.parse("2026-10-25T00:00:00Z")
 
         beforeEach {
-            team = Team(id = 1L, name = "team", description = null, iconUrl = null, ownerId = 10L)
-            member = TeamMember(team = team, userId = 20L)
+            team = LockedTeam(id = 1L, name = "team", ownerId = 10L)
+            member = TeamMember(teamId = team.id, userId = 20L)
         }
 
         describe("TeamMemberEventState 클래스의") {
@@ -35,7 +34,7 @@ class TeamMemberEventStateTest :
                     it("원본 버전을 갱신하고 권한 버전은 유지한다") {
                         val state = TeamMemberEventState.create(team, member, false, joinedAt)
                         member.changeNickname("nickname")
-                        team.update("renamed", null, null)
+                        team = team.copy(name = "renamed")
 
                         state.apply(team, member, false, joinedAt.plusSeconds(1))
 

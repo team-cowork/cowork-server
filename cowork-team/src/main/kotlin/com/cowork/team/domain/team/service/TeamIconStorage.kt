@@ -1,7 +1,7 @@
 package com.cowork.team.domain.team.service
 
+import com.cowork.team.global.afterCommit
 import com.cowork.team.global.config.ObjectStorageProperties
-import com.cowork.team.global.support.afterCommit
 import io.awspring.cloud.s3.S3Template
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service

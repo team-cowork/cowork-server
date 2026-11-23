@@ -1,5 +1,8 @@
 package com.cowork.team.global.policy
 
+import org.springframework.modulith.NamedInterface
+
+@NamedInterface("policy", propagate = false)
 object PermissionKeys {
 
     const val ADMINISTRATOR = "administrator"

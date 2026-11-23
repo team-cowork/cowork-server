@@ -1,7 +1,5 @@
 package com.cowork.team.domain.teamMember.entity
 
-import com.cowork.team.domain.team.entity.Team
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import jakarta.persistence.*
 import org.springframework.data.annotation.CreatedBy
 import org.springframework.data.annotation.CreatedDate
@@ -21,9 +19,8 @@ class TeamMember(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0,
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "team_id", nullable = false)
-    val team: Team,
+    @Column(name = "team_id", nullable = false)
+    val teamId: Long,
 
     @Column(name = "user_id", nullable = false)
     val userId: Long,

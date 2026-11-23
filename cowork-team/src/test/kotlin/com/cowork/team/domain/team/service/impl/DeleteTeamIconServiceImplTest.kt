@@ -4,8 +4,6 @@ import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.team.service.TeamIconOwnershipManager
-import com.cowork.team.domain.teamMember.entity.TeamMember
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -43,7 +41,7 @@ class DeleteTeamIconServiceImplTest :
                         every { accessGuard.findTeamForUpdateOrThrow(1L) } returns team
                         every {
                             accessGuard.requirePermission(1L, 10L, "manage_team")
-                        } returns TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
+                        } returns Unit
 
                         val error = shouldThrow<ExpectedException> {
                             service.execute(10L, 1L)

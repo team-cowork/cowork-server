@@ -1,17 +1,16 @@
 package com.cowork.team.domain.teamMember.service.impl
 
 import com.cowork.team.domain.team.entity.Team
-import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
-import com.cowork.team.domain.team.service.TeamAccessGuard
-import com.cowork.team.domain.team.service.TeamPermissionGuard
+import com.cowork.team.domain.team.service.JpaTeamDirectory
+import com.cowork.team.domain.teamMember.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
+import com.cowork.team.domain.teamMember.entity.TeamRole
+import com.cowork.team.domain.teamMember.event.TeamMemberEventPublisher
 import com.cowork.team.domain.teamMember.presentation.data.request.ChangeNicknameRequest
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
-import com.cowork.team.domain.teamRole.service.TeamRoleAccessGuard
 import com.cowork.team.global.policy.PermissionKeys
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
@@ -40,19 +39,15 @@ class UpdateTeamMemberNicknameServiceImplTest :
             service = UpdateTeamMemberNicknameServiceImpl(
                 memberRepository,
                 eventPublisher,
-                TeamAccessGuard(
-                    teamRepository,
-                    memberRepository,
-                    TeamPermissionGuard(memberRepository, roleReader),
-                ),
-                TeamRoleAccessGuard(teamRepository, memberRepository, roleReader),
+                JpaTeamDirectory(teamRepository),
+                TeamPermissionGuard(memberRepository, roleReader),
                 roleReader,
             )
             every { teamRepository.findByIdForUpdate(5L) } returns team
         }
 
         fun stubActor(member: TeamMember) {
-            every { memberRepository.findByTeamIdAndUserId(5L, member.userId) } returns member
+            every { memberRepository.existsByTeamIdAndUserId(5L, member.userId) } returns true
         }
 
         fun stubTarget(member: TeamMember) {
@@ -62,7 +57,7 @@ class UpdateTeamMemberNicknameServiceImplTest :
         describe("UpdateTeamMemberNicknameServiceImpl 클래스의 execute 메서드는") {
             context("멤버가 자신의 닉네임을 바꾸면") {
                 it("앞뒤 공백을 제거해 저장하고 멤버 상태를 발행한다") {
-                    val member = TeamMember(team = team, userId = 7L)
+                    val member = TeamMember(teamId = team.id, userId = 7L)
                     stubTarget(member)
 
                     service.execute(7L, 5L, 7L, ChangeNicknameRequest("  홍길동 / 프론트엔드  "))
@@ -75,7 +70,7 @@ class UpdateTeamMemberNicknameServiceImplTest :
 
             context("빈 닉네임을 보내면") {
                 it("팀 닉네임을 지운다") {
-                    val member = TeamMember(team = team, userId = 7L).also { it.changeNickname("이전 닉네임") }
+                    val member = TeamMember(teamId = team.id, userId = 7L).also { it.changeNickname("이전 닉네임") }
                     stubTarget(member)
 
                     service.execute(7L, 5L, 7L, ChangeNicknameRequest("   "))
@@ -86,7 +81,7 @@ class UpdateTeamMemberNicknameServiceImplTest :
 
             context("닉네임이 50자를 넘으면") {
                 it("BAD_REQUEST로 거부한다") {
-                    val member = TeamMember(team = team, userId = 7L)
+                    val member = TeamMember(teamId = team.id, userId = 7L)
                     stubTarget(member)
 
                     val error = shouldThrow<ExpectedException> {
@@ -100,8 +95,8 @@ class UpdateTeamMemberNicknameServiceImplTest :
 
             context("닉네임 관리 권한이 없는 멤버가 다른 멤버의 닉네임을 바꾸면") {
                 it("FORBIDDEN으로 거부한다") {
-                    val target = TeamMember(team = team, userId = 8L)
-                    stubActor(TeamMember(team = team, userId = 7L))
+                    val target = TeamMember(teamId = team.id, userId = 8L)
+                    stubActor(TeamMember(teamId = team.id, userId = 7L))
                     stubTarget(target)
                     every { roleReader.getMemberRoles(5L, 7L) } returns listOf(role(priority = 10))
 
@@ -116,8 +111,8 @@ class UpdateTeamMemberNicknameServiceImplTest :
 
             context("닉네임 관리 권한을 가진 멤버가 자신보다 낮은 순위의 멤버 닉네임을 바꾸면") {
                 it("대상 멤버의 닉네임을 변경한다") {
-                    val target = TeamMember(team = team, userId = 8L)
-                    stubActor(TeamMember(team = team, userId = 7L))
+                    val target = TeamMember(teamId = team.id, userId = 8L)
+                    stubActor(TeamMember(teamId = team.id, userId = 7L))
                     stubTarget(target)
                     every { roleReader.getMemberRoles(5L, 7L) } returns
                         listOf(role(priority = 10, manageNicknames = true))
@@ -131,8 +126,8 @@ class UpdateTeamMemberNicknameServiceImplTest :
 
             context("닉네임 관리 권한을 가진 멤버가 같은 순위의 멤버 닉네임을 바꾸면") {
                 it("FORBIDDEN으로 거부한다") {
-                    val target = TeamMember(team = team, userId = 8L)
-                    stubActor(TeamMember(team = team, userId = 7L))
+                    val target = TeamMember(teamId = team.id, userId = 8L)
+                    stubActor(TeamMember(teamId = team.id, userId = 7L))
                     stubTarget(target)
                     every { roleReader.getMemberRoles(5L, 7L) } returns
                         listOf(role(priority = 10, manageNicknames = true))
@@ -149,8 +144,8 @@ class UpdateTeamMemberNicknameServiceImplTest :
 
             context("닉네임 관리 권한을 가진 멤버가 ADMIN의 닉네임을 바꾸면") {
                 it("FORBIDDEN으로 거부한다") {
-                    val target = TeamMember(team = team, userId = 8L, role = TeamRole.ADMIN)
-                    stubActor(TeamMember(team = team, userId = 7L))
+                    val target = TeamMember(teamId = team.id, userId = 8L, role = TeamRole.ADMIN)
+                    stubActor(TeamMember(teamId = team.id, userId = 7L))
                     stubTarget(target)
                     every { roleReader.getMemberRoles(5L, 7L) } returns
                         listOf(role(priority = 10, manageNicknames = true))
@@ -167,8 +162,8 @@ class UpdateTeamMemberNicknameServiceImplTest :
 
             context("ADMIN이 멤버의 닉네임을 바꾸면") {
                 it("자신보다 낮은 역할의 닉네임을 변경한다") {
-                    val target = TeamMember(team = team, userId = 8L)
-                    stubActor(TeamMember(team = team, userId = 7L, role = TeamRole.ADMIN))
+                    val target = TeamMember(teamId = team.id, userId = 8L)
+                    stubActor(TeamMember(teamId = team.id, userId = 7L, role = TeamRole.ADMIN))
                     every { roleReader.getMemberRoles(5L, 7L) } returns
                         listOf(role(Int.MAX_VALUE - 1).copy(permissions = mapOf("administrator" to true)))
                     every { roleReader.getMemberRoles(5L, 8L) } returns listOf(role(10))
@@ -183,8 +178,8 @@ class UpdateTeamMemberNicknameServiceImplTest :
 
             context("ADMIN이 OWNER의 닉네임을 바꾸면") {
                 it("FORBIDDEN으로 거부한다") {
-                    val owner = TeamMember(team = team, userId = 1L, role = TeamRole.OWNER)
-                    stubActor(TeamMember(team = team, userId = 7L, role = TeamRole.ADMIN))
+                    val owner = TeamMember(teamId = team.id, userId = 1L, role = TeamRole.OWNER)
+                    stubActor(TeamMember(teamId = team.id, userId = 7L, role = TeamRole.ADMIN))
                     every { roleReader.getMemberRoles(5L, 7L) } returns
                         listOf(role(Int.MAX_VALUE - 1).copy(permissions = mapOf("administrator" to true)))
                     every { roleReader.getMemberRoles(5L, 8L) } returns listOf(role(10))

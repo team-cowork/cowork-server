@@ -1,11 +1,12 @@
 package com.cowork.team.domain.teamMember.service.impl
 
 import com.cowork.team.domain.team.entity.Team
-import com.cowork.team.domain.team.event.TeamMemberEventPublisher
-import com.cowork.team.domain.team.projection.NicknameFormatGuide
-import com.cowork.team.domain.team.projection.TeamSettingProjectionReader
 import com.cowork.team.domain.team.repository.TeamRepository
+import com.cowork.team.domain.team.service.JpaTeamDirectory
 import com.cowork.team.domain.teamMember.entity.TeamMember
+import com.cowork.team.domain.teamMember.event.TeamMemberEventPublisher
+import com.cowork.team.domain.teamMember.projection.NicknameFormatGuide
+import com.cowork.team.domain.teamMember.projection.TeamSettingProjectionReader
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
@@ -34,7 +35,7 @@ class CreateTeamMemberServiceImplTest :
             settingReader = mockk()
             publisher = mockk(relaxed = true)
             service = CreateTeamMemberServiceImpl(
-                teamRepository,
+                JpaTeamDirectory(teamRepository),
                 memberRepository,
                 publisher,
                 settingReader,
@@ -46,7 +47,7 @@ class CreateTeamMemberServiceImplTest :
             context("아직 팀원이 아니면") {
                 it("MEMBER 역할로 팀에 가입시킨다") {
                     val joinedAt = LocalDateTime.now()
-                    val member = TeamMember(team = team, userId = 99L).also { it.joinedAt = joinedAt }
+                    val member = TeamMember(teamId = team.id, userId = 99L).also { it.joinedAt = joinedAt }
                     every { teamRepository.findByIdForUpdate(1L) } returns team
                     every { memberRepository.existsByTeamIdAndUserId(1L, 99L) } returns false
                     every { memberRepository.save(any()) } returns member
@@ -61,7 +62,7 @@ class CreateTeamMemberServiceImplTest :
                     verifyOrder {
                         teamRepository.findByIdForUpdate(1L)
                         memberRepository.existsByTeamIdAndUserId(1L, 99L)
-                        memberRepository.save(match { it.team == team && it.userId == 99L })
+                        memberRepository.save(match { it.teamId == team.id && it.userId == 99L })
                         publisher.publishUpsert(member, any())
                     }
                 }
@@ -69,7 +70,7 @@ class CreateTeamMemberServiceImplTest :
 
             context("닉네임 형식 안내가 켜진 팀에 가입하면") {
                 it("가입 응답에 닉네임 형식 예시를 포함한다") {
-                    val member = TeamMember(team = team, userId = 99L).also { it.joinedAt = LocalDateTime.now() }
+                    val member = TeamMember(teamId = team.id, userId = 99L).also { it.joinedAt = LocalDateTime.now() }
                     every { teamRepository.findByIdForUpdate(1L) } returns team
                     every { memberRepository.existsByTeamIdAndUserId(1L, 99L) } returns false
                     every { memberRepository.save(any()) } returns member

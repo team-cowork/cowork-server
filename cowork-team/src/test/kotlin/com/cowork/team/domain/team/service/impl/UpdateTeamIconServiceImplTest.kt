@@ -4,8 +4,6 @@ import com.cowork.team.domain.team.entity.Team
 import com.cowork.team.domain.team.event.TeamEventPublisher
 import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.team.service.TeamIconOwnershipManager
-import com.cowork.team.domain.teamMember.entity.TeamMember
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -40,7 +38,7 @@ class UpdateTeamIconServiceImplTest :
                         every { accessGuard.findTeamForUpdateOrThrow(1L) } returns team
                         every {
                             accessGuard.requirePermission(1L, 10L, "manage_team")
-                        } returns TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
+                        } returns Unit
 
                         val result = service.execute(10L, 1L, requireNotNull(team.iconUrl))
 

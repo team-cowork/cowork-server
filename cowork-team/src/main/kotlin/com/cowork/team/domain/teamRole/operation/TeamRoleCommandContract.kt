@@ -2,17 +2,11 @@ package com.cowork.team.domain.teamRole.operation
 
 import com.cowork.team.domain.teamRole.presentation.data.request.CreateTeamRoleRequest
 import com.cowork.team.domain.teamRole.presentation.data.request.UpdateTeamRoleRequest
+import com.cowork.team.global.consumer.TeamRoleContractTopics
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonSetter
 import com.fasterxml.jackson.annotation.Nulls
 import java.time.Instant
-
-object TeamRoleContractTopics {
-    const val COMMAND = "preference.team-role.command.v2"
-    const val STATE = "preference.team-role.state.v2"
-    const val RESULT = "preference.team-role.result.v2"
-    const val SCHEMA_VERSION = 2
-}
 
 enum class TeamRoleCommandType {
     CREATE,

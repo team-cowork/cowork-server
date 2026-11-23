@@ -111,7 +111,7 @@ class AssignTeamRoleServiceImplTest :
                 it("NOT_FOUND로 거부한다") {
                     fixture.givenCustomManager()
                     fixture.givenRole(role())
-                    every { fixture.memberRepository.existsByTeamIdAndUserId(TEAM_ID, TARGET_ID) } returns false
+                    every { fixture.membershipDirectory.exists(TEAM_ID, TARGET_ID) } returns false
 
                     val error = shouldThrow<ExpectedException> { assign() }
 
@@ -135,7 +135,7 @@ class AssignTeamRoleServiceImplTest :
                 it("FORBIDDEN으로 거부한다") {
                     fixture.givenCustomManager()
                     fixture.givenRole(role())
-                    every { fixture.teamRepository.findByIdForUpdate(TEAM_ID) } returns null
+                    every { fixture.teamDirectory.lock(TEAM_ID) } returns null
 
                     val error = shouldThrow<ExpectedException> { assign() }
 

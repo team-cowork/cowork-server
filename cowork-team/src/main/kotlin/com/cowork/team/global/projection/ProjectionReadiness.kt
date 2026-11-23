@@ -12,6 +12,7 @@ import org.springframework.context.ApplicationContext
 import org.springframework.context.event.EventListener
 import org.springframework.http.HttpStatus
 import org.springframework.kafka.listener.ConsumerAwareRebalanceListener
+import org.springframework.modulith.NamedInterface
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import team.themoment.sdk.exception.ExpectedException
@@ -21,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 @Component
+@NamedInterface("projection", propagate = false)
 class ProjectionReadinessState(
     private val projectionCheckpointStore: ProjectionCheckpointStore,
     private val projectionStreams: ProjectionStreams,
@@ -234,6 +236,7 @@ class ProjectionReadinessAvailability(
 }
 
 @Component
+@NamedInterface("projection", propagate = false)
 class ProjectionReadinessGate(private val projectionReadinessState: ProjectionReadinessState) {
     fun requireReady() {
         if (!projectionReadinessState.isReady()) {

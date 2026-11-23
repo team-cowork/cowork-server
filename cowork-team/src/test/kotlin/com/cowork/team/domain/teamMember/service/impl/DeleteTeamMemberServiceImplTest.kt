@@ -1,15 +1,16 @@
 package com.cowork.team.domain.teamMember.service.impl
 
 import com.cowork.team.domain.team.entity.Team
-import com.cowork.team.domain.team.event.TeamEventPublisher
-import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.repository.TeamRepository
-import com.cowork.team.domain.team.service.TeamPermissionGuard
+import com.cowork.team.domain.team.service.JpaTeamDirectory
+import com.cowork.team.domain.teamMember.TeamPermissionGuard
 import com.cowork.team.domain.teamMember.entity.TeamMember
+import com.cowork.team.domain.teamMember.entity.TeamRole
+import com.cowork.team.domain.teamMember.event.TeamMemberEventPublisher
 import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
-import com.cowork.team.domain.teamRole.entity.TeamRole
 import com.cowork.team.domain.teamRole.presentation.data.response.TeamRoleResponse
 import com.cowork.team.domain.teamRole.projection.TeamRoleProjectionReader
+import com.cowork.team.global.outbox.NotificationPublisher
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
@@ -35,15 +36,15 @@ class DeleteTeamMemberServiceImplTest :
             memberRepository = mockk()
             roleReader = mockk(relaxed = true)
             service = DeleteTeamMemberServiceImpl(
-                teamRepository,
+                JpaTeamDirectory(teamRepository),
                 memberRepository,
-                mockk<TeamEventPublisher>(relaxed = true),
+                mockk<NotificationPublisher>(relaxed = true),
                 mockk<TeamMemberEventPublisher>(relaxed = true),
                 TeamPermissionGuard(memberRepository, roleReader),
             )
             every { teamRepository.findByIdForUpdate(1L) } returns team
-            every { memberRepository.findByTeamIdAndUserId(any(), any()) } answers {
-                memberRepository.findByTeamIdAndUserIdForUpdate(firstArg(), secondArg())
+            every { memberRepository.existsByTeamIdAndUserId(any(), any()) } answers {
+                memberRepository.findByTeamIdAndUserIdForUpdate(firstArg(), secondArg()) != null
             }
         }
 
@@ -64,7 +65,7 @@ class DeleteTeamMemberServiceImplTest :
             context("일반 멤버가 다른 멤버를 제거하려 하면") {
                 it("FORBIDDEN으로 거부한다") {
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 20L) } returns
-                        TeamMember(team = team, userId = 20L)
+                        TeamMember(teamId = team.id, userId = 20L)
 
                     val error = shouldThrow<ExpectedException> { service.execute(20L, 1L, 30L) }
 
@@ -75,7 +76,7 @@ class DeleteTeamMemberServiceImplTest :
 
             context("일반 멤버가 스스로 탈퇴하면") {
                 it("자신의 멤버십을 삭제한다") {
-                    val member = TeamMember(team = team, userId = 20L)
+                    val member = TeamMember(teamId = team.id, userId = 20L)
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 20L) } returns member
                     every { memberRepository.delete(member) } just Runs
 
@@ -88,9 +89,9 @@ class DeleteTeamMemberServiceImplTest :
             context("사용자 정의 역할로 강퇴 권한을 받은 경우") {
                 it("동등하거나 높은 역할의 멤버는 제거할 수 없다") {
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 20L) } returns
-                        TeamMember(team = team, userId = 20L)
+                        TeamMember(teamId = team.id, userId = 20L)
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 30L) } returns
-                        TeamMember(team = team, userId = 30L)
+                        TeamMember(teamId = team.id, userId = 30L)
                     every { roleReader.getMemberRoles(1L, 20L) } returns listOf(role(1))
                     for (priority in listOf(1, 10)) {
                         every { roleReader.getMemberRoles(1L, 30L) } returns listOf(role(priority))
@@ -102,9 +103,9 @@ class DeleteTeamMemberServiceImplTest :
                 }
 
                 it("낮은 역할의 멤버는 제거할 수 있다") {
-                    val target = TeamMember(team = team, userId = 30L)
+                    val target = TeamMember(teamId = team.id, userId = 30L)
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 20L) } returns
-                        TeamMember(team = team, userId = 20L)
+                        TeamMember(teamId = team.id, userId = 20L)
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 30L) } returns target
                     every { roleReader.getMemberRoles(1L, 20L) } returns listOf(role(10))
                     every { roleReader.getMemberRoles(1L, 30L) } returns listOf(role(1))
@@ -117,9 +118,9 @@ class DeleteTeamMemberServiceImplTest :
 
                 it("기본 역할만 가진 동등한 멤버는 제거할 수 없다") {
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 20L) } returns
-                        TeamMember(team = team, userId = 20L)
+                        TeamMember(teamId = team.id, userId = 20L)
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 30L) } returns
-                        TeamMember(team = team, userId = 30L)
+                        TeamMember(teamId = team.id, userId = 30L)
                     every { roleReader.getMemberRoles(1L, any()) } returns
                         listOf(role(Int.MIN_VALUE).copy(isDefault = true))
 
@@ -130,9 +131,9 @@ class DeleteTeamMemberServiceImplTest :
 
                 it("관리자 정책 역할보다 우선순위가 낮으면 제거할 수 없다") {
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 20L) } returns
-                        TeamMember(team = team, userId = 20L)
+                        TeamMember(teamId = team.id, userId = 20L)
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 30L) } returns
-                        TeamMember(team = team, userId = 30L, role = TeamRole.ADMIN)
+                        TeamMember(teamId = team.id, userId = 30L, role = TeamRole.ADMIN)
                     every { roleReader.getMemberRoles(1L, 20L) } returns listOf(role(10))
                     every { roleReader.getMemberRoles(1L, 30L) } returns
                         listOf(role(Int.MAX_VALUE - 1).copy(permissions = mapOf("administrator" to true)))
@@ -145,10 +146,10 @@ class DeleteTeamMemberServiceImplTest :
 
             context("ADMIN이 일반 멤버를 제거하면") {
                 it("대상 멤버십을 삭제한다") {
-                    val admin = TeamMember(team = team, userId = 20L, role = TeamRole.ADMIN)
+                    val admin = TeamMember(teamId = team.id, userId = 20L, role = TeamRole.ADMIN)
                     every { roleReader.getMemberRoles(1L, 20L) } returns
                         listOf(role(Int.MAX_VALUE - 1).copy(permissions = mapOf("administrator" to true)))
-                    val target = TeamMember(team = team, userId = 30L)
+                    val target = TeamMember(teamId = team.id, userId = 30L)
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 20L) } returns admin
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 30L) } returns target
                     every { memberRepository.delete(target) } just Runs
@@ -161,7 +162,7 @@ class DeleteTeamMemberServiceImplTest :
 
             context("OWNER를 탈퇴시키거나 제거하려 하면") {
                 it("FORBIDDEN으로 거부한다") {
-                    val owner = TeamMember(team = team, userId = 10L, role = TeamRole.OWNER)
+                    val owner = TeamMember(teamId = team.id, userId = 10L, role = TeamRole.OWNER)
                     every { memberRepository.findByTeamIdAndUserIdForUpdate(1L, 10L) } returns owner
 
                     val error = shouldThrow<ExpectedException> { service.execute(10L, 1L, 10L) }

@@ -1,22 +1,20 @@
 package com.cowork.team.domain.team.service.impl
 
 import com.cowork.team.domain.team.event.TeamEventPublisher
-import com.cowork.team.domain.team.event.TeamMemberEventPublisher
 import com.cowork.team.domain.team.presentation.data.request.UpdateTeamRequest
 import com.cowork.team.domain.team.presentation.data.response.TeamResponse
 import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.team.service.TeamIconOwnershipManager
 import com.cowork.team.domain.team.service.UpdateTeamService
-import com.cowork.team.domain.teamMember.repository.TeamMemberRepository
+import com.cowork.team.domain.teamMember.TeamMemberships
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 @Service
 class UpdateTeamServiceImpl(
     private val teamIconOwnershipManager: TeamIconOwnershipManager,
-    private val teamMemberRepository: TeamMemberRepository,
+    private val teamMemberships: TeamMemberships,
     private val teamEventPublisher: TeamEventPublisher,
-    private val teamMemberEventPublisher: TeamMemberEventPublisher,
     private val teamAccessGuard: TeamAccessGuard,
 ) : UpdateTeamService {
 
@@ -26,9 +24,8 @@ class UpdateTeamServiceImpl(
         teamAccessGuard.requirePermission(teamId, userId, "manage_team")
         request.iconUrl?.let { teamIconOwnershipManager.replace(userId, team, it) }
         team.update(request.name, request.description, null)
-        val members = teamMemberRepository.findAllByTeamIdForUpdate(teamId)
         teamEventPublisher.publishUpdated(team, userId)
-        members.forEach(teamMemberEventPublisher::publishUpsert)
+        teamMemberships.publishTeamUpdate(teamId)
         return TeamResponse.of(team)
     }
 }

@@ -1,14 +1,16 @@
 package com.cowork.team.global.projection
 
-import com.cowork.team.domain.calendar.projection.PROJECT_CALENDAR_EVENT_STATE_TOPIC
-import com.cowork.team.domain.calendar.projection.PROJECT_READABLE_USER_STATE_TOPIC
-import com.cowork.team.domain.teamRole.operation.TeamRoleContractTopics
+import com.cowork.team.global.PROJECT_CALENDAR_EVENT_STATE_TOPIC
+import com.cowork.team.global.PROJECT_READABLE_USER_STATE_TOPIC
+import com.cowork.team.global.consumer.TeamRoleContractTopics
 import com.cowork.team.global.consumer.Topics
 import com.cowork.team.global.policy.AccountPolicyProjection
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.modulith.NamedInterface
 import org.springframework.stereotype.Component
 
 @Component
+@NamedInterface("projection", propagate = false)
 class ProjectionStreams(
     @Value($$"${KAFKA_GROUP_ID_TEAM_ROLE_PREFERENCE:cowork-team.team-role-projection}") consumerGroup: String,
     @Value($$"${KAFKA_GROUP_ID_TEAM_SETTING_PREFERENCE:cowork-team.team-setting-projection}")

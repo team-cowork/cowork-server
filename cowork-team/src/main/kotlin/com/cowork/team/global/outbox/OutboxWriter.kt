@@ -2,12 +2,14 @@ package com.cowork.team.global.outbox
 
 import com.cowork.team.global.outbox.journal.TeamOutboxAppender
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.modulith.NamedInterface
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
 
 @Component
+@NamedInterface("outbox", propagate = false)
 class OutboxWriter(jdbcTemplate: JdbcTemplate, objectMapper: ObjectMapper) {
     private val delegate = TeamOutboxAppender(jdbcTemplate, objectMapper)
 

@@ -1,6 +1,5 @@
 package com.cowork.team.domain.teamInvite.entity
 
-import com.cowork.team.domain.team.entity.Team
 import jakarta.persistence.*
 import org.springframework.data.annotation.CreatedDate
 import org.springframework.data.jpa.domain.support.AuditingEntityListener
@@ -15,9 +14,8 @@ class TeamInvite(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0,
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "team_id", nullable = false)
-    val team: Team,
+    @Column(name = "team_id", nullable = false)
+    val teamId: Long,
 
     @Column(name = "invite_code", nullable = false, length = 8, unique = true)
     val inviteCode: String,

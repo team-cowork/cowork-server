@@ -1,8 +1,7 @@
 package com.cowork.team.domain.teamMember.entity
 
-import com.cowork.team.domain.team.entity.Team
-import com.cowork.team.domain.team.entity.nextTeamStateOccurredAt
-import com.cowork.team.domain.teamRole.entity.TeamRole
+import com.cowork.team.domain.teamAccess.LockedTeam
+import com.cowork.team.global.nextTeamStateOccurredAt
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -47,8 +46,8 @@ class TeamMemberEventState(
     var authorizationVersion: Instant,
 
 ) {
-    fun apply(team: Team, member: TeamMember, deleted: Boolean, requestedAt: Instant): Instant {
-        require(team.id == teamId && member.team.id == teamId && member.userId == userId) {
+    fun apply(team: LockedTeam, member: TeamMember, deleted: Boolean, requestedAt: Instant): Instant {
+        require(team.id == teamId && member.teamId == teamId && member.userId == userId) {
             "Team member event state must use the same team and user ids"
         }
         val authorizationChanged = role != member.role || this.deleted != deleted
@@ -63,7 +62,7 @@ class TeamMemberEventState(
     }
 
     companion object {
-        fun create(team: Team, member: TeamMember, deleted: Boolean, requestedAt: Instant): TeamMemberEventState {
+        fun create(team: LockedTeam, member: TeamMember, deleted: Boolean, requestedAt: Instant): TeamMemberEventState {
             val version = nextTeamStateOccurredAt(null, requestedAt)
             return TeamMemberEventState(
                 teamId = team.id,

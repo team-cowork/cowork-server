@@ -1,12 +1,11 @@
 package com.cowork.team.domain.team.entity
 
-import com.cowork.team.global.projection.toProjectionPrecision
+import com.cowork.team.global.nextTeamStateOccurredAt
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import java.time.Instant
-import java.time.temporal.ChronoUnit
 
 @Entity
 @Table(name = "tb_team_event_states")
@@ -71,15 +70,5 @@ class TeamEventState(
                 deleted = deleted,
                 stateOccurredAt = nextTeamStateOccurredAt(null, requestedAt),
             )
-    }
-}
-
-internal fun nextTeamStateOccurredAt(current: Instant?, requestedAt: Instant): Instant {
-    val requestedVersion = requestedAt.toProjectionPrecision()
-    val minimumNextVersion = current?.toProjectionPrecision()?.plus(1, ChronoUnit.MICROS)
-    return if (minimumNextVersion == null || requestedVersion.isAfter(minimumNextVersion)) {
-        requestedVersion
-    } else {
-        minimumNextVersion
     }
 }

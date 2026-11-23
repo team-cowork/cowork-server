@@ -1,8 +1,8 @@
 package com.cowork.team.domain.teamInvite.service.impl
 
-import com.cowork.team.domain.team.service.TeamAccessGuard
 import com.cowork.team.domain.teamInvite.repository.TeamInviteRepository
 import com.cowork.team.domain.teamInvite.service.DeleteInviteService
+import com.cowork.team.domain.teamMember.TeamPermissionGuard
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -11,12 +11,12 @@ import team.themoment.sdk.exception.ExpectedException
 @Service
 class DeleteInviteServiceImpl(
     private val teamInviteRepository: TeamInviteRepository,
-    private val teamAccessGuard: TeamAccessGuard,
+    private val teamPermissionGuard: TeamPermissionGuard,
 ) : DeleteInviteService {
 
     @Transactional
     override fun execute(userId: Long, teamId: Long, inviteCode: String) {
-        teamAccessGuard.requirePermission(teamId, userId, "manage_invites")
+        teamPermissionGuard.requirePermission(teamId, userId, "manage_invites")
         val invite = teamInviteRepository.findByTeamIdAndInviteCode(teamId, inviteCode)
             ?: throw ExpectedException("초대 링크를 찾을 수 없습니다.", HttpStatus.NOT_FOUND)
 

@@ -106,7 +106,7 @@ class RevokeTeamRoleServiceImplTest :
                 it("NOT_FOUND로 거부한다") {
                     fixture.givenCustomManager()
                     fixture.givenRole(role())
-                    every { fixture.memberRepository.existsByTeamIdAndUserId(TEAM_ID, TARGET_ID) } returns false
+                    every { fixture.membershipDirectory.exists(TEAM_ID, TARGET_ID) } returns false
 
                     val error = shouldThrow<ExpectedException> { revoke() }
 

@@ -54,6 +54,7 @@ configurations.matching { it.name.startsWith("ktlint") }.configureEach {
 val architecture = sourceSets.create("architecture")
 
 dependencies {
+    implementation(libs.spring.modulith.api)
     add(architecture.implementationConfigurationName, libs.spring.modulith.core)
     constraints {
         add(architecture.implementationConfigurationName, libs.archunit) {
