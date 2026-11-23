@@ -88,8 +88,10 @@ class NotificationHandler(
         if (status != null) {
             auditAuthorizationFailure(logger(), status, accountId, "CHANNEL_NOTIFICATION", channelId)
         }
-        val fallback = if (e is IllegalArgumentException) 400 else 500
-        ctx.response().setStatusCode(status ?: fallback).end(errorBody(e.message))
+        val responseStatus = status ?: if (e is IllegalArgumentException) 400 else 500
+        if (responseStatus == 500) logger().error("Failed channel notification setting operation", e)
+        val message = if (responseStatus == 500) "채널 알림 설정을 처리할 수 없습니다." else e.message
+        ctx.response().setStatusCode(responseStatus).end(errorBody(message))
     }
 
     private fun errorBody(message: String?) = JsonObject().put("error", message ?: "Internal server error").encode()

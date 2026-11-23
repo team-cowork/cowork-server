@@ -62,7 +62,7 @@ export class AttachmentUploadRepository implements OnModuleInit {
 				});
 			}
 
-			await collection.createIndex({createdAt: 1}, {expireAfterSeconds: ATTACHMENT_UPLOAD_TTL_SECONDS});
+			await collection.createIndex({createdAt: 1}, {expireAfterSeconds: ATTACHMENT_UPLOAD_TTL_SECONDS}, undefined);
 			this.logger.log(`Attachment upload TTL index set to ${ATTACHMENT_UPLOAD_TTL_SECONDS}s`);
 		} catch (error) {
 			this.logger.error('Attachment upload TTL index was not updated; unsent attachments may expire before reclaim', error);

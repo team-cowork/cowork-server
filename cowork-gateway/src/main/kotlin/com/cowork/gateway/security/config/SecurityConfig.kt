@@ -13,6 +13,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.core.annotation.Order
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
+import org.springframework.security.authorization.AuthorizationDecision
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder
 import org.springframework.security.config.web.server.ServerHttpSecurity
@@ -22,6 +23,7 @@ import org.springframework.security.web.server.context.NoOpServerSecurityContext
 import org.springframework.security.web.server.util.matcher.PathPatternParserServerWebExchangeMatcher
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource
 import org.springframework.web.util.pattern.PathPatternParser
+import reactor.core.publisher.Mono
 
 @Configuration
 @EnableWebFluxSecurity
@@ -109,7 +111,12 @@ class SecurityConfig(
                     .pathMatchers(HttpMethod.GET, "/api/storage/**").permitAll()
                     .pathMatchers(HttpMethod.HEAD, "/api/storage/**").permitAll()
                     .pathMatchers(HttpMethod.PUT, "/api/storage/**").permitAll()
-                    .pathMatchers("/actuator/**").permitAll()
+                    .pathMatchers("/actuator/health", "/actuator/health/**").permitAll()
+                    // The Envoy expose listener scrapes metrics over loopback; nginx reaches the alloc address.
+                    .pathMatchers("/actuator", "/actuator/**").access { _, context ->
+                        val loopback = context.exchange.request.remoteAddress?.address?.isLoopbackAddress == true
+                        Mono.just(AuthorizationDecision(loopback))
+                    }
                     // The handler itself accepts only a direct loopback connection inside the allocation.
                     .pathMatchers(HttpMethod.GET, "/internal/deployment-state").permitAll()
                     .pathMatchers("/api/health").permitAll()
