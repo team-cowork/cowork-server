@@ -843,6 +843,10 @@ func (c *ProjectionConsumer) monitorBarrier(
 	ctx context.Context,
 	startupRanges map[projection.TopicPartition]projectionOffsetRange,
 ) {
+	partitions := make([]projection.TopicPartition, 0, len(startupRanges))
+	for partition := range startupRanges {
+		partitions = append(partitions, partition)
+	}
 	ticker := time.NewTicker(barrierPollInterval)
 	defer ticker.Stop()
 	// wasReady is true only when the previous poll published ready in readyEpoch.
@@ -853,6 +857,8 @@ func (c *ProjectionConsumer) monitorBarrier(
 	var lagSince time.Time
 	for {
 		readinessEpoch := c.currentReadinessEpoch()
+		// Checkpoints can advance while polling. Read them before the broker end offsets.
+		checkpoints, err := c.store.LoadCheckpoints(ctx, c.groupID, partitions)
 		currentRanges, rangeErr := c.snapshotter.Snapshot(ctx, c.topics.all())
 		if rangeErr != nil {
 			wasReady, lagTargets = false, nil
@@ -871,11 +877,6 @@ func (c *ProjectionConsumer) monitorBarrier(
 			}
 			return
 		} else {
-			partitions := make([]projection.TopicPartition, 0, len(currentRanges))
-			for partition := range currentRanges {
-				partitions = append(partitions, partition)
-			}
-			checkpoints, err := c.store.LoadCheckpoints(ctx, c.groupID, partitions)
 			ready := false
 			now := time.Now()
 			switch {
