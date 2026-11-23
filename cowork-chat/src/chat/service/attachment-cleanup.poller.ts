@@ -36,7 +36,7 @@ const RECLAIM_LEASE_MS = 60 * 60 * 1000;
 
  - 메시지 삭제 의도: 메시지가 사라진 것을 확인한 뒤에만 객체를 지우고 의도를 제거한다.
  - 미전송 업로드: 재시도 창과 유예가 지난 업로드 기록을 정리하며, 메시지, 회의록, 예약 메시지가 참조하지 않는 확정 객체는 먼저 지운다.
- - 예약 메시지 첨부: 업로드 기록이 지워진 뒤에도 예약이 참조하는 동안은 지우지 않는다. 취소하거나 실패한 예약의 첨부는 삭제 의도로 지운다.
+ - 예약 메시지 첨부: 업로드 기록이 지워진 뒤에도 발송 전 예약이 참조하는 동안은 지우지 않는다. 취소하거나 실패한 예약의 첨부는 삭제 의도로 지운다.
  - 회의록 첨부: 업로드 기록 만료 후에도 정리 기록을 유지하고, 모든 참조가 사라지면 객체를 지운다.
 
  항목은 처리 시각을 뒤로 미루는 점유로 꺼낸다. 배포 중 구 프로세스가 종료 대기(`kill_timeout`) 동안 진행 중인 주기를
@@ -133,7 +133,8 @@ export class AttachmentCleanupPoller implements OnModuleInit, OnModuleDestroy {
 
 	private async removeObject(objectKey: string): Promise<boolean> {
 		try {
-			if (await this.meetingNotes.references(objectKey) || await this.scheduledMessages.referencesObject(objectKey)) {
+			// 발송한 예약은 세지 않는다. 그 메시지를 지운 삭제 의도가 예약 기록 때문에 버려지면 객체가 남는다.
+			if (await this.meetingNotes.references(objectKey) || await this.scheduledMessages.waitsForObject(objectKey)) {
 				return false;
 			}
 

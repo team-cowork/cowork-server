@@ -9,7 +9,7 @@ export type ClaimedScheduledMessage = ScheduledMessageRecord & {claimId: string}
 
 const WAITING_STATUSES: ScheduledMessageStatus[] = ['PENDING', 'DISPATCHING'];
 /**
-`SENT`는 consumer가 메시지를 저장하기 전에 첨부가 회수되지 않도록 기록이 지워질 때까지 참조로 센다.
+`SENT`는 consumer가 메시지를 저장하기 전에 업로드 회수가 첨부를 지우지 않도록 기록이 지워질 때까지 참조로 센다.
 */
 const REFERENCING_STATUSES: ScheduledMessageStatus[] = ['PENDING', 'DISPATCHING', 'SENT'];
 const WAITING_LIST_LIMIT = 200;
@@ -156,5 +156,12 @@ export class ScheduledMessageRepository {
 
 	async referencesObject(objectKey: string): Promise<boolean> {
 		return (await this.model.exists({'attachments.objectKey': objectKey, status: {$in: REFERENCING_STATUSES}})) !== null;
+	}
+
+	/**
+    아직 발송하지 않은 예약이 이 객체를 첨부로 갖는지 확인한다. 발송한 예약은 저장된 메시지가 첨부를 소유하므로 세지 않는다.
+    */
+	async waitsForObject(objectKey: string): Promise<boolean> {
+		return (await this.model.exists({'attachments.objectKey': objectKey, status: {$in: WAITING_STATUSES}})) !== null;
 	}
 }
