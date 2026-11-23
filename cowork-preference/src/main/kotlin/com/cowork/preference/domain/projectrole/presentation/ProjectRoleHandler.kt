@@ -40,7 +40,7 @@ class ProjectRoleHandler(
                     )
                     ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(arr.encode())
                 }
-                .onFailure { ctx.response().setStatusCode(500).end(errorBody(it.message)) }
+                .onFailure { respondFailure(ctx, 500, it) }
         }
     }
 
@@ -58,9 +58,16 @@ class ProjectRoleHandler(
             ctx.response().setStatusCode(400).end(errorBody("roleName is required"))
             return
         }
-        val permissions = body.getJsonObject("permissions") ?: JsonObject()
+        val permissions = runCatching { body.getJsonObject("permissions") ?: JsonObject() }.getOrNull() ?: run {
+            ctx.response().setStatusCode(400).end(errorBody("permissions는 객체여야 합니다."))
+            return
+        }
+        val priority = runCatching { body.getInteger("priority", 0) }.getOrNull() ?: run {
+            ctx.response().setStatusCode(400).end(errorBody("priority는 정수여야 합니다."))
+            return
+        }
         scope.launch(ctx.vertx().dispatcher()) {
-            service.createRole(projectId, roleName, permissions, requester, body.getInteger("priority", 0))
+            service.createRole(projectId, roleName, permissions, requester, priority)
                 .onSuccess {
                     val resp = JsonObject().put(
                         "roleName",
@@ -74,7 +81,7 @@ class ProjectRoleHandler(
                         is IllegalStateException -> 409
                         else -> 500
                     }
-                    ctx.response().setStatusCode(status).end(errorBody(e.message))
+                    respondFailure(ctx, status, e)
                 }
         }
     }
@@ -98,7 +105,7 @@ class ProjectRoleHandler(
                         is IllegalArgumentException -> 400
                         else -> 500
                     }
-                    ctx.response().setStatusCode(status).end(errorBody(e.message))
+                    respondFailure(ctx, status, e)
                 }
         }
     }
@@ -120,7 +127,7 @@ class ProjectRoleHandler(
                     )
                     ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json").end(arr.encode())
                 }
-                .onFailure { ctx.response().setStatusCode(500).end(errorBody(it.message)) }
+                .onFailure { respondFailure(ctx, 500, it) }
         }
     }
 
@@ -138,7 +145,10 @@ class ProjectRoleHandler(
             ctx.response().setStatusCode(400).end(errorBody("Invalid JSON body"))
             return
         }
-        val accountId = body.getLong("accountId") ?: run {
+        val accountId = runCatching { body.getLong("accountId") }.getOrElse {
+            ctx.response().setStatusCode(400).end(errorBody("accountId는 정수여야 합니다."))
+            return
+        } ?: run {
             ctx.response().setStatusCode(400).end(errorBody("accountId is required"))
             return
         }
@@ -151,7 +161,7 @@ class ProjectRoleHandler(
                         is IllegalArgumentException -> 400
                         else -> 500
                     }
-                    ctx.response().setStatusCode(status).end(errorBody(e.message))
+                    respondFailure(ctx, status, e)
                 }
         }
     }
@@ -174,8 +184,7 @@ class ProjectRoleHandler(
             runCatchingCancellable { service.removeRole(accountId, projectId, roleName, requester) }
                 .onSuccess { ctx.response().setStatusCode(204).end() }
                 .onFailure { e ->
-                    val status = auditedAuthorizationStatus(e, requester, projectId)
-                    ctx.response().setStatusCode(status ?: 500).end(errorBody(e.message))
+                    respondFailure(ctx, auditedAuthorizationStatus(e, requester, projectId) ?: 500, e)
                 }
         }
     }
@@ -197,9 +206,15 @@ class ProjectRoleHandler(
         check: suspend () -> Unit,
     ): Boolean {
         val failure = runCatchingCancellable { check() }.exceptionOrNull() ?: return true
-        val status = auditedAuthorizationStatus(failure, requester, projectId)
-        ctx.response().setStatusCode(status ?: 500).end(errorBody(failure.message))
+        respondFailure(ctx, auditedAuthorizationStatus(failure, requester, projectId) ?: 500, failure)
         return false
+    }
+
+    /** 500 응답은 내부 메시지를 숨기고 원인을 로그로 남긴다. */
+    private fun respondFailure(ctx: RoutingContext, status: Int, failure: Throwable) {
+        if (status == 500) logger().error("Failed project role operation", failure)
+        val message = if (status == 500) "프로젝트 역할을 처리할 수 없습니다." else failure.message
+        ctx.response().setStatusCode(status).end(errorBody(message))
     }
 
     private fun auditedAuthorizationStatus(failure: Throwable, requester: RequesterContext, projectId: Long): Int? =
