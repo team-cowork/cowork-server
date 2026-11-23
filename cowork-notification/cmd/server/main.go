@@ -52,6 +52,7 @@ func main() {
 			SlowThreshold:             200 * time.Millisecond,
 			LogLevel:                  gormlogger.Warn,
 			IgnoreRecordNotFoundError: true,
+			ParameterizedQueries:      true,
 		}),
 	})
 	if err != nil {
