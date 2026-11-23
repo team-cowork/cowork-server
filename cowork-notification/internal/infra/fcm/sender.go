@@ -114,7 +114,7 @@ func (s *Sender) classify(ctx context.Context, err error) Outcome {
 	// timeout becomes DEADLINE_EXCEEDED and a cancellation becomes UNKNOWN, so only
 	// ctx.Err() identifies the cancellation.
 	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded),
-		errorutils.IsDeadlineExceeded(err), ctx.Err() != nil:
+		errorutils.IsDeadlineExceeded(err), errorutils.IsCancelled(err), ctx.Err() != nil:
 		return OutcomeRetryable
 	default:
 		// Deliberately excludes messaging.IsInvalidArgument: that code also covers
