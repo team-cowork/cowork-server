@@ -28,14 +28,18 @@ class ProjectionReadinessState(
     private val assignedStreams = ConcurrentHashMap.newKeySet<ProjectionStream>()
     private val initializingStreams = ConcurrentHashMap.newKeySet<ProjectionStream>().apply {
         addAll(projectionStreams.required)
+        addAll(projectionStreams.calendar)
     }
 
     @Volatile
     private var ready = false
 
+    @Volatile
+    private var calendarReady = false
+
     fun markInitializing(stream: ProjectionStream) {
         initializingStreams.add(stream)
-        ready = false
+        markNotReady(stream)
     }
 
     fun markInitialized(stream: ProjectionStream, locallyAssigned: Boolean) {
@@ -51,20 +55,26 @@ class ProjectionReadinessState(
 
     fun markNotReady(stream: ProjectionStream) {
         if (stream in projectionStreams.required) ready = false
+        if (stream in projectionStreams.calendar) calendarReady = false
     }
 
+    /** 서비스 readiness를 돌려준다. 팀 캘린더 projection도 함께 다시 확인하지만 결과에는 넣지 않는다. */
     fun refresh(): Boolean {
-        ready = if (initializingStreams.isNotEmpty()) {
-            false
-        } else {
-            runCatching { projectionCheckpointStore.isCaughtUp(projectionStreams.required) }
-                .onFailure { logger().warn("Kafka projection readiness 조회 실패", it) }
-                .getOrDefault(false)
-        }
+        ready = isCaughtUp(projectionStreams.required)
+        calendarReady = isCaughtUp(projectionStreams.calendar)
         return ready
     }
 
+    private fun isCaughtUp(streams: Set<ProjectionStream>): Boolean {
+        if (initializingStreams.any { it in streams }) return false
+        return runCatching { projectionCheckpointStore.isCaughtUp(streams) }
+            .onFailure { logger().warn("Kafka projection readiness 조회 실패", it) }
+            .getOrDefault(false)
+    }
+
     fun isReady(): Boolean = ready
+
+    fun isCalendarReady(): Boolean = calendarReady
 
     fun assignedCount(): Int = assignedStreams.size
 
@@ -231,6 +241,12 @@ class ProjectionReadinessGate(private val projectionReadinessState: ProjectionRe
                 "외부 상태 projection 동기화가 완료되지 않았습니다.",
                 HttpStatus.SERVICE_UNAVAILABLE,
             )
+        }
+    }
+
+    fun requireCalendarReady() {
+        if (!projectionReadinessState.isCalendarReady()) {
+            throw ExpectedException("프로젝트 일정 동기화가 완료되지 않았습니다.", HttpStatus.SERVICE_UNAVAILABLE)
         }
     }
 }
