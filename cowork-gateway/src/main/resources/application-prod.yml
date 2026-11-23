@@ -67,6 +67,10 @@ spring:
 
   cloud:
     gateway.server.webflux:
+      # 서킷이 없는 라우트에도 응답 대기 상한을 둔다. 더 길게 기다리는 라우트는 metadata.response-timeout으로 따로 정한다.
+      httpclient:
+        connect-timeout: 10000
+        response-timeout: 10s
       globalcors:
         add-to-simple-url-handler-mapping: true
         cors-configurations:
@@ -141,6 +145,8 @@ spring:
 
         - id: team-seaweedfs
           uri: ${S3_TEAM_INTERNAL_ENDPOINT}
+          metadata:
+            response-timeout: -1  # 최대 100MB 업로드는 응답 전까지 10초를 넘을 수 있다
           predicates:
             - Path=/api/storage/${S3_BUCKET}/team-icons/**,/api/storage/${S3_BUCKET}/team-icon-uploads/**
             - Method=GET,HEAD,PUT
@@ -150,6 +156,8 @@ spring:
 
         - id: user-seaweedfs
           uri: ${S3_USER_INTERNAL_ENDPOINT}
+          metadata:
+            response-timeout: -1  # 최대 100MB 업로드는 응답 전까지 10초를 넘을 수 있다
           predicates:
             - Path=/api/storage/${S3_BUCKET}/profiles/**,/api/storage/${S3_BUCKET}/profile-uploads/**
             - Method=GET,HEAD,PUT
@@ -361,6 +369,8 @@ spring:
 
         - id: chat-seaweedfs
           uri: ${S3_CHAT_INTERNAL_ENDPOINT}
+          metadata:
+            response-timeout: -1  # 최대 100MB 업로드는 응답 전까지 10초를 넘을 수 있다
           predicates:
             - Path=/api/storage/${S3_BUCKET}/chat-files/**,/api/storage/${S3_BUCKET}/chat-uploads/**
             - Method=GET,HEAD,PUT
@@ -881,6 +891,10 @@ resilience4j:
       authorizationCB:
         baseConfig: default
   timelimiter:
+    configs:
+      default:
+        # 인스턴스 설정이 없는 서킷의 기본값이다. Resilience4j 기본값 1초는 정상 요청도 끊는다.
+        timeoutDuration: 10s
     instances:
       # 로그인은 cowork-authorization이 사용자 신원 결과를 최대 5초(KAFKA_IDENTITY_COMMAND_TIMEOUT) 기다린다.
       authorizationCB:
