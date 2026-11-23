@@ -13,6 +13,7 @@ import org.springframework.web.multipart.MultipartException
 import org.springframework.web.servlet.resource.NoResourceFoundException
 import team.themoment.sdk.exception.ExpectedException
 import team.themoment.sdk.logging.logger.logger
+import org.springframework.web.ErrorResponse as SpringErrorResponse
 
 @RestControllerAdvice
 class GlobalExceptionHandler {
@@ -57,6 +58,14 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception::class)
     fun handleInternal(e: Exception): ResponseEntity<ErrorResponse> {
+        if (e is SpringErrorResponse) {
+            if (e.statusCode.is5xxServerError) {
+                logger().error("Failed to process an HTTP request", e)
+            }
+            return ResponseEntity.status(e.statusCode)
+                .headers(e.headers)
+                .body(ErrorResponse("요청을 처리할 수 없습니다."))
+        }
         logger().error("Caught unhandled exception", e)
         return ResponseEntity.internalServerError().body(ErrorResponse("서버 오류가 발생했습니다."))
     }
