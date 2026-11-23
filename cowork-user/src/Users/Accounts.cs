@@ -459,22 +459,28 @@ public static partial class Accounts
 
     public sealed record SessionIdentity(long UserId, string Email, string GsmRole);
 
-    public static async Task<SessionIdentity?> ApplyIdentityCommandAsync(MySqlConnection connection, MySqlTransaction transaction, IdentityCommandContract.Command command)
+    /// <summary>Commits a login or link command. A null identity means FAILED, with a failure code when an account conflict caused it.</summary>
+    public static async Task<(SessionIdentity? Identity, string? FailureCode)> ApplyIdentityCommandAsync(
+        MySqlConnection connection, MySqlTransaction transaction, IdentityCommandContract.Command command)
     {
-        var binding = await connection.QueryAsync<(long Id, DateTime? LastCommandAt)>("""
-            SELECT account_id, last_login_command_at FROM tb_account_identities
-            WHERE provider = @Provider AND provider_subject = @ProviderSubject FOR UPDATE
-            """, new { command.Provider, command.ProviderSubject }, transaction).FirstOrNullAsync();
+        if (command.CommandType == "LINK") return await ApplyLinkCommandAsync(connection, transaction, command);
+
+        var binding = await FindIdentityAsync(connection, transaction, command);
         var id = binding?.Id;
 
+        // A GSM student who signs up with GitHub first gets an account without student information. Send the student to
+        // DataGSM, and let them link GitHub from that account. A GitHub account that is already linked signs in as usual.
+        if (binding is null && command.Provider == "GITHUB" && command.GsmEmailVerified)
+            return (null, IdentityCommand.DataGsmLoginRequiredCode);
+
         if (binding is { } existing && !CanApplyLoginCommand(existing.LastCommandAt, command.OccurredAt))
-            return await ReadSessionIdentityAsync(connection, transaction, existing.Id);
+            return (await ReadSessionIdentityAsync(connection, transaction, existing.Id), null);
 
         // Keep the inbox's FAILED result, but roll back every account mutation on a unique-key collision.
         await transaction.SaveAsync("identity_write");
+        var isNew = id is null;
         try
         {
-            var isNew = id is null;
             if (isNew)
             {
                 id = await connection.ExecuteScalarAsync<long>("""
@@ -489,6 +495,7 @@ public static partial class Accounts
                     """, new { id, command.Provider, command.ProviderSubject }, transaction);
             }
 
+            // GitHub and developer logins never overwrite the profile or student information of an existing account.
             if (command.Provider == "DATAGSM")
             {
                 var parameters = new { id, command.Name, command.Email, github = NullIfBlank(command.GithubId),
@@ -516,13 +523,58 @@ public static partial class Accounts
                 """, new { userId, command.Provider, command.OccurredAt }, transaction);
             await PresenceProjection.ApplyLatestToAccountAsync(connection, transaction, userId);
             await ProfileEventPublisher.EnqueueCurrentUpsertAsync(connection, transaction, userId);
-            return await ReadSessionIdentityAsync(connection, transaction, userId);
+            return (await ReadSessionIdentityAsync(connection, transaction, userId), null);
         }
         catch (MySqlException error) when (error.ErrorCode == MySqlErrorCode.DuplicateKeyEntry)
         {
             await transaction.RollbackAsync("identity_write");
-            return null;
+            if (!isNew) return (null, null);
+            // A concurrent first login for the same identity committed first, so this command signs in to that account.
+            if (await FindIdentityAsync(connection, transaction, command) is { } concurrent)
+                return (await ReadSessionIdentityAsync(connection, transaction, concurrent.Id), null);
+            // Another account already uses this email, GitHub ID, or student; an unlinked login method must not reach it.
+            return (null, IdentityCommand.NotLinkedCode);
         }
+    }
+
+    static Task<(long Id, DateTime? LastCommandAt)?> FindIdentityAsync(
+        MySqlConnection connection, MySqlTransaction transaction, IdentityCommandContract.Command command) =>
+        connection.QueryAsync<(long Id, DateTime? LastCommandAt)>("""
+            SELECT account_id, last_login_command_at FROM tb_account_identities
+            WHERE provider = @Provider AND provider_subject = @ProviderSubject FOR UPDATE
+            """, new { command.Provider, command.ProviderSubject }, transaction).FirstOrNullAsync();
+
+    /// <summary>
+    /// Adds a login method to the account that requested it. The account profile does not change.
+    /// A method linked to another account, or a second method of the same provider, is refused.
+    /// </summary>
+    static async Task<(SessionIdentity? Identity, string? FailureCode)> ApplyLinkCommandAsync(
+        MySqlConnection connection, MySqlTransaction transaction, IdentityCommandContract.Command command)
+    {
+        // Lock the account before its identities, as profile writes do.
+        var accountId = await connection.QuerySingleOrDefaultAsync<long?>(
+            "SELECT id FROM tb_accounts WHERE id = @AccountId FOR UPDATE", new { command.AccountId }, transaction);
+        if (accountId is null) return (null, null);
+
+        var linkedTo = (await FindIdentityAsync(connection, transaction, command))?.Id;
+        if (linkedTo == accountId) return (await ReadSessionIdentityAsync(connection, transaction, accountId.Value), null);
+        if (linkedTo is not null) return (null, IdentityCommand.AlreadyLinkedCode);
+
+        await transaction.SaveAsync("identity_link");
+        try
+        {
+            await connection.ExecuteAsync("""
+                INSERT INTO tb_account_identities (account_id, provider, provider_subject, last_login_command_at)
+                VALUES (@accountId, @Provider, @ProviderSubject, @OccurredAt)
+                """, new { accountId, command.Provider, command.ProviderSubject, command.OccurredAt }, transaction);
+        }
+        catch (MySqlException error) when (error.ErrorCode == MySqlErrorCode.DuplicateKeyEntry)
+        {
+            // uq_tb_account_identities_account_id_provider: the account already has a login method of this provider.
+            await transaction.RollbackAsync("identity_link");
+            return (null, IdentityCommand.AlreadyLinkedCode);
+        }
+        return (await ReadSessionIdentityAsync(connection, transaction, accountId.Value), null);
     }
 
     internal static bool CanApplyLoginCommand(DateTime? lastCommandAt, DateTime occurredAt) =>

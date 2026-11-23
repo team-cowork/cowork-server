@@ -13,6 +13,9 @@ public static class IdentityCommand
     const int ResultSchemaVersion = 2;
     const string ResultErrorCode = "USER_IDENTITY_REJECTED";
     const string ResultErrorMessage = "cowork-user could not commit the requested identity";
+    internal const string NotLinkedCode = "IDENTITY_NOT_LINKED";
+    internal const string AlreadyLinkedCode = "IDENTITY_ALREADY_LINKED";
+    internal const string DataGsmLoginRequiredCode = "DATAGSM_LOGIN_REQUIRED";
 
     sealed class ConflictingReuse(string reason = ":conflicting_identity_command_reuse") : Exception(reason);
 
@@ -83,11 +86,11 @@ public static class IdentityCommand
                 return 0;
             }
 
-            var identity = await Accounts.ApplyIdentityCommandAsync(connection, transaction, command);
+            var (identity, failureCode) = await Accounts.ApplyIdentityCommandAsync(connection, transaction, command);
             var status = identity is null ? "FAILED" : "SUCCEEDED";
             var payload = identity is not null
                 ? ResultPayload(command.OperationId, status, null, null, identity)
-                : ResultPayload(command.OperationId, status, ResultErrorCode, ResultErrorMessage);
+                : ResultPayload(command.OperationId, status, failureCode ?? ResultErrorCode, FailureMessage(failureCode));
 
             await connection.ExecuteAsync("""
                 INSERT INTO tb_user_identity_command_inbox
@@ -105,6 +108,14 @@ public static class IdentityCommand
     internal static Task EnqueueResultAsync(MySqlConnection connection, MySqlTransaction transaction, string topic, string operationId, string payload) =>
         connection.ExecuteAsync("INSERT INTO tb_kafka_outbox (topic, event_key, payload) VALUES (@topic, @operationId, @payload)",
             new { topic, operationId, payload }, transaction);
+
+    static string FailureMessage(string? code) => code switch
+    {
+        NotLinkedCode => "an existing account uses this email or GitHub ID, but this login method is not linked to it",
+        AlreadyLinkedCode => "the login method is already linked to another account, or the account already has one",
+        DataGsmLoginRequiredCode => "a GSM school email must sign in with DataGSM first and then link GitHub",
+        _ => ResultErrorMessage,
+    };
 
     internal static string ResultPayload(string operationId, string status, string? errorCode, string? errorMessage, Accounts.SessionIdentity? identity = null)
     {
@@ -128,11 +139,19 @@ public static class IdentityCommand
     /// <summary>The hash of a command under the given version's rule, or null when the version is not supported.</summary>
     internal static string? HashFor(long hashVersion, IdentityCommandContract.Command command) => hashVersion switch
     {
-        IdentityCommandContract.HashVersion => Hash(Json.Encode(new
+        // TODO(2026-11-23T07:19:58Z): Remove rule 3 and its test after Kafka retention has expired every identity command
+        // processed before hash rule 4. Until then, a redelivered command must still match its stored rule 3 hash.
+        3 => Hash(Json.Encode(new
         {
             command.OperationId, command.IdempotencyKey, command.Provider, command.ProviderSubject, command.Name, command.Email,
             command.Sex, command.Grade, command.ClassNumber, command.StudentNumberInClass, command.Major, command.Role,
             command.GithubId, command.DatagsmStudentId, OccurredAt = Iso8601.Format(command.OccurredAt)
+        })),
+        4 => Hash(Json.Encode(new
+        {
+            command.OperationId, command.IdempotencyKey, command.CommandType, command.AccountId, command.Provider, command.ProviderSubject,
+            command.Name, command.Email, command.GsmEmailVerified, command.Sex, command.Grade, command.ClassNumber,
+            command.StudentNumberInClass, command.Major, command.Role, command.GithubId, command.DatagsmStudentId, OccurredAt = Iso8601.Format(command.OccurredAt)
         })),
         _ => null,
     };
