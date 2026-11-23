@@ -97,11 +97,16 @@ tasks.withType<Test>().configureEach {
 
 val checkTeamModuleBoundaries = tasks.register<JavaExec>("checkTeamModuleBoundaries") {
     group = "verification"
-    description = "Check dependencies between the team invite and member modules"
+    description = "Verify dependencies across all team application modules"
     classpath = architecture.runtimeClasspath + sourceSets.main.get().runtimeClasspath
-    mainClass.set("com.cowork.team.architecture.CheckTeamModuleBoundariesKt")
+    mainClass.set("com.cowork.architecture.CheckTeamModuleBoundariesKt")
     javaLauncher.set(javaToolchains.launcherFor(java.toolchain))
+    systemProperty("spring.modulith.detection-strategy", "com.cowork.architecture.TeamModuleDetection")
     systemProperty("spring.profiles.active", "verification")
+}
+
+tasks.test {
+    dependsOn(checkTeamModuleBoundaries)
 }
 
 tasks.check {
