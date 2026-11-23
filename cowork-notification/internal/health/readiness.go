@@ -10,8 +10,11 @@ import (
 
 var ErrReadinessEpochChanged = errors.New("projection readiness epoch changed")
 
-// Readiness is true only after every projection topic partition has reached
-// the fixed high-watermark captured for the active Kafka assignment.
+// Readiness first becomes true when every projection topic partition reaches the
+// current high-watermark with valid checkpoints and snapshot markers. After that,
+// a partition that only lags stays ready while it reaches, within 30 s, the
+// high-watermark seen when the lag began. Any other invariant failure sets it to
+// false at once.
 type Readiness struct {
 	ready   atomic.Bool
 	mu      sync.Mutex
