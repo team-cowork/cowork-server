@@ -97,7 +97,7 @@ func newUnitAuthService(store RefreshTokenStore, now time.Time) *AuthService {
 		JWTRefreshExpire:       24 * time.Hour,
 		KafkaTopicUserPresence: "user.presence.event",
 	}
-	service := NewAuthService(cfg, nil, store, NewTokenService(cfg), nil)
+	service := NewAuthService(cfg, nil, store, NewTokenService(cfg), nil, nil)
 	service.now = func() time.Time { return now }
 	return service
 }

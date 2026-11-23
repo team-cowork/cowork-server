@@ -32,10 +32,29 @@ type ProviderRateLimitError struct{ RetryAfter string }
 
 func (*ProviderRateLimitError) Error() string { return "authentication rate limit exceeded" }
 
+const (
+	ProviderDataGSM = "DATAGSM"
+	ProviderGitHub  = "GITHUB"
+)
+
 type LoginAttempt struct {
+	// Provider is empty in attempts saved before GitHub login; those are DataGSM attempts.
+	// TODO(2026-11-23T07:19:58Z): Make provider required and remove the empty value fallback in provider() after this
+	// release has run for longer than LoginAttemptTTL, because every attempt saved without provider has expired by then.
+	Provider      string              `json:"provider,omitempty"`
 	Authorization oauth.Authorization `json:"authorization"`
 	RedirectURI   string              `json:"redirect_uri"`
 	ExpiresAt     time.Time           `json:"expires_at"`
+	// LinkUserID binds a link attempt to the signed-in Cowork user. Login attempts leave it zero.
+	LinkUserID int64 `json:"link_user_id,omitempty"`
+}
+
+func (a LoginAttempt) provider() string {
+	// TODO(2026-11-23T07:19:58Z): Remove this fallback with the optional provider field.
+	if a.Provider == "" {
+		return ProviderDataGSM
+	}
+	return a.Provider
 }
 
 type LoginAttemptStore interface {
@@ -111,32 +130,62 @@ func (s *DataGSMLogin) Begin(ctx context.Context, redirectURI string) (string, s
 	if err != nil {
 		return "", "", loginFailure("authorization", ErrAuthenticationUnavailable)
 	}
-	session := oauth.NewCodeVerifier()
-	if err := s.attempts.Save(ctx, HashToken(session), LoginAttempt{Authorization: *attempt,
-		RedirectURI: redirectURI, ExpiresAt: s.now().Add(LoginAttemptTTL)}, LoginAttemptTTL); err != nil {
-		return "", "", loginFailure("attempt_save", ErrAuthenticationUnavailable)
+	session, err := saveLoginAttempt(ctx, s.attempts, LoginAttempt{Provider: ProviderDataGSM, Authorization: *attempt,
+		RedirectURI: redirectURI, ExpiresAt: s.now().Add(LoginAttemptTTL)})
+	if err != nil {
+		return "", "", err
 	}
 	return attempt.URL, session, nil
 }
 
-func (s *DataGSMLogin) Complete(ctx context.Context, session string, callback url.Values) (*oauth.UserInfo, error) {
+// saveLoginAttempt stores the attempt under a new random session value for the HttpOnly cookie.
+func saveLoginAttempt(ctx context.Context, store LoginAttemptStore, attempt LoginAttempt) (string, error) {
+	session := oauth.NewCodeVerifier()
+	if err := store.Save(ctx, HashToken(session), attempt, LoginAttemptTTL); err != nil {
+		return "", loginFailure("attempt_save", ErrAuthenticationUnavailable)
+	}
+	return session, nil
+}
+
+// takeLoginAttempt consumes the attempt bound to the session cookie. Each attempt is usable once.
+func takeLoginAttempt(ctx context.Context, store LoginAttemptStore, session string, now time.Time) (LoginAttempt, error) {
 	if len(session) != 43 {
-		return nil, loginFailure("session_binding", ErrAuthenticationRejected)
+		return LoginAttempt{}, loginFailure("session_binding", ErrAuthenticationRejected)
 	}
 	if _, err := oauth.CodeChallenge(session); err != nil {
-		return nil, loginFailure("session_binding", ErrAuthenticationRejected)
+		return LoginAttempt{}, loginFailure("session_binding", ErrAuthenticationRejected)
 	}
 	// The independent HttpOnly cookie binds the public state to the initiating client.
-	attempt, err := s.attempts.Take(ctx, HashToken(session))
+	attempt, err := store.Take(ctx, HashToken(session))
 	if errors.Is(err, ErrLoginAttemptNotFound) {
-		return nil, loginFailure("attempt_missing", ErrAuthenticationRejected)
+		return LoginAttempt{}, loginFailure("attempt_missing", ErrAuthenticationRejected)
 	}
 	if err != nil {
-		return nil, loginFailure("attempt_store", ErrAuthenticationUnavailable)
+		return LoginAttempt{}, loginFailure("attempt_store", ErrAuthenticationUnavailable)
 	}
+	if !now.Before(attempt.ExpiresAt) {
+		return LoginAttempt{}, loginFailure("attempt_expired", ErrAuthenticationRejected)
+	}
+	return attempt, nil
+}
+
+// take consumes an attempt from the attempt storage that every provider shares.
+func (s *DataGSMLogin) take(ctx context.Context, session string) (LoginAttempt, error) {
+	return takeLoginAttempt(ctx, s.attempts, session, s.now())
+}
+
+func (s *DataGSMLogin) Complete(ctx context.Context, session string, callback url.Values) (*oauth.UserInfo, error) {
+	attempt, err := s.take(ctx, session)
+	if err != nil {
+		return nil, err
+	}
+	return s.CompleteAttempt(ctx, attempt, callback)
+}
+
+func (s *DataGSMLogin) CompleteAttempt(ctx context.Context, attempt LoginAttempt, callback url.Values) (*oauth.UserInfo, error) {
 	client := s.clients[attempt.RedirectURI]
-	if client == nil || !s.now().Before(attempt.ExpiresAt) {
-		return nil, loginFailure("attempt_expired", ErrAuthenticationRejected)
+	if client == nil || attempt.provider() != ProviderDataGSM {
+		return nil, loginFailure("attempt_purpose", ErrAuthenticationRejected)
 	}
 	code, err := attempt.Authorization.Code(callback)
 	if err != nil {

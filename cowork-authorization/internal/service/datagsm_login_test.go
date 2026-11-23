@@ -366,7 +366,7 @@ func TestStudentLoginAllowsNullableProfile(t *testing.T) {
 			tc.mutate(info)
 			identity := &fakeIdentityCoordinator{userID: 27}
 			store := &fakeRefreshTokenStore{}
-			svc := NewAuthService(cfg, identity, store, NewTokenService(cfg), nil)
+			svc := NewAuthService(cfg, identity, store, NewTokenService(cfg), nil, nil)
 			pair, err := svc.issueUserSession(context.Background(), info)
 			if tc.valid {
 				if err != nil || pair == nil || identity.command.Student.Major != nil || identity.command.Student.Grade != nil || identity.command.SchemaVersion != domain.UserIdentityCommandSchemaVersion {
