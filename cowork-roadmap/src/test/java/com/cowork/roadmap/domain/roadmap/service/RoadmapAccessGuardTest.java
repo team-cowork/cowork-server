@@ -86,6 +86,15 @@ class RoadmapAccessGuardTest {
         }
 
         @Test
+        void customScopeByActiveRoadmapManager_succeeds() {
+            Roadmap roadmap = roadmap(RoadmapScope.TEAM, 7L, 99L);
+            when(teamMemberships.findActiveRole(99L, 8L)).thenReturn(Optional.of("MEMBER"));
+            when(policies.allows(99, 8, "manage_roadmaps")).thenReturn(true);
+
+            accessGuard.requireMutable(roadmap, 8L);
+        }
+
+        @Test
         void customScopeByCreator_whenProjectionNotReady_isUnavailable() {
             Roadmap roadmap = roadmap(RoadmapScope.TEAM, 7L, 99L);
             when(projectionReadiness.isReady()).thenReturn(false);
@@ -117,6 +126,14 @@ class RoadmapAccessGuardTest {
         var error = assertThrows(ExpectedException.class,
                 () -> accessGuard.requireCreatable(7L, RoadmapScope.TEAM, 20L));
         assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void roadmapManagementGrantAllowsTeamRoadmapCreation() {
+        when(teamMemberships.findActiveRole(10L, 7L)).thenReturn(Optional.of("MEMBER"));
+        when(policies.allows(10, 7, "manage_roadmaps")).thenReturn(true);
+
+        accessGuard.requireCreatable(7L, RoadmapScope.TEAM, 10L);
     }
 
     @Test

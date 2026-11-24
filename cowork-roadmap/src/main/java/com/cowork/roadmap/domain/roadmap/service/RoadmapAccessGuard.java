@@ -92,7 +92,10 @@ public class RoadmapAccessGuard {
     public void requireTeamManager(Long userId, Long teamId) {
         requireTeamMember(teamId, userId);
         requireReady(teamPolicyReadiness);
+        // TODO(#1114): Remove `manage_team` after the transition. It keeps
+        // roadmap access for roles that do not have `manage_roadmaps` yet.
         if (!roadmapPolicyRepository.allows(teamId, userId, "administrator")
+                && !roadmapPolicyRepository.allows(teamId, userId, "manage_roadmaps")
                 && !roadmapPolicyRepository.allows(teamId, userId, "manage_team")) {
             throw new ExpectedException("팀 관리 권한이 필요합니다.", HttpStatus.FORBIDDEN);
         }
