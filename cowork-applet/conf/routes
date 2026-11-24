@@ -1,31 +1,22 @@
 ###
-#  summary: 임의 값 생성
+#  summary: 플랫폼 함수 목록 조회
+#  description: 앱이 서버에 요청할 수 있는 플랫폼 함수와 인자 형식을 반환합니다.
 #  tags:
-#    - applet
+#    - function
 #  responses:
 #    200:
-#      description: 생성 성공
+#      description: 조회 성공
 #      content:
 #        application/json:
 #          schema:
-#            type: object
-#            required: [status, code, message, data]
-#            properties:
-#              status:
-#                type: string
-#                example: 200 OK
-#              code:
-#                type: integer
-#                example: 200
-#              message:
-#                type: string
-#                example: OK
-#              data:
-#                type: object
-#                required: [value]
+#            allOf:
+#              - $ref: '#/components/schemas/ApiResponse'
+#              - type: object
 #                properties:
-#                  value:
-#                    type: string
+#                  data:
+#                    type: array
+#                    items:
+#                      $ref: '#/components/schemas/com.cowork.applet.domain.function.presentation.data.response.PlatformFunctionResDto'
 #    401:
 #      description: 액세스 토큰이 없거나 유효하지 않음
 #      content:
@@ -33,7 +24,721 @@
 #          schema:
 #            $ref: '#/components/schemas/ApiError'
 ###
-GET     /applets/random     com.cowork.applet.domain.placeholder.presentation.controller.RandomValueController.random
+GET     /applets/functions                               com.cowork.applet.domain.function.presentation.controller.PlatformFunctionController.catalog
+
+###
+#  summary: 앱 생성
+#  description: 요청한 사용자가 소유자인 앱을 만듭니다. 버전을 올리기 전까지 소유자에게만 보입니다.
+#  tags:
+#    - applet
+#  requestBody:
+#    required: true
+#    content:
+#      application/json:
+#        schema:
+#          $ref: '#/components/schemas/com.cowork.applet.domain.applet.presentation.data.request.CreateAppletReqDto'
+#  responses:
+#    201:
+#      description: 생성 성공
+#      content:
+#        application/json:
+#          schema:
+#            allOf:
+#              - $ref: '#/components/schemas/ApiResponse'
+#              - type: object
+#                properties:
+#                  data:
+#                    $ref: '#/components/schemas/com.cowork.applet.domain.applet.presentation.data.response.AppletResDto'
+#    400:
+#      description: 요청 값이 올바르지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+POST    /applets                                         com.cowork.applet.domain.applet.presentation.controller.AppletController.create
+
+###
+#  summary: 내 앱 목록 조회
+#  tags:
+#    - applet
+#  responses:
+#    200:
+#      description: 조회 성공
+#      content:
+#        application/json:
+#          schema:
+#            allOf:
+#              - $ref: '#/components/schemas/ApiResponse'
+#              - type: object
+#                properties:
+#                  data:
+#                    type: array
+#                    items:
+#                      $ref: '#/components/schemas/com.cowork.applet.domain.applet.presentation.data.response.AppletResDto'
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+GET     /applets                                         com.cowork.applet.domain.applet.presentation.controller.AppletController.mine
+
+###
+#  summary: 앱 조회
+#  description: 소유자이거나 게시된 버전이 있는 앱만 조회할 수 있습니다.
+#  tags:
+#    - applet
+#  responses:
+#    200:
+#      description: 조회 성공
+#      content:
+#        application/json:
+#          schema:
+#            allOf:
+#              - $ref: '#/components/schemas/ApiResponse'
+#              - type: object
+#                properties:
+#                  data:
+#                    $ref: '#/components/schemas/com.cowork.applet.domain.applet.presentation.data.response.AppletResDto'
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    404:
+#      description: 앱을 찾을 수 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+GET     /applets/:appletId                               com.cowork.applet.domain.applet.presentation.controller.AppletController.detail(appletId: String)
+
+###
+#  summary: 앱 정보 수정
+#  description: 보낸 필드만 바꿉니다.
+#  tags:
+#    - applet
+#  requestBody:
+#    required: true
+#    content:
+#      application/json:
+#        schema:
+#          $ref: '#/components/schemas/com.cowork.applet.domain.applet.presentation.data.request.UpdateAppletReqDto'
+#  responses:
+#    200:
+#      description: 수정 성공
+#      content:
+#        application/json:
+#          schema:
+#            allOf:
+#              - $ref: '#/components/schemas/ApiResponse'
+#              - type: object
+#                properties:
+#                  data:
+#                    $ref: '#/components/schemas/com.cowork.applet.domain.applet.presentation.data.response.AppletResDto'
+#    400:
+#      description: 요청 값이 올바르지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    403:
+#      description: 앱을 관리할 권한이 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    404:
+#      description: 앱을 찾을 수 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+PATCH   /applets/:appletId                               com.cowork.applet.domain.applet.presentation.controller.AppletController.update(appletId: String)
+
+###
+#  summary: 앱 삭제
+#  description: 버전, 환경변수, 시크릿, 저장소 값을 함께 삭제합니다.
+#  tags:
+#    - applet
+#  responses:
+#    204:
+#      description: 삭제 성공
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    403:
+#      description: 앱을 관리할 권한이 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    404:
+#      description: 앱을 찾을 수 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+DELETE  /applets/:appletId                               com.cowork.applet.domain.applet.presentation.controller.AppletController.delete(appletId: String)
+
+###
+#  summary: 앱 실행 정보 조회
+#  description: 게시된 버전의 파일과 환경변수를 반환합니다. 클라이언트는 이 파일을 샌드박스 iframe에서 실행합니다. 시크릿은 포함하지 않습니다.
+#  tags:
+#    - applet
+#  responses:
+#    200:
+#      description: 조회 성공
+#      content:
+#        application/json:
+#          schema:
+#            allOf:
+#              - $ref: '#/components/schemas/ApiResponse'
+#              - type: object
+#                properties:
+#                  data:
+#                    $ref: '#/components/schemas/com.cowork.applet.domain.applet.presentation.data.response.AppletLaunchResDto'
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    404:
+#      description: 앱 또는 게시된 버전을 찾을 수 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+GET     /applets/:appletId/launch                        com.cowork.applet.domain.applet.presentation.controller.AppletController.launch(appletId: String)
+
+###
+#  summary: 앱 버전 업로드
+#  description: 업로드한 번들을 자동 보안 검사합니다. 텍스트 파일은 HTML, CSS, JavaScript, JSON이며 utf8로 보냅니다. 이미지와 폰트는 PNG, JPEG, WebP, WOFF2만 허용하고 base64로 보냅니다. 자산은 버전당 10개, 파일당 256KB, 합계 1MB까지입니다. 검사를 통과하면 APPROVED 상태가 되고 즉시 게시됩니다. BLOCK 항목이 있으면 REJECTED 상태가 되고 파일은 저장하지 않습니다. 게시 버전과 최근 통과 버전 5개만 파일을 보관하고, 그보다 오래된 통과 버전은 ARCHIVED 상태로 바뀝니다.
+#  tags:
+#    - version
+#  requestBody:
+#    required: true
+#    content:
+#      application/json:
+#        schema:
+#          $ref: '#/components/schemas/com.cowork.applet.domain.applet.presentation.data.request.SubmitAppletVersionReqDto'
+#  responses:
+#    201:
+#      description: 검사 완료
+#      content:
+#        application/json:
+#          schema:
+#            allOf:
+#              - $ref: '#/components/schemas/ApiResponse'
+#              - type: object
+#                properties:
+#                  data:
+#                    $ref: '#/components/schemas/com.cowork.applet.domain.applet.presentation.data.response.AppletVersionResDto'
+#    400:
+#      description: 요청 값이 올바르지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    403:
+#      description: 앱을 관리할 권한이 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    404:
+#      description: 앱을 찾을 수 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    413:
+#      description: 요청 본문이 8MB를 넘음
+###
+POST    /applets/:appletId/versions                      com.cowork.applet.domain.applet.presentation.controller.AppletVersionController.submit(appletId: String)
+
+###
+#  summary: 앱 버전 목록 조회
+#  description: 최신 버전부터 반환합니다.
+#  tags:
+#    - version
+#  responses:
+#    200:
+#      description: 조회 성공
+#      content:
+#        application/json:
+#          schema:
+#            allOf:
+#              - $ref: '#/components/schemas/ApiResponse'
+#              - type: object
+#                properties:
+#                  data:
+#                    type: array
+#                    items:
+#                      $ref: '#/components/schemas/com.cowork.applet.domain.applet.presentation.data.response.AppletVersionResDto'
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    403:
+#      description: 앱을 관리할 권한이 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    404:
+#      description: 앱을 찾을 수 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+GET     /applets/:appletId/versions                      com.cowork.applet.domain.applet.presentation.controller.AppletVersionController.list(appletId: String)
+
+###
+#  summary: 앱 버전 조회
+#  tags:
+#    - version
+#  responses:
+#    200:
+#      description: 조회 성공
+#      content:
+#        application/json:
+#          schema:
+#            allOf:
+#              - $ref: '#/components/schemas/ApiResponse'
+#              - type: object
+#                properties:
+#                  data:
+#                    $ref: '#/components/schemas/com.cowork.applet.domain.applet.presentation.data.response.AppletVersionResDto'
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    403:
+#      description: 앱을 관리할 권한이 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    404:
+#      description: 앱 또는 버전을 찾을 수 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+GET     /applets/:appletId/versions/:versionId           com.cowork.applet.domain.applet.presentation.controller.AppletVersionController.detail(appletId: String, versionId: String)
+
+###
+#  summary: 게시 버전 변경
+#  description: 검사를 통과했고 파일이 보관된 버전으로 게시 버전을 바꿉니다. 이전 버전으로 되돌릴 때 사용합니다.
+#  tags:
+#    - version
+#  requestBody:
+#    required: true
+#    content:
+#      application/json:
+#        schema:
+#          $ref: '#/components/schemas/com.cowork.applet.domain.applet.presentation.data.request.PublishAppletVersionReqDto'
+#  responses:
+#    200:
+#      description: 변경 성공
+#      content:
+#        application/json:
+#          schema:
+#            allOf:
+#              - $ref: '#/components/schemas/ApiResponse'
+#              - type: object
+#                properties:
+#                  data:
+#                    $ref: '#/components/schemas/com.cowork.applet.domain.applet.presentation.data.response.AppletResDto'
+#    400:
+#      description: 요청 값이 올바르지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    403:
+#      description: 앱을 관리할 권한이 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    404:
+#      description: 앱 또는 버전을 찾을 수 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    409:
+#      description: 게시할 수 없는 버전임
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+PUT     /applets/:appletId/published-version            com.cowork.applet.domain.applet.presentation.controller.AppletVersionController.publish(appletId: String)
+
+###
+#  summary: 게시 중단
+#  description: 게시 버전을 비웁니다. 소유자가 아닌 사용자는 앱을 조회하거나 실행할 수 없게 됩니다.
+#  tags:
+#    - version
+#  responses:
+#    200:
+#      description: 변경 성공
+#      content:
+#        application/json:
+#          schema:
+#            allOf:
+#              - $ref: '#/components/schemas/ApiResponse'
+#              - type: object
+#                properties:
+#                  data:
+#                    $ref: '#/components/schemas/com.cowork.applet.domain.applet.presentation.data.response.AppletResDto'
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    403:
+#      description: 앱을 관리할 권한이 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    404:
+#      description: 앱을 찾을 수 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+DELETE  /applets/:appletId/published-version            com.cowork.applet.domain.applet.presentation.controller.AppletVersionController.unpublish(appletId: String)
+
+###
+#  summary: 환경변수 목록 조회
+#  tags:
+#    - environment
+#  responses:
+#    200:
+#      description: 조회 성공
+#      content:
+#        application/json:
+#          schema:
+#            allOf:
+#              - $ref: '#/components/schemas/ApiResponse'
+#              - type: object
+#                properties:
+#                  data:
+#                    type: array
+#                    items:
+#                      $ref: '#/components/schemas/com.cowork.applet.domain.environment.presentation.data.response.AppletVariableResDto'
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    403:
+#      description: 앱을 관리할 권한이 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    404:
+#      description: 앱을 찾을 수 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+GET     /applets/:appletId/variables                     com.cowork.applet.domain.environment.presentation.controller.AppletEnvironmentController.variables(appletId: String)
+
+###
+#  summary: 환경변수 저장
+#  description: 환경변수는 앱을 실행하는 모든 클라이언트에 전달되므로 공개해도 되는 값만 저장하십시오. 비밀 값은 시크릿으로 저장하십시오.
+#  tags:
+#    - environment
+#  requestBody:
+#    required: true
+#    content:
+#      application/json:
+#        schema:
+#          $ref: '#/components/schemas/com.cowork.applet.domain.environment.presentation.data.request.PutEnvironmentValueReqDto'
+#  responses:
+#    200:
+#      description: 저장 성공
+#      content:
+#        application/json:
+#          schema:
+#            allOf:
+#              - $ref: '#/components/schemas/ApiResponse'
+#              - type: object
+#                properties:
+#                  data:
+#                    $ref: '#/components/schemas/com.cowork.applet.domain.environment.presentation.data.response.AppletVariableResDto'
+#    400:
+#      description: 요청 값이 올바르지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    403:
+#      description: 앱을 관리할 권한이 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    404:
+#      description: 앱을 찾을 수 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+PUT     /applets/:appletId/variables/:name               com.cowork.applet.domain.environment.presentation.controller.AppletEnvironmentController.putVariable(appletId: String, name: String)
+
+###
+#  summary: 환경변수 삭제
+#  tags:
+#    - environment
+#  responses:
+#    204:
+#      description: 삭제 성공
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    403:
+#      description: 앱을 관리할 권한이 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    404:
+#      description: 앱 또는 환경변수를 찾을 수 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+DELETE  /applets/:appletId/variables/:name               com.cowork.applet.domain.environment.presentation.controller.AppletEnvironmentController.deleteVariable(appletId: String, name: String)
+
+###
+#  summary: 시크릿 목록 조회
+#  description: 시크릿 값은 반환하지 않습니다.
+#  tags:
+#    - environment
+#  responses:
+#    200:
+#      description: 조회 성공
+#      content:
+#        application/json:
+#          schema:
+#            allOf:
+#              - $ref: '#/components/schemas/ApiResponse'
+#              - type: object
+#                properties:
+#                  data:
+#                    type: array
+#                    items:
+#                      $ref: '#/components/schemas/com.cowork.applet.domain.environment.presentation.data.response.AppletSecretResDto'
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    403:
+#      description: 앱을 관리할 권한이 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    404:
+#      description: 앱을 찾을 수 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+GET     /applets/:appletId/secrets                       com.cowork.applet.domain.environment.presentation.controller.AppletEnvironmentController.secrets(appletId: String)
+
+###
+#  summary: 시크릿 저장
+#  description: 값을 암호화해 저장합니다. 시크릿은 클라이언트에 전달하지 않고 서버의 플랫폼 함수에서만 사용합니다.
+#  tags:
+#    - environment
+#  requestBody:
+#    required: true
+#    content:
+#      application/json:
+#        schema:
+#          $ref: '#/components/schemas/com.cowork.applet.domain.environment.presentation.data.request.PutEnvironmentValueReqDto'
+#  responses:
+#    200:
+#      description: 저장 성공
+#      content:
+#        application/json:
+#          schema:
+#            allOf:
+#              - $ref: '#/components/schemas/ApiResponse'
+#              - type: object
+#                properties:
+#                  data:
+#                    $ref: '#/components/schemas/com.cowork.applet.domain.environment.presentation.data.response.AppletSecretResDto'
+#    400:
+#      description: 요청 값이 올바르지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    403:
+#      description: 앱을 관리할 권한이 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    404:
+#      description: 앱을 찾을 수 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+PUT     /applets/:appletId/secrets/:name                 com.cowork.applet.domain.environment.presentation.controller.AppletEnvironmentController.putSecret(appletId: String, name: String)
+
+###
+#  summary: 시크릿 삭제
+#  tags:
+#    - environment
+#  responses:
+#    204:
+#      description: 삭제 성공
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    403:
+#      description: 앱을 관리할 권한이 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    404:
+#      description: 앱 또는 시크릿을 찾을 수 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+DELETE  /applets/:appletId/secrets/:name                 com.cowork.applet.domain.environment.presentation.controller.AppletEnvironmentController.deleteSecret(appletId: String, name: String)
+
+###
+#  summary: 플랫폼 함수 호출
+#  description: 요청 본문은 함수 인자 객체입니다. 인자 형식은 플랫폼 함수 목록 조회 결과를 따릅니다. 소유자이거나 게시된 앱에서만 호출할 수 있습니다.
+#  tags:
+#    - function
+#  requestBody:
+#    required: true
+#    content:
+#      application/json:
+#        schema:
+#          type: object
+#          example: { key: score, value: 10, scope: USER }
+#  responses:
+#    200:
+#      description: 호출 성공
+#      content:
+#        application/json:
+#          schema:
+#            allOf:
+#              - $ref: '#/components/schemas/ApiResponse'
+#              - type: object
+#                properties:
+#                  data:
+#                    type: object
+#                    required: [result]
+#                    properties:
+#                      result: {}
+#    400:
+#      description: 요청 값이 올바르지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    401:
+#      description: 액세스 토큰이 없거나 유효하지 않음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+#    404:
+#      description: 앱 또는 함수를 찾을 수 없음
+#      content:
+#        application/json:
+#          schema:
+#            $ref: '#/components/schemas/ApiError'
+###
+POST    /applets/:appletId/functions/:functionName       com.cowork.applet.domain.function.presentation.controller.PlatformFunctionController.invoke(appletId: String, functionName: String)
 
 ### NoDocs ###
 GET     /health             com.cowork.applet.global.health.HealthController.live

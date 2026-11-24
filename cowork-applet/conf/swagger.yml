@@ -8,11 +8,30 @@ servers:
     description: Gateway
 tags:
   - name: applet
-    description: 앱에서 사용할 임의 값을 생성합니다.
+    description: 앱을 등록하고 관리합니다.
+  - name: version
+    description: 앱 번들을 업로드하고 자동 보안 검사 결과를 조회합니다.
+  - name: environment
+    description: 앱의 환경변수와 시크릿을 관리합니다.
+  - name: function
+    description: 앱이 서버에 요청하는 플랫폼 함수를 제공합니다.
 security:
   - BearerAuth: []
 components:
   schemas:
+    ApiResponse:
+      type: object
+      required: [status, code, message, data]
+      properties:
+        status:
+          type: string
+          example: 200 OK
+        code:
+          type: integer
+          example: 200
+        message:
+          type: string
+          example: OK
     ApiError:
       type: object
       required: [status, code, message]

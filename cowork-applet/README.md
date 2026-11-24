@@ -21,11 +21,12 @@
 
 운영 설정 입력은 [서비스 선언](../deploy/production/config/services.json)에 정의되어 있습니다.
 
-| 변수                | 설명                     |
-|---------------------|--------------------------|
-| `APPLET_SECRET_KEY` | Play 애플리케이션 비밀키 |
-| `DB_HOST`           | SurrealDB 호스트         |
-| `DB_PORT`           | SurrealDB HTTP 포트      |
-| `DB_NAME`           | SurrealDB database 이름  |
-| `DB_USERNAME`       | SurrealDB database 사용자 |
-| `DB_PASSWORD`       | SurrealDB 사용자 비밀번호 |
+| 변수                             | 설명                             |
+|--------------------------------|--------------------------------|
+| `APPLET_SECRET_KEY`            | Play 애플리케이션 비밀키                |
+| `APPLET_SECRET_ENCRYPTION_KEY` | 앱 시크릿 암호화 키. Base64 인코딩한 32바이트 |
+| `DB_HOST`                      | SurrealDB 호스트                  |
+| `DB_PORT`                      | SurrealDB HTTP 포트              |
+| `DB_NAME`                      | SurrealDB database 이름          |
+| `DB_USERNAME`                  | SurrealDB database 사용자         |
+| `DB_PASSWORD`                  | SurrealDB 사용자 비밀번호             |
