@@ -3,6 +3,7 @@ package com.cowork.preference.domain.access.service
 import com.cowork.preference.domain.access.exception.ArchivedChannelException
 import com.cowork.preference.domain.access.exception.ProjectionNotReadyException
 import com.cowork.preference.domain.access.exception.ResourceAccessDeniedException
+import com.cowork.preference.domain.access.projection.channel.model.ChannelLifecycleProjection
 import com.cowork.preference.domain.access.projection.channel.repository.ChannelLifecycleProjectionRepository
 import com.cowork.preference.domain.access.projection.dm.repository.DmParticipantProjectionRepository
 import com.cowork.preference.domain.access.projection.team.repository.TeamMemberProjectionRepository
@@ -53,6 +54,26 @@ class ChannelAccessGuard(
         if (!policyRepository.canAccess(client, teamId, accountId, channelId, permission, channel.isPrivate != false)) {
             throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
         }
+    }
+
+    /**
+     * 유효 권한 조회 조건이다. 팀 채널은 소속 팀의 활성 멤버, DM은 대화 참여자만 통과한다.
+     * 접근 권한이 없는 멤버도 거부 사유를 확인할 수 있도록 채널 접근 권한은 요구하지 않는다.
+     */
+    suspend fun requireChannelTeamMember(channelId: Long, accountId: Long): ChannelLifecycleProjection {
+        if (!accessReadiness.isReady) {
+            throw ProjectionNotReadyException("channel or team member projection is not ready")
+        }
+        val channel = channelRepository.findForRead(pool, channelId)?.takeUnless { it.deleted }
+            ?: throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
+        val teamId = channel.teamId
+        if (teamId == null) {
+            requireDmParticipant(pool, channelId, accountId)
+            return channel
+        }
+        val member = teamMemberRepository.findForRead(pool, teamId, accountId)
+        if (member == null || member.deleted) throw ResourceAccessDeniedException(CHANNEL_ACCESS_DENIED)
+        return channel
     }
 
     /** 채널 설정 수정은 접근 권한과 channel_manage가 모두 필요하다. */

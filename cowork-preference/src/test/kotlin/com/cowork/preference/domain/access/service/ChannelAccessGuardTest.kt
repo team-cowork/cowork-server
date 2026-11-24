@@ -14,6 +14,7 @@ import com.cowork.preference.global.security.RequesterContext
 import io.kotest.assertions.throwables.shouldNotThrowAny
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -397,6 +398,52 @@ class ChannelAccessGuardTest :
 
                         shouldNotThrowAny { runBlocking { fixture.guard.requireNotArchived(CHANNEL_ID) } }
                     }
+                }
+            }
+        }
+
+        describe("ChannelAccessGuard 클래스의 requireChannelTeamMember 메서드는") {
+            it("채널 읽기 권한이 없어도 팀 멤버면 채널 projection을 반환한다") {
+                fixture.ready()
+                fixture.channel(isPrivate = true)
+                fixture.teamMember()
+
+                val channel = runBlocking { fixture.guard.requireChannelTeamMember(CHANNEL_ID, USER_ID) }
+
+                channel.teamId shouldBe TEAM_ID
+                coVerify(exactly = 0) { fixture.policyRepository.canAccess(any(), any(), any(), any(), any(), any()) }
+            }
+            it("팀 멤버가 아니거나 탈퇴한 멤버면 거부한다") {
+                fixture.ready()
+                fixture.channel()
+                fixture.teamMember(found = false)
+                shouldThrow<ResourceAccessDeniedException> {
+                    runBlocking { fixture.guard.requireChannelTeamMember(CHANNEL_ID, USER_ID) }
+                }
+                fixture.teamMember(deleted = true)
+                shouldThrow<ResourceAccessDeniedException> {
+                    runBlocking { fixture.guard.requireChannelTeamMember(CHANNEL_ID, USER_ID) }
+                }
+            }
+            it("DM은 대화 참여자만 통과한다") {
+                fixture.ready()
+                fixture.channel(teamId = null)
+                fixture.dmParticipant(false)
+                shouldThrow<ResourceAccessDeniedException> {
+                    runBlocking { fixture.guard.requireChannelTeamMember(CHANNEL_ID, USER_ID) }
+                }
+                fixture.dmParticipant(true)
+                runBlocking { fixture.guard.requireChannelTeamMember(CHANNEL_ID, USER_ID) }.teamId shouldBe null
+            }
+            it("projection이 준비되지 않았거나 삭제된 채널이면 거부한다") {
+                fixture.ready(access = false)
+                shouldThrow<ProjectionNotReadyException> {
+                    runBlocking { fixture.guard.requireChannelTeamMember(CHANNEL_ID, USER_ID) }
+                }
+                fixture.ready()
+                fixture.channel(deleted = true)
+                shouldThrow<ResourceAccessDeniedException> {
+                    runBlocking { fixture.guard.requireChannelTeamMember(CHANNEL_ID, USER_ID) }
                 }
             }
         }

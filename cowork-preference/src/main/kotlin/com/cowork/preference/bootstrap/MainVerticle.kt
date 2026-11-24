@@ -2,6 +2,8 @@ package com.cowork.preference.bootstrap
 
 import com.cowork.preference.bootstrap.http.buildRouter
 import com.cowork.preference.bootstrap.snapshot.PreferenceSnapshotPublisher
+import com.cowork.preference.domain.access.effective.presentation.EffectivePermissionHandler
+import com.cowork.preference.domain.access.effective.service.EffectivePermissionService
 import com.cowork.preference.domain.access.projection.channel.handler.ChannelLifecycleProjectionHandler
 import com.cowork.preference.domain.access.projection.channel.repository.ChannelLifecycleProjectionRepository
 import com.cowork.preference.domain.access.projection.dm.handler.DmParticipantProjectionHandler
@@ -248,6 +250,17 @@ class MainVerticle : AbstractVerticle() {
         webhookHandler.routes(router)
         val accountRoles = AccountRoleRepository(outboxRepository)
         AccountRoleHandler(AccountRoleService(pool, accountRoles, outboxRepository), scope).routes(router)
+        val effectivePermissionService = EffectivePermissionService(
+            pool = pool,
+            teamMembershipGuard = teamMembershipGuard,
+            channelAccessGuard = channelAccessGuard,
+            projectAccessGuard = projectAccessGuard,
+            accountRoleRepository = accountRoles,
+            teamRoleRepository = teamRoleRepo,
+            channelRolePolicyRepository = channelRolePolicyRepo,
+            projectRoleRepository = roleRepo,
+        )
+        EffectivePermissionHandler(effectivePermissionService, scope).routes(router)
 
         scheduleExpiryChecks(prefService, preferenceCache, webhookService)
         scheduleCacheRepair(preferenceCache)
