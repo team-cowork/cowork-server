@@ -36,7 +36,7 @@ public class RoadmapAccessGuard {
         if (scope == RoadmapScope.GLOBAL) {
             requireGlobalManagement(userId);
         } else {
-            requireTeamManager(userId, ownerTeamId);
+            requireRoadmapManager(userId, ownerTeamId);
         }
     }
 
@@ -46,7 +46,7 @@ public class RoadmapAccessGuard {
         } else if (userId.equals(roadmap.getCreatedBy())) {
             requireTeamMember(roadmap.getOwnerTeamId(), userId);
         } else {
-            requireTeamManager(userId, roadmap.getOwnerTeamId());
+            requireRoadmapManager(userId, roadmap.getOwnerTeamId());
         }
     }
 
@@ -68,7 +68,7 @@ public class RoadmapAccessGuard {
 
     public void requireAssignmentCreation(Long userId, Long teamId) {
         if (!accountAllows(userId, "create_team_assignments")) {
-            requireTeamManager(userId, teamId);
+            requireRoadmapManager(userId, teamId);
         }
     }
 
@@ -89,14 +89,11 @@ public class RoadmapAccessGuard {
         }
     }
 
-    public void requireTeamManager(Long userId, Long teamId) {
+    public void requireRoadmapManager(Long userId, Long teamId) {
         requireTeamMember(teamId, userId);
         requireReady(teamPolicyReadiness);
-        // TODO(#1114): Remove `manage_team` after the transition. It keeps
-        // roadmap access for roles that do not have `manage_roadmaps` yet.
         if (!roadmapPolicyRepository.allows(teamId, userId, "administrator")
-                && !roadmapPolicyRepository.allows(teamId, userId, "manage_roadmaps")
-                && !roadmapPolicyRepository.allows(teamId, userId, "manage_team")) {
+                && !roadmapPolicyRepository.allows(teamId, userId, "manage_roadmaps")) {
             throw new ExpectedException("로드맵 관리 권한이 필요합니다.", HttpStatus.FORBIDDEN);
         }
     }

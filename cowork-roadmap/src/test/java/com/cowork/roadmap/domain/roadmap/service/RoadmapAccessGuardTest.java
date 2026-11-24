@@ -77,12 +77,14 @@ class RoadmapAccessGuardTest {
         }
 
         @Test
-        void customScopeByActiveManager_succeeds() {
+        void customScopeByTeamManagerOnly_isForbidden() {
             Roadmap roadmap = roadmap(RoadmapScope.TEAM, 7L, 99L);
             when(teamMemberships.findActiveRole(99L, 8L)).thenReturn(Optional.of("MEMBER"));
             when(policies.allows(99, 8, "manage_team")).thenReturn(true);
 
-            accessGuard.requireMutable(roadmap, 8L);
+            ExpectedException error = assertThrows(ExpectedException.class,
+                    () -> accessGuard.requireMutable(roadmap, 8L));
+            assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
         }
 
         @Test
@@ -120,7 +122,7 @@ class RoadmapAccessGuardTest {
     void managementGrantIsScopedToTheRoadmapOwnerTeam() {
         when(teamMemberships.findActiveRole(10L, 7L)).thenReturn(Optional.of("MEMBER"));
         when(teamMemberships.findActiveRole(20L, 7L)).thenReturn(Optional.of("ADMIN"));
-        when(policies.allows(10, 7, "manage_team")).thenReturn(true);
+        when(policies.allows(10, 7, "manage_roadmaps")).thenReturn(true);
 
         accessGuard.requireCreatable(7L, RoadmapScope.TEAM, 10L);
         var error = assertThrows(ExpectedException.class,
@@ -129,11 +131,13 @@ class RoadmapAccessGuardTest {
     }
 
     @Test
-    void roadmapManagementGrantAllowsTeamRoadmapCreation() {
+    void teamManagementGrantAloneRejectsTeamRoadmapCreation() {
         when(teamMemberships.findActiveRole(10L, 7L)).thenReturn(Optional.of("MEMBER"));
-        when(policies.allows(10, 7, "manage_roadmaps")).thenReturn(true);
+        when(policies.allows(10, 7, "manage_team")).thenReturn(true);
 
-        accessGuard.requireCreatable(7L, RoadmapScope.TEAM, 10L);
+        var error = assertThrows(ExpectedException.class,
+                () -> accessGuard.requireCreatable(7L, RoadmapScope.TEAM, 10L));
+        assertTrue(error.getStatusCode() == HttpStatus.FORBIDDEN);
     }
 
     @Test

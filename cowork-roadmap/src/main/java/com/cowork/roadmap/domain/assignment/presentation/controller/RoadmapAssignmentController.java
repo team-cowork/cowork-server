@@ -52,7 +52,7 @@ public class RoadmapAssignmentController {
     private final ModifyRoadmapAssignmentStatusService modifyRoadmapAssignmentStatusService;
     private final DeleteRoadmapAssignmentService deleteRoadmapAssignmentService;
 
-    @Operation(summary = "과제 출제", description = "TEAM 또는 PROJECT 로드맵에 TEAM 범위 과제를 출제합니다. PROJECT 범위 할당은 아직 지원하지 않습니다. 노드는 해당 로드맵에 속해야 하며 담당자는 소유 팀의 활성 멤버여야 합니다. 로드맵 조회 권한과 함께 계정 권한 `create_team_assignments` 또는 소유 팀의 `administrator`, `manage_roadmaps`, `manage_team` 중 하나의 권한이 필요합니다. `manage_team`은 전환 기간에만 허용합니다.")
+    @Operation(summary = "과제 출제", description = "TEAM 또는 PROJECT 로드맵에 TEAM 범위 과제를 출제합니다. PROJECT 범위 할당은 아직 지원하지 않습니다. 노드는 해당 로드맵에 속해야 하며 담당자는 소유 팀의 활성 멤버여야 합니다. 로드맵 조회 권한과 함께 계정 권한 `create_team_assignments` 또는 소유 팀의 `administrator` 또는 `manage_roadmaps` 권한이 필요합니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "201", description = "출제 성공", content = @Content(mediaType = "application/json", schema = @Schema(type = "object", requiredProperties = {
                     "status", "code", "message", "data"}), schemaProperties = {
@@ -121,7 +121,7 @@ public class RoadmapAssignmentController {
         return modifyRoadmapAssignmentStatusService.execute(userId, assignmentId, request);
     }
 
-    @Operation(summary = "과제 삭제", description = "과제 팀의 활성 멤버 중 출제자 또는 `administrator`, `manage_roadmaps`, `manage_team` 중 하나의 권한을 가진 사용자가 삭제할 수 있습니다. `manage_team`은 전환 기간에만 허용합니다. 계정 권한 `delete_team_assignments`를 가진 사용자도 삭제할 수 있습니다.")
+    @Operation(summary = "과제 삭제", description = "과제 팀의 활성 멤버 중 출제자 또는 `administrator` 또는 `manage_roadmaps` 권한을 가진 사용자가 삭제할 수 있습니다. 계정 권한 `delete_team_assignments`를 가진 사용자도 삭제할 수 있습니다.")
     @ApiResponses({@ApiResponse(responseCode = "204", description = "응답 본문 없음", content = @Content),
             @ApiResponse(responseCode = "403", description = "요청한 작업을 수행할 권한이 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"403 FORBIDDEN\",\"code\":403,\"message\":\"요청을 수행할 권한이 없습니다.\"}"))),
             @ApiResponse(responseCode = "404", description = "과제 없음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"404 NOT_FOUND\",\"code\":404,\"message\":\"요청한 대상을 찾을 수 없습니다.\"}"))),
