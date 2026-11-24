@@ -23,11 +23,11 @@ export type SystemMessageConsumerOptions<E> = {
 	clientId: string;
 	groupId: string;
 	topic: string;
-	handle: (event: E, source: KafkaMessageSource) => Promise<void>;
+	handle: (event: E, source: KafkaMessageSource, heartbeat: () => Promise<void>) => Promise<void>;
 };
 
 /**
- 결과 토픽을 구독하고 메시지마다 `handle`을 호출한다.
+ 결과 토픽을 구독하고 메시지마다 `handle`을 호출한다. `handle`은 오래 기다리는 동안 `heartbeat`로 Kafka heartbeat를 보낸다.
 
  JSON 파싱 오류(`SyntaxError`)는 재처리 불가 메시지로 판단하여 무시한다. 채널 부재는 {@link isMissingChannelAfterReady}일 때만
  건너뛴다. 그 외 오류는 예외로 전파하여 Kafka offset을 커밋하지 않고 재전달을 유도한다.
@@ -45,14 +45,14 @@ export async function startSystemMessageConsumer<E>(options: SystemMessageConsum
 
 	void consumer
 		.run({
-			async eachMessage({topic, partition, message}) {
+			async eachMessage({topic, partition, message, heartbeat}) {
 				if (!message.value) {
 					return;
 				}
 
 				try {
 					const event = JSON.parse(message.value.toString()) as E;
-					await options.handle(event, {topic, partition, offset: message.offset});
+					await options.handle(event, {topic, partition, offset: message.offset}, heartbeat);
 				} catch (error) {
 					if (isMissingChannelAfterReady(error, options.projectionReadiness)) {
 						options.logger.warn(`Skipping result for a channel missing after projection readiness topic=${topic} partition=${partition} offset=${message.offset}`);

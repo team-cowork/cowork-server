@@ -10,13 +10,17 @@ const mockChatService = {
 
 const mockConfigService = {};
 
-const mockProjectionReadiness = {areReady: jest.fn().mockReturnValue(true)};
+const mockProjectionReadiness = {
+	areReady: jest.fn().mockReturnValue(true),
+	checkCatchup: jest.fn().mockResolvedValue(undefined),
+};
 
 describe('GithubIssueResultConsumer', () => {
 	let consumer: GithubIssueResultConsumer;
 
 	beforeEach(() => {
 		jest.clearAllMocks();
+		mockProjectionReadiness.areReady.mockReturnValue(true);
 		consumer = new GithubIssueResultConsumer(
 			mockChatService as never,
 			mockConfigService as never,
@@ -93,6 +97,21 @@ describe('GithubIssueResultConsumer', () => {
 				'❌ 이슈 생성 실패: 알 수 없는 오류',
 				'system:project.chat-github-issue.result:2:15:3',
 			);
+		});
+	});
+
+	describe('handleCommandResult (projection 준비 전)', () => {
+		it('채널 권한 projection이 준비될 때까지 저장하지 않고 기다린다', async () => {
+			mockProjectionReadiness.areReady.mockReturnValueOnce(false).mockReturnValueOnce(false).mockReturnValue(true);
+			mockChatService.saveSystemMessage.mockResolvedValue(null);
+
+			await (consumer as unknown as {
+				handleCommandResult(event: ChatGithubIssueCreateResult, source: typeof kafkaSource): Promise<void>;
+			}).handleCommandResult(baseResult, kafkaSource);
+
+			expect(mockProjectionReadiness.checkCatchup).toHaveBeenCalled();
+			expect(mockProjectionReadiness.areReady).toHaveBeenCalledWith(expect.arrayContaining(['channel', 'teamMember']));
+			expect(mockChatService.saveSystemMessage).toHaveBeenCalledTimes(1);
 		});
 	});
 
