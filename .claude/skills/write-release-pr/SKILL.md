@@ -40,6 +40,11 @@ Collect the included PR numbers from the `Merge pull request #N` lines and read 
 - `## 개요`: one sentence naming the range, e.g. "#530 ~ #532 사이의 변경사항을 상용환경에 반영합니다." or "#521 의 변경사항을 …" for a single PR.
 - `## 본문`: a flat list of the included PRs as `- #N PR 제목`, then direct commits as `- 커밋 메시지` when any. Add a line for merge conditions only when the user mentions one (e.g., a PR that must land in `develop` first).
 - Korean 합쇼체, no emojis, max 2500 characters, technical identifiers in backticks.
+- Punctuation: applies to the Korean body this skill writes, not to the English in these instructions.
+  - Avoid the dash `—`. Use a comma or split the sentence instead.
+  - Avoid the middle dot `·`. Use a slash `/` where possible: write `읽기/쓰기`, not `읽기·쓰기`.
+  - Parentheses follow a looser rule. Do not put a long aside that breaks the flow of a sentence in parentheses; split the sentence instead. A short aside, the original term at its first use, and the expansion of an abbreviation may use parentheses.
+  - Exception: `—` and `·` inside a code name in backticks or inside a fixed format stay as written.
 
 Write the body to `PR_BODY.md`, then display:
 
