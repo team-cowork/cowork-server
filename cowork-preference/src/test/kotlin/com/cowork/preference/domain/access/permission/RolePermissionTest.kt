@@ -28,7 +28,16 @@ class RolePermissionTest :
                 val groups = RolePermission.catalog().map { it as JsonObject }
 
                 groups.map { it.getString("key") } shouldBe
-                    listOf("TEAM", "MEMBER", "CHANNEL", "TEXT_CHANNEL", "VOICE_CHANNEL", "PROJECT", "CALENDAR")
+                    listOf(
+                        "TEAM",
+                        "MEMBER",
+                        "CHANNEL",
+                        "TEXT_CHANNEL",
+                        "VOICE_CHANNEL",
+                        "PROJECT",
+                        "CALENDAR",
+                        "ROADMAP",
+                    )
                 val voice = groups.single { it.getString("key") == "VOICE_CHANNEL" }.getJsonArray("permissions")
                 voice.map { (it as JsonObject).getString("key") } shouldBe
                     listOf("voice_connect", "voice_speak", "screen_share", "live_broadcast", "voice_log_read")

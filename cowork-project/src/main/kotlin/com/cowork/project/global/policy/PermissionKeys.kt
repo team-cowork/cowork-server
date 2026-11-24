@@ -20,6 +20,7 @@ object PermissionKeys {
     const val CALENDAR_EVENT_CREATE = "calendar_event_create"
     const val CALENDAR_EVENT_UPDATE = "calendar_event_update"
     const val CALENDAR_EVENT_DELETE = "calendar_event_delete"
+    const val MANAGE_ROADMAPS = "manage_roadmaps"
 
     const val MESSAGE_READ = "message_read"
     const val MESSAGE_SEND = "message_send"
@@ -58,6 +59,7 @@ object PermissionKeys {
         CALENDAR_EVENT_CREATE,
         CALENDAR_EVENT_UPDATE,
         CALENDAR_EVENT_DELETE,
+        MANAGE_ROADMAPS,
     )
 
     val CHANNEL_SCOPED: Set<String> = linkedSetOf(

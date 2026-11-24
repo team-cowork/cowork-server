@@ -291,6 +291,14 @@ enum class RolePermission(
         "다른 사람의 일정 삭제",
         "다른 사람이 만든 일정과 일정 카테고리를 삭제할 수 있습니다. 자기가 만든 일정은 이 권한 없이 삭제할 수 있습니다.",
     ),
+    MANAGE_ROADMAPS(
+        PermissionKeys.MANAGE_ROADMAPS,
+        RolePermissionGroup.ROADMAP,
+        "로드맵 관리",
+        "팀과 프로젝트 로드맵을 만들고, 다른 사람이 만든 로드맵과 노드를 수정하거나 삭제할 수 있습니다. " +
+            "로드맵 노드에 과제를 출제하고 다른 사람이 출제한 과제를 삭제할 수 있습니다. " +
+            "자기가 만든 로드맵과 출제한 과제는 이 권한 없이 관리할 수 있습니다.",
+    ),
     ;
 
     companion object {
