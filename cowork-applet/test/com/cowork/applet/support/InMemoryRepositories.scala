@@ -4,10 +4,15 @@ import com.cowork.applet.domain.applet.model.{Applet, AppletVersion, AppletVersi
 import com.cowork.applet.domain.applet.repository.{AppletRepository, AppletVersionRepository}
 import com.cowork.applet.domain.environment.model.AppletSecret
 import com.cowork.applet.domain.environment.repository.AppletSecretRepository
+import com.cowork.applet.domain.installation.model.AppletInstallation
+import com.cowork.applet.domain.installation.repository.AppletInstallationRepository
 import com.cowork.applet.domain.network.model.AppletHttpTarget
 import com.cowork.applet.domain.network.repository.AppletHttpTargetRepository
 import com.cowork.applet.domain.storage.model.{StorageEntry, StorageScope}
 import com.cowork.applet.domain.storage.repository.AppletStorageRepository
+import com.cowork.applet.domain.team.model.TeamRolePolicy
+import com.cowork.applet.domain.team.projection.TeamProjectionReadiness
+import com.cowork.applet.domain.team.repository.TeamProjectionRepository
 import com.cowork.applet.global.outbound.{OutboundHttpClient, OutboundRequest, OutboundResponse}
 import java.time.Instant
 import scala.collection.mutable
@@ -117,3 +122,28 @@ final class FakeOutboundHttpClient(answer: OutboundRequest => Future[OutboundRes
   override def execute(request: OutboundRequest): Future[OutboundResponse] =
     requests += request
     answer(request)
+
+final class InMemoryTeamProjectionRepository(
+    activeMembers: Set[(Long, Long)],
+    policies: Seq[TeamRolePolicy]
+) extends TeamProjectionRepository:
+  override def isActiveMember(teamId: Long, userId: Long): Future[Boolean] = Future.successful(activeMembers.contains(teamId -> userId))
+  override def policiesFor(teamId: Long, userId: Long): Future[Seq[TeamRolePolicy]] =
+    Future.successful(policies.filter(p => p.teamId == teamId && (p.kind == "ROLE" || p.accountId.contains(userId))))
+
+final class FixedTeamProjectionReadiness(ready: Boolean) extends TeamProjectionReadiness:
+  override def membersReady: Boolean = ready
+  override def policiesReady: Boolean = ready
+
+final class InMemoryAppletInstallationRepository extends AppletInstallationRepository:
+  val installations: mutable.ListBuffer[AppletInstallation] = mutable.ListBuffer.empty
+
+  override def findByTeam(teamId: Long): Future[Seq[AppletInstallation]] =
+    Future.successful(installations.filter(_.teamId == teamId).toSeq)
+  override def create(installation: AppletInstallation): Future[Unit] =
+    if !installations.exists(i => i.teamId == installation.teamId && i.appletId == installation.appletId) then installations += installation
+    Future.successful(())
+  override def delete(teamId: Long, appletId: String): Future[Boolean] =
+    val before = installations.size
+    installations.filterInPlace(i => !(i.teamId == teamId && i.appletId == appletId))
+    Future.successful(installations.size != before)

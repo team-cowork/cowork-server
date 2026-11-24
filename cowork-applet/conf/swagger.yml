@@ -13,6 +13,8 @@ tags:
     description: 앱 번들을 업로드하고 자동 보안 검사 결과를 조회합니다.
   - name: environment
     description: 앱의 환경변수와 시크릿을 관리합니다.
+  - name: installation
+    description: 팀에 앱을 설치하고 제거합니다.
   - name: function
     description: 앱이 서버에 요청하는 플랫폼 함수를 제공합니다.
 security:
