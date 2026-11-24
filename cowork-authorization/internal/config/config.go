@@ -33,6 +33,9 @@ type AppConfig struct {
 	DataGSMResourceURL      string
 	DataGSMRedirectURIs     []string
 	DataGSMWebhookSecret    string
+	GitHubClientID          string
+	GitHubClientSecret      string
+	GitHubRedirectURIs      []string
 	RedisHost               string
 	RedisPort               string
 
@@ -82,8 +85,11 @@ func Load() (*AppConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg.DataGSMRedirectURIs, err = parseRedirectURIs(os.Getenv("DATAGSM_REDIRECT_URIS"))
+	cfg.DataGSMRedirectURIs, err = parseRedirectURIs("DATAGSM_REDIRECT_URIS", os.Getenv("DATAGSM_REDIRECT_URIS"))
 	if err != nil {
+		return nil, err
+	}
+	if err := cfg.loadGitHubLogin(); err != nil {
 		return nil, err
 	}
 	cfg.DBDSN, err = mysqlDSN()
@@ -105,7 +111,23 @@ func Load() (*AppConfig, error) {
 	return cfg, nil
 }
 
-func parseRedirectURIs(raw string) ([]string, error) {
+// loadGitHubLogin enables GitHub login only when the client ID, secret, and callbacks are all set.
+func (cfg *AppConfig) loadGitHubLogin() error {
+	cfg.GitHubClientID = os.Getenv("GITHUB_LOGIN_CLIENT_ID")
+	cfg.GitHubClientSecret = os.Getenv("GITHUB_LOGIN_CLIENT_SECRET")
+	redirects := os.Getenv("GITHUB_LOGIN_REDIRECT_URIS")
+	if cfg.GitHubClientID == "" && cfg.GitHubClientSecret == "" && strings.TrimSpace(redirects) == "" {
+		return nil
+	}
+	if cfg.GitHubClientID == "" || cfg.GitHubClientSecret == "" {
+		return fmt.Errorf("GITHUB_LOGIN_CLIENT_ID and GITHUB_LOGIN_CLIENT_SECRET must be set together")
+	}
+	var err error
+	cfg.GitHubRedirectURIs, err = parseRedirectURIs("GITHUB_LOGIN_REDIRECT_URIS", redirects)
+	return err
+}
+
+func parseRedirectURIs(name, raw string) ([]string, error) {
 	var result []string
 	seen := make(map[string]bool)
 	for _, value := range strings.Split(raw, ",") {
@@ -117,7 +139,7 @@ func parseRedirectURIs(raw string) ([]string, error) {
 		if err != nil || u.Scheme == "" || u.Host == "" || u.User != nil || u.Fragment != "" || u.RawQuery != "" ||
 			(u.Scheme == "http" && u.Hostname() != "localhost" && !net.ParseIP(u.Hostname()).IsLoopback()) ||
 			(u.Scheme != "https" && u.Scheme != "http" && u.Scheme != "cowork") {
-			return nil, fmt.Errorf("DATAGSM_REDIRECT_URIS must contain registered HTTPS, loopback HTTP, or cowork callback URLs")
+			return nil, fmt.Errorf("%s must contain registered HTTPS, loopback HTTP, or cowork callback URLs", name)
 		}
 		if !seen[value] {
 			result = append(result, value)
@@ -125,7 +147,7 @@ func parseRedirectURIs(raw string) ([]string, error) {
 		}
 	}
 	if len(result) == 0 {
-		return nil, fmt.Errorf("DATAGSM_REDIRECT_URIS must contain at least one registered callback URL")
+		return nil, fmt.Errorf("%s must contain at least one registered callback URL", name)
 	}
 	return result, nil
 }

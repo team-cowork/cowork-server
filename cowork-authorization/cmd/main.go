@@ -104,7 +104,11 @@ func main() {
 		log.Fatalf("failed to configure DataGSM login: %v", err)
 	}
 	defer login.Close()
-	authSvc := service.NewAuthService(cfg, identityCoordinator, refreshTokenRepo, tokenSvc, login)
+	githubLogin, err := service.NewGitHubLogin(cfg, loginAttempts, nil)
+	if err != nil {
+		log.Fatalf("failed to configure GitHub login: %v", err)
+	}
+	authSvc := service.NewAuthService(cfg, identityCoordinator, refreshTokenRepo, tokenSvc, login, githubLogin)
 	outboxRelay := kafkainfra.NewOutboxRelay(sqlDB, kafkaProducer)
 	snapshotBarrierPublisher := kafkainfra.NewSnapshotBarrierPublisher(
 		sqlDB,
@@ -173,6 +177,8 @@ func main() {
 		auth.POST("/callback", authHandler.Callback)
 		auth.POST("/refresh", authHandler.Refresh)
 		auth.POST("/signout", handler.RequireUserID(), authHandler.Logout)
+		auth.POST("/link/authorize", handler.RequireUserID(), authHandler.LinkAuthorize)
+		auth.POST("/link/callback", handler.RequireUserID(), authHandler.LinkCallback)
 	}
 
 	events := router.Group("/events")

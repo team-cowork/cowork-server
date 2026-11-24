@@ -2,7 +2,7 @@ package handler
 
 import (
 	"errors"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -60,7 +60,7 @@ func (h *AuthHandler) Callback(c *gin.Context) {
 	pair, err := h.authSvc.CompleteLogin(c.Request.Context(), session, callback)
 	if err != nil {
 		// Provider/DB errors can contain identity or unique-index values.
-		log.Printf("token exchange failed")
+		slog.Warn("token exchange failed")
 		loginError(c, err)
 		return
 	}
@@ -105,6 +105,8 @@ type LoginCallbackRequest struct {
 
 type LoginStartRequest struct {
 	RedirectURI string `json:"redirect_uri" binding:"required"`
+	// Provider is DATAGSM when omitted.
+	Provider string `json:"provider"`
 }
 
 type LoginStartResponse struct {
@@ -112,6 +114,19 @@ type LoginStartResponse struct {
 }
 
 func (h *AuthHandler) Authorize(c *gin.Context) {
+	h.startAttempt(c, func(req LoginStartRequest) (string, string, error) {
+		return h.authSvc.BeginLogin(c.Request.Context(), req.Provider, req.RedirectURI)
+	})
+}
+
+// LinkAuthorize starts authentication of a second login method for the user that Gateway authenticated.
+func (h *AuthHandler) LinkAuthorize(c *gin.Context) {
+	h.startAttempt(c, func(req LoginStartRequest) (string, string, error) {
+		return h.authSvc.BeginLink(c.Request.Context(), c.GetInt64(userIDKey), req.Provider, req.RedirectURI)
+	})
+}
+
+func (h *AuthHandler) startAttempt(c *gin.Context, begin func(LoginStartRequest) (string, string, error)) {
 	if !h.allowLoginRequest(c) {
 		return
 	}
@@ -120,7 +135,7 @@ func (h *AuthHandler) Authorize(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "redirect_uri is required"})
 		return
 	}
-	authorizationURL, session, err := h.authSvc.BeginLogin(c.Request.Context(), req.RedirectURI)
+	authorizationURL, session, err := begin(req)
 	if err != nil {
 		loginError(c, err)
 		return
@@ -132,6 +147,27 @@ func (h *AuthHandler) Authorize(c *gin.Context) {
 	}
 	setLoginCookie(c, location.Query().Get("state"), session, int(service.LoginAttemptTTL.Seconds()))
 	c.JSON(http.StatusOK, LoginStartResponse{AuthorizationURL: authorizationURL})
+}
+
+// LinkCallback completes a link attempt. The attempt must belong to the user that Gateway authenticated.
+func (h *AuthHandler) LinkCallback(c *gin.Context) {
+	if !h.allowLoginRequest(c) {
+		return
+	}
+	var req LoginCallbackRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing required fields"})
+		return
+	}
+	session, _ := c.Cookie(loginCookieName(req.State))
+	setLoginCookie(c, req.State, "", -1)
+	callback := url.Values{"state": {req.State}, "code": {req.Code}, "error": {req.Error}}
+	if err := h.authSvc.CompleteLink(c.Request.Context(), c.GetInt64(userIDKey), session, callback); err != nil {
+		slog.Warn("login method link failed")
+		loginError(c, err)
+		return
+	}
+	c.Status(http.StatusNoContent)
 }
 
 func (h *AuthHandler) allowLoginRequest(c *gin.Context) bool {
@@ -170,6 +206,12 @@ func loginError(c *gin.Context, err error) {
 			c.Header("Retry-After", date.UTC().Format(http.TimeFormat))
 		}
 		c.JSON(http.StatusTooManyRequests, gin.H{"error": "authentication rate limit exceeded"})
+	case errors.Is(err, service.ErrIdentityNotLinked):
+		c.JSON(http.StatusConflict, gin.H{"error": "login method is not linked to the existing account"})
+	case errors.Is(err, service.ErrIdentityAlreadyLinked):
+		c.JSON(http.StatusConflict, gin.H{"error": "login method is already linked"})
+	case errors.Is(err, service.ErrDataGSMLoginRequired):
+		c.JSON(http.StatusConflict, gin.H{"error": "datagsm login required"})
 	case errors.Is(err, service.ErrAuthenticationUnavailable):
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "authentication temporarily unavailable"})
 	default:
@@ -188,7 +230,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 	pair, err := h.authSvc.RefreshTokens(c.Request.Context(), req.RefreshToken)
 	if err != nil {
-		log.Printf("refresh token rotation failed")
+		slog.Warn("refresh token rotation failed")
 		if errors.Is(err, service.ErrAuthenticationUnavailable) {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "authentication temporarily unavailable"})
 			return
@@ -212,7 +254,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 	userID := c.GetInt64(userIDKey)
 	if err := h.authSvc.Logout(c.Request.Context(), userID, req.RefreshToken); err != nil {
-		log.Printf("refresh token revocation failed")
+		slog.Warn("refresh token revocation failed")
 		if errors.Is(err, service.ErrAuthenticationUnavailable) {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"error": "authentication temporarily unavailable"})
 			return

@@ -75,6 +75,7 @@ func TestUserIdentityCoordinatorEnsureUser(t *testing.T) {
 		wantUnavailable bool
 		wantErrContains string
 		wantMinFinds    int
+		wantErr         error
 	}{
 		{
 			name:         "pending 이후 succeeded가 되면 사용자 ID를 반환한다",
@@ -107,6 +108,27 @@ func TestUserIdentityCoordinatorEnsureUser(t *testing.T) {
 			findResults:     []findResult{{operation: identityOperation(domain.UserIdentityFailed, nil, stringPointer("USER_CONFLICT"))}},
 			waitTimeout:     time.Second,
 			wantErrContains: "user identity command failed: USER_CONFLICT",
+		},
+		{
+			name:            "기존 계정과 연결되지 않은 로그인 수단이면 미연결 오류로 거부한다",
+			findResults:     []findResult{{operation: identityOperation(domain.UserIdentityFailed, nil, stringPointer("IDENTITY_NOT_LINKED"))}},
+			waitTimeout:     time.Second,
+			wantErrContains: "user identity command failed: IDENTITY_NOT_LINKED",
+			wantErr:         ErrIdentityNotLinked,
+		},
+		{
+			name:            "다른 계정에 연결된 로그인 수단이면 연결 충돌로 거부한다",
+			findResults:     []findResult{{operation: identityOperation(domain.UserIdentityFailed, nil, stringPointer("IDENTITY_ALREADY_LINKED"))}},
+			waitTimeout:     time.Second,
+			wantErrContains: "user identity command failed: IDENTITY_ALREADY_LINKED",
+			wantErr:         ErrIdentityAlreadyLinked,
+		},
+		{
+			name:            "학교 이메일로 처음 GitHub 로그인하면 DataGSM 로그인 필요 오류로 거부한다",
+			findResults:     []findResult{{operation: identityOperation(domain.UserIdentityFailed, nil, stringPointer("DATAGSM_LOGIN_REQUIRED"))}},
+			waitTimeout:     time.Second,
+			wantErrContains: "user identity command failed: DATAGSM_LOGIN_REQUIRED",
+			wantErr:         ErrDataGSMLoginRequired,
 		},
 		{
 			name:            "failed에 오류 코드가 없으면 기본 코드로 거부한다",
@@ -180,6 +202,9 @@ func TestUserIdentityCoordinatorEnsureUser(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), tt.wantErrContains) {
 				t.Fatalf("EnsureUser() error = %v, want containing %q", err, tt.wantErrContains)
+			}
+			if tt.wantErr != nil && !errors.Is(err, tt.wantErr) {
+				t.Fatalf("EnsureUser() error = %v, want %v", err, tt.wantErr)
 			}
 			if got := errors.Is(err, ErrAuthenticationUnavailable); got != tt.wantUnavailable {
 				t.Fatalf("errors.Is(err, ErrAuthenticationUnavailable) = %v, want %v", got, tt.wantUnavailable)

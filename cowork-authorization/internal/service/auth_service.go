@@ -53,6 +53,7 @@ type IdentityCommitCoordinator interface {
 type AuthService struct {
 	cfg              *config.AppConfig
 	login            *DataGSMLogin
+	github           *GitHubLogin
 	identity         IdentityCommitCoordinator
 	refreshTokenRepo RefreshTokenStore
 	tokenSvc         *TokenService
@@ -65,10 +66,12 @@ func NewAuthService(
 	refreshTokenRepo RefreshTokenStore,
 	tokenSvc *TokenService,
 	login *DataGSMLogin,
+	github *GitHubLogin,
 ) *AuthService {
 	return &AuthService{
 		cfg:              cfg,
 		login:            login,
+		github:           github,
 		identity:         identity,
 		refreshTokenRepo: refreshTokenRepo,
 		tokenSvc:         tokenSvc,
@@ -78,18 +81,105 @@ func NewAuthService(
 	}
 }
 
-func (s *AuthService) BeginLogin(ctx context.Context, redirectURI string) (string, string, error) {
-	return s.login.Begin(ctx, redirectURI)
+// BeginLogin starts a login with DataGSM, the default provider, or with GitHub when it is configured.
+func (s *AuthService) BeginLogin(ctx context.Context, provider, redirectURI string) (string, string, error) {
+	switch provider {
+	case "", ProviderDataGSM:
+		return s.login.Begin(ctx, redirectURI)
+	case ProviderGitHub:
+		if s.github != nil {
+			return s.github.Begin(ctx, redirectURI, 0)
+		}
+	}
+	return "", "", loginFailure("provider", ErrInvalidLoginRequest)
 }
 
-func (s *AuthService) AllowsLoginOrigin(origin string) bool { return s.login.AllowsOrigin(origin) }
+// BeginLink starts authentication of a second login method for the signed-in user. Only GitHub can be linked.
+func (s *AuthService) BeginLink(ctx context.Context, userID int64, provider, redirectURI string) (string, string, error) {
+	if userID <= 0 || provider != ProviderGitHub || s.github == nil {
+		return "", "", loginFailure("provider", ErrInvalidLoginRequest)
+	}
+	return s.github.Begin(ctx, redirectURI, userID)
+}
+
+func (s *AuthService) AllowsLoginOrigin(origin string) bool {
+	return s.login.AllowsOrigin(origin) || s.github != nil && s.github.AllowsOrigin(origin)
+}
 
 func (s *AuthService) CompleteLogin(ctx context.Context, session string, callback url.Values) (*TokenPair, error) {
-	userInfo, err := s.login.Complete(ctx, session, callback)
+	attempt, err := s.login.take(ctx, session)
+	if err != nil {
+		return nil, err
+	}
+	// A link attempt must not sign in, because its result is bound to the user who started it.
+	if attempt.LinkUserID != 0 {
+		return nil, loginFailure("attempt_purpose", ErrAuthenticationRejected)
+	}
+	if attempt.provider() == ProviderGitHub {
+		identity, err := s.completeGitHub(ctx, attempt, callback)
+		if err != nil {
+			return nil, err
+		}
+		command, err := s.githubCommand(domain.UserIdentityCommandUpsert, identity, nil)
+		if err != nil {
+			return nil, err
+		}
+		return s.commitIdentityAndIssueSession(ctx, command)
+	}
+	userInfo, err := s.login.CompleteAttempt(ctx, attempt, callback)
 	if err != nil {
 		return nil, err
 	}
 	return s.issueUserSession(ctx, userInfo)
+}
+
+// CompleteLink adds the authenticated GitHub account to the user who started the link attempt.
+// It does not issue a new session, and it does not change the account profile.
+func (s *AuthService) CompleteLink(ctx context.Context, userID int64, session string, callback url.Values) error {
+	attempt, err := s.login.take(ctx, session)
+	if err != nil {
+		return err
+	}
+	if userID <= 0 || attempt.LinkUserID != userID || attempt.Provider != ProviderGitHub {
+		return loginFailure("attempt_purpose", ErrAuthenticationRejected)
+	}
+	identity, err := s.completeGitHub(ctx, attempt, callback)
+	if err != nil {
+		return err
+	}
+	command, err := s.githubCommand(domain.UserIdentityCommandLink, identity, &userID)
+	if err != nil {
+		return err
+	}
+	committed, err := s.identity.EnsureUser(ctx, command)
+	if err != nil {
+		return fmt.Errorf("failed to link user identity: %w", err)
+	}
+	if committed.UserID != userID {
+		return fmt.Errorf("%w: linked identity belongs to another account", ErrAuthenticationRejected)
+	}
+	return nil
+}
+
+func (s *AuthService) completeGitHub(ctx context.Context, attempt LoginAttempt, callback url.Values) (*GitHubIdentity, error) {
+	if s.github == nil {
+		return nil, loginFailure("provider", ErrAuthenticationRejected)
+	}
+	return s.github.CompleteAttempt(ctx, attempt, callback)
+}
+
+func (s *AuthService) githubCommand(commandType string, identity *GitHubIdentity, accountID *int64) (domain.UserIdentityCommand, error) {
+	command, err := s.identityCommand(ProviderGitHub, strconv.FormatInt(identity.ID, 10), identity.Name, identity.Email, nil)
+	if err != nil {
+		return command, err
+	}
+	login := identity.Login
+	gsm := identity.GSMEmailVerified
+	command.CommandType, command.GithubLogin, command.GSMEmailVerified, command.AccountID = commandType, &login, &gsm, accountID
+	if domain.ValidateUserIdentityCommand(command) != nil {
+		return command, ErrAuthenticationRejected
+	}
+	return command, nil
 }
 
 func (s *AuthService) issueUserSession(ctx context.Context, userInfo *oauth.UserInfo) (*TokenPair, error) {
@@ -127,19 +217,26 @@ func (s *AuthService) issueUserSession(ctx context.Context, userInfo *oauth.User
 }
 
 func (s *AuthService) loginWithIdentity(ctx context.Context, provider, subject, name, email string, student *domain.StudentIdentity) (*TokenPair, error) {
-	operationID, err := domain.NewUUID()
+	command, err := s.identityCommand(provider, subject, name, email, student)
 	if err != nil {
-		return nil, fmt.Errorf("%w: generate login operation", ErrAuthenticationUnavailable)
-	}
-	command := domain.UserIdentityCommand{
-		SchemaVersion: domain.UserIdentityCommandSchemaVersion, OperationID: operationID, IdempotencyKey: operationID,
-		CommandType: domain.UserIdentityCommandUpsert, Provider: provider, ProviderSubject: subject, Name: name, Email: email,
-		Student: student, OccurredAt: s.now().UTC().Truncate(time.Microsecond),
+		return nil, err
 	}
 	if err := domain.ValidateUserIdentityCommand(command); err != nil {
 		return nil, ErrAuthenticationRejected
 	}
 	return s.commitIdentityAndIssueSession(ctx, command)
+}
+
+func (s *AuthService) identityCommand(provider, subject, name, email string, student *domain.StudentIdentity) (domain.UserIdentityCommand, error) {
+	operationID, err := domain.NewUUID()
+	if err != nil {
+		return domain.UserIdentityCommand{}, fmt.Errorf("%w: generate login operation", ErrAuthenticationUnavailable)
+	}
+	return domain.UserIdentityCommand{
+		SchemaVersion: domain.UserIdentityCommandSchemaVersion, OperationID: operationID, IdempotencyKey: operationID,
+		CommandType: domain.UserIdentityCommandUpsert, Provider: provider, ProviderSubject: subject, Name: name, Email: email,
+		Student: student, OccurredAt: s.now().UTC().Truncate(time.Microsecond),
+	}, nil
 }
 
 func (s *AuthService) DevSignIn(ctx context.Context, id, password string) (*TokenPair, error) {

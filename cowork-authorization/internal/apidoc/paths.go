@@ -23,8 +23,8 @@ func paths() *openapi3.Paths {
 		),
 	}})
 	paths.Set("/auth/authorize", &openapi3.PathItem{Post: &openapi3.Operation{
-		Summary:     "DataGSM 로그인 시작",
-		Description: "등록된 콜백 URL로 로그인 시도를 생성합니다. 반환된 authorization_url로 이동하고 쿠키를 유지한 채 /auth/callback에 콜백을 전달합니다. 시도는 10분 뒤 만료됩니다.",
+		Summary:     "로그인 시작",
+		Description: "등록된 콜백 URL로 로그인 시도를 생성합니다. provider를 생략하면 DataGSM으로 로그인합니다. 반환된 authorization_url로 이동하고 쿠키를 유지한 채 /auth/callback에 콜백을 전달합니다. 시도는 10분 뒤 만료됩니다.",
 		Tags:        []string{"auth"},
 		RequestBody: &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{
 			Description: "등록된 콜백 URL",
@@ -35,18 +35,58 @@ func paths() *openapi3.Paths {
 		}},
 		Responses: openapi3.NewResponses(
 			openapi3.WithName("200", cookieResponse("인증 URL 발급 성공", "github_com_cowork_authorization_internal_apidoc.Success-internal_handler_LoginStartResponse", "일회성 로그인 세션 쿠키(Secure, HttpOnly)")),
-			openapi3.WithName("400", jsonResponse("등록되지 않은 콜백 또는 잘못된 요청", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("400", jsonResponse("등록되지 않은 콜백, 사용할 수 없는 공급자 또는 잘못된 요청", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("403", jsonResponse("허용하지 않은 출처", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("503", jsonResponse("로그인 시도 저장 실패", "github_com_cowork_authorization_internal_apidoc.Error")),
 		),
 	}})
+	paths.Set("/auth/link/authorize", &openapi3.PathItem{Post: &openapi3.Operation{
+		Summary:     "로그인 수단 연결 시작",
+		Description: "현재 계정에 GitHub 로그인을 연결하는 시도를 생성합니다. 반환된 authorization_url로 이동하고 쿠키를 유지한 채 /auth/link/callback에 콜백을 전달합니다. 시도는 시작한 사용자만 완료할 수 있고 10분 뒤 만료됩니다.",
+		Tags:        []string{"auth"},
+		Security:    &openapi3.SecurityRequirements{{"BearerAuth": {}}},
+		RequestBody: &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{
+			Required: true,
+			Content: openapi3.Content{
+				"application/json": &openapi3.MediaType{Schema: schemaRef("internal_handler.LinkStartRequest")},
+			},
+		}},
+		Responses: openapi3.NewResponses(
+			openapi3.WithName("200", cookieResponse("인증 URL 발급 성공", "github_com_cowork_authorization_internal_apidoc.Success-internal_handler_LoginStartResponse", "일회성 연결 세션 쿠키")),
+			openapi3.WithName("400", jsonResponse("등록되지 않은 콜백, 연결할 수 없는 공급자 또는 잘못된 요청", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("401", jsonResponse("인증 실패", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("403", jsonResponse("허용하지 않은 출처", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("503", jsonResponse("연결 시도 저장 실패", "github_com_cowork_authorization_internal_apidoc.Error")),
+		),
+	}})
+	paths.Set("/auth/link/callback", &openapi3.PathItem{Post: &openapi3.Operation{
+		Summary:     "로그인 수단 연결 완료",
+		Description: "연결 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 연결해도 세션과 프로필은 바뀌지 않습니다. 다른 계정에 연결된 GitHub 계정이나 이미 GitHub가 연결된 계정은 연결할 수 없습니다.",
+		Tags:        []string{"auth"},
+		Security:    &openapi3.SecurityRequirements{{"BearerAuth": {}}},
+		RequestBody: &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{
+			Required: true,
+			Content: openapi3.Content{
+				"application/json": &openapi3.MediaType{Schema: schemaRef("internal_handler.LoginCallbackRequest")},
+			},
+		}},
+		Responses: openapi3.NewResponses(
+			openapi3.WithName("204", openapi3.NewResponse().WithDescription("연결 완료. 응답 본문은 없습니다.")),
+			openapi3.WithName("400", jsonResponse("필수 요청 값이 없거나 형식이 잘못됨", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("401", jsonResponse("인증 실패 또는 다른 사용자가 시작한 연결 시도", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("409", jsonResponse("이미 연결된 로그인 수단", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("503", jsonResponse("인증 서비스를 일시적으로 사용할 수 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
+		),
+	}})
 	paths.Set("/auth/callback", &openapi3.PathItem{Post: &openapi3.Operation{
 		Summary:     "인가 코드로 토큰 발급",
-		Description: "로그인 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 로그인 시도는 한 번만 사용할 수 있습니다.",
+		Description: "로그인 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 로그인 시도는 한 번만 사용할 수 있습니다. 처음 GitHub로 로그인하면 계정을 만듭니다. 같은 이메일이나 GitHub 아이디를 쓰는 계정이 있으면 409를 반환하며, 기존 계정으로 로그인한 뒤 GitHub를 연결해야 합니다. 검증된 이메일 중 gsm.hs.kr이 있는 GitHub 계정이 처음 로그인하면 409와 datagsm login required를 반환합니다. 이때는 DataGSM으로 로그인한 뒤 GitHub를 연결해야 합니다.",
 		Tags:        []string{"auth"},
 		RequestBody: &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{
-			Description: "DataGSM 콜백",
+			Description: "공급자 콜백",
 			Required:    true,
 			Content: openapi3.Content{
 				"application/json": &openapi3.MediaType{Schema: schemaRef("internal_handler.LoginCallbackRequest")},
@@ -56,6 +96,7 @@ func paths() *openapi3.Paths {
 			openapi3.WithName("200", cookieResponse("새 토큰 쌍", "github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_TokenPair", "WebSocket 인증 쿠키(cowork_ws_token, Path=/ws)")),
 			openapi3.WithName("400", jsonResponse("필수 요청 값이 없거나 형식이 잘못됨", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("401", jsonResponse("인가 코드 검증 실패", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("409", jsonResponse("연결되지 않은 기존 계정과 충돌 또는 DataGSM 로그인 필요", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("503", jsonResponse("인증 서비스를 일시적으로 사용할 수 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
 		),

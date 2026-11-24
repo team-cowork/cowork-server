@@ -9,11 +9,11 @@ func Document() *openapi3.T {
 		Info: &openapi3.Info{
 			Title:       "cowork Authorization API",
 			Version:     "20261122.0",
-			Description: "DataGSM 계정으로 로그인하고 cowork 토큰을 발급하거나 갱신합니다.",
+			Description: "DataGSM 또는 GitHub 계정으로 로그인하고 cowork 토큰을 발급하거나 갱신합니다.",
 		},
 		Servers: openapi3.Servers{{URL: "/api/authorization", Description: "Gateway"}},
 		Tags: openapi3.Tags{
-			{Name: "auth", Description: "DataGSM 로그인과 토큰 발급, 갱신, 로그아웃을 처리합니다."},
+			{Name: "auth", Description: "로그인, 로그인 수단 연결, 토큰 발급, 갱신, 로그아웃을 처리합니다."},
 			{Name: "events", Description: "DataGSM의 사용자 변경 이벤트를 수신합니다."},
 		},
 		Components: &openapi3.Components{
