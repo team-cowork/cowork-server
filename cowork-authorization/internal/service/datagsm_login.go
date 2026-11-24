@@ -174,14 +174,6 @@ func (s *DataGSMLogin) take(ctx context.Context, session string) (LoginAttempt, 
 	return takeLoginAttempt(ctx, s.attempts, session, s.now())
 }
 
-func (s *DataGSMLogin) Complete(ctx context.Context, session string, callback url.Values) (*oauth.UserInfo, error) {
-	attempt, err := s.take(ctx, session)
-	if err != nil {
-		return nil, err
-	}
-	return s.CompleteAttempt(ctx, attempt, callback)
-}
-
 func (s *DataGSMLogin) CompleteAttempt(ctx context.Context, attempt LoginAttempt, callback url.Values) (*oauth.UserInfo, error) {
 	client := s.clients[attempt.RedirectURI]
 	if client == nil || attempt.provider() != ProviderDataGSM {
