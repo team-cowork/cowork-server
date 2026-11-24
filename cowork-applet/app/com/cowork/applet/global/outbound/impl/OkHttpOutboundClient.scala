@@ -30,9 +30,11 @@ class OkHttpOutboundClient @Inject() (applicationLifecycle: ApplicationLifecycle
     .followRedirects(false)
     .followSslRedirects(false)
     .retryOnConnectionFailure(false)
-    .connectTimeout(Duration.ofSeconds(5))
-    .readTimeout(Duration.ofSeconds(10))
-    .callTimeout(Duration.ofSeconds(15))
+    // The Gateway appletCB circuit gives up after 10 seconds. A shorter call limit lets the caller receive the
+    // Gateway Timeout from http.fetch instead of the Gateway fallback, and stops the outbound work at the same time.
+    .connectTimeout(Duration.ofSeconds(3))
+    .readTimeout(Duration.ofSeconds(7))
+    .callTimeout(Duration.ofSeconds(8))
     .build()
 
   applicationLifecycle.addStopHook { () =>
