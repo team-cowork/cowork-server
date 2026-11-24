@@ -1,44 +1,10 @@
 import {type Logger, ServiceUnavailableException} from '@nestjs/common';
 import {type ConfigService} from '@nestjs/config';
 import {type Consumer, Kafka} from 'kafkajs';
-import {type Server} from 'socket.io';
 import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
 import {type ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
-import {type ChannelMessageReadAccessService} from '../service/index.js';
 import {type KafkaMessageSource} from './system-message-key.js';
-
-/**
- SYSTEM 메시지 결과 컨슈머들이 공유하는 Socket.IO 브로드캐스트 도우미.
-
- `ChatGateway`의 `afterInit`에서 {@link setSocketServer}가 호출되기 전에 수신된 결과는 저장만 되고 브로드캐스트되지 않는다.
- */
-export class SystemMessageBroadcaster {
-	private io?: Server;
-
-	constructor(
-		private readonly logger: Logger,
-		private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
-	) {}
-
-	setSocketServer(io: Server): void {
-		this.io = io;
-	}
-
-	/**
-     Socket.IO를 통해 특정 채널의 클라이언트에게 메시지를 브로드캐스트한다.
-
-     Socket.IO 서버가 주입되지 않은 경우 (`io`가 `undefined`) 경고 로그를 남기고 무시된다.
-     */
-	async notifyClient(channelId: number, message: unknown): Promise<void> {
-		if (!this.io) {
-			this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${channelId})`);
-			return;
-		}
-
-		await this.channelMessageReadAccess.emitToReadableChannelUsers(this.io, channelId, {event: 'message', payload: message});
-	}
-}
 
 /**
  채널 projection이 준비된 뒤에도 저장이 채널 부재(`ServiceUnavailableException`)로 실패했는지 판별한다.

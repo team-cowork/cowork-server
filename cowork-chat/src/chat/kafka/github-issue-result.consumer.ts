@@ -8,16 +8,13 @@ import {
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
 import {Consumer} from 'kafkajs';
-import {Server} from 'socket.io';
 import {ChatService} from '../chat.service.js';
-import {ChannelMessageReadAccessService} from '../service/index.js';
-import {toMessageBroadcastPayload} from '../repository/index.js';
 import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {type ForwardReference} from '../../common/type/forward-reference.js';
 import {GithubIssueResultEvent} from './event/github-issue.event.js';
 import {ChatGithubIssueCreateResult} from './event/chat-github-issue.event.js';
 import {type KafkaMessageSource, systemMessageKey} from './system-message-key.js';
-import {startSystemMessageConsumer, SystemMessageBroadcaster} from './system-message-result-consumer.js';
+import {startSystemMessageConsumer} from './system-message-result-consumer.js';
 
 /**
  GitHub 이슈 생성 결과를 SYSTEM 메시지로 저장하고 브로드캐스트한다.
@@ -29,18 +26,14 @@ import {startSystemMessageConsumer, SystemMessageBroadcaster} from './system-mes
 @injectable()
 export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(GithubIssueResultConsumer.name);
-	private readonly broadcaster: SystemMessageBroadcaster;
 	private consumers: Consumer[] = [];
 
 	constructor(
 		@inject(forwardRef(() => ChatService))
 		private readonly chatService: ForwardReference<ChatService>,
 		private readonly configService: ConfigService,
-		private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
 		private readonly projectionReadiness: ProjectionReadinessService,
-	) {
-		this.broadcaster = new SystemMessageBroadcaster(this.logger, this.channelMessageReadAccess);
-	}
+	) {}
 
 	private async handleIssueResult(event: GithubIssueResultEvent, source: KafkaMessageSource): Promise<void> {
 		const content = event.success ? `✅ 이슈가 생성됐어요: ${event.issueUrl}` : `❌ 이슈 생성 실패: ${event.error ?? '알 수 없는 오류'}`;
@@ -67,11 +60,7 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
 			return;
 		}
 
-		await this.broadcaster.notifyClient(event.channelId, toMessageBroadcastPayload(saved));
-	}
-
-	setSocketServer(io: Server) {
-		this.broadcaster.setSocketServer(io);
+		await this.chatService.broadcastSystemMessage(saved);
 	}
 
 	async onModuleInit() {

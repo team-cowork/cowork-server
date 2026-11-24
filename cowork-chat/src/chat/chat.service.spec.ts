@@ -44,6 +44,7 @@ const mockMessageRepository = {
 	findByIdAndChannelId: jest.fn(),
 	deleteById: jest.fn(),
 	createSystemMessage: jest.fn(),
+	findUnbroadcastedByClientMessageId: jest.fn(),
 	existsInChannel: jest.fn(),
 	countUnread: jest.fn(),
 	countUnreadForChannels: jest.fn(),
@@ -1443,10 +1444,12 @@ describe('ChatService', () => {
 				channelId: 1, teamId: 10, projectId: null, type: 'TEXT', deleted: false,
 			});
 			mockMessageRepository.createSystemMessage.mockRejectedValue(Object.assign(new Error('E11000 duplicate key'), {code: 11_000}));
+			mockMessageRepository.findUnbroadcastedByClientMessageId.mockResolvedValue(null);
 
 			const result = await service.saveSystemMessage(10, 1, '이슈가 생성됐어요', 'system:t:0:1:1');
 
 			expect(result).toBeNull();
+			expect(mockMessageRepository.findUnbroadcastedByClientMessageId).toHaveBeenCalledWith('system:t:0:1:1');
 			expect(mockUnreadCounterService.incrementIfPresent).not.toHaveBeenCalled();
 		});
 

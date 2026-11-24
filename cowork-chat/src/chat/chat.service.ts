@@ -81,6 +81,16 @@ const SYSTEM_AUTHOR_NAME = 'System';
 const FILE_SHARE_VIEW_TYPE = 'FILE_SHARE';
 const DM_CHANNEL_TYPE = 'DM';
 
+/**
+ 시스템 메시지를 저장했지만 실시간으로 보내지 못했다. Kafka 재전달로 다시 보내도록 던진다.
+ */
+export class SystemMessageBroadcastSkippedError extends Error {
+	constructor(channelId: number, messageId: string) {
+		super(`system message broadcast skipped channelId=${channelId} messageId=${messageId}`);
+		this.name = 'SystemMessageBroadcastSkippedError';
+	}
+}
+
 function threadTargetException(error: ThreadTargetError): Error {
 	switch (error) {
 		case 'THREAD_NOT_FOUND': {
@@ -1139,7 +1149,9 @@ export class ChatService {
 
      `clientMessageId`는 중복 저장을 막는 결정적인 멱등성 키다. 이미 저장된 키면 저장을 건너뛴다.
 
-     @returns 저장된 메시지 도큐먼트. 삭제되었거나 범위가 맞지 않는 채널, 이미 저장된 메시지면 `null`
+     이미 저장된 키라도 아직 실시간으로 보내지 않은 메시지면 그 메시지를 돌려준다. 이때 안읽음 수는 다시 올리지 않는다.
+
+     @returns 보내야 할 메시지 도큐먼트. 삭제되었거나 범위가 맞지 않는 채널, 이미 저장하고 보낸 메시지면 `null`
      */
 	async saveSystemMessage(
 		teamId: number,
@@ -1178,6 +1190,13 @@ export class ChatService {
 		} catch (error) {
 			// 다시 전달된 이벤트로 이미 저장된 메시지다. 안읽음 수를 다시 올리지 않고 건너뛴다.
 			if (typeof error === 'object' && error !== null && 'code' in error && error.code === 11_000) {
+				// 저장 뒤 실시간 전송이 끝나지 않아 재전달된 경우에만 저장된 메시지를 돌려주어 다시 보내게 한다.
+				const existing = await this.messageRepository.findUnbroadcastedByClientMessageId(clientMessageId);
+				if (existing?.channelId === channelId && existing.authorId === SYSTEM_AUTHOR_ID) {
+					this.logger.warn(`Duplicate system message detected, re-broadcasting [clientMessageId=${clientMessageId}]`);
+					return existing;
+				}
+
 				this.logger.warn(`Duplicate system message detected, skipping [clientMessageId=${clientMessageId}]`);
 				return null;
 			}
@@ -1190,5 +1209,28 @@ export class ChatService {
 		const targetUserIds = readableUsers.get(channelId) ?? [];
 		await this.unreadCounterService.incrementIfPresent(channelId, targetUserIds);
 		return saved;
+	}
+
+	/**
+     {@link saveSystemMessage}가 돌려준 메시지를 채널을 읽을 수 있는 사용자에게 실시간으로 보낸다.
+
+     보내지 못하면(Socket.IO 서버 미준비, projection 준비 공백) {@link SystemMessageBroadcastSkippedError}를 던진다.
+     그러면 Kafka offset이 커밋되지 않아 이벤트가 다시 전달되고, `saveSystemMessage`가 저장된 메시지를 돌려주어 다시 보낸다.
+     보낸 뒤에는 `broadcastedAt`을 기록해 재전달 때 같은 메시지를 다시 보내지 않게 한다.
+     */
+	async broadcastSystemMessage(message: MessageDocument): Promise<void> {
+		const messageId = message._id.toString();
+		const wasSent = await this.channelMessageReadAccess.emitToReadableChannelUsers(this.chatGateway.server, message.channelId, {
+			event: 'message', payload: toMessageBroadcastPayload(message),
+		});
+		if (!wasSent) {
+			this.logger.warn(`System message broadcast skipped, waiting for Kafka redelivery [channelId=${message.channelId}, messageId=${messageId}]`);
+			throw new SystemMessageBroadcastSkippedError(message.channelId, messageId);
+		}
+
+		// 기록이 실패해도 전송은 끝났으므로 다시 던지지 않는다. 다시 던지면 재전달로 같은 메시지를 한 번 더 보낸다.
+		await this.messageRepository.markBroadcasted(message._id).catch((error: unknown) => {
+			this.logger.warn(`Failed to record system message broadcast [messageId=${messageId}]: ${String(error)}`);
+		});
 	}
 }

@@ -9,13 +9,11 @@ import {
 import {ConfigService} from '@nestjs/config';
 import {Kafka, Consumer} from 'kafkajs';
 import mongoose from 'mongoose';
-import {Server} from 'socket.io';
 import {ChatService} from '../chat.service.js';
-import {ChannelMessageReadAccessService, UserClient} from '../service/index.js';
+import {UserClient} from '../service/index.js';
 import {getKafkaClientConfig} from '../../common/config/config.util.js';
 import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
 import {waitForProjectionReadiness} from '../../common/kafka/projection-readiness-wait.js';
-import {toMessageBroadcastPayload} from '../repository/index.js';
 import {connectWithRetry} from '../../common/kafka/connect-with-retry.js';
 import {isSafePositiveInteger} from '../../common/util/safe-integer.util.js';
 import {type Nullable} from '../../common/type/nullable.js';
@@ -150,13 +148,11 @@ export function voiceEventMessage(event: VoiceEvent, displayName: Nullable<strin
 
  통화 시작/종료, 사용자 입장/퇴장, 라이브 시작/종료를 이벤트의 `channel_id` 채널에 SYSTEM 메시지로 저장한 후
  Socket.IO로 브로드캐스트한다. 시청자 입장/퇴장은 메시지로 만들지 않는다.
- Socket.IO 서버 인스턴스는 `ChatGateway`의 `afterInit`에서 {@link setSocketServer}로 주입된다.
  */
 @injectable()
 export class VoiceEventConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(VoiceEventConsumer.name);
 	private consumer!: Consumer;
-	private io?: Server;
 
 	@inject(forwardRef(() => ChatService))
 	private readonly chatService!: ForwardReference<ChatService>;
@@ -169,9 +165,6 @@ export class VoiceEventConsumer implements OnModuleInit, OnModuleDestroy {
 
 	@inject()
 	private readonly projectionReadiness!: ProjectionReadinessService;
-
-	@inject()
-	private readonly channelMessageReadAccess!: ChannelMessageReadAccessService;
 
 	/**
      음성 이벤트를 SYSTEM 메시지로 저장하고 채널에 브로드캐스트한다.
@@ -206,28 +199,7 @@ export class VoiceEventConsumer implements OnModuleInit, OnModuleDestroy {
 			return;
 		}
 
-		await this.notifyClient(event.channelId, toMessageBroadcastPayload(saved));
-	}
-
-	/**
-     Socket.IO를 통해 특정 채널의 클라이언트에게 메시지를 브로드캐스트한다.
-
-     Socket.IO 서버가 주입되지 않은 경우 (`io`가 `undefined`) 경고 로그를 남기고 무시된다.
-     */
-	private async notifyClient(channelId: number, message: unknown): Promise<void> {
-		if (!this.io) {
-			this.logger.warn(`Socket.IO server not initialized yet, dropping message broadcast (channelId=${channelId})`);
-			return;
-		}
-
-		await this.channelMessageReadAccess.emitToReadableChannelUsers(this.io, channelId, {event: 'message', payload: message});
-	}
-
-	/**
-     Socket.IO 서버 인스턴스를 주입한다. `ChatGateway`의 `afterInit` 훅에서 호출된다.
-     */
-	setSocketServer(io: Server) {
-		this.io = io;
+		await this.chatService.broadcastSystemMessage(saved);
 	}
 
 	/**

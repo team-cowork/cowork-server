@@ -5,15 +5,12 @@ import {type ChatGithubIssueCreateResult} from './event/chat-github-issue.event.
 
 const mockChatService = {
 	saveSystemMessage: jest.fn(),
+	broadcastSystemMessage: jest.fn().mockResolvedValue(undefined),
 };
 
 const mockConfigService = {};
 
 const mockProjectionReadiness = {areReady: jest.fn().mockReturnValue(true)};
-
-const mockChannelMessageReadAccess = {
-	emitToReadableChannelUsers: jest.fn().mockResolvedValue(undefined),
-};
 
 describe('GithubIssueResultConsumer', () => {
 	let consumer: GithubIssueResultConsumer;
@@ -23,10 +20,8 @@ describe('GithubIssueResultConsumer', () => {
 		consumer = new GithubIssueResultConsumer(
 			mockChatService as never,
 			mockConfigService as never,
-			mockChannelMessageReadAccess as never,
 			mockProjectionReadiness as never,
 		);
-		consumer.setSocketServer({} as never);
 	});
 
 	const baseResult: ChatGithubIssueCreateResult = {
@@ -67,9 +62,8 @@ describe('GithubIssueResultConsumer', () => {
 
 	describe('handleCommandResult (REJECTED)', () => {
 		it('거부 사유를 담은 시스템 메시지를 저장하고 브로드캐스트한다', async () => {
-			mockChatService.saveSystemMessage.mockResolvedValue(
-				savedSystemMessage('❌ 이슈 생성 실패: 프로젝트 수정 권한이 없습니다.'),
-			);
+			const saved = savedSystemMessage('❌ 이슈 생성 실패: 프로젝트 수정 권한이 없습니다.');
+			mockChatService.saveSystemMessage.mockResolvedValue(saved);
 
 			await (consumer as unknown as {
 				handleCommandResult(event: ChatGithubIssueCreateResult, source: typeof kafkaSource): Promise<void>;
@@ -81,7 +75,7 @@ describe('GithubIssueResultConsumer', () => {
 				'❌ 이슈 생성 실패: 프로젝트 수정 권한이 없습니다.',
 				'system:project.chat-github-issue.result:2:15:3',
 			);
-			expect(mockChannelMessageReadAccess.emitToReadableChannelUsers).toHaveBeenCalledTimes(1);
+			expect(mockChatService.broadcastSystemMessage).toHaveBeenCalledWith(saved);
 		});
 
 		it('error가 없으면 알 수 없는 오류 문구를 사용한다', async () => {
@@ -103,14 +97,14 @@ describe('GithubIssueResultConsumer', () => {
 	});
 
 	describe('handleCommandResult (재전달)', () => {
-		it('이미 저장된 메시지면 다시 브로드캐스트하지 않는다', async () => {
+		it('이미 저장하고 보낸 메시지면 다시 브로드캐스트하지 않는다', async () => {
 			mockChatService.saveSystemMessage.mockResolvedValue(null);
 
 			await (consumer as unknown as {
 				handleCommandResult(event: ChatGithubIssueCreateResult, source: typeof kafkaSource): Promise<void>;
 			}).handleCommandResult(baseResult, kafkaSource);
 
-			expect(mockChannelMessageReadAccess.emitToReadableChannelUsers).not.toHaveBeenCalled();
+			expect(mockChatService.broadcastSystemMessage).not.toHaveBeenCalled();
 		});
 	});
 
@@ -121,7 +115,7 @@ describe('GithubIssueResultConsumer', () => {
 			}).handleCommandResult({...baseResult, status: 'ACCEPTED', error: null}, kafkaSource);
 
 			expect(mockChatService.saveSystemMessage).not.toHaveBeenCalled();
-			expect(mockChannelMessageReadAccess.emitToReadableChannelUsers).not.toHaveBeenCalled();
+			expect(mockChatService.broadcastSystemMessage).not.toHaveBeenCalled();
 		});
 	});
 });
