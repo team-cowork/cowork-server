@@ -17,14 +17,24 @@ object ChannelRolePermissionResolver {
         val roleName: String? = null,
     )
 
+    /** 인가 판정 경로는 판정 근거를 만들지 않는다. 규칙은 [explain]과 같은 [decide]를 쓴다. */
     fun resolve(roles: List<RolePermission>, permission: String, isPrivate: Boolean): Boolean =
-        explain(roles, permission, isPrivate).allowed
+        decide(roles, permission, isPrivate, withSources = false).allowed
 
     /** 팀 역할 권한에 채널 덮어쓰기를 순서대로 적용한다. 판정 순서는 [PermissionDecisionReason]의 채널 항목과 같다. */
-    fun explain(roles: List<RolePermission>, permission: String, isPrivate: Boolean): PermissionDecision {
-        val sources = roles.flatMap { it.sources(permission) }
+    fun explain(roles: List<RolePermission>, permission: String, isPrivate: Boolean): PermissionDecision =
+        decide(roles, permission, isPrivate, withSources = true)
+
+    private fun decide(
+        roles: List<RolePermission>,
+        permission: String,
+        isPrivate: Boolean,
+        withSources: Boolean,
+    ): PermissionDecision {
+        val sources = if (withSources) roles.flatMap { it.sources(permission) } else emptyList()
         val administrators = roles.filter { it.administrator }
         if (permission in PermissionKeys.CHANNEL_SCOPED && administrators.isNotEmpty()) {
+            if (!withSources) return PermissionDecision(true, PermissionDecisionReason.ADMINISTRATOR, emptyList())
             val administratorSources = administrators.map {
                 PermissionSource(
                     PermissionSourceKind.TEAM_ROLE,

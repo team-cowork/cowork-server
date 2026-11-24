@@ -161,4 +161,23 @@ class ProjectPermissionsTest :
                     listOf(true to PermissionDecisionReason.ADMINISTRATOR)
             }
         }
+
+        describe("프로젝트 권한의 resolve는") {
+            it("판정 근거 없이 explain과 같은 결과를 낸다") {
+                val teamRoles = listOf(JsonObject().put("project_read", true).put("project_board_read", true))
+                val projectRoles = listOf(JsonObject().put("write", true).put("board_write", false))
+                listOf(true, false).forEach { manager ->
+                    listOf(true, false).forEach { isPrivate ->
+                        val resolved = ProjectPermissions.resolve(teamRoles, projectRoles, manager, isPrivate)
+                        val explained = ProjectPermissions.explain(
+                            teamRoles.map { PolicyRole(null, null, it.map.mapValues { e -> e.value as Boolean }) },
+                            projectRoles.map { PolicyRole(null, null, it.map.mapValues { e -> e.value as Boolean }) },
+                            manager,
+                            isPrivate,
+                        )
+                        resolved.toScopedMap() shouldBe explained.mapValues { it.value.allowed }
+                    }
+                }
+            }
+        }
     })

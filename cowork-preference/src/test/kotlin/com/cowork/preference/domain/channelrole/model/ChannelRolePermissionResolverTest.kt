@@ -131,4 +131,25 @@ class ChannelRolePermissionResolverTest :
                     RolePermission(false, false, null, false, 3L, "Mod")
             }
         }
+
+        describe("채널 역할 권한의 resolve는") {
+            it("판정 근거 없이 explain과 같은 결과를 낸다") {
+                val roleSets = listOf(
+                    listOf(RolePermission(true, true, null)),
+                    listOf(RolePermission(true, true, false), RolePermission(false, false, true)),
+                    listOf(
+                        RolePermission(true, false, null),
+                        RolePermission(false, false, false, administrator = true),
+                    ),
+                )
+                roleSets.forEach { roles ->
+                    listOf("message_read", "message_send", "manage_team").forEach { permission ->
+                        listOf(true, false).forEach { isPrivate ->
+                            ChannelRolePermissionResolver.resolve(roles, permission, isPrivate) shouldBe
+                                ChannelRolePermissionResolver.explain(roles, permission, isPrivate).allowed
+                        }
+                    }
+                }
+            }
+        }
     })

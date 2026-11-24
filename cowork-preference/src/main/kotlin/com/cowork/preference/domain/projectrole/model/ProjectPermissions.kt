@@ -49,11 +49,13 @@ data class ProjectPermissions(
             manager: Boolean = false,
             isPrivate: Boolean = false,
         ): ProjectPermissions {
-            val decisions = explain(
+            // 접근 상태 갱신은 프로젝트와 멤버 수만큼 반복되므로 판정 근거를 만들지 않는다.
+            val decisions = decide(
                 teamRoles.map { PolicyRole(null, null, it.booleanValues()) },
                 projectRoles.map { PolicyRole(null, null, it.booleanValues()) },
                 manager,
                 isPrivate,
+                withSources = false,
             )
             fun allowed(roleKey: String) = decisions.getValue(scopedKey(roleKey)).allowed
             return ProjectPermissions(
@@ -77,28 +79,43 @@ data class ProjectPermissions(
             projectRoles: List<PolicyRole>,
             manager: Boolean,
             isPrivate: Boolean,
+        ): Map<String, PermissionDecision> = decide(teamRoles, projectRoles, manager, isPrivate, withSources = true)
+
+        private fun decide(
+            teamRoles: List<PolicyRole>,
+            projectRoles: List<PolicyRole>,
+            manager: Boolean,
+            isPrivate: Boolean,
+            withSources: Boolean,
         ): Map<String, PermissionDecision> {
-            fun sources(roleKey: String): List<PermissionSource> = teamRoles.map {
-                PermissionSource(
-                    PermissionSourceKind.TEAM_ROLE,
-                    scopedKey(roleKey),
-                    it.permissions[scopedKey(roleKey)],
-                    it.roleId,
-                    it.roleName,
-                )
-            } + projectRoles.map {
-                PermissionSource(
-                    PermissionSourceKind.PROJECT_ROLE,
-                    roleKey,
-                    it.permissions[roleKey],
-                    it.roleId,
-                    it.roleName,
-                )
+            fun sources(roleKey: String): List<PermissionSource> = if (!withSources) {
+                emptyList()
+            } else {
+                teamRoles.map {
+                    PermissionSource(
+                        PermissionSourceKind.TEAM_ROLE,
+                        scopedKey(roleKey),
+                        it.permissions[scopedKey(roleKey)],
+                        it.roleId,
+                        it.roleName,
+                    )
+                } + projectRoles.map {
+                    PermissionSource(
+                        PermissionSourceKind.PROJECT_ROLE,
+                        roleKey,
+                        it.permissions[roleKey],
+                        it.roleId,
+                        it.roleName,
+                    )
+                }
             }
             if (manager) {
-                val administratorSources = teamRoles
-                    .filter { it.permissions[PermissionKeys.ADMINISTRATOR] == true }
-                    .map { it.administratorSource() }
+                val administratorSources = if (!withSources) {
+                    emptyList()
+                } else {
+                    teamRoles.filter { it.permissions[PermissionKeys.ADMINISTRATOR] == true }
+                        .map { it.administratorSource() }
+                }
                 return ROLE_KEYS.associate {
                     scopedKey(it) to PermissionDecision(
                         true,
