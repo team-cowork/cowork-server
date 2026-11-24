@@ -1,12 +1,20 @@
 package com.cowork.applet.domain.function.service
 
 import com.cowork.applet.domain.applet.service.AppletReader
-import com.cowork.applet.domain.function.service.handler.StorageFunctions
+import com.cowork.applet.domain.function.service.handler.{HttpFetchRateLimiter, HttpFunctions, StorageFunctions}
 import com.cowork.applet.domain.function.service.impl.InvokePlatformFunctionServiceImpl
 import com.cowork.applet.domain.storage.model.{StorageEntry, StorageScope}
 import com.cowork.applet.domain.storage.service.StorageLimits
+import com.cowork.applet.global.crypto.SecretCipher
 import com.cowork.applet.global.error.ExpectedException
-import com.cowork.applet.support.{Fixtures, InMemoryAppletRepository, InMemoryAppletStorageRepository}
+import com.cowork.applet.support.{
+  FakeOutboundHttpClient,
+  Fixtures,
+  InMemoryAppletHttpTargetRepository,
+  InMemoryAppletRepository,
+  InMemoryAppletSecretRepository,
+  InMemoryAppletStorageRepository
+}
 import java.time.Instant
 import play.api.libs.json.{JsNull, JsObject, Json}
 import scala.concurrent.{ExecutionContext, Future}
@@ -17,7 +25,14 @@ class InvokePlatformFunctionServiceImplTest extends munit.FunSuite:
 
   private final class Context(published: Boolean = true):
     val storage = InMemoryAppletStorageRepository()
-    val registry = PlatformFunctionRegistry(StorageFunctions(storage))
+    val httpFunctions = HttpFunctions(
+      InMemoryAppletHttpTargetRepository(),
+      InMemoryAppletSecretRepository(),
+      SecretCipher(Array.fill[Byte](32)(1)),
+      FakeOutboundHttpClient(_ => Future.failed(AssertionError("Storage tests must not call the network."))),
+      HttpFetchRateLimiter()
+    )
+    val registry = PlatformFunctionRegistry(StorageFunctions(storage), httpFunctions)
     val service = InvokePlatformFunctionServiceImpl(AppletReader(InMemoryAppletRepository(Fixtures.applet(published))), registry)
 
     def call(userId: String, name: String, arguments: JsObject) = service.execute(userId, "applet-1", name, arguments)
@@ -32,7 +47,7 @@ class InvokePlatformFunctionServiceImplTest extends munit.FunSuite:
     val names = context.registry.catalog.map(_.name)
 
     // Then
-    assertEquals(names, Seq("storage.get", "storage.set", "storage.delete", "storage.list"))
+    assertEquals(names, Seq("storage.get", "storage.set", "storage.delete", "storage.list", "http.fetch"))
   }
 
   test("storage.set 후 storage.get / USER 범위 / 저장한 사용자만 값을 읽는다") {

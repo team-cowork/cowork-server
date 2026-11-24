@@ -17,6 +17,8 @@ lazy val root = (project in file("."))
       ws,
       "io.micrometer" % "micrometer-registry-prometheus" % "1.17.2",
       "net.logstash.logback" % "logstash-logback-encoder" % "9.0",
+      // Outbound calls for applets use OkHttp because its Dns hook checks the exact addresses it connects to.
+      "com.squareup.okhttp3" % "okhttp" % "4.12.0",
       "org.scalameta" %% "munit" % "1.3.6" % Test,
       // Compiles OpenApi32Transformer only. The swagger task supplies this library at generation time.
       ("io.github.play-swagger" %% "play-swagger" % PlaySwaggerBuildInfo.version % Provided).intransitive()

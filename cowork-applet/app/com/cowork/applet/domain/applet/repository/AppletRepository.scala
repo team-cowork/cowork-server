@@ -13,5 +13,5 @@ trait AppletRepository:
   def findByOwner(ownerId: String): Future[Seq[Applet]]
   def updateProfile(applet: Applet): Future[Unit]
   def updatePublishedVersion(appletId: String, versionId: Option[String], updatedAt: Instant): Future[Unit]
-  // Deletes the applet with its versions, variables, secrets, and storage entries in one transaction.
+  // Deletes the applet with its versions, variables, secrets, HTTP targets, and storage entries in one transaction.
   def deleteWithResources(appletId: String): Future[Unit]

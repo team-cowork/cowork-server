@@ -49,6 +49,7 @@ class SurrealAppletRepository @Inject() (surrealClient: SurrealClient)(using Exe
     val statements =
       """BEGIN TRANSACTION;
         |DELETE applet_storage WHERE appletId = $appletId;
+        |DELETE applet_http_target WHERE appletId = $appletId;
         |DELETE applet_secret WHERE appletId = $appletId;
         |DELETE applet_variable WHERE appletId = $appletId;
         |DELETE applet_version WHERE appletId = $appletId;

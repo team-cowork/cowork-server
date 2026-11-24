@@ -2,8 +2,13 @@ package com.cowork.applet.support
 
 import com.cowork.applet.domain.applet.model.{Applet, AppletVersion, AppletVersionStatus}
 import com.cowork.applet.domain.applet.repository.{AppletRepository, AppletVersionRepository}
+import com.cowork.applet.domain.environment.model.AppletSecret
+import com.cowork.applet.domain.environment.repository.AppletSecretRepository
+import com.cowork.applet.domain.network.model.AppletHttpTarget
+import com.cowork.applet.domain.network.repository.AppletHttpTargetRepository
 import com.cowork.applet.domain.storage.model.{StorageEntry, StorageScope}
 import com.cowork.applet.domain.storage.repository.AppletStorageRepository
+import com.cowork.applet.global.outbound.{OutboundHttpClient, OutboundRequest, OutboundResponse}
 import java.time.Instant
 import scala.collection.mutable
 import scala.concurrent.Future
@@ -76,3 +81,39 @@ object Fixtures:
   def applet(published: Boolean = false, appletId: String = "applet-1"): Applet =
     val now = Instant.parse("2026-11-24T00:00:00Z")
     Applet(appletId, Owner, "앱", "", if published then Some("version-1") else None, now, now)
+
+final class InMemoryAppletSecretRepository extends AppletSecretRepository:
+  val secrets: mutable.ListBuffer[AppletSecret] = mutable.ListBuffer.empty
+
+  override def findAll(appletId: String): Future[Seq[AppletSecret]] = Future.successful(secrets.filter(_.appletId == appletId).toSeq)
+  override def upsert(secret: AppletSecret): Future[Unit] =
+    secrets.filterInPlace(s => !(s.appletId == secret.appletId && s.name == secret.name))
+    secrets += secret
+    Future.successful(())
+  override def delete(appletId: String, name: String): Future[Boolean] =
+    val before = secrets.size
+    secrets.filterInPlace(s => !(s.appletId == appletId && s.name == name))
+    Future.successful(secrets.size != before)
+
+final class InMemoryAppletHttpTargetRepository(initial: AppletHttpTarget*) extends AppletHttpTargetRepository:
+  val targets: mutable.ListBuffer[AppletHttpTarget] = mutable.ListBuffer.from(initial)
+
+  override def findAll(appletId: String): Future[Seq[AppletHttpTarget]] = Future.successful(targets.filter(_.appletId == appletId).toSeq)
+  override def find(appletId: String, host: String): Future[Option[AppletHttpTarget]] =
+    Future.successful(targets.find(t => t.appletId == appletId && t.host == host))
+  override def upsert(target: AppletHttpTarget): Future[Unit] =
+    targets.filterInPlace(t => !(t.appletId == target.appletId && t.host == target.host))
+    targets += target
+    Future.successful(())
+  override def delete(appletId: String, host: String): Future[Boolean] =
+    val before = targets.size
+    targets.filterInPlace(t => !(t.appletId == appletId && t.host == host))
+    Future.successful(targets.size != before)
+
+// Records requests and answers with a fixed result instead of calling the network.
+final class FakeOutboundHttpClient(answer: OutboundRequest => Future[OutboundResponse]) extends OutboundHttpClient:
+  val requests: mutable.ListBuffer[OutboundRequest] = mutable.ListBuffer.empty
+
+  override def execute(request: OutboundRequest): Future[OutboundResponse] =
+    requests += request
+    answer(request)
