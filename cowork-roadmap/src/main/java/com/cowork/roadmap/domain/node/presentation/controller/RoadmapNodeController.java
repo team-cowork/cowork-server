@@ -45,7 +45,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import team.themoment.sdk.response.CommonApiResponse;
 
-@Tag(name = "로드맵 노드", description = "노드와 관련 자료는 소속 로드맵의 조회 및 변경 권한을 따릅니다. 글로벌 로드맵은 로그인한 사용자가 조회할 수 있습니다. 다른 팀의 로드맵을 조회하려면 계정 권한 `read_all_team_roadmaps`가 필요합니다. 글로벌 로드맵에는 계정 권한 `manage_global_roadmaps`가 필요합니다. 팀 또는 프로젝트 로드맵은 소유 팀의 활성 멤버 중 생성자 또는 팀 관리 권한을 가진 사용자가 변경할 수 있습니다.")
+@Tag(name = "로드맵 노드", description = "노드와 관련 자료는 소속 로드맵의 조회 및 변경 권한을 따릅니다. 글로벌 로드맵은 로그인한 사용자가 조회할 수 있습니다. 다른 팀의 로드맵을 조회하려면 계정 권한 `read_all_team_roadmaps`가 필요합니다. 글로벌 로드맵에는 계정 권한 `manage_global_roadmaps`가 필요합니다. 팀 또는 프로젝트 로드맵은 소유 팀의 활성 멤버 중 생성자 또는 `administrator`, `manage_roadmaps`, `manage_team` 중 하나의 권한을 가진 사용자가 변경할 수 있습니다. `manage_team`은 전환 기간에만 허용합니다.")
 @ApiResponses({
         @ApiResponse(responseCode = "401", description = "액세스 토큰이 없거나 유효하지 않음", content = @Content(mediaType = "application/json", schema = @Schema(implementation = CommonApiResponse.class), examples = @ExampleObject(value = "{\"status\":\"401 UNAUTHORIZED\",\"code\":401,\"message\":\"Unauthorized\"}"))),
         @ApiResponse(description = "기타 오류", content = @Content(schema = @Schema(implementation = CommonApiResponse.class)))})

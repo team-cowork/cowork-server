@@ -97,7 +97,7 @@ public class RoadmapAccessGuard {
         if (!roadmapPolicyRepository.allows(teamId, userId, "administrator")
                 && !roadmapPolicyRepository.allows(teamId, userId, "manage_roadmaps")
                 && !roadmapPolicyRepository.allows(teamId, userId, "manage_team")) {
-            throw new ExpectedException("팀 관리 권한이 필요합니다.", HttpStatus.FORBIDDEN);
+            throw new ExpectedException("로드맵 관리 권한이 필요합니다.", HttpStatus.FORBIDDEN);
         }
     }
 
