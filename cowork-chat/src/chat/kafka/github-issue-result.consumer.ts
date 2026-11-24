@@ -18,6 +18,10 @@ import {ChatGithubIssueCreateResult} from './event/chat-github-issue.event.js';
 import {type KafkaMessageSource, systemMessageKey} from './system-message-key.js';
 import {startSystemMessageConsumer} from './system-message-result-consumer.js';
 
+async function noHeartbeat(): Promise<void> {
+	// 직접 호출할 때는 Kafka heartbeat가 필요 없다.
+}
+
 /**
  GitHub 이슈 생성 결과를 SYSTEM 메시지로 저장하고 브로드캐스트한다.
 
@@ -25,10 +29,6 @@ import {startSystemMessageConsumer} from './system-message-result-consumer.js';
  - `project.chat-github-issue.result`: project의 커맨드 권한 검증 결과. `ACCEPTED`는 권한 검증 통과만을
  의미하므로 `REJECTED`일 때만 메시지를 남긴다.
  */
-async function noHeartbeat(): Promise<void> {
-	// 직접 호출할 때는 Kafka heartbeat가 필요 없다.
-}
-
 @injectable()
 export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(GithubIssueResultConsumer.name);
