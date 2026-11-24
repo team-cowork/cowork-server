@@ -61,6 +61,12 @@ enum class RolePermission(
         "GitHub 연동 관리",
         "팀에 GitHub App을 연결하거나 해제할 수 있습니다. 볼 수 있는 프로젝트에 저장소를 연결하고 라벨 정책과 웹훅 알림 채널을 설정할 수 있습니다.",
     ),
+    MANAGE_APPLETS(
+        PermissionKeys.MANAGE_APPLETS,
+        RolePermissionGroup.TEAM,
+        "앱 관리",
+        "게시된 앱을 팀에 설치하거나 팀에서 제거할 수 있습니다.",
+    ),
     MANAGE_NICKNAME_FORMAT(
         PermissionKeys.MANAGE_NICKNAME_FORMAT,
         RolePermissionGroup.TEAM,
