@@ -121,7 +121,8 @@ func (s *DataGSMLogin) AllowsOrigin(origin string) bool {
 	return false
 }
 
-func (s *DataGSMLogin) Begin(ctx context.Context, redirectURI string) (string, string, error) {
+// Begin creates a login attempt. A positive linkUserID makes it a link attempt for that Cowork user.
+func (s *DataGSMLogin) Begin(ctx context.Context, redirectURI string, linkUserID int64) (string, string, error) {
 	client := s.clients[redirectURI]
 	if client == nil {
 		return "", "", loginFailure("redirect_uri", ErrInvalidLoginRequest)
@@ -131,7 +132,7 @@ func (s *DataGSMLogin) Begin(ctx context.Context, redirectURI string) (string, s
 		return "", "", loginFailure("authorization", ErrAuthenticationUnavailable)
 	}
 	session, err := saveLoginAttempt(ctx, s.attempts, LoginAttempt{Provider: ProviderDataGSM, Authorization: *attempt,
-		RedirectURI: redirectURI, ExpiresAt: s.now().Add(LoginAttemptTTL)})
+		RedirectURI: redirectURI, ExpiresAt: s.now().Add(LoginAttemptTTL), LinkUserID: linkUserID})
 	if err != nil {
 		return "", "", err
 	}

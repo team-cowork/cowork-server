@@ -37,7 +37,7 @@ func schemas() openapi3.Schemas {
 			Type:     &openapi3.Types{"object"}}},
 		"internal_handler.LinkStartRequest": &openapi3.SchemaRef{Value: &openapi3.Schema{Properties: openapi3.Schemas{
 			"redirect_uri": &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}}},
-			"provider":     &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}, Enum: []any{"GITHUB"}}},
+			"provider":     &openapi3.SchemaRef{Value: &openapi3.Schema{Type: &openapi3.Types{"string"}, Enum: []any{"DATAGSM", "GITHUB"}}},
 		},
 			Required: []string{"provider", "redirect_uri"},
 			Type:     &openapi3.Types{"object"}}},

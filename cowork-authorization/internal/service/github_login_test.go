@@ -232,8 +232,8 @@ func TestGitHubLoginStartRequiresAConfiguredProviderAndCallback(t *testing.T) {
 	if _, _, err := f.svc.BeginLogin(context.Background(), "GOOGLE", githubCallback); !errors.Is(err, ErrInvalidLoginRequest) {
 		t.Fatalf("unknown provider err=%v", err)
 	}
-	if _, _, err := f.svc.BeginLink(context.Background(), 7, ProviderDataGSM, "https://app.example/callback"); !errors.Is(err, ErrInvalidLoginRequest) {
-		t.Fatalf("DataGSM link err=%v", err)
+	if _, _, err := f.svc.BeginLink(context.Background(), 7, "DEV", "https://app.example/callback"); !errors.Is(err, ErrInvalidLoginRequest) {
+		t.Fatalf("developer link err=%v", err)
 	}
 	f.svc.github = nil
 	if _, _, err := f.svc.BeginLogin(context.Background(), ProviderGitHub, githubCallback); !errors.Is(err, ErrInvalidLoginRequest) {

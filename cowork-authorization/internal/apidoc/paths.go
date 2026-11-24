@@ -43,7 +43,7 @@ func paths() *openapi3.Paths {
 	}})
 	paths.Set("/auth/link/authorize", &openapi3.PathItem{Post: &openapi3.Operation{
 		Summary:     "로그인 수단 연결 시작",
-		Description: "현재 계정에 GitHub 로그인을 연결하는 시도를 생성합니다. 반환된 authorization_url로 이동하고 쿠키를 유지한 채 /auth/link/callback에 콜백을 전달합니다. 시도는 시작한 사용자만 완료할 수 있고 10분 뒤 만료됩니다.",
+		Description: "현재 계정에 GitHub 또는 DataGSM 로그인을 연결하는 시도를 생성합니다. 반환된 authorization_url로 이동하고 쿠키를 유지한 채 /auth/link/callback에 콜백을 전달합니다. 시도는 시작한 사용자만 완료할 수 있고 10분 뒤 만료됩니다.",
 		Tags:        []string{"auth"},
 		Security:    &openapi3.SecurityRequirements{{"BearerAuth": {}}},
 		RequestBody: &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{
@@ -63,7 +63,7 @@ func paths() *openapi3.Paths {
 	}})
 	paths.Set("/auth/link/callback", &openapi3.PathItem{Post: &openapi3.Operation{
 		Summary:     "로그인 수단 연결 완료",
-		Description: "연결 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 연결해도 세션과 프로필은 바뀌지 않습니다. 다른 계정에 연결된 GitHub 계정이나 이미 GitHub가 연결된 계정은 연결할 수 없습니다.",
+		Description: "연결 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 연결해도 세션과 공통 프로필은 바뀌지 않습니다. DataGSM을 연결하면 학생 정보가 추가됩니다. 다른 계정에 연결된 로그인 수단이나 학생 번호, 같은 공급자가 이미 연결된 계정, 학생 정보가 이미 있는 계정에는 연결할 수 없습니다.",
 		Tags:        []string{"auth"},
 		Security:    &openapi3.SecurityRequirements{{"BearerAuth": {}}},
 		RequestBody: &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{
@@ -83,7 +83,7 @@ func paths() *openapi3.Paths {
 	}})
 	paths.Set("/auth/callback", &openapi3.PathItem{Post: &openapi3.Operation{
 		Summary:     "인가 코드로 토큰 발급",
-		Description: "로그인 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 로그인 시도는 한 번만 사용할 수 있습니다. 처음 GitHub로 로그인하면 계정을 만듭니다. 같은 이메일이나 GitHub 아이디를 쓰는 계정이 있으면 409를 반환하며, 기존 계정으로 로그인한 뒤 GitHub를 연결해야 합니다. 검증된 이메일 중 gsm.hs.kr이 있는 GitHub 계정이 처음 로그인하면 409와 datagsm login required를 반환합니다. 이때는 DataGSM으로 로그인한 뒤 GitHub를 연결해야 합니다.",
+		Description: "로그인 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 로그인 시도는 한 번만 사용할 수 있습니다. 처음 GitHub로 로그인하면 계정을 만듭니다. 같은 이메일이나 GitHub 아이디를 쓰는 계정이 있으면 409를 반환하며, 기존 계정으로 로그인한 뒤 GitHub를 연결해야 합니다. 검증된 이메일 중 gsm.hs.kr이 있는 GitHub 계정이 처음 로그인하면 409와 datagsm login required를 반환합니다. 이때는 DataGSM으로 로그인한 뒤 GitHub를 연결해야 합니다. DataGSM 첫 로그인이 학생 정보 없는 기존 계정과 충돌하면 409와 github login required를 반환합니다. 이때는 GitHub로 로그인한 뒤 DataGSM을 연결해야 합니다.",
 		Tags:        []string{"auth"},
 		RequestBody: &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{
 			Description: "공급자 콜백",
@@ -96,7 +96,7 @@ func paths() *openapi3.Paths {
 			openapi3.WithName("200", cookieResponse("새 토큰 쌍", "github_com_cowork_authorization_internal_apidoc.Success-github_com_cowork_authorization_internal_service_TokenPair", "WebSocket 인증 쿠키(cowork_ws_token, Path=/ws)")),
 			openapi3.WithName("400", jsonResponse("필수 요청 값이 없거나 형식이 잘못됨", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("401", jsonResponse("인가 코드 검증 실패", "github_com_cowork_authorization_internal_apidoc.Error")),
-			openapi3.WithName("409", jsonResponse("연결되지 않은 기존 계정과 충돌 또는 DataGSM 로그인 필요", "github_com_cowork_authorization_internal_apidoc.Error")),
+			openapi3.WithName("409", jsonResponse("연결되지 않은 기존 계정과 충돌, DataGSM 로그인 필요 또는 GitHub 로그인 필요", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("429", jsonResponse("요청 한도 초과", "github_com_cowork_authorization_internal_apidoc.Error")),
 			openapi3.WithName("503", jsonResponse("인증 서비스를 일시적으로 사용할 수 없음", "github_com_cowork_authorization_internal_apidoc.Error")),
 		),

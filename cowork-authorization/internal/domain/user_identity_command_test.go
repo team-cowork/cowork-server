@@ -80,3 +80,20 @@ func TestValidateUserIdentityCommandForGitHubAndLink(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateUserIdentityCommandAcceptsADataGSMLinkWithStudent(t *testing.T) {
+	accountID, studentID := int64(7), int64(501)
+	link := UserIdentityCommand{
+		SchemaVersion: UserIdentityCommandSchemaVersion, OperationID: "0b0f4c8e-6f0e-4a8e-9d3b-1f0c2a9b7c11",
+		IdempotencyKey: "operation", CommandType: UserIdentityCommandLink, AccountID: &accountID, Provider: "DATAGSM", ProviderSubject: "99",
+		Name: "Student", Email: "student@gsm.hs.kr", Student: &StudentIdentity{Sex: "MAN", Role: "GENERAL_STUDENT", DataGSMStudentID: &studentID},
+		OccurredAt: time.Date(2026, 11, 23, 0, 0, 0, 0, time.UTC),
+	}
+	if err := ValidateUserIdentityCommand(link); err != nil {
+		t.Fatalf("DataGSM link rejected: %v", err)
+	}
+	link.Student = nil
+	if err := ValidateUserIdentityCommand(link); err == nil {
+		t.Fatal("DataGSM link without student accepted")
+	}
+}
