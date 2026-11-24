@@ -634,7 +634,7 @@ export class ChatService {
      파일이 포함된 메시지를 삭제한다. 오브젝트는 {@link deleteMessageAndAttachments}가 남긴 삭제 의도로 워커가 지운다.
 
      @throws BadRequestException fileId 디코딩 실패
-     @throws NotFoundException 메시지가 존재하지 않는 경우
+     @throws NotFoundException 메시지가 존재하지 않거나 사용자가 볼 수 없는 음성 채널 로그인 경우
      @throws ForbiddenException 본인 파일이 아니고 message_manage 권한도 없는 경우
      */
 	async deleteFile(ctx: ChannelUserContext, fileId: string): Promise<{channelId: number; messageId: string}> {
@@ -646,6 +646,7 @@ export class ChatService {
 			throw new NotFoundException('파일(메시지)을 찾을 수 없습니다');
 		}
 
+		await this.requireVisibleMessage(ctx.channelId, ctx.userId, message);
 		if (message.authorId !== ctx.userId) {
 			await this.channelMessageReadAccess.requirePermission(ctx.channelId, ctx.userId, 'message_manage');
 		}

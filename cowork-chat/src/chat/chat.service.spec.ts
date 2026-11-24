@@ -909,14 +909,20 @@ describe('ChatService', () => {
 
 		it('타인 파일 삭제에는 message_manage 권한이 필요하다', async () => {
 			mockChannelMessageReadAccess.requirePermission.mockRejectedValueOnce(new ForbiddenException());
-			mockMessageRepository.findByIdAndChannelId.mockResolvedValue({
-				authorId: 7,
-				attachments: [],
-			});
+			mockMessageRepository.findByIdAndChannelId.mockResolvedValue({authorId: 7, attachments: []});
 
 			await expect(service.deleteFile(ctx, fileId)).rejects.toBeInstanceOf(ForbiddenException);
 			expect(mockMessageSearchDeletion.deleteMessage).not.toHaveBeenCalled();
 			expect(mockObjectStorageService.removeObject).not.toHaveBeenCalled();
+		});
+
+		it('볼 수 없는 음성 채널 로그는 권한과 상관없이 NOT_FOUND로 응답한다', async () => {
+			mockChannelMessageReadAccess.requireVoiceLogHiddenChannelIds.mockResolvedValueOnce(new Set([1]));
+			mockMessageRepository.findByIdAndChannelId.mockResolvedValue({authorId: 7, type: 'SYSTEM', attachments: []});
+
+			await expect(service.deleteFile(ctx, fileId)).rejects.toBeInstanceOf(NotFoundException);
+			expect(mockChannelMessageReadAccess.requirePermission).not.toHaveBeenCalled();
+			expect(mockMessageSearchDeletion.deleteMessage).not.toHaveBeenCalled();
 		});
 
 		it('채널 저장 경로 밖의 객체는 삭제하지 않는다', async () => {
