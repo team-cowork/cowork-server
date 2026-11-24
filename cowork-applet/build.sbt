@@ -19,6 +19,8 @@ lazy val root = (project in file("."))
       "net.logstash.logback" % "logstash-logback-encoder" % "9.0",
       // Outbound calls for applets use OkHttp because its Dns hook checks the exact addresses it connects to.
       "com.squareup.okhttp3" % "okhttp" % "4.12.0",
+      // SurrealDB RPC uses CBOR so strings keep their type. The version matches Play's Jackson modules.
+      "com.fasterxml.jackson.dataformat" % "jackson-dataformat-cbor" % "2.14.3",
       // Play already provides the maintained lz4-java fork with the same packages.
       ("org.apache.kafka" % "kafka-clients" % "4.2.1").exclude("org.lz4", "lz4-java"),
       "org.scalameta" %% "munit" % "1.3.6" % Test,
