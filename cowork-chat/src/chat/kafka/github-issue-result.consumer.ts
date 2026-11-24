@@ -8,16 +8,19 @@ import {
 } from '@nestjs/common';
 import {ConfigService} from '@nestjs/config';
 import {Consumer} from 'kafkajs';
-import {Server} from 'socket.io';
 import {ChatService} from '../chat.service.js';
-import {ChannelMessageReadAccessService} from '../service/index.js';
-import {toMessageBroadcastPayload} from '../repository/index.js';
 import {ProjectionReadinessService} from '../../common/kafka/projection-readiness.service.js';
+import {waitForProjectionReadiness} from '../../common/kafka/projection-readiness-wait.js';
+import {CHANNEL_PERMISSION_STREAMS} from '../../common/kafka/projection-streams.js';
 import {type ForwardReference} from '../../common/type/forward-reference.js';
 import {GithubIssueResultEvent} from './event/github-issue.event.js';
 import {ChatGithubIssueCreateResult} from './event/chat-github-issue.event.js';
 import {type KafkaMessageSource, systemMessageKey} from './system-message-key.js';
-import {startSystemMessageConsumer, SystemMessageBroadcaster} from './system-message-result-consumer.js';
+import {startSystemMessageConsumer} from './system-message-result-consumer.js';
+
+async function noHeartbeat(): Promise<void> {
+	// 직접 호출할 때는 Kafka heartbeat가 필요 없다.
+}
 
 /**
  GitHub 이슈 생성 결과를 SYSTEM 메시지로 저장하고 브로드캐스트한다.
@@ -29,34 +32,37 @@ import {startSystemMessageConsumer, SystemMessageBroadcaster} from './system-mes
 @injectable()
 export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy {
 	private readonly logger = new Logger(GithubIssueResultConsumer.name);
-	private readonly broadcaster: SystemMessageBroadcaster;
 	private consumers: Consumer[] = [];
 
 	constructor(
 		@inject(forwardRef(() => ChatService))
 		private readonly chatService: ForwardReference<ChatService>,
 		private readonly configService: ConfigService,
-		private readonly channelMessageReadAccess: ChannelMessageReadAccessService,
 		private readonly projectionReadiness: ProjectionReadinessService,
-	) {
-		this.broadcaster = new SystemMessageBroadcaster(this.logger, this.channelMessageReadAccess);
-	}
+	) {}
 
-	private async handleIssueResult(event: GithubIssueResultEvent, source: KafkaMessageSource): Promise<void> {
+	private async handleIssueResult(event: GithubIssueResultEvent, source: KafkaMessageSource, heartbeat: () => Promise<void> = noHeartbeat): Promise<void> {
 		const content = event.success ? `✅ 이슈가 생성됐어요: ${event.issueUrl}` : `❌ 이슈 생성 실패: ${event.error ?? '알 수 없는 오류'}`;
-		await this.saveAndBroadcast(event, content, source);
+		await this.saveAndBroadcast(event, content, source, heartbeat);
 	}
 
-	private async handleCommandResult(event: ChatGithubIssueCreateResult, source: KafkaMessageSource): Promise<void> {
+	private async handleCommandResult(event: ChatGithubIssueCreateResult, source: KafkaMessageSource, heartbeat: () => Promise<void> = noHeartbeat): Promise<void> {
 		if (event.status !== 'REJECTED') {
 			this.logger.debug(`Chat GitHub issue command accepted [operationId=${event.operationId}]`);
 			return;
 		}
 
-		await this.saveAndBroadcast(event, `❌ 이슈 생성 실패: ${event.error?.message ?? '알 수 없는 오류'}`, source);
+		await this.saveAndBroadcast(event, `❌ 이슈 생성 실패: ${event.error?.message ?? '알 수 없는 오류'}`, source, heartbeat);
 	}
 
-	private async saveAndBroadcast(event: {teamId: number; channelId: number}, content: string, source: KafkaMessageSource): Promise<void> {
+	/**
+     채널 권한 projection이 준비될 때까지 기다린 뒤 저장하고 보낸다.
+     준비되지 않은 동안에는 전송이 실패해 재전달이 반복되므로, 다른 시스템 메시지 소비자처럼 먼저 기다린다.
+     */
+	private async saveAndBroadcast(
+		event: {teamId: number; channelId: number}, content: string, source: KafkaMessageSource, heartbeat: () => Promise<void>,
+	): Promise<void> {
+		await waitForProjectionReadiness(this.projectionReadiness, heartbeat, CHANNEL_PERMISSION_STREAMS);
 		const saved = await this.chatService.saveSystemMessage(
 			event.teamId,
 			event.channelId,
@@ -67,11 +73,7 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
 			return;
 		}
 
-		await this.broadcaster.notifyClient(event.channelId, toMessageBroadcastPayload(saved));
-	}
-
-	setSocketServer(io: Server) {
-		this.broadcaster.setSocketServer(io);
+		await this.chatService.broadcastSystemMessage(saved);
 	}
 
 	async onModuleInit() {
@@ -83,7 +85,7 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
 				clientId: 'cowork-chat-github-result',
 				groupId: 'cowork-chat-github-result',
 				topic: 'github.issue.result',
-				handle: async (event, source) => this.handleIssueResult(event, source),
+				handle: async (event, source, heartbeat) => this.handleIssueResult(event, source, heartbeat),
 			}),
 			startSystemMessageConsumer<ChatGithubIssueCreateResult>({
 				logger: this.logger,
@@ -92,7 +94,7 @@ export class GithubIssueResultConsumer implements OnModuleInit, OnModuleDestroy 
 				clientId: 'cowork-chat-chat-github-issue-result',
 				groupId: 'cowork-chat-chat-github-issue-result',
 				topic: 'project.chat-github-issue.result',
-				handle: async (event, source) => this.handleCommandResult(event, source),
+				handle: async (event, source, heartbeat) => this.handleCommandResult(event, source, heartbeat),
 			}),
 		]);
 		this.logger.log('Kafka consumer started: github.issue.result, project.chat-github-issue.result');
