@@ -25,6 +25,10 @@ import {type KafkaMessageSource, systemMessageKey} from './system-message-key.js
 */
 const MESSAGE_CONTENT_MAX_LENGTH = 25_000;
 
+function isNonRetryableError(error: unknown): boolean {
+	return error instanceof SyntaxError || error instanceof mongoose.Error.ValidationError;
+}
+
 /**
  Kafka `github.repo.event` 토픽을 구독하여 GitHub 저장소 활동(push/issues/pull_request)을 처리하는 컨슈머.
 
@@ -71,7 +75,8 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
 
 		const targets = await this.projectClient.getGithubWebhookTargets(event.owner, event.repo);
 
-		await Promise.all(targets.map(async target => {
+		// 재전달이 아직 전송 완료를 기록하지 않은 채널과 겹치지 않도록 모든 채널 작업을 기다린다.
+		const results = await Promise.allSettled(targets.map(async target => {
 			const saved = await this.chatService.saveSystemMessage(
 				target.teamId, target.channelId, summary, systemMessageKey(source, target.channelId),
 			);
@@ -81,6 +86,19 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
 
 			await this.chatService.broadcastSystemMessage(saved);
 		}));
+
+		for (const result of results) {
+			if (result.status !== 'rejected') {
+				continue;
+			}
+
+			const error: unknown = result.reason;
+			if (!isNonRetryableError(error)) {
+				throw error;
+			}
+
+			this.logger.error('Failed to process repo event', error);
+		}
 	}
 
 	/**
@@ -127,7 +145,7 @@ export class GithubRepoEventConsumer implements OnModuleInit, OnModuleDestroy {
 					} catch (error) {
 						this.logger.error('Failed to process repo event', error);
 						// 잘못된 JSON, Message 스키마 검증 실패(빈 값/길이 초과 등)는 재시도해도 성공할 수 없으므로 스킵한다.
-						if (!(error instanceof SyntaxError) && !(error instanceof mongoose.Error.ValidationError)) {
+						if (!isNonRetryableError(error)) {
 							throw error;
 						}
 					}
