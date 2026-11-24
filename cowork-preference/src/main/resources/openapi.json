@@ -1438,7 +1438,7 @@
         "required": ["allowed", "decidedBy", "sources"],
         "properties": {
           "allowed": {"type": "boolean"},
-          "decidedBy": {"type": "string", "enum": ["ADMINISTRATOR", "ROLE_GRANT", "NO_GRANT", "PRIVATE_CHANNEL", "DEFAULT_OVERWRITE", "ROLE_OVERWRITE_DENY", "ROLE_OVERWRITE_ALLOW", "REQUIRES_CHANNEL_ACCESS", "PROJECT_OVERRIDE_ALLOW", "PROJECT_OVERRIDE_DENY", "PRIVATE_PROJECT", "REQUIRES_PROJECT_READ", "REQUIRES_BOARD_READ", "ACCESS_STATE_PENDING"], "description": "최종 판정을 정한 규칙. ACCESS_STATE_PENDING은 저장된 프로젝트 접근 상태가 아직 최신 정책을 반영하지 않았다는 뜻이며 allowed는 저장된 상태를 따름"},
+          "decidedBy": {"type": "string", "enum": ["ADMINISTRATOR", "ROLE_GRANT", "NO_GRANT", "PRIVATE_CHANNEL", "DEFAULT_OVERWRITE", "ROLE_OVERWRITE_DENY", "ROLE_OVERWRITE_ALLOW", "REQUIRES_CHANNEL_ACCESS", "REQUIRES_MESSAGE_READ", "PROJECT_OVERRIDE_ALLOW", "PROJECT_OVERRIDE_DENY", "PRIVATE_PROJECT", "REQUIRES_PROJECT_READ", "REQUIRES_BOARD_READ", "ACCESS_STATE_PENDING"], "description": "최종 판정을 정한 규칙. ACCESS_STATE_PENDING은 저장된 프로젝트 접근 상태가 아직 최신 정책을 반영하지 않았다는 뜻이며 allowed는 저장된 상태를 따름"},
           "sources": {"type": "array", "items": {"$ref": "#/components/schemas/PermissionSource"}, "description": "판정에 쓰인 정책 값"}
         }
       },

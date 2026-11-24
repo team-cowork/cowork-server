@@ -20,6 +20,7 @@ object EffectivePermissionEvaluator {
     /**
      * [overwrites]는 역할 ID별 채널 덮어쓰기다. 비공개 여부를 모르면 비공개로 판정한다.
      * Channel, Chat, Voice 서비스와 같이 [accessPermission] 이외 권한은 채널 접근 권한을 함께 요구한다.
+     * Chat과 같이 채팅 작업과 음성 로그 조회는 음성 채널에서도 message_read를 함께 요구한다.
      */
     fun channel(
         roles: List<PolicyRole>,
@@ -34,13 +35,26 @@ object EffectivePermissionEvaluator {
             isPrivate,
         )
         val access = explain(accessPermission)
+        val messageRead = if (accessPermission ==
+            PermissionKeys.MESSAGE_READ
+        ) {
+            access
+        } else {
+            explain(PermissionKeys.MESSAGE_READ)
+        }
         return keys.associateWith { key ->
             if (key == accessPermission) return@associateWith access
             val decision = explain(key)
-            if (decision.allowed && !access.allowed) {
-                decision.copy(allowed = false, decidedBy = PermissionDecisionReason.REQUIRES_CHANNEL_ACCESS)
-            } else {
-                decision
+            when {
+                !decision.allowed -> decision
+
+                !access.allowed ->
+                    decision.copy(allowed = false, decidedBy = PermissionDecisionReason.REQUIRES_CHANNEL_ACCESS)
+
+                key in MESSAGE_READ_DEPENDENT && !messageRead.allowed ->
+                    decision.copy(allowed = false, decidedBy = PermissionDecisionReason.REQUIRES_MESSAGE_READ)
+
+                else -> decision
             }
         }
     }
@@ -69,4 +83,17 @@ object EffectivePermissionEvaluator {
             }
         }
     }
+
+    /** Chat의 `ChannelActionPermission`과 음성 로그 조회. 모두 메시지 읽기 권한을 선행 조건으로 쓴다. */
+    private val MESSAGE_READ_DEPENDENT = setOf(
+        PermissionKeys.MESSAGE_SEND,
+        PermissionKeys.THREAD_REPLY,
+        PermissionKeys.FILE_ATTACH,
+        PermissionKeys.REACTION_ADD,
+        PermissionKeys.MESSAGE_PIN,
+        PermissionKeys.MESSAGE_MANAGE,
+        PermissionKeys.SLASH_COMMAND_USE,
+        PermissionKeys.GITHUB_ISSUE_CREATE,
+        PermissionKeys.VOICE_LOG_READ,
+    )
 }

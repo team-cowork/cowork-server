@@ -58,6 +58,29 @@ class EffectivePermissionEvaluatorTest :
                 decisions.getValue("message_send").allowed shouldBe false
                 decisions.getValue("message_send").decidedBy shouldBe PermissionDecisionReason.REQUIRES_CHANNEL_ACCESS
             }
+            it("음성 채널의 채팅 작업과 음성 로그 조회는 message_read도 요구한다") {
+                val member = PolicyRole(
+                    1L,
+                    "@everyone",
+                    mapOf(
+                        "voice_connect" to true,
+                        "voice_speak" to true,
+                        "message_send" to true,
+                        "voice_log_read" to true,
+                    ),
+                    isDefault = true,
+                )
+                val decisions = EffectivePermissionEvaluator.channel(
+                    listOf(member),
+                    emptyMap(),
+                    isPrivate = false,
+                    accessPermission = "voice_connect",
+                    keys = listOf("voice_speak", "message_send", "voice_log_read"),
+                )
+                decisions.getValue("voice_speak").allowed shouldBe true
+                decisions.getValue("message_send").decidedBy shouldBe PermissionDecisionReason.REQUIRES_MESSAGE_READ
+                decisions.getValue("voice_log_read").decidedBy shouldBe PermissionDecisionReason.REQUIRES_MESSAGE_READ
+            }
             it("음성 채널은 voice_connect를 접근 권한으로 쓴다") {
                 val speaker = PolicyRole(1L, "@everyone", mapOf("voice_speak" to true), isDefault = true)
                 val decisions = EffectivePermissionEvaluator.channel(

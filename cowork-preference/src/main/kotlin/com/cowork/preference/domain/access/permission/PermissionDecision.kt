@@ -41,6 +41,9 @@ enum class PermissionDecisionReason {
     /** 채널 접근 권한이 없어 함께 거부되었다. 텍스트 채널은 message_read, 음성 채널은 voice_connect가 접근 권한이다. */
     REQUIRES_CHANNEL_ACCESS,
 
+    /** 채팅 작업과 음성 로그 조회는 음성 채널에서도 message_read를 요구한다. 메시지 읽기 권한이 없어 함께 거부되었다. */
+    REQUIRES_MESSAGE_READ,
+
     /** 프로젝트 역할이 허용했다. 팀 역할보다 우선한다. */
     PROJECT_OVERRIDE_ALLOW,
 
