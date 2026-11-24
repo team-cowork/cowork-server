@@ -1,14 +1,18 @@
 package com.cowork.project.global.exception
 
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
+import org.springframework.web.HttpRequestMethodNotSupportedException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.MissingRequestHeaderException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
+import org.springframework.web.servlet.resource.NoResourceFoundException
 import team.themoment.sdk.exception.ExpectedException
+import org.springframework.web.ErrorResponse as SpringErrorResponse
 
 @RestControllerAdvice
 class GlobalExceptionHandler {
@@ -38,8 +42,26 @@ class GlobalExceptionHandler {
     fun handleMissingHeader(e: MissingRequestHeaderException): ResponseEntity<ErrorResponse> =
         ResponseEntity.badRequest().body(ErrorResponse("필수 헤더가 누락되었습니다. header=${e.headerName}"))
 
+    @ExceptionHandler(NoResourceFoundException::class)
+    fun handleNoResourceFound(e: NoResourceFoundException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse("요청한 API를 찾을 수 없습니다."))
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException::class)
+    fun handleMethodNotSupported(e: HttpRequestMethodNotSupportedException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+            .allow(*e.supportedHttpMethods.orEmpty().toTypedArray())
+            .body(ErrorResponse("지원하지 않는 HTTP 메서드입니다."))
+
     @ExceptionHandler(Exception::class)
     fun handleInternal(e: Exception): ResponseEntity<ErrorResponse> {
+        if (e is SpringErrorResponse) {
+            if (e.statusCode.is5xxServerError) {
+                log.error("Failed to process an HTTP request", e)
+            }
+            return ResponseEntity.status(e.statusCode)
+                .headers(e.headers)
+                .body(ErrorResponse("요청을 처리할 수 없습니다."))
+        }
         log.error("처리되지 않은 예외 발생", e)
         return ResponseEntity.internalServerError().body(ErrorResponse("서버 오류가 발생했습니다."))
     }
