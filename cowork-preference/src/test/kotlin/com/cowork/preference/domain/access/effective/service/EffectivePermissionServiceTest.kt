@@ -23,6 +23,7 @@ import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
 import io.mockk.coVerify
+import io.mockk.every
 import io.mockk.mockk
 import io.vertx.sqlclient.Pool
 import kotlinx.coroutines.runBlocking
@@ -85,6 +86,8 @@ class EffectivePermissionServiceTest :
                 val fixture = EffectivePermissionFixture()
                 coEvery { fixture.accountRoleRepository.policyRoles(fixture.pool, USER_ID) } returns
                     listOf(PolicyRole(1L, "default", mapOf("create_team" to true), isDefault = true))
+                every { fixture.teamMembershipGuard.requireProjectionReady() } returns Unit
+                coEvery { fixture.teamRoleRepository.findRolesInMemberTeams(fixture.pool, USER_ID) } returns emptyList()
 
                 val result = fixture.evaluate(PermissionScope.Account)
 
@@ -92,6 +95,42 @@ class EffectivePermissionServiceTest :
                 result.decisions.getValue("manage_account_roles").allowed shouldBe false
                 result.evaluatedAt shouldBe NOW
                 result.teamId shouldBe null
+            }
+
+            it("계정 역할이 허용하지 않아도 소속 팀의 관리자 역할이 있으면 팀 생성을 허용한다") {
+                val fixture = EffectivePermissionFixture()
+                coEvery { fixture.accountRoleRepository.policyRoles(fixture.pool, USER_ID) } returns
+                    listOf(PolicyRole(1L, "default", mapOf("create_team" to false), isDefault = true))
+                every { fixture.teamMembershipGuard.requireProjectionReady() } returns Unit
+                coEvery { fixture.teamRoleRepository.findRolesInMemberTeams(fixture.pool, USER_ID) } returns listOf(
+                    TeamRoleDefinition(
+                        9L, TEAM_ID, "Admin", "#99AAB5", 10, false,
+                        mapOf(
+                            "administrator" to true,
+                        ),
+                        null, null,
+                    ),
+                )
+
+                val decision = fixture.evaluate(PermissionScope.Account).decisions.getValue("create_team")
+
+                decision.allowed shouldBe true
+                decision.decidedBy shouldBe PermissionDecisionReason.ADMINISTRATOR
+                decision.sources.last().teamId shouldBe TEAM_ID
+            }
+
+            it("팀 생성 권한을 조회하지 않으면 소속 팀 역할을 읽지 않는다") {
+                val fixture = EffectivePermissionFixture()
+                coEvery { fixture.accountRoleRepository.policyRoles(fixture.pool, USER_ID) } returns emptyList()
+
+                runBlocking {
+                    fixture.service.evaluate(
+                        REQUESTER,
+                        EffectivePermissionQuery(PermissionScope.Account, setOf("manage_account_roles"), false),
+                    )
+                }
+
+                coVerify(exactly = 0) { fixture.teamRoleRepository.findRolesInMemberTeams(any(), any()) }
             }
 
             it("팀 범위에서 멤버십을 확인한 뒤 팀 역할을 평가한다") {

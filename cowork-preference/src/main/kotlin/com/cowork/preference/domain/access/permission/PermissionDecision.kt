@@ -70,9 +70,12 @@ data class PermissionSource(
     val value: Boolean?,
     val roleId: Long? = null,
     val roleName: String? = null,
+    /** 계정 범위에서 팀 역할 근거가 속한 팀. 다른 범위에서는 null이다. */
+    val teamId: Long? = null,
 ) {
     fun toJson(): JsonObject = JsonObject()
         .put("kind", kind.name)
+        .put("teamId", teamId)
         .put("roleId", roleId)
         .put("roleName", roleName)
         .put("permission", permission)
@@ -93,4 +96,6 @@ data class PolicyRole(
     val roleName: String?,
     val permissions: Map<String, Boolean>,
     val isDefault: Boolean = false,
+    /** 판정 근거에 팀을 표시해야 할 때만 채운다. */
+    val teamId: Long? = null,
 )

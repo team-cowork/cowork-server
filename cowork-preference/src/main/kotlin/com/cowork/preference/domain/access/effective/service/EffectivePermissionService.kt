@@ -11,6 +11,7 @@ import com.cowork.preference.domain.access.permission.PolicyRole
 import com.cowork.preference.domain.access.service.ChannelAccessGuard
 import com.cowork.preference.domain.access.service.ProjectAccessGuard
 import com.cowork.preference.domain.access.service.TeamMembershipGuard
+import com.cowork.preference.domain.accountrole.AccountRolePolicy
 import com.cowork.preference.domain.accountrole.AccountRoleRepository
 import com.cowork.preference.domain.channelrole.repository.ChannelRolePolicyRepository
 import com.cowork.preference.domain.projectrole.repository.ProjectRoleRepository
@@ -39,18 +40,28 @@ class EffectivePermissionService(
     suspend fun evaluate(requester: RequesterContext, query: EffectivePermissionQuery): EffectivePermissionResult {
         val accountId = requester.userId
         val (teamId, decisions) = when (val scope = query.scope) {
-            PermissionScope.Account -> null to EffectivePermissionEvaluator.account(
-                accountRoleRepository.policyRoles(pool, accountId),
-                query.keys,
-            )
-
+            PermissionScope.Account -> null to evaluateAccount(accountId, query.keys)
             is PermissionScope.Team -> scope.teamId to evaluateTeam(requester, scope, query.keys)
-
             is PermissionScope.Channel -> evaluateChannel(accountId, scope, query.keys)
-
             is PermissionScope.Project -> evaluateProject(requester, scope, query.keys)
         }
         return EffectivePermissionResult(accountId, query.scope, teamId, clock.instant(), decisions, query.explain)
+    }
+
+    private suspend fun evaluateAccount(accountId: Long, keys: List<String>): Map<String, PermissionDecision> {
+        val memberTeamRoles = if (AccountRolePolicy.CREATE_TEAM in keys) {
+            teamMembershipGuard.requireProjectionReady()
+            teamRoleRepository.findRolesInMemberTeams(pool, accountId).map {
+                PolicyRole(it.id, it.name, it.permissions, it.isDefault, it.teamId)
+            }
+        } else {
+            emptyList()
+        }
+        return EffectivePermissionEvaluator.account(
+            accountRoleRepository.policyRoles(pool, accountId),
+            memberTeamRoles,
+            keys,
+        )
     }
 
     private suspend fun evaluateTeam(

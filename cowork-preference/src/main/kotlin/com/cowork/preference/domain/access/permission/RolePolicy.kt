@@ -10,7 +10,14 @@ object RolePolicy {
     /** [allows]와 같은 규칙으로 판정하고, 판정에 쓰인 역할 값을 함께 반환한다. */
     fun explain(roles: List<PolicyRole>, action: String): PermissionDecision {
         val sources = roles.map {
-            PermissionSource(PermissionSourceKind.TEAM_ROLE, action, it.permissions[action], it.roleId, it.roleName)
+            PermissionSource(
+                PermissionSourceKind.TEAM_ROLE,
+                action,
+                it.permissions[action],
+                it.roleId,
+                it.roleName,
+                it.teamId,
+            )
         }
         if (roles.any { grants(it.permissions, action) }) {
             return PermissionDecision(true, PermissionDecisionReason.ROLE_GRANT, sources)
@@ -45,4 +52,5 @@ internal fun PolicyRole.administratorSource(): PermissionSource = PermissionSour
     true,
     roleId,
     roleName,
+    teamId,
 )

@@ -1419,7 +1419,7 @@
           "accountId": {"type": "integer", "format": "int64", "description": "요청자 ID"},
           "scope": {"$ref": "#/components/schemas/PermissionScope"},
           "evaluatedAt": {"type": "string", "format": "date-time", "description": "평가 시각"},
-          "permissions": {"type": "object", "additionalProperties": {"type": "boolean"}, "description": "권한 키별 허용 여부", "example": {"message_read": true, "message_send": false}},
+          "permissions": {"type": "object", "additionalProperties": {"type": "boolean"}, "description": "권한 키별 허용 여부. 계정 범위의 create_team은 소속 팀의 팀 역할이 허용해도 true", "example": {"message_read": true, "message_send": false}},
           "explanations": {"type": "object", "additionalProperties": {"$ref": "#/components/schemas/PermissionExplanation"}, "description": "권한 키별 판정 근거. explain이 true일 때만 포함"}
         }
       },
@@ -1447,6 +1447,7 @@
         "required": ["kind", "permission"],
         "properties": {
           "kind": {"type": "string", "enum": ["ACCOUNT_ROLE", "TEAM_ROLE", "CHANNEL_DEFAULT_OVERWRITE", "CHANNEL_ROLE_OVERWRITE", "PROJECT_ROLE"]},
+          "teamId": {"type": "integer", "format": "int64", "nullable": true, "description": "계정 범위에서 팀 역할 근거가 속한 팀. 다른 범위에서는 null"},
           "roleId": {"type": "integer", "format": "int64", "nullable": true, "description": "프로젝트 역할은 null"},
           "roleName": {"type": "string", "nullable": true},
           "permission": {"type": "string", "description": "정책에 저장된 권한 키. 프로젝트 역할은 project_ 접두사가 없음", "example": "message_send"},

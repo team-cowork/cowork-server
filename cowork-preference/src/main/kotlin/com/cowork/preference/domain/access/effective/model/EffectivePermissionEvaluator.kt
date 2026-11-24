@@ -11,8 +11,25 @@ import com.cowork.preference.domain.projectrole.model.ProjectPermissions
 
 /** 범위별 정책 입력을 실제 인가 판정과 같은 resolver로 평가한다. */
 object EffectivePermissionEvaluator {
-    fun account(roles: List<PolicyRole>, keys: List<String>): Map<String, PermissionDecision> =
-        keys.associateWith { AccountRolePolicy.explain(roles, it) }
+    /**
+     * 계정 역할로 판정한다. cowork-team의 `AccountPermissionGuard.requireCreateTeam`과 같이,
+     * 팀 생성은 [memberTeamRoles]에 있는 소속 팀의 팀 역할이 허용해도 허용한다.
+     */
+    fun account(
+        accountRoles: List<PolicyRole>,
+        memberTeamRoles: List<PolicyRole>,
+        keys: List<String>,
+    ): Map<String, PermissionDecision> = keys.associateWith { key ->
+        val accountDecision = AccountRolePolicy.explain(accountRoles, key)
+        if (key != AccountRolePolicy.CREATE_TEAM) return@associateWith accountDecision
+        val teamDecision = RolePolicy.explain(memberTeamRoles, key)
+        val sources = accountDecision.sources + teamDecision.sources
+        when {
+            accountDecision.allowed -> accountDecision.copy(sources = sources)
+            teamDecision.allowed -> teamDecision.copy(sources = sources)
+            else -> accountDecision.copy(sources = sources)
+        }
+    }
 
     fun team(roles: List<PolicyRole>, keys: List<String>): Map<String, PermissionDecision> =
         keys.associateWith { RolePolicy.explain(roles, it) }

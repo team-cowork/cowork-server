@@ -26,6 +26,13 @@ class TeamMembershipGuard(
         requireActiveMember(teamId, requester.userId)
     }
 
+    /** 팀 멤버 projection만 읽는 조회가 오래된 멤버십을 쓰지 않게 한다. */
+    fun requireProjectionReady() {
+        if (!readiness.isReady) {
+            throw TeamMembershipProjectionNotReadyException("team member projection is not ready")
+        }
+    }
+
     /** 팀 설정은 manage_team, 닉네임 형식 키만 수정할 때는 manage_nickname_format도 허용한다. */
     suspend fun requireSettingsManager(teamId: Long, requester: RequesterContext, settingKeys: Set<String>) {
         val member = requireActiveMember(teamId, requester.userId)
@@ -41,9 +48,7 @@ class TeamMembershipGuard(
     }
 
     private suspend fun requireActiveMember(teamId: Long, accountId: Long): TeamMemberProjection {
-        if (!readiness.isReady) {
-            throw TeamMembershipProjectionNotReadyException("team member projection is not ready")
-        }
+        requireProjectionReady()
         val member = memberRepository.findForRead(pool, teamId, accountId)
         if (member == null || member.deleted) {
             throw TeamMembershipDeniedException("팀 멤버만 접근할 수 있습니다.")

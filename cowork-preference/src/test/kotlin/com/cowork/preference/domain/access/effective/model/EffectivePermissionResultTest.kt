@@ -49,6 +49,7 @@ class EffectivePermissionResultTest :
                         "sources": [
                           {
                             "kind": "CHANNEL_ROLE_OVERWRITE",
+                            "teamId": null,
                             "roleId": 7,
                             "roleName": "Guest",
                             "permission": "message_send",
