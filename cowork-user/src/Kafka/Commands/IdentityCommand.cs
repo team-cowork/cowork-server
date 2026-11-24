@@ -16,6 +16,7 @@ public static class IdentityCommand
     internal const string NotLinkedCode = "IDENTITY_NOT_LINKED";
     internal const string AlreadyLinkedCode = "IDENTITY_ALREADY_LINKED";
     internal const string DataGsmLoginRequiredCode = "DATAGSM_LOGIN_REQUIRED";
+    internal const string GitHubLoginRequiredCode = "GITHUB_LOGIN_REQUIRED";
 
     sealed class ConflictingReuse(string reason = ":conflicting_identity_command_reuse") : Exception(reason);
 
@@ -114,6 +115,7 @@ public static class IdentityCommand
         NotLinkedCode => "an existing account uses this email or GitHub ID, but this login method is not linked to it",
         AlreadyLinkedCode => "the login method is already linked to another account, or the account already has one",
         DataGsmLoginRequiredCode => "a GSM school email must sign in with DataGSM first and then link GitHub",
+        GitHubLoginRequiredCode => "an account without student information uses this email or GitHub ID; sign in with GitHub and then link DataGSM",
         _ => ResultErrorMessage,
     };
 

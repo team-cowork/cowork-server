@@ -44,8 +44,7 @@ public static partial class IdentityCommandContract
             payload.GetString("email")!, "", null, null, null, null, "", null, null, at, precision, provider!, subject, commandType);
         if (commandType == "LINK")
         {
-            // Only GitHub can be linked to an existing account.
-            if (provider != "GITHUB" || payload.Get("accountId").Integer() is not > 0) return null;
+            if (provider is not ("GITHUB" or "DATAGSM") || payload.Get("accountId").Integer() is not > 0) return null;
             command = command with { AccountId = payload.Get("accountId").Integer() };
         }
         if (provider == "GITHUB")

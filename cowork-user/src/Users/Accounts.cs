@@ -498,22 +498,18 @@ public static partial class Accounts
             // GitHub and developer logins never overwrite the profile or student information of an existing account.
             if (command.Provider == "DATAGSM")
             {
-                var parameters = new { id, command.Name, command.Email, github = NullIfBlank(command.GithubId),
-                    command.DatagsmStudentId, command.Sex, command.Role, command.Major,
-                    studentNumber = StudentNumber(command.Grade, command.ClassNumber, command.StudentNumberInClass) };
                 if (isNew)
-                    await connection.ExecuteAsync("""
-                        INSERT INTO tb_gsm_student_info (account_id, datagsm_student_id, sex, student_role, major, student_number)
-                        VALUES (@id, @DatagsmStudentId, @Sex, @Role, @Major, @studentNumber)
-                        """, parameters, transaction);
+                    await InsertStudentAsync(connection, transaction, id!.Value, command);
                 else
-                    await connection.ExecuteAsync("""
+                    await connection.ExecuteAsync($"""
                         UPDATE tb_accounts a JOIN tb_gsm_student_info s ON s.account_id = a.id
-                        SET a.name = @Name, a.email = @Email, a.github = @github, a.last_modified_by = @id, a.updated_at = UTC_TIMESTAMP(6),
+                        SET a.name = @Name, a.email = @Email, a.github = {GithubUnlessLinked}, a.last_modified_by = @id, a.updated_at = UTC_TIMESTAMP(6),
                             s.sex = @Sex, s.student_role = @Role, s.student_number = @studentNumber,
                             s.datagsm_student_id = COALESCE(@DatagsmStudentId, s.datagsm_student_id), s.major = @Major
                         WHERE a.id = @id
-                        """, parameters, transaction);
+                        """, new { id, command.Name, command.Email, github = NullIfBlank(command.GithubId),
+                        command.DatagsmStudentId, command.Sex, command.Role, command.Major,
+                        studentNumber = StudentNumber(command.Grade, command.ClassNumber, command.StudentNumberInClass) }, transaction);
             }
 
             var userId = id!.Value;
@@ -533,9 +529,26 @@ public static partial class Accounts
             if (await FindIdentityAsync(connection, transaction, command) is { } concurrent)
                 return (await ReadSessionIdentityAsync(connection, transaction, concurrent.Id), null);
             // Another account already uses this email, GitHub ID, or student; an unlinked login method must not reach it.
+            // A student whose account has no student row signed up with GitHub first and must link DataGSM from that account.
+            if (command.Provider == "DATAGSM" && await connection.ExecuteScalarAsync<bool>("""
+                    SELECT EXISTS (SELECT 1 FROM tb_accounts a LEFT JOIN tb_gsm_student_info s ON s.account_id = a.id
+                                   WHERE (a.email = @Email OR a.github = @github) AND s.account_id IS NULL)
+                    """, new { command.Email, github = NullIfBlank(command.GithubId) }, transaction))
+                return (null, IdentityCommand.GitHubLoginRequiredCode);
             return (null, IdentityCommand.NotLinkedCode);
         }
     }
+
+    // DataGSM never replaces the github value of an account that has a GitHub login method, because GitHub verified it.
+    const string GithubUnlessLinked =
+        "IF(EXISTS (SELECT 1 FROM tb_account_identities i WHERE i.account_id = a.id AND i.provider = 'GITHUB'), a.github, @github)";
+
+    static Task InsertStudentAsync(MySqlConnection connection, MySqlTransaction transaction, long accountId, IdentityCommandContract.Command command) =>
+        connection.ExecuteAsync("""
+            INSERT INTO tb_gsm_student_info (account_id, datagsm_student_id, sex, student_role, major, student_number)
+            VALUES (@accountId, @DatagsmStudentId, @Sex, @Role, @Major, @studentNumber)
+            """, new { accountId, command.DatagsmStudentId, command.Sex, command.Role, command.Major,
+            studentNumber = StudentNumber(command.Grade, command.ClassNumber, command.StudentNumberInClass) }, transaction);
 
     static Task<(long Id, DateTime? LastCommandAt)?> FindIdentityAsync(
         MySqlConnection connection, MySqlTransaction transaction, IdentityCommandContract.Command command) =>
@@ -545,8 +558,9 @@ public static partial class Accounts
             """, new { command.Provider, command.ProviderSubject }, transaction).FirstOrNullAsync();
 
     /// <summary>
-    /// Adds a login method to the account that requested it. The account profile does not change.
-    /// A method linked to another account, or a second method of the same provider, is refused.
+    /// Adds a login method to the account that requested it. The common account profile does not change.
+    /// A DataGSM link also adds the student row. A method or student linked to another account, a second method of the
+    /// same provider, or a DataGSM link to an account that already has a student row, is refused.
     /// </summary>
     static async Task<(SessionIdentity? Identity, string? FailureCode)> ApplyLinkCommandAsync(
         MySqlConnection connection, MySqlTransaction transaction, IdentityCommandContract.Command command)
@@ -567,10 +581,17 @@ public static partial class Accounts
                 INSERT INTO tb_account_identities (account_id, provider, provider_subject, last_login_command_at)
                 VALUES (@accountId, @Provider, @ProviderSubject, @OccurredAt)
                 """, new { accountId, command.Provider, command.ProviderSubject, command.OccurredAt }, transaction);
+            if (command.Provider == "DATAGSM")
+            {
+                await InsertStudentAsync(connection, transaction, accountId.Value, command);
+                await ProfileEventPublisher.EnqueueCurrentUpsertAsync(connection, transaction, accountId.Value);
+            }
         }
         catch (MySqlException error) when (error.ErrorCode == MySqlErrorCode.DuplicateKeyEntry)
         {
             // uq_tb_account_identities_account_id_provider: the account already has a login method of this provider.
+            // tb_gsm_student_info PRIMARY or uq_tb_gsm_student_info_datagsm_student_id: the account already has a student
+            // row, or another account has this student.
             await transaction.RollbackAsync("identity_link");
             return (null, IdentityCommand.AlreadyLinkedCode);
         }
@@ -631,9 +652,9 @@ public static partial class Accounts
 
             try
             {
-                await connection.ExecuteAsync("""
+                await connection.ExecuteAsync($"""
                     UPDATE tb_accounts a JOIN tb_gsm_student_info s ON s.account_id = a.id
-                    SET a.name = @name, a.email = @email, s.sex = @sex, a.github = @github, s.student_role = @studentRole,
+                    SET a.name = @name, a.email = @email, s.sex = @sex, a.github = {GithubUnlessLinked}, s.student_role = @studentRole,
                         s.student_number = @studentNumber, s.major = @major, s.specialty = @specialty,
                         s.datagsm_updated_at = @occurredAt, a.updated_at = UTC_TIMESTAMP(6)
                     WHERE a.id = @id

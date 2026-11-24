@@ -269,7 +269,7 @@ public class ContractTests
     }
 
     [Fact]
-    public void Link_command_requires_github_and_a_positive_account()
+    public void Link_command_requires_a_linkable_provider_and_a_positive_account()
     {
         var link = IdentityCommandContract.Parse(Json(GitHubLink), "GITHUB:583231")!;
         Assert.Equal(("LINK", 7L), (link.CommandType, link.AccountId));
@@ -282,6 +282,17 @@ public class ContractTests
              "student":null,"accountId":7,"occurredAt":"2026-10-18T01:00:00.12Z"}
             """;
         Assert.Null(IdentityCommandContract.Parse(Json(devLink), "DEV:dev-2"));
+    }
+
+    [Fact]
+    public void DataGsm_link_command_carries_the_student_for_the_account()
+    {
+        var payload = IdentityCommand.Replace("\"UPSERT\"", "\"LINK\"").Replace("\"occurredAt\"", "\"accountId\":7,\"occurredAt\"");
+        var link = IdentityCommandContract.Parse(Json(payload), "DATAGSM:7")!;
+        Assert.Equal(("LINK", 7L, 42L, "GENERAL_STUDENT"), (link.CommandType, link.AccountId!.Value, link.DatagsmStudentId!.Value, link.Role));
+        Assert.Null(IdentityCommandContract.Parse(Json(payload.Replace("\"accountId\":7,", "")), "DATAGSM:7"));
+        var withoutStudent = payload.Replace(payload[payload.IndexOf("{\"sex\"")..(payload.IndexOf("42}") + 3)], "null");
+        Assert.Null(IdentityCommandContract.Parse(Json(withoutStudent), "DATAGSM:7"));
     }
 
     [Fact]
