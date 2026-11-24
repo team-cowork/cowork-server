@@ -147,3 +147,35 @@ func TestBuildCalendarReminderUsesLeadAndEventTimeZone(t *testing.T) {
 		})
 	}
 }
+
+func TestBuildScheduledMessageFailedExplainsReason(t *testing.T) {
+	cases := []struct {
+		name string
+		data map[string]any
+		want string
+	}{
+		{
+			name: "known reason with content",
+			data: map[string]any{"reason": "CHANNEL_ARCHIVED", "content": "주간 공지"},
+			want: "채널이 보관되었습니다. 내용: 주간 공지",
+		},
+		{
+			name: "attachment only message",
+			data: map[string]any{"reason": "DM_BLOCKED", "content": ""},
+			want: "상대방이 회원님을 차단했습니다.",
+		},
+		{
+			name: "unknown reason",
+			data: map[string]any{"reason": "NEW_REASON", "content": "안내"},
+			want: "알 수 없는 이유로 보내지 못했습니다. 내용: 안내",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			title, body, ok := buildScheduledMessageFailed(NotificationTriggerEvent{Type: "SCHEDULED_MESSAGE_FAILED", Data: tc.data})
+			if !ok || title != "예약 메시지 발송 실패" || body != tc.want {
+				t.Fatalf("got (%q, %q, %v), want body %q", title, body, ok, tc.want)
+			}
+		})
+	}
+}

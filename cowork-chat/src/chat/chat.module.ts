@@ -140,6 +140,11 @@ import {ThreadProjection, threadProjectionSchema} from './schema/thread-projecti
 import {ThreadProjectionRepository} from './repository/thread-projection.repository.js';
 import {ThreadStateConsumer} from './kafka/thread-state.consumer.js';
 import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consumer.js';
+import {ScheduledMessage, scheduledMessageSchema} from './scheduled/scheduled-message.schema.js';
+import {ScheduledMessageRepository} from './scheduled/scheduled-message.repository.js';
+import {ScheduledMessageService} from './scheduled/scheduled-message.service.js';
+import {ScheduledMessageDispatcher} from './scheduled/scheduled-message.dispatcher.js';
+import {ScheduledMessageController} from './scheduled/scheduled-message.controller.js';
 
 @nestModule({
 	imports: [
@@ -167,6 +172,7 @@ import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consume
 			{name: MessageSearchTombstone.name, schema: messageSearchTombstoneSchema},
 			{name: MessageSearchIndexState.name, schema: messageSearchIndexStateSchema},
 			{name: AttachmentDeletion.name, schema: attachmentDeletionSchema},
+			{name: ScheduledMessage.name, schema: scheduledMessageSchema},
 		]),
 		DmParticipantModule,
 		BlockModule,
@@ -183,6 +189,7 @@ import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consume
 		TeamSearchController,
 		ChatMessageQuarantineAdminController,
 		MessageSearchAdminController,
+		ScheduledMessageController,
 	],
 	providers: [
 		MeetingNoteAttachmentRetentionRepository,
@@ -201,6 +208,9 @@ import {ThreadParentCommandConsumer} from './kafka/thread-parent-command.consume
 		AttachmentDownloadService,
 		AttachmentDeletionRepository,
 		AttachmentCleanupPoller,
+		ScheduledMessageRepository,
+		ScheduledMessageService,
+		ScheduledMessageDispatcher,
 		ChannelReadStateRepository,
 		MessageRepository,
 		DmParticipantRepository,

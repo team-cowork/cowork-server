@@ -325,9 +325,37 @@ func (c *Consumer) buildMessage(ctx context.Context, event NotificationTriggerEv
 		return c.buildGithubComment(event)
 	case "CALENDAR_EVENT_REMINDER":
 		return buildCalendarReminder(event)
+	case "SCHEDULED_MESSAGE_FAILED":
+		return buildScheduledMessageFailed(event)
 	default:
 		return "알림", "", true
 	}
+}
+
+var scheduledMessageFailureReasons = map[string]string{
+	"MESSAGE_SEND_DENIED": "메시지 작성 권한이 없습니다",
+	"FILE_ATTACH_DENIED":  "파일 첨부 권한이 없습니다",
+	"CHANNEL_NOT_FOUND":   "채널이 삭제되었습니다",
+	"CHANNEL_ARCHIVED":    "채널이 보관되었습니다",
+	"DM_BLOCKED":          "상대방이 회원님을 차단했습니다",
+	"TOO_MANY_MENTIONS":   "멘션이 너무 많습니다",
+	"DISPATCH_TIMEOUT":    "예약 시각에서 오래 지나도록 보내지 못했습니다",
+}
+
+// buildScheduledMessageFailed는 cowork-chat이 예약 메시지를 보내지 못한 사유를 작성자에게 알리는 본문을 만든다.
+func buildScheduledMessageFailed(event NotificationTriggerEvent) (title, body string, ok bool) {
+	reasonCode, _ := event.Data["reason"].(string)
+	content, _ := event.Data["content"].(string)
+	reason, known := scheduledMessageFailureReasons[reasonCode]
+	if !known {
+		reason = "알 수 없는 이유로 보내지 못했습니다"
+	}
+
+	body = fmt.Sprintf("%s.", reason)
+	if content != "" {
+		body += " 내용: " + truncate(content, 100)
+	}
+	return "예약 메시지 발송 실패", body, true
 }
 
 func (c *Consumer) buildGithubComment(event NotificationTriggerEvent) (title, body string, ok bool) {
