@@ -63,7 +63,7 @@ func paths() *openapi3.Paths {
 	}})
 	paths.Set("/auth/link/callback", &openapi3.PathItem{Post: &openapi3.Operation{
 		Summary:     "로그인 수단 연결 완료",
-		Description: "연결 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 연결해도 세션과 공통 프로필은 바뀌지 않습니다. DataGSM을 연결하면 학생 정보가 추가됩니다. 다른 계정에 연결된 로그인 수단이나 학생 번호, 같은 공급자가 이미 연결된 계정, 학생 정보가 이미 있는 계정에는 연결할 수 없습니다.",
+		Description: "연결 시작 때 받은 쿠키와 콜백의 state, code 또는 error를 전달합니다. 연결해도 세션과 공통 프로필은 바뀌지 않습니다. DataGSM을 연결하면 학생 정보가 추가됩니다. 다른 계정에 연결된 로그인 수단이나 DataGSM 학생 ID, 같은 공급자가 이미 연결된 계정, 학생 정보가 이미 있는 계정에는 연결할 수 없습니다.",
 		Tags:        []string{"auth"},
 		Security:    &openapi3.SecurityRequirements{{"BearerAuth": {}}},
 		RequestBody: &openapi3.RequestBodyRef{Value: &openapi3.RequestBody{
