@@ -39,13 +39,21 @@ class EffectivePermissionService(
 ) {
     suspend fun evaluate(requester: RequesterContext, query: EffectivePermissionQuery): EffectivePermissionResult {
         val accountId = requester.userId
-        val (teamId, decisions) = when (val scope = query.scope) {
-            PermissionScope.Account -> null to evaluateAccount(accountId, query.keys)
-            is PermissionScope.Team -> scope.teamId to evaluateTeam(requester, scope, query.keys)
+        val result = when (val scope = query.scope) {
+            PermissionScope.Account -> ScopeResult(null, evaluateAccount(accountId, query.keys))
+            is PermissionScope.Team -> ScopeResult(scope.teamId, evaluateTeam(requester, scope, query.keys))
             is PermissionScope.Channel -> evaluateChannel(accountId, scope, query.keys)
             is PermissionScope.Project -> evaluateProject(requester, scope, query.keys)
         }
-        return EffectivePermissionResult(accountId, query.scope, teamId, clock.instant(), decisions, query.explain)
+        return EffectivePermissionResult(
+            accountId = accountId,
+            scope = query.scope,
+            teamId = result.teamId,
+            evaluatedAt = clock.instant(),
+            decisions = result.decisions,
+            explain = query.explain,
+            channelArchived = result.channelArchived,
+        )
     }
 
     private suspend fun evaluateAccount(accountId: Long, keys: List<String>): Map<String, PermissionDecision> {
@@ -77,7 +85,7 @@ class EffectivePermissionService(
         accountId: Long,
         scope: PermissionScope.Channel,
         keys: List<String>,
-    ): Pair<Long, Map<String, PermissionDecision>> {
+    ): ScopeResult {
         val channel = channelAccessGuard.requireChannelTeamMember(scope.channelId, accountId)
         val teamId = requireNotNull(channel.teamId) { "팀 채널만 권한을 조회할 수 있습니다." }
         val decisions = EffectivePermissionEvaluator.channel(
@@ -92,14 +100,15 @@ class EffectivePermissionService(
             },
             keys = keys,
         )
-        return teamId to decisions
+        // 보관은 권한 정책이 아니라 채널 상태이므로 판정 값은 바꾸지 않고 응답에만 표시한다.
+        return ScopeResult(teamId, decisions, channel.archived)
     }
 
     private suspend fun evaluateProject(
         requester: RequesterContext,
         scope: PermissionScope.Project,
         keys: List<String>,
-    ): Pair<Long, Map<String, PermissionDecision>> {
+    ): ScopeResult {
         val project = projectAccessGuard.requireTeamMember(scope.projectId, requester)
         val decisions = EffectivePermissionEvaluator.project(
             teamRoles(project.teamId, requester.userId),
@@ -108,11 +117,17 @@ class EffectivePermissionService(
             projectRoleRepository.effectivePermissions(scope.projectId, requester.userId, pool),
             keys,
         )
-        return project.teamId to decisions
+        return ScopeResult(project.teamId, decisions)
     }
 
     private suspend fun teamRoles(teamId: Long, accountId: Long): List<PolicyRole> =
         teamRoleRepository.findAccountRoles(pool, teamId, accountId).map { it.toPolicyRole() }
 
     private fun TeamRoleDefinition.toPolicyRole() = PolicyRole(id, name, permissions, isDefault)
+
+    private data class ScopeResult(
+        val teamId: Long?,
+        val decisions: Map<String, PermissionDecision>,
+        val channelArchived: Boolean? = null,
+    )
 }

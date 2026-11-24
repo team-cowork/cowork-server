@@ -24,6 +24,7 @@ class EffectivePermissionResultTest :
             evaluatedAt = Instant.parse("2026-11-24T05:12:00Z"),
             decisions = mapOf("message_send" to decision),
             explain = explain,
+            channelArchived = true,
         )
 
         describe("EffectivePermissionResult 클래스의 toJson 메서드는") {
@@ -32,7 +33,7 @@ class EffectivePermissionResultTest :
                     """
                     {
                       "accountId": 12,
-                      "scope": { "type": "CHANNEL", "teamId": 3, "channelId": 45 },
+                      "scope": { "type": "CHANNEL", "teamId": 3, "channelId": 45, "archived": true },
                       "evaluatedAt": "2026-11-24T05:12:00Z",
                       "permissions": { "message_send": false }
                     }

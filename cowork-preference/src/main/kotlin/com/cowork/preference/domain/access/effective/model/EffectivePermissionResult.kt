@@ -12,6 +12,8 @@ data class EffectivePermissionResult(
     val evaluatedAt: Instant,
     val decisions: Map<String, PermissionDecision>,
     val explain: Boolean,
+    /** 채널 범위에서만 채운다. 보관된 채널은 판정과 별개로 쓰기 작업이 거부된다. */
+    val channelArchived: Boolean? = null,
 ) {
     fun toJson(): JsonObject {
         val json = JsonObject()
@@ -30,6 +32,7 @@ data class EffectivePermissionResult(
 
         is PermissionScope.Channel ->
             JsonObject().put("type", "CHANNEL").put("teamId", teamId).put("channelId", scope.channelId)
+                .put("archived", channelArchived)
 
         is PermissionScope.Project ->
             JsonObject().put("type", "PROJECT").put("teamId", teamId).put("projectId", scope.projectId)

@@ -1430,7 +1430,8 @@
           "type": {"type": "string", "enum": ["ACCOUNT", "TEAM", "CHANNEL", "PROJECT"]},
           "teamId": {"type": "integer", "format": "int64", "description": "팀 ID. 채널과 프로젝트 범위에서는 리소스가 속한 팀"},
           "channelId": {"type": "integer", "format": "int64"},
-          "projectId": {"type": "integer", "format": "int64"}
+          "projectId": {"type": "integer", "format": "int64"},
+          "archived": {"type": "boolean", "description": "채널 범위에서만 포함. 보관된 채널은 권한 판정과 별개로 메시지 전송과 채널 설정 수정 같은 쓰기 작업이 거부됨"}
         }
       },
       "PermissionExplanation": {

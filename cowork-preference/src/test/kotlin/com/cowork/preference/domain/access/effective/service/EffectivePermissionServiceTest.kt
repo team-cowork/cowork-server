@@ -69,9 +69,9 @@ private class EffectivePermissionFixture {
             }
     }
 
-    fun channel(teamId: Long?, isPrivate: Boolean? = false, type: String? = "TEXT") {
+    fun channel(teamId: Long?, isPrivate: Boolean? = false, type: String? = "TEXT", archived: Boolean = false) {
         coEvery { channelAccessGuard.requireChannelTeamMember(CHANNEL_ID, USER_ID) } returns
-            ChannelLifecycleProjection(CHANNEL_ID, teamId, false, NOW, isPrivate, type)
+            ChannelLifecycleProjection(CHANNEL_ID, teamId, false, NOW, isPrivate, type, archived)
     }
 
     fun evaluate(scope: PermissionScope, explain: Boolean = false) = runBlocking {
@@ -194,6 +194,21 @@ class EffectivePermissionServiceTest :
 
                 shouldThrow<ResourceAccessDeniedException> { fixture.evaluate(PermissionScope.Channel(CHANNEL_ID)) }
                 coVerify(exactly = 0) { fixture.channelRolePolicyRepository.findOverwritesForRead(any(), any(), any()) }
+            }
+
+            it("보관된 채널은 판정 값을 바꾸지 않고 보관 여부만 표시한다") {
+                val fixture = EffectivePermissionFixture()
+                fixture.channel(TEAM_ID, archived = true)
+                fixture.teamRoles(mapOf("message_read" to true, "message_send" to true))
+                coEvery {
+                    fixture.channelRolePolicyRepository.findOverwritesForRead(fixture.pool, TEAM_ID, CHANNEL_ID)
+                } returns
+                    emptyMap()
+
+                val result = fixture.evaluate(PermissionScope.Channel(CHANNEL_ID))
+
+                result.channelArchived shouldBe true
+                result.decisions.getValue("message_send").allowed shouldBe true
             }
 
             it("비공개 여부를 아직 모르는 채널은 비공개로 판정한다") {
